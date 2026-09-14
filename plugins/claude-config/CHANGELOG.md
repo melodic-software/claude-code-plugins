@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.5]
+
+### Changed
+
+- audit-permission-state: permission-state.sh emits settings and registry rules of each kind through one helper, permission-merge.sh emits inert rows through one awk function, automode-entry-diff.sh tests rule classes through one helper and folds its predicted-drop branch, automode-block-lint.sh derives each subject once, two scripts drop write-only counters, and the permission-state and managed-conformance suites drop a duplicated fixture invocation and an unused temp dir. Output byte-identical.
+
 ## [0.46.4]
 
 ### Changed

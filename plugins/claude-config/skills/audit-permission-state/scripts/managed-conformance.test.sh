@@ -10,9 +10,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/managed-conformance.sh"
 
-TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
-
 FAILED=0
 CASE_NUM=0
 pass() {

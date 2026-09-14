@@ -79,6 +79,20 @@ run() {
     bash "$SCRIPT" "$@"
 }
 
+run_tree() {
+  # run_tree <root>: the reader over a second fixture tree laid out as
+  # <root>/proj, <root>/home, <root>/pol and <root>/sd, with both optional
+  # platform surfaces switched off. A case that varies one of those paths, or
+  # the environment itself, builds its own `env` invocation instead.
+  env -u CLAUDE_CONFIG_DIR HOME="$1/home" \
+    PERMISSION_STATE_FIXTURE_DIR="$1/proj" \
+    PERMISSION_STATE_STARTDIR="$1/sd" \
+    PERMISSION_STATE_MANAGED_PATH="$1/pol/managed-settings.json" \
+    PERMISSION_STATE_REGISTRY_KEYS="" \
+    PERMISSION_STATE_PLIST_DOMAIN="" \
+    bash "$SCRIPT"
+}
+
 # --- Case 1: --help ----------------------------------------------------------
 rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
@@ -131,14 +145,9 @@ assert_contains "server-managed settings disclosed" "$OUT" "Server-managed setti
 
 # --- Case 8: status vocabulary distinguishes absent from malformed -----------
 BAD="$TEST_TMPDIR/bad"
-mkdir -p "$BAD/proj/.claude" "$BAD/home/.claude" "$BAD/startdir"
+mkdir -p "$BAD/proj/.claude" "$BAD/home/.claude" "$BAD/sd"
 printf '{invalid\n' >"$BAD/proj/.claude/settings.json"
-OUT_BAD=$(env -u CLAUDE_CONFIG_DIR HOME="$BAD/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$BAD/proj" \
-  PERMISSION_STATE_STARTDIR="$BAD/startdir" \
-  PERMISSION_STATE_MANAGED_PATH="$BAD/policy/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_BAD=$(run_tree "$BAD")
 assert_contains "malformed settings reported as invalid-json" "$OUT_BAD" "project settings invalid-json"
 assert_contains "missing settings reported as absent" "$OUT_BAD" "user settings absent"
 assert_contains "missing managed file reported as absent" "$OUT_BAD" "managed file absent"
@@ -154,13 +163,7 @@ mkdir -p "$SHAPE/proj/.claude" "$SHAPE/home/.claude" "$SHAPE/pol" "$SHAPE/sd/.cl
 jq -n '{}' >"$SHAPE/pol/managed-settings.json"
 printf '["Bash(danger)"]\n' >"$SHAPE/proj/.claude/settings.json"
 printf '{"permissions":{"allow":"Bash(*)","deny":{"x":"y"}}}\n' >"$SHAPE/home/.claude/settings.json"
-OUT_SHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" \
-  PERMISSION_STATE_STARTDIR="$SHAPE/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_SHAPE=$(run_tree "$SHAPE")
 assert_contains "a top-level array is invalid-json, not present" "$OUT_SHAPE" "project settings invalid-json"
 assert_contains "a string-valued permissions key is invalid-json too" "$OUT_SHAPE" "user settings invalid-json"
 assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rule (user|project) ')"
@@ -169,13 +172,7 @@ assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rul
 # both PRESENT -- the shape check must not reject the ordinary shapes.
 printf '{}\n' >"$SHAPE/proj/.claude/settings.json"
 printf '{"permissions":null}\n' >"$SHAPE/home/.claude/settings.json"
-OUT_OKSHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" \
-  PERMISSION_STATE_STARTDIR="$SHAPE/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_OKSHAPE=$(run_tree "$SHAPE")
 assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings present"
 assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
 
@@ -288,13 +285,7 @@ mkdir -p "$NLFX/proj/.claude" "$NLFX/home/.claude" "$NLFX/pol" "$NLFX/sd/.claude
 jq -n '{}' >"$NLFX/proj/.claude/settings.json"
 jq -n '{}' >"$NLFX/pol/managed-settings.json"
 jq -n '{permissions:{allow:["Bash(echo hi\nthere *)","Bash(npm test)"]}}' >"$NLFX/home/.claude/settings.json"
-OUT_NL=$(env -u CLAUDE_CONFIG_DIR HOME="$NLFX/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$NLFX/proj" \
-  PERMISSION_STATE_STARTDIR="$NLFX/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$NLFX/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_NL=$(run_tree "$NLFX")
 assert_eq "the multi-line rule yields no rule record" 0 "$(count_matching "$OUT_NL" '^rule user settings allow Bash\(echo')"
 assert_eq "and no fragment record either" 0 "$(count_matching "$OUT_NL" '^rule user settings allow there')"
 assert_contains "it is reported as unrepresentable" "$OUT_NL" "cannot be represented as one record"
@@ -314,13 +305,7 @@ jq -n '{}' >"$CRFX/pol/managed-settings.json"
 # The CR reaches the file as a JSON backslash-r escape, which is how a real settings
 # file would carry one.
 jq -n '{permissions:{allow:["Bash(a\rb *)","Bash(npm test)"]}}' >"$CRFX/home/.claude/settings.json"
-OUT_CR=$(env -u CLAUDE_CONFIG_DIR HOME="$CRFX/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$CRFX/proj" \
-  PERMISSION_STATE_STARTDIR="$CRFX/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$CRFX/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_CR=$(run_tree "$CRFX")
 assert_eq "a CR-carrying rule yields no rule record" 0 "$(count_matching "$OUT_CR" '^rule user settings allow Bash.a')"
 assert_contains "it is reported rather than silently stripped" "$OUT_CR" "carriage return"
 assert_contains "the sibling rule is unaffected by the CR case" "$OUT_CR" "rule user settings allow Bash(npm test)"
