@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.28]
+
+### Changed
+
+- The repo-fleet-hygiene audit routes its six membership loops through the shared array-contains helper and drops unread locals and dead resets in the audit and apply scripts, with byte-identical plans, findings, and GraphQL queries.
+
 ## [0.23.27]
 
 ### Changed
