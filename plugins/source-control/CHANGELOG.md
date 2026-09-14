@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.86]
+
+### Changed
+
+- The pull-request skill test suites source the shared source-control test helpers instead of local assertion wrappers, and fetch-annotations collapses a redundant empty-repo test, with identical behavior.
+
 ## [0.55.85]
 
 ### Changed
