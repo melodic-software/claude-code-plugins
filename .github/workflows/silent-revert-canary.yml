@@ -23,7 +23,7 @@ name: silent-revert-canary
 #     aggregate, which is the single required check the org ci-gate ruleset
 #     keys on. Adding it there would make a detection heuristic able to block
 #     merges, which is how canaries acquire a constituency for switching them
-#     off. Same posture as link-check.yml: advisory lane, outside ci-status.
+#     off. Advisory lane, outside ci-status.
 #   * Nothing here changes any ruleset. The global
 #     `strict_required_status_checks_policy` stays off under the accepted ADR
 #     in melodic-software/github-iac
