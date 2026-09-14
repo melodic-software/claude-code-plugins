@@ -192,6 +192,18 @@ UNPUSHED_REFS=0
 SECRETS_COUNT=0
 SKILLDATA_COUNT=0
 
+# count_preserve_classes <path>: tally the two preserve classes whose loss the
+# removal would otherwise cause silently. Shared by the repo scan (ignored files)
+# and the plain-dir scan (target-relative descendants).
+count_preserve_classes() {
+  if clean_path_matches_secret_class "$1"; then
+    SECRETS_COUNT=$((SECRETS_COUNT + 1))
+  fi
+  if clean_path_matches_skilldata "$1"; then
+    SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
+  fi
+}
+
 # Structural bare-repo detection (HEAD + objects/ + refs/ at the top level) —
 # deliberately not `rev-parse --is-bare-repository`, which walks upward and
 # would misclassify a plain subdirectory of some enclosing repo.
@@ -255,12 +267,7 @@ if [[ "$KIND" != dir ]]; then
     # loss the removal would cause silently.
     while IFS= read -r ignored; do
       [[ -z "$ignored" ]] && continue
-      if clean_path_matches_secret_class "$ignored"; then
-        SECRETS_COUNT=$((SECRETS_COUNT + 1))
-      fi
-      if clean_path_matches_skilldata "$ignored"; then
-        SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
-      fi
+      count_preserve_classes "$ignored"
     done < <(git -C "$TARGET_ABS" ls-files --others --ignored --exclude-standard 2>/dev/null | tr -d '\r')
   fi
 
@@ -308,13 +315,7 @@ else
   # same SECRETS and SKILLDATA classes, passing target-relative paths so the
   # dir-prefix patterns (.aws/, .vscode/, .claude/skills/*/data/…) match too.
   while IFS= read -r -d '' f; do
-    rel="${f#"$TARGET_ABS"/}"
-    if clean_path_matches_secret_class "$rel"; then
-      SECRETS_COUNT=$((SECRETS_COUNT + 1))
-    fi
-    if clean_path_matches_skilldata "$rel"; then
-      SKILLDATA_COUNT=$((SKILLDATA_COUNT + 1))
-    fi
+    count_preserve_classes "${f#"$TARGET_ABS"/}"
   done < <(find "$TARGET_ABS" -mindepth 1 -print0 2>/dev/null)
 fi
 

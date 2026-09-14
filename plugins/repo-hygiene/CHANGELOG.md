@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.43]
+
+### Changed
+
+- Count the preserve classes through one helper in remove-path, merge the single-caller token resolver in resolve-clean-action and route the remove-path suite through shared runners (behavior unchanged).
+
 ## [0.10.42]
 
 ### Changed
