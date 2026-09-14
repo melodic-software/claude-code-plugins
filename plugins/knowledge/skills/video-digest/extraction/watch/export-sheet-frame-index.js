@@ -29,12 +29,7 @@ export function exportSheetFrameIndex(sliceDir) {
   const selection = JSON.parse(fs.readFileSync(selectionPath, "utf8"));
   const watch = fs.existsSync(watchPath) ? JSON.parse(fs.readFileSync(watchPath, "utf8")) : {};
 
-  const byFile = Object.fromEntries(
-    selection.selectedFrames.map((frame) => [
-      frame.file,
-      { timestampSec: frame.timestampSec, textDense: frame.textDense },
-    ]),
-  );
+  const byFile = Object.fromEntries(selection.selectedFrames.map((f) => [f.file, f]));
 
   const sheets = selection.contactSheets.map((sheet, index) => ({
     sheetId: `sheet_${String(index + 1).padStart(3, "0")}`,

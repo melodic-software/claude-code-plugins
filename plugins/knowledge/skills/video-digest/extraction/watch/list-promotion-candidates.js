@@ -55,10 +55,8 @@ export function listPromotionCandidates(sliceDir) {
       if (!frame) continue;
       const ts = frame.timestampSec ?? null;
       const session =
-        sessions.find((s) => {
-          const end = s.endSec ?? durationSec;
-          return ts != null && ts >= s.startSec && ts <= end;
-        })?.name ?? "unknown";
+        sessions.find((s) => ts != null && ts >= s.startSec && ts <= (s.endSec ?? durationSec))
+          ?.name ?? "unknown";
 
       const existing = candidates.get(cell.frame);
       const score = frame.priorityScore ?? 0;

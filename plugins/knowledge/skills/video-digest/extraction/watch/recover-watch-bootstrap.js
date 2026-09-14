@@ -136,6 +136,9 @@ export function resolveWorkArtifacts(workDir) {
 export const RECOVER_USAGE =
   "Usage: node watch/recover-watch-bootstrap.js <slice-dir> <workDir> <framesDir> <contactSheetsDir>";
 
+/** Frames per contact sheet, matching the 4x4 cell grid the sheets on disk were built with. */
+const FRAMES_PER_CONTACT_SHEET = 16;
+
 /**
  * Stratified downsample of a frame selection to the frame count the contact
  * sheets already on disk can hold.
@@ -229,7 +232,7 @@ export async function recoverWatchBootstrapCli(argv) {
 
   const sheetFiles = listExistingSheetFiles(contactSheetsDir);
   const expectedSheetCount = sheetFiles.length;
-  const expectedFrameCount = expectedSheetCount * 16;
+  const expectedFrameCount = expectedSheetCount * FRAMES_PER_CONTACT_SHEET;
 
   const downsample = downsampleSelectedFrames(selection.selected, expectedFrameCount);
   if (downsample.warning) {
@@ -241,7 +244,7 @@ export async function recoverWatchBootstrapCli(argv) {
     writeStderr(`${downsample.warning} to match ${expectedSheetCount} contact sheets`);
   }
 
-  const batches = batchFramesForContactSheets(selection.selected, 16);
+  const batches = batchFramesForContactSheets(selection.selected, FRAMES_PER_CONTACT_SHEET);
   const contactSheets = loadExistingContactSheets(contactSheetsDir, sheetFiles, batches);
 
   const highVolume = summarizeFrameSelection(selection.selected, {

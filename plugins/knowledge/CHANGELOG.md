@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.66]
+
+### Changed
+
+- Index sheet frames by the frame object, drop the single-group dedupe fast path, inline the session end lookup, name the frames-per-sheet constant and return the claim parse directly in the video-digest watch scripts (behavior unchanged).
+
 ## [0.13.65]
 
 ### Changed
