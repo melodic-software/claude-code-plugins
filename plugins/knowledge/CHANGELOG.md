@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.64]
+
+### Changed
+
+- Hoist the transcript degradation metric and the phase order, nest the anchor-name scoring guard, merge the triage-log pushes and share the talk fixture and temp-dir cleanup in the video-digest watch scripts (behavior unchanged).
+
 ## [0.13.63]
 
 ### Changed

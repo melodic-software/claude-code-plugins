@@ -183,6 +183,9 @@ export async function runWatchCli(argv) {
     written.transcripts.find((entry) => entry.entryIndex === written.primaryEntryIndex) ??
     written.transcripts[0] ??
     null;
+  const degradationMetric = written.transcriptDegradation
+    ? { transcriptDegradation: written.transcriptDegradation }
+    : {};
   state = markPhaseComplete(
     state,
     "transcript",
@@ -192,16 +195,12 @@ export async function runWatchCli(argv) {
           cueCount: primaryTranscript.cueCount,
           transcriptCount: written.transcripts.length,
           transcriptStrategy: primaryTranscript.strategy,
-          ...(written.transcriptDegradation
-            ? { transcriptDegradation: written.transcriptDegradation }
-            : {}),
+          ...degradationMetric,
         }
       : {
           skipped: true,
           reason: "no transcript-bearing entries",
-          ...(written.transcriptDegradation
-            ? { transcriptDegradation: written.transcriptDegradation }
-            : {}),
+          ...degradationMetric,
         },
   );
 

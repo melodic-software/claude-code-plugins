@@ -32,9 +32,12 @@ export function renderTriageLog(sliceDir) {
   for (const sheet of manifest.sheets) {
     const midCell = sheet.cells.find((c) => c.cell === "R3C2");
     const midMin = midCell?.timestampSec ? Math.round(midCell.timestampSec / 60) : null;
-    lines.push(`## ${sheet.sheetId}${midMin != null ? ` (~${midMin}m)` : ""}`, "");
-    lines.push("| Cell | Frame | Verdict | Notes |");
-    lines.push("| --- | --- | --- | --- |");
+    lines.push(
+      `## ${sheet.sheetId}${midMin != null ? ` (~${midMin}m)` : ""}`,
+      "",
+      "| Cell | Frame | Verdict | Notes |",
+      "| --- | --- | --- | --- |",
+    );
     for (const cell of sheet.cells) {
       lines.push(`| ${cell.cell} | ${cell.frame} | ${cell.verdict} | ${cell.note ?? ""} |`);
     }
