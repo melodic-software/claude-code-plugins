@@ -523,8 +523,6 @@ check-enter)
   do_check_enter
   exit $?
   ;;
-*)
-  printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
-  usage
-  ;;
+# Unknown verbs already exited above, where the verb was validated.
+*) ;;
 esac

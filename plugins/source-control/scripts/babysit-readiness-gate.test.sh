@@ -744,7 +744,7 @@ assert_contains "badgrep stub leaves a readable checklist clean" "$ok_out" "chec
 # image), so the subprocess would report its own 127 rather than the gate's
 # verdict. Assert instead that the jq check routes through unproven — the same
 # source-level contract style as the POSIX-matching assertion above.
-assert_contains "jq prerequisite emits UNPROVEN prereq-missing" "$(cat "$GATE")" \
+assert_contains "jq prerequisite emits UNPROVEN prereq-missing" "$GATE_BODY" \
   "unproven prereq-missing 4"
 bare_exits=$(grep -cE '^[[:space:]]*exit [34]$' "$GATE" || true)
 assert_eq "no bare exit 3/4 survives (every failure path emits a verdict)" 0 \

@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.81]
+
+### Changed
+
+- worktree-root-legacy.sh drops an unreachable no-tab branch in its promote/retire loop, worktree-create.sh merges its two drive-letter regexes, worktree-claim.sh drops an unreachable dispatch arm, landed-work.sh hoists a per-iteration reason reset, worktree-root-doctor.sh splits its list output once, and babysit-readiness-gate.sh names its unreadable-bodies failure. No behavior change.
+
 ## [0.55.80]
 
 ### Changed

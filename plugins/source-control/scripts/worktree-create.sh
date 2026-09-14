@@ -70,22 +70,15 @@ source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
 #     `/d/...` path is an ordinary directory and must stay inert so `/usr` is
 #     never mistaken for drive U:.
 windows_drive_letter() {
-  local path="$1" d
-  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]]; then
-    d="${BASH_REMATCH[1]}"
-    printf '%s' "${d^^}"
-    return 0
-  fi
-  if [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
-    d="${BASH_REMATCH[1]}"
-    printf '%s' "${d^^}"
+  local path="$1"
+  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]] || [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
+    printf '%s' "${BASH_REMATCH[1]^^}"
     return 0
   fi
   case "$(uname -s 2>/dev/null || true)" in
   MINGW* | MSYS* | CYGWIN*)
     if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
-      d="${BASH_REMATCH[1]}"
-      printf '%s' "${d^^}"
+      printf '%s' "${BASH_REMATCH[1]^^}"
       return 0
     fi
     ;;
