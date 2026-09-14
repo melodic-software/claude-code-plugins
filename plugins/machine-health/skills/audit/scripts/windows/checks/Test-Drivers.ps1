@@ -103,8 +103,7 @@ function Invoke-DriversCheck {
                 Write-Verbose "Test-Drivers: pnputil problem probe failed. $($_.Exception.Message)"
             }
 
-            $pswuAvailable = $null -ne (Get-Module -ListAvailable PSWindowsUpdate -ErrorAction SilentlyContinue)
-            if ($pswuAvailable) {
+            if ($null -ne (Get-Module -ListAvailable PSWindowsUpdate -ErrorAction SilentlyContinue)) {
                 try {
                     Import-Module PSWindowsUpdate -ErrorAction Stop
                     $pendingDriverUpdates = @(Get-WindowsUpdate -Category 'Drivers' -ErrorAction Stop |

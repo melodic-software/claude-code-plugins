@@ -73,8 +73,13 @@ try {
         Write-Verbose 'Test-EventLogErrors: no events matched query.'
     }
 
-    $noiseEvents = @($events | Where-Object { Test-IsNoiseEvent -Event $_ })
-    $signalEvents = @($events | Where-Object { -not (Test-IsNoiseEvent -Event $_) })
+    # Single-pass classification: each event lands in exactly one bucket, so
+    # the allowlist is consulted once per event rather than twice.
+    $noiseEvents = [System.Collections.Generic.List[object]]::new()
+    $signalEvents = [System.Collections.Generic.List[object]]::new()
+    foreach ($e in $events) {
+        if (Test-IsNoiseEvent -Event $e) { $noiseEvents.Add($e) } else { $signalEvents.Add($e) }
+    }
 
     $bugCheckEvents = @($signalEvents | Where-Object {
             $_.ProviderName -eq 'Microsoft-Windows-WER-SystemErrorReporting' -or

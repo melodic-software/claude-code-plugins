@@ -79,9 +79,10 @@ try {
         if (Test-Path -LiteralPath $packagesRoot) {
             $vhdxTotal = 0
             try {
-                $vhdxFiles = @(Get-ChildItem -Path $packagesRoot -Filter 'ext4.vhdx' `
-                        -Recurse -Depth 3 -ErrorAction SilentlyContinue)
-                foreach ($v in $vhdxFiles) { $vhdxTotal += $v.Length }
+                foreach ($v in @(Get-ChildItem -Path $packagesRoot -Filter 'ext4.vhdx' `
+                            -Recurse -Depth 3 -ErrorAction SilentlyContinue)) {
+                    $vhdxTotal += $v.Length
+                }
                 $wslBytes = $vhdxTotal
             } catch {
                 Write-Verbose "WSL vhdx scan failed: $($_.Exception.Message)"
@@ -108,10 +109,10 @@ try {
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
         -Severity $severity -Summary $summary -Commands $commands `
         -Detail @{
-        docker_bytes  = $dockerBytes
-        wsl_bytes     = $wslBytes
-        docker_gb     = $dockerGb
-        wsl_gb        = $wslGb
+        docker_bytes = $dockerBytes
+        wsl_bytes    = $wslBytes
+        docker_gb    = $dockerGb
+        wsl_gb       = $wslGb
     } `
         -NeedsAdmin $false -RanSuccessfully $true `
         -DurationMs ([int]$sw.ElapsedMilliseconds) `

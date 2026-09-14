@@ -165,10 +165,9 @@ try {
     # Non-elevated runs silently miss Get-StorageReliabilityCounter data on
     # most drives. Make that visible: declare admin_fields so the elevation
     # banner + report block call it out, and append a note to the summary.
-    $elevated = Test-IsElevated
     $adminFields = @()
     $adminNote = $null
-    if (-not $elevated) {
+    if (-not (Test-IsElevated)) {
         $adminFields = @('temp_c', 'wear_pct', 'read_errors', 'write_errors')
         $adminNote = 'SMART temp/wear counters require admin; re-run elevated for full coverage.'
         if ($summary) {

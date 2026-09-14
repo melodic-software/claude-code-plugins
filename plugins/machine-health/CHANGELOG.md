@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.22]
+
+### Changed
+
+- Classify event-log noise in one pass, merge the severity tallies in the orchestrator, collapse the PATH normalization loops and inline single-use intermediates in the Windows checks (behavior unchanged).
+
 ## [0.12.21]
 
 ### Changed

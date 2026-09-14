@@ -125,11 +125,11 @@ try {
     }
 
     $detail = @{
-        stopped_auto_services    = $unexpectedStopped
-        trigger_start_stopped    = $triggerStartStopped
-        delayed_pending          = $delayedPending
-        startup_inventory        = $startupInventory
-        uptime_minutes           = $uptime ? [int]$uptime.TotalMinutes : $null
+        stopped_auto_services = $unexpectedStopped
+        trigger_start_stopped = $triggerStartStopped
+        delayed_pending       = $delayedPending
+        startup_inventory     = $startupInventory
+        uptime_minutes        = $uptime ? [int]$uptime.TotalMinutes : $null
     }
 
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

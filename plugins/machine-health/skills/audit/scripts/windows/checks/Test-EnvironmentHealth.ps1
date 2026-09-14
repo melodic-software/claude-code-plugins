@@ -270,38 +270,30 @@ try {
 
     $machinePathRaw = ''
     if ($null -ne $machinePathRow) { $machinePathRaw = [string]$machinePathRow.value }
-    $userEntries = [System.Collections.Generic.List[string]]::new()
-    foreach ($e in @(Split-PathEntries $userPathRaw)) { $userEntries.Add($e) }
-    $machineEntries = [System.Collections.Generic.List[string]]::new()
-    foreach ($e in @(Split-PathEntries $machinePathRaw)) { $machineEntries.Add($e) }
+    $userEntries = @(Split-PathEntries $userPathRaw)
+    $machineEntries = @(Split-PathEntries $machinePathRaw)
 
+    # One pass per scope builds the persisted-entry rows and the per-scope
+    # normalized lookup Get-PathScope reads, so each entry is expanded and
+    # normalized once.
     $userNorm = @{}
-    foreach ($e in $userEntries) {
-        $userNorm[(Get-NormalizedPathEntry (Get-ExpandedPathEntry $e))] = $true
-    }
     $machineNorm = @{}
-    foreach ($e in $machineEntries) {
-        $machineNorm[(Get-NormalizedPathEntry (Get-ExpandedPathEntry $e))] = $true
-    }
-
     $persistedEntries = [System.Collections.Generic.List[pscustomobject]]::new()
-    foreach ($e in $userEntries) {
-        $expanded = Get-ExpandedPathEntry $e
-        $persistedEntries.Add([pscustomobject]@{
-                path     = $e
-                expanded = $expanded
-                scope    = 'user'
-                norm     = (Get-NormalizedPathEntry $expanded)
-            })
-    }
-    foreach ($e in $machineEntries) {
-        $expanded = Get-ExpandedPathEntry $e
-        $persistedEntries.Add([pscustomobject]@{
-                path     = $e
-                expanded = $expanded
-                scope    = 'machine'
-                norm     = (Get-NormalizedPathEntry $expanded)
-            })
+    foreach ($source in @(
+            @{ Entries = $userEntries; Scope = 'user'; Norm = $userNorm }
+            @{ Entries = $machineEntries; Scope = 'machine'; Norm = $machineNorm }
+        )) {
+        foreach ($e in $source.Entries) {
+            $expanded = Get-ExpandedPathEntry $e
+            $norm = Get-NormalizedPathEntry $expanded
+            $source.Norm[$norm] = $true
+            $persistedEntries.Add([pscustomobject]@{
+                    path     = $e
+                    expanded = $expanded
+                    scope    = $source.Scope
+                    norm     = $norm
+                })
+        }
     }
 
     $missingDirs = New-FindingList

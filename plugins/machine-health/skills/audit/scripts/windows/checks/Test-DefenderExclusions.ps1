@@ -41,8 +41,7 @@ $adminFieldList = @(
 try {
     # Non-elevated Get-MpPreference returns "N/A: Must be administrator..." as
     # a literal string for the exclusion fields -- gate stops it being counted.
-    $elevated = Test-IsElevated
-    if (-not $elevated) {
+    if (-not (Test-IsElevated)) {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'UNKNOWN' `
             -Summary 'Defender exclusions require admin (re-run elevated).' `
