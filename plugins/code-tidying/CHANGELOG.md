@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.5]
+
+### Changed
+
+- Anchor scope targets in one loop, count owned files from the collected list and fold the vulture input-error match in the dead-code scan (behavior unchanged).
+
 ## [0.19.4]
 
 ### Changed

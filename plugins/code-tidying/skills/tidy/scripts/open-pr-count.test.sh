@@ -37,8 +37,7 @@ cat >"$TEST_TMPDIR/bin/gh" <<'EOF'
 case "${GH_STUB_MODE:-}" in
   count0) echo "0" ;;
   count3) echo "3" ;;
-  fail) exit 4 ;;
-  *) exit 4 ;;
+  fail | *) exit 4 ;;
 esac
 EOF
 chmod +x "$TEST_TMPDIR/bin/gh"
