@@ -22,12 +22,17 @@ BeforeAll {
     Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
     . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
 
+    function Expand-FixtureToken {
+        param([string] $Value, [hashtable] $TokenMap)
+        foreach ($t in $TokenMap.Keys) {
+            $Value = $Value.Replace("{$t}", $TokenMap[$t])
+        }
+        return $Value
+    }
+
     function Expand-FixturePathValue {
         param($Spec, [hashtable] $TokenMap)
-        $value = [string]$Spec.value
-        foreach ($t in $TokenMap.Keys) {
-            $value = $value.Replace("{$t}", $TokenMap[$t])
-        }
+        $value = Expand-FixtureToken -Value ([string]$Spec.value) -TokenMap $TokenMap
         $padTo = 0
         if ($Spec.PSObject.Properties['pad_to'] -and $null -ne $Spec.pad_to) {
             $padTo = [int]$Spec.pad_to
@@ -77,11 +82,7 @@ BeforeAll {
 
         $processParts = @()
         foreach ($part in @($doc.process_path)) {
-            $expanded = [string]$part
-            foreach ($t in $tokenMap.Keys) {
-                $expanded = $expanded.Replace("{$t}", $tokenMap[$t])
-            }
-            $processParts += $expanded
+            $processParts += Expand-FixtureToken -Value ([string]$part) -TokenMap $tokenMap
         }
 
         return [pscustomobject]@{

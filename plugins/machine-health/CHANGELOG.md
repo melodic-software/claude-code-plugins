@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.20]
+
+### Changed
+
+- Share the fixture token expander, add BitLocker-volume and KEV-cache mock factories and drop a dead sort in the Windows check suites (behavior unchanged).
+
 ## [0.12.19]
 
 ### Changed

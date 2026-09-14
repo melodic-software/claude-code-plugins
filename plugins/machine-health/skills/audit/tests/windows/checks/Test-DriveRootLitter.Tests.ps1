@@ -124,12 +124,12 @@ Describe 'Test-DriveRootLitter' -Tag 'check' {
             New-Item -ItemType Directory -Path $stray -Force | Out-Null
             $strayFile = Join-Path $script:sysRoot 'log.txt'
             Set-Content -LiteralPath $strayFile -Value '' -NoNewline
-            $before = @(Get-ChildItem -LiteralPath $script:sysRoot -Force | Sort-Object Name)
+            $before = @(Get-ChildItem -LiteralPath $script:sysRoot -Force)
 
             $result = Invoke-DriveRootLitterAsObject -SystemRootPath $script:sysRoot
             $result.detail.residue_count | Should -Be 2
-            $after = @(Get-ChildItem -LiteralPath $script:sysRoot -Force | Sort-Object Name)
-            @($after).Count | Should -Be @($before).Count
+            $after = @(Get-ChildItem -LiteralPath $script:sysRoot -Force)
+            $after.Count | Should -Be $before.Count
             Test-Path -LiteralPath $stray | Should -BeTrue
             Test-Path -LiteralPath $strayFile | Should -BeTrue
             $result.detail.remediation_route | Should -Be 'disk-hygiene:clean'
