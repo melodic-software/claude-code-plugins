@@ -15,27 +15,11 @@ AUDITOR="$SCRIPT_DIR/../agents/auditor.md"
 SKILL="$SCRIPT_DIR/../skills/audit/SKILL.md"
 CONFIG="$SCRIPT_DIR/../reference/config.md"
 
-PASS=0
-FAIL=0
-fail() {
-  echo "FAIL: $*" >&2
-  FAIL=$((FAIL + 1))
-}
-ok() {
-  echo "ok: $*"
-  PASS=$((PASS + 1))
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
+test_helpers::drift_lane
 
-norm() {
-  tr -d '`*' <"$1" | tr '\n' ' ' | tr -s ' '
-}
-
-for f in "$AUDITOR" "$SKILL" "$CONFIG"; do
-  if [[ ! -r "$f" ]]; then
-    echo "FAIL: required file missing or unreadable: $f" >&2
-    exit 1
-  fi
-done
+require_readable "$AUDITOR" "$SKILL" "$CONFIG"
 
 AUDITOR_N=$(norm "$AUDITOR")
 SKILL_N=$(norm "$SKILL")
@@ -87,6 +71,4 @@ body_has "rung-1 curl" "rung-1 curl"
 body_has "rung-2 WebFetch" "rung-2 WebFetch"
 body_has "omitted field emitted unverified" "emitted as unverified"
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ $FAIL -eq 0 ]]
+drift_report

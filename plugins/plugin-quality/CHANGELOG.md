@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.21]
+
+### Changed
+
+- The citation and zones drift suites and the packet prune and seal contract suites source one scripts/test-helpers.sh with a lane initializer per assertion shape instead of four inline copies; context-zone.test.sh stays the registered twin of its context-guard canonical. Output and exit codes are byte-identical.
+
 ## [0.7.20]
 
 ### Changed

@@ -15,12 +15,9 @@ SUT="$SCRIPT_DIR/packet-prune.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
+test_helpers::contract_lane
 
 OLD="19990101T000000Z"
 NEW="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -39,29 +36,6 @@ fresh_tree() {
   : >"$root/sess-1/plugin-b-hook/$OLD/item.md"
   : >"$root/sess-2/plugin-c/not-a-nonce/audit-notes.md"
   printf '%s' "$root"
-}
-
-# run <expected-exit> <label> [args...] — captures output into last_out for reuse.
-last_out=""
-run() {
-  local expected="$1" label="$2"
-  shift 2
-  local actual
-  last_out="$(bash "$SUT" "$@" 2>&1)"
-  actual=$?
-  if [[ "$actual" -eq "$expected" ]]; then
-    pass "$label (exit $actual)"
-  else
-    fail "$label — expected exit $expected, got $actual: $last_out"
-  fi
-}
-
-has() {
-  if [[ "$last_out" == *"$1"* ]]; then
-    pass "$2"
-  else
-    fail "$2 — output was: $last_out"
-  fi
 }
 
 # verdict_is <nonce> <expected-verdict> <label> — assert the verdict reported for
@@ -324,10 +298,4 @@ else
   fail "--days 0 destroyed an unemitted item.md"
 fi
 
-echo
-if [[ $fails -eq 0 ]]; then
-  echo "all packet-prune.sh contract tests passed"
-  exit 0
-fi
-echo "$fails packet-prune.sh contract test(s) failed" >&2
-exit 1
+contract_report packet-prune.sh
