@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.17]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
 ## [0.8.16]
 
 ### Changed

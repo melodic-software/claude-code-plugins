@@ -146,19 +146,19 @@ HM="$WORK/h-malformed"
 mkdir -p "$HM/.claude/context-guard"
 printf 'not json' >"$HM/.claude/context-guard/zones.json"
 write_snapshot "$HM" m40 40
-GOT="$(HOME="$HM" bash "$ZONE" m40 2>"$WORK/m-stderr")"
+GOT="$(resolve "$HM" m40 2>"$WORK/m-stderr")"
 if [[ "$GOT" == "smart" ]]; then ok "malformed zones.json → shipped defaults applied"; else fail "malformed zones.json: got '$GOT'"; fi
 if grep -qi 'zones' "$WORK/m-stderr"; then ok "malformed zones.json → visible stderr notice"; else fail "malformed zones.json: silent fallback"; fi
 
 # Ordering violation (smart_max >= acceptable_max) is malformed too
 printf '{"smart_max_used_percentage":80,"acceptable_max_used_percentage":60}\n' >"$HM/.claude/context-guard/zones.json"
-GOT="$(HOME="$HM" bash "$ZONE" m40 2>"$WORK/m2-stderr")"
+GOT="$(resolve "$HM" m40 2>"$WORK/m2-stderr")"
 if [[ "$GOT" == "smart" ]]; then ok "inverted bands → shipped defaults applied"; else fail "inverted bands: got '$GOT'"; fi
 if grep -qi 'zones' "$WORK/m2-stderr"; then ok "inverted bands → visible stderr notice"; else fail "inverted bands: silent fallback"; fi
 
 # Wrong types are malformed
 printf '{"smart_max_used_percentage":"low","acceptable_max_used_percentage":60}\n' >"$HM/.claude/context-guard/zones.json"
-GOT="$(HOME="$HM" bash "$ZONE" m40 2>/dev/null)"
+GOT="$(resolve "$HM" m40 2>/dev/null)"
 if [[ "$GOT" == "smart" ]]; then ok "non-numeric band → shipped defaults applied"; else fail "non-numeric band: got '$GOT'"; fi
 
 # --- Token shape: version gate, window-class bands, combination, plausibility -
@@ -237,7 +237,7 @@ mkdir -p "$HTM/.claude/context-guard"
 printf '{"smart_max_used_percentage":50,"acceptable_max_used_percentage":75,"token_bands":{"200000":{"smart_max_tokens":300000,"acceptable_max_tokens":400000}}}\n' \
   >"$HTM/.claude/context-guard/zones.json"
 write_snapshot_tok "$HTM" tm1 null 150000 20000 200000
-GOT="$(HOME="$HTM" bash "$ZONE" tm1 2>"$WORK/tb-stderr")"
+GOT="$(resolve "$HTM" tm1 2>"$WORK/tb-stderr")"
 if [[ "$GOT" == "dumb" ]]; then ok "malformed token_bands (acceptable>class) → shipped token defaults"; else fail "malformed token_bands: got '$GOT'"; fi
 if grep -qi 'token_bands' "$WORK/tb-stderr"; then ok "malformed token_bands → visible stderr notice"; else fail "malformed token_bands: silent fallback"; fi
 
@@ -247,7 +247,7 @@ HTV="$WORK/h-tokenv1"
 mkdir -p "$HTV/.claude/context-guard"
 printf '{"smart_max_used_percentage":30,"acceptable_max_used_percentage":60}\n' >"$HTV/.claude/context-guard/zones.json"
 write_snapshot_tok "$HTV" v1 null 150000 20000 200000
-GOT="$(HOME="$HTV" bash "$ZONE" v1 2>"$WORK/v1-stderr")"
+GOT="$(resolve "$HTV" v1 2>"$WORK/v1-stderr")"
 if [[ "$GOT" == "dumb" ]]; then ok "v1 zones.json: shipped token defaults still apply"; else fail "v1 zones.json token defaults: got '$GOT'"; fi
 if [[ -s "$WORK/v1-stderr" ]]; then fail "v1 zones.json: unexpected stderr notice for absent token_bands"; else ok "v1 zones.json: absent token_bands is silent zero-config"; fi
 

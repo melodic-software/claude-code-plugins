@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.62]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
 ## [0.7.61]
 
 ### Changed

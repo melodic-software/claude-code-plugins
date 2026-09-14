@@ -122,6 +122,19 @@ run() {
   rm -f "$errfile"
 }
 
+# Same capture with CLAUDE_CONFIG_DIR SET rather than cleared, for the relocated
+# config-dir cases: $1 = HOME, $2 = the config dir (empty exercises the fallback
+# to $HOME/.claude), remaining args are the wrapped command.
+run_cfg() {
+  local home="$1" cfg="$2"
+  shift 2
+  local errfile="$WORK/stderr.cfg"
+  OUT="$(printf '%s' "$INPUT" | HOME="$home" CLAUDE_CONFIG_DIR="$cfg" bash "$SHIM" "$@" 2>"$errfile")"
+  RC=$?
+  ERR="$(<"$errfile")"
+  rm -f "$errfile"
+}
+
 # --- 1. single installed tee: resolved, and the chain stays transparent -----
 H1="$WORK/h1"
 plant_tee "$H1" "some-marketplace" "context-guard" "0.1.0" "v1" >/dev/null
@@ -229,27 +242,19 @@ CFG="$WORK/cfg-relocated"
 plant_tee "$WORK/reloc" "some-marketplace" "context-guard" "0.1.0" "reloc" >/dev/null
 mv "$WORK/reloc/.claude" "$CFG"
 make_wrapped "$WORK/render-cfg.sh" 0
-errfile="$WORK/stderr.cfg"
-OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
-RC=$?
-ERR="$(<"$errfile")"
+run_cfg "$H7" "$CFG" bash "$WORK/render-cfg.sh"
 assert_contains "$ERR" "TEE:reloc" "CLAUDE_CONFIG_DIR anchors the cache when HOME holds no cache"
 assert_contains "$OUT" "RENDER" "relocated config dir stays transparent"
 assert_eq "0" "$RC" "relocated config dir preserves the wrapped exit code"
 
 # --- 13. CLAUDE_CONFIG_DIR wins over a cache under HOME ---------------------
 plant_tee "$H7" "some-marketplace" "context-guard" "0.1.0" "home" >/dev/null
-OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="$CFG" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
-RC=$?
-ERR="$(<"$errfile")"
+run_cfg "$H7" "$CFG" bash "$WORK/render-cfg.sh"
 assert_contains "$ERR" "TEE:reloc" "an explicit CLAUDE_CONFIG_DIR overrides the HOME default"
 assert_not_contains "$ERR" "TEE:home" "the HOME cache is not consulted when CLAUDE_CONFIG_DIR is set"
 
 # --- 14. empty CLAUDE_CONFIG_DIR falls back to HOME -------------------------
-OUT="$(printf '%s' "$INPUT" | HOME="$H7" CLAUDE_CONFIG_DIR="" bash "$SHIM" bash "$WORK/render-cfg.sh" 2>"$errfile")"
-RC=$?
-ERR="$(<"$errfile")"
-rm -f "$errfile"
+run_cfg "$H7" "" bash "$WORK/render-cfg.sh"
 assert_contains "$ERR" "TEE:home" "an empty CLAUDE_CONFIG_DIR falls back to \$HOME/.claude"
 
 # --- 15. UNINSTALLED plugin: the orphaned tee is not executed ---------------
