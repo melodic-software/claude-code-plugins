@@ -659,7 +659,7 @@ def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
         # blank-line stop undercounts a multi-paragraph ask against the cap.
         block = 0
         for line in body[ask_idx + 1 :]:
-            if line.startswith("**"):
+            if _ends_opening_ask(line):
                 break
             if line.strip():
                 block += 1
