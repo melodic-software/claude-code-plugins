@@ -42,16 +42,21 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ElementTree
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    int_or_none,
+    relative_to_cwd,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "cpd"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
@@ -64,27 +69,8 @@ LANGUAGES = {
 }
 
 
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    if os.path.isabs(path):
-        try:
-            path = os.path.relpath(path, os.getcwd())
-        except ValueError:
-            return path
-    while path.startswith("./"):
-        path = path[2:]
-    return path.replace("\\", "/")
-
-
 def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
-
-
-def _int_or_none(value: str | None) -> int | None:
-    try:
-        return int(value) if value is not None else None
-    except ValueError:
-        return None
 
 
 def probe() -> int:
@@ -92,15 +78,10 @@ def probe() -> int:
     if not exe:
         print("pmd not on PATH", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"pmd --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, "pmd")
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -110,14 +91,14 @@ def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
     for element in root:
         if _local(element.tag) != "duplication":
             continue
-        lines = _int_or_none(element.get("lines"))
+        lines = int_or_none(element.get("lines"))
         if lines is not None and lines < min_lines:
             continue
         instances = [
             {
-                "file": _normalize(child.get("path", "")),
-                "start_line": _int_or_none(child.get("line")),
-                "end_line": _int_or_none(child.get("endline")),
+                "file": relative_to_cwd(child.get("path", "")),
+                "start_line": int_or_none(child.get("line")),
+                "end_line": int_or_none(child.get("endline")),
             }
             for child in element
             if _local(child.tag) == "file"
@@ -132,7 +113,7 @@ def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
                 "instances": instances,
                 "values": {
                     "lines": lines,
-                    "tokens": _int_or_none(element.get("tokens")),
+                    "tokens": int_or_none(element.get("tokens")),
                 },
                 "collector": NAME,
                 "labels": ["token-based"],
@@ -156,7 +137,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     if not exe:
         print("pmd not on PATH", file=sys.stderr)
         return 3
-    min_lines = _int_or_none(os.environ.get("CODE_METRICS_DUP_MIN_LINES")) or int(
+    min_lines = int_or_none(os.environ.get("CODE_METRICS_DUP_MIN_LINES")) or int(
         DEFAULT_MIN_LINES
     )
     work = tempfile.mkdtemp(prefix="code-metrics-cpd-")
@@ -197,36 +178,25 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    for lane in sorted(LANGUAGES):
+        print(f"{lane}/duplication")
+
+
+INSTALL_HINT = "PMD CPD: https://pmd.github.io (download the PMD 7 distribution or `brew install pmd`; it needs a JVM); this plugin never installs it"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            "usage: cpd.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        for lane in sorted(LANGUAGES):
-            print(f"{lane}/duplication")
-        return 0
-    if verb == "install_hint":
-        print(
-            "PMD CPD: https://pmd.github.io (download the PMD 7 distribution or `brew install pmd`; it needs a JVM); this plugin never installs it"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 2:
-            print("usage: cpd.py collect <lane> <measure> <file>...", file=sys.stderr)
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"cpd.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("cpd.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

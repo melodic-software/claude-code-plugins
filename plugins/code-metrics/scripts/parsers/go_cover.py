@@ -77,19 +77,14 @@ import json
 import re
 import sys
 
-MIN_PYTHON = (3, 9)
+from parser_paths import norm as _norm
+from parser_paths import require_python
+
 FORMAT = "go_cover"
 BLOCK = re.compile(
     r"^(?P<file>.+):(?P<start>\d+)\.(?P<start_col>\d+),"
     r"(?P<end>\d+)\.(?P<end_col>\d+) (?P<statements>\d+) (?P<count>\d+)$"
 )
-
-
-def _norm(path: str) -> str:
-    path = path.strip().replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return path
 
 
 def parse(path: str) -> dict[str, dict]:
@@ -153,9 +148,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("go_cover.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python("go_cover.py")
     try:
         sys.exit(main(sys.argv[1:]))
     except (OSError, ValueError) as exc:

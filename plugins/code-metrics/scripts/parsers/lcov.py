@@ -46,22 +46,11 @@ import json
 import sys
 from typing import Any
 
-MIN_PYTHON = (3, 9)
+from parser_paths import norm as _norm
+from parser_paths import require_python
+from parser_paths import to_int as _int
+
 FORMAT = "lcov"
-
-
-def _norm(path: str) -> str:
-    path = path.strip().replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return path
-
-
-def _int(text: str) -> int | None:
-    try:
-        return int(text.strip())
-    except ValueError:
-        return None
 
 
 def _section() -> dict[str, Any]:
@@ -233,9 +222,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("lcov.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python("lcov.py")
     try:
         sys.exit(main(sys.argv[1:]))
     except OSError as exc:

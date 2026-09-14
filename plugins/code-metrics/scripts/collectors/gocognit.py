@@ -26,26 +26,21 @@ when nothing answers, and still exits 0 because the tool itself resolved.
 from __future__ import annotations
 
 import json
-import os
-import re
 import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    normalize,
+    require_python,
+    version_in,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "gocognit"
 LANE = "go"
 MEASURE = "cognitive"
-VERSION = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def probe() -> int:
@@ -54,16 +49,12 @@ def probe() -> int:
         print(f"{NAME} not on PATH", file=sys.stderr)
         return 1
     for flag in ("-version", "--version"):
-        try:
-            out = subprocess.run(
-                [exe, flag], capture_output=True, text=True, check=False
-            )
-        except OSError as exc:
-            print(f"{NAME} {flag} failed: {exc}", file=sys.stderr)
+        output = version_output(exe, NAME, flag)
+        if output is None:
             return 1
-        match = VERSION.search(out.stdout + out.stderr)
-        if match:
-            print(match.group(1))
+        found = version_in(output)
+        if found is not None:
+            print(found)
             return 0
     print(module_version(exe) or "version unavailable (gocognit has no version flag)")
     return 0
@@ -89,14 +80,14 @@ def module_version(exe: str) -> str | None:
     for line in out.stdout.splitlines():
         parts = line.split()
         if len(parts) >= 3 and parts[0] == "mod" and "gocognit" in parts[1]:
-            match = VERSION.search(parts[2])
-            if match:
-                return match.group(1)
+            found = version_in(parts[2])
+            if found is not None:
+                return found
     return None
 
 
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, list):
         raise ValueError("gocognit -json did not print an array")
@@ -105,7 +96,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
         if not isinstance(entry, dict):
             continue
         position = entry.get("Pos") or {}
-        path = wanted_norm.get(_normalize(position.get("Filename", "")))
+        path = wanted_norm.get(normalize(position.get("Filename", "")))
         if path is None:
             continue
         rows.append(
@@ -139,7 +130,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     )
     try:
         rows = translate(result.stdout, lane, files)
-    except (json.JSONDecodeError, ValueError, TypeError, AttributeError) as exc:
+    except (ValueError, TypeError, AttributeError) as exc:
         print(
             f"{NAME}.py: no parseable {NAME} output ({exc}); "
             f"stderr: {result.stderr.strip()}",
@@ -151,37 +142,25 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print(f"{LANE}/{MEASURE}")
+
+
+INSTALL_HINT = "gocognit: https://github.com/uudashr/gocognit (go install github.com/uudashr/gocognit/cmd/gocognit@latest)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print(f"{LANE}/{MEASURE}")
-        return 0
-    if verb == "install_hint":
-        print(
-            "gocognit: https://github.com/uudashr/gocognit (go install github.com/uudashr/gocognit/cmd/gocognit@latest)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 3:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+        collect_min=3,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("gocognit.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

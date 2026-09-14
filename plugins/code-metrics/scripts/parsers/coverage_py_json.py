@@ -36,15 +36,10 @@ import json
 import sys
 from typing import Any
 
-MIN_PYTHON = (3, 9)
+from parser_paths import norm as _norm
+from parser_paths import require_python
+
 FORMAT = "coverage_py_json"
-
-
-def _norm(path: str) -> str:
-    path = path.strip().replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return path
 
 
 def _lines(region: dict[str, Any]) -> dict[int, int]:
@@ -103,14 +98,9 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print(
-            "coverage_py_json.py needs Python %d.%d or later" % MIN_PYTHON,
-            file=sys.stderr,
-        )
-        sys.exit(2)
+    require_python("coverage_py_json.py")
     try:
         sys.exit(main(sys.argv[1:]))
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"coverage_py_json.py: {exc}", file=sys.stderr)
         sys.exit(2)

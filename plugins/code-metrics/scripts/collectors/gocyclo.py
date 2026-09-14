@@ -22,26 +22,22 @@ because the tool itself resolved.
 from __future__ import annotations
 
 import json
-import os
-import re
 import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    UNKNOWN_VERSION,
+    dispatch,
+    normalize,
+    require_python,
+    version_in,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "gocyclo"
 LANE = "go"
 MEASURE = "cyclomatic"
-VERSION = re.compile(r"(\d+\.\d+(?:\.\d+)?)")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def probe() -> int:
@@ -50,24 +46,20 @@ def probe() -> int:
         print(f"{NAME} not on PATH", file=sys.stderr)
         return 1
     for flag in ("-version", "--version"):
-        try:
-            out = subprocess.run(
-                [exe, flag], capture_output=True, text=True, check=False
-            )
-        except OSError as exc:
-            print(f"{NAME} {flag} failed: {exc}", file=sys.stderr)
+        output = version_output(exe, NAME, flag)
+        if output is None:
             return 1
-        match = VERSION.search(out.stdout + out.stderr)
-        if match:
-            print(match.group(1))
+        found = version_in(output)
+        if found is not None:
+            print(found)
             return 0
-    print("unknown-version")
+    print(UNKNOWN_VERSION)
     return 0
 
 
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     """Rows for the requested files. Raises ValueError when no line parsed."""
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     rows: list[dict] = []
     parsed = 0
     for line in raw.splitlines():
@@ -82,7 +74,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
         except ValueError:
             continue
         parsed += 1
-        path = wanted_norm.get(_normalize(location[0]))
+        path = wanted_norm.get(normalize(location[0]))
         if path is None:
             continue
         rows.append(
@@ -129,37 +121,25 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print(f"{LANE}/{MEASURE}")
+
+
+INSTALL_HINT = "gocyclo: https://github.com/fzipp/gocyclo (go install github.com/fzipp/gocyclo/cmd/gocyclo@latest)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print(f"{LANE}/{MEASURE}")
-        return 0
-    if verb == "install_hint":
-        print(
-            "gocyclo: https://github.com/fzipp/gocyclo (go install github.com/fzipp/gocyclo/cmd/gocyclo@latest)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 3:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+        collect_min=3,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("gocyclo.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

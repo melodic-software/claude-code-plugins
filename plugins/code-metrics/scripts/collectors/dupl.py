@@ -45,34 +45,14 @@ import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import dispatch, int_or_none, relative_to_cwd, require_python
 
-MIN_PYTHON = (3, 9)
 NAME = "dupl"
 LANE = "go"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
 GROUP_RE = re.compile(r"^found\s+\d+\s+clones:")
 INSTANCE_RE = re.compile(r"^\s+(?P<file>.+):(?P<start>\d+),(?P<end>\d+)\s*$")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    if os.path.isabs(path):
-        try:
-            path = os.path.relpath(path, os.getcwd())
-        except ValueError:
-            return path
-    while path.startswith("./"):
-        path = path[2:]
-    return path.replace("\\", "/")
-
-
-def _int_or_none(value: str | None) -> int | None:
-    try:
-        return int(value) if value is not None else None
-    except ValueError:
-        return None
 
 
 def probe() -> int:
@@ -120,9 +100,9 @@ def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
         if match:
             instances.append(
                 {
-                    "file": _normalize(match.group("file")),
-                    "start_line": _int_or_none(match.group("start")),
-                    "end_line": _int_or_none(match.group("end")),
+                    "file": relative_to_cwd(match.group("file")),
+                    "start_line": int_or_none(match.group("start")),
+                    "end_line": int_or_none(match.group("end")),
                 }
             )
     close()
@@ -140,7 +120,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     if not exe:
         print("dupl not on PATH", file=sys.stderr)
         return 3
-    min_lines = _int_or_none(os.environ.get("CODE_METRICS_DUP_MIN_LINES")) or int(
+    min_lines = int_or_none(os.environ.get("CODE_METRICS_DUP_MIN_LINES")) or int(
         DEFAULT_MIN_LINES
     )
     result = subprocess.run(
@@ -166,35 +146,24 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print(f"{LANE}/duplication")
+
+
+INSTALL_HINT = "dupl: https://github.com/mibk/dupl (go install github.com/mibk/dupl@latest); this plugin never installs it"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            "usage: dupl.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print(f"{LANE}/duplication")
-        return 0
-    if verb == "install_hint":
-        print(
-            "dupl: https://github.com/mibk/dupl (go install github.com/mibk/dupl@latest); this plugin never installs it"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 2:
-            print("usage: dupl.py collect <lane> <measure> <file>...", file=sys.stderr)
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"dupl.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("dupl.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

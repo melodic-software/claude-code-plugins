@@ -17,22 +17,19 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    normalize,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "scc"
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def probe() -> int:
@@ -40,15 +37,10 @@ def probe() -> int:
     if not exe:
         print("scc not on PATH", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"scc --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, "scc")
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -118,11 +110,11 @@ def _row(
 
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     """Rows for `wanted`, in scc's output order, from one scc document."""
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     rows: list[dict] = []
     for language in json.loads(raw):
         for entry in language.get("Files", []):
-            location = _normalize(entry.get("Location", ""))
+            location = normalize(entry.get("Location", ""))
             if location not in wanted_norm:
                 continue
             lines = int(entry.get("Lines", 0))
@@ -147,10 +139,10 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
 def fill_missing(rows: list[dict], lane: str, wanted: list[str]) -> list[dict]:
     """Append a comment-agnostic row for every requested file scc omitted, so
     the lane never reads as measured while a file in it was not."""
-    seen = {_normalize(row["file"]) for row in rows}
+    seen = {normalize(row["file"]) for row in rows}
     filled = list(rows)
     for path in wanted:
-        key = _normalize(path)
+        key = normalize(path)
         if key in seen:
             continue
         seen.add(key)
@@ -176,7 +168,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         )
         try:
             rows.extend(translate(result.stdout, lane, chunk))
-        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        except (ValueError, TypeError) as exc:
             print(
                 f"scc.py: unparsable scc output ({exc}); stderr: {result.stderr.strip()}",
                 file=sys.stderr,
@@ -192,35 +184,24 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print("*/file_lines")
+
+
+INSTALL_HINT = "scc: https://github.com/boyter/scc (go install github.com/boyter/scc/v3@latest, brew install scc, or a release binary)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            "usage: scc.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print("*/file_lines")
-        return 0
-    if verb == "install_hint":
-        print(
-            "scc: https://github.com/boyter/scc (go install github.com/boyter/scc/v3@latest, brew install scc, or a release binary)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 2:
-            print("usage: scc.py collect <lane> <measure> <file>...", file=sys.stderr)
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"scc.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("scc.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

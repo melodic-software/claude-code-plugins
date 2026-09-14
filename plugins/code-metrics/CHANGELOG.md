@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.12]
+
+### Changed
+
+- The fifteen collectors resolve paths, versions and verbs through adapter_paths and the four coverage parsers through a new parser_paths module instead of per-file copies; the redundant JSONDecodeError clauses are dropped. Envelopes, usage text and exit codes are byte-identical.
+
 ## [0.3.11]
 
 ### Changed

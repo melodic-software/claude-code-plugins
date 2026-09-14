@@ -212,7 +212,7 @@ def main(argv: list[str]) -> int:
         registries.append((path, read_registry(path)))
     try:
         document = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError) as exc:
+    except ValueError as exc:
         print(
             f"registry-filter.py: stdin is not a JSON document ({exc})", file=sys.stderr
         )

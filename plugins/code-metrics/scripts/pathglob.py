@@ -132,7 +132,7 @@ def main(argv: list[str]) -> int:
             print(f"pathglob.py: {exc}", file=sys.stderr)
             return 2
         args = [args[0]] + args[3:]
-    if len(args) < 1 or (len(args) < 2 and not listed):
+    if not args or (len(args) < 2 and not listed):
         print(_USAGE, file=sys.stderr)
         return 2
     pattern, paths = args[0], listed + args[1:]
