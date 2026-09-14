@@ -14,36 +14,8 @@ SCRIPT="$SCRIPT_DIR/permission-state.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-count_matching() { printf '%s\n' "$1" | grep -cE "$2"; }
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
@@ -199,22 +171,9 @@ assert_contains "unresolvable user scope is skipped, not absent" "$OUT_NOHOME" "
 assert_contains "and says why" "$OUT_NOHOME" "neither CLAUDE_CONFIG_DIR nor HOME"
 
 # --- Case 11: optional platform legs degrade visibly, core survives ----------
-# A stub PATH holding every tool the script needs EXCEPT `reg`. Not a bare
-# `PATH=`: that makes the interpreter itself unresolvable (exit 127, "command not
-# found"), which would "pass" for a reason unrelated to the tool under test.
-#
-# Each entry is a wrapper that execs the real binary at its absolute path,
-# deliberately NOT a copy: an MSYS binary copied out of /usr/bin loses the
-# msys-2.0.dll sitting beside it and fails to start, which would make this case
-# "pass" by breaking every tool instead of the one under test.
+# A stub PATH holding every tool the script needs EXCEPT `reg`.
 STUB="$TEST_TMPDIR/stub-path"
-mkdir -p "$STUB"
-real_bash="$(command -v bash)"
-for tool in jq git tr find sort sed head grep cat mktemp rm; do
-  src="$(command -v "$tool" 2>/dev/null)" || continue
-  printf '#!%s\nexec "%s" "$@"\n' "$real_bash" "$src" >"$STUB/$tool"
-  chmod +x "$STUB/$tool"
-done
+make_stub_path "$STUB" jq git tr find sort sed head grep cat mktemp rm
 rc=0
 ADMIN_POLICY_KEY='HKLM\SOFTWARE\Policies\ClaudeCode' # portability-ok: a Windows registry key path, passed through as a literal; no regex engine sees it
 OUT_NOREG=$(env -u CLAUDE_CONFIG_DIR PATH="$STUB" HOME="$FX/home" \
@@ -357,9 +316,4 @@ assert_contains "and that the user scope shown is not the operator's" "$OUT_CLOU
 OUT_LOCAL_SESSION=$(run)
 assert_not_contains "a local session emits no cloud note" "$OUT_LOCAL_SESSION" "CLAUDE_CODE_REMOTE=true"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit

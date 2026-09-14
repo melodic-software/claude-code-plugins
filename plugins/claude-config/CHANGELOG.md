@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.8]
+
+### Changed
+
+- The eight audit-permission-state test suites source one bundled per-skill test helper for their assertions, stub-PATH builder, and summary tail instead of carrying identical copies, with byte-identical output.
+
 ## [0.46.7]
 
 ### Changed

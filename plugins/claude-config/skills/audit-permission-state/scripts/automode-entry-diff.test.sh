@@ -23,36 +23,8 @@ MERGE_SCRIPT="$SCRIPT_DIR/permission-merge.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-count_matching() { printf '%s\n' "$1" | grep -cE "$2"; }
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 diff_only() { printf '%s\n' "$1" | bash "$SCRIPT" --diff-only; }
 
@@ -294,18 +266,10 @@ assert_contains "an empty capture is unavailable, not an empty drop set" "$OUT" 
 assert_not_contains "no verdicts from a dead capture" "$OUT" "oracle AGREES"
 rm -f "$TEST_TMPDIR/claude-invocations.txt"
 
-# claude missing entirely: the notice still precedes the (refused) spawn.
-# Wrappers exec the real binaries by absolute path (a copied MSYS binary loses
-# the msys-2.0.dll beside it); bash is invoked by absolute path so the stub
-# PATH cannot hide the interpreter itself.
+# claude missing entirely: the notice still precedes the (refused) spawn. bash
+# is invoked by absolute path so the stub PATH cannot hide the interpreter.
 NOCLAUDE="$TEST_TMPDIR/noclaude"
-mkdir -p "$NOCLAUDE"
-real_bash="$(command -v bash)"
-for tool in cat grep sed sort mktemp rm tr; do
-  src="$(command -v "$tool" 2>/dev/null)" || continue
-  printf '#!%s\nexec "%s" "$@"\n' "$real_bash" "$src" >"$NOCLAUDE/$tool"
-  chmod +x "$NOCLAUDE/$tool"
-done
+make_stub_path "$NOCLAUDE" cat grep sed sort mktemp rm tr
 OUT=$(printf '%s\n' "$ORACLE_INPUT" | PATH="$NOCLAUDE" "$real_bash" "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "notice before any spawn attempt" "$OUT" "ORACLE COST NOTICE"
 assert_contains "a missing claude degrades to unavailable" "$OUT" "'claude' is not on PATH"
@@ -470,9 +434,4 @@ OUT_UNREAD_DIFF=$(printf '%s\n' "$UNREAD_DIFF" | bash "$SCRIPT" --diff-only)
 assert_contains "an unread scope makes the diff incomplete" "$OUT_UNREAD_DIFF" "status=incomplete"
 assert_contains "and says which scope was not classified" "$OUT_UNREAD_DIFF" "managed scope(s) could not be read"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+report_and_exit
