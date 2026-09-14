@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for emit-findings.sh (self-contained — ships with the plugin).
+# Regression tests for emit-findings.sh (assertions from test-helpers.sh beside
+# this file; both ship with the plugin).
 #
 # The body-scope cases are the load-bearing ones: check-skill.sh check 3 hard-FAILs
 # a dropped `'trigger phrase'` versus the base ref, so a finding whose remediation
@@ -28,34 +29,8 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
 CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 if ! command -v grep >/dev/null 2>&1 || ! command -v awk >/dev/null 2>&1; then
   echo "SKIP: grep and awk required" >&2
@@ -398,9 +373,8 @@ bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/co.md" \
   --branch testbranch --declined-carveout 3 >/dev/null 2>&1
 assert_contains "a carve-out decline count is reported" \
   "$(cat "$TEST_TMPDIR/co.md")" "count=3 reason=criteria-carve-out"
-bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/co2.md" --branch testbranch >/dev/null 2>&1
 assert_not_contains "omitting the flag reports no carve-out line" \
-  "$(cat "$TEST_TMPDIR/co2.md")" "criteria-carve-out"
+  "$(emit "$TEST_TMPDIR/yb.txt" "$TEST_TMPDIR/co2.md")" "criteria-carve-out"
 rc=0
 bash "$EMIT" --from "$TEST_TMPDIR/yb.txt" --out "$TEST_TMPDIR/co3.md" \
   --branch testbranch --declined-carveout notanumber >/dev/null 2>&1 || rc=$?

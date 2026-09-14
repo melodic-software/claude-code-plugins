@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.7]
+
+### Changed
+
+- The four audit-instructions test suites source one bundled per-plugin test helper instead of carrying identical assertion blocks, with byte-identical output.
+
 ## [0.46.6]
 
 ### Changed
