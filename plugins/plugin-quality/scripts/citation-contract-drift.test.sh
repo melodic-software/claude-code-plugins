@@ -63,7 +63,7 @@ all_three "unverified on a missing field" "unverified"
 
 # The emit schema is the surface that dropped the channel. Pin the body
 # paragraph itself, not just a mention somewhere in config.md.
-CONFIG_BODY=$(printf '%s' "$CONFIG_N" | sed -n 's/.*Body sections: \(.*\) Claim protocol.*/\1/p')
+CONFIG_BODY=$(sed -n 's/.*Body sections: \(.*\) Claim protocol.*/\1/p' <<<"$CONFIG_N")
 if [[ -z "$CONFIG_BODY" ]]; then
   fail "config.md body-sections paragraph not found"
 else

@@ -84,9 +84,6 @@ both() {
 resolver_and_contract() {
   both "$RESOLVER_N" "scripts/context-zone.sh" "$1" "$2"
 }
-skill_and_contract() {
-  both "$SKILL_N" "skills/audit/SKILL.md" "$1" "$2"
-}
 
 resolver_and_contract "staleness window (10 minutes)" "10 minutes"
 resolver_and_contract "snapshot path pattern" "~/.claude/context-guard/context/<session_id>.json"
@@ -99,7 +96,7 @@ resolver_and_contract "token-shape version floor" "cli_version"
 resolver_and_contract "token-shape version floor value" "2.1.132"
 resolver_and_contract "zone vocabulary" "smart / acceptable / dumb / unknown"
 
-skill_and_contract "evidence-degraded marker path" "<session_id>.compacted"
+both "$SKILL_N" "skills/audit/SKILL.md" "evidence-degraded marker path" "<session_id>.compacted"
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

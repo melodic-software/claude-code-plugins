@@ -41,7 +41,7 @@ fresh_tree() {
   printf '%s' "$root"
 }
 
-# run <expected-exit> <label> [args...] — echoes captured output for reuse.
+# run <expected-exit> <label> [args...] — captures output into last_out for reuse.
 last_out=""
 run() {
   local expected="$1" label="$2"

@@ -205,17 +205,12 @@ for packet in "$root_abs"/*/*/*; do
   # only the root is insufficient: a symlink ANYWHERE on the way down — a
   # symlinked session directory is enough — makes the glob yield a path whose
   # real location is outside the tree, and `rm -rf` follows the real location.
-  # Canonicalize the candidate and require it to still live under the root.
+  # Canonicalize the candidate and require it to still live under the root. The
+  # candidate must also not BE a symlink, even one whose target is inside the
+  # root: removing the link is not removing the packet, and following it is how
+  # the containment check becomes load-bearing rather than decorative.
   packet_real="$(cd "$packet" 2>/dev/null && pwd -P)" || packet_real=""
-  if [[ -z "$packet_real" || ("$packet_real" != "$root_abs"/*) ]]; then
-    echo "ESCAPED $packet"
-    escaped=$((escaped + 1))
-    continue
-  fi
-  # Never delete through a symlink even when its target is inside the root:
-  # removing the link is not removing the packet, and following it is how the
-  # containment check above becomes load-bearing rather than decorative.
-  if [[ -L "$packet" ]]; then
+  if [[ -z "$packet_real" || "$packet_real" != "$root_abs"/* || -L "$packet" ]]; then
     echo "ESCAPED $packet"
     escaped=$((escaped + 1))
     continue
