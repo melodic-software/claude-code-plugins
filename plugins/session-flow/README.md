@@ -88,10 +88,11 @@ the whole chain (`chain:` frontmatter plus a `## Prior sessions` table), the ses
 path, the user's verbatim goal and opening ask, the cumulative sections (constraints, side effects,
 decisions, abandoned approaches, findings) copied forward with `[hN]` provenance tags, a one-line
 `## This session` record, and, as its final section, the resume prompt itself. A stdlib-only
-Python script, `scripts/save_point.py`, writes every deterministic field (`new`), validates the
-finished file before the rails are shown (`validate`, exit 0 gates the prompt), and prints the
-stored prompt (`emit`) so the on-screen rails and the file are the same bytes. The model fills
-only the reasoning slots. The resume prompt tells the next session to invoke this skill for its
+Python script, `scripts/save_point.py`, writes every deterministic field (`new`), replaces the
+reasoning slots from one JSON object in a single write (`fill`), validates the finished file
+before the rails are shown (`validate`, exit 0 gates the prompt), and prints the stored prompt
+(`emit`) so the on-screen rails and the file are the same bytes. The model supplies only the
+reasoning slot values. The resume prompt tells the next session to invoke this skill for its
 own save-point rather than writing a handoff file free-hand. Older shape-1 files are read as
 before and never rewritten.
 
