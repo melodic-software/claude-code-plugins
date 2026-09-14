@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.7]
+
+### Changed
+
+- observability skill: clean.sh validates both retention windows through one helper, probe-observability-state.sh folds its repo-root fallback and prune-pending line into single expressions, the prune filter inlines its prefix length, the collector lifecycle cleanup inverts one conditional, and the observability suite emits its hook-event fixture rows through one helper. No behavior change.
+
 ## [0.56.6]
 
 ### Changed
