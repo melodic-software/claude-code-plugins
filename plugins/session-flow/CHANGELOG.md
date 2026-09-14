@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.35.14]
+
+### Changed
+
+- Fold the chain-coverage note into one branch, drop a redundant staging guard and share the event runner and script-dir binding in the retro and keep-going suites (behavior unchanged).
+
 ## [0.35.13]
 
 ### Changed
