@@ -13,8 +13,12 @@ behavior, while a token comparison is exhaustive over the file.
 |---|---|---|---|
 | **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; a criterion-2 failure is deleted behind the tier-0 proof, an over-budget comment rewritten; narrative staged before either |
 | **`safe`** | Applied, same certification | Always proposed: no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
+| **`aggressive`** | Applied, same certification | Dissolved when the tier's gate passes; otherwise the comment stays with a proposal | Earn-its-keep is replaced by the survivor list: exempt surfaces, paired records, and warnings of consequence within `class_c_max_lines` stay, and every other class-C comment is staged and deleted behind the tier-0 proof |
+| **`strip`** | Applied, same certification | Deleted as a comment, no move attempted, narrative staged | Same survivor list minus the warnings: only exempt surfaces and paired records stay |
 
-`conservative` is `safe` as a standing default, so it reads the `safe` row. The class-C column is
+`conservative` is `safe` as a standing default, so it reads the `safe` row, and posture
+`aggressive` reads the `aggressive` row. A per-run token beats the standing posture; precedence is
+`safe`, then `strip`, then `aggressive`. The class-C column is
 the one to get right: the triage still runs in every mode and still returns a verdict, but a
 verdict is not an application. `safe` narrowing class C to proposals is what makes "only class-A
 deletions are applied" in the action router true rather than approximately true.
@@ -28,8 +32,8 @@ or excluded path, or delete text without a landing place (staging rule below).
 |---|---|---|---|
 | **0** | Class-A deletion | `change-shape.py` verdict **COMMENT-ONLY** | The comment-stripped token sequence is identical, so no code token moved. Exhaustive over the file; needs no tests, no build, no config |
 | **1** | Rename Variable / Rename Field on a function-local identifier | verdict **RENAME-ONLY** under one consistent mapping, and the identifier is neither exported nor public | A shape claim: every differing token is an identifier under one injective old→new mapping, no old name survives at an unchanged position, and no new name was already in use in the file. It cannot see other files, reflection, or string-keyed access, so it earns application plus a flagged review line in the report, never silence |
-| **2** | Additive local move: Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional | discovered test net, run before and after | These add tokens, so the token proof reports CODE-CHANGED by construction and cannot certify them. Only tests attest behavior preservation here |
-| **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
+| **2** | Additive local move: Extract Variable, Replace Magic Literal, Introduce Assertion, Slide Statements, Decompose Conditional, Replace Nested Conditional with Guard Clauses, Introduce Special Case | discovered test net, run before and after | These add tokens, so the token proof reports CODE-CHANGED by construction and cannot certify them. Only tests attest behavior preservation here |
+| **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call, Inline Function | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
 
 `change-shape.py` is at `../../../scripts/change-shape.py` (relative to this file; the
 `${CLAUDE_PLUGIN_ROOT}` token is substituted in `SKILL.md` but **not** in a reference file, which
@@ -55,10 +59,12 @@ probe reported: a pygments-level read may still apply deletions; a grep-level re
 in a language with heredocs or block comments, because it cannot tell a comment from string data.
 Tier 1 without its proof is tier 2.
 
-Two user-config knobs move tiers without changing any gate: `apply_local_renames=false` makes
-tier 1 a proposal even when RENAME-ONLY holds, and posture `conservative` makes every tier above 0
-a proposal (safe mode as a standing default). Nothing loosens a gate: no knob applies an edit its
-tier's proof did not pass.
+Knobs move tiers without changing any gate: `apply_local_renames=false` makes tier 1 a proposal even
+when RENAME-ONLY holds, and posture `conservative` makes every tier above 0 a proposal (safe mode as
+a standing default). `aggressive` and `strip` move in the other direction and still change no gate:
+they widen which comments are triaged away, while every applied deletion carries COMMENT-ONLY, every
+applied rename carries RENAME-ONLY, tiers 2 and 3 keep their test net, and an UNPROVABLE file yields
+proposals only. No knob applies an edit its tier's proof did not pass.
 
 ## The test net (tiers 2 and 3)
 
@@ -207,6 +213,14 @@ PR description or an ADR when the repo keeps them. For explicit-target runs on a
 code, note in the report that the narrative belongs with the *next* commit touching that code,
 or keep the comment if no vehicle exists (staging with no landing place is not a deletion
 licence).
+
+`--notes <path>` gives the block a second home: the run appends it to that file as well as
+reporting it. The path must be untracked or outside the repository, checked with
+`git ls-files --error-unmatch <path>`; a tracked path is refused and the run continues with the
+report as the only vehicle. The block carries an `Intentional-removal:` line only where the target
+repository's own gate scripts or CI read that trailer, since elsewhere it is a line no tool will
+ever match. Under `strip` the block carries more than usual: a class-B comment's information lands
+there rather than in a rewrite, so a thin staged block under `strip` is a defect, not a clean run.
 
 ## Gotcha: rejected-alternative rationale reads exactly like residue
 

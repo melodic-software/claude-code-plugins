@@ -247,7 +247,7 @@ holds a `D:/` path. `$TEMP` is unset in WSL2; WSL2 commands use `${TMPDIR:-/tmp}
 - `git log --oneline main..HEAD -- docs/topics/dissolve-comments-aggressive-dial/PLAN.md` lists at
   least one commit.
 
-### Phase 2: Expected outputs with the owner, then the red run [TODO]
+### Phase 2: Expected outputs with the owner, then the red run [DONE]
 
 Main session, interactive, one fixture per round. Fixtures are committed with a `.txt` suffix
 (`app.sh.txt`, `mod.py.txt`) and renamed by the scaffold, so CI shellcheck, ruff, and the
@@ -353,6 +353,13 @@ comment-hygiene scan do not lint deliberately commented fixtures.
   because a refusal before triage is a correct outcome.
 - Baseline (`comment-census.sh --json`, before value): `hook-utils-header.sh` 46 of 59 lines are
   comment; `silent-revert-design.sh` 34 of 39; `statusline-stamp.sh` 8 of 17; 88 of 115 in total.
+- Red run skipped on the owner's decision (2026-09-15): nearly every case reaches its behavior by an
+  argument token the unchanged skill reads as a path, so the run would have re-measured a known
+  outcome at 12 to 30 USD. The expected-red lists above stand as the record of what the unchanged
+  skill does, and Phase 4's run is the first paid pass.
+- The branch moved to the worktree `D:/worktrees/ccp-dissolve-dial` after another session switched
+  the main checkout back to `main`. WSL2 eval commands run from
+  `/mnt/d/worktrees/ccp-dissolve-dial`.
 
 **Sanity Check:**
 
@@ -367,7 +374,7 @@ comment-hygiene scan do not lint deliberately commented fixtures.
 - `git ls-files plugins/code-tidying/evals | grep -E '\.(sh|py|bash)$'` lists only scaffold scripts.
 - Every case's expected-red list in this file matches its red-run record.
 
-### Phase 3: Skill change [TODO]
+### Phase 3: Skill change [DOING]
 
 1. Consumer and claim sweep first: `grep -rn "comment_posture\|only descends\|narrows\|widened\|loosen
    nothing\|ceiling\|of 15" plugins/code-tidying docs scripts`; record every hit and its disposition
@@ -431,10 +438,25 @@ comment-hygiene scan do not lint deliberately commented fixtures.
   kept as they are: `CHANGELOG.md` history entries; `evals/evals.json:151, 163` (posture narration
   cases, still valid); every hit outside `plugins/code-tidying/skills/dissolve-comments`,
   `README.md`, and `plugin.json` uses "narrows" or "widened" in an unrelated sense.
+- Edits landed: `SKILL.md` (dial rows, `--notes`, survivor list, no-knob-loosens-a-gate wording,
+  doubt rule, paired-record and marker-row rules, docstring ceiling, per-mode branches in steps 1,
+  5, 6 and 7, `## Next`), `reference/safety.md` (mode-ladder rows, knob paragraph, staging section,
+  tier table), `reference/dissolving-moves.md` (tier table, counts), `reference/triage.md`,
+  `reference/scope.md`, `plugin.json` (posture value, description, 0.20.0), `README.md` (regenerated
+  options block plus hand-written prose), `CHANGELOG.md`, `evals/evals.json` (entries 16 to 18),
+  `docs/catalog.md` (regenerated).
+- The skill's `description` was over the 1024-codepoint Agent Skills maximum once the dials were
+  named (1199), and was on `main` at 978 with only 46 codepoints of headroom. It is now 1016 with
+  every base trigger phrase preserved; `check-skill` warns that the next added clause breaches the
+  limit.
+- Gates: `check-skill` PASS (1 warning, the headroom note), `sync-plugin-options-docs.py --check`
+  exit 0, `check-evals-quality.sh` PASS, `allowed-tools-pairing.test.sh` exit 0, tier tables agree
+  tier by tier.
 
 **Sanity Check:**
 
-- `grep -rn "only descends" plugins/code-tidying` prints nothing, and every hit recorded in item 1
+- `grep -rn "only descends" plugins/code-tidying --exclude=CHANGELOG.md` prints nothing (the
+  changelog quotes the retired wording on purpose), and every hit recorded in item 1
   has a disposition line in this file.
 - `grep -n '^## ' plugins/code-tidying/skills/dissolve-comments/SKILL.md` shows `## Next`
   immediately before `## Gotchas`.

@@ -1,7 +1,7 @@
 ---
-description: "Enforce self-describing code over a diff, branch, or ranked repository: a three-way comment triage that deletes zero-information comments, dissolves code-expressible ones into names and structure by behavior-preserving refactoring, and keeps only terse, load-bearing comments code cannot express. Deletions and local renames apply behind a token-level proof, other refactors behind a test net, else proposed; 'safe' mode restricts applied edits to removals. Use when: 'dissolve comments', 'remove comments', 'strip agent comments', 'too many comments', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: read-only residue classification (audit-comment-residue), structural tidyings (tidy), simplification waves (batch-simplify), markdown noise (docs-hygiene audit-noise), adding why-comments (tidy #14). Never touches public-API doc comments, license headers, or machine-read directives."
-argument-hint: "[safe] [override] [target]"
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-census.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(grep:*)", "Bash(echo:*)"]
+description: "Enforce self-describing code over a diff, branch, or ranked repo: a three-way triage: delete zero-information comments, dissolve code-expressible ones into names and structure by behavior-preserving refactors, keep only terse load-bearing comments code cannot express. Deletions and local renames need a token proof, other refactors a test net, else proposed; 'safe' removals only, 'aggressive' deletes non-exempt comments with narrative staged, 'strip' deletes all but exempt surfaces, no rewrite. Use when: 'dissolve comments', 'remove comments', 'strip all comments', 'strip agent comments', 'too many comments', 'aggressive comment removal', 'make it self-documenting', 'make the code expressive', 'comments must earn their keep', after an agent wrote over-commented code. Skip when: residue classification (audit-comment-residue), tidyings (tidy), simplification (batch-simplify), markdown noise (audit-noise), why-comments (tidy #14). Never touches public-API docs, license headers, or machine-read directives."
+argument-hint: "[safe] [aggressive|strip] [override] [--notes <path>] [target]"
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-census.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/commented-out-code.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh:*)", "Bash(git branch:*)", "Bash(git log:*)", "Bash(git ls-files:*)", "Bash(grep:*)", "Bash(echo:*)"]
 disable-model-invocation: false
 user-invocable: true
 shell: bash
@@ -37,7 +37,7 @@ argument names an explicit target**, and the tooling line is re-derived in step 
 Arguments: `$ARGUMENTS`
 
 Posture: `${user_config.comment_posture}` (unexpanded or empty means `strict`; any value outside
-`strict`, `balanced`, `conservative` is read as `strict`).
+`strict`, `balanced`, `conservative`, `aggressive` is read as `strict`).
 Kept-comment line budget: `${user_config.class_c_max_lines}` (unexpanded or empty means `2`).
 Apply proven local renames without a test net: `${user_config.apply_local_renames}` (unexpanded or
 empty means `true`).
@@ -64,8 +64,8 @@ line budget, and worked examples: [reference/triage.md](reference/triage.md).
 |---|---|---|
 | **A, zero/negative information** | Restates adjacent code, obsolete, commented-out code | Delete outright, certified by the token proof |
 | **B, information code could carry** | The comment compensates for a naming/structure deficiency. Empty by construction on a data or config file (TOML, YAML, JSON), which has no naming channel, so the pass there degrades to A plus C | Refactor until the comment is superfluous, then delete, never delete first |
-| **C, information code cannot carry** | Why/rationale, constraint, warning, contract, negative or operational information | **Kept** when load-bearing at the point of reading and not recoverable where a reader would look; held to the line budget once the exempt-surface check has cleared it, rewritten terser when over it, narrative staged |
-| **C, same test failed** | Inexpressible, but the earn-its-keep test's criterion 2 fails: recoverable from version control, an ADR, or an external source | **Deleted** under `strict`, certified by the same token proof class A uses, narrative staged before the deletion is final; **proposed** under `safe` and `conservative`, which apply class-A deletions only. The negative branch of the class-C test, not a fourth class |
+| **C, information code cannot carry** | Why/rationale, constraint, warning, contract, negative or operational information | **Kept** when load-bearing at the point of reading and not recoverable where a reader would look; held to the line budget once the exempt-surface check has cleared it, rewritten terser when over it, narrative staged. Under `aggressive` only a warning of consequence is kept, and under `strip` nothing in this class is |
+| **C, same test failed** | Inexpressible, but the earn-its-keep test's criterion 2 fails: recoverable from version control, an ADR, or an external source | **Deleted** under `strict`, certified by the same token proof class A uses, narrative staged before the deletion is final; **proposed** under `safe` and `conservative`, which apply class-A deletions only. Under `aggressive` and `strip` criterion 2 is not run at all on a non-survivor: the comment is staged and deleted whether or not the reasoning is recoverable. The negative branch of the class-C test, not a fourth class |
 
 The two class-C rows are one class and one test, whose three criteria must **all** hold, named on
 each side, so a comment that fails it has somewhere to go. A criterion-1 failure is not this branch:
@@ -80,22 +80,48 @@ Class-B moves and their tiers: [reference/dissolving-moves.md](reference/dissolv
 | *(empty)* | Triage the code files of the narrowest scope that resolves: uncommitted diff → branch diff → whole repository, resolved by `scope-code-files.sh` ([reference/scope.md](reference/scope.md)). On the repository rung, order the files with `rank-comment-targets.py` first. Pass `--allow-path <glob>` for each path the `override` argument or the repository overrides file lifted, so the administrative gate does not re-drop those files and does not ungate every other administrative path. Pass `--override-exclusions` only when `hard_exclusions` is `advisory`, which lifts the whole HARD path list. |
 | `<path>` | Triage a single file or directory (already-committed code is fine here). The pre-computed scope line above is **void** under an explicit target: that line runs the diff ladder unconditionally, so it names files this run is not triaging. Ignore it and do not run `scope-code-files.sh`. |
 | `safe [target]` | **Safe mode**: only class-A deletions are applied; every class-B treatment and class-C rewrite is emitted as a proposal. For codebases whose guardrails you do not know. |
+| `aggressive [target]` | **Aggressive dial**: the survivor list below is the whole of what stays. Every other comment goes, rationale included, with its narrative staged; a class-B comment is dissolved when its move's gate passes and otherwise kept with a proposal. Gates are unchanged. Combines with `override` and `--notes`; `safe` beats it. |
+| `strip [target]` | **Strip**: delete every comment except the survivor list, rewrite no code, certify each deletion COMMENT-ONLY, and stage the narrative. A class-B comment is deleted rather than dissolved, so its information reaches the staged block instead of the code. `safe` beats it, and `strip` beats `aggressive`. |
+| `--notes <path>` | Append the staged block to `<path>` as well as reporting it. The path must be untracked or outside the repository, checked with `git ls-files --error-unmatch <path>`; a tracked path is refused, the run continues, and the block is reported only. |
 | `override [target]` | **Lift the GLOBAL HARD path list** for this run's target, so `/code-tidying:dissolve-comments override ruff.toml` triages a file the list would otherwise drop. Combines with `safe`. Strip the token before reading the target; match it whole, and treat `./override` as a path. Path entries only, and every lifted path is named in the step 7 report with the channel that lifted it. |
 
 Posture `conservative` is safe mode as a standing default; `balanced` keeps the full contract but
-reports an over-budget class-C comment instead of rewriting it.
+reports an over-budget class-C comment instead of rewriting it; posture `aggressive` is the
+`aggressive` row above as a standing default. A per-run token beats the standing posture, and
+precedence among tokens is `safe`, then `strip`, then `aggressive`. `./safe`, `./aggressive`,
+`./strip` and `./override` are paths, not tokens.
 
-**The posture ladder only descends.** `strict` is both the default and the ceiling; `balanced`,
-`conservative` and `safe` each narrow what gets applied, `class_c_max_lines` bottoms out at 1, and
-nothing removes more than `strict` does. That is deliberate: no knob loosens a gate
-([reference/safety.md](reference/safety.md)). It is stated here because a user wanting a more
-aggressive pass would otherwise hunt for a setting that does not exist.
+**No knob loosens a gate.** `aggressive` and `strip` widen *what is triaged away*; they change no
+gate and no proof. Every applied deletion still carries the COMMENT-ONLY verdict, every applied
+function-local rename still carries RENAME-ONLY, tier-2 and tier-3 moves still need a discovered
+test net, and an UNPROVABLE file still yields proposals only. A `strict` run and an `aggressive` run
+differ in what they decide to remove, never in what they are allowed to prove.
 
-In every posture and mode, doubt keeps the comment: "when uncertain, keep or propose" is doctrine,
-not timidity. Doubt means an unresolved *classification*, not a resolved one whose verdict is
-delete. A criterion-2 failure established by the step-5 evidence check is not doubt, and the tie-
-break does not reinstate it; that rule is what stops the earn-its-keep test from collapsing into
-"keep everything".
+**What survives `aggressive` and `strip`** (the whole list; `reference/safety.md` carries the
+detail):
+
+- the exempt surfaces: public-API doc comments, legal headers, machine-read directives (universal
+  and repo-local), units, sentinels, ownership, thread-safety and ordering contracts, suppression
+  justifications paired with their waiver, `TODO(#issue)` markers, and lines carrying
+  `dissolve-comments-ignore`;
+- a comment that is one half of a comment-plus-regression-test pair, because deleting half of a
+  paired record is a correctness bug;
+- under `aggressive` only, a load-bearing warning of consequence, held to `class_c_max_lines` and
+  rewritten terser when over it. Every survivor must be succinct, clear, and justified in the
+  report: name the consequence, not the history.
+
+In `strict`, `balanced`, `conservative` and `safe`, doubt keeps the comment: "when uncertain, keep
+or propose" is doctrine, not timidity. Doubt means an unresolved *classification*, not a resolved
+one whose verdict is delete. A criterion-2 failure established by the step-5 evidence check is not
+doubt, and the tie-break does not reinstate it; that rule is what stops the earn-its-keep test from
+collapsing into "keep everything".
+
+Under `aggressive` and `strip` the tie-break is narrower, because everything not on the survivor
+list is leaving anyway: doubt whether a comment is an exempt surface, a paired record, or a
+load-bearing warning **keeps it**. Doubt between classes does not keep it, and resolves to the
+treatment that preserves the information: A-versus-B doubt resolves to B (dissolve when the gate
+passes, else keep with a proposal under `aggressive`, delete with the narrative staged under
+`strip`), and B-versus-C doubt resolves to B.
 
 Default mode applies the full contract: class A applies, each deletion certified by a token-level
 proof that no code changed; class B applies **per its tier**: a function-local rename behind the
@@ -104,7 +130,7 @@ move behind the net and proposal-first. Whatever a tier's gate does not pass is 
 the proof tool, the test-discovery procedure, and the mode ladder: [reference/safety.md](reference/safety.md).
 
 **Class B applies less than it looks like it does**, and a run planned around it should know that
-first: 2 of 15 moves need no test net, 0 of 15 apply with tree-sitter absent, and no move dissolves
+first: 2 of 16 moves need no test net, 0 of 16 apply with tree-sitter absent, and no move dissolves
 a *why*. Both limits are deliberate. See "Apply capacity" in
 [reference/dissolving-moves.md](reference/dissolving-moves.md) for the numbers and what follows
 from them.
@@ -112,13 +138,20 @@ from them.
 ## Hard rules
 
 - **Never delete information without a landing place.** A class-B comment's information moves into
-  code *before* the comment goes. Removed narrative (rationale, justification) is staged in the
-  output as a proposed commit-message block for `/source-control:commit`. Text is never silently
-  destroyed.
+  code *before* the comment goes, except under `strip`, which rewrites nothing and sends that
+  information to the staged block instead. Removed narrative (rationale, justification) is staged in
+  the output as a proposed commit-message block for `/source-control:commit`, and `--notes <path>`
+  appends it to an untracked or out-of-repo file as well. The block carries an
+  `Intentional-removal:` line only when the target repository's own scripts or CI read that trailer
+  (`grep -rl 'Intentional-removal:'` over its gate scripts and workflows); elsewhere the line is
+  noise. On an explicit target over already-committed code the landing place is the next commit
+  touching that code, named in the report. Text is never silently destroyed.
 - **Every applied edit passes the gate its tier names; lint never opens one.** Deletions and
   function-local renames are certified by `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh`
   (COMMENT-ONLY, RENAME-ONLY); additive and interface-creating moves need a discovered test net.
-  Any other verdict reverts the edit and demotes it to a proposal.
+  Any other verdict reverts the edit and demotes it to a proposal. A Python docstring is a string
+  token, not a comment, so removing one reads CODE-CHANGED and is always a proposal, private
+  docstrings included.
 - **RENAME-ONLY is a shape claim, not a safety claim.** It rejects a rename that misses a
   reference or lands on a name the file already uses, but cannot see other files, reflection, or
   string-keyed access. A rename applied on its strength is reported with its mapping, never silently.
@@ -128,6 +161,12 @@ from them.
   `dissolve-comments-ignore`. **Negative and operational information are not on that list.** They
   are class C with a raised evidence bar, held to the same test and budget as any class-C comment.
   Exempting the category outright would contradict this skill's own eval 13.
+- **A paired record is never half-deleted.** A comment asserting something about code that is not
+  present, paired with a regression test that pins it, is one artifact in two places; deleting the
+  comment alone is a correctness bug. Kept in every mode, `strip` included.
+- **An identifier named in a repo-local marker row is never renamed.** A gate that pins
+  `<name>=` as an exactly-once marker (step 2 discovers these) turns that spelling into compiler
+  input. Dissolve the comment if it earns dissolving, but leave the identifier alone.
 - **Path exclusions are the plugin's standard tier**, tidy's
   [exclusions reference](${CLAUDE_PLUGIN_ROOT}/skills/tidy/reference/exclusions.md) GLOBAL HARD
   list. Agent/enforcement config, CI workflows, hook chains, lint config are not edited unless a
@@ -150,7 +189,9 @@ from them.
    the pre-computed scope line is void, `scope-code-files.sh` is not run, and no file outside the
    target is triaged or reported. Empty argument: run `scope-code-files.sh` (never the truncated
    preview), confirm a widening to the repository rung interactively, and take any widened rung in
-   safe mode when non-interactive. On the repository rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage
+   safe mode when non-interactive, **whatever the posture or dial token**: `aggressive` and `strip`
+   reach a widened rung only through an interactive confirmation, and an explicit target is the
+   other way to mean it. On the repository rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage
    in its order. When an override channel is active, hand its resolved reach to the ranker so the
    administrative gate does not re-drop a lifted path: `--allow-path <glob>` per path the `override`
    argument or the repository overrides file lifted, and `--override-exclusions` only for
@@ -210,7 +251,9 @@ from them.
    content is rationale, run `git log -L <start>,<end>:<file>` over its own lines and check the
    repo's ADR or decision-log directory where one is declared; recoverable there **fails** the
    criterion, absent from both **passes**, unreadable history is recorded as unavailable and keeps
-   the comment. Full procedure: [reference/triage.md](reference/triage.md). Done when every comment
+   the comment. Under `aggressive` and `strip` this evidence check is skipped for every comment
+   outside the survivor list: the verdict is the same either way, and the `git log -L` per comment
+   is the expensive half of a run. Full procedure: [reference/triage.md](reference/triage.md). Done when every comment
    carries one class and every class-C candidate a criterion-2 verdict with its evidence.
 6. **Apply**, one item at a time, each behind its tier's gate. Class A: delete, run
    `change-shape.py` on before and after; anything but COMMENT-ONLY (exit 0) restores the comment.
@@ -219,7 +262,10 @@ from them.
    at any length. A non-exempt comment that **failed** criterion 2 is, under `strict`, staged then
    deleted behind the same COMMENT-ONLY proof class A uses; under `safe` or `conservative` it is
    proposed instead, since those modes apply class-A deletions only, and a rationale comment is not class
-   A however its test resolved. A non-exempt comment over budget is rewritten to the budget under
+   A however its test resolved. Under `aggressive` and `strip` every non-survivor is staged and then
+   deleted behind that same COMMENT-ONLY proof, class C included, and under `strip` a class-B
+   comment takes that path rather than its move; under `aggressive` a class-B move still applies
+   only when its tier's gate passes, and the comment stays with a proposal when it does not. A non-exempt comment over budget is rewritten to the budget under
    `strict` with the narrative staged, reported instead under `balanced`; its carve-out reason names
    every kept comment by file and line, written once for a group that enumerates its members. Where
    most of a file's class-C comments carry contract, negative, or operational information, say so
@@ -231,7 +277,11 @@ from them.
    versus proposed with each applied item's verdict (and the mapping for every RENAME-ONLY), the
    staged commit-message block, the class-C keeps and rewrites with one-line reasons (grouped where
    several share one, every member still named) and **each keep naming its criterion-2 evidence**
-   from step 5, plus any whole-file budget suspension. Under a whole-file verdict, report that
+   from step 5, plus any whole-file budget suspension. Under `aggressive` and `strip` a keep names
+   which survivor rule earned it (exempt surface, paired record, warning of consequence) in place of
+   criterion-2 evidence, and the report names the block's landing place: the pending commit, the
+   next commit touching already-committed code, or the `--notes` path, with a refused tracked path
+   said plainly. Under a whole-file verdict, report that
    file's class-C keeps as a count per reason group rather than a line each; the per-keep evidence
    line is owed only for keeps the run actually searched. Then the census delta, `comment-census.py
    --baseline` pointed at the exact `baseline.json` step 4 wrote, in lines, bytes and estimated
@@ -242,20 +292,29 @@ from them.
 
 ## What this skill is NOT
 
-- **Not "delete all comments."** Class C survives on the earn-its-keep test; exempt surfaces are
-  never touched.
+- **Not "delete all comments."** `strip` comes closest and still keeps the survivor list: exempt
+  surfaces and paired records are never touched, in any mode. Without a dial token, class C survives
+  on the earn-its-keep test.
 - **Not `/code-tidying:audit-comment-residue`**, the read-only residue classifier. Run that for
   findings without changes.
 - **Not `/code-tidying:tidy` or `/code-tidying:batch-simplify`.** No lane rotation, no scope
   budget, no wave machinery: one pass over one resolved scope.
 - **Not a bug-hunter or general simplifier.** `/code-review` and `/simplify` own those.
 
+## Next
+
+`/source-control:commit`, which takes the staged commit-message block this run printed and lands the
+removed narrative with the diff that removed it.
+
 ## Gotchas
 
 - A comment that *looks* like restatement can disambiguate genuinely ambiguous code. Misclassifying
-  B as A is the information-destroying failure; when uncertain, keep or propose.
+  B as A is the information-destroying failure; when uncertain, keep or propose. Under `aggressive`
+  and `strip` the same doubt resolves to B, which is why those modes stage before they delete.
 - Rationale for a *rejected* approach has no referent in the adjacent code, the same surface as a
-  stale comment. It is class C by default ([reference/safety.md](reference/safety.md)).
+  stale comment. It is class C by default ([reference/safety.md](reference/safety.md)), and under
+  `aggressive` and `strip` it is staged and deleted: rejected alternatives belong in the commit or
+  PR that removed them.
 - Extraction has a cost curve: a name that must grow megasyllabic to stay honest signals the
   information did not fit the name channel. Short name plus terse comment, or Inline Function,
   beats a dishonest long name ([reference/dissolving-moves.md](reference/dissolving-moves.md)).
