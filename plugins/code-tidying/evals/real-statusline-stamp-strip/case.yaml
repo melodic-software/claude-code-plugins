@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: real-statusline-stamp-strip
+description: strip on the statusline-tee.sh stamp reader deletes every comment, rewrites no code, and stages the narrative
+tags: [calibration, strip, real]
+expected_outcome: All eight comment lines are deleted, including the arithmetic-injection warning; the function body is byte-identical; the removed narrative is staged in the report.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments strip statusline-stamp.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: no-comments-left
+    type: regex
+    pattern: '^\s*#'
+    flags: m
+    match: not_contains
+    target: { source: file, path: statusline-stamp.sh }
+  - name: code-intact
+    type: regex
+    pattern: '_rlg_read_stamp\(\) \{\n  local _var="\$1" _val=0\n  if \[\[ -f "\$2" \]\]; then\n    IFS= read -r _val <"\$2" \|\| _val=0\n    \[\[ "\$_val" =~ \^\[0-9\]\+\$ \]\] \|\| _val=0\n  fi\n  printf -v "\$_var" ''%s'' "\$_val"\n  return 0\n\}'
+    target: { source: file, path: statusline-stamp.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
+  - name: narrative-staged
+    type: llm
+    criteria: PASS when the final report contains a proposed commit-message block that preserves the removed information, including the arithmetic-injection warning (bash evaluates arithmetic operand text, so a stamp like a[$(cmd)] would run cmd). FAIL when that warning appears nowhere in the report.

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+lock_file="${LOCK_FILE:-worker.lock}"
+api_url="${API_URL:-https://api.example.com}"
+
+prepare_lock() {
+  : >"$lock_file"
+}
+
+start_worker() {
+  echo "worker started with lock $lock_file"
+}
+
+fetch_status() {
+  local attempt
+  # Retries three times because the upstream API drops the first connection after idle.
+  local retries=3
+  for ((attempt = 1; attempt <= retries; attempt++)); do
+    if curl --silent --max-time "$timeout" "$api_url/status"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# set the counter to zero
+counter=0
+
+# Uses a 5 second timeout to stay under the load balancer's 6 second idle cutoff.
+timeout=5
+
+# Must run before start_worker, or the lock file deadlocks the worker.
+prepare_lock
+start_worker
+
+fetch_status || counter=$((counter + 1))
+echo "failures: $counter"
