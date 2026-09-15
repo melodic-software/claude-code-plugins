@@ -423,6 +423,15 @@ comment-hygiene scan do not lint deliberately commented fixtures.
    (`strip-keeps-exempt-surfaces-and-rewrites-nothing`), 18
    (`standing-aggressive-posture-yields-to-safe`), each `narration: true` with `expectations`.
 
+**Phase 3 record:**
+
+- Item 1 sweep (run before the red run; read-only). Hits to edit: `plugin.json:30`
+  (`comment_posture`), `README.md:129, 136, 160`, `SKILL.md:39, 88, 107, 152`,
+  `reference/triage.md:95`, `reference/scope.md:30`, `reference/dissolving-moves.md:57, 61`. Hits
+  kept as they are: `CHANGELOG.md` history entries; `evals/evals.json:151, 163` (posture narration
+  cases, still valid); every hit outside `plugins/code-tidying/skills/dissolve-comments`,
+  `README.md`, and `plugin.json` uses "narrows" or "widened" in an unrelated sense.
+
 **Sanity Check:**
 
 - `grep -rn "only descends" plugins/code-tidying` prints nothing, and every hit recorded in item 1
