@@ -137,6 +137,7 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
+SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
 hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
 
 # Hook-manager env-var disable prefixes, built once into a regex alternation.
