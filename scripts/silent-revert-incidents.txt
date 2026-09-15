@@ -18,6 +18,35 @@
 # must report a finding; `clean` = it must not. Blank lines and `#` lines
 # ignored.
 #
+# A `fires` row is followed by one or more MARKER lines, each belonging to the
+# row above it (#2855):
+#
+#   marker <path> <verbatim text from the content the incident lost>
+#   marker [Not-restored: <reason>] <path> <text>
+#
+# `--verify-restored [<rev>]` resolves each marker with a path-scoped
+# `git grep -F` against <rev>, defaulting to the working tree, and fails when
+# one is absent and undispositioned. That is a DIFFERENT question from the one
+# `--verify-known-incidents` answers: the replay proves the detector still
+# fires on the incident, and a commit can keep firing forever while the content
+# it deleted is still missing. #2635's two files were exactly that for 31h28m
+# -- detected, recorded, twice partly re-landed, green the whole time.
+#
+# Rules, all of them exit 2 rather than a quiet pass:
+#
+#   * Every `fires` row carries at least one marker. A row with none could be
+#     satisfied by pinning history and covering no future incident.
+#   * Markers are PATH-BOUND, and that is load-bearing rather than tidy. Both
+#     disk-hygiene markers below also occur elsewhere in the same plugin on
+#     current main, so a repo-wide grep would have called both files restored
+#     through the entire window they were missing.
+#   * A `clean` row carries none -- nothing was lost, so nothing must return.
+#   * `[Not-restored: <reason>]` needs a non-empty reason, the same bar the
+#     `Intentional-removal:` trailer is held to. An empty one is not a mute.
+#
+# Each marker below was chosen by hand and verified to be a line the CULPRIT
+# added, that the reverting commit removed, and that is back on main today.
+#
 # The bracketed ATTRIBUTION field is what makes a `fires` row an assertion
 # rather than a claim (#2833). Without it the replay proved only that the
 # commit still produces SOME finding, while the note beside it named a specific

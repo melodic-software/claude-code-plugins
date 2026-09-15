@@ -7,6 +7,10 @@
 #   scripts/check-silent-revert.sh --commit <sha> scan one commit
 #   scripts/check-silent-revert.sh --verify-known-incidents
 #                                                 replay the recorded incidents
+#   scripts/check-silent-revert.sh --verify-restored [<rev>]
+#                                                 assert each recorded incident's
+#                                                 content is BACK at <rev>
+#                                                 (default: the working tree)
 #
 # Exit 0 clean, 1 findings, 2 the canary could not run (never a quiet pass).
 #
@@ -71,6 +75,13 @@
 #   #2639 -- registration happens after you already know a fix matters, which
 #   is exactly the knowledge the incident destroys. It also decays: the list is
 #   only as fresh as the last person who remembered to append to it.
+#
+#   That rejection is about DISCOVERY and stays in force: nothing below asks a
+#   human to predict which content will be dropped. It does NOT apply to an
+#   incident already recorded in scripts/silent-revert-incidents.txt, where the
+#   knowledge exists and registration costs one line -- which is the half
+#   #2691's suggestion 3 was actually right about, and what the RESTORATION
+#   MARKERS section further down finally builds (#2855).
 #
 #   Merge-base staleness (the PR's branch point vs. what landed since).
 #   Tested and REJECTED on evidence: it exonerates all three real incidents,
@@ -203,6 +214,7 @@ usage:
   scripts/check-silent-revert.sh <range>                  e.g. abc123..def456
   scripts/check-silent-revert.sh --commit <sha>
   scripts/check-silent-revert.sh --verify-known-incidents
+  scripts/check-silent-revert.sh --verify-restored [<rev>]
 EOF
   exit 2
 }
@@ -603,6 +615,11 @@ verify_known_incidents() {
   while read -r expect sha rest; do
     case "$expect" in
       '' | '#'*) continue ;;
+      # Restoration markers (#2855) belong to --verify-restored, which owns
+      # their grammar and their every-fires-row-must-carry-one rule. Skipping
+      # them HERE rather than letting them reach the unknown-expectation die
+      # below is what lets both assertions read one corpus file.
+      marker) continue ;;
       *) ;;
     esac
     if ! git rev-parse --verify --quiet "${sha}^{commit}" >/dev/null; then
@@ -691,12 +708,242 @@ verify_known_incidents() {
 }
 
 # ---------------------------------------------------------------------------
+# RESTORATION MARKERS -- did the content actually come BACK? (#2855)
+# ---------------------------------------------------------------------------
+# Everything above answers one question about a recorded incident: does the
+# deleting commit still produce a finding. Nothing above asks whether the
+# content that commit deleted is on main TODAY. So an incident could be
+# detected, recorded, PARTIALLY re-landed, and left permanently incomplete with
+# every signal green -- the same "every angle a reader normally checks looked
+# healthy" failure #2691 was filed for.
+#
+# That is not hypothetical. #2635's README and eval work was dropped by #2639's
+# squash, missed by two separate re-lands (#2714 and #2803), and finally
+# restored by hand in #2829 after 31h28m absent from main (f603880da ->
+# 534eac138). Throughout that window `--verify-known-incidents` exited 0: the
+# incident still fired, and firing was never connected to restoration.
+#
+# So a `fires` row may carry one or more MARKER lines, each a verbatim string
+# from the lost content BOUND TO THE PATH it must be found in:
+#
+#   fires <sha> [<attribution>] <note>
+#     marker <path> <verbatim text from the content that was lost>
+#     marker [Not-restored: <reason>] <path> <text>
+#
+# `--verify-restored [<rev>]` resolves every marker with a path-scoped
+# `git grep -F` against <rev>, defaulting to the working tree, and exits 1 when
+# a marker is absent and undispositioned.
+#
+# WHY MARKERS AND NOT SOMETHING CHEAPER. Two obvious designs were measured
+# against this exact incident and both fail on it:
+#
+#   Path revisited since. A false negative here: #2641's squash touched both
+#   files ten minutes after the incident, so "has anything changed this path"
+#   answers yes while the content is still gone.
+#
+#   Verbatim hunk restored. Stays red forever on the README half. #2828 records
+#   that #2635's README hunk was malformed and must NOT be restored
+#   byte-for-byte; #2829 restored the intent instead. A marker survives that
+#   rewrite -- measured: `Safe tidiness is the primary objective` is present at
+#   a95f240f7, absent at f603880da and 71ca05a39, present again at 534eac138.
+#
+# PATH-SCOPED IS LOAD-BEARING, not tidiness. Both shipped disk-hygiene markers
+# also occur elsewhere in the same plugin on current main -- the engine script,
+# its test file, CHANGELOG.md -- so a repo-wide `git grep` would have reported
+# both files restored during the whole 31-hour window they were missing.
+#
+# EVERY `fires` ROW MUST CARRY A MARKER. A row with none is exit 2, not a quiet
+# pass: without that rule the assertion could be satisfied by pinning the one
+# historical incident and covering no future one, which is how a proof decays
+# into decoration.
+#
+# THE DISPOSITION IS NOT A MUTE. `[Not-restored: <reason>]` needs a non-empty
+# reason -- the same bar declares_removal() holds `Intentional-removal:` to --
+# and an empty one is exit 2 rather than silence. A dispositioned marker that
+# turns out to be PRESENT is also a failure: content came back and the recorded
+# decision is now false, and a corpus nobody has to correct is a corpus that
+# stops being read.
+#
+# COST. One path-scoped `git grep` per marker over a corpus of a few rows, so
+# it fits inside the same push: main job as the replay. An on-demand mode alone
+# would be insufficient anyway: "nobody thought to check" is precisely the
+# failure that produced #2828.
+# ---------------------------------------------------------------------------
+
+# Path-scoped presence of one marker. Returns 0 present, 1 absent; anything
+# else from git is exit 2, because a grep that could not run is not an absence.
+marker_present() {
+  local rev="$1" path="$2" text="$3" status
+  if [[ -n "$rev" ]]; then
+    git grep --quiet --fixed-strings -e "$text" "$rev" -- "$path" >/dev/null 2>&1
+  else
+    git grep --quiet --fixed-strings -e "$text" -- "$path" >/dev/null 2>&1
+  fi
+  status=$?
+  case "$status" in
+    0) return 0 ;;
+    1) return 1 ;;
+    *) die "git grep failed (status $status) resolving a marker in $path at ${rev:-the working tree}" ;;
+  esac
+}
+
+# Parses the text after the `marker` keyword into MARKER_PATH / MARKER_TEXT /
+# MARKER_REASON (empty reason = the marker is asserted present).
+#
+# Sets globals rather than printing, for the same reason
+# parse_attribution_field is called with a plain redirect: `die`'s exit 2 is
+# swallowed inside a command substitution, so a malformed row would degrade
+# into a confusing comparison instead of a hard stop.
+MARKER_PATH=""
+MARKER_TEXT=""
+MARKER_REASON=""
+parse_marker_line() {
+  local rest="$1" field
+  MARKER_PATH=""
+  MARKER_TEXT=""
+  MARKER_REASON=""
+  [[ -n "$rest" ]] || die "empty marker line in $INCIDENTS_FILE"
+
+  # A leading `[` COMMITS the line to carrying a disposition, closing bracket or
+  # not -- the same trapdoor #2843 closed on the attribution field. Folding the
+  # closing bracket into the test would let `marker [Not-restored: oops <path>`
+  # fall through to being read as a path, which is a silent mute.
+  if [[ "$rest" == \[* ]]; then
+    [[ "$rest" == \[*\]* ]] ||
+      die "unterminated marker disposition in $INCIDENTS_FILE (no closing ']'): $rest"
+    field="${rest%%\]*}]"
+    rest="${rest#*\]}"
+    rest="${rest# }"
+    case "$field" in
+      '[Not-restored:'*) ;;
+      *) die "unknown marker disposition '$field' in $INCIDENTS_FILE (want [Not-restored: <reason>])" ;;
+    esac
+    MARKER_REASON="${field#\[Not-restored:}"
+    MARKER_REASON="${MARKER_REASON%\]}"
+    MARKER_REASON="${MARKER_REASON#"${MARKER_REASON%%[![:space:]]*}"}"
+    [[ -n "$MARKER_REASON" ]] ||
+      die "empty marker disposition reason in $INCIDENTS_FILE; a disposition without a reason is a mute, not a decision: $field"
+  fi
+
+  case "$rest" in
+    *' '*) ;;
+    *) die "marker line in $INCIDENTS_FILE needs '<path> <text>', got: $rest" ;;
+  esac
+  MARKER_PATH="${rest%% *}"
+  MARKER_TEXT="${rest#* }"
+  [[ -n "$MARKER_PATH" && -n "$MARKER_TEXT" ]] ||
+    die "marker line in $INCIDENTS_FILE needs both a path and marker text: $rest"
+}
+
+# A `fires` row that records no marker cannot assert restoration at all, so it
+# is exit 2 (the check cannot run) rather than a pass.
+close_restoration_row() {
+  local expect="$1" sha="$2" markers="$3"
+  [[ -n "$sha" ]] || return 0
+  [[ "$expect" = "fires" ]] || return 0
+  [[ "$markers" -eq 0 ]] &&
+    die "fires row $sha in $INCIDENTS_FILE carries no restoration marker -- every recorded incident must name at least one, path-bound (see RESTORATION MARKERS in $(basename "${BASH_SOURCE[0]}"))"
+  return 0
+}
+
+verify_restored() {
+  local rev="${1:-}"
+  [[ -f "$INCIDENTS_FILE" ]] || die "incident file not found: $INCIDENTS_FILE"
+  if [[ -n "$rev" ]]; then
+    git rev-parse --verify --quiet "${rev}^{commit}" >/dev/null ||
+      die "cannot resolve rev '$rev' -- the restoration check needs full history (fetch-depth: 0)"
+  fi
+
+  local where="the working tree"
+  [[ -z "$rev" ]] || where="$rev"
+
+  local rc=0 kind rest sha note
+  local row_expect="" row_sha="" row_markers=0
+
+  while read -r kind rest; do
+    case "$kind" in
+      '' | '#'*) continue ;;
+      marker)
+        [[ -n "$row_sha" ]] ||
+          die "marker line before any incident row in $INCIDENTS_FILE: $rest"
+        [[ "$row_expect" = "fires" ]] ||
+          die "marker recorded on a '$row_expect' row ($row_sha) in $INCIDENTS_FILE; only 'fires' rows lost content"
+        parse_marker_line "$rest"
+        row_markers=$((row_markers + 1))
+        if marker_present "$rev" "$MARKER_PATH" "$MARKER_TEXT"; then
+          if [[ -n "$MARKER_REASON" ]]; then
+            printf 'FAIL %s marker is dispositioned not-restored but is PRESENT in %s\n' \
+              "${row_sha:0:9}" "$MARKER_PATH"
+            printf '     recorded reason: %s\n' "$MARKER_REASON"
+            printf '     The content came back; drop the disposition rather than leaving\n'
+            printf '     the corpus recording a decision that is no longer true.\n'
+            rc=1
+          else
+            printf 'ok   %s restored in %s\n' "${row_sha:0:9}" "$MARKER_PATH"
+          fi
+        else
+          if [[ -n "$MARKER_REASON" ]]; then
+            printf 'note %s deliberately not restored in %s: %s\n' \
+              "${row_sha:0:9}" "$MARKER_PATH" "$MARKER_REASON"
+          else
+            printf 'FAIL %s content is STILL MISSING from %s\n' \
+              "${row_sha:0:9}" "$MARKER_PATH"
+            printf '     marker: %s\n' "$MARKER_TEXT"
+            rc=1
+          fi
+        fi
+        continue
+        ;;
+      fires | clean) ;;
+      *) die "unknown expectation '$kind' in $INCIDENTS_FILE" ;;
+    esac
+
+    close_restoration_row "$row_expect" "$row_sha" "$row_markers"
+
+    sha="${rest%% *}"
+    note="${rest#* }"
+    [[ "$note" != "$rest" ]] || note=""
+    # The attribution field belongs to the replay; strip it so the note reads.
+    if [[ "$note" == \[* ]]; then
+      note="${note#*\]}"
+      note="${note# }"
+    fi
+    row_expect="$kind"
+    row_sha="$sha"
+    row_markers=0
+    [[ "$kind" = "fires" ]] || continue
+    printf '\n%s  %s\n' "${sha:0:9}" "$note"
+  done <"$INCIDENTS_FILE"
+
+  close_restoration_row "$row_expect" "$row_sha" "$row_markers"
+
+  if [[ "$rc" -ne 0 ]]; then
+    echo
+    echo "A recorded incident's content is NOT back at $where."
+    echo "Firing is not fixing: the detector caught this, the issue was closed,"
+    echo "and part of the content never returned -- the partial re-land #2828"
+    echo "found by hand. Re-land what is missing, or record a reviewed"
+    echo "[Not-restored: <reason>] disposition on the marker in $INCIDENTS_FILE."
+    return 1
+  fi
+  echo
+  echo "Every recorded incident's content is present at $where."
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 main() {
   [[ $# -ge 1 ]] || usage
 
   case "$1" in
     --verify-known-incidents)
+      [[ $# -eq 1 ]] || usage
       verify_known_incidents
+      exit $?
+      ;;
+    --verify-restored)
+      [[ $# -le 2 ]] || usage
+      verify_restored "${2:-}"
       exit $?
       ;;
     --commit)
