@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-code": "2.1.268",
+    "@anthropic-ai/claude-code": "2.1.273",
     "@biomejs/biome": "2.5.12",
     "htmlhint": "1.9.2",
     "markdownlint-cli2": "0.23.2"
