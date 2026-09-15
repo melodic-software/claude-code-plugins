@@ -39,7 +39,10 @@ plugins/context-guard/hooks/zone-gate.test.sh
 # A/B timing harness; its verdicts are elapsed-time comparisons.
 plugins/performance/scripts/ab.test.sh
 
-# The statusline bench measures render latency.
+# The statusline bench measures render latency. Its lane runs are gated on
+# BENCH_LANES, so an ordinary run stops before them and needs no seat here; the
+# entry is for the runs that DO set it (a local full corpus with the lanes
+# enabled), where the lanes measure exactly what contention distorts.
 plugins/rate-limit-guard/bench/bench.test.sh
 
 # Cancellation-window cases kill a parked rename shim on a short fuse.

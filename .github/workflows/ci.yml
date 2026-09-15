@@ -1,6 +1,17 @@
 name: ci
 
 on:
+  # The only way to run the rate-limit-guard bench lanes in CI. They are gated
+  # on BENCH_LANES inside their suite because spawning a lane is running a
+  # benchmark, and a scheduled lane of their own would be unread advisory
+  # automation outside `ci-status`. A dispatch runs the full contract corpus,
+  # so this input only decides whether the lanes run inside it.
+  workflow_dispatch:
+    inputs:
+      bench_lanes:
+        description: "Run the rate-limit-guard statusline bench lanes"
+        type: boolean
+        default: false
   push:
     branches: [main]
   pull_request:
@@ -1492,6 +1503,9 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
+          # Empty on every event but a dispatch that asked for the lanes, which
+          # is what the gate in the bench suite reads as "stay deferred".
+          BENCH_LANES: ${{ inputs.bench_lanes && '1' || '' }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"

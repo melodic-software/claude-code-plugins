@@ -83,9 +83,19 @@ HOME="$(mktemp -d)" bash plugins/rate-limit-guard/bench/bench-idle.sh
 
 The **benchmarks gate nothing**. Wall-clock numbers on shared CI runners are noise, so no lane's
 timing ever runs in CI. What does run is `bench.test.sh`, a contract smoke suite discovered by
-`scripts/run-plugin-tests.sh` like every other `*.test.sh`: it unit-tests the lib helpers and
-runs each lane once with tiny parameters against the repo tee under an isolated `HOME`, asserting
-behaviour and output shape, never timing. That keeps the harness runnable from a clean checkout
-(an unrunnable harness is exactly the defect that made #2521's measurements unreproducible) and
-maps these files into `scripts/affected-tests.sh` coverage. The tee's behavioural coverage lives
-in `../scripts/statusline-tee.test.sh`.
+`scripts/run-plugin-tests.sh` like every other `*.test.sh`, which maps these files into
+`scripts/affected-tests.sh` coverage. It splits in two:
+
+- **Every run** unit-tests the lib helpers: `median`, `pace_sleep_arg`, `now_ms` and the refusal
+  on a bash without `EPOCHREALTIME`. No lane is spawned, so it costs milliseconds.
+- **`BENCH_LANES=1`** adds the lane cases: one tiny-parameter run of each lane against the repo
+  tee under an isolated `HOME`, plus the two failing-render aborts, asserting behaviour and
+  output shape, never timing. Spawning a lane is running a benchmark whatever the parameters, so
+  those five cases are gated; without the variable the suite prints a `SKIP:` line and the
+  runner's summary names the coverage that did not run.
+
+Run them locally with `BENCH_LANES=1 bash plugins/rate-limit-guard/bench/bench.test.sh`, or in CI
+by dispatching `ci.yml` with its `bench_lanes` input set. That is the deliberate run that keeps
+the harness runnable from a clean checkout; an unrunnable harness is exactly the defect behind the
+unreproducible measurements in #2521. The tee's behavioural coverage lives in
+`../scripts/statusline-tee.test.sh`.

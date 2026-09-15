@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.19]
+
+### Changed
+
+- `bench.test.sh` gates its five lane cases on `BENCH_LANES`. Without it the suite runs only the lib-helper assertions and prints a `SKIP:` line naming the coverage that did not run; `BENCH_LANES=1` runs every case, locally or through `ci.yml`'s `bench_lanes` dispatch input.
+
 ## [0.8.18]
 
 ### Changed
