@@ -150,7 +150,10 @@ No hardcoded marketplace name anywhere in this skill. Every action resolves its 
   `installed_plugins.json`'s install records, never a hardcoded name).
 - `<marketplace-name>` argument → that marketplace only.
 - `all` argument → every marketplace in `known_marketplaces.json`; per-marketplace failures are
-  reported inline and never abort the sweep (see [context/sync.md](context/sync.md)).
+  reported inline and never abort the sweep (see [context/sync.md](context/sync.md)). **`all` also
+  multiplies the `install_new` policy across every catalog**: under a rendered policy of `all` this
+  target installs every plugin published in every known marketplace. Confirm the resolved install
+  gap with a human first, per "userConfig: `install_new`" below.
 
 ## State inspection
 
@@ -269,6 +272,18 @@ schema has no `enum` type. Verified against the published schema), default `"ask
 
 Any explicitly-set value other than these three is invalid; treat it as `ask` and note the invalid
 value in the report.
+
+**`all` is scoped to the marketplace target, and the target is what makes it safe or catastrophic.**
+Against the default marketplace, the one whose fleet the operator curates, the gap is normally zero
+or a handful and `all` is the intended convenience. Against a multi-marketplace target (`all`, or a
+named third-party catalog) the same word means "install every plugin published in every catalog this
+machine knows about." One observed run installed 2,231 plugins before it was killed; see
+[context/gotchas.md](context/gotchas.md)'s "`--all` with `install_new: all` is a mass install of
+every catalog". **When the marketplace target is `all` and the rendered policy is `all`, do not
+proceed unattended:** resolve the total install gap first (one `audit all`, or `fleet-state.sh
+--ids install-gap` per marketplace), state the number, and get an explicit human yes. Treat the
+configured value as written with the operator's own marketplace in mind, and downgrade to `ask` when
+no human is present to receive the count.
 
 **Configured value: `${user_config.install_new}`**. Claude Code text-substitutes a `userConfig`
 value into this skill's content before the model sees the rendered skill, but **only when the key is
