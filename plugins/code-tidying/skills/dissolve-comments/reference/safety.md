@@ -86,7 +86,10 @@ open the apply path, because they cannot attest behavior preservation.
 
 ## Exempt surfaces (never touched, any mode)
 
-- Public-API doc comments: docstrings, C# XML docs, JSDoc/TSDoc on exported/public surfaces. Python
+- Public-API doc comments, in the language's structured doc-comment form: docstrings, C# XML docs,
+  JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. A language with no doc-comment form,
+  shell and make among them, has no exempt surface here: a header block there is an ordinary comment
+  and takes the ordinary triage. Python
   has no export keyword, so the rule there is the leading underscore: a module docstring, and the
   docstring of any module, class, function, method, or attribute whose name does not start with an
   underscore, is public and exempt. A leading underscore marks it private, and a private docstring

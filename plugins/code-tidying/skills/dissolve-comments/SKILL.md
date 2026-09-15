@@ -100,7 +100,10 @@ differ in what they decide to remove, never in what they are allowed to prove.
 **What survives `aggressive` and `strip`** (the whole list; `reference/safety.md` carries the
 detail):
 
-- the exempt surfaces: public-API doc comments, legal headers, machine-read directives (universal
+- the exempt surfaces: public-API doc comments **in the language's structured doc-comment form**
+  (a docstring, an XML doc, JSDoc or TSDoc, a GoDoc sentence) attached to a public declaration; a
+  free-form comment block in a language with no doc-comment form, shell and make among them, is not
+  a doc comment and takes the ordinary triage. Also legal headers, machine-read directives (universal
   and repo-local), units, sentinels, ownership, thread-safety and ordering **annotations on the
   adjacent declaration** (`# seconds`, `# -1 means unset`; a sentence explaining a choice is not an
   annotation), suppression justifications paired with their waiver, `TODO(#issue)` markers, and
@@ -111,7 +114,9 @@ detail):
   hits by using the code as written, such as a required call order, a precondition, or a required
   call form a caller would otherwise get wrong. The *reason a
   value was chosen*, another system's limit, an upstream's behavior, a past incident, is rationale
-  rather than a warning: it is staged and deleted. Held to `class_c_max_lines` and rewritten terser
+  rather than a warning: it is staged and deleted. A warning earns its keep only when the failure it
+  names is **not visible in the adjacent code**: if the body a reader is already looking at shows
+  the behavior (an `exit` in the function, a guard, a return), the comment restates code and goes; Held to `class_c_max_lines` and rewritten terser
   when over it. Every survivor must be succinct, clear, and justified in the report: name the
   consequence, not the history.
 
