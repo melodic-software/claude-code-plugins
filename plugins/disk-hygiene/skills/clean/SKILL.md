@@ -38,15 +38,10 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
 `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, and one target
-directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
-`--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, and
-`--vcs-evidence` on the other subcommands) are supplied by this skill's command templates, not typed
-by the user.
-`--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
-`--root-children` with zero or more `--root-child <name>`, and one target directory. Remaining
-engine flags (`--output`, `--project-dir`, `--data-root` on scan; `--snapshot`, `--plan`,
-`--report`, `--confirm-tier`, `--approval-token`, `--paths` on the other subcommands) are supplied
-by this skill's command templates, not typed by the user.
+directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root`, `--root-children`,
+and `--root-child <name>` on scan; `--snapshot`, `--plan`, `--report`, `--confirm-tier`,
+`--approval-token`, `--paths`, and `--vcs-evidence` on the other subcommands) are supplied by this
+skill's command templates, not typed by the user.
 `--execute` means "deletion may be offered" on every platform — the gated engine lane where the
 platform supports it, the manual handoff elsewhere; it is not approval. (Deliberate semantic
 unification, not a restatement: the flag previously read as engine-lane-only, which left the
@@ -158,14 +153,18 @@ path, so re-run reporting a denial is a coverage gap, not a clean result.
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
-immediate children, then fan out deeper scans per subtree that the evidence justifies. The engine
-backs this with a deterministic gate: a scan whose target resolves to the user home directory or a
-non-OS volume root (a Windows Dev Drive — an OS-managed root still cannot be walked as a whole, and
-reaches the engine only via `--root-children`) and carries neither `--max-depth` nor
-`--confirmed-large-scan` returns
+immediate children, then fan out deeper scans per subtree that the evidence justifies. **This
+bounded pass is reconnaissance only, never a basis for removal.** Every directory at the depth
+boundary — even an empty one — is recorded in `truncated_paths` without being opened, so nothing at
+or below the boundary is plannable from that scan alone; only loose files strictly above the
+boundary are. Reaching a removal candidate inside a boundary directory requires a follow-up scan
+(unbounded, or deeper) targeted at that specific subtree. The engine backs the initial bound with a
+deterministic gate: a scan whose target resolves to the user home directory or a non-OS volume root
+(a Windows Dev Drive — an OS-managed root still cannot be walked as a whole, and reaches the engine
+only via `--root-children`) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
 `large-target-confirmation-required` (after a cheap top-level probe, not a full walk) instead of the
 unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth`
-is the preferred bounded response.
+is the preferred bounded response for this reconnaissance step.
 When the target is an OS-managed volume root, first run with `--root-children` alone, present the
 `admitted_children` list through the [confirmation gate](#confirmation-gate)'s root-children row,
 then re-run with the same flag plus each chosen `--root-child <name>` — one run directory, one
