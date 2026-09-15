@@ -1,0 +1,2 @@
+# (c) case 4: unterminated attribution field, no closing ']' -- must be exit 2
+fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff [eda5ae5ed5c2b54fdf2db5fd3b620a9272c46da5=298 unterminated field
