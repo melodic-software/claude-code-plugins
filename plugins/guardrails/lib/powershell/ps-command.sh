@@ -535,44 +535,124 @@ ps::_blank_comparison_operand_literals_to() {
   ps::_walk_quoted_spans_to "$1" "$2" cmpoperand
 }
 
-# True (0) when the text carries an invocation shape that could execute a value
-# the command COMPUTED — a call or dot-source whose target is not a plain bare
-# word (`& $_.Name`, `. $x`, `& ('g'+'it')`, `& "$tool"`, `& 'bash'`,
-# `& .\$_.Name`), an expression evaluator (`iex`/`Invoke-Expression`,
-# `Invoke-Command`/`icm`), or a launcher / nested shell sitting at a command
-# position as a bare word (`cmd /c $_.Name`, `bash -c $_.Name`).
-#
-# This is ps::might_invoke_git's disqualifier, so every arm here is in the
-# OVER-BLOCK direction: a match only ever restores the quote-intact probe.
-#
-# The launcher words extend ps::has_launcher's list with the interpreters that
-# take a command string (`bash`, `sh`, `wsl`, `node`, `python`) and with the
-# cmdlets that run a program WITHOUT a call operator — `Invoke-Item`/`ii` opens a
-# path, `Start-Job`/`sajb` runs a script block elsewhere, `Register-ScheduledTask`
-# and `New-Service` install a command line, `Invoke-WmiMethod`/`Invoke-CimMethod`
-# reach Win32_Process Create, and `New-Object` constructs a Process. Each would
-# otherwise turn the compared string back into a command word with none of the
-# shapes above present. Unlike the
-# computed-launcher probe at the end of ps::might_invoke_git they need no
-# `(`/`$` operand — `cmd /c $_.Name` reaches git through an argument the
-# operand-shaped probe never sees. A QUOTE is not in the predecessor class, so a
-# launcher name that is itself comparison DATA (`-in @('git.exe','bash.exe')`)
-# does not disqualify; a call of that same quoted name (`& 'bash' -c …`) does,
-# through the call-target arm above it.
-ps::_can_execute_computed_value() {
-  local lc="${1//\`/}"
-  lc="${lc,,}"
-  # The target class is stated as a NEGATION — anything that is not a bare-word
-  # character — so a call spelled around a quote, a variable, a subexpression or
-  # a path (`& 'bash'`, `& $x`, `& (…)`, `& .\$_.Name`) is one arm, not four.
-  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[^[:space:][:alnum:]_-] ]] && return 0
-  [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression|invoke-command|icm)([^[:alnum:]_-]|$) ]] && return 0
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}=])(start-process|saps|start|pwsh|powershell|cmd|bash|sh|wsl|node|python|python3|invoke-item|ii|start-job|sajb|register-scheduledtask|new-service|invoke-wmimethod|invoke-cimmethod|new-object)(\.exe)?([^[:alnum:]_.-]|$) ]] && return 0
-  return 1
+# True (0) when TOK is a read-only cmdlet, alias or keyword — the allowlist
+# ps::_is_readonly_cmdlet_pipeline admits at a command position. Every entry
+# INTERROGATES: it reports, filters, formats, converts or compares, and none of
+# them runs a program named by its input. Any Get-* verb is admitted as a class
+# (`Get-Process`, `Get-CimInstance`, `Get-Content`, `Get-Command`), because Get
+# is defined as retrieval and a PowerShell command name is verb-qualified.
+ps::_is_readonly_cmdlet() {
+  case "$1" in
+  gps | ps | gcim | gwmi | gci | ls | dir | gi | gc | cat | type | gsv | gcm | gmo | gv | gl | pwd) return 0 ;;
+  where-object | where | '?') return 0 ;;
+  select-object | select) return 0 ;;
+  foreach-object | foreach | '%') return 0 ;;
+  sort-object | sort | measure-object | measure | group-object | group) return 0 ;;
+  format-table | ft | format-list | fl | format-wide | fw) return 0 ;;
+  out-string | out-host | oh | out-null) return 0 ;;
+  write-output | write | echo | write-host) return 0 ;;
+  select-string | sls) return 0 ;;
+  test-path | resolve-path | rvpa | split-path | join-path) return 0 ;;
+  compare-object | compare | diff) return 0 ;;
+  convertto-json | convertfrom-json | convertto-csv) return 0 ;;
+  if | else | elseif | in | return) return 0 ;;
+  *) ;;
+  esac
+  [[ "$1" =~ ^get-[a-z0-9]+$ ]]
 }
 
-# Sibling of ps::blank_quoted_spans_to for ONE consumer:
-# ps::computed_call_has_positional_write_signal. Same left-to-right pairing —
+# True (0) when the whole command is provably a READ-ONLY CMDLET PIPELINE: every
+# token standing at a command position is an allowlisted interrogator, and the
+# command carries none of the constructs that turn a value into a command. This
+# is ps::might_invoke_git's gate on the comparison-operand exemption.
+#
+# DENY BY DEFAULT, AND THAT IS THE POINT. Asking instead whether a known executor
+# is PRESENT is structurally under-inclusive: PowerShell reaches a program
+# through `[Diagnostics.Process]::Start(…)`,
+# `$ExecutionContext.InvokeCommand.InvokeScript(…)`,
+# `[scriptblock]::Create(…).Invoke()`, an alias minted at run time
+# (`Set-Alias zz $_.Name; zz push --force`), WMI/CIM `Win32_Process Create`, a
+# scheduled-task action, a service binary path, and every launcher that happens
+# to be on PATH (`npx`, `dotnet`, `cscript`, `explorer`, `ssh`, `wmic`,
+# `schtasks`) — a set no enumeration converges on. Inverted, an unrecognized
+# command word is REFUSED rather than admitted, so a new executor costs an
+# over-block instead of a bypass.
+#
+# THE SCAN, in order, over the command with every quoted string replaced by an
+# opaque placeholder (so a `[` or an `&` inside message text is data, not a
+# construct):
+#   1. refuse outright on a construct no token scan can settle — a surviving
+#      BACKTICK (escape), `<#` (block comment), `--%` (stop-parsing), `::`
+#      (static member, the `[Type]::Method` executor family), `[` (type
+#      literal), `&` (call operator), and a `.` immediately before `(` (a method
+#      call such as `.Invoke(` / `.InvokeScript(`);
+#   2. walk the remainder token by token, tracking COMMAND POSITION — the start
+#      of input, and anything after `|`, `;`, `{`, `}`, `(`, `=` or a newline;
+#   3. at a command position the token must be allowlisted. A `$variable` or
+#      property chain, a `-parameter` or operator, an opaque string placeholder
+#      and a bare number are inert and skipped; anything else at a command
+#      position refuses — `zz`, `npx`, `iwmi`, `nsv`, `schtasks`, `wmic`,
+#      `set-alias`, `new-object`, `iex`, a `.` dot-source, a `.\path.exe`, and
+#      `git` itself.
+#
+# ARGUMENTS ARE NOT COMMAND WORDS, so a token away from a command position is
+# skipped and `Get-CimInstance Win32_Process`, `Select-Object ProcessId` and
+# `Select-Object Id` stay admissible. An argument cannot execute on its own:
+# reaching a program through one takes a command word that accepts it, and that
+# command word sits at a command position and must be allowlisted.
+#
+# FAIL CLOSED ON DOUBT. An over-long command is refused rather than scanned. The
+# walk is per-character and the exemption is a convenience, so the ceiling costs
+# an over-block on a command that keeps the quote-intact probe it had anyway.
+ps::_is_readonly_cmdlet_pipeline() {
+  local lc i n ch tok="" cmdpos=1
+  ps::opaque_quoted_spans_to lc "$1"
+  lc="${lc,,}"
+  case "$lc" in
+  *'`'* | *'<#'* | *'--%'* | *'::'* | *'['* | *'&'*) return 1 ;;
+  *) ;;
+  esac
+  [[ "$lc" =~ \.[a-z0-9_]*\( ]] && return 1
+  ((${#lc} > 4096)) && return 1
+  # A trailing newline is a command-position separator, so the last token
+  # flushes inside the loop instead of in a second copy of the token test.
+  lc+=$'\n'
+  n=${#lc}
+  for ((i = 0; i < n; i++)); do
+    ch="${lc:i:1}"
+    case "$ch" in
+    '|' | ';' | '{' | '}' | '(' | '=' | $'\n' | ' ' | $'\t' | $'\r' | ',' | '@' | ')' | '>' | '<' | '+' | '*') ;;
+    *)
+      tok+="$ch"
+      continue
+      ;;
+    esac
+    if [[ -n "$tok" ]]; then
+      case "$tok" in
+      '$'* | -* | '_q_') ;;
+      *)
+        if [[ "$tok" =~ ^[0-9]+$ ]]; then
+          :
+        elif ((cmdpos)); then
+          ps::_is_readonly_cmdlet "$tok" || return 1
+        fi
+        ;;
+      esac
+      tok=""
+      cmdpos=0
+    fi
+    case "$ch" in
+    '|' | ';' | '{' | '}' | '(' | '=' | $'\n') cmdpos=1 ;;
+    *) ;;
+    esac
+  done
+  return 0
+}
+
+# Sibling of ps::blank_quoted_spans_to for the two consumers that need a string
+# to stay PRESENT while its content stays opaque:
+# ps::computed_call_has_positional_write_signal and
+# ps::_is_readonly_cmdlet_pipeline. Same left-to-right pairing —
 # first opener owns its span, ambiguity copies the rest of the line verbatim —
 # but a FOUND span is replaced by a classified placeholder instead of deleted.
 #
@@ -581,8 +661,10 @@ ps::_can_execute_computed_value() {
 # blanking both operands left the probe with nothing to count. The placeholder
 # keeps the operand PRESENT so it still counts, while its content stays OPAQUE
 # so a quoted `>` or `-value` in message text cannot become a different signal.
-# That is why this string is handed ONLY to the positional probe: the redirect
-# and `-va*` probes still need the deletion semantics.
+# That is why this string never reaches the redirect and `-va*` probes, which
+# still need the deletion semantics. The read-only-pipeline gate wants the same
+# property for the same reason: a string has to stay a TOKEN so the walk can tell
+# a command word from an argument, while its content stays out of the scan.
 #
 # Classification, interpolating-dash FIRST (about_Quoting_Rules + about_Parsing):
 #   1. DOUBLE-quoted, starts with `-`, AND contains `$` → `-_q_`
@@ -1100,12 +1182,13 @@ ps::call_target_is_interpolating_string() {
 #       comparison operator, reached through an optional `(` / `@(` and through
 #       `,`-separated earlier elements of the same list
 #       (ps::_is_comparison_operand_context; right-hand operands only);
-#   (b) the whole command carries no call or dot-source of a non-bare-word target,
-#       no expression evaluator, and no launcher / nested shell as a bare command
-#       word (ps::_can_execute_computed_value).
+#   (b) the whole command is provably a READ-ONLY CMDLET PIPELINE — every token at
+#       a command position is an allowlisted interrogator and no construct turns a
+#       value into a command (ps::_is_readonly_cmdlet_pipeline), which is an
+#       allowlist, not a list of known executors.
 # Under (b) the only thing the matched text can DO with the string is compare it:
-# `Get-Process | Where-Object { $_.Name -eq 'git' }` filters objects, and no
-# operator in what remains turns the filtered value back into a command word. The
+# `Get-Process | Where-Object { $_.Name -eq 'git' }` filters objects, and nothing
+# in what remains turns the filtered value back into a command word. The
 # false-positive class this retires is read-only PowerShell that merely NAMES git
 # — `-eq 'git'`, `-in @('git.exe','bash.exe')`, `-like 'git*'`, `-match "^git\.exe$"`
 # — which the script block alone had already routed to the sink.
@@ -1113,18 +1196,25 @@ ps::call_target_is_interpolating_string() {
 # WHAT KEEPS THE QUOTE-INTACT PROBE, and why each one must:
 #   `& 'git' commit`, `git 'commit'`      the literal is a call target or an
 #                                        argument, never a comparison operand;
-#   `Start-Process 'git' …`, `saps 'git'` likewise, and (b) fails on the launcher;
-#   `cmd /c 'git push --force'`           (b) fails on the nested shell;
-#   `… -eq 'git' … | % { & $_.Name … }`   (b) fails: the call target is computed,
-#   `… -eq 'git' … | % { . $_.Name … }`   so the compared string becomes the
-#   `… -eq 'git' … | % { iex $_.Name }`   command word after all;
-#   `… -eq 'git' … | % { cmd /c $_.Name }` (b) fails on the launcher word, which
-#   `… -eq 'git' … | % { bash -c $_.Name }` reaches git through an ARGUMENT the
-#                                        computed-launcher probe below never sees;
+#   `'git' -in $names`                    a LEFT-hand operand, which `& 'git' -eq $x`
+#                                        makes undecidable, so it is not exempt;
+#   `Start-Process 'git' …`, `saps 'git'` likewise, and (b) refuses the command word;
+#   `cmd /c 'git push --force'`           (b) refuses the nested shell;
+#   and every shape that turns the compared value back into a command word, each
+#   refused by (b) because its command word is not an interrogator or its
+#   construct is not a pipeline at all:
+#     `| % { & $_.Name … }`, `| % { . $_.Name … }`, `| % { iex $_.Name }`,
+#     `| % { cmd /c $_.Name }`, `| % { bash -c $_.Name }`, `| % { npx $_.Name }`,
+#     `| % { dotnet/cscript/explorer/ssh … $_.Name }`,
+#     `| % { Invoke-Item $_.Name }` and its `ii` alias, `Start-Job`, `New-Object`,
+#     `New-Service`/`nsv`, `Register-ScheduledTask`/`New-ScheduledTaskAction`,
+#     `iwmi`/`Invoke-CimMethod` Win32_Process Create, `schtasks /tr`, `wmic
+#     process call create`, `Set-Alias zz $_.Name; zz push --force`,
+#     `[Diagnostics.Process]::Start($_.Name, …)`,
+#     `[scriptblock]::Create($_.Name).Invoke()`,
+#     `$ExecutionContext.InvokeCommand.InvokeScript($_.Name)`;
 #   `$n = 'git'; & $n push -f`            `=` is not a comparison operator, and (b)
-#                                        fails on the variable call target;
-#   `'git' | % { & $_ push -f }`          the literal is pipeline input, not an
-#                                        operand, and (b) fails.
+#                                        refuses the call operator.
 ps::might_invoke_git() {
   local recovered="${1//\`/}" lc narrowed
   lc="${recovered,,}"
@@ -1132,10 +1222,12 @@ ps::might_invoke_git() {
   # counts (Codex #2592 review) and `=` so `$x=git …` (no space) still counts
   # (Claude #2592 review), while `.git` stays inert (`.` is not listed).
   if [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]]; then
-    # A git token is visible. It is exempt only as comparison DATA in a command
-    # that cannot execute a computed value — the walk runs only here, so a
-    # command with no git token pays nothing for it.
-    ps::_can_execute_computed_value "$recovered" && return 0
+    # A git token is visible. It is exempt only as comparison DATA inside a
+    # provably read-only cmdlet pipeline — the walks run only here, so a command
+    # with no git token pays nothing for them. The gate is handed the RAW text,
+    # not the backtick-recovered copy, because a surviving backtick is itself one
+    # of the constructs it refuses.
+    ps::_is_readonly_cmdlet_pipeline "$1" || return 0
     ps::_blank_comparison_operand_literals_to narrowed "$lc"
     # The re-probe is the SAME pattern spelled again, not shared through a
     # variable — the fail-OPEN reason the sibling predicates record: a pattern

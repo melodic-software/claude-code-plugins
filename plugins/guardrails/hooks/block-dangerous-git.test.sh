@@ -1250,9 +1250,42 @@ run_pwsh "PS cmp: path-shaped call of the compared value (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { & .\\\$_.Name push -f }" 2
 run_pwsh "PS cmp: Invoke-Command around the compared value (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Command -ScriptBlock { & \$_.Name } }" 2
-# Cmdlets that run a program with no call operator, no evaluator and no shell
-# word are executors too: the compared string becomes a command word through
-# them just as readily.
+# Executors an enumeration cannot converge on. Each of these reaches a program
+# without a call operator, an evaluator or a shell word, and each is refused by
+# the read-only-cmdlet allowlist rather than by being named — a .NET static
+# member, the automatic InvokeCommand API, a run-time alias, a script block
+# compiled from the value, WMI/CIM process creation, a service binary path, a
+# scheduled-task action, and any launcher that happens to be on PATH.
+run_pwsh "PS cmp: [Diagnostics.Process]::Start of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { [Diagnostics.Process]::Start(\$_.Name,'push --force') }" 2
+run_pwsh "PS cmp: InvokeCommand.InvokeScript of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { \$ExecutionContext.InvokeCommand.InvokeScript(\$_.Name) }" 2
+run_pwsh "PS cmp: an alias minted from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Set-Alias zz \$_.Name }; zz push --force" 2
+run_pwsh "PS cmp: a script block compiled from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { \$sb=[scriptblock]::Create(\$_.Name); \$sb.Invoke() }" 2
+run_pwsh "PS cmp: iwmi Win32_Process Create of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { iwmi -Class Win32_Process -Name Create -ArgumentList \$_.Name }" 2
+run_pwsh "PS cmp: a service binary path from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { nsv -Name z -BinaryPathName \$_.Name }" 2
+run_pwsh "PS cmp: schtasks /tr of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { schtasks /create /tn z /sc once /st 00:00 /tr \$_.Name }" 2
+run_pwsh "PS cmp: wmic process call create of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { wmic process call create \$_.Name }" 2
+run_pwsh "PS cmp: a scheduled-task action from the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { New-ScheduledTaskAction -Execute \$_.Name }" 2
+run_pwsh "PS cmp: npx of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { npx \$_.Name }" 2
+run_pwsh "PS cmp: dotnet of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { dotnet \$_.Name }" 2
+run_pwsh "PS cmp: cscript of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { cscript \$_.Name }" 2
+run_pwsh "PS cmp: explorer of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { explorer \$_.Name }" 2
+run_pwsh "PS cmp: ssh running the compared value on a remote host (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { ssh host \$_.Name push -f }" 2
+# The same refusal covers the cmdlets that run a program with no call operator,
+# no evaluator and no shell word.
 run_pwsh "PS cmp: Invoke-Item of the compared value (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Item \$_.Name }" 2
 run_pwsh "PS cmp: the ii alias of Invoke-Item (blocked)" \
@@ -1294,16 +1327,20 @@ pin_predicate "ps::might_invoke_git: bash -c of the compared value still blocks"
   ps::might_invoke_git "Get-Process | ? { \$_.Name -eq 'git' } | % { bash -c \$_.Name }" 0
 pin_predicate "ps::might_invoke_git: call of a quoted git literal still blocks" \
   ps::might_invoke_git "& 'git' commit --no-verify | % { \$_ }" 0
-pin_predicate "ps::_can_execute_computed_value: a read-only comparison pipeline has no invocation shape" \
-  ps::_can_execute_computed_value "Get-Process | Where-Object { \$_.Name -eq 'git' }" 1
-pin_predicate "ps::_can_execute_computed_value: cmd as a bare command word disqualifies" \
-  ps::_can_execute_computed_value "Get-Process | ? { \$_.Name -eq 'git' } | % { cmd /c \$_.Name }" 0
-pin_predicate "ps::_can_execute_computed_value: Invoke-Item is an executor" \
-  ps::_can_execute_computed_value "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Item \$_.Name }" 0
-pin_predicate "ps::_can_execute_computed_value: New-Object is an executor" \
-  ps::_can_execute_computed_value "New-Object System.Diagnostics.Process; Get-Process | ? { \$_.Name -eq 'git' }" 0
-pin_predicate "ps::_can_execute_computed_value: a quoted launcher name is data, not an invocation" \
-  ps::_can_execute_computed_value "Get-CimInstance Win32_Process | ? { \$_.Name -in @('git.exe','bash.exe') }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a comparison pipeline of interrogators is read-only" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq 'git' }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: cmd at a command position refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { cmd /c \$_.Name }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: an unrecognized command word refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { npx \$_.Name }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a type literal refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { [Diagnostics.Process]::Start(\$_.Name) }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a method call refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | ? { \$_.Name -eq 'git' } | % { \$ExecutionContext.InvokeCommand.InvokeScript(\$_.Name) }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a quoted launcher name is an argument, not a command word" \
+  ps::_is_readonly_cmdlet_pipeline "Get-CimInstance Win32_Process | ? { \$_.Name -in @('git.exe','bash.exe') }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a cmdlet argument is not a command word" \
+  ps::_is_readonly_cmdlet_pipeline "Get-CimInstance Win32_Process | Select-Object ProcessId,Name" 0
 pin_sink_trigger "classify: the comparison pipeline still enters the special-construct sink" \
   "Get-Process | Where-Object { \$_.Name -eq 'git' }" "special-construct"
 
