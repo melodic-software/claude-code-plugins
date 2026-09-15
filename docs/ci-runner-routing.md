@@ -1,9 +1,8 @@
 # CI runner routing
 
 This repository is public, so every lane runs on GitHub-hosted runners, free for
-public repositories: `ubuntu-24.04` for all of them except the two informational
-Windows lanes, `test-windows` in `ci.yml` and `windows` in
-`hook-utils-timing.yml`, which run `windows-2025`. The organization's
+public repositories: `ubuntu-24.04` for all of them except the informational
+Windows lane `test-windows` in `ci.yml`, which runs `windows-2025`. The organization's
 runner-policy engine refuses a governed fleet label here outright, reporting
 `public-self-hosted-routing`. There is no observer credential and no
 self-hosted exception inventory in this repository.

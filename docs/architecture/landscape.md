@@ -43,11 +43,11 @@ C4Context
   Rel(melodic_software_claude_code_plugins, melodic_software_provisioning, "cites (5)")
   Rel(melodic_software_claude_code_plugins, melodic_software_runner_policy_runtime, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_standards, "cites (53)")
-  Rel(melodic_software_claude_code_plugins, actions_checkout, "uses-workflow (15)")
+  Rel(melodic_software_claude_code_plugins, actions_checkout, "uses-workflow (11)")
   Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (23)")
 ```
 
-64 external repositories are referenced but not drawn; the record carries
+63 external repositories are referenced but not drawn; the record carries
 every one of them.
 
 ## Annotations
