@@ -734,21 +734,22 @@ _rlg_managed_option() {
 # documented residual). Neither weakens the MANAGED verdict, which is
 # environment-independent by construction.
 _rlg_tee_enabled() {
-  local v
-  if v="$(_rlg_managed_option)"; then
-    [[ "$v" == "false" ]] && return 1
-    return 0
-  fi
-  # User scope. _rlg_probe already read this file inside the one jq pass, so the
-  # normal path spends no process here. The unprobed fallback is what lets a
-  # DIRECT call to this function (no main, hence no probe) read the user scope
-  # for itself.
-  if ((_RLG_USER_PROBED)); then
-    if [[ -n "$_RLG_USER_VERDICT" ]]; then
-      [[ "$_RLG_USER_VERDICT" == "false" ]] && return 1
-      return 0
+  # The verdict of the highest-precedence scope that configures one, empty when
+  # none does. A failed read prints nothing, so the empty value is also what
+  # every degraded path lands on.
+  local v=""
+  if ! v="$(_rlg_managed_option)"; then
+    # User scope. _rlg_probe already read this file inside the one jq pass, so
+    # the normal path spends no process here. The unprobed fallback is what lets
+    # a DIRECT call to this function (no main, hence no probe) read the user
+    # scope for itself.
+    if ((_RLG_USER_PROBED)); then
+      v="$_RLG_USER_VERDICT"
+    else
+      v="$(_rlg_settings_option "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json")"
     fi
-  elif v="$(_rlg_settings_option "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/settings.json")"; then
+  fi
+  if [[ -n "$v" ]]; then
     [[ "$v" == "false" ]] && return 1
     return 0
   fi

@@ -30,7 +30,7 @@ from typing import NoReturn
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "lib")
 )
-from gate_common import Failures, reject_duplicate_keys  # noqa: E402  (shared gate primitives)
+from gate_common import Failures, is_int, reject_duplicate_keys  # noqa: E402  (shared gate primitives)
 
 MANIFEST_SCHEMA = "node-manifest/v1"
 INVENTORY_SCHEMA = "node-inventory/v1"
@@ -123,11 +123,7 @@ def check_manifest(manifest, data: bytes, failures: Failures):
             fail(2, f"manifest node missing key {exc}; regenerate the manifest.")
         if not isinstance(nid, str) or not nid:
             fail(2, f"manifest node id {nid!r} is not a non-empty string.")
-        if (
-            not (isinstance(start, int) and isinstance(end, int))
-            or isinstance(start, bool)
-            or isinstance(end, bool)
-        ):
+        if not (is_int(start) and is_int(end)):
             fail(2, f"manifest node {nid!r} has non-integer byte range.")
         if start != cursor:
             failures.add(
@@ -226,11 +222,7 @@ def check_row(index: int, row, node, data: bytes, failures: Failures) -> bool:
     if not (isinstance(quote, str) and quote):
         failures.add(f"{label}: evidence quote is empty or not a string.")
         return False
-    if (
-        not (isinstance(start, int) and isinstance(end, int))
-        or isinstance(start, bool)
-        or isinstance(end, bool)
-    ):
+    if not (is_int(start) and is_int(end)):
         failures.add(f"{label}: evidence byte offsets are not integers.")
         return False
     if not (node["start_byte"] <= start < end <= node["end_byte"]):
@@ -301,16 +293,16 @@ def main(argv=None) -> int:
     verdict_counts = {v: 0 for v in VERDICTS}
     for index, row in enumerate(rows):
         nid = row.get("node_id") if isinstance(row, dict) else None
-        if nid is not None and not isinstance(nid, str):
-            failures.add(f"row[{index}]: node_id {nid!r} is not a string.")
-            continue
-        if nid is not None and nid in seen:
-            failures.add(
-                f"row[{index}]: duplicate node_id {nid!r} "
-                f"(first at row[{seen[nid]}]); verdict is ambiguous."
-            )
-            continue
         if nid is not None:
+            if not isinstance(nid, str):
+                failures.add(f"row[{index}]: node_id {nid!r} is not a string.")
+                continue
+            if nid in seen:
+                failures.add(
+                    f"row[{index}]: duplicate node_id {nid!r} "
+                    f"(first at row[{seen[nid]}]); verdict is ambiguous."
+                )
+                continue
             seen[nid] = index
         if nid is None or nid not in nodes_by_id:
             failures.add(

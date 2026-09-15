@@ -330,6 +330,21 @@ note() {
   printf 'INFO: %s\n' "$*"
 }
 
+# Does the record file "$1" list "$2"? Rows are one path per line, `#` comments
+# and surrounding whitespace ignored. Shared by the two record files this gate
+# reads (check 2b's description baseline, check 14's evals warrant exemptions)
+# so a row is recognized the same way in both.
+path_list_contains() {
+  local file="$1" needle="$2" row
+  while IFS= read -r row || [[ -n "$row" ]]; do
+    row="${row%%#*}"
+    row="${row#"${row%%[![:space:]]*}"}"
+    row="${row%"${row##*[![:space:]]}"}"
+    [[ "$row" == "$needle" ]] && return 0
+  done <"$file"
+  return 1
+}
+
 # Sorted-unique trigger phrases in a frontmatter block's LISTING text — the
 # description + when_to_use pair the harness assembles into one listing entry.
 # Reads the frontmatter as a string so every caller (working tree, base ref,
@@ -435,20 +450,13 @@ else
   # the field is absent (https://code.claude.com/docs/en/skills#frontmatter-reference).
   # Run outside the chain above so an over-long or reserved directory leaf is
   # caught even with no `name:` line. Basis, and the measurement that Claude
-  # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints with
-  # the same iconv form check 2b uses, so the count is the spec's unit on any
-  # locale.
+  # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints by the
+  # shared library helper checks 2b and 22 also use, so the count is the spec's
+  # unit on any locale.
   EFFECTIVE_NAME="${CUR_NAME:-$SKILL_NAME}"
   name_source="directory name"
   [[ -n "$CUR_NAME" ]] && name_source="declared name"
-  if command -v iconv >/dev/null 2>&1; then
-    NAME_CP_LEN=$(($(printf '%s' "$EFFECTIVE_NAME" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
-  else
-    NAME_CP_LEN="$(
-      LC_ALL=C.UTF-8
-      printf '%s' "${#EFFECTIVE_NAME}"
-    )"
-  fi
+  NAME_CP_LEN="$(skill_frontmatter::codepoint_len "$EFFECTIVE_NAME")"
   if ((NAME_CP_LEN > NAME_MAX_LEN)); then
     err "skill name '$EFFECTIVE_NAME' is $NAME_CP_LEN codepoints (Agent Skills spec maximum $NAME_MAX_LEN); Claude Code loads it but the spec's validator rejects it, so shorten the $name_source"
   fi
@@ -501,18 +509,10 @@ fi
 # Counted in CODEPOINTS, not bytes: the spec says "Maximum 1024 characters", and
 # a byte count would false-positive on any non-ASCII description under a
 # byte-oriented locale — measured, 600 'é' characters report as 1200 under
-# LC_ALL=C. Same UTF-8 -> UTF-32BE iconv form check 22 uses (every codepoint
-# becomes exactly 4 bytes, so byte-count/4 is the codepoint count on any host),
-# with the same UTF-8-locale fallback where iconv is absent. DESC_LEN stays a
-# byte count for check 2, whose 1536 listing cap is a separate measure.
-if command -v iconv >/dev/null 2>&1; then
-  DESC_CP_LEN=$(($(printf '%s' "$CUR_DESC" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
-else
-  DESC_CP_LEN="$(
-    LC_ALL=C.UTF-8
-    printf '%s' "${#CUR_DESC}"
-  )"
-fi
+# LC_ALL=C. The count comes from the shared library helper check 22 also uses.
+# DESC_LEN stays a byte count for check 2, whose 1536 listing cap is a separate
+# measure.
+DESC_CP_LEN="$(skill_frontmatter::codepoint_len "$CUR_DESC")"
 
 # Is this skill recorded as a pre-existing breach? Keyed by the skill's path
 # relative to the repo root (SKILL_REL), the only identifier that is unique across
@@ -521,17 +521,8 @@ DESC_FIELD_BASELINED=0
 if [[ -n "$DESC_FIELD_BASELINE" ]]; then
   if [[ ! -f "$DESC_FIELD_BASELINE" ]]; then
     err "CHECK_SKILL_DESC_FIELD_BASELINE=$DESC_FIELD_BASELINE does not exist — a missing baseline must not silently become a clean run"
-  elif [[ -n "$SKILL_REL" ]]; then
-    while IFS= read -r baseline_row || [[ -n "$baseline_row" ]]; do
-      baseline_row="${baseline_row%%#*}"
-      baseline_row="${baseline_row#"${baseline_row%%[![:space:]]*}"}"
-      baseline_row="${baseline_row%"${baseline_row##*[![:space:]]}"}"
-      [[ -n "$baseline_row" ]] || continue
-      if [[ "$baseline_row" == "$SKILL_REL" ]]; then
-        DESC_FIELD_BASELINED=1
-        break
-      fi
-    done <"$DESC_FIELD_BASELINE"
+  elif [[ -n "$SKILL_REL" ]] && path_list_contains "$DESC_FIELD_BASELINE" "$SKILL_REL"; then
+    DESC_FIELD_BASELINED=1
   fi
 fi
 
@@ -966,15 +957,9 @@ evals_warrant_exemptions_file() {
 }
 
 evals_warrant_skip() {
-  local skill_rel="$1" file raw
+  local file
   file="$(evals_warrant_exemptions_file "${REPO_ROOT:-$SKILL_DIR}")" || return 1
-  while IFS= read -r raw || [[ -n "$raw" ]]; do
-    raw="${raw%%#*}"
-    raw="${raw#"${raw%%[![:space:]]*}"}"
-    raw="${raw%"${raw##*[![:space:]]}"}"
-    [[ "$raw" == "$skill_rel" ]] && return 0
-  done <"$file"
-  return 1
+  path_list_contains "$file" "$1"
 }
 
 evals_skill_rel=""

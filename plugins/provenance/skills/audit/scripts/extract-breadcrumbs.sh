@@ -34,6 +34,10 @@
 # Exit: 0 on a clean run, 2 on usage error or an unreadable input path.
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 MODE=""
 DIR=""
 FILES=()
@@ -61,10 +65,7 @@ while [[ $# -gt 0 ]]; do
       echo "extract-breadcrumbs.sh: --dir and --files are exclusive" >&2
       exit 2
     fi
-    if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-      echo "extract-breadcrumbs.sh: --dir requires a value" >&2
-      exit 2
-    fi
+    require_opt_value "extract-breadcrumbs.sh" "$@"
     MODE="dir"
     DIR="$2"
     shift 2
@@ -406,16 +407,6 @@ END {
 }
 
 # --- JSON product ----------------------------------------------------------------
-
-json_str() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  printf '"%s"' "$s"
-}
 
 TOTALS_FILE="$(mktemp)"
 trap 'rm -f "$TOTALS_FILE"' EXIT

@@ -117,7 +117,7 @@ fi
 # rather than depending on which side of it a given payload lands.
 target=$(hook::jq_field "$INPUT" '.tool_input.file_path // .tool_input.notebook_path') || target=""
 shopt -s nocasematch
-if [[ -n "$target" && "$target" == *handoff* ]]; then
+if [[ "$target" == *handoff* ]]; then
   exit 0
 fi
 shopt -u nocasematch

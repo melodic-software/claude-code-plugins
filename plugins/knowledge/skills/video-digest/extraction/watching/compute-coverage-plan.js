@@ -2,6 +2,8 @@
  * Dynamic per-video frame coverage plan — no hard cap.
  */
 
+import { findDensificationWindows } from "./densification.js";
+
 /** @typedef {import('./models.js').TranscriptCue} TranscriptCue */
 /** @typedef {import('./models.js').DensificationWindow} DensificationWindow */
 
@@ -21,6 +23,16 @@ const DEFAULT_CUE_ANCHOR_PATTERNS = [
   /\bterminal\b/i,
   /\bslide\b/i,
 ];
+
+/**
+ * Round a second value to the timestamp precision the pipeline emits.
+ *
+ * @param {number} sec
+ * @returns {number}
+ */
+function roundSec(sec) {
+  return Number(sec.toFixed(3));
+}
 
 /**
  * @typedef {Object} CoveragePlan
@@ -98,6 +110,28 @@ export function computeCoveragePlan({
 }
 
 /**
+ * Densification windows plus the coverage plan they feed, for callers that
+ * need both from the same cue list.
+ *
+ * @param {TranscriptCue[]} cues
+ * @param {object} input
+ * @param {number} input.durationSec
+ * @param {number} [input.sceneCandidateCount=0]
+ * @returns {{ windows: DensificationWindow[], coveragePlan: CoveragePlan }}
+ */
+export function planFrameCoverage(cues, { durationSec, sceneCandidateCount = 0 }) {
+  const windows = findDensificationWindows(cues);
+  return {
+    windows,
+    coveragePlan: computeCoveragePlan({
+      durationSec,
+      densificationWindows: windows,
+      sceneCandidateCount,
+    }),
+  };
+}
+
+/**
  * Timestamps for stratified interval sampling.
  *
  * @param {number} durationSec
@@ -109,7 +143,7 @@ export function stratifiedSampleTimestamps(durationSec, intervalSec) {
   /** @type {number[]} */
   const timestamps = [];
   for (let t = intervalSec / 2; t < durationSec; t += intervalSec) {
-    timestamps.push(Number(t.toFixed(3)));
+    timestamps.push(roundSec(t));
   }
   return timestamps;
 }
@@ -121,7 +155,7 @@ export function stratifiedSampleTimestamps(durationSec, intervalSec) {
  * @returns {number[]}
  */
 export function densificationAnchorTimestamps(windows) {
-  return windows.map((window) => Number(((window.startSec + window.endSec) / 2).toFixed(3)));
+  return windows.map((window) => roundSec((window.startSec + window.endSec) / 2));
 }
 
 /**
@@ -136,7 +170,7 @@ export function cueAnchorTimestamps(cues, patterns = DEFAULT_CUE_ANCHOR_PATTERNS
   const timestamps = [];
   for (const cue of cues) {
     if (!patterns.some((pattern) => pattern.test(cue.text))) continue;
-    timestamps.push(Number(((cue.startSec + cue.endSec) / 2).toFixed(3)));
+    timestamps.push(roundSec((cue.startSec + cue.endSec) / 2));
   }
   return timestamps;
 }

@@ -159,9 +159,7 @@ probe_no_scope_and_collect_tokens() {
       # First field; for "--root <dir>" keep only --root.
       # shellcheck disable=SC2086 # intentional word-split of the indented form line
       set -- $line
-      token="$1"
-      [[ -n "$token" ]] || continue
-      printf '%s\n' "$token" >>"$tokens_file"
+      printf '%s\n' "$1" >>"$tokens_file"
       ;;
     *) ;;
     esac

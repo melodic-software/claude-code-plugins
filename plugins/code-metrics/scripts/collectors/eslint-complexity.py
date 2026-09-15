@@ -44,22 +44,21 @@ import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    match_path,
+    normalize,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "eslint-complexity"
 LANE = "typescript"
 MEASURE = "cyclomatic"
 RULE = "complexity"
 COMPLEXITY_MESSAGE = re.compile(r"^(?P<what>.+?) has a complexity of (?P<value>\d+)")
 QUOTED_NAME = re.compile(r"'([^']+)'")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def resolve_eslint() -> str | None:
@@ -77,15 +76,10 @@ def probe() -> int:
     if not exe:
         print("eslint not on PATH or in ./node_modules/.bin", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"eslint --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, "eslint")
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -110,20 +104,8 @@ def no_configuration(result: subprocess.CompletedProcess) -> bool:
     )
 
 
-def match_path(location: str, wanted_norm: dict[str, str]) -> str | None:
-    """ESLint prints absolute paths; map one back to the path the dispatcher
-    passed, by exact match first and then by path-segment suffix."""
-    norm = _normalize(location)
-    if norm in wanted_norm:
-        return wanted_norm[norm]
-    for key, original in wanted_norm.items():
-        if norm.endswith("/" + key):
-            return original
-    return None
-
-
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, list):
         raise ValueError("eslint --format json did not print an array")
@@ -197,7 +179,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         return 4
     try:
         rows = translate(result.stdout, lane, files)
-    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+    except (ValueError, TypeError) as exc:
         print(
             f"{NAME}.py: no parseable eslint output ({exc}); "
             f"stderr: {result.stderr.strip()}",
@@ -209,40 +191,25 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print(f"{LANE}/{MEASURE}")
+
+
+INSTALL_HINT = "eslint: https://eslint.org (npm install --save-dev eslint; the core complexity rule needs no plugin)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print(f"{LANE}/{MEASURE}")
-        return 0
-    if verb == "install_hint":
-        print(
-            "eslint: https://eslint.org (npm install --save-dev eslint; the core complexity rule needs no plugin)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 3:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+        collect_min=3,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print(
-            "eslint-complexity.py needs Python %d.%d or later" % MIN_PYTHON,
-            file=sys.stderr,
-        )
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

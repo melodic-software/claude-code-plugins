@@ -57,16 +57,15 @@ case "$file_path" in
 esac
 # -----------------------------------------------------------------------------
 
-# repo_root resolves from a DIRECTORY; handing it the file path returns the
+# The root resolves from a DIRECTORY; handing it the file path returns the
 # path unchanged with a non-zero status, which an `|| true` would swallow into
-# a silent no-op — the exact shape of failure this hook exists to prevent
-# elsewhere. Parameter expansion, not a `$(dirname …)` subshell: same answers
-# as dirname (no slash -> `.`, a root-level `/x` -> `/` rather than empty).
-file_dir="${file_path%/*}"
-[[ "$file_dir" == "$file_path" ]] && file_dir=.
-[[ -n "$file_dir" ]] || file_dir=/
-repo_root="$(hook::repo_root "$file_dir" 2>/dev/null || true)"
-[[ -n "$repo_root" && -d "$repo_root" ]] || exit 0
+# a silent no-op, the exact shape of failure this hook exists to prevent
+# elsewhere. hook::dirname_to answers with builtins rather than a `dirname`
+# subshell: no slash -> `.`, a root-level `/x` -> `/` rather than empty.
+hook::dirname_to file_dir "$file_path"
+repo_root=""
+hook::repo_root_to repo_root "$file_dir"
+[[ -d "$repo_root" ]] || exit 0
 
 renderer="$hook_dir/../scripts/render-index.sh"
 [[ -x "$renderer" ]] || exit 0

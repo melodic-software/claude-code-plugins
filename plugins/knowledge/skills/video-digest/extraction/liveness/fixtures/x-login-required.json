@@ -1,5 +1,0 @@
-{
-  "disposition": "login-required",
-  "stderr": "ERROR: [twitter] 1: NSFW tweet requires authentication. Use --cookies-from-browser or --cookies for the authentication.",
-  "metadata": null
-}

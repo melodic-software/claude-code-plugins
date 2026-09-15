@@ -21,6 +21,7 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-CisaKevCache.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-WingetPackageUpdate.ps1')
+. (Join-Path $PSScriptRoot '..\lib\Resolve-SkillRoot.ps1')
 
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 $id = 'winget-upgrades'
@@ -54,8 +55,7 @@ try {
             -Severity 'UNKNOWN' -Summary $msg `
             -Commands $commands `
             -RanSuccessfully $false `
-            -ErrorMessage $wrapperError `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+            -ErrorMessage $wrapperError
     } else {
         $upgrades = @($upgrades)
 
@@ -76,10 +76,7 @@ try {
             # Get-CisaKevCache will detect the empty vulnerabilities array
             # and fetch live data to replace it.
             if (-not (Test-Path -LiteralPath $kevPath)) {
-                $skillRoot = Split-Path -Path $PSScriptRoot -Parent |
-                    Split-Path -Parent |
-                    Split-Path -Parent
-                $seedPath = Join-Path $skillRoot 'catalog\cisa-kev.json'
+                $seedPath = Join-Path (Resolve-SkillRoot) 'catalog\cisa-kev.json'
                 if (Test-Path -LiteralPath $seedPath) {
                     Copy-Item -LiteralPath $seedPath -Destination $kevPath -Force
                 }
@@ -167,16 +164,11 @@ try {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
             -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds) `
             -Notes $notes
     }
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'winget upgrade check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'winget upgrade check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

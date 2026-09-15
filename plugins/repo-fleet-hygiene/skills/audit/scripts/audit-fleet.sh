@@ -1370,12 +1370,9 @@ should_skip_dir_name() {
 }
 
 is_acked() {
-  local key a
+  local key
   key="$(lower "$1")"
-  for a in "${ACK_KEYS[@]:-}"; do
-    [[ -n "$a" && "$a" == "$key" ]] && return 0
-  done
-  return 1
+  array_contains "$key" "${ACK_KEYS[@]:-}"
 }
 
 UNRESOLVED_SCOPE=false
@@ -1551,7 +1548,7 @@ count_worktree_registrations() {
 # classify_bare_live_tree <dir>: when <dir> is bare AND has working-tree content or linked
 # worktrees, print evidence and return 0. Otherwise return non-zero. Does not mutate state.
 classify_bare_live_tree() {
-  local dir="$1" bare wt_count=0 has_content="false" evidence="" detail=""
+  local dir="$1" bare wt_count=0 has_content="false" detail=""
   bare="$(run_git_probe -C "$dir" rev-parse --is-bare-repository 2>/dev/null | tr -d '\r')" || return 1
   [[ "$bare" == "true" ]] || return 1
   wt_count="$(count_worktree_registrations "$dir")"
@@ -1567,8 +1564,8 @@ classify_bare_live_tree() {
   else
     detail="$((wt_count - 1)) linked worktree registration(s)"
   fi
-  evidence="core.bare=true coincides with $detail; linked worktrees keep working -- only the main worktree is disabled"
-  printf '%s\n' "$evidence"
+  printf '%s\n' \
+    "core.bare=true coincides with $detail; linked worktrees keep working -- only the main worktree is disabled"
 }
 
 # record_bare_live_tree <path> <evidence> <common_key>: defer a bare-repo-with-working-tree finding.
@@ -1715,7 +1712,7 @@ main_worktree() {
 # repository with live working-tree content or linked worktrees is classified as a finding instead
 # of rejected (#2602).
 add_target() {
-  local candidate="$1" origin="${2:-cli}" top common common_key existing main_top main_resolved rt_known rt_existing
+  local candidate="$1" origin="${2:-cli}" top common common_key main_top main_resolved
   local bare_live_evidence=""
   if [[ ! -d "$candidate" ]]; then
     reject_target "$origin" "repository directory not found: $candidate"
@@ -1767,14 +1764,7 @@ add_target() {
       # another, so substituting it silently would be the same class of defect as a header asserting
       # a scope the run's own inputs contradict. A config may name one path twice; record each
       # distinct source once so the grouped header line cannot list the same path repeatedly.
-      rt_known=false
-      for rt_existing in "${RETARGETED_FROM[@]:-}"; do
-        [[ -n "$rt_existing" && "$rt_existing" == "$top" ]] && {
-          rt_known=true
-          break
-        }
-      done
-      if [[ "$rt_known" == "false" ]]; then
+      if ! array_contains "$top" "${RETARGETED_FROM[@]:-}"; then
         RETARGETED_FROM+=("$top")
         RETARGETED_TO+=("$main_resolved")
       fi
@@ -1782,9 +1772,7 @@ add_target() {
     fi
   fi
   common_key="$(path_key "$common")"
-  for existing in "${TARGET_COMMON_KEYS[@]:-}"; do
-    [[ "$existing" == "$common_key" ]] && return 0
-  done
+  array_contains "$common_key" "${TARGET_COMMON_KEYS[@]:-}" && return 0
   TARGETS+=("$top")
   TARGET_COMMON_KEYS+=("$common_key")
 }
@@ -2404,7 +2392,6 @@ analyze_repo() {
   # which is one answer for every registration, so it is resolved once here rather than per
   # worktree. select_remote's sole-GitHub fallback (e.g. upstream) is deliberately not used: it
   # would falsely flag creator-compliant trees.
-  origin_url=""
   if origin_url="$(run_git_probe -C "$canonical" remote get-url origin 2>/dev/null | tr -d '\r')" &&
     [[ -n "$origin_url" ]] && parse_github_url "$origin_url"; then
     WT_ORIGIN_OWNER="${PARSED_SLUG%%/*}"
@@ -2560,14 +2547,8 @@ analyze_repo() {
       for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]:-}"; do
         [[ -n "$remote_branch_short" && "$remote_branch_short" != "$default_branch" ]] || continue
         [[ "$remote_branch_short" =~ [[:cntrl:]] ]] && continue
-        already=false
-        for existing in "${GQL_BRANCHES[@]:-}"; do
-          [[ "$existing" == "$remote_branch_short" ]] && {
-            already=true
-            break
-          }
-        done
-        [[ "$already" == "true" ]] || GQL_BRANCHES+=("$remote_branch_short")
+        array_contains "$remote_branch_short" "${GQL_BRANCHES[@]:-}" ||
+          GQL_BRANCHES+=("$remote_branch_short")
       done
       repo_pr_available=true
       repo_pr_rows=""
@@ -2753,14 +2734,7 @@ printf 'Repositories discovered (audit targets after deduplication): %s\n' "${#T
 RT_REPORTED=()
 for ((rt_index = 0; rt_index < ${#RETARGETED_TO[@]}; rt_index++)); do
   rt_to="${RETARGETED_TO[$rt_index]}"
-  rt_seen=false
-  for rt_prev in "${RT_REPORTED[@]:-}"; do
-    [[ -n "$rt_prev" && "$rt_prev" == "$rt_to" ]] && {
-      rt_seen=true
-      break
-    }
-  done
-  [[ "$rt_seen" == "true" ]] && continue
+  array_contains "$rt_to" "${RT_REPORTED[@]:-}" && continue
   RT_REPORTED+=("$rt_to")
   printf 'Resolved to main worktree: '
   display_value "$rt_to"
@@ -2837,14 +2811,7 @@ CURRENT_REPO_IDX=-1
 DUP_REPORTED=()
 for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
   dup_key="${IDENT_KEYS[$di]}"
-  dup_seen=false
-  for dup_prev in "${DUP_REPORTED[@]:-}"; do
-    [[ -n "$dup_prev" && "$dup_prev" == "$dup_key" ]] && {
-      dup_seen=true
-      break
-    }
-  done
-  [[ "$dup_seen" == "true" ]] && continue
+  array_contains "$dup_key" "${DUP_REPORTED[@]:-}" && continue
   DUP_REPORTED+=("$dup_key")
   DUP_PATHS=()
   for ((dj = 0; dj < ${#IDENT_KEYS[@]}; dj++)); do

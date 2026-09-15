@@ -39,7 +39,10 @@ plugins/context-guard/hooks/zone-gate.test.sh
 # A/B timing harness; its verdicts are elapsed-time comparisons.
 plugins/performance/scripts/ab.test.sh
 
-# The statusline bench measures render latency.
+# The statusline bench measures render latency. Its lane runs are gated on
+# BENCH_LANES, so an ordinary run stops before them and needs no seat here; the
+# entry is for the runs that DO set it (a local full corpus with the lanes
+# enabled), where the lanes measure exactly what contention distorts.
 plugins/rate-limit-guard/bench/bench.test.sh
 
 # Cancellation-window cases kill a parked rename shim on a short fuse.
@@ -63,11 +66,9 @@ plugins/context-budget/skills/audit/scripts/measure.test.sh
 # Two-second watchdog asserted to finish inside four seconds (audit-fleet.test.sh:1928-1936).
 plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh
 
-# The two entries below are NOT wall-clock cases. Both fail under --jobs 4 on a
-# hosted runner (run 33787030286), pass serially in the same job on main, and
-# pass locally; no hypothesis so far explains either. They are listed to fail
-# toward running the suite rather than toward a red lane nobody can diagnose,
-# and the debt is tracked so the listing does not become permanent by default.
-# Root cause tracked in #3694; both come off this list when it is found.
-plugins/discovery/agents/tool-honesty.test.sh
+# NOT a wall-clock case. Case [4] failed under --jobs 4 on a hosted runner (run
+# 33787030286) and passes serially. Pinned to one CPU on the hosted runner it
+# passed 10/10, so CPU starvation alone does not break it; the open candidate
+# is state shared with a concurrently running suite. It stays listed until
+# that is found (#3694).
 plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh

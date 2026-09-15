@@ -119,17 +119,16 @@ emit_skipped() {
   hook::finish skipped findings array '[]' applied array '[]'
 }
 
-# Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
-# (and pwd) on every fire to canonicalize a path git already answered as
-# absolute, or a fallback hint that `cd "$RUN_DIR"` already accepts relative.
+# Existence check only, no canonicalization: git already answers an absolute
+# path, and `cd "$RUN_DIR"` accepts a relative fallback hint as it stands.
 root=""
 [[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
 
 # Resolve the typos binary from PATH — never downloaded (typos is a standalone
 # Rust binary; no per-repo dependency-manager convention exists for it, unlike
 # ruff's .venv or markdownlint's node_modules).
-# `command -v` is a builtin; capturing it with `$( )` was a leftover subshell
-# just to learn the path. The later exec looks the name up on PATH itself.
+# `command -v` is a builtin; the resolved path is not captured because the
+# later exec looks the name up on PATH itself.
 TYPOS_BIN=""
 command -v typos >/dev/null 2>&1 && TYPOS_BIN=typos
 TYPOS_CONFIG_ARGS=()

@@ -132,15 +132,13 @@ def cluster(measures: list[dict[str, Any]], root: str = "") -> list[dict[str, An
 
 
 def main(argv: list[str]) -> int:
-    root = ""
-    if argv == ["--root"] or (argv and argv[0] != "--root") or len(argv) > 2:
+    if argv and (argv[0] != "--root" or len(argv) != 2):
         print("usage: cluster-clones.py [--root <dir>] < report.json", file=sys.stderr)
         return 2
-    if argv:
-        root = argv[1]
+    root = argv[1] if argv else ""
     try:
         document = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError) as exc:
+    except ValueError as exc:
         print(
             f"cluster-clones.py: stdin is not a JSON document ({exc})", file=sys.stderr
         )

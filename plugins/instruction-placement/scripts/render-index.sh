@@ -114,6 +114,11 @@ die() {
   exit 2
 }
 
+# First H1 of a file, without its `# ` marker; empty when the file has none.
+first_h1() {
+  grep -m1 '^# ' "$1" 2>/dev/null | sed 's/^#[[:space:]]*//'
+}
+
 # Rule title, in preference order: an explicit `description:` frontmatter value,
 # then the first H1, then the basename. The frontmatter key is optional and
 # ignored by Claude Code, which parses `paths:` and leaves other keys alone.
@@ -132,7 +137,7 @@ rule_title() {
       exit
     }
   ' "$file" 2>/dev/null)"
-  [[ -n "$title" ]] || title="$(grep -m1 '^# ' "$file" 2>/dev/null | sed 's/^#[[:space:]]*//')"
+  [[ -n "$title" ]] || title="$(first_h1 "$file")"
   [[ -n "$title" ]] || title="$(basename "$file" .md)"
   # Pipes would break the markdown table row.
   printf '%s' "${title//|/\\|}"
@@ -201,7 +206,7 @@ render_block() {
     if [[ "$(basename "$nested")" == "CLAUDE.md" ]] && is_pure_shim "$nested"; then
       continue
     fi
-    label="$(grep -m1 '^# ' "$nested" 2>/dev/null | sed 's/^#[[:space:]]*//')"
+    label="$(first_h1 "$nested")"
     [[ -z "$label" ]] && label="Conventions for this subtree"
     # shellcheck disable=SC2016 # backticks here are markdown code spans, not command substitution
     rows+=("$(printf '| `%s` | `%s/**` | %s |' "$nested" "$dir" "${label//|/\\|}")")

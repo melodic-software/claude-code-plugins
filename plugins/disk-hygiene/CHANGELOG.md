@@ -3,6 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.11]
+
+### Changed
+
+- The four disk-hygiene Python test wrappers parse the MIN_PYTHON floor, build the floor probe and pick an interpreter through one sourced test-wrapper library instead of four inline copies. Skip messages, argv and exit codes are unchanged.
+
+## [0.23.10]
+
+### Changed
+
+- Settle destructive-guard verdicts through one helper, share the handle-contest and accepted-path overlap checks and the scan-complete payload in the clean engine, inline the monitor tail read and lowercase the launcher path in bash (behavior unchanged).
+
+## [0.23.9]
+
+### Changed
+
+- setup skill: python3_alias_probe.py reports a stat failure through one call that varies only the detail text, and the kill-switch probe suite writes its toggle settings through one helper. Output byte-identical.
+
+## [0.23.8]
+
+### Changed
+
+- killswitch_config.py builds its kill-switch probe reports through two shared wrappers and two sentence constants instead of nine hand-repeated strings; hook_telemetry.py's absolute-sink predicate returns its comparison directly; test_guard_decision_log.py shares its owner-only permission assertion. No behavior change.
+
 ## [0.23.7]
 
 ### Changed

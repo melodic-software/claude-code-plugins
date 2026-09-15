@@ -5,25 +5,20 @@
  * Usage: node watch/validate-promotion-decisions.js <slice-dir>
  */
 
-import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
+import { writeStderr } from "@melodic/video-digestion/shared/terminal";
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
-import { validatePromotionDecisionsForSlice } from "../lib/watch-vision-validation.js";
+import {
+  reportSliceValidation,
+  validatePromotionDecisionsForSlice,
+} from "../lib/watch-vision-validation.js";
 
 /**
  * @param {string} sliceDir
  * @returns {number}
  */
 export function runValidatePromotionDecisions(sliceDir) {
-  const result = validatePromotionDecisionsForSlice(sliceDir);
-  if (result.valid) {
-    writeStdout("promotion-decisions: valid");
-    return 0;
-  }
-  for (const error of result.errors) {
-    writeStderr(`promotion-decisions: ${error}`);
-  }
-  return 1;
+  return reportSliceValidation(validatePromotionDecisionsForSlice(sliceDir), "promotion-decisions");
 }
 
 if (isMainModule(import.meta.url)) {

@@ -12,19 +12,16 @@ import path from "node:path";
 
 import { probeVideoDuration } from "@melodic/video-digestion/media/ffprobe-duration";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
-import { parseVttSegment } from "@melodic/video-digestion/transcript/vtt-parser";
 
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
-import { harvestMetadataLinks } from "../harvesting/harvest-links.js";
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { computeCoveragePlan } from "../watching/compute-coverage-plan.js";
-import { findDensificationWindows, scoreFramePriority } from "../watching/densification.js";
-import { summarizeFrameSelection } from "../watching/frame-budget.js";
+import { planFrameCoverage } from "../watching/compute-coverage-plan.js";
+import { normalizeVttCues } from "../watching/cue-normalize.js";
+import { isHighVolume, selectFramesForCoverage } from "../watching/frame-budget.js";
 import { mergeFrameCandidates } from "../watching/merge-frame-candidates.js";
 import { assignFrameTimestamps } from "../watching/orchestrate-watching.js";
-import { toSelectedFrame } from "../watching/read-policy.js";
 import {
   batchFramesForContactSheets,
   interleaveTranscriptAndFrames,
@@ -136,14 +133,15 @@ export function resolveWorkArtifacts(workDir) {
 export const RECOVER_USAGE =
   "Usage: node watch/recover-watch-bootstrap.js <slice-dir> <workDir> <framesDir> <contactSheetsDir>";
 
+/** Frames per contact sheet, matching the 4x4 cell grid the sheets on disk were built with. */
+const FRAMES_PER_CONTACT_SHEET = 16;
+
 /**
  * Stratified downsample of a frame selection to the frame count the contact
  * sheets already on disk can hold.
  *
- * Split out so the WARN reports the count it downsampled FROM: reassigning
- * `selection` before reading `selection.selected.length` printed the
- * post-downsample count on both sides of the arrow, so the log claimed
- * "N → N" and hid how many frames were dropped.
+ * Split out so the WARN can report the count it downsampled FROM: the caller
+ * reassigns `selection` only after this has returned both counts.
  *
  * @param {import('../watching/models.js').SelectedFrame[]} selected
  * @param {number} targetFrameCount
@@ -172,8 +170,7 @@ export function downsampleSelectedFrames(selected, targetFrameCount) {
  */
 export async function recoverWatchBootstrapCli(argv) {
   // Validate BEFORE resolving: `path.resolve(undefined)` throws a TypeError,
-  // so resolving first made this usage branch unreachable and turned a bad
-  // invocation into a stack trace.
+  // so resolving first would make this usage branch unreachable.
   const [sliceDirArg, workDirArg, framesDirArg, contactSheetsDirArg] = argv.slice(2, 6);
   if (!sliceDirArg || !workDirArg || !framesDirArg || !contactSheetsDirArg) {
     writeStderr(RECOVER_USAGE);
@@ -197,39 +194,29 @@ export async function recoverWatchBootstrapCli(argv) {
   const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir);
   const metadata = parseVideoMetadata(JSON.parse(fs.readFileSync(infoPath, "utf8")));
   const vttText = fs.readFileSync(vttPath, "utf8");
-  const cues = parseVttSegment(vttText).map((cue) => ({
-    startSec: cue.startSec,
-    endSec: cue.endSec,
-    text: cue.text,
-  }));
+  const cues = normalizeVttCues(vttText);
 
   const probe = await probeVideoDuration(videoPath);
-  const durationSec = probe?.durationSec ?? cues[cues.length - 1]?.endSec ?? 0;
+  const durationSec = probe?.durationSec ?? cues.at(-1)?.endSec ?? 0;
 
   const rawFrames = loadFramesFromDir(framesDir);
   const merged = mergeFrameCandidates(rawFrames);
   assignFrameTimestamps(merged, durationSec);
 
-  const windows = findDensificationWindows(cues);
-  const coveragePlan = computeCoveragePlan({
+  const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
-    densificationWindows: windows,
     sceneCandidateCount: merged.length,
   });
 
-  const scored = merged.map((frame, index) =>
-    toSelectedFrame(frame, scoreFramePriority(frame, index, windows), windows),
-  );
-
-  let selection = summarizeFrameSelection(scored, {
+  let selection = selectFramesForCoverage(merged, {
+    windows,
     targetMinFrames: coveragePlan.targetMinFrames,
     durationSec,
-    densificationWindowCount: windows.length,
   });
 
   const sheetFiles = listExistingSheetFiles(contactSheetsDir);
   const expectedSheetCount = sheetFiles.length;
-  const expectedFrameCount = expectedSheetCount * 16;
+  const expectedFrameCount = expectedSheetCount * FRAMES_PER_CONTACT_SHEET;
 
   const downsample = downsampleSelectedFrames(selection.selected, expectedFrameCount);
   if (downsample.warning) {
@@ -241,15 +228,16 @@ export async function recoverWatchBootstrapCli(argv) {
     writeStderr(`${downsample.warning} to match ${expectedSheetCount} contact sheets`);
   }
 
-  const batches = batchFramesForContactSheets(selection.selected, 16);
+  const batches = batchFramesForContactSheets(selection.selected, FRAMES_PER_CONTACT_SHEET);
   const contactSheets = loadExistingContactSheets(contactSheetsDir, sheetFiles, batches);
 
-  const highVolume = summarizeFrameSelection(selection.selected, {
+  const highVolume = isHighVolume({
+    candidateCount: selection.selected.length,
     targetMinFrames: coveragePlan.targetMinFrames,
     contactSheetCount: contactSheets.length,
     durationSec,
     densificationWindowCount: windows.length,
-  }).highVolume;
+  });
 
   const watching = {
     sceneFrames: [],
@@ -308,7 +296,7 @@ export async function recoverWatchBootstrapCli(argv) {
     recovered: true,
   });
 
-  const harvestedLinks = harvestMetadataLinks(metadata, adapter);
+  const harvestedLinks = adapter.harvestLinks(metadata);
   await fsPromises.mkdir(lanePath(sliceDir, LANES.source), { recursive: true });
   const harvestPath = lanePath(sliceDir, LANES.source, "harvested-links.json");
   await fsPromises.writeFile(harvestPath, `${JSON.stringify(harvestedLinks, null, 2)}\n`, "utf8");

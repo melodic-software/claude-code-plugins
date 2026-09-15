@@ -68,13 +68,13 @@ local_metadata_field() {
   local field="$1"
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
   awk -v f="$field" '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && $1 == f":"{print $2;exit}' \
-    "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
+    "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
 # Read top-level version: from a fetched upstream file's frontmatter block.
 upstream_version_from_file() {
   awk 'NR==1 && /^---/{f=1;next} f && /^---/{exit} f && /^version:/{print $2;exit}' "$1" |
-    tr -d '"' | tr -d "'" | tr -d '\r'
+    tr -d "\"'\r"
 }
 
 fetch_upstream() {

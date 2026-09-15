@@ -197,11 +197,7 @@ REC_SCHEMA='(.ts|type)=="string" and (.hook_event_name|type)=="string"
   and (.hook|type)=="string" and (.exit_code|type)=="number"
   and (.subject|type)=="string" and (.tool|type)=="string"'
 SESSION_REC="$PROJE/.observability/claude/sessions/sess-e.jsonl"
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  [[ -s "$SESSION_REC" ]] && break
-  sleep 0.2
-done
-if [[ -s "$SESSION_REC" ]]; then
+if wait_for_sink "$SESSION_REC"; then
   jq -e -s "all(.[]; $REC_SCHEMA and (.session_id|type)==\"string\")" "$SESSION_REC" >/dev/null 2>&1
   assert_exit "emitter envelope → per-session record satisfies the schema" 0 "$?"
   assert_eq "emitter envelope → hook_event_name carried" "PermissionDenied" \
@@ -215,11 +211,7 @@ mkdir -p "$PROJEL"
 env HOOK_TELEMETRY_SINK="$HOOK_DIR/hook-telemetry-sink.sh" CLAUDE_PROJECT_DIR="$PROJEL" \
   bash "$HOOK" <<<'{"hook_event_name":"ConfigChange","source":"project_settings"}' >/dev/null 2>&1
 LEGACY_REC="$PROJEL/.observability/claude/hook-events.jsonl"
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  [[ -s "$LEGACY_REC" ]] && break
-  sleep 0.2
-done
-if [[ -s "$LEGACY_REC" ]]; then
+if wait_for_sink "$LEGACY_REC"; then
   jq -e -s "all(.[]; $REC_SCHEMA and (has(\"session_id\")|not))" "$LEGACY_REC" >/dev/null 2>&1
   assert_exit "emitter envelope with no session → shared-file record satisfies the schema" 0 "$?"
 else

@@ -342,7 +342,7 @@ for subject, sections in sorted(by_subject.items()):
 # on the same subject can never fire. This is SEMANTIC shadowing inside the
 # classifier block -- a different surface from the syntactic non-matching the
 # permission-plane lint reports, with different inputs.
-hard_subjects = {subject_of(e) for e in entries(config, "hard_deny") if subject_of(e)}
+hard_subjects = {s for s in map(subject_of, entries(config, "hard_deny")) if s}
 for section in ("allow", "soft_deny"):
     for entry in entries(config, section):
         subject = subject_of(entry)

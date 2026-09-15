@@ -53,13 +53,6 @@ function Test-EgressHostAllowed {
     return $false
 }
 
-function Get-EgressAllowlist {
-    [CmdletBinding()]
-    [OutputType([object[]])]
-    param()
-    return , ([string[]]@($script:EgressAllowlist))
-}
-
 function Invoke-AllowlistedWeb {
     [CmdletBinding()]
     [OutputType([Microsoft.PowerShell.Commands.BasicHtmlWebResponseObject])]
@@ -98,8 +91,7 @@ function Invoke-AllowlistedWeb {
     try {
         return Invoke-WebRequest @webParams
     } catch {
-        $msg = $_.Exception.Message
-        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $Uri -Message $msg
+        Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $Uri -Message $_.Exception.Message
         throw
     }
 }

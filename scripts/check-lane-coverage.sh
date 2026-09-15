@@ -432,24 +432,16 @@ rec_coe="$(printf '%s\n' "$parsed" | grep '^COE ' || true)"
 rec_feed="$(printf '%s\n' "$parsed" | grep '^FEED ' || true)"
 rec_stepname="$(printf '%s\n' "$parsed" | grep '^STEPNAME ' || true)"
 
-# step_id_of <job> <ordinal>: the id a step declares, or empty.
-step_id_of() {
-  local _ j o id
-  while read -r _ j o id; do
-    [[ "$j" == "$1" && "$o" == "$2" ]] || continue
-    printf '%s' "$id"
+# step_field_of <records> <job> <ordinal>: the trailing field of the matching
+# record, or empty. STEPID records carry the id a step declares; STEPNAME
+# records carry the display name, for a step with no id.
+step_field_of() {
+  local _ j o value
+  while read -r _ j o value; do
+    [[ "$j" == "$2" && "$o" == "$3" ]] || continue
+    printf '%s' "$value"
     return
-  done <<<"$rec_stepid"
-}
-
-# step_name_of <job> <ordinal>: the display name, for a step with no id.
-step_name_of() {
-  local _ j o name
-  while read -r _ j o name; do
-    [[ "$j" == "$1" && "$o" == "$2" ]] || continue
-    printf '%s' "$name"
-    return
-  done <<<"$rec_stepname"
+  done <<<"$1"
 }
 
 # Every gate step as "<job>/<id>"; every feed read the same way; every id
@@ -463,10 +455,10 @@ done <<<"$rec_stepid"
 
 while read -r _ j o; do
   [[ -n "$j" ]] || continue
-  id="$(step_id_of "$j" "$o")"
+  id="$(step_field_of "$rec_stepid" "$j" "$o")"
   if [[ -z "$id" ]]; then
     has_line "$annotated_jobs" "$j" && continue
-    report "UNREADABLE GATE: job '$j' step #$o ('$(step_name_of "$j" "$o")') carries 'continue-on-error: true' but no 'id', so its outcome cannot be read and its failure turns nothing red. Give it an id and feed it to the aggregator, or drop continue-on-error so it fails the job directly."
+    report "UNREADABLE GATE: job '$j' step #$o ('$(step_field_of "$rec_stepname" "$j" "$o")') carries 'continue-on-error: true' but no 'id', so its outcome cannot be read and its failure turns nothing red. Give it an id and feed it to the aggregator, or drop continue-on-error so it fails the job directly."
     continue
   fi
   gate_steps+="$j/$id"$'\n'

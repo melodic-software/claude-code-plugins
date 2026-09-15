@@ -62,6 +62,14 @@ class GuardDecisionLogTests(unittest.TestCase):
         fields.update(overrides)
         return decision_log.record(str(self.data_root), **fields)
 
+    def assert_owner_only(self) -> None:
+        self.assertEqual(
+            stat.S_IMODE(self.log_file.stat().st_mode), decision_log.FILE_MODE
+        )
+        self.assertEqual(
+            stat.S_IMODE(self.log_file.parent.stat().st_mode), decision_log.DIR_MODE
+        )
+
     # --- the record exists at all, with no configuration -------------------
 
     def test_record_creates_the_log_under_the_data_root(self) -> None:
@@ -157,12 +165,7 @@ class GuardDecisionLogTests(unittest.TestCase):
         if os.name != "posix":
             self.skipTest("POSIX file modes")
         self.write_one()
-        self.assertEqual(
-            stat.S_IMODE(self.log_file.stat().st_mode), decision_log.FILE_MODE
-        )
-        self.assertEqual(
-            stat.S_IMODE(self.log_file.parent.stat().st_mode), decision_log.DIR_MODE
-        )
+        self.assert_owner_only()
 
     def test_an_existing_world_readable_log_is_tightened(self) -> None:
         if os.name != "posix":
@@ -172,12 +175,7 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.log_file.write_text("", encoding="utf-8")
         self.log_file.chmod(0o644)
         self.write_one()
-        self.assertEqual(
-            stat.S_IMODE(self.log_file.stat().st_mode), decision_log.FILE_MODE
-        )
-        self.assertEqual(
-            stat.S_IMODE(self.log_file.parent.stat().st_mode), decision_log.DIR_MODE
-        )
+        self.assert_owner_only()
 
     def test_the_log_rotates_at_the_bound_and_keeps_one_generation(self) -> None:
         with mock.patch.object(decision_log, "MAX_BYTES", 2000):
@@ -245,11 +243,11 @@ class GuardDecisionLogTests(unittest.TestCase):
         self.assertFalse(self.write_one(extra={"bad": object()}))
 
     def test_a_failing_rotation_does_not_raise_and_keeps_the_record(self) -> None:
-        with mock.patch.object(decision_log, "MAX_BYTES", 1):
-            with mock.patch.object(
-                decision_log.os, "replace", side_effect=OSError("busy")
-            ):
-                self.assertFalse(self.write_one())
+        with (
+            mock.patch.object(decision_log, "MAX_BYTES", 1),
+            mock.patch.object(decision_log.os, "replace", side_effect=OSError("busy")),
+        ):
+            self.assertFalse(self.write_one())
         # The line still landed before the rotation attempt failed.
         self.assertEqual(1, len(self.read_records()))
 

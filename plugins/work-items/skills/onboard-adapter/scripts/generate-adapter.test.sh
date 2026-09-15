@@ -83,6 +83,15 @@ gen_err() {
 # with <jq-filter> — BASE_SPEC transformed.
 with() { jq -c "$1" <<<"$BASE_SPEC"; }
 
+# assert_file <label> <path> scores one case per file the generator must have written.
+assert_file() {
+  if [[ -f "$2" ]]; then
+    pass "$1"
+  else
+    fail "$1" "present" "missing"
+  fi
+}
+
 # --- argument handling ---
 
 bash "$S" --help >/dev/null 2>&1
@@ -120,15 +129,11 @@ B="$HAPPY_ROOT/tools/work-item-tracker/conformance/bindings"
 
 for f in capabilities.json capabilities.sh capabilities.test.sh common.sh common.test.sh README.md \
   create-item.sh get-item.sh list-items.sh; do
-  if [[ -f "$A/$f" ]]; then pass "generated $f"; else fail "generated $f" "present" "missing"; fi
+  assert_file "generated $f" "$A/$f"
 done
 # #2950 requires the conformance binding be generated alongside the adapter — without
 # it the generated adapter cannot be conformance-verified at all.
-if [[ -f "$B/acmetracker.sh" ]]; then
-  pass "generated the conformance binding"
-else
-  fail "generated the conformance binding" "present" "missing"
-fi
+assert_file "generated the conformance binding" "$B/acmetracker.sh"
 
 # Declared-false verbs get NO script: the core capability gate answers them with
 # exit 6 before any script would run, and shipping an inert file invites someone to
@@ -415,35 +420,36 @@ assert_eq "link-blocks=true with zero dependency ceiling → exit 3" "3" \
 # This is #2950's second acceptance criterion made executable: the guards are
 # generated, so their proof is generated with them and runs here.
 
-run_generated_suite() {
-  local label="$1" spec="$2"
-  local rc root adapter
-  rc="$(gen "$spec")"
+# gen_adapter <label> <spec>: generate <spec> and set GEN_ADAPTER to the generated
+# adapter directory, or record a generation FAIL and clear GEN_ADAPTER. Written into a
+# variable rather than echoed so `fail` stays in the caller's shell, where FAILED lives.
+gen_adapter() {
+  local rc
+  GEN_ADAPTER=""
+  rc="$(gen "$2")"
   if [[ "$rc" != "0" ]]; then
-    fail "$label (generation)" "0" "$rc"
+    fail "$1 (generation)" "0" "$rc"
     return
   fi
-  root="$(last_root)"
-  adapter="$root/tools/work-item-tracker/adapters/acmetracker"
+  GEN_ADAPTER="$(last_root)/tools/work-item-tracker/adapters/acmetracker"
+}
+
+run_generated_suite() {
+  gen_adapter "$1" "$2"
+  [[ -n "$GEN_ADAPTER" ]] || return
   WIT_SEAM_LIB_DIR="$SEAM/lib" WIT_SEAM_TESTS_DIR="$SEAM/tests" \
-    bash "$adapter/common.test.sh" >/dev/null 2>&1
-  assert_eq "$label" "0" "$?"
+    bash "$GEN_ADAPTER/common.test.sh" >/dev/null 2>&1
+  assert_eq "$1" "0" "$?"
 }
 
 # The generated capabilities suite proves the manifest agrees with the FILESYSTEM — a
 # verb declared true with no script behind it, or a script left behind for a verb since
 # set to false, shows up in no other test.
 run_capabilities_suite() {
-  local label="$1" spec="$2"
-  local rc adapter
-  rc="$(gen "$spec")"
-  if [[ "$rc" != "0" ]]; then
-    fail "$label (generation)" "0" "$rc"
-    return
-  fi
-  adapter="$(last_root)/tools/work-item-tracker/adapters/acmetracker"
-  WIT_SEAM_TESTS_DIR="$SEAM/tests" bash "$adapter/capabilities.test.sh" >/dev/null 2>&1
-  assert_eq "$label" "0" "$?"
+  gen_adapter "$1" "$2"
+  [[ -n "$GEN_ADAPTER" ]] || return
+  WIT_SEAM_TESTS_DIR="$SEAM/tests" bash "$GEN_ADAPTER/capabilities.test.sh" >/dev/null 2>&1
+  assert_eq "$1" "0" "$?"
 }
 run_capabilities_suite "generated capabilities suite passes" "$BASE_SPEC"
 
@@ -482,7 +488,7 @@ FULL_B="$FULL_ROOT/tools/work-item-tracker/conformance/bindings/acmetracker.sh"
 
 # Every verb of the adapter surface is emitted when all are declared.
 for v in create-item get-item claim renew-lease reclaim link-blocks add-sub-item list-items list-sub-items; do
-  if [[ -f "$FULL_A/$v.sh" ]]; then pass "full surface emits $v.sh"; else fail "full surface emits $v.sh" "present" "missing"; fi
+  assert_file "full surface emits $v.sh" "$FULL_A/$v.sh"
 done
 
 SC_RC="$SCRIPT_DIR/../../../../../.shellcheckrc"

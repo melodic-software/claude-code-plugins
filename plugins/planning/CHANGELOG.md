@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.11]
+
+### Changed
+
+- Drop the dead brief cross-check branch, hoist the candidate-row regex and share the stderr and first-line helpers in the open-questions and standards-binding suites (behavior unchanged).
+
 ## [0.39.10]
 
 ### Fixed

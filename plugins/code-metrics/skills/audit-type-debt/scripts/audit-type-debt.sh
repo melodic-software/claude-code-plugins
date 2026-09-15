@@ -17,7 +17,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
-REPORT="$PLUGIN_ROOT/scripts/report.py"
+# shellcheck source=../../../scripts/entry-common.sh
+source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
 JSON=0
 ARGS=()
@@ -28,7 +29,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --help | -h)
-    sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    cm_usage_banner "${BASH_SOURCE[0]}" 14
     exit 0
     ;;
   *)
@@ -50,36 +51,14 @@ fi
 # Resolve the configuration once (or take the caller's --config), so the
 # reference the report prints is read from the same document the dispatcher
 # measured against.
-CONFIG=""
-PASS_ARGS=()
-i=0
-while [[ $i -lt ${#ARGS[@]} ]]; do
-  if [[ "${ARGS[$i]}" == "--config" && $((i + 1)) -lt ${#ARGS[@]} ]]; then
-    CONFIG="${ARGS[$((i + 1))]}"
-    i=$((i + 2))
-    continue
-  fi
-  PASS_ARGS+=("${ARGS[$i]}")
-  i=$((i + 1))
-done
-if [[ -z "$CONFIG" ]]; then
-  CONFIG="$WORK/config.json"
-  "${PY[@]}" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" \
-    --home "${CODE_METRICS_HOME:-${HOME:-/}}" >"$CONFIG" || exit 2
+cm_split_config "${ARGS[@]}"
+if [[ -z "$CM_CONFIG" ]]; then
+  CM_CONFIG="$WORK/config.json"
+  cm_resolve_config "$CM_CONFIG" || exit 2
 fi
 
-bash "$DISPATCH" audit-type-debt --measures type_coverage --config "$CONFIG" "${PASS_ARGS[@]}" >"$WORK/report.json"
+bash "$DISPATCH" audit-type-debt --measures type_coverage --config "$CM_CONFIG" "${CM_PASS_ARGS[@]}" >"$WORK/report.json"
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
-if [[ $JSON -eq 1 ]]; then
-  cat "$WORK/report.json"
-else
-  # shellcheck source=../../../scripts/persist-report.sh
-  source "$PLUGIN_ROOT/scripts/persist-report.sh"
-  render_args=()
-  if document="$(cm_persist_report audit-type-debt "$WORK/report.json")"; then
-    render_args=(--document "$document")
-  fi
-  "${PY[@]}" "$REPORT" render "${render_args[@]}" <"$WORK/report.json" || exit 2
-fi
+cm_emit_document audit-type-debt "$JSON" "$WORK/report.json" || exit 2
 exit "$rc"

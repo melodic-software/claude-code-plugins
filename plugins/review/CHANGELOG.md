@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1]
+
+### Changed
+
+- The review emit-stubs script routes its six parent-directory walks through one path-parent helper, extracts the drive letter in a single pass, and drops write-only state and constant-true guards, with byte-identical stubs, findings, and exit codes.
+
 ## [0.29.0]
 
 ### Added

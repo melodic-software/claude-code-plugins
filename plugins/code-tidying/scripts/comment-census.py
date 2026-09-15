@@ -217,8 +217,8 @@ def pygments_counts(path: Path) -> dict | None:
             body = text.strip("\n")
             if body.strip():
                 comment_bytes += len(body.encode("utf-8"))
-                for i in range(text.count("\n") + 1):
-                    if i < len(text.split("\n")) and text.split("\n")[i].strip():
+                for i, part in enumerate(text.split("\n")):
+                    if part.strip():
                         comment_lines.add(line + i)
         line += text.count("\n")
     return {
@@ -301,11 +301,9 @@ def totals(records: list[dict], dedupe: bool) -> dict:
     if dedupe:
         by_hash: dict[str, dict] = {}
         for r in records:
-            if r["sha256"] not in by_hash:
-                by_hash[r["sha256"]] = r
-            else:
-                duplicates += 1
+            by_hash.setdefault(r["sha256"], r)
         chosen = list(by_hash.values())
+        duplicates = len(records) - len(chosen)
     cl = sum(r.get("comment_lines", 0) for r in chosen)
     lines = sum(r.get("lines", 0) for r in chosen)
     cb = sum(r.get("comment_bytes", 0) for r in chosen if "comment_bytes" in r)

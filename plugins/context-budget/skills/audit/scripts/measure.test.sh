@@ -43,6 +43,32 @@ assert_eq() {
     fail "$4 (got: $1)"
   fi
 }
+# assert_exit <expected-code> <ok-message> <fail-message> <cmd...> — runs the
+# command with both streams discarded and checks its exit code
+assert_exit() {
+  local want="$1" okmsg="$2" failmsg="$3"
+  shift 3
+  "$@" >/dev/null 2>&1
+  local rc=$?
+  if [[ $rc -eq "$want" ]]; then
+    ok "$okmsg"
+  else
+    fail "$failmsg (exit $rc)"
+  fi
+}
+# assert_degrade <out-file> <needle> <ok-message> <fail-message> <cmd...> — the
+# command must exit 3 and leave a record naming the needle on stdout
+assert_degrade() {
+  local out="$1" needle="$2" okmsg="$3" failmsg="$4"
+  shift 4
+  "$@" >"$out" 2>/dev/null
+  local rc=$?
+  if [[ $rc -eq 3 ]] && grep -q "$needle" "$out"; then
+    ok "$okmsg"
+  else
+    fail "$failmsg, got exit $rc"
+  fi
+}
 
 if ! command -v node >/dev/null 2>&1; then
   echo "FAIL: node is required to test the engine" >&2
@@ -56,6 +82,12 @@ trap cleanup EXIT
 # jsonget <file> <js-expression over parsed `j`> — prints the value
 jsonget() {
   node -e "const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));const v=(function(){return eval(process.argv[2])})();process.stdout.write(String(v))" "$1" "$2"
+}
+
+# jsonmutate <in-file> <out-file> <js-statement over parsed `j`> — writes the
+# mutated record to the out file
+jsonmutate() {
+  node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));eval(process.argv[3]);fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$1" "$2" "$3"
 }
 
 # write_snapshot <file> <mode> <version> <signature> <systemtools> <skilltokens>
@@ -113,24 +145,17 @@ fi
 # --- parse-context: loud refusal on an unrecognized format ----------------
 
 printf 'Totally different output\nwith no markdown tables at all\n' >"$WORK/garbage.md"
-gout="$WORK/garbage-out.json"
-node "$ENGINE" parse-context --file "$WORK/garbage.md" >"$gout" 2>/dev/null
-rc=$?
-if [[ $rc -eq 3 ]] && grep -q 'context-budget.error/1' "$gout"; then
-  ok "unrecognized format exits 3 with a structured error (never a guessed number)"
-else
-  fail "unrecognized format: expected exit 3 + error record, got exit $rc"
-fi
+assert_degrade "$WORK/garbage-out.json" 'context-budget.error/1' \
+  "unrecognized format exits 3 with a structured error (never a guessed number)" \
+  "unrecognized format: expected exit 3 + error record" \
+  node "$ENGINE" parse-context --file "$WORK/garbage.md"
 
 # A category table that parses but lacks the System tools row must also refuse.
 printf '## Context Usage\n\n### Estimated usage by category\n\n| Category | Tokens | Percentage |\n|---|---|---|\n| Something else | 1.0k | 1.0%% |\n' >"$WORK/norow.md"
-node "$ENGINE" parse-context --file "$WORK/norow.md" >"$WORK/norow-out.json" 2>/dev/null
-rc=$?
-if [[ $rc -eq 3 ]] && grep -q 'System tools' "$WORK/norow-out.json"; then
-  ok "missing System tools row refuses rather than guessing"
-else
-  fail "missing System tools row: expected exit 3 naming the row, got exit $rc"
-fi
+assert_degrade "$WORK/norow-out.json" 'System tools' \
+  "missing System tools row refuses rather than guessing" \
+  "missing System tools row: expected exit 3 naming the row" \
+  node "$ENGINE" parse-context --file "$WORK/norow.md"
 
 # --- compare: identical runs are comparable, deltas are zero --------------
 
@@ -173,7 +198,7 @@ fi
 
 # --- compare: every recorded mismatch poisons the predicate ---------------
 
-node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));j.binary.path='/opt/other/claude';fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$WORK/a.json" "$WORK/d.json"
+jsonmutate "$WORK/a.json" "$WORK/d.json" "j.binary.path='/opt/other/claude'"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/d.json" --out "$WORK/row-path.json" >/dev/null
 assert_eq "$(jsonget "$WORK/row-path.json" 'j.comparability.systemToolsComparable')" "false" \
   "same version but different binary path marks System tools incomparable" \
@@ -182,7 +207,7 @@ assert_eq "$(jsonget "$WORK/row-path.json" 'j.comparability.modeBinaryComparable
   "binary-path mismatch also flips the shared mode/binary predicate" \
   "binary-path mismatch not reflected in modeBinaryComparable"
 
-node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));j.skillListing.tokens=2500;fs.writeFileSync(process.argv[2],JSON.stringify(j));" "$WORK/a.json" "$WORK/e.json"
+jsonmutate "$WORK/a.json" "$WORK/e.json" "j.skillListing.tokens=2500"
 node "$ENGINE" compare --before "$WORK/a.json" --after "$WORK/e.json" --out "$WORK/row-skills.json" >/dev/null
 assert_eq "$(jsonget "$WORK/row-skills.json" 'j.comparability.systemToolsComparable')" "false" \
   "matching listing but moved Skills bucket marks System tools incomparable" \
@@ -203,13 +228,9 @@ fi
 # --- compare: schema validation -------------------------------------------
 
 printf '{"schema":"something-else/9"}\n' >"$WORK/notsnap.json"
-node "$ENGINE" compare --before "$WORK/notsnap.json" --after "$WORK/a.json" >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then
-  ok "compare rejects a non-snapshot input as a usage error"
-else
-  fail "compare accepted a non-snapshot input (exit $rc)"
-fi
+assert_exit 2 "compare rejects a non-snapshot input as a usage error" \
+  "compare accepted a non-snapshot input" \
+  node "$ENGINE" compare --before "$WORK/notsnap.json" --after "$WORK/a.json"
 
 # --- ledger: one file per run plus an appended line -----------------------
 
@@ -241,21 +262,13 @@ assert_eq "$runfiles" "3" \
 
 # --- ledger: schema-checked append ----------------------------------------
 
-node "$ENGINE" ledger --append "$WORK/a.json" --dir "$LDIR" >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then
-  ok "ledger rejects a non-ledger row (snapshots are not ledger rows)"
-else
-  fail "ledger accepted a snapshot as a row (exit $rc)"
-fi
+assert_exit 2 "ledger rejects a non-ledger row (snapshots are not ledger rows)" \
+  "ledger accepted a snapshot as a row" \
+  node "$ENGINE" ledger --append "$WORK/a.json" --dir "$LDIR"
 
-node "$ENGINE" ledger --append "$row" --dir "relative/dir" >/dev/null 2>&1
-rc=$?
-if [[ $rc -eq 2 ]]; then
-  ok "ledger rejects a relative --dir"
-else
-  fail "ledger accepted a relative --dir (exit $rc)"
-fi
+assert_exit 2 "ledger rejects a relative --dir" \
+  "ledger accepted a relative --dir" \
+  node "$ENGINE" ledger --append "$row" --dir "relative/dir"
 
 # --- attribute: additivity never coerces a vanished bucket to zero --------
 # Hermetic live-path exercise: a fake `claude` binary answers `--version` and
@@ -618,13 +631,10 @@ fi
 
 # --- snapshot: pinned-binary honesty --------------------------------------
 
-node "$ENGINE" snapshot --binary "$WORK/does-not-exist" >"$WORK/nobin.json" 2>/dev/null
-rc=$?
-if [[ $rc -eq 3 ]] && grep -q 'binary-not-found' "$WORK/nobin.json"; then
-  ok "snapshot with a missing --binary degrades with a structured error"
-else
-  fail "missing --binary: expected exit 3 + binary-not-found, got exit $rc"
-fi
+assert_degrade "$WORK/nobin.json" 'binary-not-found' \
+  "snapshot with a missing --binary degrades with a structured error" \
+  "missing --binary: expected exit 3 + binary-not-found" \
+  node "$ENGINE" snapshot --binary "$WORK/does-not-exist"
 
 # --- summary ---------------------------------------------------------------
 

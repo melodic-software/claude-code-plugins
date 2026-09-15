@@ -134,7 +134,6 @@ done
 session_id="" event="" prompt_id="" tool_use_id="" agent_id="" tool_name=""
 # shellcheck disable=SC2034
 file_path="" reason="" cwd="" category="" root="" ts="" duration_ms="" line=""
-extras=()
 field_to() { # <var> <key>: the JSON string body of "<key>": "..." or ""
   if [[ "$buf" =~ \"$2\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
     printf -v "$1" '%s' "${BASH_REMATCH[1]}"

@@ -91,13 +91,9 @@ function parseBulletParagraph(paragraph) {
   // Find last " — " followed by url-ish content
   let body = rest;
   const dashSplit = rest.split(/\s+—\s+/);
-  if (dashSplit.length > 1) {
-    // Last chunk likely contains URLs separated by ' · '
-    const lastChunk = dashSplit[dashSplit.length - 1];
-    const looksLikeUrls = /https?:\/\//.test(lastChunk);
-    if (looksLikeUrls) {
-      body = dashSplit.slice(0, -1).join(" — ").trim();
-    }
+  // Last chunk likely contains URLs separated by ' · '
+  if (dashSplit.length > 1 && /https?:\/\//.test(dashSplit[dashSplit.length - 1])) {
+    body = dashSplit.slice(0, -1).join(" — ").trim();
   }
 
   // Strip ALL urls inline that survived (defensive — autolink puts them as link nodes,

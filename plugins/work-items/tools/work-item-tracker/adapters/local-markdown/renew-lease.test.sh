@@ -11,7 +11,7 @@ assert_usage_error "$S" "github:o/r#1" --lease-comment-id 1
 # End-to-end: ttl-0 claim is born expired; renew-lease must refuse it (exit 7)
 # rather than bumping renewed_at and reviving the dead handle. A live control
 # claim on a second item must still renew, and that renewal must reach the store.
-TRACKER="$(cd "$(dirname "$S")" && pwd)/../../work-item-tracker.sh"
+TRACKER="$(dirname "$S")/../../work-item-tracker.sh"
 # The store assertions read leases back through the adapter's own parser.
 # shellcheck source=common.sh
 source "$(dirname "$S")/common.sh"

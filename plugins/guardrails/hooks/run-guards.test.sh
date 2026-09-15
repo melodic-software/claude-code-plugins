@@ -268,7 +268,6 @@ for tool in dirname sed jq; do
   real=$(type -P "$tool")
   if [[ -z "$real" ]]; then
     bad "need $tool on PATH to pin its absence from the dispatcher"
-    real=""
     break
   fi
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" %q >>%q\nexec %q "$@"\n' "$tool" "$SPAWN_LOG" "$real" >"$SHIM/$tool"

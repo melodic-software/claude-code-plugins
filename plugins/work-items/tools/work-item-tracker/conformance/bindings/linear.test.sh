@@ -18,11 +18,7 @@ CB_REPO=""
 source "$SCRIPT_DIR/linear.sh"
 
 for fn in cb_setup cb_teardown; do
-  if declare -F "$fn" >/dev/null; then
-    pass "linear binding exposes $fn"
-  else
-    fail "linear binding exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "linear binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # No retained default for either half of the target. Conformance mutates real items, so

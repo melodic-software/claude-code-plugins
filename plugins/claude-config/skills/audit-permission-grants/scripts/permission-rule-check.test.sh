@@ -57,8 +57,8 @@ mkdir -p "$ISOLATED_HOME"
 # PERMISSION_HYGIENE_SCAN_ROOT is unset in every helper: it outranks the alias
 # these cases pass, so an outer session exporting it would silently redirect the
 # whole suite at another tree.
-run() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${2:-}"; }
 run_with_home() { env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$2" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${3:-}"; }
+run() { run_with_home "$1" "$ISOLATED_HOME" "${2:-}"; }
 run_with_config_dir() { env -u PERMISSION_HYGIENE_SCAN_ROOT CLAUDE_CONFIG_DIR="$2" HOME="$3" PERMISSION_HYGIENE_FIXTURE_DIR="$1" bash "$SCRIPT" "${4:-}"; }
 
 # Runtime-assembled machine paths (no contiguous path literal in source).
@@ -1105,22 +1105,20 @@ assert_exit "--help is unaffected by the gate flags" 0 "$rc"
 # Four false-passes a blind verifier reproduced against the gate as first shipped.
 # Each one exited 0 on a tree the gate existed to fail; each row below asserts the
 # CORRECT outcome, not the shipped one.
-gate_args_rc() {
-  # gate_args_rc <root> [args...] — exit code for an arbitrary argv, output discarded.
-  # `run`/`gate_rc` can only pass ONE argument, which is precisely how the
-  # multi-argument defects below went unnoticed.
-  local root="$1" rc=0
-  shift
-  env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
-    PERMISSION_HYGIENE_FIXTURE_DIR="$root" bash "$SCRIPT" "$@" >/dev/null 2>&1 || rc=$?
-  printf '%s' "$rc"
-}
 run_args() {
   # run_args <root> [args...] — merged stdout+stderr for an arbitrary argv.
   local root="$1"
   shift
   env -u CLAUDE_CONFIG_DIR -u PERMISSION_HYGIENE_SCAN_ROOT HOME="$ISOLATED_HOME" \
     PERMISSION_HYGIENE_FIXTURE_DIR="$root" bash "$SCRIPT" "$@" 2>&1
+}
+gate_args_rc() {
+  # gate_args_rc <root> [args...] — exit code for an arbitrary argv, output discarded.
+  # `run`/`gate_rc` can only pass ONE argument, which is precisely how the
+  # multi-argument defects below went unnoticed.
+  local rc=0
+  run_args "$@" >/dev/null || rc=$?
+  printf '%s' "$rc"
 }
 
 # 16a: an UNRECOGNISED ARGUMENT is refused, never silently ignored. A typo'd

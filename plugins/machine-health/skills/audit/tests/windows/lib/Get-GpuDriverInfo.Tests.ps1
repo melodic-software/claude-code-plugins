@@ -2,9 +2,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    . (Join-Path $script:SkillRoot 'scripts\windows\lib\Get-GpuDriverInfo.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-GpuDriverInfo.ps1'
 
     # A shadowing FUNCTION, not a Pester Mock: nvidia-smi is an Application, so
     # it cannot be mocked on a machine that does not have it installed (most CI

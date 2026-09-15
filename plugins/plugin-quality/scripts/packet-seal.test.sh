@@ -16,34 +16,9 @@ SUT="$SCRIPT_DIR/packet-seal.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-fails=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-  printf 'FAIL - %s\n' "$1" >&2
-  fails=$((fails + 1))
-}
-
-last_out=""
-run() {
-  local expected="$1" label="$2"
-  shift 2
-  local actual
-  last_out="$(bash "$SUT" "$@" 2>&1)"
-  actual=$?
-  if [[ "$actual" -eq "$expected" ]]; then
-    pass "$label (exit $actual)"
-  else
-    fail "$label — expected exit $expected, got $actual: $last_out"
-  fi
-}
-
-has() {
-  if [[ "$last_out" == *"$1"* ]]; then
-    pass "$2"
-  else
-    fail "$2 — output was: $last_out"
-  fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
+test_helpers::contract_lane
 
 fresh_packet() {
   local p="$WORK/packet"
@@ -225,10 +200,4 @@ run 0 "record on an empty packet runs" record "$empty"
 has "sealed=0" "an empty packet seals zero files"
 run 0 "verify on an empty sealed packet is intact" verify "$empty"
 
-echo
-if [[ $fails -eq 0 ]]; then
-  echo "all packet-seal.sh contract tests passed"
-  exit 0
-fi
-echo "$fails packet-seal.sh contract test(s) failed" >&2
-exit 1
+contract_report packet-seal.sh

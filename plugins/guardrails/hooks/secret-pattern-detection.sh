@@ -97,12 +97,18 @@ hook::jq_fields "$INPUT" \
   '.tool_input.path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
-# text across the byte, so a clean scan would not reflect the bytes carried.
-if ((HOOK_JQ_FIELDS_NUL)); then
+# text across the byte, so a clean scan would not reflect the bytes carried. One
+# refusal, reached from the envelope below and from each file of the MCP lane, so
+# the two cannot drift to different wording or a different posture.
+secret_nul_refusal() {
   echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
   echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
   echo "Fix: reissue the tool call without the embedded NUL." >&2
   exit 2
+}
+
+if ((HOOK_JQ_FIELDS_NUL)); then
+  secret_nul_refusal
 fi
 
 TOOL="${HOOK_JQ_FIELDS[0]}"
@@ -127,6 +133,33 @@ secret_path_allowlisted() {
   *.claude/skills/*/completed/*) return 0 ;;
   *) return 1 ;; # proceed to content check
   esac
+}
+
+# Scan <content> for secret patterns. The report lands in the caller's $scan_out
+# (empty means clean) and each pattern label is APPENDED to the caller's $labels,
+# so the MCP lane accumulates labels across the files of one tool call. Callers
+# read $scan_out rather than a status, the same write-into-a-variable shape the
+# library's own `_to` helpers use.
+#
+# secrets::scan_text's exit status is lost inside `$()` because the trailing
+# `printf x` sentinel is what `$()` reports; the sentinel is also what keeps a
+# trailing newline `$()` would otherwise strip, the same pattern as
+# hardcoded-path-check.
+#
+# Call as: secret_scan <content> -> $scan_out $labels
+# shellcheck disable=SC2154  # scan_out and labels are the caller's frame, per the call contract
+secret_scan() {
+  local line
+  scan_out=$(
+    secrets::scan_text "$1"
+    printf x
+  )
+  scan_out=${scan_out%x}
+  [[ -n "$scan_out" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    labels+=("${line%% (line *}")
+  done < <(printf '%s' "$scan_out")
 }
 
 # Scan every file a GitHub MCP write carries, and block the whole tool call if
@@ -180,28 +213,17 @@ mcp_lane() {
     # Same fail-closed posture as the envelope: a NUL in scanned content means a
     # clean scan would not reflect the bytes carried.
     if ((HOOK_JQ_FIELDS_NUL)); then
-      echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
-      echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
-      echo "Fix: reissue the tool call without the embedded NUL." >&2
-      exit 2
+      secret_nul_refusal
     fi
 
     [[ -n "$path" && -n "$content" ]] || continue
     secret_path_allowlisted "${path//\\//}" && continue
 
-    scan_out=$(
-      secrets::scan_text "$content"
-      printf x
-    )
-    scan_out=${scan_out%x}
+    secret_scan "$content"
     [[ -n "$scan_out" ]] || continue
 
     [[ -n "$first_offender" ]] || first_offender="$path"
     violations+="$path:"$'\n'"$scan_out"$'\n'
-    while IFS= read -r _vline || [[ -n "$_vline" ]]; do
-      [[ -n "$_vline" ]] || continue
-      labels+=("${_vline%% (line *}")
-    done < <(printf '%s' "$scan_out")
   done
 
   [[ -n "$violations" ]] || return 0
@@ -299,7 +321,7 @@ Edit) CONTENT="${HOOK_JQ_FIELDS[3]}" ;;
 NotebookEdit) CONTENT="${HOOK_JQ_FIELDS[4]}" ;;
 *) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
 esac
-[[ -n "${CONTENT:-}" ]] || exit 0
+[[ -n "$CONTENT" ]] || exit 0
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing,
@@ -343,34 +365,22 @@ emit_tel() {
 # --- High-confidence secret patterns (shared lib) ---------------------------
 # Patterns + scan live in lib/secret-detection/secret-patterns.sh so the
 # pre-commit content-invariants hook enforces the same set (#2731).
-LABELS=()
-
-# Capture stdout; empty means clean (secrets::scan_text's exit status is lost
-# inside `$()` because the trailing `printf x` sentinel is what `$()` reports —
-# same trailing-newline-strip pattern as hardcoded-path-check).
-_secret_out=$(
-  secrets::scan_text "$CONTENT"
-  printf x
-)
-_secret_out=${_secret_out%x}
-if [[ -z "$_secret_out" ]]; then
+labels=()
+scan_out=""
+secret_scan "$CONTENT"
+if [[ -z "$scan_out" ]]; then
   emit_tel "ok" '[]'
   exit 0
 fi
-VIOLATIONS="$_secret_out"
-while IFS= read -r _vline || [[ -n "$_vline" ]]; do
-  [[ -n "$_vline" ]] || continue
-  LABELS+=("${_vline%% (line *}")
-done < <(printf '%s' "$VIOLATIONS")
 
 # --- Report violations ---
 {
   printf 'Secret/credential pattern(s) detected in %s:\n\n' "$FILE"
-  printf '%s\n' "$VIOLATIONS"
+  printf '%s\n' "$scan_out"
   printf 'If this is a test fixture or example, add the file to the allowlist\n'
   printf 'in secret-pattern-detection.sh. Never commit real secrets — use\n'
   printf 'environment variables, settings.local.json, or a secret manager.\n'
 } >&2
-labels_json=$(printf '%s\n' "${LABELS[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
+labels_json=$(printf '%s\n' "${labels[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
 emit_tel "blocked" "$labels_json"
 exit 2

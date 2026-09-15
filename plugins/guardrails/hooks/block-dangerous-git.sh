@@ -214,6 +214,40 @@ block() {
   exit 2
 }
 
+# The four verdicts each scan below reaches from TWO shapes: before and after the
+# `--` end-of-options marker for the three pathspec forms, and a short bundle
+# carrying `f` versus a bare `--force` for clean. One definition apiece because
+# the wording is a contract the suites assert verbatim, and two copies of it can
+# drift apart on a re-word. Each returns, like `block` itself, when the form is
+# on the allow list.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_clean_force() {
+  block "clean-force" \
+    "BLOCKED: git clean with a force flag permanently deletes untracked files." \
+    "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
+}
+
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_push_refspec_plus() {
+  block "push-force" \
+    "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
+    "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
+}
+
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_checkout_tree_wide() {
+  block "checkout-dot" \
+    "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
+    "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+}
+
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+block_restore_tree_wide() {
+  block "restore-dot" \
+    "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
+    "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
+}
+
 # Does a word match a long option or an accepted unique-prefix abbreviation of
 # it? git's parse-options accepts any unambiguous prefix (gitcli(7)), so
 # `reset --h` runs --hard. $1 = option name without dashes, $2 = the word,
@@ -942,9 +976,7 @@ check_segment() {
       case "$x" in
       --)
         for ((k++; k < nseg; k++)); do
-          [[ "${w[k]}" == +* ]] && block "push-force" \
-            "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
-            "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
+          [[ "${w[k]}" == +* ]] && block_push_refspec_plus
         done
         break
         ;;
@@ -975,9 +1007,7 @@ check_segment() {
       # until the segment ends.
       --force-*) ;;
       +*)
-        block "push-force" \
-          "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
-          "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
+        block_push_refspec_plus
         ;;
       -[A-Za-z]*)
         if [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
@@ -1095,17 +1125,11 @@ check_segment() {
       if [[ "$x" =~ ^-[A-Za-z]*e[A-Za-z]*$ ]]; then
         rest="${x%%e*}"
         [[ "$x" == *e ]] && ((k++))
-        if [[ "$rest" == *f* ]]; then
-          block "clean-force" \
-            "BLOCKED: git clean with a force flag permanently deletes untracked files." \
-            "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
-        fi
+        [[ "$rest" == *f* ]] && block_clean_force
         continue
       fi
       if abbrev_match "force" "$x" 1 || [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
-        block "clean-force" \
-          "BLOCKED: git clean with a force flag permanently deletes untracked files." \
-          "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
+        block_clean_force
       fi
     done
     ;;
@@ -1134,9 +1158,7 @@ check_segment() {
       # tree-wide pathspec check still applies.
       --)
         for ((k++; k < nseg; k++)); do
-          is_tree_wide_pathspec "${w[k]}" && block "checkout-dot" \
-            "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
-            "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+          is_tree_wide_pathspec "${w[k]}" && block_checkout_tree_wide
           if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
         done
         break
@@ -1181,9 +1203,7 @@ check_segment() {
             "BLOCKED: git checkout -f/--force throws away local modifications." \
             "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
         fi
-        is_tree_wide_pathspec "$x" && block "checkout-dot" \
-          "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
-          "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+        is_tree_wide_pathspec "$x" && block_checkout_tree_wide
         if [[ "$x" != -* ]]; then
           if is_exclude_pathspec "$x"; then
             ((excl++))
@@ -1286,9 +1306,7 @@ check_segment() {
         # After `--` every word is a pathspec — only the tree-wide check applies.
         --)
           for ((k++; k < nseg; k++)); do
-            is_tree_wide_pathspec "${w[k]}" && block "restore-dot" \
-              "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
-              "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
+            is_tree_wide_pathspec "${w[k]}" && block_restore_tree_wide
             if is_exclude_pathspec "${w[k]}"; then ((excl++)); else ((pos++)); fi
           done
           break
@@ -1322,9 +1340,7 @@ check_segment() {
             ((k += 2))
             continue
           fi
-          is_tree_wide_pathspec "$x" && block "restore-dot" \
-            "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
-            "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
+          is_tree_wide_pathspec "$x" && block_restore_tree_wide
           if [[ "$x" != -* ]]; then
             if is_exclude_pathspec "$x"; then ((excl++)); else ((pos++)); fi
           fi

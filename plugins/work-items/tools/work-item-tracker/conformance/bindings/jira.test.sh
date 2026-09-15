@@ -17,11 +17,7 @@ CB_REPO=""
 # shellcheck source=jira.sh
 source "$SCRIPT_DIR/jira.sh"
 for fn in cb_setup cb_teardown; do
-  if declare -F "$fn" >/dev/null; then
-    pass "jira binding exposes $fn"
-  else
-    fail "jira binding exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "jira binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 assert_eq "consume-only binding leaves CB_REPO empty" "" "$CB_REPO"
 
@@ -33,10 +29,7 @@ assert_eq "conformance --binding jira exit 0" "0" "$?"
 # proving the consume-only adapter never reaches for a network tool on any exercised
 # path (no unshare -n on Git Bash).
 SHIM="$(mktemp -d)"
-# shellcheck disable=SC2016  # shim body is literal by design — $(basename) evaluates at shim runtime
-printf '#!/usr/bin/env bash\necho "blocked: $(basename "$0")" >&2\nexit 1\n' >"$SHIM/gh"
-cp "$SHIM/gh" "$SHIM/curl"
-chmod +x "$SHIM/gh" "$SHIM/curl"
+write_blocking_network_shim "$SHIM"
 PATH="$SHIM:$PATH" bash "$RUNNER" --binding jira >/dev/null 2>&1
 assert_eq "conformance --binding jira exit 0 under gh/curl-blocking shim" "0" "$?"
 rm -rf "$SHIM"

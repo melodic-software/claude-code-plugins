@@ -73,14 +73,14 @@ assert_eq "missing binding → exit 3" "3" "$?"
 
 BAD="$TEST_TMPDIR/bad.json"
 printf 'nope\n' >"$BAD"
-(WORK_ITEM_TRACKER_BINDING="$BAD" bash "$DISPATCHER" capabilities >/dev/null 2>&1)
+WORK_ITEM_TRACKER_BINDING="$BAD" bash "$DISPATCHER" capabilities >/dev/null 2>&1
 assert_eq "invalid binding → exit 3" "3" "$?"
 
 # --- unknown provider → exit 3 ---
 
 NOPROV="$TEST_TMPDIR/noprov.json"
 printf '%s\n' '{"schema_version":"1.0","provider":"ghost","config":{"lease_ttl_hours":24}}' >"$NOPROV"
-(WORK_ITEM_TRACKER_BINDING="$NOPROV" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" capabilities >/dev/null 2>&1)
+WORK_ITEM_TRACKER_BINDING="$NOPROV" WIT_ADAPTERS_DIR="$TEST_TMPDIR/adapters" bash "$DISPATCHER" capabilities >/dev/null 2>&1
 assert_eq "missing adapter dir → exit 3" "3" "$?"
 
 # --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---

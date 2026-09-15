@@ -273,7 +273,6 @@ if [[ ! -r "$PATTERNS_LIB" ]]; then
 fi
 # shellcheck source=../../../lib/permission-patterns.sh
 source "$PATTERNS_LIB"
-P1_ERE="$CCPERM_P1_ERE"
 
 # P2 — machine home-path shapes, ASSEMBLED FROM FRAGMENTS so no contiguous
 # home-path literal appears in this file's source bytes and trips the repo's
@@ -441,43 +440,38 @@ scan_rule() {
   # one frontmatter token region. source-file enables the P4 remedy branch.
   local text="$1" src="$2" file="${3:-}" m remedy path_remedy
   path_remedy="$(portable_path_remedy "$file")"
+  remedy="$(inert_grant_remedy "$file")"
   while IFS= read -r m; do
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is an interpreter/runner-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, and wildcarded/globbed-target interpreters) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
-  done < <(rule_matches "$text" "$P1_ERE")
+  done < <(rule_matches "$text" "$CCPERM_P1_ERE")
   while IFS= read -r m; do
-    [[ -z "$m" ]] && continue
     # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the
     # permissions page's own row is `//path` = "Absolute path from filesystem
     # root", with `Read(//Users/<name>/secrets/**)` -> `/Users/<name>/secrets/**`.
     # So `//Users/<name>/…` names a concrete user home and leaks the username,
     # exactly like `/Users/<name>/…`. `~/…` and `${CLAUDE_PROJECT_DIR}/…` are the
     # genuinely portable forms and are already excluded by `_seg` above.
-    emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. $path_remedy"
+    [[ -n "$m" ]] && emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. $path_remedy"
   done < <(rule_matches "$text" "$P2_RULE_ERE")
   while IFS= read -r m; do
-    [[ -z "$m" ]] && continue
     # P2b, not P2 — see the header. criteria.md documents this as its own check
     # with its own detection rule, and emitting it under P2 made the id
     # unreportable (#4149 defect 3).
-    emit error P2b "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. $path_remedy"
+    [[ -n "$m" ]] && emit error P2b "$src" "tilde-user path in '$m' — Bash rules match literally and do not expand ~username forms, so the rule names a specific account, leaks a username into version control, and breaks on other machines. $path_remedy"
   done < <(rule_matches "$text" "$P2_TILDE_USER_RULE_ERE")
   while IFS= read -r m; do
-    [[ -z "$m" ]] && continue
-    remedy="$(inert_grant_remedy "$file")"
-    emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
+    [[ -n "$m" ]] && emit error P4 "$src" "inert substitution token in '$m' — the grant never matches at runtime. Remedy: $remedy."
   done < <(rule_matches "$text" "$P4_BASH_INERT_ERE")
   # Plugin-root/plugin-data tokens DO substitute in a plugin skill's
   # allowed-tools, so flagging them there is a false positive. Everywhere else
   # they stay literal.
   if ! is_plugin_skill "$file"; then
     while IFS= read -r m; do
-      [[ -z "$m" ]] && continue
-      # Route through the same context-sensitive remedy the always-inert tokens
+      # Routed through the same context-sensitive remedy the always-inert tokens
       # use. Offering ${CLAUDE_SKILL_DIR} unconditionally would swap one inert
       # rule for another: that token is substituted in a skill's allowed-tools,
       # so it is no remedy at all for a settings rule, an agent, or a command.
-      remedy="$(inert_grant_remedy "$file")"
-      emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: $remedy."
+      [[ -n "$m" ]] && emit error P4 "$src" "plugin-scoped substitution token in '$m' outside a plugin skill — \${CLAUDE_PLUGIN_ROOT} and \${CLAUDE_PLUGIN_DATA} are substituted only in plugin skills, so here the rule stays a literal string and never matches. Remedy: $remedy."
     done < <(rule_matches "$text" "$P4_BASH_PLUGIN_ONLY_ERE")
   fi
 }

@@ -55,8 +55,7 @@ function Get-CisaKevCache {
                 $cached = $raw | ConvertFrom-Json -ErrorAction Stop
             } else {
                 # Empty or whitespace is the same class as a missing file: the
-                # cache cannot be reused and must refresh (#3436). Leaving
-                # needsRefresh false here skipped every other malformed path.
+                # cache cannot be reused and must refresh.
                 $needsRefresh = $true
             }
         } catch {

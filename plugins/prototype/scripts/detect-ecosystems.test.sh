@@ -78,10 +78,13 @@ mkfixture() {
   printf '%s\n' "$dir"
 }
 
-# run_in <root> is the ordinary invocation: CLAUDE_PROJECT_DIR names the root and
-# the cwd is deliberately somewhere else, which is the real preamble situation.
+# run_in <root> [arg ...] is the ordinary invocation: CLAUDE_PROJECT_DIR names the
+# root and the cwd is deliberately somewhere else, which is the real preamble
+# situation. Any extra arguments are forwarded to the detector.
 run_in() {
-  (cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$1" bash "$DETECT" 2>/dev/null)
+  local root="$1"
+  shift
+  (cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$root" bash "$DETECT" "$@" 2>/dev/null)
 }
 
 # --- 1. The empty answer ------------------------------------------------------
@@ -239,7 +242,7 @@ assert_equals "the failed cd prints nothing on stderr" "" "$ghost_err"
 # be inert rather than fatal.
 
 args_exit=0
-args_out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$DETECT" --bogus extra 2>/dev/null)" || args_exit=$?
+args_out="$(run_in "$MULTI" --bogus extra)" || args_exit=$?
 assert_equals "unread arguments do not change the answer" "$multi_expected" "$args_out"
 assert_exit "unread arguments do not fail the script" 0 "$args_exit"
 
@@ -248,10 +251,10 @@ assert_exit "unread arguments do not fail the script" 0 "$args_exit"
 # pipes this into `head`, so a trailing-newline regression would join the last
 # marker to whatever follows.
 
-raw="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$SLN_ONE" bash "$DETECT" 2>/dev/null | od -c | tr -s ' ')"
+raw="$(run_in "$SLN_ONE" | od -c | tr -s ' ')"
 assert_contains "output is newline-terminated" "$raw" 'M y A p p . s l n \n'
 
-line_count="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$DETECT" 2>/dev/null | wc -l | tr -d ' ')"
+line_count="$(run_in "$MULTI" | wc -l | tr -d ' ')"
 assert_equals "six markers print on exactly six lines" "6" "$line_count"
 
 clean_err="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$DETECT" 2>&1 >/dev/null)"

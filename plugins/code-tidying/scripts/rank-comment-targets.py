@@ -65,7 +65,6 @@ from pathlib import Path
 
 EXIT_NOT_GIT = 1
 EXIT_USAGE = 2
-EXIT_NO_LAYER = 3
 BOT = re.compile(r"\[bot\]|dependabot|renovate|github-actions", re.IGNORECASE)
 ADMIN = re.compile(
     r"(^|/)(CHANGELOG[^/]*|\.github/workflows/.*|\.claude/.*|node_modules/.*|vendor/.*|dist/.*|build/.*|"
@@ -132,13 +131,10 @@ def census_records() -> tuple[dict[str, dict], dict]:
         text=True,
         check=False,
     )
-    # Relay the census's stderr on the no-layer path too. It names the missing
-    # layer and the install command, and this branch exits with no stdout, so
-    # dropping stderr as well left the caller nothing to act on and made a
-    # missing analyser indistinguishable from a tree with nothing to rank.
-    if proc.returncode == EXIT_NO_LAYER:
-        print(proc.stderr, file=sys.stderr, end="")
-        raise SystemExit(EXIT_NO_LAYER)
+    # Relay the census's stderr, including on its no-layer exit: it names the
+    # missing layer and the install command, and this branch exits with no
+    # stdout, so a caller that lost stderr too could not tell a missing analyser
+    # from a tree with nothing to rank.
     if proc.returncode != 0:
         print(proc.stderr, file=sys.stderr, end="")
         raise SystemExit(proc.returncode)

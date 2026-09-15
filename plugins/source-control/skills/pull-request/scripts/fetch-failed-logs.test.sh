@@ -23,7 +23,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=../../../scripts/test-helpers.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../scripts" && pwd)/test-helpers.sh"
+source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 # Skip suite if `unzip` (production dep) or `zip` (test fixture builder) is
 # missing. CI runners have them preinstalled. Windows Git Bash users install
@@ -159,11 +159,7 @@ fi
 
 # Case 4: --keep-zip leaves ZIP under scratch
 out=$(run_script 22222 --keep-zip)
-if [[ -f "$TEST_TMPDIR/scratch/run-22222-logs.zip" ]]; then
-  pass "--keep-zip preserves ZIP under scratch/"
-else
-  fail "--keep-zip preserves ZIP under scratch/" "ZIP at scratch/run-22222-logs.zip" "missing"
-fi
+assert_file_exists "--keep-zip preserves ZIP under scratch/" "$TEST_TMPDIR/scratch/run-22222-logs.zip"
 
 # Case 5: Size cap aborts with exit 3
 run_script_with_scratch_silent "$TEST_TMPDIR/scratch5" 33333 --max-bytes 10
@@ -212,11 +208,7 @@ fi
 
 # Case 10: --notices includes ##[notice]
 out=$(run_script 12345 --notices)
-if [[ "$out" == *"##[notice]informational"* ]]; then
-  pass "--notices surfaces notice markers"
-else
-  fail "--notices surfaces notice markers" "informational note included" "$out"
-fi
+assert_contains "--notices surfaces notice markers" "$out" "##[notice]informational"
 
 # Case 11: --groups shows step structure
 out=$(run_script 12345 --groups)
@@ -268,11 +260,7 @@ else
 fi
 # The other direction: a slice running past the header block leaks executable
 # lines into the banner, so the banner must stop before the first one.
-if [[ "$help_out" != *"set -uo pipefail"* ]]; then
-  pass "--help stops at the header block"
-else
-  fail "--help stops at the header block" "no shell options in the banner" "$help_out"
-fi
+assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
 # ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------
 #

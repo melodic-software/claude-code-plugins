@@ -12,6 +12,7 @@ Run: python3 test_inventory.py
 from __future__ import annotations
 
 import pathlib
+import tempfile
 import unittest
 
 import inventory as inv
@@ -338,8 +339,6 @@ class TestReadBundleRegionRule(unittest.TestCase):
     CONST = b'var kYe="simplify";' + b"a" * 300
 
     def _write(self, layout: bytes) -> pathlib.Path:
-        import tempfile
-
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".bin")
         self.addCleanup(lambda: pathlib.Path(tmp.name).unlink(missing_ok=True))
         tmp.write(layout)
@@ -682,8 +681,6 @@ class TestManifestComponentPaths(unittest.TestCase):
         )
 
     def test_declared_dir_replaces_default(self) -> None:
-        import tempfile
-
         with tempfile.TemporaryDirectory() as td:
             root = pathlib.Path(td)
             (root / "agents").mkdir()

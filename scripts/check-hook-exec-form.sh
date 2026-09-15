@@ -68,6 +68,8 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+# shellcheck source=lib/manifest-path-guard.sh
+. scripts/lib/manifest-path-guard.sh || exit 2
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "check-hook-exec-form: jq is required but not installed" >&2
@@ -205,6 +207,16 @@ JQ_EXEC_FORM='
   | $file + "\t" + ($p | render) + "\t" + ($o.command | gsub("\r"; ""))
 '
 
+# _consume_json_rows <path-prefix> <rows>: apply the rule to every
+# `<file>\t<jq-path>\t<command>` row the jq program emitted.
+_consume_json_rows() {
+  local prefix="$1" file path cmd
+  while IFS=$'\t' read -r file path cmd; do
+    [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
+    consider "$file" "${prefix}${path}" "$cmd"
+  done <<<"$2"
+}
+
 # scan_json_files <jq-root> <path-prefix> <file...>
 #
 # One jq over the files, same rule as a per-file scan. Fail closed on an
@@ -216,13 +228,10 @@ scan_json_files() {
   local root="$1" prefix="$2"
   shift 2
   (($#)) || return 0
-  local prog out file path cmd f
+  local prog out f
   prog="${JQ_EXEC_FORM//__ROOT__/$root}"
   if out="$(jq -r "$prog" "$@" 2>/dev/null)"; then
-    while IFS=$'\t' read -r file path cmd; do
-      [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
-      consider "$file" "${prefix}${path}" "$cmd"
-    done <<<"$out"
+    _consume_json_rows "$prefix" "$out"
     return 0
   fi
   for f in "$@"; do
@@ -232,10 +241,7 @@ scan_json_files() {
       errors=$((errors + 1))
       continue
     fi
-    while IFS=$'\t' read -r file path cmd; do
-      [[ -n "$cmd" || -n "$path" || -n "$file" ]] || continue
-      consider "$file" "${prefix}${path}" "$cmd"
-    done <<<"$out"
+    _consume_json_rows "$prefix" "$out"
   done
 }
 
@@ -309,19 +315,12 @@ _consume_manifest_rows() {
   done <<<"$rows"
 }
 
-# Trust boundary, same rule the sibling gate applies: a manifest-pointed hook
-# config must stay inside its own plugin directory. Reject absolute paths and
-# any `..` segment (portable string check — no realpath dependency) with a
-# visible skip, so a crafted manifest cannot point this gate at files outside
-# the tree it claims to scan.
+# Trust boundary, the same rule the sibling gate applies: scripts/lib/manifest-
+# path-guard.sh holds it, and hands back an empty path for a value that leaves
+# the plugin directory.
 _queue_manifest_path() {
   local plugin="$1" manifest="$2" rel="$3" path
-  [[ -n "$rel" ]] || return 0
-  if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* ]]; then
-    echo "check-hook-exec-form: skipping out-of-tree hooks path in $manifest: $rel" >&2
-    return 0
-  fi
-  path="$plugin/${rel#./}"
+  manifest_path_guard::resolve_to path check-hook-exec-form "$manifest" "$plugin" "$rel"
   [[ -f "$path" ]] || return 0
   MANIFEST_EXTRA+=("$path")
 }

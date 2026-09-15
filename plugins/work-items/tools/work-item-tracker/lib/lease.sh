@@ -71,7 +71,7 @@ wit_lease_ttl_seconds() {
   hours="$(jq -r '.ttl_hours // empty' <<<"$lease")"
   minutes="$(jq -r '.ttl_minutes // 0' <<<"$lease")"
   [[ "$hours" =~ ^[0-9]+$ && "$minutes" =~ ^[0-9]+$ ]] || return 1
-  echo $((hours * 3600 + minutes * 60))
+  printf '%s\n' "$((hours * 3600 + minutes * 60))"
 }
 
 # wit_lease_is_live <lease-json> <now-epoch> — 0 when no superseded_at and not expired.

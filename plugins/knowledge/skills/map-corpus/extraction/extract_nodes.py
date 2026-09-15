@@ -58,17 +58,18 @@ def sha256_hex(data: bytes) -> str:
 # Line model (byte-offset preserving)
 # ---------------------------------------------------------------------------
 
+
 class Line:
     __slots__ = ("start", "end", "text")
 
     def __init__(self, start: int, end: int, raw: bytes):
-        self.start = start          # byte offset of line start
-        self.end = end              # byte offset just past the newline (or EOF)
+        self.start = start  # byte offset of line start
+        self.end = end  # byte offset just past the newline (or EOF)
         # matching text: newline and trailing \r stripped; offsets stay raw
         self.text = raw.rstrip(b"\r\n")
 
 
-def split_lines(data: bytes, base: int = 0) -> list:
+def split_lines(data: bytes, base: int) -> list:
     """Split into lines; offsets are raw-snapshot offsets starting at `base`."""
     lines = []
     pos = base
@@ -78,7 +79,7 @@ def split_lines(data: bytes, base: int = 0) -> list:
         if nl == -1:
             lines.append(Line(pos, n, data[pos:n]))
             break
-        lines.append(Line(pos, nl + 1, data[pos:nl + 1]))
+        lines.append(Line(pos, nl + 1, data[pos : nl + 1]))
         pos = nl + 1
     return lines
 
@@ -112,8 +113,11 @@ def markdown_boundaries(data: bytes):
     # heading — fail loudly instead.
     base = len(UTF8_BOM) if data.startswith(UTF8_BOM) else 0
     if b"\n" not in data[base:] and b"\r" in data[base:]:
-        fail(2, "snapshot uses CR-only (classic Mac) line endings; "
-                "normalize to LF or CRLF before extraction.")
+        fail(
+            2,
+            "snapshot uses CR-only (classic Mac) line endings; "
+            "normalize to LF or CRLF before extraction.",
+        )
     lines = split_lines(data, base)
     frontmatter_end = 0
 
@@ -137,16 +141,19 @@ def markdown_boundaries(data: bytes):
         line = lines[i]
         text = line.text
 
+        m = FENCE_OPEN_RE.match(text)
         if in_fence:
-            m = FENCE_OPEN_RE.match(text)
-            if m and m.group(2)[0:1] == fence_char and len(m.group(2)) >= fence_len \
-                    and m.group(3).strip() == b"":
+            if (
+                m
+                and m.group(2)[0:1] == fence_char
+                and len(m.group(2)) >= fence_len
+                and m.group(3).strip() == b""
+            ):
                 in_fence = False
             consumed.add(i)
             i += 1
             continue
 
-        m = FENCE_OPEN_RE.match(text)
         if m:
             in_fence = True
             fence_char = m.group(2)[0:1]
@@ -233,7 +240,7 @@ def html_boundaries(data: bytes):
         level = int(m.group(1))
         close_re = re.compile(rb"</h" + m.group(1) + rb"\s*>", re.IGNORECASE)
         cm = close_re.search(masked, m.end())
-        inner = masked[m.end(): cm.start()] if cm else b""
+        inner = masked[m.end() : cm.start()] if cm else b""
         title = WS_RUN_RE.sub(" ", decode_title(HTML_TAG_RE.sub(b" ", inner)))
         boundaries.append((m.start(), level, title.strip()))
     return boundaries
@@ -242,6 +249,7 @@ def html_boundaries(data: bytes):
 # ---------------------------------------------------------------------------
 # Partition assembly (shared)
 # ---------------------------------------------------------------------------
+
 
 def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
     """Assemble the non-overlapping node partition covering [0, len(data))."""
@@ -275,18 +283,20 @@ def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
             parent_stack.append((level, node_id))
         else:
             parent_id = None
-        nodes.append({
-            "id": node_id,
-            "index": index,
-            "kind": kind,
-            "level": level,
-            "title": title,
-            "parent_id": parent_id,
-            "start_byte": start,
-            "end_byte": end,
-            "byte_length": end - start,
-            "content_sha256": digest,
-        })
+        nodes.append(
+            {
+                "id": node_id,
+                "index": index,
+                "kind": kind,
+                "level": level,
+                "title": title,
+                "parent_id": parent_id,
+                "start_byte": start,
+                "end_byte": end,
+                "byte_length": end - start,
+                "content_sha256": digest,
+            }
+        )
     return nodes
 
 
@@ -298,11 +308,17 @@ def self_check(nodes, data: bytes) -> None:
     cursor = 0
     for node in nodes:
         if node["start_byte"] != cursor:
-            fail(3, f"self-check: gap/overlap at node {node['id']}: "
-                    f"expected start {cursor}, got {node['start_byte']}")
+            fail(
+                3,
+                f"self-check: gap/overlap at node {node['id']}: "
+                f"expected start {cursor}, got {node['start_byte']}",
+            )
         if node["end_byte"] <= node["start_byte"]:
             fail(3, f"self-check: empty/negative span at node {node['id']}")
-        if sha256_hex(data[node["start_byte"]:node["end_byte"]]) != node["content_sha256"]:
+        if (
+            sha256_hex(data[node["start_byte"] : node["end_byte"]])
+            != node["content_sha256"]
+        ):
             fail(3, f"self-check: hash mismatch at node {node['id']}")
         cursor = node["end_byte"]
     if cursor != n:
@@ -315,6 +331,7 @@ def self_check(nodes, data: bytes) -> None:
 # To support a new snapshot format: add a handler returning
 # (frontmatter_end, boundaries, whole_kind) and register its extensions here.
 # Unregistered extensions fail loudly unless --format overrides.
+
 
 def handle_markdown(data: bytes):
     fm_end, bounds = markdown_boundaries(data)
@@ -352,13 +369,19 @@ def resolve_format(path: str, override: str) -> str:
         return override
     ext = os.path.splitext(path)[1].lower()
     if ext not in EXTENSION_FORMATS:
-        fail(2, f"unknown snapshot extension '{ext}' for {path!r}; "
-                f"known: {', '.join(sorted(EXTENSION_FORMATS))}. "
-                f"Pass --format to override.")
+        fail(
+            2,
+            f"unknown snapshot extension '{ext}' for {path!r}; "
+            f"known: {', '.join(sorted(EXTENSION_FORMATS))}. "
+            f"Pass --format to override.",
+        )
     fmt = EXTENSION_FORMATS[ext]
     if fmt is None:
-        fail(2, f"binary format '{ext}' is not node-extractable; "
-                f"run against its text extraction (e.g. source.txt) instead.")
+        fail(
+            2,
+            f"binary format '{ext}' is not node-extractable; "
+            f"run against its text extraction (e.g. source.txt) instead.",
+        )
     return fmt
 
 
@@ -366,17 +389,22 @@ def resolve_format(path: str, override: str) -> str:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="extract_nodes.py",
         description="Emit a deterministic node manifest for an immutable snapshot.",
     )
     parser.add_argument("snapshot", help="path to the immutable snapshot file")
-    parser.add_argument("--format", default="auto",
-                        choices=["auto"] + sorted(FORMAT_HANDLERS),
-                        help="snapshot format (default: by extension)")
-    parser.add_argument("--out", default="-",
-                        help="manifest output path (default: stdout)")
+    parser.add_argument(
+        "--format",
+        default="auto",
+        choices=["auto"] + sorted(FORMAT_HANDLERS),
+        help="snapshot format (default: by extension)",
+    )
+    parser.add_argument(
+        "--out", default="-", help="manifest output path (default: stdout)"
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -385,15 +413,21 @@ def main(argv=None) -> int:
     except OSError as exc:
         fail(2, f"cannot read snapshot {args.snapshot!r}: {exc}")
 
-    if len(data) == 0:
-        fail(2, f"snapshot {args.snapshot!r} is empty (0 bytes); an empty "
-                f"snapshot is a broken fetch, not an empty corpus resource.")
+    if not data:
+        fail(
+            2,
+            f"snapshot {args.snapshot!r} is empty (0 bytes); an empty "
+            f"snapshot is a broken fetch, not an empty corpus resource.",
+        )
 
     for bom, encoding in NON_UTF8_BOMS:
         if data.startswith(bom):
-            fail(2, f"snapshot {args.snapshot!r} carries a {encoding} BOM; "
-                    f"the byte-level scanners would silently miss every "
-                    f"heading. Re-fetch or transcode the snapshot to UTF-8.")
+            fail(
+                2,
+                f"snapshot {args.snapshot!r} carries a {encoding} BOM; "
+                f"the byte-level scanners would silently miss every "
+                f"heading. Re-fetch or transcode the snapshot to UTF-8.",
+            )
 
     fmt = resolve_format(args.snapshot, args.format)
     frontmatter_end, boundaries, whole_kind = FORMAT_HANDLERS[fmt](data)

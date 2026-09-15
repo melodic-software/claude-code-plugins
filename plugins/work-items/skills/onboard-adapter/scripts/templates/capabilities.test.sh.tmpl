@@ -52,10 +52,8 @@ case "$out" in
 esac
 
 # --- the manifest ---
-assert_eq "manifest is valid JSON" "0" "$(
-  jq -e . "$MANIFEST" >/dev/null 2>&1
-  echo $?
-)"
+jq -e . "$MANIFEST" >/dev/null 2>&1
+assert_eq "manifest is valid JSON" "0" "$?"
 assert_eq "the verb emits the manifest's provider" "@@PROVIDER@@" "$(jq -r '.provider' <<<"$out")"
 assert_eq "declares a MAJOR.MINOR schema_version" "true" \
   "$(jq -r '.schema_version | test("^[0-9]+\\.[0-9]+$")' <<<"$out")"

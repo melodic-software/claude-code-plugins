@@ -62,9 +62,13 @@ import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "type-coverage"
 MEASURE = "type_coverage"
 LANE = "typescript"
@@ -122,15 +126,10 @@ def probe() -> int:
     if not typescript_resolves():
         print(NO_TYPESCRIPT, file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"{NAME} --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, NAME)
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
@@ -168,10 +167,9 @@ def program_files() -> tuple[set[str] | None, str]:
     except OSError as exc:
         return None, f"node failed to start: {exc}"
     if result.returncode != 0:
-        said = result.stderr.strip().splitlines() or [
-            "node exited " + str(result.returncode)
-        ]
-        return None, said[-1][:200]
+        said = result.stderr.strip().splitlines()
+        reason = said[-1] if said else f"node exited {result.returncode}"
+        return None, reason[:200]
     try:
         listed = json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -186,9 +184,9 @@ def program_files() -> tuple[set[str] | None, str]:
 def translate(
     raw: str,
     lane: str,
-    files: list[str] | None = None,
-    program: set[str] | None = None,
-    why_no_program: str = "",
+    files: list[str],
+    program: set[str] | None,
+    why_no_program: str,
 ) -> tuple[list[dict], list[str]]:
     """The rows for one capture, the lane row first, and the notes for
     stderr: a row per scope file in the tsconfig program when the tool counted
@@ -205,7 +203,7 @@ def translate(
             key = _key(str(entry.get("filePath", "")))
             listed[key] = listed.get(key, 0) + 1
         outside: list[str] = []
-        for path in files or []:
+        for path in files:
             key = _key(path)
             if program is None:
                 if key not in listed:
@@ -291,42 +289,29 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print(f"{LANE}/{MEASURE}")
+
+
+# The dispatcher relays this line when the probe fails, so it names both
+# halves of the requirement, not just the binary.
+INSTALL_HINT = (
+    "type-coverage: npm install --save-dev type-coverage typescript "
+    "(https://github.com/plantain-00/type-coverage; type-coverage needs a resolvable typescript)"
+)
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print(f"{LANE}/{MEASURE}")
-        return 0
-    if verb == "install_hint":
-        # The dispatcher relays this line when the probe fails, so it names
-        # both halves of the requirement, not just the binary.
-        print(
-            "type-coverage: npm install --save-dev type-coverage typescript "
-            "(https://github.com/plantain-00/type-coverage; type-coverage needs a resolvable typescript)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 2:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print(
-            "type-coverage.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr
-        )
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

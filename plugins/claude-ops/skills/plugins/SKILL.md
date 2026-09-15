@@ -159,7 +159,10 @@ through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map
 `normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
 `known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
 extraction where a script's `--ids` form exists. `sync-run.sh` calls all three during `sync` and
-`audit`. Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
+`audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
+carries the CR-stripping `jq` capture and the JSON string encoder that `fleet-state.sh`,
+`cache-content-check.sh`, and `sync-run.sh` each source from their own directory.
+Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
 when `converge` needs an id list, or before invoking one of the scripts from anywhere other than
 `sync-run.sh`; it carries each script's invocation forms and the `\r` rule behind `--ids`.
 

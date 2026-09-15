@@ -46,6 +46,8 @@ else
   echo "SKIP: no goimports binary (set GOIMPORTS_TEST_BIN or put goimports on PATH) -- go-format hook tests skipped"
   exit 0
 fi
+# The PATH every run that needs the real binary hands the hook.
+GOIMPORTS_PATH="$(dirname "$REAL_GOIMPORTS"):$PATH"
 
 WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
@@ -87,18 +89,9 @@ new_go_repo() {
   git -C "$r" config user.name t
 }
 
-# Invoke the hook from an unrelated cwd. CLAUDE_PROJECT_DIR is left UNSET so
-# read_file_path's membership guard is disabled (not part of the fire gate).
-run_hook() {
-  local file_path="$1"
-  (
-    cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" bash "$HOOK"
-  )
-}
-
-# Same as run_hook but with caller-supplied extra env (NAME=VALUE ...).
+# Invoke the hook from an unrelated cwd with caller-supplied env (NAME=VALUE
+# ...). CLAUDE_PROJECT_DIR is left UNSET so read_file_path's membership guard is
+# disabled (not part of the fire gate).
 run_hook_env() {
   local file_path="$1"
   shift
@@ -107,6 +100,11 @@ run_hook_env() {
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
       env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
+}
+
+# The plain enabled-hook run against the real goimports binary.
+run_hook() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH"
 }
 
 REPO="$WORK/consumer"
@@ -323,7 +321,7 @@ SNAP_TMP="$WORK/snap-tmp"
 
 mkdir -p "$SNAP_TMP"
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/snap-clean.go"
-OUT=$(run_hook_env "$REPO/snap-clean.go" TMPDIR="$SNAP_TMP" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
+OUT=$(run_hook_env "$REPO/snap-clean.go" TMPDIR="$SNAP_TMP" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
 if printf '%s' "$OUT" | jq -e '.systemMessage' >/dev/null 2>&1; then
   ok "snapshot: rewrite run under isolated TMPDIR discloses (snapshots live here)"
 else
@@ -334,7 +332,7 @@ if [[ "$LEFT" == "0" ]]; then ok "snapshot: clean arm leaves no temp file"; else
 
 rm -rf "$SNAP_TMP" && mkdir -p "$SNAP_TMP"
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi"\n}\n' >"$REPO/snap-syntax.go"
-OUT=$(run_hook_env "$REPO/snap-syntax.go" TMPDIR="$SNAP_TMP" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
+OUT=$(run_hook_env "$REPO/snap-syntax.go" TMPDIR="$SNAP_TMP" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
 LEFT=$(find "$SNAP_TMP" -type f 2>/dev/null | wc -l | tr -d '[:space:]')
 if [[ "$LEFT" == "0" ]]; then ok "snapshot: syntax-error arm leaves no temp file (#3405)"; else fail "snapshot: syntax-error arm left $LEFT temp file(s) (#3405)"; fi
 DOCS=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
@@ -361,7 +359,7 @@ if [[ "$DOCS" == "1" ]]; then ok "tool-break arm emits exactly one JSON document
 # --- Case 8: kill switch bypasses hook ---------------------------------------
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/kill.go"
 BEFORE_K="$(cat "$REPO/kill.go")"
-OUT=$(run_hook_env "$REPO/kill.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false)
+OUT=$(run_hook_env "$REPO/kill.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch off -> exit 0 silent"; else fail "kill switch failed (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO/kill.go")" == "$BEFORE_K" ]]; then ok "kill switch -> file untouched"; else fail "kill switch -> file was modified"; fi
@@ -372,7 +370,7 @@ if [[ "$(cat "$REPO/kill.go")" == "$BEFORE_K" ]]; then ok "kill switch -> file u
 
 # --- Sink unset -> empty stdout, exit 0 (parity) ------------------------------
 printf 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/tel-clean.go"
-OUT_NS=$(run_hook_env "$REPO/tel-clean.go" -u HOOK_TELEMETRY_SINK PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
+OUT_NS=$(run_hook_env "$REPO/tel-clean.go" -u HOOK_TELEMETRY_SINK PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true)
 RC_NS=$?
 if [[ $RC_NS -eq 0 && -z "$OUT_NS" ]]; then
   ok "telemetry/sink-unset: exit 0, empty stdout (parity)"
@@ -388,7 +386,7 @@ SINK="$(make_sink "cat >\"$TEL\"")"
 # assigned by an earlier case made the stdout-leak assertion below vacuous: it
 # checked output the telemetry run never produced, so it would have kept
 # passing had the hook started printing the envelope.
-TEL_OUT=$(run_hook_env "$REPO/tel.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK")
+TEL_OUT=$(run_hook_env "$REPO/tel.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK")
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
@@ -427,7 +425,7 @@ rm -f "$TEL"
 printf 'package main\n\nimport "fmt"\n\nfunc main() {fmt.Println("tel")}\n' >"$REPO/tel-fmt.go"
 TELF="$(mktemp)"
 SINKF="$(make_sink "cat >\"$TELF\"")"
-OUT_F=$(run_hook_env "$REPO/tel-fmt.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKF")
+OUT_F=$(run_hook_env "$REPO/tel-fmt.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKF")
 wait_for_sink "$TELF"
 if [[ -s "$TELF" ]]; then
   if [[ "$(jq -r '.status' "$TELF")" == "ok" ]]; then ok "telemetry/rewrite: status ok"; else fail "telemetry/rewrite: status=$(jq -r '.status' "$TELF")"; fi
@@ -442,7 +440,7 @@ rm -f "$TELF"
 printf 'package main\n\nfunc main() {\n\tfmt.Println("hi")\n}\n' >"$REPO/tel2.go"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
-run_hook_env "$REPO/tel2.go" PATH="$(dirname "$REAL_GOIMPORTS"):$PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
+run_hook_env "$REPO/tel2.go" PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=false HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 if [[ -s "$TELS" ]]; then
   fail "telemetry/kill-switch: envelope written despite kill switch (should exit before telemetry)"
 else
@@ -457,7 +455,6 @@ rm -f "$TELS"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink rm; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done

@@ -10,51 +10,43 @@ executable is committed).
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "scc.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "scc.json"
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
+CAPTURE = TOOL_OUTPUT / "scc.json"
 
 
 def make_stub(
-    directory: Path, version_line: str = "scc version 3.7.0", capture: Path = CAPTURE
+    directory: Path, capture: Path = CAPTURE, calls_log: Path | None = None
 ) -> None:
-    stub = directory / "scc"
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'%s\\n\' "'
-        + version_line
-        + '"; exit 0; fi\n'
-        f'cat "{capture}"\n',
-        encoding="utf-8",
+    """A `scc` stub replaying `capture`; with `calls_log` it also appends the
+    number of arguments it received, one line per call."""
+    log = f'printf \'%s\\n\' "$#" >>"{calls_log}"\n' if calls_log is not None else ""
+    write_stub(
+        directory / "scc",
+        version_gate("scc version 3.7.0") + log + f'cat "{capture}"\n',
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def run(*args: str, path_prefix: Path | None = None) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-scc-tests"
-        )
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=REPO_ROOT,
-        check=False,
+def run(
+    *args: str,
+    path_prefix: Path | None = None,
+    env_extra: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
+    return run_adapter(
+        SCRIPT, "scc", *args, path_prefix=path_prefix, env_extra=env_extra
     )
 
 
@@ -161,37 +153,19 @@ class SccAdapterTests(unittest.TestCase):
         # budget forced to one character, every path is its own chunk.
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / "calls"
-            stub = Path(tmp) / "scc"
-            stub.write_text(
-                "#!/usr/bin/env bash\n"
-                'if [[ "${1:-}" == "--version" ]]; then printf \'scc version 3.7.0\\n\'; exit 0; fi\n'
-                f'printf \'%s\\n\' "$#" >>"{calls}"\n'
-                f'cat "{CAPTURE}"\n',
-                encoding="utf-8",
-            )
-            stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            make_stub(Path(tmp), calls_log=calls)
             listing = Path(tmp) / "files"
             listing.write_text(
                 f"{SOURCES}/cm_sample.py\n{SOURCES}/cm-sample.sh\n", encoding="utf-8"
             )
-            env = dict(os.environ)
-            env["PATH"] = f"{tmp}{os.pathsep}{env.get('PATH', '')}"
-            env["CODE_METRICS_ARGV_BUDGET"] = "1"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    "collect",
-                    "python",
-                    "file_lines",
-                    "--paths-from",
-                    str(listing),
-                ],
-                capture_output=True,
-                text=True,
-                env=env,
-                cwd=REPO_ROOT,
-                check=False,
+            result = run(
+                "collect",
+                "python",
+                "file_lines",
+                "--paths-from",
+                str(listing),
+                path_prefix=Path(tmp),
+                env_extra={"CODE_METRICS_ARGV_BUDGET": "1"},
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             # Two invocations, each carrying the four fixed arguments plus one path.

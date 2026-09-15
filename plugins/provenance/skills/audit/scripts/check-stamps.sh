@@ -36,6 +36,10 @@
 # Exit: 0 on a clean run (with findings or none), 2 on usage or input error.
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 FILES=()
 PATHS_FILE=""
 EXPIRY_OVERRIDE=""
@@ -65,28 +69,20 @@ declined, counts}. Diagnostics go to stderr.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "check-stamps.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    require_opt_value "$@"
+    require_opt_value "check-stamps.sh" "$@"
     PATHS_FILE="$2"
     shift 2
     ;;
   --expiry-days)
-    require_opt_value "$@"
+    require_opt_value "check-stamps.sh" "$@"
     EXPIRY_OVERRIDE="$2"
     shift 2
     ;;
   --as-of)
-    require_opt_value "$@"
+    require_opt_value "check-stamps.sh" "$@"
     AS_OF="$2"
     shift 2
     ;;
@@ -129,10 +125,7 @@ fi
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
-CFG_LAYERS=()
-[[ -f "${HOME:-/nonexistent}/.claude/provenance.json" ]] && CFG_LAYERS+=("$HOME/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.local.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.local.json")
+cfg_layers_init "$CONFIG_ROOT"
 
 HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
@@ -205,12 +198,7 @@ from_label() {
 }
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
-  echo "Config layers (later refines earlier):"
-  if [[ "${#CFG_LAYERS[@]}" -eq 0 ]]; then
-    echo "  (none; bundled defaults)"
-  else
-    for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
-  fi
+  cfg_layers_print
   echo "Effective: stamp_expiry_days=$EXPIRY_DAYS $(from_label "$EXPIRY_FROM")"
   echo "Effective: trigger_less_stamp_check=$([[ "$TRIGGER_LESS_CHECK" -eq 1 ]] && echo true || echo false) $(from_label "$TRIGGER_LESS_FROM")"
   echo "Effective: as_of=$AS_OF"
@@ -496,16 +484,6 @@ END { flush() }
 ' ${FILES[@]+"${FILES[@]}"})"
 
 # --- JSON product ----------------------------------------------------------------
-
-json_str() {
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  printf '"%s"' "$s"
-}
 
 reason_text() {
   case "$1" in

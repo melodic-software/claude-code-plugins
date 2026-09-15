@@ -258,16 +258,23 @@ dc_parse_gopls_line() {
 # Conflating the two would let one stray non-Python file in scope mark the whole
 # Python lane degraded and suppress real findings. Knip's `ERROR:` stderr rule
 # does NOT generalize here.
+
+# The input-parse-error grammar itself, so the degraded gate and the note
+# extractor below cannot drift apart.
+dc_vulture_line_is_input_error() {
+  local re='^(.+):([0-9]+):[[:space:]](.*)$'
+  [[ $1 =~ $re ]]
+}
+
 # Returns 0 when any stderr line is NOT an input parse error (degraded),
 # 1 otherwise (empty stderr, or only input parse errors).
 dc_vulture_stderr_is_degraded() {
   local err_file="$1" line
-  local re='^(.+):([0-9]+):[[:space:]](.*)$'
   [[ -s "$err_file" ]] || return 1
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line//$'\r'/}"
     [[ -n "$line" ]] || continue
-    [[ $line =~ $re ]] && continue
+    dc_vulture_line_is_input_error "$line" && continue
     return 0
   done <"$err_file"
   return 1
@@ -277,12 +284,11 @@ dc_vulture_stderr_is_degraded() {
 # as notes rather than as run health.
 dc_vulture_unparsed_inputs() {
   local err_file="$1" line
-  local re='^(.+):([0-9]+):[[:space:]](.*)$'
   [[ -s "$err_file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line//$'\r'/}"
     [[ -n "$line" ]] || continue
-    if [[ $line =~ $re ]]; then
+    if dc_vulture_line_is_input_error "$line"; then
       printf '%s\n' "$line"
     fi
   done <"$err_file"

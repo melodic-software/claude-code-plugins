@@ -79,12 +79,11 @@ wit_require_local_id() {
 # after arg parsing so --help / usage errors stay offline. Exits 3 (config) when
 # the binding did not supply config.storage_dir.
 wit_need_storage() {
-  [[ -n "${WIT_STORAGE_DIR:-}" ]] ||
-    {
-      printf '%s: config.storage_dir is required for provider local-markdown — see CONTRACT.md Setup\n' \
-        "$(basename "${BASH_SOURCE[1]}")" >&2
-      exit "$EX_CONFIG"
-    }
+  [[ -n "${WIT_STORAGE_DIR:-}" ]] || {
+    printf '%s: config.storage_dir is required for provider local-markdown — see CONTRACT.md Setup\n' \
+      "$(basename "${BASH_SOURCE[1]}")" >&2
+    exit "$EX_CONFIG"
+  }
   mkdir -p "$WIT_STORAGE_DIR"
 }
 

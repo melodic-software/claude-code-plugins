@@ -37,12 +37,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
+self="$(basename "$0")"
 
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 
 if [[ "${1:-}" != "--check-bump" || -z "${2:-}" || $# -gt 2 ]]; then
-  echo "usage: $(basename "$0") --check-bump <base-ref>" >&2
+  echo "usage: $self --check-bump <base-ref>" >&2
   exit 2
 fi
 base="$2"
@@ -52,12 +53,12 @@ base="$2"
 # exempt" for every plugin — a full-open gate. Assert it up front so absent
 # tooling is its own loud exit, distinct from "nothing changed".
 if ! jq --version >/dev/null 2>&1; then
-  echo "$(basename "$0"): jq is required to read manifest versions; refusing to pass without it" >&2
+  echo "$self: jq is required to read manifest versions; refusing to pass without it" >&2
   exit 2
 fi
 
 if ! changed_files::verify_base "$base"; then
-  echo "$(basename "$0"): cannot resolve base ref: $base" >&2
+  echo "$self: cannot resolve base ref: $base" >&2
   exit 2
 fi
 
@@ -87,7 +88,7 @@ fi
 # match no pattern.
 changed_paths=()
 if ! changed_files::into changed_paths "$base" --include-deleted --no-renames -- plugins/; then
-  echo "$(basename "$0"): git diff failed against $base (or staging its output did); refusing to pass on a change set this gate could not read" >&2
+  echo "$self: git diff failed against $base (or staging its output did); refusing to pass on a change set this gate could not read" >&2
   exit 2
 fi
 
@@ -123,7 +124,7 @@ fi
 # hands jq the bytes git actually stored, so a corrupt base manifest is the
 # exit 2 the header promises rather than a silent version.
 base_manifest_file="$(mktemp)" || {
-  echo "$(basename "$0"): mktemp failed; refusing to pass without a place to stage base manifests" >&2
+  echo "$self: mktemp failed; refusing to pass without a place to stage base manifests" >&2
   exit 2
 }
 trap 'rm -f "$base_manifest_file"' EXIT
@@ -141,22 +142,22 @@ for plugin in "${changed_plugins[@]}"; do
   # once the manifest is known to exist every later step must succeed: a base
   # version this gate cannot read is not a bump exemption.
   if ! base_manifest_entry="$(git ls-tree --name-only "$base" -- "$manifest")"; then
-    echo "$(basename "$0"): git ls-tree failed reading $base; refusing to pass on a base this gate could not read" >&2
+    echo "$self: git ls-tree failed reading $base; refusing to pass on a base this gate could not read" >&2
     exit 2
   fi
   if [[ -z "$base_manifest_entry" ]]; then
     continue
   fi
   if ! git show "$base:$manifest" >"$base_manifest_file"; then
-    echo "$(basename "$0"): git show failed reading $manifest at $base; refusing to pass on a manifest this gate could not read" >&2
+    echo "$self: git show failed reading $manifest at $base; refusing to pass on a manifest this gate could not read" >&2
     exit 2
   fi
   if ! base_version="$(jq -r '.version // empty' "$base_manifest_file")"; then
-    echo "$(basename "$0"): $manifest at $base is not valid JSON; refusing to treat an unreadable base version as a bump exemption" >&2
+    echo "$self: $manifest at $base is not valid JSON; refusing to treat an unreadable base version as a bump exemption" >&2
     exit 2
   fi
   if [[ -z "$base_version" ]]; then
-    echo "$(basename "$0"): $manifest at $base has no version; refusing to treat a version-less base manifest as a bump exemption" >&2
+    echo "$self: $manifest at $base has no version; refusing to treat a version-less base manifest as a bump exemption" >&2
     exit 2
   fi
   head_version=$(jq -r '.version // empty' "$manifest" 2>/dev/null || true)

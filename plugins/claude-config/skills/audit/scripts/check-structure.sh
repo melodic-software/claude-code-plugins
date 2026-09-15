@@ -35,14 +35,39 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-if [[ -n "${SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR:-}" ]]; then
-  PROJECT_ROOT="$SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR"
-else
-  # Consumer project root: the cwd's git toplevel, then Claude Code's exported
-  # project dir, then cwd. Never the plugin's own install directory.
-  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$PROJECT_ROOT" ]] || PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+# Claude Code sets CLAUDE_PLUGIN_ROOT in plugin form; the BASH_SOURCE fallback
+# keeps a direct invocation working.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+
+# Managed (machine-scope) policy settings are the highest-precedence layer. The
+# per-OS locations are shared vocabulary (lib/managed-scope.sh), not this
+# script's to restate. Fail loudly rather than fall through: an unsourced
+# library leaves the managed path empty and every managed row would read
+# `Present: no`, reporting an administrator's policy as absent because this
+# script could not find its own location list.
+MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
+if [[ ! -r "$MANAGED_SCOPE_LIB" ]]; then
+  echo "ERROR: cannot read $MANAGED_SCOPE_LIB — the plugin's shared managed-scope library is missing" >&2
+  exit 2
 fi
+# shellcheck source=../../../lib/managed-scope.sh
+source "$MANAGED_SCOPE_LIB"
+
+# The project-root ladder is shared vocabulary (lib/resolve-scopes.sh), not this
+# script's to restate. Fail loudly rather than fall through: an unsourced library
+# leaves the root empty and every row below would read `Present: no`, reporting
+# a configured project as bare because this script could not find its own root.
+RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
+if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
+  echo "ERROR: cannot read $RESOLVE_SCOPES_LIB; the plugin's shared scope-resolution library is missing" >&2
+  exit 2
+fi
+# shellcheck source=../../../lib/resolve-scopes.sh
+source "$RESOLVE_SCOPES_LIB"
+
+# Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
+PROJECT_ROOT=""
+scopes::project_root_to PROJECT_ROOT "${SETTINGS_AUDIT_STRUCTURE_FIXTURE_DIR:-}"
 
 SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
@@ -63,24 +88,8 @@ else
 fi
 STARTDIR_LOCAL="$START_DIR/.claude/settings.local.json"
 
-# Managed (machine-scope) policy settings — highest-precedence layer. The per-OS
-# locations are shared vocabulary (lib/managed-scope.sh), not this script's to
-# restate. Claude Code sets CLAUDE_PLUGIN_ROOT in plugin form; the BASH_SOURCE
-# fallback keeps a direct invocation working. SETTINGS_AUDIT_MANAGED_PATH stays
-# this script's own test seam — the real locations are absolute system paths a
-# fixture dir cannot reach.
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
-MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
-# Fail loudly rather than fall through: an unsourced library leaves the managed
-# path empty and every managed row would read `Present: no`, reporting an
-# administrator's policy as absent because this script could not find its own
-# location list.
-if [[ ! -r "$MANAGED_SCOPE_LIB" ]]; then
-  echo "ERROR: cannot read $MANAGED_SCOPE_LIB — the plugin's shared managed-scope library is missing" >&2
-  exit 2
-fi
-# shellcheck source=../../../lib/managed-scope.sh
-source "$MANAGED_SCOPE_LIB"
+# SETTINGS_AUDIT_MANAGED_PATH stays this script's own test seam: the real
+# managed locations are absolute system paths a fixture dir cannot reach.
 MANAGED="$(mscope::base_file "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 MANAGED_DROPIN="$(mscope::dropin_dir "${SETTINGS_AUDIT_MANAGED_PATH:-}")"
 

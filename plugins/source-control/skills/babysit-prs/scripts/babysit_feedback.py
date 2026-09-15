@@ -211,9 +211,7 @@ def collect_feedback(
             # advanced, the same feedback id must be re-evaluated (a new P1 posted
             # under a sticky id at a new head must not inherit an old downgrade).
             disposition_applies = (
-                is_json_object(disposition)
-                and bool(current_head)
-                and disposition.get("head_sha") == current_head
+                bool(current_head) and disposition.get("head_sha") == current_head
             )
             if disposition_applies:
                 record["disposed_reason"] = str(disposition.get("reason") or "")

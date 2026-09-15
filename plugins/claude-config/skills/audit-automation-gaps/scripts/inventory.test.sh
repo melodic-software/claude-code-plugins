@@ -74,10 +74,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 rc=0
-bash "$INVENTORY" --help >/dev/null 2>&1 || rc=$?
+help_out="$(bash "$INVENTORY" --help 2>/dev/null)" || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
-
-help_out="$(bash "$INVENTORY" --help 2>/dev/null)"
 assert_contains "--help documents the never-zero contract" "$help_out" "It never reports that location as 0."
 
 # --- Argument handling --------------------------------------------------------
@@ -611,9 +609,8 @@ assert_contains "a plugin-free repo still emits components" "$empty_out" "Compon
 # supply: many plugins, many skills, real settings. The bounds are deliberately
 # one-sided, because the tree grows; the exact numbers are the fixtures' job.
 
-out="$(bash "$INVENTORY" 2>/dev/null)"
 rc=0
-bash "$INVENTORY" >/dev/null 2>&1 || rc=$?
+out="$(bash "$INVENTORY" 2>/dev/null)" || rc=$?
 assert_exit "default run exits 0" 0 "$rc"
 assert_contains "table header present" "$out" "LOCATION"
 assert_contains "table header carries PROBED" "$out" "PROBED"

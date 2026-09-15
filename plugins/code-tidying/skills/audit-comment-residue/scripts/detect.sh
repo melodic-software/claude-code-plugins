@@ -128,15 +128,14 @@ for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
     EXPANDED+=("$target")
   fi
 done
-TARGETS=(${EXPANDED[@]+"${EXPANDED[@]}"})
 
-if [[ ${#TARGETS[@]} -eq 0 ]]; then
+if [[ ${#EXPANDED[@]} -eq 0 ]]; then
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
   echo "Note: no code targets — pass code file paths or edit some tracked code files"
   exit 0
 fi
 
-mapfile -t SORTED < <(printf '%s\n' "${TARGETS[@]}" | LC_ALL=C sort -u)
+mapfile -t SORTED < <(printf '%s\n' "${EXPANDED[@]}" | LC_ALL=C sort -u)
 
 total_t1=0 total_t2=0 total_t3=0 files_audited=0
 

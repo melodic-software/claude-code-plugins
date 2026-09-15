@@ -103,10 +103,8 @@ command -v jq >/dev/null 2>&1 || {
   exit 4
 }
 
-case "$HOOK_DIR" in
-/* | ?:[/\\]*) _arm_root="$HOOK_DIR/.." ;;
-*) _arm_root="$(cd "$HOOK_DIR/.." 2>/dev/null && pwd)" ;;
-esac
+_arm_root=""
+gate_plugin_root_to _arm_root "$HOOK_DIR"
 if ! gate_resolve_anchor "$_arm_root"; then
   err "no plugins/cache install anchor for $HOOK_DIR — a --plugin-dir checkout install has no trusted record store, so the gate cannot be armed (managed settings remain the only enable path there)"
   exit 4

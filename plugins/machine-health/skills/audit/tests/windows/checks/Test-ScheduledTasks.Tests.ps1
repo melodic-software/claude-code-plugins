@@ -2,20 +2,14 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-ScheduledTasks.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-ScheduledTasks' `
+        -AsObject 'Invoke-ScheduledTasksAsObject'
 
     # Dot-source the check script to expose Test-IsNeverRunScheduledTask in
     # this scope. The script's own dot-source guard (InvocationName -eq '.')
     # skips the main block, so this only defines the helper -- no orchestrator
     # code path runs.
     . $script:ScriptPath
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-ScheduledTasksAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
 }
 
 # NOTE: deeper severity-rubric coverage for this check is limited by Pester 5

@@ -86,22 +86,44 @@ function runCheck(repo, surface) {
   return JSON.parse(result.stdout);
 }
 
-function collectFindings(check) {
-  const findings = [];
+// Every identity row of the check report, paired with the surface report it
+// came from, in report order.
+function* identityRows(check) {
   for (const report of check.surfaces ?? []) {
     for (const row of report.identities ?? []) {
-      for (const finding of row.findings ?? []) {
-        findings.push({
-          surface: report.surface,
-          identity: row.identity,
-          verdict: row.verdict,
-          ...finding,
-        });
-      }
+      yield { report, row };
+    }
+  }
+}
+
+function collectFindings(check) {
+  const findings = [];
+  for (const { report, row } of identityRows(check)) {
+    for (const finding of row.findings ?? []) {
+      findings.push({
+        surface: report.surface,
+        identity: row.identity,
+        verdict: row.verdict,
+        ...finding,
+      });
     }
   }
   return findings;
 }
+
+// Judgment-only heuristics for *proposals* — never runtime authority.
+const PROSE_RULES = [
+  {
+    re: /work-item-tracker|issue tracker|tracker binding/i,
+    need: "tracker",
+    note: "prose mentions tracker; propose non-security declaration only",
+  },
+  {
+    re: /CI|continuous integration|github actions/i,
+    need: "ci_config",
+    note: "prose mentions CI; propose non-security declaration only",
+  },
+];
 
 function proseProposals(repo) {
   const proposals = [];
@@ -114,25 +136,15 @@ function proseProposals(repo) {
     } catch {
       continue;
     }
-    // Judgment-only heuristics for *proposals* — never runtime authority.
-    if (/work-item-tracker|issue tracker|tracker binding/i.test(body)) {
+    for (const rule of PROSE_RULES) {
+      if (!rule.re.test(body)) continue;
       proposals.push({
         source: name,
         kind: "declaration-proposal",
-        need: "tracker",
+        need: rule.need,
         state: "present",
         rung: "repo-local",
-        note: "prose mentions tracker; propose non-security declaration only",
-      });
-    }
-    if (/CI|continuous integration|github actions/i.test(body)) {
-      proposals.push({
-        source: name,
-        kind: "declaration-proposal",
-        need: "ci_config",
-        state: "present",
-        rung: "repo-local",
-        note: "prose mentions CI; propose non-security declaration only",
+        note: rule.note,
       });
     }
   }
@@ -141,16 +153,14 @@ function proseProposals(repo) {
 
 function orgRungStops(check) {
   const stops = [];
-  for (const report of check.surfaces ?? []) {
-    for (const row of report.identities ?? []) {
-      if (row.connector_entitlement_rung === "org") {
-        stops.push({
-          identity: row.identity,
-          reason: "connector entitlement awaits Org binding layer",
-        });
-      }
-      // Emission-backed: identities with non-empty connector entitlements would
-      // appear here; current v1 leaves are all repo-scoped (none).
+  // Emission-backed: identities with non-empty connector entitlements would
+  // appear here; current v1 leaves are all repo-scoped (none).
+  for (const { row } of identityRows(check)) {
+    if (row.connector_entitlement_rung === "org") {
+      stops.push({
+        identity: row.identity,
+        reason: "connector entitlement awaits Org binding layer",
+      });
     }
   }
   return stops;
@@ -158,26 +168,17 @@ function orgRungStops(check) {
 
 function narrowingAdvice(check) {
   const advice = [];
-  for (const report of check.surfaces ?? []) {
-    for (const row of report.identities ?? []) {
-      if (row.verdict === "supported" || row.verdict === "conditional") {
-        advice.push({
-          identity: row.identity,
-          surface: report.surface,
-          verdict: row.verdict,
-          action: "may-enable",
-          note: "narrowing-only: enable in routines.enabled only when verdict clears",
-        });
-      } else {
-        advice.push({
-          identity: row.identity,
-          surface: report.surface,
-          verdict: row.verdict,
-          action: "advisory-path",
-          note: "negative/unknown routes to advisory path; do not enable",
-        });
-      }
-    }
+  for (const { report, row } of identityRows(check)) {
+    const clears = row.verdict === "supported" || row.verdict === "conditional";
+    advice.push({
+      identity: row.identity,
+      surface: report.surface,
+      verdict: row.verdict,
+      action: clears ? "may-enable" : "advisory-path",
+      note: clears
+        ? "narrowing-only: enable in routines.enabled only when verdict clears"
+        : "negative/unknown routes to advisory path; do not enable",
+    });
   }
   return advice;
 }

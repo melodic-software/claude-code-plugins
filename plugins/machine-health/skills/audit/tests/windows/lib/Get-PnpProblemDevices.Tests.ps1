@@ -2,9 +2,7 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    . (Join-Path $script:SkillRoot 'scripts\windows\lib\Get-PnpProblemDevices.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-PnpProblemDevices.ps1'
 }
 
 Describe 'Get-PnpProblemDevice' -Tag 'lib' {

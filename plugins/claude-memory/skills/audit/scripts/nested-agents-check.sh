@@ -104,10 +104,7 @@ is_wired() {
     [[ "$dir" == "." ]] && break
     dir="$(dirname "$dir")"
   done
-  if [[ -f ".claude/CLAUDE.md" ]] && il_reaches ".claude/CLAUDE.md" "$want"; then
-    return 0
-  fi
-  return 1
+  [[ -f ".claude/CLAUDE.md" ]] && il_reaches ".claude/CLAUDE.md" "$want"
 }
 
 findings=()

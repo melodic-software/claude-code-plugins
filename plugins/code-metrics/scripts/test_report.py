@@ -1561,7 +1561,7 @@ class DuplicationRenderTests(unittest.TestCase):
 
 
 def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **scope):
-    doc = {
+    return {
         "schema": "code-metrics/v1",
         "skill": "audit-complexity",
         "status": "partial",
@@ -1581,7 +1581,6 @@ def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **sc
         "excluded": [],
         "unavailable": [],
     }
-    return doc
 
 
 def function_row(**fields) -> dict:

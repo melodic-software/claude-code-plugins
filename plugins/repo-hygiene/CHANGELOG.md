@@ -3,6 +3,24 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.45]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.10.44]
+
+### Changed
+
+- The repo-hygiene clean scripts share worktree-branch listing and loss counting through clean-common.sh, hoist the merged and open PR regexes into constants, select the manifest child through one helper in both batch loops, and fold the tree-reset success and failure tails behind one flag, with identical output and exit codes.
+
+## [0.10.43]
+
+### Changed
+
+- Count the preserve classes through one helper in remove-path, merge the single-caller token resolver in resolve-clean-action and route the remove-path suite through shared runners (behavior unchanged).
+
 ## [0.10.42]
 
 ### Changed

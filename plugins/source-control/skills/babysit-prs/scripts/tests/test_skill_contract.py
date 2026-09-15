@@ -306,11 +306,9 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("the orchestrator re-verifies and pushes", row)
 
     def test_reference_files_agree_on_who_pushes_a_resolution(self) -> None:
-        def unwrapped(path: pathlib.Path) -> str:
-            return " ".join(path.read_text(encoding="utf-8").split())
-
-        safety = unwrapped(SKILL.parent / "reference" / "safety.md")
-        loop = unwrapped(SKILL.parent.parent / "babysit-loop" / "SKILL.md")
+        safety = " ".join(_reference("safety.md").split())
+        loop_skill = SKILL.parent.parent / "babysit-loop" / "SKILL.md"
+        loop = " ".join(loop_skill.read_text(encoding="utf-8").split())
 
         # safety.md's Role Boundaries enumerates orchestrator authority; the one
         # push it owns has to appear there, not only in the stop-and-ask list.

@@ -12,21 +12,15 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { forbiddenSynthesisFileNameReason } from "../lib/synthesis-filename.js";
+import {
+  forbiddenSynthesisFileNameReason,
+  normalizeSynthesisDestName,
+} from "../lib/synthesis-filename.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { validatePromotionDecisionsForSlice } from "../lib/watch-vision-validation.js";
 import { dedupeSynthesisDir } from "./dedupe-synthesis-dir.js";
 import { promoteKeyFrames } from "./promote-key-frames.js";
 import { watchStatePath } from "./watch-state.js";
-
-/**
- * @param {string} destName
- * @returns {string}
- */
-function normalizeDestName(destName) {
-  const base = path.basename(destName);
-  return base.endsWith(".png") ? base : `${base}.png`;
-}
 
 /**
  * @param {string} sliceDir
@@ -63,7 +57,7 @@ export async function visionGatedPromote(sliceDir, { dryRun = false } = {}) {
       skipped.push(row.sourceFile);
       continue;
     }
-    const destName = normalizeDestName(row.destName);
+    const destName = normalizeSynthesisDestName(row.destName);
     const forbidden = forbiddenSynthesisFileNameReason(destName);
     if (forbidden) {
       throw new Error(`forbidden destName ${destName}: ${forbidden}`);

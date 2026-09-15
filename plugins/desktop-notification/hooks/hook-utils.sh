@@ -186,14 +186,10 @@ hook::stdin_cut_short_notice() {
 #   hook::format_path_probed "$raw_path"    # trim a dumped PATH string
 hook::format_path_probed() {
   local raw="${1:-${PATH:-}}"
-  [[ -n "$raw" ]] || {
+  if [[ -z "$raw" || "$raw" == '<unset>' ]]; then
     printf '%s' '<unset>'
     return 0
-  }
-  [[ "$raw" == '<unset>' ]] && {
-    printf '%s' '<unset>'
-    return 0
-  }
+  fi
   local rest="$raw" p
   local -a kept=()
   local omitted=0
@@ -3610,6 +3606,19 @@ hook::git_alias_admit() {
   return 2
 }
 
+# Mark the redirection still waiting for an operand as OPAQUE: the operator is
+# real, the path it names never arrived. The four places that discover an
+# orphaned operand (a second operator, a here-doc opener, a process
+# substitution, the end of a segment) share this one spelling. Reads and writes
+# hook::bash_parse_segments's own locals through dynamic scope, so it is not
+# callable on its own.
+# shellcheck disable=SC2154  # `pend` is a local of hook::bash_parse_segments
+hook::_bps_orphan_pending() {
+  ((pend)) || return 0
+  HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
+  pend=0
+}
+
 # Close the word being assembled into the segment: as an argv word, or as the
 # target of the redirection still waiting for its operand. Called from the four
 # places a word can end (blank, redirection operator, control operator, end of
@@ -3646,10 +3655,7 @@ hook::_bps_close_word() {
 # Dynamic scope, like hook::_bps_close_word.
 # shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments
 hook::_bps_flush_segment() {
-  if ((pend)); then
-    HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-    pend=0
-  fi
+  hook::_bps_orphan_pending
   if ((${#seg[@]})); then
     "$cb" "${seg[@]}"
     seg=()
@@ -3904,10 +3910,7 @@ hook::bash_parse_segments() {
         hd_strip+=("$hstrip")
         # The opener is a redirection whose target is the delimiter. A pending
         # operand ahead of it never arrived.
-        if ((pend)); then
-          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-          pend=0
-        fi
+        hook::_bps_orphan_pending
         if ((hstrip)); then HOOK_SEG_REDIR_OP+=('<<-'); else HOOK_SEG_REDIR_OP+=('<<'); fi
         HOOK_SEG_REDIR_FD+=("$rfd_next")
         HOOK_SEG_REDIR_TARGET+=("$delim")
@@ -3920,10 +3923,7 @@ hook::bash_parse_segments() {
         # substituted as a filename — it satisfies any pending target, which no
         # parse can resolve to a path, and the '(' separator splits it into a
         # segment that gets scanned.
-        if ((pend)); then
-          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-          pend=0
-        fi
+        hook::_bps_orphan_pending
       else
         rop_txt="$c"
         while ((i + 1 < n)) && [[ "${chars[i + 1]}" == [\<\>] ]]; do # portability-ok: bash glob bracket class matching a literal < or > character, not a GNU grep \< \> word boundary
@@ -3932,10 +3932,7 @@ hook::bash_parse_segments() {
         done
         # A second operator arriving while one still waits means the first
         # never got an operand.
-        if ((pend)); then
-          HOOK_SEG_REDIR_OPAQUE[${#HOOK_SEG_REDIR_OP[@]} - 1]=1
-          pend=0
-        fi
+        hook::_bps_orphan_pending
         rdup=""
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '&' ]]; then
           ((i++))

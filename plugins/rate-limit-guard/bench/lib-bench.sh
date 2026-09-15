@@ -59,7 +59,7 @@ median() { # median of the integers on stdin
     printf '0'
     return
   }
-  local -a s=()
+  local -a s
   mapfile -t s < <(printf '%s\n' "${v[@]}" | sort -n)
   printf '%s' "${s[$((${#s[@]} / 2))]}"
 }
@@ -68,8 +68,8 @@ median() { # median of the integers on stdin
 # it on MSYS, so a run whose floor moved is a run whose numbers are not
 # comparable to its neighbour.
 spawn_floor() {
-  local n="${1:-$BENCH_FLOOR_N}" i t0 t1
-  for ((i = 0; i < n; i++)); do
+  local i t0 t1
+  for ((i = 0; i < BENCH_FLOOR_N; i++)); do
     now_ms t0
     bash -c exit
     now_ms t1

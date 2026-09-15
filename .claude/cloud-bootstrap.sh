@@ -156,7 +156,38 @@ fi
 # that measurement; only the first label changed with the summary line below.
 claude_bin="$repo_root/node_modules/.bin/claude"
 marketplace_name="melodic-software"
-if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
+# Enabled set: the fleet list the shared environment baked into the snapshot
+# (standards cloud-environment component), overlaid with the tracked settings
+# file below. Only the /opt copy is read. The environment component also leaves
+# a /tmp copy when /opt was unwritable at cache build, but /tmp is
+# world-writable and a list at a predictable path there is an input any code
+# running in the session could plant to enable a plugin with no settings diff.
+# CLOUD_BOOTSTRAP_FLEET_LIST is the test seam.
+fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-/opt/melodic-fleet-plugins.json}"
+# A list that is absent, unparsable (a partial write at cache build), or valid
+# JSON of the wrong shape (a bare array, enabledPlugins as an array) ends the
+# plugin stage loudly, matching the canonical component. The settings file is
+# NOT a stand-in: it declares this repo's DELTAS from the fleet, not the whole
+# set, so treating it as the source installs a near-empty catalog and reports
+# it as a healthy run. Since standards #562 the snapshot installs the fleet
+# list before this script runs, so an absent list means a broken snapshot and
+# is worth saying out loud. Skipping leaves the rest of the bootstrap (Node,
+# npm ci, CI deps, hygiene binaries) to run, exactly as the missing-CLI branch
+# always has. Each reason for not running the stage says its own name: a
+# missing CLI or jq is a broken VM, an unusable list is a broken snapshot, and
+# diagnosing one as the other sends an operator after the wrong thing.
+plugin_stage=0
+if [[ ! -x "$claude_bin" ]] || ! command -v jq >/dev/null 2>&1; then
+  echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
+elif [[ ! -f "$fleet_list" ]]; then
+  echo 'cloud-bootstrap: no fleet plugin list in this snapshot; plugin install skipped' >&2
+elif ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' \
+  "$fleet_list" >/dev/null 2>&1; then
+  echo "cloud-bootstrap: fleet plugin list $fleet_list is not a settings-shaped object; plugin install skipped" >&2
+else
+  plugin_stage=1
+fi
+if ((plugin_stage)); then
   if ! "$claude_bin" plugin marketplace list --json 2>/dev/null |
     jq -e --arg n "$marketplace_name" 'any(.[]; .name == $n)' >/dev/null; then
     "$claude_bin" plugin marketplace add "$repo_root" --scope user >/dev/null ||
@@ -201,31 +232,13 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     echo "cloud-bootstrap: warning: marketplace $marketplace_name is registered from ${marketplace_source:-an unknown source} at $marketplace_location, not this checkout; plugins serve that clone at $(git -C "$source_repo" rev-parse --short HEAD 2>/dev/null), not $(git branch --show-current 2>/dev/null || echo detached) at $(git rev-parse --short HEAD 2>/dev/null)" >&2
   fi
 
-  # Enabled set: the fleet list the shared environment baked into the snapshot
-  # (standards cloud-environment component), overlaid with the tracked
+  # The enabled set is the fleet list gated above, overlaid with the tracked
   # settings file, so a repo entry set to false opts out of a fleet entry and
   # a repo entry beyond the fleet is added. Only this marketplace's ids count,
   # and they resolve against the checkout registered above, so a settings
   # block reduced to deltas still dogfoods the whole catalog from the current
-  # branch. Absent outside a managed environment, in which case the settings
-  # file is the only source, as before. CLOUD_BOOTSTRAP_FLEET_LIST is the test
-  # seam.
+  # branch.
   #
-  # Only the /opt copy is read. The environment component also leaves a /tmp
-  # copy when /opt was unwritable at cache build, but /tmp is world-writable
-  # and a list at a predictable path there is an input any code running in
-  # the session could plant to enable a plugin with no settings diff; a
-  # snapshot whose /opt was unwritable simply gets the settings-only path.
-  fleet_list="${CLOUD_BOOTSTRAP_FLEET_LIST:-/opt/melodic-fleet-plugins.json}"
-  # A list that is absent, unparsable (partial write at cache build), or not
-  # the settings shape (an error body, an array) must degrade to settings-only,
-  # not empty the whole enabled set: `--slurpfile` and the object merge below
-  # both fail before emitting anything.
-  if ! [[ -f "$fleet_list" ]] ||
-    ! jq -e 'type == "object" and ((.enabledPlugins // {}) | type == "object")' \
-      "$fleet_list" >/dev/null 2>&1; then
-    fleet_list=.claude/settings.json
-  fi
   # Every `jq -r` here and below is piped through `tr -d '\r'`. The cloud VM
   # this script provisions runs a jq that ends its lines with LF, but the
   # Windows build ends them with CRLF, and a plugin id carrying a trailing CR
@@ -439,8 +452,6 @@ if [[ -x "$claude_bin" ]] && command -v jq >/dev/null 2>&1; then
     plugin_summary="$plugin_summary: ${failed_list%, }"
   fi
   echo "$plugin_summary"
-else
-  echo "cloud-bootstrap: warning: claude CLI or jq unavailable; plugins will not load" >&2
 fi
 
 # --- Python CI deps (required) -------------------------------------------------

@@ -34,6 +34,13 @@ EOF
   exit 0
 fi
 
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# The topic-file counting rule is shared with the sibling scope-report.sh, whose
+# printed count is a contract of its own.
+plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
+# shellcheck source=../../../lib/topic-count.sh
+source "$plugin_root/lib/topic-count.sh"
+
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 projects_root="$config_root/projects"
 
@@ -52,12 +59,8 @@ for mem in "$projects_root"/*/memory; do
   # 2>/dev/null BEFORE the input redirection: redirections apply left to right, so a
   # missing file's shell error is silenced (the other order prints it before wc runs).
   lines=$(wc -l 2>/dev/null <"$mem/MEMORY.md" | tr -d ' \r') || true
-  [[ -n "$lines" ]] || lines="absent"
-  # Null-delimited count — a filename with an embedded newline must count once.
-  topics=0
-  while IFS= read -r -d '' _; do topics=$((topics + 1)); done < <(
-    find "$mem" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' -print0 2>/dev/null
-  )
+  lines="${lines:-absent}"
+  topics=$(mtopics::count "$mem")
   printf '%s\tMEMORY.md:%s\ttopics:%s\n' "$mem" "$lines" "$topics"
 done
 shopt -u nullglob

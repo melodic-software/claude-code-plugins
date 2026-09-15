@@ -11,7 +11,6 @@ Thumbs.db
 *.swp
 
 # Local-only Claude Code state
-.claude/settings.local.json
 .claude/observability/
 .observability/
 .claude/worktrees/

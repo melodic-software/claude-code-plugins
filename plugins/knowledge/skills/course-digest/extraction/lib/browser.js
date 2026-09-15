@@ -3,10 +3,7 @@
  * launch, cookie injection, and auth age checking.
  */
 
-import { existsSync, mkdirSync, statSync } from "node:fs";
-import { rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { existsSync, statSync } from "node:fs";
 
 import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { chromium } from "playwright";
@@ -35,23 +32,15 @@ export function checkAuthAge(storageStatePath, platformCfg) {
 }
 
 /**
- * Launch a Playwright browser with a fresh temp profile.
- * Returns the context, page, auth dir path, and injected cookie count.
+ * Launch a Playwright browser.
+ * Returns the browser, context, page, and injected cookie count.
  *
  * @param {object} options
  * @param {boolean} [options.headless=true]
  * @param {string} [options.storageStatePath] - path to .auth-state.json
- * @param {string} [options.profilePrefix="course-extraction"] - temp dir prefix
- * @returns {Promise<{browser: import('playwright').Browser, context: import('playwright').BrowserContext, page: import('playwright').Page, authDir: string, cookieCount: number}>}
+ * @returns {Promise<{browser: import('playwright').Browser, context: import('playwright').BrowserContext, page: import('playwright').Page, cookieCount: number}>}
  */
-export async function launchBrowser({
-  headless = true,
-  storageStatePath,
-  profilePrefix = "course-extraction",
-} = {}) {
-  const authDir = join(tmpdir(), `${profilePrefix}-${Date.now()}`);
-  mkdirSync(authDir, { recursive: true });
-
+export async function launchBrowser({ headless = true, storageStatePath } = {}) {
   // Use browser.launch + newContext instead of launchPersistentContext.
   // Persistent contexts handle cross-origin iframe events differently —
   // page.on("request"/"response") may not fire for iframe sub-resources.
@@ -68,17 +57,15 @@ export async function launchBrowser({
 
   const cookieCount = storageStatePath ? await injectSavedCookies(context, storageStatePath) : 0;
 
-  return { browser, context, page, authDir, cookieCount };
+  return { browser, context, page, cookieCount };
 }
 
 /**
- * Close the browser and clean up the temp profile directory.
+ * Close the browser context and the browser.
  * @param {import('playwright').BrowserContext} context
- * @param {string} authDir
  * @param {import('playwright').Browser} [browser]
  */
-export async function closeBrowser(context, authDir, browser) {
+export async function closeBrowser(context, browser) {
   await context.close();
   if (browser) await browser.close().catch(() => {});
-  rm(authDir, { recursive: true, force: true }).catch(() => {});
 }

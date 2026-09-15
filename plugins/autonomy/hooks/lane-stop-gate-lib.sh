@@ -65,6 +65,20 @@ gate_resolve_anchor() {
   GATE_PLUGIN_ID_SAFE="${GATE_PLUGIN_ID//[^A-Za-z0-9_-]/-}"
 }
 
+# The plugin root (the hook directory's parent) that each entry script resolves
+# its install from, written into <var>. An already-absolute hook directory needs
+# no process; only the relative spelling pays the `cd` subshell, and a `cd` that
+# fails yields the empty root both callers already treat as unanchored.
+#   gate_plugin_root_to <var> <hook-dir>
+gate_plugin_root_to() {
+  local __root
+  case "$2" in
+  /* | ?:[/\\]*) __root="$2/.." ;;
+  *) __root=$(cd "$2/.." 2>/dev/null && pwd) ;;
+  esac
+  printf -v "$1" '%s' "$__root"
+}
+
 # This plugin's name, from the manifest beside the caller. The manifest sits at
 # a path derived from the caller's own location — the same trust anchor
 # everything else here uses — so a repo cannot redirect it.
@@ -84,12 +98,12 @@ gate_resolve_plugin_name() {
 }
 
 # --- In-process result forms --------------------------------------------------
-# Every path helper below has a `_to <var>` form that writes its result into
-# the caller's variable with `printf -v`, and a print form that delegates to
-# it. The gate hook uses the `_to` forms: a `v=$(gate_x)` capture forks a
-# subshell for a function that is nothing but parameter expansion, and on the
-# Windows Git Bash host this gate is tuned for that fork is a process. The print
-# forms stay for the arm helper and for callers that capture stdout.
+# Every path helper below writes its result into the caller's variable with
+# `printf -v` (the `_to <var>` form). The gate hook uses those: a `v=$(gate_x)`
+# capture forks a subshell for a function that is nothing but parameter
+# expansion, and on the Windows Git Bash host this gate is tuned for that fork
+# is a process. A helper whose result the arm helper or the suites capture from
+# stdout also carries a print form that delegates to the `_to` form.
 
 # Resolve this install's identity from the caller-supplied plugin root: the
 # marketplace-qualified id when the plugins/cache anchor is present, else the
@@ -106,7 +120,7 @@ gate_resolve_install() {
 # This plugin's persistent data directory: install-derived when anchored, else
 # the CLAUDE_PLUGIN_DATA env fallback (a --plugin-dir install). Used ONLY for the
 # marker-consumption ledger, never for enablement or the arm record — those read
-# gate_trusted_data_dir (install-anchored, no env fallback). What a redirected
+# gate_trusted_data_dir_to (install-anchored, no env fallback). What a redirected
 # CLAUDE_PLUGIN_DATA can therefore reach is only the ledger, and only for the
 # MARKER completion channel, which is itself an agent-writable declaration: the
 # marker file lives in the watched checkout. It cannot enable the gate or forge
@@ -123,11 +137,6 @@ gate_data_dir_to() {
     printf -v "$1" '%s' "${CLAUDE_PLUGIN_DATA:-}"
   fi
 }
-gate_data_dir() {
-  local __gate_out
-  gate_data_dir_to __gate_out
-  printf '%s' "$__gate_out"
-}
 
 # Install-derived data directory ONLY — no env fallback. Fails when unanchored.
 # Arm records live here because a record can GRANT gate behavior: an env-derived
@@ -135,11 +144,6 @@ gate_data_dir() {
 gate_trusted_data_dir_to() {
   [[ -n "$GATE_CONFIG_ROOT" ]] || return 1
   printf -v "$1" '%s/plugins/data/%s' "$GATE_CONFIG_ROOT" "$GATE_PLUGIN_ID_SAFE"
-}
-gate_trusted_data_dir() {
-  local __gate_out
-  gate_trusted_data_dir_to __gate_out || return 1
-  printf '%s' "$__gate_out"
 }
 
 gate_arm_record_path_to() {
@@ -173,11 +177,6 @@ gate_arm_claim_path() {
 gate_user_settings_file_to() {
   [[ -n "$GATE_CONFIG_ROOT" ]] || return 1
   printf -v "$1" '%s/settings.json' "$GATE_CONFIG_ROOT"
-}
-gate_user_settings_file() {
-  local __gate_out
-  gate_user_settings_file_to __gate_out || return 1
-  printf '%s' "$__gate_out"
 }
 
 # --- Managed settings ---------------------------------------------------------
@@ -261,7 +260,7 @@ gate_managed_settings_files() {
 # channel-F exemplar does, so another marketplace's entry cannot mask this
 # install's; an unanchored one has no qualifier to match and falls back to the
 # manifest name, accepting a bare or any qualified key (last wins). Only
-# managed settings ever reach the name path — gate_user_settings_file has no
+# managed settings ever reach the name path — gate_user_settings_file_to has no
 # location to offer without the anchor.
 # The file is opened by bash (`< file`), not by jq: a native jq on Windows
 # cannot open an MSYS-style path, while a shell redirection always can.

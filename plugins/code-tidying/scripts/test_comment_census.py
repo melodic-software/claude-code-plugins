@@ -56,6 +56,21 @@ def _watchdog_fire():
 '''
 
 
+def git_env(**extra: str) -> dict:
+    """A fixture environment carrying no ambient git config, plus an identity."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")}
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@x",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@x",
+        }
+    )
+    env.update(extra)
+    return env
+
+
 def fixture(tmp: Path) -> None:
     (tmp / "a.sh").write_text(HEREDOC_SH)
     (tmp / "m.py").write_text(MOD_PY)
@@ -185,95 +200,87 @@ class SccArgv(unittest.TestCase):
 
     def test_flag_shaped_filename_is_passed_as_a_path(self):
         tmp = Path(tempfile.mkdtemp())
-        try:
-            fixture(tmp)
-            (tmp / "-o=evil.py").write_text(MOD_PY)
-            shim_dir = tmp / "bin"
-            shim_dir.mkdir()
-            shim = shim_dir / "scc"
-            shim.write_text(FAKE_SCC)
-            shim.chmod(0o755)
-            argv_file = tmp / "argv.json"
-            env = {
-                **os.environ,
-                "PATH": f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}",
-                "FAKE_SCC_ARGV": str(argv_file),
-            }
-            p = subprocess.run(
-                [sys.executable, str(SCRIPT), ".", "--json", "--layer", "scc"],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=str(tmp),
-                env=env,
-            )
-            self.assertEqual(p.returncode, 0, p.stderr)
-            argv = json.loads(argv_file.read_text())
-            self.assertIn("--", argv)
-            paths = argv[argv.index("--") + 1 :]
-            self.assertTrue(paths, "no files reached scc")
-            self.assertTrue(all(a.startswith(("./", "/")) for a in paths), paths)
-            self.assertIn("./-o=evil.py", paths)
-            self.assertNotIn("-o=evil.py", argv[: argv.index("--")])
-            self.assertFalse((tmp / "evil.py").exists())
-        finally:
-            shutil.rmtree(tmp)
+        self.addCleanup(shutil.rmtree, tmp)
+        fixture(tmp)
+        (tmp / "-o=evil.py").write_text(MOD_PY)
+        shim_dir = tmp / "bin"
+        shim_dir.mkdir()
+        shim = shim_dir / "scc"
+        shim.write_text(FAKE_SCC)
+        shim.chmod(0o755)
+        argv_file = tmp / "argv.json"
+        env = {
+            **os.environ,
+            "PATH": f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+            "FAKE_SCC_ARGV": str(argv_file),
+        }
+        p = subprocess.run(
+            [sys.executable, str(SCRIPT), ".", "--json", "--layer", "scc"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(tmp),
+            env=env,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr)
+        argv = json.loads(argv_file.read_text())
+        self.assertIn("--", argv)
+        paths = argv[argv.index("--") + 1 :]
+        self.assertTrue(paths, "no files reached scc")
+        self.assertTrue(all(a.startswith(("./", "/")) for a in paths), paths)
+        self.assertIn("./-o=evil.py", paths)
+        self.assertNotIn("-o=evil.py", argv[: argv.index("--")])
+        self.assertFalse((tmp / "evil.py").exists())
 
 
 @unittest.skipUnless(shutil.which("scc"), "scc not on PATH")
 class SccLayer(unittest.TestCase):
     def test_flag_shaped_filename_is_scanned_not_parsed(self):
         tmp = Path(tempfile.mkdtemp())
-        try:
-            fixture(tmp)
-            (tmp / "-o=evil.py").write_text(MOD_PY)
-            p = run(".", "--json", "--layer", "scc", cwd=tmp)
-            self.assertEqual(p.returncode, 0, p.stderr)
-            rep = json.loads(p.stdout)
-            self.assertFalse(
-                (tmp / "evil.py").exists(), "scc parsed a filename as its output flag"
-            )
-            self.assertTrue(
-                any(r["path"].endswith("-o=evil.py") for r in rep["files"]),
-                rep["files"],
-            )
-        finally:
-            shutil.rmtree(tmp)
+        self.addCleanup(shutil.rmtree, tmp)
+        fixture(tmp)
+        (tmp / "-o=evil.py").write_text(MOD_PY)
+        p = run(".", "--json", "--layer", "scc", cwd=tmp)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rep = json.loads(p.stdout)
+        self.assertFalse(
+            (tmp / "evil.py").exists(), "scc parsed a filename as its output flag"
+        )
+        self.assertTrue(
+            any(r["path"].endswith("-o=evil.py") for r in rep["files"]),
+            rep["files"],
+        )
 
     def test_scc_supplies_lines_and_complexity(self):
         tmp = Path(tempfile.mkdtemp())
-        try:
-            fixture(tmp)
-            p = run(".", "--json", "--layer", "scc", cwd=tmp)
-            self.assertEqual(p.returncode, 0, p.stderr)
-            rep = json.loads(p.stdout)
-            self.assertEqual(rep["sources"]["lines"], "scc")
-            self.assertEqual(rep["sources"]["complexity"], "scc")
-            sh = next(r for r in rep["files"] if r["path"].endswith("a.sh"))
-            self.assertIn("complexity", sh)
-        finally:
-            shutil.rmtree(tmp)
+        self.addCleanup(shutil.rmtree, tmp)
+        fixture(tmp)
+        p = run(".", "--json", "--layer", "scc", cwd=tmp)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rep = json.loads(p.stdout)
+        self.assertEqual(rep["sources"]["lines"], "scc")
+        self.assertEqual(rep["sources"]["complexity"], "scc")
+        sh = next(r for r in rep["files"] if r["path"].endswith("a.sh"))
+        self.assertIn("complexity", sh)
 
 
 class Degradation(unittest.TestCase):
     def test_no_layer_exits_3_with_install_hint(self):
         tmp = Path(tempfile.mkdtemp())
-        try:
-            fixture(tmp)
-            env = {**os.environ, "PATH": str(tmp), "PYTHONPATH": str(tmp)}
-            p = subprocess.run(
-                [sys.executable, "-S", str(SCRIPT), ".", "--layer", "pygments"],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=str(tmp),
-                env=env,
-            )
-            self.assertEqual(p.returncode, 3, p.stderr)
-            self.assertIn("UNAVAILABLE", p.stderr)
-            self.assertIn("pygments", p.stderr)
-        finally:
-            shutil.rmtree(tmp)
+        self.addCleanup(shutil.rmtree, tmp)
+        fixture(tmp)
+        env = {**os.environ, "PATH": str(tmp), "PYTHONPATH": str(tmp)}
+        p = subprocess.run(
+            [sys.executable, "-S", str(SCRIPT), ".", "--layer", "pygments"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(tmp),
+            env=env,
+        )
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("UNAVAILABLE", p.stderr)
+        self.assertIn("pygments", p.stderr)
 
     def test_empty_scope_with_scc_installed_is_not_reported_as_no_layer(self):
         """An empty scope must not be diagnosed as a missing analyser.
@@ -286,134 +293,99 @@ class Degradation(unittest.TestCase):
         so only the availability probe, never the record count, can decide.
         """
         tmp = Path(tempfile.mkdtemp())
-        try:
-            bin_dir = tmp / "stub-bin"
-            bin_dir.mkdir()
-            scc_stub = bin_dir / "scc"
-            scc_stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-            scc_stub.chmod(0o755)
-            blocked = tmp / "blocked"
-            blocked.mkdir()
-            (blocked / "pygments.py").write_text(
-                'raise ImportError("blocked so only the probe decides")\n',
-                encoding="utf-8",
-            )
-            repo = tmp / "repo"
-            repo.mkdir()
-            env = {
-                k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")
-            }
-            env.update(
-                {
-                    "GIT_AUTHOR_NAME": "t",
-                    "GIT_AUTHOR_EMAIL": "t@x",
-                    "GIT_COMMITTER_NAME": "t",
-                    "GIT_COMMITTER_EMAIL": "t@x",
-                }
-            )
-            subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
-            (repo / "README.md").write_text("# no code file here\n")
-            subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env)
-            subprocess.run(
-                ["git", "-C", str(repo), "commit", "-q", "-m", "init"],
-                check=True,
-                env=env,
-            )
-            env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
-            env["PYTHONPATH"] = f"{blocked}{os.pathsep}{env.get('PYTHONPATH', '')}"
-            p = subprocess.run(
-                [sys.executable, str(SCRIPT), ".", "--json"],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=str(repo),
-                env=env,
-            )
-            self.assertNotEqual(
-                p.returncode, 3, f"empty scope misreported as no-layer: {p.stderr}"
-            )
-            self.assertNotIn("UNAVAILABLE", p.stderr)
-        finally:
-            shutil.rmtree(tmp)
+        self.addCleanup(shutil.rmtree, tmp)
+        bin_dir = tmp / "stub-bin"
+        bin_dir.mkdir()
+        scc_stub = bin_dir / "scc"
+        scc_stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        scc_stub.chmod(0o755)
+        blocked = tmp / "blocked"
+        blocked.mkdir()
+        (blocked / "pygments.py").write_text(
+            'raise ImportError("blocked so only the probe decides")\n',
+            encoding="utf-8",
+        )
+        repo = tmp / "repo"
+        repo.mkdir()
+        env = git_env()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
+        (repo / "README.md").write_text("# no code file here\n")
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-q", "-m", "init"],
+            check=True,
+            env=env,
+        )
+        env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+        env["PYTHONPATH"] = f"{blocked}{os.pathsep}{env.get('PYTHONPATH', '')}"
+        p = subprocess.run(
+            [sys.executable, str(SCRIPT), ".", "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(repo),
+            env=env,
+        )
+        self.assertNotEqual(
+            p.returncode, 3, f"empty scope misreported as no-layer: {p.stderr}"
+        )
+        self.assertNotIn("UNAVAILABLE", p.stderr)
 
     def test_empty_scope_with_no_layer_exits_3(self):
         """The other half of the empty-vs-unavailable split: no layer is still a stop."""
         tmp = Path(tempfile.mkdtemp())
-        try:
-            repo = tmp / "repo"
-            repo.mkdir()
-            env = {
-                k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")
-            }
-            env.update(
-                {
-                    "GIT_AUTHOR_NAME": "t",
-                    "GIT_AUTHOR_EMAIL": "t@x",
-                    "GIT_COMMITTER_NAME": "t",
-                    "GIT_COMMITTER_EMAIL": "t@x",
-                    "PATH": f"{tmp}{os.pathsep}{Path(shutil.which('git')).parent}",
-                    "PYTHONPATH": str(tmp),
-                }
-            )
-            subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
-            (repo / "README.md").write_text("# no code file here\n")
-            subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env)
-            subprocess.run(
-                ["git", "-C", str(repo), "commit", "-q", "-m", "init"],
-                check=True,
-                env=env,
-            )
-            p = subprocess.run(
-                [sys.executable, "-S", str(SCRIPT), ".", "--json"],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=str(repo),
-                env=env,
-            )
-            self.assertEqual(p.returncode, 3, p.stderr)
-            self.assertIn("UNAVAILABLE", p.stderr)
-        finally:
-            shutil.rmtree(tmp)
+        self.addCleanup(shutil.rmtree, tmp)
+        repo = tmp / "repo"
+        repo.mkdir()
+        env = git_env(
+            PATH=f"{tmp}{os.pathsep}{Path(shutil.which('git')).parent}",
+            PYTHONPATH=str(tmp),
+        )
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
+        (repo / "README.md").write_text("# no code file here\n")
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-q", "-m", "init"],
+            check=True,
+            env=env,
+        )
+        p = subprocess.run(
+            [sys.executable, "-S", str(SCRIPT), ".", "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(repo),
+            env=env,
+        )
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("UNAVAILABLE", p.stderr)
 
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_tracked_subdirectory_target_lists_its_files(self):
         # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
         # matches nothing, so a directory target used to census zero files.
         tmp = Path(tempfile.mkdtemp())
-        try:
-            env = {
-                k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")
-            }
-            env.update(
-                {
-                    "GIT_AUTHOR_NAME": "t",
-                    "GIT_AUTHOR_EMAIL": "t@x",
-                    "GIT_COMMITTER_NAME": "t",
-                    "GIT_COMMITTER_EMAIL": "t@x",
-                }
-            )
-            subprocess.run(["git", "init", "-q", str(tmp)], check=True, env=env)
-            sub = tmp / "plugins" / "thing"
-            sub.mkdir(parents=True)
-            (sub / "m.py").write_text(MOD_PY)
-            (tmp / "top.py").write_text(MOD_PY)
-            subprocess.run(["git", "-C", str(tmp), "add", "-A"], check=True, env=env)
-            subprocess.run(
-                ["git", "-C", str(tmp), "commit", "-q", "-m", "init"],
-                check=True,
-                env=env,
-            )
-            p = run("plugins/thing", "--json", "--layer", "pygments", cwd=tmp)
-            self.assertEqual(p.returncode, 0, p.stderr)
-            rep = json.loads(p.stdout)
-            self.assertEqual(
-                [r["path"] for r in rep["files"]],
-                [os.path.join("plugins", "thing", "m.py")],
-                rep["files"],
-            )
-        finally:
-            shutil.rmtree(tmp)
+        self.addCleanup(shutil.rmtree, tmp)
+        env = git_env()
+        subprocess.run(["git", "init", "-q", str(tmp)], check=True, env=env)
+        sub = tmp / "plugins" / "thing"
+        sub.mkdir(parents=True)
+        (sub / "m.py").write_text(MOD_PY)
+        (tmp / "top.py").write_text(MOD_PY)
+        subprocess.run(["git", "-C", str(tmp), "add", "-A"], check=True, env=env)
+        subprocess.run(
+            ["git", "-C", str(tmp), "commit", "-q", "-m", "init"],
+            check=True,
+            env=env,
+        )
+        p = run("plugins/thing", "--json", "--layer", "pygments", cwd=tmp)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        rep = json.loads(p.stdout)
+        self.assertEqual(
+            [r["path"] for r in rep["files"]],
+            [os.path.join("plugins", "thing", "m.py")],
+            rep["files"],
+        )
 
     def test_missing_path_is_usage_error(self):
         p = run("/definitely/not/here", cwd=Path.cwd())

@@ -87,7 +87,7 @@ case "$_WT_DIR" in
 *) HOOK_DIR="$(cd "$_WT_DIR" && pwd)" ;;
 esac
 # shellcheck source=hook-utils.sh
-. "$HOOK_DIR/hook-utils.sh"
+source "$HOOK_DIR/hook-utils.sh"
 
 # Every refusal in this hook goes through here, so the remedy always leads.
 #

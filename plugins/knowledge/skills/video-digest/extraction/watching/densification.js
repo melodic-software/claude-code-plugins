@@ -79,17 +79,14 @@ export function findDensificationWindows(
  * @returns {DensificationWindow[]}
  */
 export function mergeOverlappingWindows(windows) {
-  if (windows.length === 0) return [];
-
   const sorted = [...windows].sort((a, b) => a.startSec - b.startSec);
   /** @type {DensificationWindow[]} */
-  const merged = [{ ...sorted[0] }];
+  const merged = [];
 
-  for (let i = 1; i < sorted.length; i++) {
-    const current = sorted[i];
-    const last = merged[merged.length - 1];
+  for (const current of sorted) {
+    const last = merged.at(-1);
 
-    if (current.startSec <= last.endSec) {
+    if (last && current.startSec <= last.endSec) {
       last.endSec = Math.max(last.endSec, current.endSec);
       last.densityMultiplier = Math.max(last.densityMultiplier, current.densityMultiplier);
       if (last.reason !== current.reason) {

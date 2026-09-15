@@ -14,9 +14,7 @@ line numbers are preserved for downstream parse-error reporting.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'ConvertFrom-Jsonc.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'ConvertFrom-Jsonc.ps1'
 }
 
 Describe 'Remove-JsoncComment' -Tag 'lib' {

@@ -193,9 +193,7 @@ r="$(mkrepo report-only)"
 printf 'x\n' >"$r/old.txt"
 printf 'y\n' >"$r/older.txt"
 m="$TEST_TMPDIR/report-only.yaml"
-{
-  good_record fx-r001 file old.txt delete 'status: report-only'
-} | manifest "$m"
+good_record fx-r001 file old.txt delete 'status: report-only' | manifest "$m"
 run --manifest "$m" --root "$r"
 assert_exit "case 8: a report-only leftover exits 0" 0 "$RC"
 assert_contains "case 8: the report-only row is still listed" "$OUT" "$(printf 'fx-r001\tfile\told.txt\tdelete\treport-only\t')"
@@ -358,7 +356,7 @@ assert_exit "case 10: an empty manifest is valid" 0 "$RC"
 assert_contains "case 10: empty manifest reports zero records" "$ERR" "0 record(s)"
 
 # --- Case 11: emitted paths are repo-relative, exactly as declared ------------
-run --manifest "$TEST_TMPDIR/file.yaml" --root "$(mkrepo relpath)"
+mkrepo relpath >/dev/null
 mkdir -p "$TEST_TMPDIR/relpath/.claude"
 printf '{}\n' >"$TEST_TMPDIR/relpath/.claude/old.json"
 run --manifest "$TEST_TMPDIR/file.yaml" --root "$TEST_TMPDIR/relpath/"
@@ -557,7 +555,11 @@ good_record fx-r001 line .claude/doc.md remove-line \
   'match: "^docs/conventions/source-control/commit-convention\.yml$"' \
   'heading: "## convention_source"' | manifest "$m"
 
-cat >"$r/.claude/doc.md" <<'EOF'
+# doc_fixture <path>: five occurrences of the retired line, three decoys
+# outside the heading's section and two inside it (one under a deeper heading,
+# which is still the same section body).
+doc_fixture() {
+  cat >"$1" <<'EOF'
 # title
 
 docs/conventions/source-control/commit-convention.yml
@@ -578,6 +580,9 @@ docs/conventions/source-control/commit-convention.yml
 
 docs/conventions/source-control/commit-convention.yml
 EOF
+}
+
+doc_fixture "$r/.claude/doc.md"
 run --manifest "$m" --root "$r"
 assert_exit "case 22: heading-scoped leftover exits 1" 1 "$RC"
 assert_contains "case 22: heading-scoped leftover emits a row" "$OUT" "fx-r001"
@@ -603,27 +608,7 @@ EOF
 run --manifest "$m" --root "$r"
 assert_exit "case 22: heading present without a matching body line is not a leftover" 0 "$RC"
 
-cat >"$r/.claude/doc.md" <<'EOF'
-# title
-
-docs/conventions/source-control/commit-convention.yml
-
-## other
-
-docs/conventions/source-control/commit-convention.yml
-
-## convention_source
-
-docs/conventions/source-control/commit-convention.yml
-
-### nested
-
-docs/conventions/source-control/commit-convention.yml
-
-## later
-
-docs/conventions/source-control/commit-convention.yml
-EOF
+doc_fixture "$r/.claude/doc.md"
 printf '%s\n' \
   '# title' \
   '' \

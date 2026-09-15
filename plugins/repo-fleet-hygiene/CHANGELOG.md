@@ -3,6 +3,24 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.29]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.23.28]
+
+### Changed
+
+- The repo-fleet-hygiene audit routes its six membership loops through the shared array-contains helper and drops unread locals and dead resets in the audit and apply scripts, with byte-identical plans, findings, and GraphQL queries.
+
+## [0.23.27]
+
+### Changed
+
+- worktree-root-legacy.sh drops an unreachable no-tab branch in its promote/retire loop, worktree-create.sh merges its two drive-letter regexes, worktree-claim.sh drops an unreachable dispatch arm, landed-work.sh hoists a per-iteration reason reset, worktree-root-doctor.sh splits its list output once, and babysit-readiness-gate.sh names its unreadable-bodies failure. No behavior change.
+
 ## [0.23.26]
 
 ### Changed

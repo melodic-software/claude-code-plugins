@@ -54,6 +54,12 @@ expect_stdout() {
   if [[ "$out" == *"$want"* ]]; then pass "$label"; else fail "$label (stdout: '$out')"; fi
 }
 
+# stderr_of <args...> — the script's stderr alone, for message assertions.
+stderr_of() {
+  # shellcheck disable=SC2069 # deliberate: stderr to the capture, stdout dropped
+  bash "$SUT" "$@" 2>&1 >/dev/null
+}
+
 # 1. --help exits 0.
 expect_exit "--help exits 0" 0 --help
 
@@ -115,7 +121,7 @@ _No questions asked yet._
 EOF
 )"
 expect_exit "empty register -> 2" 2 --ledger "$empty"
-empty_err="$(bash "$SUT" --ledger "$empty" 2>&1 >/dev/null || true)"
+empty_err="$(stderr_of --ledger "$empty" || true)"
 if [[ "$empty_err" == *"rows inside a fenced block are ignored by design"* ]]; then
   fail "empty register without a fence keeps the generic zero-rows message (stderr: '$empty_err')"
 else
@@ -132,7 +138,7 @@ fence_only="$(
 EOF
 )"
 expect_exit "fence-only register -> 2" 2 --ledger "$fence_only"
-fence_only_err="$(bash "$SUT" --ledger "$fence_only" 2>&1 >/dev/null || true)"
+fence_only_err="$(stderr_of --ledger "$fence_only" || true)"
 if [[ "$fence_only_err" == *"rows inside a fenced block are ignored by design"* && "$fence_only_err" == *"register rows must be unfenced"* ]]; then
   pass "zero-rows error names fenced-block cause"
 else
@@ -341,12 +347,6 @@ open_plus="$(
 EOF
 )"
 expect_exit "open row wins over a passing brief check -> 1" 1 --ledger "$open_plus" --brief "$brief_ok"
-
-# stderr_of <args...> — the script's stderr alone, for message assertions.
-stderr_of() {
-  # shellcheck disable=SC2069 # deliberate: stderr to the capture, stdout dropped
-  bash "$SUT" "$@" 2>&1 >/dev/null
-}
 
 # heading_lines <file> <pattern> — comma-separated 1-based line numbers of the
 # headings matching <pattern>, computed from the fixture so an assertion never

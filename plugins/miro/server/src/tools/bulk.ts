@@ -49,14 +49,7 @@ export function registerBulkTools(server: McpServer, api: MiroApi): void {
       for (const note of sticky_notes) {
         // biome-ignore lint/performance/noAwaitInLoops: sequential to respect Miro API rate limits
         const sticky = await board.createStickyNoteItem(
-          buildStickyNotePayload({
-            content: note.content,
-            shape: note.shape,
-            color: note.color,
-            x: note.x,
-            y: note.y,
-            parentId: parent_id,
-          }),
+          buildStickyNotePayload({ ...note, parentId: parent_id }),
         );
         created.push({
           id: sticky.id ?? "",

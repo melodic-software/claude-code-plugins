@@ -1360,42 +1360,41 @@ def apply_head_ref_guard(
         # none of those left, and no untriaged material feedback, has nothing
         # left for a worker to do and belongs on the direct merge gate per
         # the runbook's Fan Out contract.
-        if prev_unique is False and not pr.get("needs_worker"):
-            direct_gate_ready = bool(pr.get("pr_clean_ready_for_direct_gate"))
-            if not direct_gate_ready:
-                pr["needs_worker"] = True
-                reasons = pr.get("needs_worker_reasons")
-                if (
-                    is_json_array(reasons)
-                    and "branch_uniqueness_cleared" not in reasons
-                ):
-                    reasons.append("branch_uniqueness_cleared")
-                # `classify_pr` already finalized `pending_worker_dispatch_head_sha`
-                # (empty, since `needs_worker` was False there) before this
-                # late arm ran and flipped `needs_worker` to True. Without
-                # this, `--write-state` would persist an empty pending-dispatch
-                # head for a PR this cycle just decided needs a worker,
-                # reopening the exact crash gap `pending_worker_dispatch_head_sha`
-                # exists to close (see its definition in `classify_pr`), but
-                # for this one arm. The `not pr.get("needs_worker")` guard
-                # above -- required to even reach this branch -- guarantees
-                # `pending_worker_dispatch_head_sha` is still `""` here (it is
-                # only ever non-empty when `needs_worker` was already True),
-                # so setting it unconditionally cannot clobber an obligation
-                # recorded earlier this cycle for a different reason.
-                pr["pending_worker_dispatch_head_sha"] = str(pr.get("head_sha") or "")
-                # `pending_worker_dispatch_unsuppressible` was likewise
-                # finalized `False` by `classify_pr` (the same "needs_worker
-                # was False there" guarantee above), and is deliberately left
-                # as-is here rather than set `True`: this arm only ever fires
-                # while `not direct_gate_ready`, the same "not yet
-                # clean-ready" condition every other suppressible reason is
-                # gated on, so `branch_uniqueness_cleared` belongs in that
-                # same suppressible category, not the unsuppressible one.
-                # `pending_worker_dispatch_recorded_at` is left at `classify_pr`'s
-                # empty finalization for the same reason: `dispatch_pending_unconfirmed`
-                # only ever consults it while `pending_worker_dispatch_unsuppressible`
-                # is `True`, which this suppressible-only obligation never is.
+        if (
+            prev_unique is False
+            and not pr.get("needs_worker")
+            and not pr.get("pr_clean_ready_for_direct_gate")
+        ):
+            pr["needs_worker"] = True
+            reasons = pr.get("needs_worker_reasons")
+            if is_json_array(reasons) and "branch_uniqueness_cleared" not in reasons:
+                reasons.append("branch_uniqueness_cleared")
+            # `classify_pr` already finalized `pending_worker_dispatch_head_sha`
+            # (empty, since `needs_worker` was False there) before this
+            # late arm ran and flipped `needs_worker` to True. Without
+            # this, `--write-state` would persist an empty pending-dispatch
+            # head for a PR this cycle just decided needs a worker,
+            # reopening the exact crash gap `pending_worker_dispatch_head_sha`
+            # exists to close (see its definition in `classify_pr`), but
+            # for this one arm. The `not pr.get("needs_worker")` guard
+            # above -- required to even reach this branch -- guarantees
+            # `pending_worker_dispatch_head_sha` is still `""` here (it is
+            # only ever non-empty when `needs_worker` was already True),
+            # so setting it unconditionally cannot clobber an obligation
+            # recorded earlier this cycle for a different reason.
+            pr["pending_worker_dispatch_head_sha"] = str(pr.get("head_sha") or "")
+            # `pending_worker_dispatch_unsuppressible` was likewise
+            # finalized `False` by `classify_pr` (the same "needs_worker
+            # was False there" guarantee above), and is deliberately left
+            # as-is here rather than set `True`: this arm only ever fires
+            # while the PR is not `pr_clean_ready_for_direct_gate`, the same
+            # "not yet clean-ready" condition every other suppressible reason
+            # is gated on, so `branch_uniqueness_cleared` belongs in that
+            # same suppressible category, not the unsuppressible one.
+            # `pending_worker_dispatch_recorded_at` is left at `classify_pr`'s
+            # empty finalization for the same reason: `dispatch_pending_unconfirmed`
+            # only ever consults it while `pending_worker_dispatch_unsuppressible`
+            # is `True`, which this suppressible-only obligation never is.
         return
     pr["mutation_policy"]["branch_write_allowed"] = False
     if peers:

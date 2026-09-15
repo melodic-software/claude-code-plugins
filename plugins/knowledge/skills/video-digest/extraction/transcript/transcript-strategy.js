@@ -121,9 +121,10 @@ export function resolveTranscriptStrategy({
     );
   }
   const requested = override ?? adapterDefault;
+  const asrRunnable = asrAvailable && mediaAvailable;
 
   if (requested === "asr") {
-    if (asrAvailable && mediaAvailable) {
+    if (asrRunnable) {
       return { strategy: "asr", degradation: null };
     }
     if (captionPresent) {
@@ -152,7 +153,7 @@ export function resolveTranscriptStrategy({
     };
   }
 
-  if (asrAvailable && mediaAvailable) {
+  if (asrRunnable) {
     return { strategy: "asr", degradation: null };
   }
   return noTranscriptPlan(mediaAvailable);

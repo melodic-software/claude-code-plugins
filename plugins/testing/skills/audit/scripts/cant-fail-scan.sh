@@ -138,18 +138,15 @@ AWK_PROG="$SCRIPT_DIR/cant-fail-scan.awk"
 # engine itself and refuses the same way when missing.
 MASK_AWK="$SCRIPT_DIR/mask-js.awk"
 CONFIG_AWK="$SCRIPT_DIR/runner-config-scan.awk"
-if [[ ! -r "$AWK_PROG" ]]; then
-  printf 'ERROR: rule engine not found: %s\n' "$AWK_PROG" >&2
+require_readable() {
+  # require_readable <path> <what it is>
+  [[ -r "$1" ]] && return 0
+  printf 'ERROR: %s not found: %s\n' "$2" "$1" >&2
   exit 2
-fi
-if [[ ! -r "$MASK_AWK" ]]; then
-  printf 'ERROR: shared JavaScript masker not found: %s\n' "$MASK_AWK" >&2
-  exit 2
-fi
-if [[ ! -r "$CONFIG_AWK" ]]; then
-  printf 'ERROR: runner-config rule engine not found: %s\n' "$CONFIG_AWK" >&2
-  exit 2
-fi
+}
+require_readable "$AWK_PROG" 'rule engine'
+require_readable "$MASK_AWK" 'shared JavaScript masker'
+require_readable "$CONFIG_AWK" 'runner-config rule engine'
 
 ROOT_SOURCE=""
 if [[ -n "${CANT_FAIL_SCAN_ROOT:-}" ]]; then
@@ -359,16 +356,13 @@ for f in ${cs_files[@]+"${cs_files[@]}"}; do scan_one cs "$f"; done
 # walk enumerated in that directory is shadowed: the runner would never load it,
 # so judging it would report a file the suite does not run.
 cfg_dirs=()
+declare -A cfg_seen=()
 for f in ${cfg_files[@]+"${cfg_files[@]}"}; do
   cfg_dir="$(dirname "$f")"
-  cfg_known=0
-  for d in ${cfg_dirs[@]+"${cfg_dirs[@]}"}; do
-    if [[ "$d" == "$cfg_dir" ]]; then
-      cfg_known=1
-      break
-    fi
-  done
-  if [[ "$cfg_known" -eq 0 ]]; then cfg_dirs+=("$cfg_dir"); fi
+  if [[ -z "${cfg_seen[$cfg_dir]:-}" ]]; then
+    cfg_seen["$cfg_dir"]=1
+    cfg_dirs+=("$cfg_dir")
+  fi
 done
 cfg_shadowed=$((cfg_enum - ${#cfg_dirs[@]}))
 for d in ${cfg_dirs[@]+"${cfg_dirs[@]}"}; do
@@ -444,8 +438,6 @@ confidence_of() {
   # accept flaky tolerance, or trust review to catch a committed .only).
   case "$1" in
   zero-assertion | recomputed-expectation) printf 'high' ;;
-  mock-only-oracle) printf '' ;;
-  flaky-passes-suite | only-not-forbidden) printf '' ;;
   *) printf '' ;;
   esac
 }

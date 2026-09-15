@@ -231,6 +231,14 @@ function recordFromAxes(identity, axes, leafRel) {
   };
 }
 
+// Inherited needs (copied, never shared) overridden by the ones the record's
+// own prose names, id-sorted.
+function mergedNeeds(inherited, prose) {
+  const byId = new Map(inherited.map((n) => [n.id, { ...n }]));
+  for (const need of needsFromProse(prose)) byId.set(need.id, need);
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
 function expandNeeds(records) {
   const byIdentity = new Map(records.map((r) => [r.identity, r]));
   const byPosture = new Map();
@@ -241,7 +249,7 @@ function expandNeeds(records) {
   for (const record of records) {
     const prose = record.repo_needs_prose;
     const inherit = prose.match(/everything\s+`([^`]+)`\s+requires/i);
-    let needs = [];
+    let inherited = [];
     if (inherit) {
       const token = inherit[1];
       const parentKey = token.includes("/")
@@ -256,12 +264,9 @@ function expandNeeds(records) {
         record._inheritFrom = parent.identity;
         continue;
       }
-      needs = parent.needs.map((n) => ({ ...n }));
+      inherited = parent.needs;
     }
-    const own = needsFromProse(prose);
-    const byId = new Map(needs.map((n) => [n.id, n]));
-    for (const need of own) byId.set(need.id, need);
-    record.needs = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+    record.needs = mergedNeeds(inherited, prose);
   }
 
   // Second pass for inherit-before-parent edge cases.
@@ -272,11 +277,7 @@ function expandNeeds(records) {
     for (const record of pending) {
       const parent = byIdentity.get(record._inheritFrom);
       if (!parent || parent.needs === null) continue;
-      const byId = new Map(parent.needs.map((n) => [n.id, { ...n }]));
-      for (const need of needsFromProse(record.repo_needs_prose)) {
-        byId.set(need.id, need);
-      }
-      record.needs = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+      record.needs = mergedNeeds(parent.needs, record.repo_needs_prose);
       delete record._inheritFrom;
     }
     pending = records.filter((r) => r.needs === null);
@@ -289,7 +290,6 @@ function expandNeeds(records) {
 
   for (const record of records) {
     delete record.repo_needs_prose;
-    delete record._inheritFrom;
   }
 }
 
@@ -363,7 +363,7 @@ function main() {
     process.exit(1);
   }
 
-  let existing = null;
+  let existing;
   try {
     existing = readFileSync(emissionPath, "utf8");
   } catch {

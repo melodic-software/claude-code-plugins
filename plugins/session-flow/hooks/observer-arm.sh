@@ -76,15 +76,11 @@ IDLE="${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
 POLL="${CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS:-5}"
 MAX="${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}"
 
-# Pick an interpreter that is actually Python 3.10+ (a bare `python` may be older).
+# shellcheck source=../lib/python-probe.sh
+source "$PLUGIN_ROOT/lib/python-probe.sh"
+
 PY=""
-for c in python3 python; do
-  if command -v "$c" >/dev/null 2>&1 &&
-    "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    PY="$c"
-    break
-  fi
-done
+python_probe::floor_interpreter_to PY
 [[ -n "$PY" ]] || exit 0
 
 ARM="$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py"

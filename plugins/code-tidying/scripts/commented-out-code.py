@@ -181,7 +181,7 @@ def comment_blocks(src: bytes, lang):
     blocks: list[list] = []
     for n in nodes:
         text = src[n.start_byte : n.end_byte].decode(errors="replace")
-        row, col = n.start_point[0], n.start_point[1]
+        row, col = n.start_point
         # Runs of single-line comments merge without a length cap; a block
         # comment (/* */) never joins a run, on either side of it. The test is
         # on the incoming node and the previous node, never on the merged text,
@@ -306,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
             unavailable.append(f"{f}: {note}")
             continue
         all_findings.extend(findings)
-    if unavailable and not all_findings and len(unavailable) == len(args.files):
+    if len(unavailable) == len(args.files):
         print(
             "commented-out-code: UNAVAILABLE: " + "; ".join(unavailable),
             file=sys.stderr,

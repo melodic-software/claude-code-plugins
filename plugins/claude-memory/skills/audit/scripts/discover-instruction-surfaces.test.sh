@@ -5,36 +5,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/discover-instruction-surfaces.sh"
 
-TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
-
-FAILED=0
-CASE_NUM=0
-
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
+# shellcheck source=../../../scripts/test-helpers.sh
+source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 # Every case runs with CLAUDE_CONFIG_DIR pointed at a fixture, so the suite never
 # reads — or reports on — the real `~/.claude` on the machine running it.

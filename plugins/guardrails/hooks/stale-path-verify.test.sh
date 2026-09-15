@@ -99,41 +99,12 @@ TARGET="$REPO/notes.md"
 
 GUARD_UNDER_TEST="$HOOK"
 
-# run <content> — hook stdout+stderr lands in the global OUT; the hook's exit
-# code is RETURNED, so `run …` then `assert_exit … "$?"` is the call shape.
-#
-# Never `OUT=$(run …)` (#3373): a command substitution runs the helper in a
-# subshell, so an `RC=$?` assigned inside it never reaches the parent and every
-# `assert_exit` after the call silently compares a stale outer value — the
-# suite would stay green through a hook that regressed to a nonzero exit.
-# HOOK_OVERRIDE lets a case point the helpers at a stub hook; unset elsewhere.
-#
-# run_payload <json> is the shared driver call every shape below reduces to:
-# one payload, one hook process, stdout and stderr together in OUT, the hook's
-# own exit code returned.
-run_payload() {
-  guard_invoke --hook "${HOOK_OVERRIDE:-$HOOK}" --merge-stderr --payload "$1" \
-    -- "CLAUDE_PROJECT_DIR=$REPO"
-  OUT="$GUARD_OUT"
-  return "$GUARD_RC"
-}
-run() { run_payload "$(write_json "$TARGET" "$1")"; }
-# run_edit <new_string> -> same, as an Edit payload.
-run_edit() { run_payload "$(edit_json "$TARGET" "$1")"; }
+# HOOK, REPO and TARGET above are the caller contract for `run`, `run_edit`,
+# `run_payload` and `parity` in guardrails-test-helpers.sh; HOOK_OVERRIDE lets a
+# case point them at a stub hook and stays unset elsewhere.
 
-# --- The run helpers must carry the hook's exit code out (#3373) -------------
-# Guards the assertion machinery itself: point the helpers at a stub that exits
-# nonzero and the returned code must be that code. Under the old
-# `OUT=$(run …)` + inner `RC=$?` shape this read 0, which is what made every
-# run-based `assert_exit` below vacuous.
-STUB_HOOK="$TEST_TMPDIR/rc-stub-hook.sh"
-printf '#!/usr/bin/env bash\nexit 3\n' >"$STUB_HOOK"
-HOOK_OVERRIDE="$STUB_HOOK"
-run 'anything'
-assert_exit "run propagates a nonzero hook exit" 3 "$?"
-run_edit 'anything'
-assert_exit "run_edit propagates a nonzero hook exit" 3 "$?"
-unset HOOK_OVERRIDE
+# --- The run helpers must carry the hook's exit code out ---------------------
+assert_run_helpers_propagate_exit
 
 # ============================ MUST FIRE =====================================
 
@@ -238,8 +209,8 @@ assert_silent "self-overlapping anchor is ambiguous, not unique" "$OUT"
 # `replace_all` is the one shape where repetition is EXPECTED, not ambiguous:
 # every occurrence is a place this call edited, so uniqueness must not be required
 # or the guard goes silent on a genuine multi-site staleness. Built inline rather
-# than through edit_json — that helper is shared across guard suites and gated by
-# hook-utils-sync, so this suite's payload variant stays local to it.
+# than through edit_json: that helper is shared across every guard suite in this
+# plugin, so this suite's payload variant stays local to it.
 replall_json() {
   MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
     '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s,replace_all:true}}'
@@ -525,8 +496,6 @@ assert_exit "skip-worktree + assume-unchanged → exit 0" 0 "$RC"
 assert_silent "lowercase s still carries the skip-worktree exemption → silent" "$OUT"
 git -C "$SPARSE" update-index --no-assume-unchanged docs/restored.md >/dev/null 2>&1
 
-git -C "$SPARSE" update-index --skip-worktree docs/restored.md >/dev/null 2>&1
-
 # The index check must not swallow a genuine removal. Same repo, same absence from
 # disk — the only difference is that this one is in no index entry either.
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
@@ -719,21 +688,7 @@ assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-sta
 assert_contains "repo root is file-anchored" "$HOOK_SRC" 'hook::repo_root_to REPO_ROOT "$FILE_DIR"'
 assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DIR="${FILE%/*}"'
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
-# The expansion must answer as `dirname` did for every shape. For a root-level
-# `/bar.md` the shortest `/*` suffix is the whole string, so the bare expansion
-# is EMPTY and hook::repo_root's `${1:-.}` would anchor on the process CWD, not
-# `/`. That shape cannot reach the hook end to end (hook::read_file_path needs
-# the file to exist and `/` is not writable), so the seam is lifted from the
-# hook source and evaluated against each shape; its answer must be dirname's.
-FILE_DIR_SEAM=$(sed -n '/^FILE_DIR="\${FILE%\/\*}"$/,/^REPO_ROOT=/{/^REPO_ROOT=/d;p}' "$HOOK")
-assert_contains "file-dir seam: lifted from the hook" "$FILE_DIR_SEAM" 'FILE_DIR="${FILE%/*}"'
-for fp in /bar.md bar.md /a/b/bar.md; do
-  # shellcheck disable=SC2034  # read by the eval below
-  FILE="$fp"
-  FILE_DIR=""
-  eval "$FILE_DIR_SEAM"
-  assert_eq "file-dir seam: $fp anchors where dirname does" "$(dirname "$fp")" "$FILE_DIR"
-done
+assert_file_dir_seam "$HOOK"
 
 # The whole-index `git ls-files` must not run for a write that cites nothing.
 assert_contains "tracked-file list is warmed only when a candidate exists" "$HOOK_SRC" \
@@ -772,24 +727,8 @@ fi
 # jq call, and the guard is `source`d into a subshell rather than exec'd.
 #
 # An advisory guard exits 0 whether or not it found anything, so the exit code
-# alone is not its verdict: the additionalContext document is. Each case below
-# asserts both, on both paths.
-#
-# parity <label> <content> <expected-exit> <needle, or "" for silence>
-parity() {
-  local label="$1" content="$2" expected="$3" needle="$4" payload via
-  payload="$(write_json "$TARGET" "$content")"
-  for via in direct dispatched; do
-    guard_invoke --via "$via" --merge-stderr --payload "$payload" \
-      -- "CLAUDE_PROJECT_DIR=$REPO"
-    assert_exit "$label ($via)" "$expected" "$GUARD_RC"
-    if [[ -n "$needle" ]]; then
-      assert_contains "$label ($via): finding survives" "$GUARD_OUT" "$needle"
-    else
-      assert_silent "$label ($via): stays quiet" "$GUARD_OUT"
-    fi
-  done
-}
+# alone is not its verdict: the additionalContext document is. `parity` in
+# guardrails-test-helpers.sh asserts both, on both paths.
 parity "dispatched parity: deleted path" 'See `docs/gone.md` here.' 0 \
   "STALE_PATH: docs/gone.md"
 parity "dispatched parity: surviving path" 'See `docs/real.md` here.' 0 ""

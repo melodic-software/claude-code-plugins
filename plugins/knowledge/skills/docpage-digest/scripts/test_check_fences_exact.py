@@ -2,55 +2,30 @@
 """Negative-control suite for check-fences-exact.py.
 
 These cases are why the gate is a required artifact: PASS is not believed
-until the known-bad fixtures fail. Run: python test_check_fences_exact.py
+until the known-bad fixtures fail. The temp-dir fixture and the gate
+invocation come from gate_harness.py.
+
+Run: python test_check_fences_exact.py
 """
 
 from __future__ import annotations
 
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
 import unittest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-GATE = os.path.join(HERE, "check-fences-exact.py")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gate_harness import KEEP, GateTestCase, gate_path, write  # noqa: E402
 
-# Trailing space on KEEP is load-bearing — the hook strips it from a
-# bare code span; a fence must preserve it. The space lives inside the
-# quotes so this file has no physical trailing whitespace (editorconfig).
-KEEP = "keep me "
+GATE = gate_path("check-fences-exact.py")
 SOURCE = (
     "Intro line.\n" + KEEP + "\nA list:\n* star item\n1. one\nprompt example here\n"
 )
 
 
-def write(dirpath: str, name: str, text: str) -> str:
-    path = os.path.join(dirpath, name)
-    with open(path, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(text)
-    return path
-
-
-class GateHarness(unittest.TestCase):
-    def setUp(self):
-        self.dir = tempfile.mkdtemp()
-        self.source = write(self.dir, "source.md", SOURCE)
-
-    def tearDown(self):
-        shutil.rmtree(self.dir, ignore_errors=True)
-
-    def run_gate(self, digest_text: str, expect_code: int):
-        digest = write(self.dir, "digest.md", digest_text)
-        cmd = [sys.executable, GATE, "--source", self.source, "--digest", digest]
-        proc = subprocess.run(cmd, capture_output=True)
-        if proc.returncode != expect_code:
-            raise AssertionError(
-                f"exit {proc.returncode}, expected {expect_code}; "
-                f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
-            )
-        return proc
+class GateHarness(GateTestCase):
+    gate = GATE
+    source_text = SOURCE
 
 
 CLEAN = f"""# Unit
@@ -98,19 +73,14 @@ class TestCleanPass(GateHarness):
 
 class TestFailLoudZeroParse(GateHarness):
     def test_no_digest_arg_is_unusable(self):
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", self.source], capture_output=True
-        )
+        proc = self.invoke_argv("--source", self.source)
         self.assertEqual(proc.returncode, 2)
         self.assertIn(b"no --digest", proc.stderr)
 
     def test_empty_source_is_unusable(self):
         empty = write(self.dir, "empty.md", "")
         digest = write(self.dir, "d.md", CLEAN)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", empty, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(empty, digest)
         self.assertEqual(proc.returncode, 2)
         self.assertIn(b"empty", proc.stderr)
 
@@ -235,10 +205,7 @@ this was never in the source
 none
 """
         digest = write(self.dir, "d2.md", text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(source, digest)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
 
@@ -262,10 +229,7 @@ none
 ````
 """
         digest = write(self.dir, "d-nested.md", text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(source, digest)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
         self.assertIn(b"1 **CN.**", proc.stdout)
@@ -284,10 +248,7 @@ none
 ````
 """
         digest = write(self.dir, "d-immediate.md", text)
-        proc = subprocess.run(
-            [sys.executable, GATE, "--source", source, "--digest", digest],
-            capture_output=True,
-        )
+        proc = self.invoke(source, digest)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn(b"PASS", proc.stdout)
 

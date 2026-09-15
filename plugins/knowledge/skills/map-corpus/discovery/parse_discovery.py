@@ -63,11 +63,11 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
     if strip_punct:
         url = url.rstrip(".,;")
     parts = urlsplit(url)
-    if parts.scheme.lower() not in ("http", "https"):
+    scheme = parts.scheme.lower()
+    if scheme not in ("http", "https"):
         return None
     if not parts.netloc:
         return None
-    scheme = parts.scheme.lower()
     netloc = parts.netloc
     if "@" in netloc:  # lowercase host only; userinfo is case-significant
         userinfo, host = netloc.rsplit("@", 1)
@@ -89,12 +89,12 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
 def extract_markdown_urls(text: str, base_url: str) -> list:
     """Link targets from markdown: [](), <autolink>, and bare URLs."""
     found = []  # (target, is_bare_text_capture)
-    for m in MD_LINK_RE.finditer(text):
-        found.append((m.group(1), False))
-    for m in MD_AUTOLINK_RE.finditer(text):
-        found.append((m.group(1), False))
-    for m in BARE_URL_RE.finditer(text):
-        found.append((m.group(1), True))
+    for regex, bare in (
+        (MD_LINK_RE, False),
+        (MD_AUTOLINK_RE, False),
+        (BARE_URL_RE, True),
+    ):
+        found.extend((m.group(1), bare) for m in regex.finditer(text))
     urls = []
     for target, bare in found:
         if target.startswith("#"):
@@ -182,8 +182,7 @@ def main(argv=None) -> int:
             "(unless using --normalize-url).",
         )
 
-    base = normalize_url(args.base_url)
-    if base is None:
+    if normalize_url(args.base_url) is None:
         fail(2, f"--base-url {args.base_url!r} is not a valid http(s) URL.")
 
     try:
@@ -201,9 +200,8 @@ def main(argv=None) -> int:
     if args.rung == "sitemap-xml":
         urls = extract_sitemap_xml_urls(data)
     else:  # llms-txt, sitemap-md: both are markdown-ish text
-        data_text = data.removeprefix(b"\xef\xbb\xbf")
         try:
-            text = data_text.decode("utf-8")
+            text = data.removeprefix(b"\xef\xbb\xbf").decode("utf-8")
         except UnicodeDecodeError as exc:
             fail(2, f"snapshot {args.snapshot!r} is not UTF-8 text: {exc}.")
         urls = extract_markdown_urls(text, args.base_url)

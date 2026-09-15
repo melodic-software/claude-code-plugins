@@ -125,23 +125,19 @@ try {
     }
 
     $detail = @{
-        stopped_auto_services    = $unexpectedStopped
-        trigger_start_stopped    = $triggerStartStopped
-        delayed_pending          = $delayedPending
-        startup_inventory        = $startupInventory
-        uptime_minutes           = $uptime ? [int]$uptime.TotalMinutes : $null
+        stopped_auto_services = $unexpectedStopped
+        trigger_start_stopped = $triggerStartStopped
+        delayed_pending       = $delayedPending
+        startup_inventory     = $startupInventory
+        uptime_minutes        = $uptime ? [int]$uptime.TotalMinutes : $null
     }
 
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
         -Severity $severity -Summary $summary -Detail $detail -Commands $commands `
-        -NeedsAdmin $false -RanSuccessfully $true -DurationMs ([int]$sw.ElapsedMilliseconds)
+        -NeedsAdmin $false -RanSuccessfully $true
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Services check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Services check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

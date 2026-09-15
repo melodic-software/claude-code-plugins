@@ -41,7 +41,6 @@ UTF-8 so the U+2500 rails survive a cp1252 pipe on Windows.
 from __future__ import annotations
 
 import argparse
-import io
 import os
 import re
 import shlex
@@ -50,6 +49,12 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from io_streams import utf8_streams  # noqa: E402  (io_streams.py beside this script)
 
 HANDOFF_SHAPE = 2
 
@@ -148,6 +153,7 @@ TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
 BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
 H2_RE = re.compile(r"^## (.+?)\s*$")
+CHAIN_ITEM_RE = re.compile(r"^\s+-\s+")
 FILL_MARK = "<!-- FILL"
 COPY_LINE = "`/clear`, then copy everything between the dashed lines:"
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
@@ -199,12 +205,6 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
 # --- I/O ----------------------------------------------------------------------
 
 
-def _utf8_streams() -> None:
-    for stream in (sys.stdout, sys.stderr):
-        if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8", newline="\n")
-
-
 def _die(code: int, message: str) -> int:
     print(f"error: {message}", file=sys.stderr)
     return code
@@ -220,7 +220,9 @@ def _posix(path: Path) -> str:
 
 
 def _same_file(a: str, b: Path) -> bool:
-    return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+    return os.path.normcase(os.path.realpath(a)) == os.path.normcase(
+        os.path.realpath(b)
+    )
 
 
 # --- Document model -------------------------------------------------------------
@@ -306,11 +308,13 @@ def parse_doc(path: Path) -> Doc:
                 inline = line[len("chain:") :].strip()
                 if inline.startswith("[") and inline.endswith("]"):
                     doc.chain = [
-                        _fm_value(item) for item in inline[1:-1].split(",") if item.strip()
+                        _fm_value(item)
+                        for item in inline[1:-1].split(",")
+                        if item.strip()
                     ]
                 idx += 1
-                while idx < len(lines) and re.match(r"^\s+-\s+", lines[idx]):
-                    doc.chain.append(_fm_value(re.sub(r"^\s+-\s+", "", lines[idx])))
+                while idx < len(lines) and CHAIN_ITEM_RE.match(lines[idx]):
+                    doc.chain.append(_fm_value(CHAIN_ITEM_RE.sub("", lines[idx])))
                     idx += 1
                 continue
             if ":" in line and not line.startswith((" ", "\t")):
@@ -321,7 +325,9 @@ def parse_doc(path: Path) -> Doc:
             doc.has_frontmatter = True
             idx += 1
     doc.body_start = idx
-    heads = [(m.group(1), i) for i in range(idx, len(lines)) if (m := H2_RE.match(lines[i]))]
+    heads = [
+        (m.group(1), i) for i in range(idx, len(lines)) if (m := H2_RE.match(lines[i]))
+    ]
     for n, (title, start) in enumerate(heads):
         end = heads[n + 1][1] if n + 1 < len(heads) else len(lines)
         doc.sections.append((title, start, end))
@@ -335,6 +341,14 @@ def _trim_blank(lines: list[str]) -> list[str]:
     while end > start and not lines[end - 1].strip():
         end -= 1
     return lines[start:end]
+
+
+def _ends_opening_ask(line: str) -> bool:
+    """True when `line` resumes Original-goal content below an `Opening ask:`
+    line. A verbatim ask may run several paragraphs, so prose does not end it,
+    but the ask carries no bullets: a bullet below the ask is an amendment, and
+    a `**` line is the next structural marker."""
+    return line.startswith("**") or bool(BULLET_RE.match(line))
 
 
 # --- Cumulative-section entries ---------------------------------------------------
@@ -472,7 +486,9 @@ def _resolve_transcript(session_id: str, projects_root: Path) -> str:
         if match.is_file():
             os.stat(match)
             return match.resolve().as_posix()
-    return f"unresolved (session {session_id}, projects-root {projects_root.as_posix()})"
+    return (
+        f"unresolved (session {session_id}, projects-root {projects_root.as_posix()})"
+    )
 
 
 def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
@@ -480,16 +496,22 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     if body is None:
         return
     rails = [i for i, line in enumerate(body) if RAIL_RE.match(line.strip())]
-    ascii_rails = [i for i, line in enumerate(body) if ASCII_RAIL_RE.match(line.strip())]
+    ascii_rails = [
+        i for i, line in enumerate(body) if ASCII_RAIL_RE.match(line.strip())
+    ]
     if len(rails) != 2:
         detail = f"found {len(rails)}"
         if ascii_rails:
-            detail += f", plus {len(ascii_rails)} ASCII rail line(s); rails are U+2500 only"
+            detail += (
+                f", plus {len(ascii_rails)} ASCII rail line(s); rails are U+2500 only"
+            )
         f.fail(f"Resume prompt: exactly two U+2500 rails required ({detail})")
         return
     top, bottom = rails
     if not any(line.strip() == COPY_LINE for line in body[:top]):
-        f.fail(f"Resume prompt: copy instruction line {COPY_LINE!r} missing above the top rail")
+        f.fail(
+            f"Resume prompt: copy instruction line {COPY_LINE!r} missing above the top rail"
+        )
     between = body[top + 1 : bottom]
     if any(not line.strip() for line in between):
         f.fail("Resume prompt: blank line between the rails")
@@ -498,12 +520,18 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     if between and between[0].startswith("/goal "):
         pos = 1
     if pos >= len(between) or not between[pos].startswith("Read @"):
-        f.fail("Resume prompt: first line between the rails (after an optional /goal) must be the 'Read @' directive")
+        f.fail(
+            "Resume prompt: first line between the rails (after an optional /goal) must be the 'Read @' directive"
+        )
         return
     directive = between[pos]
     path_part = directive[len("Read @") :].split(",", 1)[0].strip()
-    if "\\" in path_part or not (path_part.startswith("/") or re.match(r"^[A-Za-z]:/", path_part)):
-        f.fail(f"Resume prompt: 'Read @' path must be absolute and forward-slash (got {path_part!r})")
+    if "\\" in path_part or not (
+        path_part.startswith("/") or re.match(r"^[A-Za-z]:/", path_part)
+    ):
+        f.fail(
+            f"Resume prompt: 'Read @' path must be absolute and forward-slash (got {path_part!r})"
+        )
     elif not _same_file(path_part, doc.path):
         # A stored path naming this file's own basename under another directory
         # is a relocated save-point, not a misidentified one: the basename
@@ -512,17 +540,25 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
         # relocation stays visible; fail only when the stored path names a
         # different save-point.
         if path_part.rsplit("/", 1)[-1] == doc.basename:
-            f.warn(f"Resume prompt: 'Read @' path {path_part!r} names this file's basename under another directory; this file is {_posix(doc.path)} (relocated chain; emit substitutes the real path)")
+            f.warn(
+                f"Resume prompt: 'Read @' path {path_part!r} names this file's basename under another directory; this file is {_posix(doc.path)} (relocated chain; emit substitutes the real path)"
+            )
         else:
-            f.fail(f"Resume prompt: 'Read @' path {path_part!r} does not name this file ({_posix(doc.path)})")
+            f.fail(
+                f"Resume prompt: 'Read @' path {path_part!r} does not name this file ({_posix(doc.path)})"
+            )
     if DIRECTIVE_CLAUSE not in directive:
         f.fail(f"Resume prompt: directive lacks the clause {DIRECTIVE_CLAUSE!r}")
     pos += 1
     if pos >= len(between) or not (m := PRIOR_SESSION_RE.match(between[pos])):
-        f.fail("Resume prompt: 'Prior session: <UUID>.' line missing after the directive")
+        f.fail(
+            "Resume prompt: 'Prior session: <UUID>.' line missing after the directive"
+        )
         return
     if m.group(1).lower() != session_id.lower():
-        f.fail(f"Resume prompt: 'Prior session:' {m.group(1)} differs from session_id {session_id}")
+        f.fail(
+            f"Resume prompt: 'Prior session:' {m.group(1)} differs from session_id {session_id}"
+        )
     pos += 1
     if pos >= len(between) or not between[pos].startswith("Handoff origin: "):
         f.fail("Resume prompt: 'Handoff origin:' line missing after 'Prior session:'")
@@ -532,7 +568,9 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     except ValueError:
         slots = []
     if len(slots) != 2:
-        f.fail(f"Resume prompt: 'Handoff origin:' must carry exactly two slots (found {len(slots)})")
+        f.fail(
+            f"Resume prompt: 'Handoff origin:' must carry exactly two slots (found {len(slots)})"
+        )
     pos += 1
     if pos >= len(between) or not between[pos].startswith("Next:"):
         f.fail("Resume prompt: 'Next:' line missing after 'Handoff origin:'")
@@ -541,28 +579,40 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
     headlines = between[pos + 1 :]
     if next_line == NEXT_CLOSED:
         if headlines:
-            f.fail(f"Resume prompt: {NEXT_CLOSED!r} admits no headline lines (found {len(headlines)})")
+            f.fail(
+                f"Resume prompt: {NEXT_CLOSED!r} admits no headline lines (found {len(headlines)})"
+            )
     elif next_line.strip() != "Next:":
-        f.fail(f"Resume prompt: 'Next:' must be bare or exactly {NEXT_CLOSED!r} (got {next_line!r})")
+        f.fail(
+            f"Resume prompt: 'Next:' must be bare or exactly {NEXT_CLOSED!r} (got {next_line!r})"
+        )
     else:
         if not headlines:
             f.fail("Resume prompt: 'Next:' needs 1 to 5 headline lines")
         if len(headlines) > NEXT_MAX:
-            f.fail(f"Resume prompt: 'Next:' has {len(headlines)} headline lines (max {NEXT_MAX})")
+            f.fail(
+                f"Resume prompt: 'Next:' has {len(headlines)} headline lines (max {NEXT_MAX})"
+            )
         for line in headlines:
             # Headlines are bare lines. A bullet reads as a list in the pasted
             # prompt and the contract refuses it, but nothing applied
             # BULLET_RE here, so a bulleted headline validated and was emitted.
             if BULLET_RE.match(line):
-                f.fail(f"Resume prompt: 'Next:' headline must not be a bullet (got {line!r})")
+                f.fail(
+                    f"Resume prompt: 'Next:' headline must not be a bullet (got {line!r})"
+                )
         thens = [i for i, line in enumerate(headlines) if line.startswith("Then:")]
         if len(thens) > 1:
             f.fail("Resume prompt: at most one 'Then: /<skill>' line")
         elif thens and thens[0] != len(headlines) - 1:
-            f.fail("Resume prompt: 'Then: /<skill>' must be the last line between the rails")
+            f.fail(
+                "Resume prompt: 'Then: /<skill>' must be the last line between the rails"
+            )
         for i in thens:
             if not THEN_RE.match(headlines[i]):
-                f.fail(f"Resume prompt: 'Then:' must name exactly one skill as /<skill> (got {headlines[i]!r})")
+                f.fail(
+                    f"Resume prompt: 'Then:' must name exactly one skill as /<skill> (got {headlines[i]!r})"
+                )
     resume_line = f"claude --resume {session_id}"
     if not any(resume_line in line for line in body[bottom + 1 :]):
         f.fail(f"Resume prompt: below-rail line carrying {resume_line!r} missing")
@@ -572,7 +622,9 @@ def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
     body = doc.section("Original goal")
     if body is None:
         return
-    ask_idx = next((i for i, line in enumerate(body) if line.startswith("Opening ask:")), None)
+    ask_idx = next(
+        (i for i, line in enumerate(body) if line.startswith("Opening ask:")), None
+    )
     if ask_idx is None:
         f.fail("Original goal: 'Opening ask:' line missing")
     goal_lines: list[str] = []
@@ -582,26 +634,32 @@ def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
         # line: a verbatim opening ask may run several paragraphs, and every
         # one of them belongs to the ask rather than to the goal quote.
         if skip:
-            if line.startswith("**"):
+            if _ends_opening_ask(line):
                 skip = False
             else:
                 continue
-        if line.startswith("Opening ask:") or line.startswith("**Next action serves it by:**"):
+        if line.startswith(("Opening ask:", "**Next action serves it by:**")):
             skip = True
             continue
-        if line.startswith("**Amended:**") or line.startswith("**Goal"):
+        if line.startswith(("**Amended:**", "**Goal")):
             continue
         if line.strip():
             goal_lines.append(line.strip())
     first = goal_lines[0].lstrip("> ").strip() if goal_lines else ""
-    if not first or first.startswith("None.") or first.lower() in {"tbd", "todo", "n/a"}:
-        f.fail("Original goal: the goal quote is empty or 'None.'; work with no statable goal is a defect to raise with the user, not a box to tick")
+    if (
+        not first
+        or first.startswith("None.")
+        or first.lower() in {"tbd", "todo", "n/a"}
+    ):
+        f.fail(
+            "Original goal: the goal quote is empty or 'None.'; work with no statable goal is a defect to raise with the user, not a box to tick"
+        )
     if ask_idx is not None and hop == 1:
         # Count to the next structural marker, matching the skip above: a
         # blank-line stop undercounts a multi-paragraph ask against the cap.
         block = 0
         for line in body[ask_idx + 1 :]:
-            if line.startswith("**"):
+            if _ends_opening_ask(line):
                 break
             if line.strip():
                 block += 1
@@ -609,10 +667,14 @@ def _check_original_goal(doc: Doc, f: Findings, hop: int) -> None:
         if inline and not inline.startswith("see "):
             block += 1
         if block > OPENING_ASK_CAP:
-            f.warn(f"Original goal: 'Opening ask:' runs {block} lines (cap {OPENING_ASK_CAP}); the transcript is the full source")
+            f.warn(
+                f"Original goal: 'Opening ask:' runs {block} lines (cap {OPENING_ASK_CAP}); the transcript is the full source"
+            )
 
 
-def _check_cumulative(doc: Doc, f: Findings, hop: int, pred: Doc | None, pred_soft: bool) -> None:
+def _check_cumulative(
+    doc: Doc, f: Findings, hop: int, pred: Doc | None, pred_soft: bool
+) -> None:
     for title in CUMULATIVE:
         body = doc.section(title)
         if body is None:
@@ -623,9 +685,13 @@ def _check_cumulative(doc: Doc, f: Findings, hop: int, pred: Doc | None, pred_so
                 continue
             tag = entry.tag
             if tag is None:
-                f.fail(f"{title}: entry without an [hN] provenance tag: {entry.text[:60]!r}")
+                f.fail(
+                    f"{title}: entry without an [hN] provenance tag: {entry.text[:60]!r}"
+                )
             elif not 1 <= tag <= hop:
-                f.fail(f"{title}: tag [h{tag}] out of range 1..{hop}: {entry.text[:60]!r}")
+                f.fail(
+                    f"{title}: tag [h{tag}] out of range 1..{hop}: {entry.text[:60]!r}"
+                )
         if pred is None:
             continue
         pred_body = pred.section(title)
@@ -650,7 +716,7 @@ def _goal_block(doc: Doc) -> list[str]:
     body = doc.section("Original goal") or []
     out: list[str] = []
     for line in body:
-        if line.startswith("**Amended:**") or line.startswith("Opening ask:"):
+        if line.startswith(("**Amended:**", "Opening ask:")):
             break
         if line.strip():
             out.append(line.rstrip())
@@ -672,13 +738,17 @@ def validate_doc(
         f.fail(f"handoff_shape {fm.get('handoff_shape')!r} is not an integer")
         return f, 1
     if shape is None or shape == 1:
-        f.warn("shape 1 file (no handoff_shape key): shape checks skipped, rails still emitted by the caller, file never rewritten")
+        f.warn(
+            "shape 1 file (no handoff_shape key): shape checks skipped, rails still emitted by the caller, file never rewritten"
+        )
         return f, 0
     if shape < 1:
         f.fail(f"handoff_shape {shape} is not a shape: shapes are integers from 1 up")
         return f, 1
     if shape > HANDOFF_SHAPE:
-        f.fail(f"handoff_shape {shape} is newer than this validator knows ({HANDOFF_SHAPE}): read it, do not rewrite it")
+        f.fail(
+            f"handoff_shape {shape} is newer than this validator knows ({HANDOFF_SHAPE}): read it, do not rewrite it"
+        )
         return f, 3
 
     for key in ("type", "date", "topic", "session_id", "transcript"):
@@ -687,17 +757,23 @@ def validate_doc(
     if fm.get("type") and fm["type"] != "handoff":
         f.fail(f"frontmatter: type must be 'handoff' (got {fm['type']!r})")
     if fm.get("date") and not DATE_RE.match(fm["date"]):
-        f.fail(f"frontmatter: date must be ISO-8601 UTC 'YYYY-MM-DDTHH:MM:SSZ' (got {fm['date']!r})")
+        f.fail(
+            f"frontmatter: date must be ISO-8601 UTC 'YYYY-MM-DDTHH:MM:SSZ' (got {fm['date']!r})"
+        )
     session_id = fm.get("session_id", "")
     if session_id and not UUID_RE.match(session_id):
-        f.fail(f"frontmatter: session_id {session_id!r} is not a UUID (bridge ids and 'unknown' are refused)")
+        f.fail(
+            f"frontmatter: session_id {session_id!r} is not a UUID (bridge ids and 'unknown' are refused)"
+        )
 
     previous = fm.get("previous_handoff")
     pred: Doc | None = None
     pred_soft = False
     if previous is not None:
         if not HANDOFF_NAME_RE.match(previous):
-            f.fail(f"frontmatter: previous_handoff must be a bare filename matching <TS>-handoff-<topic>.md (got {previous!r})")
+            f.fail(
+                f"frontmatter: previous_handoff must be a bare filename matching <TS>-handoff-<topic>.md (got {previous!r})"
+            )
         else:
             pred_path = doc.path.parent / previous
             # Belt to the regex's braces, and the check `cmd_new` already makes
@@ -707,9 +783,13 @@ def validate_doc(
             here = os.path.normcase(os.path.realpath(doc.path.parent))
             there = os.path.normcase(os.path.dirname(os.path.realpath(pred_path)))
             if there != here:
-                f.fail(f"frontmatter: previous_handoff {previous!r} resolves outside this file's directory ({here}); a predecessor lives beside its successor")
+                f.fail(
+                    f"frontmatter: previous_handoff {previous!r} resolves outside this file's directory ({here}); a predecessor lives beside its successor"
+                )
             elif not pred_path.is_file():
-                f.fail(f"frontmatter: previous_handoff {previous!r} not found beside this file")
+                f.fail(
+                    f"frontmatter: previous_handoff {previous!r} not found beside this file"
+                )
             elif not shallow:
                 try:
                     pred = parse_doc(pred_path)
@@ -720,37 +800,52 @@ def validate_doc(
         f.fail("frontmatter: chain is missing or empty")
     else:
         if doc.chain[-1] != doc.basename:
-            f.fail(f"frontmatter: chain[-1] must be this file's basename {doc.basename!r} (got {doc.chain[-1]!r})")
+            f.fail(
+                f"frontmatter: chain[-1] must be this file's basename {doc.basename!r} (got {doc.chain[-1]!r})"
+            )
         if previous is not None:
             if len(doc.chain) < 2 or doc.chain[-2] != previous:
-                f.fail(f"frontmatter: chain[-2] must equal previous_handoff {previous!r}")
+                f.fail(
+                    f"frontmatter: chain[-2] must equal previous_handoff {previous!r}"
+                )
         elif len(doc.chain) != 1:
-            f.fail("frontmatter: a first hop (no previous_handoff) carries a one-entry chain")
+            f.fail(
+                "frontmatter: a first hop (no previous_handoff) carries a one-entry chain"
+            )
     hop = max(len(doc.chain), 1)
 
     if pred is not None:
         if pred.shape not in (None, 1):
-            pred_findings, pred_code = validate_doc(pred, projects_root, False, shallow=True)
+            pred_findings, pred_code = validate_doc(
+                pred, projects_root, False, shallow=True
+            )
             if pred_code != 0:
                 pred_soft = True
-                f.warn(f"predecessor {previous!r} failed validation ({pred_findings.first_fail}); predecessor-derived checks downgraded to WARN")
+                f.warn(
+                    f"predecessor {previous!r} failed validation ({pred_findings.first_fail}); predecessor-derived checks downgraded to WARN"
+                )
             expected_chain = pred.chain + [doc.basename]
             if doc.chain != expected_chain:
                 message = f"frontmatter: chain must be the predecessor's chain plus this file ({expected_chain})"
                 (f.warn if pred_soft else f.fail)(message)
-        else:
-            if doc.chain != [previous, doc.basename]:
-                f.fail(f"frontmatter: a shape-1 predecessor gives chain [{previous!r}, {doc.basename!r}]")
+        elif doc.chain != [previous, doc.basename]:
+            f.fail(
+                f"frontmatter: a shape-1 predecessor gives chain [{previous!r}, {doc.basename!r}]"
+            )
 
     titles = doc.titles
     if titles != list(SECTIONS_17):
         for i, expected in enumerate(SECTIONS_17):
             found = titles[i] if i < len(titles) else "<missing>"
             if found != expected:
-                f.fail(f"headings: expected '## {expected}' at position {i + 1}, found '## {found}' (17 sections in order, '## Resume prompt' last)")
+                f.fail(
+                    f"headings: expected '## {expected}' at position {i + 1}, found '## {found}' (17 sections in order, '## Resume prompt' last)"
+                )
                 break
         else:
-            f.fail(f"headings: extra section(s) after '## Resume prompt': {titles[len(SECTIONS_17):]}")
+            f.fail(
+                f"headings: extra section(s) after '## Resume prompt': {titles[len(SECTIONS_17) :]}"
+            )
 
     # Every section is always present AND says something: a section with
     # nothing to report reads 'None.' plus a half-line of reason, so a cold
@@ -758,7 +853,9 @@ def validate_doc(
     # (reference/structure.md). The heading walk above only checks names and
     # order, so an empty body used to validate clean.
     for title, start, end in doc.sections:
-        if title in SECTIONS_17 and not any(line.strip() for line in doc.lines[start + 1 : end]):
+        if title in SECTIONS_17 and not any(
+            line.strip() for line in doc.lines[start + 1 : end]
+        ):
             f.fail(f"{title}: empty; write 'None.' plus a reason")
 
     for i, line in enumerate(doc.lines, 1):
@@ -773,13 +870,19 @@ def validate_doc(
     if this is not None:
         content = [line for line in this if line.strip()]
         if len(content) != 1:
-            f.fail(f"This session: exactly one line 'did: … · left: …' required (found {len(content)})")
+            f.fail(
+                f"This session: exactly one line 'did: … · left: …' required (found {len(content)})"
+            )
         else:
             line = content[0].strip()
             if "|" in line:
-                f.fail("This session: '|' is not allowed (the line becomes a table cell downstream)")
+                f.fail(
+                    "This session: '|' is not allowed (the line becomes a table cell downstream)"
+                )
             if not THIS_SESSION_RE.match(line):
-                f.fail(f"This session: line must read 'did: … · left: …' (got {line[:60]!r})")
+                f.fail(
+                    f"This session: line must read 'did: … · left: …' (got {line[:60]!r})"
+                )
 
     prior = doc.section("Prior sessions")
     if prior is not None:
@@ -790,18 +893,30 @@ def validate_doc(
         else:
             bad = [row for row in rows if len(_cells(row)) != 5]
             if bad:
-                f.fail(f"Prior sessions: every row carries 5 cells (date · session id · transcript · did/left · file): {bad[0][:60]!r}")
-            pred_rows = _parse_prior_rows(pred.section("Prior sessions")) if pred is not None else []
+                f.fail(
+                    f"Prior sessions: every row carries 5 cells (date · session id · transcript · did/left · file): {bad[0][:60]!r}"
+                )
             if pred is not None:
+                pred_rows = _parse_prior_rows(pred.section("Prior sessions"))
                 report = f.warn if pred_soft else f.fail
                 if rows[: len(pred_rows)] != pred_rows:
-                    report("Prior sessions: the predecessor's rows must be copied verbatim as a prefix")
+                    report(
+                        "Prior sessions: the predecessor's rows must be copied verbatim as a prefix"
+                    )
                 if len(rows) != len(pred_rows) + 1:
-                    report(f"Prior sessions: this file adds exactly one row (predecessor had {len(pred_rows)}, this file has {len(rows)})")
+                    report(
+                        f"Prior sessions: this file adds exactly one row (predecessor had {len(pred_rows)}, this file has {len(rows)})"
+                    )
                 elif rows:
                     cells = _cells(rows[-1])
-                    if len(cells) == 5 and (cells[1].lower() != pred.frontmatter.get("session_id", "").lower() or cells[4] != previous):
-                        report(f"Prior sessions: the added row must describe the predecessor ({pred.frontmatter.get('session_id')} · {previous})")
+                    if len(cells) == 5 and (
+                        cells[1].lower()
+                        != pred.frontmatter.get("session_id", "").lower()
+                        or cells[4] != previous
+                    ):
+                        report(
+                            f"Prior sessions: the added row must describe the predecessor ({pred.frontmatter.get('session_id')} · {previous})"
+                        )
             elif not rows:
                 f.fail("Prior sessions: at least one row required after hop 1")
 
@@ -809,7 +924,9 @@ def validate_doc(
         pred_goal = _goal_block(pred)
         own_goal = _goal_block(doc)
         if pred_goal and pred_goal != own_goal[: len(pred_goal)]:
-            f.warn("Original goal: the goal quote differs from the predecessor's (copied off disk, never restated; amendments are appended with the prior goal kept above)")
+            f.warn(
+                "Original goal: the goal quote differs from the predecessor's (copied off disk, never restated; amendments are appended with the prior goal kept above)"
+            )
 
     if session_id:
         _check_rails_block(doc, f, session_id)
@@ -821,7 +938,9 @@ def validate_doc(
             if projects_root is not None and session_id and UUID_RE.match(session_id):
                 found = _resolve_transcript(session_id, projects_root)
                 if not found.startswith("unresolved ("):
-                    located = f"; present now at {found} (the file still says unresolved)"
+                    located = (
+                        f"; present now at {found} (the file still says unresolved)"
+                    )
             if strict_transcript:
                 f.fail(f"transcript: {transcript}{located} (--strict-transcript)")
             else:
@@ -832,23 +951,39 @@ def validate_doc(
     for i, line in enumerate(doc.lines, 1):
         for pattern, marker in SECRET_SHAPES:
             if pattern.search(line):
-                f.warn(f"line {i}: secret-shaped string ({marker}); redact to a shape marker or rule it benign")
+                f.warn(
+                    f"line {i}: secret-shaped string ({marker}); redact to a shape marker or rule it benign"
+                )
                 break
 
     return f, 1 if f.failed else 0
 
 
-def cmd_validate(args: argparse.Namespace) -> int:
-    path = Path(args.file)
+def _open_handoff(file: str) -> tuple[Doc | None, int]:
+    """The shared `validate`/`emit` preamble: a readable file carrying
+    `type: handoff` frontmatter. `None` plus the exit code when it is not, the
+    refusal already printed to stderr."""
+    path = Path(file)
     if not path.is_file():
-        return _die(2, f"not a file: {path}")
+        return None, _die(2, f"not a file: {path}")
     try:
         doc = parse_doc(path)
     except (OSError, UnicodeDecodeError) as exc:
-        return _die(2, f"cannot read {path}: {exc}")
+        return None, _die(2, f"cannot read {path}: {exc}")
     if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
-        return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
-    projects_root = Path(args.projects_root).expanduser() if args.projects_root else None
+        return None, _die(
+            2, f"not a handoff file (no 'type: handoff' frontmatter): {path}"
+        )
+    return doc, 0
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    doc, code = _open_handoff(args.file)
+    if doc is None:
+        return code
+    projects_root = (
+        Path(args.projects_root).expanduser() if args.projects_root else None
+    )
     findings, code = validate_doc(doc, projects_root, args.strict_transcript)
     for level, message in findings.items:
         print(f"{level}: {message}")
@@ -857,7 +992,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     else:
         label = "FAIL" if code != 0 else ("WARN" if findings.items else "PASS")
     count = f" ({len(findings.items)})" if findings.items else ""
-    print(f"validate: {label}{count} {_posix(path)}")
+    print(f"validate: {label}{count} {_posix(doc.path)}")
     return code
 
 
@@ -865,21 +1000,22 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_emit(args: argparse.Namespace) -> int:
-    path = Path(args.file)
-    if not path.is_file():
-        return _die(2, f"not a file: {path}")
-    try:
-        doc = parse_doc(path)
-    except (OSError, UnicodeDecodeError) as exc:
-        return _die(2, f"cannot read {path}: {exc}")
-    if not doc.has_frontmatter or doc.frontmatter.get("type") != "handoff":
-        return _die(2, f"not a handoff file (no 'type: handoff' frontmatter): {path}")
+    doc, code = _open_handoff(args.file)
+    if doc is None:
+        return code
+    path = doc.path
     if any(FILL_MARK in line for line in doc.lines):
-        return _die(1, f"unfinished skeleton (a {FILL_MARK} slot remains); never emitted: {_posix(path)}")
+        return _die(
+            1,
+            f"unfinished skeleton (a {FILL_MARK} slot remains); never emitted: {_posix(path)}",
+        )
     body = doc.section("Resume prompt")
     if body is None:
         if doc.shape in (None, 1):
-            return _die(1, f"shape 1 handoff has no '## Resume prompt' section (legacy file, never rewritten): {_posix(path)}")
+            return _die(
+                1,
+                f"shape 1 handoff has no '## Resume prompt' section (legacy file, never rewritten): {_posix(path)}",
+            )
         return _die(1, f"'## Resume prompt' section absent: {_posix(path)}")
     real = _posix(path)
     out: list[str] = []
@@ -887,7 +1023,10 @@ def cmd_emit(args: argparse.Namespace) -> int:
         if line.startswith("Read @"):
             stored = line[len("Read @") :].split(",", 1)[0].strip()
             if not _same_file(stored, path):
-                print(f"WARN: stored 'Read @' path {stored} is not this file; substituting {real} on stdout only (file untouched)", file=sys.stderr)
+                print(
+                    f"WARN: stored 'Read @' path {stored} is not this file; substituting {real} on stdout only (file untouched)",
+                    file=sys.stderr,
+                )
                 line = "Read @" + real + line[len("Read @") + len(stored) :]
         out.append(line)
     sys.stdout.write("\n".join(out) + "\n")
@@ -991,7 +1130,8 @@ def _splice_new_slot(carried: list[str], slot: str) -> list[str]:
         (
             i
             for i, line in enumerate(carried)
-            if line.strip().startswith("Superseded:") and not line.startswith((" ", "\t"))
+            if line.strip().startswith("Superseded:")
+            and not line.startswith((" ", "\t"))
         ),
         None,
     )
@@ -1068,18 +1208,35 @@ def build_skeleton(
         if pred is None:
             goal += [
                 "**Goal (verbatim):**",
-                _fill("goal", "the user's goal statement quoted as they wrote it, with the date they stated it; RECONSTRUCTED (and settled with the user) when it was never put in one sentence"),
+                _fill(
+                    "goal",
+                    "the user's goal statement quoted as they wrote it, with the date they stated it; RECONSTRUCTED (and settled with the user) when it was never put in one sentence",
+                ),
                 "",
-                "**Amended:** " + _fill("amended", "'None.' until the goal changes; otherwise a new dated verbatim quote with the prior goal kept above it"),
+                "**Amended:** "
+                + _fill(
+                    "amended",
+                    "'None.' until the goal changes; otherwise a new dated verbatim quote with the prior goal kept above it",
+                ),
                 "",
                 "Opening ask:",
-                _fill("opening-ask", f"the user's opening message this session, verbatim and redacted, at most {OPENING_ASK_CAP} lines, no bullets; the transcript is the full source"),
+                _fill(
+                    "opening-ask",
+                    f"the user's opening message this session, verbatim and redacted, at most {OPENING_ASK_CAP} lines, no bullets; the transcript is the full source",
+                ),
             ]
         else:
             goal += [
-                _fill("goal", "RECONSTRUCTED from the transcript; settle with the user (the shape-1 predecessor recorded no Original goal)"),
+                _fill(
+                    "goal",
+                    "RECONSTRUCTED from the transcript; settle with the user (the shape-1 predecessor recorded no Original goal)",
+                ),
                 "",
-                "**Amended:** " + _fill("amended", "'None.' until the goal changes; otherwise a new dated verbatim quote with the prior goal kept above it"),
+                "**Amended:** "
+                + _fill(
+                    "amended",
+                    "'None.' until the goal changes; otherwise a new dated verbatim quote with the prior goal kept above it",
+                ),
                 "",
                 f"Opening ask: see {chain[0]} § Original goal (shape-1 root, no verbatim ask recorded)",
             ]
@@ -1092,22 +1249,28 @@ def build_skeleton(
             # and copying it here would smuggle it into the successor's
             # immutable goal block instead of leaving the pointer to stand.
             if skip:
-                if line.startswith("**"):
+                if _ends_opening_ask(line):
                     skip = False
                 else:
                     continue
-            if line.startswith("Opening ask:") or line.startswith("**Next action serves it by:**"):
+            if line.startswith(("Opening ask:", "**Next action serves it by:**")):
                 skip = True
                 continue
             kept.append(line.rstrip())
         goal += _trim_blank(kept)
         goal.append("")
         pointer = f"Opening ask: see {chain[0]} § Original goal"
-        if pred is not None and pred.shape in (None, 1):
+        if pred.shape in (None, 1):
             pointer += " (shape-1 root, no verbatim ask recorded)"
         goal.append(pointer)
     goal.append("")
-    goal.append("**Next action serves it by:** " + _fill("drift-check", "one sentence tying the first remaining action back to the goal; cannot state it → that is drift, say so and route it"))
+    goal.append(
+        "**Next action serves it by:** "
+        + _fill(
+            "drift-check",
+            "one sentence tying the first remaining action back to the goal; cannot state it → that is drift, say so and route it",
+        )
+    )
     section("Original goal", goal)
 
     # 2..14
@@ -1116,14 +1279,22 @@ def build_skeleton(
             name = CUMULATIVE_SLOT[title]
             lines: list[str] = []
             if pred is None:
-                lines.append(_fill(name, "one [h1]-tagged entry per line ('- [h1] …'), continuation lines indented; 'None.' plus a half-line of reason when nothing applies"))
+                lines.append(
+                    _fill(
+                        name,
+                        "one [h1]-tagged entry per line ('- [h1] …'), continuation lines indented; 'None.' plus a half-line of reason when nothing applies",
+                    )
+                )
             else:
                 pred_body = pred.section(title)
                 if pred_body is None:
                     lines.append(f"None. (shape-1 predecessor had no {title})")
                 else:
                     lines.extend(_tag_carried(pred_body, pred_hop, pred_failed))
-                slot = _fill(f"{name}-new", f"optional: write new [h{hop}] entries on this line, above any 'Superseded:' marker (entries below one are read as superseded); move disproved ones under a 'Superseded:' line (never delete), re-tag re-verified ones [h{hop}]; delete this line when nothing changes")
+                slot = _fill(
+                    f"{name}-new",
+                    f"optional: write new [h{hop}] entries on this line, above any 'Superseded:' marker (entries below one are read as superseded); move disproved ones under a 'Superseded:' line (never delete), re-tag re-verified ones [h{hop}]; delete this line when nothing changes",
+                )
                 lines = _splice_new_slot(lines, slot)
             section(title, lines)
         else:
@@ -1134,8 +1305,10 @@ def build_skeleton(
     section(
         "This session",
         [
-            "did: " + _fill("did", "what landed this session, past tense, no '|'")
-            + " · left: " + _fill("left", "what is still open, past tense, no 'next', no '|'"),
+            "did: "
+            + _fill("did", "what landed this session, past tense, no '|'")
+            + " · left: "
+            + _fill("left", "what is still open, past tense, no 'next', no '|'"),
         ],
     )
 
@@ -1147,8 +1320,14 @@ def build_skeleton(
         if pred.shape in (None, 1):
             did_left = f"UNVERIFIED (shape-1 predecessor; brief: {_first_line(pred.section('Resumption brief'))})"
         else:
-            this = [line for line in (pred.section("This session") or []) if line.strip()]
-            did_left = this[0].strip() if this else "UNVERIFIED (predecessor had no This session line)"
+            this = [
+                line for line in (pred.section("This session") or []) if line.strip()
+            ]
+            did_left = (
+                this[0].strip()
+                if this
+                else "UNVERIFIED (predecessor had no This session line)"
+            )
         own_row = (
             f"| {pred.frontmatter.get('date', 'unknown')} | {pred.frontmatter.get('session_id', 'unknown')} "
             f"| {pred_transcript} | {did_left} | {pred.basename} |"
@@ -1163,16 +1342,25 @@ def build_skeleton(
             COPY_LINE,
             "",
             RAIL,
-            _fill("goal-rearm", "optional: when a /goal is active this session, replace this line with '/goal <condition>' as the FIRST line between the rails; otherwise delete this line"),
+            _fill(
+                "goal-rearm",
+                "optional: when a /goal is active this session, replace this line with '/goal <condition>' as the FIRST line between the rails; otherwise delete this line",
+            ),
             f"Read @{read_path}, {DIRECTIVE_TAIL}",
             f"Prior session: {session_id}.",
             f"Handoff origin: {_slot(origin)} {_slot(origin_path)}",
             "Next:",
-            _fill("next", f"1 to {NEXT_MAX} plain headline lines replacing this line, one per line, no bullets, no blank lines; the last may be 'Then: /<one skill>' at a stage boundary; for a closing handoff write '{NEXT_CLOSED}' on the line above and delete this one"),
+            _fill(
+                "next",
+                f"1 to {NEXT_MAX} plain headline lines replacing this line, one per line, no bullets, no blank lines; the last may be 'Then: /<one skill>' at a stage boundary; for a closing handoff write '{NEXT_CLOSED}' on the line above and delete this one",
+            ),
             RAIL,
             "",
             f"Or reopen the producing session in place: `claude --resume {session_id}`.",
-            _fill("below-rail", "optional: the /goal and /loop re-arm notes save-point.md prescribes below the bottom rail; delete this line when none applies"),
+            _fill(
+                "below-rail",
+                "optional: the /goal and /loop re-arm notes save-point.md prescribes below the bottom rail; delete this line when none applies",
+            ),
         ],
     )
 
@@ -1186,24 +1374,44 @@ def cmd_new(args: argparse.Namespace) -> int:
 
     session_id = args.session_id or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     if not session_id:
-        return _die(1, "no session UUID available (CLAUDE_CODE_SESSION_ID unset and --session-id not given); take the prompt-only path with the reason stated")
+        return _die(
+            1,
+            "no session UUID available (CLAUDE_CODE_SESSION_ID unset and --session-id not given); take the prompt-only path with the reason stated",
+        )
     if not UUID_RE.match(session_id):
-        return _die(1, f"session id {session_id!r} is not a UUID (bridge ids such as cse_… are refused; never read CLAUDE_CODE_BRIDGE_SESSION_ID); take the prompt-only path")
+        return _die(
+            1,
+            f"session id {session_id!r} is not a UUID (bridge ids such as cse_… are refused; never read CLAUDE_CODE_BRIDGE_SESSION_ID); take the prompt-only path",
+        )
     session_id = session_id.lower()
 
     memory_dir = Path(args.memory_dir or ".work").expanduser().resolve()
-    repo_root = Path(args.repo_root).expanduser().resolve() if args.repo_root else _git_toplevel(memory_dir)
-    if repo_root is not None and (memory_dir == repo_root or repo_root not in memory_dir.parents):
-        return _die(1, f"Invalid memory_dir: {memory_dir.as_posix()} must resolve to a dedicated directory below the repository root {repo_root.as_posix()}")
+    repo_root = (
+        Path(args.repo_root).expanduser().resolve()
+        if args.repo_root
+        else _git_toplevel(memory_dir)
+    )
+    if repo_root is not None and (
+        memory_dir == repo_root or repo_root not in memory_dir.parents
+    ):
+        return _die(
+            1,
+            f"Invalid memory_dir: {memory_dir.as_posix()} must resolve to a dedicated directory below the repository root {repo_root.as_posix()}",
+        )
     # The self-ignore guard holds on every memory root, inside a repository or
     # not (the no-project-root branch under the plugin data dir included).
     guard = memory_dir / ".gitignore"
     try:
-        guarded = guard.is_file() and any(line.strip() == "*" for line in _read_lines(guard))
+        guarded = guard.is_file() and any(
+            line.strip() == "*" for line in _read_lines(guard)
+        )
     except (OSError, UnicodeDecodeError):
         guarded = False
     if not guarded:
-        return _die(1, f"memory root {memory_dir.as_posix()} lacks the self-ignore guard: create {guard.as_posix()} containing the single line '*' (the skill's guard step: printf '*\\n' >> {guard.as_posix()}), then re-run; this script never writes it")
+        return _die(
+            1,
+            f"memory root {memory_dir.as_posix()} lacks the self-ignore guard: create {guard.as_posix()} containing the single line '*' (the skill's guard step: printf '*\\n' >> {guard.as_posix()}), then re-run; this script never writes it",
+        )
 
     handoffs = memory_dir / "handoffs"
     now = _parse_now(args.now)
@@ -1215,7 +1423,11 @@ def cmd_new(args: argparse.Namespace) -> int:
     if target.exists():
         return _die(1, f"target already exists, never overwritten: {_posix(target)}")
 
-    projects_root = Path(args.projects_root).expanduser() if args.projects_root else Path.home() / ".claude" / "projects"
+    projects_root = (
+        Path(args.projects_root).expanduser()
+        if args.projects_root
+        else Path.home() / ".claude" / "projects"
+    )
     transcript = _resolve_transcript(session_id, projects_root)
 
     pred: Doc | None = None
@@ -1230,17 +1442,36 @@ def cmd_new(args: argparse.Namespace) -> int:
         except (OSError, UnicodeDecodeError) as exc:
             return _die(1, f"predecessor unreadable: {exc}")
         if not pred.has_frontmatter or pred.frontmatter.get("type") != "handoff":
-            return _die(1, f"predecessor is not a handoff file (no 'type: handoff' frontmatter): {pred_path}")
-        if os.path.normcase(os.path.realpath(pred_path.parent)) != os.path.normcase(os.path.realpath(handoffs)):
-            return _die(1, f"predecessor must live in the handoffs dir the new file is written to ({handoffs.as_posix()}); got {_posix(pred_path)}")
+            return _die(
+                1,
+                f"predecessor is not a handoff file (no 'type: handoff' frontmatter): {pred_path}",
+            )
+        if os.path.normcase(os.path.realpath(pred_path.parent)) != os.path.normcase(
+            os.path.realpath(handoffs)
+        ):
+            return _die(
+                1,
+                f"predecessor must live in the handoffs dir the new file is written to ({handoffs.as_posix()}); got {_posix(pred_path)}",
+            )
         if isinstance(pred.shape, int) and pred.shape > HANDOFF_SHAPE:
-            return _die(1, f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({HANDOFF_SHAPE}): read it, do not build on it")
+            return _die(
+                1,
+                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({HANDOFF_SHAPE}): read it, do not build on it",
+            )
         if pred.shape not in (None, 1):
             _, code = validate_doc(pred, projects_root, False, shallow=True)
             pred_failed = code != 0
-            pred_transcript = pred.frontmatter.get("transcript") or "unresolved (predecessor recorded none)"
+            pred_transcript = (
+                pred.frontmatter.get("transcript")
+                or "unresolved (predecessor recorded none)"
+            )
         else:
-            pred_transcript = _resolve_transcript(pred.frontmatter.get("session_id", ""), projects_root) if UUID_RE.match(pred.frontmatter.get("session_id", "")) else "unresolved (shape-1 predecessor; no session UUID)"
+            pred_sid = pred.frontmatter.get("session_id", "")
+            pred_transcript = (
+                _resolve_transcript(pred_sid, projects_root)
+                if UUID_RE.match(pred_sid)
+                else "unresolved (shape-1 predecessor; no session UUID)"
+            )
 
     if repo_root is not None:
         origin = origin_identity(_git_origin(repo_root), repo_root.name)
@@ -1293,32 +1524,59 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_new = sub.add_parser("new", help="write a shape-2 skeleton with every deterministic field filled")
+    p_new = sub.add_parser(
+        "new", help="write a shape-2 skeleton with every deterministic field filled"
+    )
     p_new.add_argument("--topic", required=True, help="kebab slug for the filename")
     group = p_new.add_mutually_exclusive_group(required=True)
-    group.add_argument("--previous", help="predecessor handoff file (same task only; never auto-picked)")
-    group.add_argument("--no-previous", action="store_true", help="first hop of a new task")
-    p_new.add_argument("--memory-dir", help="memory root (default .work); handoffs go to <root>/handoffs/")
-    p_new.add_argument("--session-id", help="session UUID (default: $CLAUDE_CODE_SESSION_ID)")
-    p_new.add_argument("--projects-root", help="transcript root (default ~/.claude/projects)")
-    p_new.add_argument("--repo-root", help="repository root (default: git top level of the memory dir)")
+    group.add_argument(
+        "--previous",
+        help="predecessor handoff file (same task only; never auto-picked)",
+    )
+    group.add_argument(
+        "--no-previous", action="store_true", help="first hop of a new task"
+    )
+    p_new.add_argument(
+        "--memory-dir",
+        help="memory root (default .work); handoffs go to <root>/handoffs/",
+    )
+    p_new.add_argument(
+        "--session-id", help="session UUID (default: $CLAUDE_CODE_SESSION_ID)"
+    )
+    p_new.add_argument(
+        "--projects-root", help="transcript root (default ~/.claude/projects)"
+    )
+    p_new.add_argument(
+        "--repo-root", help="repository root (default: git top level of the memory dir)"
+    )
     p_new.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_new.set_defaults(func=cmd_new)
 
-    p_val = sub.add_parser("validate", help="check a handoff file; PASS/WARN/FAIL lines on stdout")
+    p_val = sub.add_parser(
+        "validate", help="check a handoff file; PASS/WARN/FAIL lines on stdout"
+    )
     p_val.add_argument("file")
-    p_val.add_argument("--projects-root", help="transcript root; an 'unresolved (…)' transcript is re-globbed here and the located path named in the finding")
-    p_val.add_argument("--strict-transcript", action="store_true", help="an 'unresolved (…)' transcript fails instead of warning")
+    p_val.add_argument(
+        "--projects-root",
+        help="transcript root; an 'unresolved (…)' transcript is re-globbed here and the located path named in the finding",
+    )
+    p_val.add_argument(
+        "--strict-transcript",
+        action="store_true",
+        help="an 'unresolved (…)' transcript fails instead of warning",
+    )
     p_val.set_defaults(func=cmd_validate)
 
-    p_emit = sub.add_parser("emit", help="print the '## Resume prompt' section body verbatim")
+    p_emit = sub.add_parser(
+        "emit", help="print the '## Resume prompt' section body verbatim"
+    )
     p_emit.add_argument("file")
     p_emit.set_defaults(func=cmd_emit)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    _utf8_streams()
+    utf8_streams()
     args = build_parser().parse_args(argv)
     return int(args.func(args))
 

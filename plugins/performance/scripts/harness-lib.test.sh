@@ -11,32 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 # shellcheck source=harness-lib.sh
 source "$SCRIPT_DIR/harness-lib.sh"
-
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
-
-RUN_OUT=""
-RUN_RC=0
-# Run a library function in a subshell so its `exit` terminates only that
-# subshell, and capture what it said along with how it exited.
-capture() {
-  RUN_OUT="$("$@" 2>&1)"
-  RUN_RC=$?
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 WORK="${PERF_HARNESS_TEST_ROOT:-$HOME/.cache/performance-harness-tests}/harness-lib.$$"
 mkdir -p "$WORK"

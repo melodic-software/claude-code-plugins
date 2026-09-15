@@ -132,24 +132,16 @@ usage_error() {
   exit 2
 }
 
-case "$#" in
-0) ;;
-1)
+if [[ "$#" -gt 0 ]]; then
   case "$1" in
   -h | --help)
+    [[ "$#" -eq 1 ]] || usage_error "$2"
     usage
     exit 0
     ;;
   *) usage_error "$1" ;;
   esac
-  ;;
-*)
-  case "$1" in
-  -h | --help) usage_error "$2" ;;
-  *) usage_error "$1" ;;
-  esac
-  ;;
-esac
+fi
 
 jq_bin="${INVENTORY_JQ:-jq}"
 have_jq=0
@@ -326,13 +318,9 @@ find0_plugin_roots() {
   find0 "${plugin_roots[@]}" -- "$@"
 }
 
-count_in_plugin_roots() {
-  [[ "${#plugin_roots[@]}" -gt 0 ]] || {
-    printf '0'
-    return
-  }
-  find0_plugin_roots "$@" | count0
-}
+# With no plugin root, find0_plugin_roots emits nothing and count0 answers 0, so
+# the empty case needs no arm of its own.
+count_in_plugin_roots() { find0_plugin_roots "$@" | count0; }
 
 # Counts files under one directory scope whose status was classified first. Only
 # a scope that was actually walked gets a number; anything else gets its status

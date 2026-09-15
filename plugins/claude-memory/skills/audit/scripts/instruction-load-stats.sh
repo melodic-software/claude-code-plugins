@@ -45,6 +45,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/imports.sh
 source "$SCRIPT_DIR/lib/imports.sh"
+# shellcheck source=lib/rule-scope.sh
+source "$SCRIPT_DIR/lib/rule-scope.sh"
 
 usage() {
   cat <<'EOF'
@@ -107,7 +109,6 @@ export IL_ROOT
 # opener that never closes is content, so it is flushed at EOF rather than eaten.
 loaded_content() {
   tr -d '\r' <"$1" | LC_ALL=C awk '
-    function emit(s) { print s }
     function uncomment(s,   p, q, out) {
       while ((p = index(s, "<!--")) > 0) {
         out = out substr(s, 1, p - 1)
@@ -122,12 +123,12 @@ loaded_content() {
       close_at = index($0, "-->")
       if (close_at == 0) next
       incomment = 0; pending = ""
-      emit(uncomment(substr($0, close_at + 3)))
+      print uncomment(substr($0, close_at + 3))
       next
     }
     /^[[:space:]]*```/ { fence = !fence; print; next }
     fence { print; next }
-    /<!--/ { emit(uncomment($0)); next }
+    /<!--/ { print uncomment($0); next }
     { print }
     END { printf "%s", pending }
   '
@@ -169,11 +170,7 @@ always_loaded_roots() {
 
 # A rule loads unconditionally unless its frontmatter declares `paths:`.
 is_unscoped_rule() {
-  local head1
-  head1=$(head -1 "$1" | tr -d '\r')
-  [[ "$head1" == "---" ]] || return 0
-  tr -d '\r' <"$1" | awk 'NR==1{next} /^---$/{exit} {print}' | grep -q '^paths:' && return 1
-  return 0
+  ! rule_frontmatter_declares "$1" paths
 }
 
 relpath() {
@@ -244,7 +241,6 @@ while IFS=$'\t' read -r scope root; do
     esac
   done < <(il_walk "$root")
 done < <(always_loaded_roots)
-IL_ROOT="$PROJECT_ROOT"
 
 tokens=$((bytes_total / 4))
 if [[ "$mode" == "--tokens" ]]; then

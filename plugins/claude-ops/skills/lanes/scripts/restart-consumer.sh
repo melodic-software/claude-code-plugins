@@ -169,7 +169,7 @@
 set -uo pipefail
 
 # jq on Git Bash can hand back CRLF-tainted values; strip them once, centrally
-# (the same wrapper lane-launcher.sh and telemetry-upsert.sh use).
+# (the same wrapper telemetry-upsert.sh and machine-behavior.sh use).
 jq() { command jq "$@" | tr -d '\r'; }
 
 ACTION="check"
@@ -482,12 +482,12 @@ repo_marker_key() {
   printf '%s' "$REPO_MARKER_KEY"
 }
 
-ledger_path() { printf '%s/%s/restart-consumer.jsonl' "$(resolve_data_dir)" "$(repo_marker_key)"; }
-
 # The data-dir-relative tail of `ledger_path`. The absolute form is machine-local
 # and belongs in this machine's own diagnostics; anything published to the forge
 # uses this instead.
 ledger_relpath() { printf '%s/restart-consumer.jsonl' "$(repo_marker_key)"; }
+
+ledger_path() { printf '%s/%s' "$(resolve_data_dir)" "$(ledger_relpath)"; }
 
 # --- Cross-process lock -------------------------------------------------------
 LOCK_DIR=""
