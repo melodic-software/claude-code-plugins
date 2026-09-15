@@ -61,12 +61,13 @@
 # never touches the trap), with a suite case beside the others, in the same
 # change. A release on purpose goes through guard::abort_boundary_release.
 #
-# Under run-guards.sh each guard is sourced inside its own command-substitution
-# subshell. The trap a guard installs there runs at that subshell's exit; its
-# stderr passes straight through and its stdout document is merged with the
-# other guards' output like any notice. A subshell does not inherit the
-# dispatcher's own EXIT trap (Bash Reference Manual, Command Execution
-# Environment), so the two boundaries never fire for the same exit.
+# Under run-guards.sh the guards are sourced into the dispatcher's own shell,
+# and `exit` there is a function of the dispatcher's. A guard that ends through
+# it, or by falling off its end, never reaches this trap: the dispatcher applies
+# guard::_abort_settle to the status itself and merges the notice document with
+# the other guards' output. The trap fires only for a guard that dies of a hard
+# error, when the shell is exiting, and then hands the status to the chain slot
+# below (_GAB_CONTINUE), which the dispatcher fills for the span of its guards.
 
 [[ -n "${_GUARDRAILS_ABORT_BOUNDARY_LOADED:-}" ]] && return 0
 readonly _GUARDRAILS_ABORT_BOUNDARY_LOADED=1
@@ -117,15 +118,46 @@ guard::_abort_json_escape_to() {
   printf -v "$1" '%s' "$__gab_s"
 }
 
+# The chain slot. run-guards.sh runs its guards inside its own process, so a
+# guard that dies of a hard error takes the dispatcher's shell down with it
+# and this handler is what runs. With a function name here the handler hands
+# that guard's status to it instead of deciding the process's fate itself; the
+# dispatcher settles the guard's boundary, runs the guards still owed, and
+# exits on the aggregate. The function must not return. Empty (every guard
+# run alone), the handler decides as documented above.
+_GAB_CONTINUE=""
+
 guard::_abort_on_exit() {
   local rc=$?
   trap - EXIT
+  if [[ -n "$_GAB_CONTINUE" ]]; then
+    "$_GAB_CONTINUE" "$rc"
+  fi
+  guard::_abort_settle "$rc" && return 0
+  [[ -n "$_GAB_DOC" ]] && printf '%s\n' "$_GAB_DOC"
+  exit "$_GAB_RC"
+}
+
+# guard::_abort_settle <status>: the decision, apart from the exit. Returns 0
+# when <status> is one the hook chose, and nothing else happens. Otherwise
+# writes the notice line to stderr, leaves the stdout document (empty for the
+# closed posture) in _GAB_DOC and the status the posture maps to in _GAB_RC,
+# and returns 1. The trap handler above exits on those; run-guards.sh, which
+# runs each guard in its own process, records them for that guard and carries
+# on with the next.
+_GAB_DOC=""
+_GAB_RC=0
+guard::_abort_settle() {
+  local rc="$1"
+  _GAB_DOC=""
+  _GAB_RC=0
   [[ "$_GAB_CHOSEN" == *" $rc "* ]] && return 0
   local msg
   if [[ "$_GAB_POSTURE" == closed ]]; then
     msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); fail-closed: this tool call is denied because the guard could not check it. The failing line is on the hook's stderr."
     printf '%s\n' "$msg" >&2
-    exit 2
+    _GAB_RC=2
+    return 1
   fi
   msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); fail-open: this tool call was not checked by this guard. The failing line is on the hook's stderr (claude --debug)."
   printf '%s\n' "$msg" >&2
@@ -133,9 +165,9 @@ guard::_abort_on_exit() {
   guard::_abort_json_escape_to esc "$msg"
   if [[ -n "$_GAB_EVENT" ]]; then
     guard::_abort_json_escape_to ev "$_GAB_EVENT"
-    printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"},"systemMessage":"%s"}\n' "$ev" "$esc" "$esc"
+    _GAB_DOC='{"hookSpecificOutput":{"hookEventName":"'"$ev"'","additionalContext":"'"$esc"'"},"systemMessage":"'"$esc"'"}'
   else
-    printf '{"systemMessage":"%s"}\n' "$esc"
+    _GAB_DOC='{"systemMessage":"'"$esc"'"}'
   fi
-  exit 0
+  return 1
 }

@@ -4454,6 +4454,151 @@ fi
 
 rm -rf "$WU_WORK"
 
+# --- Test 22: hook::_fast_fields answers exactly what the jq program answers --
+# hook::jq_fields_uncached tries the builtin parser first and runs jq only when
+# it cannot prove the answer. Every payload shape below is put through both:
+# the fast path's proven answer must equal the jq path's, field by field and on
+# the NUL flag; a fall-back is always allowed. The jq path is reached by
+# disabling the fast path inside a subshell, so nothing here depends on the
+# order the two are tried in.
+FF_FILTERS=('.tool_input.command' '.tool_name' '.cwd' '.tool_input.file_path' '.tool_input.content' '.hook_event_name')
+fast_fields_is_jq() { # <desc> <payload>
+  local desc="$1" payload="$2" rc=0 src=0 i same=1
+  local -a fast=() slow=()
+  hook::_fast_fields "$payload" "${FF_FILTERS[@]}" || rc=$?
+  if ((rc == 2)); then
+    ok "fast fields: $desc (falls back to jq)"
+    return
+  fi
+  if ((rc != 0)); then
+    fail "fast fields ($desc): rc=$rc"
+    return
+  fi
+  fast=("${HOOK_JQ_FIELDS[@]}")
+  local fnul=$HOOK_JQ_FIELDS_NUL
+  mapfile -d '' slow < <(
+    hook::_fast_fields() { return 2; }
+    hook::jq_fields_uncached "$payload" "${FF_FILTERS[@]}" || exit $?
+    printf '%s\0' "$HOOK_JQ_FIELDS_NUL" "${HOOK_JQ_FIELDS[@]}"
+  ) || src=$?
+  if ((src != 0)); then
+    fail "fast fields ($desc): proven by the fast path but the jq path returned $src"
+    return
+  fi
+  [[ "${slow[0]}" == "$fnul" ]] || same=0
+  ((${#slow[@]} - 1 == ${#fast[@]})) || same=0
+  for ((i = 0; i < ${#fast[@]}; i++)); do
+    [[ "${fast[i]}" == "${slow[i + 1]-}" ]] || same=0
+  done
+  if ((same)); then
+    ok "fast fields: $desc (proven)"
+  else
+    fail "fast fields ($desc): fast [$(printf '%q ' "${fast[@]}")] jq [$(printf '%q ' "${slow[@]:1}")]"
+  fi
+}
+fast_fields_is_jq "Bash payload" '{"session_id":"s","cwd":"C:\\Users\\me","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","description":"probe"}}'
+# shellcheck disable=SC2016  # the $_ is PowerShell's, inside a JSON payload
+fast_fields_is_jq "PowerShell payload with braces and backslashes" '{"tool_name":"PowerShell","cwd":"C:\\Dev","tool_input":{"command":"Get-ChildItem C:\\Dev | Where-Object { $_.Name -like \"*x*\" }"}}'
+fast_fields_is_jq "escapes in the command" '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"a\\nb\" && echo \"\\t\"\\\\x"}}'
+fast_fields_is_jq "CR inside a value is stripped like jq's output" '{"tool_name":"Bash","tool_input":{"command":"a\r\nb"}}'
+fast_fields_is_jq "number and boolean siblings" '{"tool_name":"Bash","tool_input":{"command":"ls","timeout":600000,"run_in_background":true}}'
+fast_fields_is_jq "empty tool_input" '{"tool_name":"Bash","tool_input":{}}'
+fast_fields_is_jq "no tool_input" '{"tool_name":"Bash"}'
+fast_fields_is_jq "null tool_input" '{"tool_name":"Bash","tool_input":null}'
+fast_fields_is_jq "null command" '{"tool_name":"Bash","tool_input":{"command":null}}'
+fast_fields_is_jq "empty command" '{"tool_name":"Bash","tool_input":{"command":""}}'
+fast_fields_is_jq "Write payload" '{"tool_name":"Write","tool_input":{"file_path":"C:\\repo\\a.md","content":"line1\nline2 {\"x\":[1]}"}}'
+fast_fields_is_jq "pretty-printed payload" "$(jq -n '{tool_name:"Bash",cwd:"/x",tool_input:{command:"git status"}}')"
+fast_fields_is_jq "keys spelled with unicode escapes" '{"tool\u005fname":"Bash","tool_input":{"comm\u0061nd":"x"}}'
+fast_fields_is_jq "non-ASCII value" '{"tool_name":"Bash","tool_input":{"command":"echo é 日本"}}'
+fast_fields_is_jq "tool_input is a string" '{"tool_name":"Bash","tool_input":"x"}'
+fast_fields_is_jq "nested object inside tool_input" '{"tool_name":"Bash","tool_input":{"command":"ls","meta":{"a":1}}}'
+fast_fields_is_jq "key spelled as a value elsewhere" '{"tool_name":"command","tool_input":{"command":"ls"}}'
+fast_fields_is_jq "duplicate key" '{"tool_name":"Bash","tool_input":{"command":"a","command":"b"}}'
+fast_fields_is_jq "same key at the root and inside" '{"command":"root","tool_name":"Bash","tool_input":{"command":"in"}}'
+fast_fields_is_jq "non-ASCII unicode escape" '{"tool_name":"Bash","tool_input":{"command":"\u00e9"}}'
+fast_fields_is_jq "NUL escape" '{"tool_name":"Bash","tool_input":{"command":"a\u0000b"}}'
+fast_fields_is_jq "number tool_name" '{"tool_name":5,"tool_input":{"command":"x"}}'
+fast_fields_is_jq "false command" '{"tool_name":"Bash","tool_input":{"command":false}}'
+fast_fields_is_jq "truncated payload" '{"tool_name":"Bash","tool_input":{"command":"x"'
+fast_fields_is_jq "array root" '[{"tool_name":"Bash"}]'
+# The shapes that must NOT be proven, pinned by verdict: a NUL escape (the
+# flag is jq's), a duplicate key (jq takes the last), a non-string value (jq's
+# tostring), a parent that is not an object (a jq error the caller reads as
+# rc 2).
+for ff_case in '{"tool_name":"Bash","tool_input":{"command":"a\u0000b"}}' \
+  '{"tool_name":"Bash","tool_input":{"command":"a","command":"b"}}' \
+  '{"tool_name":"Bash","tool_input":{"command":7}}' \
+  '{"tool_name":"Bash","tool_input":"x"}'; do
+  ff_rc=0
+  hook::_fast_fields "$ff_case" '.tool_input.command' || ff_rc=$?
+  if ((ff_rc == 2)); then
+    ok "fast fields: not proven, jq runs: ${ff_case:19:40}"
+  else
+    fail "fast fields: rc=$ff_rc on a shape only jq may answer: $ff_case"
+  fi
+done
+# An unusual filter shape is never the fast path's to answer.
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"files":[1,2]}}' '.tool_input.files | length' || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: a non-path filter falls back to jq"; else fail "fast fields: non-path filter rc=$ff_rc"; fi
+# The absence proof: a key nobody spells is "" without jq, and that is jq's
+# answer too (`null // ""`).
+hook::_fast_fields '{"tool_name":"Bash","tool_input":{"command":"ls"}}' '.cwd' '.tool_input.file_path' '.tool_input.command'
+if [[ "${HOOK_JQ_FIELDS[0]}" == "" && "${HOOK_JQ_FIELDS[1]}" == "" && "${HOOK_JQ_FIELDS[2]}" == "ls" ]]; then
+  ok "fast fields: absent keys are proven empty beside a present one"
+else
+  fail "fast fields: absent keys: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")]"
+fi
+# The public entry point takes the fast path on the common payload: no jq on
+# PATH is needed for it, but the jq presence check still precedes it, so the
+# spawn count is what the dispatcher suite pins; here the answer is pinned.
+hook::jq_fields '{"tool_name":"Bash","tool_input":{"command":"true"}}' '.tool_input.command' '.tool_name'
+if [[ "${HOOK_JQ_FIELDS[0]}" == "true" && "${HOOK_JQ_FIELDS[1]}" == "Bash" && "$HOOK_JQ_FIELDS_NUL" == 0 ]]; then
+  ok "jq_fields: the common Bash payload is answered"
+else
+  fail "jq_fields common payload: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")] nul=$HOOK_JQ_FIELDS_NUL"
+fi
+unset ff_case ff_rc
+
+# --- Test 23: hook::emit_document is the one stdout path --------------------
+ed_out=$(hook::emit_channels PreToolUse "ctx" "sys")
+ed_doc=$(hook::emit_document '{"a":1}')
+if [[ "$ed_out" == '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"ctx"},"systemMessage":"sys"}' && "$ed_doc" == '{"a":1}' ]]; then
+  ok "emit_document prints one document with a trailing newline, and emit_channels goes through it"
+else
+  fail "emit_document: channels=[$ed_out] doc=[$ed_doc]"
+fi
+ed_seen=$(
+  hook::emit_document() { printf '<%s>' "$1"; }
+  hook::emit_channels PostToolUse "c1" ""
+  hook::emit_channels PostToolUse "" "s2"
+)
+if [[ "$ed_seen" == '<{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"c1"}}><{"systemMessage":"s2"}>' ]]; then
+  ok "an override of emit_document collects every document emit_channels builds"
+else
+  fail "emit_document override saw: $ed_seen"
+fi
+unset ed_out ed_doc ed_seen
+
+# --- Test 24: hook::extract_bash_subject_to equals the print form -------------
+for es_case in 'Bash|git status' 'Bash|sudo git push' 'Bash|FOO=1 make all' 'Bash|TOKEN="a b" curl x' 'Bash|TOKEN=secret' 'Bash|/usr/bin/env' 'Bash|' 'PowerShell|git status' 'Write|'; do
+  es_tool="${es_case%%|*}"
+  es_cmd="${es_case#*|}"
+  es_to=""
+  hook::extract_bash_subject_to es_to "$es_tool" "$es_cmd"
+  es_print=$(hook::extract_bash_subject "$es_tool" "$es_cmd")
+  if [[ "$es_to" == "$es_print" ]]; then
+    ok "extract_bash_subject_to matches the print form: $es_case -> $es_to"
+  else
+    fail "extract_bash_subject_to [$es_to] vs print form [$es_print] for $es_case"
+  fi
+done
+es_to=""
+hook::extract_bash_subject_to es_to Bash 'TOKEN="a b" curl x'
+if [[ "$es_to" == Bash ]]; then ok "subject: a quoted assignment value never reaches the subject"; else fail "subject leaked: $es_to"; fi
+unset es_case es_tool es_cmd es_to es_print
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
