@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.76]
+
+### Removed
+
+- **The video-digest source-liveness harness** (`skills/video-digest/extraction/liveness/`) and its `liveness:offline` and `liveness:live` package scripts, with the repository's scheduled liveness workflow whose runs nobody read. No skill body, pipeline script, or runtime code used the harness.
+
 ## [0.13.75]
 
 ### Changed
