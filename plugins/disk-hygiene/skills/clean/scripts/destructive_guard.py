@@ -641,9 +641,22 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
 def resolve_mode() -> str:
     """Resolve which registration surface launched this guard.
 
-    ``belt`` (default) is the skill-scoped deployment: deny-by-default Bash and
-    deletion-spelling PowerShell discipline, tolerable only while the clean skill
-    is the active work. ``engine-gate`` is the plugin-level deployment: it cares
+    ``belt`` (default) is the skill-frontmatter deployment: deny-by-default Bash
+    and deletion-spelling PowerShell discipline. Claude Code registers a skill's
+    frontmatter hooks when the skill is invoked and keeps them running for the
+    REST OF THE SESSION (skills reference, ``hooks`` field), so the harness gives
+    this surface no "while the skill is active" window to be tolerable in — it
+    has to scope itself, and until #2618 it did not. It does now: the
+    deny-by-default Bash lane is armed only while THIS SESSION has an open run
+    marker (``_belt_run_open``), dropped when the guard admits the run's first
+    exact bundled engine command and released when the clean skill records
+    ``{"state": "closed"}`` in the run directory's marker at its step 6 summary.
+    With the run released, an unrecognized Bash command that does not reference
+    the engine defers exactly as ``engine-gate`` does; every unreadable, absent,
+    or ambiguous marker state keeps the belt armed instead. The PowerShell lane
+    is deliberately NOT run-scoped — it is the lane that gates the manual-handoff
+    deletions themselves, so it stays armed for the session.
+    ``engine-gate`` is the plugin-level deployment: it cares
     ONLY about engine invocations (kill switch + data-root authority must hold in
     every session), so any command that does not reference the engine defers
     instantly — a plugin-level hook must never tax unrelated work. An
@@ -862,6 +875,24 @@ def _consume_optional_pairs(
 
 def classify_exact_engine_command(command: str, authority: str | None) -> str | None:
     """Return scan/preview/handoff-verify/apply for one canonical invocation."""
+    classified = _classify_exact_engine_command(command, authority)
+    return classified[0] if classified is not None else None
+
+
+def _classify_exact_engine_command(
+    command: str, authority: str | None
+) -> tuple[str, str] | None:
+    """Classify one canonical invocation as ``(subcommand, run-state path)``.
+
+    The second element is the run-directory-resident path argument the grammar
+    just validated — ``--output`` for ``scan``, ``--snapshot`` for the three
+    subcommands that read one back. It is returned from THIS parse rather than
+    recovered by a second one for the same reason ``_plugins_cache_index``
+    exists: a caller that re-parsed the command to find the same token would
+    drift from the grammar the moment either side changed, and the run marker
+    (#2618) would then be dropped for a shape the classifier no longer accepts —
+    or, worse, for a path this grammar never validated.
+    """
     tokens = _literal_shell_words(command)
     if tokens is None:
         return None
@@ -925,7 +956,7 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
             authority,
         ):
             return None
-        return "scan"
+        return "scan", tokens[6]
     # preview and handoff-verify share the two required pairs. Handoff verify
     # alone may also name a read-only VCS evidence file.
     second_flag = {"preview": "--plan", "handoff-verify": "--paths"}.get(tokens[2])
@@ -943,7 +974,7 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
                 tokens[7:], frozenset(optional_flags), authority
             )
         )
-        return tokens[2] if valid else None
+        return (tokens[2], tokens[4]) if valid else None
     if tokens[2] == "apply":
         if len(tokens) not in {14, 16}:
             return None
@@ -965,7 +996,7 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
                 ),
             )
         )
-        return "apply" if valid else None
+        return ("apply", tokens[5]) if valid else None
     return None
 
 
@@ -1097,7 +1128,213 @@ def _powershell_mutation_verdict(enabled: bool, flagged: str) -> tuple[str, str]
     )
 
 
-def _bash_denial_guidance(authority: str | None) -> str:
+# --- Run-scoped belt lifetime (#2618) ----------------------------------------
+#
+# Claude Code registers a SKILL's frontmatter hooks "when the skill is invoked"
+# and keeps them "running for the rest of the session" (skills reference,
+# `hooks` field) — there is no harness-level "while the skill is active" window.
+# Three sites in this plugin claimed one, so the belt's deny-by-default Bash
+# lane stayed armed on the session's main thread long after cleanup ended and
+# denied unrelated tooling with no documented way to disarm short of ending the
+# session (#2618). The belt therefore scopes ITSELF, against state the guard can
+# already read: an open-run marker under the authorized data root.
+#
+# Two files, because the reader and the writer know different things:
+#
+#   <data-root>/<pointer-dir>/<session>.json   — written by the guard when it
+#       first admits one of this session's bundled engine commands. It records
+#       the run directory, which is the only thing an arbitrary later Bash call
+#       cannot otherwise learn. Keyed by the hook's own `session_id` input (the
+#       same keying `guard_launch_monitor.py` uses), so one session's crashed
+#       run can never disarm another's belt and a stale marker cannot outlive
+#       the session that wrote it.
+#   <run-dir>/belt-run.json                    — the run marker itself, written
+#       open by the guard beside the run's snapshot, and set to
+#       `{"state": "closed"}` by the clean skill at its step 6 summary. It lives
+#       in the run directory because that is the path the skill body already
+#       knows and shows; nothing else has to be disclosed for a run to be closed.
+#
+# The decision is fail-closed by construction: `_belt_run_open` returns True —
+# belt armed, today's behavior — for EVERY state except one positively parsed
+# `"closed"`. No authority, no session id, missing pointer, unreadable pointer,
+# pointer naming a run directory outside the authorized tree, missing marker,
+# unreadable marker, non-JSON marker, absent/unknown `state`: all armed. Nothing
+# here is time-based; an unclosed run stays armed indefinitely, which is the
+# safe direction.
+_RUNS_DIRNAME = "runs"
+_RUN_MARKER_FILENAME = "belt-run.json"
+_RUN_POINTER_DIRNAME = "clean-belt-run"
+_RUN_MARKER_SCHEMA = 1
+_RUN_STATE_KEY = "state"
+_RUN_STATE_OPEN = "open"
+_RUN_STATE_CLOSED = "closed"
+_RUN_DIR_KEY = "run_dir"
+
+
+def _safe_session_name(session_id: str) -> str:
+    """One path segment for a session id, or ``""`` when it carries nothing.
+
+    Same sanitising rule as ``guard_launch_monitor.py``'s once-per-session
+    marker, deliberately: two files under the same data root keyed by the same
+    identifier should spell it the same way. The empty result is NOT given a
+    fallback name here — an unnameable session must fail closed (belt armed),
+    not share a bucket with every other unnameable one.
+    """
+    return "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
+
+
+def _run_pointer_path(authority: str | None, session_id: str | None) -> Path | None:
+    """This session's run pointer under the authorized data root, or None."""
+    if not authority or not session_id:
+        return None
+    safe = _safe_session_name(session_id)
+    if not safe:
+        return None
+    return Path(authority).expanduser() / _RUN_POINTER_DIRNAME / f"{safe}.json"
+
+
+def _run_directory_for(state_path: str, authority: str | None) -> str | None:
+    """The run directory ``state_path`` belongs to, if it is an authorized one.
+
+    A run directory is a DIRECT child of ``<authorized data root>/runs`` — the
+    layout the skill's step 1 creates. Anything else (a snapshot written
+    elsewhere, a pointer naming a path outside the authorized tree) yields None
+    and the caller keeps the belt armed. This is the one place that decides what
+    counts as a run directory, so the writer and the reader cannot disagree.
+    """
+    if not authority or not state_path:
+        return None
+    try:
+        candidate = Path(state_path).expanduser()
+        run_dir = candidate.parent
+        runs_root = Path(authority).expanduser() / _RUNS_DIRNAME
+    except (OSError, ValueError):
+        return None
+    if _data_root_key(os.fspath(run_dir.parent)) != _data_root_key(
+        os.fspath(runs_root)
+    ):
+        return None
+    if run_dir.name in {"", ".", ".."}:
+        return None
+    return os.fspath(run_dir)
+
+
+def _read_json_object(path: Path) -> dict[str, object] | None:
+    """Read a JSON object from ``path``, or None for every unreadable state.
+
+    Absent, unreadable, undecodable, malformed, and "valid JSON but not an
+    object" all collapse to None on purpose: the caller treats None as *cannot
+    determine*, which arms the belt.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return None
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _mark_run_open(
+    authority: str | None, session_id: str | None, state_path: str
+) -> None:
+    """Record that this session has an open disk-hygiene run. Best-effort.
+
+    Called only when the belt has just ADMITTED one of this session's exact
+    bundled engine invocations, so "a run is open" is inferred from a command
+    this guard itself validated rather than from anything the model asserts.
+    Every failure is swallowed: a marker that was not written is a marker that
+    cannot be read, and an unreadable marker arms the belt.
+
+    Re-writing on every admitted engine command is deliberate. It re-arms a belt
+    that was released early — the next scan/preview/handoff-verify/apply of the
+    run puts the marker back to ``open`` — so a premature close costs at most the
+    window until the run's next engine step rather than the rest of the session.
+    """
+    pointer = _run_pointer_path(authority, session_id)
+    run_dir = _run_directory_for(state_path, authority)
+    if pointer is None or run_dir is None:
+        return
+    opened_at = time.time()
+    marker = {
+        "schema": _RUN_MARKER_SCHEMA,
+        _RUN_STATE_KEY: _RUN_STATE_OPEN,
+        "session": session_id,
+        "opened_at": opened_at,
+    }
+    with contextlib.suppress(OSError, ValueError, TypeError):
+        run_path = Path(run_dir)
+        run_path.mkdir(parents=True, exist_ok=True)
+        (run_path / _RUN_MARKER_FILENAME).write_text(
+            json.dumps(marker, indent=2) + "\n", encoding="utf-8"
+        )
+    with contextlib.suppress(OSError, ValueError, TypeError):
+        pointer.parent.mkdir(parents=True, exist_ok=True)
+        pointer.write_text(
+            json.dumps(
+                {
+                    "schema": _RUN_MARKER_SCHEMA,
+                    _RUN_DIR_KEY: run_dir,
+                    "session": session_id,
+                    "opened_at": opened_at,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+
+def _belt_run_open(authority: str | None, session_id: str | None) -> bool:
+    """Whether this session's disk-hygiene run is still open (belt armed).
+
+    The complete truth table — True means ARMED, and it is the answer to
+    everything except one case:
+
+    ===========================================================  ======
+    marker state                                                 result
+    ===========================================================  ======
+    no authorized data root (no --plugin-root / -data-root)      True
+    no ``session_id`` in the hook payload, or it sanitises empty True
+    pointer file absent                                          True
+    pointer unreadable / not JSON / not an object                True
+    pointer carries no usable ``run_dir``                        True
+    ``run_dir`` is not a direct child of ``<data-root>/runs``    True
+    run marker absent / unreadable / not JSON / not an object    True
+    run marker has no ``state``, or a value other than closed    True
+    run marker ``{"state": "closed"}``                           False
+    ===========================================================  ======
+
+    Only the last row releases the belt, and only a well-formed, in-tree,
+    this-session close reaches it. Nothing here consults a clock, so a run that
+    is never closed never releases.
+    """
+    pointer_path = _run_pointer_path(authority, session_id)
+    if pointer_path is None:
+        return True
+    pointer = _read_json_object(pointer_path)
+    if pointer is None:
+        return True
+    recorded = pointer.get(_RUN_DIR_KEY)
+    if not isinstance(recorded, str) or not recorded:
+        return True
+    # Re-validate the pointer's own claim: the file lives under the data root,
+    # but its CONTENT is not evidence, so the run directory is put back through
+    # the one predicate that decides what an authorized run directory is.
+    run_dir = _run_directory_for(
+        os.path.join(recorded, _RUN_MARKER_FILENAME), authority
+    )
+    if run_dir is None:
+        return True
+    marker = _read_json_object(Path(run_dir) / _RUN_MARKER_FILENAME)
+    if marker is None:
+        return True
+    return marker.get(_RUN_STATE_KEY) != _RUN_STATE_CLOSED
+
+
+def _bash_denial_guidance(authority: str | None, *, run_scoped: bool = False) -> str:
     data_root = _display_data_root(authority)
     data_sentence = (
         f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
@@ -1109,6 +1346,22 @@ def _bash_denial_guidance(authority: str | None) -> str:
             " validated and engine calls fail closed."
         )
     )
+    # The belt's lifetime, stated where the operator meets it. #2618's realized
+    # harm was not the denial itself but that nothing on any surface said how
+    # long it lasts or how it ends, so an unrelated tool denied after cleanup
+    # had finished looked permanent. Phrased as the run's lifecycle rather than
+    # as a way out of the command in hand: the release is the skill's own step 6
+    # bookkeeping, and any later engine step of the same run re-arms it.
+    lifetime_sentence = (
+        " This restriction is scoped to an open disk-hygiene run: it lifts for"
+        " the rest of the session once this run's"
+        f' "{_RUN_MARKER_FILENAME}" marker — in the run directory under the'
+        f' plugin data directory\'s "{_RUNS_DIRNAME}/" — records'
+        f' {{"{_RUN_STATE_KEY}": "{_RUN_STATE_CLOSED}"}}, which the clean skill'
+        " records at its step 6 summary."
+        if run_scoped
+        else ""
+    )
     subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
     return (
         "Disk-hygiene fails closed: Bash is restricted to exact bundled "
@@ -1119,6 +1372,7 @@ def _bash_denial_guidance(authority: str | None) -> str:
         f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
         + data_sentence
         + " Use non-Bash read-only tools for supporting inspection."
+        + lifetime_sentence
     )
 
 
@@ -1249,17 +1503,22 @@ def _watchdog_fire(deadline: float) -> None:
     os._exit(2)  # noqa: SLF001 -- hard exit is the point; see docstring
 
 
-def _decide(command: str, tool_name: str, start: float) -> int:
+def _decide(
+    command: str, tool_name: str, start: float, session_id: str = ""
+) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
     Every branch prints its decision (or nothing, for an instant plugin-level
     defer) and returns 0; ``main`` supplies the watchdog and the exit-2
     fail-closed boundary around this call, so nothing in here needs its own
     exception handling to keep the exit-1 contract in the module docstring.
+
+    ``session_id`` is the hook payload's own session field, the key the run
+    marker is stored under (#2618). It defaults to empty so an absent field is
+    simply an unnameable session, which fails closed to an armed belt.
     """
-    if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(
-        command, tool_name
-    ):
+    mode = resolve_mode()
+    if mode == _MODE_ENGINE_GATE and not _engine_gate_relevant(command, tool_name):
         # Plugin-level gate: no engine invocation in the command — defer with no
         # output so unrelated work in every consumer session is untouched.
         return 0
@@ -1292,7 +1551,14 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         )
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="allow")
         return 0
-    command_kind = classify_exact_engine_command(command, authority)
+    classified = _classify_exact_engine_command(command, authority)
+    command_kind = classified[0] if classified is not None else None
+    if mode == _MODE_BELT and classified is not None:
+        # A command this guard itself validated as one of the run's own engine
+        # steps is the evidence that cleanup is the active work, so it is what
+        # opens (and re-opens) the run marker. Deliberately BEFORE the verdict
+        # branches: an `apply` denied by the kill switch is still an active run.
+        _mark_run_open(authority, session_id, classified[1])
     if command_kind in {"scan", "preview", "handoff-verify"}:
         print(
             json.dumps(
@@ -1315,10 +1581,24 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         )
         _emit_guard_telemetry(start, tool_name, "ok", decision_value="ask")
         return 0
+    if (
+        mode == _MODE_BELT
+        # Only the UNRECOGNIZED-command deny is run-scoped. The other reader of
+        # this branch is the kill-switch deny for an exact `apply` in audit-only
+        # mode, which must hold in every session and every run state.
+        and command_kind is None
+        and not _belt_run_open(authority, session_id)
+        # A released belt is exactly `engine-gate`, not "off": a command that
+        # references the engine without matching a guarded shape still denies,
+        # so nothing this belt protects the engine from becomes reachable by
+        # closing a run.
+        and not _engine_gate_relevant(command, tool_name)
+    ):
+        return 0
     reason = (
         "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
         if command_kind == "apply"
-        else _bash_denial_guidance(authority)
+        else _bash_denial_guidance(authority, run_scoped=mode == _MODE_BELT)
     )
     print(json.dumps(decision("deny", reason)))
     _emit_guard_telemetry(start, tool_name, "blocked", decision_value="deny")
@@ -1361,9 +1641,16 @@ def main() -> int:
         watchdog.daemon = True
         watchdog.start()
         tool_name = ""
+        session_id = ""
         try:
             payload = json.load(sys.stdin)
             tool_name = payload.get("tool_name", "")
+            # The run marker's key (#2618). A non-string or absent field stays
+            # the empty default, which `_belt_run_open` reads as "unnameable
+            # session" and answers with an armed belt — never a coerced
+            # `str(...)` that would key every malformed payload to one bucket.
+            raw_session = payload.get("session_id", "")
+            session_id = raw_session if isinstance(raw_session, str) else ""
             command = payload["tool_input"]["command"]
             if not isinstance(command, str):
                 raise TypeError("command is not text")
@@ -1383,7 +1670,7 @@ def main() -> int:
                 decision_value="deny",
             )
             return 0
-        return _decide(command, tool_name, start)
+        return _decide(command, tool_name, start, session_id)
     except BaseException as exc:
         _emit_guard_telemetry(start, "", "error")
         _write_diagnostic(
