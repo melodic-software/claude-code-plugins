@@ -68,8 +68,18 @@ esac
 # whole file from disk. An Edit's pre-existing lines outside the changed hunk are
 # not this call's claims.
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+# Edit's `replace_all` (documented at
+# https://code.claude.com/docs/en/tools-reference — Edit requires `old_string` to
+# occur exactly once, and `replace_all: true` is how Claude edits every occurrence
+# instead). Reconstruction needs it: with `replace_all` the same `new_string`
+# lands in several places on purpose, so several matches are the edit's own
+# footprint rather than an ambiguity. Absent or false on every ordinary Edit.
+REPLACE_ALL=false
 case "$TOOL" in
-Edit) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
+Edit)
+  SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r')
+  REPLACE_ALL=$(printf '%s' "$INPUT" | jq -r '(.tool_input.replace_all // false) | tostring' 2>/dev/null | tr -d '\r')
+  ;;
 Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
 *) exit 0 ;;
 esac
@@ -168,14 +178,17 @@ normalize_candidate() {
 # from disk only the lines the hunk's OWN TEXT appears in, scan those, and keep only
 # candidates containing one of the hunk's word tokens.
 #
-# What those two filters DO guarantee: the line the edit landed in is always
-# recovered, and the reported candidate always contains edited text. What they do
-# NOT guarantee is the converse — that every recovered line was touched. The anchor
-# match below is a SUBSTRING match, so when the hunk is a single bare fragment the
-# anchor IS that fragment and the line filter degenerates to the token filter: an
-# `Edit` whose whole `new_string` is `docs` recovers every line containing `docs`,
-# and a pre-existing stale citation on an untouched one among them fires. Closing
-# that means anchoring on `old_string`'s surrounding context, tracked in #1455.
+# An anchor is used ONLY when it occurs exactly once in the file, so the recovered
+# line is provably the one the edit landed in rather than merely one the anchor's
+# text appears in. Without that gate the match below — `grep -F`, a SUBSTRING match
+# — degenerates to the token filter whenever the hunk is a single bare fragment: an
+# `Edit` whose whole `new_string` is `docs` would recover every line containing
+# `docs`, and a pre-existing stale citation on an untouched one among them would
+# fire.
+#
+# The sub-four-character token floor below is unchanged, and the false negative it
+# causes — an `Edit` replacing a shorter fragment yields no token and reconstruction
+# returns before anchoring — remains open and tracked in #1455.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   # The token filter reads the hunk with any COMPLETE code span removed first. A
@@ -196,17 +209,41 @@ reconstruct_partial_edit() {
   # new_string is on disk verbatim, so it matches the line the edit landed in; a
   # token, being shorter, also matches lines the edit never touched — a bare `docs`
   # in unrelated prose pulls in every citation under docs/, and an untouched stale
-  # one among them would fire. Line-anchoring can only ever select a subset of what
-  # token-anchoring would, and the edited line is always in that subset. That
-  # subset is STRICT only while an anchor line is longer than its own tokens; a
-  # bare-fragment hunk collapses the two, which is the residual noted above (#1455).
+  # one among them would fire.
   local -a anchors=()
   mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
   ((${#anchors[@]})) || return 0
-  local anchor lines ctx=""
+  # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
+  # not matching lines. Counting lines is not enough: two occurrences on one
+  # physical line are one grep hit, and that is a real shape — inserting `docs`
+  # into a line that already carries an untouched `` `docs/gone.md` `` leaves the
+  # anchor twice on that line, and reporting the citation would be an advisory
+  # about text this call never wrote. Occurrence uniqueness subsumes line
+  # uniqueness (one occurrence can only be on one line), so it is the only gate.
+  #
+  # A non-unique anchor cannot say WHICH occurrence the edit landed on, so it is
+  # dropped rather than unioned. Cost: a missed advisory when an edit lands in
+  # text that repeats verbatim elsewhere in the file. For a detect-then-judge
+  # guard that is the right side of the trade — it is degraded far worse by being
+  # wrong when it speaks than by staying quiet. Mirrors the same gate in
+  # skill-reference-verify's reconstruct_partial_edit.
+  local anchor occ ctx=""
+  local -a hits=()
   for anchor in "${anchors[@]}"; do
-    lines=$(grep -F -- "$anchor" "$FILE" 2>/dev/null)
-    [[ -n "$lines" ]] && ctx+="$lines"$'\n'
+    mapfile -t hits < <(grep -F -- "$anchor" "$FILE" 2>/dev/null)
+    ((${#hits[@]})) || continue
+    # `replace_all` is the one case where repetition is expected rather than
+    # ambiguous: every occurrence is a place THIS call edited, so all of them are
+    # in scope and uniqueness must not be required. Accepted narrowing — a line
+    # that independently contained `new_string` and was never touched is kept too,
+    # since nothing in the payload distinguishes it from an edited one.
+    if [[ "$REPLACE_ALL" == "true" ]]; then
+      for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
+      continue
+    fi
+    occ=$(grep -o -F -- "$anchor" "$FILE" 2>/dev/null | grep -c .)
+    ((occ == 1)) || continue
+    ctx+="${hits[0]}"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
   local saved="$SCAN_CONTENT"
