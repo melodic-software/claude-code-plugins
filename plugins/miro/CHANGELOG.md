@@ -3,6 +3,16 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- **Bump `@biomejs/biome` from 2.5.7 to 2.5.8** (#3020).
+- **Bump `@types/node` from 26.1.2 to 26.2.0** (#3020).
+- **Bump `esbuild` from 0.28.1 to 0.28.2** (#3020).
+
+All three are `devDependencies`; the shipped MCP server bundle is unchanged.
+
 ## [0.3.3]
 
 ### Changed
