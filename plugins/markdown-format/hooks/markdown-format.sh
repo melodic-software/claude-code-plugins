@@ -132,7 +132,12 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
-# Does <dir> sit inside a git working tree? Git's repository-selection and
+# Does <dir> sit inside a git working tree? A two-valued predicate, so it is
+# asked only when git can actually answer — the caller probes for git first,
+# because a missing binary fails here identically to a genuine out-of-tree
+# verdict and the difference is the whole point of the check.
+#
+# Git's repository-selection and
 # discovery environment variables are cleared first: an inherited GIT_DIR or
 # GIT_WORK_TREE (a repository wrapper that launched the session) overrides
 # discovery outright, so `git -C <out-of-tree dir>` would answer with the
@@ -175,7 +180,20 @@ if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
     exit 0
   fi
-  if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
+  # A scope check that CANNOT answer must not answer "no". `git` is not a
+  # declared prerequisite — README "Requirements" lists Bash, jq, and
+  # markdownlint-cli2 — so on a host without it this probe fails exactly like a
+  # genuine out-of-tree verdict, and skipping on that would disable Markdown
+  # formatting for every edit, invisibly. Undeterminable therefore lints: the
+  # same posture file_is_gitignored takes via the same `command -v git` probe,
+  # and the one the README states for this class of check.
+  #
+  # This does NOT relax the symlink guard above. That one fails closed on an
+  # UNRESOLVED physical path — a different question, answerable without git,
+  # and still answered. What is given up here is only the out-of-tree skip on a
+  # git-less host, where no membership verdict is obtainable by any means.
+  if command -v git >/dev/null 2>&1 &&
+    ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
     exit 0
   fi
 fi

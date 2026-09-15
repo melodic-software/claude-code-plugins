@@ -3,6 +3,32 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Fixed
+
+- **A missing `git` no longer disables Markdown formatting silently.** With `CLAUDE_PROJECT_DIR`
+  unset, the hook scopes to git-working-tree containment so a scratch `.md` outside any tree is not
+  linted under repository rules. That probe ran `git -C <dir> rev-parse` and read *any* failure as
+  "out of tree" — so on a host with no `git` on `PATH` it failed identically to a negative
+  membership result and every Markdown edit was skipped, even with `jq` and `markdownlint-cli2`
+  installed and the file genuinely inside a repository. `git` is not a declared prerequisite (the
+  README's Requirements list is Bash, `jq`, and `markdownlint-cli2`), and the README already states
+  the posture for this class of check: when the verdict cannot be determined the hook lints,
+  because "a scope check that failed closed would disable the plugin invisibly". The membership
+  probe is now gated on an explicit `command -v git`, the same way `file_is_gitignored` has always
+  handled git's absence, so an undeterminable verdict lints instead of silently skipping.
+
+  Deliberately unchanged: the symlink guard that fails **closed** when a physical path cannot be
+  canonicalized. That answers a different question — one that needs no `git` — and an escaping
+  symlink whose target cannot be resolved is still refused. What is given up is only the
+  out-of-tree skip on a git-less host, where no membership verdict is obtainable at all.
+
+  Covered by a regression test that shims a `git`-free `PATH` and asserts an in-tree file is still
+  linted and still `--fix`ed. The test carries its own control — the same restricted `PATH` *with*
+  `git` must still lint — so a `PATH` too thin to lint under cannot make the assertion pass
+  vacuously.
+
 ## [0.10.1]
 
 ### Changed

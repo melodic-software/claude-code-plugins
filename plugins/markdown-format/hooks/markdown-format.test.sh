@@ -415,6 +415,144 @@ EOF
 fi
 rm -rf "$OUTOFTREE"
 
+# --- Git absent from PATH: undeterminable membership must not disable lint ---
+# `git` is not a declared requirement (README "Requirements" lists Bash, jq, and
+# markdownlint-cli2 only), and the README states the posture for a scope check
+# that cannot answer: "When the verdict cannot be determined (no `git` on
+# `PATH`, no working tree, `git check-ignore` erroring), the hook lints — a
+# scope check that failed closed would disable the plugin invisibly."
+# file_is_gitignored honors that with an explicit `command -v git` probe; the
+# git-working-tree scope must not silently skip every edit instead.
+#
+# The shadow PATH holds `exec` wrappers rather than symlinks or copies: Git Bash
+# does not create real symlinks by default, and copying binaries would be slow.
+# Wrappers run under /bin/sh with an absolute interpreter so the shadow PATH
+# needs no shell of its own.
+SHADOW_BIN="$WORK/shadow-bin"
+NOGIT_BIN="$WORK/nogit-bin"
+mkdir -p "$SHADOW_BIN" "$NOGIT_BIN"
+BASH_BIN="$(command -v bash)"
+shadow_tool() {
+  local tool="$1" dir="$2" real
+  real="$(command -v "$tool" 2>/dev/null)" || return 1
+  [[ -n "$real" ]] || return 1
+  {
+    printf '#!/bin/sh\n'
+    printf "exec '%s' \"\$@\"\n" "$real"
+  } >"$dir/$tool"
+  chmod +x "$dir/$tool"
+}
+# markdownlint-cli2 is the local stub built above, not a PATH tool.
+for _d in "$SHADOW_BIN" "$NOGIT_BIN"; do
+  cp "$TEST_BIN/markdownlint-cli2" "$_d/markdownlint-cli2"
+  chmod +x "$_d/markdownlint-cli2"
+done
+NOGIT_READY=1
+# `bash` is needed on the shadow PATH itself: the markdownlint-cli2 stub is a
+# `#!/usr/bin/env bash` script, so env resolves its interpreter through the
+# restricted PATH the hook runs under.
+for _t in bash jq awk basename cat cut date dirname find grep mkdir mktemp sed sort tr uniq \
+  head tail wc rm mv cp chmod stat ln touch xargs; do
+  shadow_tool "$_t" "$SHADOW_BIN" || { [[ "$_t" == jq ]] && NOGIT_READY=0; }
+  shadow_tool "$_t" "$NOGIT_BIN" || true
+done
+# Optional on POSIX hosts; present under Git Bash.
+for _t in cygpath realpath readlink node npm; do
+  shadow_tool "$_t" "$SHADOW_BIN" || true
+  shadow_tool "$_t" "$NOGIT_BIN" || true
+done
+# Only the control dir gets git.
+shadow_tool git "$SHADOW_BIN" || NOGIT_READY=0
+
+run_hook_path() {
+  local bin="$1" file_path="$2"
+  shift 2
+  (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$file_path" |
+    env -u CLAUDE_PROJECT_DIR PATH="$bin" \
+      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true "$@" "$BASH_BIN" "$HOOK")
+}
+
+GITLESS_FIXTURE="$REPO/fixtureGitless.md"
+# MD004 star marker (fixable) plus a duplicate sibling heading (MD024,
+# unfixable under this repo's config), so a run that happened is visible in
+# BOTH the file bytes and stdout.
+write_gitless_body() {
+  printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$1"
+}
+if ((NOGIT_READY)); then
+  # Control FIRST: the shadow PATH must not itself disable the hook, or the
+  # assertion below would pass vacuously on a PATH too thin to lint with. Same
+  # fixture, same restricted PATH, git present → MD024 must still be reported.
+  write_gitless_body "$GITLESS_FIXTURE"
+  OUT_SHADOW="$(run_hook_path "$SHADOW_BIN" "$GITLESS_FIXTURE")"
+  RC_SHADOW=$?
+  if [[ $RC_SHADOW -eq 0 ]] &&
+    printf '%s' "$OUT_SHADOW" | jq -e '.hookSpecificOutput.additionalContext | test("MD024")' >/dev/null 2>&1; then
+    ok "shadow PATH with git still lints (control for the git-absent case)"
+  else
+    NOGIT_READY=0
+    ok "git-absent case SKIPPED (shadow PATH insufficient on this host: rc=$RC_SHADOW)"
+  fi
+fi
+if ((NOGIT_READY)); then
+  if PATH="$NOGIT_BIN" command -v git >/dev/null 2>&1; then
+    ok "git-absent case SKIPPED (git still reachable under the shadow PATH)"
+  else
+    ok "git genuinely absent from the no-git shadow PATH"
+
+    # The regression: CLAUDE_PROJECT_DIR unset and no git to answer membership.
+    # The file IS in a working tree; the hook simply cannot prove it. Skipping
+    # here disables Markdown formatting wholesale and silently.
+    write_gitless_body "$GITLESS_FIXTURE"
+    OUT_NOGIT="$(run_hook_path "$NOGIT_BIN" "$GITLESS_FIXTURE")"
+    RC_NOGIT=$?
+    if [[ $RC_NOGIT -eq 0 ]] &&
+      printf '%s' "$OUT_NOGIT" | jq -e '.hookSpecificOutput.additionalContext | test("MD024")' >/dev/null 2>&1; then
+      ok "in-tree .md still linted when git is absent (cannot-determine lints)"
+    else
+      fail "git absent silently skipped an in-tree .md (rc=$RC_NOGIT out=$OUT_NOGIT)"
+    fi
+    if ! grep -q '^\* bullet$' "$GITLESS_FIXTURE"; then
+      ok "--fix applied when git is absent (MD004 marker rewritten)"
+    else
+      fail "git absent suppressed --fix on an in-tree .md: $(cat "$GITLESS_FIXTURE")"
+    fi
+
+    # The symlink guard is upstream of the membership check and must NOT relax
+    # with it: an escaping symlink whose physical path cannot be resolved still
+    # fails closed, git or no git. This is the regression a fail-open change
+    # most plausibly introduces.
+    LINK_NOGIT="$REPO/escaping-link-nogit.md"
+    SCRATCH_NOGIT_DIR="$(mktemp -d)"
+    SCRATCH_NOGIT="$SCRATCH_NOGIT_DIR/external.md"
+    write_gitless_body "$SCRATCH_NOGIT"
+    if ln -s "$SCRATCH_NOGIT" "$LINK_NOGIT" 2>/dev/null && [[ -L "$LINK_NOGIT" ]]; then
+      NO_CANON_NOGIT="$WORK/no-canonicalizer-nogit.bashenv"
+      cat >"$NO_CANON_NOGIT" <<'EOF'
+realpath() { return 1; }
+readlink() { return 1; }
+EOF
+      OUT_LINK_NOGIT="$(run_hook_path "$NOGIT_BIN" "$LINK_NOGIT" BASH_ENV="$NO_CANON_NOGIT")"
+      RC_LINK_NOGIT=$?
+      if [[ $RC_LINK_NOGIT -eq 0 && -z "$OUT_LINK_NOGIT" ]]; then
+        ok "unresolvable escaping symlink still fails closed with git absent"
+      else
+        fail "git-absent path admitted an unresolvable escaping symlink (rc=$RC_LINK_NOGIT out=$OUT_LINK_NOGIT)"
+      fi
+      if [[ -L "$LINK_NOGIT" ]]; then
+        ok "escaping symlink untouched with git absent (still a symlink)"
+      else
+        fail "escaping symlink was rewritten with git absent"
+      fi
+      rm -f "$LINK_NOGIT"
+    else
+      ok "git-absent symlink sub-case SKIPPED (host cannot create real symlinks)"
+    fi
+    rm -rf "$SCRATCH_NOGIT_DIR"
+  fi
+fi
+rm -f "$GITLESS_FIXTURE"
+
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
 # beside its Windows .cmd launcher. The hook must execute it directly from the
@@ -1690,7 +1828,7 @@ fi
 # is about — every CR here sits at end-of-line. Verified by revert-probe: with
 # the fix removed, the decoded-value form still passed while the raw-escape form
 # fails. Testing the bytes the hook actually emits is the only honest check.
-crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac; }
+crlf_escaped() { case "$1" in *'\r'*) return 0 ;; *) return 1 ;; esac }
 
 FCR="$REPO/crlf.md"
 printf '# CRLF\n\nbody\n' >"$FCR"
