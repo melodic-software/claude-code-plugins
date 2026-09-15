@@ -21,7 +21,8 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   instance of the row's Detect shape, its stated obsolescence ("newer models have better judgement
   and can handle these decisions well without explicit rules") is the model-delta ground, and its
   replacement — "Write code that reads like the surrounding code: match its comment density,
-  naming, and idiom" — is the row's own positive-reframing remediation, shipped by upstream.
+  naming, and idiom" — is an instance of the row's positive-reframing remediation, shipped by
+  upstream.
 
   `I15`: the blog's "Unhobbling Claude" adds the cost the memory doc's arbitrary-pick sentence does
   not state — even a correctly resolved conflict taxes reasoning ("Claude must think more carefully
