@@ -331,6 +331,102 @@ assert_contains "replace_all → first edited reference reported" "$OUT" \
 assert_contains "replace_all → second edited reference reported" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-two"
 
+# ...but `replace_all` suspends the uniqueness gate, and with it the only thing
+# separating an occurrence this call WROTE from one that merely reads the same.
+# A pre-existing `/alpha:ghost-old` matches the `ghost` anchor and was reported as
+# though the edit had produced it. `tool_input` genuinely cannot tell them apart;
+# `tool_response.structuredPatch` can, marking the written lines with `+`.
+#
+# The payloads below carry it. Note the FIRST fixture above deliberately does not:
+# absent `tool_response` the filter is inert, which is what keeps that case — and
+# every consumer on a payload without one — behaving exactly as before.
+#
+# replall_patch_json <file> <new_string> <patch-line>... — each patch line keeps
+# its unified-diff prefix (`+` written, `-` removed, ` ` untouched context).
+#
+# The lines reach jq on STDIN, not as `--args` positionals: every one of them
+# starts with `-`, `+` or a space, and jq parses a leading `-` as an option
+# (`-Run …` died on "Unknown option -u"), which yields an empty payload and a
+# silent hook — a green `assert_absent` for entirely the wrong reason.
+replall_patch_json() {
+  local fp="$1" s="$2" lines_json
+  shift 2
+  lines_json=$(printf '%s\n' "$@" | jq -Rs 'split("\n")[:-1]')
+  MSYS_NO_PATHCONV=1 jq -n --arg fp "$fp" --arg s "$s" --argjson l "$lines_json" \
+    '{tool_name:"Edit",
+      tool_input:{file_path:$fp,new_string:$s,replace_all:true},
+      tool_response:{filePath:$fp,replaceAll:true,
+        structuredPatch:[{oldStart:1,oldLines:2,newStart:1,newLines:2,lines:$l}]}}'
+}
+UNTOUCHED="$REPO/replall-untouched.md"
+printf 'Run `/alpha:ghost` now.\nLegacy `/alpha:ghost-old` stays.\n' >"$UNTOUCHED"
+patch_one() {
+  replall_patch_json "$1" 'ghost' \
+    '-Run `/alpha:setup` now.' \
+    '+Run `/alpha:ghost` now.' \
+    ' Legacy `/alpha:ghost-old` stays.'
+}
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$UNTOUCHED")" 2>&1)
+RC=$?
+assert_exit "replace_all + structuredPatch → exit 0" 0 "$RC"
+# Asserted with the trailing backtick so the needle cannot be satisfied by the
+# `/alpha:ghost-old` line this case exists to exclude — otherwise the positive and
+# the negative assertion below overlap, and only the pair is load-bearing.
+assert_contains "replace_all + patch → the WRITTEN reference is still reported" \
+  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+assert_absent "replace_all + patch → the UNTOUCHED reference is not reported" \
+  "$OUT" "/alpha:ghost-old"
+
+# LIVENESS. The identical payload against a TRUNCATED, EMPTY target. Silence here
+# is what proves the finding above came from READING THE FILE and not from the
+# payload text — a filter that merely echoed `new_string` would speak either way.
+EMPTYT="$REPO/replall-empty.md"
+: >"$EMPTYT"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$EMPTYT")" 2>&1)
+assert_silent "replace_all + patch → empty target yields nothing at all" "$OUT"
+
+# The filter must not cost a real multi-site finding: when the patch says BOTH
+# lines were written, both references survive it.
+BOTHW="$REPO/replall-both.md"
+printf 'First `/alpha:ghost-one` here.\nSecond `/alpha:ghost-two` there.\n' >"$BOTHW"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_patch_json "$BOTHW" 'ghost' \
+  '-First `/alpha:setup-one` here.' \
+  '-Second `/alpha:setup-two` there.' \
+  '+First `/alpha:ghost-one` here.' \
+  '+Second `/alpha:ghost-two` there.')" 2>&1)
+assert_contains "replace_all + patch → first genuinely written ref survives" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-one"
+assert_contains "replace_all + patch → second genuinely written ref survives" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-two"
+
+# Review finding on #2153: Gate 3 must not undo the reformatting tolerance the
+# per-line fallback exists to provide. An earlier-ordered PostToolUse hook that
+# reflows whitespace leaves the anchor locatable — a literal substring search does
+# not care what surrounds it — while changing the physical line, so comparing raw
+# text dropped a genuinely written reference. The target below carries the extra
+# internal spacing a formatter would leave; the patch keeps the original spacing.
+REFLOW="$REPO/replall-reflow.md"
+printf 'Run  `/alpha:ghost`  now.\nLegacy `/alpha:ghost-old` stays.\n' >"$REFLOW"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$REFLOW")" 2>&1)
+assert_contains "reflowed line → the written reference still surfaces" \
+  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+# ...and the suppression is not simply switched off by the reflow: the untouched
+# reference on an unreformatted line is still excluded in the same run.
+assert_absent "reflowed line → the untouched reference is still suppressed" \
+  "$OUT" "/alpha:ghost-old"
+
+# The abstain rule. When the witness recognizes NO occurrence — a formatter that
+# rewrote more than spacing — Gate 3 must fall back to the unfiltered set rather
+# than mute the advisory entirely. Both references come back, which is exactly the
+# pre-gate behaviour and the direction this guard accepts.
+STALE="$REPO/replall-stale.md"
+printf -- '- Run `/alpha:ghost` now (moved).\nLegacy `/alpha:ghost-old` stays.\n' >"$STALE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$STALE")" 2>&1)
+assert_contains "stale witness → written reference still reported" \
+  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+assert_contains "stale witness → gate abstains rather than muting" \
+  "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-old"
+
 # A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
 assert_contains "full-command hunk → scanned directly" "$OUT" \
