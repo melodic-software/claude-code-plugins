@@ -500,6 +500,24 @@ on the uncommitted rung with `files=0`, where the doctrine correctly stops. Eith
 expectation narrows to the new non-interactive statement, or `scope-code-files.sh` changes to
 advance on a rung with no code files, which is a script change this plan put out of scope.
 
+**Pass 2 and the follow-ups (2026-09-15, ~12.3 USD total across passes 2 to 5):** 7 of 8 re-run
+cases passed at `--runs 1`. `real-hook-utils-header-aggressive` took three rounds:
+
+- the run treated the shell header block as an exempt public-API doc comment, so that exemption now
+  names the language's structured doc-comment form and says a language without one (shell, make) has
+  no exempt surface there;
+- it kept a note explaining why a sibling helper exists, so a warning now has to address its own
+  declaration's caller;
+- the succinct-keep grader counted a `#` spacer between two two-line keeps as one oversized block,
+  and now counts comment lines with content;
+- the case's own expectation changed with the owner's agreement: the kill switch's required
+  placement is a keep, because a required call order is what the doctrine defines a warning to be.
+  The original round-3 call predates that definition.
+
+Final scores: `real-hook-utils-header-aggressive` 0.93, `real-hook-utils-header-strip` 1.00,
+everything else at 1.00 except `invented-class-c-aggressive` 0.90 (its landing-place line). Two
+grader anchors were widened after a keep collided with a deletion check; both are logged above.
+
 ### Phase 4 remaining work [TODO]
 
 1. Run the full suite in WSL2 with `--runs 3 --threshold 0.8 --max-cost-usd <owner ceiling>`.

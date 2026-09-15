@@ -30,7 +30,7 @@ graders:
     target: { source: file, path: hook-utils-header.sh }
   - name: description-deleted
     type: regex
-    pattern: '#[^\n]*(hook utility library|Sourced|kill switch, file_path parsing)'
+    pattern: '#[^\n]*(hook utility library|additionalContext accumulator|telemetry envelope|kill switch, file_path parsing)'
     flags: i
     match: not_contains
     target: { source: file, path: hook-utils-header.sh }
