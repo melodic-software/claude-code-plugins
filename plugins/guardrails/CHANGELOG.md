@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0]
+
+### Changed
+
+- lib/powershell/ps-command.sh spawns nothing. Every `$(ps::…)` capture is now an out-parameter helper that assigns with `printf -v` — `ps::blank_quoted_spans_to`, `ps::opaque_quoted_spans_to`, `ps::call_site_operand_region_to`, `ps::blank_bracket_interiors_to`, `ps::fold_escaped_brace_closers_to` and the three `ps::_skip_*_to` index walkers, the `_to` convention hook-utils.sh already uses — and every `printf | sed` pipeline and `< <(printf …)` line reader is a pure-bash substitution or split (`ps::_gsub_to`, which applies an ERE per line exactly as sed hands its regex one line at a time, and `ps::_split_lines_to`). On Windows Git Bash the PowerShell lane's PreToolUse chain went from 80 process creations to 3 — the harness's `bash -c`, the `env` of the shebang, and bash itself — and 2422 ms to 300 ms isolated p50; a PowerShell command that carries a script block and a git token, so it reaches the fail-closed sink, from 44 creations and 1433 ms to 3 and 299 ms. The Bash lane, which never loads this library, stays at 3 creations and 288 ms to 274 ms. Every deny and allow is byte-identical (rc, stdout and stderr) over 34 Bash and PowerShell invocations of the perf baseline's 17-command corpus and over 653 commands harvested from the guard suites on each lane. Two host behaviors the captured forms carried are reproduced rather than dropped, because a PowerShell command arrives with Windows line endings and PS_SAFE_COMMAND goes on to a Bash tokenizer: `$(…)` here eats a trailing CRLF whole, not just its LF, and this host's `sed` reads in text mode, so a CRLF line ending loses its CR.
+
 ## [0.34.0]
 
 ### Changed

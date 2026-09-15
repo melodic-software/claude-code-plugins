@@ -95,6 +95,103 @@ PS_SINK_TRIGGER=""
 # shellcheck disable=SC2034
 PS_SAFE_COMMAND=""
 
+# --- fork-free primitives -----------------------------------------------------
+#
+# Six guards load this file on the hot path of every PowerShell tool call, and
+# on Windows Git Bash a command substitution is one process creation while an
+# external command in a pipeline is two more. So nothing here reaches a result
+# through `$(…)` or `printf | sed`: a helper whose answer is a string takes the
+# caller's variable NAME and assigns it with `printf -v` (the `_to` convention
+# lib/hook-utils.sh uses), and the substitutions below are done in bash.
+#
+# TWO RULES MAKE A `_to` HELPER A DROP-IN FOR THE `$(…)` IT REPLACES. It ends by
+# chomping the trailing newline run a capture would have eaten (ps::_chomp_to).
+# And its own locals are name-prefixed wherever a caller might pass one of them
+# as the out-parameter — `printf -v` would otherwise assign the callee's local
+# and leave the caller's variable untouched, which is a silent wrong answer
+# rather than an error.
+
+# ps::_chomp_to <varname> <text>
+#
+# TEXT without the trailing newline run `$(…)` would have removed.
+#
+# A trailing CRLF goes WHOLE, not just its LF. Measured on the Windows Git Bash
+# these guards run under: `$(printf 'a\r\n')` is `a`, `$(printf 'a\r\r\n')` is
+# `a` plus one CR, and an INTERIOR CRLF survives (`$(printf 'a\r\nb')` keeps
+# both bytes). A helper that dropped only the LF would hand its caller a
+# trailing `\r` the captured form never had — and PS_SAFE_COMMAND goes on to a
+# Bash tokenizer, where that CR joins the final token.
+ps::_chomp_to() {
+  local __ch_s="$2"
+  while [[ "$__ch_s" == *$'\n' ]]; do
+    __ch_s="${__ch_s%$'\n'}"
+    __ch_s="${__ch_s%$'\r'}"
+  done
+  printf -v "$1" '%s' "$__ch_s"
+}
+
+# ps::_split_lines_to <array name> <text>
+#
+# The newline-separated parts of TEXT, in the named array — what
+# `while IFS= read -r line; do … done < <(printf '%s\n' "$text")` yielded, minus
+# the process substitution. `printf '%s\n'` appends one newline, so the reader
+# saw exactly these parts, including the trailing EMPTY part of a TEXT that
+# already ended in a newline.
+ps::_split_lines_to() {
+  local -n __sl_out="$1"
+  local __sl_rest="$2"
+  __sl_out=()
+  while [[ "$__sl_rest" == *$'\n'* ]]; do
+    __sl_out+=("${__sl_rest%%$'\n'*}")
+    __sl_rest="${__sl_rest#*$'\n'}"
+  done
+  __sl_out+=("$__sl_rest")
+}
+
+# ps::_gsub_to <varname> <text> <ere> <replacement>
+#
+# `sed -E "s/<ere>/<replacement>/g"` over TEXT, in bash.
+#
+# PER LINE, because that is what sed does: it hands its regex one line at a time
+# with the newline already stripped, so in sed `[[:space:]]` can never match a
+# newline and `.` never spans one, while bash's engine is handed the whole string
+# and both would. Within a line the two agree — both resolve an ambiguous match
+# POSIX leftmost-longest — so the per-line match set is identical.
+#
+# A CRLF LINE ENDING LOSES ITS CR, because this host's sed reads in text mode:
+# measured, `printf 'a\r\nb\r\n' | sed …` writes `a\nb\n`, while a CR that ends
+# no line survives (`a\rb`, and a final unterminated `a\r`). PowerShell commands
+# arrive with Windows line endings, and PS_SAFE_COMMAND goes on to a Bash
+# tokenizer, so leaving those CRs in would attach one to a token the captured
+# form never had.
+#
+# The match POSITION comes from `${line%%"$m"*}`, the first LITERAL occurrence of
+# the matched text. That is this match's own position: were the same text to
+# occur earlier, the regex would have matched THERE instead, since no pattern in
+# this file is anchored. An empty match would not advance, so it ends the line
+# rather than looping forever; no pattern here can produce one, each requiring at
+# least one literal character.
+ps::_gsub_to() {
+  local __gs_re="$3" __gs_repl="$4" __gs_out="" __gs_line __gs_acc __gs_pre __gs_m __gs_i
+  local -a __gs_lines=()
+  ps::_split_lines_to __gs_lines "$2"
+  for ((__gs_i = 0; __gs_i < ${#__gs_lines[@]}; __gs_i++)); do
+    __gs_line="${__gs_lines[__gs_i]}"
+    ((__gs_i + 1 < ${#__gs_lines[@]})) && __gs_line="${__gs_line%$'\r'}"
+    __gs_acc=""
+    while [[ "$__gs_line" =~ $__gs_re ]]; do
+      __gs_m="${BASH_REMATCH[0]}"
+      [[ -n "$__gs_m" ]] || break
+      __gs_pre="${__gs_line%%"$__gs_m"*}"
+      __gs_acc+="${__gs_pre}${__gs_repl}"
+      __gs_line="${__gs_line:${#__gs_pre}+${#__gs_m}}"
+    done
+    ((__gs_i)) && __gs_out+=$'\n'
+    __gs_out+="${__gs_acc}${__gs_line}"
+  done
+  ps::_chomp_to "$1" "$__gs_out"
+}
+
 # Unicode code points PowerShell's tokenizer treats as TOKEN-SEPARATING
 # whitespace but bash's `[[:space:]]` does not. Spelled as raw UTF-8 byte
 # sequences via `$'\xNN'`, which is byte-literal and therefore identical under a
@@ -189,10 +286,12 @@ ps::blank_herestrings() {
   ps::normalize_token_separating_spaces "$1"
   local cmd="$PS_NORMALIZED"
   local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer opener_scan
+  local -a hs_lines=()
   PS_HERESTRING_UNBALANCED=0
   PS_HERESTRING_QUOTE=""
 
-  while IFS= read -r line || [[ -n "$line" ]]; do
+  ps::_split_lines_to hs_lines "$cmd"
+  for line in "${hs_lines[@]}"; do
     if ((in_hs)); then
       first2="${line:0:2}"
       closer="${hs_quote}@" # '@ or "@
@@ -214,9 +313,10 @@ ps::blank_herestrings() {
     # would swallow following code lines into a phantom here-string body).
     # Distinguish by stripping PAIRED quote spans first: a real opener's quote
     # is unpaired, so its `@'` survives, while `'@'` / `'foo@'` disappear.
-    # One `sed` per line, not two: the expressions apply in order, so the
-    # double-quote strip still sees the single-quote-stripped line.
-    opener_scan=$(printf '%s' "$line" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g')
+    # The two strips apply IN ORDER, so the double-quote strip still sees the
+    # single-quote-stripped line.
+    ps::_gsub_to opener_scan "$line" "'[^']*'" ''
+    ps::_gsub_to opener_scan "$opener_scan" '"([^"\\]|\\.)*"' ''
     if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
       hs_quote="${line: -1}" # ' or "
       pending="${line%??}${PS_HERESTRING_PLACEHOLDER}"
@@ -224,7 +324,7 @@ ps::blank_herestrings() {
       continue
     fi
     out+="${line}"$'\n'
-  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done
 
   if ((in_hs)); then
     # Opener with no column-zero closer: ambiguous extent. Blanking to end could
@@ -238,8 +338,8 @@ ps::blank_herestrings() {
   PS_BLANKED="${out%$'\n'}"
 }
 
-# The single left-to-right quoted-span walk behind ps::blank_quoted_spans and
-# ps::opaque_quoted_spans. MODE is `blank` (a found span is deleted) or `opaque`
+# The single left-to-right quoted-span walk behind ps::blank_quoted_spans_to and
+# ps::opaque_quoted_spans_to. MODE is `blank` (a found span is deleted) or `opaque`
 # (a found span becomes a classified placeholder, per the classification the
 # opaque wrapper documents). WHERE a span starts and ends, and every ambiguity
 # resolution, is identical for both and therefore stated once here: two
@@ -291,7 +391,7 @@ ps::blank_herestrings() {
 # and ambiguity here means DELETE NOTHING ON THIS LINE. Neither available answer
 # is safe on its own, which is why the resolution is to refuse the question:
 #
-#   - HONORING the escape (what `ps::_skip_double_quote` does, correctly, in the
+#   - HONORING the escape (what `ps::_skip_double_quote_to` does, correctly, in the
 #     sink BLANKING path that runs after the entry decision) extends the span
 #     past `` `" `` to the next real quote, so
 #     `Write-Host "a`"; & ('g'+'it') push --force; Write-Host "b"` becomes one
@@ -307,8 +407,8 @@ ps::blank_herestrings() {
 # deleted, which is the deeper reason this branch exists. SINGLE-quoted spans are
 # exempt: PowerShell gives them no escape at all, so a backtick inside one is an
 # ordinary character and the pairing is genuinely unambiguous.
-ps::_walk_quoted_spans() {
-  local text="$1" mode="$2" out="" i=0 n j q found c inner
+ps::_walk_quoted_spans_to() {
+  local text="$2" mode="$3" out="" i=0 n j q found c inner
   n=${#text}
   while ((i < n)); do
     q="${text:i:1}"
@@ -361,17 +461,17 @@ ps::_walk_quoted_spans() {
     out+="$q"
     i=$((i + 1))
   done
-  printf '%s' "$out"
+  ps::_chomp_to "$1" "$out"
 }
 
 # Crude, SCAN-ONLY strip of single- and double-quoted spans, so that structural
 # detection and commit/push shaping ignore characters inside message text. Never
 # fed to a parser.
-ps::blank_quoted_spans() {
-  ps::_walk_quoted_spans "$1" blank
+ps::blank_quoted_spans_to() {
+  ps::_walk_quoted_spans_to "$1" "$2" blank
 }
 
-# Sibling of ps::blank_quoted_spans for ONE consumer:
+# Sibling of ps::blank_quoted_spans_to for ONE consumer:
 # ps::computed_call_has_positional_write_signal. Same left-to-right pairing —
 # first opener owns its span, ambiguity copies the rest of the line verbatim —
 # but a FOUND span is replaced by a classified placeholder instead of deleted.
@@ -400,11 +500,11 @@ ps::blank_quoted_spans() {
 #   3. otherwise → `_q_`
 #      Present-but-opaque visible literal.
 #
-# An EMPTY span (`""`, `''`) is still deleted, matching blank_quoted_spans.
+# An EMPTY span (`""`, `''`) is still deleted, matching blank_quoted_spans_to.
 # `& $py $script ""` must stay allowed (#2965); counting the empty string as a
 # literal would turn that pin into an over-block.
-ps::opaque_quoted_spans() {
-  ps::_walk_quoted_spans "$1" opaque
+ps::opaque_quoted_spans_to() {
+  ps::_walk_quoted_spans_to "$1" "$2" opaque
 }
 
 # Fold a BACKTICK-ESCAPED closing brace to `_`, left to right, BEFORE any caller
@@ -432,8 +532,8 @@ ps::opaque_quoted_spans() {
 # `${my`{writer}` deletes to `${my{writer}`, where `[^}]*` matches the name and
 # the real closer still terminates it — and removing a `{` other probes count
 # would be a change outside this finding.
-ps::fold_escaped_brace_closers() {
-  local s="$1" out="" i n ch
+ps::fold_escaped_brace_closers_to() {
+  local s="$2" out="" i n ch
   n=${#s}
   for ((i = 0; i < n; i++)); do
     ch="${s:i:1}"
@@ -457,7 +557,7 @@ ps::fold_escaped_brace_closers() {
     fi
     out+="$ch"
   done
-  printf '%s' "$out"
+  ps::_chomp_to "$1" "$out"
 }
 
 # True (0) when the (quote-stripped) text carries a PowerShell construct the Bash
@@ -651,8 +751,8 @@ ps::call_target_is_bare_subexpression() {
 # An unmatched OPENER (a genuinely unbalanced command) leaves the region running
 # to end of string; the callers stay conservative on what they can still see, and
 # such a command does not parse in PowerShell to begin with.
-ps::call_site_operand_region() {
-  local s="$1" out="" i ch depth=0
+ps::call_site_operand_region_to() {
+  local s="$2" out="" i ch depth=0
   for ((i = 0; i < ${#s}; i++)); do
     ch="${s:i:1}"
     case "$ch" in
@@ -672,7 +772,7 @@ ps::call_site_operand_region() {
     esac
     out+="$ch"
   done
-  printf '%s' "$out"
+  ps::_chomp_to "$1" "$out"
 }
 
 # Blank the INTERIOR of every balanced bracket group in a call's operand region,
@@ -681,8 +781,8 @@ ps::call_site_operand_region() {
 # `& $ic -ScriptBlock { & $w @p }` belongs to the inner `& $w`, which the call-site
 # walk reaches on its own iteration, and the interior of `${script:Path}` holds no
 # operands at all.
-ps::blank_bracket_interiors() {
-  local s="$1" out="" i ch depth=0
+ps::blank_bracket_interiors_to() {
+  local s="$2" out="" i ch depth=0
   for ((i = 0; i < ${#s}; i++)); do
     ch="${s:i:1}"
     case "$ch" in
@@ -702,7 +802,7 @@ ps::blank_bracket_interiors() {
     esac
     if ((depth > 0)); then out+=" "; else out+="$ch"; fi
   done
-  printf '%s' "$out"
+  ps::_chomp_to "$1" "$out"
 }
 
 ps::computed_call_has_positional_write_signal() {
@@ -744,10 +844,11 @@ ps::computed_call_has_positional_write_signal() {
     # count, and the `}` ending an ENCLOSING script block is not an operand —
     # while a `}` that closes one of this call's own operands must not truncate
     # past the operands after it (review of #2848).
-    rest=$(ps::call_site_operand_region "$rest")
+    ps::call_site_operand_region_to rest "$rest"
     # Drop redirect operands (`> f`, `2> err`) — those are covered by the
     # redirect probe; they are not Path+Value positionals.
-    rest=$(printf '%s' "$rest" | sed -E 's/[0-9*]*>+[^[:space:]]*//g; s/[0-9*]*<+[^[:space:]]*//g')
+    ps::_gsub_to rest "$rest" '[0-9*]*>+[^[:space:]]*' ''
+    ps::_gsub_to rest "$rest" '[0-9*]*<+[^[:space:]]*' ''
     # shellcheck disable=SC2086 # intentional word-split on PowerShell tokens
     for tok in $rest; do
       [[ -z "$tok" ]] && continue
@@ -840,8 +941,8 @@ ps::computed_call_has_splat_operand() {
     # blanked: a `}` closing one of THIS call's operands must not truncate away a
     # real splat after it (`& $w ${script:Path} @Body`), while a splat nested
     # inside a script block belongs to the inner call the walk reaches next.
-    rest=$(ps::call_site_operand_region "$rest")
-    rest=$(ps::blank_bracket_interiors "$rest")
+    ps::call_site_operand_region_to rest "$rest"
+    ps::blank_bracket_interiors_to rest "$rest"
     if [[ "$rest" =~ (^|[[:space:]])@[a-z0-9_:]+ ]]; then
       return 0
     fi
@@ -1100,7 +1201,7 @@ ps::might_write_via_python3() {
   # The quote-BLANKED command: an `open(` or a quoted mention inside the write
   # payload is removed, so an UNQUOTED `(` (subexpression) or `$` (variable) that
   # survives here is a genuine computed construct, not payload text.
-  blanked=$(ps::blank_quoted_spans "$1")
+  ps::blank_quoted_spans_to blanked "$1"
   # A launcher (Start-Process/saps/start/pwsh/powershell/cmd) whose PROGRAM name is
   # COMPUTED cannot be proven non-python. Rather than model parameter ordering /
   # binding with a regex (which successive rounds defeated — one preceding option,
@@ -1117,7 +1218,7 @@ ps::might_write_via_python3() {
   fi
   # A call `&` / dot-source `.` of a DOUBLE-QUOTED target that INTERPOLATES a
   # variable or subexpression (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
-  # COMPUTED program that could resolve to python3. blank_quoted_spans erases the
+  # COMPUTED program that could resolve to python3. blank_quoted_spans_to erases the
   # target (so the launcher/token tests miss it) and it is not a launcher, so match
   # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
   # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
@@ -1181,7 +1282,7 @@ ps::has_dynamic_invocation() {
   # following quote visible (`& "…"` / `. '…'`). Quote-blanked confirms the
   # `$name=` itself is not inside a string.
   [[ "$recovered" =~ (^|[[:space:]\;\{\}\(\|\&])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*[.\&][[:space:]]*[$q] ]] || return 1
-  blanked=$(ps::blank_quoted_spans "$recovered")
+  ps::blank_quoted_spans_to blanked "$recovered"
   [[ "$blanked" =~ \$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*[.\&] ]]
 }
 
@@ -1208,7 +1309,7 @@ ps::has_launcher() {
   # and a quoted `$out=pwsh` stay data (about_Quoting_Rules). `git -c
   # section.key=cmd` is git(1) `-c <name>=<value>`, not an assignment, and
   # does not match. Spelled out literally, never shared through a variable.
-  blanked=$(ps::blank_quoted_spans "$lc")
+  ps::blank_quoted_spans_to blanked "$lc"
   [[ "$blanked" =~ (^|[[:space:]\;\|\&\(])\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*=[[:space:]]*(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
 }
 
@@ -1232,7 +1333,7 @@ ps::classify_git_command() {
   [[ "$tool" == "PowerShell" ]] || return 0
 
   ps::blank_herestrings "$cmd"
-  scan=$(ps::blank_quoted_spans "$PS_BLANKED")
+  ps::blank_quoted_spans_to scan "$PS_BLANKED"
   # Record WHICH trigger routed the command here. Four distinct shapes reach this
   # sink and they need different remediation: an operator told to "remove the
   # unparsable construct" when the trigger was a launcher or a computed call
@@ -1270,12 +1371,12 @@ ps::classify_git_command() {
   # regardless of which OS the HOOK runs on, and hook::git_is_bin strips
   # `.exe` only on its msys/cygwin branch.
   local reduced="${PS_BLANKED//\\//}"
-  reduced=$(printf '%s' "$reduced" | sed -E 's/[Gg][Ii][Tt]\.[Ee][Xx][Ee]/git/g')
+  ps::_gsub_to reduced "$reduced" '[Gg][Ii][Tt]\.[Ee][Xx][Ee]' git
   # PowerShell `$var=cmd` / `$var+=cmd` begins a new pipeline on the RHS without
   # requiring whitespace. Bash expands `$var` and leaves `=cmd` as a non-git
   # word, so strip the assignment prefix so the RHS command word is visible
   # (Claude review on #2592: `$x=git reset --hard`).
-  reduced=$(printf '%s' "$reduced" | sed -E 's/\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*(\+=|-=|\*=|\/=|%=|=)[[:space:]]*/ /g')
+  ps::_gsub_to reduced "$reduced" '\$[A-Za-z_][A-Za-z0-9_]*(:[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*(\+=|-=|\*=|/=|%=|=)[[:space:]]*' ' '
   # Read by the sourcing guard, not within this library.
   # shellcheck disable=SC2034
   PS_SAFE_COMMAND="$reduced"
@@ -1318,81 +1419,81 @@ ps::_at_command_position() {
   [[ "$prev" == [[:space:]\;\|\&\{\}\(\)] ]]
 }
 
-# Consume a double-quoted span starting at IDX (points at "); returns end index
-# (one past the closer, or past end of string if unbalanced).
-ps::_skip_double_quote() {
-  local cmd="$1" i="$2" n=${#1} c
-  i=$((i + 1))
-  while ((i < n)); do
-    c="${cmd:i:1}"
-    if [[ "$c" == '`' ]]; then
-      i=$((i + 2))
+# Consume a double-quoted span starting at IDX (points at "); assigns the end
+# index (one past the closer, or past end of string if unbalanced) to VARNAME.
+ps::_skip_double_quote_to() {
+  local __dq_cmd="$2" __dq_i="$3" __dq_n=${#2} __dq_c
+  __dq_i=$((__dq_i + 1))
+  while ((__dq_i < __dq_n)); do
+    __dq_c="${__dq_cmd:__dq_i:1}"
+    if [[ "$__dq_c" == '`' ]]; then
+      __dq_i=$((__dq_i + 2))
       continue
     fi
-    if [[ "$c" == '"' ]]; then
-      echo $((i + 1))
+    if [[ "$__dq_c" == '"' ]]; then
+      printf -v "$1" '%s' "$((__dq_i + 1))"
       return 0
     fi
-    i=$((i + 1))
+    __dq_i=$((__dq_i + 1))
   done
-  echo "$n"
+  printf -v "$1" '%s' "$__dq_n"
 }
 
 # Consume a single-quoted span starting at IDX (points at ').
-ps::_skip_single_quote() {
-  local cmd="$1" i="$2" n=${#1} c
-  i=$((i + 1))
-  while ((i < n)); do
-    c="${cmd:i:1}"
-    if [[ "$c" == "'" ]]; then
-      echo $((i + 1))
+ps::_skip_single_quote_to() {
+  local __sq_cmd="$2" __sq_i="$3" __sq_n=${#2} __sq_c
+  __sq_i=$((__sq_i + 1))
+  while ((__sq_i < __sq_n)); do
+    __sq_c="${__sq_cmd:__sq_i:1}"
+    if [[ "$__sq_c" == "'" ]]; then
+      printf -v "$1" '%s' "$((__sq_i + 1))"
       return 0
     fi
-    i=$((i + 1))
+    __sq_i=$((__sq_i + 1))
   done
-  echo "$n"
+  printf -v "$1" '%s' "$__sq_n"
 }
 
 # Advance IDX to the end of the current statement/pipeline element at depth 0
 # (stop before top-level `;`, newline, `|`, `&&`, `||`). Quote- and depth-aware.
-ps::_skip_statement_tail() {
-  local cmd="$1" i="$2" n=${#1} depth=0 c
-  while ((i < n)); do
-    c="${cmd:i:1}"
-    if ((depth == 0)); then
-      if [[ "$c" == "'" ]]; then
-        i=$(ps::_skip_single_quote "$cmd" "$i")
+ps::_skip_statement_tail_to() {
+  local __st_cmd="$2" __st_i="$3" __st_n=${#2} __st_depth=0 __st_c
+  while ((__st_i < __st_n)); do
+    __st_c="${__st_cmd:__st_i:1}"
+    if ((__st_depth == 0)); then
+      if [[ "$__st_c" == "'" ]]; then
+        ps::_skip_single_quote_to __st_i "$__st_cmd" "$__st_i"
         continue
       fi
-      if [[ "$c" == '"' ]]; then
-        i=$(ps::_skip_double_quote "$cmd" "$i")
+      if [[ "$__st_c" == '"' ]]; then
+        ps::_skip_double_quote_to __st_i "$__st_cmd" "$__st_i"
         continue
       fi
-      if [[ "$c" == ';' || "$c" == $'\n' ]]; then
-        echo "$i"
+      if [[ "$__st_c" == ';' || "$__st_c" == $'\n' ]]; then
+        printf -v "$1" '%s' "$__st_i"
         return 0
       fi
-      if [[ "$c" == '|' ]]; then
+      if [[ "$__st_c" == '|' ]]; then
         # `|` and `||` both end this pipeline element / statement.
-        echo "$i"
+        printf -v "$1" '%s' "$__st_i"
         return 0
       fi
-      if [[ "$c" == '&' && "${cmd:i+1:1}" == '&' ]]; then
-        echo "$i"
+      if [[ "$__st_c" == '&' && "${__st_cmd:__st_i+1:1}" == '&' ]]; then
+        printf -v "$1" '%s' "$__st_i"
         return 0
       fi
       # Bare `&` is the call operator (or background) — part of this statement.
     fi
-    case "$c" in
-    '{') depth=$((depth + 1)) ;;
-    '}') ((depth > 0)) && depth=$((depth - 1)) ;;
-    '(') depth=$((depth + 1)) ;;
-    ')') ((depth > 0)) && depth=$((depth - 1)) ;;
+    case "$__st_c" in
+    '{') __st_depth=$((__st_depth + 1)) ;;
+    '}') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
+    '(') __st_depth=$((__st_depth + 1)) ;;
+    ')') ((__st_depth > 0)) && __st_depth=$((__st_depth - 1)) ;;
     *) ;;
     esac
-    i=$((i + 1))
+    __st_i=$((__st_i + 1))
   done
-  echo "$n"
+  printf -v "$1" '%s' "$__st_n"
 }
 
 # Blank dynamic-invocation or launcher statements in CMD. KIND is `dynamic` or
@@ -1402,13 +1503,13 @@ ps::_blank_cmd_statements() {
   while ((i < n)); do
     c="${cmd:i:1}"
     if [[ "$c" == "'" ]]; then
-      end=$(ps::_skip_single_quote "$cmd" "$i")
+      ps::_skip_single_quote_to end "$cmd" "$i"
       out+="${cmd:i:end-i}"
       i=$end
       continue
     fi
     if [[ "$c" == '"' ]]; then
-      end=$(ps::_skip_double_quote "$cmd" "$i")
+      ps::_skip_double_quote_to end "$cmd" "$i"
       out+="${cmd:i:end-i}"
       i=$end
       continue
@@ -1422,7 +1523,7 @@ ps::_blank_cmd_statements() {
         if [[ "$lc" =~ ^(iex|invoke-expression)([^a-z0-9_-]|$) ]]; then
           if [[ "$lc" == iex* ]]; then word=3; else word=18; fi
           # iex / Invoke-Expression — blank through end of this pipeline element.
-          end=$(ps::_skip_statement_tail "$cmd" $((i + word)))
+          ps::_skip_statement_tail_to end "$cmd" $((i + word))
           i=$end
           out+=" "
           matched=1
@@ -1431,7 +1532,7 @@ ps::_blank_cmd_statements() {
           j=$((i + 1))
           while ((j < n)) && [[ "${cmd:j:1}" == [[:space:]] ]]; do j=$((j + 1)); done
           if ((j < n)) && [[ "${cmd:j:1}" == "'" || "${cmd:j:1}" == '"' ]]; then
-            end=$(ps::_skip_statement_tail "$cmd" "$i")
+            ps::_skip_statement_tail_to end "$cmd" "$i"
             i=$end
             out+=" "
             matched=1
@@ -1440,7 +1541,7 @@ ps::_blank_cmd_statements() {
         ;;
       launcher)
         if [[ "$lc" =~ ^(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([^a-z0-9_-]|$) ]]; then
-          end=$(ps::_skip_statement_tail "$cmd" "$i")
+          ps::_skip_statement_tail_to end "$cmd" "$i"
           i=$end
           out+=" "
           matched=1
@@ -1466,13 +1567,13 @@ ps::_blank_special_construct_regions() {
   while ((i < n)); do
     c="${cmd:i:1}"
     if [[ "$c" == "'" ]]; then
-      end=$(ps::_skip_single_quote "$cmd" "$i")
+      ps::_skip_single_quote_to end "$cmd" "$i"
       out+="${cmd:i:end-i}"
       i=$end
       continue
     fi
     if [[ "$c" == '"' ]]; then
-      end=$(ps::_skip_double_quote "$cmd" "$i")
+      ps::_skip_double_quote_to end "$cmd" "$i"
       out+="${cmd:i:end-i}"
       i=$end
       continue
@@ -1484,7 +1585,7 @@ ps::_blank_special_construct_regions() {
       continue
     fi
     if [[ "${cmd:i:3}" == '--%' ]]; then
-      end=$(ps::_skip_statement_tail "$cmd" "$i")
+      ps::_skip_statement_tail_to end "$cmd" "$i"
       i=$end
       out+=" "
       continue
@@ -1497,11 +1598,11 @@ ps::_blank_special_construct_regions() {
       while ((i < n && depth > 0)); do
         c="${cmd:i:1}"
         if [[ "$c" == "'" ]]; then
-          i=$(ps::_skip_single_quote "$cmd" "$i")
+          ps::_skip_single_quote_to i "$cmd" "$i"
           continue
         fi
         if [[ "$c" == '"' ]]; then
-          i=$(ps::_skip_double_quote "$cmd" "$i")
+          ps::_skip_double_quote_to i "$cmd" "$i"
           continue
         fi
         if [[ "$c" == '`' ]]; then
@@ -1529,9 +1630,11 @@ ps::_blank_special_construct_regions() {
 # PS_SAFE_COMMAND (prefix before the hanging opener, if any).
 ps::_blank_unbalanced_herestring_tail() {
   local cmd="$1" line out="" pending="" in_hs=0 hs_quote="" first2 closer opener_scan
+  local -a hs_lines=()
   # Mirror ps::blank_herestrings' opener detection; once an opener has no closer,
   # drop it and everything after (extent unknown — trailing code may be inside).
-  while IFS= read -r line || [[ -n "$line" ]]; do
+  ps::_split_lines_to hs_lines "$cmd"
+  for line in "${hs_lines[@]}"; do
     if ((in_hs)); then
       first2="${line:0:2}"
       closer="${hs_quote}@"
@@ -1543,7 +1646,8 @@ ps::_blank_unbalanced_herestring_tail() {
       fi
       continue
     fi
-    opener_scan=$(printf '%s' "$line" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g')
+    ps::_gsub_to opener_scan "$line" "'[^']*'" ''
+    ps::_gsub_to opener_scan "$opener_scan" '"([^"\\]|\\.)*"' ''
     if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
       hs_quote="${line: -1}"
       pending="${line%??}"
@@ -1551,7 +1655,7 @@ ps::_blank_unbalanced_herestring_tail() {
       continue
     fi
     out+="${line}"$'\n'
-  done < <(printf '%s\n' "$cmd")
+  done
   if ((in_hs)); then
     # Hanging opener: keep only the prefix before it; drop the opaque tail.
     # shellcheck disable=SC2034
@@ -1679,14 +1783,14 @@ ps::write_bypass() {
   # and vanish from the braced-target scanner entirely (review of #2848). This is
   # the load-bearing position: the probes cannot do it themselves, because by the
   # time they are called the backticks are already gone.
-  lcq=$(ps::fold_escaped_brace_closers "$PS_BLANKED")
+  ps::fold_escaped_brace_closers_to lcq "$PS_BLANKED"
   # Keep a backtick-INTACT copy for the quote-blanking below, for the same reason
   # the brace fold has to run before the deletion: a backtick-escaped QUOTE is an
   # escape context that the deletion destroys. `"say `"hi"` is one string, but
   # once the backtick is gone it reads as `"say "` + `hi` + a dangling `"` whose
   # pairing runs forward to the next literal quote anywhere on the line — which
   # swallowed `& ('set-'+'content') f.txt x` and returned 0 (review of #2965).
-  # ps::blank_quoted_spans can only resolve that toward NOT deleting while the
+  # ps::blank_quoted_spans_to can only resolve that toward NOT deleting while the
   # backtick still exists, so it must see this copy; the result is stripped
   # afterwards, which still recovers an obfuscated `Set``-Content` name.
   lcq_bt="${lcq,,}"
@@ -1706,7 +1810,7 @@ ps::write_bypass() {
   # Both this and the quoted-writer check above accept a statement/block separator
   # boundary (`;& …`), not only whitespace (review round 6).
   if ps::call_target_is_bare_computed "$lcq"; then
-    blanked_gate=$(ps::blank_quoted_spans "$lcq_bt")
+    ps::blank_quoted_spans_to blanked_gate "$lcq_bt"
     blanked_gate="${blanked_gate//\`/}"
     # fd-dup merges (`2>&1`) are plumbing, not file writes — strip them before
     # ANY probe in this branch runs, so `& $tool 2>&1` does not look like a
@@ -1714,7 +1818,7 @@ ps::write_bypass() {
     # separator by the call-site walk.
     #
     # The fd-dup strip MUST run on BOTH texts below before any probe sees them,
-    # not only on the `>` redirect probe's copy. `ps::call_site_operand_region`
+    # not only on the `>` redirect probe's copy. `ps::call_site_operand_region_to`
     # ends a call's operand region at a depth-zero `;` `|` `&`, and the `&`
     # inside `2>&1` is at depth zero, so handing the MEASURING probes unstripped
     # text truncates the region of `& $w 2>&1 f.txt x` (a working
@@ -1731,17 +1835,17 @@ ps::write_bypass() {
     #
     # Redirect / -va* probes run on quote-blanked text so a quoted `>` or
     # `-value` substring in message text is not a write signal (#2722 review).
-    blanked_gate=$(printf '%s' "$blanked_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
+    ps::_gsub_to blanked_gate "$blanked_gate" '[0-9*]*>&[0-9]+' ''
     # Quoted operands stay PRESENT-BUT-OPAQUE for the positional probe only.
-    # blank_quoted_spans DELETES them, so `& $w 'f.txt' 'x'` counted as a
+    # blank_quoted_spans_to DELETES them, so `& $w 'f.txt' 'x'` counted as a
     # zero-operand call and quoting was a general evasion of the Path+Value
     # signal (#2906). A global placeholder would also feed quoted `>` / `-value`
     # in message text to the redirect and `-va*` probes — measured fail-open
     # on producer-redirect rows — so this string is derived here and handed
     # to ps::computed_call_has_positional_write_signal alone.
-    opaque_gate=$(ps::opaque_quoted_spans "$lcq_bt")
+    ps::opaque_quoted_spans_to opaque_gate "$lcq_bt"
     opaque_gate="${opaque_gate//\`/}"
-    opaque_gate=$(printf '%s' "$opaque_gate" | sed -E 's/[0-9*]*>&[0-9]+//g')
+    ps::_gsub_to opaque_gate "$opaque_gate" '[0-9*]*>&[0-9]+' ''
     # Grouping is NOT a write signal (#2848): a blanket
     # ps::has_special_constructs gate treats ANY grouping anywhere in the
     # command as one, reporting an ordinary `foreach (…) { & $py run.py $x }`
@@ -1783,7 +1887,7 @@ ps::write_bypass() {
     fi
   fi
 
-  scan=$(ps::blank_quoted_spans "$PS_BLANKED")
+  ps::blank_quoted_spans_to scan "$PS_BLANKED"
   # Delete backticks before matching so a name obfuscated by PowerShell's escape
   # char (`Set``-Content`) resolves to its real form.
   scan="${scan//\`/}"
@@ -1848,9 +1952,11 @@ ps::write_bypass() {
   # them BEFORE splitting, or the `&` inside `2>&1` cuts a phantom `1 > file`
   # segment that the numeric-producer test would wrongly block
   # (`git status 2>&1 > out.txt` is a tool capture, not a content write).
-  lcs=$(printf '%s' "$lcs" | sed -E 's/[0-9*]*>&[0-9]+//g')
+  ps::_gsub_to lcs "$lcs" '[0-9*]*>&[0-9]+' ''
   local norm="${lcs//[|;&]/$'\n'}"
-  while IFS= read -r seg; do
+  local -a seg_lines=()
+  ps::_split_lines_to seg_lines "$norm"
+  for seg in "${seg_lines[@]}"; do
     seg="${seg#"${seg%%[![:space:]]*}"}" # ltrim
     [[ "$seg" == *'>'* ]] || continue
     # Exclude the `$null` discard (PowerShell's /dev/null).
@@ -1889,6 +1995,6 @@ ps::write_bypass() {
     # Only the SPACED form — an attached digit prefix (`2>err.txt`, `2>&1`) is a
     # stream redirect whose producer is the preceding tool, not a value.
     [[ "$head" =~ ^[0-9]+([.][0-9]+)?$ ]] && return 0
-  done < <(printf '%s\n' "$norm") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done
   return 1
 }
