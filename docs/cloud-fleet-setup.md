@@ -57,10 +57,9 @@ Pinned toolchains found:
 
 - **.NET SDK 10.0.400**, pinned by medley and claude-code-account-rotation, which set
   `rollForward: disable`, so the exact patch is required, and by ci-workflows without a
-  `rollForward`. **10.0.401** (github-iac, also `rollForward: disable`) is in neither fallback
-  slot, so that repo depends entirely on the per-repo-pin path reading its `global.json`. The
-  fallback list is still `10.0.302 10.0.400`, so **10.0.302** is installed even though no fleet
-  repo pins it any more.
+  `rollForward`. **10.0.401** (github-iac, also `rollForward: disable`) is now in the fallback
+  list too. The fallback list matches the fleet pins above, `10.0.400 10.0.401` (per
+  `components/cloud-environment/setup.sh` in standards, verified 2026-09-15).
 - **Node 24.20.0**, the fleet fallback the setup script installs when the checked-out repo pins no
   `.node-version`; nine repos pin that exact version and codex-plugins pins major 24. The cloud VM
   ships Node 20/21/22 only, so this is always an install.
@@ -74,11 +73,13 @@ Pinned toolchains found:
 
 ## Bootstrap adoption (2026-08-16)
 
-Adoption is complete and no longer a per-repo decision surface: all fifteen non-archived
-melodic-software repositories (`gh repo list melodic-software --json name,isArchived`) carry
-`.claude/cloud-bootstrap.sh`, register it as a `startup|resume` SessionStart hook, and declare the
-`melodic-software` marketplace. Enabling the catalog is not among the per-repo steps: the standards
-fleet list does that for every repo, and a repo's own block carries only deltas
+Adoption is no longer a per-repo decision surface: as of 2026-08-16, every non-archived
+melodic-software repository (`gh repo list melodic-software --no-archived --limit 100 --json name`;
+the `--limit` matters, since `gh repo list` returns only 30 by default) carried
+`.claude/cloud-bootstrap.sh`, registered it as a `startup|resume` SessionStart hook, and declared
+the `melodic-software` marketplace; a repository created after that pass is not covered by it.
+Enabling the catalog is not among the per-repo steps: the standards fleet list does that for every
+repo, and a repo's own block carries only deltas
 ([Step 2](#step-2-per-repo-wiring)). Read adoption state from the repos rather than from a table
 here; a per-repo enumeration in this doc can only lag them.
 
