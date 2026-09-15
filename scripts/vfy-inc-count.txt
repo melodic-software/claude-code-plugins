@@ -1,0 +1,5 @@
+# (c) case 1: shipped corpus with the cc58cbc53 eda5ae5ed count changed 298 -> 297
+fires f603880dad4003477ec7cac27654fce92c75eec8 [a95f240f7502ff9f1e5411602e79ccbd4b9056c0=346] #2639 dropped #2635 (346 blamed lines), 13 minutes later
+fires 9239f1541b1b15a2a183ad6b4067e577f931e3f1 [f603880dad4003477ec7cac27654fce92c75eec8=451] #2641 dropped #2639 (451 blamed lines), 10 minutes later
+fires cc58cbc53fbbb2cca68e071507b82d3e3ff896ff [bfb66beb8c1a6cdb52957a9a2614c6d2593739dd=853,eda5ae5ed5c2b54fdf2db5fd3b620a9272c46da5=297] #2633 dropped #2644's rollups (853 blamed lines) and #2642's GraphQL merge evidence (297); already recorded in #2656
+clean c8470efd09d78d924a962483ff8a0b7809180e11 docs(conventions) rewrote 129 lines of a doc #2679 had just added
