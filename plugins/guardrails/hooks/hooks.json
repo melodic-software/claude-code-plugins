@@ -91,6 +91,12 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-reference-verify.sh",
             "timeout": 30,
             "statusMessage": "Verifying skill references..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/stale-path-verify.sh",
+            "timeout": 30,
+            "statusMessage": "Verifying cited paths..."
           }
         ]
       }

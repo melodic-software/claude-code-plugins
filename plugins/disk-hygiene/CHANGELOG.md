@@ -3,6 +3,40 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5]
+
+### Fixed
+
+- **A silent `destructive_guard.py` launch/runtime failure is now surfaced instead of looking
+  identical to an approval (#1416).** A repo-operator investigation of the original #1416 report
+  found both cited launch-refusal root causes already fixed and merged (#1242/0.9.0 here,
+  repo-hygiene's own guard by #1006); what remained live was that "the guard denied nothing because
+  it approved" and "the guard denied nothing because it never ran, or ran and died" were
+  indistinguishable from outside the harness. A new detector,
+  `skills/clean/scripts/guard_launch_monitor.py`, registers as a second, independent hook in
+  `hooks/hooks.json` — on `Stop`, not `PreToolUse`/`PostToolUse`, to avoid repeating the per-tool-call
+  cost class documented in
+  `docs/adr/0004-rightsize-instruction-surfaces-by-incumbent-first-arbitration.md`'s D-12 — and
+  scans the session transcript's tail for `hook_non_blocking_error` records naming
+  `destructive_guard.py`. On a match it emits one `systemMessage` per session (never a block, never a
+  `permissionDecision`) naming the guard, the failure count, and the most recent failure's exit code,
+  duration, and truncated stderr. It is a separate, stdlib-only process — deliberately not wired
+  through the guard's own code, since a guard that cannot launch cannot report that it did not
+  launch — and fails silently closed on any read/parse error so it can never itself become the
+  reason a turn is blocked. It covers only `destructive_guard.py`'s own command string: repo-hygiene's
+  guard is out of scope (verified working separately), there is no retroactive scan of prior
+  sessions, and — because both hooks are wired with the same literal `python3` command — the
+  interpreter-resolution fail-open documented in the README (the WindowsApps alias stub, or a
+  missing/broken `python3`) takes the detector down with the guard, so that one vector stays
+  unreported until the detector gets a launcher independent of the guarded interpreter (#1504). The
+  bounded tail read discards its first line only when the retained window actually starts mid-record:
+  when `size - _MAX_TAIL_BYTES` lands exactly on a record's first byte, an unconditional discard threw
+  away a whole record — which can be the session's only guard failure, silencing the very report the
+  detector exists to make. The once-per-session marker is written only after the warning has actually
+  left the process (`print` then `flush`, then mark): marking first meant a closed pipe or a kill
+  between the two silenced every later `Stop` in the session while the broad never-fail-loudly handler
+  exited quietly — reinstating the silence the detector exists to break.
+
 ## [0.9.4]
 
 ### Fixed

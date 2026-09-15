@@ -143,8 +143,8 @@ def main() -> int:
         cmd.append("--bare")
 
     try:
-        pid = spawn_detached(cmd, cwd=str(observer.parent))
-    except OSError as e:
+        pid = spawn_detached(cmd, cwd=str(observer_py.parent))
+    except Exception as e:  # noqa: BLE001 -- any spawn-time failure must degrade gracefully
         print(f"observer: failed to spawn: {e}")
         return 0
     print(f"observer: armed for session {args.session_id or transcript.stem} (pid {pid})")

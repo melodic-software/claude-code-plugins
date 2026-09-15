@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/stale-path-verify.schema.json",
+  "title": "stale-path-verify telemetry data",
+  "description": "Per-hook `data` payload for the stale-path-verify advisory hook. Discovered from the envelope `hook` value \"stale-path-verify\". Evolves additive-only.",
+  "type": "object",
+  "required": ["tool", "file", "findings"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Claude Code tool that triggered the hook. May be an empty string — this advisory hook resolves only the file path, not the tool name."
+    },
+    "file": {
+      "type": "string",
+      "description": "Path of the scanned file, relative to the consuming repo root when resolvable; degraded to its basename when it is not, so an absolute path never embeds a developer username."
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Repo-relative paths cited in the scanned markdown that this repository's own history shows were deleted and that are absent from the working tree (public repo paths, not secret). Empty array when every cited path verified (status ok), and when the deleted-path oracle was unavailable (status skipped)."
+    }
+  }
+}
