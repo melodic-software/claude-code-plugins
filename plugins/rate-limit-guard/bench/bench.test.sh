@@ -8,6 +8,13 @@
 # unrunnable harness is exactly the defect that let #2521's measurements go
 # unreproducible (#2582).
 #
+# The lane runs are GATED on BENCH_LANES: running a lane is running a benchmark
+# however small its parameters, so an ordinary CI run stops after the lib
+# assertions and reports the lanes as deferred. `BENCH_LANES=1 bash
+# plugins/rate-limit-guard/bench/bench.test.sh` runs them locally, and the
+# weekly bench-harness workflow runs them in CI, which is where the #2582
+# clean-checkout guard now fires.
+#
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
 
@@ -25,6 +32,13 @@ fail() {
 ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
+}
+# One summary shape for both exits: the gated stop after the lib assertions and
+# the full run.
+summary() {
+  echo
+  echo "PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]
 }
 
 WORK="$(mktemp -d)"
@@ -75,6 +89,20 @@ if [[ $RC -ne 0 && "$OUT" == *"requires bash >= 5.0"* ]]; then
   ok "lib: missing EPOCHREALTIME is a loud refusal, not an unbound-variable abort"
 else
   fail "lib: EPOCHREALTIME guard rc=$RC out=$OUT"
+fi
+
+# --- the gate ----------------------------------------------------------------
+# Everything above asserts pure functions and costs milliseconds. Everything
+# below SPAWNS the lanes, which is a benchmark run whatever the parameters, and
+# is the only part of this suite that spends real wall-clock seconds on a
+# shared runner. Deferring it reads like lib/hook-utils.test.sh's clock
+# comparisons: an `ok` line that says the coverage did not run, not a SKIP,
+# because the runner's skip accounting is for an absent optional TOOL and
+# --strict-skips must stay usable on a box that has everything.
+if [[ -z "${BENCH_LANES:-}" ]]; then
+  ok "bench lanes: deferred (BENCH_LANES unset; the weekly bench-harness lane runs them, and BENCH_LANES=1 runs them here)"
+  summary
+  exit
 fi
 
 # --- bench-idle: smoke run against the repo tee, isolated HOME ---------------
@@ -132,6 +160,4 @@ else
   fail "trace-probe: rc=$RC out=${OUT:0:400}"
 fi
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ $FAIL -eq 0 ]]
+summary
