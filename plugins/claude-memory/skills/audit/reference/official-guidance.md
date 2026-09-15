@@ -215,7 +215,7 @@ Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-h
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
-| CLAUDE.md / AGENTS.md | Full load | Re-injected | — |
+| CLAUDE.md | Full load | Re-injected | — |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
 | Unscoped rules | Full load | Re-injected | — |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |
@@ -223,6 +223,12 @@ Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-h
 | Hooks | N/A (deterministic) | N/A | Every tool call |
 | Auto-memory MEMORY.md | First 200 lines / 25KB | Persists on disk | — |
 | Output style | If non-default | Persists for session | `/config` |
+
+`AGENTS.md` is deliberately absent from that table. The [memory docs](https://code.claude.com/docs/en/memory)
+state that Claude Code reads `CLAUDE.md`, not `AGENTS.md`, and a bare `AGENTS.md` does not appear in
+`/context` even with a `CLAUDE.md` beside it (checked on Claude Code 2.1.219 and 2.1.220). It loads —
+and then behaves as the `CLAUDE.md` row above — only when a loaded surface reaches it: an `@AGENTS.md`
+import, or a `CLAUDE.md` symlinked to it. Both make `/context` list it as its own Memory Files entry.
 
 ## No official scoring rubric
 

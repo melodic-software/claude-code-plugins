@@ -50,10 +50,12 @@ skill still does not perform it. Either way, no I1–I5 hygiene finding is ever 
 **non-memory surfaces** (skill bodies, agent definitions, prompt-type hooks, output styles) the
 full catalog I1–I13 applies — no incumbent auditor covers instruction content there.
 
-I12 (cross-surface conflict) carries its own narrower routing on the same convention: a contradiction
-wholly inside the memory layer is `claude-memory:audit` check C6's and is not reported here, while one
-with at least one side outside the memory layer, or any side in the managed-policy tier, is this
-skill's. The catalog states the full rule.
+I12 (cross-surface conflict) carries its own narrower routing on the same convention, bounded by what
+the incumbent can actually inventory: a contradiction is `claude-memory:audit` check C6's, and not
+reported here, only when **both** sides fall inside C6's own discovery. A memory-layer pair C6 never
+reads — a user-scope or nested `CLAUDE.md`, a `~/.claude/rules/` file — stays this skill's, because
+ceding it would suppress the finding rather than relocate it. So does any conflict with a side outside
+the memory layer or in the managed-policy tier. The catalog states the full rule.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
 owned by the publishing repository, and a managed materialization is owned by whatever upstream
@@ -64,7 +66,8 @@ declaration in the consuming repo, no managed-file exclusion applies.
 
 ## Arguments
 
-Parse `$ARGUMENTS` for an optional scope filter that narrows which surfaces the inventory collects:
+Parse `$ARGUMENTS` for an optional scope filter. It narrows the *editable* inventory only — Phase A's
+I12 comparison inventory stays all-surface, so a scoped run still finds conflicts reaching outside it:
 
 - `claude-md` — user + project CLAUDE.md and CLAUDE.local.md only
 - `rules` — `.claude/rules/` and `~/.claude/rules/` only
@@ -101,6 +104,15 @@ Exclude, and hold for the routing subsection instead of the editable set: auto-m
 installed plugin-cache content, and any managed materialization per the Scope boundary. Record
 each surface found and each surface skipped, so the report's tier-transparency line can name both.
 
+**Two inventories, not one.** The above is the *editable* set, which the scope filter narrows and those
+exclusions reduce. I12 needs a second, **comparison inventory** — read-only, never narrowed by the
+filter, spanning the catalog's whole I12 comparison set: prompt-type hooks in
+`.claude/settings.local.json` as well as project and user settings, the managed-policy tier including
+its fileless `claudeMd` key, and one name-and-scope pair per skill, subagent, and MCP server. The
+filter decides which side of a conflict may produce a finding, not which side is available to compare
+against. Extract hook text with `jq` over the `hooks` key, never a bare read of a settings file that
+may hold secrets. Nothing becomes editable by being inventoried here.
+
 ## Phase B — Per-surface lanes
 
 Run one **fresh read-only subagent per surface**, each sharing
@@ -117,9 +129,15 @@ and I10 (reasoning-echo directives); `--count` prints the row count. It is advis
 cannot judge whether a rationale is genuinely present, so the lane refines every candidate rather
 than reporting it verbatim.
 
+**I12 runs in one dedicated lane, and none of the above.** A per-surface lane holds only its own
+surface's files, so it cannot see a relation *between* surfaces, and a lane that rescanned everything
+to compensate would re-derive one conflict per lane. Dispatch one **cross-surface lane** holding the
+whole Phase A comparison inventory — imports expanded and symlinks resolved per the catalog — as the
+sole producer of I12 findings and of the shadowed-definition section; per-surface lanes skip I12.
+
 Bound concurrency to 3–5 lanes at a time. The skills surface fans out one lane per skill. Before
-the total dispatch count (lanes plus the Phase C verifiers) would exceed ~20, confirm with the
-user first.
+the total dispatch count (per-surface lanes, the cross-surface lane, and the Phase C verifiers) would
+exceed ~20, confirm with the user first.
 
 ## Phase C — Verify pass
 
@@ -129,11 +147,10 @@ producing context would not be independent — prompted to refute: "would removi
 cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
 high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
 installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this
-artifact, invoked per its own docs — with
-the fresh-context same-vendor subagent as the fallback, never a route to a command that may not
-resolve. Batch one verifier per surface
-(not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
-demoted to `info` or dropped, never surfaced as a confident removal.
+artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback,
+never a route to a command that may not resolve. Batch one verifier per surface (not one per finding),
+counted under the same ~20-dispatch gate. A proposal the verifier defends is demoted to `info` or
+dropped, never surfaced as a confident removal.
 
 ## Phase D — Report
 
@@ -147,6 +164,11 @@ For each finding, give the proposed removal or rewrite as a fenced diff block. T
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
 check's tag from the catalog. An I12 conflict finding names **both** participating locations — it is
 a relation between two instructions, not a property of one line.
+
+**No-change representation.** Where the catalog forbids proposing an edit — the managed-policy I12
+case — the finding still gets a row: `Proposed change` reads `none — organizational decision`, and in
+place of the diff it quotes both conflicting excerpts read-only. The diff requirement never forces an
+edit a check prohibits.
 
 Three sections the catalog's `OPINION` policy requires: the shadowed-definition `info` section (live
 definition and inert one, per I12); a **Withheld** subsection naming every I6/I8 proposal the
@@ -178,11 +200,7 @@ catalog).
 
 ## What this skill does NOT do
 
-- Never edits an instruction file and never auto-files a tracker item — output is a report plus
-  proposed diffs the human applies.
-- Not a token-brevity pass (`docs-hygiene:compress`) and not structural skill lint
-  (`skill-quality:check`).
-- Not memory-layer hygiene — checks I1–I5 on CLAUDE.md/rules route to `claude-memory`'s `audit`
-  skill when installed.
-- Does not edit upstream-owned plugin-cache or managed materializations — those findings route to
-  the owning repository.
+Exactly what the Read-only contract and Scope boundary above exclude, and those two sections are the
+authoritative statements rather than this one: no instruction file is edited, no tracker item
+auto-filed, no I1–I5 hygiene finding produced on a memory-layer surface, and no upstream-owned or
+managed materialization changed in place.
