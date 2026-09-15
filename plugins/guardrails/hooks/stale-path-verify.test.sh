@@ -161,7 +161,7 @@ assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
 # Diff-scope again, against the harder shape: the hunk is unrelated prose that
 # merely SHARES a path segment with an untouched stale citation elsewhere in the
 # same file. Anchoring on a word token pulls that citation in — `docs` occurs in
-# both — so the anchor has to be the hunk's own line, which occurs in one line only.
+# both — so the anchor has to be the hunk's own text, which occurs exactly once.
 SEGSHARE="$REPO/segshare.md"
 printf 'Untouched `docs/gone.md` here.\nThe docs folder was reorganized today.\n' >"$SEGSHARE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
@@ -169,6 +169,63 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
 RC=$?
 assert_exit "prose hunk sharing a path segment → exit 0" 0 "$RC"
 assert_silent "hunk sharing only a path SEGMENT does not drag in an untouched citation" "$OUT"
+
+# Same fixture, the harder half: the hunk is the BARE FRAGMENT `docs` rather than
+# the whole line. `grep -F` is a substring match, so a line anchor collapses back
+# onto the very token anchoring it replaced — `docs` occurs on both lines, and the
+# untouched line 1 is the one carrying the stale citation. Anchoring on lines
+# cannot separate them here; only requiring the anchor to OCCUR exactly once does.
+# An anchor matching several occurrences cannot say which the edit landed on, so
+# it is dropped rather than unioned — unioning reported `STALE_PATH: docs/gone.md`
+# from an edit that touched only line 2.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SEGSHARE" 'docs')" 2>&1)
+RC=$?
+assert_exit "bare-fragment hunk matching several lines → exit 0" 0 "$RC"
+assert_silent "ambiguous anchor is dropped, not unioned" "$OUT"
+
+# The other direction, and the proof the gate narrows rather than silences: a bare
+# fragment just as short, in a file where it occurs exactly once, still fires. The
+# only difference from the case above is anchor uniqueness.
+BAREFIRE="$REPO/barefire.md"
+printf 'Untouched `docs/real.md` here.\nNow cites `docs/gone.md` today.\n' >"$BAREFIRE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$BAREFIRE" 'gone')" 2>&1)
+RC=$?
+assert_exit "unique bare-fragment hunk → exit 0" 0 "$RC"
+assert_contains "unique bare fragment introducing a stale citation still fires" "$OUT" \
+  "STALE_PATH: docs/gone.md"
+
+# Same defect one level finer: both occurrences of the anchor are on ONE physical
+# line, so `grep` reports a single matching line and a line-count uniqueness check
+# sees nothing wrong. Inserting `gone` into a line that already carried an
+# untouched citation must not report it — this call never wrote it. The gate
+# therefore counts OCCURRENCES, which subsumes counting lines.
+SAMELINE="$REPO/sameline.md"
+printf 'Cite `docs/gone.md` and note the gone convention.\n' >"$SAMELINE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SAMELINE" 'gone')" 2>&1)
+RC=$?
+assert_exit "anchor occurring twice on one line → exit 0" 0 "$RC"
+assert_silent "two occurrences on a single line are ambiguous, not unique" "$OUT"
+
+# `replace_all` is the one shape where repetition is EXPECTED, not ambiguous:
+# every occurrence is a place this call edited, so uniqueness must not be required
+# or the guard goes silent on a genuine multi-site edit. The paired assertions are
+# the same payload with and without the flag, so the exemption is what the second
+# one isolates. Built inline rather than through edit_json — that helper is shared
+# across guard suites and gated by hook-utils-sync, so this suite's payload variant
+# stays local to it.
+replall_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg fp "$1" --arg s "$2" \
+    '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s,replace_all:true}}'
+}
+REPLALL="$REPO/replall.md"
+printf 'First `docs/gone.md` here.\nSecond `docs/gone.md` there.\n' >"$REPLALL"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$REPLALL" 'gone')" 2>&1)
+assert_silent "ordinary Edit repeating the anchor → ambiguous, silent" "$OUT"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_json "$REPLALL" 'gone')" 2>&1)
+RC=$?
+assert_exit "replace_all Edit → exit 0" 0 "$RC"
+assert_contains "replace_all → repetition is the edit's own footprint, still fires" "$OUT" \
+  "STALE_PATH: docs/gone.md"
 
 # A line-citation suffix is stripped for resolution; the finding names the path
 # without it.
