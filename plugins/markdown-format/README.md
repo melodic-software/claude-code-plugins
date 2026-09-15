@@ -36,6 +36,17 @@ config has chosen no Markdown style, so the hook does not run there at all
   option on. When the verdict cannot be determined (no `git` on
   `PATH`, no working tree, `git check-ignore` erroring), the hook lints — a
   scope check that failed closed would disable the plugin invisibly.
+- **Files outside any working tree are out of scope.** When `CLAUDE_PROJECT_DIR`
+  is unset — an autonomous session whose cwd is not a repository — the hook
+  scopes to git-working-tree containment instead, so a temp `.md` written
+  outside any tree (a lane's `gh pr comment --body-file` payload) is not rewritten
+  under repository rules. Membership is decided on the file's physical path, so
+  an in-repository symlink pointing outside the tree does not smuggle its target
+  in; when that path cannot be canonicalized at all, the check fails **closed**
+  and the file is skipped. As with the gitignore check, an undeterminable
+  verdict lints: with no `git` on `PATH` there is no membership answer to be had,
+  and skipping would disable the plugin invisibly. `git` is not a requirement
+  below — its absence costs this scope narrowing, nothing else.
 - **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
   trailing spaces, …) are corrected in place, and the count of fixes written is
   reported to Claude and to you — a run that changed your file never passes

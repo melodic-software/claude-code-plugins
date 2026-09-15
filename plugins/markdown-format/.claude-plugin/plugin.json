@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "markdown-format",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Auto-format and lint Markdown on edit via markdownlint-cli2 — only in repos that carry their own markdownlint config.",
   "author": {
     "name": "Melodic Software",
