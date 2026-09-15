@@ -10,10 +10,9 @@
 #
 # The lane runs are GATED on BENCH_LANES: running a lane is running a benchmark
 # however small its parameters, so an ordinary CI run stops after the lib
-# assertions and reports the lanes as deferred. `BENCH_LANES=1 bash
-# plugins/rate-limit-guard/bench/bench.test.sh` runs them locally, and the
-# weekly bench-harness workflow runs them in CI, which is where the #2582
-# clean-checkout guard now fires.
+# assertions and reports the lanes as skipped coverage. BENCH_LANES=1 runs them
+# — locally, or in CI through ci.yml's `bench_lanes` dispatch input, which is
+# the deliberate run the #2582 guard rests on.
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
@@ -95,12 +94,17 @@ fi
 # Everything above asserts pure functions and costs milliseconds. Everything
 # below SPAWNS the lanes, which is a benchmark run whatever the parameters, and
 # is the only part of this suite that spends real wall-clock seconds on a
-# shared runner. Deferring it reads like lib/hook-utils.test.sh's clock
-# comparisons: an `ok` line that says the coverage did not run, not a SKIP,
-# because the runner's skip accounting is for an absent optional TOOL and
-# --strict-skips must stay usable on a box that has everything.
+# shared runner.
+#
+# The deferral prints a SKIP line rather than counting an ok. scripts/
+# run-plugin-tests.sh reads `^SKIP:` and names the suite under "Suites with
+# skipped coverage (exit 0 here is NOT evidence those cases ran)", which is
+# what this is: five cases that did not run. An ok would make the aggregate
+# read as full coverage. --strict-skips therefore fails here, correctly — a
+# caller declaring a fully provisioned environment is asking for every case to
+# run, and BENCH_LANES=1 is how it gets them.
 if [[ -z "${BENCH_LANES:-}" ]]; then
-  ok "bench lanes: deferred (BENCH_LANES unset; the weekly bench-harness lane runs them, and BENCH_LANES=1 runs them here)"
+  echo "SKIP: bench lanes deferred; set BENCH_LANES=1 to run them"
   summary
   exit
 fi
