@@ -222,9 +222,10 @@ or keep the comment if no vehicle exists (staging with no landing place is not a
 licence).
 
 `--notes <path>` gives the block a second home: the run appends it to that file as well as
-reporting it. The path must be untracked or outside the repository, checked with
-`git ls-files --error-unmatch <path>`; a tracked path is refused and the run continues with the
-report as the only vehicle. The block carries an `Intentional-removal:` line only where the target
+reporting it. Refuse a symlink first: `git ls-files --error-unmatch <path>` reads the index entry
+for the path it is given, so an untracked link pointing at a tracked file passes that check while
+the append lands on the tracked target. Then the path must be untracked or outside the repository;
+a tracked or symlinked path is refused and the run continues with the report as the only vehicle. The block carries an `Intentional-removal:` line only where the target
 repository's own gate scripts or CI read that trailer, since elsewhere it is a line no tool will
 ever match. Under `strip` the block carries more than usual: a class-B comment's information lands
 there rather than in a rewrite, so a thin staged block under `strip` is a defect, not a clean run.

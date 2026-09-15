@@ -82,7 +82,7 @@ Class-B moves and their tiers: [reference/dissolving-moves.md](reference/dissolv
 | `safe [target]` | **Safe mode**: only class-A deletions are applied; every class-B treatment and class-C rewrite is emitted as a proposal. For codebases whose guardrails you do not know. |
 | `aggressive [target]` | **Aggressive dial**: the survivor list below is the whole of what stays. Every other comment goes, rationale included, with its narrative staged; a class-B comment is dissolved when its move's gate passes and otherwise kept with a proposal. Gates are unchanged. Combines with `override` and `--notes`; `safe` beats it. |
 | `strip [target]` | **Strip**: delete every comment except the survivor list, rewrite no code, certify each deletion COMMENT-ONLY, and stage the narrative. A class-B comment is deleted rather than dissolved, so its information reaches the staged block instead of the code. `safe` beats it, and `strip` beats `aggressive`. |
-| `--notes <path>` | Append the staged block to `<path>` as well as reporting it. The path must be untracked or outside the repository, checked with `git ls-files --error-unmatch <path>`; a tracked path is refused, the run continues, and the block is reported only. |
+| `--notes <path>` | Append the staged block to `<path>` as well as reporting it. Refuse a symlink outright, then check the path with `git ls-files --error-unmatch <path>`, which reads the index entry and never the destination a link points at. The path must be untracked or outside the repository; a tracked or symlinked path is refused, the run continues, and the block is reported only. |
 | `override [target]` | **Lift the GLOBAL HARD path list** for this run's target, so `/code-tidying:dissolve-comments override ruff.toml` triages a file the list would otherwise drop. Combines with `safe`. Strip the token before reading the target; match it whole, and treat `./override` as a path. Path entries only, and every lifted path is named in the step 7 report with the channel that lifted it. |
 
 Posture `conservative` is safe mode as a standing default; `balanced` keeps the full contract but
@@ -273,7 +273,9 @@ from them.
    the comment. Under `aggressive` and `strip` this evidence check is skipped for every comment
    outside the survivor list: the verdict is the same either way, and the `git log -L` per comment
    is the expensive half of a run. Full procedure: [reference/triage.md](reference/triage.md). Done when every comment
-   carries one class and every class-C candidate a criterion-2 verdict with its evidence.
+   carries one class, and every class-C candidate the run still tests carries a criterion-2 verdict
+   with its evidence: under `aggressive` and `strip` that is the survivors only, since the rest are
+   leaving whatever the evidence says.
 6. **Apply**, one item at a time, each behind its tier's gate. Class A: delete, run
    `change-shape.py` on before and after; anything but COMMENT-ONLY (exit 0) restores the comment.
    Class B: apply the named move, run the tier's gate, then delete the comment. Class C: check the
@@ -285,7 +287,9 @@ from them.
    deleted behind that same COMMENT-ONLY proof, class C included, and under `strip` a class-B
    comment takes that path rather than its move; under `aggressive` a class-B move still applies
    only when its tier's gate passes, and the comment stays with a proposal when it does not. A non-exempt comment over budget is rewritten to the budget under
-   `strict` with the narrative staged, reported instead under `balanced`. **A kept comment stays
+   `strict` and under `aggressive`, each rewrite carrying the narrative to the staged block and the
+   COMMENT-ONLY proof like any other edit; it is reported instead under `balanced`. An over-budget
+   survivor left as it stands is a failed run, not a conservative one. **A kept comment stays
    where it is and keeps its own words**: rewriting shortens the comment that is there, and never
    relocates it, merges two comments, or writes a new one. A comment whose referent is gone is
    deleted, not re-authored. its carve-out reason names
