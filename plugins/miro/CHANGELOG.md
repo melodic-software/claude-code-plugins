@@ -3,6 +3,15 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- **Bump `@types/node` from 26.1.2 to 26.2.0** (#2920). Dev-only: TypeScript types for
+  the Node runtime the bundled MCP server builds against.
+- **Bump `esbuild` from 0.28.1 to 0.28.2** (#2920). Dev-only: the bundler that produces
+  the committed server artifact.
+
 ## [0.3.3]
 
 ### Changed
