@@ -200,7 +200,9 @@ from them.
    other way to mean it. **You are non-interactive whenever the `AskUserQuestion` tool is
    unavailable.** There, take the widened rung in safe mode, say "safe mode, non-interactive
    widening" in the report, and name the explicit-target re-run that would apply the full contract;
-   do not end the turn on a question nobody can answer. On the repository rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage
+   do not end the turn on a question nobody can answer. The same holds when the ladder stops on a
+   rung with no code files: report the rung and its count, say the session is non-interactive, name
+   the explicit-target re-run, and stop there rather than asking. On the repository rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage
    in its order. When an override channel is active, hand its resolved reach to the ranker so the
    administrative gate does not re-drop a lifted path: `--allow-path <glob>` per path the `override`
    argument or the repository overrides file lifted, and `--override-exclusions` only for
