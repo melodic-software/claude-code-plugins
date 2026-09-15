@@ -72,7 +72,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 - `.claude/`, this checkout's own Claude Code configuration (session and PR-linkage hooks, the
   source-control convention). It governs work done here and ships to no one.
 - `.github/`, workflows plus the policy files they read (runner policy, security paths, recurring
-  schedule, PR template).
+  schedule).
 - `docs/migration-playbook.md`, design charter, extensibility model, the per-plugin migration
   gate, and the local development loop.
 - `docs/`, further design records and audits (CI runner routing, extensibility-contract smoke
