@@ -625,6 +625,30 @@ jobs:
       - name: "Check every emitted fleet finding kind has a Finding: assertion"
         run: scripts/check-fleet-finding-test-coverage.sh --check
 
+  # The argument grammar the audit skill DOCUMENTS must match what
+  # audit-fleet.sh accepts, established by probing the parser rather than
+  # grepping it. #2646 merged a docs-only rebase that reverted the SKILL layer
+  # alone, leaving the parser correct, so the skill body told agents to reject
+  # the exact invocation the script accepts and every test still passed (#2713).
+  # Lives outside both protected files, the shape #2656 established. No network,
+  # no gh, no discovery: both probes resolve inside the argument/scope layer.
+  # Unconditional — a skipped lane fails the ci-status aggregate.
+  fleet-audit-doc-grammar-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history so the self-test can prove the gate goes red on
+          # a6be07f9, the merge that shipped the docs-only revert (#2646).
+          fetch-depth: 0
+      - name: Test the fleet audit doc-grammar detector
+        run: bash scripts/check-fleet-audit-doc-grammar.test.sh
+      - name: Check the documented audit grammar matches the parser
+        run: scripts/check-fleet-audit-doc-grammar.sh --check
+
   # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose newest
   # version heading does not outrun the manifest (static --check), a PR that
   # changes a plugin's manifest version must update that plugin's CHANGELOG.md in
@@ -1191,6 +1215,7 @@ jobs:
       - plugin-manifest-presence-gate
       - orphaned-fixture-gate
       - fleet-finding-test-coverage-gate
+      - fleet-audit-doc-grammar-gate
       - changelog-parity-gate
       - contract-slice-prune-gate
       - contract-clause-coverage-gate
