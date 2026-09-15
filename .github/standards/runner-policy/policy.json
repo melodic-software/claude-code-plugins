@@ -805,6 +805,19 @@
         "id-token": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths-file", "skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/checks.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -833,6 +846,25 @@
       "minimumCallerPermissions": {
         "contents": "read",
         "pull-requests": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths", "fail-on-severity"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "security-events": "write"
       }
     }
   },
