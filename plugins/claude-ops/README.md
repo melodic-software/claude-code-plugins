@@ -248,7 +248,10 @@ bare script path costs (median wall 41 ms against 107 ms, n=5). The script
 keeps its own switch for a direct invocation (2.42 ms against a 2.08 ms spawn
 floor on the Linux CI host). Enabled, the row execs the script and the chain is
 the same three creations as before (median 117 ms); a 2 KB payload costs about
-5 ms and a 512 KB one 36 ms. `session_event_log_categories` narrows the set. At
+5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
+hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
+is still owed, and the default stays off until it is taken.
+`session_event_log_categories` narrows the set. At
 `SessionEnd` the retention hook keeps the newest `session_log_keep_sessions`
 or the last `session_log_keep_days` days, and `session_log_pre_prune_command`
 hands an archiver the files about to go. The root carries its own `*`
