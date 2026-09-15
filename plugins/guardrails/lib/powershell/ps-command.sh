@@ -546,7 +546,13 @@ ps::_blank_comparison_operand_literals_to() {
 # OVER-BLOCK direction: a match only ever restores the quote-intact probe.
 #
 # The launcher words extend ps::has_launcher's list with the interpreters that
-# take a command string (`bash`, `sh`, `wsl`, `node`, `python`), and unlike the
+# take a command string (`bash`, `sh`, `wsl`, `node`, `python`) and with the
+# cmdlets that run a program WITHOUT a call operator — `Invoke-Item`/`ii` opens a
+# path, `Start-Job`/`sajb` runs a script block elsewhere, `Register-ScheduledTask`
+# and `New-Service` install a command line, `Invoke-WmiMethod`/`Invoke-CimMethod`
+# reach Win32_Process Create, and `New-Object` constructs a Process. Each would
+# otherwise turn the compared string back into a command word with none of the
+# shapes above present. Unlike the
 # computed-launcher probe at the end of ps::might_invoke_git they need no
 # `(`/`$` operand — `cmd /c $_.Name` reaches git through an argument the
 # operand-shaped probe never sees. A QUOTE is not in the predecessor class, so a
@@ -561,7 +567,7 @@ ps::_can_execute_computed_value() {
   # a path (`& 'bash'`, `& $x`, `& (…)`, `& .\$_.Name`) is one arm, not four.
   [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[^[:space:][:alnum:]_-] ]] && return 0
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression|invoke-command|icm)([^[:alnum:]_-]|$) ]] && return 0
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}=])(start-process|saps|start|pwsh|powershell|cmd|bash|sh|wsl|node|python|python3)(\.exe)?([^[:alnum:]_.-]|$) ]] && return 0
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}=])(start-process|saps|start|pwsh|powershell|cmd|bash|sh|wsl|node|python|python3|invoke-item|ii|start-job|sajb|register-scheduledtask|new-service|invoke-wmimethod|invoke-cimmethod|new-object)(\.exe)?([^[:alnum:]_.-]|$) ]] && return 0
   return 1
 }
 

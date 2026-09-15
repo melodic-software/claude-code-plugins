@@ -1250,6 +1250,17 @@ run_pwsh "PS cmp: path-shaped call of the compared value (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { & .\\\$_.Name push -f }" 2
 run_pwsh "PS cmp: Invoke-Command around the compared value (blocked)" \
   "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Command -ScriptBlock { & \$_.Name } }" 2
+# Cmdlets that run a program with no call operator, no evaluator and no shell
+# word are executors too: the compared string becomes a command word through
+# them just as readily.
+run_pwsh "PS cmp: Invoke-Item of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Item \$_.Name }" 2
+run_pwsh "PS cmp: the ii alias of Invoke-Item (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { ii \$_.Name }" 2
+run_pwsh "PS cmp: Start-Job around the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Start-Job { \$_.Name } }" 2
+run_pwsh "PS cmp: New-Object process construction beside a comparison (blocked)" \
+  "New-Object System.Diagnostics.Process; Get-Process | ? { \$_.Name -eq 'git' }" 2
 run_pwsh "PS cmp: call of a quoted git literal (blocked)" \
   "& 'git' commit --no-verify | % { \$_ }" 2
 run_pwsh "PS cmp: quoted subcommand after a bare git (blocked)" \
@@ -1287,6 +1298,10 @@ pin_predicate "ps::_can_execute_computed_value: a read-only comparison pipeline 
   ps::_can_execute_computed_value "Get-Process | Where-Object { \$_.Name -eq 'git' }" 1
 pin_predicate "ps::_can_execute_computed_value: cmd as a bare command word disqualifies" \
   ps::_can_execute_computed_value "Get-Process | ? { \$_.Name -eq 'git' } | % { cmd /c \$_.Name }" 0
+pin_predicate "ps::_can_execute_computed_value: Invoke-Item is an executor" \
+  ps::_can_execute_computed_value "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Item \$_.Name }" 0
+pin_predicate "ps::_can_execute_computed_value: New-Object is an executor" \
+  ps::_can_execute_computed_value "New-Object System.Diagnostics.Process; Get-Process | ? { \$_.Name -eq 'git' }" 0
 pin_predicate "ps::_can_execute_computed_value: a quoted launcher name is data, not an invocation" \
   ps::_can_execute_computed_value "Get-CimInstance Win32_Process | ? { \$_.Name -in @('git.exe','bash.exe') }" 1
 pin_sink_trigger "classify: the comparison pipeline still enters the special-construct sink" \
