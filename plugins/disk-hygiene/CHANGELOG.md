@@ -3,6 +3,13 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.12]
+
+### Changed
+
+- **The `Stop` guard-launch monitor no longer starts Python in a session that launched no guard.** The engine-gate rows are `if`-gated on the engine's file name, so most sessions never run `destructive_guard.py` at all, yet the monitor started a whole interpreter every turn to discover that from the transcript. `Stop` rows accept neither `matcher` nor `if`, so the gate lives in `hooks/run-python-hook.sh`, which grows three optional leading flags: `--marker-root <dir>`, `--launch-marker <subdir>` (write `<root>/<subdir>/<session>.launched` before exec'ing Python) and `--skip-unless-marker <subdir>` (exit 0 without exec'ing when that file is absent). Process creations per `Stop` on Windows, measured with a job-object census at n=5: 5 before, 3 with no marker, and still 5 with one present, against a 1-creation harness floor; wall clock 271 ms to 120 ms on the skipped path. The engine-gate row pays nothing for the marker after the first launch in a plugin data root, which spends one `mkdir`.
+- Marker semantics: the marker is per session and is never removed, so a data root accumulates one empty file per session that launched a guard, and no retention sweep collects them; a session whose guard rows never fired is skipped by design; the marker is written before the interpreter is resolved, so a guard that launches and dies, the failure the monitor exists to report, still leaves it. With a marker present the monitor's `systemMessage` and its `guard-decisions` record are byte-identical to before. A skipped turn emits no telemetry envelope at all, where it previously emitted an `ok` one.
+
 ## [0.23.11]
 
 ### Changed

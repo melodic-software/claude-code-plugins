@@ -81,6 +81,77 @@ except OSError:
 raise SystemExit(0 if sys.version_info >= floor else 1)
 '
 
+# --- optional per-session launch marker ------------------------------------
+#
+# Three OPTIONAL leading flags, consumed here and never forwarded to Python:
+#
+#   --marker-root <dir>            root the marker tree lives under, spelled
+#                                  `"${CLAUDE_PLUGIN_DATA}"` by every caller;
+#   --launch-marker <subdir>       write `<root>/<subdir>/<session>.launched`
+#                                  BEFORE exec'ing the target;
+#   --skip-unless-marker <subdir>  exit 0 without exec'ing anything when that
+#                                  file is absent.
+#
+# Together they let a `Stop` hook cost nothing in a session where the hook it
+# watches never ran. `guard_launch_monitor.py` reports failures of the
+# `PreToolUse` guard, and the guard rows are `if`-gated on the engine's file
+# name, so most sessions never launch the guard at all — yet the monitor still
+# started a whole Python on every turn to discover that. `Stop` rows accept
+# neither `matcher` nor `if`, so the only place that gate can live is here.
+#
+# The root is passed EXPLICITLY rather than read from `CLAUDE_PLUGIN_DATA` in
+# the environment: a hook subprocess can inherit that variable naming a
+# DIFFERENT plugin's data directory, and a writer and a reader that disagree
+# about the root skip silently, which is the missed-detection failure this
+# monitor exists to prevent. An empty value, or an unsubstituted literal
+# `${CLAUDE_PLUGIN_DATA}`, is treated as absent (the placeholder idiom
+# `guard_launch_monitor.py` already uses) and the tmp fallback carries the
+# marker alone.
+#
+# Failure modes, stated rather than implied:
+#   * a marker is per session and is never removed. Under the tmp fallback the
+#     OS clears it; under `--marker-root` it is one empty file per session that
+#     launched a guard, and neither the clean engine nor `lib/guard_decision_log.py`
+#     runs a retention sweep over the plugin data root that could collect them.
+#   * a session whose guard rows never fired is skipped BY DESIGN: there is no
+#     guard invocation for the monitor to have found a failure of.
+#   * a hook that failed before this script ran leaves no marker and is not this
+#     monitor's to detect — the detector reads the transcript for the guard's
+#     own command string, which such a failure still records.
+#   * the marker is written before the interpreter is even resolved, so the
+#     failure the monitor DOES exist to catch — the guard launching and dying —
+#     still leaves the marker that keeps the monitor running.
+#   * the session id is recovered with a regex over the raw payload rather than
+#     a JSON parse, because a parse is the Python this gate exists to avoid.
+#     The match is anchored to the payload's opening key, which nothing further
+#     in the payload can reach; only a payload that does not open with
+#     `session_id` falls back to an unanchored match, where a NESTED
+#     `session_id` key could win instead and key the marker wrongly. Both rows
+#     parse identically, so that corner is a missed detection, never a false
+#     alarm.
+#   * a mis-parse fails SAFE: no session id means write nothing and skip
+#     nothing, which is this launcher's behavior before these flags existed.
+MARKER_ROOT=""
+LAUNCH_MARKER_SUBDIR=""
+SKIP_MARKER_SUBDIR=""
+while (($#)); do
+  case "$1" in
+  --marker-root)
+    MARKER_ROOT="${2:-}"
+    shift 2 || break
+    ;;
+  --launch-marker)
+    LAUNCH_MARKER_SUBDIR="${2:-}"
+    shift 2 || break
+    ;;
+  --skip-unless-marker)
+    SKIP_MARKER_SUBDIR="${2:-}"
+    shift 2 || break
+    ;;
+  *) break ;;
+  esac
+done
+
 SCRIPT="${1:-}"
 shift || true
 
@@ -89,6 +160,77 @@ case "$SCRIPT" in
 *guard_launch_monitor.py*) MODE=monitor ;;
 *) ;;
 esac
+
+# shellcheck disable=SC2016  # the literal placeholder, deliberately unexpanded
+_DATA_ROOT_PLACEHOLDER='${CLAUDE_PLUGIN_DATA}'
+_MARKER_PATHS=()
+_PAYLOAD=""
+_SESSION_ID=""
+_BUFFERED_STDIN=0
+
+# Buffer the whole hook payload into a variable and recover its session id.
+# `read` is a builtin, so buffering costs no process; the payload is handed to
+# Python on a here-string at `exec` time, leaving its stdin unchanged.
+_read_payload() {
+  _BUFFERED_STDIN=1
+  IFS= read -r -d '' _PAYLOAD || true
+  local field='"session_id"[[:space:]]*:[[:space:]]*"([^"\\]*)"'
+  # Anchored first. The hooks reference shows `session_id` as the payload's
+  # opening key for every event but documents no ordering guarantee, and the
+  # payload nests objects of its own (`tool_input`) that could carry the same
+  # key name. An anchored match cannot be reached by either; the unanchored
+  # fallback runs only for a payload that did NOT open with the field, and keeps
+  # a reordered payload from turning this gate into a silent no-op.
+  local anchored="^[[:space:]]*[{][[:space:]]*$field"
+  if [[ "$_PAYLOAD" =~ $anchored ]] || [[ "$_PAYLOAD" =~ $field ]]; then
+    _SESSION_ID="${BASH_REMATCH[1]}"
+  fi
+}
+
+# Fill `_MARKER_PATHS` with the candidates for one subdir, most-preferred
+# first, mirroring `guard_launch_monitor.py`'s own `_marker_path_candidates`:
+# the data root when one resolved, then a tmp fallback whose directory name is
+# built from the subdir, so a `.launched` marker sits beside the `.warned` one
+# the monitor writes. Only bash reads and writes `.launched`, so the tmp
+# directory need not be the one Python's `tempfile.gettempdir()` picks; what
+# matters is that both flags resolve it identically, which they do.
+_marker_candidates() {
+  local subdir="$1" session="$2"
+  local safe="${session//[^a-zA-Z0-9_-]/_}"
+  _MARKER_PATHS=()
+  [[ -n "$safe" ]] || return 1
+  if [[ -n "$MARKER_ROOT" && "$MARKER_ROOT" != "$_DATA_ROOT_PLACEHOLDER" ]]; then
+    _MARKER_PATHS+=("$MARKER_ROOT/$subdir/$safe.launched")
+  fi
+  _MARKER_PATHS+=("${TMPDIR:-/tmp}/disk-hygiene-$subdir/$safe.launched")
+}
+
+if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
+  _read_payload
+  if [[ -n "$_SESSION_ID" ]] && _marker_candidates "$SKIP_MARKER_SUBDIR" "$_SESSION_ID"; then
+    _marker_found=0
+    for _marker_path in "${_MARKER_PATHS[@]}"; do
+      if [[ -f "$_marker_path" ]]; then
+        _marker_found=1
+        break
+      fi
+    done
+    ((_marker_found)) || exit 0
+  fi
+fi
+
+if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
+  ((_BUFFERED_STDIN)) || _read_payload
+  if [[ -n "$_SESSION_ID" ]] && _marker_candidates "$LAUNCH_MARKER_SUBDIR" "$_SESSION_ID"; then
+    for _marker_path in "${_MARKER_PATHS[@]}"; do
+      _marker_dir="${_marker_path%/*}"
+      # `mkdir` is the one spawn on this path and `[[ -d ]]` is a builtin, so it
+      # is paid once per root rather than once per launch.
+      [[ -d "$_marker_dir" ]] || mkdir -p "$_marker_dir" 2>/dev/null || continue
+      : >"$_marker_path" 2>/dev/null && break
+    done
+  fi
+fi
 
 # Portable WindowsApps path-component check (case-insensitive).
 _under_windowsapps() {
@@ -313,6 +455,15 @@ if [[ -z "$PYTHON" ]]; then
       '{"systemMessage":"disk-hygiene: destructive guard could not launch — no Python 3 interpreter resolved on this host (python3 missing or is a Windows App Execution Alias stub). Destructive Bash/PowerShell commands may have proceeded unguarded."}'
   fi
   exit 0
+fi
+
+# A buffered payload is replayed on a here-string, which bash serves from a pipe
+# or a temp file without creating a process. Python reads the same bytes it
+# would have read from the inherited stdin, plus the newline `<<<` appends —
+# both consumers here (`json.load(sys.stdin)` in the guard, `sys.stdin.read()`
+# then `json.loads` in the monitor) ignore trailing whitespace.
+if ((_BUFFERED_STDIN)); then
+  exec "$PYTHON" "$SCRIPT" "$@" <<<"$_PAYLOAD"
 fi
 
 exec "$PYTHON" "$SCRIPT" "$@"

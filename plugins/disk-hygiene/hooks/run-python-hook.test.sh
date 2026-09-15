@@ -381,7 +381,10 @@ done
 FAKE_BIN="$(mktemp -d)"
 # Replaces (does not chain onto) the earlier EXIT trap, so it cleans up both.
 trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR"' EXIT
-for stub in python3 python; do
+# `py` belongs in the stub set with the other two: the launcher's third branch
+# resolves through the Windows `py` launcher, and a host that has one resolves a
+# real interpreter here, runs the monitor, and sees no systemMessage at all.
+for stub in python3 python py; do
   printf '#!/usr/bin/env bash\nexit 127\n' >"$FAKE_BIN/$stub"
   chmod +x "$FAKE_BIN/$stub"
 done
@@ -457,5 +460,125 @@ else
   assert_eq "a warm launch execs exactly bash and the interpreter (strace census)" \
     "2" "$census_execs"
 fi
+
+# --- the per-session launch marker gates the Stop monitor before python ---
+#
+# `Stop` rows accept neither `matcher` nor `if`, so the only place a "did the
+# guard run at all this session" gate can live is the launcher. The contract has
+# four halves: a launch records the session (even when the launched python then
+# dies, which is the very failure the monitor exists to report), an unrecorded
+# session reaches no python at all, a recorded one runs exactly as before, and a
+# payload the launcher cannot key on falls back to running python.
+MARKER_CASE="$PROBE_DIR/marker-case"
+MARKER_ROOT_DIR="$MARKER_CASE/data"
+MARKER_HOME="$MARKER_CASE/home"
+MARKER_SEEN="$MARKER_CASE/target-stdin"
+MARKER_DIR="$MARKER_ROOT_DIR/guard-launch-monitor"
+mkdir -p "$MARKER_ROOT_DIR" "$MARKER_HOME" "$MARKER_CASE/tmp"
+MARKER_TARGET="$FIXTURE_ROOT/skills/clean/scripts/marker_target.py"
+{
+  printf 'import pathlib, sys\n'
+  # Byte-for-byte, through the binary buffer: the payload reaches python over a
+  # here-string now, and a decoded round trip would hide a newline difference.
+  printf 'pathlib.Path(sys.argv[1]).write_bytes(sys.stdin.buffer.read())\n'
+  printf 'pathlib.Path(sys.argv[1] + ".argv").write_text("\\n".join(sys.argv[3:]))\n'
+  printf 'raise SystemExit(int(sys.argv[2]))\n'
+} >"$MARKER_TARGET"
+
+MARKER_PAYLOAD=""
+# Echo the launcher's exit code; `$MARKER_SEEN` exists afterwards only if the
+# target actually started, and holds the bytes python read.
+marker_launch() {
+  local flag="$1" subdir="$2" target_rc="$3" rc=0
+  rm -f "$MARKER_SEEN" "$MARKER_SEEN.argv"
+  printf '%s' "$MARKER_PAYLOAD" |
+    HOME="$MARKER_HOME" TMPDIR="$MARKER_CASE/tmp" \
+      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      --marker-root "$MARKER_ROOT_DIR" "$flag" "$subdir" \
+      "$MARKER_TARGET" "$MARKER_SEEN" "$target_rc" >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+
+marker_state() {
+  [[ -f "$MARKER_DIR/$1.launched" ]] && printf 'present' || printf 'absent'
+}
+
+target_state() {
+  [[ -e "$MARKER_SEEN" ]] && printf 'ran' || printf 'skipped'
+}
+
+MARKER_PAYLOAD='{"session_id":"sess-1","hook_event_name":"PreToolUse"}'
+rm -rf "$MARKER_DIR"
+marker_rc="$(marker_launch --launch-marker guard-launch-monitor 0)"
+assert_eq "a guarded launch records the session" "present" "$(marker_state sess-1)"
+assert_eq "a guarded launch still runs its target" "ran" "$(target_state)"
+assert_eq "a guarded launch still reports its target's exit code" "0" "$marker_rc"
+assert_eq "the marker flags never reach python's argv" "" "$(cat "$MARKER_SEEN.argv")"
+
+# The monitor exists to catch a guard that launched and died, so a non-zero exit
+# must leave the marker that keeps the monitor running for the rest of the turn.
+rm -rf "$MARKER_DIR"
+marker_rc="$(marker_launch --launch-marker guard-launch-monitor 3)"
+assert_eq "a launch whose python exits non-zero still records the session" \
+  "present" "$(marker_state sess-1)"
+assert_eq "a launch whose python exits non-zero propagates that code" "3" "$marker_rc"
+
+MARKER_PAYLOAD='{"session_id":"sess-1","hook_event_name":"Stop"}'
+rm -rf "$MARKER_DIR"
+marker_rc="$(marker_launch --skip-unless-marker guard-launch-monitor 0)"
+assert_eq "an unrecorded session exits 0" "0" "$marker_rc"
+assert_eq "an unrecorded session starts no python" "skipped" "$(target_state)"
+
+mkdir -p "$MARKER_DIR"
+: >"$MARKER_DIR/sess-1.launched"
+marker_rc="$(marker_launch --skip-unless-marker guard-launch-monitor 0)"
+assert_eq "a recorded session runs python" "ran" "$(target_state)"
+assert_eq "a recorded session exits 0" "0" "$marker_rc"
+
+# Byte identity across the buffer-and-replay: python receives what it would have
+# read from the inherited stdin, plus the newline `<<<` appends. Both consumers
+# (`json.load(sys.stdin)`, `sys.stdin.read()` then `json.loads`) ignore it.
+MARKER_EXPECTED="$MARKER_CASE/expected"
+printf '%s\n' "$MARKER_PAYLOAD" >"$MARKER_EXPECTED"
+assert_eq "the buffered payload reaches python unchanged" "same" \
+  "$(cmp -s "$MARKER_EXPECTED" "$MARKER_SEEN" && printf 'same' || printf 'differs')"
+
+# A payload the launcher cannot key on must behave exactly as it did before
+# these flags existed: record nothing, skip nothing, run python.
+MARKER_PAYLOAD='{"hook_event_name":"Stop","cwd":"/tmp"}'
+rm -rf "$MARKER_DIR"
+marker_rc="$(marker_launch --skip-unless-marker guard-launch-monitor 0)"
+assert_eq "a payload with no session id still runs python" "ran" "$(target_state)"
+assert_eq "a payload with no session id exits 0" "0" "$marker_rc"
+marker_launch --launch-marker guard-launch-monitor 0 >/dev/null
+assert_eq "a payload with no session id records nothing" "absent" \
+  "$([[ -d "$MARKER_DIR" ]] && printf 'present' || printf 'absent')"
+
+# A payload whose opening key is something else still keys correctly, through
+# the unanchored fallback: the docs show `session_id` first for every event but
+# guarantee no ordering, and a reordered payload must degrade to running python,
+# not to keying on nothing.
+MARKER_PAYLOAD='{"hook_event_name":"Stop","session_id":"sess-2"}'
+rm -rf "$MARKER_DIR"
+marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+assert_eq "a reordered payload still keys on its session id" "skipped" "$(target_state)"
+mkdir -p "$MARKER_DIR"
+: >"$MARKER_DIR/sess-2.launched"
+marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+assert_eq "a reordered payload finds its own marker" "ran" "$(target_state)"
+
+# --- both wirings carry the flag the other one depends on ---
+guard_rows="$(jq '[.hooks.PreToolUse[].hooks[] |
+  select(.command | contains("destructive_guard.py"))] | length' "$HOOKS_JSON")"
+guard_marked="$(jq '[.hooks.PreToolUse[].hooks[] |
+  select(.command | contains("destructive_guard.py")) |
+  select(.command | contains("--launch-marker guard-launch-monitor"))] | length' \
+  "$HOOKS_JSON")"
+assert_eq "every engine-gate row records the session it launched in" \
+  "$guard_rows" "$guard_marked"
+assert_eq "the Stop row skips a session that launched no guard" "1" \
+  "$(jq '[.hooks.Stop[].hooks[] |
+    select(.command | contains("--skip-unless-marker guard-launch-monitor"))] | length' \
+    "$HOOKS_JSON")"
 
 pass "all run-python-hook contract checks"
