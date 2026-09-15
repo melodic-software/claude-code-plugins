@@ -374,7 +374,7 @@ comment-hygiene scan do not lint deliberately commented fixtures.
 - `git ls-files plugins/code-tidying/evals | grep -E '\.(sh|py|bash)$'` lists only scaffold scripts.
 - Every case's expected-red list in this file matches its red-run record.
 
-### Phase 3: Skill change [DOING]
+### Phase 3: Skill change [DONE]
 
 1. Consumer and claim sweep first: `grep -rn "comment_posture\|only descends\|narrows\|widened\|loosen
    nothing\|ceiling\|of 15" plugins/code-tidying docs scripts`; record every hit and its disposition
@@ -450,8 +450,8 @@ comment-hygiene scan do not lint deliberately commented fixtures.
   every base trigger phrase preserved; `check-skill` warns that the next added clause breaches the
   limit.
 - Gates: `check-skill` PASS (1 warning, the headroom note), `sync-plugin-options-docs.py --check`
-  exit 0, `check-evals-quality.sh` PASS, `allowed-tools-pairing.test.sh` exit 0, tier tables agree
-  tier by tier.
+  exit 0, `check-evals-quality.sh` PASS, `allowed-tools-pairing.test.sh` exit 0,
+  `check-purged-em-dashes.sh` exit 0, tier tables agree tier by tier.
 
 **Sanity Check:**
 
