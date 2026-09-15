@@ -41,7 +41,11 @@
 # Exit codes:
 #   0  success — worktree created; path on stdout
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
-#   3  refuse — no usable external root (guidance on stderr); nothing created
+#   3  refuse — no usable external root (guidance on stderr); nothing created.
+#      Three shapes: none configured at all, one landing inside a repository,
+#      and a CONFIGURED root on a different Windows drive than the repository
+#      (see the same-drive guard). The unconfigured data-dir default warns
+#      rather than refusing on that last one — reasoning at the guard.
 #   4  environment error — not a git repo, or `git worktree add` failed
 
 set -uo pipefail
@@ -306,8 +310,14 @@ root_is_unset() {
 # 2. Reject drive-relative roots (`C:foo` with no separator after the colon).
 #    Git for Windows resolves them against the drive's per-directory CWD, which
 #    bypasses the containment ancestor walk (#962).
+#
+# It also records which rung supplied the value in the global ROOT_SOURCE. The
+# same-drive guard further down branches on that: a root the caller CONFIGURED
+# is refused when it crosses a drive, while the unconfigured data-dir default
+# (which never reaches this function) warns instead.
 canonicalize_root() {
   local value="$1" source="$2"
+  ROOT_SOURCE="$source"
   if [[ "$value" == *\\* && ("$OSTYPE" == msys || "$OSTYPE" == cygwin) ]]; then
     local bslash="\\" fwd="/"
     value="${value//"$bslash"/"$fwd"}"
@@ -324,6 +334,10 @@ canonicalize_root() {
 # (the melodic.worktreeroot rung needs the repository, and the data-dir rung
 # stays last).
 root_unset=0
+# Which rung ultimately supplied the root, for the same-drive guard's branch and
+# for its message. Initialized here so `set -u` holds on every path.
+ROOT_SOURCE=""
+root_from_data_dir=0
 if root_is_unset "$root"; then
   root_unset=1
 else
@@ -442,6 +456,8 @@ EOF
   fi
 
   root="${data_root%/}/worktrees"
+  ROOT_SOURCE="the plugin data directory"
+  root_from_data_dir=1
   printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
   # SC2016: the backticks are literal markdown in guidance text, not a command
   # substitution — expansion is exactly what must NOT happen here.
@@ -552,6 +568,27 @@ normalize_path() {
   printf '%s%s' "$root" "${out[*]}"
 }
 
+# drive_of <path> — echo the uppercased drive letter of a drive-anchored Windows
+# path (`C:/x` or `C:\x`), or nothing at all for any other shape. Pure string
+# work, no filesystem access.
+#
+# Keyed on the path's SHAPE, deliberately not on $OSTYPE. The helper already
+# treats a drive-anchored path as absolute on every platform (the anchoring line
+# below says so in as many words), and no POSIX path can carry this prefix — so a
+# caller comparing two results is inert off Windows without a platform gate,
+# which would additionally make the comparison unreachable in a test anywhere
+# else. Both separators are accepted because the data-directory rung does not
+# pass through canonicalize_root's backslash swap.
+#
+# A UNC path (`//server/share/x`) yields nothing, and that is the right answer
+# rather than a gap: it has no drive letter to compare, and inventing one would
+# manufacture refusals for a case the guard below has no evidence about.
+drive_of() {
+  local p="$1"
+  [[ "$p" =~ ^([A-Za-z]):[/\\] ]] || return 0
+  printf '%s' "${BASH_REMATCH[1]^}"
+}
+
 # owner/repo from the origin remote when present; otherwise fall back to the
 # repository directory name (owner omitted).
 owner=""
@@ -651,6 +688,66 @@ Not creating inside a checkout or a git directory: from there a worktree can
 pick up the enclosing checkout's path-scoped rules as well as its own, and a
 git-directory placement mixes the worktree into git metadata. Measurement and
 expiry: skills/worktree/SKILL.md "The nesting invariant, verified".
+EOF
+    exit 3
+  fi
+fi
+
+# Same-drive guard (Windows). Runs after the containment walk so nesting — the
+# graver placement error — still reports first when a root is both nested and
+# cross-drive.
+#
+# `git worktree move` is implemented with rename(), which cannot cross a volume
+# boundary: a worktree created on a drive other than its repository's can never
+# be moved, and git surfaces the EXDEV as `Improper link`. This plugin has stated
+# the same-drive requirement in prose — the `worktree_root` option description
+# and the containment refusal a few lines above both say it — while checking it
+# nowhere. #962 refused drive-RELATIVE roots, and the containment walk is
+# deliberately drive-spelling-agnostic (it asks `rev-parse` precisely so a
+# different spelling of the same location still matches), so neither covers this.
+#
+# The branch below is not timidity, it is the blast radius. A configured root is
+# a choice the caller can revise, and `melodic.worktreeroot` has been per-repo
+# and per-identity capable since 0.54.0, so refusing names a remedy the user can
+# act on. The data-directory rung is this helper's own last-resort guess, and it
+# is reached by every harness-driven creation path; refusing there would exit a
+# `WorktreeCreate` hook non-zero, which per skills/worktree/fixtures/README.md
+# FAILS creation outright — so `claude --worktree`, background sessions and
+# subagent isolation would all hard-fail on an unconfigured cross-drive machine.
+# That is a larger harm than a `git worktree move` that fails when attempted, and
+# it would re-open #1852. The cost of warning instead is real and worth stating:
+# the same fixture records that a WorktreeCreate hook's stderr is DROPPED on exit
+# 0, so this warning reaches the `/worktree create` skill path (an ordinary
+# Bash-tool subprocess, whose stderr the skill surfaces) and not the hook path.
+repo_drive=$(drive_of "$toplevel")
+target_drive=$(drive_of "$worktree_path")
+if [[ -n "$repo_drive" && -n "$target_drive" && "$repo_drive" != "$target_drive" ]]; then
+  if (( root_from_data_dir )); then
+    printf '%s: the default worktree root is on drive %s: while this repository is on drive %s: — creating anyway, but `git worktree move` cannot move it later.\n' \
+      "$PROG" "$target_drive" "$repo_drive" >&2
+    printf '%s: point the root at the repository'\''s drive to fix that:  git config --global melodic.worktreeroot <a root on drive %s:>\n' \
+      "$PROG" "$repo_drive" >&2
+    printf '%s: `git worktree move` is rename(), which cannot cross a volume boundary on Windows; git reports the failure as `Improper link`. A manual copy followed by `git worktree repair` is the workaround.\n' \
+      "$PROG" >&2
+  else
+    cat >&2 <<EOF
+$PROG: worktree root is on a different drive than the repository — refusing to create a worktree.
+
+Point the \`melodic.worktreeroot\` git config key at a root on drive ${repo_drive}:, then retry:
+
+  git config --global melodic.worktreeroot <a root on drive ${repo_drive}:>
+
+One machine can serve repositories on several drives: git's own includeIf
+machinery supplies a per-repository or per-identity value for that key —
+reference/worktree-root-convention.md.
+
+  repository: $toplevel (drive ${repo_drive}:)
+  target:     $worktree_path (drive ${target_drive}:)
+  root from:  $ROOT_SOURCE
+
+Not creating across drives: \`git worktree move\` is implemented with rename(),
+which cannot cross a volume boundary on Windows, so a worktree placed here could
+never be moved — git reports the failure as \`Improper link\`.
 EOF
     exit 3
   fi
