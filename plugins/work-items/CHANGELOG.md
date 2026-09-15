@@ -12,8 +12,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   recorded how much of the shared subscription windows a cycle actually consumed. The durable-state
   block now carries a `usage_sample` — the two window percentages the guard step **already reads**
   every cycle, plus the rise since the previous sample — so measuring adds a write, not an
-  observation. The field is deliberately inert: no lane behavior reads it back, and no pacing,
-  adaptive cap, or pause derives from it. Its caveats are recorded beside it because they bound what
+  observation. The reading is taken at cycle start, so the delta covers the interval *preceding* the
+  cycle whose report carries it. The field is **measure-only**, with exactly one permitted readback:
+  the previous sample is read back solely to derive the new sample's `five_hour_delta_pct`, and no
+  lane behavior reads it — no pacing, adaptive cap, admission, escalation, warning, or pause derives
+  from it, at any threshold. Its caveats are recorded beside it because they bound what
   the data can support — the reading is a snapshot no fresher than the guard's staleness rule allows,
   from a machine-local, last-writer-wins tee that refreshes only while an interactive session renders
   a status line (so an unattended background lane samples null every cycle, and an empty sample means

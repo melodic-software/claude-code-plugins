@@ -368,8 +368,10 @@ relaunch ask; `guard_mode` is recorded every cycle.
 
 `usage_sample` records the **same** two window percentages the rate-limit guard step already read at
 this cycle's **start** (below), copied into telemetry rather than observed again — the lane never
-takes a second reading to fill it, so `at` is that cycle-start observation time, not the report time.
-`at` is always written, so a cycle that could not observe the windows stays distinguishable from one
+takes a second reading to fill it, so `at` is that cycle-start observation time — when the lane read
+the tee, not the snapshot's own `captured_at`, which the staleness rule lets lag it — and never the
+report time. `at` is always written, so a cycle that could not observe the windows stays
+distinguishable from one
 that never sampled; `five_hour_pct` / `seven_day_pct` are the readings as taken, both `null` when the
 guard is not proactive, and independently `null` whenever a window is unreadable or absent — a window
 the guard rejected as unknown is sampled `null`, never the rejected value. Never carry a stale

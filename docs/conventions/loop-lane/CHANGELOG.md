@@ -26,11 +26,12 @@ no durable-state block.
   question.
 - **Measure-only, with exactly one permitted readback (§4).** Deriving the delta needs the previous
   cycle's percentage, and after context compaction the telemetry block is the only durable place it
-  survives — so the invariant permits reading the previous sample back for exactly one operation:
-  subtracting its `five_hour_pct` to compute the new sample's `five_hour_delta_pct`. That derivation
-  is the field's only permitted consumer. No other read is permitted, and the value never reaches a
-  decision — not pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a
-  warning, or a pause — at any threshold, in a lane or in any gate a lane runs.
+  survives — so the invariant permits reading the previous sample back for exactly one purpose:
+  deriving the new sample's `five_hour_delta_pct` from its `five_hour_pct` (the subtraction, and the
+  rollover comparison deciding whether a delta is written at all). That derivation is the field's
+  only permitted consumer. No other read is permitted, and the value never reaches a decision — not
+  pacing, backoff, an adaptive or item cap, a merge rung, admission, escalation, a warning, or a
+  pause — at any threshold, in a lane or in any gate a lane runs.
 - **The delta measures the preceding interval (§4).** The guard reading a lane copies is taken at
   cycle start, before that cycle's own work, so `at` is the cycle-start observation time and the
   delta is the rise between the previous cycle's reading and this one: it covers the interval
