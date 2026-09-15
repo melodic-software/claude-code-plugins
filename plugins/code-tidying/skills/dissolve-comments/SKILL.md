@@ -101,14 +101,19 @@ differ in what they decide to remove, never in what they are allowed to prove.
 detail):
 
 - the exempt surfaces: public-API doc comments, legal headers, machine-read directives (universal
-  and repo-local), units, sentinels, ownership, thread-safety and ordering contracts, suppression
-  justifications paired with their waiver, `TODO(#issue)` markers, and lines carrying
-  `dissolve-comments-ignore`;
+  and repo-local), units, sentinels, ownership, thread-safety and ordering **annotations on the
+  adjacent declaration** (`# seconds`, `# -1 means unset`; a sentence explaining a choice is not an
+  annotation), suppression justifications paired with their waiver, `TODO(#issue)` markers, and
+  lines carrying `dissolve-comments-ignore`;
 - a comment that is one half of a comment-plus-regression-test pair, because deleting half of a
   paired record is a correctness bug;
-- under `aggressive` only, a load-bearing warning of consequence, held to `class_c_max_lines` and
-  rewritten terser when over it. Every survivor must be succinct, clear, and justified in the
-  report: name the consequence, not the history.
+- under `aggressive` only, a **warning of consequence**: a comment naming a runtime failure a caller
+  hits by using the code as written, such as a required call order, a precondition, or a required
+  call form a caller would otherwise get wrong. The *reason a
+  value was chosen*, another system's limit, an upstream's behavior, a past incident, is rationale
+  rather than a warning: it is staged and deleted. Held to `class_c_max_lines` and rewritten terser
+  when over it. Every survivor must be succinct, clear, and justified in the report: name the
+  consequence, not the history.
 
 In `strict`, `balanced`, `conservative` and `safe`, doubt keeps the comment: "when uncertain, keep
 or propose" is doctrine, not timidity. Doubt means an unresolved *classification*, not a resolved
@@ -157,8 +162,9 @@ from them.
   string-keyed access. A rename applied on its strength is reported with its mapping, never silently.
 - **Exempt surfaces are invisible to this skill** ([reference/safety.md](reference/safety.md)):
   public-API doc comments; legal headers; machine-read directives, universal and repo-local;
-  units, sentinels and suppression justifications; `TODO(#issue)` markers; lines carrying
-  `dissolve-comments-ignore`. **Negative and operational information are not on that list.** They
+  unit, sentinel, ownership, thread-safety and ordering annotations on the adjacent declaration,
+  never a sentence explaining a choice; suppression justifications; `TODO(#issue)` markers; lines
+  carrying `dissolve-comments-ignore`. **Negative and operational information are not on that list.** They
   are class C with a raised evidence bar, held to the same test and budget as any class-C comment.
   Exempting the category outright would contradict this skill's own eval 13.
 - **A paired record is never half-deleted.** A comment asserting something about code that is not
@@ -191,7 +197,10 @@ from them.
    preview), confirm a widening to the repository rung interactively, and take any widened rung in
    safe mode when non-interactive, **whatever the posture or dial token**: `aggressive` and `strip`
    reach a widened rung only through an interactive confirmation, and an explicit target is the
-   other way to mean it. On the repository rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage
+   other way to mean it. **You are non-interactive whenever the `AskUserQuestion` tool is
+   unavailable.** There, take the widened rung in safe mode, say "safe mode, non-interactive
+   widening" in the report, and name the explicit-target re-run that would apply the full contract;
+   do not end the turn on a question nobody can answer. On the repository rung, run `${CLAUDE_SKILL_DIR}/scripts/rank-comment-targets.sh` and triage
    in its order. When an override channel is active, hand its resolved reach to the ranker so the
    administrative gate does not re-drop a lifted path: `--allow-path <glob>` per path the `override`
    argument or the repository overrides file lifted, and `--override-exclusions` only for
@@ -266,7 +275,10 @@ from them.
    deleted behind that same COMMENT-ONLY proof, class C included, and under `strip` a class-B
    comment takes that path rather than its move; under `aggressive` a class-B move still applies
    only when its tier's gate passes, and the comment stays with a proposal when it does not. A non-exempt comment over budget is rewritten to the budget under
-   `strict` with the narrative staged, reported instead under `balanced`; its carve-out reason names
+   `strict` with the narrative staged, reported instead under `balanced`. **A kept comment stays
+   where it is and keeps its own words**: rewriting shortens the comment that is there, and never
+   relocates it, merges two comments, or writes a new one. A comment whose referent is gone is
+   deleted, not re-authored. its carve-out reason names
    every kept comment by file and line, written once for a group that enumerates its members. Where
    most of a file's class-C comments carry contract, negative, or operational information, say so
    once as a whole-file verdict with its count and suspend the budget for that file. Criterion 2

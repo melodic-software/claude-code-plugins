@@ -96,8 +96,12 @@ open the apply path, because they cannot attest behavior preservation.
   `#pragma warning`), region markers, editor folds, encoding cookies
 - **Repo-local machine-read markers**, discovered per run. See the section below. The universal
   pragmas above are the floor, not the list
-- Units, ranges, boundary semantics, sentinel values, ownership and lifetime, thread-safety, and
-  ordering guarantees. A comment naming what `-1` or `nullptr` means is a contract, not narration
+- Units, ranges, boundary semantics, sentinel values, ownership and lifetime, thread-safety and
+  ordering guarantees, **as an annotation on the adjacent declaration**: `# seconds`, `# -1 means
+  unset`, `# caller owns the handle`. A comment naming what `-1` or `nullptr` means is a contract,
+  not narration. A *sentence* about why a value was chosen or when a function must be called is not
+  an annotation: it is class C, held to the earn-its-keep test, the budget, and the dials like any
+  other comment
 - Suppression justifications: the reason attached to a lint waiver, a cast-safety claim, or a
   narrowing assertion (`@SuppressWarnings("unchecked") // safe because …`). The waiver is a
   directive and the reason is what makes it reviewable. Removing either breaks the pair

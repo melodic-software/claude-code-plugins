@@ -13,7 +13,8 @@ execution:
 graders:
   - name: magic-literal-named
     type: regex
-    pattern: 'SECONDS_PER_DAY'
+    pattern: 'seconds_per_day'
+    flags: i
     target: { source: file, path: class-b.sh }
   - name: vague-local-renamed
     type: regex

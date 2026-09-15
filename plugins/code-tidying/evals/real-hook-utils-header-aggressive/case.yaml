@@ -30,7 +30,8 @@ graders:
     target: { source: file, path: hook-utils-header.sh }
   - name: description-deleted
     type: regex
-    pattern: '#[^\n]*Shared hook utility library'
+    pattern: '#[^\n]*(hook utility library|Sourced|kill switch, file_path parsing)'
+    flags: i
     match: not_contains
     target: { source: file, path: hook-utils-header.sh }
   - name: fork-cost-deleted
@@ -51,7 +52,8 @@ graders:
     target: { source: file, path: hook-utils-header.sh }
   - name: kill-switch-comment-deleted
     type: regex
-    pattern: '#[^\n]*Per-hook kill switch'
+    pattern: '#[^\n]*(kill switch|CLAUDE_PLUGIN_OPTION_.*_ENABLED|exits 0)'
+    flags: i
     match: not_contains
     target: { source: file, path: hook-utils-header.sh }
   - name: fleet-switch-rationale-deleted
@@ -61,7 +63,8 @@ graders:
     target: { source: file, path: hook-utils-header.sh }
   - name: is-enabled-comment-deleted
     type: regex
-    pattern: '#[^\n]*(TRANSPARENT WRAPPER|statusline tee|PREDICATE)'
+    pattern: '#[^\n]*(transparent wrapper|statusline|predicate)'
+    flags: i
     match: not_contains
     target: { source: file, path: hook-utils-header.sh }
   - name: kept-comment-succinct

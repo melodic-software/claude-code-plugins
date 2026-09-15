@@ -471,7 +471,36 @@ comment-hygiene scan do not lint deliberately commented fixtures.
   each exit 0.
 - `jq -r .version plugins/code-tidying/.claude-plugin/plugin.json` prints `0.20.0`.
 
-### Phase 4: Green run, calibration loop, PR [TODO]
+### Phase 4: Green run, calibration loop, PR [DOING]
+
+**Pass 1 record (2026-09-15, `--runs 1 --ablation none --max-cost-usd 20`, 20.16 USD):** 21 of 23
+cases ran before the ceiling stopped the run; 17 passed, overall score 0.92. The two
+`real-statusline-stamp-*` cases never started.
+
+Causes, classified from the traces and the kept workspaces:
+
+| Case | Grader | Cause | Fix |
+|---|---|---|---|
+| `invented-class-c-aggressive` | `timeout-rationale-deleted` | skill wording: "warning of consequence" was undefined, and the load-balancer rationale read as both a warning and a boundary-semantics exempt surface | `SKILL.md` defines the term and excludes the reason a value was chosen |
+| `invented-class-c-strip` | `no-comments-left` | same, plus the exempt bullet covered whole sentences | `safety.md` and `SKILL.md` narrow units, sentinels, ownership, thread-safety and ordering to annotations on the adjacent declaration |
+| `real-hook-utils-header-aggressive` | `kept-comment-succinct`, `code-intact` | the run relocated a kept comment and wrote a new one, which no rule forbade | `SKILL.md` step 6 adds: a kept comment stays where it is and keeps its own words |
+| `interaction-non-interactive-no-target` | `safe-mode-named`, `proof-ran` | the skill had no way to detect a non-interactive session, and the scaffold's untracked files keep the ladder on the uncommitted rung | `SKILL.md` step 1 ties non-interactive to `AskUserQuestion` being unavailable; the case's own expectation is still open (below) |
+| `invented-class-b-aggressive` | `magic-literal-named` | grader anchoring: the run named the constant `seconds_per_day`, correct shell style for a `local` | pattern lowercased with `flags: i` |
+| `invented-class-c-aggressive` | `no-intentional-removal-trailer` | grader anchoring: the report said it emitted no such trailer, and the bare token matched that sentence | pattern anchored to line start with `flags: m` |
+| `real-silent-revert-design-strip` | `narrative-staged` | not a defect: the judge was skipped when the cost ceiling hit | re-run under a higher ceiling |
+
+Grader changes and their reasons (anchoring only, per the phase rule): the three above, plus three
+deletion anchors in `real-hook-utils-header-aggressive` (`description-deleted`,
+`kill-switch-comment-deleted`, `is-enabled-comment-deleted`) widened to catch a reworded keep. They
+had passed while the comment was kept in different words, which is a false pass.
+
+**Open for the owner:** `interaction-non-interactive-no-target` cannot exercise the widened-rung
+rule as written, because any untracked file (the harness writes `.claude/`) keeps the scope ladder
+on the uncommitted rung with `files=0`, where the doctrine correctly stops. Either the case's
+expectation narrows to the new non-interactive statement, or `scope-code-files.sh` changes to
+advance on a rung with no code files, which is a script change this plan put out of scope.
+
+### Phase 4 remaining work [TODO]
 
 1. Run the full suite in WSL2 with `--runs 3 --threshold 0.8 --max-cost-usd <owner ceiling>`.
 2. For each failing case, classify the cause from the `--keep-temp` trace before editing: a denied

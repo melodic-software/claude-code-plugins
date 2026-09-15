@@ -54,7 +54,8 @@ graders:
     target: last_message
   - name: no-intentional-removal-trailer
     type: regex
-    pattern: 'Intentional-removal:'
+    pattern: '^[ \t]*Intentional-removal:'
+    flags: m
     match: not_contains
     target: last_message
   - name: narrative-staged
