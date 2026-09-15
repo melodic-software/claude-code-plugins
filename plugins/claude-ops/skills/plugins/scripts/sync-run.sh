@@ -66,12 +66,19 @@
 #   even for an id the guard could not prove in advance.
 #   Ids and counts only: the digest is read by a model in one turn, so per-file
 #   cache-check detail stays in `<run_dir>/cache-content.<mp>.json`.
+#   A marketplace whose block could not be rendered is still present, as
+#   `{name, degraded: true, errors}`: absence from `marketplaces[]` would be
+#   indistinguishable from a marketplace the run never audited.
 #
 # Exit codes:
 #   0  the run completed; per-marketplace and per-id failures are reported in the
 #      digest body, because a failed id is a finding, not a run failure
-#   2  usage error, a missing prerequisite, or a run-level failure that left no
-#      digest to emit
+#   2  usage error, a missing prerequisite, a run-level failure that left no digest
+#      to emit, or a jq step that failed while rendering the run. That last case
+#      STILL PRINTS THE DIGEST: the failure is named in that marketplace's
+#      `errors[]` (run-level `errors[]` when no block owns it) and the marketplace
+#      still gets a block, so a reader can never mistake "could not be rendered"
+#      for "audited, nothing to report". Read the digest on 2 as well as on 0.
 #
 # Env overrides (testing only; production uses the bundled siblings):
 #   SYNC_RUN_FLEET_STATE     path to fleet-state.sh
@@ -235,13 +242,70 @@ fi
 # but the last in a line-oriented output arrives as `<name>@<marketplace>\r`. Every
 # jq call goes through this helper, which strips ALL carriage returns in the shell
 # and stores the result in the named variable.
+#
+# A failing jq is also reported HERE rather than at each call site. A jq that
+# cannot render a step used to leave its target variable empty and say nothing:
+# the block never reached `.blocks.jsonl`, the digest carried `marketplaces: []`,
+# and the run still exited 0 — a marketplace that WAS audited read exactly like one
+# that never was. Every failure now names the step (the target variable), carries
+# jq's own stderr bounded by `trunc`, lands in the marketplace's `errors[]` while a
+# marketplace is being processed and in the run-level `errors[]` otherwise, and
+# bumps `JQ_FAILURES`, which is what makes the run exit 2.
+JQ_FAILURES=0
+IN_MARKETPLACE=0
 jq_to() {
   local __jq_var="$1"
   shift
-  local __jq_out __jq_rc=0
-  __jq_out=$(command jq "$@") || __jq_rc=$?
+  local __jq_out __jq_rc=0 __jq_errfile __jq_err="" __jq_msg=""
+  __jq_errfile="${RUN_DIR:-${TMPDIR:-${TEMP:-.}}}/.jq-err"
+  __jq_out=$(command jq "$@" 2>"$__jq_errfile") || __jq_rc=$?
   printf -v "$__jq_var" '%s' "${__jq_out//$'\r'/}"
+  if ((__jq_rc != 0)); then
+    JQ_FAILURES=$((JQ_FAILURES + 1))
+    [[ -f "$__jq_errfile" ]] && __jq_err=$(<"$__jq_errfile")
+    trunc __jq_msg "jq step '$__jq_var' failed (exit $__jq_rc): ${__jq_err//$'\r'/}"
+    if ((IN_MARKETPLACE == 1)); then mp_error "$__jq_msg"; else run_error "$__jq_msg"; fi
+  fi
   return "$__jq_rc"
+}
+
+# --- oversized jq arguments -----------------------------------------------------
+# A jq VALUE reaches jq through a file, never through argv. A Windows command line
+# tops out near 32 KB and one large marketplace's install gap is 70 KB of ids on its
+# own, so `--argjson install_gap "$INSTALL_GAP"` failed with "Argument list too
+# long" and took the whole marketplace block with it. Short, bounded strings (a
+# marketplace name, a `trunc`-ed CLI line) still ride `--arg`; every unbounded JSON
+# value goes into one object file the program reads from stdin.
+#
+# The object is assembled with `printf` and not with jq, because every value written
+# here is already compact JSON — each one is some earlier jq call's own output.
+JQ_ARGS_FILE=""
+JQ_ARGS_SEP=""
+jq_args_open() {
+  JQ_ARGS_FILE="$1"
+  JQ_ARGS_SEP=""
+  printf '{' >"$JQ_ARGS_FILE"
+}
+# An empty value is written as `null`: an empty `--argjson` used to take the whole
+# object down with it, and the jq_to failure that emptied the value is already
+# reported on its own.
+jq_args_add() {
+  printf '%s"%s":%s' "$JQ_ARGS_SEP" "$1" "${2:-null}" >>"$JQ_ARGS_FILE"
+  JQ_ARGS_SEP=","
+}
+jq_args_close() { printf '}\n' >>"$JQ_ARGS_FILE"; }
+
+# Append one jq-built row to the named array, through `jq_to` like every other jq
+# call here. The `ARRAY+=("$(jq …)")` form it replaces swallowed a failure twice
+# over: the subshell discarded the error, and the empty string it appended was then
+# dropped by `json_array_of`'s slurp, so the row left the digest with nothing said.
+jq_row() {
+  local -n __rows="$1"
+  shift
+  local __row=""
+  jq_to __row "$@" || return $?
+  [[ -n "$__row" ]] || return 0
+  __rows+=("$__row")
 }
 
 # JSON array of the non-empty lines of a file, CR-stripped. Used for every id list
@@ -438,10 +502,13 @@ setup_run_dir() {
 # Step 3 sweeps every user-scope id, which necessarily includes the plugin
 # providing this skill. Read the name from the manifest rather than hardcoding it,
 # for the same reason no marketplace name is hardcoded.
+# Var-out and not `$(…)`: a command substitution runs in a SUBSHELL, so the error
+# `jq_to` records for a malformed manifest — and the `JQ_FAILURES` bump that makes
+# the run exit non-zero — would be discarded with the subshell.
 own_plugin_name() {
-  local manifest="$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json" name=""
-  [[ -f "$manifest" ]] && jq_to name -r '.name // ""' "$manifest" 2>/dev/null
-  printf '%s' "$name"
+  local __var="$1" manifest="$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json" own_name=""
+  [[ -f "$manifest" ]] && jq_to own_name -r '.name // ""' "$manifest"
+  printf -v "$__var" '%s' "$own_name"
 }
 
 # --- catalog regression --------------------------------------------------------
@@ -545,38 +612,46 @@ persist_first_pass_rows() {
   else
     jq_to errs -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${MP_ERRORS[@]}")"
   fi
+  # The three row arrays are one entry per failed id and grow with the fleet, so
+  # they reach jq through the args file rather than argv.
+  jq_args_open "$RUN_DIR/.args.first-pass.$mp.json"
+  jq_args_add errors "$errs"
+  jq_args_add ir_failed "$ir_f"
+  jq_args_add us_failed "$us_f"
+  jq_args_close
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to persisted -c -n \
-    --argjson errors "$errs" \
-    --argjson ir_failed "$ir_f" \
-    --argjson us_failed "$us_f" \
+  jq_to persisted -c \
     --arg refresh_rc "$REFRESH_RC" \
     --arg refresh_out "$REFRESH_OUT" \
     --arg refresh_predicted "$REFRESH_PREDICTED" \
-    '{errors: $errors, ir_failed: $ir_failed, us_failed: $us_failed,
+    '{errors: .errors, ir_failed: .ir_failed, us_failed: .us_failed,
       refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
                      else ($refresh_rc | tonumber? // $refresh_rc) end),
                 output: $refresh_out,
-                predicted: ($refresh_predicted == "true")}}'
+                predicted: ($refresh_predicted == "true")}}' \
+    "$RUN_DIR/.args.first-pass.$mp.json"
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
 
+# The target variable names the step in the error `jq_to` records, so these three
+# reads use their own names rather than one reused `lines`: "jq step 'fp_ir_failed'"
+# says which read of the sidecar failed, and a shared name would not.
 restore_first_pass_rows() {
   local mp="$1"
-  local sidecar="$RUN_DIR/first-pass.$mp.json" lines line
+  local sidecar="$RUN_DIR/first-pass.$mp.json" fp_errors fp_ir_failed fp_us_failed line
   [[ -f "$sidecar" ]] || return 0
-  jq_to lines -r '.errors[]?' "$sidecar"
+  jq_to fp_errors -r '.errors[]?' "$sidecar"
   while IFS= read -r line; do
     [[ -n "$line" ]] && MP_ERRORS+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.ir_failed[]?' "$sidecar"
+  done <<<"$fp_errors"
+  jq_to fp_ir_failed -c '.ir_failed[]?' "$sidecar"
   while IFS= read -r line; do
     [[ -n "$line" ]] && IR_FAILED+=("$line")
-  done <<<"$lines"
-  jq_to lines -c '.us_failed[]?' "$sidecar"
+  done <<<"$fp_ir_failed"
+  jq_to fp_us_failed -c '.us_failed[]?' "$sidecar"
   while IFS= read -r line; do
     [[ -n "$line" ]] && US_FAILED+=("$line")
-  done <<<"$lines"
+  done <<<"$fp_us_failed"
   # Digest fields only. `REFRESH_FAILED` stays 0 so the re-entry can still run
   # Steps 4 and 5: that flag is the first-pass defer gate, and restoring it
   # would skip the install the caller just confirmed.
@@ -589,6 +664,9 @@ restore_first_pass_rows() {
 run_marketplace() {
   local mp="$1"
   reset_marketplace_state
+  # From here to the block emission, a jq failure belongs to THIS marketplace's
+  # `errors[]` rather than to the run's.
+  IN_MARKETPLACE=1
   # The `--only-install` re-entry APPENDS to the same move ledger. Truncating it
   # would drop the sweep's `<old> → <new>` pairs from the digest that supersedes
   # the first one, and the report would then show an empty `Updated:` for a run
@@ -642,9 +720,10 @@ run_marketplace() {
       while IFS=$'\t' read -r id scope old new; do
         id="${id//$'\r'/}"
         [[ -n "$id" ]] || continue
-        WITHHELD+=("$(jq -c -n --arg id "$id" --arg sc "${scope//$'\r'/}" \
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_row WITHHELD -c -n --arg id "$id" --arg sc "${scope//$'\r'/}" \
           --arg o "${old//$'\r'/}" --arg n "${new//$'\r'/}" \
-          '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
+          '{id: $id, scope: $sc, installed: $o, catalog: $n}'
       done <"$RUN_DIR/downgrades.$mp.txt"
     fi
     restore_first_pass_rows "$mp"
@@ -676,15 +755,17 @@ run_marketplace() {
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
         if [[ "$MODE" == "audit" ]]; then
           predict_cli "claude plugin update $id -s $scope"
-          IR_WOULD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" \
-            '{id: $id, scope: $sc, installed: $old}')")
+          # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+          jq_row IR_WOULD -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" \
+            '{id: $id, scope: $sc, installed: $old}'
           continue
         fi
         run_cli "claude plugin update $id -s $scope" plugin update "$id" -s "$scope"
         if ((CLI_RC != 0)); then
           trunc out "$CLI_OUT"
-          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" \
-            --arg out "$out" '{id: $id, scope: $sc, rc: $rc, output: $out}')")
+          # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+          jq_row IR_FAILED -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" \
+            --arg out "$out" '{id: $id, scope: $sc, rc: $rc, output: $out}'
           continue
         fi
         cli_reported_version new "$CLI_OUT"
@@ -726,14 +807,16 @@ run_marketplace() {
         version_at old "$RUN_DIR/mid.$mp.json" "$id" user
         if [[ "$MODE" == "audit" ]]; then
           predict_cli "claude plugin update $id -s user"
-          US_WOULD+=("$(jq -c -n --arg id "$id" --arg old "$old" '{id: $id, installed: $old}')")
+          # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+          jq_row US_WOULD -c -n --arg id "$id" --arg old "$old" '{id: $id, installed: $old}'
           continue
         fi
         run_cli "claude plugin update $id -s user" plugin update "$id" -s user
         if ((CLI_RC != 0)); then
           trunc out "$CLI_OUT"
-          US_FAILED+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-            '{id: $id, rc: $rc, output: $out}')")
+          # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+          jq_row US_FAILED -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
+            '{id: $id, rc: $rc, output: $out}'
           continue
         fi
         cli_reported_version new "$CLI_OUT"
@@ -756,8 +839,9 @@ run_marketplace() {
           plugin update "$id" -s "$scope"
         if ((CLI_RC != 0)); then
           trunc out "$CLI_OUT"
-          US_FAILED+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-            '{id: $id, rc: $rc, output: $out}')")
+          # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+          jq_row US_FAILED -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
+            '{id: $id, rc: $rc, output: $out}'
           continue
         fi
         # Through the move ledger like every other mutation, so the direction
@@ -769,8 +853,9 @@ run_marketplace() {
         printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${applied:--}" updated \
           >>"$RUN_DIR/moves.$mp.tsv"
       else
-        WITHHELD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
-          '{id: $id, scope: $sc, installed: $o, catalog: $n}')")
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_row WITHHELD -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
+          '{id: $id, scope: $sc, installed: $o, catalog: $n}'
       fi
     done <"$RUN_DIR/downgrades.$mp.txt"
   fi
@@ -831,8 +916,8 @@ run_marketplace() {
 
   finalize_moves "$mp"
 
-  local own
-  own=$(own_plugin_name)
+  local own=""
+  own_plugin_name own
   if [[ -n "$own" ]]; then
     # Every scope, not just the user sweep: a project/local `claude-ops` record
     # Step 2 moved is the same self-update, and the running algorithm is just as
@@ -862,8 +947,9 @@ run_install_step() {
       [[ "$id" == *"@$mp" ]] || continue
       run_cli "claude plugin install $id -s user" plugin install "$id" -s user
       trunc out "$CLI_OUT"
-      INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-        '{id: $id, rc: $rc, output: $out}')")
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_row INSTALLED_ROWS -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
+        '{id: $id, rc: $rc, output: $out}'
       ((CLI_RC == 0)) && installed_any=1
     done
   elif ((gap_count > 0)) && [[ "$INSTALL_NEW" == "all" ]]; then
@@ -877,8 +963,9 @@ run_install_step() {
       fi
       run_cli "claude plugin install $id -s user" plugin install "$id" -s user
       trunc out "$CLI_OUT"
-      INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-        '{id: $id, rc: $rc, output: $out}')")
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_row INSTALLED_ROWS -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
+        '{id: $id, rc: $rc, output: $out}'
       ((CLI_RC == 0)) && installed_any=1
     done <"$RUN_DIR/ids.pre-install.$mp.txt"
   fi
@@ -960,7 +1047,8 @@ run_enable_step() {
     # this run already enabled at user or local scope: `enable -s project` gates on
     # the merged effective value, so the reported command would fail.
     if [[ "$has_project" == "true" ]] && ((enabled_here == 0)); then
-      PROJECT_ROWS+=("$(jq -c -n --arg id "$id" --arg p "$ppath" '{id: $id, project_path: $p}')")
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_row PROJECT_ROWS -c -n --arg id "$id" --arg p "$ppath" '{id: $id, project_path: $p}'
     fi
   done <"$RUN_DIR/ids.pre-enable.$mp.txt"
 }
@@ -969,14 +1057,16 @@ enable_one() {
   local id="$1" scope="$2" out
   if [[ "$MODE" == "audit" ]]; then
     predict_cli "claude plugin enable $id -s $scope"
-    ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" \
-      '{id: $id, scope: $sc, rc: null, predicted: true}')")
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_row ENABLED_ROWS -c -n --arg id "$id" --arg sc "$scope" \
+      '{id: $id, scope: $sc, rc: null, predicted: true}'
     return 0
   fi
   run_cli "claude plugin enable $id -s $scope" plugin enable "$id" -s "$scope"
   trunc out "$CLI_OUT"
-  ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" --arg out "$out" \
-    '{id: $id, scope: $sc, rc: $rc, output: $out, predicted: false}')")
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_row ENABLED_ROWS -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" --arg out "$out" \
+    '{id: $id, scope: $sc, rc: $rc, output: $out, predicted: false}'
 }
 
 # --- Step 5b — cache content check ------------------------------------------------
@@ -1017,9 +1107,15 @@ cache_content_block() {
   # Same shape either way, with the per-id detail the `--ids` form cannot know
   # spelled `null` rather than omitted: a reader that finds no `stale` key cannot
   # tell an empty finding from a missing field.
+  # The stale-id list is one entry per stale install and unbounded, so it reaches jq
+  # from a file. `--slurpfile` wraps the value in a one-element array; the prelude
+  # unwraps it so the program below reads exactly as it did.
+  local idsf="$RUN_DIR/.args.cache-ids.$mp.json"
+  printf '%s\n' "${ids:-null}" >"$idsf"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to CACHE_JSON -c -n --argjson ids "$ids" \
-    '{checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
+  jq_to CACHE_JSON -c -n --slurpfile ids_in "$idsf" \
+    '$ids_in[0] as $ids
+     | {checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
       skipped_absent_project_paths: null, stale_ids: $ids,
       stale: ($ids | map({id: ., version: null, files_differ: null})),
       source: "ids-fallback"}'
@@ -1057,13 +1153,20 @@ finalize_moves() {
     case "$dir" in
     same) continue ;;
     backward)
-      DOWNGRADED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
-        '{id: $id, scope: $sc, old: $o, new: $n}')")
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_row DOWNGRADED -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
+        '{id: $id, scope: $sc, old: $o, new: $n}'
       ;;
     *)
-      row=$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" --arg d "$dir" \
-        '{id: $id, scope: $sc, old: $o, new: $n, direction: $d}')
-      if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
+      if [[ "$kind" == "in_repo" ]]; then
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_row IR_UPDATED -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
+          --arg d "$dir" '{id: $id, scope: $sc, old: $o, new: $n, direction: $d}'
+      else
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_row US_UPDATED -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
+          --arg d "$dir" '{id: $id, scope: $sc, old: $o, new: $n, direction: $d}'
+      fi
       ;;
     esac
   done <"$RUN_DIR/moves.$mp.tsv"
@@ -1131,62 +1234,102 @@ emit_marketplace_block() {
   json_array_of en ${ENABLED_ROWS[@]+"${ENABLED_ROWS[@]}"}
   json_array_of pr ${PROJECT_ROWS[@]+"${PROJECT_ROWS[@]}"}
 
+  catalog_regression_rows reg_interval reg_rows "$mp"
+  divergence_block div "$mp"
+  report_extras extras "$mp"
+  # A field that could not be computed becomes an empty object, never an empty
+  # string: `jq_args_add` would otherwise write `null` where the program expects a
+  # container, and the block would render with fields the reader cannot index.
+  [[ -n "$div" ]] || div='{}'
+  [[ -n "$extras" ]] || extras='{}'
+  [[ -n "$reg_rows" ]] || reg_rows='[]'
+
+  # AFTER the three helpers above, not before: each of them runs jq, and a jq
+  # failure inside one appends to MP_ERRORS. Freezing `errs` first would exit the
+  # run non-zero over a failure the block's own `errors[]` never named.
   if ((${#MP_ERRORS[@]} == 0)); then
     errs='[]'
   else
     jq_to errs -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${MP_ERRORS[@]}")"
   fi
 
-  catalog_regression_rows reg_interval reg_rows "$mp"
-  divergence_block div "$mp"
-  report_extras extras "$mp"
-  # A field that could not be computed becomes an empty object, never an empty
-  # string: an empty --argjson would take the whole digest down with it.
-  [[ -n "$div" ]] || div='{}'
-  [[ -n "$extras" ]] || extras='{}'
-  [[ -n "$reg_rows" ]] || reg_rows='[]'
+  # Every unbounded value goes into the args file. `install_gap` alone is one line
+  # per catalog plugin a marketplace has not installed — 70 KB for the largest
+  # community catalog — and as an `--argjson` it blew past the Windows command-line
+  # limit, failed this call, and silently erased the whole marketplace from the
+  # digest. Only the bounded strings still ride argv.
+  local argsf="$RUN_DIR/.args.block.$mp.json"
+  jq_args_open "$argsf"
+  jq_args_add refresh_rc "${REFRESH_RC:-null}"
+  jq_args_add refresh_predicted "$REFRESH_PREDICTED"
+  jq_args_add project_root "$PROJECT_ROOT_JSON"
+  jq_args_add ir_u "$ir_u"
+  jq_args_add ir_f "$ir_f"
+  jq_args_add ir_w "$ir_w"
+  jq_args_add us_u "$us_u"
+  jq_args_add us_f "$us_f"
+  jq_args_add us_w "$us_w"
+  jq_args_add wh "$wh"
+  jq_args_add dg "$dg"
+  jq_args_add install_gap "$INSTALL_GAP"
+  jq_args_add inst "$inst"
+  jq_args_add enable_gap "$ENABLE_GAP"
+  jq_args_add en "$en"
+  jq_args_add pr "$pr"
+  jq_args_add deferred "$INSTALL_DEFERRED"
+  jq_args_add stopped "$STOPPED_BEFORE_INSTALL"
+  jq_args_add normalize "$NORMALIZE_JSON"
+  jq_args_add cache "$CACHE_JSON"
+  jq_args_add reg_rows "$reg_rows"
+  jq_args_add div "$div"
+  jq_args_add self_updated "$SELF_UPDATED"
+  jq_args_add extras "$extras"
+  jq_args_add errors "$errs"
+  jq_args_close
 
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to block -c -n \
+  jq_to block -c \
     --arg name "$mp" \
     --arg lastUpdated "$CATALOG_LAST_UPDATED" \
-    --argjson refresh_rc "${REFRESH_RC:-null}" \
     --arg refresh_out "$REFRESH_OUT" \
-    --argjson refresh_predicted "$REFRESH_PREDICTED" \
-    --argjson project_root "$PROJECT_ROOT_JSON" \
-    --argjson ir_u "$ir_u" --argjson ir_f "$ir_f" --argjson ir_w "$ir_w" \
-    --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
-    --argjson wh "$wh" --argjson dg "$dg" \
-    --argjson install_gap "$INSTALL_GAP" --argjson inst "$inst" \
-    --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" \
-    --argjson deferred "$INSTALL_DEFERRED" --argjson stopped "$STOPPED_BEFORE_INSTALL" \
-    --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
-    --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
-    --argjson div "$div" --argjson self_updated "$SELF_UPDATED" \
-    --argjson extras "$extras" \
-    --argjson errors "$errs" '
-    $extras + {name: $name,
+    --arg reg_interval "$reg_interval" '
+    .extras + {name: $name,
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
-     refresh: {rc: $refresh_rc, output: $refresh_out, predicted: $refresh_predicted},
-     project_root: $project_root,
-     in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w},
-     user_sweep: {updated: $us_u, failed: $us_f, would_update: $us_w,
-                  withheld_downgrades: $wh},
-     downgraded: $dg,
-     install_gap: $install_gap,
-     installed: $inst,
-     install_enable_deferred: $deferred,
-     stopped_before_install: $stopped,
-     enable_gap: $enable_gap,
-     enabled: $en,
-     project_enable_rows: $pr,
-     normalize: $normalize,
-     cache_content: $cache,
+     refresh: {rc: .refresh_rc, output: $refresh_out, predicted: .refresh_predicted},
+     project_root: .project_root,
+     in_repo: {updated: .ir_u, failed: .ir_f, would_update: .ir_w},
+     user_sweep: {updated: .us_u, failed: .us_f, would_update: .us_w,
+                  withheld_downgrades: .wh},
+     downgraded: .dg,
+     install_gap: .install_gap,
+     installed: .inst,
+     install_enable_deferred: .deferred,
+     stopped_before_install: .stopped,
+     enable_gap: .enable_gap,
+     enabled: .en,
+     project_enable_rows: .pr,
+     normalize: .normalize,
+     cache_content: .cache,
      catalog_regression: (if $reg_interval == "" then null
-                          else {interval: $reg_interval, rows: $reg_rows} end),
-     divergences: $div,
-     self_updated: $self_updated,
-     errors: $errors}'
+                          else {interval: $reg_interval, rows: .reg_rows} end),
+     divergences: .div,
+     self_updated: .self_updated,
+     errors: .errors}' "$argsf"
+
+  # A marketplace whose block could not be rendered still gets a block. Absence
+  # from `marketplaces[]` is indistinguishable from never having been audited,
+  # which is exactly how a 70 KB install gap used to erase one silently; the
+  # degraded block carries the name and the failure `jq_to` just recorded.
+  if [[ -z "$block" ]]; then
+    local errsf="$RUN_DIR/.args.block-errors.$mp.json"
+    mp_error "the marketplace block could not be rendered; this block is degraded"
+    jq_to errs -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${MP_ERRORS[@]}")"
+    printf '%s\n' "${errs:-[]}" >"$errsf"
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to block -c -n --arg name "$mp" --slurpfile errors "$errsf" \
+      '{name: $name, degraded: true, errors: $errors[0]}'
+    [[ -n "$block" ]] || block="{\"name\":\"$mp\",\"degraded\":true,\"errors\":[]}"
+  fi
   printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"
 }
 
@@ -1277,16 +1420,21 @@ fi
 
 for mp in ${MPS[@]+"${MPS[@]}"}; do
   run_marketplace "$mp"
+  # Cleared here rather than at each of the loop body's early returns: after the
+  # block is emitted there is no marketplace to attribute a jq failure to.
+  IN_MARKETPLACE=0
 done
 
-BLOCKS='[]'
-[[ -s "$RUN_DIR/.blocks.jsonl" ]] && jq_to BLOCKS -c -s '.' "$RUN_DIR/.blocks.jsonl"
+# The blocks are slurped straight off the ledger file rather than captured into a
+# shell variable and handed back as `--argjson`: ten marketplaces' blocks are far
+# past any command line's limit, and that route would lose the whole digest exactly
+# the way it used to lose one block. An absent or empty ledger slurps to `[]`.
+[[ -f "$RUN_DIR/.blocks.jsonl" ]] || : >"$RUN_DIR/.blocks.jsonl"
 
-if ((${#RUN_ERRORS[@]} == 0)); then
-  RUN_ERRS='[]'
-else
-  jq_to RUN_ERRS -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "${RUN_ERRORS[@]}")"
-fi
+# Run errors reach jq the same way, through `--rawfile`, split on the same newline
+# boundary the previous here-string assumed.
+: >"$RUN_DIR/.run-errors.txt"
+((${#RUN_ERRORS[@]} == 0)) || printf '%s\n' "${RUN_ERRORS[@]}" >"$RUN_DIR/.run-errors.txt"
 
 DIGEST=""
 ALLOW_DOWNGRADE_JSON="false"
@@ -1299,13 +1447,19 @@ jq_to DIGEST -c -n \
   --argjson allow_downgrade "$ALLOW_DOWNGRADE_JSON" \
   --arg install_new "$INSTALL_NEW" \
   --arg install_new_invalid "$INSTALL_NEW_INVALID" \
-  --argjson marketplaces "$BLOCKS" \
-  --argjson errors "$RUN_ERRS" '
+  --slurpfile marketplaces "$RUN_DIR/.blocks.jsonl" \
+  --rawfile run_errors "$RUN_DIR/.run-errors.txt" '
   {run_dir: $run_dir, mode: $mode, allow_downgrade: $allow_downgrade,
    install_new: $install_new,
    install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
-   marketplaces: $marketplaces, errors: $errors}'
+   marketplaces: $marketplaces,
+   errors: ($run_errors | split("\n") | map(select(length > 0)))}'
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"
 printf '%s\n' "$DIGEST"
+
+# A jq that failed anywhere in the run is a step that did not produce what the
+# digest claims to carry, so the run is not a success even though the digest
+# printed. The digest is emitted first, and on purpose: the failure is named in it.
+((JQ_FAILURES == 0)) || exit 2
 exit 0

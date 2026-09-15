@@ -679,6 +679,137 @@ assert_eq "stale project records: they are not counted as in-repo records" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
 
 # ============================================================================
+# Case: a marketplace whose manifest is megabytes and whose install gap is
+# thousands of ids still gets a block. The gap used to ride `--argjson` into jq's
+# argv; on Windows that clears the command-line limit at roughly 32 KB and the
+# whole block failed to render, so the marketplace vanished from `marketplaces[]`
+# and the run still exited 0 — audited read exactly like never audited.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+# One catalog file with thousands of entries and no per-plugin manifest dirs:
+# `catalog_versions` fails open for each (the common case in the wild), so the
+# fixture costs one write instead of thousands of mkdir spawns. The padding makes
+# the MANIFEST large; the entry count makes the projected ID LIST large, and it is
+# the id list that reaches jq.
+big_catalog() {
+  local dir="$1" mp="$2" count="$3" i pad
+  printf -v pad '%*s' 260 ''
+  pad="${pad// /x}"
+  {
+    printf '{"plugins":[{"name":"anchor","source":"anchor"}'
+    for ((i = 1; i <= count; i++)); do
+      printf ',{"name":"bulk-%05d","source":"bulk-%05d","description":"%s"}' "$i" "$i" "$pad"
+    done
+    printf ']}\n'
+  } >"$dir/catalog/$mp.json"
+}
+big_catalog "$case_dir" bigmarket 7000
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"anchor@bigmarket": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+write "$case_dir/known_marketplaces.json" "{\"bigmarket\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"anchor@bigmarket": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=()
+out=$(run_sync "$case_dir" --marketplace bigmarket --audit --install-new none)
+rc=$?
+# The fixture's own preconditions, asserted rather than assumed: a smaller manifest
+# or a shorter id list would let the case pass against the bug it exists to catch.
+assert_eq "big manifest: the fixture manifest is at least 2 MB" "yes" \
+  "$([[ $(wc -c <"$case_dir/catalog/bigmarket.json") -ge 2097152 ]] && echo yes || echo no)"
+# 128 KB is Linux's own per-argument ceiling (MAX_ARG_STRLEN); clearing it keeps
+# this case discriminating there and not only on Windows.
+assert_eq "big manifest: the id list alone clears every platform's argv limit" "yes" \
+  "$([[ $(jq -r '.marketplaces[0].install_gap | tojson | length' <<<"$out") -gt 131072 ]] &&
+    echo yes || echo no)"
+assert_exit "big manifest: audit exits 0" 0 "$rc"
+assert_eq "big manifest: the marketplace has a block" "bigmarket" \
+  "$(jq -r '.marketplaces[0].name' <<<"$out")"
+assert_eq "big manifest: the block is not degraded" "false" \
+  "$(jq -r '.marketplaces[0].degraded // false' <<<"$out")"
+assert_eq "big manifest: no per-marketplace error" "0" \
+  "$(jq -r '.marketplaces[0].errors | length' <<<"$out")"
+assert_eq "big manifest: no run-level error" "0" "$(jq -r '.errors | length' <<<"$out")"
+assert_eq "big manifest: the whole gap survives into the digest" "7000" \
+  "$(jq -r '.marketplaces[0].install_gap | length' <<<"$out")"
+assert_eq "big manifest: nothing was written to stderr" "" "$(cat "$case_dir/stderr.txt")"
+
+# ============================================================================
+# Case: a jq step that fails inside a marketplace is LOUD — named in that
+# marketplace's errors with jq's own stderr, the block still emitted, and the run
+# exits non-zero. A silent jq is what let a whole marketplace disappear at exit 0.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.3.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=()
+out=$(run_sync "$case_dir" --marketplace market1 --journal-root "$case_dir/journal" --install-new none)
+run_dir=$(jq -r '.run_dir' <<<"$out")
+# The first-pass sidecar is read back by `restore_first_pass_rows`, so corrupting
+# it forces a jq failure INSIDE the per-marketplace path without stubbing jq —
+# a PATH stub would trip the real fleet-state.sh's own jq calls first.
+write "$run_dir/first-pass.market1.json" 'not json at all'
+out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
+rc=$?
+assert_exit "jq failure: the run exits non-zero" 2 "$rc"
+assert_eq "jq failure: the digest is still printed" "market1" \
+  "$(jq -r '.marketplaces[0].name' <<<"$out")"
+assert_contains "jq failure: the error names the step" \
+  "$(jq -r '.marketplaces[0].errors | join(" | ")' <<<"$out")" "jq step 'fp_errors' failed"
+assert_contains "jq failure: the error carries jq's own stderr" \
+  "$(jq -r '.marketplaces[0].errors | join(" | ")' <<<"$out")" "parse error"
+
+# ============================================================================
+# Case: under --all, one marketplace's jq failure does not cost the other its
+# block. Both are reported; only the broken one carries the error.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.1.0
+catalog_plugin "$case_dir" market2 gamma 0.1.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}],
+    "gamma@market2": [{"scope": "user", "installPath": "z", "version": "0.1.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" "{
+  \"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m1\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"},
+  \"market2\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m2\"}, \"installLocation\": \"$case_dir/mkt2\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}
+}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "gamma", "source": "gamma"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "gamma@market2": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=()
+out=$(run_sync "$case_dir" --all --journal-root "$case_dir/journal" --install-new none)
+run_dir=$(jq -r '.run_dir' <<<"$out")
+write "$run_dir/first-pass.market2.json" 'not json at all'
+# No --all on the re-entry: `--only-install` takes its marketplaces from the run
+# directory's own snapshots, so both re-enter either way.
+out=$(run_sync "$case_dir" --only-install "" --run-dir "$run_dir")
+rc=$?
+assert_exit "--all jq failure: the run exits non-zero" 2 "$rc"
+assert_eq "--all jq failure: both marketplaces still have a block" "2" \
+  "$(jq -r '.marketplaces | length' <<<"$out")"
+assert_eq "--all jq failure: the healthy marketplace carries no error" "0" \
+  "$(jq -r '.marketplaces[] | select(.name == "market1") | .errors | length' <<<"$out")"
+assert_contains "--all jq failure: the broken marketplace names it" \
+  "$(jq -r '.marketplaces[] | select(.name == "market2") | .errors | join(" | ")' <<<"$out")" \
+  "jq step 'fp_errors' failed"
+
+# ============================================================================
 # Case: sync mode without --journal-root is a usage error, not a silent scratch run
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))

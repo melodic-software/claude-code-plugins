@@ -104,6 +104,12 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
    It carries everything the Report needs, per marketplace, plus a `run_dir` that holds every
    snapshot and the journal.
 
+   Read it on a non-zero exit too. Exit 2 with a digest on stdout means a step failed while
+   rendering the run; the failure is named in the owning marketplace's `errors[]` (or the
+   run-level `errors[]`), and a marketplace that could not be rendered is still present as
+   `{name, degraded: true, errors}`. Report those errors. Only exit 2 with NO digest is a run
+   that produced nothing.
+
 3. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
    `stopped_before_install: true`, run the batched multi-select from
    [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and 5

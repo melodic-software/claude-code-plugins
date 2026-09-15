@@ -3,6 +3,30 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1]
+
+### Fixed
+
+- **A marketplace with a large catalog no longer disappears from the `sync`/`audit`
+  digest.** `sync-run.sh` passed unbounded JSON to `jq` on the command line, and the
+  largest community catalog's install gap is roughly 70 KB of ids on its own — past
+  the Windows command-line limit. The block failed to render, `marketplaces[]` came
+  back empty, and the run still exited 0, so `--all --audit` reported nine
+  marketplaces where `fleet-state.sh` lists ten. Every unbounded value now reaches
+  jq through a file, and the run digest slurps the per-marketplace blocks off their
+  ledger rather than rebuilding them in argv.
+- **A failed `jq` inside a marketplace is now reported and fatal to the run's exit
+  status.** It used to leave its target empty and say nothing. Each failure names
+  the step and carries jq's own stderr in that marketplace's `errors[]` (the
+  run-level `errors[]` when no block owns it), the marketplace still gets a block —
+  `{name, degraded: true, errors}` when nothing else could be rendered — and the run
+  exits 2 while still printing the digest. A reader can no longer mistake "could not
+  be rendered" for "audited, nothing to report".
+- **Row builders no longer swallow their own failures.** The digest's per-id rows
+  were built with `ARRAY+=("$(jq …)")`, which discarded the error in the subshell and
+  appended an empty string the array slurp then dropped, so a row could leave the
+  digest silently.
+
 ## [0.45.0]
 
 ### Changed
