@@ -510,6 +510,46 @@ if [[ -d "$NESTED/a/.git" && -d "$NESTED/a/child/child/.git" ]]; then
   done
 fi
 
+# --- a WRAPPER's options are not git's globals --------------------------------
+# The directory and locating-global parsers used to receive the whole pre-git
+# slice, wrapper argv included, and they cannot know which wrapper options take
+# a value. In `env -u -C git …`, GNU env's `-u NAME` consumes `-C` as the
+# variable to unset and `git` as the command, so git itself gets no `-C` and
+# stays put — while a 0-based slice read `-C git` as a relocation into `./git`.
+# The guard then inspected `git/child`'s canonical alias and allowed the call
+# while real git ran `child`'s `commit -m`. Reproduced from the report.
+WRAP="$TEST_TMPDIR/wrapper"
+nested_repo "$WRAP/outer"
+nested_repo "$WRAP/outer/child"
+nested_repo "$WRAP/outer/git"
+nested_repo "$WRAP/outer/git/child"
+
+if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
+  # The repository git ACTUALLY reaches carries the non-canonical commit; the
+  # decoy a wrongly-sliced parser would reach carries the canonical one, so a
+  # bypass shows up as a wrongly-allowed exit 0.
+  git -C "$WRAP/outer/child" config alias.p 'commit --allow-empty -m bypass'
+  git -C "$WRAP/outer/git/child" config alias.p 'commit -F -'
+
+  # `env -u -C git`: -u consumes `-C` as the variable name, so `git` is the
+  # COMMAND and the -C never belonged to git. The guard must still reach
+  # `child`'s `commit -m` rather than the decoy under `git/`.
+  MSYS_NO_PATHCONV=1 jq -n --arg c "env -u -C git -c alias.a='!git -C child p' a" --arg d "$WRAP/outer" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  rc=$?
+  ((rc == 124)) && bad "env -u swallows -C: exceeded the 30s ceiling"
+  ((rc == 124)) || assert_exit "env -u swallows -C, so the wrapper option is not git's -C" 2 "$rc"
+
+  # git's OWN -C must keep working — the fix narrows the slice, it does not
+  # stop honouring a relocation git really performs.
+  git -C "$WRAP/outer/git/child" config alias.q 'commit --allow-empty -m bypass'
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C git -c alias.a='!git -C child q' a" --arg d "$WRAP/outer" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+    timeout 30 bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git's own -C still relocates the alias lookup" 2 "$?"
+fi
+
 # --- `!` bodies start at the outer repository's TOP LEVEL ---------------------
 # git documents that a shell alias body runs from the top-level directory of the
 # repository, NOT from wherever the outer command was invoked. Invoked from
