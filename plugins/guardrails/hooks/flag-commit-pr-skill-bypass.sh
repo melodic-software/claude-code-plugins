@@ -124,7 +124,7 @@ fi
 # keep an assignment VALUE out of the subject — a quoted value spanning the
 # whitespace the tokenizer splits on, and a bare/trailing `NAME=value` no
 # following command consumed — hold here too (#3372).
-SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
 
 # Emit one telemetry envelope per run. Advisory guards always report status
 # "ok" (they never block); the finding signal rides in `data.forms` — category
