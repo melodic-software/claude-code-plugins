@@ -518,7 +518,13 @@ Final scores: `real-hook-utils-header-aggressive` 0.93, `real-hook-utils-header-
 everything else at 1.00 except `invented-class-c-aggressive` 0.90 (its landing-place line). Two
 grader anchors were widened after a keep collided with a deletion check; both are logged above.
 
-### Phase 4 remaining work [TODO]
+### Phase 4 remaining work [DONE]
+
+The owner ended the calibration loop here and sent the work to a pull request: every case passed on
+the final wording, case by case, at `--runs 1`. A single whole-suite confirmation pass on that
+wording (~20 USD) was offered and declined, so no run has yet scored all 23 cases green in one
+invocation. The measured comment-line deltas on the real fixtures under `aggressive`:
+`hook-utils-header.sh` 46 to 4, `silent-revert-design.sh` 34 to 1, `statusline-stamp.sh` 8 to 1.
 
 1. Run the full suite in WSL2 with `--runs 3 --threshold 0.8 --max-cost-usd <owner ceiling>`.
 2. For each failing case, classify the cause from the `--keep-temp` trace before editing: a denied
