@@ -15,10 +15,14 @@ only after that version increases.
   chemistry, distillation, and frontier LLM development — do not merely refuse. They re-serve the
   request with the latest Claude Opus model, and the card states the behavior is "not configurable"
   on some Claude interfaces (§1.5). Nor is it reliably per-request: 20.9% of Fable 5 Terminal-Bench
-  trials fell back to Claude Opus 4.8 "for the rest of the trajectory" (§8.3). Fallback is common
-  across the capability suite — §8.1 attributes Fable's lower scores to it generally — but §8.3 is
-  the card's only statement about how long a fallback lasts, and it does not say whether the
-  persistence comes from the fallback mechanism or from how that harness continues after a refusal.
+  trials fell back to Claude Opus 4.8 "for the rest of the trajectory" (§8.3). How often fallback
+  fires is domain-bound, not uniform: classifiers "consistently fire across all tested cyber
+  capability evaluations" (§3.1.2), requests fell back "in over half of conversation transcripts" in
+  the safeguards-on misuse behavioral audit (§6.2.3.2), and Andon Labs' Vending-Bench evaluations
+  triggered no fallbacks at all (§6.2.5 n. 16); §8.1 claims only that fallback is why "certain
+  benchmarks score slightly lower on Fable compared to Mythos". But §8.3 is the card's only
+  statement about how long a fallback lasts, and it does not say whether the persistence comes from
+  the fallback mechanism or from how that harness continues after a refusal.
   So the rule claims only that a fallback can outlive the request that tripped it, which is enough
   to make a one-time model resolution unsafe.
 
