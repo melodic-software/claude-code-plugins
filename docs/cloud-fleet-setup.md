@@ -74,10 +74,11 @@ Pinned toolchains found:
 
 ## Bootstrap adoption (2026-08-16)
 
-Adoption is complete and no longer a per-repo decision surface: all fifteen non-archived
-melodic-software repositories (`gh repo list melodic-software --json name,isArchived`) carry
-`.claude/cloud-bootstrap.sh`, register it as a `startup|resume` SessionStart hook, and declare the
-`melodic-software` marketplace. Enabling the catalog is not among the per-repo steps: the standards
+Adoption is no longer a per-repo decision surface: as of 2026-08-16, every non-archived
+melodic-software repository (`gh repo list melodic-software --no-archived --json name`) carried
+`.claude/cloud-bootstrap.sh`, registered it as a `startup|resume` SessionStart hook, and declared
+the `melodic-software` marketplace; a repository created after that pass is not covered by it.
+Enabling the catalog is not among the per-repo steps: the standards
 fleet list does that for every repo, and a repo's own block carries only deltas
 ([Step 2](#step-2-per-repo-wiring)). Read adoption state from the repos rather than from a table
 here; a per-repo enumeration in this doc can only lag them.
