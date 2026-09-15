@@ -12,25 +12,24 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Wrap the single-pass `/source-control:babysit-prs` mechanic in a self-paced loop over one
-repository's pull-request queue. This skill is the **merge lane** (babysit lane) of the loop-lane
-three-session topology: it advances PRs and owns merges within the autonomy ladder. It never claims
-backlog items or authors work-item PRs (the worker lane's authority), and never decides
-operator-owned questions (the attended queue's authority).
+Wrap `/source-control:babysit-prs` in a self-paced loop over one repository's PR queue. It is the
+**merge lane** (babysit lane) of the loop-lane three-session topology: it advances PRs and owns
+merges within the autonomy ladder. It never claims backlog items or authors work-item PRs (the
+worker lane's authority), and never decides operator-owned questions (the attended queue's
+authority).
 
 ## Loop-lane contract (cited, never restated)
 
 Every shared cross-lane concern is owned by the loop-lane convention —
-`docs/conventions/loop-lane/README.md` in this plugin's marketplace repository — and this skill
-holds those contracts **by citation**: the three-session topology and the autonomy merge ladder
-(including seam-only rung raises and the one named explicit-`autopilot` exception, bounded by the
-unconditional C4/C5 floor), the escalation contract, order-defined capability tiers
-(frontier / strong / fast; runtime resolution by model alias only, never a hard-coded model ID),
-stop shapes including the drain-terminal state, the `/loop` seven-day expiry, the `#691`
-cycle-budget semantics (a budget hit restarts the session, never ends the loop; today every budget
-hit is a terminal manual-restart state), the `#502` telemetry comment and durable loop state, the
-headless-config floor, and the subagent discipline preamble. Where this document says "per the
-convention", that file is the contract.
+`docs/conventions/loop-lane/README.md` in this plugin's marketplace repository — held here **by
+citation**: the three-session topology and the autonomy merge ladder (seam-only rung raises and the one named explicit-`autopilot` exception, bounded by the
+unconditional C4/C5 floor), the escalation contract, order-defined capability tiers (frontier /
+strong / fast; runtime resolution by model alias only, never a hard-coded model ID), stop shapes
+including the drain-terminal state, the `/loop` seven-day expiry, the `#691` cycle-budget semantics
+(a budget hit restarts the session, never ends the loop; today every budget hit is a terminal
+manual-restart state), the `#502` telemetry comment and durable loop state, the headless-config
+floor, and the subagent discipline preamble. Where this document says "per the convention", that
+file is the contract.
 
 ## Owned mechanics (invoked, never restated)
 
@@ -38,71 +37,61 @@ The single-pass mechanics belong to `/source-control:babysit-prs`: the tier matr
 resolution, the guarded mutation wrappers and deterministic gates, fan-out and the worker contract,
 review discipline, and the cross-tier safety invariants. Each cycle **invokes**
 `/source-control:babysit-prs <tier> <owner/repo>` with the resolved tier and scope; this loop
-restates none of that. In particular, two disciplines are babysit-prs's own, held here by
-citation: the head-move yield (expected-head pins and HEAD assertion — the merge gate refuses when
-the pinned head no longer matches, and mutation requires HEAD asserted at the true PR head; its
-SKILL.md "Guarded mutations" and its [loop reference](../babysit-prs/reference/loop.md)
-§5.1.2–§5.1.3), and the foreign-activity discipline (the `foreign_activity` dispatch suppressor —
-never race a foreign session for the same PR; its
-[orchestration reference](../babysit-prs/reference/orchestration.md)). The grace window below is
-an additional loop-level overlay, never a replacement for them.
+restates none of that. Two disciplines are babysit-prs's own, held here by citation: the head-move
+yield (expected-head pins and HEAD assertion — the merge gate refuses when the pinned head no longer
+matches, and mutation requires HEAD asserted at the true PR head; its SKILL.md "Guarded mutations"
+and its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the foreign-activity
+discipline (the `foreign_activity` dispatch suppressor — never race a foreign session for the same
+PR; its [orchestration reference](../babysit-prs/reference/orchestration.md)).
 
 ## Required argument and config resolution
 
-`<owner/repo>` is required — the lane is scoped to exactly one repository per invocation. A launch
-without it stops with usage guidance interactively, and stops with a logged error headless; it
-never guesses a repository.
+`<owner/repo>` is required — exactly one repository per invocation. A launch without it stops with
+usage guidance interactively, and with a logged error headless; it never guesses a repository.
 
 Everything else resolves in order:
 
 1. **Invocation arguments** — the tier keyword (babysit-prs vocabulary) and any per-dimension or
-   loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`,
-   `--merge human-only`).
+   loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge
+   human-only`).
 2. **The layered config seam** — the `babysit_loop_*` keys on the `.claude/source-control.md`
    surface (user-global → team-tracked → local overlay, merged per key). The key table, defaults,
    and layering semantics live in
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
-3. **Tier defaults** — the resolved tier's own dimension values (`safe` when nothing resolves a
-   tier).
+3. **Tier defaults** — the resolved tier's own dimension values (`safe` when no tier resolves).
 
 **The merge dimension is the exception**: raises to the *standing* rung bind from the team-tracked
 layer only — every other source may only select a *lower* (safer) rung, per the convention
-("Merge-rung raises are seam-only"). The convention carries one named exception to that: an
-invocation whose own argument line carries **both** the literal `autopilot` tier keyword **and** the
-explicit raise argument `--merge c3-this-run` widens *this single invocation's* merge dimension up
-to C3, still bounded by the unconditional C4/C5 floor — see "Autonomy dimensions, tiers, and knobs"
-below. It persists nothing and is not a substitute for a recorded standing raise. The pair is
-deliberate: `autopilot` predates this exception as a merge-inert tier keyword, so a saved
-invocation, alias, or template that already passes it carries no merge intent — `autopilot` alone
-therefore widens dimensions 1-5 and 7 and leaves the merge dimension at the seam rung, exactly as
-before the exception existed. `c3-this-run` exists only to invoke this exception, so its presence
-cannot be a leftover; it is not a rung name, is invalid as a `babysit_loop_merge` value in any
-config layer (an appearance there is reported and ignored), and is never composed by a model on the
-caller's behalf — a model-routed launch (a "drain the queue" phrasing) runs without it or asks.
-Both tokens have to be on this invocation's argument line and nowhere else: never inherited from
-`babysit_loop_tier` in any layer, never a tier default, and never from `babysit_default_tier` (a
-babysit-prs `userConfig` scalar that is not a loop-lane key and never supplies this lane's tier) —
-a tier resolved from any of those runs dimensions 1-5 and 7 at that tier with the merge dimension
-left at the seam rung, per the config-resolution reference cited above ("No config layer or key
-ever supplies the exception's tokens").
-**And that team-tracked layer is the TARGET repository's, never the caller's.** The
-lane's required `<owner/repo>` argument may name a repository other than the current checkout
-(or the lane may launch from a neutral directory), and the config resolver's ambient team layer
-reads the current git root — so for every policy key that can raise behavior (the merge rung and
-its tracked-adoption activation above all), the lane reads the TARGET repository's tracked
-`.claude/source-control.md` from its default branch (`gh api` contents) whenever the current
-checkout is not that repository. Unreadable or absent = no tracked adoption = merges stay
-human-only (fail closed). A caller-side tracked file can never enable merges for a target that
-did not adopt the lane. The full precedence mechanics, including the tracked-adoption activation
-of the baseline rung, are owned by the config reference above. Report the effective config,
-which source supplied each value, and which repository's team layer bound the merge rung, at
-lane start.
+("Merge-rung raises are seam-only"). The convention's one named exception to that — an invocation
+whose own argument line carries **both** the literal `autopilot` tier keyword **and** the explicit
+raise argument `--merge c3-this-run` — is stated in full under "Autonomy dimensions, tiers, and
+knobs" below. The pair is deliberate: `autopilot` predates this exception as a merge-inert tier
+keyword, so a saved invocation, alias, or template already passing it carries no merge intent.
+`c3-this-run` exists only to invoke this exception, so its presence cannot be a leftover; it is not
+a rung name, is invalid as a `babysit_loop_merge` value in any config layer (an appearance there is
+reported and ignored), and is never composed by a model on the caller's behalf — a model-routed
+launch (a "drain the queue" phrasing) runs without it or asks. Both tokens have to be on this
+invocation's argument line and nowhere else: never inherited from `babysit_loop_tier` in any layer,
+never a tier default, and never from `babysit_default_tier` (a babysit-prs `userConfig` scalar that
+is not a loop-lane key and never supplies this lane's tier) — a tier resolved from any of those runs
+dimensions 1-5 and 7 at that tier with the merge dimension left at the seam rung, per the
+config-resolution reference cited above ("No config layer or key ever supplies the exception's
+tokens"). **And that team-tracked layer is the TARGET repository's, never the caller's.** The
+required `<owner/repo>` may name a repository other than the current checkout, or the lane may
+launch from a neutral directory, while the config resolver's ambient team layer reads the current
+git root — so for every policy key that can raise behavior (the merge rung above all), the lane reads the TARGET repository's tracked `.claude/source-control.md`
+from its default branch (`gh api` contents) whenever the current checkout is not that repository.
+Unreadable or absent = no tracked adoption = merges stay human-only (fail closed); a caller-side
+tracked file can never enable merges for a target that did not adopt the lane. Full precedence
+mechanics, including tracked-adoption activation of the baseline rung, are owned by the config
+reference above. Report the effective config, which source supplied each value, and which
+repository's team layer bound the merge rung, at lane start.
 
 **Interactive ambiguity** — an interactive launch with absent or ambiguous config (no stop mode, no
-tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
-unresolved keys, then offers to persist the answers: repo policy (stop mode, tier, merge rung) to
-the team-tracked layer, personal deviations to the local overlay. A merge-rung raise persists to
-the team-tracked layer only — that write is the recorded ratification.
+tier, or conflicting signals) runs an `AskUserQuestion` mini-interview over exactly the unresolved
+keys, then offers to persist the answers: repo policy (stop mode, tier, merge rung) to the
+team-tracked layer, personal deviations to the local overlay. A merge-rung raise persists to the
+team-tracked layer only — that write is the recorded ratification.
 
 **Headless never blocks** (headless-config floor, per the convention): take explicit or persisted
 config, else tier defaults, and log the assumption.
@@ -114,60 +103,54 @@ babysit-prs tier vocabulary (`safe`, `worker`, `autopilot`). What each tier gran
 owned by babysit-prs's "Autonomy tiers (per action class)" table and is not restated here. The
 dimensions: 1 — discovery scope (which PRs enter the queue); 2 — fixing (branch-owned CI/review
 fixes); 3 — thread resolution; 4 — draft elevation; 5 — barrier handling (escalate vs
-attempt-with-research); 6 — merge authority (the autonomy-ladder rung); 7 — escalation posture.
-Each has a per-dimension override key on the layered seam; the key table, defaults, and precedence
-— including the merge dimension's policy-floor exception — are owned by the config reference above.
+attempt-with-research); 6 — merge authority (the autonomy-ladder rung); 7 — escalation posture. Each
+has a per-dimension override key on the layered seam; the key table, defaults, and precedence —
+including the merge dimension's policy-floor exception — are owned by the config reference above.
 
 **Dimension 6 ships safe: with no tracked adoption, every merge is human.** The convention's
 baseline rung — human merge for everything except gate-proven C2-mechanical PRs — is what a
 repository gets by *adopting* the lane in its team-tracked config: while the target repo's tracked
-`.claude/source-control.md` carries no loop-lane keys, the merge dimension resolves to
-`human-only`, and a merge-capable tier from the invocation or any other source never substitutes
-for that recorded adoption — the lane merges nothing and reports why. Once tracked adoption is in
-place, the C2-mechanical exception is a work-class test irrespective of author: a PR qualifies only
-when its work item classifies C2 mechanical, whoever authored it; bot authorship alone never
-qualifies. Higher rungs (`c3-autonomous`, `full-autonomy`) are further tracked-seam flips —
-recorded, human-ratified — per the convention's autonomy ladder. The rung composes with the tier,
-never overrides it: a merge happens only when the resolved babysit-prs tier is merge-capable AND
-its deterministic gate proves the PR ready AND the PR's work item sits within the rung. The rung
-is enforced by the cycle's deterministic pre-partition (Cycle shape, step 3) — merge-capable
-invocations only ever receive rung-eligible PR refs — never by standing instructions the invoked
-skill is trusted to honor.
+`.claude/source-control.md` carries no loop-lane keys, the merge dimension resolves to `human-only`,
+and a merge-capable tier from the invocation or any other source never substitutes for that recorded
+adoption — the lane merges nothing and reports why. Once adopted, the C2-mechanical exception is a
+work-class test irrespective of author: a PR qualifies only when its work item classifies C2
+mechanical; bot authorship alone never qualifies. Higher rungs (`c3-autonomous`, `full-autonomy`)
+are further tracked-seam flips — recorded, human-ratified — per the convention's autonomy ladder.
+The rung composes with the tier, never overrides it: a merge happens only when the resolved
+babysit-prs tier is merge-capable AND its deterministic gate proves the PR ready AND the PR's work
+item sits within the rung, and it is enforced by the cycle's deterministic pre-partition (Cycle
+shape, step 3), never by standing instructions the invoked skill is trusted to honor.
 
 **Explicit-`autopilot` widening (single-invocation, non-standing, paired-token).** Independent of
 the tracked rung, an invocation whose own argument line types both `autopilot` as the tier argument
 and `--merge c3-this-run` as the merge argument (in an adopted repo) raises this cycle's merge rung
-to C3-equivalent when that is higher than the tracked rung, never reaching C4/C5. Either token
-alone does nothing to the merge dimension: `autopilot` alone is merge-inert beyond the tracked
-rung, and `c3-this-run` without the typed `autopilot` tier is reported and ignored.
+to C3-equivalent when that is higher than the tracked rung, never reaching C4/C5. Either token alone
+does nothing to the merge dimension: `autopilot` alone is merge-inert beyond the tracked rung, and
+`c3-this-run` without the typed `autopilot` tier is reported and ignored.
 
 **An explicit safer argument still wins — and is mutually exclusive with the raise by grammar.**
 `--merge` carries one value: every value other than `c3-this-run` may only select a *lower* (safer)
-rung than the tracked rung, so
-`/source-control:babysit-loop <owner/repo> autopilot --merge human-only` merges nothing at all. The
-order is: tracked rung → raise to C3 if the pair was typed → floor to the unconditional C4/C5
-ceiling. The exception only ever removes a *raise* restriction; it never overrides a caller asking
-for less authority, per the config-resolution reference's "an invocation argument may select a
-lower (safer) rung".
+rung than the tracked rung, so `/source-control:babysit-loop <owner/repo> autopilot --merge
+human-only` merges nothing. The order is: tracked rung → raise to C3 if the pair was typed → floor
+to the unconditional C4/C5 ceiling. The exception removes only a *raise* restriction, never a caller
+asking for less authority (config-resolution reference, "an invocation argument may select a lower
+(safer) rung").
 
-The deterministic gate is not weakened: checks, thread resolution, and mergeability still all have to
-pass. What changes is what happens to a PR that's otherwise eligible (C1-C3) but blocked on
-a **machine-escalated** `needs-human` item, an open non-human finding, or a contradictory/unresolved
-**bot** review thread: instead of falling through to Escalation, the cycle dispatches a **fresh
-frontier-tier subagent sharing no context with the PR's authoring or reviewing sessions** (per the
-convention's capability-tier independence rule) to resolve that specific blocker — under the PR's
-worker lease, through babysit-prs's own guarded-mutation path, never a raw/unguarded mutation. An
-operator-*parked* item wears the same label without the escalation marker and is never dispatched
-on; see Escalation below for the four blocker classes outside this dispatch.
-
-Only after a resolution attempt does the PR proceed to the normal gate; if the blocker is unresolved,
-or the PR is C4/C5, or the resolution attempt itself is uncertain, it still escalates exactly as it
-would without this exception — this widens *who tries first*, never what the gate requires or what
-the C4/C5 floor forbids.
+The deterministic gate is not weakened: checks, thread resolution, and mergeability all still have
+to pass. What changes is a PR otherwise eligible (C1-C3) but blocked on a **machine-escalated**
+`needs-human` item, an open non-human finding, or a contradictory/unresolved **bot** review thread:
+instead of falling through to Escalation, the cycle dispatches a **fresh frontier-tier subagent
+sharing no context with the PR's authoring or reviewing sessions** (the convention's capability-tier
+independence rule) to resolve that specific blocker — under the PR's worker lease, through
+babysit-prs's own guarded-mutation path, never a raw/unguarded mutation. An operator-*parked* item
+wears the same label without the escalation marker and is never dispatched on; Escalation below owns
+the four blocker classes outside this dispatch, and the unresolved/uncertain/C4-C5 outcomes that
+escalate exactly as they would without this exception — the widening changes *who tries first*,
+never what the gate requires or what the C4/C5 floor forbids.
 
 **Always-on safety knobs** — never configurable off, whatever the tier or rung: the activity grace
-window (width configurable, existence not), babysit-prs's head-move yield and expected-head
-pinning, its no-background-monitor clause ("Once ready, stop"), and its watched-owner boundary.
+window (width configurable, existence not), babysit-prs's head-move yield and expected-head pinning,
+its no-background-monitor clause ("Once ready, stop"), and its watched-owner boundary.
 
 **Loop knobs**: stop mode, cycle budget (`#691` semantics per the convention), grace-window width,
 and the `#502` telemetry contract below — seam keys and defaults in the config reference above.
@@ -181,13 +164,13 @@ and an expiry hit is handled exactly like a budget hit (restart-request + clean 
 
 **Drain (`--drain`).** The lane stops when the cycle-start snapshot shows **0 open PRs AND 0 open
 issues** in the target repository — deliberately outliving the worker lane's own exit (all issues
-closed or PR'd): the merge lane finishes merging the tail. Lane-infrastructure issues never gate
-the drain: the per-lane telemetry tracking issues (the `Lane telemetry: <lane>` title contract —
-this lane's and any sibling lane's) are excluded from the 0-open-issues evaluation, exactly as the
-work-items lanes exclude them. The **drain-terminal state** (per the convention) also ends the
-loop: when every remaining open item is human-gated or escalated and no PR is in flight, report and
-stop cleanly rather than idling forever. The exit is evaluated against the cycle-start snapshot;
-new intake arriving mid-cycle is reported, never chased.
+closed or PR'd): the merge lane finishes merging the tail. Lane-infrastructure issues never gate the
+drain: the per-lane telemetry tracking issues (the `Lane telemetry: <lane>` title contract — this
+lane's and any sibling lane's) are excluded from the 0-open-issues evaluation, exactly as the
+work-items lanes exclude them. The **drain-terminal state** (per the convention) also ends the loop:
+when every remaining open item is human-gated or escalated and no PR is in flight, report and stop
+cleanly rather than idling forever. The exit is evaluated against the cycle-start snapshot; new
+intake arriving mid-cycle is reported, never chased.
 
 ## Cycle shape
 
@@ -201,100 +184,93 @@ new intake arriving mid-cycle is reported, never chased.
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
    report-only this cycle: never elevated, never thread-resolved, never merged.
-3. **Rung partition (deterministic, fail closed).** When the resolved tier is merge-capable,
-   compute the merge-eligible set mechanically before any babysit-prs invocation: for each open
-   PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
-   provider's own computed close-linkage — `gh api graphql`, `closingIssuesReferences`) and read
-   that item's recorded work-class classification (the triage stamp in the item body or labels).
-   A PR is merge-eligible only when its item's class sits within the effective rung: at
-   `c2-mechanical`, C2 mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every
-   class up to and including C3 — **`full-autonomy` never reaches C4/C5, per the unconditional
-   floor below; there is no rung name that does.** The effective rung for this computation resolves
-   in three ordered steps: the tracked rung, raised to C3-equivalent if this invocation's own
-   argument line typed both the `autopilot` tier keyword and `--merge c3-this-run` (any other
-   explicitly argued `--merge` value floors instead of raises), then floored to the unconditional
-   C4/C5 ceiling — see "Explicit-`autopilot` widening" above. A PR with no
-   close-linked item, or an item with no recorded classification, is NOT eligible — no
-   classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
-   carrying the do-not-merge label at partition time is NOT eligible at any rung or class — the
-   label veto binds here, in the partition, because a merge-capable babysit-prs tier's ordinary
-   gate has no label input (its `--block-labels` criterion is confined to the autopilot merge
-   tier); such a PR routes to the `safe` per-PR pass like any other non-eligible PR. The one
-   ordered exception: when THIS invocation carries `--strip-do-not-merge`, the strip executes
-   between the snapshot and this partition — the label is removed from the flag's target PRs and
-   recorded in the cycle report — so a stripped PR partitions on its work-class like any other; the
-   flag is a per-invocation direct order and never persists (see do-not-merge below). This is a
-   deterministic pre-partition, never narrative guidance handed to the invoked skill. At
-   `human-only` (including the no-tracked-adoption default), or under a non-merge-capable tier, the
-   eligible set is empty — the explicit-`autopilot` widening does not apply without tracked
-   adoption either (config-resolution.md, "Baseline activation is tracked adoption").
-   **C4/C5 floor:** a PR that is C4 (structural) or C5 (untrusted-provenance) is NEVER in the
-   eligible set, at any rung, under any invocation argument — checked before, and independent of,
-   the rung comparison above. **Both are tests on the PR, not lookups of the linked item's stamp**:
-   `work-classes.md` assigns a class from the risk-property bundle — blast radius, reversibility,
-   provenance — and "the bundle — not the task's surface description — is what assigns a class".
+3. **Rung partition (deterministic, fail closed).** When the resolved tier is merge-capable, compute
+   the merge-eligible set mechanically before any babysit-prs invocation: for each open PR in the
+   snapshot not already excluded by step 2, resolve its close-linked work item (the provider's own
+   computed close-linkage — `gh api graphql`, `closingIssuesReferences`) and read that item's
+   recorded work-class classification (the triage stamp in the item body or labels). A PR is
+   merge-eligible only when its item's class sits within the effective rung: at `c2-mechanical`, C2
+   mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every class up to and
+   including C3 — **`full-autonomy` never reaches C4/C5, per the unconditional floor below; there is
+   no rung name that does.** The effective rung for this computation is the
+   three-step resolution stated under "Explicit-`autopilot` widening" above. A PR with no close-linked item, or an item with no
+   recorded classification, is NOT eligible — no classification = no merge, at any rung, including
+   the explicit-`autopilot` widening. A PR still carrying the do-not-merge label at partition time
+   is NOT eligible at any rung or class — the label veto binds here, in the partition, because a
+   merge-capable babysit-prs tier's ordinary gate has no label input (its `--block-labels` criterion
+   is confined to the autopilot merge tier); such a PR routes to the `safe` per-PR pass like any
+   other non-eligible PR. The one ordered exception: when THIS invocation carries
+   `--strip-do-not-merge`, the strip executes between the snapshot and this partition — the label is
+   removed from the flag's target PRs and recorded in the cycle report — so a stripped PR partitions
+   on its work-class like any other; the flag is a per-invocation direct order and never persists
+   (see do-not-merge below). At `human-only` (including the no-tracked-adoption default), or under a
+   non-merge-capable tier, the eligible set is empty — the explicit-`autopilot` widening does not
+   apply without tracked adoption either (config-resolution.md, "Baseline activation is tracked
+   adoption"). **C4/C5 floor:** a PR that is C4 (structural) or C5 (untrusted-provenance) is NEVER
+   in the eligible set, at any rung, under any invocation argument — checked before, and independent
+   of, the rung comparison above. **Both are tests on the PR, not lookups of the linked item's
+   stamp**: `work-classes.md` assigns a class from the risk-property bundle — blast radius,
+   reversibility, provenance — and "the bundle — not the task's surface description — is what
+   assigns a class".
    - **C5 — the code's provenance.** Two tests on the cycle-start snapshot, either one marking the
      PR C5, each failing closed to C5 when its field is missing or unreadable. **Fork test:** the
      head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
      from the base owner). **Trust test:** the PR's provider-computed `authorAssociation` is
-     anything other than `OWNER` or `MEMBER` — `COLLABORATOR` is an outside collaborator, whose
-     push to a base-repository branch has `isCrossRepository: false` and so passes the fork test
-     while being exactly the same-repository external contribution the governing C5 definition
-     includes; `CONTRIBUTOR`, `NONE`, and every other value are likewise external. Vague
-     "other signals" are not a test: these two fields are the executable surface, and absence of
-     either is C5, never a pass. Never test the author login against
-     `babysit_watched_owners`: that key is a repository-owner allowlist, not a trusted-author list
-     (`babysit-prs/SKILL.md`, "Scope resolution"), so on an org-owned repository it would call
-     every internally authored PR C5. A fork PR closing an internally classified C2/C3 issue is
-     still C5 — the class travels with the code's provenance, not the issue it closes.
+     anything other than `OWNER` or `MEMBER` — `COLLABORATOR` is an outside collaborator, whose push
+     to a base-repository branch has `isCrossRepository: false` and so passes the fork test while
+     being exactly the same-repository external contribution the governing C5 definition includes;
+     `CONTRIBUTOR`, `NONE`, and every other value are likewise external. These two fields are the
+     executable surface; vague "other signals" are not a test. Never test the author login against `babysit_watched_owners`: that key is a
+     repository-owner allowlist, not a trusted-author list (`babysit-prs/SKILL.md`, "Scope
+     resolution"), so on an org-owned repository it would call every internally authored PR C5. A
+     fork PR closing an internally classified C2/C3 issue is still C5 — the class travels with the
+     code's provenance, not the issue it closes.
    - **C4 — the diff's blast radius.** The stamp admits; the diff can still veto. A PR whose actual
-     change is a refactor, migration, or contract change is C4 however its item is stamped, and a
-     PR whose shape no longer matches its recorded class **fails closed** to escalation rather than
-     to the stamp.
+     change is a refactor, migration, or contract change is C4 however its item is stamped, and a PR
+     whose shape no longer matches its recorded class **fails closed** to escalation rather than to
+     the stamp.
    - **The verdict authorizes a head SHA, not the PR.** This partition class-checked the snapshot
      head's diff, so eligibility is pinned to that SHA: the merge-capable invocation carries the
      partitioned head as its merge gate's `--expected-head` pin, and the gate's head-match refusal
-     (`babysit-prs/SKILL.md`, "Guarded mutations") is what makes the binding deterministic rather
-     than narrative. Any worker push — an ordinary CI or review-finding fix (babysit-prs Autopilot
-     steps 1–2), not only the pre-escalation resolver's — moves the head off the pin; the pinned
-     gate then refuses the merge, and the invocation ends by reporting the new head instead of
-     re-pinning (babysit-prs Autopilot step 3's lane-pin exception). The lane re-snapshots, reruns
-     this partition — provenance, C4-diff, rung — on the post-push head, and only a PR still in
-     the eligible set gets a fresh merge-capable invocation pinned to the new head. No head merges
-     under this lane that this partition did not class-check.
-4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
-   its single-PR scope form (`owner/repo#N`) — the lane's own step-2 snapshot is the discovery
-   surface, so no repo-wide invocation ever runs and a PR the lane withheld is never presented
-   to the mechanic at all. Three enforcement rules bind each per-PR invocation:
+     (`babysit-prs/SKILL.md`, "Guarded mutations") makes the binding deterministic rather than
+     narrative. Any worker push — an ordinary CI or review-finding fix (babysit-prs Autopilot steps
+     1–2), not only the pre-escalation resolver's — moves the head off the pin; the pinned gate then
+     refuses the merge, and the invocation ends by reporting the new head instead of re-pinning
+     (babysit-prs Autopilot step 3's lane-pin exception). The lane re-snapshots, reruns this
+     partition — provenance, C4-diff, rung — on the post-push head, and only a PR still in the
+     eligible set gets a fresh merge-capable invocation pinned to the new head. No head merges under
+     this lane that this partition did not class-check.
+4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in its
+   single-PR scope form (`owner/repo#N`) — the lane's own step-2 snapshot is the discovery surface,
+   so no repo-wide invocation ever runs and a PR the lane withheld is never presented to the
+   mechanic at all. Three enforcement rules bind each per-PR invocation:
    - **Report-only PRs get zero invocations.** A PR marked report-only in step 2 (grace window,
-     WIP-signal draft) appears in the cycle report and nowhere else — no tier, not even `safe`,
-     is invoked against it, because `safe` still makes and pushes clear branch-owned fixes.
-   - **Rung binds the tier.** Merge-eligible PRs (step 3) are invoked at the resolved
-     merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR;
-     every other non-report-only PR is invoked at `safe` (fixes and reports; never resolves
-     threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
-     Under the explicit-`autopilot` widening, a merge-eligible PR still blocked on a
-     machine-escalated `needs-human` item, an open finding, or a contradictory thread gets the
-     leased fresh-subagent resolution dispatch (see
-     "Explicit-`autopilot` widening" above and Escalation below) ahead of its
-     `/source-control:babysit-prs autopilot <owner/repo>#<N>` invocation, not instead of it.
-   - **Dimension overrides bind by tier flooring, never narrative.** Before invoking, lower the
-     tier for a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension
-     override (babysit-prs's tier keyword is its only enforcement surface — a natural-language
-     narrowing handed to a higher tier is not enforcement). Capabilities the floor forgoes are
-     reported as override-constrained this cycle. The deliberate cost, both here and in the rung
-     partition: coupled higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are
-     foregone on floored PRs — failing closed gives up only actions the overrides or rung
-     already denied. The same tier-granularity limit cuts the other way: an UPWARD override on a
-     single dimension (e.g. `thread_resolution` above an otherwise-`safe` preset) is
-     unenforceable when honoring it would exceed another dimension — the raise is ignored and
-     reported as override-unenforceable, never smuggled in as narrative to a higher tier.
-     Raising one dimension's behavior means raising the preset (every dimension consents), until
-     the invoked mechanic exposes per-dimension enforcement (follow-up candidate).
+     WIP-signal draft) appears in the cycle report and nowhere else — no tier, not even `safe`, is
+     invoked against it, because `safe` still makes and pushes clear branch-owned fixes.
+   - **Rung binds the tier.** Merge-eligible PRs (step 3) are invoked at the resolved merge-capable
+     tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR; every other
+     non-report-only PR is invoked at `safe` (fixes and reports; never resolves threads or merges).
+     An empty eligible set means only `safe` per-PR invocations this cycle. Under the
+     explicit-`autopilot` widening, a merge-eligible PR still blocked on a machine-escalated
+     `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent
+     resolution dispatch (see "Explicit-`autopilot` widening" above and Escalation below) ahead of
+     its `/source-control:babysit-prs autopilot <owner/repo>#<N>` invocation, not instead of it.
+   - **Dimension overrides bind by tier flooring, never narrative.** Before invoking, lower a PR's
+     tier to the highest babysit-prs tier whose behavior exceeds NO resolved dimension override
+     (babysit-prs's tier keyword is its only enforcement surface — a natural-language narrowing
+     handed to a higher tier is not enforcement). Capabilities the floor forgoes are reported as
+     override-constrained this cycle. The deliberate cost, here and in the rung partition: coupled
+     higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are foregone on floored PRs —
+     failing closed gives up only actions the overrides or rung already denied. The limit cuts the
+     other way too: an UPWARD override on one dimension (e.g. `thread_resolution` above an
+     otherwise-`safe` preset) is unenforceable when honoring it would exceed another — the raise is
+     ignored and reported as override-unenforceable, never smuggled in as narrative to a higher
+     tier. Raising one dimension's behavior means raising the preset (every dimension consents),
+     until the invoked mechanic exposes per-dimension enforcement (follow-up candidate).
    All per-PR mechanics — checkout, fixes, threads, gates, fan-out — run under that skill's own
    contract, and the do-not-merge stance rides every invocation.
-5. **Escalate.** Anything needing an operator decision follows the convention's escalation
-   contract (below); a blocked action is escalated, never routed around.
+5. **Escalate.** Anything needing an operator decision follows the convention's escalation contract
+   (below); a blocked action is escalated, never routed around.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
    mode), evaluate the stop condition; if not stopping, `ScheduleWakeup` the next cycle.
 
@@ -302,8 +278,7 @@ new intake arriving mid-cycle is reported, never chased.
 
 A do-not-merge label is respected by default in every tier and at every rung — the PR is reported,
 never merged, and the label is never removed. Stripping it happens only behind the explicit
-`--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never
-persisted.
+`--strip-do-not-merge` flag: a per-invocation direct order, never a config key, never persisted.
 
 ## Escalation
 
@@ -311,51 +286,48 @@ Escalation is the convention's contract (`docs/conventions/loop-lane/README.md` 
 citation: a tracker item carrying the human-gated role label — resolved from the consumer's
 `.work-item-tracker.json` `config.role_labels` map, never compared as a literal; when that file is
 absent, the canonical `needs-human` default applies with a loud notice — plus a machine-marked
-escalation comment whose first line is
-`<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
-attended queue's escalated-view data contract; the sentinel names the contract owner, not the
-writer (the same one-directional pattern as the `claude-ops:lane-telemetry` sentinel below), so
-babysit escalations surface in the same attention view as worker escalations. Telemetry is the
-report surface, never the escalation channel.
+escalation comment whose first line is `<!-- work-items:escalation lane=babysit-loop kind=escalated
+-->`. That marker grammar is the attended queue's escalated-view data contract; the sentinel names
+the contract owner, not the writer (the same one-directional pattern as the
+`claude-ops:lane-telemetry` sentinel below), so babysit escalations surface in the same attention
+view as worker escalations. Telemetry is the report surface, never the escalation channel.
 
-**Pre-escalation resolution attempt, explicit-`autopilot` only.** Before a merge-eligible (C1-C3)
-PR is escalated for a **machine-escalated** `needs-human` item, an open machine-authored finding, or
-a contradictory/unresolved **bot** review thread, and only when this invocation's own argument line
+**Pre-escalation resolution attempt, explicit-`autopilot` only.** Before a merge-eligible (C1-C3) PR
+is escalated for a **machine-escalated** `needs-human` item, an open machine-authored finding, or a
+contradictory/unresolved **bot** review thread, and only when this invocation's own argument line
 typed both the literal `autopilot` tier argument and `--merge c3-this-run` (the widening pair
-above): dispatch a fresh subagent at the **frontier tier** — §3's top tier row,
-requested by tier and resolved to a live-updating model alias through that section's "Runtime
-resolution is by model alias only", never a dated model ID and never a family name written into this
-lane as the tier's *definition*, since tiers are ordered by capability and a family mapping rots. If
-the run cannot establish which alias currently satisfies `frontier` it **escalates rather than
-dispatching** — inheriting the session's model, or a lower review-work model, forfeits the capability
-this dispatch stands on. The subagent shares no context with whatever produced the PR or previously
-replied on the blocking thread, and **runs under
-the PR's worker lease**: acquire and heartbeat before it starts, release after, exactly as
-`babysit-prs` requires before any per-PR fix or worker assignment (`babysit-prs/reference/safety.md`
-and `babysit-prs/reference/orchestration.md`); the guarded wrappers pin comment state, not
-concurrency ownership, and a lease another worker already holds means no dispatch at all. Brief it
-with the blocker, the PR, and the convention's independence and frontier-tier requirements; it
-replies and resolves threads through babysit-prs's own guarded-mutation path, never a raw mutation.
-**A blocker needing a code change runs the full per-PR worker lifecycle** — isolated PR worktree,
-HEAD asserted at the live PR head, commit and refspec push (`babysit-prs/reference/safety.md`) — not
-the wrappers alone, which implement merge and thread resolution and create no worktree; a lane
-launched from a neutral directory has no usable tree without it.
+above): dispatch a fresh subagent at the **frontier tier** — §3's top tier row, requested by tier
+and resolved to a live-updating model alias through that section's "Runtime resolution is by model
+alias only", never a dated model ID and never a family name written into this lane as the tier's
+*definition* (tiers are ordered by capability; a family mapping rots). If the run cannot establish which alias satisfies `frontier` it **escalates rather than dispatching** — inheriting the
+session's model, or a lower review-work model, forfeits the capability this dispatch stands on. The
+subagent shares no context with whatever produced the PR or previously replied on the blocking
+thread, and **runs under the PR's worker lease**: acquire and heartbeat before it starts, release
+after, as `babysit-prs` requires before any per-PR fix or worker assignment
+(`babysit-prs/reference/safety.md` and `babysit-prs/reference/orchestration.md`); the guarded
+wrappers pin comment state, not concurrency ownership, and a lease another worker already holds
+means no dispatch at all. Brief it with the blocker, the PR, and the convention's independence and
+frontier-tier requirements; it replies and resolves threads through babysit-prs's own
+guarded-mutation path, never a raw mutation. **A blocker needing a code change runs the full per-PR
+worker lifecycle** — isolated PR worktree, HEAD asserted at the live PR head, commit and refspec
+push (`babysit-prs/reference/safety.md`) — not the wrappers alone, which implement merge and thread
+resolution and create no worktree; a lane launched from a neutral directory has no usable tree
+without it.
 
-**Four blocker classes this dispatch never touches**, each because the invoked mechanic's own
-contract already owns them and this exception does not amend those contracts:
+**Four blocker classes this dispatch never touches** — the invoked mechanic's own contract already
+owns each, and this exception does not amend those contracts:
 
 - **Operator-parked items.** The `needs-human` role label marks machine-*escalated* and
   operator-*parked* items alike; only the machine escalation marker distinguishes them (loop-lane
   convention, "Escalation contract"). An item wearing the label without that marker belongs to the
   attended queue, not this lane: no dispatch, escalate. Dispatching on the label alone would cross
   into another lane's authority and answer an operator-owned question with an agent.
-
 - **Human blocking feedback.** A human `CHANGES_REQUESTED` review, explicit human blocking language,
   or an unresolved inline human thread stays a stop-and-ask condition until GitHub state resolves it
   — escalate, never fix or resolve past it (`babysit-prs/reference/feedback.md`, "Human Feedback").
-  No dispatch is made; the PR escalates. The one exception `babysit-prs` gained in this change is
-  scoped to security/P1 escalation and to that dispatch path alone
-  (`babysit-prs/reference/safety.md`, "Security/P1 escalation"); it does not widen to human blocks.
+  No dispatch is made; the PR escalates. babysit-prs's one exception is scoped to security/P1
+  escalation and that dispatch path alone (`babysit-prs/reference/safety.md`, "Security/P1
+  escalation"); it does not widen to human blocks.
 - **Merge conflicts.** These route to the dedicated fresh conflict-resolution worker
   (`babysit-prs/reference/orchestration.md`, Merge Conflict Resolution), which integrates
   **merge-only and never rebases** — rebasing a PR branch needs the force-push babysit-prs forbids
@@ -364,26 +336,23 @@ contract already owns them and this exception does not amend those contracts:
 - **C4/C5 PRs.** Already excluded at the rung partition (Cycle shape, step 3) — including the
   provenance-derived C5 override and the diff-derived C4 veto — and they escalate normally.
 
-If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, C4-diff and
-rung partition before** its normal `autopilot`-tier invocation and gate — the first partition read
-the cycle-start diff, and a resolution that pushed code can have turned a C2/C3 change into a
+If the dispatch resolves the blocker, **re-snapshot the PR and rerun step 3's provenance, C4-diff
+and rung partition before** its normal `autopilot`-tier invocation and gate — the first partition
+read the cycle-start diff, and a resolution that pushed code can have turned a C2/C3 change into a
 refactor, migration, or contract change that the downstream merge gate does not class-check. A PR
-that leaves the eligible set on that second partition escalates instead of merging. This is the
-same head-pinning rule the normal worker's own final push obeys (Cycle shape, step 3, "The verdict
-authorizes a head SHA, not the PR"): resolver dispatch and merge-capable worker alike move the
-head, and both routes converge on a partition of the exact head that merges. If the dispatch
-cannot resolve the blocker — including any case where the subagent itself is uncertain the
-resolution is correct — the PR escalates exactly as it would without this exception; this dispatch
-adds one resolution attempt, it never removes the escalation path or lowers the gate's bar.
+that leaves the eligible set on that second partition escalates instead of merging; this is Cycle
+shape step 3's "The verdict authorizes a head SHA, not the PR" applied to the resolver's own push.
+If the dispatch cannot resolve the blocker — including any case where the subagent itself is
+uncertain the resolution is correct — the PR escalates exactly as without this exception; this
+dispatch adds one resolution attempt, it never removes the escalation path or lowers the gate's bar.
 
 ## Telemetry and durable loop state
 
-The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
-config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it,
-sentinel-identified and edited in place (the `claude-ops` lane-telemetry contract; one writer
-identity owns a marker). The upsert is inlined here because an installed plugin cannot invoke a
-sibling plugin's scripts:
+The telemetry home is a **per-lane tracking issue in the target repository**, from launch config;
+default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with `gh issue
+create` when absent (announce it). Maintain exactly ONE status comment, sentinel-identified and
+edited in place (the `claude-ops` lane-telemetry contract; one writer identity owns a marker). The
+upsert is inlined because an installed plugin cannot invoke a sibling plugin's scripts:
 
 ```bash
 MARKER="source-control:babysit-loop"
@@ -408,14 +377,12 @@ else
 fi
 ```
 
-**Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
-see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
-duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
-every session), the canonical comment receives the current cycle's full state, and every other
-sentinel comment is edited to a one-line tombstone so it never matches a lookup again — this
-covers a racer that died between its POST and its own re-list, because the NEXT session's
-ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
-accepted loss (durable state re-derives over a cycle); nothing is deleted.
+**Creation race reconcile.** Two sessions racing the first upsert can both see an empty lookup and
+both POST, forking the singleton. The upsert converges every cycle duplicates are visible: the
+LOWEST comment id is canonical (numeric sort, deterministic for every session), the canonical comment gets the current cycle's full state, and every other sentinel comment is edited to a
+one-line tombstone so it never matches a lookup again — this covers a racer that died between its POST and its re-list, because the NEXT session's upsert performs the same reconcile. A crashed
+racer's unmerged counters are an accepted loss (durable state re-derives over a cycle); nothing is
+deleted.
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
 block, re-read at every cycle start:
@@ -427,18 +394,17 @@ block, re-read at every cycle start:
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null}
 ```
 
-`cycle` and `backoff_level` are the loop's durable counters; `loop_started_at` makes the
-approaching seven-day expiry visible; `restart_request` is where a budget or expiry hit records the
-relaunch ask; `guard_mode` is recorded every cycle.
+`cycle` and `backoff_level` are the loop's durable counters; `loop_started_at` makes the approaching
+seven-day expiry visible; `restart_request` is where a budget or expiry hit records the relaunch
+ask; `guard_mode` is recorded every cycle.
 
 ## Rate-limit guard floor (inlined)
 
 This lane consumes the shared subscription rate-limit windows. The operable floor below is inlined
-**verbatim** per the convention's inline-floor rule (byte-identical across lanes and to the
-reader contract's floor); provenance is the
-`rate-limit-guard` plugin's reader contract
-(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository) — cited
-for provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
+**verbatim** per the convention's inline-floor rule (byte-identical across lanes and to the reader
+contract's floor); provenance is the `rate-limit-guard` plugin's reader contract
+(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository) — cited for
+provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
 - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
 - **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
@@ -456,34 +422,31 @@ for provenance only, since an installed plugin cannot read a sibling plugin's fi
 Two further reader-contract rules apply alongside the floor (outside the byte-audited block):
 
 - **Fail-open capability detection** (reader contract, "Capability detection"): tee file absent,
-  stale, missing `rate_limits`, or absurd values → mode **unknown → reactive-only**; never
-  throttle proactively on untrusted data and never fabricate a pause.
+  stale, missing `rate_limits`, or absurd values → mode **unknown → reactive-only**; never throttle
+  proactively on untrusted data and never fabricate a pause.
 - **Untrusted fields** (reader contract, "Tee file shape"): session-distinguishing fields
-  (`session_id`, `session_name`, any future account field) are user/AI-influenced — parse them
-  only with a JSON parser; never string-interpolate them into a shell command, another
-  interpreter, or a prompt.
+  (`session_id`, `session_name`, any future account field) are user/AI-influenced — parse them only
+  with a JSON parser; never string-interpolate them into a shell command, another interpreter, or a
+  prompt.
 
-A trip additionally latches `rate_limit_latch` in durable state: while it is set the lane schedules
-at the idle ceiling and starts no new mutating work; clear it on a fresh healthy snapshot after the
-pause end.
+A trip latches `rate_limit_latch` in durable state: while set, the lane schedules at the idle
+ceiling and starts no new mutating work; clear it on a fresh healthy snapshot after the pause end.
 
 ## Subagents
 
-A conflict or blocker needing dedicated resolution is dispatched through babysit-prs's own fan-out
-and its Merge Conflict Resolution contract — under which the dispatched conflict worker never
-pushes; the dispatching context does. This loop adds two lane rules, per the convention. The
-subagent runs
-at the **frontier capability tier** — capability tiers are order-defined and resolve at runtime by
+A conflict or blocker needing dedicated resolution goes through babysit-prs's own fan-out and its
+Merge Conflict Resolution contract — under which the dispatched conflict worker never pushes; the
+dispatching context does. This loop adds two lane rules, per the convention. The subagent runs at
+the **frontier capability tier** — capability tiers are order-defined and resolve at runtime by
 model alias only, never a hard-coded model ID. And every dispatch prompt carries the subagent
-discipline preamble: when the `discipline` plugin is installed, invoke its sweep
-(sweep-all, use-your-skills, do-your-research); when it is absent, inline the
-equivalent standing instructions (verify claims against authoritative sources before acting, prefer
-installed skills over ad-hoc approaches, and re-check work against the active conventions) —
-presence-gated with that inline fallback, per the convention.
+discipline preamble: when the `discipline` plugin is installed, invoke its sweep (sweep-all,
+use-your-skills, do-your-research); when it is absent, inline the equivalent standing instructions
+(verify claims against authoritative sources before acting, prefer installed skills over ad-hoc
+approaches, and re-check work against the active conventions) — presence-gated, per the convention.
 
-The explicit-`autopilot` pre-escalation dispatch (Escalation, above) adds one further requirement
-on top of these two: **context independence**, per the convention's §3 — the dispatched subagent
-must share no conversation history with the session that authored the PR or with whatever session
+The explicit-`autopilot` pre-escalation dispatch (Escalation, above) adds one further requirement on
+top of these two: **context independence**, per the convention's §3 — the dispatched subagent must
+share no conversation history with the session that authored the PR or with whatever session
 previously replied on the thread being resolved. A continuation of the PR-authoring session, or a
 re-invocation of the same subagent that already commented on the blocker, does not satisfy this
 dispatch even though it may otherwise run at the frontier tier; spawn fresh.
@@ -493,20 +456,18 @@ dispatch even though it may otherwise run at the frontier tier; spawn fresh.
 Launch via `/loop` with the interval omitted (self-paced). At the end of every cycle that does not
 stop, schedule the next with `ScheduleWakeup`, whose delay clamps to `[60, 3600]` seconds. When the
 babysit-prs engine snapshot supplies `recommended_cadence`, map it per the cadence table in the
-babysit-prs [loop reference](../babysit-prs/reference/loop.md) §5.3 — that mapping owns the
-seconds. Idle
-backs off toward the 3600s ceiling (standing mode's one-hour wakeups), and a genuine daily-scale
-cadence belongs to `/schedule`, not a single-session `/loop` (same section). On a cycle-budget or
-seven-day-expiry hit, write a restart-request into the telemetry state block and stop the loop
-cleanly — the budget restarts the session, never ends the loop, and today every budget hit is a
-terminal manual-restart state, per the convention.
+babysit-prs [loop reference](../babysit-prs/reference/loop.md) §5.3 — that mapping owns the seconds.
+Idle backs off toward the 3600s ceiling (standing mode's one-hour wakeups), and a genuine
+daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same section). On a
+cycle-budget or seven-day-expiry hit, write a restart-request into the telemetry state block and
+stop the loop cleanly — the budget restarts the session, never ends the loop, and today every budget
+hit is a terminal manual-restart state, per the convention.
 
 ## Gotchas
 
 - **The loop never merges — babysit-prs does, through its pinned gate.** This layer holds no merge
-  command; the rung binds by scoping — a merge-capable invocation only ever receives the
-  rung-eligible PR refs the pre-partition computed. A rung can never make the safe tier merge, and
-  no rung ever bypasses the deterministic gate.
+  command; the rung binds by scoping — a merge-capable invocation only receives the rung-eligible PR
+  refs the pre-partition computed. No rung makes the safe tier merge or bypasses the gate.
 - **Unlinked or unclassified PRs never auto-merge.** Rung eligibility requires a close-linked work
   item with a recorded classification; missing either fails closed to the non-merge pass.
 - **A tier keyword is never a merge raise — the raise is its own token, and the pair lasts the
@@ -517,8 +478,8 @@ terminal manual-restart state, per the convention.
   cycle of the invocation that typed it**, including each `/loop` wakeup, which re-invokes the same
   prompt in the same session and so carries the same explicit authorization; nothing re-types it
   between cycles. It ends when a newly launched invocation omits either token — a
-  `babysit_loop_tier: autopilot` config value with no typed pair is that case, and stays at the
-  seam rung.
+  `babysit_loop_tier: autopilot` config value with no typed pair is that case, and stays at the seam
+  rung.
 - **C4/C5 never merge autonomously, full stop.** Not at `full-autonomy`, not under the
   explicit-`autopilot` exception, not through any future rung name. This is a floor from the
   autonomy matrix's own promotion contract, not a `babysit_loop_merge` value — no config edit in
@@ -527,11 +488,11 @@ terminal manual-restart state, per the convention.
   hold-merge invariant survives this loop: a Dependabot/Renovate-class PR is never merged
   autonomously regardless of work class — it lands on the merge-ready report instead. The
   C2-mechanical rung is a work-class ceiling, not a route around an owner invariant.
-- **The grace window is an overlay, not a substitute.** Excluding recently-active PRs at cycle
-  level does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both
+- **The grace window is an overlay, not a substitute.** Excluding recently-active PRs at cycle level
+  does not relax babysit-prs's expected-head pins or HEAD assertions inside the cycle; both
   disciplines hold simultaneously.
-- **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain — the worker lane
-  may still be authoring; only 0 open PRs AND 0 open non-excluded issues (or the drain-terminal
-  state) ends the loop.
+- **Drain counts issues, not just PRs.** 0 open PRs alone never exits a drain — the worker lane may
+  still be authoring; only 0 open PRs AND 0 open non-excluded issues (or the drain-terminal state)
+  ends the loop.
 - **An open telemetry issue is the lane operating, not backlog.** Never work, close, or wait on a
   `Lane telemetry: <lane>` issue, and never count one against the drain exit.
