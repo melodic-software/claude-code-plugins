@@ -105,7 +105,7 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@5776760254f8b63cba44e896f51604cb755350d9 # v0.22.2
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3 # v0.24.0
     with:
       runner: ubuntu-24.04
       paths-file: .github/claude-security-paths
