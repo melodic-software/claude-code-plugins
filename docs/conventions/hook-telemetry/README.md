@@ -165,6 +165,7 @@ producers without coordinating with them or each other.
 | `guardrails` plugin | `secret-pattern-detection` | `data/secret-pattern-detection.schema.json` |
 | `guardrails` plugin | `hardcoded-path-check` | `data/hardcoded-path-check.schema.json` |
 | `guardrails` plugin | `cli-flag-verify` | `data/cli-flag-verify.schema.json` |
+| `guardrails` plugin | `stale-path-verify` | `data/stale-path-verify.schema.json` |
 | `guardrails` plugin | `block-no-verify` | `data/block-no-verify.schema.json` |
 | `guardrails` plugin | `block-hook-bypass` | `data/block-hook-bypass.schema.json` |
 | `guardrails` plugin | `block-dangerous-git` | `data/block-dangerous-git.schema.json` |

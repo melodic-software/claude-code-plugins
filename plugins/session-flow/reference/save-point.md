@@ -82,10 +82,71 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   above the top rail or below the bottom rail, never between.
 - One plain-language instruction sits directly ABOVE the top rail: "`/clear`, then copy everything
   between the dashed lines."
-- **Goal-aware re-arm:** if a `/goal` is active this session (infer from conversation), the FIRST
-  line between the rails starts with literal `/goal` — `/clear` destroys an active goal, so the
-  pasted block must re-arm it. When unsure, omit it and note below the bottom rail: "if a goal was
-  active, prepend `/goal <condition>`."
+- **Goal-aware re-arm:** if a `/goal` is active this session — check for a `/goal` establishing or
+  re-arming call earlier in this conversation with no later stop/completion, not "infer from
+  conversation" prose — the FIRST line between the rails starts with literal `/goal <condition>` —
+  `/clear` destroys an active goal, so the pasted block must re-arm it. When no such call is found,
+  omit it and note below the bottom rail: "if a goal was active, prepend `/goal <condition>`."
+- **Loop-aware re-arm:** if this session is running under `/loop` — check for this session's own
+  `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, or
+  a `ScheduleWakeup` call carrying `stop: true`), not "infer from conversation" prose. A subsequent
+  `ScheduleWakeup` reschedule call (`stop` absent or `false`) corroborates self-paced mode but is
+  never required to conclude the loop is active — on the loop's first iteration no reschedule has
+  fired yet, so its absence is not evidence of anything. Starting a fresh conversation clears every
+  session-scoped scheduled task
+  (<https://code.claude.com/docs/en/scheduled-tasks#limitations>), so a resume prompt that says
+  nothing about the loop runs the continuation once and silently loses the recurring behavior — the
+  same failure class `/goal` re-arm exists to prevent.
+
+  **Enumerate every surviving loop, and only the surviving ones.** A session can hold up to 50
+  scheduled tasks at once (<https://code.claude.com/docs/en/scheduled-tasks#manage-scheduled-tasks>),
+  so treat the launch turns as a set, not a single find: `/clear` takes them all, and a note that
+  re-arms one silently drops the rest. Two conditions retire a launch from that set. A later stop for
+  that specific loop, as above. And elapsed time: a recurring task expires seven days after creation
+  (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>), so a launch turn older than
+  that is already gone on its own — reading it as active would have the note resurrect a schedule the
+  operator's session had already stopped running. Emit one re-arm message per loop left standing, and
+  nothing at all when none is.
+
+  **The re-arm is a SECOND message, and it carries the ORIGINAL loop prompt — never the resume
+  directive.** `/loop` re-runs the prompt it was given on *every* iteration
+  (<https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>), and a
+  save-point is an immutable record of one moment. Wrapping the resume directive in `/loop` would
+  therefore make every later tick re-read that frozen file and replay a remainder already done —
+  the loop would stop doing its actual recurring job. So the rails block stays exactly what it is on
+  every other path (the resume directive, unwrapped, bootstrapping the continuation once), and the
+  note below the bottom rail reads: "this session was running under `/loop`; after pasting the block
+  above, send `/loop [<interval>] <original prompt>` as a separate message to re-arm it" — quoting
+  the interval and the prompt verbatim from the launch turn, self-paced meaning no interval token,
+  and listing one such message per surviving loop, since a command is recognized only at a message's
+  start and two cannot share one. Order matters and is stated in the note: bootstrap first, re-arm
+  second, because the re-armed loop's own first iteration must not run before the continuation it is
+  resuming into. When no launch-turn signal is found, say instead: "if a loop was active, re-arm it
+  with `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block
+  above."
+
+  **The note is conditioned on the paste, not on the citing skill.** Re-arming exists only because
+  `/clear` destroys the session-scoped schedule, so a delivery that never clears needs none: a
+  successful `/session-flow:continue-in-background` launch hands the rails prompt straight to a
+  detached agent, clearing nothing, and the loop stays armed on the session still sitting there.
+  But the engine emits this prompt BEFORE that skill runs its dirty-tree gate or its launch, and
+  both can fall back to the standard `/clear`-then-paste instruction — so the delivery path is not
+  yet knowable here, and keying the note off the citing skill's identity would drop the re-arm on
+  exactly the fallbacks that do clear. Word the note conditionally instead, so it is correct
+  whichever way delivery resolves: "this session was running under `/loop` — **if you paste this
+  block after `/clear`** (including the fallback when a background launch is refused or fails),
+  send `/loop [<interval>] <original prompt>` as a separate message afterwards to re-arm it; a
+  background launch that succeeds clears nothing, so the loop keeps running here and needs no
+  re-arm." Transferring the loop INTO the launched agent is deliberately not done: that would arm a
+  recurring schedule inside a detached session the operator is not watching, which is a new
+  behavior to decide on its own merits, not a side effect of writing a save-point.
+- **Combining both:** a command is recognized only at the start of a message
+  (<https://code.claude.com/docs/en/commands>), so neither re-arm can ride inside the other's prompt
+  argument — text after the command name is just more of that argument, not a second command
+  invocation, and would silently fail to arm. Each is therefore its own message. `/goal` keeps its
+  place as the first line between the rails (it is session-scoped and evaluated after every
+  subsequent turn regardless of what invoked it, so arming it there covers the loop's later
+  iterations too); the `/loop` re-arm follows as the separate message described above.
 
 Full-path shape (minimum form — live: bare `─` rails, no fence; shown inside a fence here for
 display):
@@ -124,6 +185,21 @@ dashed lines `` instruction line — the primary key for a prompt-only handoff, 
 and (3) the `Prior session: <UUID>` line, which — together with the `type: handoff` frontmatter
 ([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
 but is not required of prompt-only output, so consumers treat it as corroboration, never a
-required key. Changing this prompt/marker format is a
+required key.
+
+**The recoverable unit is the rails prompt PLUS the below-rail `/loop` re-arm note.** Every other
+element of a resume prompt sits between the rails, so recovering the copy region recovers the whole
+contract — `/goal` included, since it is the first line inside the block. The `/loop` re-arm is the
+one exception, and not by choice: a command is recognized only at a message's start
+(<https://code.claude.com/docs/en/commands>), so the re-arm must be its own message and therefore
+lives below the bottom rail, outside the copy region. A recovery that surfaces only the block
+between the rails hands back a continuation that runs once and drops the recurring behavior — the
+exact failure the re-arm rule exists to prevent, reintroduced one layer down. So the re-arm note
+that directly follows the bottom rail is part of what a recovery must surface, not commentary it may
+discard. It is recovered as a **shape-matched, bounded** element — the note's own wording anchored to
+the bottom rail, never "whatever follows the rail" — and it carries the operator's original prompt
+verbatim, so the same redaction pass applies to it as to everything else surfaced from a transcript.
+
+Changing this prompt/marker format is a
 **knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the
 same change.
