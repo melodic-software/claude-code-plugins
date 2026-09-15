@@ -21,9 +21,17 @@
 # PreToolUse/PostToolUse, for the cost rationale `guard_launch_monitor.py` and
 # ADR 0004 (D-12) record: a failure record is already in the transcript by the
 # time the turn ends, so once-per-turn cadence catches it as promptly as
-# once-per-tool-call would at a fraction of the invocation count. The read is
-# bounded (tail cap, truncated first line dropped) so per-turn cost is O(cap),
-# not O(session length).
+# once-per-tool-call would at a fraction of the invocation count.
+#
+# The scan is INCREMENTAL, keyed on a per-session cursor holding the number of
+# transcript lines already audited. The transcript is the session's own JSONL
+# and grows every turn, so no mtime or size sentinel on the FILE can mean
+# "nothing new to audit" — the cheap signal has to be about the appended
+# content. A Stop reads only the lines past the cursor, with `mapfile` and the
+# shell's own pattern match, and a turn whose new lines carry no candidate exits
+# having spawned no process at all. The cold scan (first Stop of a session, or a
+# reset) keeps the tail cap so that one unbounded read stays O(cap). See the
+# cursor block below for the file's shape and its failure modes.
 #
 # Matching is STRUCTURAL, never substring: a record counts only when the
 # top-level `.type == "attachment"` and `.attachment.type ==
@@ -63,16 +71,25 @@ hook::check_enabled "HOOK_FAILURE_AUDIT"
 
 START=${EPOCHREALTIME:-}
 
-hook::buffer_stdin_to INPUT || exit 0
+# The payload fields are read by the SAME call that buffers stdin. Passing
+# filters to hook::buffer_stdin_to fuses the library's `jq -e .` validation
+# probe into the field read, and hook::jq_fields answers a well-formed payload's
+# plain-string fields with the library's builtin parser — so a Stop envelope
+# costs no process at all, where the unfused pair cost a fork and a jq exec.
+#
+# The fused call is also why hook::require_jq comes AFTER it rather than before:
+# without jq the library returns an EMPTY field array and still reports success,
+# and reading `${HOOK_JQ_FIELDS[0]}` from it under `set -u` would kill the hook
+# with an unbound-variable error instead of failing open. The gate runs first,
+# and the cardinality check behind it is what makes the array read safe.
+hook::buffer_stdin_to INPUT '.transcript_path' '.session_id' || exit 0
 
 # Advisory finding -> fail open, with the standard once-per-session notice.
 hook::require_jq Stop claude-ops "$INPUT"
 
-# Both payload fields in ONE jq process (hook::jq_fields), not two: a jq spawn is
-# a process, and two hook::jq_field calls read the same envelope twice for it.
-# An absent field arrives as the empty string here rather than as a non-zero
-# return, so each guard below is spelled out instead of riding on `||`.
-hook::jq_fields "$INPUT" '.transcript_path' '.session_id' || exit 0
+# An absent field arrives as the empty string rather than as a non-zero return,
+# so each guard below is spelled out instead of riding on `||`.
+((${#HOOK_JQ_FIELDS[@]} == 2)) || exit 0
 TRANSCRIPT="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || exit 0
 SESSION="${HOOK_JQ_FIELDS[1]}"
@@ -83,22 +100,84 @@ SESSION_ID=""
 [[ "$SESSION" != "no-session" && "$SESSION" =~ ^[A-Za-z0-9._-]+$ ]] && SESSION_ID="$SESSION"
 SESSION="${SESSION//[^A-Za-z0-9_-]/-}"
 
-# Bounded tail read: cost stays O(cap) regardless of transcript growth. When
-# the cap truncates, the first in-window line is likely partial — drop it, as
-# guard_launch_monitor.py does. The override exists for the contract test.
-TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
-# `wc -c -- <file>`, not `wc -c <file>`: bash runs the command of a command
-# substitution in the substitution's own subshell and skips the extra fork ONLY
-# when that command carries no redirection of its own, so the `<` bought a whole
-# second process for one byte count (#3779). Naming the file instead adds a
-# filename column, which `read` drops along with the leading padding some `wc`
-# builds emit. The `2>/dev/null` rides on the surrounding single-command group,
-# where it silences the same stream without re-arming the fork.
-SIZE=""
-{ read -r SIZE _ < <(wc -c -- "$TRANSCRIPT"); } 2>/dev/null
-[[ -n "$SIZE" ]] || exit 0
+# `mapfile` is Bash 4.0+ and these hooks document 3.2+ support (hook-utils.sh).
+# Without it there is no builtin line reader, so the cursor is simply not
+# available and every Stop takes the cold path's grep pre-filter — the work this
+# hook has always done, never a silent skip.
+HAVE_MAPFILE=0
+((BASH_VERSINFO[0] >= 4)) && HAVE_MAPFILE=1
 
-# grep is a cheap pre-filter only; the structural jq selection decides. The
+# CURSOR: how many transcript lines this session has already audited. The file
+# is "<lines>\n<transcript_path>\n", beside the warning marker, under the same
+# ${CLAUDE_PLUGIN_DATA} home and swept by the same 7-day prune.
+#
+# Every failure mode resolves toward RESCANNING, never toward silence — the same
+# doctrine the marker follows:
+#   - no marker home, an unreadable or malformed cursor -> 0, a full scan
+#   - a different transcript_path -> 0, this session was handed another file
+#   - fewer lines present than the cursor -> 0, the transcript shrank or was
+#     replaced
+#   - a cursor pruned mid-session, or a Bash without `mapfile` -> 0
+# Rescanning cannot re-warn: the (hookName, command) marker below is what
+# decides that, and it is unchanged.
+#
+# The cursor counts COMPLETE lines only. A final line with no newline is still
+# scanned this turn — skipping it could hide a record the full scan would have
+# surfaced — but it is not counted, so the next Stop reads it again once the
+# harness has finished writing it.
+MARKER_DIR=""
+CURSOR_FILE=""
+CURSOR=0
+if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+  MARKER_DIR="${CLAUDE_PLUGIN_DATA}/hook-failure-audit"
+  # `-d` first: after the first turn the directory always exists, and `mkdir -p`
+  # on an existing directory is a whole process to reach the same no-op. A
+  # directory that exists but is unwritable reaches the writes below and fails
+  # there, which is the degrade-toward-rescanning path.
+  if [[ -d "$MARKER_DIR" ]] || mkdir -p "$MARKER_DIR" 2>/dev/null; then
+    if ((HAVE_MAPFILE)); then
+      CURSOR_FILE="$MARKER_DIR/${SESSION}.cursor"
+      CURSOR_LINES=""
+      CURSOR_PATH=""
+      # Group redirect, not `$(<file)` twice: two builtin reads share one open
+      # file and the group forks nothing. `2>/dev/null` is written BEFORE the
+      # input redirect because redirections apply left to right — after it, a
+      # failed open still prints its diagnostic, and a Stop hook's stderr is
+      # user-visible output.
+      [[ -f "$CURSOR_FILE" ]] &&
+        {
+          IFS= read -r CURSOR_LINES
+          IFS= read -r CURSOR_PATH
+        } 2>/dev/null <"$CURSOR_FILE"
+      CURSOR_LINES="${CURSOR_LINES%$'\r'}"
+      CURSOR_PATH="${CURSOR_PATH%$'\r'}"
+      [[ "$CURSOR_LINES" =~ ^[0-9]+$ && "$CURSOR_PATH" == "$TRANSCRIPT" ]] &&
+        CURSOR="$CURSOR_LINES"
+    fi
+  else
+    MARKER_DIR=""
+  fi
+fi
+
+# Advanced only once the lines it covers have been DISPOSED of: no candidate, an
+# empty structural selection, nothing left unwarned, or a warning emitted. A jq
+# failure leaves the cursor where it stood so those lines are audited again.
+# `2>/dev/null` ahead of the output redirect, as on the read above: an unwritable
+# marker home must degrade to rescanning silently, not print at the user.
+SCANNED=0
+cursor_advance() {
+  [[ -n "$CURSOR_FILE" ]] || return 0
+  printf '%s\n%s\n' "$SCANNED" "$TRANSCRIPT" 2>/dev/null >"$CURSOR_FILE" || :
+}
+
+# Bounded COLD read: the first Stop of a session (or a reset) is the one read
+# the cursor cannot bound, so the byte cap stays. When the cap truncates, the
+# first in-window line is likely partial — drop it, as guard_launch_monitor.py
+# does. The override exists for the contract test.
+TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
+
+# The pre-filter is a cheap candidate test only; the structural jq selection
+# decides. The
 # no-match common case exits on the pre-filter's emptiness, before paying for
 # the jq spawn (an empty stream produced the same silent exit via "[]").
 # `fromjson?` skips unparsable lines instead of aborting the stream.
@@ -152,26 +231,79 @@ SIZE=""
 # group visible, and the message flags are computed from those counts, never
 # from a single collapsed value.
 #
-# The window is read INTO grep, not through a `read_window` helper: a function
-# call inside `$( )` is a second subshell on top of the substitution's own, and
-# `cat -- file | grep` paid a further process to hand grep bytes it can open
-# itself. Under the cap, grep now opens the transcript directly and the whole
-# pre-filter is one process. Over the cap the pipeline is unchanged — the
-# truncated first in-window line is likely partial and `sed '1d'` drops it, as
-# guard_launch_monitor.py does — and its `2>/dev/null` stays exactly where it
-# was, on `tail`, because a pipeline element forks either way and moving the
-# redirect out would newly silence sed and grep for no saving.
-if ((SIZE > TAIL_BYTES)); then
-  RECORDS=$(tail -c "$TAIL_BYTES" -- "$TRANSCRIPT" 2>/dev/null | sed '1d' |
-    grep -F '"hook_non_blocking_error"')
-else
-  # Group-scoped redirect: `grep … 2>/dev/null` inside the substitution would
-  # cost the extra fork the file-argument form just saved (#3779). The group
-  # holds one command, so nothing beyond grep's own stderr is silenced — and
-  # that stream was already discarded before, by `cat`'s own `2>/dev/null`.
-  { RECORDS=$(grep -F '"hook_non_blocking_error"' -- "$TRANSCRIPT"); } 2>/dev/null
+# `[[ $line == *needle* ]]` is `grep -F` on one line, and it is the same fixed
+# string: identical selection, no process. `mapfile` is read WITHOUT `-t` so
+# every line keeps its newline, which makes the joined candidates byte-identical
+# to what `$(grep …)` produced — and makes a final line with no newline visible,
+# the one line the cursor must not count.
+NEEDLE='"hook_non_blocking_error"'
+RECORDS=""
+LINES=()
+N=0
+scan_lines() { # <first index to test>
+  local i
+  for ((i = $1; i < N; i++)); do
+    [[ "${LINES[i]}" == *"$NEEDLE"* ]] && RECORDS+="${LINES[i]}"
+  done
+  RECORDS="${RECORDS%$'\n'}"
+}
+
+if ((CURSOR > 0)); then
+  # One line BEFORE the cursor is read as an anchor, so the same read that
+  # fetches the new lines also proves the transcript still HAS that many: an
+  # empty result means it shrank or was replaced, and no second pass over the
+  # file is needed to find that out. `-s` discards the skipped lines rather than
+  # storing them, and `mapfile` is a builtin — no subshell, no exec.
+  mapfile -s $((CURSOR - 1)) LINES <"$TRANSCRIPT" 2>/dev/null
+  N=${#LINES[@]}
+  if ((N == 0)); then
+    CURSOR=0
+  else
+    SCANNED=$((CURSOR - 1 + N))
+    [[ "${LINES[N - 1]}" == *$'\n' ]] || SCANNED=$((SCANNED - 1))
+    scan_lines 1
+  fi
 fi
-[[ -n "$RECORDS" ]] || exit 0
+
+if ((CURSOR == 0)); then
+  # `wc -lc -- <file>` answers BOTH cold-path questions in one process: the byte
+  # count the cap decision needs, and the line count the cursor starts from
+  # (newlines, so a trailing partial line is excluded for free). Naming the file
+  # rather than `< file` is what keeps it one process: bash runs the command of
+  # a command substitution in the substitution's own subshell and skips the
+  # extra fork ONLY when that command carries no redirection of its own (#3779).
+  # `read` drops the filename column along with the leading padding some `wc`
+  # builds emit, and the `2>/dev/null` rides on the surrounding single-command
+  # group, where it silences the same stream without re-arming that fork.
+  SIZE=""
+  { read -r SCANNED SIZE _ < <(wc -lc -- "$TRANSCRIPT"); } 2>/dev/null
+  [[ "$SCANNED" =~ ^[0-9]+$ && -n "$SIZE" ]] || exit 0
+  if ((SIZE > TAIL_BYTES)); then
+    # Over the cap the pipeline is unchanged — the truncated first in-window
+    # line is likely partial and `sed '1d'` drops it, as guard_launch_monitor.py
+    # does — and its `2>/dev/null` stays exactly where it was, on `tail`,
+    # because a pipeline element forks either way and moving the redirect out
+    # would newly silence sed and grep for no saving. Lines before the window
+    # are not read here and never were; the cursor simply stops the next Stop
+    # from re-deciding that.
+    RECORDS=$(tail -c "$TAIL_BYTES" -- "$TRANSCRIPT" 2>/dev/null | sed '1d' |
+      grep -F "$NEEDLE")
+  elif ((HAVE_MAPFILE)); then
+    mapfile LINES <"$TRANSCRIPT" 2>/dev/null
+    N=${#LINES[@]}
+    scan_lines 0
+  else
+    # Group-scoped redirect: `grep … 2>/dev/null` inside the substitution would
+    # cost the extra fork the file-argument form just saved (#3779). The group
+    # holds one command, so nothing beyond grep's own stderr is silenced.
+    { RECORDS=$(grep -F "$NEEDLE" -- "$TRANSCRIPT"); } 2>/dev/null
+  fi
+fi
+LINES=()
+[[ -n "$RECORDS" ]] || {
+  cursor_advance
+  exit 0
+}
 # `printf | jq` and NOT a here-string, even though the pipeline costs a process
 # the here-string would not. What is known, stated as known: hook::jq_field in
 # the shared library documents this hazard and refuses the here-string form for
@@ -207,28 +339,29 @@ SUMMARY=$(printf '%s' "$RECORDS" |
            ambiguousCount: (map(select(.class == "ambiguous")) | length),
            completedCount: (map(select(.class == "completed")) | length),
            exitCode: last.exitCode, stderr: last.stderr})' 2>/dev/null)
-[[ -n "$SUMMARY" && "$SUMMARY" != "[]" ]] || exit 0
+# An EMPTY $SUMMARY is jq failing, not a clean selection: leave the cursor where
+# it stood so the same lines are audited again. `[]` is a document, and one that
+# disposes of them.
+[[ -n "$SUMMARY" ]] || exit 0
+[[ "$SUMMARY" != "[]" ]] || {
+  cursor_advance
+  exit 0
+}
 
 # Once per session per hook name. Markers live under ${CLAUDE_PLUGIN_DATA}
-# (survives plugin updates); stale sessions' markers are pruned after 7 days.
-# Any bookkeeping failure leaves WARNED empty, so everything found is treated
-# as new — re-warn, never suppress.
+# (survives plugin updates) in the directory resolved above; stale sessions'
+# markers and cursors are pruned together after 7 days. Any bookkeeping failure
+# leaves WARNED empty, so everything found is treated as new — re-warn, never
+# suppress.
 MARKER=""
 WARNED=""
-if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
-  MARKER_DIR="${CLAUDE_PLUGIN_DATA}/hook-failure-audit"
-  # `-d` first: after the first warned turn the directory always exists, and
-  # `mkdir -p` on an existing directory is a whole process to reach the same
-  # no-op. A directory that exists but is unwritable fell through `mkdir -p`
-  # successfully before too, and still fails at the marker write below.
-  if [[ -d "$MARKER_DIR" ]] || mkdir -p "$MARKER_DIR" 2>/dev/null; then
-    find "$MARKER_DIR" -type f -mtime +7 -delete 2>/dev/null
-    MARKER="$MARKER_DIR/${SESSION}"
-    # `$(<file)`, not `$(cat -- file)`: bash reads the file itself here, with no
-    # subshell and no exec at all. Same trailing-newline stripping as the
-    # substitution around `cat` had.
-    [[ -f "$MARKER" ]] && { WARNED=$(<"$MARKER"); } 2>/dev/null
-  fi
+if [[ -n "$MARKER_DIR" ]]; then
+  find "$MARKER_DIR" -type f -mtime +7 -delete 2>/dev/null
+  MARKER="$MARKER_DIR/${SESSION}"
+  # `$(<file)`, not `$(cat -- file)`: bash reads the file itself here, with no
+  # subshell and no exec at all. Same trailing-newline stripping as the
+  # substitution around `cat` had.
+  [[ -f "$MARKER" ]] && { WARNED=$(<"$MARKER"); } 2>/dev/null
 fi
 
 # Marker lines are "<hookName>\t<command>" fingerprints. `rtrimstr("\r")` on
@@ -238,7 +371,11 @@ fi
 NEW=$(jq -cn --argjson summary "$SUMMARY" --arg warned "$WARNED" '
   ($warned | split("\n") | map(rtrimstr("\r")) | map(select(length > 0))) as $seen
   | [$summary[] | select((.hookName + "	" + .command) as $k | $seen | index($k) | not)]')
-[[ -n "$NEW" && "$NEW" != "[]" ]] || exit 0
+[[ -n "$NEW" ]] || exit 0
+[[ "$NEW" != "[]" ]] || {
+  cursor_advance
+  exit 0
+}
 
 TOTAL=$(jq -rn --argjson new "$NEW" '[$new[].count] | add')
 
@@ -303,6 +440,11 @@ if [[ "$HAS_LAUNCH" == "true" || "$HAS_AMBIGUOUS" == "true" ]]; then
 fi
 
 hook::emit_system_message "$MSG"
+
+# The lines are disposed of the moment the warning is out. A marker write that
+# fails after this point costs nothing: those registrations were warned about
+# once, which is the contract.
+cursor_advance
 
 # Record what was warned about before telemetry: the warning is the contract,
 # the envelope is best-effort.
