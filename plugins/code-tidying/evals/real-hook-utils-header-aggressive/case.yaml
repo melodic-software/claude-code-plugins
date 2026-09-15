@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: real-hook-utils-header-aggressive
 description: aggressive on the lib/hook-utils.sh header keeps the directive, a one-line SSOT warning, and a one-line _to calling convention, and deletes the rest
 tags: [calibration, aggressive, real]
-expected_outcome: The shellcheck directive stays on line 1; the SSOT warning and the _to calling convention each survive as one terse line; the library description, fork-cost reasoning, five-printer list, double-sourcing comment, kill-switch comment, no-fleet-switch rationale, and hook::is_enabled comment are deleted with their narrative staged; the guard and both function bodies are unchanged.
+expected_outcome: The shellcheck directive stays on line 1; the SSOT warning, the _to calling convention, and the kill switch's required placement each survive within the line budget; the library description, fork-cost reasoning, five-printer list, double-sourcing comment, no-fleet-switch rationale, and the hook::is_enabled design rationale are deleted with their narrative staged; the guard and both function bodies are unchanged.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -50,11 +50,10 @@ graders:
     flags: i
     match: not_contains
     target: { source: file, path: hook-utils-header.sh }
-  - name: kill-switch-comment-deleted
+  - name: kill-switch-placement-kept
     type: regex
-    pattern: '#[^\n]*(kill switch|CLAUDE_PLUGIN_OPTION_.*_ENABLED|exits 0)'
+    pattern: '#[^\n]*(place after source|before stdin parsing)'
     flags: i
-    match: not_contains
     target: { source: file, path: hook-utils-header.sh }
   - name: fleet-switch-rationale-deleted
     type: regex
