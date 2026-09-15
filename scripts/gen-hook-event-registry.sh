@@ -91,8 +91,19 @@ URL="https://code.claude.com/docs/en/hooks.md"
 BASIS="https://code.claude.com/docs/en/hooks#hook-lifecycle"
 REGISTRY="$ROOT/plugins/claude-ops/hooks/hook-events.registry.json"
 HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
+# The producer row is SHELL FORM carrying its own kill switch, so a consumer who
+# has not turned the log on pays one process (the shell Claude Code runs the
+# command in) per event instead of three: that shell, the `env` of the script's
+# shebang, and the bash it execs. hooks.json has no other way to read the
+# switch: `if` takes one permission rule and is evaluated only on tool events,
+# so it cannot see a plugin option, and the option reaches a hook only as
+# $CLAUDE_PLUGIN_OPTION_<KEY> in the environment. POSIX sh, because a shell-form
+# command runs under `sh -c` on macOS and Linux (Git Bash on Windows), and the
+# option is spelled without braces so no `${...}` substitution pass can touch
+# it, unlike ${CLAUDE_PLUGIN_ROOT}, which Claude Code is meant to expand. The
+# script keeps its own line-41 switch: it is what a direct invocation reads.
 # shellcheck disable=SC2016  # the literal hooks.json command text; Claude Code expands it, not this script
-PRODUCER='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
 RETENTION='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 RECHECK="each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"

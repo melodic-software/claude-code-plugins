@@ -240,13 +240,18 @@ producer row per observable hook event (30 events; the generated
 `MessageDisplay` and `FileChanged` are left out). Each fire appends one line to
 `<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
 (`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
-and a repo-relative file path when present. A consumer who has not turned it on
-pays the kill-switch read and nothing else (2.42 ms against a 2.08 ms spawn
-floor on the Linux CI host); enabled, a 2 KB payload costs about 5 ms and a
-512 KB one 36 ms. Windows Git Bash, the host the hook-budget convention binds
-to, is unmeasured for these rows: the parallel-wall figure there, and the
-budget comparison it feeds, are owed before the switch is recommended on by
-default, and the default stays off until they are taken. `session_event_log_categories` narrows the set. At
+and a repo-relative file path when present. Each row is SHELL FORM and reads
+the kill switch itself, before it execs the script, so a consumer who has not
+turned it on starts nothing beyond the shell Claude Code runs the command in:
+measured on Windows Git Bash, 1 process creation per event against the 3 the
+bare script path costs (median wall 41 ms against 107 ms, n=5). The script
+keeps its own switch for a direct invocation (2.42 ms against a 2.08 ms spawn
+floor on the Linux CI host). Enabled, the row execs the script and the chain is
+the same three creations as before (median 117 ms); a 2 KB payload costs about
+5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
+hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
+is still owed, and the default stays off until it is taken.
+`session_event_log_categories` narrows the set. At
 `SessionEnd` the retention hook keeps the newest `session_log_keep_sessions`
 or the last `session_log_keep_days` days, and `session_log_pre_prune_command`
 hands an archiver the files about to go. The root carries its own `*`
