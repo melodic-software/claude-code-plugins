@@ -17,11 +17,11 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "/claude-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
-      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I11 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I13 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
       "files": [],
       "expectations": [
         "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the claude-memory plugin's audit skill when installed",
-        "On memory-layer surfaces runs only the model-era checks I6-I11, not the I1-I5 hygiene checks",
+        "On memory-layer surfaces runs only the model-era checks I6-I13, not the I1-I5 hygiene checks",
         "Falls back to the official CLAUDE.md include/exclude guidance pointer when claude-memory is not installed instead of silently skipping"
       ]
     },
@@ -90,11 +90,12 @@
     {
       "id": 8,
       "name": "cross-layer-conflict-reported-with-both-locations",
-      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"leave documentation as appropriate\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments\". Sort this out.",
-      "expected_output": "Reports an I12 cross-surface conflict, because one side is a skill body and therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reconciles and says which side to change; it does not default to proposing deletion of either side, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text.",
+      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"every public function must carry a doc comment explaining why it exists\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments\". Sort this out.",
+      "expected_output": "Reports an I12 cross-surface conflict, because one side is a skill body and therefore outside the memory layer, which no incumbent covers. The two instructions are genuinely unsatisfiable together — one requires a comment on every public function, the other forbids adding comments — which is I12's threshold, not a mere difference in emphasis. The finding names both participating locations rather than a single line. Remediation reconciles and says which side to change; it does not default to proposing deletion of either side, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text.",
       "files": [],
       "expectations": [
         "Emits an I12 conflict finding because at least one side (the skill body) is outside the memory layer",
+        "Treats the pair as genuinely unsatisfiable together (one requires comments, the other forbids adding them) rather than as two instructions that could both be obeyed",
         "The finding names BOTH participating locations, not one line",
         "Proposes reconciliation and says which side to change, and does NOT default to proposing deletion of either side"
       ]
@@ -106,9 +107,10 @@
       "expected_output": "Reports the conflict as conflicting with org policy at the managed-policy path and proposes no edit at all: not to the policy side, and not to the lower-scope side on the strength of the conflict alone. Explains that claudeMdExcludes cannot reach the managed tier, so seeking an exception may be the correct resolution, which is an organizational decision rather than a linting one.",
       "files": [],
       "expectations": [
-        "Reports the finding as a conflict with org policy and names the managed-policy path",
+        "Reports the finding as a conflict with org policy and names the managed-policy locator (a path, or the managed-settings:/claudeMd JSON Pointer when the policy is the fileless key)",
         "Proposes NO edit to the managed-policy side",
-        "Proposes NO edit to the lower-scope side justified by the conflict alone, and says the resolution is an organizational decision"
+        "Proposes NO edit to the lower-scope side justified by the conflict alone, and says the resolution is an organizational decision",
+        "Uses the report's no-change representation — 'none — organizational decision' in the Proposed change cell and the two conflicting excerpts quoted read-only — rather than inventing a diff to satisfy the per-finding diff requirement"
       ]
     },
     {
@@ -157,6 +159,78 @@
         "Flags the section under I3 as only-sometimes-relevant content in an always-loaded surface",
         "Refuses the @path import as a context saving and says imported files load at launch",
         "Names a load-deferring destination (skill or paths:-scoped rule) and states the post-compaction cost of that destination alongside the recommendation"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "memory-conflict-outside-c6-discovery-stays-here",
+      "prompt": "/claude-config:audit-instructions my ~/.claude/CLAUDE.md says \"always squash-merge\" and the CLAUDE.md in packages/api/ says \"never squash — this package needs the individual commits\". Which wins?",
+      "expected_output": "Both sides are memory-layer, but neither is inside claude-memory C6's discovery, which finds root-level CLAUDE.md/CLAUDE.local.md and project .claude/rules only. So this conflict does NOT route to C6 — it stays an I12 finding here, because ceding it would suppress it rather than relocate it: C6 never reads a user-scope file or a nested CLAUDE.md and so would never emit it. The finding names both participating locations and reconciles rather than defaulting to deleting either side.",
+      "files": [],
+      "expectations": [
+        "Emits an I12 finding rather than routing to claude-memory C6, even though both sides are memory-layer surfaces",
+        "Justifies keeping it by C6's discovery scope (user-scope and nested CLAUDE.md are outside what C6 inventories), not by layer membership",
+        "Names both participating locations and does not default to proposing deletion of either side"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "scoped-run-still-compares-against-out-of-scope-surfaces",
+      "prompt": "/claude-config:audit-instructions skills",
+      "expected_output": "The skills scope filter narrows the editable set to skill bodies, but the I12 comparison inventory is built read-only over every surface regardless of the filter. A skill body contradicting the project CLAUDE.md, an agent definition, a prompt hook, or an output style is therefore still detected and reported, with the skill side as the one that may carry a proposed change. The filter governs which side may produce a finding, never which side is available to compare against.",
+      "files": [],
+      "expectations": [
+        "Builds the I12 comparison inventory over all surfaces even though the run is scoped to skills",
+        "Still detects a skill-vs-CLAUDE.md (or agent/hook/output-style) conflict under the scoped invocation instead of silently missing it",
+        "Confines proposed changes to the in-scope side rather than proposing edits to surfaces the filter excluded"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "agents-md-membership-is-reachability-not-filename",
+      "prompt": "/claude-config:audit-instructions my repo has an AGENTS.md that contradicts .claude/skills/deploy/SKILL.md. My CLAUDE.md is a symlink to AGENTS.md.",
+      "expected_output": "Membership in the comparison set is decided by reachability, not by filename. A bare AGENTS.md is not loaded — Claude Code reads CLAUDE.md, not AGENTS.md — and is excluded. But here CLAUDE.md is a symlink to AGENTS.md, which symlink resolution makes a genuinely loaded surface, so its content IS in the comparison set and the contradiction with the skill body is a real I12 finding naming both locations. An @AGENTS.md import from a loaded surface reaches the same result through import expansion.",
+      "files": [],
+      "expectations": [
+        "Includes the AGENTS.md content because a symlinked CLAUDE.md makes it genuinely loaded, not because of its filename",
+        "States that a bare, unreferenced AGENTS.md would be excluded because it is not loaded, rather than excluding this one on the filename",
+        "Emits the I12 finding naming both the reachable AGENTS.md content and the skill body"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "alternative-definitions-are-not-a-conflict",
+      "prompt": "/claude-config:audit-instructions my output style concise.md says \"answer in one line\" and explanatory.md says \"always walk through your reasoning at length\". That is a contradiction, right?",
+      "expected_output": "No I12 finding: output styles are selected one at a time, so the two can never apply to the same session and their opposing directives are alternatives rather than an unsatisfiable pair. The same holds for two agent definitions, which execute in separate subagent contexts. Each definition is compared against what loads alongside it — an output style against the always-loaded surfaces — never against its siblings. This is distinct from same-name shadowing, where one definition is inert; here both are live but never at once.",
+      "files": [],
+      "expectations": [
+        "Does NOT emit an I12 conflict between two output styles, because only one can be active per session",
+        "Explains the exemption as definitions that cannot be active together (alternatives), distinct from the same-name shadowing case where one definition is inert",
+        "Compares each output style against the surfaces that load alongside it rather than against the other style"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "i13-move-must-land-on-a-loaded-surface",
+      "prompt": "/claude-config:audit-instructions --opinion my global CLAUDE.md has a rule about how to invoke our deploy.sh script. Move it next to the script.",
+      "expected_output": "Flags the I13 definition-site-locality finding, but constrains the destination to a surface Claude actually loads. Moving the rule into deploy.sh's ordinary README or a reference doc makes it invisible — nothing triggers reading it — so an instruction that was always loaded would silently stop being enforced. Proposes a loaded destination (a skill body or agent definition that loads when the subject is invoked), or the colocated documentation paired with a loaded pointer that triggers reading it, and states the load-profile change with the recommendation. Reported only at info severity, never fix-applied.",
+      "files": [],
+      "expectations": [
+        "Does not propose moving the instruction into a plain README or reference file that nothing loads",
+        "Names a loaded destination, or pairs the colocated documentation with a loaded pointer that triggers reading it",
+        "States the load-profile change alongside the recommendation and keeps the finding report-only at info severity"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "i12-runs-in-one-cross-surface-lane",
+      "prompt": "/claude-config:audit-instructions all",
+      "expected_output": "Per-surface lanes run their own catalog checks but skip I12 entirely; a single dedicated cross-surface lane receives the whole read-only comparison inventory, with imports expanded and symlinks resolved, and is the sole producer of I12 findings and of the shadowed-definition section. A per-surface lane holds only its own files and could not see a relation between two surfaces, and letting every lane rescan everything would emit the same conflict once per lane.",
+      "files": [],
+      "expectations": [
+        "Dispatches a dedicated cross-surface lane holding the whole comparison inventory rather than expecting per-surface lanes to find conflicts",
+        "Per-surface lanes do not run I12, so one conflict is reported once instead of duplicated across lanes",
+        "Counts the cross-surface lane against the concurrency bound and the ~20-dispatch confirmation gate"
       ]
     }
   ]

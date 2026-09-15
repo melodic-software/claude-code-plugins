@@ -9,23 +9,51 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 - **`audit-instructions` check I12 — cross-surface instruction conflict.** Two live instructions
   that cannot both be satisfied, where no official layering rule already picks a winner. Scoped by
-  routing around the incumbent: a contradiction wholly inside the memory layer is
-  `claude-memory:audit` check C6's and is not reported here, while one with a side outside the memory
-  layer — a skill body, an agent definition, a prompt-type hook, an output style — or any side in the
-  managed-policy tier, is I12's. When `claude-memory` is absent, the run says memory-layer
-  contradictions go unchecked and names the skill that performs them. Remediation splits by scope and
-  never defaults to deletion: reconcile where both sides are operator-owned, report-only against
-  managed policy, route user-scope findings as recommendations. Ships five must-not-flag cases plus a
-  separate `info` report for shadowed same-named skills, subagents, and MCP servers, which are
-  resolved overrides rather than conflicts. The comparison set is resolved before it is compared —
-  `@path` imports expanded and symlinks followed, since imported files load at launch and a detector
-  reading only the importing file would compare a different surface than the model sees. `AGENTS.md`
-  is affirmatively excluded and the reason recorded: Claude Code reads `CLAUDE.md`, not `AGENTS.md`,
-  so a stock install never loads it, and its content enters only through an import.
+  routing around the incumbent, and bounded by what that incumbent can actually inventory: a
+  contradiction is `claude-memory:audit` check C6's, and unreported here, only when **both** sides
+  fall inside C6's own discovery step. A memory-layer pair C6 never reads — a user-scope `CLAUDE.md`,
+  a `~/.claude/rules/` file, a nested `CLAUDE.md` below the project root — stays I12's, because
+  ceding by layer rather than by coverage would suppress the finding instead of relocating it. So
+  does any contradiction with a side outside the memory layer — a skill body, an agent definition, a
+  prompt-type hook, an output style — or any side in the managed-policy tier. When `claude-memory` is
+  absent, the run says the contradictions inside C6's scope go unchecked and names the skill that
+  performs them. Remediation splits by scope and never defaults to deletion: reconcile where both
+  sides are operator-owned, report-only against managed policy, route user-scope findings as
+  recommendations. Ships six must-not-flag cases plus a separate `info` report for shadowed
+  same-named skills, subagents, and MCP servers, which are resolved overrides rather than conflicts.
+  The comparison set is resolved before it is compared — `@path` imports expanded and symlinks
+  followed, since imported files load at launch and a detector reading only the importing file would
+  compare a different surface than the model sees. Membership is decided by **reachability, never by
+  filename**: a bare `AGENTS.md` is out because Claude Code reads `CLAUDE.md`, not `AGENTS.md`, while
+  an `@AGENTS.md` import or a `CLAUDE.md` symlinked to it is genuinely loaded and therefore in.
+- **`audit-instructions` builds a second, read-only comparison inventory.** Phase A previously
+  produced one inventory that the scope filter narrowed and the upstream-owned exclusions reduced,
+  which left I12 promising comparisons over surfaces nothing collected. The editable set is now
+  distinct from the comparison inventory: the latter is read-only, never narrowed by the scope filter,
+  and spans prompt-type hooks in `.claude/settings.local.json` as well as project and user settings,
+  the managed-policy tier including its fileless `claudeMd` key, and one name-and-scope pair per
+  skill, subagent, and MCP server for the shadowed-definition section. The filter now governs which
+  side of a conflict may carry a proposed change, not which side exists to compare against. MCP
+  appears as a name/scope pair only — `.mcp.json` mechanics stay `claude-config:audit`'s.
+- **`audit-instructions` runs I12 in one dedicated cross-surface lane.** Phase B dispatches a lane
+  per surface and hands each only that surface's files, so no lane could observe a relation *between*
+  surfaces, and a lane rescanning everything to compensate would emit the same conflict once per lane.
+  A single cross-surface lane now receives the whole comparison inventory and is the sole producer of
+  I12 findings and of the shadowed-definition section; per-surface lanes skip I12 and the new lane
+  counts against the concurrency bound and the ~20-dispatch confirmation gate.
+- **A no-change representation in the Phase D report.** The managed-policy rule forbids proposing any
+  edit while the report required a fenced diff and a `Proposed change` cell for every finding — a
+  contradiction that forced either an invented edit or a broken report contract. Such a finding now
+  reads `none — organizational decision` and quotes the two conflicting excerpts read-only in place
+  of a diff.
 - **`audit-instructions` check I13 — definition-site locality.** An instruction governing one named
   thing while living somewhere other than that thing's own definition. A different axis from I3:
   I3 is load *timing*, I13 is *locality*, and an instruction can be correctly deferred and still
   misplaced. `OPINION`-tier, off by default, enabled by `--opinion`, capped at `info`, never applied.
+  Its move destination is constrained to a surface Claude actually loads, or to colocated
+  documentation paired with a loaded pointer: relocating an always-loaded instruction into an
+  ordinary README makes it invisible, so an accepted proposal would silently drop the behavior the
+  instruction enforced. The load-profile change ships with the recommendation, as in I3.
 - **`audit-instructions` stopping condition on I6 and I8.** Neither carried an a-priori bound, so
   both trimmed without a floor. It withholds a proposal where the instruction guards a
   high-consequence area (safety gate, irreversible action, security boundary, external contract,
@@ -36,7 +64,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
   follows its host's enablement and is labelled inline. Every run reports how many `OPINION` checks
   were available, how many did not run, and the argument that enables them.
-- **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.1.0) and `last-updated`,
+- **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.2.0) and `last-updated`,
   replacing the body-prose version line — a contract surface with three parse paths now stamps its
   version machine-readably.
 
