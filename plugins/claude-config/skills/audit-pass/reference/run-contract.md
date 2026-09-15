@@ -263,7 +263,9 @@ target.
 
 - A read-only run takes **no lock**; concurrent read-only runs are safe and are not serialized.
 - An applying run takes an **exclusive advisory lock** at `runs/<state-key>/lock`, containing the
-  process id and an ISO-8601 start timestamp.
+  process id, an ISO-8601 start timestamp, and **the holder's run id**. The run id is what makes the
+  holder's lease locatable — a lease lives under its own run's directory, never beside the lock — and
+  the reclamation rule below is unimplementable without it.
 - A second applying run for the same state key **refuses and exits non-zero**, naming the holder's
   pid and start time. It does not wait — a pass over a large tree runs long, and a silent queue looks
   like a hang.
@@ -272,9 +274,24 @@ target.
   recorded pid **and its recorded start identity** both match. Process ids are reused, so a bare
   liveness test on a crashed run's pid can answer "alive" about an unrelated long-lived process: the
   conjunction then never fires and every later `--fix` for that state key refuses forever, with no
-  documented way out. Where the platform supplies no start identity, **age alone reclaims** and the
-  reclamation says so — an unreclaimable lock is the worse failure, and the lease's heartbeat is what
-  makes a merely-slow holder visible rather than assumed dead.
+  documented way out.
+- **Age gates when reclamation bothers to ask; liveness decides, and age alone never reclaims.**
+  Where the platform supplies no start identity, the holder's own lease supplies the missing
+  conjunct: reclamation reads the lease of the run id the lock records and classifies it by the same
+  three states `--resume` uses. A **live** lease — `heartbeat_at` inside the two-sided window below —
+  leaves the lock held, and the second run's refusal names that `heartbeat_at` rather than only the
+  start time. A `released` tombstone or a **stale** lease licenses the reclaim, each being positive
+  evidence that the holder stopped: the tombstone that it exited, the staleness that it stopped
+  refreshing. Falling back to age alone would take the lock from an applying run that legitimately
+  exceeds 30 minutes — a large target, a slow filesystem, a long human gate — while it is still
+  mutating, so assertion 3.1 would be violated by the mechanism written to uphold it.
+- **A missing lease is not evidence of life, and no branch may defer the reclaim forever.** Where the
+  lock records no run id, or that run's lease is absent or unreadable, the heartbeat decides nothing
+  and there is no liveness evidence at all — so a **hard ceiling of 24 hours** on the lock's own
+  timestamp reclaims unconditionally, naming the missing evidence in the reclamation. The ceiling is
+  far beyond any real run — the ordinary bound is 30 minutes and a lease goes stale five minutes
+  after its last heartbeat — so it bounds the wedge rather than trusting the pid, and an
+  unreclaimable lock, which is the worse failure, stays impossible on every platform.
 
 ### The lease — how `--resume` tells a live run from an abandoned one
 
@@ -348,6 +365,8 @@ classification two implementations must reach identically or `--resume` is nonde
 | # | Assertion |
 |---|---|
 | 3.1 | Two applying runs launched concurrently against one target: exactly one proceeds, the other exits non-zero naming the holder. |
+| 3.1a | On a platform supplying no process start identity, a lock held past the 30-minute stale bound whose holder's lease is **live** is not reclaimed: the second applying run exits non-zero naming the holder and its `heartbeat_at`, and the lock is still held by the first run afterwards. The same lock is reclaimed once that lease reads `released` or stale. |
+| 3.1b | A lock past the 24-hour hard ceiling is reclaimed even where no liveness evidence exists at all — no start identity, and no readable lease for the run id the lock records — and the reclamation names the missing evidence. |
 | 3.6 | `--resume` against a run whose lease was refreshed within the threshold exits non-zero naming the run id, and the live run's partial artifact is byte-identical afterwards. |
 | 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact, increments `owner_epoch`, and refreshes the lease itself. |
 | 3.8 | A holder whose lease was adopted while it was suspended writes nothing into the adopter's epoch file: any append it still makes lands in its own superseded epoch file, and the adopter's file contains records from exactly one writer per attempt ordinal. It aborts at its next heartbeat refresh, which bounds how long it keeps writing but is not what provides the isolation. |
