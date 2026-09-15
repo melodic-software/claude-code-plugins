@@ -57,9 +57,8 @@ Pinned toolchains found:
 
 - **.NET SDK 10.0.400**, pinned by medley and claude-code-account-rotation, which set
   `rollForward: disable`, so the exact patch is required, and by ci-workflows without a
-  `rollForward`. **10.0.401** (github-iac, also `rollForward: disable`) is in neither fallback
-  slot, so that repo depends entirely on the per-repo-pin path reading its `global.json`. The
-  fallback list now matches the fleet pins above, `10.0.400 10.0.401` (per
+  `rollForward`. **10.0.401** (github-iac, also `rollForward: disable`) is now in the fallback
+  list too. The fallback list matches the fleet pins above, `10.0.400 10.0.401` (per
   `components/cloud-environment/setup.sh` in standards, verified 2026-09-15).
 - **Node 24.20.0**, the fleet fallback the setup script installs when the checked-out repo pins no
   `.node-version`; nine repos pin that exact version and codex-plugins pins major 24. The cloud VM
