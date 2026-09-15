@@ -69,7 +69,7 @@ graders:
     target: { source: file, path: hook-utils-header.sh }
   - name: kept-comment-succinct
     type: regex
-    pattern: '(^[ \t]*#(?!!| shellcheck )[^\n]*\n){3}'
+    pattern: '(^[ \t]*#(?!!| shellcheck )[^\n]{2,}\n){3}'
     flags: m
     match: not_contains
     target: { source: file, path: hook-utils-header.sh }

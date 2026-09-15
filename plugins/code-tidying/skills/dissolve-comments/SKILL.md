@@ -116,7 +116,10 @@ detail):
   value was chosen*, another system's limit, an upstream's behavior, a past incident, is rationale
   rather than a warning: it is staged and deleted. A warning earns its keep only when the failure it
   names is **not visible in the adjacent code**: if the body a reader is already looking at shows
-  the behavior (an `exit` in the function, a guard, a return), the comment restates code and goes; Held to `class_c_max_lines` and rewritten terser
+  the behavior (an `exit` in the function, a guard, a return), the comment restates code and goes.
+  A warning belongs to the declaration it sits on and addresses that declaration's caller; a comment
+  explaining why a *sibling* exists, or why the interface is shaped as it is, is design rationale
+  and goes; Held to `class_c_max_lines` and rewritten terser
   when over it. Every survivor must be succinct, clear, and justified in the report: name the
   consequence, not the history.
 
