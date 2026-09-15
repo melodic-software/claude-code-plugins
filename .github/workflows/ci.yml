@@ -3,9 +3,9 @@ name: ci
 on:
   # The only way to run the rate-limit-guard bench lanes in CI. They are gated
   # on BENCH_LANES inside their suite because spawning a lane is running a
-  # benchmark, and a scheduled lane for them would be the unread advisory
-  # automation #4173 deleted. A dispatch runs the full contract corpus, so this
-  # input only decides whether the lanes run inside it.
+  # benchmark, and a scheduled lane of their own would be unread advisory
+  # automation outside `ci-status`. A dispatch runs the full contract corpus,
+  # so this input only decides whether the lanes run inside it.
   workflow_dispatch:
     inputs:
       bench_lanes:
