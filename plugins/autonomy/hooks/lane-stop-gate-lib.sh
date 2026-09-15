@@ -20,6 +20,23 @@
 #      resolved primary path is asserted absolute before use, so a future
 #      platform-detection regression cannot yield a cwd-relative managed path a
 #      repo could plant inside its own checkout.
+#
+#      A caller that only needs to know whether managed settings could configure
+#      the gate AT ALL — the Stop hook's payload-free pre-filter, which runs on
+#      every interactive stop — asks gate_managed_candidates_load instead, which
+#      tests the fixed primary of EVERY platform with `[[ -f ]]` / `[[ -d ]]`.
+#      The platform is then decided by which fixed path exists, which is
+#      filesystem truth a repo can no more forge than it could forge uname's
+#      answer: the paths are the same root-owned literals, and a candidate
+#      belonging to another platform simply is not there. The one asymmetry is
+#      that the Windows spelling carries no leading `/`, so on a POSIX host it
+#      resolves against the hook's cwd — the watched checkout — where a repo
+#      CAN plant one. That plant routes the hook into evaluation and nothing
+#      more: the scan contributes no value and does not fill the file list the
+#      authoritative read walks, so a repo gains exactly the forcing power its
+#      own settings `env` block already has over the CLAUDE_PLUGIN_OPTION_*
+#      presence tests the pre-filter starts with. Every managed VALUE still
+#      comes from the uname-selected, absoluteness-asserted list below.
 #   2. the per-session arm record (gate only) — see lane-stop-gate.sh.
 #   3. the user settings.json, located ONLY from this script's own install path
 #      via the documented `<config>/plugins/cache/<marketplace>/<name>/<ver>`
@@ -194,11 +211,18 @@ gate_user_settings_file_to() {
 #
 # gate_managed_settings_files_load fills the GATE_MANAGED_FILES array in THIS
 # shell and marks it loaded; the print form below re-derives the list on every
-# call. The `uname -s` it runs is the one process the gate's interactive
-# default path pays, so a caller that needs the list twice in one run (the
-# gate's payload-free pre-filter, then its option resolution) loads it once and
-# gate_managed_options_to reuses the loaded list rather than asking the kernel
-# a second time for an answer that cannot have changed.
+# call. It is the AUTHORITATIVE list — every managed value the gate honors is
+# read from it — so it keeps paying `uname -s`, and a caller that needs it twice
+# in one run loads it once and gate_managed_options_to reuses the loaded list
+# rather than asking the kernel a second time for an answer that cannot have
+# changed. The gate's interactive default path never reaches it: that path asks
+# gate_managed_candidates_load, which spawns nothing at all.
+#
+# One spelling per platform, shared by the selection below and by the
+# platform-free candidate scan, so the two can never drift apart.
+readonly GATE_MANAGED_PRIMARY_DARWIN="/Library/Application Support/ClaudeCode/managed-settings.json"
+readonly GATE_MANAGED_PRIMARY_WINDOWS="C:/Program Files/ClaudeCode/managed-settings.json"
+readonly GATE_MANAGED_PRIMARY_LINUX="/etc/claude-code/managed-settings.json"
 GATE_MANAGED_FILES=()
 GATE_MANAGED_FILES_LOADED=0
 gate_managed_settings_files_load() {
@@ -209,9 +233,9 @@ gate_managed_settings_files_load() {
   # gate_resolve_plugin_name): one process for uname, not two.
   { platform=$(uname -s); } 2>/dev/null || platform=""
   case "$platform" in
-  Darwin) primary="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
-  MINGW* | MSYS* | CYGWIN*) primary="C:/Program Files/ClaudeCode/managed-settings.json" ;;
-  Linux) primary="/etc/claude-code/managed-settings.json" ;;
+  Darwin) primary="$GATE_MANAGED_PRIMARY_DARWIN" ;;
+  MINGW* | MSYS* | CYGWIN*) primary="$GATE_MANAGED_PRIMARY_WINDOWS" ;;
+  Linux) primary="$GATE_MANAGED_PRIMARY_LINUX" ;;
   *) return 0 ;;
   esac
   # Defense in depth: a managed path MUST be absolute (POSIX /… or a Windows
@@ -230,6 +254,35 @@ gate_managed_settings_files_load() {
   fi
   return 0
 }
+# Every managed-settings file that EXISTS for ANY platform, in
+# GATE_MANAGED_CANDIDATES: the three fixed primaries and each one's
+# `managed-settings.d/*.json`, tested with `[[ -f ]]` / `[[ -d ]]` and a glob.
+# Builtins only — no `uname`, no process of any kind — which is why the Stop
+# hook's pre-filter, the path every interactive stop takes, can ask "could
+# managed settings configure this gate" for free. Testing all three is
+# equivalent to selecting one by platform because a candidate belonging to
+# another platform does not exist.
+#
+# It deliberately leaves GATE_MANAGED_FILES and GATE_MANAGED_FILES_LOADED
+# alone: this list ROUTES, it never contributes a value. See the header for why
+# that separation is what keeps the highest-precedence scope decided by
+# `uname -s` alone.
+GATE_MANAGED_CANDIDATES=()
+gate_managed_candidates_load() {
+  GATE_MANAGED_CANDIDATES=()
+  local primary dropin f
+  for primary in "$GATE_MANAGED_PRIMARY_DARWIN" "$GATE_MANAGED_PRIMARY_WINDOWS" \
+    "$GATE_MANAGED_PRIMARY_LINUX"; do
+    [[ -f "$primary" ]] && GATE_MANAGED_CANDIDATES+=("$primary")
+    dropin="${primary%/*}/managed-settings.d"
+    [[ -d "$dropin" ]] || continue
+    for f in "$dropin"/*.json; do
+      [[ -f "$f" ]] && GATE_MANAGED_CANDIDATES+=("$f")
+    done
+  done
+  return 0
+}
+
 gate_managed_settings_files() {
   local f
   gate_managed_settings_files_load
