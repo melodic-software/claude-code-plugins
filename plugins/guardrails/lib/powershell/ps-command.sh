@@ -47,8 +47,10 @@
 #      (backtick splits `com`+`mit`, quote-stripping erases `'commit'`), so a
 #      negative match is not evidence of safety (the #740/#903 fail-open class).
 #      Instead ps::might_invoke_git asks the mangle-resistant question "could this
-#      reach git at all?" — backticks recovered, scan quote-INTACT, plus dynamic
-#      invocation (iex / call / dot-source) — and blocks unless the answer is no.
+#      reach git at all?" — backticks recovered, scan quote-INTACT (except a
+#      literal in comparison-operand position, which is data; see
+#      ps::might_invoke_git), plus dynamic invocation (iex / call / dot-source) —
+#      and blocks unless the answer is no.
 #      Otherwise the reduced command is Bash-tokenizer-faithful and handed to the
 #      existing parser.
 #
@@ -338,11 +340,14 @@ ps::blank_herestrings() {
   PS_BLANKED="${out%$'\n'}"
 }
 
-# The single left-to-right quoted-span walk behind ps::blank_quoted_spans_to and
-# ps::opaque_quoted_spans_to. MODE is `blank` (a found span is deleted) or `opaque`
-# (a found span becomes a classified placeholder, per the classification the
-# opaque wrapper documents). WHERE a span starts and ends, and every ambiguity
-# resolution, is identical for both and therefore stated once here: two
+# The single left-to-right quoted-span walk behind ps::blank_quoted_spans_to,
+# ps::opaque_quoted_spans_to and ps::_blank_comparison_operand_literals_to. MODE is
+# `blank` (a found span is deleted), `opaque` (a found span becomes a classified
+# placeholder, per the classification the opaque wrapper documents) or
+# `cmpoperand` (a found span in comparison-operand position becomes the inert
+# bareword `_q_` and every other span is emitted verbatim). WHERE a span starts
+# and ends, and every ambiguity resolution, is identical for all three and
+# therefore stated once here: two
 # hand-maintained copies of this pairing walk are exactly the drift this file's
 # other SSOT notes warn about, and a copy that silently stopped pairing the same
 # way would fail OPEN in one lane while the other stayed closed.
@@ -447,6 +452,16 @@ ps::_walk_quoted_spans_to() {
               out+='_q_'
             fi
           fi
+        elif [[ "$mode" == "cmpoperand" ]]; then
+          # `out` is both the result and the CONTEXT: every span already walked
+          # is present in it (as `_q_` when blanked, verbatim when kept), so the
+          # operand test reads the reduced prefix rather than the raw text — which
+          # is what lets an earlier list element be skipped as one token.
+          if ps::_is_comparison_operand_context "$out"; then
+            out+='_q_'
+          else
+            out+="${text:i:j-i+1}"
+          fi
         fi
         i=$((j + 1))
         continue
@@ -469,6 +484,85 @@ ps::_walk_quoted_spans_to() {
 # fed to a parser.
 ps::blank_quoted_spans_to() {
   ps::_walk_quoted_spans_to "$1" "$2" blank
+}
+
+# True (0) when PREFIX — the already-walked text standing in front of a quoted
+# string literal — puts that literal in COMPARISON-OPERAND position: the nearest
+# preceding non-whitespace token is a PowerShell comparison operator, reached
+# through an optional opening `(` / `@(` and through `,`-separated earlier
+# elements of that same list. The `c`/`i` case prefixes count (`-ceq`, `-ilike`).
+#
+# RIGHT-HAND OPERANDS ONLY. A literal on the LEFT of the operator is not decidable
+# here: `& 'git' -eq $x` is a CALL of git with `-eq` as its first argument, not a
+# comparison, and nothing in the prefix distinguishes the two. So `'git' -in $names`
+# and `@('git') -contains $_.Name` keep the quote-intact probe.
+#
+# The operator's left boundary excludes alphanumerics, `_` and `-`, so a cmdlet or
+# parameter name that merely ENDS in an operator spelling is not one.
+#
+# The hop count is BOUNDED. A list long enough to exhaust it falls through to
+# "not an operand", which keeps the quote-intact probe — the over-block
+# direction, matching the file's invariant.
+ps::_is_comparison_operand_context() {
+  local p="$1" hops
+  for ((hops = 0; hops < 16; hops++)); do
+    if [[ "$p" =~ ^(.*[^[:space:]])[[:space:]]*$ ]]; then p="${BASH_REMATCH[1]}"; else p=""; fi
+    [[ "$p" =~ (^|[^[:alnum:]_-])-[ci]?(eq|ne|in|notin|contains|notcontains|like|notlike|match|notmatch|lt|le|gt|ge)$ ]] && return 0
+    case "$p" in
+    *'(')
+      p="${p%?}"
+      if [[ "$p" =~ ^(.*[^[:space:]])[[:space:]]*$ ]]; then p="${BASH_REMATCH[1]}"; else p=""; fi
+      [[ "$p" == *'@' ]] && p="${p%?}"
+      ;;
+    *',')
+      p="${p%?}"
+      # Drop the earlier list element whole — back to the nearest list/group
+      # delimiter or whitespace. An element already walked as a quoted span is
+      # the bareword `_q_` here, so it needs no special case.
+      if [[ "$p" =~ ^(.*[,()[:space:]])[^,()[:space:]]*$ ]]; then p="${BASH_REMATCH[1]}"; else p=""; fi
+      ;;
+    *) return 1 ;;
+    esac
+  done
+  return 1
+}
+
+# Replace every quoted string literal that ps::_is_comparison_operand_context
+# accepts with the inert bareword `_q_`, leaving every other span verbatim.
+# The one consumer is ps::might_invoke_git's data-literal exemption; the rule and
+# why it cannot reach execution are documented there.
+ps::_blank_comparison_operand_literals_to() {
+  ps::_walk_quoted_spans_to "$1" "$2" cmpoperand
+}
+
+# True (0) when the text carries an invocation shape that could execute a value
+# the command COMPUTED — a call or dot-source whose target is not a plain bare
+# word (`& $_.Name`, `. $x`, `& ('g'+'it')`, `& "$tool"`, `& 'bash'`,
+# `& .\$_.Name`), an expression evaluator (`iex`/`Invoke-Expression`,
+# `Invoke-Command`/`icm`), or a launcher / nested shell sitting at a command
+# position as a bare word (`cmd /c $_.Name`, `bash -c $_.Name`).
+#
+# This is ps::might_invoke_git's disqualifier, so every arm here is in the
+# OVER-BLOCK direction: a match only ever restores the quote-intact probe.
+#
+# The launcher words extend ps::has_launcher's list with the interpreters that
+# take a command string (`bash`, `sh`, `wsl`, `node`, `python`), and unlike the
+# computed-launcher probe at the end of ps::might_invoke_git they need no
+# `(`/`$` operand — `cmd /c $_.Name` reaches git through an argument the
+# operand-shaped probe never sees. A QUOTE is not in the predecessor class, so a
+# launcher name that is itself comparison DATA (`-in @('git.exe','bash.exe')`)
+# does not disqualify; a call of that same quoted name (`& 'bash' -c …`) does,
+# through the call-target arm above it.
+ps::_can_execute_computed_value() {
+  local lc="${1//\`/}"
+  lc="${lc,,}"
+  # The target class is stated as a NEGATION — anything that is not a bare-word
+  # character — so a call spelled around a quote, a variable, a subexpression or
+  # a path (`& 'bash'`, `& $x`, `& (…)`, `& .\$_.Name`) is one arm, not four.
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[^[:space:][:alnum:]_-] ]] && return 0
+  [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression|invoke-command|icm)([^[:alnum:]_-]|$) ]] && return 0
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}=])(start-process|saps|start|pwsh|powershell|cmd|bash|sh|wsl|node|python|python3)(\.exe)?([^[:alnum:]_.-]|$) ]] && return 0
+  return 1
 }
 
 # Sibling of ps::blank_quoted_spans_to for ONE consumer:
@@ -991,13 +1085,58 @@ ps::call_target_is_interpolating_string() {
 # trailing boundary excludes a further `/` or `\` so `git` must be the final path
 # component, not a directory name. `.git` stays inert because `.` is not a
 # command-position predecessor.
+#
+# ONE EXEMPTION, AND IT IS NARROW: a quoted string literal in COMPARISON-OPERAND
+# position is DATA, and is blanked to `_q_` before the probe re-runs — but only in
+# a command that carries no way to execute a computed value at all. Both halves
+# are required, and the second is what makes the first safe.
+#   (a) the literal's nearest preceding non-whitespace token is a PowerShell
+#       comparison operator, reached through an optional `(` / `@(` and through
+#       `,`-separated earlier elements of the same list
+#       (ps::_is_comparison_operand_context; right-hand operands only);
+#   (b) the whole command carries no call or dot-source of a non-bare-word target,
+#       no expression evaluator, and no launcher / nested shell as a bare command
+#       word (ps::_can_execute_computed_value).
+# Under (b) the only thing the matched text can DO with the string is compare it:
+# `Get-Process | Where-Object { $_.Name -eq 'git' }` filters objects, and no
+# operator in what remains turns the filtered value back into a command word. The
+# false-positive class this retires is read-only PowerShell that merely NAMES git
+# — `-eq 'git'`, `-in @('git.exe','bash.exe')`, `-like 'git*'`, `-match "^git\.exe$"`
+# — which the script block alone had already routed to the sink.
+#
+# WHAT KEEPS THE QUOTE-INTACT PROBE, and why each one must:
+#   `& 'git' commit`, `git 'commit'`      the literal is a call target or an
+#                                        argument, never a comparison operand;
+#   `Start-Process 'git' …`, `saps 'git'` likewise, and (b) fails on the launcher;
+#   `cmd /c 'git push --force'`           (b) fails on the nested shell;
+#   `… -eq 'git' … | % { & $_.Name … }`   (b) fails: the call target is computed,
+#   `… -eq 'git' … | % { . $_.Name … }`   so the compared string becomes the
+#   `… -eq 'git' … | % { iex $_.Name }`   command word after all;
+#   `… -eq 'git' … | % { cmd /c $_.Name }` (b) fails on the launcher word, which
+#   `… -eq 'git' … | % { bash -c $_.Name }` reaches git through an ARGUMENT the
+#                                        computed-launcher probe below never sees;
+#   `$n = 'git'; & $n push -f`            `=` is not a comparison operator, and (b)
+#                                        fails on the variable call target;
+#   `'git' | % { & $_ push -f }`          the literal is pipeline input, not an
+#                                        operand, and (b) fails.
 ps::might_invoke_git() {
-  local recovered="${1//\`/}" lc
+  local recovered="${1//\`/}" lc narrowed
   lc="${recovered,,}"
   # Predecessor class includes `:` so a drive-relative `& 'C:git.exe'` still
   # counts (Codex #2592 review) and `=` so `$x=git …` (no space) still counts
   # (Claude #2592 review), while `.git` stays inert (`.` is not listed).
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
+  if [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]]; then
+    # A git token is visible. It is exempt only as comparison DATA in a command
+    # that cannot execute a computed value — the walk runs only here, so a
+    # command with no git token pays nothing for it.
+    ps::_can_execute_computed_value "$recovered" && return 0
+    ps::_blank_comparison_operand_literals_to narrowed "$lc"
+    # The re-probe is the SAME pattern spelled again, not shared through a
+    # variable — the fail-OPEN reason the sibling predicates record: a pattern
+    # assembled from a variable that silently stopped matching would wave a git
+    # command word through.
+    [[ "$narrowed" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] && return 0
+  fi
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
   # Call / dot-source of a COMPUTED target — `& (…)`, `& "$x" …` — which could
   # resolve to git. A CONSTANT target (`& 'git' …`, `& "C:\Git\cmd\git.exe" …`)

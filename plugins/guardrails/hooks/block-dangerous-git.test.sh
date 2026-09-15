@@ -1196,6 +1196,102 @@ run_pwsh "PS #2667: sink allow + reset-hard allow opens iex;reset compound" \
   "Invoke-Expression 'Write-Host harmless'; git reset --hard" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation,reset-hard
 
+# --- a quoted git literal in COMPARISON-OPERAND position is data --------------
+# ps::might_invoke_git exempts a quoted literal whose nearest preceding token is a
+# comparison operator, but only in a command that carries no way to execute a
+# computed value. Read-only pipelines that merely NAME git now pass the sink; a
+# command that could turn the compared string back into a command word does not.
+run_pwsh "PS cmp: -eq 'git' in a script block is data (allowed)" \
+  "Get-Process | Where-Object { \$_.Name -eq 'git' }" 0
+run_pwsh "PS cmp: -in @('git.exe','bash.exe') is data (allowed)" \
+  "Get-CimInstance Win32_Process | Where-Object { \$_.Name -in @('git.exe','bash.exe') } | Select-Object ProcessId" 0
+run_pwsh "PS cmp: case-prefixed -ceq 'git' is data (allowed)" \
+  "Get-Process | Where-Object { \$_.Name -ceq 'git' } | Select-Object Id" 0
+run_pwsh "PS cmp: -notin list element is data (allowed)" \
+  "Get-Process | ? { \$_.Name -notin @('git','node') }" 0
+run_pwsh "PS cmp: -like 'git*' is data (allowed)" \
+  "Get-Process | ? { \$_.Name -like 'git*' }" 0
+run_pwsh "PS cmp: -match \"^git\\.exe\$\" is data (allowed)" \
+  "Get-Process | ? { \$_.Name -match \"^git\\.exe\$\" } | Select-Object Id" 0
+# Rows the class already allowed — the exemption must not disturb them.
+run_pwsh "PS cmp: no git token at all (allowed)" \
+  "Get-ChildItem | Where-Object { \$_.Length -gt 0 }" 0
+run_pwsh "PS cmp: Get-Process git as an argument (allowed)" \
+  "Get-Process git | Select-Object Id" 0
+run_pwsh "PS cmp: GitHub path component is not a git command (allowed)" \
+  "Get-ChildItem C:\\Dev\\GitHub | Where-Object { \$_.PSIsContainer }" 0
+
+# Counterexamples: every one keeps the quote-intact probe and stays blocked.
+run_pwsh "PS cmp: bare git in call position beside a comparison (blocked)" \
+  "git status; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
+run_pwsh "PS cmp: Start-Process 'git' is a call target, not an operand (blocked)" \
+  "Start-Process 'git' reset --hard; Get-Process | Where-Object { \$_.Name -eq 'x' }" 2
+run_pwsh "PS cmp: saps 'git' is a call target, not an operand (blocked)" \
+  "saps 'git' -ArgumentList 'push -f' | % { \$_ }" 2
+run_pwsh "PS cmp: cmd /c 'git push --force' is a nested shell (blocked)" \
+  "cmd /c 'git push --force' ; Get-Process | ? { \$_.Name -eq 'node' }" 2
+run_pwsh "PS cmp: computed call of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { & \$_.Name push -f }" 2
+run_pwsh "PS cmp: dot-source of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { . \$_.Name push -f }" 2
+run_pwsh "PS cmp: iex of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { iex \$_.Name }" 2
+run_pwsh "PS cmp: assignment is not a comparison operator (blocked)" \
+  "\$n = 'git'; & \$n push -f | % { \$_ }" 2
+run_pwsh "PS cmp: pipeline input is not an operand (blocked)" \
+  "'git' | % { & \$_ push -f }" 2
+run_pwsh "PS cmp: cmd /c of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { cmd /c \$_.Name push -f }" 2
+run_pwsh "PS cmp: bash -c of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { bash -c \$_.Name }" 2
+run_pwsh "PS cmp: quoted launcher calling the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { & 'bash' -c \$_.Name }" 2
+run_pwsh "PS cmp: path-shaped call of the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { & .\\\$_.Name push -f }" 2
+run_pwsh "PS cmp: Invoke-Command around the compared value (blocked)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | % { Invoke-Command -ScriptBlock { & \$_.Name } }" 2
+run_pwsh "PS cmp: call of a quoted git literal (blocked)" \
+  "& 'git' commit --no-verify | % { \$_ }" 2
+run_pwsh "PS cmp: quoted subcommand after a bare git (blocked)" \
+  "git 'commit' | % { \$_ }" 2
+# Right-hand operands only: a literal on the LEFT of the operator is ambiguous
+# with a call target (`& 'git' -eq $x` invokes git), so it keeps the probe.
+run_pwsh "PS cmp: left-hand literal keeps the quote-intact probe (blocked)" \
+  "'git' -in \$names | % { \$_ }" 2
+# The list walk is bounded; a list long enough to exhaust it fails closed.
+run_pwsh "PS cmp: over-long operand list fails closed (blocked)" \
+  "Get-Process | ? { \$_.Name -in @('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','git') }" 2
+# The sink message is the unchanged one — the exemption narrows what reaches the
+# sink, it does not soften what the sink says.
+cmp_out="$(pwsh_stderr "Get-Process | ? { \$_.Name -eq 'git' } | % { & \$_.Name push -f }")"
+assert_contains "PS cmp: blocked counterexample still names could-reach-git" \
+  "$cmp_out" "could reach git"
+
+# Predicate pins — a hook rc of 0 can hide "entered the sink and was waved
+# through by something else", so the mechanism itself is asserted.
+pin_predicate "ps::might_invoke_git: -eq 'git' is data" \
+  ps::might_invoke_git "Get-Process | Where-Object { \$_.Name -eq 'git' }" 1
+pin_predicate "ps::might_invoke_git: -in @('git.exe','bash.exe') is data" \
+  ps::might_invoke_git "Get-CimInstance Win32_Process | Where-Object { \$_.Name -in @('git.exe','bash.exe') } | Select-Object ProcessId" 1
+pin_predicate "ps::might_invoke_git: -notin list element is data" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -notin @('git','node') }" 1
+pin_predicate "ps::might_invoke_git: -match \"^git\\.exe\$\" is data" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -match \"^git\\.exe\$\" } | Select-Object Id" 1
+pin_predicate "ps::might_invoke_git: computed call of the compared value still blocks" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -eq 'git' } | % { & \$_.Name push -f }" 0
+pin_predicate "ps::might_invoke_git: bash -c of the compared value still blocks" \
+  ps::might_invoke_git "Get-Process | ? { \$_.Name -eq 'git' } | % { bash -c \$_.Name }" 0
+pin_predicate "ps::might_invoke_git: call of a quoted git literal still blocks" \
+  ps::might_invoke_git "& 'git' commit --no-verify | % { \$_ }" 0
+pin_predicate "ps::_can_execute_computed_value: a read-only comparison pipeline has no invocation shape" \
+  ps::_can_execute_computed_value "Get-Process | Where-Object { \$_.Name -eq 'git' }" 1
+pin_predicate "ps::_can_execute_computed_value: cmd as a bare command word disqualifies" \
+  ps::_can_execute_computed_value "Get-Process | ? { \$_.Name -eq 'git' } | % { cmd /c \$_.Name }" 0
+pin_predicate "ps::_can_execute_computed_value: a quoted launcher name is data, not an invocation" \
+  ps::_can_execute_computed_value "Get-CimInstance Win32_Process | ? { \$_.Name -in @('git.exe','bash.exe') }" 1
+pin_sink_trigger "classify: the comparison pipeline still enters the special-construct sink" \
+  "Get-Process | Where-Object { \$_.Name -eq 'git' }" "special-construct"
+
 malformed_rc=0
 (cd "$REPO_SHA1" && bash "$HOOK" <<<'not json at all' >/dev/null 2>&1) || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
