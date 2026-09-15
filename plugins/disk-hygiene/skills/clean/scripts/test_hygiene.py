@@ -5655,12 +5655,20 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f"--plan p --confirm-tier high --approval-token {'a' * 24} --report r"
         )
+        # `_decide` calls the tuple-returning private classifier; the public
+        # `classify_exact_engine_command` is now a wrapper over it and is no
+        # longer on this call graph, so patching the public name would inject a
+        # failure nothing reaches and pass vacuously.
         targets = [
             "resolve_mode",
             "resolve_disk_hygiene_enabled",
             "resolve_authorized_data_root",
             "is_exact_kill_switch_probe",
-            "classify_exact_engine_command",
+            "_classify_exact_engine_command",
+            # The run marker's writer (#2618): reached on every exact engine
+            # command in belt mode, and a bookkeeping write must never be able
+            # to turn a decision into a non-blocking exit 1.
+            "_mark_run_open",
         ]
         for target in targets:
             with self.subTest(target=target):
@@ -5672,6 +5680,24 @@ class GuardTests(unittest.TestCase):
                 self.assertNotEqual(1, exit_code, target)
                 self.assertTrue(stderr.strip(), target)
                 self.assertEqual("", stdout, target)
+
+    def test_run_marker_read_failure_denies_at_exit_2_never_1(self) -> None:
+        """The run-marker reader is on the belt's unrecognized-command path.
+
+        ``_belt_run_open`` is only reached for a command the classifier
+        rejected, so the sweep above (which uses an exact ``apply``) cannot
+        cover it. Its failure must land on the same exit-2 boundary: a marker
+        read that raises has to deny, never fall through to a non-blocking
+        exit 1 that runs the command unguarded (#1423, #2618).
+        """
+        with mock.patch.object(
+            guard, "_belt_run_open", side_effect=ValueError("injected marker failure")
+        ):
+            exit_code, stdout, stderr = self._invoke_guard_raw("rm -rf /tmp/example")
+        self.assertEqual(2, exit_code)
+        self.assertNotEqual(1, exit_code)
+        self.assertTrue(stderr.strip())
+        self.assertEqual("", stdout)
 
     def test_engine_gate_relevance_check_failure_denies_at_exit_2_never_1(self) -> None:
         """The plugin-level engine-gate's own relevance check is in-scope too.
@@ -6405,6 +6431,395 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.write_managed_dropin("20-second.json", False)
         self.write_toggle(True)
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+
+class BeltRunScopeTests(unittest.TestCase):
+    """The belt's deny-by-default Bash lane is scoped to an open run (#2618).
+
+    Claude Code registers a skill's frontmatter hooks for the rest of the
+    session, not for the window the skill is active, so before this the belt
+    denied every unrecognized Bash call on the session's main thread long after
+    cleanup ended — including other plugins' bundled tooling — with no
+    documented way to disarm short of ending the session. These cases pin the
+    two halves that matter: the belt is armed for every state the guard cannot
+    positively read as a closed run, and it releases for exactly one state.
+    """
+
+    def setUp(self) -> None:
+        self._cfg = tempfile.TemporaryDirectory()
+        self.addCleanup(self._cfg.cleanup)
+        # Resolved, because Windows hands back an 8.3 short name whose `~`
+        # is a shell-expansion character the Bash literal parser rejects — a
+        # fixture artifact, not the guard's behaviour under test.
+        cfg = Path(self._cfg.name).resolve()
+        self.cfg = cfg
+        self.plugin_root = (
+            cfg / "plugins" / "cache" / "melodic-software" / "disk-hygiene" / "1.2.3"
+        )
+        self.plugin_root.mkdir(parents=True)
+        # Exactly what `_plugin_data_root_from_root` derives from that layout;
+        # asserted below rather than assumed.
+        self.authority = Path(
+            guard._plugin_data_root_from_root(os.fspath(self.plugin_root))
+        )
+        self.runs_root = self.authority / guard._RUNS_DIRNAME
+        self.run_dir = self.runs_root / "run-0001"
+        self.settings = cfg / "settings.json"
+        self.managed = cfg / "managed-settings.json"
+        self.engine = SCRIPT_DIR / "hygiene.py"
+
+    # -- driving the guard -------------------------------------------------
+
+    def invoke(
+        self,
+        command: str,
+        *,
+        session: str | None = "session-alpha",
+        tool_name: str = "Bash",
+        mode: str | None = None,
+        plugin_root: bool = True,
+        enabled: bool = True,
+    ) -> dict[str, object] | None:
+        """Drive the guard as the shipped skill-frontmatter hook does.
+
+        The belt registration passes ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` and
+        nothing else, and the guard's own environment has no
+        ``CLAUDE_PLUGIN_DATA`` — the exact condition the run marker has to work
+        under. Returns None when the guard deferred with no output.
+        """
+        if enabled:
+            self.settings.unlink(missing_ok=True)
+        else:
+            self.settings.write_text(
+                json.dumps(
+                    {
+                        "pluginConfigs": {
+                            "disk-hygiene@melodic-software": {
+                                "options": {"disk_hygiene_enabled": False}
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+        argv = [str(SCRIPT_DIR / "destructive_guard.py")]
+        if mode is not None:
+            argv += ["--mode", mode]
+        if plugin_root:
+            argv += ["--plugin-root", os.fspath(self.plugin_root)]
+        payload: dict[str, object] = {
+            "tool_name": tool_name,
+            "tool_input": {"command": command},
+        }
+        if session is not None:
+            payload["session_id"] = session
+        stdin = io.StringIO(json.dumps(payload))
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+            mock.patch.object(
+                guard.killswitch_config, "managed_settings_path", lambda: self.managed
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        text = stdout.getvalue().strip()
+        return json.loads(text) if text else None
+
+    def verdict(self, command: str, **kwargs) -> str | None:
+        result = self.invoke(command, **kwargs)
+        if result is None:
+            return None
+        return result["hookSpecificOutput"]["permissionDecision"]
+
+    # -- run lifecycle helpers --------------------------------------------
+
+    def scan_command(self, output: Path | None = None) -> str:
+        target = output if output is not None else self.run_dir / "snapshot.json"
+        return (
+            f'"{guard._display_python()}" "{self.engine}" scan '
+            f'--target t --output "{target}" '
+            f'--data-root "{os.fspath(self.authority)}"'
+        )
+
+    def apply_command(self) -> str:
+        return (
+            f'"{guard._display_python()}" "{self.engine}" apply --execute '
+            f'--snapshot "{self.run_dir / "snapshot.json"}" --plan p '
+            f"--confirm-tier high --approval-token {'a' * 24} --report r "
+            f'--data-root "{os.fspath(self.authority)}"'
+        )
+
+    def marker_path(self) -> Path:
+        return self.run_dir / guard._RUN_MARKER_FILENAME
+
+    def pointer_path(self, session: str = "session-alpha") -> Path:
+        path = guard._run_pointer_path(os.fspath(self.authority), session)
+        assert path is not None
+        return path
+
+    def open_run(self, session: str = "session-alpha") -> None:
+        """Open a run the only way the guard does: admit its first scan."""
+        self.assertEqual(
+            "allow", self.verdict(self.scan_command(), session=session), "scan"
+        )
+
+    def close_run(self, state: object = guard._RUN_STATE_CLOSED) -> None:
+        """Record the close the clean skill's step 6 summary records."""
+        marker: dict[str, object] = {"schema": guard._RUN_MARKER_SCHEMA}
+        if state is not None:
+            marker[guard._RUN_STATE_KEY] = state
+        self.marker_path().write_text(json.dumps(marker), encoding="utf-8")
+
+    # -- armed while the run is open ---------------------------------------
+
+    def test_admitted_scan_opens_the_run_and_the_belt_denies_unrelated_bash(
+        self,
+    ) -> None:
+        self.open_run()
+        marker = json.loads(self.marker_path().read_text(encoding="utf-8"))
+        self.assertEqual(guard._RUN_STATE_OPEN, marker[guard._RUN_STATE_KEY])
+        self.assertEqual("session-alpha", marker["session"])
+        pointer = json.loads(self.pointer_path().read_text(encoding="utf-8"))
+        self.assertEqual(
+            guard._data_root_key(os.fspath(self.run_dir)),
+            guard._data_root_key(str(pointer[guard._RUN_DIR_KEY])),
+        )
+        # The belt is what it always was while the run is open.
+        self.assertEqual("deny", self.verdict("true"))
+        self.assertEqual("deny", self.verdict("rm -rf /tmp/example"))
+
+    def test_belt_denial_states_the_run_scoped_lifetime(self) -> None:
+        self.open_run()
+        result = self.invoke("true")
+        assert result is not None
+        reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+        self.assertIn(guard._RUN_MARKER_FILENAME, reason)
+        self.assertIn(guard._RUN_STATE_CLOSED, reason)
+
+    # -- released once the run positively closes ---------------------------
+
+    def test_closed_run_releases_the_commands_the_issue_reported_denied(self) -> None:
+        """The shapes #2618 observed denied after cleanup had already finished.
+
+        A bare ``true``, and a sibling plugin's own bundled integrity tool —
+        the cross-plugin denial-of-verification that left that audit's evidence
+        packet unsealed.
+        """
+        self.open_run()
+        self.close_run()
+        for command in (
+            "true",
+            "/c/plugins/cache/acme/plugin-quality/1.0.0/scripts/packet-seal.sh record",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(self.verdict(command), command)
+
+    def test_a_closed_run_does_not_release_the_piped_engine_call(self) -> None:
+        """The issue's third shape stays denied, and that is not this fix's job.
+
+        ``scan ... 2>&1 | head -c 700`` references the engine, so the
+        plugin-level engine gate denies it in EVERY session whether or not the
+        clean skill was ever invoked — releasing the belt neither can nor should
+        change that verdict. Recorded here so the limit is a pinned decision
+        rather than a surprise for whoever re-reads #2618's reproduction list.
+        """
+        self.open_run()
+        self.close_run()
+        piped = (
+            f'"{guard._display_python()}" "{self.engine}" scan --target t '
+            "--output s 2>&1 | head -c 700"
+        )
+        self.assertEqual("deny", self.verdict(piped))
+        self.assertEqual("deny", self.verdict(piped, mode="engine-gate"))
+
+    def test_released_belt_still_denies_engine_referencing_commands(self) -> None:
+        """Releasing the run is not turning the belt off.
+
+        A released belt is exactly the plugin-level engine gate: a command that
+        references the engine without matching a guarded shape still denies, so
+        closing a run can never make an unguarded engine invocation reachable.
+        """
+        self.open_run()
+        self.close_run()
+        self.assertEqual(
+            "deny",
+            self.verdict(f'"{guard._display_python()}" "{self.engine}" apply --execute'),
+        )
+
+    def test_released_belt_still_gates_powershell_deletions(self) -> None:
+        """The PowerShell lane is deliberately NOT run-scoped.
+
+        It is the lane that gates the manual-handoff deletions themselves, so a
+        premature or mistaken close must not un-gate a real deletion. Only the
+        Bash deny-by-default lane — the one whose blast radius #2618 measured —
+        is scoped to the run.
+        """
+        self.open_run()
+        self.close_run()
+        self.assertEqual(
+            "ask",
+            self.verdict("Remove-Item -Recurse -Force /tmp/example", tool_name="PowerShell"),
+        )
+
+    def test_kill_switch_deny_survives_a_closed_run(self) -> None:
+        """Audit-only mode blocks `apply` in every session and every run state."""
+        self.open_run()
+        self.close_run()
+        self.assertEqual(
+            "deny", self.verdict(self.apply_command(), enabled=False)
+        )
+
+    def test_an_admitted_engine_command_rearms_a_closed_run(self) -> None:
+        self.open_run()
+        self.close_run()
+        self.assertIsNone(self.verdict("true"))
+        self.assertEqual("ask", self.verdict(self.apply_command()))
+        self.assertEqual("deny", self.verdict("true"))
+
+    # -- armed for every unreadable, absent, or ambiguous state -------------
+
+    def test_belt_stays_armed_when_the_run_marker_is_unreadable(self) -> None:
+        self.open_run()
+        self.marker_path().write_text("not json {", encoding="utf-8")
+        self.assertEqual("deny", self.verdict("true"), "unparsable marker")
+        self.marker_path().unlink()
+        self.marker_path().mkdir()
+        self.assertEqual("deny", self.verdict("true"), "marker read raises OSError")
+
+    def test_belt_stays_armed_for_an_absent_or_ambiguous_marker_state(self) -> None:
+        self.open_run()
+        for state in (None, "reopened", "", True, guard._RUN_STATE_OPEN):
+            with self.subTest(state=state):
+                self.close_run(state=state)
+                self.assertEqual("deny", self.verdict("true"), repr(state))
+        # A JSON document that is not an object is likewise undecidable.
+        self.marker_path().write_text('["closed"]', encoding="utf-8")
+        self.assertEqual("deny", self.verdict("true"), "marker is not an object")
+
+    def test_belt_stays_armed_when_the_marker_file_is_absent(self) -> None:
+        self.open_run()
+        self.marker_path().unlink()
+        self.assertEqual("deny", self.verdict("true"))
+
+    def test_belt_stays_armed_when_the_pointer_is_absent_or_unusable(self) -> None:
+        self.open_run()
+        self.close_run()
+        self.assertIsNone(self.verdict("true"), "precondition: released")
+        pointer = self.pointer_path()
+        original = pointer.read_text(encoding="utf-8")
+        pointer.unlink()
+        self.assertEqual("deny", self.verdict("true"), "pointer absent")
+        pointer.write_text("not json {", encoding="utf-8")
+        self.assertEqual("deny", self.verdict("true"), "pointer unparsable")
+        pointer.write_text(json.dumps({"schema": 1}), encoding="utf-8")
+        self.assertEqual("deny", self.verdict("true"), "pointer names no run dir")
+        # A pointer naming a directory outside `<data-root>/runs` is not a run
+        # directory, whatever it claims — the content of a file under the data
+        # root is not evidence about paths outside it.
+        outside = self.cfg / "elsewhere"
+        outside.mkdir()
+        (outside / guard._RUN_MARKER_FILENAME).write_text(
+            json.dumps({guard._RUN_STATE_KEY: guard._RUN_STATE_CLOSED}),
+            encoding="utf-8",
+        )
+        pointer.write_text(
+            json.dumps({guard._RUN_DIR_KEY: os.fspath(outside)}), encoding="utf-8"
+        )
+        self.assertEqual("deny", self.verdict("true"), "run dir outside the runs tree")
+        pointer.write_text(original, encoding="utf-8")
+        self.assertIsNone(self.verdict("true"), "restored pointer releases again")
+
+    def test_belt_stays_armed_without_data_root_authority(self) -> None:
+        """No `--plugin-root` means no derivable data root, so no readable state.
+
+        This is also what keeps every other guard case in this suite green: they
+        drive the guard with no authority channel at all, and must keep seeing
+        the deny-by-default belt.
+        """
+        self.open_run()
+        self.close_run()
+        self.assertIsNone(self.verdict("true"), "precondition: released")
+        self.assertEqual("deny", self.verdict("true", plugin_root=False))
+
+    def test_belt_stays_armed_when_the_payload_carries_no_session_id(self) -> None:
+        self.open_run()
+        self.close_run()
+        self.assertIsNone(self.verdict("true"), "precondition: released")
+        self.assertEqual("deny", self.verdict("true", session=None), "field absent")
+        self.assertEqual("deny", self.verdict("true", session=""), "field empty")
+        self.assertEqual(
+            "deny", self.verdict("true", session="///"), "field sanitises empty"
+        )
+
+    def test_a_closed_run_does_not_release_another_sessions_belt(self) -> None:
+        """The marker is keyed by the hook's own session id.
+
+        Two sessions can share one data root, and a crashed or finished run in
+        one of them must not decide the other's belt.
+        """
+        self.open_run(session="session-alpha")
+        self.close_run()
+        self.assertIsNone(self.verdict("true", session="session-alpha"))
+        self.assertEqual("deny", self.verdict("true", session="session-beta"))
+
+    # -- the plugin-level gate is untouched --------------------------------
+
+    def test_engine_gate_mode_is_unaffected_by_the_run_marker(self) -> None:
+        self.open_run()
+        self.close_run()
+        for state in ("closed", "open"):
+            if state == "open":
+                self.open_run()
+            with self.subTest(marker=state):
+                self.assertIsNone(
+                    self.verdict("rm -rf /tmp/example", mode="engine-gate"),
+                    "the plugin-level gate never taxes unrelated work",
+                )
+                self.assertEqual(
+                    "deny",
+                    self.verdict(
+                        f'"{guard._display_python()}" "{self.engine}" apply --execute',
+                        mode="engine-gate",
+                    ),
+                    "and never stops gating engine invocations",
+                )
+
+    # -- what counts as a run directory ------------------------------------
+
+    def test_run_directory_must_be_a_direct_child_of_the_runs_directory(self) -> None:
+        authority = os.fspath(self.authority)
+        self.assertEqual(
+            guard._data_root_key(os.fspath(self.run_dir)),
+            guard._data_root_key(
+                guard._run_directory_for(
+                    os.fspath(self.run_dir / "snapshot.json"), authority
+                )
+            ),
+        )
+        for rejected in (
+            os.fspath(self.runs_root / "run-1" / "nested" / "snapshot.json"),
+            os.fspath(self.authority / "snapshot.json"),
+            os.fspath(self.cfg / "elsewhere" / "snapshot.json"),
+        ):
+            with self.subTest(path=rejected):
+                self.assertIsNone(guard._run_directory_for(rejected, authority))
+        self.assertIsNone(guard._run_directory_for("snapshot.json", None))
+
+    def test_no_run_opens_for_a_snapshot_written_outside_the_runs_tree(self) -> None:
+        """An admitted scan whose output is not in a run directory opens nothing.
+
+        The belt then stays armed, which is the safe direction: the run marker
+        never guesses a run directory it was not shown.
+        """
+        stray = self.authority / "stray"
+        self.assertEqual(
+            "allow", self.verdict(self.scan_command(stray / "snapshot.json"))
+        )
+        self.assertFalse(self.pointer_path().exists())
+        self.assertEqual("deny", self.verdict("true"))
 
 
 if __name__ == "__main__":
