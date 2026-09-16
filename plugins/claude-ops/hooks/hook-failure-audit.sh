@@ -118,6 +118,7 @@ HAVE_MAPFILE=0
 #   - fewer lines present than the cursor -> 0, the transcript shrank or was
 #     replaced
 #   - a cursor pruned mid-session, or a Bash without `mapfile` -> 0
+#   - a non-canonical decimal (a leading zero, or over 15 digits) -> 0
 # Rescanning cannot re-warn: the (hookName, command) marker below is what
 # decides that, and it is unchanged.
 #
@@ -151,7 +152,13 @@ if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
         } 2>/dev/null <"$CURSOR_FILE"
       CURSOR_LINES="${CURSOR_LINES%$'\r'}"
       CURSOR_PATH="${CURSOR_PATH%$'\r'}"
-      [[ "$CURSOR_LINES" =~ ^[0-9]+$ && "$CURSOR_PATH" == "$TRANSCRIPT" ]] &&
+      # Canonical decimal only, capped at 15 digits (far below 2^63): a leading
+      # zero such as "08" passes a bare `[0-9]+` test but bash's `((...))`
+      # reads a leading zero as octal and errors on 8/9, and an uncapped digit
+      # string can wrap in arithmetic. Both are rejected here, not coerced with
+      # `10#`. A rejected value falls through to the CURSOR=0 cold path below,
+      # the same outcome every other malformed cursor already gets.
+      [[ "$CURSOR_LINES" =~ ^(0|[1-9][0-9]{0,14})$ && "$CURSOR_PATH" == "$TRANSCRIPT" ]] &&
         CURSOR="$CURSOR_LINES"
     fi
   else

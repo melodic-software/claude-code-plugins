@@ -375,6 +375,43 @@ OUT_C5=$(run_hook "$TEST_TMPDIR/cursor-other-2.jsonl" "$DATA_OTHER")
 assert_contains "cursor: a different transcript_path rescans from the start" \
   "$OUT_C5" "other-transcript.sh"
 
+# A non-canonical decimal cursor (a leading zero, or a digit string long enough
+# to wrap) must fall through to CURSOR=0 exactly like any other malformed
+# cursor: no shell diagnostic, a cold scan of the whole transcript, and a
+# canonical value written back afterward. `08`/`09` pass a bare `^[0-9]+$`
+# test and then fail bash's octal-reading `((...))` with a "value too great
+# for base" diagnostic on stderr; a long-enough digit string wraps silently in
+# arithmetic instead of erroring, which is the more dangerous case.
+T_LEADING_ZERO="$TEST_TMPDIR/cursor-leading-zero.jsonl"
+DATA_LEADING_ZERO="$TEST_TMPDIR/data-cursor-leading-zero"
+failure_record "PreToolUse:LeadingZero" "leading-zero.sh" >"$T_LEADING_ZERO"
+mkdir -p "$DATA_LEADING_ZERO/hook-failure-audit"
+printf '08\n%s\n' "$T_LEADING_ZERO" \
+  >"$DATA_LEADING_ZERO/hook-failure-audit/test-session.cursor"
+OUT_C6=$(run_hook "$T_LEADING_ZERO" "$DATA_LEADING_ZERO")
+assert_absent "cursor: leading zero prints no shell diagnostic" "$OUT_C6" "value too great for base"
+assert_contains "cursor: leading zero falls back to a cold scan" "$OUT_C6" "leading-zero.sh"
+assert_eq "cursor: leading zero is rewritten to a canonical value" "1" \
+  "$(head -1 "$DATA_LEADING_ZERO/hook-failure-audit/test-session.cursor")"
+
+T_OVERSIZED="$TEST_TMPDIR/cursor-oversized.jsonl"
+DATA_OVERSIZED="$TEST_TMPDIR/data-cursor-oversized"
+failure_record "PreToolUse:Oversized" "oversized-cursor.sh" >"$T_OVERSIZED"
+mkdir -p "$DATA_OVERSIZED/hook-failure-audit"
+printf '%s\n%s\n' "11111111111111111111" "$T_OVERSIZED" \
+  >"$DATA_OVERSIZED/hook-failure-audit/test-session.cursor"
+OUT_C7=$(run_hook "$T_OVERSIZED" "$DATA_OVERSIZED")
+# bash wraps an overlong digit string silently rather than erroring, so the
+# diagnostic to rule out here is any stray output line, not one exact string.
+if [[ "$OUT_C7" == *$'\n'* ]]; then
+  bad "cursor: 20-digit cursor prints no shell diagnostic: unexpected extra line(s) in: $OUT_C7"
+else
+  ok "cursor: 20-digit cursor prints no shell diagnostic"
+fi
+assert_contains "cursor: 20-digit cursor falls back to a cold scan" "$OUT_C7" "oversized-cursor.sh"
+assert_eq "cursor: 20-digit cursor is rewritten to a canonical value" "1" \
+  "$(head -1 "$DATA_OVERSIZED/hook-failure-audit/test-session.cursor")"
+
 # --- Kill switch -------------------------------------------------------------
 OUT7=$(run_hook "$T2" "$TEST_TMPDIR/data-kill" CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED=false)
 RC7=$?
