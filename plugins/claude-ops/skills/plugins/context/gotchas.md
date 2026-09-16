@@ -366,7 +366,7 @@ it. `audit` would have predicted it, but `audit` is a separate invocation an ope
 **The rule, until the skill enforces a volume gate itself:** treat `--all` combined with a rendered
 `install_new` of `all` as requiring an explicit human confirmation that names the number. Resolve
 the per-marketplace install gap first (`fleet-state.sh --marketplace <name> --ids
-missing-user-install` per marketplace — the selector `sync-run.sh` itself projects for Step 4 — or
+missing-user-install` per marketplace (the selector `sync-run.sh` itself projects for Step 4), or
 one `audit all`), present the total, and proceed only on a yes. An agent running this unattended
 should downgrade its own effective policy to `ask` rather than assume the configured `all` was
 written with the cross-marketplace case in mind: an operator sets that option while thinking about
@@ -382,7 +382,7 @@ hours. There is no bulk uninstall verb; `marketplace remove` is not one (see its
 it also deletes this skill's run journal, which is the only record of what to revert).
 
 **A plain `claude plugin uninstall` spawns a session that loads every still-enabled plugin**, so a
-revert loop over a large set re-executes the very plugin set it is removing, once per iteration —
+revert loop over a large set re-executes the very plugin set it is removing, once per iteration,
 including their MCP servers. Run every uninstall as `claude --bare plugin uninstall <id> -s user -y`
 instead; `--bare` skips hooks, LSP, plugin sync and the MCP boot, at roughly 15s per uninstall
 rather than 6s. Until the revert drains, use `--bare` for unrelated shell work too, and do not run
@@ -391,7 +391,7 @@ rather than 6s. Until the revert drains, use `--bare` for unrelated shell work t
 *Basis:* the absence of a bulk verb is `claude plugin uninstall --help`, whose complete option list
 is `-h/--help`, `--json`, `--keep-data`, `--prune`, `-s/--scope` and nothing that takes more than
 one `<plugin>`; the spawn-and-load behaviour and the `--bare` mitigation are direct observation
-during the 2026-09-14 revert on this fleet — the host's node/bun process count climbed on every
+during the 2026-09-14 revert on this fleet: the host's node/bun process count climbed on every
 plain uninstall and stayed flat at 73 across six consecutive `--bare` uninstalls; the ~6s and ~15s
 figures are wall-clock from that same run and are machine- and plugin-count-dependent, so treat
 them as orders of magnitude rather than constants. Neither the spawn behaviour nor `--bare` is

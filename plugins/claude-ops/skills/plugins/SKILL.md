@@ -281,7 +281,7 @@ machine knows about." One observed run installed 2,231 plugins before it was kil
 [context/gotchas.md](context/gotchas.md)'s "`--all` with `install_new: all` is a mass install of
 every catalog". **When the marketplace target is `all` and the rendered policy is `all`, do not
 proceed unattended:** resolve the total install gap first (one `audit all`, or `fleet-state.sh
---marketplace <name> --ids missing-user-install` per marketplace — that is the selector
+--marketplace <name> --ids missing-user-install` per marketplace, which is the selector
 `sync-run.sh` itself projects for Step 4), state the number, and get an explicit human yes. Treat the
 configured value as written with the operator's own marketplace in mind, and downgrade to `ask` when
 no human is present to receive the count.
