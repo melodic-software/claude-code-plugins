@@ -1219,7 +1219,7 @@ run_pwsh "PS cmp: no git token at all (allowed)" \
 run_pwsh "PS cmp: Get-Process git as an argument (allowed)" \
   "Get-Process git | Select-Object Id" 0
 run_pwsh "PS cmp: GitHub path component is not a git command (allowed)" \
-  "Get-ChildItem C:\\Dev\\GitHub | Where-Object { \$_.PSIsContainer }" 0
+  "Get-ChildItem C:\\code\\proj | Where-Object { \$_.PSIsContainer }" 0
 
 # Counterexamples: every one keeps the quote-intact probe and stays blocked.
 run_pwsh "PS cmp: bare git in call position beside a comparison (blocked)" \
