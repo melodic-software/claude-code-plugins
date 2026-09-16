@@ -1450,9 +1450,12 @@ jobs:
     # changes is that the contract suites are partitioned across four runners
     # instead of executed by one: the affected selection on a pull request, the
     # full corpus on a push (#3705). The dominant step was measured at 435 s p50
-    # running 146 to 165 suites strictly sequentially, and the selector's own
-    # header records parallelism WITHIN a runner as sublinear, so more runners
-    # is the lever that is left.
+    # running 146 to 165 suites strictly sequentially, so more runners was the
+    # first lever. The second is `--jobs 3` on the pull-request path below: the
+    # selector now hands its selection to run-plugin-tests.sh, which is what the
+    # push path and the UNMAPPED fallback already did, so both paths run three
+    # suites at a time on the same runner through the same worker and the same
+    # scripts/run-plugin-tests-serial.txt. Three, never four (#3694).
     #
     # `fail-fast: false` because a leg is a slice of one test corpus: cancelling
     # the other three on the first failure would hide every other failure in the
@@ -1464,10 +1467,22 @@ jobs:
     # denominator come from the same place and cannot drift from each other or
     # from the matrix that produced them.
     #
-    # EVERY STEP AFTER THE CONTRACT SUITES RUNS ON LEG 0 ONLY, through a
-    # `[ "$LEG" = 0 ] || exit 0` first line rather than a step condition:
+    # EVERY STEP AFTER THE CONTRACT SUITES IS ASSIGNED TO ONE LEG, through a
+    # `[ "$LEG" = <n> ] || exit 0` first line rather than a step condition:
     # scripts/check-docs-only-gate.sh accepts exactly one condition shape on a
     # gated step, and a step that exits 0 reports success, never `skipped`.
+    #
+    # They all sat on leg 0, which cost that leg 34 to 62 s the other three
+    # spent idle. They are now spread across the four legs in groups, each group
+    # whole on one leg because its steps depend on each other in order (a Node
+    # sub-project's install/typecheck/lint/test chain, a sync cluster's
+    # verify/test/check-bump triplet). Every step still runs EXACTLY ONCE per
+    # run: each is assigned to exactly one leg and the legs are disjoint.
+    #
+    # The leg numbers are literals, so a change to `matrix.leg` that shrinks the
+    # fan-out would silently drop every step assigned past the new end. The
+    # first step of the job refuses to run at any size but four rather than let
+    # that ship green.
     strategy:
       fail-fast: false
       matrix:
@@ -1476,6 +1491,17 @@ jobs:
       LEG: ${{ strategy.job-index }}
       LEGS: ${{ strategy.job-total }}
     steps:
+      # The per-leg step assignments below are literal leg numbers 0 to 3. If
+      # the matrix ever sizes to anything but four, every step assigned to a leg
+      # that no longer exists would quietly never run and the lane would stay
+      # green having skipped it. One loud failure here instead.
+      - name: Assert the matrix is the size the leg assignments assume
+        run: |
+          [ "$LEGS" = 4 ] || {
+            echo "test-linux fans out to $LEGS leg(s), but the per-step leg assignments below name legs 0-3." >&2
+            echo "Re-assign them before changing matrix.leg, or every step on a dropped leg silently stops running." >&2
+            exit 1
+          }
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1582,7 +1608,7 @@ jobs:
           fi
           err="$RUNNER_TEMP/affected-tests.err"
           set +e
-          scripts/affected-tests.sh --run --shard "$LEG/$LEGS" --base "origin/$BASE_REF" 2>"$err"
+          scripts/affected-tests.sh --run --jobs 3 --shard "$LEG/$LEGS" --base "origin/$BASE_REF" 2>"$err"
           status=$?
           set -e
           cat "$err" >&2
@@ -1633,15 +1659,18 @@ jobs:
       # rather than left to local runs because its load-bearing cases assert
       # against the LIVE repository, and a check that only ever runs when
       # someone remembers to run it is exactly the rot it guards against.
+      #
+      # LEG 2 CARRIES THIS GROUP and the disk-hygiene module at the foot of the
+      # job: ~13 s of the ~52 s that used to sit on leg 0.
       - name: Run cheat-sheet generator tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           bash scripts/generate-cheatsheet.test.sh
       - name: Run affected-suite selector tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           bash scripts/affected-tests.test.sh
       # The html-assets gate needs the root npm ci from this job (its linter is
       # the exact-pinned htmlhint in node_modules/.bin): a tracked rendered-view
@@ -1650,12 +1679,12 @@ jobs:
       - name: Test the html-assets gate
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           bash scripts/check-html-assets.test.sh
       - name: Check rendered-view HTML assets
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           scripts/check-html-assets.sh
       # The loop-closure snippet reference is copied verbatim by every adopting
       # lane, so its shared helpers get a behavioral suite on top of the markup
@@ -1664,7 +1693,7 @@ jobs:
       - name: Test the loop-closure snippet helpers
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           bash scripts/check-loop-closure-helpers.test.sh
       # scripts/lib/changed-files.sh is the base-ref and changed-file resolver
       # the checker gates share. Its NUL-safety cases are the invariant four of
@@ -1673,7 +1702,7 @@ jobs:
       - name: Run shared changed-file resolver tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           bash scripts/lib/changed-files.test.sh
       # scripts/lib/read-list.sh is the list-file reader the gates share. Its
       # two comment modes are semantically different on purpose (#3161) and
@@ -1681,7 +1710,7 @@ jobs:
       - name: Run shared list-file reader tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           bash scripts/lib/read-list.test.sh
       # scripts/lib/test-harness.sh is the ok/fail/report contract the
       # scripts/*.test.sh suites share. A recorded failure that still exits 0
@@ -1689,16 +1718,20 @@ jobs:
       - name: Run shared test-harness tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           bash scripts/lib/test-harness.test.sh
       # Self-test first so a broken validator cannot mask a regression behind a
       # green gate: no shipping plugin violates the check-only carve-out
       # assertions, so the shipping tree alone proves nothing about them and
       # only these fixtures show the gate still goes red (#3137).
+      #
+      # LEG 1 CARRIES THIS PAIR, and nothing else: the manifest validation below
+      # is the single most expensive of the former leg-0 steps at ~19 s, and its
+      # self-test has to run on the same leg to gate it.
       - name: Run plugin-contract validator tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 1 ] || exit 0
           bash scripts/validate-plugin-contracts.test.sh
       - name: Validate plugin and catalog manifests
         if: needs.changes.outputs.run_tests == 'true'
@@ -1710,7 +1743,7 @@ jobs:
         env:
           VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 1 ] || exit 0
           scripts/validate-plugins.sh
 
       # The shared-library sync gates. Each keeps its three steps: the byte
@@ -1718,22 +1751,27 @@ jobs:
       # and the delivery check that a change to the canonical copy bumps every
       # carrying plugin. The bump check needs a base ref, so it returns early
       # on a push rather than diffing against a ref that does not exist.
+      #
+      # LEG 3 CARRIES EVERY SYNC CLUSTER AND ALL FOUR NODE SUB-PROJECTS, to the
+      # foot of this group: ~18 s. Each cluster's triplet, and each
+      # sub-project's install/typecheck/lint/test chain, is whole on that one
+      # leg because its steps depend on the one before them.
       - name: Verify plugin copies match the shared lib
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-rewrite-guard.sh --check
       - name: Run shared lib tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash lib/rewrite-guard.test.sh
       - name: Verify carrying plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1743,19 +1781,19 @@ jobs:
       - name: Verify plugin copies match the shared parser
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-parse-concern-value.sh --check
       - name: Run shared parser tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash lib/parse-concern-value.test.sh
       - name: Verify consuming plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1765,19 +1803,19 @@ jobs:
       - name: Verify managed-scope cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-managed-scope.sh --check
       - name: Run managed-scope tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/claude-config/lib/managed-scope.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1787,19 +1825,19 @@ jobs:
       - name: Verify state-key cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-state-key.sh --check
       - name: Run state-key tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/claude-config/lib/state-key.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1809,19 +1847,19 @@ jobs:
       - name: Verify spawn-noise cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-spawn-noise.sh --check
       - name: Run spawn-noise tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/claude-ops/lib/spawn_noise.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1831,19 +1869,19 @@ jobs:
       - name: Verify check-retirements cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-check-retirements.sh --check
       - name: Run check-retirements tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/claude-config/lib/check-retirements.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1853,14 +1891,14 @@ jobs:
       - name: Verify legacy-statusline-detect cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-legacy-statusline-detect.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1870,14 +1908,14 @@ jobs:
       - name: Verify unwrap-before-compose cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-unwrap-before-compose.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1887,14 +1925,14 @@ jobs:
       - name: Verify context-zone cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-context-zone.sh --check
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1904,24 +1942,24 @@ jobs:
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-resolve-convention-home.sh --check
       - name: Run resolve-convention-home tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/claude-config/lib/resolve-convention-home.test.sh
       - name: Run the plugin-quality pilot consumer-repo sim
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash scripts/pilot-plugin-quality-sim.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1931,19 +1969,19 @@ jobs:
       - name: Verify plugin copies match the shared resolver
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-resolve-convention-pattern.sh --check
       - name: Run shared resolver tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash lib/resolve-convention-pattern.test.sh
       - name: Verify consuming plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1953,19 +1991,19 @@ jobs:
       - name: Verify plugin copies match the shared regen script
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-index-regen.sh --check
       - name: Run shared regen-script tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash lib/index-regen.test.sh
       - name: Verify consuming plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1975,19 +2013,19 @@ jobs:
       - name: Verify plugin binding copies match the canonical contract
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/sync-standards-contract.sh --check
       - name: Run sync-standards-contract tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash scripts/sync-standards-contract.test.sh
       - name: Verify contract, changelog, and carrying plugins bumped together
         if: needs.changes.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
@@ -1997,12 +2035,12 @@ jobs:
       - name: Check for unregistered or drifted cross-plugin source clusters
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           scripts/check-cross-plugin-source-drift.sh --check
       - name: Run cross-plugin-source-drift tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash scripts/check-cross-plugin-source-drift.test.sh
 
       # The miro plugin ships a bundled Node MCP server — the marketplace's
@@ -2014,38 +2052,38 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           npm ci
         working-directory: plugins/miro/server
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           npm run typecheck
         working-directory: plugins/miro/server
       - name: Lint
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           npm run lint
         working-directory: plugins/miro/server
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           npm test
         working-directory: plugins/miro/server
       - name: Verify the committed bundle matches source
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           npm run verify-bundle
         working-directory: plugins/miro/server
       - name: Smoke-test the bundled MCP server over stdio
         if: needs.changes.outputs.run_node == 'true'
         working-directory: plugins/miro/server
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           printf '%s\n%s\n' \
             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0.0.0"}}}' \
             '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
@@ -2061,17 +2099,17 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh build
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
 
       # ai-briefing's build/render pipeline is a Node package (native
@@ -2084,12 +2122,12 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
 
       # The knowledge plugin's course-digest extraction pipeline is a Node
@@ -2100,17 +2138,17 @@ jobs:
       - name: Install dependencies
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
       - name: Typecheck
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh build
       - name: Test
         if: needs.changes.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 3 ] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
 
       # #2871: the full test_hygiene module. Its ten TestCase classes need a
@@ -2122,7 +2160,7 @@ jobs:
         if: needs.changes.outputs.run_python == 'true'
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: |
-          [ "$LEG" = 0 ] || exit 0
+          [ "$LEG" = 2 ] || exit 0
           python -m unittest -v test_hygiene
 
       - name: Report not applicable to a docs-only diff

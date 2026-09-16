@@ -4,6 +4,7 @@
 # hooks are tracked policy with the same test conventions as plugin hooks.
 #
 #   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]
+#                               [--suites-from FILE]
 #
 # Each test is self-contained and cwd-independent; an individual test SKIPs
 # (exit 0) when an optional tool it needs (shellcheck, shfmt, ...) is absent, so
@@ -42,6 +43,17 @@
 #
 # --root DIR discovers suites under DIR instead of the repository (test
 # injection for this runner's own suite, scripts/run-plugin-tests.test.sh).
+#
+# --suites-from FILE runs exactly the newline-delimited suite paths in FILE
+# instead of the discovered corpus. This is how scripts/affected-tests.sh hands
+# its SELECTION here rather than carrying a second parallel runner of its own:
+# the worker, the print lock, the summary and the serial allowlist are this
+# file's, and there is one place where a suite is spawned concurrently. The
+# allowlist's stale guard still reads the FULL discovery, exactly as it does
+# under --shard, so a serial entry that the selection did not draw is still
+# matched; a listed suite outside plugins/ and .claude/hooks (the selector
+# reaches scripts/ and lib/ too) is simply never serial. An empty file is not
+# an error -- "this selection had nothing to run" is a real answer.
 set -uo pipefail
 
 # Fixture isolation (#2840). `-C` only changes directory, while an exported
@@ -65,7 +77,7 @@ runner="$script_dir/${BASH_SOURCE[0]##*/}"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 
 usage() {
-  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]" >&2
+  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE]" >&2
   exit 2
 }
 
@@ -122,9 +134,16 @@ strict_skips=0
 jobs="${PLUGIN_TEST_JOBS:-1}"
 root=""
 shard_spec="0/1"
+suites_from=""
 while (($# > 0)); do
   case "$1" in
   --strict-skips) strict_skips=1 ;;
+  --suites-from)
+    [[ $# -ge 2 ]] || usage
+    suites_from="$2"
+    shift
+    ;;
+  --suites-from=*) suites_from="${1#--suites-from=}" ;;
   --jobs)
     [[ $# -ge 2 ]] || usage
     jobs="$2"
@@ -153,6 +172,14 @@ fi
 if ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total (got '$shard_spec')" >&2
   exit 2
+fi
+# Resolved BEFORE the cd below, so a relative path means what the caller meant.
+if [[ -n "$suites_from" ]]; then
+  if [[ ! -f "$suites_from" ]]; then
+    echo "error: --suites-from file not found: $suites_from" >&2
+    exit 2
+  fi
+  suites_from="$(cd "$(dirname "$suites_from")" && pwd)/$(basename "$suites_from")" || exit 2
 fi
 
 if [[ -n "$root" ]]; then
@@ -193,6 +220,26 @@ for s in ${serial_entries[@]+"${serial_entries[@]}"}; do
   fi
   is_serial["$s"]=1
 done
+# The supplied selection replaces the discovered corpus HERE: after the stale
+# guard, so the allowlist is still matched against the full discovery, and
+# before the shard, so --suites-from and --shard compose the way --shard alone
+# always did.
+if [[ -n "$suites_from" ]]; then
+  supplied=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    if [[ ! -f "$line" ]]; then
+      echo "error: --suites-from names '$line', which is not a file" >&2
+      exit 2
+    fi
+    supplied+=("$line")
+  done <"$suites_from"
+  if ((${#supplied[@]} == 0)); then
+    echo "The supplied selection is empty; nothing to run."
+    exit 0
+  fi
+  tests=("${supplied[@]}")
+fi
 # The partition, AFTER the stale guard so an allowlist entry that lands on
 # another leg is still matched against the full discovery.
 if ((shard_total > 1)); then

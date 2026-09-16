@@ -279,6 +279,43 @@ for spec in 2/2 x 1 1/0 ''; do
 done
 assert_output_has "the bad shard spec is named" "--shard wants <index>/<total>"
 
+# --- --suites-from: the supplied selection replaces the discovered corpus ------
+#
+# scripts/affected-tests.sh hands its selection here instead of carrying a
+# second parallel runner. The three properties that matters rests on: only the
+# listed suites run, a listed suite OUTSIDE the discovered corpus still runs
+# (the selector reaches scripts/ and lib/, which `find` here never sees), and
+# the serial allowlist's stale guard still reads the FULL discovery, so an
+# allowlist entry the selection did not draw is not reported stale.
+r="$(make_root suites-from)"
+write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
+write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'
+write_suite "$r" scripts/outside.test.sh 'echo "ok: outside"'
+selection="$scratch/selection.txt"
+printf 'plugins/a/a.test.sh\nscripts/outside.test.sh\n' >"$selection"
+serial_b="$scratch/serial-b.txt"
+printf 'plugins/b/b.test.sh\n' >"$serial_b"
+PLUGIN_TEST_SERIAL_LIST="$serial_b" run_runner 0 "--suites-from runs exactly the supplied selection" \
+  --root "$r" --suites-from "$selection"
+assert_output_has "a listed suite runs" "PASS: plugins/a/a.test.sh"
+assert_output_has "a listed suite outside the discovered corpus runs" "PASS: scripts/outside.test.sh"
+assert_output_lacks "an unlisted suite does not run" "=== plugins/b/b.test.sh ==="
+
+missing="$scratch/selection-missing.txt"
+printf 'plugins/a/a.test.sh\nplugins/nope/nope.test.sh\n' >"$missing"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a listed path that is not a file is rejected" \
+  --root "$r" --suites-from "$missing"
+assert_output_has "the missing path is named" "plugins/nope/nope.test.sh"
+
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a missing --suites-from file is rejected" \
+  --root "$r" --suites-from "$scratch/no-such-list.txt"
+
+empty_selection="$scratch/selection-empty.txt"
+: >"$empty_selection"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "an empty selection exits 0 having run nothing" \
+  --root "$r" --suites-from "$empty_selection"
+assert_output_lacks "the empty selection runs nothing" "=== plugins/"
+
 # --- the shipped allowlist against the shipped corpus --------------------------
 #
 # Every entry in scripts/run-plugin-tests-serial.txt must name a suite that
