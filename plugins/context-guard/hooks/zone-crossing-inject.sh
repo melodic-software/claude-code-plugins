@@ -284,11 +284,21 @@ COMPACTED_FILE=""
 # anything.
 #
 # `$STATE_DIR/$SESSION.seen` is the mark, stamped with a redirection rather
-# than `touch(1)` so the steady path keeps costing zero processes, and compared
-# with `-nt`, which is a bash builtin and involves no stat(1) dialect. `-nt` is
-# true when the left file exists and the right one does not, so a session with
-# no mark yet — the first fire, or one whose last fire failed to persist —
-# never takes the skip.
+# than `touch(1)` so the steady path keeps costing zero processes. It records
+# the inputs behind the last completed resolve twice over: in its own mtime,
+# compared with `-nt`, which is a bash builtin and involves no stat(1) dialect;
+# and in one line naming which of the two OPTIONAL inputs existed, read back
+# with the `read` builtin, which starts nothing either. `-nt` is true when the
+# left file exists and the right one does not, so a session with no mark yet,
+# the first fire or one whose last fire failed to persist, never takes the skip.
+#
+# BOTH RECORDS ARE REQUIRED, because `-nt` only ever sees a file that is there
+# getting newer. Deleting zones.json restores the shipped bands and deleting the
+# compaction marker un-degrades the session, and neither move touches an mtime
+# the mtime half can read: to it a file that is gone reads exactly like one that
+# never changed. So the skip also demands that the existence flags still match,
+# and a mark carrying no readable line, an older build's stamp or a write that
+# failed after truncating, never takes the skip at all.
 #
 # A MISSING SNAPSHOT is not skippable: the `-e` test fails and the resolver
 # runs and answers for it as it always has.
@@ -306,8 +316,21 @@ if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.json" ]
   [[ ! "$HOME/.claude/context-guard/context/$SESSION.json" -nt "$SEEN_FILE" ]] &&
   [[ ! "$HOME/.claude/context-guard/zones.json" -nt "$SEEN_FILE" ]] &&
   [[ ! "$COMPACTED_FILE" -nt "$SEEN_FILE" ]]; then
-  exit 0
+  seen_flags=""
+  IFS= read -r seen_flags <"$SEEN_FILE" 2>/dev/null || :
+  zones_now=0
+  [[ -e "$HOME/.claude/context-guard/zones.json" ]] && zones_now=1
+  compacted_now=0
+  [[ -e "$COMPACTED_FILE" ]] && compacted_now=1
+  [[ "$seen_flags" == "z=$zones_now c=$compacted_now" ]] && exit 0
 fi
+
+# Read BEFORE the resolver rather than at the stamp below, because what the mark
+# records is what THIS resolve was decided on: an override created while the
+# resolver runs lands older than the mark, so recording it as present would
+# silence the first fire that could act on it.
+zones_seen=0
+[[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/zones.json" ]] && zones_seen=1
 
 # Stderr redirected on the GROUP, not inside the substitution: the resolver is
 # one process, and `$(bash … 2>/dev/null)` billed two for it. Same suppression
@@ -471,12 +494,17 @@ fi
 # now be treated as seen. Stamped HERE and nowhere earlier: a resolver that
 # failed, a reading of `unknown`, and a marker write that failed all exit above
 # this line, and all three must be RETRIED on the next fire rather than skipped
-# — the decision they were owed was never made. Truncation rather than `touch`,
-# and an empty file rather than a written one, because the mtime is the whole
-# content; a failure to stamp is ignored for the same reason a failure to skip
-# is harmless, namely that it only costs the next fire a resolve it would have
-# done anyway.
-: >"$SEEN_FILE" 2>/dev/null || :
+# — the decision they were owed was never made. A redirection rather than
+# `touch`, and one line rather than an empty file, because the mtime cannot
+# carry the other half: the two optional inputs can be REMOVED, and a removal
+# moves no mtime. The compacted flag is `degraded` rather than a fresh `-e`, for
+# the same reason the zones flag was read before the resolver: it is what the
+# decision used. A failure to stamp is ignored for the same reason a failure to
+# skip is harmless, namely that it only costs the next fire a resolve it would
+# have done anyway.
+compacted_seen=0
+[[ -n "$degraded" ]] && compacted_seen=1
+printf 'z=%s c=%s\n' "$zones_seen" "$compacted_seen" >"$SEEN_FILE" 2>/dev/null || :
 
 ((new_rank > armed_rank)) || {
   # Nothing worse than this session has already reported. Three shapes reach

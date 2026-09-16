@@ -687,6 +687,78 @@ else
   fail "retry after a resolver failure was skipped: rc=$F_RC out=${F_OUT:0:120}"
 fi
 
+# 13c. REMOVING zones.json moves the same input, and `-nt` cannot see it: a file
+# that is gone is never newer than anything. The override above is what makes
+# 60% resolve dumb, so deleting it restores the shipped bands and the session is
+# acceptable again. The mark therefore records whether each OPTIONAL input
+# existed, and the skip requires that record to still hold.
+run "$ZFH" "$ZFD" szfast
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "zones.json skip: the repeat fire under the override is silent"
+else
+  fail "zones.json skip: the fire under the override emitted: rc=$RC out=${OUT:0:120}"
+fi
+rm -f "$ZFH/.claude/context-guard/zones.json"
+run "$ZFH" "$ZFD" szfast
+# An improvement is silent by contract, so the persisted zone is the observable.
+if [[ "$(cat "$ZFD/state/szfast.zone" 2>/dev/null)" == "acceptable" ]]; then
+  ok "zones.json removed: the next fire re-resolves under the shipped bands"
+else
+  fail "a removed zones.json was skipped: zone=$(cat "$ZFD/state/szfast.zone" 2>/dev/null)"
+fi
+
+# 13d. The compaction marker has the same hole, and the degraded reading lasts
+# only as long as the marker does. A session that resolved dumb under one must
+# resolve again once it is gone, although nothing left carries an mtime newer
+# than the mark.
+CMH="$WORK/home-cmark"
+CMD="$WORK/data-cmark"
+mkdir -p "$CMD"
+write_snapshot "$CMH" scmark 10 # smart
+run "$CMH" "$CMD" scmark
+run "$CMH" "$CMD" scmark
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "compaction marker: the repeat fire before any marker is silent"
+else
+  fail "compaction marker: repeat fire emitted: rc=$RC out=${OUT:0:120}"
+fi
+# No sleep: creating the marker flips the recorded flag, so this half is settled
+# by existence parity and needs no distinguishable mtime. The removal below is
+# the same, which is the point, because an mtime race cannot decide either way.
+: >"$CMH/$CTX_REL/scmark.compacted"
+run "$CMH" "$CMD" scmark
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "compaction marker: a new marker resolves and reports the degraded zone"
+else
+  fail "compaction marker: a new marker was skipped: rc=$RC out=${OUT:0:120}"
+fi
+rm -f "$CMH/$CTX_REL/scmark.compacted"
+run "$CMH" "$CMD" scmark
+if [[ "$(cat "$CMD/state/scmark.zone" 2>/dev/null)" == "smart" ]]; then
+  ok "compaction marker removed: the next fire re-resolves undegraded"
+else
+  fail "a removed compaction marker was skipped: zone=$(cat "$CMD/state/scmark.zone" 2>/dev/null)"
+fi
+
+# 13e. A MARK WITH NO READABLE LINE IS NOT A SKIP. The line is what makes the
+# two removals above visible, so a mark left by an older build, or by a write
+# that failed after truncating, carries none and must fall through to a resolve
+# rather than inherit a skip it never earned. Truncating the mark also makes it
+# the newest of the four files, so every `-nt` test passes and the line is the
+# only thing left to refuse on.
+: >"$D/state/sfps.seen"
+run "$H" "$D" sfps
+if [[ -s "$D/state/sfps.seen" ]]; then
+  ok "mark with no line: the fire re-resolves and re-stamps the mark"
+else
+  fail "a mark with no line took the skip, so it was never re-stamped"
+fi
+if [[ "$(head -1 "$D/state/sfps.seen" 2>/dev/null)" == "z=0 c=0" ]]; then
+  ok "mark with no line: the new mark records both optional inputs as absent"
+else
+  fail "mark line is not the existence record: [$(head -1 "$D/state/sfps.seen" 2>/dev/null)]"
+fi
+
 # No resolvable state root → stay silent rather than key the last-seen zone to
 # the working directory, which would re-inject on every cd.
 write_snapshot "$WORK/nohome" snr 90
@@ -716,10 +788,11 @@ fi
 #
 # A. THE STEADY NON-CROSSING PATH — the common case, and now the unchanged-input
 #    skip: the snapshot, zones.json and the compaction marker are all older than
-#    the `.seen` mark the last resolve left, so the hook exits before the
-#    resolver. Budget: ZERO. The envelope parse is answered by hook::jq_fields'
-#    builtin parser, the mark is compared with `-nt` and stamped with a
-#    redirection, and all three are shell builtins.
+#    the `.seen` mark the last resolve left, and the mark's existence line still
+#    matches, so the hook exits before the resolver. Budget: ZERO. The envelope
+#    parse is answered by hook::jq_fields' builtin parser, the mark is compared
+#    with `-nt`, its line is read with `read`, and it is stamped with a
+#    redirection: every one of those is a shell builtin.
 # B. THE RESOLVING PATH — a fire whose snapshot has been rewritten since. Budget:
 #    1 bash : scripts/context-zone.sh, the single band authority this hook must
 #             not re-implement; its own execs are in that process, not this trace

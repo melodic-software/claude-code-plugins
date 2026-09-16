@@ -164,8 +164,12 @@ the command-position budget still runs.
 
 Three files outside the hook decide everything it does: the per-session snapshot, the optional
 `zones.json`, and the compaction marker. When none is newer than the `.seen` mark the last
-completed resolve left, the fire cannot reach a different answer, and the hook exits through
-builtins alone. The envelope parse had to become free for that to mean anything, so a payload
+completed resolve left, and the two optional ones still exist or are still absent exactly as that
+mark's own line records them, the fire cannot reach a different answer, and the hook exits through
+builtins alone. The existence line is what an mtime comparison cannot supply: a removed file is
+never newer than anything, so without it, deleting `zones.json` or the compaction marker read as
+nothing having moved. A mark carrying no readable line never takes the skip. The envelope parse had
+to become free for any of this to mean anything, so a payload
 within `hook::jq_fields`' proof ceiling is parsed by the library's builtin JSON parser, and one
 above it keeps the single here-string `jq` described below.
 
