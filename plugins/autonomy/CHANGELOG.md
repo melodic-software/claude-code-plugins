@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.14]
+
+### Changed
+
+- hooks: the Stop hook's payload-free pre-filter decides the managed-settings root by which fixed path exists rather than by asking `uname -s` which one to test, and the manifest read that names an unanchored install moves below the pre-filter. Outside a lane the hook now creates no process of its own (measured on Windows Git Bash: 6 creations to 4 for an anchored install, 8 to 4 for an unanchored one, against a 4-creation harness floor; the `$(uname -s)` alone cost 3 of them). Inside a lane the count is unchanged at 19 and the block decision is byte-identical. The trust boundary is unchanged: the candidate scan only routes, and every managed VALUE still comes from the `uname`-selected, absoluteness-asserted list, because the platform is now decided by which root-owned path exists, which a repository can no more forge than it could forge uname's answer.
+
 ## [0.23.13]
 
 ### Changed

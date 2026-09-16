@@ -91,7 +91,12 @@ source "$HOOK_DIR/lane-notify.sh"
 source "$HOOK_DIR/lane-stop-gate-lib.sh"
 _gate_root=""
 gate_plugin_root_to _gate_root "$HOOK_DIR"
-gate_resolve_install "$_gate_root" || true
+# Only the ANCHOR half of the install resolution runs here: it is pure parameter
+# expansion, and the pre-filter below needs the GATE_CONFIG_ROOT it sets to
+# locate the user settings.json. The other half — the manifest read that names
+# an unanchored (--plugin-dir) install — costs a jq process and answers a
+# question no one asks above the pre-filter, so it is deferred past it.
+gate_resolve_anchor "$_gate_root" || true
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on an older host it is empty and hook::emit_telemetry skips fail-open.
@@ -127,19 +132,23 @@ emit_tel() {
 #
 # Everything this reads is already in scope above: the two env presences, and
 # the two settings-file locators from lane-stop-gate-lib.sh — gate_user_settings_file_to,
-# which derives from the GATE_CONFIG_ROOT that gate_resolve_install establishes
-# at the top of this file, and gate_managed_settings_files_load, which depends
-# on nothing but `uname -s` and fixed absolute paths.
+# which derives from the GATE_CONFIG_ROOT that gate_resolve_anchor establishes
+# at the top of this file, and gate_managed_candidates_load, which depends on
+# nothing but `[[ -f ]]` over fixed paths.
 # Nothing here is payload-derived, so it MUST stay above the buffer — and
 # everything payload-derived (hook::require_jq, EVENT, SESSION_ID, and the
 # SubagentStop-versus-Stop discrimination) MUST stay below it (#2852).
 #
-# This is the path every interactive stop takes, so it spawns nothing but the
-# `uname -s` inside the managed-files load: the file scan is a builtin read
-# where it used to be a `grep -q` process, and the locators write into
-# variables where they used to be captured through a subshell. The loaded
-# managed list is kept for the option resolution below, which would otherwise
-# ask uname again.
+# This is the path every interactive stop takes, and it now spawns NOTHING: the
+# file scan is a builtin read where it used to be a `grep -q` process, the
+# locators write into variables where they used to be captured through a
+# subshell, and the managed-settings question is answered by testing the fixed
+# primary of every platform rather than by asking `uname -s` which one to test
+# (three process creations on this hook's Windows host: the `$( )` fork, then
+# the fork and exec of uname). The candidate scan ROUTES only. The option
+# resolution below still loads the authoritative, uname-selected list, which is
+# where every managed VALUE comes from — see the lib header for why that
+# separation is what preserves the trust boundary.
 gate_maybe_configured() {
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" ]] && return 0
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" ]] && return 0
@@ -147,8 +156,8 @@ gate_maybe_configured() {
   if gate_user_settings_file_to f && [[ -f "$f" ]]; then
     gate_file_mentions "$f" && return 0
   fi
-  gate_managed_settings_files_load
-  for f in ${GATE_MANAGED_FILES[@]+"${GATE_MANAGED_FILES[@]}"}; do
+  gate_managed_candidates_load
+  for f in ${GATE_MANAGED_CANDIDATES[@]+"${GATE_MANAGED_CANDIDATES[@]}"}; do
     [[ -n "$f" ]] || continue
     gate_file_mentions "$f" && return 0
   done
@@ -177,6 +186,13 @@ gate_file_mentions() {
   return 1
 }
 gate_maybe_configured || exit 0
+
+# Past the pre-filter: this session will be evaluated, so the deferred half of
+# the install resolution runs now. It names an UNANCHORED (--plugin-dir)
+# install from its manifest, which gate_settings_options_to needs to match a
+# pluginConfigs entry; an anchored install already has its marketplace-qualified
+# id and never reaches the jq.
+[[ -n "$GATE_CONFIG_ROOT" ]] || gate_resolve_plugin_name "$_gate_root" || true
 
 # Buffer stdin. Empty (rc 1) or timed-out (rc 2) → allow the stop (fail-open: a
 # gate that cannot read the payload must not trap the lane).

@@ -1124,6 +1124,86 @@ chmod 600 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null
 rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
 
 # ============================================================================
+# The pre-filter decides the managed-settings root by PATH, not by uname.
+# ============================================================================
+# The platform-free candidate scan is what lets the interactive default path
+# spawn nothing. It must stay a ROUTING list: filling the authoritative
+# GATE_MANAGED_FILES from it would move the highest-precedence scope off
+# `uname -s`, and on a POSIX host the Windows spelling is cwd-relative and so
+# repo-plantable. Case 38 pins the authoritative selection; this pins the
+# separation, and that the candidates are the fixed roots and nothing else.
+if (
+  # shellcheck source=lane-stop-gate-lib.sh
+  source "$STAGED_DIR/lane-stop-gate-lib.sh"
+  # shellcheck disable=SC2329 # would be invoked indirectly if the scan spawned
+  uname() {
+    printf 'STUB\n'
+    exit 1
+  }
+  gate_managed_candidates_load || exit 1
+  # The scan contributes nothing to the authoritative list.
+  ((GATE_MANAGED_FILES_LOADED == 0)) || exit 1
+  ((${#GATE_MANAGED_FILES[@]} == 0)) || exit 1
+  # Whatever exists on this host, every candidate is under one of the three
+  # fixed roots — nothing derived from the environment or the cwd.
+  for c in ${GATE_MANAGED_CANDIDATES[@]+"${GATE_MANAGED_CANDIDATES[@]}"}; do
+    case "$c" in
+    "${GATE_MANAGED_PRIMARY_DARWIN%/*}"/* | "${GATE_MANAGED_PRIMARY_WINDOWS%/*}"/* | "${GATE_MANAGED_PRIMARY_LINUX%/*}"/*) ;;
+    *) exit 1 ;;
+    esac
+  done
+  exit 0
+); then
+  ok "the managed-settings candidate scan routes only: it never fills the uname-selected authoritative list"
+else
+  fail "the candidate scan leaked into GATE_MANAGED_FILES or emitted a path outside the fixed managed roots"
+fi
+
+# --- The interactive default path launches NO external command --------------
+# The strace case below proves the count where ptrace is available; this proves
+# the same property portably, and is the one that runs on the Windows host the
+# gate is tuned for (where a `$(uname -s)` cost three process creations). Every
+# external name the gate could reach for is replaced by a stub that records
+# itself and exits 99, so a regression names the offender instead of drifting a
+# number.
+NOSPAWN="$(mktemp -d "$WORK/nospawn.XXXXXX")"
+NOSPAWN_MARK="$WORK/nospawn-launched.txt"
+# The stub body uses NO external command: `basename` is itself on this list, so
+# a stub that called one would recurse instead of reporting.
+for t in uname realpath readlink cygpath dirname basename jq grep sed tr cat awk date cksum find wc; do # portability-ok: a list of stub NAMES, not a date -d invocation
+  # shellcheck disable=SC2016 # $0 is the STUB's own argument, expanded when it runs
+  printf '#!/bin/sh\nprintf "%%s\\n" "$0" >>"%s"\nexit 99\n' "$NOSPAWN_MARK" >"$NOSPAWN/$t"
+  chmod +x "$NOSPAWN/$t"
+done
+rm -f "$SETTINGS" "$NOSPAWN_MARK"
+NOSPAWN_OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
+  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false HOOK_TELEMETRY_SINK="" \
+    PATH="$NOSPAWN" "$BASH" "$HOOK" 2>&1)"
+NOSPAWN_RC=$?
+if [[ $NOSPAWN_RC -eq 0 && -z "$NOSPAWN_OUT" ]]; then
+  ok "PATH-shim: the interactive default path still exits 0 silently"
+else
+  fail "PATH-shim: default path (rc=$NOSPAWN_RC out=$NOSPAWN_OUT)"
+fi
+if [[ -s "$NOSPAWN_MARK" ]]; then
+  fail "PATH-shim: the default path launched $(tr '\n' ' ' <"$NOSPAWN_MARK") — it must launch nothing"
+else
+  ok "PATH-shim: the default path launches no external command at all"
+fi
+
+# --- An ENABLED session still resolves its config through the same path -----
+# The saving must come from deferring work the default path cannot use, never
+# from skipping a lookup a lane needs: a trusted-enabled session still blocks.
+write_settings true
+OUT="$(run "$(build_input Stop "no token" false)")"
+if is_block "$OUT"; then ok "an enabled lane still blocks after the pre-filter lost uname"; else fail "the pre-filter change lost the enabled lane's block: $OUT"; fi
+
+# ============================================================================
 # #3515 — the per-turn PROCESS-CREATION budget, proven by strace.
 # ============================================================================
 # This hook fires on EVERY Stop of every session, gated or not, so its cost on
@@ -1137,11 +1217,13 @@ rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
 # (180-2,841 ms each), so the count that binds is this one.
 #
 # Two paths are traced from the staged install:
-#   default (no gate footprint anywhere): EXACTLY 1 creation and 1 launch, the
-#     `uname -s` the managed-settings platform selection rests on (its trust
-#     primitive; $OSTYPE is a variable a repo env block can set). Everything
-#     else this path paid was the hook's own: a subshell per path helper and a
-#     grep per settings file.
+#   default (no gate footprint anywhere): EXACTLY 0 creations and 0 launches.
+#     The last one was the `uname -s` the managed-settings platform selection
+#     rests on; the pre-filter now tests the fixed primary of every platform
+#     with `[[ -f ]]` instead of asking which one to test, and the authoritative
+#     uname-selected load has moved below the pre-filter with the rest of the
+#     evaluated path. Everything else this path pays is builtin: a variable
+#     write per path helper and a read loop per settings file.
 #   enabled (user settings, first stop, no signal → block): a CEILING of 10
 #     creations and 5 launches. This hook's own share is 6 creations: the
 #     payload jq pass (3: process substitution, printf writer, jq),
@@ -1187,15 +1269,15 @@ if command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve 
   if trace_hook "$(build_input Stop "no token" false)"; then
     ok "strace: the interactive default path was traced"
     if [[ -z "$TRACE_OUT" ]]; then ok "strace: the traced default path stayed silent (it is the real default path)"; else fail "strace: the traced default path emitted output: $TRACE_OUT"; fi
-    if [[ "$TRACE_CREATIONS" == "1" ]]; then
-      ok "strace: the default path creates exactly 1 process"
+    if [[ "$TRACE_CREATIONS" == "0" ]]; then
+      ok "strace: the default path creates no process at all"
     else
-      fail "strace: default path creates $TRACE_CREATIONS processes, budget is 1 (launches: $TRACE_PROGS)"
+      fail "strace: default path creates $TRACE_CREATIONS processes, budget is 0 (launches: $TRACE_PROGS)"
     fi
-    if [[ "$TRACE_PROGS" == "uname " ]]; then
-      ok "strace: the default path launches only uname"
+    if [[ -z "$TRACE_PROGS" ]]; then
+      ok "strace: the default path launches nothing"
     else
-      fail "strace: default path launched '$TRACE_PROGS', expected only uname"
+      fail "strace: default path launched '$TRACE_PROGS', expected nothing"
     fi
   else
     fail "strace: no usable trace captured for the default path"
