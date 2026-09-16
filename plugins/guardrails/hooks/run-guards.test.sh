@@ -69,8 +69,8 @@ stub lib.sh 'printf "ps=%s\n" "${_GUARDRAILS_PS_COMMAND_LOADED:-unset}" >>"'"$SE
 stub dirname.sh 'printf "%s %s\n" "$(type -t dirname)" "$(dirname /foo)" >>"'"$SEEN"'"'
 # Raw documents (no library call) so the no-jq merge fallback is exercised on
 # the shapes it has to recognise, not on what hook::emit_channels happens to build.
-stub deny.sh 'printf "%s\n" "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"stub deny\"}}"'
-stub ask.sh 'printf "%s\n" "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\": \"ask\"}}"'
+stub deny.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"stub deny\"}}"'
+stub ask.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\": \"ask\"}}"'
 
 PAYLOAD=$(jq -n '{session_id:"s-1",tool_name:"Bash",cwd:"/x",tool_input:{command:"git status --short"}}')
 
@@ -255,12 +255,14 @@ bare_guard_rc=0
 (cd "$HOOK_DIR" && bash block-no-verify.sh <<<"$PAYLOAD" >/dev/null) || bare_guard_rc=$?
 assert_exit "bare block-no-verify.sh from hooks/ exits 0" 0 "$bare_guard_rc"
 
-# --- benign Bash lane: no dirname/sed exec on the dispatched hot path ----------
+# --- benign Bash lane: no exec and no fork on the dispatched hot path ---------
 # 0.32.6: every always-on Bash guard used `source "$(dirname …)/hook-utils.sh"`
 # and the dispatcher copied hook::jq_fields through sed. Those were 7 dirname
 # execs plus one sed on a benign `git status --short` (flag-commit-pr-skill-bypass
-# is default-off and exits before source). PATH shims count execs; function
-# forks are invisible to them, which is the same instrument as spawn-census.sh.
+# is default-off and exits before source). The one jq that remained went with
+# the library's builtin field parser. PATH shims count execs; function forks
+# are invisible to them, which is the same instrument as spawn-census.sh, so
+# the fork count is pinned separately below through BASHPID in the xtrace.
 SHIM="$TEST_TMPDIR/spawn-shim"
 mkdir -p "$SHIM"
 SPAWN_LOG="$SHIM/spawns.log"
@@ -280,18 +282,25 @@ if [[ -x "$SHIM/dirname" && -x "$SHIM/sed" && -x "$SHIM/jq" ]]; then
     flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
     block-convention-violation.sh block-windows-drive-tmp.sh \
     block-exported-msys-pathconv.sh <<<"$PAYLOAD" >/dev/null
-  assert_eq "benign Bash dispatcher spends one jq and neither dirname nor sed" "jq" "$(cat "$SPAWN_LOG")"
+  assert_eq "benign Bash dispatcher spends no jq, dirname or sed" "" "$(cat "$SPAWN_LOG")"
 fi
-DISPATCH_XTRACE=$(bash -x "$DISPATCH" --lib lib/powershell/ps-command.sh \
+DISPATCH_XTRACE=$(PS4='+PID=$BASHPID ' bash -x "$DISPATCH" --lib lib/powershell/ps-command.sh \
   block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh \
   flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh \
   block-convention-violation.sh block-windows-drive-tmp.sh \
   block-exported-msys-pathconv.sh <<<"$PAYLOAD" 2>&1 >/dev/null) || true
 assert_absent "benign Bash dispatcher never sources ps-command.sh" \
   "$DISPATCH_XTRACE" "ps-command.sh"
+# Every traced command ran under ONE BASHPID: no guard ran in a subshell, and
+# no helper on the path forked for a capture. Every distinct PID in the trace
+# is a process creation on Windows Git Bash.
+assert_eq "benign Bash dispatcher forks no subshell (one BASHPID in the xtrace)" \
+  "1" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
 DISPATCH_SRC=$(cat "$DISPATCH")
-assert_absent "dispatcher copies jq_fields without a sed pipeline" "$DISPATCH_SRC" '| sed'
-assert_contains "dispatcher copies jq_fields via parameter expansion" "$DISPATCH_SRC" 'hook::jq_fields_uncached ()'
+assert_absent "dispatcher does not copy the library's jq_fields (the lib names its uncached form)" \
+  "$DISPATCH_SRC" 'declare -f'
+assert_absent "dispatcher sources no guard in a command substitution" \
+  "$DISPATCH_SRC" '$(source'
 for g in block-no-verify block-dangerous-git block-hook-bypass \
   flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
@@ -380,6 +389,85 @@ run "$PAYLOAD" "$TEST_TMPDIR/nope.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "missing guard surfaces as rc 1" 1 "$RC"
 assert_contains "missing guard is named" "$ERR" "guard not found"
 assert_eq "the other guard still ran" $'git status --short\nBash' "$(cat "$SEEN")"
+
+# --- in-process chain: a guard's exit ends the guard, never the dispatcher ---
+# The guards are sourced into the dispatcher's own shell, so `exit` is a
+# function there. These pin the shapes that function must get right: an exit
+# from inside nested functions, an exit that runs in a real subshell (which
+# must end that subshell only), a guard that falls off its end, `exit` with no
+# argument, and a guard that dies of a hard error with its boundary installed,
+# once and twice in one event.
+stub nested.sh 'g() { echo nested >>"'"$SEEN"'"; exit 2; }
+f() { g; echo NOTREACHED >>"'"$SEEN"'"; }
+f
+echo NOTREACHED2 >>"'"$SEEN"'"'
+run "$PAYLOAD" "$TEST_TMPDIR/nested.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "exit from a nested function ends that guard with its status" 2 "$RC"
+assert_eq "nothing after a nested exit runs, and the next guard still does" \
+  $'nested\ngit status --short\nBash' "$(cat "$SEEN")"
+
+stub subexit.sh 'v=$(exit 5); printf "sub=%s\n" "$?" >>"'"$SEEN"'"
+( exit 6 ); printf "grp=%s\n" "$?" >>"'"$SEEN"'"
+echo x | { read -r _; exit 7; }; printf "pipe=%s\n" "$?" >>"'"$SEEN"'"
+exit 0'
+run "$PAYLOAD" "$TEST_TMPDIR/subexit.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "exit inside a subshell ends the subshell only" 0 "$RC"
+assert_eq "subshell exits keep their status and run the chain nowhere else" \
+  $'sub=5\ngrp=6\npipe=7\ngit status --short\nBash' "$(cat "$SEEN")"
+
+stub fall.sh 'echo fall >>"'"$SEEN"'"; false'
+run "$PAYLOAD" "$TEST_TMPDIR/fall.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "a guard that falls off its end is recorded on its last status" 1 "$RC"
+assert_eq "the guard after a fall-through still ran" $'fall\ngit status --short\nBash' "$(cat "$SEEN")"
+
+stub noarg.sh 'false; exit'
+run "$PAYLOAD" "$TEST_TMPDIR/noarg.sh"
+assert_exit "exit with no argument carries the last command's status" 1 "$RC"
+
+hard_stub() { # <name> <posture>: a guard with its boundary that dies of an unbound variable
+  stub "$1" 'source "'"$HOOK_DIR"'/abort-boundary.sh"
+guard::abort_boundary '"${1%.sh}"' PreToolUse '"$2"' 0 2
+echo '"${1%.sh}"' >>"'"$SEEN"'"
+: "${RUN_GUARDS_TEST_UNBOUND?forced abort}"
+echo NOTREACHED >>"'"$SEEN"'"'
+}
+hard_stub hard.sh open
+hard_stub hard2.sh open
+hard_stub hardc.sh closed
+run "$PAYLOAD" "$TEST_TMPDIR/hard.sh" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "hard error: the guards after it still run and a block still wins" 2 "$RC"
+assert_contains "hard error: the boundary names the guard on stderr" "$ERR" "guardrails hard: guard did not run"
+assert_eq "hard error: the later guards ran once each" $'hard\ngit status --short\nBash' "$(cat "$SEEN")"
+assert_contains "hard error: the notice document is emitted" "$(jq -r '.systemMessage' <<<"$OUT")" "guardrails hard:"
+run "$PAYLOAD" "$TEST_TMPDIR/hard.sh" "$TEST_TMPDIR/hard2.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "two hard errors: the open posture exits 0" 0 "$RC"
+assert_eq "two hard errors: exactly one JSON document on stdout" "1" "$(jq -s 'length' <<<"$OUT")"
+two_hard=$(jq -r '.systemMessage' <<<"$OUT")
+assert_contains "two hard errors: the first notice is in the merged document" "$two_hard" "guardrails hard:"
+assert_contains "two hard errors: the second notice is in the merged document" "$two_hard" "guardrails hard2:"
+assert_eq "two hard errors: every guard ran once" $'hard\nhard2\ngit status --short\nBash' "$(cat "$SEEN")"
+run "$PAYLOAD" "$TEST_TMPDIR/hardc.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "hard error, closed posture: denies" 2 "$RC"
+assert_contains "hard error, closed posture: the fail-closed line is on stderr" "$ERR" "fail-closed"
+assert_silent "hard error, closed posture: no stdout document" "$OUT"
+assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit status --short\nBash' "$(cat "$SEEN")"
+
+# Two real guards walk the same alias chain in one process. The alias memo in
+# hook::git_alias_admit is per invocation: a memo hit means "already analyzed,
+# skip". Left armed from block-dangerous-git's walk, it answered
+# block-noncanonical-commit's walk of the same chain and that guard's
+# --config-env refusal never fired. The dispatcher resets the analysis state
+# before each guard, and this pins that both reasons reach stderr, as they did
+# when each guard had its own process.
+ALIAS_CMD='git -c "alias.sh=!git --config-env=alias.c=AV c --allow-empty -m x" sh'
+alias_alone_rc=0
+alias_alone_err=$(bash "$HOOK_DIR/block-noncanonical-commit.sh" <<<"$(command_json "$ALIAS_CMD")" 2>&1 >/dev/null) || alias_alone_rc=$?
+assert_exit "alias chain: block-noncanonical-commit alone denies" 2 "$alias_alone_rc"
+run "$(command_json "$ALIAS_CMD")" block-dangerous-git.sh block-noncanonical-commit.sh
+assert_exit "alias chain: dispatched pair denies" 2 "$RC"
+assert_contains "alias chain: the first guard's reason is on stderr" "$ERR" "block_dangerous_git_enabled"
+assert_contains "alias chain: the second guard's reason is on stderr too (its memo was reset)" \
+  "$ERR" "$(head -1 <<<"$alias_alone_err")"
 
 # --- a real guard decides the same inside the dispatcher as alone ------------
 bypass=$(command_json 'git commit --no-verify -m x')

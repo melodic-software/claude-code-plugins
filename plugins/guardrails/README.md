@@ -403,6 +403,27 @@ out of scope until such a signal exists.
 
 ### Hook budget accounting
 
+**0.34.0, the in-process guard chain.** 2026-09-15, Windows 11 + Git Bash
+(`usr\bin\bash.exe` as the hook shell), host idle. Process creations counted
+exactly with a Windows job object around the harness's own invocation
+(`bash -c "<hooks.json command>"`, PreToolUse payload on stdin), which counts
+every fork and exec alike: on this host every command substitution is a
+process, and an external command is two (the fork, then Cygwin's exec). Chain
+of eight Bash guards, benign `true`: creations **23 -> 3**, isolated p50
+**880 ms -> 297 ms** (n=5). The three that remain are the harness's `bash -c`,
+the `env` its shebang goes through, and bash itself: the guards spawn nothing.
+Same chain, PowerShell `exit 0`: **100 -> 80** creations, **3.3 s -> 2.4 s**;
+the eighty are the `$(…)` captures and `printf | sed` pipelines inside
+`lib/powershell/ps-command.sh`, which is the next cut. What was removed: the
+eight isolation subshells (the guards are sourced into the dispatcher's shell
+and `exit` is a function there), the `$(declare -f)` copy of `hook::jq_fields`,
+the `printf | jq` process substitution that primed the fields (the library now
+proves the common payload's fields with builtins and runs jq only when it
+cannot), and the seven telemetry-subject captures. Decisions: byte-identical
+rc, stdout and stderr against 0.33.11 over the perf baseline's 17-command
+corpus in both tool modes (34 cases) and over every command harvested from the
+eight guard suites.
+
 **0.32.20, forks with no exec in `block-dangerous-git`.** 2026-09-06, Linux CI
 host. A PATH shim counts execs, and a fork that never execs is invisible to
 it. On every Bash and PowerShell call this guard created three such
