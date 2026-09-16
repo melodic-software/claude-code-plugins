@@ -55,11 +55,21 @@
 # naming EXIT in a registered hook or in a library it sources; this file is the
 # only one allowed to touch it. No hook needs exit-time work today (each is
 # builtins plus one jq read, nothing to clean up). The supported way for one
-# that does is to chain through this library, not around it: add a chain slot
-# here that guard::_abort_on_exit calls before it decides (the chained
-# function under the same handler discipline: builtins only, never exits,
-# never touches the trap), with a suite case beside the others, in the same
-# change. A release on purpose goes through guard::abort_boundary_release.
+# that does is to chain through this library, not around it: fill the chain slot
+# below (_GAB_CONTINUE) that guard::_abort_on_exit calls before it decides, the
+# chained function under the same handler discipline (builtins only, never
+# exits, never touches the trap), with a suite case beside the others, in the
+# same change. A release on purpose goes through guard::abort_boundary_release.
+#
+# run-guards.sh is the one documented exception to that discipline, and it is
+# an exception because it is not a hook's exit-time work: its
+# run_guards::guard_died is the DISPATCHER settling a dead guard and then
+# finishing the run the process still owes, so it forks a subshell for the
+# guards left, spawns jq to merge their documents, and ends at `builtin exit`
+# without returning. Nothing is left for the handler to decide, which is why
+# the slot may swallow control here and nowhere else. Any other consumer keeps
+# the discipline above: a chained function that RETURNS, so that
+# guard::_abort_on_exit still settles the status and exits.
 #
 # Under run-guards.sh the guards are sourced into the dispatcher's own shell,
 # and `exit` there is a function of the dispatcher's. A guard that ends through
@@ -123,8 +133,11 @@ guard::_abort_json_escape_to() {
 # and this handler is what runs. With a function name here the handler hands
 # that guard's status to it instead of deciding the process's fate itself; the
 # dispatcher settles the guard's boundary, runs the guards still owed, and
-# exits on the aggregate. The function must not return. Empty (every guard
-# run alone), the handler decides as documented above.
+# exits on the aggregate. run-guards.sh is the one consumer that does not
+# return from here, and the header above says why it may; a chained function
+# that DOES return hands control back and the handler settles the status as
+# documented there. Empty (every guard run alone), the handler decides as
+# documented above.
 _GAB_CONTINUE=""
 
 guard::_abort_on_exit() {
