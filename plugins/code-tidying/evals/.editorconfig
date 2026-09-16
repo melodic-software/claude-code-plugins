@@ -1,0 +1,9 @@
+# Eval fixtures are frozen corpus, not source: real sections copied byte for byte
+# at a pinned commit, plus invented samples whose whitespace is part of what the
+# graders measure. A Makefile recipe needs its tab, and normalizing any of it
+# would silently change what the suite tests.
+
+[*]
+indent_style = unset
+indent_size = unset
+trim_trailing_whitespace = false
