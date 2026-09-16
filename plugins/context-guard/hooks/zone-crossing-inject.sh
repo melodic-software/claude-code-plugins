@@ -92,6 +92,21 @@
 # per-tool dedupe needed; UserPromptSubmit covers turns that begin without a
 # prior batch (fresh prompt after idle).
 #
+# UNCHANGED INPUT, NO WORK. Three files outside this hook decide everything
+# below: the per-session snapshot the statusline tee writes, the optional
+# zones.json override, and the compaction marker. When none of them is newer
+# than the mark left by the last completed resolve, this fire would repeat that
+# resolve's decision exactly, and that decision is already persisted — so the
+# hook exits before starting a single process. A third marker,
+# `$STATE_DIR/$SESSION.seen`, carries the mark in its mtime alone, stamped with
+# a redirection and compared with `-nt`, both builtins. The mark moves only
+# after a resolve that persisted, so a resolver failure, an `unknown` reading
+# and a failed marker write each leave it where it was and are retried. The
+# residual is stated at the gate itself: a snapshot written DURING a resolve is
+# marked as seen and its crossing waits for the next write, while a spurious
+# injection is impossible in the other direction, because skipping only ever
+# chooses silence.
+#
 # State root: ${CLAUDE_PLUGIN_DATA} (plugin-private runtime state, NOT part
 # of the reader contract seam), falling back to ~/.claude/context-guard/state
 # when the harness doesn't export it.
@@ -155,61 +170,76 @@ RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 INPUT=""
 cg::read_payload_to INPUT || exit 0
 
-# ONE jq for the whole payload rather than one per field. hook::jq_field spawns
-# a jq per call and this hook needs two fields; the payload is read once and
-# both fields come back as two lines in a FIXED ORDER (event, then session). An
-# absent field yields an empty line, which is what a per-field `// empty` plus
-# non-empty test yields too. `gsub("\r";"")` is carried over from
-# hook::jq_field for the Windows carriage-return case.
+# ONE PASS over the whole envelope, and through the shared helper rather than a
+# jq of this hook's own. hook::jq_fields answers `.hook_event_name` and
+# `.session_id` — top-level keys carrying plain strings — from its BUILTIN JSON
+# parser, so an ordinary envelope is parsed with no process at all. That is
+# what lets the unchanged-snapshot skip below exit having started nothing: the
+# skip still needs the session id, so a parse that cost a process would put a
+# floor of one under every fire.
+#
+# THE SIZE TEST IS NOT A STYLE CHOICE. The helper falls back to jq whenever it
+# cannot PROVE the builtin answer is jq's, and one of those cases is a payload
+# past the parser's ceiling — which a PostToolBatch payload carrying every
+# serialized tool result clears routinely. That fallback reads through a
+# process substitution, and measured on this repo's Windows host it costs FOUR
+# process creations against TWO for the single here-string jq below. So the
+# oversize arm keeps that jq, and only the small arm — where the helper is
+# free — goes through the helper. The branch is what makes this change cost
+# nothing on any payload instead of buying the small case at the large one's
+# expense.
+#
+# 65536 mirrors hook::_json_split's own proof ceiling. Drift is benign in both
+# directions: a payload the helper would have proven merely pays the here-string
+# jq, and a payload past a ceiling this test missed reaches the helper, which
+# refuses it and falls back to the same jq through a costlier route. Neither
+# changes an answer.
+#
+# `<<<` IS NOT A PIPE, and that is the oversize arm's known cost. Bash 5.1+
+# delivers a here-string through a pipe only while it fits the pipe buffer; at
+# or above 64KiB it spills to a temp file (`/tmp/sh-thd.*`) and hands jq that
+# fd, which Defender then scans on the very hosts this hook is tuned for. The
+# trade stands because a process creation on those hosts is the larger cost by
+# an order of magnitude; the plugin README's hook-cost section carries the
+# measured counts.
+#
+# REDIRECTIONS GO ON THE GROUP, NOT INSIDE THE SUBSTITUTION — see the
+# REDIRECTION PLACEMENT note at the top of this file. Inside, `<<<` and
+# `2>/dev/null` each defeat the fork elision and bill a second process for one
+# jq. What jq sees is unchanged either way: the group's stderr redirect
+# suppresses exactly what jq's own did, stdout is still captured, a nonzero jq
+# status still propagates out of the group, and jq parses JSON, so the newline
+# `<<<` appends changes nothing.
 #
 # Not regex-extracted: a PostToolBatch payload carries every serialized tool
 # result, so a pattern for these fields would be matching against tool output
 # rather than against the envelope. post-compact-mark.sh's regex path is safe
-# for its own payload shape; this one keeps jq as the parser.
+# for its own payload shape; this one keeps a real parser.
 #
-# REDIRECTIONS GO ON THE GROUP, NOT INSIDE THE SUBSTITUTION — see the
-# REDIRECTION PLACEMENT note at the top of this file. `printf '%s' "$INPUT" |
-# jq` cost three process creations to run one jq: the subshell the substitution
-# opens, a child for the pipeline's left-hand side (a `printf` BUILTIN — a whole
-# process to hand over a string this shell already holds), and the child that
-# becomes jq. Hoisting `<<<` and `2>/dev/null` onto the enclosing group leaves
-# jq a bare simple command inside the substitution, and the extraction costs
-# one process instead of three.
-#
-# What jq sees is unchanged: the group's stderr redirect suppresses exactly what
-# jq's own did, the substitution still captures stdout, a nonzero jq status still
-# propagates out of the group, and jq parses JSON, so the newline `<<<` appends
-# changes nothing.
-#
-# ONE THING DOES CHANGE, and it is disclosed rather than buried. `<<<` is not a
-# pipe. Bash 5.1+ delivers a here-string through a pipe only while it fits in
-# the pipe buffer; at or above 64KiB it spills the string to a temp file
-# (`/tmp/sh-thd.*`, measured here: 60,000 bytes stays in the pipe, 65,536 opens
-# the file) and hands jq that fd. The `printf | jq` form this replaced never
-# touched disk at any size. Output is byte-identical either way, but a
-# PostToolBatch payload carrying every serialized tool result routinely clears
-# 64KiB, so a large fire now writes and reads a temp file it did not before.
-# That is a real cost on the very hosts this change is for: #3508's Windows
-# machines run Defender real-time protection, which scans temp-file writes, and
-# the 0.4.8 measurement in the plugin README already attributes 22.0 s on that
-# platform to it. The trade taken is one guaranteed process creation per fire
-# against disk I/O on the fires that exceed the buffer; the README's hook-cost
-# section states it. Feeding the hook's stdin straight to jq would avoid both,
-# but that means giving up payload.sh's bounded drain loop — see the note there.
-{ FIELDS=$(jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")'); } 2>/dev/null <<<"$INPUT"
-# jq writes CRLF line endings on this host, and command substitution strips only
-# the TRAILING one, so with two lines the separator's carriage return survives
-# into the split and would ride along on the event name. The single-field helper
-# never saw this because its one and only line ending was the trailing one.
-# gsub above has already removed any CR belonging to a field's value, so nothing
-# left here is anything but jq's own terminators.
-FIELDS=${FIELDS//$'\r'/}
-EVENT=${FIELDS%%$'\n'*}
-SESSION=${FIELDS#*$'\n'}
-# No newline in FIELDS means jq emitted at most one line, so there is no
-# session field to take, and the expansion above would otherwise hand back the
-# event name.
-[[ "$SESSION" != "$FIELDS" ]] || SESSION=""
+# The helper arm is guarded by `if` rather than `|| exit 0`: on rc 1 (no jq) and
+# rc 2 (a payload jq rejects) it leaves HOOK_JQ_FIELDS EMPTY, and indexing that
+# under `set -u` would abort where this hook must fail open. An absent field
+# arrives as the empty string on both arms, which is what a per-field
+# `// empty` plus a non-empty test yielded too.
+EVENT=""
+SESSION=""
+if ((${#INPUT} > 65536)); then
+  { FIELDS=$(jq -r '(.hook_event_name // ""), (.session_id // "") | gsub("\r";"")'); } 2>/dev/null <<<"$INPUT"
+  # jq writes CRLF line endings on this host, and command substitution strips
+  # only the TRAILING one, so with two lines the separator's carriage return
+  # survives into the split and would ride along on the event name. gsub above
+  # has already removed any CR belonging to a field's value.
+  FIELDS=${FIELDS//$'\r'/}
+  EVENT=${FIELDS%%$'\n'*}
+  SESSION=${FIELDS#*$'\n'}
+  # No newline in FIELDS means jq emitted at most one line, so there is no
+  # session field to take, and the expansion above would otherwise hand back
+  # the event name.
+  [[ "$SESSION" != "$FIELDS" ]] || SESSION=""
+elif hook::jq_fields "$INPUT" '.hook_event_name' '.session_id'; then
+  EVENT="${HOOK_JQ_FIELDS[0]}"
+  SESSION="${HOOK_JQ_FIELDS[1]}"
+fi
 [[ -n "$EVENT" ]] || EVENT="PostToolBatch"
 hook::require_jq "$EVENT" "context-guard" "$INPUT"
 
@@ -217,6 +247,90 @@ hook::require_jq "$EVENT" "context-guard" "$INPUT"
 # Same character class the tee/resolver enforce — also path containment for
 # the state file below.
 [[ "$SESSION" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
+
+# silent-skip-ok: with neither CLAUDE_PLUGIN_DATA nor HOME there is no
+# resolvable state root, and a `.`-relative fallback would key the last-seen
+# zone to whatever directory the hook happened to start in — the once-per-
+# transition contract cannot hold against state that moves with the working
+# directory, so the hook would re-inject on every cd. Same doctrine
+# post-compact-mark.sh applies to its marker path.
+#
+# Resolved AHEAD of the resolver because the skip below is keyed on a file in
+# this directory. Nothing else moves with it: the resolver has no side effects,
+# so a session with no state root now exits without starting it rather than
+# after — same silence, one process less.
+if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+  STATE_DIR="$CLAUDE_PLUGIN_DATA/state"
+elif [[ -n "${HOME:-}" ]]; then
+  STATE_DIR="$HOME/.claude/context-guard/state"
+else
+  exit 0
+fi
+STATE_FILE="$STATE_DIR/$SESSION.zone"
+ARMED_FILE="$STATE_DIR/$SESSION.armed"
+SEEN_FILE="$STATE_DIR/$SESSION.seen"
+COMPACTED_FILE=""
+[[ -n "${HOME:-}" ]] && COMPACTED_FILE="$HOME/.claude/context-guard/context/$SESSION.compacted"
+
+# THE UNCHANGED-INPUT SKIP. Everything below this line reads exactly three
+# things the world outside this hook can move: the per-session snapshot the
+# statusline tee writes, the optional zones.json override, and the compaction
+# marker. (The zone words themselves also depend on wall-clock time, but only
+# through the resolver's staleness window, whose one outcome is `unknown` — and
+# `unknown` is silent and leaves state untouched, which is exactly what this
+# skip does.) So when none of the three has moved since the last completed
+# resolve, this fire cannot reach a different decision than the last one did,
+# and the last one already persisted its markers. Exit before starting
+# anything.
+#
+# `$STATE_DIR/$SESSION.seen` is the mark, stamped with a redirection rather
+# than `touch(1)` so the steady path keeps costing zero processes. It records
+# the inputs behind the last completed resolve twice over: in its own mtime,
+# compared with `-nt`, which is a bash builtin and involves no stat(1) dialect;
+# and in one line naming which of the two OPTIONAL inputs existed, read back
+# with the `read` builtin, which starts nothing either. `-nt` is true when the
+# left file exists and the right one does not, so a session with no mark yet,
+# the first fire or one whose last fire failed to persist, never takes the skip.
+#
+# BOTH RECORDS ARE REQUIRED, because `-nt` only ever sees a file that is there
+# getting newer. Deleting zones.json restores the shipped bands and deleting the
+# compaction marker un-degrades the session, and neither move touches an mtime
+# the mtime half can read: to it a file that is gone reads exactly like one that
+# never changed. So the skip also demands that the existence flags still match,
+# and a mark carrying no readable line, an older build's stamp or a write that
+# failed after truncating, never takes the skip at all.
+#
+# A MISSING SNAPSHOT is not skippable: the `-e` test fails and the resolver
+# runs and answers for it as it always has.
+#
+# THE ONE FAILURE MODE, stated. The mark is stamped AFTER the resolve
+# completes, so a snapshot write that lands between the resolver's read and
+# that stamp is recorded as already seen and its crossing is not reported. The
+# window is the resolve itself, not an mtime tick. The statusline writes the
+# snapshot again on its next render, so the next write catches the crossing up;
+# the cost of a miss is a report one fire late, never a report that never
+# comes. The converse cannot happen: skipping only ever chooses silence, so no
+# arrangement of timestamps can manufacture an injection that the full path
+# would not have made.
+if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.json" ]] &&
+  [[ ! "$HOME/.claude/context-guard/context/$SESSION.json" -nt "$SEEN_FILE" ]] &&
+  [[ ! "$HOME/.claude/context-guard/zones.json" -nt "$SEEN_FILE" ]] &&
+  [[ ! "$COMPACTED_FILE" -nt "$SEEN_FILE" ]]; then
+  seen_flags=""
+  IFS= read -r seen_flags <"$SEEN_FILE" 2>/dev/null || :
+  zones_now=0
+  [[ -e "$HOME/.claude/context-guard/zones.json" ]] && zones_now=1
+  compacted_now=0
+  [[ -e "$COMPACTED_FILE" ]] && compacted_now=1
+  [[ "$seen_flags" == "z=$zones_now c=$compacted_now" ]] && exit 0
+fi
+
+# Read BEFORE the resolver rather than at the stamp below, because what the mark
+# records is what THIS resolve was decided on: an override created while the
+# resolver runs lands older than the mark, so recording it as present would
+# silence the first fire that could act on it.
+zones_seen=0
+[[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/zones.json" ]] && zones_seen=1
 
 # Stderr redirected on the GROUP, not inside the substitution: the resolver is
 # one process, and `$(bash … 2>/dev/null)` billed two for it. Same suppression
@@ -229,7 +343,7 @@ hook::require_jq "$EVENT" "context-guard" "$INPUT"
 # reading and including unknown, because the marker IS data even when the
 # snapshot has none.
 degraded=""
-if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.compacted" ]]; then
+if [[ -n "$COMPACTED_FILE" && -e "$COMPACTED_FILE" ]]; then
   degraded="yes"
   zone="dumb"
 fi
@@ -238,21 +352,6 @@ fi
 # transition, and a later real reading must compare against the last REAL one.
 [[ "$zone" == "smart" || "$zone" == "acceptable" || "$zone" == "dumb" ]] || exit 0
 
-# silent-skip-ok: with neither CLAUDE_PLUGIN_DATA nor HOME there is no
-# resolvable state root, and a `.`-relative fallback would key the last-seen
-# zone to whatever directory the hook happened to start in — the once-per-
-# transition contract cannot hold against state that moves with the working
-# directory, so the hook would re-inject on every cd. Same doctrine
-# post-compact-mark.sh applies to its marker path.
-if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
-  STATE_DIR="$CLAUDE_PLUGIN_DATA/state"
-elif [[ -n "${HOME:-}" ]]; then
-  STATE_DIR="$HOME/.claude/context-guard/state"
-else
-  exit 0
-fi
-STATE_FILE="$STATE_DIR/$SESSION.zone"
-ARMED_FILE="$STATE_DIR/$SESSION.armed"
 # One reader for both markers. It sets REPLY (the raw bytes on disk) and
 # REPLY_NORM (the normalized zone word) rather than printing them, the same
 # reason rank/unrank below do: a command substitution forks a subshell, and
@@ -390,6 +489,22 @@ if [[ -n "$persist_failed" ]]; then
     '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed"}'
   exit 0
 fi
+
+# The resolve completed and both markers hold it, so the inputs behind it may
+# now be treated as seen. Stamped HERE and nowhere earlier: a resolver that
+# failed, a reading of `unknown`, and a marker write that failed all exit above
+# this line, and all three must be RETRIED on the next fire rather than skipped
+# — the decision they were owed was never made. A redirection rather than
+# `touch`, and one line rather than an empty file, because the mtime cannot
+# carry the other half: the two optional inputs can be REMOVED, and a removal
+# moves no mtime. The compacted flag is `degraded` rather than a fresh `-e`, for
+# the same reason the zones flag was read before the resolver: it is what the
+# decision used. A failure to stamp is ignored for the same reason a failure to
+# skip is harmless, namely that it only costs the next fire a resolve it would
+# have done anyway.
+compacted_seen=0
+[[ -n "$degraded" ]] && compacted_seen=1
+printf 'z=%s c=%s\n' "$zones_seen" "$compacted_seen" >"$SEEN_FILE" 2>/dev/null || :
 
 ((new_rank > armed_rank)) || {
   # Nothing worse than this session has already reported. Three shapes reach

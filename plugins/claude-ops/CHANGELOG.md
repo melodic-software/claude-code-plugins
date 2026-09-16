@@ -3,12 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.56.16]
+## [0.56.17]
 
 ### Changed
 
 - hook-failure-audit.sh audits only the transcript lines appended since the last Stop, keyed on a per-session cursor kept beside the warning marker. A turn with no new failure record now creates no process at all: measured by job-object accounting on Windows Git Bash at 3 process creations against a 3-creation harness floor (`bash -c`, `env`, `bash`), where it previously took 10. The count is the record because wall clock on that host drifts several-fold within an hour; across two runs the same turn measured 0.36-1.38 s before against 0.23-0.36 s after. The first Stop of a session keeps the tail cap and costs one `wc -lc`, which answers both the byte count the cap decision needs and the line count the cursor starts from, for 5 creations against 10, or 7 on the one session that first creates the data directory. The payload fields now ride on `hook::buffer_stdin_to`, which fuses the library's validation probe into the field read and answers both from the builtin parser. A turn that DOES carry a failure record reports exactly what it reported before, byte for byte. A cursor that is missing, malformed, pruned, ahead of a shortened transcript, or recorded against a different transcript_path rescans from the start, and rescanning cannot re-warn because the marker still decides that.
 - The cursor line count is now accepted only as a canonical decimal (no leading zero, at most 15 digits); a value like `08` used to pass the old `^[0-9]+$` check and then fail bash's octal-reading `((...))` arithmetic, printing shell diagnostics on Stop instead of running either scan path.
+
+## [0.56.16]
+
+### Changed
+
+- The 30 generated session-event-log rows are shell form and read the kill switch themselves (`[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh`), so a disabled logger spawns no chain. Measured on Windows Git Bash with a job-object process census (n=5): switched off, 1 process creation per event instead of 3 (median wall 41 ms against 107 ms), which is the 9 to 12 creations a Bash tool call charged to this hook down to 3 to 4; switched on, unchanged at 3 creations (median 117 ms) since the row execs the script. `scripts/gen-hook-event-registry.sh` owns the row template and `--check` still re-derives every row from the committed registry. The script keeps its own line-41 switch for a direct invocation. Residual: a shell-form row still costs the one shell Claude Code runs the command in, because hooks.json cannot read a plugin option: `if` takes a single permission rule and is evaluated only on tool events, and the option reaches a hook only as an environment variable.
+- Every generated row, the 30 producers and the SessionEnd retention row, pins `"shell": "bash"`. The Hooks reference documents that field as "Defaults to `bash`, or to `powershell` on Windows when Git Bash isn't installed" (https://code.claude.com/docs/en/hooks.md, the `shell` field, verified 2026-09-15), and under PowerShell the row's `[ ... ]`, `$VAR` and `exec` all error, so an unpinned row would error on every fire on such a host instead of gating. The sibling markdown-format and disk-hygiene hook configs pin the same field.
 
 ## [0.56.15]
 
