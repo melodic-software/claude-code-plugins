@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.14]
+
+### Changed
+
+- The plugins skill records the `--all` + `install_new: all` mass install. gotchas.md gains a section on why that combination installs every plugin in every known catalog, why the downgrade guard and `audit` both miss it, the `claude --bare` requirement for the revert, and the revert recipe. SKILL.md's marketplace-resolution list now warns that `all` multiplies the install policy across catalogs, and its `install_new` section requires a counted human confirmation before that combination runs. Documentation only; no script, output, or exit code changes.
+
 ## [0.56.13]
 
 ### Changed
