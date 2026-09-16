@@ -85,6 +85,16 @@ PS_HERESTRING_UNBALANCED=0
 # it knows which opener was left hanging — naming `'@` for a `@"` body sends the
 # operator to a terminator PowerShell will not accept.
 PS_HERESTRING_QUOTE=""
+# 1 when a properly-delimited EXPANDABLE here-string (`@"` … `"@`) was blanked out
+# of the command. A verbatim `@'` … `'@` body is inert text, but an expandable
+# body is evaluated where it is written, so a `$( … )` inside it is a COMMAND
+# POSITION that the placeholder hides. Read by ps::classify_git_command, which
+# will not accept a git-freedom proof taken over text with that body removed.
+PS_HERESTRING_EXPANDABLE=0
+# 1 when the last ps::_walk_quoted_spans_to pass crossed a DOUBLE-quote opener,
+# i.e. the walked text carries an expandable string. Written by the walk and read
+# by its IMMEDIATE caller; any later walk overwrites it.
+PS_QUOTED_SPAN_SAW_EXPANDABLE=0
 # Set by ps::classify_git_command when a command routes to the fail-closed sink:
 # which of the four triggers fired (`herestring-unbalanced`, `special-construct`,
 # `dynamic-invocation`, `launcher`), empty otherwise. Read by the block messages
@@ -291,6 +301,7 @@ ps::blank_herestrings() {
   local -a hs_lines=()
   PS_HERESTRING_UNBALANCED=0
   PS_HERESTRING_QUOTE=""
+  PS_HERESTRING_EXPANDABLE=0
 
   ps::_split_lines_to hs_lines "$cmd"
   for line in "${hs_lines[@]}"; do
@@ -321,6 +332,10 @@ ps::blank_herestrings() {
     ps::_gsub_to opener_scan "$opener_scan" '"([^"\\]|\\.)*"' ''
     if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
       hs_quote="${line: -1}" # ' or "
+      # `@"` opens an EXPANDABLE body, evaluated where it is written, so the
+      # placeholder about to replace it stands for text that can contain a
+      # command position. `@'` opens a verbatim body and stands for inert text.
+      [[ "$hs_quote" == '"' ]] && PS_HERESTRING_EXPANDABLE=1
       pending="${line%??}${PS_HERESTRING_PLACEHOLDER}"
       in_hs=1
       continue
@@ -335,6 +350,9 @@ ps::blank_herestrings() {
     PS_HERESTRING_UNBALANCED=1
     PS_HERESTRING_QUOTE="$hs_quote"
     PS_BLANKED="$cmd"
+    # Nothing was blanked, so no expandable body is hidden: PS_BLANKED is the raw
+    # command and every body in it stays in view for the callers' own probes.
+    PS_HERESTRING_EXPANDABLE=0
     return 0
   fi
   PS_BLANKED="${out%$'\n'}"
@@ -415,9 +433,18 @@ ps::blank_herestrings() {
 ps::_walk_quoted_spans_to() {
   local text="$2" mode="$3" out="" i=0 n j q found c inner
   n=${#text}
+  # EXPANDABLE-STRING WITNESS. The walk is the only place that knows which quote
+  # character OPENED a span, and that is exactly what tells an expandable string
+  # from a verbatim one: a `"` inside a single-quoted span is never examined as an
+  # opener, and an apostrophe inside a double-quoted span is never examined as
+  # one either, so `'he said "hi"'` witnesses nothing and `"it's"` witnesses an
+  # expandable string. Neither a raw `"` scan nor the opaque placeholder kind can
+  # say that: `_q_` is shared by `'git'` and by `"git"`.
+  PS_QUOTED_SPAN_SAW_EXPANDABLE=0
   while ((i < n)); do
     q="${text:i:1}"
     if [[ "$q" == "'" || "$q" == '"' ]]; then
+      [[ "$q" == '"' ]] && PS_QUOTED_SPAN_SAW_EXPANDABLE=1
       found=0
       for ((j = i + 1; j < n; j++)); do
         c="${text:j:1}"
@@ -578,9 +605,27 @@ ps::_is_readonly_cmdlet() {
 # command word is REFUSED rather than admitted, so a new executor costs an
 # over-block instead of a bypass.
 #
+# AN EXPANDABLE STRING IS A COMMAND POSITION, so its presence anywhere in the
+# command refuses. A double-quoted `"…"` span (and the `@"…"@` here-string form)
+# is EVALUATED where it is written: `"$( … )"` runs the subexpression to build
+# the string, so `-eq "$(cmd /c git push --force)"` executes a program before any
+# comparison happens. The walk blanks that span to an inert placeholder, which is
+# exactly what makes the executor invisible to a token scan of the blanked text.
+# A security review reproduced the whole executor family through it (`cmd /c`,
+# `bash -c`, `powershell -c`, `Start-Process`, `& 'git'`, `Start-Job`,
+# `Invoke-Item`, `New-Object`, `node -e`, a bare `git`, `schtasks`), under `-eq`,
+# `-like`, `-in` and a second `Where-Object`, and inside an interpolated
+# `"${env:ComSpec} $( … )"`. A VERBATIM `'…'` string has no such evaluation
+# (about_Quoting_Rules), so the single-quoted operands the exemption exists for
+# stay exempt. The witness is the walk's own opener, not the raw text and not the
+# placeholder kind: `_q_` is shared by `'git'` and `"git"`, and a raw `"` scan
+# would misread the `"` inside `'he said "hi"'`.
+#
 # THE SCAN, in order, over the command with every quoted string replaced by an
 # opaque placeholder (so a `[` or an `&` inside message text is data, not a
 # construct):
+#   0. refuse when the walk that produced the placeholders crossed a DOUBLE-quote
+#      opener, the expandable-string disqualifier above;
 #   1. refuse outright on a construct no token scan can settle — a surviving
 #      BACKTICK (escape), `<#` (block comment), `--%` (stop-parsing), `::`
 #      (static member, the `[Type]::Method` executor family), `[` (type
@@ -607,6 +652,8 @@ ps::_is_readonly_cmdlet() {
 ps::_is_readonly_cmdlet_pipeline() {
   local lc i n ch tok="" cmdpos=1
   ps::opaque_quoted_spans_to lc "$1"
+  # Read IMMEDIATELY: any later walk overwrites the witness.
+  ((PS_QUOTED_SPAN_SAW_EXPANDABLE)) && return 1
   lc="${lc,,}"
   case "$lc" in
   *'`'* | *'<#'* | *'--%'* | *'::'* | *'['* | *'&'*) return 1 ;;
@@ -1183,15 +1230,21 @@ ps::call_target_is_interpolating_string() {
 #       `,`-separated earlier elements of the same list
 #       (ps::_is_comparison_operand_context; right-hand operands only);
 #   (b) the whole command is provably a READ-ONLY CMDLET PIPELINE — every token at
-#       a command position is an allowlisted interrogator and no construct turns a
-#       value into a command (ps::_is_readonly_cmdlet_pipeline), which is an
-#       allowlist, not a list of known executors.
+#       a command position is an allowlisted interrogator, the command carries no
+#       EXPANDABLE `"…"` span (whose `$( … )` is itself a command position), and
+#       no construct turns a value into a command
+#       (ps::_is_readonly_cmdlet_pipeline), which is an allowlist, not a list of
+#       known executors.
+# The other expandable form, a `@"…"@` here-string, never reaches (b): it is
+# blanked out of the command at intake, so ps::classify_git_command refuses it at
+# the sink instead, where the blanking happened.
 # Under (b) the only thing the matched text can DO with the string is compare it:
 # `Get-Process | Where-Object { $_.Name -eq 'git' }` filters objects, and nothing
 # in what remains turns the filtered value back into a command word. The
 # false-positive class this retires is read-only PowerShell that merely NAMES git
-# — `-eq 'git'`, `-in @('git.exe','bash.exe')`, `-like 'git*'`, `-match "^git\.exe$"`
-# — which the script block alone had already routed to the sink.
+# in a VERBATIM literal (`-eq 'git'`, `-ceq 'git'`, `-in @('git.exe','bash.exe')`,
+# `-notin @('git','node')`, `-like 'git*'`), which the script block alone had
+# already routed to the sink.
 #
 # WHAT KEEPS THE QUOTE-INTACT PROBE, and why each one must:
 #   `& 'git' commit`, `git 'commit'`      the literal is a call target or an
@@ -1214,7 +1267,12 @@ ps::call_target_is_interpolating_string() {
 #     `[scriptblock]::Create($_.Name).Invoke()`,
 #     `$ExecutionContext.InvokeCommand.InvokeScript($_.Name)`;
 #   `$n = 'git'; & $n push -f`            `=` is not a comparison operator, and (b)
-#                                        refuses the call operator.
+#                                        refuses the call operator;
+#   `-eq "$(cmd /c git push --force)"`    the operand is EXPANDABLE, so building
+#                                        it runs a program, and (b) refuses the
+#                                        whole command on the `"` alone. The
+#                                        executor inside is never the thing being
+#                                        recognized.
 ps::might_invoke_git() {
   local recovered="${1//\`/}" lc narrowed
   lc="${recovered,,}"
@@ -1591,6 +1649,16 @@ ps::classify_git_command() {
     # probe) so a quoted or backtick-obfuscated `git` is still seen; an unbalanced
     # here-string leaves PS_BLANKED as the raw command so a trailing pipeline is
     # scanned, not swallowed.
+    #
+    # A BLANKED EXPANDABLE HERE-STRING SUSPENDS THE PROOF. `@"` … `"@` is
+    # evaluated where it is written, so `$( … )` in its body is a command
+    # position: `-eq @"` / `$(cmd /c git push --force)` / `"@` runs git at
+    # construction time. The body is gone from PS_BLANKED, so a NO from
+    # ps::might_invoke_git is a statement about text the command does not have,
+    # not a proof of git-freedom. Refuse by shape instead, exactly as for every
+    # other construct this sink cannot settle. A verbatim `@'` … `'@` body is
+    # inert text and is unaffected.
+    ((PS_HERESTRING_EXPANDABLE)) && return 2
     ps::might_invoke_git "$PS_BLANKED" || return 1
     if [[ "$sink_scope" == "readonly-ok" ]] && ps::git_command_is_readonly "$PS_BLANKED"; then
       return 1

@@ -1344,6 +1344,83 @@ pin_predicate "ps::_is_readonly_cmdlet_pipeline: a cmdlet argument is not a comm
 pin_sink_trigger "classify: the comparison pipeline still enters the special-construct sink" \
   "Get-Process | Where-Object { \$_.Name -eq 'git' }" "special-construct"
 
+# --- an EXPANDABLE operand is a command position, not data --------------------
+# A double-quoted string is evaluated where it is written, so `"$( … )"` runs a
+# program to build the value the comparison then reads. The walk replaces that
+# span with an inert placeholder, which is precisely what hid the executor from
+# the read-only-pipeline token scan: a security review reproduced the whole
+# family through it. Every shape below therefore stays blocked, and the
+# disqualifier is the `"` itself, not recognition of the executor inside it.
+run_pwsh "PS cmp: expandable operand running cmd /c (blocked)" \
+  "Write-Output (\"x\" -eq \"\$(cmd /c git push --force)\")" 2
+run_pwsh "PS cmp: expandable operand in a Where-Object block (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(cmd /c git push --force)\" }" 2
+run_pwsh "PS cmp: expandable operand running bash -c (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(bash -c 'git push --force')\" }" 2
+run_pwsh "PS cmp: expandable operand running powershell -c (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(powershell -c 'git reset --hard')\" }" 2
+run_pwsh "PS cmp: expandable operand running Start-Process (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(Start-Process git -ArgumentList push,--force)\" }" 2
+run_pwsh "PS cmp: expandable operand calling a quoted git literal (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(& 'git' push -f)\" }" 2
+run_pwsh "PS cmp: expandable operand starting a job (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(Start-Job { git push -f })\" }" 2
+run_pwsh "PS cmp: expandable operand invoking git.exe (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(Invoke-Item git.exe)\" }" 2
+run_pwsh "PS cmp: expandable operand constructing an object beside a git literal (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(New-Object System.Diagnostics.Process)\" -and \$_.Name -eq 'git' }" 2
+run_pwsh "PS cmp: expandable operand running node beside a git literal (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(node -e 'x')\" -and \$_.Name -eq 'git' }" 2
+run_pwsh "PS cmp: expandable operand interpolated into a -like pattern (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -like \"*\$(cmd /c git push -f)*\" }" 2
+run_pwsh "PS cmp: expandable operand as a list element under -in (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -in @(\"\$(cmd /c git reset --hard)\",'git') }" 2
+run_pwsh "PS cmp: expandable operand behind Get-Content and the ? alias (blocked)" \
+  "Get-Content x.txt | ? { \$_ -eq \"\$(cmd /c git clean -fdx)\" }" 2
+run_pwsh "PS cmp: expandable operand in a second Where-Object after an exempt one (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq 'git' } | Where-Object { \$_.Path -eq \"\$(cmd /c git push -f)\" }" 2
+run_pwsh "PS cmp: expandable operand mixing a variable and a subexpression (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\${env:ComSpec} \$(cmd /c git push -f)\" }" 2
+# Holes the executor-list gate left open too: the subexpression names git
+# directly, or names an executor no list carried.
+run_pwsh "PS cmp: expandable operand running git directly (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(git push --force)\" }" 2
+run_pwsh "PS cmp: expandable operand scheduling a git task (blocked)" \
+  "Get-Process | Where-Object { \$_.Name -eq \"\$(schtasks /create /tn x /tr 'git push -f' /sc once /st 00:00)\" }" 2
+# A `@"` here-string is the OTHER expandable form, and it never reaches the
+# exemption: its body is blanked at intake, so the git token is gone before the
+# probe runs. The refusal therefore sits at the sink, where the blanking happened.
+run_pwsh "PS cmp: expandable here-string operand (blocked)" \
+  "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @\"" "\$(cmd /c git push --force)" "\"@ }")" 2
+# A VERBATIM here-string body carries no command position and is unchanged.
+run_pwsh "PS cmp: verbatim here-string operand stays data (allowed)" \
+  "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @'" "git" "'@ }")" 0
+
+# Predicate pins for the disqualifier itself. A hook rc of 2 can hide "blocked by
+# something else entirely", so the gate is asserted directly, including the two
+# cases a raw `"` scan and the opaque placeholder kind each get wrong.
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: an expandable operand refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq \"git\" }" 1
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a verbatim operand still accepts" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq 'git' }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: a double quote INSIDE a verbatim string is not an expandable string" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq 'he said \"hi\"' }" 0
+pin_predicate "ps::_is_readonly_cmdlet_pipeline: an apostrophe INSIDE an expandable string still refuses" \
+  ps::_is_readonly_cmdlet_pipeline "Get-Process | Where-Object { \$_.Name -eq \"it's\" }" 1
+pin_predicate "ps::might_invoke_git: an expandable operand is not data" \
+  ps::might_invoke_git "Get-Process | Where-Object { \$_.Name -eq \"\$(cmd /c git push --force)\" }" 0
+pin_sink_trigger "classify: the expandable here-string still enters the special-construct sink" \
+  "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @\"" "\$(cmd /c git push --force)" "\"@ }")" "special-construct"
+
+# RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
+# the filtered object rather than running a program named by the compared value,
+# so the read-only allowlist admits it and these stay allowed. Pinned so a later
+# narrowing that reaches method dispatch flips a test instead of passing silently.
+run_pwsh "PS cmp: ForEach-Object -MemberName Kill stays where it is (allowed)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | ForEach-Object -MemberName Kill" 0
+run_pwsh "PS cmp: ForEach-Object -MemberName with -ArgumentList stays where it is (allowed)" \
+  "Get-Process | ? { \$_.Name -eq 'git' } | ForEach-Object -MemberName Start -ArgumentList push,--force" 0
+
 malformed_rc=0
 (cd "$REPO_SHA1" && bash "$HOOK" <<<'not json at all' >/dev/null 2>&1) || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
