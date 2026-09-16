@@ -78,9 +78,12 @@ concurrency:
 # to carry paid a fresh runner, a fresh checkout and a fresh toolchain install
 # to run a few seconds of work. The lanes are now steps of four working jobs —
 # `lint` and `lint-2` (two halves of one hygiene lane, run in parallel),
-# `test-linux`, `test-windows` and `hook-utils` — behind one resolver,
-# `changes`, and one aggregate, `ci-status`. Every step keeps the name it had,
-# so a lane is still findable by the name it always had.
+# `test-linux` and `hook-utils` — behind one resolver, `changes`, and one
+# aggregate, `ci-status`. Every step keeps the name it had, so a lane is still
+# findable by the name it always had. The informational Windows lane runs in
+# .github/workflows/test-windows.yml: nothing gates on it, and while it lived
+# here it was the longest job in the run and held this one open past its own
+# required lanes.
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.changes.outputs.*` row instead of re-running the detector, so the
@@ -140,6 +143,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    # `run_windows` is computed and read by nothing in THIS file: its consumer
+    # moved to .github/workflows/test-windows.yml, which re-derives it by this
+    # exact expression because job outputs do not cross workflow files. It stays
+    # here, like `docs` and `powershell` below, as the canonical row the other
+    # file is kept in step with — change one and change both.
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
@@ -488,6 +496,7 @@ jobs:
             .github/workflows/claude-security-review.yml
             .github/workflows/dependabot-miro-bundle.yml
             .github/workflows/silent-revert-canary.yml
+            .github/workflows/test-windows.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
@@ -2166,87 +2175,6 @@ jobs:
       - name: Report not applicable to a docs-only diff
         if: needs.changes.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt), or this is a draft pull request; the plugin contract suite, the sync gates and the sub-project builds cannot be affected — reporting success."
-
-  # The ONLY job on a Windows runner, and deliberately so. Every other suite in
-  # this repository is platform-agnostic bash string logic that a Linux runner
-  # exercises identically — `lib/powershell/ps-command.sh`, for instance,
-  # carries zero `OSTYPE`/`cygpath`/`uname` branches despite classifying
-  # PowerShell commands, so Linux tests it faithfully.
-  #
-  # Three surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
-  # branches a Linux runner NEVER EXECUTES — case-insensitive path folding for
-  # the Windows filesystem, and `cygpath` short-name (8.3) resolution. #2774's
-  # disk-hygiene read-only Bash allowlist is NT-specific (MSYS path mapping,
-  # .exe basename stripping, ProgramFiles trust roots), which is how an inert
-  # Windows allowlist shipped green. And the MSYS-to-Windows emit helper exists
-  # for its NT branch: cygpath's answer cannot be faked on Linux, so on a Linux
-  # runner those cases report NOT EXERCISED and the suite is green having
-  # proved nothing about them.
-  #
-  # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
-  # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
-  # Pinned, not `windows-latest`: the runner policy forbids the floating
-  # `*-latest` labels outright, for the same reason the Linux lanes pin
-  # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
-  # Tuesday. Free: GitHub Actions is free for public repositories on standard
-  # GitHub-hosted runners, Windows included.
-  #
-  # THIS IS THE ONE JOB-LEVEL GATE IN THIS FILE, and it is legal precisely
-  # because the job sits OUTSIDE the required-lane closure the aggregate
-  # defines. A lane the aggregate cannot see costs a skipped informational run
-  # rather than a false green, so skipping the whole job is the cheaper shape;
-  # inside the closure the same condition would let the lane report success
-  # having run nothing, and both gates reject it there. Do not add this job to
-  # `ci-status.needs`: doing so makes both the condition and the annotation
-  # below defects, which each gate's own tests prove.
-  #
-  # If `changes` fails outright, rather than failing a continue-on-error step,
-  # `needs: [changes]` skips this job. That is accepted for a non-required
-  # lane: the fail-open path this file cares about runs through the resolver's
-  # published outputs, and those are absorbed.
-  # lane-coverage-ok: informational platform lane, outside the ci-status aggregate by design
-  test-windows:
-    needs:
-      - changes
-    # The contract-only gate ANDed with the existing resolver gate. This lane is
-    # outside the ci-status aggregate, so it may gate at job level.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && needs.changes.outputs.run_windows == 'true' }}
-    runs-on: windows-2025
-    timeout-minutes: 20
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: .python-version
-      - name: Run shared lib tests on Windows
-        run: bash lib/hook-utils.test.sh
-      # GuardTests only, not the full hygiene module: two of its tests fail on
-      # windows-2025 and are already green on Linux — the preview case expects
-      # ready-for-explicit-approval where Windows returns blocked, and the
-      # handoff case compares path strings where 8.3 `RUNNER~1` differs from
-      # the long `runneradmin`. The other nine classes gate on the Linux run.
-      - name: Run disk-hygiene GuardTests on Windows
-        working-directory: plugins/disk-hygiene/skills/clean/scripts
-        run: python -m unittest -v test_hygiene.GuardTests
-      - name: Test the MSYS-to-Windows emit helper on Windows
-        run: bash scripts/emit-windows-path.test.sh
-      - name: Test the drive-root litter detector on Windows
-        run: bash scripts/check-drive-root-litter.test.sh
-      # NTFS is case-insensitive, which is the whole point of running this one
-      # here: the rename executor's case-only `git mv` path and its
-      # index-not-filesystem existence test cannot be exercised on a
-      # case-sensitive runner, so a regression in either would ship green from
-      # Linux alone. Named explicitly, like the fixed suites above, rather than
-      # discovered.
-      - name: Test the file-name rename executor on Windows
-        run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh
 
   # The shared hook-utils library, kept out of test-linux so its delivery check
   # and its own suite are legible as one lane rather than buried among fifty
