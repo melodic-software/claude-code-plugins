@@ -4559,7 +4559,86 @@ if [[ "${HOOK_JQ_FIELDS[0]}" == "true" && "${HOOK_JQ_FIELDS[1]}" == "Bash" && "$
 else
   fail "jq_fields common payload: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")] nul=$HOOK_JQ_FIELDS_NUL"
 fi
-unset ff_case ff_rc
+
+# The skip bound is six times the longest REQUESTED key name, not a fixed 60:
+# an ASCII identifier character's longest escaped spelling is `\uXXXX`. Each
+# case is a differential, so what is pinned is jq's answer rather than this
+# suite's belief about it.
+ff_pair_check() { # <desc> <payload> <filter> <expected>
+  local desc="$1" payload="$2" filter="$3" want="$4" rc=0 src=0 slow
+  hook::_fast_fields "$payload" "$filter" || rc=$?
+  if ((rc != 0)); then
+    fail "$desc: the fast path did not prove it (rc=$rc)"
+    return
+  fi
+  slow=$(
+    hook::_fast_fields() { return 2; }
+    hook::jq_fields_uncached "$payload" "$filter" || exit $?
+    printf '%s' "${HOOK_JQ_FIELDS[0]}"
+  ) || src=$?
+  if ((src != 0)); then
+    fail "$desc: proven by the fast path but the jq path returned $src"
+    return
+  fi
+  if [[ "${HOOK_JQ_FIELDS[0]}" == "$want" && "$slow" == "$want" ]]; then
+    ok "$desc"
+  else
+    fail "$desc: fast=[${HOOK_JQ_FIELDS[0]}] jq=[$slow] want=[$want]"
+  fi
+}
+ff_long=""
+ff_gone=""
+for ((ff_i = 0; ff_i < 70; ff_i++)); do
+  ff_long+=k
+  ff_gone+=z
+done
+ff_pair_check "fast fields: a present key name longer than 60 characters is not skipped" \
+  "{\"$ff_long\":\"present\",\"tool_name\":\"Bash\"}" ".$ff_long" "present"
+ff_pair_check "fast fields: a key name longer than 60 characters that is absent is proven empty" \
+  "{\"$ff_long\":\"present\",\"tool_name\":\"Bash\"}" ".$ff_gone" ""
+# `hook_event_name` is 15 characters, so its fully escaped spelling is 90 bytes:
+# past the old fixed bound, inside six times the name's own length.
+ff_esc=""
+ff_name=hook_event_name
+for ((ff_i = 0; ff_i < ${#ff_name}; ff_i++)); do
+  printf -v ff_ch '\\u%04x' "'${ff_name:ff_i:1}"
+  ff_esc+=$ff_ch
+done
+ff_pair_check "fast fields: a key spelled entirely with \\u escapes is recognized" \
+  "{\"$ff_esc\":\"PreToolUse\",\"tool_name\":\"Bash\"}" ".$ff_name" "PreToolUse"
+
+# The Bash 4.0 floor. hook::_fast_fields indexes with an associative array, so
+# below 4.0 the call site must skip the whole fast path and let jq answer.
+# Forced here by overriding the predicate; hook::_fast_fields is replaced by a
+# tripwire, so a gate that is not wired shows up as a failure rather than as
+# two paths that happen to agree.
+ff_floor_payload='{"session_id":"s","cwd":"/x","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","file_path":"/a b","content":"c\nd"}}'
+ff_floor_rc=0
+ff_floor=()
+mapfile -d '' ff_floor < <(
+  hook::_fast_fields_supported() { return 1; }
+  hook::_fast_fields() {
+    printf 'FAST-PATH-RAN-BELOW-FLOOR\0'
+    builtin exit 99
+  }
+  hook::jq_fields "$ff_floor_payload" "${FF_FILTERS[@]}" || exit $?
+  printf '%s\0' "$HOOK_JQ_FIELDS_NUL" "${HOOK_JQ_FIELDS[@]}"
+)
+hook::jq_fields "$ff_floor_payload" "${FF_FILTERS[@]}" || ff_floor_rc=$?
+ff_same=1
+((ff_floor_rc == 0)) || ff_same=0
+((${#ff_floor[@]} == ${#FF_FILTERS[@]} + 1)) || ff_same=0
+[[ "${ff_floor[0]-}" == "$HOOK_JQ_FIELDS_NUL" ]] || ff_same=0
+for ((ff_i = 0; ff_i < ${#HOOK_JQ_FIELDS[@]}; ff_i++)); do
+  [[ "${ff_floor[ff_i + 1]-}" == "${HOOK_JQ_FIELDS[ff_i]}" ]] || ff_same=0
+done
+if ((ff_same)); then
+  ok "jq_fields: below the Bash 4.0 floor the fast path is skipped and jq answers the same"
+else
+  fail "jq_fields below the floor: got [$(printf '%q ' "${ff_floor[@]}")] want nul=$HOOK_JQ_FIELDS_NUL [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")]"
+fi
+unset ff_case ff_rc ff_long ff_gone ff_esc ff_name ff_ch ff_i ff_same ff_floor ff_floor_rc ff_floor_payload
+unset -f ff_pair_check
 
 # --- Test 23: hook::emit_document is the one stdout path --------------------
 ed_out=$(hook::emit_channels PreToolUse "ctx" "sys")
