@@ -1124,6 +1124,28 @@ pin_sink_trigger "classify: git -c section.key=cmd does not enter launcher sink"
 pin_sink_trigger "classify: \$out=pwsh \$script still enters launcher sink" \
   '$out=pwsh $script' "launcher"
 
+# --- A `_to` helper assigns the CALLER's variable, never its own local --------
+# `printf -v` walks bash's dynamic scope outward, so a helper whose own locals
+# share a name with the destination the caller passed assigns that local and
+# leaves the caller's variable untouched: a silent wrong answer rather than an
+# error. `out` is this library's dominant accumulator name, so it is the
+# destination a future caller is most likely to pass. The reference call names a
+# variable no helper declares, so the two results have to agree.
+ps_shadow_probe() {
+  local out="shadowed"
+  "$1" out "$2"
+  printf '%s' "$out"
+}
+# shellcheck disable=SC2016
+ps_shadow_input='x ${a`}b} ("y") w; q'
+for ps_shadow_fn in ps::blank_quoted_spans_to ps::fold_escaped_brace_closers_to \
+  ps::call_site_operand_region_to ps::blank_bracket_interiors_to; do
+  "$ps_shadow_fn" ps_shadow_ref "$ps_shadow_input"
+  # shellcheck disable=SC2154  # assigned indirectly, by the helper's `printf -v`
+  assert_eq "$ps_shadow_fn assigns the caller's out, not its own local" \
+    "$ps_shadow_ref" "$(ps_shadow_probe "$ps_shadow_fn" "$ps_shadow_input")"
+done
+
 # --- #2662: fail-closed headlines must not assert a git command is present -----
 # The sink is possibly-git (iex / computed call / computed launcher can fire with
 # no git token). Assert the softened headline on both the no-git-token path and a

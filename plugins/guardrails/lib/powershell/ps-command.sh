@@ -431,8 +431,8 @@ ps::blank_herestrings() {
 # exempt: PowerShell gives them no escape at all, so a backtick inside one is an
 # ordinary character and the pairing is genuinely unambiguous.
 ps::_walk_quoted_spans_to() {
-  local text="$2" mode="$3" out="" i=0 n j q found c inner
-  n=${#text}
+  local __wq_text="$2" __wq_mode="$3" __wq_out="" __wq_i=0 __wq_n __wq_j __wq_q __wq_found __wq_c __wq_inner
+  __wq_n=${#__wq_text}
   # EXPANDABLE-STRING WITNESS. The walk is the only place that knows which quote
   # character OPENED a span, and that is exactly what tells an expandable string
   # from a verbatim one: a `"` inside a single-quoted span is never examined as an
@@ -441,69 +441,69 @@ ps::_walk_quoted_spans_to() {
   # expandable string. Neither a raw `"` scan nor the opaque placeholder kind can
   # say that: `_q_` is shared by `'git'` and by `"git"`.
   PS_QUOTED_SPAN_SAW_EXPANDABLE=0
-  while ((i < n)); do
-    q="${text:i:1}"
-    if [[ "$q" == "'" || "$q" == '"' ]]; then
-      [[ "$q" == '"' ]] && PS_QUOTED_SPAN_SAW_EXPANDABLE=1
-      found=0
-      for ((j = i + 1; j < n; j++)); do
-        c="${text:j:1}"
-        [[ "$c" == $'\n' ]] && break
+  while ((__wq_i < __wq_n)); do
+    __wq_q="${__wq_text:__wq_i:1}"
+    if [[ "$__wq_q" == "'" || "$__wq_q" == '"' ]]; then
+      [[ "$__wq_q" == '"' ]] && PS_QUOTED_SPAN_SAW_EXPANDABLE=1
+      __wq_found=0
+      for ((__wq_j = __wq_i + 1; __wq_j < __wq_n; __wq_j++)); do
+        __wq_c="${__wq_text:__wq_j:1}"
+        [[ "$__wq_c" == $'\n' ]] && break
         # Ambiguous escape context in a double-quoted span — stop looking and
         # fall through to the delete-nothing branch below.
-        if [[ "$q" == '"' && "$c" == '`' ]]; then
-          for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+        if [[ "$__wq_q" == '"' && "$__wq_c" == '`' ]]; then
+          for (( ; __wq_j < __wq_n; __wq_j++)); do [[ "${__wq_text:__wq_j:1}" == $'\n' ]] && break; done
           break
         fi
-        if [[ "$c" == "$q" ]]; then
+        if [[ "$__wq_c" == "$__wq_q" ]]; then
           # A DOUBLED quote is PowerShell's other escape for a delimiter
           # (`'it''s'`, `"say ""hi"""`), so this candidate closer may not be one.
           # Same resolution as the backtick: refuse the question, delete nothing.
-          if [[ "${text:j+1:1}" == "$q" ]]; then
-            for (( ; j < n; j++)); do [[ "${text:j:1}" == $'\n' ]] && break; done
+          if [[ "${__wq_text:__wq_j+1:1}" == "$__wq_q" ]]; then
+            for (( ; __wq_j < __wq_n; __wq_j++)); do [[ "${__wq_text:__wq_j:1}" == $'\n' ]] && break; done
             break
           fi
-          found=1
+          __wq_found=1
           break
         fi
       done
-      if ((found)); then
-        if [[ "$mode" == "opaque" ]]; then
-          inner="${text:i+1:j-i-1}"
-          if [[ -n "$inner" ]]; then
-            if [[ "$inner" == -* && "$q" == '"' && "$inner" == *'$'* ]]; then
-              out+='-_q_'
-            elif [[ "$q" == '"' && "$inner" == *'$'* ]]; then
-              out+="\$q"
+      if ((__wq_found)); then
+        if [[ "$__wq_mode" == "opaque" ]]; then
+          __wq_inner="${__wq_text:__wq_i+1:__wq_j-__wq_i-1}"
+          if [[ -n "$__wq_inner" ]]; then
+            if [[ "$__wq_inner" == -* && "$__wq_q" == '"' && "$__wq_inner" == *'$'* ]]; then
+              __wq_out+='-_q_'
+            elif [[ "$__wq_q" == '"' && "$__wq_inner" == *'$'* ]]; then
+              __wq_out+="\$q"
             else
-              out+='_q_'
+              __wq_out+='_q_'
             fi
           fi
-        elif [[ "$mode" == "cmpoperand" ]]; then
-          # `out` is both the result and the CONTEXT: every span already walked
+        elif [[ "$__wq_mode" == "cmpoperand" ]]; then
+          # `__wq_out` is both the result and the CONTEXT: every span already walked
           # is present in it (as `_q_` when blanked, verbatim when kept), so the
           # operand test reads the reduced prefix rather than the raw text — which
           # is what lets an earlier list element be skipped as one token.
-          if ps::_is_comparison_operand_context "$out"; then
-            out+='_q_'
+          if ps::_is_comparison_operand_context "$__wq_out"; then
+            __wq_out+='_q_'
           else
-            out+="${text:i:j-i+1}"
+            __wq_out+="${__wq_text:__wq_i:__wq_j-__wq_i+1}"
           fi
         fi
-        i=$((j + 1))
+        __wq_i=$((__wq_j + 1))
         continue
       fi
       # Unterminated (or escape-ambiguous) on this line: extent is ambiguous, so
-      # delete nothing. `j` already sits on the newline (or at the end), so copy
+      # delete nothing. `__wq_j` already sits on the newline (or at the end), so copy
       # the rest verbatim in one slice — this also keeps the walk linear.
-      out+="${text:i:j-i}"
-      i=$j
+      __wq_out+="${__wq_text:__wq_i:__wq_j-__wq_i}"
+      __wq_i=$__wq_j
       continue
     fi
-    out+="$q"
-    i=$((i + 1))
+    __wq_out+="$__wq_q"
+    __wq_i=$((__wq_i + 1))
   done
-  ps::_chomp_to "$1" "$out"
+  ps::_chomp_to "$1" "$__wq_out"
 }
 
 # Crude, SCAN-ONLY strip of single- and double-quoted spans, so that structural
@@ -762,20 +762,20 @@ ps::opaque_quoted_spans_to() {
 # the real closer still terminates it — and removing a `{` other probes count
 # would be a change outside this finding.
 ps::fold_escaped_brace_closers_to() {
-  local s="$2" out="" i n ch
-  n=${#s}
-  for ((i = 0; i < n; i++)); do
-    ch="${s:i:1}"
-    if [[ "$ch" == '`' ]] && ((i + 1 < n)); then
-      case "${s:i+1:1}" in
+  local __fb_s="$2" __fb_out="" __fb_i __fb_n __fb_ch
+  __fb_n=${#__fb_s}
+  for ((__fb_i = 0; __fb_i < __fb_n; __fb_i++)); do
+    __fb_ch="${__fb_s:__fb_i:1}"
+    if [[ "$__fb_ch" == '`' ]] && ((__fb_i + 1 < __fb_n)); then
+      case "${__fb_s:__fb_i+1:1}" in
       '}')
-        out+='_'
-        i=$((i + 1))
+        __fb_out+='_'
+        __fb_i=$((__fb_i + 1))
         continue
         ;;
       '`')
-        out+='``'
-        i=$((i + 1))
+        __fb_out+='``'
+        __fb_i=$((__fb_i + 1))
         continue
         ;;
       *)
@@ -784,9 +784,9 @@ ps::fold_escaped_brace_closers_to() {
         ;;
       esac
     fi
-    out+="$ch"
+    __fb_out+="$__fb_ch"
   done
-  ps::_chomp_to "$1" "$out"
+  ps::_chomp_to "$1" "$__fb_out"
 }
 
 # True (0) when the (quote-stripped) text carries a PowerShell construct the Bash
@@ -981,27 +981,27 @@ ps::call_target_is_bare_subexpression() {
 # to end of string; the callers stay conservative on what they can still see, and
 # such a command does not parse in PowerShell to begin with.
 ps::call_site_operand_region_to() {
-  local s="$2" out="" i ch depth=0
-  for ((i = 0; i < ${#s}; i++)); do
-    ch="${s:i:1}"
-    case "$ch" in
+  local __cs_s="$2" __cs_out="" __cs_i __cs_ch __cs_depth=0
+  for ((__cs_i = 0; __cs_i < ${#__cs_s}; __cs_i++)); do
+    __cs_ch="${__cs_s:__cs_i:1}"
+    case "$__cs_ch" in
     '{' | '(')
-      depth=$((depth + 1))
+      __cs_depth=$((__cs_depth + 1))
       ;;
     '}' | ')')
-      ((depth == 0)) && break
-      depth=$((depth - 1))
+      ((__cs_depth == 0)) && break
+      __cs_depth=$((__cs_depth - 1))
       ;;
     ';' | '|' | '&')
-      ((depth == 0)) && break
+      ((__cs_depth == 0)) && break
       ;;
     *)
       # Ordinary operand text — copied through with no depth effect.
       ;;
     esac
-    out+="$ch"
+    __cs_out+="$__cs_ch"
   done
-  ps::_chomp_to "$1" "$out"
+  ps::_chomp_to "$1" "$__cs_out"
 }
 
 # Blank the INTERIOR of every balanced bracket group in a call's operand region,
@@ -1011,27 +1011,27 @@ ps::call_site_operand_region_to() {
 # walk reaches on its own iteration, and the interior of `${script:Path}` holds no
 # operands at all.
 ps::blank_bracket_interiors_to() {
-  local s="$2" out="" i ch depth=0
-  for ((i = 0; i < ${#s}; i++)); do
-    ch="${s:i:1}"
-    case "$ch" in
+  local __bb_s="$2" __bb_out="" __bb_i __bb_ch __bb_depth=0
+  for ((__bb_i = 0; __bb_i < ${#__bb_s}; __bb_i++)); do
+    __bb_ch="${__bb_s:__bb_i:1}"
+    case "$__bb_ch" in
     '{' | '(')
-      out+="$ch"
-      depth=$((depth + 1))
+      __bb_out+="$__bb_ch"
+      __bb_depth=$((__bb_depth + 1))
       continue
       ;;
     '}' | ')')
-      ((depth > 0)) && depth=$((depth - 1))
-      out+="$ch"
+      ((__bb_depth > 0)) && __bb_depth=$((__bb_depth - 1))
+      __bb_out+="$__bb_ch"
       continue
       ;;
     *)
       # Ordinary text — kept at depth 0, blanked inside a group.
       ;;
     esac
-    if ((depth > 0)); then out+=" "; else out+="$ch"; fi
+    if ((__bb_depth > 0)); then __bb_out+=" "; else __bb_out+="$__bb_ch"; fi
   done
-  ps::_chomp_to "$1" "$out"
+  ps::_chomp_to "$1" "$__bb_out"
 }
 
 ps::computed_call_has_positional_write_signal() {
