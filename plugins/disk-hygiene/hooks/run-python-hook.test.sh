@@ -465,10 +465,12 @@ fi
 #
 # `Stop` rows accept neither `matcher` nor `if`, so the only place a "did the
 # guard run at all this session" gate can live is the launcher. The contract has
-# four halves: a launch records the session (even when the launched python then
-# dies, which is the very failure the monitor exists to report), an unrecorded
-# session reaches no python at all, a recorded one runs exactly as before, and a
-# payload the launcher cannot key on falls back to running python.
+# five halves: a launch records the session (even when the launched python then
+# dies, which is the very failure the monitor exists to report), a session
+# unrecorded in a marker tree that EXISTS reaches no python at all, a recorded
+# one runs exactly as before, a payload the launcher cannot key on falls back to
+# running python, and a marker tree that does not exist at all falls back the
+# same way rather than silencing the monitor.
 MARKER_CASE="$PROBE_DIR/marker-case"
 MARKER_ROOT_DIR="$MARKER_CASE/data"
 MARKER_HOME="$MARKER_CASE/home"
@@ -523,8 +525,11 @@ assert_eq "a launch whose python exits non-zero still records the session" \
   "present" "$(marker_state sess-1)"
 assert_eq "a launch whose python exits non-zero propagates that code" "3" "$marker_rc"
 
+# An EXISTING marker tree that holds no marker for this session is the shape a
+# launch-free session leaves, and is the only shape that may skip.
 MARKER_PAYLOAD='{"session_id":"sess-1","hook_event_name":"Stop"}'
 rm -rf "$MARKER_DIR"
+mkdir -p "$MARKER_DIR"
 marker_rc="$(marker_launch --skip-unless-marker guard-launch-monitor 0)"
 assert_eq "an unrecorded session exits 0" "0" "$marker_rc"
 assert_eq "an unrecorded session starts no python" "skipped" "$(target_state)"
@@ -560,12 +565,64 @@ assert_eq "a payload with no session id records nothing" "absent" \
 # not to keying on nothing.
 MARKER_PAYLOAD='{"hook_event_name":"Stop","session_id":"sess-2"}'
 rm -rf "$MARKER_DIR"
+mkdir -p "$MARKER_DIR"
 marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
 assert_eq "a reordered payload still keys on its session id" "skipped" "$(target_state)"
 mkdir -p "$MARKER_DIR"
 : >"$MARKER_DIR/sess-2.launched"
 marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
 assert_eq "a reordered payload finds its own marker" "ran" "$(target_state)"
+
+# --- a launch that can write no marker at all must not silence the monitor ---
+#
+# Both candidates fail on the launch side here, which leaves the Stop row
+# nothing to find. Reading only the marker FILE would then skip every Stop for
+# the rest of the session: a silent failure in the one detector that exists to
+# report silent failures. The Stop row therefore skips only when a candidate
+# DIRECTORY exists, and otherwise runs the monitor as it did before the flags.
+#
+# "Unwritable" is staged structurally rather than through permission bits, which
+# MSYS cannot set against Windows ACLs: `mkdir -p` refuses a parent that is a
+# regular FILE on every host, and refuses a target that already exists as one.
+# The marker root sits under a file; `TMPDIR` itself stays a real directory
+# (bash may place a here-string there) with a file occupying the name the tmp
+# fallback wants.
+BLOCKED_CASE="$PROBE_DIR/blocked-case"
+BLOCKED_TMP="$BLOCKED_CASE/tmp"
+mkdir -p "$BLOCKED_CASE" "$BLOCKED_TMP"
+BLOCKED_FILE="$BLOCKED_CASE/not-a-directory"
+: >"$BLOCKED_FILE"
+: >"$BLOCKED_TMP/disk-hygiene-guard-launch-monitor"
+BLOCKED_ROOT="$BLOCKED_FILE/data"
+
+blocked_launch() {
+  local flag="$1" subdir="$2" rc=0
+  rm -f "$MARKER_SEEN" "$MARKER_SEEN.argv"
+  printf '%s' "$MARKER_PAYLOAD" |
+    HOME="$MARKER_HOME" TMPDIR="$BLOCKED_TMP" \
+      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      --marker-root "$BLOCKED_ROOT" "$flag" "$subdir" \
+      "$MARKER_TARGET" "$MARKER_SEEN" 0 >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+
+MARKER_PAYLOAD='{"session_id":"sess-3","hook_event_name":"PreToolUse"}'
+blocked_rc="$(blocked_launch --launch-marker guard-launch-monitor)"
+assert_eq "a launch that can write no marker still runs its target" \
+  "ran" "$(target_state)"
+assert_eq "a launch that can write no marker reports its target's code" \
+  "0" "$blocked_rc"
+assert_eq "a failed marker write creates no candidate directory" "absent" \
+  "$([[ -d "$BLOCKED_ROOT" || -d "$BLOCKED_TMP/disk-hygiene-guard-launch-monitor" ]] &&
+    printf 'present' || printf 'absent')"
+assert_eq "and it leaves the blocking file alone" "file" \
+  "$([[ -f "$BLOCKED_FILE" ]] && printf 'file' || printf 'gone')"
+
+MARKER_PAYLOAD='{"session_id":"sess-3","hook_event_name":"Stop"}'
+blocked_rc="$(blocked_launch --skip-unless-marker guard-launch-monitor)"
+assert_eq "a Stop with no candidate marker directory runs the monitor" \
+  "ran" "$(target_state)"
+assert_eq "a Stop with no candidate marker directory exits 0" "0" "$blocked_rc"
 
 # --- both wirings carry the flag the other one depends on ---
 guard_rows="$(jq '[.hooks.PreToolUse[].hooks[] |

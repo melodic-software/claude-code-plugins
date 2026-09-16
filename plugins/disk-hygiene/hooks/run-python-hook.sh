@@ -89,8 +89,9 @@ raise SystemExit(0 if sys.version_info >= floor else 1)
 #                                  `"${CLAUDE_PLUGIN_DATA}"` by every caller;
 #   --launch-marker <subdir>       write `<root>/<subdir>/<session>.launched`
 #                                  BEFORE exec'ing the target;
-#   --skip-unless-marker <subdir>  exit 0 without exec'ing anything when that
-#                                  file is absent.
+#   --skip-unless-marker <subdir>  exit 0 without exec'ing anything when at
+#                                  least one candidate directory exists and
+#                                  none of them holds that file.
 #
 # Together they let a `Stop` hook cost nothing in a session where the hook it
 # watches never ran. `guard_launch_monitor.py` reports failures of the
@@ -131,6 +132,21 @@ raise SystemExit(0 if sys.version_info >= floor else 1)
 #     alarm.
 #   * a misparse fails SAFE: no session id means write nothing and skip
 #     nothing, which is this launcher's behavior before these flags existed.
+#   * a launch that could create NEITHER candidate directory leaves no marker
+#     at all, and a Stop that read only the marker file would then silence the
+#     monitor for the whole session: a silent failure in the one detector that
+#     exists to catch silent failures. So the skip is gated on a candidate
+#     DIRECTORY existing. With none, the Stop row falls through and runs the
+#     monitor, which is the behavior before these flags existed. The cost of
+#     that fail-open is that the skip is inert in a plugin data root where no
+#     guard has ever launched: every Stop pays the old price until the first
+#     guard launch spends its one `mkdir`.
+#   * RESIDUAL, and undetectable across processes: a candidate directory that
+#     exists while the marker FILE could not be written (a full disk, a
+#     permission denial on the file alone) still degrades to silence for that
+#     session. The file that failed is the only channel between the launch row
+#     and the Stop row, so the Stop row cannot tell that case apart from a
+#     session whose guard rows never fired.
 MARKER_ROOT=""
 LAUNCH_MARKER_SUBDIR=""
 SKIP_MARKER_SUBDIR=""
@@ -209,13 +225,22 @@ if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
   _read_payload
   if [[ -n "$_SESSION_ID" ]] && _marker_candidates "$SKIP_MARKER_SUBDIR" "$_SESSION_ID"; then
     _marker_found=0
+    # Skipping requires POSITIVE evidence that the launch side got as far as a
+    # marker tree. No candidate directory at all is the shape a launch whose
+    # `mkdir` failed for every root leaves behind, and silencing the monitor on
+    # it would be a silent failure in the detector that exists to catch silent
+    # failures. Both tests are builtins, so the skip path still spawns nothing.
+    _marker_dir_seen=0
     for _marker_path in "${_MARKER_PATHS[@]}"; do
+      [[ -d "${_marker_path%/*}" ]] && _marker_dir_seen=1
       if [[ -f "$_marker_path" ]]; then
         _marker_found=1
         break
       fi
     done
-    ((_marker_found)) || exit 0
+    if ((_marker_dir_seen && !_marker_found)); then
+      exit 0
+    fi
   fi
 fi
 
