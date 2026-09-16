@@ -3,6 +3,37 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **`dissolve-comments` gains an aggressive dial.** `aggressive` (a per-run token and a
+  `comment_posture` value) keeps only the exempt surfaces, paired comment-plus-test records, and
+  terse warnings of consequence; every other comment is staged and deleted, rationale included.
+  `strip` (a per-run token) deletes every comment but the exempt surfaces and paired records and
+  rewrites no code. Precedence is `safe`, then `strip`, then `aggressive`, and a token beats the
+  standing posture.
+- **`--notes <path>`** appends the staged commit-message block to an untracked or out-of-repo file.
+  A tracked path is refused and the run continues with the report as the only vehicle.
+- **A calibration eval suite** under `plugins/code-tidying/evals/`, run with `claude plugin eval`:
+  three frozen real sections, invented fixtures per triage class, exempt surfaces, marker rows,
+  Python docstrings, paired records, and the dial interactions.
+
+### Changed
+
+- **"The posture ladder only descends" is replaced by "no knob loosens a gate."** The dials widen
+  what a run removes; they change no proof. Deletions still carry COMMENT-ONLY, function-local
+  renames RENAME-ONLY, tier-2 and tier-3 moves a discovered test net, and an UNPROVABLE file still
+  yields proposals only.
+- **Two rules now hold in every mode:** a comment paired with a regression test is never deleted
+  alone, and an identifier a repo-local marker row pins is never renamed.
+- **The tier tables in `safety.md` and `dissolving-moves.md` agree.** The merged set is 16 moves:
+  tier 2 gains Replace Nested Conditional with Guard Clauses and Introduce Special Case, tier 3
+  gains Inline Function in `safety.md` and Extract Class in `dissolving-moves.md`. The apply-capacity
+  counts read 2 of 16 and 0 of 16.
+- **The `Intentional-removal:` trailer is conditional.** The staged block carries it only where the
+  target repository's own gates read that trailer.
+
 ## [0.19.8]
 
 ### Changed

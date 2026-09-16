@@ -17,7 +17,11 @@ Six skills, one capability:
   behind a token-level proof (`change-shape.py`, so they act on a repository
   with no test suite); additive refactors need a discovered test net;
   interface-creating ones are proposal-first. `safe` mode restricts applied
-  edits to removals. Ships a comment census with a token estimate and a
+  edits to removals; `aggressive` keeps only exempt surfaces, paired records,
+  and terse warnings of consequence, staging every other comment's narrative
+  before deleting it; `strip` deletes every comment but the exempt surfaces and
+  rewrites no code. `--notes <path>` writes the staged block to an untracked
+  file as well. No dial loosens a gate. Ships a comment census with a token estimate and a
   cross-language commented-out-code detector, and probes its reading layers
   (`scc`, `pygments`, `tree-sitter`, `ruff`, `ast-grep`) at run time, naming
   what each absent one costs.
@@ -126,14 +130,15 @@ personal variation is limited to lane names the team does not track: an uncommit
 
 ## Configuration
 
-Four `userConfig` options. Three tune `dissolve-comments` and loosen nothing;
-the fourth is the personal-posture channel of the exclusion override above, and
-loosening is its whole job:
+Four `userConfig` options. Three tune `dissolve-comments`, and none of them
+loosens a gate: they set what a run removes, never what it may apply without a
+proof. The fourth is the personal-posture channel of the exclusion override
+above, and loosening is its whole job:
 
 | Option | Default | Effect |
 |---|---|---|
 | `hard_exclusions` | `enforce` | `enforce` keeps every GLOBAL HARD **path** entry blocking; `advisory` reports each match and blocks nothing, so runs may reach lint config, agent config, CI workflows, and hook chains. Path entries only: the behavioral guards, the work-tracking entries, and the self-update protections hold at either value. |
-| `comment_posture` | `strict` | `strict` rewrites an over-budget kept comment terser and stages the removed narrative; `balanced` reports it instead; `conservative` applies class-A deletions only and proposes everything else. Doubt keeps the comment in every posture. |
+| `comment_posture` | `strict` | `strict` rewrites an over-budget kept comment terser and stages the removed narrative; `balanced` reports it instead; `conservative` applies class-A deletions only and proposes everything else; `aggressive` keeps only exempt surfaces, paired records, and terse warnings. The per-run tokens `safe`, `strip`, and `aggressive` beat this value, `safe` first. |
 | `class_c_max_lines` | `2` | Line budget for a kept (class-C) comment before it is rewritten. |
 | `apply_local_renames` | `true` | Apply a function-local rename that `change-shape.py` certifies as RENAME-ONLY even with no test net; `false` proposes it. |
 
@@ -157,7 +162,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `hard_exclusions` | string | `"enforce"` | `CLAUDE_PLUGIN_OPTION_HARD_EXCLUSIONS` | How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list in skills/tidy/reference/exclusions.md. enforce (default): a path on that list is dropped before triage; advisory: the list is reported per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. advisory is the standing form of the per-run override argument and is lifted for path entries only: the behavioral guards, the work-tracking entries, and the SELF-UPDATE EXTRA HARD list hold under every value. Any other value is read as enforce. |
-| `comment_posture` | string | `"strict"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | How dissolve-comments treats a kept comment. strict (default): every kept comment is held to class_c_max_lines and rewritten terser when over it, with the removed narrative staged for the commit message; balanced: the same triage, but an over-budget comment is reported instead of rewritten; conservative: class-A deletions only, every class-B item and class-C rewrite is proposed. Doubt keeps the comment in every posture. Any other value is read as strict. |
+| `comment_posture` | string | `"strict"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | How dissolve-comments treats a kept comment. strict (default): every kept comment is held to class_c_max_lines and rewritten terser when over it, with the removed narrative staged for the commit message; balanced: the same triage, but an over-budget comment is reported instead of rewritten; conservative: class-A deletions only, every class-B item and class-C rewrite is proposed; aggressive: only exempt surfaces, paired records, and terse warnings of consequence survive, and every other comment is staged and deleted. The per-run tokens safe, strip, and aggressive beat this value, safe first. No posture loosens a gate: every applied deletion still carries the token proof and every tier-2 or tier-3 move still needs a test net. Any other value is read as strict. |
 | `class_c_max_lines` | number<br>*min 1, max 40* | `2` | `CLAUDE_PLUGIN_OPTION_CLASS_C_MAX_LINES` | Lines a kept (class-C) comment may run before dissolve-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
 | `apply_local_renames` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_APPLY_LOCAL_RENAMES` | When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed. |
 

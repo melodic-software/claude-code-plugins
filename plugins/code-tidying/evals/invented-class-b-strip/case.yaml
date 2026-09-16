@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: invented-class-b-strip
+description: strip on an invented script with a Makefile test net deletes the magic-literal and vague-local comments without renaming anything
+tags: [calibration, strip, invented]
+expected_outcome: Both comments are deleted; the 86400 and n= lines are byte-identical; no SECONDS_PER_DAY name is introduced.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments strip class-b.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: seconds-comment-deleted
+    type: regex
+    pattern: '#[^\n]*seconds per day'
+    match: not_contains
+    target: { source: file, path: class-b.sh }
+  - name: display-name-comment-deleted
+    type: regex
+    pattern: '#[^\n]*display name'
+    match: not_contains
+    target: { source: file, path: class-b.sh }
+  - name: code-intact
+    type: regex
+    pattern: '^  local ttl=\$\(\(days \* 86400\)\)$[\s\S]*^  local n="\$1"\n  echo "Hello, \$n"$'
+    flags: m
+    target: { source: file, path: class-b.sh }
+  - name: no-constant-introduced
+    type: regex
+    pattern: 'SECONDS_PER_DAY'
+    match: not_contains
+    target: { source: file, path: class-b.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both

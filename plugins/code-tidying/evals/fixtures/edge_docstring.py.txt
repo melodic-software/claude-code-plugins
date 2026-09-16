@@ -1,0 +1,8 @@
+def _parse(line):
+    """Split a header line into key and value."""
+    key, _, value = line.partition(":")
+    return key.strip(), value.strip()
+
+
+def parse_headers(lines):
+    return dict(_parse(line) for line in lines if ":" in line)

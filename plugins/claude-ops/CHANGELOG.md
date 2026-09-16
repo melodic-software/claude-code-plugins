@@ -3,12 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.56.14]
+## [0.56.15]
 
 ### Changed
 
 - The 30 generated session-event-log rows are shell form and read the kill switch themselves (`[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh`), so a disabled logger spawns no chain. Measured on Windows Git Bash with a job-object process census (n=5): switched off, 1 process creation per event instead of 3 (median wall 41 ms against 107 ms), which is the 9 to 12 creations a Bash tool call charged to this hook down to 3 to 4; switched on, unchanged at 3 creations (median 117 ms) since the row execs the script. `scripts/gen-hook-event-registry.sh` owns the row template and `--check` still re-derives every row from the committed registry. The script keeps its own line-41 switch for a direct invocation. Residual: a shell-form row still costs the one shell Claude Code runs the command in, because hooks.json cannot read a plugin option: `if` takes a single permission rule and is evaluated only on tool events, and the option reaches a hook only as an environment variable.
 - Every generated row, the 30 producers and the SessionEnd retention row, pins `"shell": "bash"`. The Hooks reference documents that field as "Defaults to `bash`, or to `powershell` on Windows when Git Bash isn't installed" (https://code.claude.com/docs/en/hooks.md, the `shell` field, verified 2026-09-15), and under PowerShell the row's `[ ... ]`, `$VAR` and `exec` all error, so an unpinned row would error on every fire on such a host instead of gating. The sibling markdown-format and disk-hygiene hook configs pin the same field.
+
+## [0.56.14]
+
+### Changed
+
+- The plugins skill records the `--all` + `install_new: all` mass install. gotchas.md gains a section on why that combination installs every plugin in every known catalog, why the downgrade guard and `audit` both miss it, the `claude --bare` requirement for the revert, and the revert recipe. SKILL.md's marketplace-resolution list now warns that `all` multiplies the install policy across catalogs, and its `install_new` section requires a counted human confirmation before that combination runs. Documentation only; no script, output, or exit code changes.
 
 ## [0.56.13]
 

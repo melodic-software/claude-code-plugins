@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: interaction-unprovable-excerpt
+description: aggressive on a real lib/hook-utils.sh excerpt that change-shape cannot parse names the file UNPROVABLE up front and applies no deletion
+tags: [calibration, interaction, aggressive, real]
+expected_outcome: The self-parse check runs before the census and reports the file as UNPROVABLE first; every comment is left in place and any removal is only proposed; code is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive hook-utils-unprovable.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: unprovable-named
+    type: regex
+    pattern: 'UNPROVABLE'
+    target: last_message
+  - name: signature-comment-kept
+    type: regex
+    pattern: '#[^\n]*hook::resolve_read_timeout_to <var>'
+    target: { source: file, path: hook-utils-unprovable.sh }
+  - name: fork-rationale-kept
+    type: regex
+    pattern: '#[^\n]*startup fork on every hook'
+    target: { source: file, path: hook-utils-unprovable.sh }
+  - name: spelling-pin-kept
+    type: regex
+    pattern: '#[^\n]*buffer_stdin uses it'
+    target: { source: file, path: hook-utils-unprovable.sh }
+  - name: code-intact
+    type: regex
+    pattern: 'hook::resolve_read_timeout_to\(\) \{\n  local __hu_dest="\$1"[\s\S]*      local micros=\$\(\(10#\$whole \* 1000000 \+ 10#\$frac\)\)[\s\S]*  printf -v "\$__hu_dest" ''%s'' "\$__hu_t"\n\}'
+    target: { source: file, path: hook-utils-unprovable.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
+  - name: self-parse-before-census
+    type: tool_order
+    before: { tool: Bash, input_match: change-shape }
+    after: { tool: Bash, input_match: comment-census }

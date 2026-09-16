@@ -1,0 +1,51 @@
+schema_version: "1.1"
+name: invented-edge-aggressive
+description: aggressive on an invented src tree deletes a comment above a marker-listed identifier without renaming it, proposes a private docstring, and keeps a comment paired with a regression test
+tags: [calibration, aggressive, invented]
+expected_outcome: The end-offset comment is deleted and gql_page_end is never renamed because scripts/restoration-markers.txt lists it; the _parse docstring is unchanged and reported as a proposal; the empty-input comment paired with tests/edge-paired.test.sh stays; code is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive src
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: marker-comment-deleted
+    type: regex
+    pattern: '#[^\n]*end offset of the current page'
+    match: not_contains
+    target: { source: file, path: src/edge-marker.sh }
+  - name: marker-identifier-unchanged
+    type: regex
+    pattern: '^  gql_page_end=\$\(\(offset \+ page_size\)\)$'
+    flags: m
+    target: { source: file, path: src/edge-marker.sh }
+  - name: docstring-unchanged
+    type: regex
+    pattern: 'def _parse\(line\):\n    """Split a header line into key and value\."""\n    key, _, value = line\.partition\(":"\)'
+    target: { source: file, path: src/edge_docstring.py }
+  - name: docstring-reported
+    type: regex
+    pattern: 'docstring'
+    flags: i
+    target: last_message
+  - name: paired-comment-kept
+    type: regex
+    pattern: '#[^\n]*Empty input'
+    target: { source: file, path: src/edge-paired.sh }
+  - name: kept-comment-succinct
+    type: regex
+    pattern: '(^[ \t]*#(?!!| shellcheck )[^\n]*\n){3}'
+    flags: m
+    match: not_contains
+    target: { source: file, path: src/edge-paired.sh }
+  - name: code-intact
+    type: regex
+    pattern: '\[\[ -n "\$\{1:-\}" \]\] \|\| return 1\n  return 0\n\}'
+    target: { source: file, path: src/edge-paired.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
