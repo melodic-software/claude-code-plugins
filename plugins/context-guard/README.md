@@ -189,7 +189,7 @@ this host is bimodal and is reported only for the row it dominates: the small re
 fell from 1,448 ms to 237 ms.
 
 The one failure mode is a snapshot written DURING a resolve. The mark is stamped after the resolve
-completes, so that write counts as seen and its crossing waits for the next statusline render — the
+completes, so that write counts as seen and its crossing waits for the next statusline render; the
 window is the resolve, not an mtime tick. A missed crossing is therefore late, never lost, and the
 converse cannot happen: skipping only ever chooses silence, so no arrangement of timestamps can
 manufacture an injection the full path would not have made.
