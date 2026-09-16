@@ -4496,7 +4496,7 @@ fast_fields_is_jq() { # <desc> <payload>
     fail "fast fields ($desc): fast [$(printf '%q ' "${fast[@]}")] jq [$(printf '%q ' "${slow[@]:1}")]"
   fi
 }
-fast_fields_is_jq "Bash payload" '{"session_id":"s","cwd":"C:\\work\\repo","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","description":"probe"}}'
+fast_fields_is_jq "Bash payload" '{"session_id":"s","cwd":"C:\\code\\proj","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","description":"probe"}}'
 # shellcheck disable=SC2016  # the $_ is PowerShell's, inside a JSON payload
 fast_fields_is_jq "PowerShell payload with braces and backslashes" '{"tool_name":"PowerShell","cwd":"C:\\Dev","tool_input":{"command":"Get-ChildItem C:\\Dev | Where-Object { $_.Name -like \"*x*\" }"}}'
 fast_fields_is_jq "escapes in the command" '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"a\\nb\" && echo \"\\t\"\\\\x"}}'
