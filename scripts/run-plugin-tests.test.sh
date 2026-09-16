@@ -183,6 +183,49 @@ else
   fail "interleaved output: $block_defects"
 fi
 
+# --- a serial-allowlisted suite drawn by --suites-from stays serial ----------
+#
+# The allowlist is the thing a second parallel runner would forget, and
+# scripts/affected-tests.sh --jobs N reaches this runner through --suites-from
+# rather than through discovery. Nothing proved the allowlist still holds for a
+# suite the SELECTION drew: the --suites-from block further down keeps its
+# serial suite out of the selection, so it never reaches the partition. The
+# mechanic is this file's and is identical on both entry paths, so it is pinned
+# here, beside the probes that can see concurrency, rather than re-fixtured in
+# the selector's suite.
+#
+# p2 and s2 are left out of the selection on purpose: s2 is allowlisted and
+# unselected, which must NOT be reported stale, because the stale guard reads
+# the full discovery and not the selection.
+rm -f "$probe_dir"/overlap.* "$probe_dir"/running.*
+picked="$scratch/selection-serial.txt"
+printf 'plugins/p1/p1.test.sh\nplugins/p3/p3.test.sh\nplugins/s1/s1.test.sh\n' >"$picked"
+PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 0 "a supplied selection carrying a serial suite exits 0" \
+  --root "$r" --jobs 3 --suites-from "$picked"
+assert_output_has "the supplied selection is split serial-first" "Suites: 3 (1 serial, 2 across up to 3 job(s))"
+assert_output_lacks "an allowlisted suite the selection did not draw stays unrun" "=== plugins/s2/s2.test.sh ==="
+if [[ -s "$probe_dir/overlap.s1.test.sh" ]]; then
+  fail "selected serial suite s1 overlapped another suite: $(cat "$probe_dir/overlap.s1.test.sh")"
+else
+  ok "a serial suite drawn by --suites-from still runs alone"
+fi
+sel_overlaps=0
+for name in p1 p3; do
+  [[ -s "$probe_dir/overlap.$name.test.sh" ]] && sel_overlaps=$((sel_overlaps + 1))
+done
+if ((sel_overlaps > 0)); then
+  ok "the selected parallel suites still ran concurrently ($sel_overlaps of 2 probes saw a sibling)"
+else
+  fail "no selected parallel probe saw a sibling; --suites-from collapsed the group to serial"
+fi
+sel_serial_last="$(grep -n '^PASS: plugins/s1' <<<"$RUN_OUTPUT" | tail -n 1 | cut -d: -f1)"
+sel_parallel_first="$(grep -n '^PASS: plugins/p' <<<"$RUN_OUTPUT" | head -n 1 | cut -d: -f1)"
+if [[ -n "$sel_serial_last" && -n "$sel_parallel_first" ]] && ((sel_serial_last < sel_parallel_first)); then
+  ok "the selected serial suite finishes before the selected parallel group starts"
+else
+  fail "the selected serial suite did not finish first (serial line $sel_serial_last, parallel first line $sel_parallel_first)"
+fi
+
 rm -f "$probe_dir"/overlap.* "$probe_dir"/running.*
 PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 0 "--jobs 1 still honours the allowlist" --root "$r"
 for name in p1 p2 p3 s1 s2; do
