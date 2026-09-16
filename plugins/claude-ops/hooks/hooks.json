@@ -17,6 +17,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the StopFailure event..."
           }
@@ -40,6 +41,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the ConfigChange event..."
           }
@@ -62,6 +64,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the InstructionsLoaded event..."
           }
@@ -84,6 +87,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PermissionDenied event..."
           }
@@ -106,6 +110,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PreCompact event..."
           }
@@ -129,6 +134,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PostToolUse event..."
           }
@@ -151,6 +157,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the UserPromptExpansion event..."
           }
@@ -174,6 +181,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PostToolUseFailure event..."
           }
@@ -196,6 +204,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the Stop event..."
           }
@@ -208,6 +217,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the CwdChanged event..."
           }
@@ -220,6 +230,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the DirectoryAdded event..."
           }
@@ -232,6 +243,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the Elicitation event..."
           }
@@ -244,6 +256,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the ElicitationResult event..."
           }
@@ -256,6 +269,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the Notification event..."
           }
@@ -268,6 +282,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PermissionRequest event..."
           }
@@ -280,6 +295,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PostCompact event..."
           }
@@ -292,6 +308,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PostModelSwitch event..."
           }
@@ -304,6 +321,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PostToolBatch event..."
           }
@@ -316,6 +334,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PreModelSwitch event..."
           }
@@ -328,6 +347,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the PreToolUse event..."
           }
@@ -340,6 +360,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the SessionEnd event..."
           }
@@ -350,6 +371,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-retention.sh",
+            "shell": "bash",
             "statusMessage": "Pruning the session event log..."
           }
         ]
@@ -361,6 +383,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the SessionStart event..."
           }
@@ -373,6 +396,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the Setup event..."
           }
@@ -385,6 +409,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the SubagentStart event..."
           }
@@ -397,6 +422,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the SubagentStop event..."
           }
@@ -409,6 +435,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the TaskCompleted event..."
           }
@@ -421,6 +448,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the TaskCreated event..."
           }
@@ -433,6 +461,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the TeammateIdle event..."
           }
@@ -445,6 +474,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the UserPromptSubmit event..."
           }
@@ -457,6 +487,7 @@
           {
             "type": "command",
             "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
+            "shell": "bash",
             "timeout": 5,
             "statusMessage": "Logging the WorktreeRemove event..."
           }
