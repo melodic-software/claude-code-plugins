@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+has_input() {
+  # Empty input must return 1, not 0; tests/edge-paired.test.sh pins this.
+  [[ -n "${1:-}" ]] || return 1
+  return 0
+}

@@ -180,6 +180,42 @@
         "Deletes the two-line block with a COMMENT-ONLY verdict and keeps the prose comment for ordinary triage",
         "Notes ruff as absent with the capability lost, rather than failing"
       ]
+    },
+    {
+      "id": 16,
+      "name": "aggressive-deletes-non-exempt-rationale-with-staging",
+      "prompt": "/code-tidying:dissolve-comments aggressive lib/worker.sh\n\n(lib/worker.sh is committed. It carries a rationale comment explaining why a retry count is three, a warning that one function must run before another or the lock file deadlocks, a license header, and a '# shellcheck disable=SC2034' directive with its justification. The repository has no test suite and tree-sitter is present for bash.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the retry rationale with its narrative staged in the proposed commit-message block, without running a git log -L recoverability check on it",
+        "Keeps the deadlock warning, rewritten to at most class_c_max_lines, and names it as a warning of consequence rather than citing criterion-2 evidence",
+        "Keeps the license header and the shellcheck directive with its justification untouched",
+        "Certifies each deletion COMMENT-ONLY with change-shape.py and reports the next commit touching the file as the staged block's landing place"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "strip-keeps-exempt-surfaces-and-rewrites-nothing",
+      "prompt": "/code-tidying:dissolve-comments strip lib/worker.sh\n\n(Same file as the aggressive case: a rationale comment, a deadlock warning, a license header, a shellcheck directive with its justification, and a block comment narrating what a six-line section does. A test suite exists and is discoverable.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the rationale, the warning, and the narrating block comment, each certified COMMENT-ONLY",
+        "Does NOT extract a function for the narrating comment even though a test net exists, because strip rewrites no code, and sends that comment's information to the staged block instead",
+        "Keeps the license header and the shellcheck directive with its justification",
+        "Leaves every non-comment line byte-identical"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "standing-aggressive-posture-yields-to-safe",
+      "prompt": "/code-tidying:dissolve-comments safe lib/worker.sh\n\n(comment_posture is aggressive. The file carries one restating comment above the line it restates and one rationale comment whose reasoning is absent from git history.)",
+      "narration": true,
+      "expectations": [
+        "Applies the class-A deletion of the restating comment",
+        "Does NOT delete the rationale comment: safe wins over the standing aggressive posture, and only class-A deletions are applied",
+        "Emits the rationale removal as a proposal with its narrative staged",
+        "Names safe mode as the effective mode in the report rather than the standing posture"
+      ]
     }
   ]
 }

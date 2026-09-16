@@ -1,0 +1,63 @@
+schema_version: "1.1"
+name: invented-class-c-aggressive
+description: aggressive on an invented script keeps a load-bearing warning and deletes two rationale comments and a restating comment with the narrative staged for the next commit
+tags: [calibration, aggressive, invented]
+expected_outcome: The lock-deadlock warning survives in at most two lines; the retry rationale (absent from history), the timeout rationale (in the commit message), and the set-the-counter comment are deleted; both rationales are staged and the report names the next commit as their landing place; code is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive class-c.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: warning-kept
+    type: regex
+    pattern: '#[^\n]*deadlock'
+    flags: i
+    target: { source: file, path: class-c.sh }
+  - name: retry-rationale-deleted
+    type: regex
+    pattern: '#[^\n]*upstream API'
+    match: not_contains
+    target: { source: file, path: class-c.sh }
+  - name: timeout-rationale-deleted
+    type: regex
+    pattern: '#[^\n]*load balancer'
+    match: not_contains
+    target: { source: file, path: class-c.sh }
+  - name: class-a-deleted
+    type: regex
+    pattern: '#[^\n]*set the counter to zero'
+    match: not_contains
+    target: { source: file, path: class-c.sh }
+  - name: kept-comment-succinct
+    type: regex
+    pattern: '(^[ \t]*#(?!!| shellcheck )[^\n]*\n){3}'
+    flags: m
+    match: not_contains
+    target: { source: file, path: class-c.sh }
+  - name: code-intact
+    type: regex
+    pattern: '^prepare_lock\(\) \{\n  : >"\$lock_file"\n\}[\s\S]*^  local retries=3\n  for \(\(attempt = 1; attempt <= retries; attempt\+\+\)\); do\n    if curl --silent --max-time "\$timeout" "\$api_url/status"; then\n      return 0\n    fi\n  done\n  return 1\n\}[\s\S]*^counter=0$[\s\S]*^timeout=5$[\s\S]*^prepare_lock\nstart_worker\n\nfetch_status \|\| counter=\$\(\(counter \+ 1\)\)\necho "failures: \$counter"$'
+    flags: m
+    target: { source: file, path: class-c.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
+  - name: landing-place-named
+    type: regex
+    pattern: 'next commit'
+    flags: i
+    target: last_message
+  - name: no-intentional-removal-trailer
+    type: regex
+    pattern: '^[ \t]*Intentional-removal:'
+    flags: m
+    match: not_contains
+    target: last_message
+  - name: narrative-staged
+    type: llm
+    criteria: PASS when the final report contains a proposed commit-message block that preserves both removed rationales, namely that fetch_status retries three times because the upstream API drops the first connection after idle, and that the 5 second timeout stays under the load balancer's 6 second idle cutoff. FAIL when either rationale appears nowhere in the report.

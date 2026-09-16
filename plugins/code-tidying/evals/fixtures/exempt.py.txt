@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 Example Corp.
+# Licensed under the MIT License. See LICENSE in the project root.
+
+URL = "https://example.com/api/v1/pages?include=title,author,updated_at&sort=updated_at&order=descending&limit=100"  # noqa: E501  long canonical URL
+
+# TODO(#12): replace polling with a webhook
+POLL_SECONDS = 30
+
+
+def fetch_pages(client):
+    pages = client.get(URL)
+    # Sorted here because the API returns pages in arbitrary order.
+    pages.sort(key=lambda page: page["updated_at"])
+    return pages
+
+
+def retry_delay(attempt):
+    # dissolve-comments-ignore
+    return min(2**attempt, POLL_SECONDS)  # capped so a retry never outlasts one poll interval

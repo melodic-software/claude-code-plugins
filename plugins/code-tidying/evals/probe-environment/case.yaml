@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: probe-environment
+description: Confirms the eval run resolves a python3 with the comment-tooling wheels and a make binary
+tags: [probe]
+runs: 1
+execution:
+  prompt: "Run this exact command with the Bash tool and report its full output verbatim: command -v python3; python3 -c 'import pygments, tree_sitter, tree_sitter_bash' && echo imports-$((40+2)); command -v make; echo PATH=$PATH"
+  allowed_tools: [Bash]
+  max_turns: 5
+  timeout_seconds: 180
+graders:
+  - name: wheels-import
+    type: regex
+    pattern: imports-42
+    target: trace

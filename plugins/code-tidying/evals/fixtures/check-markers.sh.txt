@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Fails when a marker listed in scripts/restoration-markers.txt is missing from src/.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+status=0
+while IFS= read -r marker; do
+  [[ -z "$marker" ]] && continue
+  if ! grep -rqF -- "$marker" "$root/src"; then
+    echo "missing restoration marker: $marker" >&2
+    status=1
+  fi
+done <"$root/scripts/restoration-markers.txt"
+exit "$status"
