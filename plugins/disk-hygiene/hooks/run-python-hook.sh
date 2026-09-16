@@ -129,7 +129,7 @@ raise SystemExit(0 if sys.version_info >= floor else 1)
 #     `session_id` key could win instead and key the marker wrongly. Both rows
 #     parse identically, so that corner is a missed detection, never a false
 #     alarm.
-#   * a mis-parse fails SAFE: no session id means write nothing and skip
+#   * a misparse fails SAFE: no session id means write nothing and skip
 #     nothing, which is this launcher's behavior before these flags existed.
 MARKER_ROOT=""
 LAUNCH_MARKER_SUBDIR=""
