@@ -126,7 +126,19 @@ hook::emit_channels() {
     out+='"systemMessage":"'"$__hu_es"'"'
   fi
   out+="}"
-  printf '%s\n' "$out"
+  hook::emit_document "$out"
+}
+
+# hook::emit_document <json>: write ONE hook JSON document to stdout. Every
+# document a hook emits goes through here, hook::emit_channels included, so a
+# dispatcher that runs several hooks in one process (guardrails run-guards.sh)
+# can override this one function to collect the documents and merge them,
+# instead of capturing each hook's stdout in a subshell. A hook that prints a
+# document with its own printf bypasses that collection: under such a
+# dispatcher its document reaches stdout unmerged, which is invalid hook
+# output when another hook emitted too.
+hook::emit_document() {
+  printf '%s\n' "$1"
 }
 
 # Visible skip notice: the same message on both channels. The caller must exit 0
@@ -811,8 +823,19 @@ hook::_json_split() {
 # byte, which jq rejects.
 _HOOK_JSON_SK=""
 _HOOK_JSON_OFF=()
+# The last text and its verdict. A hook that primes several fields and then
+# reads its file path asks for the same payload's skeleton twice in one
+# process; the parts, offsets and skeleton are still those of that text, so the
+# second ask is a string comparison rather than a second walk.
+_HOOK_JSON_SK_TEXT=""
+_HOOK_JSON_SK_RC=""
 hook::_json_skeleton() {
   local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top __hu_esc __hu_c
+  if [[ -n "$_HOOK_JSON_SK_RC" && "$__hu_s" == "$_HOOK_JSON_SK_TEXT" ]]; then
+    return "$_HOOK_JSON_SK_RC"
+  fi
+  _HOOK_JSON_SK_TEXT=$__hu_s
+  _HOOK_JSON_SK_RC=1
   hook::_json_split "$__hu_s" || return 1
   __hu_n=${#_HOOK_JSON_PARTS[@]}
   _HOOK_JSON_OFF=()
@@ -912,6 +935,7 @@ hook::_json_skeleton() {
   done
   [[ "$__hu_expect" == end ]] || return 1
   _HOOK_JSON_SK=${__hu_sk//[$' \t\n\r']/}
+  _HOOK_JSON_SK_RC=0
   return 0
 }
 
@@ -1027,6 +1051,159 @@ hook::_fast_file_path_to() {
     __hu_file=${__hu_file%$'\n'}
   done
   printf -v "$1" '%s' "$__hu_file"
+  return 0
+}
+
+# The associative-array availability guard for hook::_fast_fields below, split
+# out as its own predicate so the pre-4.0 path stays reachable in tests on a
+# modern host: BASH_VERSINFO is readonly, so it cannot be shadowed, but a test
+# can override this function after sourcing. Same class as
+# hook::read_supports_nchars. macOS ships Bash 3.2 and these hooks document
+# 3.2+ support, so below the floor the answer is jq's, not a wrong one. Not a
+# consumer seam.
+hook::_fast_fields_supported() {
+  ((BASH_VERSINFO[0] >= 4))
+}
+
+# hook::_fast_fields <payload> <filter>...
+# The builtin answer to hook::jq_fields' jq program for the filters that
+# program is usually given: `.key` and `.key.sub`, identifier keys only.
+# Returns
+#   0  proven: HOOK_JQ_FIELDS holds, per filter, exactly what jq prints for
+#      `((<filter>) // "" | tostring)` with CR stripped, and HOOK_JQ_FIELDS_NUL
+#      is 0 (a NUL escape in any requested value is a proof failure)
+#   2  not proven: run jq
+# Any other filter shape is not proven. Proof, on top of hook::_json_skeleton's
+# structural checks (which include every escape jq accepts and no raw control
+# byte): the root is an object; every key named by a filter decodes from
+# exactly ONE string in the whole payload, so neither a duplicate key nor a
+# same-named key in another object nor a value spelled like the key can change
+# jq's answer; a top-level key is a direct member of the root; a nested key's
+# parent is a flat object (no container inside it, else jq); and each
+# requested value is a plain string or null, or the key is absent. A number,
+# boolean, object or array value is handed to jq for its `tostring`, a string
+# whose escapes hook::json_unescape_to does not decode (a NUL, a \u past
+# U+007F) likewise. Key strings are compared after decoding, so a key spelled
+# with \u escapes is still recognized; a body longer than any escaped spelling
+# of a requested key name is skipped without decoding. That bound is six times
+# the longest requested key name: a filter key is an ASCII identifier, and an
+# identifier character's longest escaped spelling is `\uXXXX`, six bytes.
+#
+# Bash 4.0+ only (the `local -A` index below), so the call site gates it on
+# hook::_fast_fields_supported and a 3.2 shell runs jq instead.
+hook::_fast_fields() {
+  local __hu_s="$1"
+  shift
+  local -a __hu_k1=() __hu_k2=()
+  local __hu_f __hu_i __hu_n __hu_part __hu_body __hu_re __hu_raw __hu_val __hu_j
+  local __hu_ident='[A-Za-z_][A-Za-z0-9_]*'
+  local __hu_cap=0
+  __hu_re="^\\.($__hu_ident)(\\.($__hu_ident))?\$"
+  for __hu_f in "$@"; do
+    [[ "$__hu_f" =~ $__hu_re ]] || return 2
+    __hu_k1+=("${BASH_REMATCH[1]}")
+    __hu_k2+=("${BASH_REMATCH[3]}")
+    ((${#BASH_REMATCH[1]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[1]}
+    ((${#BASH_REMATCH[3]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[3]}
+  done
+  # The skip bound: six bytes per character of the longest requested key name,
+  # the width of `\uXXXX`. A shorter bound proves the wrong thing rather than
+  # costing time: a key whose body exceeds it is never decoded, so a key that
+  # IS present is reported absent, and a key of 11 or more characters spelled
+  # entirely in \u escapes is missed the same way.
+  __hu_cap=$((__hu_cap * 6))
+  hook::_json_skeleton "$__hu_s" || return 2
+  [[ "$_HOOK_JSON_SK" == \{* ]] || return 2
+  # Every string body that decodes to a requested key name, by name: the part
+  # index, or -1 once a second body decodes to the same name.
+  local -A __hu_idx=()
+  local -A __hu_want=()
+  for __hu_f in "${__hu_k1[@]}" "${__hu_k2[@]}"; do
+    [[ -n "$__hu_f" ]] && __hu_want[$__hu_f]=1
+  done
+  __hu_n=${#_HOOK_JSON_PARTS[@]}
+  for ((__hu_i = 1; __hu_i < __hu_n; __hu_i += 2)); do
+    __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
+    ((${#__hu_part} <= __hu_cap)) || continue
+    __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    if [[ "$__hu_body" == *\\* ]]; then
+      hook::json_unescape_to __hu_body "$__hu_body" || continue
+    fi
+    [[ -n "$__hu_body" && -n "${__hu_want[$__hu_body]+x}" ]] || continue
+    if [[ -n "${__hu_idx[$__hu_body]+x}" ]]; then
+      __hu_idx[$__hu_body]=-1
+    else
+      __hu_idx[$__hu_body]=$__hu_i
+    fi
+  done
+  local -a __hu_vals=()
+  local __hu_ti __hu_fi __hu_pre __hu_o1 __hu_o2 __hu_c1 __hu_c2 __hu_depth __hu_tok
+  for ((__hu_j = 0; __hu_j < ${#__hu_k1[@]}; __hu_j++)); do
+    __hu_ti=${__hu_idx[${__hu_k1[__hu_j]}]--2}
+    ((__hu_ti != -1)) || return 2
+    if ((__hu_ti == -2)); then
+      __hu_vals+=("") # no string in the payload spells the key: absent
+      continue
+    fi
+    # The key must be a direct member of the root: a key position at depth
+    # exactly one. Anywhere else (a value, a deeper key) the root has no such
+    # member, and the unique spelling means nothing else could be one.
+    __hu_re="(^|[{,])\"#$__hu_ti\":(\"#[0-9]+\"|\\{[^][{}]*\\}|null|true|false|[-0-9][^,}]*|\\[|\\{)"
+    if ! [[ "$_HOOK_JSON_SK" =~ $__hu_re ]]; then
+      __hu_vals+=("")
+      continue
+    fi
+    __hu_tok=${BASH_REMATCH[2]}
+    __hu_pre=${_HOOK_JSON_SK%%\"#"$__hu_ti"\"*}
+    __hu_o1=${__hu_pre//\{/}
+    __hu_o2=${__hu_pre//\[/}
+    __hu_c1=${__hu_pre//\}/}
+    __hu_c2=${__hu_pre//\]/}
+    __hu_depth=$(((${#__hu_pre} - ${#__hu_o1}) + (${#__hu_pre} - ${#__hu_o2}) - (${#__hu_pre} - ${#__hu_c1}) - (${#__hu_pre} - ${#__hu_c2})))
+    if ((__hu_depth != 1)); then
+      __hu_vals+=("")
+      continue
+    fi
+    if [[ -z "${__hu_k2[__hu_j]}" ]]; then
+      case "$__hu_tok" in
+      \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
+      null) __hu_vals+=("") && continue ;;
+      *) return 2 ;;
+      esac
+    else
+      case "$__hu_tok" in
+      null) __hu_vals+=("") && continue ;;
+      \{*\}) ;;      # a flat object: its members are the only place the key can be
+      *) return 2 ;; # a string, number, boolean, array, or an object with a container inside
+      esac
+      __hu_fi=${__hu_idx[${__hu_k2[__hu_j]}]--2}
+      ((__hu_fi != -1)) || return 2
+      if ((__hu_fi == -2)); then
+        __hu_vals+=("")
+        continue
+      fi
+      __hu_body=${__hu_tok:1:${#__hu_tok}-2}
+      __hu_re="(^|,)\"#$__hu_fi\":(\"#[0-9]+\"|null|true|false|[-0-9][^,]*)(,|\$)"
+      if ! [[ "$__hu_body" =~ $__hu_re ]]; then
+        __hu_vals+=("") # not a key of the parent; unique, so not one anywhere
+        continue
+      fi
+      __hu_tok=${BASH_REMATCH[2]}
+      case "$__hu_tok" in
+      \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
+      null) __hu_vals+=("") && continue ;;
+      *) return 2 ;;
+      esac
+    fi
+    __hu_val=${__hu_s:${_HOOK_JSON_OFF[__hu_raw]}:${#_HOOK_JSON_PARTS[__hu_raw]}}
+    if [[ "$__hu_val" == *\\* ]]; then
+      hook::json_unescape_to __hu_val "$__hu_val" || return 2
+    fi
+    __hu_val=${__hu_val//$'\r'/}
+    __hu_vals+=("$__hu_val")
+  done
+  HOOK_JQ_FIELDS=("${__hu_vals[@]}")
+  HOOK_JQ_FIELDS_NUL=0
   return 0
 }
 
@@ -1935,14 +2112,37 @@ hook::jq_field() {
 #   hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
 #   if ((HOOK_JQ_FIELDS_NUL)); then echo "BLOCKED: …" >&2; exit 2; fi
 #   COMMAND="${HOOK_JQ_FIELDS[0]}" TOOL_NAME="${HOOK_JQ_FIELDS[1]}"
+#
+# The jq process is the last resort, not the first. hook::_fast_fields answers
+# the common shape (a well-formed payload whose requested fields are plain
+# strings under unique keys) with builtins and hands anything it cannot prove
+# to jq, so a hook that reads `.tool_input.command` and `.tool_name` from an
+# ordinary Bash payload spawns nothing. The two entry points are one function:
+# hook::jq_fields is the name every hook calls, and hook::jq_fields_uncached is
+# the same body under the name a dispatcher that puts a per-event cache in
+# front of it (guardrails run-guards.sh) falls through to on a miss. Overriding
+# hook::jq_fields alone therefore never loses the library's own path.
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing hook, not this file
 hook::jq_fields() {
+  hook::jq_fields_uncached "$@"
+}
+
+# shellcheck disable=SC2034  # result globals are consumed by the sourcing hook, not this file
+hook::jq_fields_uncached() {
   local input="$1"
   shift
   HOOK_JQ_FIELDS=()
   HOOK_JQ_FIELDS_NUL=0
   (($#)) || return 1
   command -v jq >/dev/null 2>&1 || return 1
+  # The floor first: hook::_fast_fields indexes with an associative array, which
+  # is Bash 4.0+. Below it the whole fast path is skipped and jq answers, rather
+  # than `local -A` failing per call on a shell these hooks support.
+  if hook::_fast_fields_supported && hook::_fast_fields "$input" "$@"; then
+    return 0
+  fi
+  HOOK_JQ_FIELDS=()
+  HOOK_JQ_FIELDS_NUL=0
   local prog="" filter
   for filter in "$@"; do
     [[ -n "$prog" ]] && prog+=","
@@ -2418,11 +2618,18 @@ hook::finish() {
 # (e.g. the whole command is `TOKEN=ghp_…`) is likewise a value the subject must
 # not carry, so a resolved token still shaped like a NAME=value assignment aborts
 # to the bare "Bash" subject too.
-#   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")
+#   hook::extract_bash_subject_to SUBJECT "$TOOL" "$CMD"   # in this shell
+#   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")   # print form: a fork
 hook::extract_bash_subject() {
-  local tool="$1" cmd="${2:-}"
+  local __hu_subject
+  hook::extract_bash_subject_to __hu_subject "$1" "${2:-}"
+  printf '%s' "$__hu_subject"
+}
+
+hook::extract_bash_subject_to() {
+  local __hu_dest="$1" tool="$2" cmd="${3:-}"
   if [[ "$tool" != "Bash" ]]; then
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
     return 0
   fi
   # Trim leading whitespace so the first token is real.
@@ -2433,7 +2640,7 @@ hook::extract_bash_subject() {
     # A quote in the prefix token means a quoted value spans the next whitespace;
     # we cannot tokenize it safely — bail rather than leak a value fragment.
     if [[ "$first_token" == *[\"\']* ]]; then
-      printf '%s' "$tool"
+      printf -v "$__hu_dest" '%s' "$tool"
       return 0
     fi
     cmd="${cmd#*[[:space:]]}"
@@ -2443,7 +2650,7 @@ hook::extract_bash_subject() {
   # The resolved command token itself must not carry a quote (e.g. a value that
   # ended here), which would likewise be a value fragment.
   if [[ "$first_token" == *[\"\']* ]]; then
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
     return 0
   fi
   # A resolved token still shaped like a bare/trailing assignment (no following
@@ -2456,14 +2663,14 @@ hook::extract_bash_subject() {
   # no-close-bracket class would miss. This runs BEFORE the basename strip so
   # a path-valued assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
   if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*(\[.*\])?\+?= ]]; then
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
     return 0
   fi
   first_token="${first_token##*/}"
   if [[ -n "$first_token" ]]; then
-    printf 'Bash:%s' "$first_token"
+    printf -v "$__hu_dest" 'Bash:%s' "$first_token"
   else
-    printf '%s' "$tool"
+    printf -v "$__hu_dest" '%s' "$tool"
   fi
 }
 
@@ -3604,6 +3811,21 @@ hook::git_alias_admit() {
   HOOK_ALIAS_MEMO["$key"]=1
   ((++HOOK_ALIAS_WORK <= ${HOOK_ALIAS_WORK_MAX:-128})) && return 0
   return 2
+}
+
+# hook::reset_analysis_state: forget the per-invocation analysis state, so the
+# next hook to run in this process starts as a fresh hook process would. That
+# state is the alias memo and budget above (armed on first use, and a memo hit
+# means "already analyzed: skip"), the two seen-sets, and the effective base
+# the alias walk carries. A hook run alone never needs this; a dispatcher that
+# sources several hooks into one shell (guardrails run-guards.sh) calls it
+# before each, because otherwise the second hook to walk the same alias chain
+# is answered by the first hook's memo and skips the analysis it owes. The
+# keyed caches (physical paths, the JSON skeleton) are not analysis state:
+# they answer the same question the same way for every hook, and stay.
+hook::reset_analysis_state() {
+  unset HOOK_ALIAS_ADMIT_ARMED HOOK_ALIAS_MEMO HOOK_ALIAS_WORK
+  unset HOOK_ALIAS_SEEN HOOK_SHELL_ALIAS_SEEN HOOK_EFFECTIVE_BASE
 }
 
 # Mark the redirection still waiting for an operand as OPAQUE: the operator is

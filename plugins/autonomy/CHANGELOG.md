@@ -3,11 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.13]
+## [0.23.14]
 
 ### Changed
 
 - hooks: the Stop hook's payload-free pre-filter decides the managed-settings root by which fixed path exists rather than by asking `uname -s` which one to test, and the manifest read that names an unanchored install moves below the pre-filter. Outside a lane the hook now creates no process of its own (measured on Windows Git Bash: 6 creations to 4 for an anchored install, 8 to 4 for an unanchored one, against a 4-creation harness floor; the `$(uname -s)` alone cost 3 of them). Inside a lane the count is unchanged at 19 and the block decision is byte-identical. The trust boundary is unchanged: the candidate scan only routes, and every managed VALUE still comes from the `uname`-selected, absoluteness-asserted list, because the platform is now decided by which root-owned path exists, which a repository can no more forge than it could forge uname's answer.
+
+## [0.23.13]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
 
 ## [0.23.12]
 

@@ -3,6 +3,15 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0]
+
+### Changed
+
+- run-guards.sh runs its guards inside its own shell instead of one command-substitution subshell per guard. A sourced guard's `exit` is a dispatcher function that records the status and runs the next guard from inside the call; a guard's stdout document is collected through `hook::emit_document` rather than captured from a subshell; a guard that dies of a hard error hands its status to the abort boundary's new chain slot (`_GAB_CONTINUE`, abort-boundary.sh), which settles that guard's posture and runs the guards still owed in one subshell. With the library's builtin field parser answering the primed fields, a benign Bash tool call's chain spawns nothing: on Windows Git Bash the chain went from 23 process creations to 3 (the harness's `bash -c`, the `env` of the shebang, and bash itself), 880 ms to 297 ms isolated p50; the PowerShell lane from 100 to 80 creations, 3.3 s to 2.4 s, with its remaining forks inside `lib/powershell/ps-command.sh`. Every deny and allow is byte-identical before and after (rc, stdout and stderr) over 34 Bash and PowerShell invocations of the perf baseline's 17-command corpus and over the commands harvested from the guard suites. block-windows-drive-tmp masks quoted redirects in-shell (`mask_quoted_redirect_ops_to`); block-no-verify and flag-commit-pr-skill-bypass resolve their telemetry subject in-shell.
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value); `hook::jq_fields_uncached` names the same body for the dispatcher's cache; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
 ## [0.33.11]
 
 ### Changed

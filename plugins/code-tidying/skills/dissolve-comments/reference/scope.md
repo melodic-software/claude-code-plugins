@@ -27,7 +27,8 @@ The ladder advances on **absence** of a rung, never on emptiness: a rung that ex
 code files is reported with `files=0`, so a docs-only branch reports its files as out of scope
 instead of silently escalating to the whole repository. Widening to the `repository` rung is
 confirmed with the user in an interactive session; a non-interactive run proceeds in **safe** mode
-on any widened rung.
+on any widened rung, whatever the posture or dial token. `aggressive` and `strip` reach a widened
+rung only through that interactive confirmation; an explicit target is the other way to mean it.
 
 Granularity is per file: every comment in a listed file is triaged, not only the lines the diff
 added. That is deliberate. A pull request that touches a file is the moment its existing comments

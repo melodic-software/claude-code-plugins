@@ -1,0 +1,54 @@
+schema_version: "1.1"
+name: interaction-non-interactive-no-target
+description: aggressive with no target in a non-interactive session states its posture, applies no class-C deletion, and does not end on a question
+tags: [calibration, interaction, aggressive, invented]
+expected_outcome: The run names the rung the ladder resolved and states that it is non-interactive (safe mode, and the explicit-target re-run that would apply the full contract). No class-C comment is deleted, the warning and the retry rationale stay, code is unchanged, and the final message is a report rather than a question to the user.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: warning-kept
+    type: regex
+    pattern: '#[^\n]*deadlock'
+    flags: i
+    target: { source: file, path: class-c.sh }
+  - name: retry-rationale-kept
+    type: regex
+    pattern: '#[^\n]*upstream API'
+    target: { source: file, path: class-c.sh }
+  - name: non-interactive-posture-named
+    type: regex
+    pattern: 'non-interactive'
+    flags: i
+    target: last_message
+  - name: rung-reported
+    type: regex
+    pattern: 'rung|uncommitted|files=0|branch diff'
+    flags: i
+    target: last_message
+  - name: does-not-end-on-a-question
+    type: regex
+    pattern: '(shall I|should I|would you like|do you want|may I) [^\n]*\?'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: kept-comment-succinct
+    type: regex
+    pattern: '(^[ \t]*#(?!!| shellcheck )[^\n]*\n){3}'
+    flags: m
+    match: not_contains
+    target: { source: file, path: class-c.sh }
+  - name: code-intact
+    type: regex
+    pattern: '^prepare_lock\(\) \{\n  : >"\$lock_file"\n\}[\s\S]*^  local retries=3\n  for \(\(attempt = 1; attempt <= retries; attempt\+\+\)\); do\n    if curl --silent --max-time "\$timeout" "\$api_url/status"; then\n      return 0\n    fi\n  done\n  return 1\n\}[\s\S]*^counter=0$[\s\S]*^timeout=5$[\s\S]*^prepare_lock\nstart_worker\n\nfetch_status \|\| counter=\$\(\(counter \+ 1\)\)\necho "failures: \$counter"$'
+    flags: m
+    target: { source: file, path: class-c.sh }
+  - name: scope-resolved
+    type: tool_used
+    tool: Bash
+    input_match: scope-code-files
+    arm: both
