@@ -13,6 +13,9 @@
     "htmlhint": "1.9.2",
     "markdownlint-cli2": "0.23.2"
   },
+  "overrides": {
+    "smol-toml": "1.7.2"
+  },
   "allowScripts": {
     "@anthropic-ai/claude-code@2.1.246": true
   }

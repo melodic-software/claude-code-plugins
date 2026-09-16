@@ -15,6 +15,7 @@
 - [`marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal](#marketplace-remove-is-a-bulk-uninstall-not-a-declaration-removal-and-it-deletes-this-skills-own-run-journal)
 - [Internal-schema drift: fail loud, never guess](#internal-schema-drift-fail-loud-never-guess)
 - [Captured values on Windows carry `\r`: strip it before embedding in any command or JSON](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)
+- [`--all` with `install_new: all` is a mass install of every catalog, and nothing warns you](#--all-with-install_new-all-is-a-mass-install-of-every-catalog-and-nothing-warns-you)
 
 Failure modes this skill is specifically built to avoid, and what breaks if the safeguard is
 bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This file is the
@@ -339,3 +340,66 @@ with a parameter expansion and no `tr` process, **and** strip `\r` the same way 
 captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
 A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
 process per call. Don't rediscover this the hard way in a second script.
+
+## `--all` with `install_new: all` is a mass install of every catalog, and nothing warns you
+
+Observed 2026-09-14 on **Claude Code 2.1.270**, claude-ops 0.56.2. A `sync --all` run under
+`install_new: all` installed **2,231** plugins at user scope in about 20 minutes, 1,953 of them
+from `claude-community`, before the operator killed it partway through the alphabet. Nothing in the
+run asked, and nothing in the report predicted the volume before Step 4 began.
+
+**The two settings are individually reasonable and catastrophic together.** `install_new: all`
+means "install every not-yet-installed catalog plugin." Against the default marketplace, the one
+whose fleet the operator already curates, that is the intended convenience: the gap is normally
+zero or a handful. Against `--all` it quantifies over *every marketplace in
+`known_marketplaces.json`*, so the same word now means "install every plugin published in every
+catalog this machine knows about," including large third-party ones nobody curated. The policy is
+read once and applied per marketplace; it carries no notion that its blast radius just grew by
+three orders of magnitude.
+
+**Why the existing safeguards do not catch it.** The downgrade guard governs direction, not volume.
+The `ask` branch is the only one that enumerates before acting, and `all` exists precisely to skip
+it. `audit` would have predicted it, but `audit` is a separate invocation an operator reaching for
+`--all` has no particular reason to run first. Step 4's report names what it installed only
+*after* installing it.
+
+**The rule, until the skill enforces a volume gate itself:** treat `--all` combined with a rendered
+`install_new` of `all` as requiring an explicit human confirmation that names the number. Resolve
+the per-marketplace install gap first (`fleet-state.sh --marketplace <name> --ids
+missing-user-install` per marketplace (the selector `sync-run.sh` itself projects for Step 4), or
+one `audit all`), present the total, and proceed only on a yes. An agent running this unattended
+should downgrade its own effective policy to `ask` rather than assume the configured `all` was
+written with the cross-marketplace case in mind: an operator sets that option while thinking about
+the marketplace they maintain.
+
+**Reverting is exact but slow.** The run journal records one `Successfully installed plugin: <id>`
+line per install, so the revert set is `grep -oE "Successfully installed plugin: [^ ]+"` over
+`journal.log`, deduplicated, and it is disjoint from the pre-existing fleet by construction. Verify
+that disjointness against the run's own `pre-refresh.*.json` snapshots before uninstalling anything.
+`claude plugin uninstall <id> -s user -y` removes both the `installed_plugins.json` record and the
+user-scope `enabledPlugins` entry, but it costs ~6s per plugin, so a four-figure revert runs for
+hours. There is no bulk uninstall verb; `marketplace remove` is not one (see its own section above,
+it also deletes this skill's run journal, which is the only record of what to revert).
+
+**A plain `claude plugin uninstall` spawns a session that loads every still-enabled plugin**, so a
+revert loop over a large set re-executes the very plugin set it is removing, once per iteration,
+including their MCP servers. Run every uninstall as `claude --bare plugin uninstall <id> -s user -y`
+instead; `--bare` skips hooks, LSP, plugin sync and the MCP boot, at roughly 15s per uninstall
+rather than 6s. Until the revert drains, use `--bare` for unrelated shell work too, and do not run
+`/reload-plugins`.
+
+*Basis:* the absence of a bulk verb is `claude plugin uninstall --help`, whose complete option list
+is `-h/--help`, `--json`, `--keep-data`, `--prune`, `-s/--scope` and nothing that takes more than
+one `<plugin>`; the spawn-and-load behaviour and the `--bare` mitigation are direct observation
+during the 2026-09-14 revert on this fleet: the host's node/bun process count climbed on every
+plain uninstall and stayed flat at 73 across six consecutive `--bare` uninstalls; the ~6s and ~15s
+figures are wall-clock from that same run and are machine- and plugin-count-dependent, so treat
+them as orders of magnitude rather than constants. Neither the spawn behaviour nor `--bare` is
+documented on
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference) or
+[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), which is why this
+record exists. *As of* 2026-09-15 on **Claude Code 2.1.272** (win32); the revert itself ran on
+2.1.263–2.1.272 with no observed change in the behaviour. ***Recheck trigger:*** a bulk or
+glob-accepting form appearing on `claude plugin uninstall --help`; any release note or
+`plugins-reference` change touching what a non-interactive `plugin` subcommand loads at startup, or
+documenting `--bare`; or an observed uninstall that does not spawn a plugin-loading session.

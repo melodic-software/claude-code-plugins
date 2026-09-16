@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: real-silent-revert-design-aggressive
+description: aggressive on the check-silent-revert.sh design block deletes the rejected-alternatives history and keeps only a terse threshold warning
+tags: [calibration, aggressive, real]
+expected_outcome: The heading, the three rejected designs, and the measured result are deleted with their narrative staged; the warning that no volume threshold separates incidents from routine work survives in at most two comment lines; die() is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:dissolve-comments aggressive silent-revert-design.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: design-history-deleted
+    type: regex
+    pattern: '#[^\n]*(Curated marker|Merge-base staleness|PR-creation-time|Three designs|blame the lines|NOT THE ALTERNATIVES)'
+    flags: i
+    match: not_contains
+    target: { source: file, path: silent-revert-design.sh }
+  - name: threshold-warning-kept
+    type: regex
+    pattern: '#[^\n]*(threshold|number)'
+    flags: i
+    target: { source: file, path: silent-revert-design.sh }
+  - name: kept-comment-succinct
+    type: regex
+    pattern: '(^#[^\n]*\n){3}'
+    flags: m
+    match: not_contains
+    target: { source: file, path: silent-revert-design.sh }
+  - name: code-intact
+    type: regex
+    pattern: 'die\(\) \{\n  echo "check-silent-revert: \$\*" >&2\n  exit 2\n\}'
+    target: { source: file, path: silent-revert-design.sh }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: change-shape
+    arm: both
+  - name: narrative-staged
+    type: llm
+    criteria: PASS when the final report contains a proposed commit-message block that preserves the removed design history, naming the rejected alternatives (curated marker strings, merge-base staleness, PR-creation-time overlap) and that blame of deleted lines was chosen. FAIL when that history appears nowhere in the report.
