@@ -1080,9 +1080,9 @@ fi
 # it was written and why CI passes a count explicitly there.
 #
 # --jobs N > 1 hands the selection to run-plugin-tests.sh rather than spawning
-# anything here: that runner already owns the worker, the xargs -P dispatch,
-# the per-suite print lock that keeps concurrent output from interleaving, and
-# scripts/run-plugin-tests-serial.txt, the allowlist of suites that assert
+# anything here: that runner already owns the worker, the bounded xargs
+# dispatch, the per-suite print lock that keeps concurrent output from
+# interleaving, and scripts/run-plugin-tests-serial.txt, the suites that assert
 # wall-clock ceilings or drive concurrency probes and so must never overlap
 # anything. A second parallel runner in this file would be a second copy of all
 # four, and the serial allowlist is the one that must not be forgotten. Three
