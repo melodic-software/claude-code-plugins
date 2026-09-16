@@ -3,6 +3,13 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.17]
+
+### Changed
+
+- hook-failure-audit.sh audits only the transcript lines appended since the last Stop, keyed on a per-session cursor kept beside the warning marker. A turn with no new failure record now creates no process at all: measured by job-object accounting on Windows Git Bash at 3 process creations against a 3-creation harness floor (`bash -c`, `env`, `bash`), where it previously took 10. The count is the record because wall clock on that host drifts several-fold within an hour; across two runs the same turn measured 0.36-1.38 s before against 0.23-0.36 s after. The first Stop of a session keeps the tail cap and costs one `wc -lc`, which answers both the byte count the cap decision needs and the line count the cursor starts from, for 5 creations against 10, or 7 on the one session that first creates the data directory. The payload fields now ride on `hook::buffer_stdin_to`, which fuses the library's validation probe into the field read and answers both from the builtin parser. A turn that DOES carry a failure record reports exactly what it reported before, byte for byte. A cursor that is missing, malformed, pruned, ahead of a shortened transcript, or recorded against a different transcript_path rescans from the start, and rescanning cannot re-warn because the marker still decides that.
+- The cursor line count is now accepted only as a canonical decimal (no leading zero, at most 15 digits); a value like `08` used to pass the old `^[0-9]+$` check and then fail bash's octal-reading `((...))` arithmetic, printing shell diagnostics on Stop instead of running either scan path.
+
 ## [0.56.16]
 
 ### Changed
