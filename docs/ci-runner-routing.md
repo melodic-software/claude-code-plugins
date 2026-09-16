@@ -38,7 +38,7 @@ reviewed pull request.
 ## Routing and failure behavior
 
 The `ci-status` required check depends on every **required** workload lane
-(`changes`, `lint`, `test-linux`, `hook-utils`) and requires
+(`changes`, `lint`, `lint-2`, `test-linux`, `hook-utils`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). `test-windows` is deliberately outside that
@@ -48,6 +48,11 @@ warns against adding it to `ci-status.needs`. The metadata checks (Conventional 
 inside the same `ci-status` job on the same hosted runner, so they no longer
 carry status contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
+
+`lint` and `lint-2` are two halves of one hygiene lane, split across two
+runners and balanced on measured wall time; every gate keeps the name it always
+had, and each half carries its own `aggregate-hygiene-results.sh` feed over
+exactly its own gate steps.
 
 ## Toolchain integrity
 

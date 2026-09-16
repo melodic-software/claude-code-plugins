@@ -74,9 +74,10 @@ concurrency:
 # carries the pull-request contract (title, do-not-merge label, issue linkage)
 # as steps of that one check.
 #
-# SIX JOBS, NOT FIFTY-FIVE. Each of the fifty-odd lanes this file used to carry
-# paid a fresh runner, a fresh checkout and a fresh toolchain install to run a
-# few seconds of work. The lanes are now steps of four working jobs — `lint`,
+# A HANDFUL OF JOBS, NOT FIFTY-FIVE. Each of the fifty-odd lanes this file used
+# to carry paid a fresh runner, a fresh checkout and a fresh toolchain install
+# to run a few seconds of work. The lanes are now steps of four working jobs —
+# `lint` and `lint-2` (two halves of one hygiene lane, run in parallel),
 # `test-linux`, `test-windows` and `hook-utils` — behind one resolver,
 # `changes`, and one aggregate, `ci-status`. Every step keeps the name it had,
 # so a lane is still findable by the name it always had.
@@ -267,15 +268,22 @@ jobs:
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
   #
-  # EVERY REPO-INVARIANT GATE IS A STEP OF THIS JOB. Docs linting, the four
-  # schema validations, the shell and manifest scanners, every static
-  # repository invariant, the three diff-scoped lints, the Actions security
-  # lint and the runner policy. Each gate is a `continue-on-error` step with an
-  # `id`, and `scripts/aggregate-hygiene-results.sh` joins their outcomes
-  # through the CHECK_RESULTS feed at the foot of the job, so one failing gate
-  # names itself instead of stopping every gate after it. Self-tests are NOT
-  # `continue-on-error`: a broken detector must turn this job red rather than
-  # let its own gate pass quietly.
+  # EVERY REPO-INVARIANT GATE IS A STEP OF THIS JOB OR OF `lint-2`. Docs
+  # linting, the four schema validations, the shell and manifest scanners,
+  # every static repository invariant, the three diff-scoped lints, the Actions
+  # security lint and the runner policy. Each gate is a `continue-on-error`
+  # step with an `id`, and `scripts/aggregate-hygiene-results.sh` joins their
+  # outcomes through the CHECK_RESULTS feed at the foot of each job, so one
+  # failing gate names itself instead of stopping every gate after it.
+  # Self-tests are NOT `continue-on-error`: a broken detector must turn its job
+  # red rather than let its own gate pass quietly.
+  #
+  # THE LANE IS SPLIT ACROSS TWO RUNNERS. `lint` and `lint-2` are halves of one
+  # hygiene lane, balanced on measured wall time and both in `ci-status.needs`;
+  # neither half reads anything the other produces. This job keeps the external
+  # composite lints, the schema validations, the manifest duplicate-key
+  # detector and the whole-repository scanners; `lint-2` keeps the repo-local
+  # gate scripts under scripts/, zizmor and the runner policy.
   #
   # Markdownlint / typos / editorconfig / gitleaks / eol-renormalize /
   # comment-hygiene / machine-specific-paths read the changed docs themselves
@@ -317,21 +325,14 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
 
-      # PyYAML reads the frontmatter surface (YAML has no jq) for the
-      # hook-exec-form and summary-reader-parity gates, and the same pinned,
-      # hash-locked file now carries zizmor. Those gates fail closed if the
-      # module is missing rather than clearing files they never parsed, so this
-      # install is load-bearing, not convenience.
+      # The interpreter only. This half's one Python consumer is
+      # scripts/check-manifest-duplicate-keys.py, which imports nothing outside
+      # the standard library, so the pinned requirements install stays in
+      # `lint-2`, where PyYAML and zizmor are actually read.
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
-      - name: Install the pinned YAML reader
-        run: |
-          python -m pip install --only-binary=:all: --require-hashes \
-            --requirement .github/requirements-ci.txt
 
       - name: Lint markdown
         id: markdown
@@ -567,6 +568,111 @@ jobs:
         continue-on-error: true
         run: scripts/check-purged-em-dashes.sh
 
+      # A plugin's prose counts its own skills by hand ("bundling fourteen
+      # skills", "the other thirteen skills are zero-config") and nothing
+      # recomputes those numbers when a skill lands, so adding one silently
+      # falsifies every sentence that counted the old set. Measured: PR #3011
+      # went stale on six such counts, each caught by a different reviewer
+      # rather than by anything mechanical. Self-test first so a broken
+      # detector cannot mask a regression.
+      - name: Run skill-count-claim tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-skill-count-claims.test.sh
+      - name: Check every skill-count claim against the tree
+        id: skill_count_claims
+        continue-on-error: true
+        run: scripts/check-skill-count-claims.sh --check
+
+      - name: Report docs-irrelevant checks not applicable to a docs-only diff
+        if: needs.changes.outputs.run_full == 'false'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
+
+      - name: Test hygiene result aggregation
+        run: scripts/aggregate-hygiene-results.sh --self-test
+
+      - name: Aggregate hygiene results
+        if: always()
+        env:
+          # Display names (left) are annotations; step ids (right) use
+          # underscores. A gated step's intentional skip is mapped to `success`
+          # here BECAUSE the step provably did not run, so no real outcome is
+          # masked. The aggregator stays fail-closed on any real non-`success`
+          # (including `skipped`); it is never told to pass on `skipped`. Each
+          # override tests the SAME output that gates its step, against that
+          # output's only other value, so the two can never disagree.
+          # `scripts/check-docs-only-gate.sh` pins both halves: that the
+          # override is the sanctioned complement of the gate, and that every
+          # step named on the right of an override is one that carries the
+          # matching gate — an override on an UNGATED step, or one paired with
+          # a different output than the step's gate, would map a skip that
+          # never happened, and that is the direction that fails open. The
+          # ungated whole-repo scanners feed their raw outcome.
+          CHECK_RESULTS: |
+            markdown=${{ steps.markdown.outcome }}
+            typos=${{ steps.typos.outcome }}
+            gitleaks=${{ steps.gitleaks.outcome }}
+            editorconfig=${{ steps.editorconfig.outcome }}
+            shellcheck=${{ steps.shellcheck.outcome }}
+            actionlint=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.actionlint.outcome }}
+            marketplace-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.duplicate_keys.outcome }}
+            dependabot-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.dependabot_schema.outcome }}
+            workflow-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.workflow_schema.outcome }}
+            exec-bit=${{ steps.exec_bit.outcome }}
+            machine-specific-paths=${{ steps.machine_paths.outcome }}
+            eol-renormalize=${{ steps.eol.outcome }}
+            comment-hygiene=${{ steps.comment_hygiene.outcome }}
+            hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
+            purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
+            skill-count-claims=${{ steps.skill_count_claims.outcome }}
+        run: scripts/aggregate-hygiene-results.sh
+
+  # THE SECOND HALF OF THE HYGIENE LANE. `lint` and `lint-2` are one lane split
+  # across two runners, not two lanes: every gate keeps the name it had, both
+  # halves join `ci-status.needs`, and each carries its own
+  # `aggregate-hygiene-results.sh` feed over exactly its own gate steps. The
+  # split is by measured wall time - the whole job ran 333 s on run 35082013938
+  # with no step able to start before the one above it finished, and nothing in
+  # either half reads anything the other half produces.
+  #
+  # `lint` keeps the external composite lints, the four schema validations, the
+  # manifest duplicate-key detector and the whole-repository scanners. This half
+  # keeps the repo-local gate scripts under scripts/, the Actions security lint
+  # and the runner policy. Python is installed HERE and not there because the
+  # pinned requirements file carries PyYAML - read by the hook-exec-form and
+  # summary-reader-parity gates - and zizmor, all three of which live in this
+  # half.
+  lint-2:
+    needs: [changes]
+    # The contract-only gate, verbatim.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+
+      # PyYAML reads the frontmatter surface (YAML has no jq) for the
+      # hook-exec-form and summary-reader-parity gates, and the same pinned,
+      # hash-locked file now carries zizmor. Those gates fail closed if the
+      # module is missing rather than clearing files they never parsed, so this
+      # install is load-bearing, not convenience.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: .github/requirements-ci.txt
+      - name: Install the pinned YAML reader
+        run: |
+          python -m pip install --only-binary=:all: --require-hashes \
+            --requirement .github/requirements-ci.txt
+
       # Actions security lint, previously the `zizmor` reusable-workflow job.
       # It is a hash-pinned wheel from .github/requirements-ci.txt now, at the
       # same 1.27.0 the reusable takes by default at its pinned SHA, run with
@@ -650,21 +756,6 @@ jobs:
         id: docs_naming
         continue-on-error: true
         run: scripts/check-docs-naming.sh --check
-
-      # A plugin's prose counts its own skills by hand ("bundling fourteen
-      # skills", "the other thirteen skills are zero-config") and nothing
-      # recomputes those numbers when a skill lands, so adding one silently
-      # falsifies every sentence that counted the old set. Measured: PR #3011
-      # went stale on six such counts, each caught by a different reviewer
-      # rather than by anything mechanical. Self-test first so a broken
-      # detector cannot mask a regression.
-      - name: Run skill-count-claim tests
-        if: needs.changes.outputs.run_shell == 'true'
-        run: bash scripts/check-skill-count-claims.test.sh
-      - name: Check every skill-count claim against the tree
-        id: skill_count_claims
-        continue-on-error: true
-        run: scripts/check-skill-count-claims.sh --check
 
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
@@ -1269,10 +1360,6 @@ jobs:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
-      - name: Report docs-irrelevant checks not applicable to a docs-only diff
-        if: needs.changes.outputs.run_full == 'false'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, check-jsonschema x4, the manifest duplicate-key detector) cannot be affected — reporting success for them. ShellCheck, exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
-
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -1294,30 +1381,12 @@ jobs:
           # never happened, and that is the direction that fails open. The
           # ungated whole-repo scanners feed their raw outcome.
           CHECK_RESULTS: |
-            markdown=${{ steps.markdown.outcome }}
-            typos=${{ steps.typos.outcome }}
-            gitleaks=${{ steps.gitleaks.outcome }}
-            editorconfig=${{ steps.editorconfig.outcome }}
-            shellcheck=${{ steps.shellcheck.outcome }}
-            actionlint=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.actionlint.outcome }}
-            marketplace-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.marketplace_schema.outcome }}
-            plugin-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.plugin_schema.outcome }}
-            manifest-duplicate-keys=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.duplicate_keys.outcome }}
-            dependabot-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.dependabot_schema.outcome }}
-            workflow-schema=${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.workflow_schema.outcome }}
-            exec-bit=${{ steps.exec_bit.outcome }}
-            machine-specific-paths=${{ steps.machine_paths.outcome }}
-            eol-renormalize=${{ steps.eol.outcome }}
-            comment-hygiene=${{ steps.comment_hygiene.outcome }}
-            hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
-            purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
             zizmor=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
             detector-eval-coverage=${{ steps.detector_eval_coverage.outcome }}
             detector-findings-crosswalk=${{ steps.detector_findings_crosswalk.outcome }}
             skill-leaf-names=${{ steps.skill_leaf_names.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
-            skill-count-claims=${{ steps.skill_count_claims.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
@@ -2183,6 +2252,7 @@ jobs:
     needs:
       - changes
       - lint
+      - lint-2
       - test-linux
       - hook-utils
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
