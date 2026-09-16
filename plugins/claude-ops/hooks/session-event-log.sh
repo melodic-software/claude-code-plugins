@@ -5,9 +5,11 @@
 # registry marks observable (plugins/claude-ops/hooks/hook-events.registry.json;
 # scripts/gen-hook-event-registry.sh writes the hooks.json rows).
 #
-# DEFAULT OFF. A consumer who has not set session_event_log_enabled pays the
-# kill-switch read below and nothing else: no library is sourced and stdin is
-# not read until the switch says so.
+# DEFAULT OFF, and the generated rows carry the same switch in shell form, so a
+# consumer who has not set session_event_log_enabled never starts this script at
+# all: the row exits in the shell Claude Code already runs the command in. The
+# read below is what a direct invocation pays, and what the row's own read would
+# fall back on: no library is sourced and stdin is not read until it says so.
 #
 # This script sources session-log-lib.sh (a few functions, no process) and
 # NOT hook-utils.sh: a producer that fires on every event cannot afford the
