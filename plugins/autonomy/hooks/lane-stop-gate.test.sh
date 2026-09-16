@@ -1170,7 +1170,7 @@ NOSPAWN="$(mktemp -d "$WORK/nospawn.XXXXXX")"
 NOSPAWN_MARK="$WORK/nospawn-launched.txt"
 # The stub body uses NO external command: `basename` is itself on this list, so
 # a stub that called one would recurse instead of reporting.
-for t in uname realpath readlink cygpath dirname basename jq grep sed tr cat awk date cksum find wc; do
+for t in uname realpath readlink cygpath dirname basename jq grep sed tr cat awk date cksum find wc; do # portability-ok: a list of stub NAMES, not a date -d invocation
   # shellcheck disable=SC2016 # $0 is the STUB's own argument, expanded when it runs
   printf '#!/bin/sh\nprintf "%%s\\n" "$0" >>"%s"\nexit 99\n' "$NOSPAWN_MARK" >"$NOSPAWN/$t"
   chmod +x "$NOSPAWN/$t"
