@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.65]
+
+### Changed
+
+- hooks: `zone-crossing-inject.sh` skips the zone resolver when nothing it reads has moved. A `$STATE_DIR/$SESSION.seen` mark, stamped with a redirection and compared with `-nt` (both builtins), records the inputs behind the last COMPLETED resolve; when the snapshot, `zones.json` and the compaction marker are all no newer than it, the fire exits before starting a process. The mark moves only after the markers persist, so a resolver failure, an `unknown` reading and a failed marker write are each retried. The envelope parse now uses `hook::jq_fields`' builtin parser on a payload within its proof ceiling and keeps the single here-string `jq` above it, because the helper's oversize fallback reads through a process substitution and costs four process creations against that `jq`'s two. Process creations under a Windows job object (5 reps, identical across reps; the subject's own floor is 3): small envelope, first fire 11 → 9, repeat with nothing moved 9 → **3**, snapshot rewritten 9 → 7; 150 KB batch payload, 11 → 11, 9 → **5**, 9 → 9. No cell is worse than before. Median wall for the small repeat fire, on a host whose timings are bimodal, 1,448 ms → 237 ms. The one failure mode: a snapshot written DURING a resolve is marked as seen, so its crossing waits for the next statusline render — the window is the resolve, not an mtime tick — and a missed crossing is late, never lost, because skipping only ever chooses silence. Crossing messages are byte-identical, asserted against a control session driven through the same zone sequence with no skipped fire. The per-batch budgets the contract test pins move with the paths: the steady fire now spawns nothing (0 commands, 0 process creations, 1 program launch) and a resolving fire spawns the resolver alone (1 command, 2 process creations, 3 program launches).
+
 ## [0.7.64]
 
 ### Changed
