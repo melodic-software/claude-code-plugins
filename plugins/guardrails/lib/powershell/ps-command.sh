@@ -574,7 +574,7 @@ ps::_is_readonly_cmdlet() {
   where-object | where | '?') return 0 ;;
   select-object | select) return 0 ;;
   foreach-object | foreach | '%') return 0 ;;
-  sort-object | sort | measure-object | measure | group-object | group) return 0 ;;
+  sort-object | sort | measure-object | measure | group-object | group) return 0 ;; # portability-ok: cmdlet names in a case pattern, not a sort -V invocation
   format-table | ft | format-list | fl | format-wide | fw) return 0 ;;
   out-string | out-host | oh | out-null) return 0 ;;
   write-output | write | echo | write-host) return 0 ;;
