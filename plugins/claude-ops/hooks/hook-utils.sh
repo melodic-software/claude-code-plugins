@@ -1054,6 +1054,17 @@ hook::_fast_file_path_to() {
   return 0
 }
 
+# The associative-array availability guard for hook::_fast_fields below, split
+# out as its own predicate so the pre-4.0 path stays reachable in tests on a
+# modern host: BASH_VERSINFO is readonly, so it cannot be shadowed, but a test
+# can override this function after sourcing. Same class as
+# hook::read_supports_nchars. macOS ships Bash 3.2 and these hooks document
+# 3.2+ support, so below the floor the answer is jq's, not a wrong one. Not a
+# consumer seam.
+hook::_fast_fields_supported() {
+  ((BASH_VERSINFO[0] >= 4))
+}
+
 # hook::_fast_fields <payload> <filter>...
 # The builtin answer to hook::jq_fields' jq program for the filters that
 # program is usually given: `.key` and `.key.sub`, identifier keys only.
@@ -1074,19 +1085,33 @@ hook::_fast_file_path_to() {
 # whose escapes hook::json_unescape_to does not decode (a NUL, a \u past
 # U+007F) likewise. Key strings are compared after decoding, so a key spelled
 # with \u escapes is still recognized; a body longer than any escaped spelling
-# of a key name is skipped without decoding.
+# of a requested key name is skipped without decoding. That bound is six times
+# the longest requested key name: a filter key is an ASCII identifier, and an
+# identifier character's longest escaped spelling is `\uXXXX`, six bytes.
+#
+# Bash 4.0+ only (the `local -A` index below), so the call site gates it on
+# hook::_fast_fields_supported and a 3.2 shell runs jq instead.
 hook::_fast_fields() {
   local __hu_s="$1"
   shift
   local -a __hu_k1=() __hu_k2=()
   local __hu_f __hu_i __hu_n __hu_part __hu_body __hu_re __hu_raw __hu_val __hu_j
   local __hu_ident='[A-Za-z_][A-Za-z0-9_]*'
+  local __hu_cap=0
   __hu_re="^\\.($__hu_ident)(\\.($__hu_ident))?\$"
   for __hu_f in "$@"; do
     [[ "$__hu_f" =~ $__hu_re ]] || return 2
     __hu_k1+=("${BASH_REMATCH[1]}")
     __hu_k2+=("${BASH_REMATCH[3]}")
+    ((${#BASH_REMATCH[1]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[1]}
+    ((${#BASH_REMATCH[3]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[3]}
   done
+  # The skip bound: six bytes per character of the longest requested key name,
+  # the width of `\uXXXX`. A shorter bound proves the wrong thing rather than
+  # costing time: a key whose body exceeds it is never decoded, so a key that
+  # IS present is reported absent, and a key of 11 or more characters spelled
+  # entirely in \u escapes is missed the same way.
+  __hu_cap=$((__hu_cap * 6))
   hook::_json_skeleton "$__hu_s" || return 2
   [[ "$_HOOK_JSON_SK" == \{* ]] || return 2
   # Every string body that decodes to a requested key name, by name: the part
@@ -1099,7 +1124,7 @@ hook::_fast_fields() {
   __hu_n=${#_HOOK_JSON_PARTS[@]}
   for ((__hu_i = 1; __hu_i < __hu_n; __hu_i += 2)); do
     __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
-    ((${#__hu_part} <= 60)) || continue
+    ((${#__hu_part} <= __hu_cap)) || continue
     __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
     if [[ "$__hu_body" == *\\* ]]; then
       hook::json_unescape_to __hu_body "$__hu_body" || continue
@@ -2110,7 +2135,10 @@ hook::jq_fields_uncached() {
   HOOK_JQ_FIELDS_NUL=0
   (($#)) || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  if hook::_fast_fields "$input" "$@"; then
+  # The floor first: hook::_fast_fields indexes with an associative array, which
+  # is Bash 4.0+. Below it the whole fast path is skipped and jq answers, rather
+  # than `local -A` failing per call on a shell these hooks support.
+  if hook::_fast_fields_supported && hook::_fast_fields "$input" "$@"; then
     return 0
   fi
   HOOK_JQ_FIELDS=()
