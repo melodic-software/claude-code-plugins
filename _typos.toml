@@ -7,6 +7,10 @@
 # stay minimal.
 
 [default]
+# American English is the house language: non-American variants are corrections,
+# not accepted alternates.
+locale = "en-us"
+
 extend-ignore-re = [
   # Inline ignore directives. typos has no built-in pragma, so this config
   # blesses a convention: silence a single line, the following line, or a
@@ -49,6 +53,10 @@ DUM = "DUM"
 FO = "FO"
 # Features on Demand (Windows optional-feature packaging) — provisioning.
 FoD = "FoD"
+# The MITRE Corporation (MITRE ATT&CK, the CVE program) — review conventions.
+# The en-us locale corrects the woodworking joint's British spelling to "miter";
+# case-sensitive and whole-token, so that correction still applies to prose.
+MITRE = "MITRE"
 # CC BY-ND license abbreviation (NoDerivatives) — claude-code-proxy.
 # Case-sensitive and whole-token, so lowercase "nd" is unaffected.
 ND = "ND"
