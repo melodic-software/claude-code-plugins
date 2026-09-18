@@ -116,8 +116,6 @@ $1 == "conf" { conf[$2 SUBSEP $4] = text_of(5); next }
 $1 == "NOTE:" { next }
 NF >= 3 {
   n_surfaces++
-  path_of[$1] = $4
-  status_of[$1] = $3
   # Unreadness is recorded per SURFACE and is sticky, never per scope.
   # `managed` alone emits four surface records (file, dropin-dir, registry,
   # plist), so a scope-keyed status holds only the LAST one: a skipped registry
@@ -203,15 +201,15 @@ END {
   content_field["Glob"] = "path";           content_field["NotebookEdit"] = "notebook_path"
   content_field["WebFetch"] = "url"
 
+  # Documented per-tool prefix forms where a wildcard is legal ANYWHERE in the
+  # value, so the mid-pattern `:*` rule does not apply to them.
+  documented_param["WebFetch" SUBSEP "domain"] = 1
+
   # Top-level parameters the page names by example, on tools whose OWN specifier
   # syntax is something else entirely (a path, or a command). Only these are
   # unambiguously the parameter form: `WebFetch(domain:host)` is documented as
   # the WebFetch syntax itself and `Bash(npm:*)` is a command prefix, so neither can
   # be told apart from a parameter by shape alone and neither is listed here.
-  # Documented per-tool prefix forms where a wildcard is legal ANYWHERE in the
-  # value, so the mid-pattern `:*` rule does not apply to them.
-  documented_param["WebFetch" SUBSEP "domain"] = 1
-
   param_only["Agent" SUBSEP "model"] = 1
   param_only["Agent" SUBSEP "isolation"] = 1
   param_only["Bash" SUBSEP "run_in_background"] = 1

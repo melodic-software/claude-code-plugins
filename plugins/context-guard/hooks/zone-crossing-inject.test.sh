@@ -549,6 +549,11 @@ fi
 SKIP_REF="$WORK/skip-ref"
 touch -t 200001010000 "$D/state/sskip.zone" "$D/state/sskip.armed"
 touch -t 200001020000 "$SKIP_REF"
+# The `.seen` mark is cleared before each fire in this case, because 12c is
+# about the MARKER writes on a fire that RESOLVES. Left in place, the
+# unchanged-input skip would exit before the resolver and both assertions below
+# would pass without the code they guard ever running.
+rm -f "$D/state/sskip.seen"
 run "$H" "$D" sskip # same zone, same gate: nothing to persist
 if [[ $RC -eq 0 && -z "$OUT" ]]; then
   ok "write skip: the steady fire is silent"
@@ -569,11 +574,189 @@ fi
 # broken probe cannot pass the two assertions above by never detecting anything.
 printf 'acceptable\n' >"$D/state/sskip.zone" # legacy-looking mismatch: a rewrite is owed
 touch -t 200001010000 "$D/state/sskip.zone"
+rm -f "$D/state/sskip.seen"
 run "$H" "$D" sskip
 if [[ $RC -eq 0 && "$D/state/sskip.zone" -nt "$SKIP_REF" && "$(cat "$D/state/sskip.zone" 2>/dev/null)" == "dumb" ]]; then
   ok "write skip: a marker that differs on disk is still rewritten (probe detects writes)"
 else
   fail "write skip probe: mismatched marker not rewritten: rc=$RC zone=$(cat "$D/state/sskip.zone" 2>/dev/null)"
+fi
+
+# 13. THE UNCHANGED-INPUT SKIP decides only WHETHER the work runs, never what
+# the work says. The xtrace budget below proves the skipped fire starts nothing;
+# this pins the other half, which a process count cannot see: a session that
+# skipped a fire must still produce the SAME crossing message, byte for byte, as
+# one that never skipped. Compared against a control session driven through the
+# identical zone sequence with no idle fire in it — the message carries only the
+# two zone words, so two such sessions are byte-identical or the skip changed
+# something it had no business touching.
+write_snapshot "$H" sfpc 10 # control: smart, then a crossing to dumb
+run "$H" "$D" sfpc
+write_snapshot "$H" sfpc 90
+run "$H" "$D" sfpc
+CTRL_OUT="$OUT"
+if [[ $RC -eq 0 && "$CTRL_OUT" == *additionalContext* && "$CTRL_OUT" == *dumb* ]]; then
+  ok "skip control: the un-skipped session produced the crossing message"
+else
+  fail "skip control did not cross: rc=$RC out=${CTRL_OUT:0:120}"
+fi
+write_snapshot "$H" sfps 10 # the same sequence with an idle fire in the middle
+run "$H" "$D" sfps
+run "$H" "$D" sfps # nothing moved since the resolve: the skip
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "skip: a fire whose inputs have not moved is silent"
+else
+  fail "skip: idle fire emitted: rc=$RC out=${OUT:0:120}"
+fi
+write_snapshot "$H" sfps 90 # rewritten: the skip must not survive it
+run "$H" "$D" sfps
+if [[ "$OUT" == "$CTRL_OUT" ]]; then
+  ok "skip: a rewritten snapshot resolves and its message is byte-identical"
+else
+  fail "skip changed the crossing message: [${OUT:0:200}] != [${CTRL_OUT:0:200}]"
+fi
+
+# 13a. zones.json is the second input the skip must watch: the bands can move
+# under an unchanged snapshot, and the same percentage then resolves to a
+# different word. A mark left by a resolve under the old bands may not silence
+# the first fire under the new ones.
+ZFH="$WORK/home-zfast"
+ZFD="$WORK/data-zfast"
+mkdir -p "$ZFD"
+write_snapshot "$ZFH" szfast 60 # acceptable under the shipped bands
+run "$ZFH" "$ZFD" szfast
+if [[ $RC -eq 0 && "$OUT" == *acceptable* ]]; then
+  ok "zones.json skip: the baseline observation resolves acceptable"
+else
+  fail "zones.json skip baseline: rc=$RC out=${OUT:0:120}"
+fi
+run "$ZFH" "$ZFD" szfast
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "zones.json skip: the repeat fire is silent"
+else
+  fail "zones.json skip: repeat fire emitted: rc=$RC out=${OUT:0:120}"
+fi
+sleep 0.05 # the override and the mark must land on distinguishable mtimes
+mkdir -p "$ZFH/.claude/context-guard"
+printf '{"smart_max_used_percentage":5,"acceptable_max_used_percentage":20}' \
+  >"$ZFH/.claude/context-guard/zones.json"
+run "$ZFH" "$ZFD" szfast
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "zones.json newer than the mark still resolves (same snapshot, new bands)"
+else
+  fail "a newer zones.json was skipped: rc=$RC out=${OUT:0:120}"
+fi
+
+# 13b. A RESOLVER FAILURE LEAVES THE MARK UNTOUCHED. The mark means "the inputs
+# behind a completed decision", so a fire that reached no decision may not set
+# it — otherwise one failed resolve would silence the session until its next
+# snapshot write. Driven through a copy of the hook whose sibling resolver is a
+# stub, which is a true nonzero exit from the process the hook actually starts
+# rather than a simulated one: RESOLVER is derived from the hook's own path.
+FAKE="$WORK/fake"
+mkdir -p "$FAKE/hooks" "$FAKE/scripts"
+cp "$SCRIPT_DIR"/*.sh "$FAKE/hooks/"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$FAKE/scripts/context-zone.sh"
+FH="$WORK/home-fail"
+FD="$WORK/data-fail"
+mkdir -p "$FD"
+write_snapshot "$FH" sfail 90
+F_OUT=$(printf '{"session_id":"sfail","hook_event_name":"PostToolBatch"}' |
+  HOME="$FH" CLAUDE_PLUGIN_DATA="$FD" HOOK_TELEMETRY_SINK="" bash "$FAKE/hooks/zone-crossing-inject.sh" 2>/dev/null)
+F_RC=$?
+if [[ $F_RC -eq 0 && -z "$F_OUT" ]]; then
+  ok "resolver failure: the hook is silent and exits 0"
+else
+  fail "resolver failure: rc=$F_RC out=${F_OUT:0:120}"
+fi
+if [[ ! -e "$FD/state/sfail.seen" ]]; then
+  ok "resolver failure: the mark is not stamped"
+else
+  fail "resolver failure stamped the mark, so the next fire would be skipped"
+fi
+# ...and the fire it was owed is still issued once the resolver works, with the
+# snapshot untouched in between.
+printf '#!/usr/bin/env bash\nexec bash %q/../scripts/context-zone.sh "$@"\n' "$SCRIPT_DIR" \
+  >"$FAKE/scripts/context-zone.sh"
+F_OUT=$(printf '{"session_id":"sfail","hook_event_name":"PostToolBatch"}' |
+  HOME="$FH" CLAUDE_PLUGIN_DATA="$FD" HOOK_TELEMETRY_SINK="" bash "$FAKE/hooks/zone-crossing-inject.sh" 2>/dev/null)
+F_RC=$?
+if [[ $F_RC -eq 0 && "$F_OUT" == *additionalContext* && "$F_OUT" == *dumb* ]]; then
+  ok "resolver failure: the retried fire resolves and injects"
+else
+  fail "retry after a resolver failure was skipped: rc=$F_RC out=${F_OUT:0:120}"
+fi
+
+# 13c. REMOVING zones.json moves the same input, and `-nt` cannot see it: a file
+# that is gone is never newer than anything. The override above is what makes
+# 60% resolve dumb, so deleting it restores the shipped bands and the session is
+# acceptable again. The mark therefore records whether each OPTIONAL input
+# existed, and the skip requires that record to still hold.
+run "$ZFH" "$ZFD" szfast
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "zones.json skip: the repeat fire under the override is silent"
+else
+  fail "zones.json skip: the fire under the override emitted: rc=$RC out=${OUT:0:120}"
+fi
+rm -f "$ZFH/.claude/context-guard/zones.json"
+run "$ZFH" "$ZFD" szfast
+# An improvement is silent by contract, so the persisted zone is the observable.
+if [[ "$(cat "$ZFD/state/szfast.zone" 2>/dev/null)" == "acceptable" ]]; then
+  ok "zones.json removed: the next fire re-resolves under the shipped bands"
+else
+  fail "a removed zones.json was skipped: zone=$(cat "$ZFD/state/szfast.zone" 2>/dev/null)"
+fi
+
+# 13d. The compaction marker has the same hole, and the degraded reading lasts
+# only as long as the marker does. A session that resolved dumb under one must
+# resolve again once it is gone, although nothing left carries an mtime newer
+# than the mark.
+CMH="$WORK/home-cmark"
+CMD="$WORK/data-cmark"
+mkdir -p "$CMD"
+write_snapshot "$CMH" scmark 10 # smart
+run "$CMH" "$CMD" scmark
+run "$CMH" "$CMD" scmark
+if [[ $RC -eq 0 && -z "$OUT" ]]; then
+  ok "compaction marker: the repeat fire before any marker is silent"
+else
+  fail "compaction marker: repeat fire emitted: rc=$RC out=${OUT:0:120}"
+fi
+# No sleep: creating the marker flips the recorded flag, so this half is settled
+# by existence parity and needs no distinguishable mtime. The removal below is
+# the same, which is the point, because an mtime race cannot decide either way.
+: >"$CMH/$CTX_REL/scmark.compacted"
+run "$CMH" "$CMD" scmark
+if [[ $RC -eq 0 && "$OUT" == *additionalContext* && "$OUT" == *dumb* ]]; then
+  ok "compaction marker: a new marker resolves and reports the degraded zone"
+else
+  fail "compaction marker: a new marker was skipped: rc=$RC out=${OUT:0:120}"
+fi
+rm -f "$CMH/$CTX_REL/scmark.compacted"
+run "$CMH" "$CMD" scmark
+if [[ "$(cat "$CMD/state/scmark.zone" 2>/dev/null)" == "smart" ]]; then
+  ok "compaction marker removed: the next fire re-resolves undegraded"
+else
+  fail "a removed compaction marker was skipped: zone=$(cat "$CMD/state/scmark.zone" 2>/dev/null)"
+fi
+
+# 13e. A MARK WITH NO READABLE LINE IS NOT A SKIP. The line is what makes the
+# two removals above visible, so a mark left by an older build, or by a write
+# that failed after truncating, carries none and must fall through to a resolve
+# rather than inherit a skip it never earned. Truncating the mark also makes it
+# the newest of the four files, so every `-nt` test passes and the line is the
+# only thing left to refuse on.
+: >"$D/state/sfps.seen"
+run "$H" "$D" sfps
+if [[ -s "$D/state/sfps.seen" ]]; then
+  ok "mark with no line: the fire re-resolves and re-stamps the mark"
+else
+  fail "a mark with no line took the skip, so it was never re-stamped"
+fi
+if [[ "$(head -1 "$D/state/sfps.seen" 2>/dev/null)" == "z=0 c=0" ]]; then
+  ok "mark with no line: the new mark records both optional inputs as absent"
+else
+  fail "mark line is not the existence record: [$(head -1 "$D/state/sfps.seen" 2>/dev/null)]"
 fi
 
 # No resolvable state root → stay silent rather than key the last-seen zone to
@@ -601,10 +784,20 @@ fi
 # EXACT COUNTS, not on absence, so a regression back to a second `jq` fails here
 # rather than showing up as a slow session.
 #
-# Budget on the steady non-crossing path, which is the common case:
-#   1 jq   : one pass over the payload for both envelope fields
-#   1 bash : scripts/context-zone.sh, the single band authority this hook must
-#            not re-implement; its own execs are in that process, not this trace
+# TWO paths are budgeted, because the steady fire no longer does the work.
+#
+# A. THE STEADY NON-CROSSING PATH — the common case, and now the unchanged-input
+#    skip: the snapshot, zones.json and the compaction marker are all older than
+#    the `.seen` mark the last resolve left, and the mark's existence line still
+#    matches, so the hook exits before the resolver. Budget: ZERO. The envelope
+#    parse is answered by hook::jq_fields' builtin parser, the mark is compared
+#    with `-nt`, its line is read with `read`, and it is stamped with a
+#    redirection: every one of those is a shell builtin.
+# B. THE RESOLVING PATH — a fire whose snapshot has been rewritten since. Budget:
+#    1 bash : scripts/context-zone.sh, the single band authority this hook must
+#             not re-implement; its own execs are in that process, not this trace
+#    and NO jq, for the same reason A is free: the builtin parser answers the two
+#    envelope fields of an ordinary-sized payload.
 # Anything else is a regression. The count is of commands in COMMAND POSITION
 # (anchored on the xtrace depth prefix), so `command -v jq` in hook::require_jq
 # is correctly not counted: it is a shell builtin and spawns nothing.
@@ -616,10 +809,15 @@ TH="$WORK/home-trace"
 TD="$WORK/data-trace"
 mkdir -p "$TD"
 write_snapshot "$TH" strace 10
-# Prime: the first fire creates the state directory and the markers, so the
-# traced fire is the steady path a running session actually pays.
+# Prime: the first fire creates the state directory, the markers and the `.seen`
+# mark, so the traced fire is the steady path a running session actually pays.
 printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
   HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" bash "$HOOK" >/dev/null 2>&1
+if [[ -f "$TD/state/strace.seen" ]]; then
+  ok "trace: a completed resolve leaves the .seen mark"
+else
+  fail "trace: no .seen mark after a completed resolve"
+fi
 TRACE_LOG="$WORK/inject-xtrace.log"
 printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
   HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
@@ -633,30 +831,56 @@ else
 fi
 TRACE_SPAWNS=$(grep -cE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
 TRACE_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
-if [[ "$TRACE_SPAWNS" == "2" ]]; then
-  ok "trace: the steady path spawns exactly 2 processes"
+if [[ "$TRACE_SPAWNS" == "0" ]]; then
+  ok "trace: the steady path spawns nothing at all"
 else
-  fail "trace: steady path spawns $TRACE_SPAWNS processes, budget is 2: $TRACE_DETAIL"
+  fail "trace: steady path spawns $TRACE_SPAWNS processes, budget is 0: $TRACE_DETAIL"
 fi
-TRACE_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
-if [[ "$TRACE_JQ" == "1" ]]; then
-  ok "trace: exactly one jq pass over the payload"
-else
-  fail "trace: $TRACE_JQ jq processes on the steady path, budget is 1"
-fi
+# Named separately from the total, so a revert to always-resolving is legible in
+# the failure message rather than only in the count.
 TRACE_BASH=$(grep -cE '^\++ bash ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
-if [[ "$TRACE_BASH" == "1" ]]; then
+TRACE_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE_BASH" == "0" && "$TRACE_JQ" == "0" ]]; then
+  ok "trace: the steady path invokes neither the resolver nor jq"
+else
+  fail "trace: steady path ran $TRACE_BASH bash and $TRACE_JQ jq, both budgets are 0"
+fi
+
+# B. The resolving path, on the same session: rewrite the snapshot so it is
+# newer than the mark, and the hook must do the work it skipped above — the
+# skip may only ever suppress a REPEAT.
+sleep 0.05 # the mark and the rewrite must land on distinguishable mtimes
+write_snapshot "$TH" strace 10
+TRACE_LOG2="$WORK/inject-xtrace-resolve.log"
+printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+  HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>/dev/null 9>"$TRACE_LOG2"
+TRACE2_SPAWNS=$(grep -cE "$TRACE_PAT" "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
+TRACE2_DETAIL=$(grep -oE "$TRACE_PAT" "$TRACE_LOG2" 2>/dev/null | sed -E 's/^\++ //; s/ $//' | sort | uniq -c | tr -d '\n')
+if [[ "$TRACE2_SPAWNS" == "1" ]]; then
+  ok "trace: a rewritten snapshot resolves, and spawns exactly 1 process"
+else
+  fail "trace: resolving path spawns $TRACE2_SPAWNS processes, budget is 1: $TRACE2_DETAIL"
+fi
+TRACE2_BASH=$(grep -cE '^\++ bash ' "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE2_BASH" == "1" ]]; then
   ok "trace: exactly one resolver process (the band authority)"
 else
-  fail "trace: $TRACE_BASH bash processes on the steady path, budget is 1"
+  fail "trace: $TRACE2_BASH bash processes on the resolving path, budget is 1"
+fi
+TRACE2_JQ=$(grep -cE '^\++ jq ' "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
+if [[ "$TRACE2_JQ" == "0" ]]; then
+  ok "trace: the envelope parse costs no jq (builtin parser)"
+else
+  fail "trace: $TRACE2_JQ jq processes on the resolving path, budget is 0"
 fi
 # The specific pipelines this budget replaced, named so a revert is legible in
 # the failure message rather than only in the total.
-TRACE_GONE=$(grep -cE '^\++ (dirname|tr|head) ' "$TRACE_LOG" 2>/dev/null | tr -cd '0-9')
+TRACE_GONE=$(grep -cE '^\++ (dirname|tr|head|touch) ' "$TRACE_LOG2" 2>/dev/null | tr -cd '0-9')
 if [[ "$TRACE_GONE" == "0" ]]; then
-  ok "trace: no dirname, tr or head on the steady path"
+  ok "trace: no dirname, tr, head or touch on the resolving path"
 else
-  fail "trace: $TRACE_GONE dirname/tr/head process(es) returned: $TRACE_DETAIL"
+  fail "trace: $TRACE_GONE dirname/tr/head/touch process(es) returned: $TRACE2_DETAIL"
 fi
 
 # --- The per-batch PROCESS-CREATION budget, proven by strace -------------------
@@ -676,16 +900,25 @@ fi
 # Asserted as an EXACT count, not a ceiling, so a regression back to an inner
 # redirect fails here rather than showing up as a timed-out session.
 #
-# Budget on the steady non-crossing path, one process creation each:
-#   1  jq   : the payload pass, both envelope fields
+# Budget on the STEADY NON-CROSSING path: ZERO process creations, and one
+# execve — the hook's own shell, which strace itself launches rather than the
+# hook forking it. The unchanged-input skip reaches its exit through builtins
+# only.
+#
+# Budget on the RESOLVING path, one process creation each:
 #   1  bash : scripts/context-zone.sh, the band authority
 #   1  jq   : the resolver's snapshot pass, inside that bash
-# The hook's own shell is execve'd by the harness, not forked by the hook, so it
-# is not in this count. Skipped where strace is unavailable (it needs ptrace,
-# which containers and macOS commonly withhold) — the xtrace budget above still
-# runs there, and CI keeps a Linux lane that does not skip.
+# plus the hook's own shell for a program-launch count of 3. The payload jq the
+# earlier budget carried is gone: hook::jq_fields answers this envelope from its
+# builtin parser.
+#
+# Skipped where strace is unavailable (it needs ptrace, which containers and
+# macOS commonly withhold) — the xtrace budgets above still run there, and CI
+# keeps a Linux lane that does not skip.
 if command -v strace >/dev/null 2>&1; then
   STRACE_LOG="$WORK/inject-strace.log"
+  # The snapshot was rewritten for trace B above and the fire that followed it
+  # re-stamped the mark, so this fire is the steady one again.
   printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
     HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
       strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$STRACE_LOG" \
@@ -693,24 +926,50 @@ if command -v strace >/dev/null 2>&1; then
   if [[ -s "$STRACE_LOG" ]]; then
     ok "strace: the steady non-crossing path was traced"
     S_FORKS=$(grep -cE '(clone|clone3|fork|vfork)\(' "$STRACE_LOG" 2>/dev/null | tr -cd '0-9')
-    if [[ "$S_FORKS" == "3" ]]; then
-      ok "strace: the steady path creates exactly 3 processes"
+    if [[ "$S_FORKS" == "0" ]]; then
+      ok "strace: the steady path creates no processes at all"
     else
       S_DETAIL=$(grep -oE 'execve\("[^"]+"' "$STRACE_LOG" 2>/dev/null |
         sed 's/execve("//' | sort | uniq -c | tr -d '\n')
-      fail "strace: steady path creates $S_FORKS processes, budget is 3 (execs: $S_DETAIL)"
+      fail "strace: steady path creates $S_FORKS processes, budget is 0 (execs: $S_DETAIL)"
     fi
-    # The programs actually launched must not change with the fork count: this
-    # is a latency fix, so the same work must still run. One jq for the payload,
-    # one bash for the resolver, one jq inside it, plus the hook's own shell.
     S_EXECS=$(grep -cE 'execve\(' "$STRACE_LOG" 2>/dev/null | tr -cd '0-9')
-    if [[ "$S_EXECS" == "4" ]]; then
-      ok "strace: the same 4 program launches as before the fork reduction"
+    if [[ "$S_EXECS" == "1" ]]; then
+      ok "strace: the steady path launches only the hook's own shell"
     else
-      fail "strace: $S_EXECS program launches on the steady path, expected 4"
+      fail "strace: $S_EXECS program launches on the steady path, expected 1"
     fi
   else
     fail "strace: no usable trace captured"
+  fi
+  STRACE_LOG2="$WORK/inject-strace-resolve.log"
+  sleep 0.05
+  write_snapshot "$TH" strace 10
+  printf '{"session_id":"strace","hook_event_name":"PostToolBatch"}' |
+    HOME="$TH" CLAUDE_PLUGIN_DATA="$TD" HOOK_TELEMETRY_SINK="" \
+      strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$STRACE_LOG2" \
+      bash "$HOOK" >/dev/null 2>&1
+  if [[ -s "$STRACE_LOG2" ]]; then
+    ok "strace: the resolving path was traced"
+    S2_FORKS=$(grep -cE '(clone|clone3|fork|vfork)\(' "$STRACE_LOG2" 2>/dev/null | tr -cd '0-9')
+    if [[ "$S2_FORKS" == "2" ]]; then
+      ok "strace: the resolving path creates exactly 2 processes"
+    else
+      S2_DETAIL=$(grep -oE 'execve\("[^"]+"' "$STRACE_LOG2" 2>/dev/null |
+        sed 's/execve("//' | sort | uniq -c | tr -d '\n')
+      fail "strace: resolving path creates $S2_FORKS processes, budget is 2 (execs: $S2_DETAIL)"
+    fi
+    # The programs actually launched must not change with the fork count: this
+    # is a latency fix, so the same work must still run. One bash for the
+    # resolver, one jq inside it, plus the hook's own shell.
+    S2_EXECS=$(grep -cE 'execve\(' "$STRACE_LOG2" 2>/dev/null | tr -cd '0-9')
+    if [[ "$S2_EXECS" == "3" ]]; then
+      ok "strace: the resolving path launches exactly 3 programs"
+    else
+      fail "strace: $S2_EXECS program launches on the resolving path, expected 3"
+    fi
+  else
+    fail "strace: no usable resolving-path trace captured"
   fi
 else
   ok "SKIP: strace unavailable — process-creation budget not asserted here"

@@ -62,6 +62,14 @@ fail_discriminating_skip() {
 count_negations() {
   printf '%s\n' "$1" | grep -c '^Finding shape: negation'
 }
+# init_fixture_repo <dir>: a throwaway repo with its own identity. The inherited
+# git environment is cleared once at the top of this file, so `-C` is enough here.
+init_fixture_repo() {
+  mkdir -p "$1"
+  git -C "$1" init -q
+  git -C "$1" config user.email fixture@example.invalid
+  git -C "$1" config user.name fixture
+}
 
 # --- Fixtures (built inline; no shipped fixture files) ---------------------------
 
@@ -853,10 +861,7 @@ assert_exit "negative --offset exits 2" 2 "$bad_chunk_exit"
 # treats specially: one containing a literal " -> ", and one containing a backslash.
 
 PORC_REPO="$TEST_TMPDIR/porcelain-repo"
-mkdir -p "$PORC_REPO"
-git -C "$PORC_REPO" init -q
-git -C "$PORC_REPO" config user.email fixture@example.invalid
-git -C "$PORC_REPO" config user.name fixture
+init_fixture_repo "$PORC_REPO"
 
 # Every case below needs a name the local filesystem may refuse, and a redirect to
 # such a name does not always fail: Windows substitutes a private-use codepoint for
@@ -1434,10 +1439,7 @@ fi
 # form emits those bytes verbatim, so the path reaches the audit.
 
 ESC_REPO="$TEST_TMPDIR/porcelain-escapes-repo"
-mkdir -p "$ESC_REPO"
-git -C "$ESC_REPO" init -q
-git -C "$ESC_REPO" config user.email fixture@example.invalid
-git -C "$ESC_REPO" config user.name fixture
+init_fixture_repo "$ESC_REPO"
 
 nonascii_name='café.md'
 printf '# non-ascii\n\nEmpirically observed in the non-ASCII file.\n' >"$ESC_REPO/$nonascii_name"
@@ -1504,10 +1506,7 @@ fi
 # assertion could not fail however the loop behaved. `sort -u` dedupes, so the collided
 # name must not itself be a target either.
 RENAME_REPO="$TEST_TMPDIR/rename-origin-repo"
-mkdir -p "$RENAME_REPO"
-git -C "$RENAME_REPO" init -q
-git -C "$RENAME_REPO" config user.email fixture@example.invalid
-git -C "$RENAME_REPO" config user.name fixture
+init_fixture_repo "$RENAME_REPO"
 printf '# secret\n\nEmpirically observed in the secret file.\n' >"$RENAME_REPO/secret.md"
 printf '# abc\n\nEmpirically observed in the abc file.\n' >"$RENAME_REPO/abcsecret.md"
 git -C "$RENAME_REPO" add secret.md abcsecret.md
@@ -1521,10 +1520,7 @@ assert_not_contains "rename origin is consumed, not sliced into a clean committe
 # sort/dedup then serializes TARGETS with newline delimiters, mapfile splits
 # the name into two nonexistent targets and the file drops out again.
 NL_REPO="$TEST_TMPDIR/newline-name-repo"
-mkdir -p "$NL_REPO"
-git -C "$NL_REPO" init -q
-git -C "$NL_REPO" config user.email fixture@example.invalid
-git -C "$NL_REPO" config user.name fixture
+init_fixture_repo "$NL_REPO"
 nl_name="$(printf 'new\nline.md')"
 printf '# newline\n\nEmpirically observed in the newline file.\n' >"$NL_REPO/$nl_name" 2>/dev/null || true
 if fixture_landed "$NL_REPO" "$nl_name"; then

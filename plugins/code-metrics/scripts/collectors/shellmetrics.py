@@ -30,26 +30,22 @@ from __future__ import annotations
 import csv
 import io
 import json
-import os
-import re
 import shutil
 import subprocess
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import (
+    dispatch,
+    normalize,
+    require_python,
+    version_or_unknown,
+    version_output,
+)
 
-MIN_PYTHON = (3, 9)
 NAME = "shellmetrics"
 LANE = "bash"
 MEASURE = "cyclomatic"
 PSEUDO = ("<begin>", "<main>", "<end>")
-
-
-def _normalize(path: str) -> str:
-    path = path.replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return os.path.normpath(path).replace("\\", "/")
 
 
 def probe() -> int:
@@ -57,21 +53,16 @@ def probe() -> int:
     if not exe:
         print(f"{NAME} not on PATH", file=sys.stderr)
         return 1
-    try:
-        out = subprocess.run(
-            [exe, "--version"], capture_output=True, text=True, check=False
-        )
-    except OSError as exc:
-        print(f"{NAME} --version failed: {exc}", file=sys.stderr)
+    output = version_output(exe, NAME)
+    if output is None:
         return 1
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out.stdout + out.stderr)
-    print(match.group(1) if match else "unknown-version")
+    print(version_or_unknown(output))
     return 0
 
 
 def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     """Rows for the requested files. Raises ValueError when no record parsed."""
-    wanted_norm = {_normalize(p): p for p in wanted}
+    wanted_norm = {normalize(p): p for p in wanted}
     rows: list[dict] = []
     parsed = 0
     for record in csv.reader(io.StringIO(raw)):
@@ -86,7 +77,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
             continue
         # The pseudo-records append `|lines:comment:blank` to the file cell;
         # a function record does not, but splitting is harmless either way.
-        path = wanted_norm.get(_normalize(record[0].split("|", 1)[0]))
+        path = wanted_norm.get(normalize(record[0].split("|", 1)[0]))
         if path is None:
             continue
         rows.append(
@@ -131,39 +122,25 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
     return 0
 
 
+def measures() -> None:
+    print(f"{LANE}/{MEASURE}")
+
+
+INSTALL_HINT = "shellmetrics: https://github.com/shellspec/shellmetrics (one POSIX shell script; place it on PATH)"
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            f"usage: {NAME}.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
-        return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        return probe()
-    if verb == "measures":
-        print(f"{LANE}/{MEASURE}")
-        return 0
-    if verb == "install_hint":
-        print(
-            "shellmetrics: https://github.com/shellspec/shellmetrics (one POSIX shell script; place it on PATH)"
-        )
-        return 0
-    if verb == "collect":
-        if len(rest) < 3:
-            print(
-                f"usage: {NAME}.py collect <lane> <measure> <file>...", file=sys.stderr
-            )
-            return 2
-        return collect(rest[0], rest[1], files_from(rest[2:]))
-    print(f"{NAME}.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+        collect_min=3,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print(
-            "shellmetrics.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr
-        )
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

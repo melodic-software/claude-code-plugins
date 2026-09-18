@@ -73,6 +73,17 @@ assert_not_contains() {
 # between the two skill copies (each names the OTHER skill as the sibling).
 body() { grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$1"; }
 
+# run_from <cwd> <root> <command> [arg ...] is the preamble situation the smoke
+# cases drive: CLAUDE_PROJECT_DIR names the project root, the cwd is deliberately
+# somewhere unrelated, and the detector's stderr is dropped the way the skill
+# bodies drop it. The command is spelled at the call site so an interpreter-led
+# invocation stays distinguishable from a direct one.
+run_from() {
+  local cwd="$1" root="$2"
+  shift 2
+  (cd "$cwd" && CLAUDE_PROJECT_DIR="$root" "$@" 2>/dev/null)
+}
+
 # --- 1. The file is reachable the way the grant reaches it ---------------------
 
 if [[ -x "$WRAPPER" ]]; then
@@ -164,9 +175,9 @@ for fixture in "$MULTI" "$EMPTY"; do
   label="$(basename "$fixture")"
 
   wrap_exit=0
-  wrap_out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$fixture" bash "$WRAPPER" 2>/dev/null)" || wrap_exit=$?
+  wrap_out="$(run_from "$TEST_TMPDIR" "$fixture" bash "$WRAPPER")" || wrap_exit=$?
   canon_exit=0
-  canon_out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$fixture" bash "$CANONICAL" 2>/dev/null)" || canon_exit=$?
+  canon_out="$(run_from "$TEST_TMPDIR" "$fixture" bash "$CANONICAL")" || canon_exit=$?
 
   assert_equals "$label: wrapper output matches the canonical detector" "$canon_out" "$wrap_out"
   assert_exit "$label: wrapper exit status matches the canonical detector" "$canon_exit" "$wrap_exit"
@@ -174,23 +185,23 @@ done
 
 assert_equals "the multi fixture is a non-trivial comparison" \
   "$multi_expected" \
-  "$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$WRAPPER" 2>/dev/null)"
+  "$(run_from "$TEST_TMPDIR" "$MULTI" bash "$WRAPPER")"
 
 # Self-locating means the cwd is irrelevant. `/` is the harshest cwd available
 # and is the one a preamble can genuinely land in.
-root_out="$(cd / && CLAUDE_PROJECT_DIR="$MULTI" bash "$WRAPPER" 2>/dev/null)"
+root_out="$(run_from / "$MULTI" bash "$WRAPPER")"
 assert_equals "wrapper resolves its target from an unrelated cwd" \
   "$multi_expected" "$root_out"
 
 # Direct invocation, no `bash` interpreter prefix: this is the form the paired
 # grant permits, and the only one the skill body is allowed to use.
-direct_out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" "$WRAPPER" 2>/dev/null)"
+direct_out="$(run_from "$TEST_TMPDIR" "$MULTI" "$WRAPPER")"
 assert_equals "direct (non-interpreter-led) invocation works" \
   "$multi_expected" "$direct_out"
 
 # Forwarded arguments reach a script that reads none. Inert, never fatal.
 args_exit=0
-args_out="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$MULTI" bash "$WRAPPER" --bogus extra 2>/dev/null)" || args_exit=$?
+args_out="$(run_from "$TEST_TMPDIR" "$MULTI" bash "$WRAPPER" --bogus extra)" || args_exit=$?
 assert_equals "forwarded arguments do not change the answer" \
   "$multi_expected" "$args_out"
 assert_exit "forwarded arguments do not fail the wrapper" 0 "$args_exit"

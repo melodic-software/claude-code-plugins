@@ -51,8 +51,9 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 
-$skillRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent
 $libRoot = Join-Path $PSScriptRoot 'lib'
+. (Join-Path $libRoot 'Resolve-SkillRoot.ps1')
+$skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Write-MachineHealthLog.ps1')
 . (Join-Path $libRoot 'Test-IsElevated.ps1')
 . (Join-Path $libRoot 'Read-HistoryJsonl.ps1')
@@ -567,12 +568,14 @@ modules. Harmless to ignore.
 }
 
 $severityCounts = @{}
+$totalBySeverity = @{ OK = 0; INFO = 0; WARN = 0; CRIT = 0; UNKNOWN = 0 }
 foreach ($r in $checkResults) {
     $cat = $r.category
     if (-not $severityCounts.ContainsKey($cat)) {
         $severityCounts[$cat] = @{ OK = 0; INFO = 0; WARN = 0; CRIT = 0; UNKNOWN = 0 }
     }
     $severityCounts[$cat][$r.severity]++
+    $totalBySeverity[$r.severity]++
 }
 
 $succeededCount = @($remediationAttempts | Where-Object succeeded).Count
@@ -655,9 +658,6 @@ $templatePath = Join-Path $skillRoot 'reference\shared\report-template.md'
 # Per-run (not per-day) filename: a same-day rerun must not overwrite the
 # earlier report, since each run also writes a distinct history entry.
 $reportPath = Join-Path $reportsDir "health-$runStamp.md"
-
-$totalBySeverity = @{ OK = 0; INFO = 0; WARN = 0; CRIT = 0; UNKNOWN = 0 }
-foreach ($r in $checkResults) { $totalBySeverity[$r.severity]++ }
 
 $oneLine = ("$($totalBySeverity.CRIT) CRIT, $($totalBySeverity.WARN) WARN, " +
     "$($totalBySeverity.INFO) INFO, $($totalBySeverity.OK) OK, " +

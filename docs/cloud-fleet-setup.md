@@ -6,9 +6,15 @@ cloud sessions (web, `claude --cloud`, mobile, desktop, and routines) with warm-
 Account context this plan is built for: a personal (Max) claude.ai account. Organization-shared
 and self-hosted environments are Team/Enterprise features and deliberately out of scope.
 
-Basis and freshness: the toolchain inventory below was derived from shallow clones of every
-fleet repo's default branch on 2026-08-13; bootstrap adoption was re-verified on 2026-08-16 by
-reading each repo's `.claude/` contents and `settings.json` at `origin/main` (`gh api
+Basis and freshness: the toolchain inventory below was re-verified on 2026-09-14 by reading
+`global.json`, `.node-version`, `.python-version`, `pyproject.toml`, `go.mod` and
+`PSScriptAnalyzerSettings.psd1` at every non-archived fleet repo's default branch (`gh api
+repos/melodic-software/<repo>/contents/<path>`), together with `DOTNET_FALLBACK_VERSIONS` and
+`NODE_FALLBACK_VERSION` in standards `components/cloud-environment/setup.sh` at its default
+branch; the platform claims in that section (the VM's stock Node and Go, `uv`, the absence of
+`pwsh`) were not part of that pass and keep the basis stated next. Bootstrap adoption was
+re-verified on 2026-08-16 by reading each repo's `.claude/` contents and `settings.json` at
+`origin/main` (`gh api
 repos/melodic-software/<repo>/contents/.claude`); platform claims rest on the rung-1 doc fetches
 recorded in [cloud-sessions.md](cloud-sessions.md); the environment itself was verified live on
 2026-08-14 from a cloud session inside it. Results are in
@@ -37,35 +43,43 @@ registered SessionStart hook as drift repair. Both halves stay generic. The scri
 canonical file distributed from standards,
 and a repo's own steps live beside it in `.claude/cloud-bootstrap.local.sh`.
 
-## Fleet toolchain inventory (2026-08-13)
+## Fleet toolchain inventory (2026-09-14)
 
 The pins found across the fleet, the one input to
 [Step 1](#step-1-the-shared-environment-claudeai-ui-one-time) that lives nowhere else. The .NET
 and Node numbers below are fleet *fallbacks* owned by `DOTNET_FALLBACK_VERSIONS` and
 `NODE_FALLBACK_VERSION` in standards `components/cloud-environment/setup.sh` (values as read
-2026-09-08, and that script, not this list, is the source of truth); a checked-out repo
+2026-09-14, and that script, not this list, is the source of truth); a checked-out repo
 that pins a version in `global.json` or `.node-version` replaces that lane's fallback for the
 cache build rather than adding to it, so a snapshot need not hold all of them at once.
 
 Pinned toolchains found:
 
-- **.NET SDK 10.0.302** (medley and github-iac, which set `rollForward: disable`, so the exact
-  patch is required) and **10.0.400** (ci-workflows), the two fleet fallback SDKs.
+- **.NET SDK 10.0.400**, pinned by medley and claude-code-account-rotation, which set
+  `rollForward: disable`, so the exact patch is required, and by ci-workflows without a
+  `rollForward`. **10.0.401** (github-iac, also `rollForward: disable`) is now in the fallback
+  list too. The fallback list matches the fleet pins above, `10.0.400 10.0.401` (per
+  `components/cloud-environment/setup.sh` in standards, verified 2026-09-15).
 - **Node 24.20.0**, the fleet fallback the setup script installs when the checked-out repo pins no
-  `.node-version` (codex-plugins pins major 24). The cloud VM ships Node 20/21/22 only, so this
-  is always an install.
-- **Python 3.14** (medley, claude-code-proxy). The VM has `uv`. See the caveat below.
-- **Go 1.26.6** (ci-runner). The VM's Go plus the module `toolchain` mechanism covers this.
-- **PowerShell** (`pwsh`), not pre-installed. Six repos carry `PSScriptAnalyzerSettings.psd1`, and
-  ci-workflows also runs Pester.
+  `.node-version`; nine repos pin that exact version and codex-plugins pins major 24. The cloud VM
+  ships Node 20/21/22 only, so this is always an install.
+- **Python 3.14**: medley and claude-code-plugins pin it in `.python-version`, and
+  claude-code-proxy and dotfiles declare `requires-python = ">=3.14"` in `pyproject.toml`. The VM
+  has `uv`. See the caveat below.
+- **Go 1.27.1** (ci-runner). The VM's Go plus the module `toolchain` mechanism covers this.
+- **PowerShell** (`pwsh`), not pre-installed. Six repos carry `PSScriptAnalyzerSettings.psd1`
+  (provisioning, dotfiles, medley, standards, claude-code-proxy, ci-workflows), and medley also
+  runs Pester.
 
 ## Bootstrap adoption (2026-08-16)
 
-Adoption is complete and no longer a per-repo decision surface: all fifteen non-archived
-melodic-software repositories (`gh repo list melodic-software --json name,isArchived`) carry
-`.claude/cloud-bootstrap.sh`, register it as a `startup|resume` SessionStart hook, and declare the
-`melodic-software` marketplace. Enabling the catalog is not among the per-repo steps: the standards
-fleet list does that for every repo, and a repo's own block carries only deltas
+Adoption is no longer a per-repo decision surface: as of 2026-08-16, every non-archived
+melodic-software repository (`gh repo list melodic-software --no-archived --limit 100 --json name`;
+the `--limit` matters, since `gh repo list` returns only 30 by default) carried
+`.claude/cloud-bootstrap.sh`, registered it as a `startup|resume` SessionStart hook, and declared
+the `melodic-software` marketplace; a repository created after that pass is not covered by it.
+Enabling the catalog is not among the per-repo steps: the standards fleet list does that for every
+repo, and a repo's own block carries only deltas
 ([Step 2](#step-2-per-repo-wiring)). Read adoption state from the repos rather than from a table
 here; a per-repo enumeration in this doc can only lag them.
 
@@ -141,11 +155,13 @@ carry, because Ubuntu's archive `gh` is years stale) and PowerShell (apt), the .
 cache build rather than unioning with it, so a repo that pins one .NET SDK does not also
 receive the other fallback SDK. The fleet pins cover whichever of those two the repo does
 not pin. The env copy is still a warm cache: each repo's bootstrap installs its exact pins
-repo-locally. The script then runs that repo's own `.claude/cloud-bootstrap.sh`, baking its
-results into the snapshot; and then it fetches the standards fleet plugin list to
-`/opt/melodic-fleet-plugins.json` and installs every `true` entry in it at user scope. That
-plugin install is what makes the fleet's plugins live at turn one, because it runs before
-the session process launches and the plugin registry is read at process start. Every step logs with a timestamp to
+repo-locally. The script then fetches the standards fleet plugin list to
+`/opt/melodic-fleet-plugins.json` and installs every `true` entry in it at user scope; only
+then does it run that repo's own `.claude/cloud-bootstrap.sh`, baking its results into the
+snapshot. That plugin install is what makes the fleet's plugins live at turn one, because it
+runs before the session process launches and the plugin registry is read at process start,
+and that order is what lets the repo bootstrap read the list the snapshot already carries.
+Every step logs with a timestamp to
 `/var/log/melodic-env-setup.log`, and `/opt/melodic-env-setup.done` (version + timestamp) is
 written strictly last, so a missing stamp is the signature of an interrupted cache build
 ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 2), fixed
@@ -201,7 +217,10 @@ a `true` for a plugin beyond the fleet. The overlay is settings-wins: where both
 same plugin the repo's value takes precedence, which is what makes the `false` an opt-out. A
 block that mirrors the whole catalog still works, since a repeated `true` agrees with the fleet
 entry it overrides, but writes one project-scope install record per entry per checkout
-on every local session start, which is the accumulation #3688 removed.
+on every local session start, which is the accumulation #3688 removed. A snapshot carrying no
+usable list at `/opt/melodic-fleet-plugins.json` gets no plugin stage at all: the bootstrap
+says so on stderr and installs nothing, because a deltas-only block is not a stand-in for the
+fleet set, and the rest of the bootstrap still runs.
 
 **`.claude/cloud-bootstrap.sh`**: do not author one. The canonical script is generic and
 manifest-driven (it carries no repo names, no marketplace identifiers, and no pinned versions),

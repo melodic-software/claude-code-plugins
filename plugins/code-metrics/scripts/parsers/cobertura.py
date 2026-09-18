@@ -39,33 +39,18 @@ import json
 import os
 import sys
 import xml.etree.ElementTree as ElementTree
-from typing import Any
 
-MIN_PYTHON = (3, 9)
+from parser_paths import norm as _norm
+from parser_paths import require_python, to_int
+
 FORMAT = "cobertura"
-
-
-def _norm(path: str) -> str:
-    path = path.strip().replace("\\", "/")
-    while path.startswith("./"):
-        path = path[2:]
-    return path
-
-
-def _int(text: Any) -> int | None:
-    if text is None:
-        return None
-    try:
-        return int(str(text).strip())
-    except ValueError:
-        return None
 
 
 def _line_map(element: ElementTree.Element) -> dict[int, int]:
     out: dict[int, int] = {}
     for line in element.iter("line"):
-        number = _int(line.attrib.get("number"))
-        hits = _int(line.attrib.get("hits"))
+        number = to_int(line.attrib.get("number"))
+        hits = to_int(line.attrib.get("hits"))
         if number is None or hits is None:
             continue
         out[number] = max(out.get(number, 0), hits)
@@ -180,7 +165,7 @@ def parse(path: str) -> dict[str, dict]:
             if not name:
                 continue
             region = _line_map(method)
-            declared = _int(method.attrib.get("hits"))
+            declared = to_int(method.attrib.get("hits"))
             hit = declared if declared is not None else int(any(region.values()))
             entry = {
                 "name": name,
@@ -209,9 +194,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print("cobertura.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr)
-        sys.exit(2)
+    require_python("cobertura.py")
     try:
         sys.exit(main(sys.argv[1:]))
     except (OSError, ElementTree.ParseError) as exc:

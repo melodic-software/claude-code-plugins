@@ -59,6 +59,11 @@ PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
 source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
+# Lexical path collapse, shared inside this plugin with the worktree gates and
+# the claim helper. Sourced for worktree_path_normalize alone: the file defines
+# functions only and pulls in no library of its own.
+# shellcheck source=../hooks/worktree-path-lib.sh
+source "${BASH_SOURCE[0]%/*}/../hooks/worktree-path-lib.sh"
 
 # --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
 # windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
@@ -70,22 +75,15 @@ source "${BASH_SOURCE[0]%/*}/worktree-root-resolve.sh"
 #     `/d/...` path is an ordinary directory and must stay inert so `/usr` is
 #     never mistaken for drive U:.
 windows_drive_letter() {
-  local path="$1" d
-  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]]; then
-    d="${BASH_REMATCH[1]}"
-    printf '%s' "${d^^}"
-    return 0
-  fi
-  if [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
-    d="${BASH_REMATCH[1]}"
-    printf '%s' "${d^^}"
+  local path="$1"
+  if [[ "$path" =~ ^([A-Za-z]):(/|$) ]] || [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
+    printf '%s' "${BASH_REMATCH[1]^^}"
     return 0
   fi
   case "$(uname -s 2>/dev/null || true)" in
   MINGW* | MSYS* | CYGWIN*)
     if [[ "$path" =~ ^/([A-Za-z])(/|$) ]]; then
-      d="${BASH_REMATCH[1]}"
-      printf '%s' "${d^^}"
+      printf '%s' "${BASH_REMATCH[1]^^}"
       return 0
     fi
     ;;
@@ -432,7 +430,7 @@ root_is_unset() {
 #    the loop breaks on its first iteration, and the whole guard block is
 #    skipped — a backslash root then sails through and git lands the checkout
 #    inside the repo/.git. Swapping `\`→`/` up front routes a backslash root
-#    through the SAME anchor + normalize_path + walk as a forward-slash root
+#    through the SAME anchor + worktree_path_normalize + walk as a fwd-slash root
 #    (one code path, not a parallel one). Gated to Windows shells via $OSTYPE —
 #    off-Windows `\` is a legal filename byte and must be left untouched.
 #    (cygpath is intentionally avoided: it resolves relative paths against the
@@ -658,43 +656,6 @@ parse_owner_repo() {
   fi
 }
 
-# normalize_path <abs-path> — lexically collapse `.` and `..` (and redundant
-# slashes) in an ABSOLUTE path, echoing the result. Pure string work: it does
-# NOT touch the filesystem, so it resolves `..` even when leading components do
-# not exist yet — the case `git worktree add` handles by creating the missing
-# dirs and letting the OS resolve `..`. `realpath -m` would do this too but is a
-# GNU extension absent on BSD/macOS (the repo's realpath/readlink -f idiom needs
-# every-but-last component to exist, so it cannot resolve a nonexistent-prefix
-# `..`). A path with no `.`/`..`/`//` segment re-splits and re-joins identically,
-# so this is a no-op for ordinary roots. Symlink resolution of existing
-# components is left to git's own realpath at creation (see the containment note).
-normalize_path() {
-  local input="$1" root rest seg
-  if [[ "$input" == /* ]]; then
-    root="/"
-    rest="${input#/}"
-  elif [[ "$input" =~ ^[A-Za-z]:/ ]]; then
-    root="${input:0:2}/"
-    rest="${input:3}"
-  else
-    root=""
-    rest="$input"
-  fi
-  local -a segs=() out=()
-  IFS='/' read -r -a segs <<<"$rest"
-  for seg in "${segs[@]}"; do
-    [[ -z "$seg" || "$seg" == "." ]] && continue
-    if [[ "$seg" == ".." ]]; then
-      # Pop the last kept segment; a `..` at the root is a no-op (clamped).
-      ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
-      continue
-    fi
-    out+=("$seg")
-  done
-  local IFS='/'
-  printf '%s%s' "$root" "${out[*]}"
-}
-
 # owner/repo from the origin remote when present; otherwise fall back to the
 # repository directory name (owner omitted).
 owner=""
@@ -740,7 +701,7 @@ worktree_path="${root%/}/${dirname}"
 # never probes the real `<repo>` ancestor, so the guard passes and `git worktree
 # add` creates `missing`, resolves `..`, and lands the checkout inside the repo.
 # Normalizing first makes the walk see the true landing path.
-worktree_path=$(normalize_path "$worktree_path")
+worktree_path=$(worktree_path_normalize "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is

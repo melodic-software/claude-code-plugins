@@ -61,9 +61,9 @@ wit() {
 for n in $(gh issue list -R "$REPO" --state open --limit 200 --json number --jq '.[].number' | tr -d '\r'); do
   gh issue close "$n" -R "$REPO" --comment "e2e-probe clean-at-start" >/dev/null 2>&1 || true
 done
-gh label create work-map -R "$REPO" --force >/dev/null 2>&1 || true
-gh label create "wayfind: research" -R "$REPO" --force >/dev/null 2>&1 || true
-gh label create "wayfind: task" -R "$REPO" --force >/dev/null 2>&1 || true
+for label in work-map "wayfind: research" "wayfind: task"; do
+  gh label create "$label" -R "$REPO" --force >/dev/null 2>&1 || true
+done
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 

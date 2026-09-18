@@ -70,14 +70,14 @@ emit_skipped() {
 # runs from $1's directory up to the repo root $2 — the same span the lint
 # run's own discovery covers for that file.
 #
-# The `dirname` this gate used is a parameter expansion, for the reason given
-# at the source line above: this hook runs on every Markdown Write and Edit.
-# $1 names an existing regular file, so it carries no trailing slash and the
-# strip is exact; a path with no separator at all leaves the strip a no-op,
-# which the `.` fallback covers, and a file directly under the filesystem root
-# leaves it empty, which the `/` fallback covers (bash rejects `cd ""` as a
-# null directory, so an empty start would fail the walk closed and skip a
-# root-level file that a root config opts in).
+# The starting directory comes from hook::dirname_to, a builtins-only strip,
+# for the reason given at the source line above: this hook runs on every
+# Markdown Write and Edit. $1 names an existing regular file, so it carries no
+# trailing slash and the strip is exact; that helper's `.` fallback covers a
+# path with no separator and its `/` fallback a file directly under the
+# filesystem root (bash rejects `cd ""` as a null directory, so an empty start
+# would fail the walk closed and skip a root-level file that a root config
+# opts in).
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 markdownlint_config_here() {
   local candidate
@@ -96,9 +96,7 @@ markdownlint_config_discoverable() {
   local root start
   # shellcheck disable=SC2034  # the gate reads the walk's verdict, not which directory carried the config
   local hit=""
-  start="${1%/*}"
-  [[ "$start" == "$1" ]] && start=.
-  [[ -n "$start" ]] || start=/
+  hook::dirname_to start "$1"
   start="$(cd "$start" 2>/dev/null && pwd -P)" || return 1
   # Fail CLOSED when the root cannot be resolved — an unresolvable ceiling is
   # hook::walk_up_to's own fail-closed case too, and both mean the same thing
@@ -145,7 +143,7 @@ git_dir_entry_here() {
 # (https://git-scm.com/docs/gitrepository-layout, "$GIT_DIR", fetched
 # 2026-08-09). Reading the filesystem rather than asking git also means an
 # inherited GIT_DIR/GIT_WORK_TREE cannot make some other repository answer —
-# the same protection in_git_working_tree and file_is_gitignored buy by
+# the same protection hook::in_git_working_tree and file_is_gitignored buy by
 # unsetting those, here for free.
 #
 # CLAUDE_PROJECT_DIR is the last resort, for a project that is no working tree
@@ -212,9 +210,7 @@ opt_in_decided_without_jq() {
   local decoded="${1//\\\"/\"}" decoded_dir decoded_root
   decoded="${decoded//\\\//\/}"
   decoded="${decoded//\\\\/\\}"
-  decoded_dir="${decoded%/*}"
-  [[ "$decoded_dir" == "$decoded" ]] && decoded_dir=.
-  [[ -n "$decoded_dir" ]] || decoded_dir=/
+  hook::dirname_to decoded_dir "$decoded"
   decoded_root=""
   resolve_repo_root_to decoded_root "$decoded_dir"
   if [[ -f "$decoded" ]] &&
@@ -242,32 +238,13 @@ opt_in_decided_without_jq() {
 hook::begin --repo-root resolve_repo_root_to --pre-jq opt_in_decided_without_jq \
   markdown-format PostToolUse '*.md' '*.mdc'
 
-# Does <dir> sit inside a git working tree? Git's repository-selection and
-# discovery environment variables are cleared first: an inherited GIT_DIR or
-# GIT_WORK_TREE (a repository wrapper that launched the session) overrides
-# discovery outright, so `git -C <out-of-tree dir>` would answer with the
-# overridden repository and admit an external file. GIT_COMMON_DIR,
-# GIT_CEILING_DIRECTORIES and GIT_DISCOVERY_ACROSS_FILESYSTEM skew the same
-# probe in the other direction. The verdict must come from the directory alone,
-# never from ambient state. Names per the official environment list —
-# https://git-scm.com/docs/git, "The Git Repository" and "Git Discovery".
-in_git_working_tree() {
-  (
-    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
-      GIT_DISCOVERY_ACROSS_FILESYSTEM
-    git -C "$1" rev-parse --show-toplevel
-  ) >/dev/null 2>&1
-}
-
 # Is $1's directory $2, or below it? Both sides go through `cd … && pwd -P`, so
 # a link, a `..`, or a differing spelling on either side cannot make a
 # containment answer disagree with the filesystem. Fails CLOSED — an
 # undecidable containment answer is not a licence to write.
 physically_inside() {
   local file_dir root _d
-  _d="${1%/*}"
-  [[ "$_d" == "$1" ]] && _d=.
-  [[ -n "$_d" ]] || _d=/
+  hook::dirname_to _d "$1"
   file_dir="$(cd "$_d" 2>/dev/null && pwd -P)" || return 1
   root="$(cd "$2" 2>/dev/null && pwd -P)" || return 1
   case "$file_dir" in
@@ -299,7 +276,7 @@ physically_inside() {
 # resolver that exists but fails — and this scope fails closed on it.
 #
 # The membership skip requires git to be ON PATH, because without it
-# `in_git_working_tree` cannot distinguish "outside every working tree" from
+# `hook::in_git_working_tree` cannot distinguish "outside every working tree" from
 # "the question was never asked": both come back non-zero. Reading
 # command-not-found as a negative membership verdict skipped EVERY Markdown
 # edit on a git-less POSIX host — silently, repo-wide, and although git is not
@@ -310,7 +287,7 @@ physically_inside() {
 #
 # The fail-open is bounded, but NOT by the opt-in gate alone, and the escaping
 # symlink is exactly where that distinction bites. Without git this scope cannot
-# ask `in_git_working_tree` anything, so containment goes unchecked — and a
+# ask `hook::in_git_working_tree` anything, so containment goes unchecked — and a
 # symlink is the one shape whose lexical parent (inside the repository, where
 # the root config lives) and physical parent (outside it) disagree. Discovery
 # then opens the gate on the repository's own config and `--fix` follows the
@@ -338,10 +315,9 @@ if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
     exit 0
   fi
   if command -v git >/dev/null 2>&1; then
-    _file_phys_dir="${FILE_PHYSICAL%/*}"
-    [[ "$_file_phys_dir" == "$FILE_PHYSICAL" ]] && _file_phys_dir=.
-    [[ -n "$_file_phys_dir" ]] || _file_phys_dir=/
-    if ! in_git_working_tree "$_file_phys_dir"; then
+    _file_phys_dir=""
+    hook::dirname_to _file_phys_dir "$FILE_PHYSICAL"
+    if ! hook::in_git_working_tree "$_file_phys_dir"; then
       exit 0
     fi
   elif [[ "$FILE_PHYSICAL" != "$FILE" ]] &&
@@ -392,7 +368,7 @@ fi
 # notice it by. Do not "fix" this into a fail-closed check.
 #
 # Git's repository-selection and discovery environment is cleared for the same
-# reason in_git_working_tree clears it: an inherited GIT_DIR/GIT_WORK_TREE from
+# reason hook::in_git_working_tree clears it: an inherited GIT_DIR/GIT_WORK_TREE from
 # a wrapper that launched the session would make some OTHER repository answer
 # the question. A session running inside a linked worktree under a path the
 # parent repository ignores (`.claude/worktrees/**` is a common one) would then
@@ -513,7 +489,7 @@ normalize_path_entry() {
 edit_is_in_git_repo() {
   local dir parent
   dir="$(cd "$(dirname -- "$1")" 2>/dev/null && pwd -P)" || return 1
-  if command -v git >/dev/null 2>&1 && in_git_working_tree "$dir"; then
+  if command -v git >/dev/null 2>&1 && hook::in_git_working_tree "$dir"; then
     return 0
   fi
   while :; do

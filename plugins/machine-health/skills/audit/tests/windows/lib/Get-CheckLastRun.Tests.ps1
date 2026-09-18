@@ -7,9 +7,7 @@ lookup shared by cadence selection and trend annotation.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-CheckLastRun.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CheckLastRun.ps1'
 
     function New-Entry {
         param([string] $RunId, [string[]] $ChecksRan)

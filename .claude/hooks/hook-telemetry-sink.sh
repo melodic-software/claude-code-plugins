@@ -126,7 +126,7 @@ slog_guard_ok "$root" "$project_dir" || exit 0
 # id the spine carries, so the route decides the destination and nothing else.
 # No second jq here — session-log-lib.sh builds and escapes the line from
 # builtins, which is one process fewer per event on both routes.
-RUN_KEYS=(hook s "$HOOK" exit_code n "${EXIT_CODE:-0}" subject s "$SUBJECT" tool s "$TOOL")
+RUN_KEYS=(hook s "$HOOK" exit_code n "${EXIT_CODE}" subject s "$SUBJECT" tool s "$TOOL")
 [[ -n "$CHANGED" ]] && RUN_KEYS+=(changed n "$CHANGED")
 
 LINE=""

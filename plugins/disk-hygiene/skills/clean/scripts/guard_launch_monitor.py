@@ -134,14 +134,13 @@ def _resolve_data_root(argv: list[str]) -> str | None:
 
 
 def _marker_path_candidates(data_root: str | None, session_id: str) -> list[Path]:
-    safe_session = "".join(
-        ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id
-    ) or "unknown-session"
+    safe_session = (
+        "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
+        or "unknown-session"
+    )
     candidates: list[Path] = []
     if data_root:
-        candidates.append(
-            Path(data_root) / _MARKER_DIRNAME / f"{safe_session}.warned"
-        )
+        candidates.append(Path(data_root) / _MARKER_DIRNAME / f"{safe_session}.warned")
     candidates.append(
         Path(tempfile.gettempdir())
         / "disk-hygiene-guard-launch-monitor"
@@ -171,20 +170,6 @@ def _write_marker(marker_paths: list[Path]) -> None:
             continue
 
 
-def _read_tail_from_handle(handle, *, size: int) -> str:
-    if size > _MAX_TAIL_BYTES:
-        offset = size - _MAX_TAIL_BYTES
-        # A newline immediately before the window means the window already
-        # starts on a record boundary; discarding then would throw away a
-        # whole record, which can be the only guard failure in the tail.
-        handle.seek(offset - 1)
-        starts_mid_record = handle.read(1) != b"\n"
-        if starts_mid_record:
-            handle.readline()  # discard the truncated partial first line
-    raw = handle.read()
-    return raw.decode("utf-8", errors="replace")
-
-
 def _read_tail(transcript_path: str) -> str:
     path = Path(transcript_path)
     size = path.stat().st_size
@@ -193,17 +178,20 @@ def _read_tail(transcript_path: str) -> str:
             return handle.read().decode("utf-8", errors="replace")
         # Guard failures can land in the head region when a later turn appends
         # more than _MAX_TAIL_BYTES after them (#1514). Scan complete JSONL
-        # records from the head plus the capped tail window.
+        # records from the head plus the capped tail window. The head is cut
+        # back to its last record boundary, so the record straddling the cut
+        # reaches the scanner as one unparsable line and is skipped there.
         head_limit = size - _MAX_TAIL_BYTES
         head_raw = handle.read(head_limit)
         if head_raw and not head_raw.endswith(b"\n"):
             head_raw = head_raw.rsplit(b"\n", 1)[0] + b"\n"
         head_text = head_raw.decode("utf-8", errors="replace")
-        tail_text = _read_tail_from_handle(handle, size=size - head_limit)
+        tail_text = handle.read().decode("utf-8", errors="replace")
     return head_text + tail_text
 
 
 def _iter_guard_failures(transcript_text: str):
+    """Yield the ``hook_non_blocking_error`` attachment of each guard failure."""
     for line in transcript_text.splitlines():
         line = line.strip()
         if not line:
@@ -224,7 +212,7 @@ def _iter_guard_failures(transcript_text: str):
         command = attachment.get("command")
         if not isinstance(command, str) or _GUARD_COMMAND_SUBSTRING not in command:
             continue
-        yield record, attachment
+        yield attachment
 
 
 def _format_stderr(stderr: object) -> str:
@@ -236,11 +224,11 @@ def _format_stderr(stderr: object) -> str:
     return text
 
 
-def _build_message(failures: list[tuple[dict, dict]]) -> str:
+def _build_message(failures: list[dict]) -> str:
     count = len(failures)
     # Records are scanned in file order (chronological); the last match is
     # the most recent failure.
-    _, latest = failures[-1]
+    latest = failures[-1]
     exit_code = latest.get("exitCode")
     duration_ms = latest.get("durationMs")
     stderr_text = _format_stderr(latest.get("stderr"))
@@ -258,7 +246,7 @@ def _build_message(failures: list[tuple[dict, dict]]) -> str:
     )
 
 
-def _audit_fields(failures: list[tuple[dict, dict]], session_id: str) -> dict:
+def _audit_fields(failures: list[dict], session_id: str) -> dict:
     """Structured detail for the local decision record.
 
     Deliberately separate from ``telemetry_data``: the telemetry envelope's
@@ -266,7 +254,7 @@ def _audit_fields(failures: list[tuple[dict, dict]], session_id: str) -> dict:
     record is a different consumer with a different need (enough to explain one
     failure without the session's transcript), so neither shapes the other.
     """
-    _, latest = failures[-1]
+    latest = failures[-1]
     return {
         "failure_count": len(failures),
         "session_id": session_id,

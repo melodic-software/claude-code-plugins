@@ -42,17 +42,22 @@ fail() {
 }
 
 last_out=""
+# check_exit <expected> <label> <actual>: the verdict both runners report.
+check_exit() {
+  if [[ "$3" -eq "$1" ]]; then
+    pass "$2 (exit $3)"
+  else
+    fail "$2 - expected exit $1, got $3: $last_out"
+  fi
+}
+
 run() {
   local expected="$1" label="$2"
   shift 2
   local actual
   last_out="$(bash "$SUT" "$@" 2>&1)"
   actual=$?
-  if [[ "$actual" -eq "$expected" ]]; then
-    pass "$label (exit $actual)"
-  else
-    fail "$label - expected exit $expected, got $actual: $last_out"
-  fi
+  check_exit "$expected" "$label" "$actual"
 }
 
 has() {
@@ -489,11 +494,7 @@ run_stdin() {
   local actual
   last_out="$(bash "$SUT" - <"$input" 2>&1)"
   actual=$?
-  if [[ "$actual" -eq "$expected" ]]; then
-    pass "$label (exit $actual)"
-  else
-    fail "$label - expected exit $expected, got $actual: $last_out"
-  fi
+  check_exit "$expected" "$label" "$actual"
 }
 
 run_stdin 0 "a record on stdin is graded" "$valid"

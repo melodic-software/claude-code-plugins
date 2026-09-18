@@ -23,19 +23,11 @@ Pins these fixes:
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-DiskHealth.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    # Dot-source the reliability wrapper so Pester can install Mock against it.
-    # Without this, Mock throws CommandNotFoundException -- the function only
+    # The reliability wrapper is dot-sourced so Pester can install Mock against
+    # it. Without this, Mock throws CommandNotFoundException -- the function only
     # exists inside the child script scope otherwise.
-    . (Join-Path $script:LibRoot 'Get-PhysicalDiskReliability.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-DiskHealthAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DiskHealth' `
+        -AsObject 'Invoke-DiskHealthAsObject' -LibScript 'Get-PhysicalDiskReliability.ps1' -MockHelpers
 }
 
 Describe 'Test-DiskHealth -- volume filter' -Tag 'check' {

@@ -10,12 +10,8 @@ UNKNOWN CheckResult that severity_counts / latest.json / the report can see.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CatalogEntry.ps1')
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    . (Join-Path $script:LibRoot 'New-InvalidCatalogEntryResult.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" `
+        -LibScript 'Assert-CatalogEntry.ps1', 'Assert-CheckResult.ps1', 'New-InvalidCatalogEntryResult.ps1'
 
     function New-NearlyValidEntry {
         param([hashtable] $Overrides = @{})

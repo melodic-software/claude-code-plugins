@@ -53,8 +53,8 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-body.in-news { /* sub-strip expanded — bump scroll-padding so anchor jumps land below it */ }
-body.in-news html, html:has(body.in-news) {
+/* Sub-strip expanded — bump scroll-padding so anchor jumps land below it */
+html:has(body.in-news) {
   scroll-padding-top: var(--nav-h-expanded);
 }
 body { font-size: var(--fs-body); min-height: 100vh; }
@@ -617,7 +617,7 @@ body.in-news .chips-sub {
 
 /* ─── Print mode (?print=1 query OR @media print) ─── */
 body.print-mode { overflow: visible; }
-body.print-mode html, html.print-mode { scroll-snap-type: none; scroll-behavior: auto; }
+html.print-mode { scroll-snap-type: none; scroll-behavior: auto; }
 body.print-mode #topnav, body.print-mode #help, body.print-mode #progress { display: none; }
 body.print-mode .section {
   break-after: page; page-break-after: always;

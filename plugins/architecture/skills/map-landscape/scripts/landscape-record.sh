@@ -73,7 +73,9 @@ FACTS="$SCRIPT_DIR/portfolio-facts.sh"
 EDGES="$SCRIPT_DIR/reference-edges.sh"
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  # Print the header comment block only, selected by comment marker so --help
+  # stays correct as the block grows.
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() {
@@ -225,7 +227,7 @@ fi
 # object rather than matching a pattern, so a value carrying a brace, a comma or
 # an escaped quote does not split the record in the wrong place.
 read -r -d '' SPLIT_AWK <<'AWK' || true
-function split_object(line, keys, vals,   i, n, c, k, v, depth, instr, esc, start) {
+function split_object(line, keys, vals,   i, n, c, k, v, depth, instr, start) {
   n = 0
   i = index(line, "{")
   if (i == 0) return 0

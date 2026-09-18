@@ -65,6 +65,22 @@ tmpsh() {
   printf '%s' "$f"
 }
 
+# expect_all_detected <tokens-file>: reads one fixture body per line from stdin
+# and asserts each one is reported. The loop variables are deliberately not
+# `local`, because `case` is a reserved word and `f`/`out` are the scratch
+# globals every case around this helper writes.
+expect_all_detected() {
+  while IFS= read -r case; do
+    f="$(tmpsh "$case")"
+    if out="$(scan_paths "$1" "$f" 2>&1)"; then
+      fail "[$case] should fail, got success: $out"
+    else
+      ok "[$case] is detected"
+    fi
+    rm -f "$f"
+  done
+}
+
 # =============================================================================
 # Regex-escape classes (\b \< \> \s \S \w \W) — the exact near-miss family.
 # =============================================================================
@@ -185,15 +201,7 @@ rm -f "$f" "$tok"
 # operator, redirection, subshell close or quote must still be detected
 # (#1537; a whitespace-only boundary would miss these) ----------------------
 tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(grep -P)
 grep -P|head -n1
 grep -P; echo done
@@ -224,15 +232,7 @@ fi
 rm -f "$f"
 
 # --- operator-terminated forms (#1537) --------------------------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(echo -e)
 echo -e|cat
 echo -e; echo done
@@ -261,15 +261,7 @@ rm -f "$f"
 # --- operator-terminated forms: no trailing whitespace before a control
 # operator, redirection, subshell close or quote must still be detected
 # (#1537; a whitespace-only boundary would miss exactly these three forms) --
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(sort -V)
 sort -V|head -n1
 sort -V; echo done
@@ -294,15 +286,7 @@ tok="$(one_token_list 'sort[^;&|\n]*[[:space:]]['"'"'"]?--sort['"'"'"]?(=|[[:spa
 # option word rather than just its value -- the shell hands GNU sort the same
 # argument either way, so a pattern demanding whitespace immediately before
 # `--sort` reported these clean. -------------------------------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 sort --sort=version "$file"
 sort --sort version "$file"
 sort --sort='version' "$file"
@@ -777,15 +761,7 @@ rm -f "$f"
 # as #1537's sort -V/grep -P/echo -e forms). Quotes
 # are NOT in this token's boundary (unlike the sibling tokens above) — see
 # the "sed -Ei'' must not be flagged" test above for why. --------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(sed -Ei)
 sed -Ei|cat
 sed -Ei; echo done
@@ -821,15 +797,7 @@ fi
 rm -f "$f"
 
 # --- operator-terminated forms (#1545) --------------------------------------
-while IFS= read -r case; do
-  f="$(tmpsh "$case")"
-  if out="$(scan_paths "$tok" "$f" 2>&1)"; then
-    fail "[$case] should fail, got success: $out"
-  else
-    ok "[$case] is detected"
-  fi
-  rm -f "$f"
-done <<'CASES'
+expect_all_detected "$tok" <<'CASES'
 x=$(sed --in-place)
 sed --in-place|cat
 sed --in-place; echo done

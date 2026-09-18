@@ -279,7 +279,7 @@ DATA3="$TEST_TMPDIR/data3"
 {
   failure_record "PreToolUse:OutOfWindow" "cmd-a"
   # Pad well past the small test cap so the record above falls outside it.
-  for _ in $(seq 1 200); do
+  for _ in {1..200}; do
     printf '{"type":"assistant","message":{"content":[{"type":"text","text":"%s"}]},"uuid":"pad","session_id":"s"}\n' \
       "pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad"
   done
@@ -288,6 +288,129 @@ DATA3="$TEST_TMPDIR/data3"
 OUT6=$(run_hook "$T3" "$DATA3" HOOK_FAILURE_AUDIT_TAIL_BYTES=8000)
 assert_contains "in-window failure reported" "$OUT6" "PreToolUse:InWindow"
 assert_absent "out-of-window failure not read" "$OUT6" "PreToolUse:OutOfWindow"
+
+# --- Incremental scan: the cursor --------------------------------------------
+# The cursor records how many transcript lines a session has already audited, so
+# a later Stop reads only what was appended. Four properties are asserted: a
+# turn with nothing new spawns nothing at all, a failure appended past the
+# cursor produces EXACTLY the message a full rescan produces, and both a shorter
+# transcript and a different transcript_path reset the cursor rather than
+# skipping lines that were never audited.
+
+# A PATH shim that fails loudly instead of doing the work. `command -v jq` still
+# succeeds — that is what lets the library's builtin field parser proceed — so
+# any surviving spawn reaches a shim and breaks silence.
+SHIM="$TEST_TMPDIR/shim"
+mkdir -p "$SHIM"
+for PROG in jq grep wc tail sed find cat mkdir; do
+  printf '#!/bin/sh\necho "SPAWNED %s" >&2\nexit 99\n' "$PROG" >"$SHIM/$PROG"
+  chmod +x "$SHIM/$PROG"
+done
+
+T_CUR="$TEST_TMPDIR/cursor.jsonl"
+DATA_CUR="$TEST_TMPDIR/data-cursor"
+{
+  for _ in {1..6}; do
+    printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine"}]},"uuid":"c","session_id":"s"}\n'
+  done
+  failure_record "PreToolUse:Bash" "first-registration.sh"
+} >"$T_CUR"
+OUT_C1=$(run_hook "$T_CUR" "$DATA_CUR")
+assert_contains "cursor: first Stop warns" "$OUT_C1" "first-registration.sh"
+assert_eq "cursor: file records the audited line count" "7" \
+  "$(head -1 "$DATA_CUR/hook-failure-audit/test-session.cursor")"
+assert_eq "cursor: file records the transcript path" "$T_CUR" \
+  "$(sed -n 2p "$DATA_CUR/hook-failure-audit/test-session.cursor")"
+
+# Nothing appended: the second Stop must reach its exit with no process at all.
+OUT_C2=$(run_hook "$T_CUR" "$DATA_CUR" PATH="$SHIM:$PATH")
+assert_silent "cursor: unchanged transcript -> silent, nothing spawned" "$OUT_C2"
+
+# Benign lines only: still nothing to hand to jq, still no process.
+for _ in {1..20}; do
+  printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine"}]},"uuid":"c","session_id":"s"}\n' >>"$T_CUR"
+done
+OUT_C3=$(run_hook "$T_CUR" "$DATA_CUR" PATH="$SHIM:$PATH")
+assert_silent "cursor: appended benign lines -> silent, nothing spawned" "$OUT_C3"
+
+# A failure appended past the cursor: byte-identical to what a full rescan of
+# the same transcript, against the same marker state, produces. DATA_FULL is a
+# copy of the incremental state with only the cursor removed, so the two runs
+# differ in nothing but how much of the transcript they read.
+failure_record "SessionStart" "second-registration.mjs" >>"$T_CUR"
+DATA_FULL="$TEST_TMPDIR/data-cursor-full"
+rm -rf "$DATA_FULL"
+cp -r "$DATA_CUR" "$DATA_FULL"
+rm -f "$DATA_FULL/hook-failure-audit/test-session.cursor"
+OUT_INC=$(run_hook "$T_CUR" "$DATA_CUR")
+OUT_FULL=$(run_hook "$T_CUR" "$DATA_FULL")
+assert_contains "cursor: appended failure is reported" "$OUT_INC" "second-registration.mjs"
+assert_eq "cursor: incremental output equals a full rescan's" "$OUT_FULL" "$OUT_INC"
+assert_absent "cursor: the already-warned registration stays muted" "$OUT_INC" "first-registration.sh"
+
+# A SHORTER transcript resets the cursor. Without the reset the read starts past
+# the end of the file and the new record is never seen.
+T_SHORT="$TEST_TMPDIR/cursor.jsonl"
+failure_record "PreToolUse:Shrunk" "after-truncation.sh" >"$T_SHORT"
+OUT_C4=$(run_hook "$T_SHORT" "$DATA_CUR")
+assert_contains "cursor: a shorter transcript rescans from the start" "$OUT_C4" "after-truncation.sh"
+
+# A DIFFERENT transcript_path resets it too. This file is LONGER than the stored
+# cursor and carries its failure record BEFORE it, so only the path check can
+# save the record: a stale line count would skip straight past it.
+T_OTHER="$TEST_TMPDIR/cursor-other.jsonl"
+DATA_OTHER="$TEST_TMPDIR/data-cursor-other"
+{
+  for _ in {1..30}; do
+    printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine"}]},"uuid":"c","session_id":"s"}\n'
+  done
+} >"$T_OTHER"
+run_hook "$T_OTHER" "$DATA_OTHER" >/dev/null # cursor: 30 lines of this path
+printf '%s\n' "$(failure_record 'PreToolUse:Moved' 'other-transcript.sh')" \
+  >"$TEST_TMPDIR/cursor-other-2.jsonl"
+for _ in {1..40}; do
+  printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine"}]},"uuid":"c","session_id":"s"}\n' >>"$TEST_TMPDIR/cursor-other-2.jsonl"
+done
+OUT_C5=$(run_hook "$TEST_TMPDIR/cursor-other-2.jsonl" "$DATA_OTHER")
+assert_contains "cursor: a different transcript_path rescans from the start" \
+  "$OUT_C5" "other-transcript.sh"
+
+# A non-canonical decimal cursor (a leading zero, or a digit string long enough
+# to wrap) must fall through to CURSOR=0 exactly like any other malformed
+# cursor: no shell diagnostic, a cold scan of the whole transcript, and a
+# canonical value written back afterward. `08`/`09` pass a bare `^[0-9]+$`
+# test and then fail bash's octal-reading `((...))` with a "value too great
+# for base" diagnostic on stderr; a long-enough digit string wraps silently in
+# arithmetic instead of erroring, which is the more dangerous case.
+T_LEADING_ZERO="$TEST_TMPDIR/cursor-leading-zero.jsonl"
+DATA_LEADING_ZERO="$TEST_TMPDIR/data-cursor-leading-zero"
+failure_record "PreToolUse:LeadingZero" "leading-zero.sh" >"$T_LEADING_ZERO"
+mkdir -p "$DATA_LEADING_ZERO/hook-failure-audit"
+printf '08\n%s\n' "$T_LEADING_ZERO" \
+  >"$DATA_LEADING_ZERO/hook-failure-audit/test-session.cursor"
+OUT_C6=$(run_hook "$T_LEADING_ZERO" "$DATA_LEADING_ZERO")
+assert_absent "cursor: leading zero prints no shell diagnostic" "$OUT_C6" "value too great for base"
+assert_contains "cursor: leading zero falls back to a cold scan" "$OUT_C6" "leading-zero.sh"
+assert_eq "cursor: leading zero is rewritten to a canonical value" "1" \
+  "$(head -1 "$DATA_LEADING_ZERO/hook-failure-audit/test-session.cursor")"
+
+T_OVERSIZED="$TEST_TMPDIR/cursor-oversized.jsonl"
+DATA_OVERSIZED="$TEST_TMPDIR/data-cursor-oversized"
+failure_record "PreToolUse:Oversized" "oversized-cursor.sh" >"$T_OVERSIZED"
+mkdir -p "$DATA_OVERSIZED/hook-failure-audit"
+printf '%s\n%s\n' "11111111111111111111" "$T_OVERSIZED" \
+  >"$DATA_OVERSIZED/hook-failure-audit/test-session.cursor"
+OUT_C7=$(run_hook "$T_OVERSIZED" "$DATA_OVERSIZED")
+# bash wraps an overlong digit string silently rather than erroring, so the
+# diagnostic to rule out here is any stray output line, not one exact string.
+if [[ "$OUT_C7" == *$'\n'* ]]; then
+  bad "cursor: 20-digit cursor prints no shell diagnostic: unexpected extra line(s) in: $OUT_C7"
+else
+  ok "cursor: 20-digit cursor prints no shell diagnostic"
+fi
+assert_contains "cursor: 20-digit cursor falls back to a cold scan" "$OUT_C7" "oversized-cursor.sh"
+assert_eq "cursor: 20-digit cursor is rewritten to a canonical value" "1" \
+  "$(head -1 "$DATA_OVERSIZED/hook-failure-audit/test-session.cursor")"
 
 # --- Kill switch -------------------------------------------------------------
 OUT7=$(run_hook "$T2" "$TEST_TMPDIR/data-kill" CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED=false)
@@ -346,23 +469,24 @@ fi
 # `-ff` writes one file per pid, so no syscall line is ever split across an
 # <unfinished>/<resumed> pair where a naive grep would silently undercount.
 #
-# The common path is a turn with NO hook failure recorded, under the tail cap.
-# Budget:
-#   1 wc    the file size the tail-cap decision needs
-#   1 grep  the pre-filter, reading the transcript directly
-#   2 jq    both inside hook-utils.sh (buffer_stdin's validation probe, and the
-#           single hook::jq_fields payload read) — a synced library this plugin
-#           does not own
-#   0 cat   the removed process: `cat -- file | grep` handed grep bytes it can
-#           open itself, through a `read_window` function call that was a
-#           second subshell on top of the substitution's own
+# TWO paths are measured, because the cursor splits them. The COLD path is the
+# first Stop of a session, under the tail cap:
+#   1 wc     `wc -lc`: the byte count the cap decision needs and the line count
+#            the cursor starts from, in one process
+#   1 mkdir  the marker/cursor directory, created once per data home
+#   0 jq     the payload fields ride on hook::buffer_stdin_to, and the library
+#            answers a plain-string field with its builtin parser
+#   0 grep   the pre-filter is `[[ $line == *needle* ]]` over a `mapfile` read
+#   0 cat, 0 tail, 0 sed
+# The WARM path — every later Stop, which is the cadence this hook actually runs
+# at — reads only the appended lines and creates NOTHING.
 #
-# MUTATION-CHECKED: moving a silenced redirect back inside its substitution —
-# `SIZE=$(wc -c <"$TRANSCRIPT" 2>/dev/null)`, or
-# `RECORDS=$(grep -F … -- "$TRANSCRIPT" 2>/dev/null)` — adds a fork with NO new
-# exec, leaves every behavioural assertion above green, and trips the creation
-# ceiling below. That is what the creation count is for; execve alone is blind
-# to it.
+# MUTATION-CHECKED: moving a silenced redirect back inside its substitution
+# (`SIZE=$(wc -lc <"$TRANSCRIPT" 2>/dev/null)`) adds a fork with NO new exec,
+# leaves every behavioural assertion above green, and trips the cold creation
+# ceiling below. Dropping the cursor write leaves every behavioural assertion
+# green too, and trips the warm ceiling. That is what the creation count is for;
+# execve alone is blind to both.
 TRACE_OK=1
 command -v strace >/dev/null 2>&1 || TRACE_OK=0
 if ((TRACE_OK)); then
@@ -373,42 +497,50 @@ if ((TRACE_OK == 0)); then
 else
   TB="$TEST_TMPDIR/budget.jsonl"
   printf '{"type":"assistant","message":{"content":[{"type":"text","text":"all fine"}]},"uuid":"c","session_id":"s"}\n' >"$TB"
-  TRACE_PREFIX="$TEST_TMPDIR/budget-trace"
-  env CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data-budget" HOOK_TELEMETRY_SINK="" \
-    strace -ff -qq -s 400 -e trace=clone,clone3,fork,vfork,execve -o "$TRACE_PREFIX" \
-    bash "$HOOK" <<<"{\"session_id\":\"budget\",\"transcript_path\":\"$TB\",\"hook_event_name\":\"Stop\"}" \
-    >/dev/null 2>&1
-  TRACE_ALL="$TEST_TMPDIR/budget-trace.all"
-  cat "$TRACE_PREFIX".* >"$TRACE_ALL" 2>/dev/null
-  if [[ -s "$TRACE_ALL" ]]; then
-    ok "budget: the common path was traced"
-  else
-    bad "budget: no usable strace output captured"
-  fi
+  TRACE_ALL=""
+  trace_hook() { # <trace-name>
+    local prefix="$TEST_TMPDIR/$1"
+    env CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data-budget" HOOK_TELEMETRY_SINK="" \
+      strace -ff -qq -s 400 -e trace=clone,clone3,fork,vfork,execve -o "$prefix" \
+      bash "$HOOK" <<<"{\"session_id\":\"budget\",\"transcript_path\":\"$TB\",\"hook_event_name\":\"Stop\"}" \
+      >/dev/null 2>&1
+    TRACE_ALL="$prefix.all"
+    cat "$prefix".* >"$TRACE_ALL" 2>/dev/null
+  }
   # Every process creation the kernel saw, subshell forks included.
-  CREATIONS=$(grep -cE '^(clone|clone3|fork|vfork)\(' "$TRACE_ALL")
+  creations() { grep -cE '^(clone|clone3|fork|vfork)\(' "$TRACE_ALL"; }
   # Successful execs only: a PATH search emits failing execve calls that spawn
   # nothing. The `bash <hook>` exec at the top is strace's own, not a cost of
   # the hook, and is excluded by matching the hook path in its argv — which is
   # why the trace runs with `-s 400`: at strace's 32-byte default that path is
   # abbreviated and the exclusion silently matches nothing.
-  EXECS=$(grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -c -v -e "$HOOK")
-  PROGS=$(grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -v -e "$HOOK" |
-    grep -oE '^execve\("[^"]+"' | sed 's|.*/||; s|"||' | sort | uniq -c | tr -s ' \n' ' ')
+  execs() { grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -c -v -e "$HOOK"; }
+  progs() {
+    grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -v -e "$HOOK" |
+      grep -oE '^execve\("[^"]+"' | sed 's|.*/||; s|"||' | sort | uniq -c | tr -s ' \n' ' '
+  }
   prog_count() { grep -cE "^execve\\(\"[^\"]*/$1\"" "$TRACE_ALL"; }
-  if ((CREATIONS <= 9)); then
-    ok "budget: common path creates $CREATIONS processes (ceiling 9)"
+  ceiling() { # <label> <actual> <max>
+    if (($2 <= $3)); then ok "budget: $1 is $2 (ceiling $3)"; else bad "budget: $1 is $2, ceiling is $3 —$(progs)"; fi
+  }
+
+  trace_hook budget-cold
+  if [[ -s "$TRACE_ALL" ]]; then
+    ok "budget: the cold path was traced"
   else
-    bad "budget: common path creates $CREATIONS processes, ceiling is 9 —$PROGS"
+    bad "budget: no usable strace output captured"
   fi
-  if ((EXECS <= 4)); then
-    ok "budget: common path execs $EXECS programs (ceiling 4)"
-  else
-    bad "budget: common path execs $EXECS programs, ceiling is 4 —$PROGS"
-  fi
-  assert_eq "budget: one grep pre-filter, reading the transcript directly" 1 "$(prog_count grep)"
+  ceiling "cold path creations" "$(creations)" 6
+  ceiling "cold path execs" "$(execs)" 2
+  assert_eq "budget: no grep pre-filter on the cold path" 0 "$(prog_count grep)"
   assert_eq "budget: no cat feeding the pre-filter" 0 "$(prog_count cat)"
-  assert_eq "budget: one wc for the tail-cap decision" 1 "$(prog_count wc)"
+  assert_eq "budget: no jq for the payload fields" 0 "$(prog_count jq)"
+  assert_eq "budget: one wc for the cap decision and the cursor" 1 "$(prog_count wc)"
+
+  # The same Stop again, now with a cursor: nothing new to audit, nothing to do.
+  trace_hook budget-warm
+  ceiling "warm path creations" "$(creations)" 0
+  ceiling "warm path execs" "$(execs)" 0
 fi
 
 report

@@ -9,19 +9,31 @@ const allowedSchemes = new Set(["http:", "https:", "mailto:", "tel:"]);
 
 /** True when `value` parses as a URL whose scheme is on the allowlist. */
 export function isAllowedUrlScheme(value) {
-	let protocol;
 	try {
-		protocol = new URL(value).protocol;
+		return allowedSchemes.has(new URL(value).protocol.toLowerCase());
 	} catch {
 		return false;
 	}
-	return allowedSchemes.has(protocol.toLowerCase());
+}
+
+// Hosts compare case-insensitively, and the trailing dot of an absolute DNS
+// name names the same host as the form without it.
+function normalizeHost(hostname) {
+	return hostname.toLowerCase().replace(/\.$/, "");
 }
 
 function isCitationOnlyHost(hostname) {
-	const normalized = hostname.toLowerCase().replace(/\.$/, "");
+	const normalized = normalizeHost(hostname);
 	return citationOnlyHosts.some(
 		(host) => normalized === host || normalized.endsWith(`.${host}`),
+	);
+}
+
+// The four decimal octets of an IPv4 address, already mapped through Number().
+function isDottedQuad(octets) {
+	return (
+		octets.length === 4 &&
+		octets.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)
 	);
 }
 
@@ -39,12 +51,7 @@ function isCitationOnlyHost(hostname) {
 // marks globally reachable (the AS112, AMT, PCP and TURN anycast assignments).
 function isPrivateIPv4(host) {
 	const octets = host.split(".").map(Number);
-	if (
-		octets.length !== 4 ||
-		octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
-	) {
-		return false;
-	}
+	if (!isDottedQuad(octets)) return false;
 	const [a, b, c] = octets;
 	return (
 		a === 0 || // 0.0.0.0/8 "this host"
@@ -80,12 +87,7 @@ function expandIPv6(address) {
 		let trailing = [];
 		if (tokens[tokens.length - 1].includes(".")) {
 			const octets = tokens.pop().split(".").map(Number);
-			if (
-				octets.length !== 4 ||
-				octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
-			) {
-				return null;
-			}
+			if (!isDottedQuad(octets)) return null;
 			trailing = [(octets[0] << 8) | octets[1], (octets[2] << 8) | octets[3]];
 		}
 		if (!tokens.every((h) => hextetRe.test(h))) return null;
@@ -153,19 +155,28 @@ function isPrivateIPv6(address) {
 	return false;
 }
 
+const ipv4LiteralRe = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+function isBracketedIPv6(host) {
+	return host.startsWith("[") && host.endsWith("]");
+}
+
+// A host written as an address rather than a name: there is no DNS answer to
+// consult, so the literal gates below decide it on their own.
+function isIpLiteral(host) {
+	return isBracketedIPv6(host) || ipv4LiteralRe.test(host);
+}
+
 // True for hosts that must never be dereferenced during a reachability check.
 // Relies on WHATWG URL canonicalization to fold decimal/hex/octal/integer IPv4
 // and compressed IPv6 into the literal forms matched here. DNS names that resolve
 // to a private address at fetch time are not covered — the checker resolves DNS
 // itself, so a rebind remains out of reach of this offline literal gate.
 function isPrivateHost(hostname) {
-	const host = hostname.toLowerCase().replace(/\.$/, "");
+	const host = normalizeHost(hostname);
 	if (host === "localhost" || host.endsWith(".localhost")) return true;
-	if (host.startsWith("[") && host.endsWith("]")) {
-		return isPrivateIPv6(host.slice(1, -1));
-	}
-	if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return isPrivateIPv4(host);
-	return false;
+	if (isBracketedIPv6(host)) return isPrivateIPv6(host.slice(1, -1));
+	return ipv4LiteralRe.test(host) && isPrivateIPv4(host);
 }
 
 // Default DNS resolver for the non-literal-host gate below: every address the
@@ -198,11 +209,8 @@ export async function shouldSkipLinkCheck(link, resolveHost = lookupAllAddresses
 		if (url.protocol !== "http:" && url.protocol !== "https:") return false;
 		if (isCitationOnlyHost(url.hostname)) return true;
 
-		const host = url.hostname.toLowerCase().replace(/\.$/, "");
-		const isLiteral =
-			(host.startsWith("[") && host.endsWith("]")) ||
-			/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host);
-		if (!isLiteral) {
+		const host = normalizeHost(url.hostname);
+		if (!isIpLiteral(host)) {
 			let records;
 			try {
 				records = await resolveHost(host);

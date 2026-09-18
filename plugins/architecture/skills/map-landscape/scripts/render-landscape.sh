@@ -44,7 +44,9 @@
 set -uo pipefail
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  # Print the header comment block only, selected by comment marker so --help
+  # stays correct as the block grows.
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() {
@@ -243,6 +245,16 @@ function arraycount(v,   parts) {
   gsub(/^\[|\]$/, "", v)
   if (v == "") return 0
   return split(v, parts, "\",\"")
+}
+# A pipe read out of a manifest ends the markdown cell it lands in and shifts
+# every column after it, so it is escaped to the pipe GFM renders as text.
+# Joined rather than substituted: a backslash in a gsub replacement is
+# underspecified, and mawk and gawk disagree on how many survive it.
+function md(v,   n, parts, i, out) {
+  n = split(v, parts, "|")
+  out = parts[1]
+  for (i = 2; i <= n; i++) out = out "\\|" parts[i]
+  return out
 }
 AWK
 
@@ -548,16 +560,6 @@ fi
   printf '| Repository | Owner | Target framework | Runtime | Dependencies | Tooling | Last touched |\n'
   printf '|---|---|---|---|---|---|---|\n'
   awk "$SPLIT_AWK"'
-    # A pipe read out of a manifest ends the cell it lands in and shifts every
-    # column after it, so it is escaped to the pipe GFM renders as text.
-    # Joined rather than substituted: a backslash in a gsub replacement is
-    # underspecified, and mawk and gawk disagree on how many survive it.
-    function md(v,   n, parts, i, out) {
-      n = split(v, parts, "|")
-      out = parts[1]
-      for (i = 2; i <= n; i++) out = out "\\|" parts[i]
-      return out
-    }
     function cell(v) { return (v == "" ? "unknown" : md(v)) }
     function deplist(v,   n, list, parts, i, out) {
       n = arraycount(v)
@@ -620,14 +622,6 @@ fi
   printf '\n## Evidence\n\n'
   printf '| Repository | Fact | Source |\n|---|---|---|\n'
   awk "$SPLIT_AWK"'
-    # Joined rather than substituted: a backslash in a gsub replacement is
-    # underspecified, and mawk and gawk disagree on how many survive it.
-    function md(v,   n, parts, i, out) {
-      n = split(v, parts, "|")
-      out = parts[1]
-      for (i = 2; i <= n; i++) out = out "\\|" parts[i]
-      return out
-    }
     /^[[:space:]]*\{"name":/ {
       name = md(unquote(field($0, "name")))
       ev = field($0, "evidence")

@@ -52,8 +52,7 @@ function Show-State {
         Write-Host '[firewall] absent'
         return $false
     }
-    $enabled = $rule.Enabled
-    Write-Host "[firewall] present, Enabled=$enabled, Action=$($rule.Action), Direction=$($rule.Direction)"
+    Write-Host "[firewall] present, Enabled=$($rule.Enabled), Action=$($rule.Action), Direction=$($rule.Direction)"
     return $true
 }
 

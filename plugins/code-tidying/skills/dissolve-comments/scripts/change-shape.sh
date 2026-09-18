@@ -11,7 +11,7 @@
 # ship a grant on docs alone (plugins/discovery/reference/parent-contract.md).
 # The skill-local path is the shape whose matching is already exercised here, so
 # it is what the grant names, while the implementation stays single-source at
-# the plugin root — one file to change, and no copy to drift.
+# the plugin root: one file to change, and no copy to drift.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec python3 "$here/../../../scripts/change-shape.py" "$@"

@@ -25,16 +25,9 @@ Pins the Batch 1 hotfix landing:
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-WingetUpgrades.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    . (Join-Path $script:LibRoot 'Get-WingetPackageUpdate.ps1')
-    . (Join-Path $script:LibRoot 'Get-CisaKevCache.ps1')
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
-
-    function Invoke-WingetUpgradesAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-WingetUpgrades' `
+        -AsObject 'Invoke-WingetUpgradesAsObject' `
+        -LibScript 'Get-WingetPackageUpdate.ps1', 'Get-CisaKevCache.ps1'
 
     function New-UpgradeRecord {
         param(
@@ -78,12 +71,17 @@ BeforeAll {
             product       = $Product
         }
     }
+
+    function New-KevCache {
+        param([object[]] $Vulnerabilities = @())
+        [pscustomobject]@{ vulnerabilities = $Vulnerabilities }
+    }
 }
 
 Describe 'Test-WingetUpgrades -- baseline' -Tag 'check' {
     BeforeAll {
         Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @() }
-        Mock Get-CisaKevCache { [pscustomobject]@{ vulnerabilities = @() } }
+        Mock Get-CisaKevCache { New-KevCache }
     }
 
     It 'emits a schema-valid CheckResult' {
@@ -106,7 +104,7 @@ Describe 'Test-WingetUpgrades -- upgrade count severity' -Tag 'check' {
                 New-UpgradeRecord -Name 'Node' -Id 'OpenJS.NodeJS'
             )
         }
-        Mock Get-CisaKevCache { [pscustomobject]@{ vulnerabilities = @() } }
+        Mock Get-CisaKevCache { New-KevCache }
 
         $result = Invoke-WingetUpgradesAsObject
         $result.severity | Should -Be 'INFO'
@@ -120,7 +118,7 @@ Describe 'Test-WingetUpgrades -- upgrade count severity' -Tag 'check' {
             }
             New-WingetResult -Upgrades @($upgrades)
         }
-        Mock Get-CisaKevCache { [pscustomobject]@{ vulnerabilities = @() } }
+        Mock Get-CisaKevCache { New-KevCache }
 
         $result = Invoke-WingetUpgradesAsObject
         $result.severity | Should -Be 'WARN'
@@ -136,11 +134,9 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
             )
         }
         Mock Get-CisaKevCache {
-            [pscustomobject]@{
-                vulnerabilities = @(
-                    New-KevRecord -CveId 'CVE-2025-12345' -VendorProject 'Mock' -Product 'App'
-                )
-            }
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-2025-12345' -VendorProject 'Mock' -Product 'App'
+            )
         }
 
         $result = Invoke-WingetUpgradesAsObject
@@ -156,13 +152,11 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
             )
         }
         Mock Get-CisaKevCache {
-            [pscustomobject]@{
-                vulnerabilities = @(
-                    New-KevRecord -CveId 'CVE-2025-60710' -VendorProject 'Microsoft' -Product 'Windows'
-                    New-KevRecord -CveId 'CVE-2023-36424' -VendorProject 'Microsoft' -Product 'Windows'
-                    New-KevRecord -CveId 'CVE-2008-0015' -VendorProject 'Microsoft' -Product 'Windows'
-                )
-            }
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-2025-60710' -VendorProject 'Microsoft' -Product 'Windows'
+                New-KevRecord -CveId 'CVE-2023-36424' -VendorProject 'Microsoft' -Product 'Windows'
+                New-KevRecord -CveId 'CVE-2008-0015' -VendorProject 'Microsoft' -Product 'Windows'
+            )
         }
 
         $result = Invoke-WingetUpgradesAsObject
@@ -178,11 +172,9 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
             )
         }
         Mock Get-CisaKevCache {
-            [pscustomobject]@{
-                vulnerabilities = @(
-                    New-KevRecord -CveId 'CVE-2025-TEAMS' -VendorProject 'Microsoft' -Product 'Teams'
-                )
-            }
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-2025-TEAMS' -VendorProject 'Microsoft' -Product 'Teams'
+            )
         }
 
         $result = Invoke-WingetUpgradesAsObject
@@ -197,11 +189,9 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
             )
         }
         Mock Get-CisaKevCache {
-            [pscustomobject]@{
-                vulnerabilities = @(
-                    New-KevRecord -CveId 'CVE-2025-TEAMS' -VendorProject 'Microsoft' -Product 'Teams'
-                )
-            }
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-2025-TEAMS' -VendorProject 'Microsoft' -Product 'Teams'
+            )
         }
 
         $result = Invoke-WingetUpgradesAsObject
@@ -216,11 +206,9 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
             )
         }
         Mock Get-CisaKevCache {
-            [pscustomobject]@{
-                vulnerabilities = @(
-                    New-KevRecord -CveId 'CVE-2025-GHCLI' -VendorProject 'GitHub' -Product 'CLI'
-                )
-            }
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-2025-GHCLI' -VendorProject 'GitHub' -Product 'CLI'
+            )
         }
 
         $result = Invoke-WingetUpgradesAsObject
@@ -235,11 +223,9 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
             )
         }
         Mock Get-CisaKevCache {
-            [pscustomobject]@{
-                vulnerabilities = @(
-                    New-KevRecord -CveId 'CVE-X' -VendorProject 'Microsoft' -Product 'Teams'
-                )
-            }
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-X' -VendorProject 'Microsoft' -Product 'Teams'
+            )
         }
 
         $result = Invoke-WingetUpgradesAsObject
@@ -254,11 +240,9 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
             )
         }
         Mock Get-CisaKevCache {
-            [pscustomobject]@{
-                vulnerabilities = @(
-                    New-KevRecord -CveId 'CVE-Y' -VendorProject 'Single' -Product 'Token'
-                )
-            }
+            New-KevCache -Vulnerabilities @(
+                New-KevRecord -CveId 'CVE-Y' -VendorProject 'Single' -Product 'Token'
+            )
         }
 
         $result = Invoke-WingetUpgradesAsObject
@@ -283,7 +267,7 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
 Describe 'Test-WingetUpgrades -- egress log threading' -Tag 'check' {
     It 'forwards its -LogPath to Get-CisaKevCache so the KEV fetch is logged' {
         Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @(New-UpgradeRecord) }
-        Mock Get-CisaKevCache { [pscustomobject]@{ vulnerabilities = @() } }
+        Mock Get-CisaKevCache { New-KevCache }
 
         & $script:ScriptPath -LogPath 'C:\run\run-2026-07-12.log' | Out-Null
 
@@ -298,7 +282,7 @@ Describe 'Test-WingetUpgrades -- failure modes' -Tag 'check' {
         Mock Get-WingetPackageUpdate {
             New-WingetResult -Upgrades $null -ErrorMessage 'module import failed: FOO'
         }
-        Mock Get-CisaKevCache { [pscustomobject]@{ vulnerabilities = @() } }
+        Mock Get-CisaKevCache { New-KevCache }
 
         $result = Invoke-WingetUpgradesAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
@@ -310,7 +294,7 @@ Describe 'Test-WingetUpgrades -- failure modes' -Tag 'check' {
 
     It 'emits UNKNOWN when the wrapper violates its hashtable contract (returns $null)' {
         Mock Get-WingetPackageUpdate { $null }
-        Mock Get-CisaKevCache { [pscustomobject]@{ vulnerabilities = @() } }
+        Mock Get-CisaKevCache { New-KevCache }
 
         $result = Invoke-WingetUpgradesAsObject
         { Assert-CheckResult $result } | Should -Not -Throw

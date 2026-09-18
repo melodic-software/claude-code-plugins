@@ -3,6 +3,38 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.12]
+
+### Changed
+
+- **The `Stop` guard-launch monitor no longer starts Python in a session that launched no guard.** The engine-gate rows are `if`-gated on the engine's file name, so most sessions never run `destructive_guard.py` at all, yet the monitor started a whole interpreter every turn to discover that from the transcript. `Stop` rows accept neither `matcher` nor `if`, so the gate lives in `hooks/run-python-hook.sh`, which grows three optional leading flags: `--marker-root <dir>`, `--launch-marker <subdir>` (write `<root>/<subdir>/<session>.launched` before exec'ing Python) and `--skip-unless-marker <subdir>` (exit 0 without exec'ing when a candidate marker directory exists and none of them holds that file). Process creations per `Stop` on Windows, measured with a job-object census at n=5: 5 before, 3 with no marker, and still 5 with one present, against a 1-creation harness floor; wall clock 271 ms to 120 ms on the skipped path. The engine-gate row pays nothing for the marker after the first launch in a plugin data root, which spends one `mkdir`.
+- Marker semantics: the marker is per session and is never removed, so a data root accumulates one empty file per session that launched a guard, and no retention sweep collects them; a session whose guard rows never fired is skipped by design; the marker is written before the interpreter is resolved, so a guard that launches and dies, the failure the monitor exists to report, still leaves it. With a marker present the monitor's `systemMessage` and its `guard-decisions` record are byte-identical to before. A skipped turn emits no telemetry envelope at all, where it previously emitted an `ok` one.
+- The `Stop` gate fails open on the half it can detect: it skips only when at least one candidate marker directory exists and holds no marker for the session, so a launch whose `mkdir` failed for both roots leaves nothing and every later `Stop` runs the monitor as it did before the flags. The cost is that the skip is inert in a plugin data root where no guard has ever launched, until the first launch spends its `mkdir`: 5 creations with no candidate directory, 3 with an empty one, 5 with a marker present. The residual it cannot detect: a candidate directory that exists while the marker file itself could not be written (a full disk, a permission denial on the file alone) still silences the monitor for that session, because that file is the only channel between the launch row and the `Stop` row.
+
+## [0.23.11]
+
+### Changed
+
+- The four disk-hygiene Python test wrappers parse the MIN_PYTHON floor, build the floor probe and pick an interpreter through one sourced test-wrapper library instead of four inline copies. Skip messages, argv and exit codes are unchanged.
+
+## [0.23.10]
+
+### Changed
+
+- Settle destructive-guard verdicts through one helper, share the handle-contest and accepted-path overlap checks and the scan-complete payload in the clean engine, inline the monitor tail read and lowercase the launcher path in bash (behavior unchanged).
+
+## [0.23.9]
+
+### Changed
+
+- setup skill: python3_alias_probe.py reports a stat failure through one call that varies only the detail text, and the kill-switch probe suite writes its toggle settings through one helper. Output byte-identical.
+
+## [0.23.8]
+
+### Changed
+
+- killswitch_config.py builds its kill-switch probe reports through two shared wrappers and two sentence constants instead of nine hand-repeated strings; hook_telemetry.py's absolute-sink predicate returns its comparison directly; test_guard_decision_log.py shares its owner-only permission assertion. No behavior change.
+
 ## [0.23.7]
 
 ### Changed

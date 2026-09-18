@@ -8,26 +8,41 @@ FIX="$SCRIPT_DIR/../evals/fixtures"
 
 PASS=0
 FAIL=0
-ok() { echo "ok: $*"; PASS=$((PASS + 1)); }
-fail() { echo "FAIL: $*" >&2; FAIL=$((FAIL + 1)); }
+ok() {
+  echo "ok: $*"
+  PASS=$((PASS + 1))
+}
+fail() {
+  echo "FAIL: $*" >&2
+  FAIL=$((FAIL + 1))
+}
 
-out="$(bash "$SCAN" "$FIX/terse-agent.md" 2>/dev/null)" || true
-case "$out" in
-*'| SKIP |'*) ok "terse-agent classifies SKIP" ;;
-*) fail "terse-agent classifies SKIP (got: $out)" ;;
-esac
+# <path> <prefix text> <count of trailing 'word ' tokens>
+write_padded_md() {
+  local i=0
+  {
+    printf '%s' "$2"
+    while [[ $i -lt $3 ]]; do
+      printf 'word '
+      i=$((i + 1))
+    done
+    printf '\n'
+  } >"$1"
+}
 
-out2="$(bash "$SCAN" "$FIX/audit-fixture-dir/verbose.md" 2>/dev/null)" || true
-case "$out2" in
-*'| COMPRESS |'*) ok "verbose fixture classifies COMPRESS" ;;
-*) fail "verbose fixture classifies COMPRESS (got: $out2)" ;;
-esac
+# <label> <expected substring> <scan argument>
+assert_classify() {
+  local out
+  out="$(bash "$SCAN" "$3" 2>/dev/null)" || true
+  case "$out" in
+  *"$2"*) ok "$1" ;;
+  *) fail "$1 (got: $out)" ;;
+  esac
+}
 
-out3="$(bash "$SCAN" "$FIX/audit-fixture-dir/lean.md" 2>/dev/null)" || true
-case "$out3" in
-*'| SKIP |'*) ok "lean fixture classifies SKIP" ;;
-*) fail "lean fixture classifies SKIP (got: $out3)" ;;
-esac
+assert_classify "terse-agent classifies SKIP" '| SKIP |' "$FIX/terse-agent.md"
+assert_classify "verbose fixture classifies COMPRESS" '| COMPRESS |' "$FIX/audit-fixture-dir/verbose.md"
+assert_classify "lean fixture classifies SKIP" '| SKIP |' "$FIX/audit-fixture-dir/lean.md"
 
 # Repo-relative .claude/rules path is signal 1 (no leading slash). mktemp -d
 # is already absolute, so invoking the scanner with that path would match the
@@ -53,16 +68,8 @@ rm -rf "$RULES_REL"
 # tokens keep the file out of the flavor-density SKIP. The scanner itself must
 # classify — a regex-only check never exercises path_dens.
 OCC="$(mktemp -d)"
-{
-  printf 'see docs/a.md and docs/b.md and docs/c.md and docs/d.md and docs/e.md. '
-  printf 'just really basically '
-  i=0
-  while [[ $i -lt 480 ]]; do
-    printf 'word '
-    i=$((i + 1))
-  done
-  printf '\n'
-} >"$OCC/occ.md"
+write_padded_md "$OCC/occ.md" \
+  'see docs/a.md and docs/b.md and docs/c.md and docs/d.md and docs/e.md. just really basically ' 480
 out_occ="$(bash "$SCAN" "$OCC/occ.md" 2>/dev/null)" || true
 case "$out_occ" in
 *'| UNCERTAIN |'*'cross-ref density'*) ok "one-line path refs classify UNCERTAIN by occurrence density" ;;
@@ -73,15 +80,7 @@ rm -rf "$OCC"
 # `@docs/a.md` is one occurrence. The old `(@|path.ext)` regex emitted `@` and
 # `docs/a.md`, doubling density over the 8/kw threshold at ~200 words.
 AT="$(mktemp -d)"
-{
-  printf 'see @docs/a.md on one line. just really '
-  i=0
-  while [[ $i -lt 200 ]]; do
-    printf 'word '
-    i=$((i + 1))
-  done
-  printf '\n'
-} >"$AT/at.md"
+write_padded_md "$AT/at.md" 'see @docs/a.md on one line. just really ' 200
 out_at="$(bash "$SCAN" "$AT/at.md" 2>/dev/null)" || true
 case "$out_at" in
 *'| COMPRESS |'*) ok "@-prefixed path ref counts as one occurrence (COMPRESS)" ;;

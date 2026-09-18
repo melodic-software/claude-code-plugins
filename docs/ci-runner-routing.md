@@ -1,9 +1,9 @@
 # CI runner routing
 
 This repository is public, so every lane runs on GitHub-hosted runners, free for
-public repositories: `ubuntu-24.04` for all of them except the two informational
-Windows lanes, `test-windows` in `ci.yml` and `windows` in
-`hook-utils-timing.yml`, which run `windows-2025`. The organization's
+public repositories: `ubuntu-24.04` for all of them except the informational
+Windows lane `test-windows`, which runs `windows-2025` in its own workflow,
+`.github/workflows/test-windows.yml`. The organization's
 runner-policy engine refuses a governed fleet label here outright, reporting
 `public-self-hosted-routing`. There is no observer credential and no
 self-hosted exception inventory in this repository.
@@ -39,16 +39,26 @@ reviewed pull request.
 ## Routing and failure behavior
 
 The `ci-status` required check depends on every **required** workload lane
-(`changes`, `lint`, `test-linux`, `hook-utils`) and requires
+(`changes`, `lint`, `lint-2`, `test-linux`, `hook-utils`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). `test-windows` is deliberately outside that
-aggregate, as an informational platform lane; `ci.yml` says so at the job and
-warns against adding it to `ci-status.needs`. The metadata checks (Conventional Commits title,
+aggregate, as an informational platform lane; `test-windows.yml` says so at the
+top of the file and warns against wiring it into any required check. It runs in
+its own workflow because nothing gates on it and, inside `ci.yml`, it was the
+longest job in the run: time-to-green is measured to the run's completion, so an
+advisory lane was setting the number. It re-derives its own `run_windows` from
+the same detector and the same two filter groups `ci.yml` uses, because job
+outputs do not cross workflow files; the two rows are kept byte-identical. The metadata checks (Conventional Commits title,
 `do-not-merge` label, issue linkage) run as the `pr-contract` composite step
 inside the same `ci-status` job on the same hosted runner, so they no longer
 carry status contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
+
+`lint` and `lint-2` are two halves of one hygiene lane, split across two
+runners and balanced on measured wall time; every gate keeps the name it always
+had, and each half carries its own `aggregate-hygiene-results.sh` feed over
+exactly its own gate steps.
 
 ## Toolchain integrity
 

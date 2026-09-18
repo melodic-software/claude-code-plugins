@@ -6,8 +6,10 @@ but the subprocess seam is the contract every caller uses)."""
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -31,9 +33,6 @@ def run(*args: str) -> subprocess.CompletedProcess:
 
 class RootRelativeTests(unittest.TestCase):
     def test_a_cwd_relative_path_is_rebased_onto_the_root(self) -> None:
-        import os
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmp:
             root = os.path.realpath(tmp)
             lib = os.path.join(root, "lib")

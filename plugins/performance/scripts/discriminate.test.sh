@@ -41,25 +41,8 @@ harness_require_python
 DISCRIMINATE="$SCRIPT_DIR/discriminate.py"
 readonly DISCRIMINATE
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
-assert_not_contains() {
-  if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no *$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 # Not under the system temporary root. /tmp is an MSYS MOUNT with no drive
 # letter, so a native Windows interpreter reaches it only through cygpath, and
@@ -69,12 +52,7 @@ WORK="${PERF_HARNESS_TEST_ROOT:-$HOME/.cache/performance-harness-tests}/discrimi
 mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 
-RUN_OUT=""
-RUN_RC=0
-run_discriminate() {
-  RUN_OUT="$("$HARNESS_PYTHON" "$DISCRIMINATE" "$@" 2>&1)"
-  RUN_RC=$?
-}
+run_discriminate() { capture "$HARNESS_PYTHON" "$DISCRIMINATE" "$@"; }
 
 # Single-quoted in Python so the anchor embeds into a JSON config verbatim. A
 # double quote here would need JSON escaping, and getting that wrong is a

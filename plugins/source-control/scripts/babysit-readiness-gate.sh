@@ -419,20 +419,19 @@ classify_rows() {
 # gate could pass on input it never parsed. The array-shape check above rejects
 # the common malformed payloads; these guards catch what survives it (an array
 # whose elements are not comment objects).
+bodies_unreadable() {
+  printf 'babysit-readiness-gate: could not read comment bodies (source: %s)\n' \
+    "${COMMENTS_JSON:-live fetch}" >&2
+  unproven comments-unreadable 4
+}
 non_self_bodies="$(printf '%s' "$COMMENTS" |
   jq -r --argjson self "$SELF_JSON" '
-    .[] | select((.author as $a | $self | index($a)) | not) | .body // ""')" || {
-  printf 'babysit-readiness-gate: could not read comment bodies (source: %s)\n' \
-    "${COMMENTS_JSON:-live fetch}" >&2
-  unproven comments-unreadable 4
-}
+    .[] | select((.author as $a | $self | index($a)) | not) | .body // ""')" ||
+  bodies_unreadable
 self_bodies="$(printf '%s' "$COMMENTS" |
   jq -r --argjson self "$SELF_JSON" '
-    .[] | select((.author as $a | $self | index($a))) | .body // ""')" || {
-  printf 'babysit-readiness-gate: could not read comment bodies (source: %s)\n' \
-    "${COMMENTS_JSON:-live fetch}" >&2
-  unproven comments-unreadable 4
-}
+    .[] | select((.author as $a | $self | index($a))) | .body // ""')" ||
+  bodies_unreadable
 
 # Self classification-table rows are EXCLUDED from the finding corpus: a
 # reply row like `| 1 | CRITICAL: null deref | VALID | ... |` repeats the

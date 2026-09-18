@@ -408,10 +408,11 @@ fi
 REPO14="$TEST_TMPDIR/repo14"
 mkdir -p "$REPO14"
 git -C "$REPO14" init -q
+TAB_NAME="$(printf 'tab\there.py')"
 if host_can_name 'left -> right.py'; then cp "$ALL_SHAPES" "$REPO14/left -> right.py"; fi
 cp "$ALL_SHAPES" "$REPO14/café.py"
-if host_can_name "$(printf 'tab\there.py')"; then
-  cp "$ALL_SHAPES" "$REPO14/$(printf 'tab\there.py')"
+if host_can_name "$TAB_NAME"; then
+  cp "$ALL_SHAPES" "$REPO14/$TAB_NAME"
 fi
 escaped_out="$(cd "$REPO14" && bash "$DETECT")"
 if host_can_name 'left -> right.py'; then
@@ -421,8 +422,8 @@ else
     'a > does not survive into a filename git can see here'
 fi
 assert_contains "non-ASCII path audited without escape mangling" "$escaped_out" "café.py"
-if host_can_name "$(printf 'tab\there.py')"; then
-  assert_contains "tab-bearing path audited" "$escaped_out" "$(printf 'tab\there.py')"
+if host_can_name "$TAB_NAME"; then
+  assert_contains "tab-bearing path audited" "$escaped_out" "$TAB_NAME"
 else
   skip "tab-bearing path audited" 'a tab does not survive into a filename git can see here'
 fi

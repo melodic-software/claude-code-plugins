@@ -53,6 +53,14 @@ derive_server() {
   printf '%s' "$out"
 }
 
+# report_not_a_directory <path>: the empty-manifest answer for a scan root that
+# is not a directory. Exit 0, because nothing to scan is not an argument error.
+report_not_a_directory() {
+  echo "Server count: 0"
+  echo "Error: scan path is not a directory: $1"
+  exit 0
+}
+
 # emit_tool <server> <runtime> <file> <tool_name> <line_num> — print one tool manifest record.
 emit_tool() {
   printf 'Server: %s\n' "$1"
@@ -89,9 +97,7 @@ project_root=""
 scan_prefix=""
 if [[ -n "$SCAN_PATH" ]]; then
   if [[ ! -d "$SCAN_PATH" ]]; then
-    echo "Server count: 0"
-    echo "Error: scan path is not a directory: $SCAN_PATH"
-    exit 0
+    report_not_a_directory "$SCAN_PATH"
   fi
   # Canonicalize the scan path and the project boundary the same way (cd + pwd -P,
   # portable — no realpath/readlink dependency) so the prefix comparison is valid
@@ -123,9 +129,7 @@ else
 fi
 
 if [[ ! -d "$root" ]]; then
-  echo "Server count: 0"
-  echo "Error: scan path is not a directory: $root"
-  exit 0
+  report_not_a_directory "$root"
 fi
 cd "$root" || exit 0
 
@@ -180,8 +184,11 @@ while IFS= read -r file; do
     while [[ $offset -le 12 ]]; do
       candidate="$(sed -n "$((line_num + offset))p" "$file" 2>/dev/null)"
       [[ -z "$candidate" ]] && break
-      tool_name="$(printf '%s' "$candidate" | sed -n 's/^[[:space:]]*def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
-      [[ -z "$tool_name" ]] && tool_name="$(printf '%s' "$candidate" | sed -n 's/^[[:space:]]*async[[:space:]]\+def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
+      # Both shapes in one pass: the `def` expression rewrites the pattern space
+      # to the bare name, so the `async def` expression cannot also match it.
+      tool_name="$(printf '%s' "$candidate" |
+        sed -n -e 's/^[[:space:]]*def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p' \
+          -e 's/^[[:space:]]*async[[:space:]]\+def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
       if [[ -n "$tool_name" ]]; then
         break
       fi

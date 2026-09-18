@@ -271,6 +271,11 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def iso_utc(epoch: float) -> str:
+    """An epoch timestamp as the UTC, second-precision string every section emits."""
+    return datetime.fromtimestamp(epoch, timezone.utc).isoformat(timespec="seconds")
+
+
 def default_root() -> Path:
     env = os.environ.get("CLAUDE_CONFIG_DIR")
     return Path(env) if env else Path.home() / ".claude"
@@ -493,9 +498,7 @@ def home_root_state() -> dict:
             st = p.stat()
             out[name] = {
                 "kb": round(st.st_size / 1024, 1),
-                "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(
-                    timespec="seconds"
-                ),
+                "mtime": iso_utc(st.st_mtime),
             }
     remnants = [p.name for p in home.glob(".claude.json.tmp.*")]
     out["tmp_remnants"] = {"count": len(remnants), "sample": remnants[:5]}
@@ -510,9 +513,7 @@ def history_state(root: Path) -> dict:
     return {
         "present": True,
         "mb": round(st.st_size / 1048576, 2),
-        "mtime": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat(
-            timespec="seconds"
-        ),
+        "mtime": iso_utc(st.st_mtime),
         "note": "stat-only (contains every prompt ever typed); not covered by any retention sweep",
     }
 
@@ -1817,9 +1818,7 @@ def config_liveness(root: Path, records: list[dict]) -> dict:
     stale = [r for r in sessions if r["started_epoch"] < mtime]
     result = {
         "settings_present": True,
-        "settings_mtime": datetime.fromtimestamp(mtime, timezone.utc).isoformat(
-            timespec="seconds"
-        ),
+        "settings_mtime": iso_utc(mtime),
         "candidate_sessions": len(sessions),
         "sessions_predating_settings": len(stale),
         "session_identification": "process-name heuristic (claude, node, bun); not a session id",
@@ -1827,9 +1826,7 @@ def config_liveness(root: Path, records: list[dict]) -> dict:
             {
                 "name": r["name"],
                 "pid": r["pid"],
-                "started_at": datetime.fromtimestamp(
-                    r["started_epoch"], timezone.utc
-                ).isoformat(timespec="seconds"),
+                "started_at": iso_utc(r["started_epoch"]),
             }
             for r in sorted(stale, key=lambda r: r["started_epoch"])[:10]
         ],

@@ -25,11 +25,8 @@ assert_eq "make_id round-trip" "github:o/r#12" "$(wit_make_id github o r 12)"
 
 for bad in "#123" "123" "github:#123" "github:owner#123" "github:owner/repo" \
   "github:owner/repo#" "github:owner/repo#12a" "GitHub:o/r#1" "" "github:o/r#1 trailing"; do
-  if wit_parse_id "$bad" 2>/dev/null; then
-    fail "rejects malformed id: ${bad:-<empty>}" "parse failure" "parsed"
-  else
-    pass "rejects malformed id: ${bad:-<empty>}"
-  fi
+  assert_fails "rejects malformed id: ${bad:-<empty>}" "parse failure" "parsed" \
+    wit_parse_id "$bad"
 done
 
 [[ $FAILED -eq 0 ]] || exit 1

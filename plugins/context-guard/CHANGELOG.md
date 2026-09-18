@@ -5,6 +5,51 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.65]
+
+### Changed
+
+- hooks: `zone-crossing-inject.sh` skips the zone resolver when nothing it reads has moved. A `$STATE_DIR/$SESSION.seen` mark, stamped with a redirection and compared with `-nt` (both builtins), records the inputs behind the last COMPLETED resolve; when the snapshot, `zones.json` and the compaction marker are all no newer than it, the fire exits before starting a process. The mark moves only after the markers persist, so a resolver failure, an `unknown` reading and a failed marker write are each retried. The envelope parse now uses `hook::jq_fields`' builtin parser on a payload within its proof ceiling and keeps the single here-string `jq` above it, because the helper's oversize fallback reads through a process substitution and costs four process creations against that `jq`'s two. Process creations under a Windows job object (5 reps, identical across reps; the subject's own floor is 3): small envelope, first fire 11 → 9, repeat with nothing moved 9 → **3**, snapshot rewritten 9 → 7; 150 KB batch payload, 11 → 11, 9 → **5**, 9 → 9. No cell is worse than before. Median wall for the small repeat fire, on a host whose timings are bimodal, 1,448 ms → 237 ms. The one failure mode: a snapshot written DURING a resolve is marked as seen, so its crossing waits for the next statusline render, since the window is the resolve rather than an mtime tick, and a missed crossing is late, never lost, because skipping only ever chooses silence. Crossing messages are byte-identical, asserted against a control session driven through the same zone sequence with no skipped fire. The per-batch budgets the contract test pins move with the paths: the steady fire now spawns nothing (0 commands, 0 process creations, 1 program launch) and a resolving fire spawns the resolver alone (1 command, 2 process creations, 3 program launches).
+- hooks: the same skip also requires EXISTENCE parity, not mtimes alone. The mark carries one line recording whether `zones.json` and the compaction marker existed behind the last completed resolve, read back with the `read` builtin, and the skip is taken only when the three `-nt` tests are false and those flags still match; a mark with no readable line never takes it. `-nt` cannot see a removal, so deleting an override or the compaction marker previously read as nothing having moved and left the stale zone in place until an unrelated snapshot write. Both process budgets are unchanged.
+
+## [0.7.64]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.7.63]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.7.62]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
+## [0.7.61]
+
+### Changed
+
+- hooks: zone-crossing-inject.sh reads its zone and armed markers through one read_marker helper, post-compact-mark.sh collapses its three-arm marker rename into one guarded mv with a single cleanup, and zone-gate.sh drops a redundant empty-target test from the handoff exemption. Process budgets unchanged. No behavior change.
+
+## [0.7.60]
+
+### Changed
+
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+
+## [0.7.59]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.7.58]
 
 ### Fixed

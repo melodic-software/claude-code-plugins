@@ -12,6 +12,14 @@ export const TEMP_PATH_PREFIX = "{tmp}";
 const LEADING_PATH_SEP_RE = /^[/\\]/;
 
 /**
+ * @param {string} value
+ * @returns {string}
+ */
+function toPosixSeparators(value) {
+  return value.replace(/\\/g, "/");
+}
+
+/**
  * @param {string} dir
  * @returns {string}
  */
@@ -33,7 +41,7 @@ export function normalizePortableTempPath(value) {
   if (!value) return value;
   const idx = value.indexOf(TEMP_PATH_PREFIX);
   if (idx > 0) {
-    return value.slice(idx).replace(/\\/g, "/");
+    return toPosixSeparators(value.slice(idx));
   }
   // idx === 0 (already portable) is serializeTempPath's own first branch.
   return serializeTempPath(value);
@@ -45,7 +53,7 @@ export function normalizePortableTempPath(value) {
  */
 export function serializeTempPath(absolutePath) {
   if (absolutePath.startsWith(TEMP_PATH_PREFIX)) {
-    return absolutePath.replace(/\\/g, "/");
+    return toPosixSeparators(absolutePath);
   }
 
   const tmpRoot = resolveTmpRoot(os.tmpdir());
@@ -62,10 +70,9 @@ export function serializeTempPath(absolutePath) {
   }
 
   if (normalized === tmpRoot || normalized.startsWith(`${tmpRoot}${path.sep}`)) {
-    const suffix = normalized.slice(tmpRoot.length).replace(/\\/g, "/");
-    return `${TEMP_PATH_PREFIX}${suffix}`;
+    return `${TEMP_PATH_PREFIX}${toPosixSeparators(normalized.slice(tmpRoot.length))}`;
   }
-  return normalized.replace(/\\/g, "/");
+  return toPosixSeparators(normalized);
 }
 
 /**
@@ -113,13 +120,4 @@ export function serializeTempSession(session) {
  */
 export function resolveTempSession(session) {
   return mapTempSessionDirs(session, resolveTempPath);
-}
-
-/**
- * @param {string} framesDir
- * @param {string} fileName
- * @returns {string}
- */
-export function resolveFramePath(framesDir, fileName) {
-  return path.join(resolveTempPath(framesDir), fileName);
 }

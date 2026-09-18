@@ -54,12 +54,10 @@ def root_relative(path: str, root: str) -> str:
     if root:
         absolute = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
         try:
-            path = os.path.relpath(absolute, root).replace("\\", "/")
+            path = os.path.relpath(absolute, root)
         except ValueError:
             pass
-    while path.startswith("./"):
-        path = path[2:]
-    return path
+    return _normalize(path)
 
 
 def translate(pattern: str) -> str:
@@ -81,7 +79,7 @@ def translate(pattern: str) -> str:
     for index, segment in enumerate(segments):
         last = index == len(segments) - 1
         if segment == "**":
-            parts.append("(?:.*/)?" if not last else ".*")
+            parts.append(".*" if last else "(?:.*/)?")
             continue
         piece = ""
         i = 0
@@ -134,7 +132,7 @@ def main(argv: list[str]) -> int:
             print(f"pathglob.py: {exc}", file=sys.stderr)
             return 2
         args = [args[0]] + args[3:]
-    if len(args) < 1 or (len(args) < 2 and not listed):
+    if not args or (len(args) < 2 and not listed):
         print(_USAGE, file=sys.stderr)
         return 2
     pattern, paths = args[0], listed + args[1:]

@@ -404,7 +404,7 @@ assert_contains "no unrecognized stdout lines for the clean capture" "$vul_out" 
 # in the exact same `<path>:<line>: <msg>` grammar with any other verb must become
 # drift, never a silently coerced finding.
 VERB_OUT="$TEST_TMPDIR/vulture-verbs.txt"
-cat "$FIXTURES/vulture-report.txt" >"$VERB_OUT"
+cp "$FIXTURES/vulture-report.txt" "$VERB_OUT"
 printf '%s\n' "dead-and-dynamic.py:36: unreachable code after 'raise' (100% confidence)" >>"$VERB_OUT"
 printf '%s\n' "dead-and-dynamic.py:31: obsolete function 'ghost' (60% confidence)" >>"$VERB_OUT"
 verb_out="$(cd "$PY_REPO" && FAKE_VULTURE_OUT="$VERB_OUT" FAKE_VULTURE_EXIT=3 bash "$SCAN" --lane vulture 2>/dev/null)"
@@ -438,7 +438,7 @@ assert_not_contains "exported symbol absent from the capture stays absent" "$go_
 # filtered as a diagnostic this lane does not own — NOT counted as drift, which
 # would be a different and wrong reading.
 GO_EXPORTED="$TEST_TMPDIR/gopls-hints-exported.txt"
-cat "$FIXTURES/gopls-hints.txt" >"$GO_EXPORTED"
+cp "$FIXTURES/gopls-hints.txt" "$GO_EXPORTED"
 printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:9:6-19: function "ExportedEntry" is unused' >>"$GO_EXPORTED"
 goexp_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_EXPORTED" bash "$SCAN" --lane gopls 2>/dev/null)"
 assert_contains "unexported symbol still reported alongside the control" "$goexp_out" 'Finding excerpt: function "deadHandler" is unused'
@@ -453,7 +453,7 @@ assert_contains "exported control does not inflate the totals" "$goexp_out" "Sum
 # parse loop can append this module's rows via add_candidate.
 
 GO_DEGRADED="$TEST_TMPDIR/gopls-degraded.txt"
-cat "$FIXTURES/gopls-hints.txt" >"$GO_DEGRADED"
+cp "$FIXTURES/gopls-hints.txt" "$GO_DEGRADED"
 printf '%s\n' '/gopls-fixture/dead-and-dynamic.go:6:1: could not import example.com/missing (no required module provides package example.com/missing)' >>"$GO_DEGRADED"
 godeg_out="$(cd "$GO_REPO" && FAKE_GOPLS_OUT="$GO_DEGRADED" bash "$SCAN" --lane gopls 2>/dev/null)"
 assert_contains "an import error on stdout degrades the module" "$godeg_out" "Lane: gopls | root=. | state=degraded"

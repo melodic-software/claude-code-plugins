@@ -86,8 +86,7 @@ def _ensure_bundled_tzdata() -> None:
                         if not (cache_root / "tzdata").is_dir():
                             raise
             finally:
-                if staging.exists():
-                    shutil.rmtree(staging, ignore_errors=True)
+                shutil.rmtree(staging, ignore_errors=True)
         if not (cache_root / "tzdata").is_dir():
             return
         # Trust the cache only if we own it. A directory planted by another

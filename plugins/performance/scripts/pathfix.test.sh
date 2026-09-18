@@ -16,29 +16,10 @@ harness_require_python
 PATHFIX="$SCRIPT_DIR/pathfix.py"
 readonly PATHFIX
 
-# Inline test helpers: self-contained, no external test lib (ships with the plugin).
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'FAIL: [%d] %s - expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
-  FAILED=$((FAILED + 1))
-}
-assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
-assert_contains() {
-  if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "*$2*" "$3"; fi
-}
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
-RUN_OUT=""
-RUN_RC=0
-run_pathfix() {
-  RUN_OUT="$("$HARNESS_PYTHON" "$PATHFIX" "$1" 2>&1)"
-  RUN_RC=$?
-}
+run_pathfix() { capture "$HARNESS_PYTHON" "$PATHFIX" "$1"; }
 
 WORK="$(mktemp -d)"
 readonly WORK
@@ -70,7 +51,8 @@ assert_contains "the failure lists the spellings tried" "tried=" "$RUN_OUT"
 assert_contains "the failure explains the two-spelling hazard" "two spellings" "$RUN_OUT"
 
 # --- 4. the conversion itself is correct in both directions ---
-conversions="$(cd "$SCRIPT_DIR" && "$HARNESS_PYTHON" - 2>&1 <<'PY'
+conversions="$(
+  cd "$SCRIPT_DIR" && "$HARNESS_PYTHON" - 2>&1 <<'PY'
 import pathfix
 
 # portability-ok: Python string data inside a heredoc, not a shell regex; the

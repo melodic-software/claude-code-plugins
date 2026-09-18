@@ -79,19 +79,10 @@ new_repo() {
   git -C "$r" config user.name t
 }
 
-# Invoke the hook from an unrelated cwd. CLAUDE_PROJECT_DIR is left UNSET so
+# Invoke the hook from an unrelated cwd with caller-supplied env
+# (NAME=VALUE / -u NAME ...). CLAUDE_PROJECT_DIR is left UNSET so
 # read_file_path's membership guard is disabled (not part of the fire gate);
 # this isolates normalization behavior from path-form mismatch in the guard.
-run_hook() {
-  local file_path="$1"
-  (
-    cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true bash "$HOOK"
-  )
-}
-
-# Same as run_hook but with caller-supplied extra env (NAME=VALUE / -u NAME ...).
 run_hook_env() {
   local file_path="$1"
   shift
@@ -100,6 +91,11 @@ run_hook_env() {
     printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
       env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
   )
+}
+
+# The plain enabled-hook run.
+run_hook() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true
 }
 
 REPO="$WORK/consumer"
@@ -276,7 +272,6 @@ rm -f "$TELS"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done

@@ -55,6 +55,23 @@ assert_matches() {
 }
 count_lines() { printf '%s\n' "$1" | grep -c "$2"; }
 
+# run_scan <root> [args...]: scan <root>, leaving the COMBINED output in $out
+# and the exit code in $rc. The few cases that assert on one channel alone keep
+# their own explicit redirection instead.
+run_scan() {
+  local root="$1"
+  shift
+  rc=0
+  out="$(CANT_FAIL_SCAN_ROOT="$root" bash "$SCAN" "$@" 2>&1)" || rc=$?
+}
+
+# assert_finding_count <name> <expected>: findings printed on $out.
+assert_finding_count() {
+  local n
+  n="$(count_lines "$out" '^finding \[')"
+  if [[ "$n" == "$2" ]]; then pass "$1"; else fail "$1" "got $n"; fi
+}
+
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
@@ -79,8 +96,7 @@ assert_exit "root that is a file refuses (exit 2)" 2 "$rc"
 # --- positive fixtures: every rule fires, per ecosystem ------------------------
 # Location is repo-relative (the fixtures sit inside this repo), so the
 # assertions anchor on the path SUFFIX plus the detail, never the full prefix.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/positive"
 assert_exit "positive report completes (exit 0 — advisory)" 0 "$rc"
 assert_contains "zero-assertion rule id emitted" "$out" "[testing/audit/rule-zero-assertion]"
 assert_contains "recomputed-expectation rule id emitted" "$out" "[testing/audit/rule-recomputed-expectation]"
@@ -96,8 +112,7 @@ assert_contains "cs zero-assertion fires in CantFailTests.cs" "$out" "CantFailTe
 assert_contains "cs recomputed-expectation fires" "$out" "CantFailTests.cs:17: Assert.Equal(Format.User(1), Format.User(1))"
 assert_contains "cs mock-only-oracle fires" "$out" "CantFailTests.cs:21: test 'Notify_Calls_Mailer': 1 mock-interaction assertion(s)"
 
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "11" ]]; then pass "positive fixtures yield exactly 11 findings"; else fail "positive fixtures yield exactly 11 findings" "got $n"; fi
+assert_finding_count "positive fixtures yield exactly 11 findings" 11
 
 rc=0
 n="$(CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" --count 2>/dev/null)" || rc=$?
@@ -109,8 +124,7 @@ CANT_FAIL_SCAN_ROOT="$FIX/positive" bash "$SCAN" --check >/dev/null 2>&1 || rc=$
 assert_exit "--check on positive fixtures fails (exit 1)" 1 "$rc"
 
 # --- negative fixtures: the false-positive guard ------------------------------
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/negative" bash "$SCAN" --check 2>&1)" || rc=$?
+run_scan "$FIX/negative" --check
 assert_exit "--check on negative fixtures passes (exit 0)" 0 "$rc"
 assert_not_contains "negative fixtures yield zero findings (discriminating-js.test.js, discriminating-ava.test.js, test_discriminating_py.py, DiscriminatingTests.cs)" "$out" "finding ["
 assert_contains "negative run parsed real blocks (not a scan of nothing)" "$out" "test files: 4 examined of 4 enumerated"
@@ -121,23 +135,19 @@ CANT_FAIL_SCAN_ROOT="$FIX/negative" bash "$SCAN" --check --strict >/dev/null 2>&
 assert_exit "--check --strict on negative fixtures still passes (mock-plus-value tests are not mock-only)" 0 "$rc"
 
 # --- sanity fixture: the issue's settlement shape -----------------------------
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/sanity" bash "$SCAN" --check 2>&1)" || rc=$?
+run_scan "$FIX/sanity" --check
 assert_exit "--check on one-assertion-free.test.js fails (exit 1)" 1 "$rc"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "1" ]]; then pass "sanity fixture yields exactly one finding"; else fail "sanity fixture yields exactly one finding" "got $n"; fi
+assert_finding_count "sanity fixture yields exactly one finding" 1
 assert_contains "sanity finding is the zero-assertion rule" "$out" "testing/audit/rule-zero-assertion"
 
 # --- exemption annotation ------------------------------------------------------
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/exempt" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/exempt"
 assert_exit "exempt fixture report completes" 0 "$rc"
 assert_not_contains "exempted-js.test.js emits no finding" "$out" "finding ["
 assert_contains "exemption is counted, never silent" "$out" "exempted findings (cant-fail-ok): 1"
 
 # --- mock-only-oracle is advisory unless --strict -----------------------------
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/mock-only" bash "$SCAN" --check 2>&1)" || rc=$?
+run_scan "$FIX/mock-only" --check
 assert_exit "mock-only-js.test.js does not gate by default (exit 0)" 0 "$rc"
 assert_contains "advisory note names the escalation flag" "$out" "advisory in --check (use --strict"
 assert_contains "the finding is still reported" "$out" "testing/audit/rule-mock-only-oracle"
@@ -295,16 +305,14 @@ else
 fi
 
 # report mode never claims a clean bill over nothing
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$EMPTY" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$EMPTY"
 assert_exit "report over an empty tree completes" 0 "$rc"
 assert_contains "an empty scan is named a scan of nothing" "$out" "NOTHING TO AUDIT"
 assert_not_contains "an empty scan is not a clean bill" "$out" "No can't-fail tests found."
 
 # the gate refuses a scan of nothing — a wrong root and a healthy suite must
 # not share exit 0
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$EMPTY" bash "$SCAN" --check 2>&1)" || rc=$?
+run_scan "$EMPTY" --check
 assert_exit "--check over 0 examined test files fails closed (exit 2)" 2 "$rc"
 assert_contains "empty-gate refusal says why" "$out" "0 test files were examined"
 assert_not_contains "empty gate never prints PASS" "$out" "PASS:"
@@ -314,8 +322,7 @@ SUBREPO="$TMP_ROOT/subrepo"
 mkdir -p "$SUBREPO/sub"
 git -C "$TMP_ROOT" init -q -b sub-branch subrepo
 printf 'test("v", () => { run(); });\n' >"$SUBREPO/sub/vacuous.test.js"
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$SUBREPO/sub" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$SUBREPO/sub"
 assert_exit "subdir-root scan completes" 0 "$rc"
 assert_contains "Location keeps the repo prefix under a subdir scan root" "$out" "sub/vacuous.test.js:1:"
 
@@ -323,8 +330,7 @@ assert_contains "Location keeps the repo prefix under a subdir scan root" "$out"
 CRLF="$TMP_ROOT/crlf"
 mkdir -p "$CRLF"
 printf 'test("crlf case", () => {\r\n  run();\r\n});\r\n' >"$CRLF/crlf-case.test.js"
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$CRLF" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$CRLF"
 assert_exit "CRLF file scans" 0 "$rc"
 assert_contains "CRLF assertion-free test is detected" "$out" "testing/audit/rule-zero-assertion"
 
@@ -339,8 +345,7 @@ if cat "$UNREAD/hidden.test.js" >/dev/null 2>&1; then
   # this case; say so visibly rather than green-lighting an unexercised branch.
   printf 'SKIP: unreadable-input case — chmod 000 not enforced on this filesystem (covered on CI'\''s Linux runners)\n'
 else
-  rc=0
-  out="$(CANT_FAIL_SCAN_ROOT="$UNREAD" bash "$SCAN" --check 2>&1)" || rc=$?
+  run_scan "$UNREAD" --check
   assert_exit "--check fails closed on an unreadable test file (exit 2)" 2 "$rc"
   assert_contains "fail-closed message names the unread input" "$out" "could not fully read"
 fi
@@ -361,8 +366,7 @@ chmod 600 "$UNREAD/hidden.test.js" 2>/dev/null || true
 # config/scaffold/:the npm init playwright config verbatim: the retries
 # expression fires, the forbidOnly idiom does not, and the spread inside a
 # projects[] entry is too deep to decline the config.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/scaffold" bash "$SCAN" --check 2>&1)" || rc=$?
+run_scan "$FIX/config/scaffold" --check
 assert_exit "scaffold config tree gates clean without --strict (exit 0)" 0 "$rc"
 assert_contains "scaffold playwright.config.ts fires flaky-passes-suite" "$out" "[testing/audit/rule-flaky-passes-suite]"
 assert_contains "flaky detail names the retries expression, the absent guard, and the keys read" "$out" \
@@ -387,8 +391,7 @@ if [[ "$n" == "1" ]]; then pass "--count over the scaffold config reports 1"; el
 
 # config/clean/:failOnFlakyTests: true and the forbidOnly idiom: both rules
 # decline key-set.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/clean" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/clean"
 assert_exit "clean config report completes" 0 "$rc"
 assert_not_contains "a config with both guards set yields no finding" "$out" "finding ["
 assert_contains "the clean config was examined, not skipped" "$out" \
@@ -396,18 +399,15 @@ assert_contains "the clean config was examined, not skipped" "$out" \
 
 # config/forbid-false/:forbidOnly: false fires at its own line; retries: 0 is
 # provably zero, so the flaky rule declines.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/forbid-false" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/forbid-false"
 assert_exit "forbid-false config report completes" 0 "$rc"
 assert_contains "forbidOnly: false fires at its own line" "$out" "playwright.config.ts:5: forbidOnly: false at line 5"
 assert_not_contains "a literal retries: 0 does not fire flaky-passes-suite" "$out" "rule-flaky-passes-suite"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "1" ]]; then pass "forbid-false yields exactly one finding"; else fail "forbid-false yields exactly one finding" "got $n"; fi
+assert_finding_count "forbid-false yields exactly one finding" 1
 
 # config/no-retries/:neither key present: the absent forbidOnly fires at the
 # anchor line and names the keys it read.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/no-retries" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/no-retries"
 assert_exit "no-retries config report completes" 0 "$rc"
 assert_contains "an absent forbidOnly fires at the anchor line with its denominator" "$out" \
   "playwright.config.ts:3: forbidOnly absent from the config object anchored at line 3 (2 depth-1 keys read)"
@@ -415,16 +415,14 @@ assert_not_contains "an absent retries key does not fire flaky-passes-suite" "$o
 
 # config/spread/:a depth-1 ...spread may override anything read, so both
 # rules decline the whole config rather than fire on an absent key.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/spread" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/spread"
 assert_exit "spread config report completes" 0 "$rc"
 assert_not_contains "a top-level spread yields no finding" "$out" "finding ["
 assert_contains "the spread config is still examined and counted" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 
 # config/variadic/:a second defineConfig argument may override anything read.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/variadic" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/variadic"
 assert_exit "variadic config report completes" 0 "$rc"
 assert_not_contains "a second defineConfig argument yields no finding" "$out" "finding ["
 assert_contains "the variadic config is still examined and counted" "$out" \
@@ -432,8 +430,7 @@ assert_contains "the variadic config is still examined and counted" "$out" \
 
 # config/reexport/:export default of an identifier: no object literal to
 # read, and the later unrelated { retries: 3 } is never adopted.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/reexport" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/reexport"
 assert_exit "reexport config report completes" 0 "$rc"
 assert_not_contains "a re-exported config yields no finding" "$out" "finding ["
 assert_contains "an unanchorable config is a coverage boundary, not a decline" "$out" \
@@ -441,8 +438,7 @@ assert_contains "an unanchorable config is a coverage boundary, not a decline" "
 
 # config/merge-arg/:defineConfig(baseConfig): the next token after the anchor
 # is an identifier, not a {.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/merge-arg" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/merge-arg"
 assert_exit "merge-arg config report completes" 0 "$rc"
 assert_not_contains "defineConfig over an identifier yields no finding" "$out" "finding ["
 assert_contains "merge-arg is counted as enumerated and not examined" "$out" \
@@ -450,16 +446,14 @@ assert_contains "merge-arg is counted as enumerated and not examined" "$out" \
 
 # config/exempt/:cant-fail-ok: anywhere in the config suppresses every finding
 # in it, counted rather than silent.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/exempt" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/exempt"
 assert_exit "exempt config report completes" 0 "$rc"
 assert_not_contains "an annotated config emits no finding" "$out" "finding ["
 assert_contains "the suppressed config finding is counted" "$out" "exempted findings (cant-fail-ok): 1"
 
 # config/exempt-both/:a .cjs config firing both rules, annotated once: the
 # annotation is file-scoped, so both findings are suppressed and both counted.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/exempt-both" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/exempt-both"
 assert_exit "exempt-both config report completes" 0 "$rc"
 assert_not_contains "an annotated .cjs config emits no finding" "$out" "finding ["
 assert_contains "one annotation suppresses and counts both config rules" "$out" "exempted findings (cant-fail-ok): 2"
@@ -468,20 +462,17 @@ assert_contains "a .cjs config is enumerated and examined" "$out" \
 
 # config/project-key/:forbidOnly below the top level has no runtime effect and
 # no runtime claim is made about it: the rule declines instead of firing.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/project-key" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/project-key"
 assert_exit "project-key config report completes" 0 "$rc"
 assert_contains "a top-level retries with no failOnFlakyTests still fires" "$out" \
   "playwright.config.ts:5: retries: 2 at line 5 with failOnFlakyTests absent (3 depth-1 keys read)"
 assert_not_contains "a forbidOnly inside projects[] neither satisfies nor fires the rule" "$out" "rule-only-not-forbidden"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "1" ]]; then pass "project-key yields exactly one finding"; else fail "project-key yields exactly one finding" "got $n"; fi
+assert_finding_count "project-key yields exactly one finding" 1
 
 # config/shadow/:two configs in one directory: playwright.config.ts wins the
 # probe order and playwright.config.js is counted as shadowed, never read. The
 # shadowed file would fire both rules, so reading it would show here.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/shadow" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/shadow"
 assert_exit "shadow config report completes" 0 "$rc"
 assert_contains "only the first config in probe order is examined" "$out" \
   "playwright configs: 1 examined of 2 enumerated (1 shadowed, 0 without a recognizable config object, 0 unreadable)"
@@ -489,28 +480,24 @@ assert_not_contains "the shadowed playwright.config.js is never read" "$out" "fi
 
 # config/quoted-keys/:the masker blanks a quoted key entirely, so the name is
 # read from the raw line at the masked colon's column.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/quoted-keys" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/quoted-keys"
 assert_exit "quoted-keys config report completes" 0 "$rc"
 assert_not_contains "quoted guard keys are read and satisfy both rules" "$out" "finding ["
 assert_contains "the quoted-keys config was examined" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 
 # config/commonjs/:module.exports = { ... } in a playwright.config.js.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/commonjs" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/commonjs"
 assert_exit "commonjs config report completes" 0 "$rc"
 assert_contains "module.exports anchors the config object (flaky)" "$out" \
   "playwright.config.js:1: retries: 2 at line 1 with failOnFlakyTests absent (1 depth-1 keys read)"
 assert_contains "module.exports anchors the config object (forbidOnly)" "$out" \
   "playwright.config.js:1: forbidOnly absent from the config object anchored at line 1 (1 depth-1 keys read)"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "2" ]]; then pass "commonjs yields exactly two findings"; else fail "commonjs yields exactly two findings" "got $n"; fi
+assert_finding_count "commonjs yields exactly two findings" 2
 
 # config/nested-retries/:a retries key in reporter options is not a runner
 # retry setting and is not read.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/nested-retries" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/nested-retries"
 assert_exit "nested-retries config report completes" 0 "$rc"
 assert_not_contains "a retries key in reporter options does not fire" "$out" "finding ["
 assert_contains "the nested-retries config was examined" "$out" \
@@ -518,32 +505,27 @@ assert_contains "the nested-retries config was examined" "$out" \
 
 # config/projects-retries/:per-project retries is legal and counts; one
 # finding per config, located at the first counted occurrence.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/projects-retries" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/projects-retries"
 assert_exit "projects-retries config report completes" 0 "$rc"
 assert_contains "per-project retries fires once, at the first occurrence, naming the cardinality" "$out" \
   "playwright.config.ts:9: retries: 2 at line 9 with failOnFlakyTests absent (3 depth-1 keys read); 3 retries occurrence(s)"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "1" ]]; then pass "projects-retries yields exactly one finding"; else fail "projects-retries yields exactly one finding" "got $n"; fi
+assert_finding_count "projects-retries yields exactly one finding" 1
 
 # config/generic-anchor/:defineConfig<T>({...}) on one line, with a trailing
 # satisfies clause that is not a second argument.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/generic-anchor" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/generic-anchor"
 assert_exit "generic-anchor config report completes" 0 "$rc"
 assert_contains "a generic defineConfig call anchors the config object (flaky)" "$out" \
   "playwright.config.ts:4: retries: 2 at line 4 with failOnFlakyTests absent (1 depth-1 keys read)"
 assert_contains "a generic defineConfig call anchors the config object (forbidOnly)" "$out" \
   "playwright.config.ts:4: forbidOnly absent from the config object anchored at line 4 (1 depth-1 keys read)"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "2" ]]; then pass "generic-anchor yields exactly two findings"; else fail "generic-anchor yields exactly two findings" "got $n"; fi
+assert_finding_count "generic-anchor yields exactly two findings" 2
 
 # config/nested-retries-stale/: the projects context does not outlive its own
 # depth-1 entry. A later key whose colon sits on another line is unreadable, and
 # an unreadable key must inherit no context, or a retries under the NEXT key
 # would be read as a per-project one.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/nested-retries-stale" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/nested-retries-stale"
 assert_exit "nested-retries-stale config report completes" 0 "$rc"
 assert_not_contains "a retries under a later key is not read as a projects[] entry's" "$out" "finding ["
 assert_contains "the nested-retries-stale config was examined" "$out" \
@@ -552,8 +534,7 @@ assert_contains "the nested-retries-stale config was examined" "$out" \
 # config/helper-define/: a helper defineConfig call above the exported one is not
 # the config the runner loads; the exported object, carrying a depth-1 spread,
 # is, and it declines both rules.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/helper-define" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/helper-define"
 assert_exit "helper-define config report completes" 0 "$rc"
 assert_not_contains "a helper defineConfig object is never the anchor" "$out" "finding ["
 assert_contains "the helper-define config was examined" "$out" \
@@ -562,56 +543,47 @@ assert_contains "the helper-define config was examined" "$out" \
 # config/split-value/: a value continued onto the next line leaves a ternary
 # colon behind, which is not a key separator and must not inflate the depth-1
 # key count the absent-guard detail reports.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/split-value" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/split-value"
 assert_exit "split-value config report completes" 0 "$rc"
 assert_contains "a continued value registers no phantom depth-1 key" "$out" \
   "playwright.config.ts:6: retries: process.env.CI at line 6 with failOnFlakyTests absent (3 depth-1 keys read)"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "1" ]]; then pass "split-value yields exactly one finding"; else fail "split-value yields exactly one finding" "got $n"; fi
+assert_finding_count "split-value yields exactly one finding" 1
 
 # config/generic-nested/: a generic argument that itself carries angle brackets
 # still anchors the config object.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/generic-nested" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/generic-nested"
 assert_exit "generic-nested config report completes" 0 "$rc"
 assert_contains "a nested generic argument anchors the config object (flaky)" "$out" \
   "playwright.config.ts:3: retries: 2 at line 3 with failOnFlakyTests absent (1 depth-1 keys read)"
 assert_contains "a nested generic argument anchors the config object (forbidOnly)" "$out" \
   "playwright.config.ts:3: forbidOnly absent from the config object anchored at line 3 (1 depth-1 keys read)"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "2" ]]; then pass "generic-nested yields exactly two findings"; else fail "generic-nested yields exactly two findings" "got $n"; fi
+assert_finding_count "generic-nested yields exactly two findings" 2
 
 # config/multiline-guard/: a guard whose value sits on the next line is still
 # that guard's value. Reading only the key's own line leaves the value empty,
 # which reads as an expression, so a false guard would pass as set.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/multiline-guard" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/multiline-guard"
 assert_exit "multiline-guard config report completes" 0 "$rc"
 assert_contains "a failOnFlakyTests: false written on the next line is read as false" "$out" \
   "playwright.config.ts:5: retries: 2 at line 5 with failOnFlakyTests: false at line 6"
 assert_contains "a forbidOnly: false written on the next line fires at the key's line" "$out" \
   "playwright.config.ts:8: forbidOnly: false at line 8"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "2" ]]; then pass "multiline-guard yields exactly two findings"; else fail "multiline-guard yields exactly two findings" "got $n"; fi
+assert_finding_count "multiline-guard yields exactly two findings" 2
 
 # config/duplicate-guard/: a duplicate key at depth 1 resolves to the LAST
 # occurrence at runtime, so that is the one each guard is classified from and
 # anchored at.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/duplicate-guard" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/duplicate-guard"
 assert_exit "duplicate-guard config report completes" 0 "$rc"
 assert_contains "the last failOnFlakyTests wins and anchors the flaky detail" "$out" \
   "playwright.config.js:2: retries: 2 at line 2 with failOnFlakyTests: false at line 6"
 assert_contains "the last forbidOnly wins and anchors its own finding" "$out" \
   "playwright.config.js:7: forbidOnly: false at line 7"
-n="$(count_lines "$out" '^finding \[')"
-if [[ "$n" == "2" ]]; then pass "duplicate-guard yields exactly two findings"; else fail "duplicate-guard yields exactly two findings" "got $n"; fi
+assert_finding_count "duplicate-guard yields exactly two findings" 2
 
 # config/multiline-retries-zero/: a literal 0 written on the next line is a
 # provable zero, so the flaky shape is out of reach and neither rule fires.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/multiline-retries-zero" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$FIX/config/multiline-retries-zero"
 assert_exit "multiline-retries-zero config report completes" 0 "$rc"
 assert_not_contains "a continued retries: 0 with both guards set yields no finding" "$out" "finding ["
 assert_contains "the multiline-retries-zero config was examined" "$out" \
@@ -623,8 +595,7 @@ assert_contains "the multiline-retries-zero config was examined" "$out" \
 CFGZERO="$TMP_ROOT/cfgzero"
 mkdir -p "$CFGZERO"
 printf 'export default defineConfig({\n  forbidOnly: true,\n  retries:\n    0,\n});\n' >"$CFGZERO/playwright.config.ts"
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$CFGZERO" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$CFGZERO"
 assert_exit "continued retries: 0 without a flaky guard scans" 0 "$rc"
 assert_not_contains "a continued retries: 0 does not fire flaky-passes-suite" "$out" "finding ["
 assert_contains "the continued-zero config was examined" "$out" \
@@ -635,16 +606,14 @@ assert_contains "the continued-zero config was examined" "$out" \
 CFGCRLF1="$TMP_ROOT/cfgcrlf1"
 mkdir -p "$CFGCRLF1"
 printf 'export default defineConfig({\r\n  retries: 2,\r\n});\r\n' >"$CFGCRLF1/playwright.config.ts"
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$CFGCRLF1" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$CFGCRLF1"
 assert_exit "CRLF config scans" 0 "$rc"
 assert_contains "CRLF retries value is read without the carriage return" "$out" "retries: 2 at line 2 with failOnFlakyTests absent"
 
 CFGCRLF2="$TMP_ROOT/cfgcrlf2"
 mkdir -p "$CFGCRLF2"
 printf 'export default defineConfig({\r\n  forbidOnly: true,\r\n  retries: 0\r\n});\r\n' >"$CFGCRLF2/playwright.config.ts"
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$CFGCRLF2" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$CFGCRLF2"
 assert_exit "CRLF config with both guards satisfied scans" 0 "$rc"
 assert_not_contains "a CRLF literal 0 and a CRLF literal true are read as such" "$out" "finding ["
 assert_contains "the CRLF config was examined" "$out" \
@@ -653,28 +622,24 @@ assert_contains "the CRLF config was examined" "$out" \
 CFGCRLF3="$TMP_ROOT/cfgcrlf3"
 mkdir -p "$CFGCRLF3"
 printf 'export default defineConfig({\r\n  forbidOnly: false,\r\n  retries: 0,\r\n});\r\n' >"$CFGCRLF3/playwright.config.ts"
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$CFGCRLF3" bash "$SCAN" 2>&1)" || rc=$?
+run_scan "$CFGCRLF3"
 assert_exit "CRLF config with forbidOnly: false scans" 0 "$rc"
 assert_contains "a CRLF literal false fires only-not-forbidden" "$out" "forbidOnly: false at line 2"
 
 # A tree with test files and no Playwright config says the config rules do not
 # apply rather than reporting a silent zero.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/negative" bash "$SCAN" --check 2>&1)" || rc=$?
+run_scan "$FIX/negative" --check
 assert_exit "negative tree still gates clean with the config rules present" 0 "$rc"
 assert_contains "a tree with no Playwright config says the config rules are not applicable" "$out" \
   "playwright configs: 0 enumerated; config rules not applicable"
 
 # A config-only tree: the exit-2 rule for 0 examined TEST files is unchanged,
 # and the message names the config findings it reported but did not gate.
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/commonjs" bash "$SCAN" --check 2>&1)" || rc=$?
+run_scan "$FIX/config/commonjs" --check
 assert_exit "--check over a config-only tree still fails closed (exit 2)" 2 "$rc"
 assert_contains "the config-only refusal names the config findings it reported" "$out" \
   "(2 config finding(s) were reported; they are not gated or persisted without an examined test file)"
-rc=0
-out="$(CANT_FAIL_SCAN_ROOT="$FIX/config/commonjs" bash "$SCAN" --check --strict 2>&1)" || rc=$?
+run_scan "$FIX/config/commonjs" --check --strict
 assert_exit "--strict does not turn a config-only tree into a gated failure (exit 2)" 2 "$rc"
 assert_contains "--strict over a config-only tree still names the ungated findings" "$out" \
   "(2 config finding(s) were reported; they are not gated or persisted without an examined test file)"
@@ -751,8 +716,7 @@ chmod 000 "$CFGUNREAD/playwright.config.js" 2>/dev/null || true
 if cat "$CFGUNREAD/playwright.config.js" >/dev/null 2>&1; then
   printf 'SKIP: unreadable-config case — chmod 000 not enforced on this filesystem (covered on CI'\''s Linux runners)\n'
 else
-  rc=0
-  out="$(CANT_FAIL_SCAN_ROOT="$CFGUNREAD" bash "$SCAN" --check 2>&1)" || rc=$?
+  run_scan "$CFGUNREAD" --check
   assert_exit "--check fails closed on an unreadable playwright config (exit 2)" 2 "$rc"
   assert_contains "the fail-closed message names the unread input as a config" "$out" "1 unreadable playwright config(s)"
   assert_contains "an unreadable config stays in the config denominator" "$out" \

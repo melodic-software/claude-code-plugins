@@ -122,14 +122,11 @@ fi
 rm -rf "$f"
 
 # --- --check fails on a drifted copy ---------------------------------------
-new_fixture f
-canonical_v1 >"$f/$CANONICAL"
-changelog_v1 >"$f/$CHANGELOG"
-carrying_plugin "$f" planning "$(canonical_v1)" 0.1.0
+base_fixture f
 carrying_plugin "$f" review "drifted copy" 0.1.0
 if out="$(run_mode "$f" --check 2>&1)"; then
   fail "--check should fail on a drifted copy, got success: $out"
-elif echo "$out" | grep -q "DRIFT"; then
+elif [[ "$out" == *"DRIFT"* ]]; then
   ok "--check fails on a drifted copy with DRIFT"
 else
   fail "expected DRIFT in output, got: $out"
@@ -169,7 +166,7 @@ carrying_plugin "$f" planning "$(canonical_v1_1)" 0.2.0
 carrying_plugin "$f" review "$(canonical_v1_1)" 0.1.0 # not bumped
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   fail "--check-bump should fail when a carrying plugin kept its version, got success: $out"
-elif echo "$out" | grep -q "STALE VERSION"; then
+elif [[ "$out" == *"STALE VERSION"* ]]; then
   ok "--check-bump fails an unbumped carrying plugin with STALE VERSION"
 else
   fail "expected STALE VERSION in output, got: $out"
@@ -185,7 +182,7 @@ carrying_plugin "$f" planning "$(canonical_v1_edited)" 0.2.0
 carrying_plugin "$f" review "$(canonical_v1_edited)" 0.2.0
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   fail "--check-bump should fail when the standards-contract semver did not change, got success: $out"
-elif echo "$out" | grep -q "STALE CONTRACT VERSION"; then
+elif [[ "$out" == *"STALE CONTRACT VERSION"* ]]; then
   ok "--check-bump fails an unbumped standards-contract frontmatter with STALE CONTRACT VERSION"
 else
   fail "expected STALE CONTRACT VERSION in output, got: $out"
@@ -201,7 +198,7 @@ carrying_plugin "$f" planning "$(canonical_v1_1)" 0.2.0
 carrying_plugin "$f" review "$(canonical_v1_1)" 0.2.0
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   fail "--check-bump should fail when the changelog gained no new heading, got success: $out"
-elif echo "$out" | grep -q "STALE CHANGELOG"; then
+elif [[ "$out" == *"STALE CHANGELOG"* ]]; then
   ok "--check-bump fails a heading-less changelog with STALE CHANGELOG"
 else
   fail "expected STALE CHANGELOG in output, got: $out"
@@ -216,9 +213,7 @@ printf -- '# Changelog\n' >"$f/$CHANGELOG" # entry for the head version removed
 # manifests untouched
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   fail "--check-bump should fail when every bump is missing, got success: $out"
-elif echo "$out" | grep -q "STALE CONTRACT VERSION" &&
-  echo "$out" | grep -q "STALE CHANGELOG" &&
-  echo "$out" | grep -q "STALE VERSION"; then
+elif [[ "$out" == *"STALE CONTRACT VERSION"* && "$out" == *"STALE CHANGELOG"* && "$out" == *"STALE VERSION"* ]]; then
   ok "--check-bump reports all three stale conditions before exiting"
 else
   fail "expected all three STALE messages in one run, got: $out"
@@ -232,7 +227,7 @@ base="$(git_fixture "$f")"
 printf '{"title":"standards concern file v1","description":"schema-only change"}\n' >"$f/$SCHEMA"
 if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   fail "--check-bump should fail on an unbumped schema-only change, got success: $out"
-elif echo "$out" | grep -q "STALE CONTRACT VERSION"; then
+elif [[ "$out" == *"STALE CONTRACT VERSION"* ]]; then
   ok "--check-bump treats the schema as contract surface (schema-only change needs bumps)"
 else
   fail "expected STALE CONTRACT VERSION on schema-only change, got: $out"

@@ -31,6 +31,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+# Re-exported, not merely used: `registrations_of` is part of this extractor's
+# surface (its own tests read it from here), and `lib/registrations.py` is
+# shared with the sibling overlap consumer so the registration-shape rule the
+# extractor writes and the consumer reads has exactly one home.
+from registrations import registrations_of  # noqa: E402  (path set above; plugin-bundled module)
+
 MIN_PYTHON = (3, 11)
 
 # The CLI release this extractor was last verified against by a human running
@@ -756,20 +766,6 @@ def read_invocation_fields(body: str) -> dict[str, Any]:
     return out
 
 
-def registrations_of(entry: Any) -> list[dict[str, Any]]:
-    """Every registration behind one bundled-skill name.
-
-    A name maps to one registration object, or to a list when two distinct
-    registrations share the name (a collision). Consumers read through this
-    helper so neither shape is a special case.
-    """
-    if isinstance(entry, list):
-        return [e for e in entry if isinstance(e, dict)]
-    if isinstance(entry, dict):
-        return [entry]
-    return []
-
-
 def extract_bundled_skills(
     src: str, braces: BraceMap
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -798,7 +794,7 @@ def extract_bundled_skills(
     # object carries no `name:` is another module's function that happens to
     # share the minified identifier, not a registration, so it is counted
     # apart and never inflates the resolved-versus-seen gap.
-    calls: list[tuple[int, str, re.Match[str] | None]] = []
+    calls: list[tuple[int, str, re.Match[str]]] = []
     unbounded = 0
     same_ident_calls = 0
     name_re = re.compile(r"\bname:(?:" + _STR + r"|(" + _IDENT + r")|(`[^`]*`))")
@@ -817,7 +813,7 @@ def extract_bundled_skills(
             continue
         calls.append((m.start(), body, nm))
 
-    idents = {nm.group(2) for _, _, nm in calls if nm is not None and nm.group(2)}
+    idents = {nm.group(2) for _, _, nm in calls if nm.group(2)}
     index = build_const_index(src, idents)
     out: dict[str, Any] = {}
     unresolved: list[str] = []
@@ -828,7 +824,6 @@ def extract_bundled_skills(
 
     for call_start, body, nm in calls:
         seen += 1
-        assert nm is not None
         if nm.group(1) is not None:
             name = _unescape(nm.group(1))
         elif nm.group(3) is not None:
@@ -1121,11 +1116,12 @@ def scan_disk(root: Path) -> dict[str, Any]:
     if not isinstance(known, dict):
         known = {}
     marketplaces: dict[str, Any] = {}
-    for name, meta in known.items():
-        loc = (meta or {}).get("installLocation")
+    for name, entry in known.items():
+        meta = entry or {}
+        loc = meta.get("installLocation")
         marketplaces[name] = {
             "install_location": loc,
-            "last_updated": (meta or {}).get("lastUpdated"),
+            "last_updated": meta.get("lastUpdated"),
             "plugins": scan_marketplace(Path(loc)) if loc else {},
         }
     out["marketplaces"] = marketplaces
@@ -1230,11 +1226,7 @@ def _scan_component(
         target = root / spec["file"]
         return [spec["file"]] if target.is_file() else []
 
-    targets: list[Path]
-    if declared:
-        targets = [root / d for d in declared]
-    else:
-        targets = [root / spec["dir"]]
+    targets = [root / d for d in declared] if declared else [root / spec["dir"]]
 
     out: list[str] = []
     for target in targets:

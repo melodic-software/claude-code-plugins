@@ -30,10 +30,8 @@ gitea_fixture_init() {
 # Mock curl. Reads the -K stdin config to recover the request URL (that is where the
 # real adapter puts it, so this also proves the URL never travelled in argv), records
 # the request, and replies from the seeded route table.
-d="$(cd "$(dirname "$0")" && pwd)"
-fix="$(dirname "$d")"
-cfg="$(cat)"
-url="$(printf '%s' "$cfg" | sed -n 's/^url = "\(.*\)"$/\1/p')"
+fix="$(cd "$(dirname "$0")/.." && pwd)"
+url="$(sed -n 's/^url = "\(.*\)"$/\1/p')"
 method="GET"
 dumpfile=""
 prev=""

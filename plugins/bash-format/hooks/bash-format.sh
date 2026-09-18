@@ -92,9 +92,8 @@ shell_editorconfig_opt_in() {
   [[ "$file_dir" == "$FILE" ]] && file_dir=.
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -d "$file_dir" ]] || return 1
-  # Existence check is a builtin; the previous `$(cd && pwd)` forked a subshell
-  # (and pwd) on every fire to canonicalize a path git already answered as
-  # absolute. Relative hints still walk from the spelling `cd` would have used.
+  # Existence check only, no canonicalization: git already answers an absolute
+  # path, and a relative hint walks from the spelling `cd` would have used.
   [[ -d "$REPO_ROOT" ]] && root="$REPO_ROOT"
   hook::walk_up_to hit "$file_dir" "$root" editorconfig_shell_section_here
 }

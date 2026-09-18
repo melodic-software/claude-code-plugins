@@ -281,8 +281,7 @@ build_plugin_index() {
 # end-of-line.
 skill_frontmatter_name() {
   sed -n '1,40p' "$1" 2>/dev/null |
-    sed -E 's/[[:space:]]+#.*$//' |
-    sed -nE 's/^name:[[:space:]]*"?'"'"'?([A-Za-z0-9_-]+)"?'"'"'?[[:space:]]*$/\1/p' |
+    sed -nE 's/[[:space:]]+#.*$//; s/^name:[[:space:]]*"?'"'"'?([A-Za-z0-9_-]+)"?'"'"'?[[:space:]]*$/\1/p' |
     head -1
 }
 

@@ -31,6 +31,10 @@
 # Exit: 0 on a clean run (with corpus or empty), 2 on usage or target error.
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
 TARGET=""
 PATHS_FILE=""
 SHOW_CONFIG=0
@@ -53,18 +57,10 @@ go to stderr. Exit 2 is usage or an unusable target, never "no files found".
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "list-corpus.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --paths-file)
-    require_opt_value "$@"
+    require_opt_value "list-corpus.sh" "$@"
     PATHS_FILE="$2"
     shift 2
     ;;
@@ -102,9 +98,9 @@ fi
 anchor_dir() {
   # The directory the corpus root is resolved from: the target itself when it is
   # a directory, its parent when it is a file, the cwd otherwise.
-  if [[ -d "${TARGET:-}" ]]; then
+  if [[ -d "$TARGET" ]]; then
     printf '%s' "$TARGET"
-  elif [[ -n "${TARGET:-}" && -f "$TARGET" ]]; then
+  elif [[ -f "$TARGET" ]]; then
     printf '%s' "$(dirname "$TARGET")"
   else
     printf '%s' "$PWD"
@@ -118,10 +114,7 @@ CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$ROOT}"
 
 # --- Config cascade (.claude/provenance.json; user-global -> team -> overlay) -----
 
-CFG_LAYERS=()
-[[ -f "${HOME:-/nonexistent}/.claude/provenance.json" ]] && CFG_LAYERS+=("$HOME/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.json")
-[[ -f "$CONFIG_ROOT/.claude/provenance.local.json" ]] && CFG_LAYERS+=("$CONFIG_ROOT/.claude/provenance.local.json")
+cfg_layers_init "$CONFIG_ROOT"
 
 HAVE_JQ=1
 command -v jq >/dev/null 2>&1 || HAVE_JQ=0
@@ -162,12 +155,7 @@ ATTR_PATTERN='linguist-vendored'
 ATTR_REASON='marked linguist-vendored in gitattributes (built-in carve-out)'
 
 if [[ "$SHOW_CONFIG" -eq 1 ]]; then
-  echo "Config layers (later refines earlier):"
-  if [[ "${#CFG_LAYERS[@]}" -eq 0 ]]; then
-    echo "  (none; bundled defaults)"
-  else
-    for layer in "${CFG_LAYERS[@]}"; do echo "  $layer"; done
-  fi
+  cfg_layers_print
   echo "Corpus root: $ROOT"
   echo "Config root: $CONFIG_ROOT"
   echo "Built-in carve-out: $VENDOR_GLOB"
@@ -344,18 +332,6 @@ for candidate in ${CANDIDATES[@]+"${CANDIDATES[@]}"}; do
 done
 
 # --- JSON product ----------------------------------------------------------------
-
-json_str() {
-  # Escape for a JSON string: backslash and quote first, then the control
-  # characters a path or a reason can legally carry.
-  local s="$1"
-  s="${s//\\/\\\\}"
-  s="${s//\"/\\\"}"
-  s="${s//$'\t'/\\t}"
-  s="${s//$'\r'/\\r}"
-  s="${s//$'\n'/\\n}"
-  printf '"%s"' "$s"
-}
 
 declined_total=0
 for pattern in ${DECLINED_PATTERNS[@]+"${DECLINED_PATTERNS[@]}"}; do

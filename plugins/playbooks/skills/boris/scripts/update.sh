@@ -46,7 +46,6 @@ require_tool() {
     err "$tool not on PATH — cannot continue"
     return 1
   fi
-  return 0
 }
 
 check_prereqs() {
@@ -76,7 +75,7 @@ local_metadata_field() {
   local field="$1"
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
   awk -v f="$field" '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && $1 == f":"{print $2;exit}' \
-    "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
+    "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
 # Fetch upstream version from the API.

@@ -584,7 +584,7 @@ assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
 run "empty command, no NUL (allowed)" "" 0
 
 # --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
-# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# ps::blank_quoted_spans_to used to pair quotes with two independent `sed`
 # expressions, neither aware of which style opened first. The single-quote
 # expression matched from the apostrophe inside one double-quoted string to the
 # apostrophe inside the next and DELETED everything between them — including the

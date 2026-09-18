@@ -87,7 +87,7 @@ else
   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r\n')
 fi
 
-if [[ -z "$REPO" || "$REPO" != */* ]]; then
+if [[ "$REPO" != */* ]]; then
   printf 'fetch-annotations: cannot resolve owner/repo (set FETCH_ANNOT_REPO=owner/name)\n' >&2
   exit 2
 fi

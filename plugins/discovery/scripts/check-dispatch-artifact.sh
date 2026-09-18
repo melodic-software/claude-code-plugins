@@ -91,7 +91,7 @@ set -uo pipefail
 usage() {
   # Sentinel range (not fixed line numbers) so the printed usage never silently
   # truncates when the header grows or shrinks on a future edit.
-  sed -n '/^# Deterministic acceptance gate/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '/^# Deterministic acceptance gate/,/^# Output/ s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
 }
 
 slice=""

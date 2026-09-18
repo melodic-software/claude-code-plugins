@@ -42,8 +42,7 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 out="$(node -e '
-const fs = require("fs");
-const cat = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
 const problems = [];
 if (cat.schema !== "context-budget.levers/1") problems.push("bad schema tag: " + cat.schema);
 const vocab = Object.keys(cat.meta?.categories ?? {});

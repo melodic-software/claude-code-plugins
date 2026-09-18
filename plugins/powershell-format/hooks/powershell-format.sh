@@ -66,15 +66,21 @@ emit_skipped() {
 # around builtins-only normalize_path or around physical_path's print wrapper
 # (Command Substitution, Bash Reference Manual;
 # https://mywiki.wooledge.org/CommandSubstitution). realpath/readlink inside
-# physical_path_to is the necessary resolver.
-__ps_phys=""
+# physical_path_to is the necessary resolver, and an unresolvable path is
+# normalized as written rather than dropped.
+#
+# phys_posix_to <var> <path>: the pair as one `_to` helper; its local carries a
+# `__pf_` prefix so a caller's variable name cannot collide with it.
+phys_posix_to() {
+  local __pf_phys=""
+  hook::physical_path_to __pf_phys "$2" || true
+  hook::normalize_path_to "$1" "$__pf_phys"
+}
+
 FILE_DIR_POSIX=""
-hook::physical_path_to __ps_phys "$FILE_DIR" || true
-hook::normalize_path_to FILE_DIR_POSIX "$__ps_phys"
-__ps_phys=""
+phys_posix_to FILE_DIR_POSIX "$FILE_DIR"
 root=""
-hook::physical_path_to __ps_phys "$REPO_ROOT" || true
-hook::normalize_path_to root "$__ps_phys"
+phys_posix_to root "$REPO_ROOT"
 
 # Ceiling for the settings walk-up. When CLAUDE_PROJECT_DIR is set the walk stops
 # there, so the settings ceiling matches the file-membership ceiling that
@@ -85,10 +91,7 @@ hook::normalize_path_to root "$__ps_phys"
 # the fallback when unset.
 CEILING="$root"
 if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  __ps_phys=""
-  CEILING=""
-  hook::physical_path_to __ps_phys "$CLAUDE_PROJECT_DIR" || true
-  hook::normalize_path_to CEILING "$__ps_phys"
+  phys_posix_to CEILING "$CLAUDE_PROJECT_DIR"
 fi
 
 # Consumer opt-in: a PSScriptAnalyzerSettings.psd1 that governs the edited file.

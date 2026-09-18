@@ -3,6 +3,67 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **`dissolve-comments` gains an aggressive dial.** `aggressive` (a per-run token and a
+  `comment_posture` value) keeps only the exempt surfaces, paired comment-plus-test records, and
+  terse warnings of consequence; every other comment is staged and deleted, rationale included.
+  `strip` (a per-run token) deletes every comment but the exempt surfaces and paired records and
+  rewrites no code. Precedence is `safe`, then `strip`, then `aggressive`, and a token beats the
+  standing posture.
+- **`--notes <path>`** appends the staged commit-message block to an untracked or out-of-repo file.
+  A tracked path is refused and the run continues with the report as the only vehicle.
+- **A calibration eval suite** under `plugins/code-tidying/evals/`, run with `claude plugin eval`:
+  three frozen real sections, invented fixtures per triage class, exempt surfaces, marker rows,
+  Python docstrings, paired records, and the dial interactions.
+
+### Changed
+
+- **"The posture ladder only descends" is replaced by "no knob loosens a gate."** The dials widen
+  what a run removes; they change no proof. Deletions still carry COMMENT-ONLY, function-local
+  renames RENAME-ONLY, tier-2 and tier-3 moves a discovered test net, and an UNPROVABLE file still
+  yields proposals only.
+- **Two rules now hold in every mode:** a comment paired with a regression test is never deleted
+  alone, and an identifier a repo-local marker row pins is never renamed.
+- **The tier tables in `safety.md` and `dissolving-moves.md` agree.** The merged set is 16 moves:
+  tier 2 gains Replace Nested Conditional with Guard Clauses and Introduce Special Case, tier 3
+  gains Inline Function in `safety.md` and Extract Class in `dissolving-moves.md`. The apply-capacity
+  counts read 2 of 16 and 0 of 16.
+- **The `Intentional-removal:` trailer is conditional.** The staged block carries it only where the
+  target repository's own gates read that trailer.
+
+## [0.19.8]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.19.7]
+
+### Changed
+
+- Merge the line-comment leader branches in the comment-shapes library, drop the redundant target array copy in the detector and hoist the tab fixture name in its suite (behavior unchanged).
+
+## [0.19.6]
+
+### Changed
+
+- Enumerate census lines directly, total dedupe drops from the record counts, unpack tree-sitter points and collapse the census exit-code branches in the comment scripts (behavior unchanged).
+
+## [0.19.5]
+
+### Changed
+
+- Anchor scope targets in one loop, count owned files from the collected list and fold the vulture input-error match in the dead-code scan (behavior unchanged).
+
+## [0.19.4]
+
+### Changed
+
+- dissolve-comments wrappers: scope-code-files.sh points at the allowed-tools verification record that change-shape.sh carries instead of repeating it, comment-tooling-probe.sh points at the same anchor, and the six wrapper headers drop their em dashes. Comment-only; every wrapper still execs the same target.
+
 ## [0.19.3]
 
 ### Changed

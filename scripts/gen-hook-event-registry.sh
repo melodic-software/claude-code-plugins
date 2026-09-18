@@ -91,8 +91,28 @@ URL="https://code.claude.com/docs/en/hooks.md"
 BASIS="https://code.claude.com/docs/en/hooks#hook-lifecycle"
 REGISTRY="$ROOT/plugins/claude-ops/hooks/hook-events.registry.json"
 HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
+# The producer row is SHELL FORM carrying its own kill switch, so a consumer who
+# has not turned the log on pays one process (the shell Claude Code runs the
+# command in) per event instead of three: that shell, the `env` of the script's
+# shebang, and the bash it execs. hooks.json has no other way to read the
+# switch: `if` takes one permission rule and is evaluated only on tool events,
+# so it cannot see a plugin option, and the option reaches a hook only as
+# $CLAUDE_PLUGIN_OPTION_<KEY> in the environment.
+#
+# regen_rows pins every row it writes to `"shell": "bash"`. The Hooks reference
+# documents that field as "Defaults to `bash`, or to `powershell` on Windows
+# when Git Bash isn't installed" (https://code.claude.com/docs/en/hooks.md, the
+# `shell` field, verified 2026-09-15), under which this command's `[ ... ]`,
+# `$VAR` and `exec` all error: an unpinned row would error on every fire on
+# such a host instead of gating. Pinning removes that fallthrough; the sibling
+# markdown-format and disk-hygiene hooks.json files pin the same field for the
+# same reason. The gate stays POSIX-compatible syntax regardless (valid under
+# sh and under bash alike), and the option is spelled without braces
+# so no `${...}` substitution pass can touch it, unlike ${CLAUDE_PLUGIN_ROOT},
+# which Claude Code is meant to expand. The script keeps its own line-41
+# switch: it is what a direct invocation reads.
 # shellcheck disable=SC2016  # the literal hooks.json command text; Claude Code expands it, not this script
-PRODUCER='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
 RETENTION='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 RECHECK="each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
@@ -180,9 +200,9 @@ regen_rows() {
     def strip: map(select(any(.hooks[]?; .command == $prod or .command == $ret) | not));
     .hooks |= (with_entries(.value |= strip) | with_entries(select(.value | length > 0)))
     | reduce ($reg[0][] | select(.producer == "observe")) as $e (.;
-        .hooks[$e.name] = ((.hooks[$e.name] // []) + [{hooks: [{type: "command", command: $prod, timeout: 5,
-          statusMessage: ("Logging the " + $e.name + " event...")}]}]))
-    | .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [{type: "command", command: $ret,
+        .hooks[$e.name] = ((.hooks[$e.name] // []) + [{hooks: [{type: "command", command: $prod, shell: "bash",
+          timeout: 5, statusMessage: ("Logging the " + $e.name + " event...")}]}]))
+    | .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [{type: "command", command: $ret, shell: "bash",
         statusMessage: "Pruning the session event log..."}]}])
   ' "$2"
 }

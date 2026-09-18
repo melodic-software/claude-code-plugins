@@ -10,8 +10,11 @@ import contextlib
 import io
 import json
 import os
+import pathlib
 import shutil
+import subprocess
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -32,6 +35,24 @@ def _utc(y, m, d):
 
 def _skill(name, source="plugin"):
     return {"qualified_name": name, "source": source}
+
+
+def _write_json(path, blob):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(blob, handle)
+
+
+def _fleet(count=10, chars=1000):
+    """`count` competing skills, each with a `chars`-long description."""
+    return [
+        {
+            "qualified_name": f"a:{i}",
+            "frontmatter": {"description": "x" * chars},
+            "plugin_enabled": True,
+        }
+        for i in range(count)
+    ]
 
 
 class HorizonClampTest(unittest.TestCase):
@@ -218,18 +239,10 @@ class ReachabilityTest(unittest.TestCase):
     """
 
     def _row(self, **frontmatter):
-        now = _utc(2026, 8, 18)
         entry = _skill("a:one")
         entry["frontmatter"] = frontmatter
         entry["plugin_enabled"] = frontmatter.pop("_plugin_enabled", True)
-        model = engine.classify(
-            denominator=[entry],
-            events=[],
-            config=engine.Config(),
-            clock=now,
-            horizons={"native": now - timedelta(days=400)},
-        )
-        return model["skills"][0]["reachability"]
+        return self._classify_one(entry)["skills"][0]["reachability"]
 
     def test_disable_model_invocation_is_user_only_not_unused(self):
         reach = self._row(description="d", disable_model_invocation=True)
@@ -317,12 +330,6 @@ class ReachabilityTest(unittest.TestCase):
     # the listing keys use, so the precedence under test is the reader's, not
     # a hand-built layer list. Nothing here touches the real ~/.claude.
 
-    @staticmethod
-    def _write_json(path, blob):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(blob, handle)
-
     _NO_KEY = object()
 
     def _installed_reach(
@@ -354,7 +361,7 @@ class ReachabilityTest(unittest.TestCase):
         }
         for scope, block in (("user", user), ("project", project), ("local", local)):
             if block is not None:
-                self._write_json(paths[scope], {"enabledPlugins": block})
+                _write_json(paths[scope], {"enabledPlugins": block})
         for scope, text in (raw or {}).items():
             os.makedirs(os.path.dirname(paths[scope]), exist_ok=True)
             with open(paths[scope], "w", encoding="utf-8") as handle:
@@ -367,19 +374,19 @@ class ReachabilityTest(unittest.TestCase):
         plugin_manifest = {"name": "alpha", "version": "1.0.0"}
         if manifest is not self._NO_KEY:
             plugin_manifest["defaultEnabled"] = manifest
-        self._write_json(
+        _write_json(
             os.path.join(cache, ".claude-plugin", "plugin.json"), plugin_manifest
         )
         marketplace_root = os.path.join(tmp, "marketplaces", "mkt")
         catalog_entry = {"name": "alpha", "source": "./plugins/alpha"}
         if catalog is not self._NO_KEY:
             catalog_entry["defaultEnabled"] = catalog
-        self._write_json(
+        _write_json(
             os.path.join(marketplace_root, ".claude-plugin", "marketplace.json"),
             {"name": "mkt", "plugins": [catalog_entry]},
         )
         plugins_dir = os.path.join(tmp, "plugins-config")
-        self._write_json(
+        _write_json(
             os.path.join(plugins_dir, "known_marketplaces.json"),
             {
                 "mkt": {
@@ -388,7 +395,7 @@ class ReachabilityTest(unittest.TestCase):
                 }
             },
         )
-        self._write_json(
+        _write_json(
             os.path.join(plugins_dir, "installed_plugins.json"),
             {
                 "version": 2,
@@ -517,7 +524,7 @@ class ReachabilityTest(unittest.TestCase):
     def test_managed_policy_false_outranks_local_true(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = os.path.join(tmp, "managed", "managed-settings.json")
-            self._write_json(base, {"enabledPlugins": {"alpha@mkt": False}})
+            _write_json(base, {"enabledPlugins": {"alpha@mkt": False}})
             managed = engine.enumerate_managed_scope(
                 engine.managed_scope_lib_path(), override=base
             )
@@ -602,8 +609,6 @@ class ReachabilityFixtureTest(unittest.TestCase):
     """
 
     def test_four_skill_fixture_resolves_one_of_each(self):
-        import pathlib
-
         fixture = (
             pathlib.Path(__file__).parent.parent
             / "tests"
@@ -677,31 +682,15 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(listing["demand_chars"], 1536)
 
     def test_overflow_is_zero_when_demand_fits(self):
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 100},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
         cfg = engine.ListingConfig(context_window_tokens=200_000)
-        listing = engine.compute_listing(entries, cfg)
+        listing = engine.compute_listing(_fleet(chars=100), cfg)
         self.assertEqual(listing["overflow_chars"], 0)
         self.assertEqual(listing["verdict"], "listing-fits")
 
     def test_overflow_is_positive_and_exact_when_demand_exceeds(self):
         # 10 skills x 1000 chars = 10_000 demand against an 8_000 budget.
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 1000},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
         cfg = engine.ListingConfig(context_window_tokens=200_000)
-        listing = engine.compute_listing(entries, cfg)
+        listing = engine.compute_listing(_fleet(), cfg)
         self.assertEqual(listing["demand_chars"], 10_000)
         self.assertEqual(listing["overflow_chars"], 2_000)
         self.assertEqual(listing["verdict"], "overflowing")
@@ -713,12 +702,6 @@ class BudgetArithmeticTest(unittest.TestCase):
     # its scopes in a temporary tree and never touches the real ~/.claude.
 
     @staticmethod
-    def _write_json(path, blob):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(blob, handle)
-
-    @staticmethod
     def _managed_unreadable():
         return {"status": "unreadable", "lib": "n/a", "reason": "stubbed out"}
 
@@ -728,13 +711,11 @@ class BudgetArithmeticTest(unittest.TestCase):
         os.makedirs(config_root)
         os.makedirs(project_root)
         if user is not None:
-            self._write_json(os.path.join(config_root, "settings.json"), user)
+            _write_json(os.path.join(config_root, "settings.json"), user)
         if project is not None:
-            self._write_json(
-                os.path.join(project_root, ".claude", "settings.json"), project
-            )
+            _write_json(os.path.join(project_root, ".claude", "settings.json"), project)
         if local is not None:
-            self._write_json(
+            _write_json(
                 os.path.join(project_root, ".claude", "settings.local.json"), local
             )
         return project_root, config_root
@@ -835,18 +816,18 @@ class BudgetArithmeticTest(unittest.TestCase):
                 tmp, local={"skillListingBudgetFraction": 0.03}
             )
             base = os.path.join(tmp, "managed", "managed-settings.json")
-            self._write_json(base, {"skillListingBudgetFraction": 0.04})
+            _write_json(base, {"skillListingBudgetFraction": 0.04})
             dropin = os.path.join(tmp, "managed", "managed-settings.d")
-            self._write_json(
+            _write_json(
                 os.path.join(dropin, "10-first.json"),
                 {"skillListingBudgetFraction": 0.06},
             )
-            self._write_json(
+            _write_json(
                 os.path.join(dropin, "20-second.json"),
                 {"skillListingBudgetFraction": 0.07},
             )
             # Hidden files are ignored per the documented merge.
-            self._write_json(
+            _write_json(
                 os.path.join(dropin, ".hidden.json"),
                 {"skillListingBudgetFraction": 0.99},
             )
@@ -890,17 +871,6 @@ class BudgetArithmeticTest(unittest.TestCase):
         base.update(pins)
         return base
 
-    @staticmethod
-    def _fleet(count=10, chars=1000):
-        return [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * chars},
-                "plugin_enabled": True,
-            }
-            for i in range(count)
-        ]
-
     def _project_fraction_layers(self, tmp, fraction):
         project_root, config_root = self._scopes(
             tmp, project={"skillListingBudgetFraction": fraction}
@@ -911,7 +881,7 @@ class BudgetArithmeticTest(unittest.TestCase):
 
     def test_unpinned_run_carries_four_labelled_rows_and_names_no_session(self):
         cfg, axes = engine.build_listing_inputs(self._no_pins(), {}, [])
-        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        listing = engine.compute_listing_band(_fleet(), cfg, axes)
         self.assertEqual(
             [row["label"] for row in listing["band"]],
             ["200k/4", "200k/3", "1M/4", "1M/3"],
@@ -943,7 +913,7 @@ class BudgetArithmeticTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             layers = self._project_fraction_layers(tmp, 0.05)
             cfg, axes = engine.build_listing_inputs(self._no_pins(), {}, layers)
-            listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+            listing = engine.compute_listing_band(_fleet(), cfg, axes)
             expected_path = os.path.join(tmp, "repo", ".claude", "settings.json")
         row = next(r for r in listing["band"] if r["label"] == "1M/4")
         self.assertEqual(row["budget_chars"], 200_000)
@@ -959,7 +929,7 @@ class BudgetArithmeticTest(unittest.TestCase):
             cfg, axes = engine.build_listing_inputs(
                 self._no_pins(), {"SLASH_COMMAND_TOOL_CHAR_BUDGET": "1234"}, layers
             )
-        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        listing = engine.compute_listing_band(_fleet(), cfg, axes)
         self.assertEqual(listing["budget_chars"], 1234)
         self.assertEqual(listing["budget_basis"], "env-override")
         self.assertNotIn("band", listing)
@@ -974,7 +944,7 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(
             axes.inputs["windows"]["provenance"], "env:CLAUDE_CODE_DISABLE_1M_CONTEXT"
         )
-        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        listing = engine.compute_listing_band(_fleet(), cfg, axes)
         self.assertEqual([r["label"] for r in listing["band"]], ["200k/4", "200k/3"])
 
     def test_a_non_truthy_disable_1m_has_no_effect(self):
@@ -1005,7 +975,7 @@ class BudgetArithmeticTest(unittest.TestCase):
             with_compact.inputs["windows"]["provenance"],
             "env:CLAUDE_CODE_MAX_CONTEXT_TOKENS",
         )
-        listing = engine.compute_listing_band(self._fleet(), cfg, with_compact)
+        listing = engine.compute_listing_band(_fleet(), cfg, with_compact)
         self.assertEqual(
             [r["label"] for r in listing["band"]], ["500,000/4", "500,000/3"]
         )
@@ -1014,7 +984,7 @@ class BudgetArithmeticTest(unittest.TestCase):
         cfg, axes = engine.build_listing_inputs(
             self._no_pins(context_window=200_000, bytes_per_token=4), {}, []
         )
-        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        listing = engine.compute_listing_band(_fleet(), cfg, axes)
         self.assertNotIn("band", listing)
         self.assertEqual(listing["label"], "200k/4")
         self.assertEqual(listing["budget_chars"], 8_000)
@@ -1028,7 +998,7 @@ class BudgetArithmeticTest(unittest.TestCase):
         cfg, axes = engine.build_listing_inputs(
             self._no_pins(bytes_per_token=3), {}, []
         )
-        listing = engine.compute_listing_band(self._fleet(), cfg, axes)
+        listing = engine.compute_listing_band(_fleet(), cfg, axes)
         self.assertEqual([r["label"] for r in listing["band"]], ["200k/3", "1M/3"])
         self.assertEqual(listing["band"][0]["budget_chars"], 6_000)
 
@@ -1501,14 +1471,7 @@ class ListingScoreTest(unittest.TestCase):
 
     def test_all_zero_scores_report_an_unscored_basis(self):
         """A catalog-order tiebreak must not be labelled a usage ranking."""
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 1000},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
+        entries = _fleet()
         listing = engine.compute_listing(
             entries, engine.ListingConfig(context_window_tokens=200_000)
         )
@@ -1527,14 +1490,7 @@ class ListingScoreTest(unittest.TestCase):
     def test_unscored_overflow_withholds_once_for_the_run(self):
         """The refusal is one run-level entry, not one per starved skill."""
         now = _utc(2026, 8, 31)
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 1000},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
+        entries = _fleet()
         model = engine.classify(
             denominator=entries,
             events=[],
@@ -1580,14 +1536,7 @@ class ListingScoreTest(unittest.TestCase):
 
     def test_band_mode_withholds_the_rows_that_overflow(self):
         """A band row can be unscored too, and each row answers for itself."""
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 1000},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
+        entries = _fleet()
         cfg = engine.ListingConfig()
         axes = engine.ListingAxes(
             windows=(200_000, 1_000_000), bytes_per_tokens=(4,), inputs={}
@@ -1608,14 +1557,7 @@ class ListingScoreTest(unittest.TestCase):
     def test_classify_scores_the_band_from_native_counters(self):
         """Regression: the band used to sort on a field nothing populated."""
         now = _utc(2026, 8, 31)
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 1000},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
+        entries = _fleet()
         # Counts ascend with the index, so the band must descend with it.
         events = [
             {"skill": f"a:{i}", "ts": now, "source": "native", "count": (i + 1) * 10}
@@ -1650,14 +1592,7 @@ class ScoreBasisScopeTest(unittest.TestCase):
         pure catalog ordering got dressed as `inferential`. That is the defect
         this whole report exists to expose, one scope up.
         """
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 1000},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
+        entries = _fleet()
         entries.append(
             {
                 "qualified_name": "a:manual",
@@ -1900,8 +1835,6 @@ class ChurnGitReaderTest(unittest.TestCase):
     """
 
     def setUp(self):
-        import subprocess
-
         if not shutil.which("git"):
             self.skipTest("git not available")
         self.tmp = tempfile.mkdtemp()
@@ -1914,12 +1847,9 @@ class ChurnGitReaderTest(unittest.TestCase):
         self.run("git", "config", "commit.gpgsign", "false")
 
     def tearDown(self):
-
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _write(self, name, text):
-        import pathlib
-
         pathlib.Path(self.tmp, name).write_text(text, encoding="utf-8")
 
     def test_follow_survives_a_rename_and_plain_log_does_not(self):
@@ -1941,8 +1871,6 @@ class ChurnGitReaderTest(unittest.TestCase):
         )
 
     def test_authored_at_is_committer_date_not_filesystem_mtime(self):
-        import time
-
         self._write("a.md", "one")
         self.run("git", "add", "a.md")
         self.run("git", "commit", "-qm", "first")
@@ -2015,8 +1943,6 @@ class ReportPathTest(unittest.TestCase):
             engine.report_path(data_root="", state_key="k", stamp="s")
 
     def test_history_line_is_appended_not_overwritten(self):
-        import pathlib
-
         with tempfile.TemporaryDirectory() as tmp:
             hist = pathlib.Path(tmp, "history.jsonl")
             engine.append_history(str(hist), {"run": 1})
@@ -2139,14 +2065,7 @@ class OverflowConsumptionTest(unittest.TestCase):
         Same ten rows as the floor test, with every usage score stripped. The
         overflow and the starved count are identical, and not one row is named.
         """
-        entries = [
-            {
-                "qualified_name": f"a:{i}",
-                "frontmatter": {"description": "x" * 1000},
-                "plugin_enabled": True,
-            }
-            for i in range(10)
-        ]
+        entries = _fleet()
         unscored = engine.compute_listing(
             entries, engine.ListingConfig(context_window_tokens=200_000)
         )
@@ -2287,8 +2206,6 @@ class CollectFleetTest(unittest.TestCase):
     """The live denominator walk."""
 
     def test_walks_plugins_into_qualified_names(self):
-        import pathlib
-
         with tempfile.TemporaryDirectory() as tmp:
             skill = pathlib.Path(tmp, "myplugin", "skills", "myskill")
             skill.mkdir(parents=True)
@@ -2304,8 +2221,6 @@ class CollectFleetTest(unittest.TestCase):
         """A checkout is not an install: the walk carries no enablement and
         says so, because guessing would libel a disabled plugin's skills as
         reachable and `unknown` would claim a source that does not exist."""
-        import pathlib
-
         with tempfile.TemporaryDirectory() as tmp:
             skill = pathlib.Path(tmp, "p", "skills", "s")
             skill.mkdir(parents=True)
@@ -2564,12 +2479,6 @@ class CollectInstalledTest(unittest.TestCase):
     """
 
     @staticmethod
-    def _write(path, blob):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(blob, handle)
-
-    @staticmethod
     def _skill(root, plugin, leaf, description):
         d = os.path.join(root, plugin, "skills", leaf)
         os.makedirs(d, exist_ok=True)
@@ -2581,11 +2490,11 @@ class CollectInstalledTest(unittest.TestCase):
             checkout = os.path.join(tmp, "repo")
             plugins_dir = os.path.join(tmp, "plugins-config")
             self._skill(os.path.join(checkout, "plugins"), "alpha", "one", "does a")
-            self._write(
+            _write_json(
                 os.path.join(checkout, ".claude-plugin", "marketplace.json"),
                 {"plugins": [{"name": "alpha", "source": "./plugins/alpha"}]},
             )
-            self._write(
+            _write_json(
                 os.path.join(plugins_dir, "known_marketplaces.json"),
                 {
                     "mkt": {
@@ -2594,7 +2503,7 @@ class CollectInstalledTest(unittest.TestCase):
                     }
                 },
             )
-            self._write(
+            _write_json(
                 os.path.join(plugins_dir, "installed_plugins.json"),
                 {
                     "version": 2,
@@ -2627,7 +2536,7 @@ class CollectInstalledTest(unittest.TestCase):
             plugins_dir = os.path.join(tmp, "cfg")
             cache = os.path.join(tmp, "cache")
             self._skill(cache, "beta", "two", "does b")
-            self._write(
+            _write_json(
                 os.path.join(plugins_dir, "installed_plugins.json"),
                 {
                     "version": 2,

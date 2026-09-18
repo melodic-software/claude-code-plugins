@@ -150,7 +150,10 @@ No hardcoded marketplace name anywhere in this skill. Every action resolves its 
   `installed_plugins.json`'s install records, never a hardcoded name).
 - `<marketplace-name>` argument → that marketplace only.
 - `all` argument → every marketplace in `known_marketplaces.json`; per-marketplace failures are
-  reported inline and never abort the sweep (see [context/sync.md](context/sync.md)).
+  reported inline and never abort the sweep (see [context/sync.md](context/sync.md)). **`all` also
+  multiplies the `install_new` policy across every catalog**: under a rendered policy of `all` this
+  target installs every plugin published in every known marketplace. Confirm the resolved install
+  gap with a human first, per "userConfig: `install_new`" below.
 
 ## State inspection
 
@@ -159,7 +162,10 @@ through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map
 `normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
 `known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
 extraction where a script's `--ids` form exists. `sync-run.sh` calls all three during `sync` and
-`audit`. Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
+`audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
+carries the CR-stripping `jq` capture and the JSON string encoder that `fleet-state.sh`,
+`cache-content-check.sh`, and `sync-run.sh` each source from their own directory.
+Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
 when `converge` needs an id list, or before invoking one of the scripts from anywhere other than
 `sync-run.sh`; it carries each script's invocation forms and the `\r` rule behind `--ids`.
 
@@ -266,6 +272,19 @@ schema has no `enum` type. Verified against the published schema), default `"ask
 
 Any explicitly-set value other than these three is invalid; treat it as `ask` and note the invalid
 value in the report.
+
+**`all` is scoped to the marketplace target, and the target is what makes it safe or catastrophic.**
+Against the default marketplace, the one whose fleet the operator curates, the gap is normally zero
+or a handful and `all` is the intended convenience. Against a multi-marketplace target (`all`, or a
+named third-party catalog) the same word means "install every plugin published in every catalog this
+machine knows about." One observed run installed 2,231 plugins before it was killed; see
+[context/gotchas.md](context/gotchas.md)'s "`--all` with `install_new: all` is a mass install of
+every catalog". **When the marketplace target is `all` and the rendered policy is `all`, do not
+proceed unattended:** resolve the total install gap first (one `audit all`, or `fleet-state.sh
+--marketplace <name> --ids missing-user-install` per marketplace, which is the selector
+`sync-run.sh` itself projects for Step 4), state the number, and get an explicit human yes. Treat the
+configured value as written with the operator's own marketplace in mind, and downgrade to `ask` when
+no human is present to receive the count.
 
 **Configured value: `${user_config.install_new}`**. Claude Code text-substitutes a `userConfig`
 value into this skill's content before the model sees the rendered skill, but **only when the key is

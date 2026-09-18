@@ -6,9 +6,7 @@ Tests for scripts/windows/lib/Get-CheckSelection.ps1 -- cadence-aware selection.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-CheckSelection.ps1')
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CheckSelection.ps1'
 
     $script:Now = [datetime]::new(2026, 7, 12, 12, 0, 0, [System.DateTimeKind]::Utc)
 

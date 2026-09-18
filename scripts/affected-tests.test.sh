@@ -71,6 +71,13 @@ mk_repo() { # <out-var>
   mkdir -p "$dir/lib" "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
 
+  # --jobs N delegates to the SIBLING run-plugin-tests.sh rather than spawning
+  # anything itself, so the fixture carries that sibling too. Its serial
+  # allowlist is empty here: the shipped one names suites this fixture does not
+  # have, and the runner rejects a stale entry rather than ignoring it.
+  cp "$REPO_ROOT/scripts/run-plugin-tests.sh" "$dir/scripts/run-plugin-tests.sh"
+  : >"$dir/scripts/run-plugin-tests-serial.txt"
+
   # A sync manifest that publishes via --print-manifest, with a GLOB copy
   # pattern expanded at invocation time. The selector must read the copy set
   # from that surface rather than knowing the plugin names.
@@ -455,6 +462,38 @@ if [[ "$RC" -eq 0 ]] && grep -q 'lib-widget' "$marker" && grep -q 'beta-hook' "$
 else
   fail "--run did not execute the selection (rc=$RC): $(cat "$marker")"
 fi
+
+# --- --run --jobs N hands the same selection to run-plugin-tests.sh ---------
+#
+# The property is that the SET of suites executed does not change with the job
+# count; only how many run at once does. A second parallel runner living here
+# is what this option exists to avoid, so the delegation is what is checked:
+# run-plugin-tests.sh owns the worker, the print lock and the serial allowlist.
+: >"$marker"
+(cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run --jobs 3 lib/widget.sh >/dev/null 2>&1)
+RC=$?
+if [[ "$RC" -eq 0 ]] && grep -q 'lib-widget' "$marker" && grep -q 'beta-hook' "$marker"; then
+  ok "--run --jobs 3 executes the same selection as --run"
+else
+  fail "--run --jobs 3 did not execute the selection (rc=$RC): $(cat "$marker")"
+fi
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --run --jobs 3 lib/widget.sh 2>&1)"
+if printf '%s' "$out" | grep -q 'across up to 3 job(s)'; then
+  ok "--jobs 3 announces the concurrency rather than claiming sequential"
+else
+  fail "--jobs 3 did not report running across jobs: $out"
+fi
+
+for bad in 0 x '' -1; do
+  (cd "$repo" && bash scripts/affected-tests.sh --run --jobs "$bad" lib/widget.sh >/dev/null 2>&1)
+  RC=$?
+  if [[ "$RC" -eq 2 ]]; then
+    ok "--jobs '$bad' is a usage error, not leg 1 of 1 (rc=2)"
+  else
+    fail "--jobs '$bad' should exit 2, got rc=$RC"
+  fi
+done
 
 # --- --shard is a partition, not a filter -----------------------------------
 # The claim CI makes when it fans one selection across four runners is that the
@@ -1178,13 +1217,22 @@ test_linux_block="$(awk '
   job == "test-linux"
 ' "$live_ci")"
 # shellcheck disable=SC2016 # deliberate: these are workflow literals to match, not shell expansions.
-if grep -q 'affected-tests\.sh --run --shard "\$LEG/\$LEGS"' <<<"$test_linux_block" &&
+if grep -q 'affected-tests\.sh --run --jobs 3 --shard "\$LEG/\$LEGS"' <<<"$test_linux_block" &&
   grep -q '^    strategy:' <<<"$test_linux_block" &&
   grep -q 'LEG: \${{ strategy\.job-index }}' <<<"$test_linux_block" &&
   grep -q 'LEGS: \${{ strategy\.job-total }}' <<<"$test_linux_block"; then
-  ok "ci.yml test-linux declares a matrix and passes the leg through to --shard"
+  ok "ci.yml test-linux declares a matrix, runs three suites at a time, and passes the leg through to --shard"
 else
-  fail "ci.yml test-linux no longer fans the affected selection across a matrix"
+  fail "ci.yml test-linux no longer fans the affected selection across a matrix at --jobs 3"
+fi
+
+# --- ci.yml never asks for more than the proven three ------------------------
+# #3694: at --jobs 4 three separate suites failed by producing empty output from
+# an external command. Three is the ceiling, on either path.
+if grep -qE -- '--jobs ([04-9]|[1-9][0-9]+)' "$live_ci"; then
+  fail "ci.yml passes a --jobs count other than 3: $(grep -oE -- '--jobs [0-9]+' "$live_ci" | sort -u | tr '\n' ' ')"
+else
+  ok "ci.yml asks for no more than the proven three concurrent suites (#3694)"
 fi
 
 # --- --help reaches the actual end of the header -----------------------------

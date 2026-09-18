@@ -45,20 +45,13 @@ for fn in wit_require_linear_id wit_need_linear_config \
   wit_linear_auth_header wit_linear_http \
   wit_linear_require_ok wit_linear_unimplemented \
   wit_help_if_requested; do
-  if declare -F "$fn" >/dev/null; then
-    pass "common.sh exposes $fn"
-  else
-    fail "common.sh exposes $fn" "declared" "missing"
-  fi
+  assert_succeeds "common.sh exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
 # --- id grammar: foreign providers are refused before any I/O ---
 
-if wit_require_linear_id "github:o/r#1"; then
-  fail "rejects foreign-provider id" "reject" "accepted"
-else
-  pass "rejects foreign-provider id"
-fi
+assert_fails "rejects foreign-provider id" "reject" "accepted" \
+  wit_require_linear_id "github:o/r#1"
 if wit_require_linear_id "linear:acme/ENG#12"; then
   pass "accepts a linear id and sets the WIT_ID_* globals"
   assert_eq "id number" "12" "$WIT_ID_NUMBER"
@@ -69,16 +62,10 @@ fi
 # --- scope membership is the authorization boundary ---
 
 WIT_LINEAR_SCOPES='["acme/ENG"]'
-if wit_linear_scope_in_scope "acme/ENG"; then
-  pass "declared scope accepted"
-else
-  fail "declared scope accepted" "in" "out"
-fi
-if wit_linear_scope_in_scope "undeclared/elsewhere"; then
-  fail "undeclared scope refused" "out" "in"
-else
-  pass "undeclared scope refused"
-fi
+assert_succeeds "declared scope accepted" "in" "out" \
+  wit_linear_scope_in_scope "acme/ENG"
+assert_fails "undeclared scope refused" "out" "in" \
+  wit_linear_scope_in_scope "undeclared/elsewhere"
 
 # --- HTTP status → contract exit code ---
 

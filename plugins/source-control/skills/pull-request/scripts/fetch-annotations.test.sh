@@ -25,7 +25,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=../../../scripts/test-helpers.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../scripts" && pwd)/test-helpers.sh"
+source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 # Skip suite if jq missing — script depends on it.
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
@@ -255,12 +255,8 @@ fi
 # this is the only place its value can be pinned. The fixture's check-run 200 is
 # named "test".
 name_val=$(printf '%s' "$out" | head -1 | jq -r '.check_run_name')
-if [[ "$name_val" == "test" ]]; then
-  pass "check_run_name carries the check run's name, not a stringified null"
-else
-  fail "check_run_name carries the check run's name, not a stringified null" \
-    "test" "$name_val"
-fi
+assert_eq "check_run_name carries the check run's name, not a stringified null" \
+  "test" "$name_val"
 
 # Case 9: --help emits the whole banner. usage() slices the header comment block
 # out of the script itself, so pinning the LAST banner line is what keeps a later

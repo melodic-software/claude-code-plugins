@@ -25,7 +25,7 @@ source "$PLUGIN_ROOT/scripts/test-helpers.sh"
 
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 
-owner_text="$(cat "$PLUGIN_ROOT/$OWNER_REL")"
+owner_text="$(<"$PLUGIN_ROOT/$OWNER_REL")"
 
 # Lists the plugin files containing a fixed string, with the exclusion set every
 # case needs: CHANGELOG.md (see above) and this test, which necessarily quotes

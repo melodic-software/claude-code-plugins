@@ -167,7 +167,7 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local subject data
-  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::extract_bash_subject_to subject "$TOOL_NAME" "$COMMAND"
   hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-exported-msys-pathconv" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
@@ -198,6 +198,30 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long"
 fi
 
+# One layer of surrounding quoting stripped from $2 into the variable named by
+# $1. Both token walks below normalize every token BEFORE any matching, because
+# a suppressor assignment, a launcher, or a shell is recognized by what it IS,
+# not how it is spelled: a fully quoted `'bash'` or `"bash.exe"`, and a
+# quote-leading `"MSYS_NO_PATHCONV=1` (the first word of a quoted child command
+# string), all leaked through earlier literal-spelling checks.
+unquote_token_to() {
+  local __t="$2"
+  __t="${__t#\'}"
+  __t="${__t#\"}"
+  __t="${__t%\'}"
+  __t="${__t%\"}"
+  printf -v "$1" '%s' "$__t"
+}
+
+# The command word a token names, into the variable named by $1: its basename
+# under either path separator, with a `.exe` suffix dropped. Both walks judge a
+# candidate command word by this, never by the spelling in the command string.
+token_basename_to() {
+  local __b="${2##*/}"
+  __b="${__b##*\\}"
+  printf -v "$1" '%s' "${__b%.exe}"
+}
+
 # True when the command names a POSIX-shell word (or eval) as a token basename.
 # Used to pick the matching mode for is_exported_suppressor: with a shell in
 # the command string, quoted text can be handed to it and EXECUTE, so an export
@@ -209,15 +233,8 @@ contains_shell_word() {
   # shellcheck disable=SC2206
   tokens=($s)
   for tok in "${tokens[@]}"; do
-    # Strip quoting on BOTH sides: a fully quoted word ('bash', "bash.exe")
-    # must normalize to its bare spelling, or the quote defeats the match.
-    tok="${tok#\'}"
-    tok="${tok#\"}"
-    tok="${tok%\'}"
-    tok="${tok%\"}"
-    base="${tok##*/}"
-    base="${base##*\\}"
-    base="${base%.exe}"
+    unquote_token_to tok "$tok"
+    token_basename_to base "$tok"
     case "$base" in
     bash | sh | dash | zsh | ksh | eval) return 0 ;;
     *) ;;
@@ -282,22 +299,11 @@ leaks_into_child_shell() {
   # shellcheck disable=SC2206
   tokens=($s)
   for tok in "${tokens[@]}"; do
-    # Strip quoting from BOTH sides of every token before any matching — a
-    # suppressor assignment, a launcher, or a shell is recognized by what it
-    # is, not how it is spelled. `/usr/bin/env bash`, a quoted `'bash'`, and
-    # a quote-leading `"MSYS_NO_PATHCONV=1` (the first word of a quoted child
-    # command string) all leaked through earlier literal-spelling checks.
-    tok="${tok#\'}"
-    tok="${tok#\"}"
-    tok="${tok%\'}"
-    tok="${tok%\"}"
+    unquote_token_to tok "$tok"
     if ((seen)); then
       # Still in the prefix: further NAME=value assignments keep it open.
       [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
-      # Judge every candidate command word by its BASENAME.
-      base="${tok##*/}"
-      base="${base##*\\}"
-      base="${base%.exe}"
+      token_basename_to base "$tok"
       case "$base" in
       # Launchers that re-exec their argument keep the prefix open, as do
       # their option flags (`env -i`, `command -p`, ...). Treating an option

@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Changed
+
+- check-skill.sh measures name and description length through one codepoint helper in skill-frontmatter.sh and looks up baseline and evals records through one path-list helper; check-listing-budget.sh folds its usage banner into a single awk pass. Findings and exit codes are unchanged.
+
 ## [0.23.0]
 
 ### Removed

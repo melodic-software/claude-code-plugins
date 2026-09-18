@@ -8,6 +8,12 @@
 # unrunnable harness is exactly the defect that let #2521's measurements go
 # unreproducible (#2582).
 #
+# The lane runs are GATED on BENCH_LANES: running a lane is running a benchmark
+# however small its parameters, so an ordinary CI run stops after the lib
+# assertions and reports the lanes as skipped coverage. BENCH_LANES=1 runs them
+# — locally, or in CI through ci.yml's `bench_lanes` dispatch input, which is
+# the deliberate run the #2582 guard rests on.
+#
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
 
@@ -26,10 +32,16 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
+# One summary shape for both exits: the gated stop after the lib assertions and
+# the full run.
+summary() {
+  echo
+  echo "PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]
+}
 
 WORK="$(mktemp -d)"
-cleanup() { rm -rf "$WORK"; }
-trap cleanup EXIT
+trap 'rm -rf "$WORK"' EXIT
 
 # Small spawn floors everywhere: the floor's VALUE is irrelevant here, only
 # that the lanes run end to end.
@@ -76,6 +88,25 @@ if [[ $RC -ne 0 && "$OUT" == *"requires bash >= 5.0"* ]]; then
   ok "lib: missing EPOCHREALTIME is a loud refusal, not an unbound-variable abort"
 else
   fail "lib: EPOCHREALTIME guard rc=$RC out=$OUT"
+fi
+
+# --- the gate ----------------------------------------------------------------
+# Everything above asserts pure functions and costs milliseconds. Everything
+# below SPAWNS the lanes, which is a benchmark run whatever the parameters, and
+# is the only part of this suite that spends real wall-clock seconds on a
+# shared runner.
+#
+# The deferral prints a SKIP line rather than counting an ok. scripts/
+# run-plugin-tests.sh reads `^SKIP:` and names the suite under "Suites with
+# skipped coverage (exit 0 here is NOT evidence those cases ran)", which is
+# what this is: five cases that did not run. An ok would make the aggregate
+# read as full coverage. --strict-skips therefore fails here, correctly — a
+# caller declaring a fully provisioned environment is asking for every case to
+# run, and BENCH_LANES=1 is how it gets them.
+if [[ -z "${BENCH_LANES:-}" ]]; then
+  echo "SKIP: bench lanes deferred; set BENCH_LANES=1 to run them"
+  summary
+  exit
 fi
 
 # --- bench-idle: smoke run against the repo tee, isolated HOME ---------------
@@ -133,6 +164,4 @@ else
   fail "trace-probe: rc=$RC out=${OUT:0:400}"
 fi
 
-echo
-echo "PASS=$PASS FAIL=$FAIL"
-[[ $FAIL -eq 0 ]]
+summary

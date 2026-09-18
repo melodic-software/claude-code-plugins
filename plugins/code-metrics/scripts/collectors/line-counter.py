@@ -23,10 +23,10 @@ import json
 import os
 import sys
 
-from adapter_paths import files_from
+from adapter_paths import dispatch, require_python
 
-MIN_PYTHON = (3, 9)
 NAME = "line-counter"
+INSTALL_HINT = "bundled with the plugin; nothing to install"
 
 
 def count(path: str) -> dict[str, int]:
@@ -44,61 +44,51 @@ def count(path: str) -> dict[str, int]:
     }
 
 
-def main(argv: list[str]) -> int:
-    if not argv:
-        print(
-            "usage: line-counter.py probe|measures|collect <lane> <measure> <file>...|install_hint",
-            file=sys.stderr,
-        )
+def probe() -> int:
+    if os.environ.get("CODE_METRICS_DISABLE_BUNDLED"):
+        print("disabled by CODE_METRICS_DISABLE_BUNDLED", file=sys.stderr)
+        return 1
+    print("bundled")
+    return 0
+
+
+def measures() -> None:
+    print("*/file_lines")
+
+
+def collect(lane: str, measure: str, files: list[str]) -> int:
+    if measure != "file_lines":
+        print(f"line-counter.py: cannot collect {measure}", file=sys.stderr)
         return 2
-    verb, rest = argv[0], argv[1:]
-    if verb == "probe":
-        if os.environ.get("CODE_METRICS_DISABLE_BUNDLED"):
-            print("disabled by CODE_METRICS_DISABLE_BUNDLED", file=sys.stderr)
-            return 1
-        print("bundled")
-        return 0
-    if verb == "measures":
-        print("*/file_lines")
-        return 0
-    if verb == "install_hint":
-        print("bundled with the plugin; nothing to install")
-        return 0
-    if verb == "collect":
-        if len(rest) < 2:
-            print(
-                "usage: line-counter.py collect <lane> <measure> <file>...",
-                file=sys.stderr,
-            )
-            return 2
-        lane, measure, files = rest[0], rest[1], files_from(rest[2:])
-        if measure != "file_lines":
-            print(f"line-counter.py: cannot collect {measure}", file=sys.stderr)
-            return 2
-        for path in files:
-            try:
-                values = count(path)
-            except OSError as exc:
-                print(f"line-counter.py: {path}: {exc}", file=sys.stderr)
-                return 3
-            row = {
-                "file": path.replace("\\", "/"),
-                "function": None,
-                "lane": lane,
-                "values": values,
-                "collector": NAME,
-                "labels": ["comment-agnostic"],
-            }
-            print(json.dumps(row))
-        return 0
-    print(f"line-counter.py: unknown verb {verb}", file=sys.stderr)
-    return 2
+    for path in files:
+        try:
+            values = count(path)
+        except OSError as exc:
+            print(f"line-counter.py: {path}: {exc}", file=sys.stderr)
+            return 3
+        row = {
+            "file": path.replace("\\", "/"),
+            "function": None,
+            "lane": lane,
+            "values": values,
+            "collector": NAME,
+            "labels": ["comment-agnostic"],
+        }
+        print(json.dumps(row))
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    return dispatch(
+        NAME,
+        argv,
+        probe=probe,
+        measures=measures,
+        install_hint=INSTALL_HINT,
+        collect=collect,
+    )
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        print(
-            "line-counter.py needs Python %d.%d or later" % MIN_PYTHON, file=sys.stderr
-        )
-        sys.exit(2)
+    require_python(f"{NAME}.py")
     sys.exit(main(sys.argv[1:]))

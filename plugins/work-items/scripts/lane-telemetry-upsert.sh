@@ -116,50 +116,36 @@ ISSUE=""
 BODY_FILE=""
 while (($#)); do
   case "$1" in
+  # `--opt=value` is normalized into the two-slot `--opt value` form and re-read
+  # on the next pass by that option's own arm. Only known options are listed
+  # here, so an unknown `--bogus=x` still reaches the catch-all intact.
+  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=*)
+    set -- "${1%%=*}" "${1#*=}" "${@:2}"
+    ;;
   --lane)
     require_value "$@"
     LANE="$2"
     shift 2
-    ;;
-  --lane=*)
-    LANE="${1#*=}"
-    shift
     ;;
   --instance)
     require_value "$@"
     INSTANCE="$2"
     shift 2
     ;;
-  --instance=*)
-    INSTANCE="${1#*=}"
-    shift
-    ;;
   --repo)
     require_value "$@"
     REPO="$2"
     shift 2
-    ;;
-  --repo=*)
-    REPO="${1#*=}"
-    shift
     ;;
   --issue)
     require_value "$@"
     ISSUE="$2"
     shift 2
     ;;
-  --issue=*)
-    ISSUE="${1#*=}"
-    shift
-    ;;
   --body-file)
     require_value "$@"
     BODY_FILE="$2"
     shift 2
-    ;;
-  --body-file=*)
-    BODY_FILE="${1#*=}"
-    shift
     ;;
   -h | --help)
     usage
@@ -256,9 +242,8 @@ BODY_TEXT="$(cat "$BODY_FILE")"
 # measured over everything below line 1, so the gate reads the same whether that
 # line ends in LF or CRLF.
 sentinel_ok() {
-  local text="$1" head_bytes payload_bytes
-  head_bytes="$(printf '%s' "$text" | head -c "${#SENT}")"
-  [[ "$head_bytes" == "$SENT" ]] || return 1
+  local text="$1" payload_bytes
+  [[ "$text" == "$SENT"* ]] || return 1
   payload_bytes="$(printf '%s' "$text" | tail -n +2 | wc -c | tr -d ' ')"
   ((payload_bytes >= MIN_PAYLOAD_BYTES))
 }
@@ -276,7 +261,7 @@ fi
 lookup() {
   local pages ids
   pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" 2>/dev/null)" || return 1
-  ids="$(jq -r --arg s "$SENT" '[.[] | select((.body // "") | startswith($s)) | .id] | .[]' <<<"$pages" 2>/dev/null)" || return 1
+  ids="$(jq -r --arg s "$SENT" '.[] | select((.body // "") | startswith($s)) | .id' <<<"$pages" 2>/dev/null)" || return 1
   printf '%s\n' "$ids"
 }
 
@@ -292,7 +277,9 @@ if [[ -z "${LIST//[[:space:]]/}" ]]; then
   LIST="$(lookup)" || LIST=""
 fi
 
-CANON="$(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n | head -n1)"
+SORTED="$(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n)"
+mapfile -t IDS <<<"$SORTED"
+CANON="${IDS[0]:-}"
 if [[ -z "$CANON" ]]; then
   err "no comment available to write to (a create may have landed but was not re-found) - treat the lane as UNREPORTED and carry that forward to the next cycle"
   exit 12
@@ -317,7 +304,7 @@ fi
 
 # --- Duplicate supersede (only after a verified canonical write) -------------
 # `-f body=` here, not `-F body=@`: the tombstone is a literal string, not a file.
-for dup in $(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n | tail -n +2); do
+for dup in "${IDS[@]:1}"; do
   gh api --method PATCH "repos/$REPO/issues/comments/$dup" \
     -f body="Superseded duplicate - canonical telemetry comment: $CANON" >/dev/null 2>&1 || true
 done

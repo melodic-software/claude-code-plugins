@@ -13,21 +13,21 @@ and the host PATH cannot leak into the result.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:SkillRoot = Split-Path -Parent $script:TestsRoot
-    $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\checks\Test-EnvironmentHealth.ps1'
-    $script:LibRoot = Join-Path $script:SkillRoot 'scripts\windows\lib'
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-EnvironmentHealth' `
+        -AsObject 'Invoke-EnvironmentHealthAsObject' -MockHelpers
     $script:FixtureRoot = Join-Path $script:TestsRoot 'fixtures\windows\Environment'
-    . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
-    . (Join-Path $script:TestsRoot 'helpers\Invoke-CheckScript.ps1')
+
+    function Expand-FixtureToken {
+        param([string] $Value, [hashtable] $TokenMap)
+        foreach ($t in $TokenMap.Keys) {
+            $Value = $Value.Replace("{$t}", $TokenMap[$t])
+        }
+        return $Value
+    }
 
     function Expand-FixturePathValue {
         param($Spec, [hashtable] $TokenMap)
-        $value = [string]$Spec.value
-        foreach ($t in $TokenMap.Keys) {
-            $value = $value.Replace("{$t}", $TokenMap[$t])
-        }
+        $value = Expand-FixtureToken -Value ([string]$Spec.value) -TokenMap $TokenMap
         $padTo = 0
         if ($Spec.PSObject.Properties['pad_to'] -and $null -ne $Spec.pad_to) {
             $padTo = [int]$Spec.pad_to
@@ -77,11 +77,7 @@ BeforeAll {
 
         $processParts = @()
         foreach ($part in @($doc.process_path)) {
-            $expanded = [string]$part
-            foreach ($t in $tokenMap.Keys) {
-                $expanded = $expanded.Replace("{$t}", $tokenMap[$t])
-            }
-            $processParts += $expanded
+            $processParts += Expand-FixtureToken -Value ([string]$part) -TokenMap $tokenMap
         }
 
         return [pscustomobject]@{
@@ -107,10 +103,8 @@ BeforeAll {
         )
     }
 
-    function Invoke-EnvironmentHealthAsObject { Invoke-CheckScriptAsObject $script:ScriptPath }
-
     function Invoke-EnvironmentHealthRaw {
-        return ((& $script:ScriptPath) | Where-Object { $_ }) -join "`n"
+        return Join-CheckOutput (& $script:ScriptPath)
     }
 }
 

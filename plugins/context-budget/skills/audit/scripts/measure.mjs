@@ -248,9 +248,7 @@ function parseTokenCell(cell) {
   const t = cell.trim();
   let m = t.match(/^~?\s*([\d.]+)k$/i);
   if (m) return { tokens: Math.round(parseFloat(m[1]) * 1000), rounded: true };
-  m = t.match(/^~\s*(\d+)$/);
-  if (m) return { tokens: parseInt(m[1], 10), rounded: true };
-  m = t.match(/^<\s*(\d+)$/);
+  m = t.match(/^[~<]\s*(\d+)$/);
   if (m) return { tokens: parseInt(m[1], 10), rounded: true };
   m = t.match(/^(\d+)$/);
   if (m) return { tokens: parseInt(m[1], 10), rounded: false };
@@ -549,22 +547,14 @@ function summarize(snap) {
 // upgrade, not the lever. Skill-listing tokens are subtracted from the
 // prefix `System tools` bucket, so listing or Skills-token drift poisons
 // that bucket only; the deferred pool is separate and stays measurable.
-function modeBinaryComparable(before, after) {
-  return before.mode === after.mode
-    && before.binary?.version === after.binary?.version
-    && before.binary?.path === after.binary?.path;
-}
-
-function skillListingComparable(before, after) {
-  return before.skillListing?.signature === after.skillListing?.signature
-    && before.skillListing?.tokens === after.skillListing?.tokens;
-}
-
 function compareSnapshots(before, after, { lever = null, emittedConfig = null } = {}) {
   const reasons = [];
-  if (before.mode !== after.mode) reasons.push(`mode differs (${before.mode} vs ${after.mode}) — deltas across modes mix precisions`);
-  if (before.binary?.version !== after.binary?.version) reasons.push(`binary version differs (${before.binary?.version} vs ${after.binary?.version})`);
-  if (before.binary?.path !== after.binary?.path) reasons.push(`binary path differs (${before.binary?.path} vs ${after.binary?.path})`);
+  const modeMatch = before.mode === after.mode;
+  const versionMatch = before.binary?.version === after.binary?.version;
+  const pathMatch = before.binary?.path === after.binary?.path;
+  if (!modeMatch) reasons.push(`mode differs (${before.mode} vs ${after.mode}) — deltas across modes mix precisions`);
+  if (!versionMatch) reasons.push(`binary version differs (${before.binary?.version} vs ${after.binary?.version})`);
+  if (!pathMatch) reasons.push(`binary path differs (${before.binary?.path} vs ${after.binary?.path})`);
   const sigMatch = before.skillListing?.signature === after.skillListing?.signature;
   const skillTokensMatch = before.skillListing?.tokens === after.skillListing?.tokens;
   if (!sigMatch) {
@@ -585,8 +575,8 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
   const totalDelta = (typeof before.totalTokens === 'number' && typeof after.totalTokens === 'number')
     ? after.totalTokens - before.totalTokens : null;
 
-  const sharedOk = modeBinaryComparable(before, after);
-  const listingOk = skillListingComparable(before, after);
+  const sharedOk = modeMatch && versionMatch && pathMatch;
+  const listingOk = sigMatch && skillTokensMatch;
   return {
     schema: LEDGER_SCHEMA,
     timestampUtc: nowUtc(),
@@ -623,12 +613,18 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
 //              snapshot entirely) — a missing measurement, NEVER zero;
 //   undefined  absent from both runs — outside this binary's category
 //              vocabulary, a non-event that contributes nothing.
-// `saved` is null when any needed bucket vanished; callers publish that as
-// incomparable with `vanished` naming the buckets, never coerce it to 0.
+// `saved` is null when any needed bucket vanished; the record is then
+// published as incomparable with the vanished buckets named in `reasons`,
+// never coerced to 0.
 function systemBucketSaving(cmp) {
   const vanished = SYSTEM_TOOL_BUCKETS.filter((b) => b in cmp.delta && cmp.delta[b] === null);
-  if (vanished.length) return { vanished, saved: null };
-  return { vanished, saved: -SYSTEM_TOOL_BUCKETS.reduce((s, b) => s + (cmp.delta[b] ?? 0), 0) };
+  return {
+    saved: vanished.length ? null : -SYSTEM_TOOL_BUCKETS.reduce((s, b) => s + (cmp.delta[b] ?? 0), 0),
+    comparable: cmp.comparability.systemToolsComparable && !vanished.length,
+    reasons: vanished.length
+      ? [...cmp.comparability.reasons, vanishedReason(vanished)]
+      : cmp.comparability.reasons,
+  };
 }
 
 function vanishedReason(vanished) {
@@ -734,7 +730,7 @@ async function runAttribute(args) {
   for (const tool of tools) {
     const run = await takeSnapshot({ ...args, deny: tool, label: `deny:${tool}` });
     const cmp = compareSnapshots(baseline, run, { lever: `deny:${tool}` });
-    const { vanished, saved } = systemBucketSaving(cmp);
+    const { saved, comparable, reasons } = systemBucketSaving(cmp);
     perTool.push({
       tool,
       // A deny that saves prints as a NEGATIVE delta (after minus before);
@@ -743,10 +739,8 @@ async function runAttribute(args) {
       prefixDelta: cmp.delta['System tools'] ?? null,
       deferredDelta: cmp.delta['System tools (deferred)'] ?? null,
       savedTokens: saved,
-      comparable: cmp.comparability.systemToolsComparable && !vanished.length,
-      reasons: vanished.length
-        ? [...cmp.comparability.reasons, vanishedReason(vanished)]
-        : cmp.comparability.reasons,
+      comparable,
+      reasons,
     });
   }
   perTool.sort((x, y) => (y.savedTokens ?? 0) - (x.savedTokens ?? 0));
@@ -760,11 +754,9 @@ async function runAttribute(args) {
       // Denying every saver at once can empty a bucket out of the combined
       // snapshot; its delta is then null and the combined saving is
       // unmeasured — published as incomparable, never coerced to zero.
-      const { vanished, saved: combinedSaved } = systemBucketSaving(cmp);
-      const comparable = cmp.comparability.systemToolsComparable && !vanished.length;
-      const sumOfParts = perTool.filter((t) => savers.includes(t.tool))
-        .reduce((s, t) => s + t.savedTokens, 0);
+      const { saved: combinedSaved, comparable, reasons } = systemBucketSaving(cmp);
       const saverRows = perTool.filter((t) => savers.includes(t.tool));
+      const sumOfParts = saverRows.reduce((s, t) => s + t.savedTokens, 0);
       additivity = {
         tools: savers,
         sumOfParts,
@@ -775,9 +767,7 @@ async function runAttribute(args) {
         additive: comparable ? combinedSaved === sumOfParts : null,
         comparable,
         perBucket: bucketAdditivity(saverRows, cmp),
-        reasons: vanished.length
-          ? [...cmp.comparability.reasons, vanishedReason(vanished)]
-          : cmp.comparability.reasons,
+        reasons,
       };
     }
   }
@@ -924,8 +914,7 @@ function runVerifyCatalogue(args) {
   const rows = [];
   const absent = [];
   for (const lever of cat.levers ?? []) {
-    const names = catalogueTokens(lever);
-    const tokens = names.map((name) => {
+    const tokens = catalogueTokens(lever).map((name) => {
       const hits = countTokenHits(buf, name);
       const present = hits > 0;
       if (!present) absent.push({ id: lever.id, name });

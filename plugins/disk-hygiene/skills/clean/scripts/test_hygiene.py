@@ -7984,28 +7984,36 @@ class GuardTests(unittest.TestCase):
         assert result is not None
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
-    def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
-        out_file = Path(self._cfg.name) / "telemetry-deny.json"
-        # Windows cannot exec a #!/bin/sh sink via CreateProcess. A .cmd that
-        # runs a sibling .py keeps quoting simple and inherits stdin.
-        sink_py = Path(self._cfg.name) / "telemetry_sink.py"
+    def _make_telemetry_sink(self, stem: str) -> tuple[Path, Path]:
+        """A fire-and-forget sink writing one telemetry envelope to a file.
+
+        Windows cannot exec a #!/bin/sh sink via CreateProcess. A .cmd that
+        runs a sibling .py keeps quoting simple and inherits stdin.
+        """
+        base = Path(self._cfg.name)
+        out_file = base / f"telemetry-{stem}.json"
+        sink_py = base / f"telemetry_{stem}_sink.py"
         sink_py.write_text(
             "import sys\n"
-            f"from pathlib import Path\n"
+            "from pathlib import Path\n"
             f"Path(r'{out_file}').write_text(sys.stdin.read(), encoding='utf-8')\n",
             encoding="utf-8",
         )
         if os.name == "nt":
-            sink = Path(self._cfg.name) / "telemetry-sink.cmd"
+            sink = base / f"telemetry-{stem}-sink.cmd"
             py = os.fspath(Path(sys.executable).resolve())
             sink.write_text(
                 f'@echo off\r\n"{py}" "{sink_py}"\r\n',
                 encoding="utf-8",
             )
         else:
-            sink = Path(self._cfg.name) / "telemetry-sink.sh"
+            sink = base / f"telemetry-{stem}-sink.sh"
             sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
             sink.chmod(0o755)
+        return out_file, sink
+
+    def test_deny_emits_blocked_telemetry_when_sink_wired(self) -> None:
+        out_file, sink = self._make_telemetry_sink("deny")
         with mock.patch.dict(
             os.environ,
             {
@@ -8035,25 +8043,7 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", envelope["data"]["decision"])
 
     def test_engine_gate_irrelevant_emits_no_telemetry(self) -> None:
-        out_file = Path(self._cfg.name) / "telemetry-skip.json"
-        sink_py = Path(self._cfg.name) / "telemetry_skip_sink.py"
-        sink_py.write_text(
-            "import sys\n"
-            f"from pathlib import Path\n"
-            f"Path(r'{out_file}').write_text(sys.stdin.read(), encoding='utf-8')\n",
-            encoding="utf-8",
-        )
-        if os.name == "nt":
-            sink = Path(self._cfg.name) / "telemetry-skip-sink.cmd"
-            py = os.fspath(Path(sys.executable).resolve())
-            sink.write_text(
-                f'@echo off\r\n"{py}" "{sink_py}"\r\n',
-                encoding="utf-8",
-            )
-        else:
-            sink = Path(self._cfg.name) / "telemetry-skip-sink.sh"
-            sink.write_text(f'#!/bin/sh\ncat >"{out_file}"\n', encoding="utf-8")
-            sink.chmod(0o755)
+        out_file, sink = self._make_telemetry_sink("skip")
         with mock.patch.dict(
             os.environ,
             {

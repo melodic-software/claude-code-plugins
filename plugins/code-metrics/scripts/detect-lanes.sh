@@ -27,11 +27,13 @@ SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PATHGLOB="$SCRIPT_DIR/pathglob.py"
 
 usage() {
-  sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  cm_usage_banner "${BASH_SOURCE[0]}" 13
 }
 
 # shellcheck source=python-resolve.sh
 source "$SCRIPT_DIR/python-resolve.sh"
+# shellcheck source=entry-common.sh
+source "$SCRIPT_DIR/entry-common.sh"
 
 # Bundled extension map. Lower-cased extension -> lane, returned in LANE
 # rather than printed: a command substitution forks once per file, and over a
@@ -170,7 +172,7 @@ for file in "${FILES[@]}"; do
     lane_for_extension "$ext"
     lane="$LANE"
     # A lane the consumer redefined by globs no longer claims files by extension.
-    [[ -n "$lane" && -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""
+    [[ -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""
   fi
   [[ -n "$lane" ]] || continue
   [[ -n "${DISABLED[$lane]:-}" ]] && continue

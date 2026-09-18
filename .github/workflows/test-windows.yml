@@ -1,0 +1,209 @@
+name: test-windows
+
+# The informational Windows lane, in its own workflow.
+#
+# WHY IT LEFT ci.yml. It is not in `ci-status.needs` and is not a required
+# check, so nothing waits on it — but it is the longest job in the run at 355 to
+# 413 s against the required lanes' 330 s, and while it sat in ci.yml it held
+# that RUN open. Time-to-green is measured to the run's completion, so an
+# advisory lane nobody gates on was setting the number. Out here it holds only
+# its own run open, and ci.yml finishes when its required lanes do.
+#
+# IT IS STILL INFORMATIONAL. Do not add this workflow to any required check and
+# do not wire it into `ci-status`. The doctrine that kept it out of the
+# aggregate is unchanged and is the reason a JOB-LEVEL gate is legal here: a
+# lane the aggregate cannot see costs a skipped informational run rather than a
+# false green. Inside the required closure the same condition would let a lane
+# report success having run nothing, which both of ci.yml's gates reject.
+#
+# The triggers, the contract-only predicate, the concurrency shape and the
+# permissions are ci.yml's, unchanged. The `changes` job below is the minimum
+# re-resolution the split forces: job outputs do not cross workflow files, so
+# `run_windows` has to be computed here. It is derived by the SAME expression
+# ci.yml publishes, from the same detector and the same two filter groups, so
+# the two answers cannot disagree on any diff. Keep them in step: a change to
+# ci.yml's `run_windows` row, to `scripts/check-docs-only.sh`, or to the `shell`
+# or `python` filter patterns belongs in both files in the same commit.
+
+on:
+  # Present for parity with ci.yml, which takes a dispatch to run its bench
+  # lanes. This lane has none; a dispatch here just runs the Windows suites.
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    # ci.yml's type list verbatim. `ready_for_review` is load-bearing: the draft
+    # filter in `run_windows` leaves this lane reporting not-applicable while a
+    # pull request is a draft, and without this type a draft flipped to ready
+    # triggers no run at all. `edited`, `labeled` and `unlabeled` are the
+    # CONTRACT-ONLY events the predicate below subtracts — this lane records no
+    # state to carry forward, so on those events it simply does not run.
+    types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+# ci.yml's concurrency shape, verbatim: the group branches on the contract-only
+# predicate, every branch cancels, and a contract-only run takes a group of its
+# own keyed on `github.run_id` so it can neither be cancelled nor evict
+# anything. The full branch is namespaced by `github.workflow`, which differs
+# from ci.yml's, so the two workflows never share a group.
+concurrency:
+  group: >-
+    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
+    (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
+    (github.event.action == 'edited' && !github.event.changes.base)))
+    && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
+    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
+  cancel-in-progress: true
+
+jobs:
+  # The same single resolution ci.yml's `changes` job performs, narrowed to the
+  # one output this workflow consumes. Fail-closed toward running the suite: a
+  # detector that cannot complete leaves `steps.detect.outputs.docs_only` unset,
+  # which the expression below resolves toward running, and the narrowing terms
+  # read the change-detection action through fromJSON with a `|| '{}'` default
+  # and compare `!= 'false'`, never `== 'true'`, for the same reason.
+  #
+  # The detector self-test runs first and is NOT `continue-on-error`, so a
+  # broken detector turns this job red rather than resolving a scope nobody
+  # verified.
+  changes:
+    # The contract-only gate, verbatim.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The change-detection action lists the pull request's files through the
+    # API. Nothing else in this workflow needs that read, so it is granted here
+    # and nowhere else.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run_windows: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false') }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: detect
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+      # The `shell` and `python` groups of ci.yml's filter table, verbatim, and
+      # only those two: `run_windows` reads no others. Every group repeats the
+      # toolchain and configuration paths on purpose — a pull request touching
+      # only a lockfile, only a workflow file or only the ShellCheck
+      # configuration changes what this lane would find, so it must run rather
+      # than not. Patterns are ROOT-ANCHORED gitignore rules.
+      - name: Match the changed files against the filter groups
+        id: match
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/change-detection@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3 # v0.24.0
+        with:
+          filters: |
+            shell:
+              .github/**
+              scripts/**
+              lib/**
+              package.json
+              package-lock.json
+              pyproject.toml
+              uv.lock
+              requirements*.txt
+              .node-version
+              .python-version
+              .shellcheckrc
+              **/*.sh
+              **/*.bash
+            python:
+              .github/**
+              scripts/**
+              package.json
+              package-lock.json
+              pyproject.toml
+              uv.lock
+              requirements*.txt
+              .node-version
+              .python-version
+              .shellcheckrc
+              ruff.toml
+              **/*.py
+
+  # The ONLY job on a Windows runner in this repository, and deliberately so.
+  # Every other suite is platform-agnostic bash string logic that a Linux runner
+  # exercises identically — `lib/powershell/ps-command.sh`, for instance,
+  # carries zero `OSTYPE`/`cygpath`/`uname` branches despite classifying
+  # PowerShell commands, so Linux tests it faithfully.
+  #
+  # Three surfaces are the exception. `lib/hook-utils.sh` carries OSTYPE-gated
+  # branches a Linux runner NEVER EXECUTES — case-insensitive path folding for
+  # the Windows filesystem, and `cygpath` short-name (8.3) resolution. #2774's
+  # disk-hygiene read-only Bash allowlist is NT-specific (MSYS path mapping,
+  # .exe basename stripping, ProgramFiles trust roots), which is how an inert
+  # Windows allowlist shipped green. And the MSYS-to-Windows emit helper exists
+  # for its NT branch: cygpath's answer cannot be faked on Linux, so on a Linux
+  # runner those cases report NOT EXERCISED and the suite is green having
+  # proved nothing about them.
+  #
+  # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
+  # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
+  # Pinned, not `windows-latest`: the runner policy forbids the floating
+  # `*-latest` labels outright, for the same reason ci.yml's lanes pin
+  # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
+  # Tuesday. Free: GitHub Actions is free for public repositories on standard
+  # GitHub-hosted runners, Windows included.
+  #
+  # If `changes` fails outright, rather than failing a continue-on-error step,
+  # `needs: [changes]` skips this job. That is accepted for a non-required
+  # lane: the fail-open path this file cares about runs through the resolver's
+  # published output, and that one is absorbed.
+  test-windows:
+    needs:
+      - changes
+    # The contract-only gate ANDed with the resolver gate. This lane is
+    # informational and gates no merge, so it may gate at job level.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && needs.changes.outputs.run_windows == 'true' }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Run shared lib tests on Windows
+        run: bash lib/hook-utils.test.sh
+      # GuardTests only, not the full hygiene module: two of its tests fail on
+      # windows-2025 and are already green on Linux — the preview case expects
+      # ready-for-explicit-approval where Windows returns blocked, and the
+      # handoff case compares path strings where 8.3 `RUNNER~1` differs from
+      # the long `runneradmin`. The other nine classes gate on the Linux run.
+      - name: Run disk-hygiene GuardTests on Windows
+        working-directory: plugins/disk-hygiene/skills/clean/scripts
+        run: python -m unittest -v test_hygiene.GuardTests
+      - name: Test the MSYS-to-Windows emit helper on Windows
+        run: bash scripts/emit-windows-path.test.sh
+      - name: Test the drive-root litter detector on Windows
+        run: bash scripts/check-drive-root-litter.test.sh
+      # NTFS is case-insensitive, which is the whole point of running this one
+      # here: the rename executor's case-only `git mv` path and its
+      # index-not-filesystem existence test cannot be exercised on a
+      # case-sensitive runner, so a regression in either would ship green from
+      # Linux alone. Named explicitly, like the fixed suites above, rather than
+      # discovered.
+      - name: Test the file-name rename executor on Windows
+        run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh

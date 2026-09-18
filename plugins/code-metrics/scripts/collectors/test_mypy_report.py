@@ -15,28 +15,32 @@ import importlib.util
 import json
 import os
 import shutil
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "mypy-report.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "mypy-any-exprs.txt"
+CAPTURE = TOOL_OUTPUT / "mypy-any-exprs.txt"
 # The table mypy 1.19.1 writes when a blocking error (a duplicate module name)
 # aborts the build before analysis: no module rows and a Total of 0 over 0.
-ABORTED = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "mypy-any-exprs-aborted.txt"
+ABORTED = TOOL_OUTPUT / "mypy-any-exprs-aborted.txt"
 # A real mypy 1.19.1 table over `pkg/a.py`, `pkg-x/b.py` and `c.py` run from
 # their parent directory: a dotted module, a bare stem under a hyphenated
 # directory (the walk stops there), and a plain top-level module.
-MODULES = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "mypy-any-exprs-modules.txt"
+MODULES = TOOL_OUTPUT / "mypy-any-exprs-modules.txt"
 STUB_ERROR = (
     'pkg-x/b.py:1: error: Library stubs not installed for "yaml"  [import-untyped]'
 )
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
 
 
 def load_module():
@@ -82,13 +86,9 @@ def make_stub(
         if reject_explicit_bases
         else ""
     )
-    stub = directory / "mypy"
-    stub.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'mypy 1.19.1 (compiled: yes)\\n\'; exit 0; fi\n'
-        + log
-        + reject
-        + 'dir=""\nprev=""\n'
+    write_stub(
+        directory / "mypy",
+        version_gate("mypy 1.19.1 (compiled: yes)") + log + reject + 'dir=""\nprev=""\n'
         'for arg in "$@"; do\n'
         '  [[ "$prev" == "--any-exprs-report" ]] && dir="$arg"\n'
         '  prev="$arg"\n'
@@ -96,9 +96,7 @@ def make_stub(
         '[[ -n "$dir" ]] && mkdir -p "$dir"\n' + copy + f"printf '%s' '{stdout_line}'\n"
         f"printf '%s' '{stderr_line}' >&2\n"
         f"exit {exit_code}\n",
-        encoding="utf-8",
     )
-    stub.chmod(stub.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def run(
@@ -107,20 +105,8 @@ def run(
     real_path: bool = False,
     cwd: Path | None = None,
 ) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    elif not real_path:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-mypy-tests"
-        )
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=cwd or REPO_ROOT,
-        check=False,
+    return run_adapter(
+        SCRIPT, "mypy", *args, path_prefix=path_prefix, cwd=cwd, real_path=real_path
     )
 
 

@@ -685,7 +685,12 @@ merged_ref() {
 for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   p="${T_PATH[$idx]}"
   reason=""
-  if [[ ! -d "$p" ]] || ! is_worktree_root "$p"; then
+  if [[ ! -d "$p" ]]; then
+    reason="path-absent"
+  elif ! is_worktree_root "$p"; then
+    reason="not-a-worktree-root; probing it with git -C reports the containing repository"
+  fi
+  if [[ -n "$reason" ]]; then
     R_NOTGIT+=("yes")
     R_BARE+=("no")
     R_UNPUSHED+=("?")
@@ -697,11 +702,7 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     R_UNSTAGED+=("?")
     R_CONFLICTED+=("?")
     R_UNTRACKED+=("?")
-    if [[ ! -d "$p" ]]; then
-      R_REASON+=("path-absent")
-    else
-      R_REASON+=("not-a-worktree-root; probing it with git -C reports the containing repository")
-    fi
+    R_REASON+=("$reason")
     continue
   fi
   R_NOTGIT+=("no")

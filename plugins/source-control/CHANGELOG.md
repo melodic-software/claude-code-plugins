@@ -3,6 +3,74 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.89]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.55.88]
+
+### Changed
+
+- The two worktree-add gates and the claim and create scripts collapse paths and locate the worktree add target through one worktree-path-lib instead of four inline copies. The claim script keeps working when invoked by bare filename.
+
+## [0.55.87]
+
+### Changed
+
+- The babysit-prs scripts parse comma-separated owner lists and look up a PR's state record through helpers in babysit_util and babysit_state instead of four private copies. Error text and return types are unchanged.
+
+## [0.55.86]
+
+### Changed
+
+- The pull-request skill test suites source the shared source-control test helpers instead of local assertion wrappers, and fetch-annotations collapses a redundant empty-repo test, with identical behavior.
+
+## [0.55.85]
+
+### Changed
+
+- The exec-bit-check script appends the arguments after a double dash in one step, and its tests and the worktree nesting-invariant test read files and pad fixtures with builtins instead of extra subprocesses, with byte-identical output.
+
+## [0.55.84]
+
+### Changed
+
+- The babysit-prs engine delegates its HTTP status parsing to the shared gh helper, drops constant-true guards and runtime-no-op casts, hoists a pure login normalization out of a loop, and uses the datetime UTC alias, with identical outputs.
+
+## [0.55.83]
+
+### Changed
+
+- The babysit-prs ledger, refresh, and request-review scripts narrow their snapshot lookups with the shared JSON-object guard instead of casts, hoist a loop-invariant known-id set, and merge nested with-blocks in their tests, with identical errors and outputs.
+
+## [0.55.82]
+
+### Changed
+
+- hooks: pr-linkage-validator.sh and pr-body-linkage-gate.sh iterate the shared split-line array directly instead of copying it per call and name the CommonMark fence pattern once, and worktree-create-gate.sh spells its hook-utils source like its siblings. No behavior change.
+
+## [0.55.81]
+
+### Changed
+
+- worktree-root-legacy.sh drops an unreachable no-tab branch in its promote/retire loop, worktree-create.sh merges its two drive-letter regexes, worktree-claim.sh drops an unreachable dispatch arm, landed-work.sh hoists a per-iteration reason reset, worktree-root-doctor.sh splits its list output once, and babysit-readiness-gate.sh names its unreadable-bodies failure. No behavior change.
+
+## [0.55.80]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
+## [0.55.79]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.55.78]
 
 ### Changed

@@ -89,11 +89,6 @@ def read_registry(path: str) -> list[Entry]:
     return entries
 
 
-def relative(path: str, root: str) -> str:
-    """The instance path root-relative, with forward slashes."""
-    return root_relative(path, root)
-
-
 def sanctions_plain(entry: str, paths: list[str]) -> bool:
     """True when this plain line accounts for every instance of the group."""
     prefixes = set()
@@ -128,11 +123,26 @@ def sanctions_cluster(canonical: str, members: list[str], paths: list[str]) -> b
 def sanctions(entry: Entry, instances: list[dict[str, Any]], root: str) -> bool:
     if len(instances) < 2:
         return False
-    paths = [relative(str(instance.get("file", "")), root) for instance in instances]
+    paths = [
+        root_relative(str(instance.get("file", "")), root) for instance in instances
+    ]
     _, _, token, members = entry
     if members:
         return sanctions_cluster(token, members, paths)
     return sanctions_plain(token, paths)
+
+
+def find_sanction(
+    instances: list[dict[str, Any]],
+    registries: list[tuple[str, list[Entry]]],
+    root: str,
+) -> tuple[str, int, str] | None:
+    """The registry file, line number and line text that account for a group."""
+    for registry_path, entries in registries:
+        for entry in entries:
+            if sanctions(entry, instances, root):
+                return (registry_path, entry[0], entry[1])
+    return None
 
 
 def filter_document(
@@ -144,15 +154,7 @@ def filter_document(
     excluded: list[dict[str, Any]] = list(document.get("excluded") or [])
     for row in document.get("measures") or []:
         instances = row.get("instances")
-        match = None
-        if instances:
-            for registry_path, entries in registries:
-                for entry in entries:
-                    if sanctions(entry, instances, root):
-                        match = (registry_path, entry[0], entry[1])
-                        break
-                if match:
-                    break
+        match = find_sanction(instances, registries, root) if instances else None
         if match:
             excluded.append(
                 {
@@ -210,7 +212,7 @@ def main(argv: list[str]) -> int:
         registries.append((path, read_registry(path)))
     try:
         document = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError) as exc:
+    except ValueError as exc:
         print(
             f"registry-filter.py: stdin is not a JSON document ({exc})", file=sys.stderr
         )

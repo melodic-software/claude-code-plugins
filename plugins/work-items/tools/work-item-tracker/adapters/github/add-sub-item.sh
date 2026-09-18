@@ -5,29 +5,11 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: add-sub-item <id> --parent <id>" "$@"
+USAGE="usage: add-sub-item <id> --parent <id>"
+wit_help_if_requested "$USAGE" "$@"
+wit_parse_edge_args "$USAGE" parent "$@"
 
-id="${1:-}"
-[[ -n "$id" ]] || wit_usage_error "usage: add-sub-item <id> --parent <id>"
-shift
-parent=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-  --parent)
-    [[ $# -ge 2 ]] || wit_usage_error "--parent needs a value"
-    parent="$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unknown argument: $1" ;;
-  esac
-done
-[[ -n "$parent" ]] || wit_usage_error "--parent is required"
-wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
-owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
-wit_require_github_id "$parent" || wit_usage_error "malformed or non-github --parent id: $parent"
-parent_url="$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
+wit_run_gh write issue edit "$WIT_EDGE_NUMBER" -R "$WIT_EDGE_OWNER/$WIT_EDGE_REPO" --parent "$WIT_EDGE_OTHER_URL"
 
-wit_run_gh write issue edit "$number" -R "$owner/$repo" --parent "$parent_url"
-
-jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg parent "$parent" \
+jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$WIT_EDGE_ID" --arg parent "$WIT_EDGE_OTHER" \
   '{schema_version: $sv, id: $id, parent_id: $parent, linked: true}'

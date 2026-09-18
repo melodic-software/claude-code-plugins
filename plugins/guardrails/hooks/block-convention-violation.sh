@@ -104,9 +104,7 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 HOOK_CWD="${HOOK_JQ_FIELDS[2]}"
 
-HOOK_SELF_DIR="${BASH_SOURCE[0]%/*}"
-[[ "$HOOK_SELF_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_SELF_DIR="."
-RESOLVER="$HOOK_SELF_DIR/resolve-convention-pattern.sh"
+RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 
 # Which subcommands git refuses to alias, and why the persisted-alias probe
 # below skips them, is hook::git_subcommand_ignores_alias in hook-utils.sh.
@@ -280,7 +278,7 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data subject
-  subject=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+  hook::extract_bash_subject_to subject "$TOOL_NAME" "$COMMAND"
   hook::json_str_object_to data tool "$TOOL_NAME" subject "$subject" form "$2"
   hook::emit_telemetry "block-convention-violation" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
@@ -391,6 +389,40 @@ sequencer_in_progress() {
   return 1
 }
 
+# Re-check ONE alias expansion <$1>, whichever rung produced it. A shell alias
+# (leading `!`) re-parses as a full shell command; a git alias splices its words
+# in place of the alias name, under HOOK_NO_ALIAS so the splice does not
+# re-expand. The inline (`-c alias.x=…`) and gitconfig rungs differ only in where
+# the expansion came from, so they share this body rather than keeping two copies
+# that can drift on the seam that matters: the save/restore of
+# HOOK_EFFECTIVE_BASE around a `!` reparse.
+#
+# Reads the calling check_segment frame's `w`, `gi`, `sub_idx`, `wrapper_cd` and
+# `seg_dir`, and composes `seg_dir` there on first need: a `!` body is a fresh
+# top-level parse carrying no wrapper and no git globals, so it must be handed
+# the directory this invocation resolved to or it silently restarts from the
+# payload cwd.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+recheck_alias_expansion() {
+  local exp="$1" reparse saved_base
+  local -a expw=()
+  if [[ "$exp" == '!'* ]]; then
+    hook::git_alias_reparse_to reparse "$exp" "${w[@]:sub_idx+1}"
+    [[ -n "$seg_dir" ]] ||
+      hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
+    saved_base="${HOOK_EFFECTIVE_BASE:-}"
+    HOOK_EFFECTIVE_BASE="$seg_dir"
+    hook::bash_parse_segments "$reparse" check_segment
+    HOOK_EFFECTIVE_BASE="$saved_base"
+  else
+    hook::env_s_split "$exp"
+    expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+    HOOK_NO_ALIAS=1
+    check_segment "${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+    HOOK_NO_ALIAS=0
+  fi
+}
+
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
@@ -495,32 +527,14 @@ check_segment() {
   # the gitconfig-resolved alias, one level (HOOK_NO_ALIAS bounds recursion).
   # A --config-env-shaped alias is the MECHANIC guard's fail-closed concern —
   # it blocks the call outright, so this content gate just skips.
-  local exp reparse inline_alias_handled=0
-  local -a expw=()
+  local exp inline_alias_handled=0
   [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]] && return 0
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
     if [[ "$HOOK_GITINV_ALIAS_TERM" == "inline" ]]; then
       for exp in ${HOOK_GITINV_ALIAS_EXPS[@]+"${HOOK_GITINV_ALIAS_EXPS[@]}"}; do
         [[ -n "$exp" ]] || continue
         inline_alias_handled=1
-        if [[ "$exp" == '!'* ]]; then
-          hook::git_alias_reparse_to reparse "$exp" "${w[@]:sub_idx+1}"
-          # The body is a fresh top-level parse, so it carries no wrapper and no
-          # git globals. Hand it the directory this invocation resolved to, or
-          # the reparse silently restarts from the payload cwd.
-          [[ -n "$seg_dir" ]] ||
-            hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
-          local saved_base="${HOOK_EFFECTIVE_BASE:-}"
-          HOOK_EFFECTIVE_BASE="$seg_dir"
-          hook::bash_parse_segments "$reparse" check_segment
-          HOOK_EFFECTIVE_BASE="$saved_base"
-        else
-          hook::env_s_split "$exp"
-          expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-          HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-          HOOK_NO_ALIAS=0
-        fi
+        recheck_alias_expansion "$exp"
       done
     fi
     if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]] &&
@@ -534,24 +548,7 @@ check_segment() {
       # is probed for an alias. `pexp` empty (git found nothing, or git is
       # absent) still means "no alias", unchanged.
       { pexp=$(git -C "$seg_dir" config --get "alias.$sub"); } 2>/dev/null
-      if [[ -n "$pexp" ]]; then
-        if [[ "$pexp" == '!'* ]]; then
-          local preparse
-          hook::git_alias_reparse_to preparse "$pexp" "${w[@]:sub_idx+1}"
-          # Same reason as the inline `!` branch above.
-          local psaved_base="${HOOK_EFFECTIVE_BASE:-}"
-          HOOK_EFFECTIVE_BASE="$seg_dir"
-          hook::bash_parse_segments "$preparse" check_segment
-          HOOK_EFFECTIVE_BASE="$psaved_base"
-        else
-          local -a pexpw=()
-          hook::env_s_split "$pexp"
-          pexpw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-          HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:sub_idx}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
-          HOOK_NO_ALIAS=0
-        fi
-      fi
+      [[ -n "$pexp" ]] && recheck_alias_expansion "$pexp"
     fi
   fi
 

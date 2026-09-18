@@ -3,6 +3,100 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.17]
+
+### Changed
+
+- hook-failure-audit.sh audits only the transcript lines appended since the last Stop, keyed on a per-session cursor kept beside the warning marker. A turn with no new failure record now creates no process at all: measured by job-object accounting on Windows Git Bash at 3 process creations against a 3-creation harness floor (`bash -c`, `env`, `bash`), where it previously took 10. The count is the record because wall clock on that host drifts several-fold within an hour; across two runs the same turn measured 0.36-1.38 s before against 0.23-0.36 s after. The first Stop of a session keeps the tail cap and costs one `wc -lc`, which answers both the byte count the cap decision needs and the line count the cursor starts from, for 5 creations against 10, or 7 on the one session that first creates the data directory. The payload fields now ride on `hook::buffer_stdin_to`, which fuses the library's validation probe into the field read and answers both from the builtin parser. A turn that DOES carry a failure record reports exactly what it reported before, byte for byte. A cursor that is missing, malformed, pruned, ahead of a shortened transcript, or recorded against a different transcript_path rescans from the start, and rescanning cannot re-warn because the marker still decides that.
+- The cursor line count is now accepted only as a canonical decimal (no leading zero, at most 15 digits); a value like `08` used to pass the old `^[0-9]+$` check and then fail bash's octal-reading `((...))` arithmetic, printing shell diagnostics on Stop instead of running either scan path.
+
+## [0.56.16]
+
+### Changed
+
+- The 30 generated session-event-log rows are shell form and read the kill switch themselves (`[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh`), so a disabled logger spawns no chain. Measured on Windows Git Bash with a job-object process census (n=5): switched off, 1 process creation per event instead of 3 (median wall 41 ms against 107 ms), which is the 9 to 12 creations a Bash tool call charged to this hook down to 3 to 4; switched on, unchanged at 3 creations (median 117 ms) since the row execs the script. `scripts/gen-hook-event-registry.sh` owns the row template and `--check` still re-derives every row from the committed registry. The script keeps its own line-41 switch for a direct invocation. Residual: a shell-form row still costs the one shell Claude Code runs the command in, because hooks.json cannot read a plugin option: `if` takes a single permission rule and is evaluated only on tool events, and the option reaches a hook only as an environment variable.
+- Every generated row, the 30 producers and the SessionEnd retention row, pins `"shell": "bash"`. The Hooks reference documents that field as "Defaults to `bash`, or to `powershell` on Windows when Git Bash isn't installed" (https://code.claude.com/docs/en/hooks.md, the `shell` field, verified 2026-09-15), and under PowerShell the row's `[ ... ]`, `$VAR` and `exec` all error, so an unpinned row would error on every fire on such a host instead of gating. The sibling markdown-format and disk-hygiene hook configs pin the same field.
+
+## [0.56.15]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.56.14]
+
+### Changed
+
+- The plugins skill records the `--all` + `install_new: all` mass install. gotchas.md gains a section on why that combination installs every plugin in every known catalog, why the downgrade guard and `audit` both miss it, the `claude --bare` requirement for the revert, and the revert recipe. SKILL.md's marketplace-resolution list now warns that `all` multiplies the install policy across catalogs, and its `install_new` section requires a counted human confirmation before that combination runs. Documentation only; no script, output, or exit code changes.
+
+## [0.56.13]
+
+### Changed
+
+- inventory.py and overlap.py read plugin registration shapes through one lib helper instead of two private copies, and overlap.py validates native and component rows through shared helpers with the original messages and order. Envelopes and exit codes are unchanged.
+
+## [0.56.12]
+
+### Changed
+
+- The three plugins-skill scripts source one jq-capture library for their jq_to and json_string_to helpers instead of carrying private copies. sync-run keeps its three sidecar-row restores spelled out, since a shared array appender would need a bash 4.3 nameref that the stock bash 3.2 on macOS lacks. Output and exit codes are unchanged.
+
+## [0.56.11]
+
+### Changed
+
+- The claude-ops test wrappers share one plugin-level Python-floor probe library for the floor parse, interpreter discovery, and floor test, keeping each wrapper's own skip and error messages.
+
+## [0.56.10]
+
+### Changed
+
+- plugins skill: sync-run.sh reads fleet state at five steps through one helper, encodes string arrays and installs each plugin through shared helpers, and initializes its per-marketplace accumulators through the existing reset function; cache-content-check.sh walks cache roots through one find invocation; fleet-state.sh and normalize-enabled-plugins.sh drop a duplicate initialization and an unreachable guard. Same digests, same output.
+
+## [0.56.9]
+
+### Changed
+
+- audit-skill-visibility: audit_skill_visibility.py builds its unreadable-lib and settings-stub records through shared helpers, reuses listing_overflows and one budget prefix in the renderer, and folds three conditionals; skill-pair-cooccurrence.sh checks value flags through one helper; the suites share their fixture and fleet builders. Output byte-identical.
+
+## [0.56.8]
+
+### Changed
+
+- lanes skill: lane-launcher.sh derives absolute-or-anchored paths through one path_under helper, machine-behavior.sh checks value flags through one helper, probe-lane-config.sh folds a never-looping argument loop and its repo-root fallback, restart-consumer.sh composes the ledger path from its existing helpers, and telemetry-upsert.sh spells two inverted glob tests as conditionals. No behavior change.
+
+## [0.56.7]
+
+### Changed
+
+- observability skill: clean.sh validates both retention windows through one helper, probe-observability-state.sh folds its repo-root fallback and prune-pending line into single expressions, the prune filter inlines its prefix length, the collector lifecycle cleanup inverts one conditional, and the observability suite emits its hook-event fixture rows through one helper. No behavior change.
+
+## [0.56.6]
+
+### Changed
+
+- hooks: hook-telemetry-sink.sh drops an unreachable exit-code default (mirrored into the repo-local sink), claude-ops-paths.sh and session-event-log.sh drop array re-initializations already made at declaration, and the emitter, failure-audit, event-log and retention suites use the shared sink wait, brace ranges and a single printf per fixture file. No behavior change.
+
+## [0.56.5]
+
+### Changed
+
+- skill scripts: audit_performance.py names its ISO timestamp helper once, registry_manager.py shares its across-repos ambiguity error, overlap.py normalizes a malformed integrity block once, inventory.py and install_state.py drop unreachable guards and re-assignments, changelog-status.sh reuses the repo toplevel it already captured, morning-brief.sh collects PR numbers once, and the inventory and check-all suites share their imports and case runner. No behavior change.
+
+## [0.56.4]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
+## [0.56.3]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
 ## [0.56.2]
 
 ### Fixed

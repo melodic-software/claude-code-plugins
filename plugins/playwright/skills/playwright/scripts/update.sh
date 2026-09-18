@@ -49,7 +49,6 @@ require_tool() {
     err "$tool not on PATH — cannot continue"
     return 1
   fi
-  return 0
 }
 
 check_prereqs() {
@@ -66,23 +65,16 @@ read_metadata_field() {
   [[ -f "$FRONTMATTER_FILE" ]] || return 0
   awk -v key="$field" \
     '/^metadata:/{m=1;next} m && /^[a-zA-Z]/{m=0} m && $1 == key":"{print $2;exit}' \
-    "$FRONTMATTER_FILE" | tr -d '"' | tr -d "'" | tr -d '\r'
+    "$FRONTMATTER_FILE" | tr -d "\"'\r"
 }
 
-# Fetch the latest published version from the npm registry.
-fetch_upstream_version() {
-  local ver
-  ver=$(npm view "$UPSTREAM_PACKAGE" version 2>/dev/null | tr -d '\r')
-  [[ -n "$ver" ]] || return 1
-  printf '%s' "$ver"
-}
-
-# Fetch the registry dist.shasum for the latest published tarball.
-fetch_upstream_shasum() {
-  local sha
-  sha=$(npm view "$UPSTREAM_PACKAGE" dist.shasum 2>/dev/null | tr -d '\r')
-  [[ -n "$sha" ]] || return 1
-  printf '%s' "$sha"
+# Read one field of the latest published release from the npm registry
+# (`version`, `dist.shasum`). Returns 1 when the registry answers nothing.
+npm_view_field() {
+  local value
+  value=$(npm view "$UPSTREAM_PACKAGE" "$1" 2>/dev/null | tr -d '\r')
+  [[ -n "$value" ]] || return 1
+  printf '%s' "$value"
 }
 
 # npm-pack the latest release into TMPDIR_RUN, extract it, and emit the path
@@ -120,7 +112,7 @@ run_check() {
 
   section "Frontmatter / upstream version"
   local_ver=$(read_metadata_field "upstream-version")
-  upstream_ver=$(fetch_upstream_version) || {
+  upstream_ver=$(npm_view_field version) || {
     err "npm view ${UPSTREAM_PACKAGE} version failed — network or registry issue"
     return 2
   }
@@ -162,11 +154,11 @@ run_apply() {
   log "previous metadata.synced:           ${prev_synced:-<unset>}"
 
   section "Fetch upstream"
-  upstream_ver=$(fetch_upstream_version) || {
+  upstream_ver=$(npm_view_field version) || {
     err "npm view ${UPSTREAM_PACKAGE} version failed"
     return 2
   }
-  upstream_sha=$(fetch_upstream_shasum) || {
+  upstream_sha=$(npm_view_field dist.shasum) || {
     err "npm view ${UPSTREAM_PACKAGE} dist.shasum failed"
     return 2
   }

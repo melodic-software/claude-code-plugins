@@ -12,29 +12,32 @@ no executable is committed). The probe's second requirement, a resolvable
 from __future__ import annotations
 
 import json
-import os
-import stat
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from harness.stub_harness import (
+    SOURCES,
+    TOOL_OUTPUT,
+    run_adapter,
+    version_gate,
+    write_stub,
+)
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "type-coverage.py"
-CAPTURE = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "type-coverage.json"
+CAPTURE = TOOL_OUTPUT / "type-coverage.json"
 # A real `--detail --json-output --show-relative-path` capture (2.30.1,
 # typescript 5.9) over a scratch project: src/a.ts and src/sub/b.ts carry
 # any-typed identifiers, src/clean.ts none, and other/outside.ts sits outside
 # the tsconfig's `include`, so the tool never names it.
-DETAIL = SCRIPT_DIR.parent / "fixtures" / "tool-output" / "type-coverage-detail.json"
+DETAIL = TOOL_OUTPUT / "type-coverage-detail.json"
 DETAIL_SCOPE = ("src/a.ts", "src/sub/b.ts", "src/clean.ts", "other/outside.ts")
-SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
-REPO_ROOT = SCRIPT_DIR.parents[3]
 NO_TYPESCRIPT = "type-coverage needs a resolvable typescript (the probe found none)"
 
 
-def write_stub(
+def make_stub(
     path: Path,
     capture: Path = CAPTURE,
     exit_code: int = 0,
@@ -42,64 +45,47 @@ def write_stub(
 ) -> None:
     """A `type-coverage` stub replaying `capture`; with `argv_log` it also
     records every argument it received, one per line."""
-    path.parent.mkdir(parents=True, exist_ok=True)
     log = f'printf \'%s\\n\' "$@" >"{argv_log}"\n' if argv_log is not None else ""
-    path.write_text(
-        "#!/usr/bin/env bash\n"
-        'if [[ "${1:-}" == "--version" ]]; then printf \'Version: 2.30.1\\n\'; exit 0; fi\n'
+    write_stub(
+        path,
+        version_gate("Version: 2.30.1")
         + log
         + f'cat "{capture}"\n'
-        f"exit {exit_code}\n",
-        encoding="utf-8",
+        + f"exit {exit_code}\n",
     )
-    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def write_node_stub(
+def make_node_stub(
     path: Path, program: list[str] | None, exit_code: int = 0, stderr: str = ""
 ) -> None:
     """A `node` stub standing in for the tsconfig-program listing: prints
     `program` as JSON (`null` for no tsconfig), or fails with `stderr`."""
-    path.parent.mkdir(parents=True, exist_ok=True)
     listing = json.dumps(program) if program is not None else "null"
-    path.write_text(
-        "#!/usr/bin/env bash\n"
+    write_stub(
+        path,
         f"printf '%s\\n' '{listing}'\n"
         + (f"printf '%s\\n' '{stderr}' >&2\n" if stderr else "")
         + f"exit {exit_code}\n",
-        encoding="utf-8",
     )
-    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def make_project(root: Path, with_typescript: bool = True, local_stub: bool = False):
+def make_project(
+    root: Path, with_typescript: bool = True, local_stub: bool = False
+) -> None:
     """A scratch cwd: optional node_modules/typescript and a local binary."""
+    root.mkdir(parents=True, exist_ok=True)
     if with_typescript:
         package = root / "node_modules" / "typescript" / "package.json"
         package.parent.mkdir(parents=True, exist_ok=True)
         package.write_text('{"name": "typescript", "version": "5.9.3"}\n', "utf-8")
     if local_stub:
-        write_stub(root / "node_modules" / ".bin" / "type-coverage")
+        make_stub(root / "node_modules" / ".bin" / "type-coverage")
 
 
 def run(
     *args: str, path_prefix: Path | None = None, cwd: Path | None = None
 ) -> subprocess.CompletedProcess:
-    env = dict(os.environ)
-    if path_prefix is not None:
-        env["PATH"] = f"{path_prefix}{os.pathsep}{env.get('PATH', '')}"
-    else:
-        env["PATH"] = str(
-            Path(tempfile.gettempdir()) / "definitely-empty-path-for-tc-tests"
-        )
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=str(cwd or REPO_ROOT),
-        check=False,
-    )
+    return run_adapter(SCRIPT, "tc", *args, path_prefix=path_prefix, cwd=cwd)
 
 
 class TypeCoverageProbeTests(unittest.TestCase):
@@ -114,9 +100,8 @@ class TypeCoverageProbeTests(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             stubs = Path(tmp) / "bin"
-            write_stub(stubs / "type-coverage")
+            make_stub(stubs / "type-coverage")
             project = Path(tmp) / "project"
-            project.mkdir()
             make_project(project, with_typescript=False)
             result = run("probe", path_prefix=stubs, cwd=project)
             self.assertEqual(result.returncode, 1)
@@ -125,9 +110,8 @@ class TypeCoverageProbeTests(unittest.TestCase):
     def test_probe_passes_when_both_the_binary_and_typescript_resolve(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             stubs = Path(tmp) / "bin"
-            write_stub(stubs / "type-coverage")
+            make_stub(stubs / "type-coverage")
             project = Path(tmp) / "project"
-            project.mkdir()
             make_project(project)
             result = run("probe", path_prefix=stubs, cwd=project)
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "2.30.1"))
@@ -137,7 +121,6 @@ class TypeCoverageProbeTests(unittest.TestCase):
             empty = Path(tmp) / "bin"
             empty.mkdir()
             project = Path(tmp) / "project"
-            project.mkdir()
             make_project(project, local_stub=True)
             result = run("probe", path_prefix=empty, cwd=project)
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "2.30.1"))
@@ -146,8 +129,8 @@ class TypeCoverageProbeTests(unittest.TestCase):
 class TypeCoverageCollectTests(unittest.TestCase):
     def _collect(self, tmp: str, capture: Path = CAPTURE, exit_code: int = 0):
         stubs = Path(tmp) / "bin"
-        write_stub(stubs / "type-coverage", capture=capture, exit_code=exit_code)
-        write_node_stub(stubs / "node", [f"{SOURCES}/cm-sample.ts"])
+        make_stub(stubs / "type-coverage", capture=capture, exit_code=exit_code)
+        make_node_stub(stubs / "node", [f"{SOURCES}/cm-sample.ts"])
         return run(
             "collect",
             "typescript",
@@ -200,12 +183,10 @@ class TypeCoverageCollectTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             stubs = Path(tmp) / "bin"
             argv_log = Path(tmp) / "argv"
-            write_stub(stubs / "type-coverage", capture=DETAIL, argv_log=argv_log)
+            make_stub(stubs / "type-coverage", capture=DETAIL, argv_log=argv_log)
             # The program holds the three files under src/, as the real
             # listing over the scratch project's tsconfig did.
-            write_node_stub(
-                stubs / "node", ["src/a.ts", "src/clean.ts", "src/sub/b.ts"]
-            )
+            make_node_stub(stubs / "node", ["src/a.ts", "src/clean.ts", "src/sub/b.ts"])
             result = run(
                 "collect",
                 "typescript",
@@ -267,8 +248,8 @@ class TypeCoverageCollectTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            write_stub(stubs / "type-coverage", capture=capture)
-            write_node_stub(
+            make_stub(stubs / "type-coverage", capture=capture)
+            make_node_stub(
                 stubs / "node",
                 [
                     str(helper),
@@ -299,8 +280,8 @@ class TypeCoverageCollectTests(unittest.TestCase):
     def test_an_unreadable_program_keeps_only_the_listed_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             stubs = Path(tmp) / "bin"
-            write_stub(stubs / "type-coverage", capture=DETAIL)
-            write_node_stub(
+            make_stub(stubs / "type-coverage", capture=DETAIL)
+            make_node_stub(
                 stubs / "node", None, exit_code=1, stderr="Cannot find module"
             )
             result = run(

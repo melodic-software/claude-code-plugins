@@ -48,6 +48,11 @@ HERE = Path(__file__).resolve().parent
 SAVE_POINT = HERE.parent / "save_point.py"
 DEFAULT_PLUGIN_DIR = HERE.parents[1]
 
+if str(HERE.parent) not in sys.path:
+    sys.path.insert(0, str(HERE.parent))
+
+from io_streams import utf8_streams  # noqa: E402  (io_streams.py in the parent dir)
+
 RAIL_RE = re.compile("^─{10,}$")
 FILL_RE = re.compile(r"<!-- FILL: ([a-z0-9-]+) .*?-->")
 HANDOFF_GLOB = "*-handoff-*.md"
@@ -87,7 +92,9 @@ WRITE_CMDLET_RE = re.compile(
 # command position so a bare `save_point.py ...` does not match on its `.py`
 # suffix. `python3 .../save_point.py validate` DOES match the leading
 # interpreter, though, which is why the read-only forms are exempted below.
-INTERPRETER_RE = re.compile(r"(?:^|[\s;|&(])(?:python3?|py|node|pwsh|powershell)(?:\.exe)?\s")
+INTERPRETER_RE = re.compile(
+    r"(?:^|[\s;|&(])(?:python3?|py|node|pwsh|powershell)(?:\.exe)?\s"
+)
 # The two read-only save_point.py subcommands. A resuming hop legitimately runs
 # `validate` over its predecessor before invoking the skill; scoring that as a
 # pre-skill write failed the hop.
@@ -114,8 +121,9 @@ def is_write_indicator(command: str) -> bool:
     if READ_ONLY_SAVE_POINT_RE.search(command):
         return False
     return bool(INTERPRETER_RE.search(command))
+
+
 SKILL_NAME = "session-flow:handoff"
-MIDDOT = "·"
 
 # Phase 0 baseline: the shape-1 corpus (96 files) had a median of 154 lines and
 # 3.2k tokens (chars/4). `--budget` sizes its filler so the generated hop 1
@@ -183,12 +191,6 @@ TSV_HEADER = (
 DISK_ORDER_GRACE_SECONDS = 2.0
 
 
-def _utf8_streams() -> None:
-    for stream in (sys.stdout, sys.stderr):
-        if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8", newline="\n")
-
-
 # --- small helpers ----------------------------------------------------------
 
 
@@ -227,11 +229,10 @@ def rail_lines(text: str) -> list[int]:
 def between_rails(text: str) -> str | None:
     """The bytes between the first two rails, CRLF-normalized. None unless the
     text carries exactly two rails."""
-    normalized = text.replace("\r\n", "\n")
-    lines = normalized.split("\n")
-    rails = [i for i, line in enumerate(lines) if RAIL_RE.match(line.strip())]
+    rails = rail_lines(text)
     if len(rails) != 2:
         return None
+    lines = text.replace("\r\n", "\n").split("\n")
     return "\n".join(lines[rails[0] + 1 : rails[1]])
 
 
@@ -239,7 +240,9 @@ def token_estimate(text: str) -> int:
     return len(text) // 4
 
 
-def run_save_point(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def run_save_point(
+    args: list[str], cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "-X", "utf8", str(SAVE_POINT), *args]
     return subprocess.run(
         cmd,
@@ -357,7 +360,10 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             out.append(prefix + "None.")
             continue
         if slot == "drift-check":
-            out.append(prefix + "the first remaining action writes the next save-point, which is the goal.")
+            out.append(
+                prefix
+                + "the first remaining action writes the next save-point, which is the goal."
+            )
             continue
         if slot == "did":
             rest = line[match.end() :]
@@ -365,7 +371,9 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             did = f"generated hop {hop} filler"
             left = f"hops after {hop} still to generate"
             if second is not None:
-                out.append(prefix + did + rest[: second.start()] + left + rest[second.end() :])
+                out.append(
+                    prefix + did + rest[: second.start()] + left + rest[second.end() :]
+                )
             else:
                 out.append(prefix + did + rest)
             continue
@@ -373,7 +381,9 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             out.append(prefix + f"hops after {hop} still to generate")
             continue
         if slot == "goal":
-            out.append("> Measure what a save-point resume prompt costs to read at hop 20.")
+            out.append(
+                "> Measure what a save-point resume prompt costs to read at hop 20."
+            )
             continue
         if slot == "next":
             out.extend(
@@ -397,7 +407,10 @@ def fill_skeleton(path: Path, hop: int, size: FillerSize) -> None:
             )
             continue
         if slot in PADDED_SLOTS:
-            out.extend(filler_line(slot, counter + i, size.width) for i in range(size.pad_lines))
+            out.extend(
+                filler_line(slot, counter + i, size.width)
+                for i in range(size.pad_lines)
+            )
             continue
         out.append(prefix + filler_line(slot, counter, size.width))
     path.write_text("\n".join(out), encoding="utf-8", newline="\n")
@@ -413,7 +426,9 @@ def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerS
     whatever makes the total land on the token median, clamped so the filler
     stays readable prose rather than a wall or a stub.
     """
-    fixed_lines = len(CUMULATIVE_SLOTS) * CUMULATIVE_ENTRIES_PER_HOP + 2  # +2 = the Next: headlines
+    fixed_lines = (
+        len(CUMULATIVE_SLOTS) * CUMULATIVE_ENTRIES_PER_HOP + 2
+    )  # +2 = the Next: headlines
     budget = max(SHAPE1_MEDIAN_LINES - skeleton_lines - fixed_lines, slots)
     pad_lines = max(1, budget // max(slots, 1))
     filler_lines = pad_lines * slots + fixed_lines
@@ -424,11 +439,11 @@ def size_filler(skeleton_lines: int, skeleton_chars: int, slots: int) -> FillerS
 
 def measure_skeleton(path: Path) -> tuple[int, int, int]:
     """Lines, characters, and padded-slot count of a skeleton, FILL lines aside."""
-    text = path.read_text(encoding="utf-8")
-    kept = [line for line in text.split("\n") if FILL_RE.search(line) is None]
+    lines = path.read_text(encoding="utf-8").split("\n")
+    kept = [line for line in lines if FILL_RE.search(line) is None]
     slots = sum(
         1
-        for line in text.split("\n")
+        for line in lines
         if (m := FILL_RE.search(line)) is not None and m.group(1) in PADDED_SLOTS
     )
     return len(kept), len("\n".join(kept)), max(slots, 1)
@@ -485,10 +500,16 @@ class Transcript:
         return self.path is not None
 
 
+def transcript_paths(session_id: str, projects_root: Path) -> list[str]:
+    """Every transcript file for a session id, by the same glob
+    `save_point.py new` uses, never a cwd slug computed here."""
+    return sorted(glob.glob(str(projects_root / "*" / f"{session_id}.jsonl")))
+
+
 def load_transcript(session_id: str, projects_root: Path) -> Transcript:
     """Locate the hop's transcript by the same glob `save_point.py new` uses,
     never a cwd slug computed here."""
-    hits = sorted(glob.glob(str(projects_root / "*" / f"{session_id}.jsonl")))
+    hits = transcript_paths(session_id, projects_root)
     if not hits:
         return Transcript(None, [])
     records: list[dict] = []
@@ -535,7 +556,11 @@ def final_assistant_text(records: list[dict]) -> str:
         content = message.get("content")
         if not isinstance(content, list):
             continue
-        parts = [b.get("text") or "" for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        parts = [
+            b.get("text") or ""
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        ]
         if parts:
             text = "\n".join(parts)
     return text
@@ -585,7 +610,7 @@ def skill_evidence(records: list[dict]) -> SkillEvidence:
             or not HANDOFF_TOUCH_RE.search(serialized)
         ):
             continue
-        command = shell_command_text(block.get("input") or {}, serialized)
+        command = shell_command_text(block_input, serialized)
         if (
             name in SHELL_TOOLS
             and not CREATION_MARKER_RE.search(serialized)
@@ -653,7 +678,9 @@ def assess_hop(
     # ordered rather than treated as simultaneous.
     if evidence.skill_index is None:
         row.reasons.append("no Skill tool_use naming " + SKILL_NAME)
-    elif evidence.touch_index is not None and evidence.touch_index < evidence.skill_index:
+    elif (
+        evidence.touch_index is not None and evidence.touch_index < evidence.skill_index
+    ):
         row.reasons.append(
             f"{evidence.touch_name} touched handoffs/ at record {_record_of(evidence.touch_index)}"
             f" before the Skill call at {_record_of(evidence.skill_index)}: {evidence.touch_command}"
@@ -682,23 +709,36 @@ def assess_hop(
         return row, None
 
     validated = run_save_point(
-        ["validate", str(new_file), "--projects-root", str(projects_root), "--strict-transcript"]
+        [
+            "validate",
+            str(new_file),
+            "--projects-root",
+            str(projects_root),
+            "--strict-transcript",
+        ]
     )
     if validated.returncode == 0:
         row.checks["validate"] = "PASS"
     else:
+        fallback = validated.stderr.strip().splitlines()
         first = next(
-            (line for line in validated.stdout.splitlines() if line.startswith("FAIL:")),
-            validated.stderr.strip().splitlines()[:1] or ["validate failed"],
+            (
+                line
+                for line in validated.stdout.splitlines()
+                if line.startswith("FAIL:")
+            ),
+            fallback[0] if fallback else "validate failed",
         )
-        row.reasons.append(f"validate exit {validated.returncode}: {first if isinstance(first, str) else first[0]}")
+        row.reasons.append(f"validate exit {validated.returncode}: {first}")
 
     file_sid = frontmatter_value(new_file, "session_id")
     json_sid = str(result.get("session_id", ""))
     if file_sid.lower() == session_id.lower() == json_sid.lower():
         row.checks["session_id_match"] = "PASS"
     else:
-        row.reasons.append(f"session id mismatch: file {file_sid}, flag {session_id}, json {json_sid}")
+        row.reasons.append(
+            f"session id mismatch: file {file_sid}, flag {session_id}, json {json_sid}"
+        )
 
     result_text = str(result.get("result") or "")
     result_rails = rail_lines(result_text)
@@ -712,7 +752,9 @@ def assess_hop(
     if len(transcript_rails) == 2:
         row.checks["transcript_rails"] = "PASS"
     else:
-        row.reasons.append(f"final assistant text holds {len(transcript_rails)} rail lines (want 2)")
+        row.reasons.append(
+            f"final assistant text holds {len(transcript_rails)} rail lines (want 2)"
+        )
 
     emitted = run_save_point(["emit", str(new_file)])
     emitted_between = between_rails(emitted.stdout) if emitted.returncode == 0 else None
@@ -725,7 +767,9 @@ def assess_hop(
         if between_rails(transcript_text) != emitted_between:
             mismatches.append("transcript")
         if mismatches:
-            row.reasons.append("between-rails bytes differ from emit: " + ", ".join(mismatches))
+            row.reasons.append(
+                "between-rails bytes differ from emit: " + ", ".join(mismatches)
+            )
         else:
             row.checks["between_rails_match"] = "PASS"
 
@@ -750,7 +794,6 @@ class ChainOutcome:
     rows: list[HopRow]
     tsv_path: Path
     session_ids: list[str]
-    deleted: list[str]
     kept_dir: Path
     transcripts_dir: Path
 
@@ -764,6 +807,12 @@ class ChainOutcome:
     @property
     def runs_total(self) -> int:
         return len({row.run for row in self.rows})
+
+    @property
+    def kept_transcripts(self) -> list[Path]:
+        if not self.transcripts_dir.is_dir():
+            return []
+        return sorted(self.transcripts_dir.glob("*.jsonl"))
 
 
 TASK_README = """# Hop-chain fixture
@@ -795,7 +844,8 @@ def make_fixture(work_dir: Path, run: int, pad_tokens: int) -> Path:
     (fixture / "README.md").write_text(TASK_README, encoding="utf-8", newline="\n")
     if pad_tokens > 0:
         pad = "\n".join(
-            filler_line("context-pad", i, 96) for i in range(max(1, pad_tokens * 4 // 97))
+            filler_line("context-pad", i, 96)
+            for i in range(max(1, pad_tokens * 4 // 97))
         )
         (fixture / "context-pad.md").write_text(
             "# Context pad\n\n" + pad + "\n", encoding="utf-8", newline="\n"
@@ -812,7 +862,12 @@ def make_fixture(work_dir: Path, run: int, pad_tokens: int) -> Path:
         ["git", "commit", "-qm", "fixture: initial"],
     ):
         subprocess.run(
-            command, cwd=str(fixture), capture_output=True, text=True, encoding="utf-8", check=True
+            command,
+            cwd=str(fixture),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
         )
     return fixture
 
@@ -912,14 +967,20 @@ def live_runner(cfg: argparse.Namespace):
             **popen_extra,
         )
         try:
-            stdout, stderr = process.communicate(call.prompt, timeout=cfg.timeout_seconds)
+            stdout, stderr = process.communicate(
+                call.prompt, timeout=cfg.timeout_seconds
+            )
         except subprocess.TimeoutExpired:
             kill_tree(process)
             try:
                 process.communicate(timeout=30)
             except subprocess.TimeoutExpired:
                 pass
-            return {"subtype": "error_timeout", "result": "", "session_id": call.session_id}
+            return {
+                "subtype": "error_timeout",
+                "result": "",
+                "session_id": call.session_id,
+            }
         try:
             return json.loads(stdout)
         except json.JSONDecodeError:
@@ -933,11 +994,9 @@ def live_runner(cfg: argparse.Namespace):
     return run
 
 
-def next_prompt(rails_text: str) -> str:
-    return rails_text
-
-
-def execute_chain(cfg: argparse.Namespace, runner, projects_root: Path, work_dir: Path) -> ChainOutcome:
+def execute_chain(
+    cfg: argparse.Namespace, runner, projects_root: Path, work_dir: Path
+) -> ChainOutcome:
     rows: list[HopRow] = []
     session_ids: list[str] = []
     fixtures: list[Path] = []
@@ -977,23 +1036,23 @@ def execute_chain(cfg: argparse.Namespace, runner, projects_root: Path, work_dir
             if rails_text is None:
                 rows.extend(_skipped_rows(run, hop, sessions_per_run, cfg.model or ""))
                 break
-            prompt = next_prompt(rails_text)
+            prompt = rails_text
 
     tsv_path = write_tsv(rows, cfg, work_dir)
-    deleted: list[str] = []
     if not cfg.keep:
-        deleted = cleanup(session_ids, projects_root, fixtures)
+        cleanup(session_ids, projects_root, fixtures)
     return ChainOutcome(
         rows=rows,
         tsv_path=tsv_path,
         session_ids=session_ids,
-        deleted=deleted,
         kept_dir=work_dir / "handoffs",
         transcripts_dir=work_dir / "transcripts",
     )
 
 
-def _keep_produced_files(fixture: Path, before: set[str], work_dir: Path, run: int, hop: int) -> None:
+def _keep_produced_files(
+    fixture: Path, before: set[str], work_dir: Path, run: int, hop: int
+) -> None:
     """Copy each hop's handoff file out of the fixture before cleanup removes
     the fixture. `--budget --live-hop1` reads the hop-1 copy from here."""
     handoff_dir = fixture / ".work" / "handoffs"
@@ -1003,7 +1062,9 @@ def _keep_produced_files(fixture: Path, before: set[str], work_dir: Path, run: i
         shutil.copy2(handoff_dir / name, keep / f"run{run}-hop{hop}-{name}")
 
 
-def _keep_failed_transcript(session_id: str, projects_root: Path, work_dir: Path, run: int, hop: int) -> None:
+def _keep_failed_transcript(
+    session_id: str, projects_root: Path, work_dir: Path, run: int, hop: int
+) -> None:
     """Copy a failing hop's transcript out before cleanup deletes it.
 
     A row that fails on transcript evidence is exactly the row someone needs to
@@ -1012,7 +1073,7 @@ def _keep_failed_transcript(session_id: str, projects_root: Path, work_dir: Path
     """
     if not session_id:
         return
-    hits = sorted(glob.glob(str(projects_root / "*" / f"{session_id}.jsonl")))
+    hits = transcript_paths(session_id, projects_root)
     if not hits:
         return
     keep = work_dir / "transcripts"
@@ -1042,30 +1103,25 @@ def write_tsv(rows: list[HopRow], cfg: argparse.Namespace, work_dir: Path) -> Pa
     return path
 
 
-def cleanup(session_ids: list[str], projects_root: Path, fixtures: list[Path]) -> list[str]:
+def cleanup(session_ids: list[str], projects_root: Path, fixtures: list[Path]) -> None:
     """Delete exactly the transcripts whose session ids this harness created,
     plus the fixture repositories. The install-tree directory the CLI creates
     for a --plugin-dir plugin (~/.claude/plugins/data/session-flow-inline/) is
     left alone, and ~/.claude/settings.json is never touched."""
-    deleted: list[str] = []
     for session_id in session_ids:
         if not session_id:
             continue
-        for hit in glob.glob(str(projects_root / "*" / f"{session_id}.jsonl")):
+        for hit in transcript_paths(session_id, projects_root):
             try:
                 os.remove(hit)
-                deleted.append(hit)
             except OSError:
                 pass
         for sibling in glob.glob(str(projects_root / "*" / session_id)):
             path = Path(sibling)
             if path.is_dir():
                 rmtree(path)
-                deleted.append(sibling)
     for fixture in fixtures:
         rmtree(fixture)
-        deleted.append(str(fixture))
-    return deleted
 
 
 def report(outcome: ChainOutcome) -> int:
@@ -1074,11 +1130,17 @@ def report(outcome: ChainOutcome) -> int:
         print("\t".join(row.cells()))
     passed = outcome.runs_passed
     total = outcome.runs_total
-    print(f"summary: {passed}/{total} runs passed ({sum(1 for r in outcome.rows if r.passed)}/{len(outcome.rows)} hops)")
+    print(
+        f"summary: {passed}/{total} runs passed ({sum(1 for r in outcome.rows if r.passed)}/{len(outcome.rows)} hops)"
+    )
     print(f"tsv: {outcome.tsv_path.as_posix()}")
-    print(f"handoff files kept: {outcome.kept_dir.as_posix()} (feed hop 1 to --budget --live-hop1)")
-    copies = sorted(outcome.transcripts_dir.glob("*.jsonl")) if outcome.transcripts_dir.is_dir() else []
-    print(f"failed-hop transcripts: {outcome.transcripts_dir.as_posix()} ({len(copies)} kept)")
+    print(
+        f"handoff files kept: {outcome.kept_dir.as_posix()} (feed hop 1 to --budget --live-hop1)"
+    )
+    copies = outcome.kept_transcripts
+    print(
+        f"failed-hop transcripts: {outcome.transcripts_dir.as_posix()} ({len(copies)} kept)"
+    )
     return 0 if outcome.rows and passed == total else 1
 
 
@@ -1100,7 +1162,9 @@ def generate_chain(root: Path, hops: int) -> list[Path]:
     previous: Path | None = None
     for hop in range(1, hops + 1):
         session_id = str(uuid.uuid5(BUDGET_NAMESPACE, f"hop-{hop}"))
-        (projects / f"{session_id}.jsonl").write_text("", encoding="utf-8", newline="\n")
+        (projects / f"{session_id}.jsonl").write_text(
+            "", encoding="utf-8", newline="\n"
+        )
         when = (BUDGET_EPOCH + timedelta(minutes=hop)).strftime("%Y-%m-%dT%H:%M:%SZ")
         args = [
             "new",
@@ -1120,41 +1184,61 @@ def generate_chain(root: Path, hops: int) -> list[Path]:
         args += ["--previous", str(previous)] if previous else ["--no-previous"]
         made = run_save_point(args)
         if made.returncode != 0:
-            raise SystemExit(f"budget: `new` failed at hop {hop}: {made.stdout}{made.stderr}")
+            raise SystemExit(
+                f"budget: `new` failed at hop {hop}: {made.stdout}{made.stderr}"
+            )
         path = Path(made.stdout.strip())
         if hop == 1:
             lines, chars, slots = measure_skeleton(path)
             size = size_filler(lines, chars, slots)
         fill_skeleton(path, hop, size)
         checked = run_save_point(
-            ["validate", str(path), "--projects-root", str(root / "projects"), "--strict-transcript"]
+            [
+                "validate",
+                str(path),
+                "--projects-root",
+                str(root / "projects"),
+                "--strict-transcript",
+            ]
         )
         if checked.returncode != 0:
-            raise SystemExit(f"budget: generated hop {hop} does not validate:\n{checked.stdout}")
+            raise SystemExit(
+                f"budget: generated hop {hop} does not validate:\n{checked.stdout}"
+            )
         files.append(path)
         previous = path
     return files
 
 
 def cmd_budget(cfg: argparse.Namespace) -> int:
-    work_dir = Path(cfg.work_dir) if cfg.work_dir else Path(tempfile.mkdtemp(prefix="hop-chain-budget-"))
+    work_dir = (
+        Path(cfg.work_dir)
+        if cfg.work_dir
+        else Path(tempfile.mkdtemp(prefix="hop-chain-budget-"))
+    )
     work_dir.mkdir(parents=True, exist_ok=True)
     root = work_dir / "budget"
     rmtree(root)
     try:
         files = generate_chain(root, BUDGET_HOPS)
-        print(f"generated {len(files)} hops through save_point.py new; every hop validates strictly")
+        print(
+            f"generated {len(files)} hops through save_point.py new; every hop validates strictly"
+        )
         print("hop\tlines\tchars\ttokens_chars_div_4\tsource")
         for hop in BUDGET_REPORT_HOPS:
             text = files[hop - 1].read_text(encoding="utf-8")
-            print(f"{hop}\t{len(text.splitlines())}\t{len(text)}\t{token_estimate(text)}\tgenerated")
+            print(
+                f"{hop}\t{len(text.splitlines())}\t{len(text)}\t{token_estimate(text)}\tgenerated"
+            )
         if cfg.live_hop1:
             live = Path(cfg.live_hop1)
             if not live.is_file():
                 print(f"live-hop1: not a file: {live.as_posix()}", file=sys.stderr)
                 return 2
             text = live.read_text(encoding="utf-8")
-            print(f"1\t{len(text.splitlines())}\t{len(text)}\t{token_estimate(text)}\tlive {live.name}")
+            print(
+                f"1\t{len(text.splitlines())}\t{len(text)}\t{token_estimate(text)}\tlive {live.name}"
+            )
         print(
             f"filler rule: shape-1 corpus median {SHAPE1_MEDIAN_LINES} lines / "
             f"{SHAPE1_MEDIAN_TOKENS} tokens, split across the padded sections at hop 1 and held "
@@ -1182,19 +1266,30 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
 SHELL_PROBES = {
     "shell_read_before_skill": (
         "Bash",
-        {"command": 'cat -n "{handoffs}/predecessor.md"', "description": "read the predecessor"},
+        {
+            "command": 'cat -n "{handoffs}/predecessor.md"',
+            "description": "read the predecessor",
+        },
     ),
     "shell_write_before_skill": (
         "Bash",
-        {"command": 'cp notes.md "{handoffs}/free-hand.md"', "description": "copy a file"},
+        {
+            "command": 'cp notes.md "{handoffs}/free-hand.md"',
+            "description": "copy a file",
+        },
     ),
     "shell_stderr_redirect_before_skill": (
         "Bash",
-        {"command": 'grep -c "handoffs/" notes.md 2>&1', "description": "count mentions"},
+        {
+            "command": 'grep -c "handoffs/" notes.md 2>&1',
+            "description": "count mentions",
+        },
     ),
     "powershell_write_before_skill": (
         "PowerShell",
-        {"command": 'Set-Content -Path "{handoffs}/free-hand.md" -Value "written by hand"'},
+        {
+            "command": 'Set-Content -Path "{handoffs}/free-hand.md" -Value "written by hand"'
+        },
     ),
     # A resuming hop validating its predecessor before invoking the skill. It
     # names handoffs/ AND runs an interpreter, and used to be scored a
@@ -1217,22 +1312,10 @@ SHELL_PROBES = {
     ),
 }
 
-DEFECTS = (
-    "no_skill",
-    "foreign_skill_naming_ours_in_args",
-    "write_before_skill",
-    "write_and_skill_in_one_record",
-    *SHELL_PROBES,
-    "sid_mismatch",
-    "budget_exhausted",
-    "turn_limit",
-    "one_rail",
-    "three_rails",
-    "crlf",
-)
 
-
-def _record(session_id: str, when: datetime, content: list[dict], usage: dict | None = None) -> dict:
+def _record(
+    session_id: str, when: datetime, content: list[dict], usage: dict | None = None
+) -> dict:
     return {
         "type": "assistant",
         "timestamp": when.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
@@ -1267,12 +1350,14 @@ def make_fake_runner(defects: dict[int, set[str]]):
 
     def run(call: HopCall) -> dict:
         flags = defects.get(call.hop, set())
-        slug = "fake"
-        transcript = call.projects_root / slug / f"{call.session_id}.jsonl"
+        transcript = call.projects_root / "fake" / f"{call.session_id}.jsonl"
         now = datetime.now(timezone.utc)
 
         if "budget_exhausted" in flags:
-            _write_jsonl(transcript, [_record(call.session_id, now, [{"type": "text", "text": "starting"}])])
+            _write_jsonl(
+                transcript,
+                [_record(call.session_id, now, [{"type": "text", "text": "starting"}])],
+            )
             return {
                 "type": "result",
                 "subtype": "error_max_budget_usd",
@@ -1284,7 +1369,8 @@ def make_fake_runner(defects: dict[int, set[str]]):
             }
 
         memory = call.fixture / ".work"
-        previous = sorted((memory / "handoffs").glob(HANDOFF_GLOB))
+        handoff_dir = memory / "handoffs"
+        previous = sorted(handoff_dir.glob(HANDOFF_GLOB))
 
         prelude: list[dict] = [
             _record(call.session_id, now, [{"type": "text", "text": "doing step 1"}])
@@ -1306,10 +1392,10 @@ def make_fake_runner(defects: dict[int, set[str]]):
                     ],
                 )
             )
+        handoffs = handoff_dir.as_posix()
         for probe, (tool_name, tool_input) in SHELL_PROBES.items():
             if probe not in flags:
                 continue
-            handoffs = (call.fixture / ".work" / "handoffs").as_posix()
             prelude.append(
                 _record(
                     call.session_id,
@@ -1319,7 +1405,10 @@ def make_fake_runner(defects: dict[int, set[str]]):
                             "type": "tool_use",
                             "id": f"toolu_{probe}",
                             "name": tool_name,
-                            "input": {k: v.format(handoffs=handoffs) for k, v in tool_input.items()},
+                            "input": {
+                                k: v.format(handoffs=handoffs)
+                                for k, v in tool_input.items()
+                            },
                         }
                     ],
                 )
@@ -1335,7 +1424,7 @@ def make_fake_runner(defects: dict[int, set[str]]):
                             "id": "toolu_early",
                             "name": "Write",
                             "input": {
-                                "file_path": (call.fixture / ".work" / "handoffs" / "early.md").as_posix(),
+                                "file_path": (handoff_dir / "early.md").as_posix(),
                                 "content": "free-hand",
                             },
                         }
@@ -1357,7 +1446,9 @@ def make_fake_runner(defects: dict[int, set[str]]):
                             "id": "toolu_same_record_write",
                             "name": "Write",
                             "input": {
-                                "file_path": (call.fixture / ".work" / "handoffs" / "same-record.md").as_posix(),
+                                "file_path": (
+                                    handoff_dir / "same-record.md"
+                                ).as_posix(),
                                 "content": "free-hand",
                             },
                         },
@@ -1365,7 +1456,10 @@ def make_fake_runner(defects: dict[int, set[str]]):
                             "type": "tool_use",
                             "id": "toolu_same_record_skill",
                             "name": "Skill",
-                            "input": {"skill": SKILL_NAME, "args": f"file hop{call.hop}"},
+                            "input": {
+                                "skill": SKILL_NAME,
+                                "args": f"file hop{call.hop}",
+                            },
                         },
                     ],
                 )
@@ -1398,7 +1492,10 @@ def make_fake_runner(defects: dict[int, set[str]]):
                             "type": "tool_use",
                             "id": "toolu_skill",
                             "name": "Skill",
-                            "input": {"skill": SKILL_NAME, "args": f"file hop{call.hop}"},
+                            "input": {
+                                "skill": SKILL_NAME,
+                                "args": f"file hop{call.hop}",
+                            },
                         }
                     ],
                 )
@@ -1428,13 +1525,17 @@ def make_fake_runner(defects: dict[int, set[str]]):
         args += ["--previous", str(previous[-1])] if previous else ["--no-previous"]
         made = run_save_point(args)
         if made.returncode != 0:
-            raise SystemExit(f"dry-run: `new` failed at hop {call.hop}: {made.stdout}{made.stderr}")
+            raise SystemExit(
+                f"dry-run: `new` failed at hop {call.hop}: {made.stdout}{made.stderr}"
+            )
         path = Path(made.stdout.strip())
         fill_skeleton(path, call.hop, FillerSize())
 
         emitted = run_save_point(["emit", str(path)])
         if emitted.returncode != 0:
-            raise SystemExit(f"dry-run: `emit` failed at hop {call.hop}: {emitted.stdout}{emitted.stderr}")
+            raise SystemExit(
+                f"dry-run: `emit` failed at hop {call.hop}: {emitted.stdout}{emitted.stderr}"
+            )
         resume = emitted.stdout.rstrip("\n")
 
         after = datetime.now(timezone.utc) + timedelta(seconds=1)
@@ -1447,7 +1548,10 @@ def make_fake_runner(defects: dict[int, set[str]]):
                         "type": "tool_use",
                         "id": "toolu_write",
                         "name": "Write",
-                        "input": {"file_path": path.as_posix(), "content": "handoffs/ save-point"},
+                        "input": {
+                            "file_path": path.as_posix(),
+                            "content": "handoffs/ save-point",
+                        },
                     }
                 ],
             ),
@@ -1623,7 +1727,9 @@ DRY_RUN_CASES = (
 )
 
 
-def _case_config(base: argparse.Namespace, case: Case, work_dir: Path) -> argparse.Namespace:
+def _case_config(
+    base: argparse.Namespace, case: Case, work_dir: Path
+) -> argparse.Namespace:
     cfg = argparse.Namespace(**vars(base))
     cfg.runs = 1
     cfg.hops = case.hops
@@ -1638,7 +1744,9 @@ def check_child_env() -> tuple[bool, str]:
     """The child env carries only the allowlist, so no launching-session
     variable (its id, its effort, its plugin-data dir) can reach a hop."""
     env = child_env()
-    leaked = sorted(k for k in env if k.startswith("CLAUDE_") and k != "CLAUDE_CONFIG_DIR")
+    leaked = sorted(
+        k for k in env if k.startswith("CLAUDE_") and k != "CLAUDE_CONFIG_DIR"
+    )
     if leaked:
         return False, f"CLAUDE_* variables leaked into the child env: {leaked}"
     outside = sorted(k for k in env if k not in ENV_ALLOWLIST)
@@ -1649,18 +1757,26 @@ def check_child_env() -> tuple[bool, str]:
     return True, ""
 
 
-def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
-    work_dir = Path(tempfile.mkdtemp(prefix=f"hop-chain-dry-{case.name}-"))
-    projects_root = work_dir / "projects"
+def _seed_decoys(projects_root: Path) -> list[Path]:
+    """Transcripts cleanup must leave alone: they are not the harness's own."""
     (projects_root / "fake").mkdir(parents=True, exist_ok=True)
     decoys = [projects_root / "fake" / f"{uuid.uuid4()}.jsonl" for _ in range(2)]
     for decoy in decoys:
         decoy.write_text("", encoding="utf-8", newline="\n")
+    return decoys
+
+
+def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
+    work_dir = Path(tempfile.mkdtemp(prefix=f"hop-chain-dry-{case.name}-"))
+    projects_root = work_dir / "projects"
+    decoys = _seed_decoys(projects_root)
     decoy_dir = projects_root / "fake" / str(uuid.uuid4())
     decoy_dir.mkdir(parents=True, exist_ok=True)
     try:
         cfg = _case_config(base, case, work_dir)
-        outcome = execute_chain(cfg, make_fake_runner(case.defects), projects_root, work_dir)
+        outcome = execute_chain(
+            cfg, make_fake_runner(case.defects), projects_root, work_dir
+        )
         expected_rows = cfg.hops + 1
         if len(outcome.rows) != expected_rows:
             return False, f"expected {expected_rows} rows, got {len(outcome.rows)}"
@@ -1677,25 +1793,41 @@ def _run_case(base: argparse.Namespace, case: Case) -> tuple[bool, str]:
             # The produced files outlive the fixtures cleanup removes.
             kept = sorted(outcome.kept_dir.glob(HANDOFF_GLOB))
             if len(kept) != expected_rows:
-                return False, f"{len(kept)} handoff files kept, expected {expected_rows}"
-            if case.expect_reason and not any(case.expect_reason in r for r in row.reasons):
-                return False, f"note {case.expect_reason!r} absent from a passing row: {row.reasons}"
+                return (
+                    False,
+                    f"{len(kept)} handoff files kept, expected {expected_rows}",
+                )
+            if case.expect_reason and not any(
+                case.expect_reason in r for r in row.reasons
+            ):
+                return (
+                    False,
+                    f"note {case.expect_reason!r} absent from a passing row: {row.reasons}",
+                )
         else:
             if row.passed:
                 return False, "row passed but the case injects a defect"
             if case.expect_check and row.checks.get(case.expect_check) != "FAIL":
-                return False, f"check {case.expect_check} is {row.checks.get(case.expect_check)}, expected FAIL"
-            if case.expect_reason and not any(case.expect_reason in r for r in row.reasons):
+                return (
+                    False,
+                    f"check {case.expect_check} is {row.checks.get(case.expect_check)}, expected FAIL",
+                )
+            if case.expect_reason and not any(
+                case.expect_reason in r for r in row.reasons
+            ):
                 return False, f"reason {case.expect_reason!r} absent from {row.reasons}"
         # A failing hop keeps its transcript for inspection; a passing one does
         # not (cleanup removes it from ~/.claude/projects either way).
         want_copies = sum(1 for r in outcome.rows if not r.passed and r.session_id)
-        copies = sorted(outcome.transcripts_dir.glob("*.jsonl")) if outcome.transcripts_dir.is_dir() else []
+        copies = outcome.kept_transcripts
         if len(copies) != want_copies:
-            return False, f"{len(copies)} transcript copies kept, expected {want_copies}"
+            return (
+                False,
+                f"{len(copies)} transcript copies kept, expected {want_copies}",
+            )
         # Cleanup deleted exactly the harness's own session ids.
         for session_id in outcome.session_ids:
-            if session_id and list(glob.glob(str(projects_root / "*" / f"{session_id}.jsonl"))):
+            if session_id and transcript_paths(session_id, projects_root):
                 return False, f"cleanup left transcript {session_id}"
         for decoy in decoys:
             if not decoy.is_file():
@@ -1719,10 +1851,7 @@ def check_main_level_orchestration() -> tuple[bool, str]:
     """
     work_dir = Path(tempfile.mkdtemp(prefix="hop-chain-main-"))
     projects_root = work_dir / "projects"
-    (projects_root / "fake").mkdir(parents=True, exist_ok=True)
-    decoys = [projects_root / "fake" / f"{uuid.uuid4()}.jsonl" for _ in range(2)]
-    for decoy in decoys:
-        decoy.write_text("", encoding="utf-8", newline="\n")
+    decoys = _seed_decoys(projects_root)
     try:
         argv = [
             "--runs",
@@ -1766,7 +1895,7 @@ def check_main_level_orchestration() -> tuple[bool, str]:
         if len(set(session_ids)) != 8:
             return False, "session ids are not unique per hop"
         for session_id in session_ids:
-            if list(glob.glob(str(projects_root / "*" / f"{session_id}.jsonl"))):
+            if transcript_paths(session_id, projects_root):
                 return False, f"cleanup left transcript {session_id}"
         for decoy in decoys:
             if not decoy.is_file():
@@ -1823,21 +1952,69 @@ def build_parser() -> argparse.ArgumentParser:
         prog="hop_chain.py",
         description="Headless hop-chain harness for /session-flow:handoff.",
     )
-    parser.add_argument("--runs", type=int, default=3, help="chains per invocation (default 3)")
-    parser.add_argument("--hops", type=int, default=3, help="rails transfers per chain; sessions are hops+1 (default 3)")
-    parser.add_argument("--model", help="model id, required for a live run and recorded in the TSV")
-    parser.add_argument("--max-turns", type=int, default=40, help="per-hop turn cap (default 40)")
-    parser.add_argument("--budget-usd-per-hop", type=float, default=3.0, help="per-hop spend cap (default 3)")
-    parser.add_argument("--timeout-seconds", type=int, default=900, help="per-hop wall clock cap (default 900)")
-    parser.add_argument("--plugin-dir", default=str(DEFAULT_PLUGIN_DIR), help="session-flow plugin dir to load")
-    parser.add_argument("--pad-context", type=int, default=0, help="tokens of filler the hop-1 prompt orders read first")
-    parser.add_argument("--projects-root", help="transcript root (default ~/.claude/projects)")
-    parser.add_argument("--work-dir", help="scratch root for fixtures and the report (default: a fresh temp dir)")
+    parser.add_argument(
+        "--runs", type=int, default=3, help="chains per invocation (default 3)"
+    )
+    parser.add_argument(
+        "--hops",
+        type=int,
+        default=3,
+        help="rails transfers per chain; sessions are hops+1 (default 3)",
+    )
+    parser.add_argument(
+        "--model", help="model id, required for a live run and recorded in the TSV"
+    )
+    parser.add_argument(
+        "--max-turns", type=int, default=40, help="per-hop turn cap (default 40)"
+    )
+    parser.add_argument(
+        "--budget-usd-per-hop",
+        type=float,
+        default=3.0,
+        help="per-hop spend cap (default 3)",
+    )
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=900,
+        help="per-hop wall clock cap (default 900)",
+    )
+    parser.add_argument(
+        "--plugin-dir",
+        default=str(DEFAULT_PLUGIN_DIR),
+        help="session-flow plugin dir to load",
+    )
+    parser.add_argument(
+        "--pad-context",
+        type=int,
+        default=0,
+        help="tokens of filler the hop-1 prompt orders read first",
+    )
+    parser.add_argument(
+        "--projects-root", help="transcript root (default ~/.claude/projects)"
+    )
+    parser.add_argument(
+        "--work-dir",
+        help="scratch root for fixtures and the report (default: a fresh temp dir)",
+    )
     parser.add_argument("--report", help="TSV path (default <work-dir>/hop-chain.tsv)")
-    parser.add_argument("--dry-run", action="store_true", help="self-test against a fake runner; spends nothing")
-    parser.add_argument("--budget", action="store_true", help="generate a 20-hop chain and report its size; spends nothing")
-    parser.add_argument("--live-hop1", help="--budget only: a live hop-1 file reported beside the generated hop 1")
-    parser.add_argument("--keep", action="store_true", help="keep fixtures and transcripts")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="self-test against a fake runner; spends nothing",
+    )
+    parser.add_argument(
+        "--budget",
+        action="store_true",
+        help="generate a 20-hop chain and report its size; spends nothing",
+    )
+    parser.add_argument(
+        "--live-hop1",
+        help="--budget only: a live hop-1 file reported beside the generated hop 1",
+    )
+    parser.add_argument(
+        "--keep", action="store_true", help="keep fixtures and transcripts"
+    )
     return parser
 
 
@@ -1846,10 +2023,13 @@ def main(argv: list[str] | None = None, runner_factory=live_runner) -> int:
     function with the `claude` subprocess swapped out: every other step, the
     argument parsing, the run loop, row aggregation, the kept-files copy, the
     report write, and cleanup, is then the same code a live run executes."""
-    _utf8_streams()
+    utf8_streams()
     cfg = build_parser().parse_args(argv)
     if not SAVE_POINT.is_file():
-        print(f"error: save_point.py not found at {SAVE_POINT.as_posix()}", file=sys.stderr)
+        print(
+            f"error: save_point.py not found at {SAVE_POINT.as_posix()}",
+            file=sys.stderr,
+        )
         return 2
     if cfg.dry_run and cfg.budget:
         print("error: --dry-run and --budget are separate modes", file=sys.stderr)
@@ -1859,16 +2039,25 @@ def main(argv: list[str] | None = None, runner_factory=live_runner) -> int:
     if cfg.budget:
         return cmd_budget(cfg)
     if not cfg.model:
-        print("error: --model is required for a live run (it is recorded in the TSV)", file=sys.stderr)
+        print(
+            "error: --model is required for a live run (it is recorded in the TSV)",
+            file=sys.stderr,
+        )
         return 2
     if cfg.runs < 1 or cfg.hops < 1:
         print("error: --runs and --hops must be at least 1", file=sys.stderr)
         return 2
 
     projects_root = (
-        Path(cfg.projects_root).expanduser() if cfg.projects_root else Path.home() / ".claude" / "projects"
+        Path(cfg.projects_root).expanduser()
+        if cfg.projects_root
+        else Path.home() / ".claude" / "projects"
     )
-    work_dir = Path(cfg.work_dir) if cfg.work_dir else Path(tempfile.mkdtemp(prefix="hop-chain-"))
+    work_dir = (
+        Path(cfg.work_dir)
+        if cfg.work_dir
+        else Path(tempfile.mkdtemp(prefix="hop-chain-"))
+    )
     work_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
     outcome = execute_chain(cfg, runner_factory(cfg), projects_root, work_dir)

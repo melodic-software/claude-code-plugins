@@ -73,13 +73,24 @@ done
 
 # --- Config resolution -------------------------------------------------------
 
+# The project-root ladder is shared vocabulary (lib/resolve-scopes.sh), not this
+# script's to restate. Fail loudly rather than fall through: an unsourced library
+# leaves the root empty and this script writes to the settings path it resolves.
+PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
+if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
+  echo "ERROR: cannot read $RESOLVE_SCOPES_LIB; the plugin's shared scope-resolution library is missing" >&2
+  exit 2
+fi
+# shellcheck source=../../../lib/resolve-scopes.sh
+source "$RESOLVE_SCOPES_LIB"
+
 if [[ -n "${CLAUDE_SETTINGS_FILE:-}" ]]; then
   SETTINGS="$CLAUDE_SETTINGS_FILE"
 else
-  # Consumer project root: the cwd's git toplevel, then Claude Code's exported
-  # project dir, then cwd. Never the plugin's own install directory.
-  PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
-  [[ -n "$PROJECT_ROOT" ]] || PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+  # Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
+  PROJECT_ROOT=""
+  scopes::project_root_to PROJECT_ROOT
   SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 fi
 
@@ -95,7 +106,7 @@ fi
 
 # --- Output helpers ----------------------------------------------------------
 
-if [[ -n "${NO_COLOR:-}" ]] || [[ ! -t 1 ]]; then
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
   RED="" YELLOW="" GREEN="" CYAN="" RESET=""
 else
   RED=$'\033[31m' YELLOW=$'\033[33m' GREEN=$'\033[32m' CYAN=$'\033[36m' RESET=$'\033[0m'

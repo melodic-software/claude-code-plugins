@@ -83,9 +83,12 @@ import pathfix
 BACKUP_SUFFIX = ".discriminate-backup"
 
 
-def note(message: str | None) -> None:
-    if message:
-        print(f"NOTE: {message}", file=sys.stderr)
+def resolve(value: str) -> pathlib.Path:
+    """Resolve a path spelling, reporting any conversion on stderr."""
+    path, conversion = pathfix.resolve_existing(value)
+    if conversion:
+        print(f"NOTE: {conversion}", file=sys.stderr)
+    return path
 
 
 class HarnessError(Exception):
@@ -103,8 +106,7 @@ def load_bytes(config: dict[str, object], key: str, base: pathlib.Path) -> bytes
         return inline.encode("utf-8")
     if from_file is None:
         raise HarnessError(f"config must set either {key!r} or {key}_file")
-    path, conversion = pathfix.resolve_existing(str(from_file))
-    note(conversion)
+    path = resolve(str(from_file))
     if not path.is_absolute():
         path = base / path
     if not path.is_file():
@@ -123,8 +125,7 @@ def run_check(check: dict[str, object]) -> subprocess.CompletedProcess[str]:
     cwd = check.get("cwd")
     resolved_cwd: str | None = None
     if cwd:
-        cwd_path, conversion = pathfix.resolve_existing(str(cwd))
-        note(conversion)
+        cwd_path = resolve(str(cwd))
         if not cwd_path.is_dir():
             raise HarnessError(pathfix.spellings_message("check.cwd", str(cwd)))
         resolved_cwd = str(cwd_path)
@@ -191,7 +192,15 @@ def warn_uncommitted(target: pathlib.Path) -> None:
     }
     try:
         result = subprocess.run(
-            ["git", "-C", str(target.parent), "status", "--porcelain", "--", target.name],
+            [
+                "git",
+                "-C",
+                str(target.parent),
+                "status",
+                "--porcelain",
+                "--",
+                target.name,
+            ],
             capture_output=True,
             text=True,
             timeout=60,
@@ -199,7 +208,9 @@ def warn_uncommitted(target: pathlib.Path) -> None:
             env=environment,
         )
     except (OSError, subprocess.SubprocessError) as error:
-        print(f"HARNESS WARNING: cannot ask git about {target}: {error}", file=sys.stderr)
+        print(
+            f"HARNESS WARNING: cannot ask git about {target}: {error}", file=sys.stderr
+        )
         return
     if result.returncode != 0:
         print(
@@ -234,8 +245,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    config_path, conversion = pathfix.resolve_existing(args.config)
-    note(conversion)
+    config_path = resolve(args.config)
     if not config_path.is_file():
         raise HarnessError(pathfix.spellings_message("the config", args.config))
     config_path = config_path.resolve()
@@ -246,8 +256,7 @@ def main() -> int:
     base = config_path.parent
 
     given_target = str(config.get("target", ""))
-    target, conversion = pathfix.resolve_existing(given_target)
-    note(conversion)
+    target = resolve(given_target)
     if not target.is_absolute():
         target = base / target
     if not target.is_file():
@@ -293,8 +302,7 @@ def main() -> int:
         )
 
     if config.get("backup_dir"):
-        backup_dir, conversion = pathfix.resolve_existing(str(config["backup_dir"]))
-        note(conversion)
+        backup_dir = resolve(str(config["backup_dir"]))
     else:
         backup_dir = target.parent
     backup = backup_dir / (target.name + BACKUP_SUFFIX)
@@ -347,10 +355,14 @@ def main() -> int:
     negative_signal = extract_signal(pattern, negative)
     positive_signal = extract_signal(pattern, positive)
 
-    print(f"WITHOUT the fix (patched)  : rc={negative.returncode} "
-          f"signal={negative_signal!r} last={last_line(combined(negative))!r}")
-    print(f"WITH the fix (restored)    : rc={positive.returncode} "
-          f"signal={positive_signal!r} last={last_line(combined(positive))!r}")
+    print(
+        f"WITHOUT the fix (patched)  : rc={negative.returncode} "
+        f"signal={negative_signal!r} last={last_line(combined(negative))!r}"
+    )
+    print(
+        f"WITH the fix (restored)    : rc={positive.returncode} "
+        f"signal={positive_signal!r} last={last_line(combined(positive))!r}"
+    )
     print(f"restore verified byte-identical: {target.read_bytes() == original}")
 
     if 127 in (negative.returncode, positive.returncode):

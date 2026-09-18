@@ -3,6 +3,54 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.9]
+
+### Changed
+
+- The five audit scripts resolve the project root, user config dir and installed-plugin registry through one resolve-scopes library instead of five hand-written ladders. Overrides and environment values still land verbatim, and the sibling-script and missing-library diagnostics are unchanged. The library writes through `printf -v`, so it resolves the same scopes on the stock bash 3.2 that macOS ships.
+
+## [0.46.8]
+
+### Changed
+
+- The eight audit-permission-state test suites source one bundled per-skill test helper for their assertions, stub-PATH builder, and summary tail instead of carrying identical copies, with byte-identical output.
+
+## [0.46.7]
+
+### Changed
+
+- The four audit-instructions test suites source one bundled per-plugin test helper instead of carrying identical assertion blocks, with byte-identical output.
+
+## [0.46.6]
+
+### Changed
+
+- Drop the alias offset in conflict-scan, the dead frontmatter tail loop, the unreachable second is_absolute argument and the unused Section heading field in the audit-instructions scanners (behavior unchanged).
+
+## [0.46.5]
+
+### Changed
+
+- audit-permission-state: permission-state.sh emits settings and registry rules of each kind through one helper, permission-merge.sh emits inert rows through one awk function, automode-entry-diff.sh tests rule classes through one helper and folds its predicted-drop branch, automode-block-lint.sh derives each subject once, two scripts drop write-only counters, and the permission-state and managed-conformance suites drop a duplicated fixture invocation and an unused temp dir. Output byte-identical.
+
+## [0.46.4]
+
+### Changed
+
+- audit-automation-gaps inventory.sh dispatches its arguments through one case and drops an unreachable empty-roots arm, audit-pass run-state.sh drops an unreachable no-reason branch, audit-permission-grants permission-rule-check.sh computes its inert-grant remedy once and unifies its match-loop guards, and the inventory and permission-rule suites share their runners. No behavior change.
+
+## [0.46.3]
+
+### Changed
+
+- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and colour tests. No behavior change.
+
+## [0.46.2]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
 ## [0.46.1]
 
 ### Added
