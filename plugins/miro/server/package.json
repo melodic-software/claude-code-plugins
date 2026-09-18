@@ -18,11 +18,11 @@
   "dependencies": {
     "@mirohq/miro-api": "^2.2.4",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.12",
-    "@types/node": "^26.4.1",
+    "@biomejs/biome": "^2.5.13",
+    "@types/node": "^26.5.1",
     "@vitest/coverage-v8": "^5.0.0",
     "esbuild": "0.28.2",
     "typescript": "^7.0.2",
