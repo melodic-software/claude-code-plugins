@@ -612,14 +612,15 @@ else
   ok "an unwritable GITHUB_OUTPUT leaves docs_only unset, which run_full renders as 'true'"
 fi
 
-# --- LIVE: every detector self-test in `lint` carries its gate --------------
+# --- LIVE: every detector self-test in the lint halves carries its gate -----
 #
-# The 32 `bash scripts/<detector>.test.sh` steps in `lint` were unconditional
+# The 32 `bash scripts/<detector>.test.sh` steps in the lint lane were unconditional
 # and cost 61 s on every pull request, docs-only ones included. They are now
 # gated on `run_shell`, the one table output whose filter group names
 # `scripts/**`. The gate above proves each gate is well FORMED; nothing proved
 # they are still THERE, and a self-test that quietly loses its `if:` costs the
-# saving back one step at a time. Pinned by walking the live `lint` job.
+# saving back one step at a time. Pinned by walking the live `lint` and
+# `lint-2` jobs, the two halves of that one lane.
 #
 # One exclusion, by name: `check-summary-reader-parity.test.sh` carries an `id:`
 # and feeds CHECK_RESULTS, so gating it would need a paired feed override and is
@@ -630,7 +631,7 @@ ungated_selftests="$(
     /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
       job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job)
     }
-    job != "lint" { next }
+    job != "lint" && job != "lint-2" { next }
     /^      - / { gated = 0; ident = 0 }
     /^        if: needs\.changes\.outputs\.run_shell == .true.$/ { gated = 1 }
     /^        id:/ { ident = 1 }
@@ -640,9 +641,9 @@ ungated_selftests="$(
   ' "$live_workflow"
 )"
 if [[ -z "$ungated_selftests" ]]; then
-  ok "every id-less detector self-test in the live lint job is gated on run_shell"
+  ok "every id-less detector self-test in the live lint jobs is gated on run_shell"
 else
-  fail "ungated detector self-test(s) in lint: $(printf '%s' "$ungated_selftests" | tr '\n' ' ')"
+  fail "ungated detector self-test(s) in the lint halves:$(printf '%s' "$ungated_selftests" | tr '\n' ' ')"
 fi
 
 gated_count="$(grep -c "if: needs.changes.outputs.run_shell == 'true'" "$live_workflow" || true)"
