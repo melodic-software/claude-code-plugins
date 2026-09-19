@@ -69,6 +69,16 @@ run_require_evals() {
       bash "$SUT" --require-evals "$@")
 }
 
+# Root-mode wrapper. The parent still carries CHECK_SKILL_SKILLS_ROOT so a bare
+# skill name keeps resolving (the mixed-call and regression cases need that),
+# and the cwd is a variable so the relative-root case can run from a
+# subdirectory of the fixture repo.
+run_roots() {
+  (cd "${ROOTS_CWD:-$TMP}" &&
+    CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      bash "$SUT" "$@")
+}
+
 # 1. --help exits 0.
 if run --help >/dev/null 2>&1; then
   pass "--help exits 0"
@@ -4164,6 +4174,269 @@ if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section carries operative-chain p
   pass "a bullet-shape '## Next' with a fallback clause warns on the chain phrasing"
 else
   fail "bullet '## Next' with a fallback should warn on phrasing (rc=$rc): $out"
+fi
+
+# --- R1-R12: explicit skills roots as positionals -----------------------------
+# One or more existing directories run the gate over every skill under each,
+# grouped per root with a rollup. Roots live under $TMP/roots so the fixtures
+# above are untouched.
+
+ROOTS_CWD="$TMP"
+mkdir -p "$TMP/roots/a/root-pass-a" "$TMP/roots/b/root-fail-b" \
+  "$TMP/roots/c/root-pass-c" "$TMP/roots/empty" "$TMP/roots/ev/root-needs-evals"
+
+root_body='---
+description: "Root-mode fixture. Use when: '"'"'root mode'"'"' is exercised."
+disable-model-invocation: false
+---
+
+## Purpose
+
+Root-mode fixture skill.
+
+## Gotchas
+
+None known.
+'
+printf '%s' "$root_body" >"$TMP/roots/a/root-pass-a/SKILL.md"
+printf '%s' "$root_body" >"$TMP/roots/c/root-pass-c/SKILL.md"
+printf '%s' "$root_body" >"$TMP/roots/ev/root-needs-evals/SKILL.md"
+printf '%s' '# no frontmatter here
+just a heading
+' >"$TMP/roots/b/root-fail-b/SKILL.md"
+
+# R1. Two roots, one passing skill and one failing skill.
+out="$(run_roots "$TMP/roots/a" "$TMP/roots/b" 2>&1)"
+rc=$?
+# The per-skill verdict lines are what discriminate: a pre-root-mode script
+# checking a single skill can reach rc 1 too, but it can never report on two
+# skills under two different roots in one run.
+if [[ $rc -eq 1 ]] &&
+  grep -q '^=== .*/roots/a ===$' <<<"$out" &&
+  grep -q '^=== .*/roots/b ===$' <<<"$out" &&
+  grep -q 'CHECK-SKILL root-pass-a: PASS' <<<"$out" &&
+  grep -q 'CHECK-SKILL root-fail-b: FAIL' <<<"$out" &&
+  grep -q '^1 passed, 1 failed$' <<<"$out"; then
+  pass "R1: two roots with one pass and one fail exit 1 with per-root headers, both verdicts and a rollup"
+else
+  fail "R1: two roots should exit 1 with both headers, both verdict lines and '1 passed, 1 failed' (rc=$rc): $out"
+fi
+
+# R2. Two roots, every skill passing.
+out="$(run_roots "$TMP/roots/a" "$TMP/roots/c" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q '^2 passed, 0 failed$' <<<"$out"; then
+  pass "R2: two all-passing roots exit 0 with a rollup"
+else
+  fail "R2: two all-passing roots should exit 0 with '2 passed, 0 failed' (rc=$rc): $out"
+fi
+
+# R3. A valid root plus a path that does not exist is an environment error, not
+#     a silently omitted subtree.
+out="$(run_roots "$TMP/roots/a" "$TMP/roots/nope" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'roots/nope' <<<"$out"; then
+  pass "R3: an unresolvable path alongside a root exits 2 naming it"
+else
+  fail "R3: an unresolvable path should exit 2 naming it (rc=$rc): $out"
+fi
+
+# R4. A root that exists but holds no skills is reported, not an error (the
+#     sibling listing-budget checker reports and exits 0 in the same case).
+out="$(run_roots "$TMP/roots/empty" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'No skills found under: .*/roots/empty' <<<"$out" &&
+  grep -q '^0 passed, 0 failed$' <<<"$out"; then
+  pass "R4: an empty root is named and exits 0"
+else
+  fail "R4: an empty root should be named at exit 0 (rc=$rc): $out"
+fi
+
+# R5. A resolving skill name mixed with a root is ambiguous; refuse it.
+out="$(run_roots good-skill "$TMP/roots/a" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'mixed skill name and skills root' <<<"$out"; then
+  pass "R5: a skill name mixed with a root exits 2"
+else
+  fail "R5: a mixed call should exit 2 (rc=$rc): $out"
+fi
+
+# R6. Skill-name resolution wins over directory existence, so a same-named
+#     directory relative to the cwd cannot hijack the bare-name call the repo's
+#     own CI gate makes.
+mkdir -p "$TMP/good-skill"
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'CHECK-SKILL good-skill: PASS' <<<"$out"; then
+  pass "R6: a bare skill name still resolves as a name when a same-named cwd directory exists"
+else
+  fail "R6: a bare skill name should stay single-skill mode (rc=$rc): $out"
+fi
+
+# R7. --require-evals reaches every child run.
+out="$(run_roots --require-evals "$TMP/roots/ev" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'skill ships no evals/evals.json' <<<"$out" &&
+  grep -q '^0 passed, 1 failed$' <<<"$out"; then
+  pass "R7: --require-evals reaches the children in root mode"
+else
+  fail "R7: --require-evals should reach the children (rc=$rc): $out"
+fi
+
+# R8. --help still prints the whole header block, now including the root form,
+#     and still stops at the first code line.
+out="$(run_roots --help 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -qF 'bash check-skill.sh [--require-evals] <root> [<root> ...]' <<<"$out" &&
+  ! grep -q 'set -uo pipefail' <<<"$out"; then
+  pass "R8: --help prints the root usage line and stops at the code"
+else
+  fail "R8: --help should print the root usage line and stop at the code (rc=$rc): $out"
+fi
+
+# R9. Zero positionals (and a bare --) keep the existing usage-error path.
+out="$(run_roots 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'Usage: check-skill.sh' <<<"$out"; then
+  pass "R9: no positionals still takes the existing usage-error path"
+else
+  fail "R9: no positionals should keep the usage-error path (rc=$rc): $out"
+fi
+out="$(run_roots -- 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'Usage: check-skill.sh' <<<"$out"; then
+  pass "R9: a bare -- with no positionals takes the same usage-error path"
+else
+  fail "R9: a bare -- should keep the usage-error path (rc=$rc): $out"
+fi
+
+# R10. Two skill names with no root is refused rather than silently dropping
+#      every positional after the first.
+out="$(run_roots good-skill bad-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'more than one skill name' <<<"$out"; then
+  pass "R10: two skill names with no root exit 2 instead of dropping the rest"
+else
+  fail "R10: two skill names should exit 2 (rc=$rc): $out"
+fi
+
+# R11. A relative root resolves against the CALLER's cwd. The single-skill body
+#      anchors a relative CHECK_SKILL_SKILLS_ROOT at the project or repo root,
+#      so the parent has to absolutize every root before enumerating it or
+#      handing it to a child; otherwise the parent walks one tree and every
+#      child checks another.
+abs_out="$(run_roots "$TMP/roots/a" 2>&1)"
+abs_rc=$?
+ROOTS_CWD="$TMP/roots"
+rel_out="$(run_roots a 2>&1)"
+rel_rc=$?
+ROOTS_CWD="$TMP"
+if [[ $rel_rc -eq $abs_rc ]] && [[ $rel_rc -eq 0 ]] &&
+  grep -q '^=== .*/roots/a ===$' <<<"$rel_out" &&
+  grep -q '^1 passed, 0 failed$' <<<"$rel_out" &&
+  grep -q '^1 passed, 0 failed$' <<<"$abs_out"; then
+  pass "R11: a relative root resolves against the caller's cwd and checks that tree"
+else
+  fail "R11: a relative root should match the absolute run (rel=$rel_rc abs=$abs_rc): $rel_out"
+fi
+
+# R12. A trailing slash must not defeat the /plugins/<x>/skills$ plugin-root
+#      branch (the evals-warrant lookup). Both spellings resolve it.
+noslash_out="$(run_roots --require-evals "$TMP/plugins/p1/skills" 2>&1)"
+noslash_rc=$?
+slash_out="$(run_roots --require-evals "$TMP/plugins/p1/skills/" 2>&1)"
+slash_rc=$?
+if [[ $slash_rc -eq $noslash_rc ]] &&
+  grep -q 'evals skip recorded' <<<"$noslash_out" &&
+  grep -q 'evals skip recorded' <<<"$slash_out"; then
+  pass "R12: a trailing-slash root still resolves the plugin-root branch"
+else
+  fail "R12: a trailing-slash root should match the plain spelling (slash=$slash_rc plain=$noslash_rc): $slash_out"
+fi
+
+# R13. A directory that itself holds SKILL.md is a SKILL directory, not a skills
+#      root. Treating it as a root walks its subdirectories, finds no SKILL.md in
+#      any of them, and reports "no skills" at exit 0, so a CI lane written that
+#      way (tab completion produces exactly this argument) is permanently green.
+out="$(run_roots "$TMP/roots/a/root-pass-a" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] &&
+  grep -q 'root-pass-a' <<<"$out" &&
+  grep -qi 'skill directory' <<<"$out"; then
+  pass "R13: a skill's own directory passed as a root exits 2 instead of gating nothing"
+else
+  fail "R13: a skill directory as a root should exit 2 (rc=$rc): $out"
+fi
+
+# R14. A LONE nonexistent root is an environment error too. Reporting it only
+#      when some other root happened to resolve let a typo'd path fall through to
+#      the single-skill body, which answered a plain path with the plugin:skill
+#      cache guidance at exit 1.
+out="$(run_roots "$TMP/roots/nope" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] &&
+  grep -q 'roots/nope' <<<"$out" &&
+  ! grep -q 'plugin:skill name' <<<"$out"; then
+  pass "R14: a lone nonexistent root exits 2 naming it, not the plugin:skill guidance"
+else
+  fail "R14: a lone nonexistent root should exit 2 naming it (rc=$rc): $out"
+fi
+
+# R14b. The same path an UNMATCHED glob takes: `check-skill.sh plugins/*/skills`
+#       with no match passes the literal pattern through, which must not be
+#       mistaken for a skill name either.
+out="$(run_roots "$TMP/no-such-dir/*/skills" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'no-such-dir' <<<"$out"; then
+  pass "R14b: an unmatched glob pattern reaching the script exits 2 naming it"
+else
+  fail "R14b: an unmatched glob literal should exit 2 naming it (rc=$rc): $out"
+fi
+
+# R15. A relative root is resolved against the cwd, never through CDPATH. `cd`
+#      consults CDPATH before `.` and ECHOES the directory it landed in, so an
+#      unguarded `$(cd "$arg" && pwd)` both resolves the wrong tree and captures
+#      two lines into the root string.
+mkdir -p "$TMP/cdpath-decoy/a"
+ROOTS_CWD="$TMP"
+out="$(cd "$TMP/roots" &&
+  CDPATH="$TMP/cdpath-decoy" CHECK_SKILL_SKILLS_ROOT="$SKILLS" \
+    CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" a 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q '^=== .*/roots/a ===$' <<<"$out" &&
+  grep -q '^1 passed, 0 failed$' <<<"$out"; then
+  pass "R15: a relative root ignores CDPATH and resolves against the cwd"
+else
+  fail "R15: a relative root should ignore CDPATH (rc=$rc): $out"
+fi
+
+# R16. The motivating case for deferring the skills-root resolution error: an
+#      EXPLICIT root positional has to work with no CHECK_SKILL_SKILLS_ROOT, no
+#      CLAUDE_PROJECT_DIR and no git repo (the marketplace plugin-cache install).
+#      Every other root case runs inside the fixture repo with the env set, so
+#      without this one the deferral is unexercised.
+NOGIT_TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP"' EXIT
+mkdir -p "$NOGIT_TMP/roots/x/nogit-skill"
+printf '%s' "$root_body" >"$NOGIT_TMP/roots/x/nogit-skill/SKILL.md"
+out="$(
+  cd "$NOGIT_TMP" &&
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
+      -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+      CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+      bash "$SUT" "$NOGIT_TMP/roots/x" 2>&1
+)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'not in a git repo' <<<"$out" &&
+  grep -q '^1 passed, 0 failed$' <<<"$out"; then
+  pass "R16: an explicit root gates its skills outside a git repo with no env set"
+else
+  fail "R16: an explicit root should work with no env and no git (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

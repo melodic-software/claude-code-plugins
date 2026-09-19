@@ -1,6 +1,6 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-six-check static contract gate and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
-argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root"
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [<skill-name>|<root> ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [<root> ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). Advisory only, never blocks. Not for: writing new skills, or running model-graded evals."
+argument-hint: "[check|validate-evals|listing-budget] [<skill-name-or-root> ...]. Omit the action for check; omit the name/root to run over every skill under the resolved root; give check one or more roots to gate several trees in one run"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -65,6 +65,12 @@ Parse `$ARGUMENTS`:
 
 - **`check <skill-name>`** (default action). Run the static contract gate over one skill.
 - **`check`** *(no name)*. Run the gate over every skill under the resolved root.
+- **`check <root> [<root> ...]`**. Run the gate over every skill under each given root, grouped
+  per root with a `N passed, M failed` rollup (e.g. every plugin's skills dir in a marketplace
+  repo). Every root given must exist, and must be a skills root rather than a skill directory
+  holding its own `SKILL.md`; either mistake exits 2 naming the argument. A root that exists but
+  holds no skills is named and is not an error. A skill name and a root cannot be mixed in one
+  call.
 - **`validate-evals <skill-name>`**. Validate one skill's `<skill>/evals/evals.json` against the schema.
 - **`validate-evals`** *(no name)*. Validate every skill's `<skill>/evals/evals.json` that exists.
 - **`listing-budget`** *(no root)*. Report the shared listing-budget estimate over every
@@ -83,10 +89,19 @@ Parse `$ARGUMENTS`:
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh" <skill-name>
    ```
 
-   For no name, enumerate each immediate subdirectory of the skills root that contains a `SKILL.md`
-   and run the script once per skill, collecting results.
+   For no name, pass the resolved root itself rather than enumerating by hand. The script walks
+   every immediate subdirectory holding a `SKILL.md`, runs the gate once per skill, prints a
+   header per root and ends with the rollup:
+
+   ```shell
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh" <resolved-root>
+   ```
+
+   To gate several trees in one run, pass each root: `check-skill.sh <root> [<root> ...]`.
 3. Report per skill:
-   - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines).
+   - **PASS / FAIL** from the script's exit code (0 = pass, 1 = one or more `FAIL:` lines). In root
+     mode that exit code is the AGGREGATE over every skill, so the per-skill verdict is that
+     skill's own `CHECK-SKILL <name>: PASS` or `CHECK-SKILL <name>: FAIL` line instead.
    - The `FAIL:` lines verbatim (each is an actionable defect).
    - `WARN:` lines grouped after failures (advisory: a trigger phrase dropped or moved vs the
      base ref, missing gotchas surface, action-router without evals, orphan
@@ -95,7 +110,8 @@ Parse `$ARGUMENTS`:
      declaration or a stale exemption directive, and a description/verb-contract polarity
      mismatch). A dropped-trigger warning is a review item: confirm the description still names
      the intent each dropped phrase carried, or restore the phrase.
-4. For a multi-skill run, end with a one-line rollup: `N passed, M failed`.
+4. For a multi-skill run, the script's own last line is the rollup `N passed, M failed`. Surface it
+   verbatim. The action is complete when every `FAIL:` line and that rollup are reported.
 
 The `FAIL:` messages are self-describing. Do not re-derive their meaning; surface them and, when the
 user asks, fix the cited skill. A broken-internal-ref FAIL points at a `SKILL.md:<line>`. Hand-verify
@@ -281,3 +297,16 @@ tool. This gate does not automate that reachability check; author and review aga
   `plugins/<plugin>/skills/` root, so gating the whole marketplace means pooling every plugin's root
   into one call (`check-listing-budget.sh plugins/*/skills`) rather than running it once per plugin
   in isolation. The marketplace's CI workflow runs that pooled call as a dedicated step on every run.
+- **`check <root> ...` pools nothing across roots.** Each skill is gated by its own child run
+  carrying its own root, so the cross-skill scans stay per root: check 3's trigger-move scan looks
+  for a moved phrase only among siblings under the same root, check 5's sibling-ref resolution only
+  names a sibling under the same root, and the `/plugins/<x>/skills` plugin-root detection behind
+  the evals-warrant lookup is derived per root. Two roots in one call are two independent scans
+  sharing one rollup, never one merged corpus. Pooling them would change what those checks mean,
+  which is why it is not done. `listing-budget` is the opposite by design: it pools, because the
+  budget it reports is the shared one.
+- **One resolved root stays the DEFAULT deliberately.** An explicit root list is how you widen
+  coverage; the resolution ladder never grows on its own to the union of every skills tree in
+  reach. Widening the default would silently widen every existing consumer's gate, including this
+  repo's CI, so broader coverage is something a caller asks for rather than something the ladder
+  decides for them.
