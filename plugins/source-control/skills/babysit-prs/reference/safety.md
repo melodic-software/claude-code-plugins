@@ -303,9 +303,11 @@ checkout; this gate needs no checkout and does none of it.
 when a row is proven off the head's history. A gap **routes**, it does not hold: the snapshot
 carries it as the `skill_evidence_gap` worker reason, and the worker tier dispatches a worker
 whose brief is to run `/source-control:pull-request ready` on that PR, which merges the base
-branch, runs the skills the diff owes, and re-renders the block. The safe tier reports the record
-and dispatches nothing. A PR the gate otherwise proves ready still merges with a gap outstanding,
-in every tier. An unparsable block is reported with `parsed: false` and is never fatal; a second
+branch, runs the skills the diff owes, and re-renders the block. The routing reason stands down
+where head-branch writes are disallowed, an external fork head, because that worker could neither
+commit nor edit the body; the record still reports the gap, and only the trust boundary decides
+whether a worker is routed at it. The safe tier reports the record and dispatches nothing. A PR
+the gate otherwise proves ready still merges with a gap outstanding, in every tier. An unparsable block is reported with `parsed: false` and is never fatal; a second
 block in the same body is counted and noted, and only the first is read.
 
 ## Review-Settle Hold

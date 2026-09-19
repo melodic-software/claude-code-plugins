@@ -34,9 +34,9 @@
 # VISIBLE text is rewritten to the current verdict, and whose marker lines
 # (`<!-- pr-skill-evidence head=<sha> verdict=gap|clean -->`) are appended to,
 # never replaced. The promotion report (`skill-evidence.sh report`) counts a
-# firing from a gap marker and an agreement from a later clean marker at a
-# different head, so a rewrite that dropped the earlier marker would erase the
-# pair it exists to count.
+# firing from a gap marker and an agreement from any later clean marker in the
+# same pull request, so a rewrite that dropped the earlier marker would erase
+# the pair it exists to count.
 #
 # ONLY THIS STEP'S OWN COMMENT IS UPSERTED. The marker is plain text anyone can
 # write into a comment of their own, and the comment body is attacker-supplied
@@ -219,9 +219,10 @@ block_shas() {
 
 # collect_compares <repo> <head> <body> <out> — one REST compare payload per
 # distinct non-head row SHA, collected into a JSON array. The engine matches a
-# row against `.base_commit.sha` and `.merge_base_commit.sha`; a row the array
-# does not carry is reported stale, which is the safe direction for a compare
-# call that 404s on a SHA this repository never had.
+# row against `.base_commit.sha` alone, which is the row the payload was
+# fetched for; a row the array does not carry is reported stale, which is the
+# safe direction for a compare call that 404s on a SHA this repository never
+# had.
 collect_compares() {
   local repo="$1" head="$2" body="$3" out="$4"
   local dir="$WORKDIR/compare" sha count=0 kept=0

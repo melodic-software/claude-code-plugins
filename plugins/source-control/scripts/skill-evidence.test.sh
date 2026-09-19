@@ -356,6 +356,40 @@ grep -v '"skill":"simplify"' "$FULL_LEDGER" >"$DROPPED_LEDGER"
 run_in "$REPO" check --head "$HEAD_SHA" --ledger "$DROPPED_LEDGER" --base main
 assert_contains "a dropped row is named by check --ledger too" "$RUN_OUT" "missing=simplify"
 
+# --- the row grammar: 40 hex, case-insensitive -------------------------------
+# The babysit gate's Python reader lowercases the SHA it matches, so a block
+# written in upper case must read the same here or the two readers disagree on
+# the same body.
+
+UPPER_BODY="$TEST_TMPDIR/body-upper-sha.md"
+{
+  printf '## Verification\n\n'
+  printf '%s\n' "$BLOCK" | awk 'NF == 3 { print $1, toupper($2), $3; next } { print }'
+} >"$UPPER_BODY"
+run_in "$REPO" check --head "$HEAD_SHA" --body "$UPPER_BODY" --base main
+assert_contains "an uppercase row SHA matches a lowercase head" "$RUN_OUT" "fresh=verification:confirm sha=$HEAD_SHA"
+assert_not_contains "an uppercase row SHA is not malformed" "$RUN_OUT" "warning=malformed-row"
+assert_contains "an uppercase block is clean" "$RUN_OUT" "verdict=clean"
+
+# A ref name where a commit id belongs names no commit either reader can
+# compare, so it is skipped and said out loud rather than read as evidence.
+BRANCH_ROW_BODY="$TEST_TMPDIR/body-branch-row.md"
+{
+  printf '## Verification\n\n'
+  printf '%s\n' "$BLOCK" |
+    awk 'NF == 3 && $1 == "simplify" { print $1, "main", $3; next } { print }'
+} >"$BRANCH_ROW_BODY"
+run_in "$REPO" check --head "$HEAD_SHA" --body "$BRANCH_ROW_BODY" --base main
+assert_contains "a row whose SHA field is a branch name is reported" "$RUN_OUT" "warning=malformed-row"
+assert_contains "a row whose SHA field is a branch name is not evidence" "$RUN_OUT" "missing=simplify"
+
+SHORT_SHA_LEDGER="$TEST_TMPDIR/short-sha.jsonl"
+: >"$SHORT_SHA_LEDGER"
+row "$SHORT_SHA_LEDGER" simplify "$(printf '%s' "$BASE_SHA" | cut -c1-7)" "2026-09-13T10:00:00Z"
+run_in "$REPO" check --head "$HEAD_SHA" --ledger "$SHORT_SHA_LEDGER" --base main
+assert_contains "an abbreviated ledger SHA is reported malformed" "$RUN_OUT" "warning=malformed-row"
+assert_contains "an abbreviated ledger SHA is not evidence" "$RUN_OUT" "missing=simplify"
+
 # --- the base merge ----------------------------------------------------------
 
 git -C "$REPO" checkout -q main
@@ -389,26 +423,52 @@ run_in "$REPO" check --head "$HEAD_SHA" --body "$BODY" --files "$FILES_LIST" --c
 assert_contains "a diverged compare status is stale" "$RUN_OUT" "stale=simplify sha=$BASE_SHA"
 assert_contains "a sha the payload omits is stale, never assumed fresh" "$RUN_OUT" "stale=review:fanout"
 
+# A row is answered by the payload fetched FOR it, never by one whose merge
+# base it happens to be. Every payload is `compare/<row>...<head>`, so a
+# diverged row's merge base is routinely another row's commit, and reading the
+# merge base would hand that second row the first one's verdict.
+COMPARE_COLLIDE="$TEST_TMPDIR/compare-merge-base-collision.json"
+printf '[{"status":"diverged","base_commit":{"sha":"%s"},"merge_base_commit":{"sha":"%s"}},{"status":"identical","base_commit":{"sha":"%s"},"merge_base_commit":{"sha":"%s"}}]\n' \
+  "$ORPHAN_SHA" "$BASE_SHA" "$BASE_SHA" "$BASE_SHA" >"$COMPARE_COLLIDE"
+run_in "$REPO" check --head "$HEAD_SHA" --body "$BODY" --files "$FILES_LIST" --compare "$COMPARE_COLLIDE"
+assert_contains "a row is read from its own payload, not from one it is the merge base of" \
+  "$RUN_OUT" "fresh=simplify sha=$BASE_SHA"
+
 # --- report ------------------------------------------------------------------
 
 STUB_DIR="$TEST_TMPDIR/stub"
 mkdir -p "$STUB_DIR"
 cat >"$STUB_DIR/gh" <<'STUB'
 #!/usr/bin/env bash
-# Stubbed gh: four closed PRs, three of them merged. PR 1 carried a validator
+# Stubbed gh: five closed PRs, four of them merged. PR 1 carried a validator
 # gap marker and then a validator clean one at a later head (agreed); PR 2
 # carried a validator gap marker, with an OUTSIDER's clean marker after it that
 # must not read as an agreement; PR 3 never merged and is not sampled; PR 4's
-# only marker is an outsider's and is no firing at all.
+# only marker is an outsider's and is no firing at all; PR 5 carried a gap and
+# then a clean marker at the SAME head, the body re-rendered with no new
+# commit, which is an agreement too.
+#
+# The pull-request walk is served as ONE page and refuses `--paginate`: the
+# report asks about recently merged pull requests, not about every closed one
+# a repository has ever had.
 set -u
 case "$*" in
-*pulls*)
-  cat <<'JSON'
+*pulls\?*)
+  case "$*" in
+  *--paginate*) printf 'stub: the pull-request walk must not paginate\n' >&2; exit 1 ;;
+  # Anchored on the trailing `&page=1`, because a bare `*page=1*` would match
+  # the `per_page=100` every page carries and serve page two as page one.
+  *\&page=1)
+    cat <<'JSON'
 [{"number":1,"merged_at":"2026-09-01T00:00:00Z"},
  {"number":2,"merged_at":"2026-09-02T00:00:00Z"},
  {"number":3,"merged_at":null},
- {"number":4,"merged_at":"2026-09-03T00:00:00Z"}]
+ {"number":4,"merged_at":"2026-09-03T00:00:00Z"},
+ {"number":5,"merged_at":"2026-09-04T00:00:00Z"}]
 JSON
+    ;;
+  *) printf '[]\n' ;;
+  esac
   ;;
 *issues/1/comments*)
   cat <<'JSON'
@@ -427,6 +487,12 @@ JSON
 [{"user":{"login":"drive-by"},"body":"gap <!-- pr-skill-evidence head=eeeeeee verdict=gap -->"}]
 JSON
   ;;
+*issues/5/comments*)
+  cat <<'JSON'
+[{"user":{"login":"github-actions[bot]"},"body":"gap <!-- pr-skill-evidence head=fffffff verdict=gap -->"},
+ {"user":{"login":"github-actions[bot]"},"body":"clean <!-- pr-skill-evidence head=fffffff verdict=clean -->"}]
+JSON
+  ;;
 *) printf '[]\n' ;;
 esac
 STUB
@@ -434,10 +500,16 @@ chmod +x "$STUB_DIR/gh"
 RUN_OUT="$(cd "$REPO" && PATH="$STUB_DIR:$PATH" "$ENGINE" report --repo acme/app 2>"$TEST_TMPDIR/stderr.txt")"
 RUN_CODE=$?
 assert_exit "report exits 0" 0 "$RUN_CODE"
-# fired=2: PRs 1 and 2. agreed=1: PR 1 only, because PR 2's clean marker is an
-# outsider's. sampled=3: PRs 1, 2 and 4, PR 4 carrying no countable marker.
+# fired=3: PRs 1, 2 and 5. agreed=2: PR 1 (a later head) and PR 5 (the same
+# head), but not PR 2, whose clean marker is an outsider's. sampled=4: PRs 1,
+# 2, 4 and 5, PR 4 carrying no countable marker.
 assert_eq "report counts only the validator's own markers" \
-  "fired=2 agreed=1 sampled=3" "$RUN_OUT"
+  "fired=3 agreed=2 sampled=4" "$RUN_OUT"
+
+# A clean marker at the SAME head as the gap is a real agreement: the body was
+# re-rendered without a new commit, which is exactly how a gap closes when the
+# evidence existed and the block did not.
+assert_contains "a clean marker at the gap's own head counts as agreement" "$RUN_OUT" "agreed=2"
 
 # --- usage -------------------------------------------------------------------
 

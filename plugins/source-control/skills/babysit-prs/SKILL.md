@@ -140,9 +140,12 @@ tier, read from the fenced `skill-evidence` block in the PR body: which mandator
 claims ran, whether the terminal skill's row sits at the live head, and whether every other row
 sits on that head's history. A PR whose block is missing or stale carries a `skill_evidence_gap`
 reason out of the snapshot, and the worker tier dispatches a worker whose brief is to run
-`/source-control:pull-request ready` on it. The safe tier reports the record and dispatches
-nothing. No tier holds a merge on it: the record raises no blocker in any tier, so a PR the gate
-otherwise proves ready still merges while the gap is advisory.
+`/source-control:pull-request ready` on it. That routing reason stands down where head-branch
+writes are disallowed, an external fork head, because closing the gap means committing to the head
+branch and editing the body; the record still reports the gap, which is the honest statement. The
+safe tier reports the record and dispatches nothing. No tier holds a merge on it: the record
+raises no blocker in any tier, so a PR the gate otherwise proves ready still merges while the gap
+is advisory.
 
 ## Autopilot
 

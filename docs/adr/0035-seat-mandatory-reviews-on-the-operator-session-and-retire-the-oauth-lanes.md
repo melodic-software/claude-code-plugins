@@ -105,6 +105,10 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
   step. The backfill therefore costs one mandatory-set run per open pull request.
 - The security class fires on nearly every non-docs pull request, at the breadth
   `.github/claude-security-paths` declares. Narrowing the list narrows the class.
+- The validator's map, script and engine come from the base branch, so a pull request that changes
+  them is judged by the previous versions until it merges, and that includes the pull request that
+  introduces the validator, which the step declines with a notice because the base carries no
+  engine.
 - The measurement keys on the pull request's head SHA at merge time, read over REST, because the
   base ruleset squash-merges and the squash commit never appears in a row.
 - The `needs-skill-evidence` label is IaC-owned and provisioned through github-iac; until then

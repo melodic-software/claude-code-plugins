@@ -2314,12 +2314,33 @@ jobs:
       # the path list that map cites are the whole working set. No history is
       # needed either, because ancestry is read over the REST compare endpoint
       # rather than from a local object graph.
+      #
+      # `continue-on-error` here is the same fall-through the reporter below
+      # carries, and scripts/lane-coverage-step-opt-outs.txt carries its
+      # reason: a checkout that fails must leave the reporter with nothing to
+      # read, which it declines on, rather than red the one required check
+      # after the aggregation above has already recorded its verdict.
       - name: Check out the evidence reporter
+        id: skill_evidence_checkout
         if: always()
+        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 1
+          # THE BASE BRANCH, NEVER THE PULL REQUEST'S MERGE REF. Everything
+          # this checkout brings in is a rule the pull request is judged BY:
+          # the mandatory map in `.claude/source-control.md`, the path list
+          # that map cites, the reporter, and the evidence engine. Read from
+          # the merge ref, a same-repo pull request could edit its own map and
+          # make the validator inert on itself in the same commit the
+          # validator is meant to judge. The retired review lane read its
+          # paths file from the base for exactly that reason, and
+          # plugins/source-control/reference/config-resolution.md fixes the
+          # split: enforcement reads the tracked layer, never a layer the
+          # subject supplies. Empty on a non-pull_request event, where
+          # actions/checkout falls back to the ref that triggered the run.
+          ref: ${{ github.event.pull_request.base.sha }}
           # Cone mode is off so each entry means exactly the file or directory
           # it names; cone mode would read a file path as a directory and pull
           # in every sibling of it.

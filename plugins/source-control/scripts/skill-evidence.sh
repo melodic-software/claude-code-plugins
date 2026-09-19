@@ -7,8 +7,17 @@
 # head, which have none, and which ran against a commit that is no longer
 # fresh. Four consumers read the same verdicts from here: the pull-request
 # skill's prep and ready steps, the PreToolUse gate on the ready-for-review
-# flip, the ci-status validator, and the babysit merge gate. One implementation
-# of the rule, so no reader can drift from another.
+# flip, the ci-status validator, and the babysit merge gate.
+#
+# ONE GRAMMAR, TWO READERS. This script is one of them; the babysit gate's
+# Python parser (`parse_skill_evidence_block` in
+# `plugins/source-control/skills/babysit-prs/scripts/babysit_util.py`) is the
+# other, because that gate judges a body it never has a checkout for. Both
+# readers are pinned to the same row shape, `<skill> <40-hex sha>
+# <timestamp>`, read the SHA case-insensitively and lowercase it, and apply
+# the same freshness rule. A row carrying anything else where the SHA belongs
+# is skipped here behind a `warning=malformed-row` line, which is this
+# script's form of the `parsed: false` the Python reader returns.
 #
 # THE MAP is the consuming repository's own, in `.claude/source-control.md`
 # under the H2 `## pr_skill_evidence`, one bullet per rule:
@@ -149,7 +158,9 @@ Report the mandatory skills of every detected class against <sha>.
   --ledger <file>   Read evidence from a skill-usage JSONL ledger (jq required).
   --body <file>     Read evidence from the fenced `skill-evidence` block of a
                     pull request body. The first block wins; a second one emits
-                    `warning=second-block-ignored`.
+                    `warning=second-block-ignored`. A row whose SHA field is
+                    not 40 hex characters is skipped, as it is in a ledger,
+                    and emits `warning=malformed-row`.
   --base <ref>      Detect classes from `merge-base(<ref>, <head>)..<head>`.
   --files <file>    Detect classes from this newline-separated path list.
   --compare <json>  A saved REST compare payload (an array of compare results,
@@ -182,12 +193,14 @@ Count the ci-status validator's marker comments over recently merged pull
 requests and print `fired=<n> agreed=<n> sampled=<n>`:
 
   fired    merged PRs that carried a `verdict=gap` marker.
-  agreed   of those, the ones that later carried a `verdict=clean` marker at a
-           different head before the merge.
+  agreed   of those, the ones that later carried a `verdict=clean` marker
+           before the merge, at the same head or a later one.
   sampled  merged PRs read (default 40, `--sample` to change).
 
-Reads the markers currently visible over `gh api --paginate`, so a validator
-that rewrites its comment in place is counted by what the comment says now.
+Walks recently-updated closed pull requests one page at a time and stops at
+`--sample` merged ones, at the last page, or at five pages, whichever comes
+first. Reads the markers currently visible, so a validator that rewrites its
+comment in place is counted by what the comment says now.
 Only comments authored by `github-actions[bot]` are counted: the marker is
 plain text anyone can paste, and a count a pull request can inflate is not a
 promotion signal. This is the promotion-time report, never a gate.
@@ -444,23 +457,49 @@ sort_rows() {
   return 0
 }
 
+MALFORMED_ROW=false
+
+# keep_well_formed <in> <out> — copy the rows whose SHA field is 40 hex
+# characters, lowercased, and set MALFORMED_ROW when anything else was
+# dropped. The length test with a character class rather than an interval
+# expression, because a `{40}` repetition is not portable across every awk
+# this repository runs on.
+keep_well_formed() {
+  local in="$1" out="$2" marker="$WORKDIR/malformed"
+  rm -f "$marker"
+  awk -F"$TAB" -v OFS="$TAB" -v marker="$marker" '
+    {
+      sha = tolower($2)
+      if (length(sha) == 40 && sha ~ /^[0-9a-f]+$/) { print $1, sha, $3; next }
+      print "malformed" > marker
+    }
+  ' "$in" >"$out"
+  if [[ -f "$marker" ]]; then
+    MALFORMED_ROW=true
+  fi
+  return 0
+}
+
 # rows_from_ledger <file> — `<skill>\t<sha>\t<ts>` per SkillUse row.
 rows_from_ledger() {
-  local file="$1"
+  local file="$1" raw
   require_tool jq
   : >"$ROWS_FILE"
+  MALFORMED_ROW=false
   if [[ ! -f "$file" ]]; then
     note "ledger not found, reading as no rows: $file"
     return 0
   fi
+  raw="$WORKDIR/rows.raw"
   tr -d '\r' <"$file" | jq -r '
     select(type == "object")
     | select((.event // "") == "SkillUse")
     | select((.skill // "") != "" and (.sha // "") != "")
-    | [.skill, .sha, (.ts // "")]
+    | [.skill, (.sha | tostring), (.ts // "")]
     | @tsv
-  ' 2>/dev/null >"$ROWS_FILE" ||
+  ' 2>/dev/null >"$raw" ||
     note "the ledger has a line jq could not parse; reading the rows before it"
+  keep_well_formed "$raw" "$ROWS_FILE"
   sort_rows
   return 0
 }
@@ -471,15 +510,17 @@ SECOND_BLOCK=false
 # HTML comment regions are dropped before the scan, so a commented-out block is
 # never evidence.
 rows_from_body() {
-  local file="$1" marker
+  local file="$1" marker raw
   : >"$ROWS_FILE"
   SECOND_BLOCK=false
+  MALFORMED_ROW=false
   if [[ ! -f "$file" ]]; then
     note "body file not found, reading as no rows: $file"
     return 0
   fi
 
   marker="$WORKDIR/second-block"
+  raw="$WORKDIR/rows.raw"
   rm -f "$marker"
 
   tr -d '\r' <"$file" | awk -v OFS="$TAB" -v marker="$marker" '
@@ -512,11 +553,12 @@ rows_from_body() {
         infence = 1
       }
     }
-  ' >"$ROWS_FILE"
+  ' >"$raw"
 
   if [[ -f "$marker" ]]; then
     SECOND_BLOCK=true
   fi
+  keep_well_formed "$raw" "$ROWS_FILE"
   sort_rows
   return 0
 }
@@ -532,9 +574,16 @@ is_ancestor() {
   local sha="$1" status
   [[ "$sha" == "$HEAD_SHA" ]] && return 0
   if [[ -n "$COMPARE_FILE" ]]; then
+    # `.base_commit.sha` ONLY. Every payload in the array is a
+    # `compare/<row>...<head>` result, so `base_commit` is the row the entry
+    # was fetched for and `merge_base_commit` is wherever those two histories
+    # last met. Matching the merge base hands a row somebody else's verdict:
+    # when row A has diverged, its merge base is typically row B, so B would
+    # read A's `diverged` status and be reported stale while its own
+    # `identical` entry sits unread in the same array.
     status=$(jq -r --arg sha "$sha" '
       [ (if type == "array" then .[] else . end)
-        | select(((.base_commit.sha // "") == $sha) or ((.merge_base_commit.sha // "") == $sha))
+        | select((.base_commit.sha // "") == $sha)
         | (.status // "") ] | .[0] // ""
     ' "$COMPARE_FILE" 2>/dev/null) || status=""
     case "$status" in
@@ -719,6 +768,13 @@ cmd_check() {
   if [[ "$SECOND_BLOCK" == true ]]; then
     printf 'warning=second-block-ignored\n'
   fi
+  # A row whose SHA field is not 40 hex characters is not evidence of
+  # anything: the readers key on a commit id, and `main` or a short SHA names
+  # no commit either of them can compare. Skipped, and said out loud, so a
+  # body that looks complete to a human is not silently read as empty.
+  if [[ "$MALFORMED_ROW" == true ]]; then
+    printf 'warning=malformed-row\n'
+  fi
 
   while IFS="$TAB" read -r class pats skills; do
     class_detected "$class" || continue
@@ -859,9 +915,17 @@ cmd_render() {
 # report
 # ---------------------------------------------------------------------------
 
+# The hard ceiling on pages of closed pull requests `report` will walk. Four
+# hundred closed pull requests, newest-updated first, is far past any sample a
+# promotion review asks for, and the cap is what keeps an unlucky repository
+# (one whose recent closed pull requests are mostly unmerged) from turning a
+# bounded report into an unbounded walk.
+MAX_REPORT_PAGES=5
+
 cmd_report() {
   local repo="" sample=40 arg
   local numbers fired=0 agreed=0 sampled=0 number markers result
+  local merged_count page payload page_numbers page_size
   while [[ $# -gt 0 ]]; do
     arg="$1"
     case "$arg" in
@@ -891,12 +955,44 @@ cmd_report() {
   require_tool gh
   require_tool jq
 
+  # ONE PAGE AT A TIME, NEWEST FIRST, NEVER `--paginate`. The question is
+  # about the most recently merged pull requests, and `--paginate` would walk
+  # every closed pull request a repository has ever had to answer it. Sorting
+  # by `updated` descending puts the candidates on the first page, and the
+  # walk stops at the first of: `--sample` merged pull requests in hand, a
+  # short page (the last one), or the page cap below, which bounds the call
+  # count whatever the repository's shape.
+  #
   # The sample is taken AFTER the capture, never by a reader inside the
   # pipeline: under pipefail an early-exiting reader makes the whole pipeline
   # look like a failure and the run would report nothing sampled.
-  numbers=$(gh api --paginate "repos/$repo/pulls?state=closed&per_page=100" 2>/dev/null |
-    jq -r 'if type == "array" then .[] else . end
-           | select((.merged_at // null) != null) | .number' 2>/dev/null) || numbers=""
+  numbers=""
+  merged_count=0
+  page=1
+  while [[ "$page" -le "$MAX_REPORT_PAGES" ]] && [[ "$merged_count" -lt "$sample" ]]; do
+    payload=$(gh api \
+      "repos/$repo/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=$page" \
+      2>/dev/null) || payload=""
+    [[ -n "$payload" ]] || break
+    page_numbers=$(printf '%s\n' "$payload" |
+      jq -r 'if type == "array" then .[] else . end
+             | select((.merged_at // null) != null) | .number' 2>/dev/null) || page_numbers=""
+    page_size=$(printf '%s\n' "$payload" |
+      jq -r 'if type == "array" then length else 1 end' 2>/dev/null) || page_size=0
+    if [[ -n "$page_numbers" ]]; then
+      if [[ -n "$numbers" ]]; then
+        numbers=$(printf '%s\n%s\n' "$numbers" "$page_numbers")
+      else
+        numbers="$page_numbers"
+      fi
+      merged_count=$(printf '%s\n' "$numbers" | awk 'NF > 0 { n++ } END { print n + 0 }')
+    fi
+    case "$page_size" in
+    '' | *[!0-9]*) break ;;
+    *) [[ "$page_size" -ge 100 ]] || break ;;
+    esac
+    page=$((page + 1))
+  done
   numbers=$(printf '%s\n' "$numbers" | awk -v n="$sample" 'NF > 0 && ++seen <= n')
 
   for number in $numbers; do
@@ -908,13 +1004,15 @@ cmd_report() {
       tr -d '\r' |
       grep -o '<!-- pr-skill-evidence head=[0-9a-fA-F]* verdict=[a-z]* -->') || markers=""
     [[ -n "$markers" ]] || continue
+    # AGREEMENT IS ANY LATER CLEAN MARKER, AT WHATEVER HEAD. The pair being
+    # counted is "the reporter said gap, and then the same pull request said
+    # clean". Requiring a different head missed the case the gate is best at:
+    # a block re-rendered into the body with no new commit, which closes the
+    # gap at the head the gap was reported for. The markers arrive in comment
+    # order, so position in this stream is the "later" the count means.
     result=$(printf '%s\n' "$markers" | awk '
-      function headof(s) {
-        if (match(s, /head=[0-9a-fA-F]+/)) return substr(s, RSTART + 5, RLENGTH - 5)
-        return ""
-      }
-      /verdict=gap/ { if (!fired) { fired = 1; gaphead = headof($0) } next }
-      /verdict=clean/ { if (fired && headof($0) != gaphead) agreed = 1 }
+      /verdict=gap/ { fired = 1; next }
+      /verdict=clean/ { if (fired) agreed = 1 }
       END { print fired + 0, agreed + 0 }
     ')
     case "$result" in
