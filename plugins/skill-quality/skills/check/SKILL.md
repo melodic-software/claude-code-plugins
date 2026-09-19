@@ -70,7 +70,9 @@ Parse `$ARGUMENTS`:
   repo). Every root given must exist, and must be a skills root rather than a skill directory
   holding its own `SKILL.md`; either mistake exits 2 naming the argument. A root that exists but
   holds no skills is named and is not an error. A skill name and a root cannot be mixed in one
-  call.
+  call. A bare argument that resolves as a skill under the already resolved root is always read as
+  that skill, never as a root, so a relative root whose name collides with an existing skill has to
+  be written with a path separator (`./<name>`) or as an absolute path.
 - **`validate-evals <skill-name>`**. Validate one skill's `<skill>/evals/evals.json` against the schema.
 - **`validate-evals`** *(no name)*. Validate every skill's `<skill>/evals/evals.json` that exists.
 - **`listing-budget`** *(no root)*. Report the shared listing-budget estimate over every
