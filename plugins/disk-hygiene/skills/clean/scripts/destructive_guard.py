@@ -379,7 +379,7 @@ def _display_path(path: Path) -> str:
 # Everything a path we care about cannot contain. Enumerating SHELL syntax here
 # would be a losing game — an assignment (`engine=hygiene.py`), a list separator
 # (`PATH=/x:hygiene.py`), and a metacharacter (`foo;hygiene.py`) each glue the
-# filename to its neighbour differently, and missing one silently un-gates a real
+# filename to its neighbor differently, and missing one silently un-gates a real
 # invocation. Inverting the question is total: `hygiene.py` is spelled entirely
 # from this class's KEPT characters, so splitting on everything else can only
 # ever EXPOSE the engine filename as its own token, never destroy an occurrence.
@@ -461,7 +461,7 @@ def _carries_marker(word: str) -> bool:
     agree on what "is the engine" means.
 
     The basename is taken by splitting on BOTH separators rather than with
-    ``Path().name``, which is platform-flavoured: ``PureWindowsPath`` treats a
+    ``Path().name``, which is platform-flavored: ``PureWindowsPath`` treats a
     trailing backslash as a separator and ``PurePosixPath`` does not, so
     ``/x/hygiene.py\\`` matches on Windows and misses on Linux. A guard whose
     verdict depends on where it runs is a guard that passes its tests on the
@@ -1708,7 +1708,7 @@ def _watchdog_seconds() -> float:
     non-finite, or non-positive override falls back to the default rather than
     disarming the watchdog or raising. A valid override above
     ``_WATCHDOG_MAX_SECONDS`` is clamped to it, not rejected: the operator's
-    intent (wait longer) is honoured as far as it can safely go.
+    intent (wait longer) is honored as far as it can safely go.
 
     The clamp is what keeps the two deadline layers ordered. The watchdog is
     the primary mechanism and the harness ``timeout`` is the backstop, which
@@ -1795,7 +1795,7 @@ def _watchdog_marker_present(command: str | None) -> bool:
 
     Deliberately the CHEAPEST sound approximation of ``_engine_gate_relevant``:
     pure regex and string work, no filesystem call of any kind. That is a hard
-    requirement rather than an optimisation — this runs on the timer thread
+    requirement rather than an optimization — this runs on the timer thread
     precisely because the main thread is presumed wedged in a filesystem call,
     so a classifier that touched the filesystem could wedge identically and the
     watchdog would never fire at all.

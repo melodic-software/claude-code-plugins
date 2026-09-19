@@ -118,7 +118,7 @@ reported rather than moved.
 ## Scope boundary: what this plugin does not own
 
 Placement is one question about an instruction, and it is not the only one. Where a sibling plugin
-owns a neighbouring question, route to it rather than bending this rubric. Each is optional: when it
+owns a neighboring question, route to it rather than bending this rubric. Each is optional: when it
 is not installed, keep the observation in the report rather than judging it here.
 
 | Question | Owner |

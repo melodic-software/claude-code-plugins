@@ -1326,7 +1326,7 @@ assert_contains "PS write block tells operator to re-enable kill switch" "$psout
 # --- Enforcement-scope disclosure -------------------------------------------
 # The message asserted "use Write or Edit instead" with no scope, so it read as
 # "shell file writes are blocked" when the guard is deliberately producer-scoped
-# over one command string. Both lanes must carry the scope, and the behaviour
+# over one command string. Both lanes must carry the scope, and the behavior
 # the scope describes is pinned below it so message and reality move together.
 scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
 assert_contains "bash block names kill switch" "$scopeout" "block_hook_bypass_enabled"
@@ -1374,7 +1374,7 @@ assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Obj
 assert_contains "powershell block names the interpreter family it covers" "$psscope" \
   "python/python3/py/pypy with -c"
 
-# The behaviour the scope note describes. A write inside an invoked script is
+# The behavior the scope note describes. A write inside an invoked script is
 # not inspected, and a redirect whose producer is another program is allowed by
 # the producer-scoped design — so the note must not promise either is blocked.
 run "invoked script is not inspected (allowed)" "bash execute.sh" 0
@@ -1461,7 +1461,7 @@ run "scratch: tilde target (blocked)" \
   "echo hello > ~/scratch/data.json" 2 "$SCRATCH_ENV=/tmp/scratch,~"
 run "scratch: glob target (blocked)" \
   "echo hello > /tmp/scratch/*.json" 2 "$SCRATCH_ENV=/tmp/scratch"
-# A root that fails the same normalization is skipped, not honoured loosely.
+# A root that fails the same normalization is skipped, not honored loosely.
 run "scratch: relative configured root exempts nothing (blocked)" \
   "echo hello > /tmp/scratch/f" 2 "$SCRATCH_ENV=scratch"
 run "scratch: root of / exempts nothing (blocked)" \
@@ -1650,7 +1650,7 @@ run_cwd "default: temp write blocks when the project IS the temp root" \
   "echo hello > /tmp/f" /tmp 2 "$PROJ_ENV=/tmp"
 # With no project root the guard cannot establish either default, so both fail
 # closed. This is also what keeps the option-unset assertions above measuring
-# the shipped behaviour they were written for.
+# the shipped behavior they were written for.
 run_cwd "default: temp write blocks with no project root" \
   "echo hello > /tmp/probe.json" "$PROJ" 2 "$PROJ_ENV="
 run_cwd "default: memory tier blocks with no project root" \

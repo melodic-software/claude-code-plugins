@@ -46,7 +46,7 @@ Five things carry the change:
   what makes it load-bearing: a producer merging against a copy loaded earlier in its run drops the
   other's rows, and drops them with no record, because a closure row is written only for a layer the
   run walked and the two producers walk disjoint layers. It belongs in the shared contract rather
-  than in either lane's own binding, since neither lane can honour it alone. For the same reason the
+  than in either lane's own binding, since neither lane can honor it alone. For the same reason the
   walking lane's `all` layer scope means the ten enforcement layers explicitly: resolved against the
   full fifteen it would record five layers it never walked, and close every pointed finding as a
   deleted artifact.

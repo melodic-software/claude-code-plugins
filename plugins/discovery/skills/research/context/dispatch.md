@@ -14,7 +14,7 @@ six.
 
 ## The orchestration boundary
 
-Dispatch moves the reading off the orchestrator's context window. It does not move the *judgement*
+Dispatch moves the reading off the orchestrator's context window. It does not move the *judgment*
 that surrounds the reading, and the failures worth guarding against are all at that boundary.
 
 **The parent owns the pre-dispatch envelope**: everything that must be resolved in main context
@@ -28,7 +28,7 @@ also owes `Source breadth:`. This table says why each is the parent's to supply.
 | Resolved topic | A non-fork subagent sees no conversation to infer from, and the topic does not reach a preloaded body by argument substitution, so the agent must not rely on seeing an unfilled slot after `Research the following topic:`. Silence there is a missing topic, not an empty one |
 | Reason the topic is being researched, meaning the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
 | Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
-| Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root, but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labelled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
+| Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root, but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labeled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
 | Budget | How much depth was authorized is the caller's decision, never the worker's |
 | Source breadth | The caller effort that scales the phase table. The researcher lane is pinned `high` for reasoning, so the worker's own `${CLAUDE_EFFORT}` is the pin (or a literal placeholder on disk fallback). The parent writes this line from its own load |
 | Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag, because the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
@@ -138,7 +138,7 @@ dispatched run.
 
 Outcome-gate criterion 11 already makes the *run* cite `check-coverage-complete.sh`'s exit status
 rather than its own reading of the table. `coverage: complete` in the payload is that self-grade
-travelling one level up, and it inherits the whole problem the criterion exists for: the context
+traveling one level up, and it inherits the whole problem the criterion exists for: the context
 grading the ledger is the context that wants to be finished. Re-running the script parent-side costs
 one command and is the only step in this gate that grades the discipline's central bookkeeping rather
 than the artifact's existence.

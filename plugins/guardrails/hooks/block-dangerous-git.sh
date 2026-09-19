@@ -120,7 +120,7 @@ hook::buffer_stdin_to INPUT || {
 # measured, `git push --force origin main` was ALLOWED. The posture, the
 # membership criterion for this class, and the disclosed cost are argued at
 # hook::require_jq_blocking in hook-utils.sh — this comment asserts the
-# behaviour, that one explains it.
+# behavior, that one explains it.
 hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_enabled"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
@@ -150,7 +150,7 @@ hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 2
 # text keeps the text.
 #
 # Blocking rather than matching, because the value a guard can read is not
-# reliably the thing that would run. Two behaviours were measured and they
+# reliably the thing that would run. Two behaviors were measured and they
 # disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
 # child_process REFUSES a NUL-bearing string outright — and which of them, if
 # either, a hook payload reaches has not been traced. Blocking is the one verdict
@@ -329,7 +329,7 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 #     `--namespace`) and any wrapper chdir ahead of them: a `git -C <sha256-repo>
 #     push` issued from a SHA-1 directory must be judged by the target's format.
 #
-# Those options are replayed verbatim onto the probe rather than modelled, so git
+# Those options are replayed verbatim onto the probe rather than modeled, so git
 # resolves the repository by its own rules — including several `-C` values, which
 # git applies cumulatively.
 #
@@ -442,7 +442,7 @@ lease_expect_is_immutable() {
 # A wrapper's chdir happens before git starts, so git's own locating options
 # compose onto it: it is replayed as LEADING `-C` words, which git applies
 # cumulatively in argv order, and the composition then falls out of git's own
-# rules rather than being modelled here.
+# rules rather than being modeled here.
 #
 # The payload cwd is replayed the same way and sits AHEAD of the wrapper dirs,
 # reproducing execution order end to end: the tool call starts in `.cwd`, a
@@ -459,7 +459,7 @@ lease_expect_is_immutable() {
 # Collateral, and intended: a RELATIVE `--git-dir` / `--work-tree` / `--namespace`
 # now rebases onto that base instead of onto the hook process's directory. That is
 # the correct resolution — a relative path in the tool call means relative to
-# where the tool call runs — and it is a behaviour change only in the sense that
+# where the tool call runs — and it is a behavior change only in the sense that
 # the previous answer was measured from the wrong origin. An ABSOLUTE one is
 # unaffected.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
@@ -1446,7 +1446,7 @@ HOOK_ALIAS_SEEN=()
 # around each reparse (see check_segment) rather than read fresh from the payload
 # each time. Same chain as block-noncanonical-commit: the payload cwd, then
 # CLAUDE_PROJECT_DIR, then `.` — the last of which reproduces the pre-#2124
-# behaviour for a payload that carries no cwd at all.
+# behavior for a payload that carries no cwd at all.
 HOOK_EFFECTIVE_BASE="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 HOOK_GIT_INHERITED_LOCATING_OPTS=()
 

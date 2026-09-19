@@ -30,7 +30,7 @@ mode and under `--count`, which always exit 0 however many findings they print. 
 warning tier (P1, P3); combining the flags applies the strictest. **An environment gap exits 2 instead
 of reporting a clean bill**: a missing `jq`, a missing shared pattern library, a scan root that
 resolves to neither a git toplevel nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not
-recognise. Under a gate flag, exit 2 also covers the two results a gate must never read as a pass: a
+recognize. Under a gate flag, exit 2 also covers the two results a gate must never read as a pass: a
 `NOTHING TO AUDIT` run, and one that saw no gate-firing finding but could not read an input. There is no fallback to the current directory, because outside
 a repository that is usually the user profile and scanning it would walk the whole home tree and still
 exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`**, a sanctioned

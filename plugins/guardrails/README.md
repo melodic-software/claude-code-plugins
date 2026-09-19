@@ -120,7 +120,7 @@ out of scope until such a signal exists.
   `block-no-verify` and `block-dangerous-git` refuse any payload whose read
   fields carry a NUL, before they look at the command at all, including one
   that leaves no command text behind. The reason is that the text a guard can
-  read is not dependably the text that would run: two behaviours were measured
+  read is not dependably the text that would run: two behaviors were measured
   and they disagree. bash **discards** a NUL while parsing a command it reads,
   and Node's `child_process` **refuses** a NUL-bearing string outright.
   Which of them, if either, a hook payload reaches has not been traced. Refusing
@@ -584,7 +584,7 @@ warmup, interleaved, two rounds: 59.9/65.1 and 61.7/63.3 ms before,
 eight extra file opens. Not measured on a Windows host.
 
 **0.32.14, leftover helper-capture forks on verifiers and PreToolUse
-telemetry.** 2026-09-06, Linux CI host characterised measurable by
+telemetry.** 2026-09-06, Linux CI host characterized measurable by
 `spawn_probe`. The 0.32.13 tokenizer table is unchanged: this drop is
 the leftover `$(hook::repo_root)` / `$(hook::repo_relative_path)` /
 `$(hook::normalize_path)` captures the always-on verifiers and
@@ -608,7 +608,7 @@ Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
 and says nothing about the Windows spawn tax the budget binds to.
 
 **0.32.13, leftover tokenizer and path-helper forks.** 2026-09-06, Linux CI host
-characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+characterized measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
 The 0.32.12 PATH-shim and kernel-census tables are unchanged for stdin,
 notice, and json-escape: this drop is the command tokenizer every Bash
 guard runs, plus `_to` forms of `repo_root` / `repo_relative_path`.
@@ -633,7 +633,7 @@ Creation). No wall-clock claim: this host's spawn floor is sub-millisecond
 and says nothing about the Windows spawn tax the budget binds to.
 
 **0.32.12, leftover stdin and notice forks.** 2026-09-06, Linux CI host
-characterised measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
+characterized measurable by `spawn_probe` (min 0.6 ms, spread 1.32×).
 The 0.32.11 PATH-shim table is unchanged: those counters fire only on
 `exec`, and the forks this drop never exec. Kernel census
 `strace -f -e trace=clone,clone3,fork,vfork,execve` on the library
@@ -672,7 +672,7 @@ changed.
 
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, this repository as cwd. Host `spawn_probe`
-characterised as measurable. Wall clock is p50/p95 of 20 samples after 2
+characterized as measurable. Wall clock is p50/p95 of 20 samples after 2
 warmup.
 
 | Counter | before | after |
@@ -703,7 +703,7 @@ probed (`whatchanged`: git.c `DEPRECATED` bit; git 2.51+ honors
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, this repository as cwd. Same-session before
 is `origin/main` at `5101f5a2` (the two guards only). Host `spawn_probe`
-characterised as measurable (min 0.4 ms, spread 2.26×). Wall clock is
+characterized as measurable (min 0.4 ms, spread 2.26×). Wall clock is
 p50/p95 of 20 samples after 2 warmup.
 
 | Counter | before | after |
@@ -736,7 +736,7 @@ changed.
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, benign `git status --short` payload. `bash -x` counts
 `source …/ps-command.sh` lines. Wall clock is p50/p95 of 20 samples after 2
-warmup on a host `spawn_probe` characterised as measurable (min 0.5 ms, spread
+warmup on a host `spawn_probe` characterized as measurable (min 0.5 ms, spread
 1.78×).
 
 | Counter | before | after |
@@ -761,7 +761,7 @@ count, and is unchanged.
 *Method.* Spawn census via a stable PATH shim (`plugins/performance/scripts/spawn-census.sh`),
 `HOOK_TELEMETRY_SINK` unset, benign `git status --short` payload, same host as
 the wall-clock pass. Wall clock is p50/p95 of 20 samples after 2 warmup on a
-host `spawn_probe` characterised as measurable (min 0.5 ms, spread 1.42×).
+host `spawn_probe` characterized as measurable (min 0.5 ms, spread 1.42×).
 
 | Counter | before | after |
 |---|---|---|

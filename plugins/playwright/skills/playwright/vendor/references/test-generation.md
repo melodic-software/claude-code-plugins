@@ -226,7 +226,7 @@ Map out:
 - Primary user journeys end-to-end.
 - Edge cases: empty states, validation errors, very long input, boundary values.
 - Persistence: reload, local/session storage, URL fragments.
-- Navigation: which controls change the URL, back/forward behaviour.
+- Navigation: which controls change the URL, back/forward behavior.
 
 **Important**: Do not just open the app url with playwright-cli, always go through the test to capture any custom setup done there.
 **Important**: Stop the background test when done exploring.
@@ -300,7 +300,7 @@ playwright-cli attach tw-XXXX
 
 **Do not** just open the app url with playwright-cli, always go through the test to capture any custom setup done there.
 
-Walk the scenario's `Steps:` one by one with `playwright-cli`, treating the spec as the plan and the live app as the source of truth. If a step is vague ("click the button" — which button?), references an element that no longer exists, or contradicts the app's actual behaviour, use your judgement: update the spec to match what the app really does, then keep going. Editing the spec mid-generation is expected.
+Walk the scenario's `Steps:` one by one with `playwright-cli`, treating the spec as the plan and the live app as the source of truth. If a step is vague ("click the button" — which button?), references an element that no longer exists, or contradicts the app's actual behavior, use your judgment: update the spec to match what the app really does, then keep going. Editing the spec mid-generation is expected.
 
 Every action prints the equivalent Playwright TypeScript (see [How generation works](#0-how-generation-works)):
 
@@ -365,7 +365,7 @@ Any failure goes to Section 3.
 
 ## 3. Heal
 
-Goal: fix failing tests, and update the spec if the app's intended behaviour changed.
+Goal: fix failing tests, and update the spec if the app's intended behavior changed.
 
 ### 3.1 Find failing tests
 
@@ -400,7 +400,7 @@ Rehearse the corrected interaction with `playwright-cli` — the generated code 
 
 ### 3.3 Apply the fix
 
-Edit the test file: update the locator, assertion, step order, or inputs to match the corrected behaviour. Stop the background debug run. Rerun the single test to confirm green.
+Edit the test file: update the locator, assertion, step order, or inputs to match the corrected behavior. Stop the background debug run. Rerun the single test to confirm green.
 
 Never skip hooks or add sleeps as a fix. Never use `networkidle`.
 
@@ -408,12 +408,12 @@ Never skip hooks or add sleeps as a fix. Never use `networkidle`.
 
 Open the spec referenced by the `// spec:` header in the test file and locate the scenario that matches the test.
 
-- **Fix was purely technical** (locator drift, better assertion shape) and the spec's user-level behaviour still matches the app → leave the spec alone.
+- **Fix was purely technical** (locator drift, better assertion shape) and the spec's user-level behavior still matches the app → leave the spec alone.
 - **Fix changed user-visible steps, inputs, order, or expected outcomes** that the spec describes → update the spec to match reality. Keep the scenario id and file path stable; only the step / expect lines change.
 - **Unclear whether the app change is intentional** (spec is stale) **or a regression** (test was right, app is wrong) → **stop and ask the user**. Provide:
   - the scenario id (e.g. `2.3`),
   - the spec lines that no longer match,
-  - the observed app behaviour (quote a snapshot excerpt or a concrete outcome).
+  - the observed app behavior (quote a snapshot excerpt or a concrete outcome).
 
 Only after the user answers, either update the spec (intentional change) or file/flag the test as covering a bug (regression).
 

@@ -260,7 +260,7 @@ S_UNTRACKED=0
 # unpushed/landed columns instead.
 #
 # Returns 1 when the status could not be read at all. A failed `git status` used
-# to leave all four counts at their zero initialisation, which is exactly the
+# to leave all four counts at their zero initialization, which is exactly the
 # shape of a clean worktree — so an unreadable index reported as clean, and a
 # worktree with nothing unpushed then classified `ok`. Unknown must not wear
 # clean's clothes.
@@ -393,7 +393,7 @@ classify_landed() {
   # `--all`, and exactly one. A criss-cross history has several merge bases; a
   # plain `merge-base` silently returns one of them, and testing against a
   # different base than the one the work actually diverged at can produce a
-  # favourable verdict for content that is not there.
+  # favorable verdict for content that is not there.
   local mb_count
   mb=$(git -C "$p" merge-base --all "$base_sha" HEAD 2>/dev/null) || mb=""
   if [[ -z "$mb" ]]; then

@@ -269,7 +269,7 @@ repository's own exclude rules.
 **No extension gate is possible here, and that is deliberate.** `typos` is
 language-agnostic, so the scan has no allowlist to short-circuit on: gating it
 by the write-mode allowlist would stop reporting typos in `Dockerfile`,
-`Makefile`, `.gitignore` and every extensionless file. That is a behaviour
+`Makefile`, `.gitignore` and every extensionless file. That is a behavior
 change, not a saving.
 
 ## License

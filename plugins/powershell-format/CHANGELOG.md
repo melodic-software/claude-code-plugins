@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.53]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.7.52]
 
 ### Changed
@@ -260,7 +266,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **`powershell-format.test.sh`: the two prerequisite-skip gates share one
   helper.** The `pwsh`-missing and PSScriptAnalyzer-missing gates carried
   byte-identical four-line report-and-exit tails; both now call
-  `report_and_exit`. Behaviour is unchanged at both call sites on both verdict
+  `report_and_exit`. Behavior is unchanged at both call sites on both verdict
   branches, including the failure branch, which was driven deliberately by
   injecting a failure because a mutant returning the wrong exit code is
   invisible in the zero-failure case this machine produces naturally. Three
@@ -274,7 +280,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
   Recorded, not fixed: this suite reports `PASS=15 FAIL=0` while skipping 56 of
   its 71 assertions when PSScriptAnalyzer is absent, so a green run says nothing
-  about the formatter, analyser or trust gate. It shares a root cause with the
+  about the formatter, analyzer or trust gate. It shares a root cause with the
   same shape in `go-format`: `scripts/check-silent-skips.sh` excludes
   `plugins/*/hooks/*.test.sh` from its hook scan as fixtures, and its
   skip-scored-as-pass scan covers only `scripts/*.test.sh`, so this file class
@@ -575,7 +581,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN: one visible
   skip notice per session, then exit 0. That is the correct posture for every hook in this plugin,
-  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  so **nothing in this plugin's behavior changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
@@ -591,7 +597,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.7.3]
@@ -608,7 +614,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
   flag would read "0" on every payload. Values themselves are unchanged: still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
-  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  new global, so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.7.2]
 

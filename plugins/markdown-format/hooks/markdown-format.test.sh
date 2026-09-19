@@ -785,7 +785,7 @@ fi
 # which `hook::repo_root` needs, or the coreutils `resolve_repo_markdownlint`
 # calls. On such a layout the hook's git probe would fail as command-not-found,
 # the override would fire, the marker would read OUTER, and this case would fail
-# while the production behaviour was correct. The suite already has the right
+# while the production behavior was correct. The suite already has the right
 # technique for this (`NO_MDLINT_ENV` further down): a `BASH_ENV` `command()`
 # override that hides the binary from `command -v` without touching `PATH`. A
 # self-contained one is used here rather than that shared shim, because that one
@@ -2399,7 +2399,7 @@ if crlf_escaped "$SYS_RAW"; then
 else
   ok "bounded/crlf: systemMessage carries no carriage returns"
 fi
-# This one is labelled because its discriminating power is PLATFORM-DEPENDENT,
+# This one is labeled because its discriminating power is PLATFORM-DEPENDENT,
 # and an assertion whose strength varies by host must say so rather than be
 # taken for uniform coverage. `findings_raw` reaches the envelope through a pipe
 # into `jq -R`. Measured on a Windows jq build: with the hook's normalization

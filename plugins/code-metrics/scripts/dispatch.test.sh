@@ -553,7 +553,7 @@ printf 'scope:\n  registries: [plugins/code-metrics/scripts/fixtures/registry/cl
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --all "$SOURCES")"
 rc=$?
 assert_eq "a registry run exits 0" 0 "$rc"
-assert_doc "the two shared-utils copies collapse to one labelled row standing for both files" "$out" \
+assert_doc "the two shared-utils copies collapse to one labeled row standing for both files" "$out" \
   'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==1 and next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["replicas"]["count"]==2 and "replicated" in next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["labels"] and d["summary"]["files"]==8'
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --no-collapse --all "$SOURCES")"
 assert_doc "--no-collapse keeps one row per copy, for a caller that collapses after its own join" "$out" \

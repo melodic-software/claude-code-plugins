@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.11.5]
 
 ### Changed
@@ -175,7 +181,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
   matches what the shell is handed. Both skills gain an exact grant for the composed command
   alongside the existing prefix rule; the prefix rule stays, and no rule was broadened.
 
-  **The prefix rule's behaviour against a brace group is unestablished.**
+  **The prefix rule's behavior against a brace group is unestablished.**
   [Configure permissions](https://code.claude.com/docs/en/permissions#compound-commands) (fetched
   2026-08-28) states that Claude Code splits a compound command on `&&`, `||`, `;`, `|`, `|&`, `&`,
   and newlines, and that "A rule must match each subcommand independently". It does not say whether
@@ -335,7 +341,7 @@ All notable changes to the `prototype` plugin are documented here. Format follow
   default; when the driver is a non-developer (a designer, PM, or domain expert)
   or no terminal fits the handoff, the disposable shell over the same portable
   pure logic module is a single self-contained `file://` HTML page: domain-language
-  labels, a labelled state panel re-rendered on every click, free-play buttons
+  labels, a labeled state panel re-rendered on every click, free-play buttons
   (one per action), and guided-walkthrough scenarios that reset to a known
   initial state. The page reuses `explore-directions`' HTML-substrate constraint
   set: restrictive CSP meta tag (no remote origins by construction), ephemeral

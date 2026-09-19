@@ -945,7 +945,7 @@ are stress counts, not syllable counts, exactly as Pat's figure prints them.
 | 9 | 4/4/4/4/4/4/4/4 | `ababcccc` |
 
 Only models 1-3 and 9 run entirely on four-stress lines. The rest set a
-three-stress line against four-stress neighbours, which is where the
+three-stress line against four-stress neighbors, which is where the
 couplet / common-meter contrast becomes audible, and model 8 is long enough
 for its short fourth line to open an IOU that its short eighth line answers.
 
@@ -1635,7 +1635,7 @@ is the standing error here:
   music, and they lose their emotion on the way.
 - **Too cold**: the **important positions filled with the wrong words**. Nothing
   trips; the section simply stops being worth listening to. Pat's marked example
-  shows two flavours of this, and the file used to claim only the first. In its
+  shows two flavors of this, and the file used to claim only the first. In its
   lines two and four the scansion is exactly the model's, syllable for syllable,
   and the lines are still dead because connectives and hedges stand where the
   model had meaning carriers. In its lines one and three the strong position
@@ -1694,7 +1694,7 @@ Pat's own note-per-syllable arithmetic, from [syllables](#syllables) above:
 ### Notation
 
 The same notation as the rest of this file, `/` primary stress, `//` secondary,
-`u` unstressed, in three labelled rows, because a fitting procedure has to
+`u` unstressed, in three labeled rows, because a fitting procedure has to
 *name* positions and not only mark them:
 
 - `line:` the sung line, split into syllables

@@ -86,4 +86,4 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 
 Report the at-risk commit total in the summary whenever it is non-zero; a stranded row that reads as one line among many is how the commits get swept.
 
-If issues are found, suggest actions: `/source-control:worktree cleanup` for stale/merged, `git worktree unlock` for locked. For `stranded` and `unknown`, suggest pushing the branch first with `git -C <path> push -u origin HEAD`, which converts the row to `safe` without a judgement call.
+If issues are found, suggest actions: `/source-control:worktree cleanup` for stale/merged, `git worktree unlock` for locked. For `stranded` and `unknown`, suggest pushing the branch first with `git -C <path> push -u origin HEAD`, which converts the row to `safe` without a judgment call.

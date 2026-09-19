@@ -88,7 +88,7 @@ hook::buffer_stdin_to INPUT || {
 # not fit a bypass under the ceiling could simply be somewhere without jq. The
 # posture, the membership criterion for this class, and the disclosed cost are
 # argued at hook::require_jq_blocking in hook-utils.sh — this comment asserts the
-# behaviour, that one explains it.
+# behavior, that one explains it.
 hook::require_jq_blocking "guardrails-block-no-verify" "block_no_verify_enabled"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
@@ -115,7 +115,7 @@ fi
 # text keeps the text.
 #
 # Blocking rather than matching, because the value a guard can read is not
-# reliably the thing that would run. Two behaviours were measured and they
+# reliably the thing that would run. Two behaviors were measured and they
 # disagree — bash DISCARDS a NUL while parsing a command it reads, and Node's
 # child_process REFUSES a NUL-bearing string outright — and which of them, if
 # either, a hook payload reaches has not been traced. Blocking is the one verdict
@@ -283,7 +283,7 @@ fi
 # For the Bash tool this is a no-op (COMMAND unchanged). The classifier is
 # loaded only on the PowerShell lane (#2663): its Bash path is `return 0` after
 # setting PS_SAFE_COMMAND, so a file-scope `source` is parse tax with no
-# behaviour. This guard names it once, in hooks/guard-requires.sh, rather than
+# behavior. This guard names it once, in hooks/guard-requires.sh, rather than
 # spelling the plugin root and the library path here.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # The declaration first, then the library it names. Under run-guards.sh the

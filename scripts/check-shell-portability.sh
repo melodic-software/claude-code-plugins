@@ -255,7 +255,7 @@ fi
 #
 # `!class` lines count as active, so the empty-set guard below fires only when
 # the list yields nothing at all — matching the awk-side `np == 0 && ncls == 0`
-# check, which stays as defence in depth.
+# check, which stays as defense in depth.
 token_patterns=()
 read_list::into token_patterns "$TOKENS_SRC" --comments leading || exit 2
 if ((${#token_patterns[@]} == 0)); then

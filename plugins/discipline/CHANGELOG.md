@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.14.7]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.14.6]
 
 ### Fixed
@@ -380,7 +386,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **`skills/sweep-all`: the mirror basis is retired for a primary one. The trigger 0.12.2 wrote
   fired, and this honors it.** 0.12.2 could not read `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` from
   `env-vars` (three fetches truncated before the `CLAUDE_CODE_MAX_*` range), so it sourced the row
-  from a same-day verbatim mirror, labelled it one rung below a primary read, and stated its own
+  from a same-day verbatim mirror, labeled it one rung below a primary read, and stated its own
   retirement condition: "any env-vars fetch that reaches the `CLAUDE_CODE_MAX_*` range, which
   retires the mirror basis for a primary one". A verbatim end-to-end read of the page on 2026-08-10
   through the new [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route)
@@ -604,7 +610,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 ### Changed
 
-- **`sweep-all`: the undocumented fork-off fallback is now labelled as an observation.** The
+- **`sweep-all`: the undocumented fork-off fallback is now labeled as an observation.** The
   runbook asserted that requesting the `fork` type with fork mode off "falls back to a fresh
   general-purpose subagent" as though it were documented harness behavior. It appears on no
   current official page. It is now flagged observed-not-documented, and the preflight no longer
@@ -835,7 +841,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **`script-the-deterministic-work`**: its audit now runs in both directions.
   Alongside hand-work that should have been scripted, it hunts an **existing**
-  script or tool that over-reaches into judgement (a detect-then-judge flag
+  script or tool that over-reaches into judgment (a detect-then-judge flag
   consumed as the verdict, or reasoning-only work handed to a script), and
   corrects by **de-scripting**: demoting the flag back to a candidate and
   returning reasoning-only work to reasoning.
@@ -852,7 +858,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   outward artifact) without the user's explicit opt-in, mirroring the OFFER
   gate the sibling `recheck-against-upstream-deep` applies to its work-items
   routing. Closes the ambiguity in "named and routed" that, combined with
-  the correct-forward mandate, an aggressive reading could take as licence
+  the correct-forward mandate, an aggressive reading could take as license
   to file a standards PR unprompted.
 - The shared method's `correct forward now` step gains an outward-artifact
   carve-out, and a new Non-negotiable states the plugin-wide invariant that
@@ -889,7 +895,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   returns real output, and the model reasons only afterward over that output.
   The tier boundary re-anchors the consuming org's enforceability-tiers
   convention: deterministic (script it), detect-then-judge (script
-  the detect half; the verdict stays judgement), and reasoning-only (never
+  the detect half; the verdict stays judgment), and reasoning-only (never
   script). The in-task "script it now" application has no standards doc yet, so the
   skill flags that gap rather than inventing a rubric. Runs in both
   directions: analysis reasons over a script's output; generation emits a

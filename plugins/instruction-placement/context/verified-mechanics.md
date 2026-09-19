@@ -112,7 +112,7 @@ way: a deferred surface loads inside a subagent, on that subagent's own read.
 **The repro.** A general-purpose subagent dispatched into this repository, which carries a
 path-scoped rule globbing `**/*.py` (`.claude/rules/ruff-pin.md`) and a nested
 `plugins/autonomy/CLAUDE.md` shim importing `plugins/autonomy/AGENTS.md`. No canary scaffolding is
-needed: the surfaces arrive as a labelled `Contents of <repo-root>/<path>:` block appended to the
+needed: the surfaces arrive as a labeled `Contents of <repo-root>/<path>:` block appended to the
 triggering tool result, so their presence is read straight off the transcript.
 
 1. **Absent before the read.** At dispatch the subagent held the root `CLAUDE.md`/`AGENTS.md` pair

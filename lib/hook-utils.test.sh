@@ -3729,7 +3729,7 @@ fi
 rm -f "$corr_sink"
 # The same large payload must not pick up a nested decoy either: past the size
 # gate the walk is skipped for cost, and the head cut is what keeps it safe.
-# This is the half of the gate's behaviour that is a guarantee; the other half
+# This is the half of the gate's behavior that is a guarantee; the other half
 # (a root key after the first container is omitted up here) is a known gap.
 corr_sink="$(mktemp)"
 (

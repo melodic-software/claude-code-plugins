@@ -40,7 +40,7 @@
 #     "edges": [ <one reference-edges object per line> ]
 #   }
 #
-# `subject_owner` is the organisation the graph was drawn from, resolved by the
+# `subject_owner` is the organization the graph was drawn from, resolved by the
 # edge extractor so the nodes and the edges cannot disagree about it. It is what
 # makes a checkout internal: having a repository on disk says where someone
 # works, not who owns the system.

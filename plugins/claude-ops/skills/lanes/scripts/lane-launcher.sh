@@ -561,7 +561,7 @@ write_launch_commit_marker() {
 # still alive (duplicate sessions) and `status` would report false "stopped".
 # load_sessions therefore fails on a live error and main aborts — except under
 # --dry-run, which mutates nothing, where previewing against an empty list is
-# harmless and preserves the documented offline-dry-run behaviour.
+# harmless and preserves the documented offline-dry-run behavior.
 #
 # `claude agents --json` (no --all) lists ACTIVE sessions only — interactive and
 # running background; completed/terminal background sessions are excluded by the

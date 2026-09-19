@@ -792,7 +792,7 @@ class SetupReachabilityCanaryContract(unittest.TestCase):
     Its whole value is that a denial there is a FAILED prerequisite rather than an
     INFO note -- which only holds if the target is provably harmless and stays
     pinned to the form the lane actually mandates. The wrapper's own exit-0,
-    no-network behaviour is exercised in bash by
+    no-network behavior is exercised in bash by
     plugins/source-control/scripts/babysit-wrapper-help.test.sh; what is pinned
     here is that the skill still names that exact invocation.
     """

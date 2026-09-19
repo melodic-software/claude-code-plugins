@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.36]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.7.35]
 
 ### Changed
@@ -13,7 +19,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
 
 ### Changed
 
-- Share the host normaliser, dotted-quad and ip-literal helpers in the url policy, merge the section overflow filters in validate and drop two producer-less ignore rules (behavior unchanged).
+- Share the host normalizer, dotted-quad and ip-literal helpers in the url policy, merge the section overflow filters in validate and drop two producer-less ignore rules (behavior unchanged).
 
 ## [0.7.33]
 
@@ -69,7 +75,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   inventory never named, replaced the prev/next and swipe navigation description with the
   sectioned-scroll behavior, pointed the validator gate list at the script's own header instead
   of restating it, replaced the Node 20 requirement and its passed end-of-life trigger with a
-  pointer to the setup preflight, dropped step numbers that no longer match the skill, labelled
+  pointer to the setup preflight, dropped step numbers that no longer match the skill, labeled
   the in-repo prerequisites so consumers take the setup path, removed the stale-reference and
   skill-inventory tables, and lowered all-caps emphasis to plain prose.
 - **generate:** the audience-defaults reference now names the loading step in words rather than
@@ -262,7 +268,7 @@ All notable changes to the `ai-briefing` plugin are documented here. Format foll
   briefing even when the window produced no items for it, orders the seen-item registry write
   after successful markdown emission, and states that re-running the same window is idempotent by
   the same normalized event identity step 5 deduplicates on. Three of the four existed only in
-  `context/execution-flow.md`, which nothing loaded, so the behaviour they describe was unreachable
+  `context/execution-flow.md`, which nothing loaded, so the behavior they describe was unreachable
   doctrine. The fourth was half-present: `SKILL.md` already said partial collection stays visible,
   but not that outbound requests carry an explicit timeout.
 

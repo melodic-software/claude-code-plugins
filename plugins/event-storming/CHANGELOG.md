@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.12]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.6.11]
 
 ### Changed
@@ -18,7 +24,7 @@ All notable changes to the `event-storming` plugin are documented here. Format f
   prose (the README, this changelog, the methodology skill body and its five references, and the
   simulation references) are rewritten as a comma, a period, a colon where a definition or list
   follows, or a restructured sentence. Headings that carried one take the colon or comma form, and
-  each file's own Contents list follows. No workshop phase, sticky colour, notation rule, Miro
+  each file's own Contents list follows. No workshop phase, sticky color, notation rule, Miro
   coordinate, or evaluation criterion changed.
 - **Two Brandolini quotations keep their em dashes** inside ignore markers naming the source, since
   the dashes are his. The `remote-eventstorming.md` pull-quote instead moves its attribution to the

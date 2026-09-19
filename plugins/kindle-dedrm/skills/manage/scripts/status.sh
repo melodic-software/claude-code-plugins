@@ -12,8 +12,8 @@ set -uo pipefail
 KINDLE_APP_DIR="${LOCALAPPDATA}/Amazon/Kindle/application"
 KINDLE_UPDATES_DIR="${LOCALAPPDATA}/Amazon/Kindle/updates"
 KINDLE_CONTENT_DIR="${USERPROFILE}/Documents/My Kindle Content"
-CALIBRE_LIBRARY_DIR="${USERPROFILE}/Calibre Library"
-CALIBRE_PLUGINS_DIR="${APPDATA}/calibre/plugins"
+CALIBER_LIBRARY_DIR="${USERPROFILE}/Caliber Library"
+CALIBER_PLUGINS_DIR="${APPDATA}/calibre/plugins"
 KEY_FINDER_DIR="${HOME}/Tools/Kindle_Key_Finder"
 DOWNLOADS_DIR="${HOME}/Downloads"
 FIREWALL_RULE_NAME="Block Kindle for PC (lock 2.8.0)"
@@ -77,18 +77,18 @@ probe_downloads() {
   echo "${found}/3"
 }
 
-probe_calibre_plugins() {
-  if [[ ! -d "${CALIBRE_PLUGINS_DIR}" ]]; then
-    echo "calibre-not-found"
+probe_caliber_plugins() {
+  if [[ ! -d "${CALIBER_PLUGINS_DIR}" ]]; then
+    echo "caliber-not-found"
     return
   fi
   local dedrm_state kfx_state json_state
   local dedrm_match kfx_match
-  dedrm_match=("${CALIBRE_PLUGINS_DIR}"/*[Dd]e[Dd][Rr][Mm]*)
-  kfx_match=("${CALIBRE_PLUGINS_DIR}"/*KFX*)
+  dedrm_match=("${CALIBER_PLUGINS_DIR}"/*[Dd]e[Dd][Rr][Mm]*)
+  kfx_match=("${CALIBER_PLUGINS_DIR}"/*KFX*)
   if [[ -e ${dedrm_match[0]} ]]; then dedrm_state=present; else dedrm_state=absent; fi
   if [[ -e ${kfx_match[0]} ]]; then kfx_state=present; else kfx_state=absent; fi
-  if [[ -f "${CALIBRE_PLUGINS_DIR}/dedrm.json" ]]; then json_state=present; else json_state=absent; fi
+  if [[ -f "${CALIBER_PLUGINS_DIR}/dedrm.json" ]]; then json_state=present; else json_state=absent; fi
   echo "dedrm=${dedrm_state},kfx=${kfx_state},dedrm.json=${json_state}"
 }
 
@@ -97,7 +97,7 @@ probe_book_count() {
   # shellcheck disable=SC2010
   # (ls|grep used for filename-pattern count; entries are Amazon-generated _EBOK dirs without spaces)
   synced=$(ls "${KINDLE_CONTENT_DIR}" 2>/dev/null | grep -c "_EBOK")
-  converted=$(find "${CALIBRE_LIBRARY_DIR}" -name "*.epub" 2>/dev/null | grep -vc "Quick Start")
+  converted=$(find "${CALIBER_LIBRARY_DIR}" -name "*.epub" 2>/dev/null | grep -vc "Quick Start")
   echo "synced=${synced},converted=${converted}"
 }
 
@@ -116,7 +116,7 @@ cat <<EOF
   "cached_installer": "$(probe_cached_installer)",
   "key_finder": "$(probe_key_finder)",
   "downloads": "$(probe_downloads)",
-  "calibre_plugins": "$(probe_calibre_plugins)",
+  "caliber_plugins": "$(probe_caliber_plugins)",
   "books": "$(probe_book_count)"
 }
 EOF

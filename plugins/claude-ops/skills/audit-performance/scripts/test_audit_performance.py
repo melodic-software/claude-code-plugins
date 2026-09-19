@@ -338,7 +338,7 @@ class TestIfGateClassification(unittest.TestCase):
         self.assertEqual(gate["kind"], "unclassified")
         self.assertIn("Bash", gate["reason"])
 
-    def test_a_write_rule_is_unclassified_because_only_edit_is_modelled(self):
+    def test_a_write_rule_is_unclassified_because_only_edit_is_modeled(self):
         gate = engine.classify_if_gate("Write(*.ts)")
         self.assertEqual(gate["kind"], "unclassified")
         self.assertIn("Write", gate["reason"])
@@ -686,7 +686,7 @@ class TestConfigLiveness(unittest.TestCase):
             self.assertEqual(result["sessions_predating_settings"], 0)
             self.assertNotIn("Restart is required", result["advisory"])
 
-    def test_the_session_heuristic_is_labelled_rather_than_asserted(self):
+    def test_the_session_heuristic_is_labeled_rather_than_asserted(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / ".claude"
             write_settings(root, {})
@@ -788,7 +788,7 @@ class TestOrphanAttribution(unittest.TestCase):
             {
                 "pid": 20,
                 "ppid": 999,
-                "name": "ArmouryCrate.exe",
+                "name": "ArmoryCrate.exe",
                 "started_epoch": now - 5 * 86400,
             }
         ]
@@ -1074,7 +1074,7 @@ class TestIsKernelThread(unittest.TestCase):
             self.assertIs(engine.is_kernel_thread(1, root), False)
 
     def test_a_status_without_the_line_falls_back_to_the_stat_flags_word(self):
-        """Field 2 of stat is parenthesised and may hold spaces and `)`, so the split runs
+        """Field 2 of stat is parenthesized and may hold spaces and `)`, so the split runs
         from the LAST `)`; indexing from the first reads the wrong field entirely."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1146,7 +1146,7 @@ class TestCliProbeProvenance(unittest.TestCase):
                 engine.cli_layout(str(binary), str(binary), home), "legacy-local-npm"
             )
 
-    def test_an_unrecognised_path_is_unclassified_not_unsupported(self):
+    def test_an_unrecognized_path_is_unclassified_not_unsupported(self):
         """Homebrew, WinGet, apt and direct-download installs are supported and land anywhere."""
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -1443,7 +1443,7 @@ class TestKernelObjectCensus(unittest.TestCase):
         self.assertEqual(table["Key"]["objects"], 189_005)
         self.assertEqual(table["EtwRegistration"]["high_water_handles"], 50_926)
 
-    def test_a_leaking_host_is_labelled_from_count_and_pool(self):
+    def test_a_leaking_host_is_labeled_from_count_and_pool(self):
         summary = engine.summarize_kernel_objects(
             {
                 "Token": {

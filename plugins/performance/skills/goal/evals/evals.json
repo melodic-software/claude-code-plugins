@@ -67,7 +67,7 @@
       "id": 6,
       "name": "prices-p99-and-labels-the-house-convention",
       "prompt": "/performance:goal I want p99 tracked for this hook. Also, p50/p95 over 20 samples is the industry standard, right?",
-      "expected_output": "Prices the p99 request: the 1/(1-p) arithmetic floor means at least 100 samples, on a host where one spawn can take 2.8 s. Corrects the premise: p50/p95 over 20 samples is this plugin's own labelled house convention with no community grounding; only the 1/(1-p) floor is real and enforced, and the sourced pattern (Google's SRE Book) names the 99th and 99.9th percentiles, making p95 itself convention. Does not cite coordinated omission for this synchronous harness.",
+      "expected_output": "Prices the p99 request: the 1/(1-p) arithmetic floor means at least 100 samples, on a host where one spawn can take 2.8 s. Corrects the premise: p50/p95 over 20 samples is this plugin's own labeled house convention with no community grounding; only the 1/(1-p) floor is real and enforced, and the sourced pattern (Google's SRE Book) names the 99th and 99.9th percentiles, making p95 itself convention. Does not cite coordinated omission for this synchronous harness.",
       "files": [],
       "expectations": [
         "States the 1/(1-p) arithmetic floor and prices p99 at 100 or more samples on this host",

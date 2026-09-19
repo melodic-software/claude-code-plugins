@@ -376,7 +376,7 @@ hook::raw_file_path() {
 # after one notice, for the rest of the session.
 #
 # WHICH HOOKS ARE IN THAT MINORITY — the criterion is mechanical, and it is
-# INTERNAL CONSISTENCY, not a taste judgement about severity. A hook belongs in
+# INTERNAL CONSISTENCY, not a taste judgment about severity. A hook belongs in
 # the fail-closed class iff it ALREADY fails closed on some other
 # "I cannot parse this input" condition. Today exactly two do, both via a
 # MAX_COMMAND_LEN ceiling above which an unparsable command is denied unread:
@@ -402,7 +402,7 @@ hook::raw_file_path() {
 #
 # WHY TWO FUNCTIONS RATHER THAN ONE WITH A FLAG. A parameter's OMITTED value has
 # to default to something, and the safe-looking default (fail open, matching
-# today's behaviour) means a guard that should fail closed but whose flag someone
+# today's behavior) means a guard that should fail closed but whose flag someone
 # forgot fails open SILENTLY — which is the exact defect class #2146 reports,
 # reintroduced at the API. Two names make the posture greppable, make the
 # fail-closed path impossible to reach by accident, and make omission a visible
@@ -437,7 +437,7 @@ hook::require_jq() {
 #
 # The kill switch stays the only supported deliberate bypass: a consumer who
 # genuinely wants the operation unguarded on a jq-less machine sets the guard's
-# own *_enabled userConfig option to false, which hook::check_enabled honours
+# own *_enabled userConfig option to false, which hook::check_enabled honors
 # BEFORE this gate is ever reached.
 # DISCLOSED COST, because it is not small: this guard runs on EVERY Bash and
 # PowerShell tool call, and without jq it cannot read the command at all — so it
@@ -2072,7 +2072,7 @@ hook::jq_field() {
 # the strip.
 #
 # Removing the NUL is NOT a claim about how a NUL executes, and must not be read
-# as one. Two behaviours were measured and they disagree: bash DISCARDS a NUL
+# as one. Two behaviors were measured and they disagree: bash DISCARDS a NUL
 # while parsing a command it reads (stdin or a script file), so `echo ha<NUL>rd`
 # prints `hard`; Node's child_process REFUSES a NUL-bearing string outright, on
 # argv, on `shell: true`, and on exec alike. Which of those — if either — a hook
@@ -2099,7 +2099,7 @@ hook::jq_field() {
 # split/join (1-arity, a plain string split — NOT gsub, which would put a NUL
 # inside an Oniguruma pattern) for the strip, and explode/index for the flag, so
 # that no regex pattern and no string literal in the jq PROGRAM text carries a
-# NUL byte: a construct whose behaviour varied across jq builds would fail EVERY
+# NUL byte: a construct whose behavior varied across jq builds would fail EVERY
 # payload, which is strictly worse than the payload-dependent bug being fixed.
 #
 # The library cannot impose the verdict itself — the plugins sourcing it include
@@ -3769,7 +3769,7 @@ hook::git_alias_reparse_to() {
 #     only one leaves the other empty, which contributes a constant to the key;
 #     keying both here keeps the key shape uniform across guards.
 #   * `%q` on every word, so a word containing a newline cannot merge into its
-#     neighbour and no boundary in the key can shift.
+#     neighbor and no boundary in the key can shift.
 # `printf -v` keeps the whole key build fork-free — a `$(printf …)` per word
 # would cost more than the walk it bounds.
 #

@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.20]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.7.19]
 
 ### Changed
@@ -336,7 +342,7 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
 
 - **Dedicated `/kindle-dedrm:setup` skill on the uniform check/apply contract**
   (`user-invocable: true`, `disable-model-invocation: true`). `check` probes
-  prerequisites and current state read-only (Calibre, Python-not-WindowsApps-stub,
+  prerequisites and current state read-only (Caliber, Python-not-WindowsApps-stub,
   pwsh, admin, Kindle version, firewall/ICACLS lock, downloads, plugins) via the
   plugin's own `status.sh`, reporting PASS/FAIL/INFO. A not-yet-provisioned
   machine is INFO, a wrong Kindle version or missing hard prerequisite is FAIL,

@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.12]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.39.11]
 
 ### Changed
@@ -175,12 +181,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Added
 
 - **`interview`, `prd`:** an always-on acceptance-criteria coverage prompt. During
-  acceptance-criteria capture each skill asks ONCE whether an unwanted-behaviour case (`IF-THEN`)
+  acceptance-criteria capture each skill asks ONCE whether an unwanted-behavior case (`IF-THEN`)
   and a state-driven case (`WHILE`) are missing; "neither applies" closes it. It is never a `Q<N>`
   row in the interview's open-question register, and asking it does not by itself bring the Step 3
   register gate into scope. The exemption covers that one prompt and never a real question asked
   beside it. In a non-interactive run the ask is SKIPPED rather than blocking, and the
-  returned summary states that unwanted-behaviour and state-driven coverage went unexamined. A
+  returned summary states that unwanted-behavior and state-driven coverage went unexamined. A
   non-interactive run is a dispatched worker, a forked subagent, a headless invocation, or the
   PRD's `synthesize` path. The unattended condition stays caller-declared, never sniffed.
 - **`interview`, `prd`:** convention-gated EARS pattern tags on emitted acceptance criteria. When
@@ -188,7 +194,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   carries a bracketed prefix on the Brief's existing plain-bullet
   shape (`- [event-driven] WHEN the upload completes, the manifest is rewritten`). The prefix is
   drawn from exactly five names: `ubiquitous`, `event-driven`, `state-driven`,
-  `unwanted-behaviour`, `optional-feature`. Under
+  `unwanted-behavior`, `optional-feature`. Under
   `free-text`, the default and every degrade, criteria are emitted untagged and byte-comparable in
   shape to the previous release. Both skills RESTATE the authoring-formats resolution ladder in
   their own bodies rather than citing a convention document, because an installed plugin never sees
@@ -263,7 +269,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   unchanged and carry no label.
 - **`design`:** the body restates the `authoring-formats` resolution ladder rather than pointing at
   the convention document, because an installed plugin never sees the publishing repository at
-  runtime. Zero config is unchanged behaviour: mermaid data diagrams and no C4 container view.
+  runtime. Zero config is unchanged behavior: mermaid data diagrams and no C4 container view.
 - **`design`:** mermaid craft routes to `/visualization:visualize` when the `visualization` plugin
   is installed; without it the skill emits the plainest correct form of the dialect. The typed
   artifact is produced either way.
@@ -662,7 +668,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   frontmatter, the eight cases that speak to these rules, the case roster, and the four fixtures
   catch what is added BESIDE a pinned line rather than to it. Fourteen such shapes were demonstrated
   passing an earlier revision at FAIL=0, each closed by the layer added in response: an adjacent
-  paragraph qualifying both rules; the same paragraph in a neighbouring section; the same shifted
+  paragraph qualifying both rules; the same paragraph in a neighboring section; the same shifted
   one line up into Step 1 where it reads as their preamble; a governing preamble in the
   interview-loop intro three lines above that; a qualifier in the frontmatter `description`; a
   qualifier in a different frontmatter key (`metadata.summary`), short enough to clear the
@@ -1678,7 +1684,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   their place), and the ADR is preferably written the moment the decision crystallizes rather
   than batched at graduation.
 - **Durability-over-precision authoring rule in `/planning:prd`**: PRD content describes
-  interfaces, types, and behavioural contracts, never file paths or line numbers, and never
+  interfaces, types, and behavioral contracts, never file paths or line numbers, and never
   assumes the current implementation structure persists.
 - **Test-seam posture thread in `/planning:design` Phase 2**: sketch the seams the feature will
   be tested at, preferring existing seams, placing new ones as high as possible, driving toward the

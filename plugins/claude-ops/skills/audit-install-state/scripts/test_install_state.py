@@ -102,7 +102,7 @@ class TestNameSchemes(unittest.TestCase):
             with self.subTest(rel=rel):
                 self.assertEqual(engine.classify_name(rel)[0], expected)
 
-    def test_unrecognised_numeric_name_is_unknown_not_a_guess(self) -> None:
+    def test_unrecognized_numeric_name_is_unknown_not_a_guess(self) -> None:
         meaning, _ = engine.classify_name("third-party-plugin/state.99999")
         self.assertEqual(meaning, engine.UNKNOWN_MEANING)
 
@@ -115,7 +115,7 @@ class TestLivenessGate(unittest.TestCase):
 
     This is the check the whole engine exists to get right: a process lookup
     against a TCP port or a shell `$$` returns a meaningless miss that reads as
-    "dead" and authorises a wrong deletion.
+    "dead" and authorizes a wrong deletion.
     """
 
     def setUp(self) -> None:
@@ -194,7 +194,7 @@ class TestSecretHandling(unittest.TestCase):
 class TestDenyListCaseSensitivity(unittest.TestCase):
     """Three deny paths differing only by case are three paths, not one.
 
-    Recorded because the single operation a prior audit labelled mechanically
+    Recorded because the single operation a prior audit labeled mechanically
     provable was wrong for exactly this reason: a case-insensitive comparer
     collapsed three distinct deny rules into one and dropped two protections.
     """
@@ -393,7 +393,7 @@ class TestReadings(unittest.TestCase):
 
 
 class TestEntrySurfacePromotion(unittest.TestCase):
-    """A secret-bearing member must not be summarised by a milder entry line.
+    """A secret-bearing member must not be summarized by a milder entry line.
 
     `ide/*.lock` is in NEVER_READ_GLOBS but `ide` has no SURFACE_TABLE row, so the
     entry-level surface came from the directory NAME alone and read `unclassified`
@@ -739,7 +739,7 @@ class TestEvidenceVocabulary(unittest.TestCase):
 
 
 class TestEnvironmentState(unittest.TestCase):
-    """A remote tree is labelled, never graded as the operator's machine."""
+    """A remote tree is labeled, never graded as the operator's machine."""
 
     def test_a_cloud_tree_reads_remote_with_every_signal_tagged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -806,11 +806,11 @@ class TestEnvironmentState(unittest.TestCase):
             build_tree(root)
             (root / "launcher-settings.json").write_text("{}", encoding="utf-8")
             plain = _scan(root, env={})
-            labelled = _scan(root, env={"CLAUDE_CODE_REMOTE": "true"})
-            self.assertEqual(labelled["environment"]["tree_verdict"], "remote")
+            labeled = _scan(root, env={"CLAUDE_CODE_REMOTE": "true"})
+            self.assertEqual(labeled["environment"]["tree_verdict"], "remote")
             self.assertEqual(
                 [(e["entry"], e["reading"]["verdict"]) for e in plain["entries"]],
-                [(e["entry"], e["reading"]["verdict"]) for e in labelled["entries"]],
+                [(e["entry"], e["reading"]["verdict"]) for e in labeled["entries"]],
             )
 
 

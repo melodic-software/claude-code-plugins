@@ -143,7 +143,7 @@ for skill in "${SKILLS[@]}"; do
   # The destructive guard matches destructive command SHAPES and matches none of
   # the six mutating scripts (nor `git branch -D`, nor `git push --delete`), so a
   # comment here saying they "stay behind the PreToolUse destructive guard" is a
-  # safety claim the code does not honour. Two assertions rather than one: the
+  # safety claim the code does not honor. Two assertions rather than one: the
   # first bans the specific overstatement, the second requires any mention of the
   # guard to state its real scope, so a reworded overstatement cannot slip past.
   if grep -qiE 'behind the (PreToolUse )?destructive guard' <<<"$at"; then

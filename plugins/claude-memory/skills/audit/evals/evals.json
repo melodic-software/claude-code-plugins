@@ -164,7 +164,7 @@
         "C1 is graded on the import-expanded line count (a FAIL for 241 loaded lines), not on the 1-line root file",
         "N1 reports plugins/foo/AGENTS.md as a FAIL with the sibling @AGENTS.md CLAUDE.md shim as the fix",
         "The finding on the standards-synced rule names the sync's source as where the fix belongs and does not propose a local edit",
-        "The context-cost line is labelled an estimate (bytes / 4) and is not attributed to /context"
+        "The context-cost line is labeled an estimate (bytes / 4) and is not attributed to /context"
       ]
     }
   ]

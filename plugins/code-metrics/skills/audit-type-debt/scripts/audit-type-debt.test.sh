@@ -186,7 +186,7 @@ assert_doc "the typescript lane still reports while mypy cannot" "$out" \
   'any(r["lane"]=="typescript" and r["status"]=="ok" for r in d["run"]) and d["status"]=="partial"'
 
 # 3c. mypy exits 1 (type errors) and still writes the report: the rows are
-# kept, the lane row is labelled, and the run row's reason counts the errors
+# kept, the lane row is labeled, and the run row's reason counts the errors
 # and the missing stubs among them.
 ERROR_STUBS="$WORK/error-stubs"
 mkdir -p "$ERROR_STUBS"
@@ -204,7 +204,7 @@ rc=$?
 assert_eq "exit 0 when mypy reports type errors" 0 "$rc"
 assert_doc "the python run row is ok and its reason counts the errors and missing stubs" "$out" \
   'next(r for r in d["run"] if r["lane"]=="python")["status"]=="ok" and next(r for r in d["run"] if r["lane"]=="python")["reason"]=="mypy reported 2 errors (1 missing stub)"'
-assert_doc "the python lane row is labelled and the file row is not" "$out" \
+assert_doc "the python lane row is labeled and the file row is not" "$out" \
   'next(r for r in d["measures"] if r["lane"]=="python" and r["file"] is None)["labels"]==["lane-total","mypy-reported-errors"] and next(r for r in d["measures"] if r["lane"]=="python" and r["file"])["labels"]==[]'
 
 # 4. Neither tool present: exit 0, nothing measured, the install hint is named.

@@ -108,7 +108,7 @@ Template: `../templates/metal.md`. Down-tuned guitars define the family; subdivi
 | Nu-metal | 1995-2005 | US (SoCal/Florida) | 75-110 | Drop-tuned 7-string | Rapped + sung (often nasal) | Turntables, slap bass, compressed kit | Angsty, urban, aggressive | H |
 | Metalcore | 2001-2010 | US (NE/Midwest) | 150-200 with breakdowns | Minor pentatonic | Screamed verse + clean chorus | Tight quantized chugs, parallel-compressed kit | Cathartic, anthemic, urgent | H |
 | Deathcore | 2005-present | US | 150-220 with slams | Chromatic, drop tunings | Pig squeals + low gutturals | Drum triggers, brutal low-end, slam breakdowns | Annihilating, punishing | H |
-| Djent | 2007-present | UK/US | 120-170 | Drop-tuned 7/8-string, polymeter | Clean melodic + roars | Quantized palm-mute chugs (Axe-Fx), ambient pads | Mechanical, cerebral, percussive | H |
+| Djent | 2007-present | UK/US | 120-170 | Drop-tuned 7/8-string, polymeter | Clean melodic + roars | Quantized palm-mute chugs (Ax-Fx), ambient pads | Mechanical, cerebral, percussive | H |
 | Post-metal | 2001-present | US (Boston) | 70-130 | Modal, drone | Buried screams + buried cleans | Spatial reverb, slow crescendos, no vocals upfront | Cinematic, crushing, contemplative | H |
 | Grindcore | 1986-present | UK | 200-300+, blast | Chromatic | Cookie Monster + high screech (dual) | Wall-of-chaos, sub-2-minute songs | Apocalyptic, frantic, brutal | H |
 | Mathcore | 1996-present | US | 120-200, polymeter | Atonal, dissonant | Shrieked + screamed | Stop-start dynamics, dissonant guitars | Chaotic, technical, abrasive | M |

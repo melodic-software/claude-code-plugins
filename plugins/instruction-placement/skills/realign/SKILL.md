@@ -53,7 +53,7 @@ Not restated here. A paraphrase inside a proposal is a drift seed.
 it is presented.** Say so in the run's opening line, then hold it literally.
 
 - **One finding, one acceptance.** Accepting IP-003 authorizes IP-003 and nothing else, not its
-  neighbours, not the rest of its file, not the obvious next one.
+  neighbors, not the rest of its file, not the obvious next one.
 - **Blanket approval is not the gate.** "Approve everything", "do whatever the audit says", and a
   standing authorization from earlier in the session are all declined, out loud, with an offer to
   walk the findings one at a time. This is not pedantry: the whole value of the gate is that a human

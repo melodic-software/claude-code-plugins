@@ -206,7 +206,7 @@ directory name. The rest is observed in the client rather than documented
 (2.1.225): the picker labels a row with the command it resolves, `/planning:plan` prefix and all,
 and appends a bare alias in parentheses only when what you typed prefix-matches that alias, so a
 skill declaring no `name` never renders the stuttering `/plugin:skill (skill)`. Re-observe before
-relying on the parenthetical; the labelling itself follows from resolution and is the stable part.
+relying on the parenthetical; the labeling itself follows from resolution and is the stable part.
 Origin is spelled out again in the description: a plugin skill
 renders as `(<plugin-name>) <description>`, a personal skill as `<description> (user)`, a project
 skill as `(project)` or `(project, gitignored)` depending on whether it came from shared or local
@@ -504,8 +504,8 @@ behaves. They can legitimately disagree, so a naive readback reports false failu
 one as a failed write is the specific error this clause exists to prevent. Verify the effective value
 by re-checking in a **fresh session**, and never claim an unobserved change. A same-session `check`
 therefore satisfies the bullet above by reporting the stored value it observed *and* naming the
-running session's behaviour as not yet established, not by pretending that session already reflects
-the write. The stored value read in-session is current; it is the behaviour that lags.
+running session's behavior as not yet established, not by pretending that session already reflects
+the write. The stored value read in-session is current; it is the behavior that lags.
 
 Two mechanisms are offered across the fleet as the reason the two diverge: that a `${user_config.*}`
 value is substituted into skill content at load, and that a hook's `CLAUDE_PLUGIN_OPTION_*` mirror
@@ -990,7 +990,7 @@ that page's per-model sentence changes).
 
 The dispatch consequence, phrased as capability rather than family name so it survives an alias
 moving under it: **require interleaving only where extended reasoning between tool results decides
-the next call, meaning a mid-sweep judgement that has to change what gets called next. A task that chains
+the next call, meaning a mid-sweep judgment that has to change what gets called next. A task that chains
 calls, or that reasons over its results at the end, does not need it.** The boundary is much
 narrower than the capability's name suggests, and the same page draws it: "Consecutive tool calls do
 not require interleaved thinking. Claude can chain tool calls with or without interleaved thinking;

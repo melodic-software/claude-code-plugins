@@ -192,7 +192,7 @@ The budget has five inputs, and the report states where each one came from:
 - Bytes per token is 4 or 3 per model. `--bytes-per-token` pins it; unpinned the
   report carries both.
 
-With nothing pinned the `listing` section is a **band** of four labelled rows
+With nothing pinned the `listing` section is a **band** of four labeled rows
 (200k/4, 200k/3, 1M/4, 1M/3), each with its own budget, overflow, verdict, and
 starved count, and the top-level numbers are null under `budget_basis: band`.
 Pinning both model-side inputs yields the single-row shape with the pinned
@@ -289,7 +289,7 @@ Listing budget, when any row overflows, the ten longest competing descriptions
 are tabled by source length beside the capped charge the listing counts
 (`description_chars` and `demand_chars` in the JSON): trimming lowers the
 overflow only once a description is under `skillListingMaxDescChars`, and the
-table is labelled as length, never as a starvation ranking, so it renders the
+table is labeled as length, never as a starvation ranking, so it renders the
 same in an unscored run. Each table caps at ten rows and counts the rest. A
 closing Next actions section names only the fixes this run's findings support,
 points at the budget control the run's provenance says is effective (the env

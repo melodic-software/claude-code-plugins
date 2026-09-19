@@ -68,7 +68,7 @@ All imported unchanged; each is enforced by its owning contract, cited never res
 - Queue and lease are reused from the work-item capability's race-safe lease and its
   autonomous/human-gated classes. The runner is a claiming surface, so the
   [one-entrypoint invariant](trigger-dispatch.md#dispatch) and its scope boundary bind it
-  directly; the audit trail that funnelling produces is the trust loop.
+  directly; the audit trail that funneling produces is the trust loop.
 - Checker verdicts are aggregated per the
   [verification-topology leaf](guardrails/verification-topology.md), which enforces at
   binding-validity time what no static check can reach at run time. **Three obligations land on

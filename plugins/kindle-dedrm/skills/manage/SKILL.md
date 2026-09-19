@@ -1,5 +1,5 @@
 ---
-description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books the user owns (Windows only). Action router: setup (first-time provisioning: download, firewall block, ICACLS lock, Calibre plugins, keyfinder; delegated to the dedicated /kindle-dedrm:setup check/apply skill), sync (new purchases: disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check: upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission: per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: 'set up Kindle DRM removal', 'convert Kindle books to EPUB', or syncing, drift-checking, or decommissioning personal-use Kindle DRM removal; making an owned Kindle library readable on a non-Kindle device; or Calibre and Kindle are mentioned together."
+description: "Manage the Kindle for PC 2.8.0 + Caliber DeDRM workflow for personal-use ebook DRM removal on books the user owns (Windows only). Action router: setup (first-time provisioning: download, firewall block, ICACLS lock, Caliber plugins, keyfinder; delegated to the dedicated /kindle-dedrm:setup check/apply skill), sync (new purchases: disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check: upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission: per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: 'set up Kindle DRM removal', 'convert Kindle books to EPUB', or syncing, drift-checking, or decommissioning personal-use Kindle DRM removal; making an owned Kindle library readable on a non-Kindle device; or Caliber and Kindle are mentioned together."
 argument-hint: "[setup|sync|update|cleanup|status] [--dry-run] [--soft|--full]"
 user-invocable: true
 disable-model-invocation: false
@@ -7,7 +7,7 @@ disable-model-invocation: false
 
 ## Purpose
 
-Personal-use Kindle DRM removal is a fragile multi-tool workflow with state mutations that, if forgotten, leave the user's machine in an awkward state (silent auto-update, stuck firewall rules, half-installed Calibre plugins). This skill captures the lifecycle as discrete reversible actions and tracks every upstream source that drifts independently (Amazon's Kindle for PC release cadence, Satsuoni's DeDRM_tools fork, Kindle_Key_Finder zip with rolling date in URL, techy-notes.com tutorial article).
+Personal-use Kindle DRM removal is a fragile multi-tool workflow with state mutations that, if forgotten, leave the user's machine in an awkward state (silent auto-update, stuck firewall rules, half-installed Caliber plugins). This skill captures the lifecycle as discrete reversible actions and tracks every upstream source that drifts independently (Amazon's Kindle for PC release cadence, Satsuoni's DeDRM_tools fork, Kindle_Key_Finder zip with rolling date in URL, techy-notes.com tutorial article).
 
 Scope: Windows-only (Kindle for PC + KFXKeyExtractor are Windows binaries). Single-user. Books the user owns.
 
@@ -19,17 +19,17 @@ Probe current state on every invocation. Run scripts/status.sh and read the JSON
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
 ```
 
-Output reports: Kindle for PC version, firewall rule presence, ICACLS deny presence, ~/Tools/Kindle_Key_Finder presence, ~/Downloads installer presence, Calibre install presence, Calibre plugin presence (best-effort), book count in My Kindle Content + Calibre Library.
+Output reports: Kindle for PC version, firewall rule presence, ICACLS deny presence, ~/Tools/Kindle_Key_Finder presence, ~/Downloads installer presence, Caliber install presence, Caliber plugin presence (best-effort), book count in My Kindle Content + Caliber Library.
 
 ## Action router
 
 | Action | When | What it does |
 |---|---|---|
 | (empty) | Default. Auto-detect from status | If pristine → recommend `/kindle-dedrm:setup`. If state OK + user mentioned new books → recommend `sync`. Otherwise emit status report |
-| `setup` | First-time install | Delegates to the dedicated **`/kindle-dedrm:setup`** skill (uniform check/apply contract): provisioning walkthrough: download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall + ICACLS lockdown |
+| `setup` | First-time install | Delegates to the dedicated **`/kindle-dedrm:setup`** skill (uniform check/apply contract): provisioning walkthrough: download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Caliber plugins, run keyfinder, apply firewall + ICACLS lockdown |
 | `sync` | New books purchased after initial setup | Disable firewall, prompt user to sync in Kindle, delete cached installer, re-enable firewall, re-run keyfinder |
 | `update` | Periodic drift check | WebFetch tutorial URLs + gh API for upstream releases, diff against captured baselines in `reference/sources.md`, emit drift report. No mutations |
-| `cleanup` | Decommission | Walk through every reversible mutation with per-item Y/N. Default (confirm-each) offers the firewall rule, ICACLS deny, keyfinder, and downloads; `--soft` limits to tools + downloads (keeps the firewall/ICACLS lock and Kindle for PC); `--full` also offers to uninstall Kindle for PC and remove Calibre plugins. The Calibre Library is never offered |
+| `cleanup` | Decommission | Walk through every reversible mutation with per-item Y/N. Default (confirm-each) offers the firewall rule, ICACLS deny, keyfinder, and downloads; `--soft` limits to tools + downloads (keeps the firewall/ICACLS lock and Kindle for PC); `--full` also offers to uninstall Kindle for PC and remove Caliber plugins. The Caliber Library is never offered |
 | `status` | Diagnostic | Same as default empty action |
 
 Smart auto-detect when action is empty: read pre-computed context, classify state, recommend the most-fitting action OR emit status if classification is ambiguous. Never commit to setup/sync/cleanup without user confirmation when ambiguous.
@@ -49,7 +49,7 @@ Apply across every action. Violating any risks losing the working 2.8.0 setup or
 First-time provisioning lives in the dedicated **`/kindle-dedrm:setup`** skill, which conforms to the
 uniform check/apply contract: `check` probes prerequisites and current state read-only, `apply` runs the
 full provisioning walkthrough (`reference/workflow.md`). The gated artifact download, install,
-firewall block, ICACLS lock, Calibre plugins, and keyfinder. When this router's smart auto-detect finds
+firewall block, ICACLS lock, Caliber plugins, and keyfinder. When this router's smart auto-detect finds
 a pristine machine, recommend `/kindle-dedrm:setup` rather than provisioning inline; the sequence has a
 single owner (`/kindle-dedrm:setup` → `reference/workflow.md`).
 
@@ -70,7 +70,7 @@ Sequence:
 4. **Delete any newly-staged installer** at `%LOCALAPPDATA%\Amazon\Kindle\updates\*` (`scripts/sync-finalize.sh delete-cache`). ICACLS deny prevents *future* writes but doesn't stop one that lands during the brief firewall-disabled window.
 5. **Re-enable firewall block** (`scripts/firewall.ps1 enable`).
 6. **Re-run keyfinder** (`~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`). Saved config auto-loads; tool processes only new books.
-7. **Verify new EPUBs** under Calibre Library.
+7. **Verify new EPUBs** under Caliber Library.
 
 If user reports a cached installer popped up during step 3, that's expected. Amazon staged 2.9.x. Delete it via step 4 immediately and verify Kindle.exe still reports 2.8.0.70980.
 
@@ -121,7 +121,7 @@ Reverse every mutation made by this skill. Per-item confirmation by default.
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/cleanup.sh"           # confirm-each (default)
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/cleanup.sh --soft"    # tools + downloads only
-bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/cleanup.sh --full"    # everything including Kindle for PC + Calibre plugins
+bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/cleanup.sh --full"    # everything including Kindle for PC + Caliber plugins
 ```
 
 Reversal matrix (every row maps a mutation made by setup/sync to its compensating reversal):
@@ -137,12 +137,12 @@ Reversal matrix (every row maps a mutation made by setup/sync to its compensatin
 | `~/Downloads/Kindle_Key_Finder_*.JH.zip` | `rm` | Yes |
 | Cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\*` | `rm` (lock removed first if --full) | Yes |
 | Kindle for PC install (`%LOCALAPPDATA%\Amazon\Kindle\application\`) | `uninstall.exe` (interactive) | Only on `--full` |
-| Calibre KFX Input plugin | Manual via Calibre Preferences → Plugins | Only on `--full`, GUI step |
-| Calibre DeDRM plugin | Manual via Calibre Preferences → Plugins | Only on `--full`, GUI step |
-| Calibre `dedrm.json` (key store) | `rm "$APPDATA\calibre\plugins\dedrm.json"` | Only on `--full` |
-| Calibre Library books (decrypted EPUBs) | NEVER auto-deleted; user keeps these | Manual only, never offered |
+| Caliber KFX Input plugin | Manual via Caliber Preferences → Plugins | Only on `--full`, GUI step |
+| Caliber DeDRM plugin | Manual via Caliber Preferences → Plugins | Only on `--full`, GUI step |
+| Caliber `dedrm.json` (key store) | `rm "$APPDATA\calibre\plugins\dedrm.json"` | Only on `--full` |
+| Caliber Library books (decrypted EPUBs) | NEVER auto-deleted; user keeps these | Manual only, never offered |
 
-The skill should NEVER offer to delete the user's Calibre Library. Those are the decrypted books the entire workflow exists to produce.
+The skill should NEVER offer to delete the user's Caliber Library. Those are the decrypted books the entire workflow exists to produce.
 
 ## What this skill does NOT do
 
@@ -171,5 +171,5 @@ The skill should NEVER offer to delete the user's Calibre Library. Those are the
 | Satsuoni archives the DeDRM_tools repo | Find current maintained fork; update repo URL in `reference/sources.md` |
 | techy-notes.com tutorial 404s or moves | Pivot to epubor.com tutorial (secondary); update `reference/sources.md` |
 | Kindle for PC ships a version > 2.9.1 not in `KFXARCHIVER_TOOL_MAP` | Wait for KFXArchiver update; document in `reference/troubleshooting.md` |
-| Calibre's KFX Input plugin renamed in catalog | Update plugin name reference in `reference/workflow.md` |
+| Caliber's KFX Input plugin renamed in catalog | Update plugin name reference in `reference/workflow.md` |
 | User reports a sync that left a 2.9.x cached installer past firewall re-enable | Tighten timing in `scripts/sync-prep.sh`. Possibly add an automatic `sync-finalize.sh` invocation when Kindle.exe quits |

@@ -138,7 +138,7 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 # terminator line makes a truncated write read as a miss.
 #
 # RESIDUAL, deliberately not solved here: the resolver's well-known-path rung
-# only honours `docs/conventions/source-control/commit-convention.yml` when git
+# only honors `docs/conventions/source-control/commit-convention.yml` when git
 # reports it TRACKED, and tracked status can change with no mtime change on any
 # file below. Such a change is picked up when any dependency is next written,
 # not at the moment of `git add`. Probing it would cost the `git ls-files` spawn
@@ -518,7 +518,7 @@ check_segment() {
   # `rev-parse --absolute-git-dir` answer identically from any directory inside
   # one repository. They diverge only when a SEPARATE repository is nested below
   # the composed path, the narrower case the sibling's extra probe exists for and
-  # which is deliberately not modelled here.
+  # which is deliberately not modeled here.
   local seg_dir=""
 
   # Alias-expanded commits must be content-gated too (`git -c alias.c=commit c

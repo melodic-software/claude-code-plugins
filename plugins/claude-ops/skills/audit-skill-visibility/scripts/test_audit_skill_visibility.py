@@ -443,7 +443,7 @@ class ReachabilityTest(unittest.TestCase):
     # nothing else has decided the plugin's state", and this repository's own
     # rule (`skills/plugins/context/sync-install-enable.md`) puts the
     # marketplace entry's value above the plugin's own manifest field. A
-    # publisher's opt-in default used to read as enabled here, which libelled
+    # publisher's opt-in default used to read as enabled here, which libeled
     # every opt-in plugin's skills as reachable.
 
     def test_a_marketplace_default_of_false_hides_when_no_scope_names_the_key(self):
@@ -879,7 +879,7 @@ class BudgetArithmeticTest(unittest.TestCase):
             project_root, config_root, self._managed_unreadable()
         )
 
-    def test_unpinned_run_carries_four_labelled_rows_and_names_no_session(self):
+    def test_unpinned_run_carries_four_labeled_rows_and_names_no_session(self):
         cfg, axes = engine.build_listing_inputs(self._no_pins(), {}, [])
         listing = engine.compute_listing_band(_fleet(), cfg, axes)
         self.assertEqual(
@@ -955,7 +955,7 @@ class BudgetArithmeticTest(unittest.TestCase):
         row = next(r for r in axes.inputs["env"] if r["name"].endswith("1M_CONTEXT"))
         self.assertEqual(row["effect"], "not truthy: no effect")
 
-    def test_max_context_tokens_is_honoured_only_with_disable_compact(self):
+    def test_max_context_tokens_is_honored_only_with_disable_compact(self):
         _, without = engine.build_listing_inputs(
             self._no_pins(), {"CLAUDE_CODE_MAX_CONTEXT_TOKENS": "500000"}, []
         )
@@ -1206,7 +1206,7 @@ class ExemptionTest(unittest.TestCase):
         # Freed bytes are NOT returned to the pool -- the budget is unchanged.
         self.assertEqual(listing["budget_chars"], 8_000)
 
-    def test_exempt_classes_are_labelled_not_silently_dropped(self):
+    def test_exempt_classes_are_labeled_not_silently_dropped(self):
         listing = self._listing(
             {"description": "x" * 10, "disable_model_invocation": True}
         )
@@ -1406,7 +1406,7 @@ class RenderTablesTest(unittest.TestCase):
 class InferentialBandTest(unittest.TestCase):
     """Which skills lose descriptions is inferential and must say so."""
 
-    def test_band_is_labelled_inferential_and_ranked(self):
+    def test_band_is_labeled_inferential_and_ranked(self):
         entries = [
             {
                 "qualified_name": f"a:{i}",
@@ -1470,7 +1470,7 @@ class ListingScoreTest(unittest.TestCase):
         self.assertEqual(engine.listing_score(5, None, now), 0.0)
 
     def test_all_zero_scores_report_an_unscored_basis(self):
-        """A catalog-order tiebreak must not be labelled a usage ranking."""
+        """A catalog-order tiebreak must not be labeled a usage ranking."""
         entries = _fleet()
         listing = engine.compute_listing(
             entries, engine.ListingConfig(context_window_tokens=200_000)
@@ -1587,7 +1587,7 @@ class ScoreBasisScopeTest(unittest.TestCase):
         """Regression: an exempt row's score used to flip the basis.
 
         A bundled, name-only, or user-only skill can carry real native usage
-        while being excluded from the contest entirely. Counting it labelled the
+        while being excluded from the contest entirely. Counting it labeled the
         listing `native-counters` while every actual contender sat at zero, so a
         pure catalog ordering got dressed as `inferential`. That is the defect
         this whole report exists to expose, one scope up.
@@ -2359,7 +2359,7 @@ class ResolveInstalledTest(unittest.TestCase):
         self.assertEqual(len(out["plugins"]), 1)
         self.assertEqual(out["not_applicable"], [])
 
-    def test_directory_source_honours_the_catalog_declared_path(self):
+    def test_directory_source_honors_the_catalog_declared_path(self):
         """`plugins/<name>` is the common layout, not a rule.
 
         A catalog entry may declare `.` or any other directory; assuming the

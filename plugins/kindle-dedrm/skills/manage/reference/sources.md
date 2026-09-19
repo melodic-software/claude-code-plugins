@@ -10,7 +10,7 @@ Every URL this skill depends on, with purpose, drift signal, and last-fetched fi
 | Purpose | Procedural source of truth: exact step ordering, plugin names, current Key_Finder zip URL |
 | Drift signal | Page body diff |
 | Last-fetched | 2026-05-10 (at the prior URL) |
-| Last-fetched key claims | (a) Kindle for PC 2.8.0(70980) is the only working version; (b) DeDRM_tools v10.0.14+ pre-release required; (c) Kindle_Key_Finder 2026.04.28.JH zip is current; (d) KFX Input plugin from Calibre's "Get new plugins" catalog |
+| Last-fetched key claims | (a) Kindle for PC 2.8.0(70980) is the only working version; (b) DeDRM_tools v10.0.14+ pre-release required; (c) Kindle_Key_Finder 2026.04.28.JH zip is current; (d) KFX Input plugin from Caliber's "Get new plugins" catalog |
 
 Upstream moved 2026-07 (re-probed 2026-07-19): the prior URL `remove-drm-from-kindle-ebooks/` now returns HTTP 404. Its successor is inferred to be `drm-removal-from-kindle-ebook-purchases-old-method/` (the site relabeled the Kindle-for-PC + KFXKeyExtractor approach the "OLD Method" and returns HTTP 200 for that slug). It is NOT read-confirmed as the same procedure, because the article is now subscriber-gated. The `update` action can therefore no longer walk the public body for the current Key_Finder zip URL; it HEAD-probes the pinned direct zip URL in `reference/versions.md` instead. Propagate any new pin there. See the epubor secondary below and the MSIX-successor note when the OLD Method finally breaks.
 
@@ -66,15 +66,15 @@ If Amazon revokes the URL, this skill is significantly compromised. An alternate
 
 Date in URL rolls forward when the author publishes a new build. The original `update` approach was to WebFetch the tutorial article, regex `Kindle_Key_Finder_\d{4}\.\d{2}\.\d{2}\.JH\.zip`, and compare against the pinned filename. That no longer works: the article is subscriber-gated as of 2026-07 (see Primary tutorial), so its public body carries no zip link. The drift check now HEAD-probes the pinned direct URL instead; roll-forward to a NEW build requires a subscriber to read the current article and update the pin by hand.
 
-## Calibre
+## Caliber
 
 | Field | Value |
 |---|---|
 | URL | `https://calibre-ebook.com/download` |
 | Purpose | E-book manager; host for plugins |
-| Drift signal | None tracked (Calibre updates frequently and is forward-compatible with the plugins) |
+| Drift signal | None tracked (Caliber updates frequently and is forward-compatible with the plugins) |
 
-Calibre version not pinned. User installs latest. If a future Calibre release breaks the plugin contract, document in `reference/troubleshooting.md`.
+Caliber version not pinned. User installs latest. If a future Caliber release breaks the plugin contract, document in `reference/troubleshooting.md`.
 
 ## Python
 

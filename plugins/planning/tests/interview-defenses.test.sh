@@ -479,7 +479,7 @@ declares_both_fixtures B "$CASE_B"
 # to any other.
 #
 # Re-pinned a second time when this branch merged origin/main, which had rewritten
-# `description:` to add the always-on unwanted-behaviour coverage prompt's trigger
+# `description:` to add the always-on unwanted-behavior coverage prompt's trigger
 # phrases ("acceptance criteria", "how will we know this is done"). Both changes land in
 # the digested block, and the value below is recomputed over the merged file so each side
 # is graded, not one of them. Added triggers widen when the skill fires; they state no

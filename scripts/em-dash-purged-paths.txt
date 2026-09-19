@@ -225,7 +225,7 @@ plugins/discovery/skills/*/reference/*.md
 # The docs-hygiene plugin was purged whole, its eval fixtures included: those
 # fixtures specimen the plugin's OWN noise shapes, which are not em dashes, so
 # declaring them costs nothing. Two marked em dashes survive under these globs and
-# the gate honours both: a verbatim Microsoft quotation, and the audit-noise
+# the gate honors both: a verbatim Microsoft quotation, and the audit-noise
 # bold-roster fixture whose matcher keys on the character itself.
 plugins/docs-hygiene/*.md
 plugins/docs-hygiene/context/*.md
@@ -340,7 +340,7 @@ plugins/naming/skills/*/SKILL.md
 plugins/naming/skills/name-it-better/context/*.md
 # The overengineering plugin was purged whole. The findings-artifact member-entry template keeps
 # its em dashes: there they are field delimiters, and the prose below the fence defines the parse
-# by counting them. Fenced blocks are detector-exempt, so the gate honours that.
+# by counting them. Fenced blocks are detector-exempt, so the gate honors that.
 plugins/overengineering/*.md
 plugins/overengineering/context/*.md
 plugins/overengineering/reference/*.md
@@ -427,7 +427,7 @@ plugins/skill-quality/CHANGELOG.md
 plugins/skill-quality/skills/*/SKILL.md
 plugins/skill-quality/skills/check/reference/*.md
 # The songwriting plugin was purged whole. The research and template trees carry
-# verbatim Pattison quotations inside ignore markers, which the gate honours.
+# verbatim Pattison quotations inside ignore markers, which the gate honors.
 plugins/songwriting/*.md
 plugins/songwriting/agents/*.md
 plugins/songwriting/context/pat-pattison/research/*.md
@@ -454,7 +454,7 @@ plugins/source-control/skills/worktree/context/*.md
 plugins/source-control/skills/worktree/fixtures/*.md
 plugins/source-control/skills/worktree/reference/*.md
 # The tdd plugin was purged whole. Five verbatim Beck and Khorikov quotations keep their em dashes
-# inside markers naming the source; the gate honours those.
+# inside markers naming the source; the gate honors those.
 plugins/tdd/*.md
 plugins/tdd/skills/*/SKILL.md
 plugins/tdd/skills/*/reference/*.md

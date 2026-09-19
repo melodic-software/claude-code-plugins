@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.21.0]
 
 ### Added
@@ -361,14 +367,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `git log -L` over the comment's own lines and checks the repo's ADR directory, recording a
   per-comment verdict.
 - **`rank-comment-targets.py`:** exit 3 discarded the census's stderr on the one branch where it
-  was the only actionable output, so a missing analyser exited with stdout **and** stderr empty and
+  was the only actionable output, so a missing analyzer exited with stdout **and** stderr empty and
   was indistinguishable from a tree with nothing to rank. The hint is relayed, with a regression
   test that fails on the previous shape.
 - **`comment-tooling-probe.sh`:** both absent-layer cost strings claimed a line-prefix or grep
   fallback that `comment-census.py` explicitly never performs. They now state the real
   consequence: the census and the ranking cannot run at all.
 - **`comment-census.py`:** an empty record set returned exit 0 with all-zero totals whether the
-  scope was empty or no analyser was installed, so a later count read as an improvement against a
+  scope was empty or no analyzer was installed, so a later count read as an improvement against a
   baseline that was never measured. Layer availability is probed directly now. `unread=True` was
   written and never read; unread files are counted and reported.
 - **`dissolve-comments`, `audit-comment-residue`:** both injected a `${CLAUDE_PLUGIN_ROOT}` script
@@ -400,7 +406,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   with tree-sitter absent, no move dissolves a why) is stated where class B is introduced rather
   than left to be inferred from a zero result.
 - **`dissolve-comments`:** scope reporting lists every dropped path with its reason instead of a
-  per-reason tally only; steps 1, 4 and 7 have explicit exit-3 stops so a missing analyser can no
+  per-reason tally only; steps 1, 4 and 7 have explicit exit-3 stops so a missing analyzer can no
   longer surface as a `+0` delta; `safety.md` documents `change-shape.py`'s exit 2 and the 13 of 28
   in-scope extensions no grammar covers; the over-budget escape clause requires a reason **per
   comment**, not per category.
@@ -475,7 +481,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   instead of widening. Co-located test.
 - **`scripts/comment-census.py`, the comment burden with a token estimate.** Comment lines and
   bytes per file and per language from scc (lines, complexity) and pygments (bytes), byte-identical
-  files collapsed in a deduplicated total, tokens estimated as bytes/4 and labelled as such,
+  files collapsed in a deduplicated total, tokens estimated as bytes/4 and labeled as such,
   `--baseline` for the delta between passes. Co-located test.
 - **`scripts/rank-comment-targets.py`, the repository-rung reading order.** Exposure (size-normalized
   recency-weighted line churn, basename fan-in, raw churn, owner diffusion) times payload (comment
@@ -862,7 +868,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 - **`/code-tidying:audit-dead-code`** is a read-only, whole-repo dead-code hunter for the
   category lane-rotated tidying and diff-scoped simplification structurally cannot see:
   code nothing has reached in a long time. Four lanes ship with **honestly unequal**,
-  individually labelled confidence: `knip` (TS/JS: unused files, exports, types, enum
+  individually labeled confidence: `knip` (TS/JS: unused files, exports, types, enum
   members; not class members, which knip 6 rejects), `vulture` (Python, symbol-level,
   high-recall/low-precision with the FP-class suppressions that measurably work
   pre-applied), `gopls check -severity=hint` (Go, **unexported symbols only**, a stated

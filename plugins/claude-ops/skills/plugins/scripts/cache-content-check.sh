@@ -19,7 +19,7 @@
 # rewriting the cache directory when the manifest version number is unchanged.
 # The version directory keeps the older build while the metadata claims the new
 # commit, so a version-and-sha check passes while the files on disk are a
-# different build, and any measurement or behaviour test against that cache is
+# different build, and any measurement or behavior test against that cache is
 # a test of the wrong thing. Six plugins were found in that state on one
 # machine, twelve stale files in the worst case.
 #

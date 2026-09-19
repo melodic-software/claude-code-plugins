@@ -33,8 +33,8 @@ The 2026-09-05 pass re-ran the plugin-CLI write matrix, the `update -s project` 
 (against a real version bump, not a no-op), the project-scope cwd keying, the merged-effective
 `enable` gate, and the reap-by-path survey live on **Claude Code 2.1.261**; those claims carry that
 version. These claims were **not re-run on 2.1.261** and keep their older stamps:
-the `/reload-plugins` bare-versus-`--force` warning behaviour, the install-summary activation line,
-and the mid-session path-resolution behaviour, all of which need an interactive session and were
+the `/reload-plugins` bare-versus-`--force` warning behavior, the install-summary activation line,
+and the mid-session path-resolution behavior, all of which need an interactive session and were
 confirmed only as still-current documentation; the `claude plugin prune` `≥ 2.1.121` gate and the
 `--force` `≥ 2.1.163` gate, neither of which the current docs state. The `userConfig` unset-key
 render carries its own stamp, 2026-09-06 on **Claude Code 2.1.263**, in "`userConfig`: an unset key
@@ -166,7 +166,7 @@ Removing the directory a project/local install was made from leaves the install 
 still naming the path. **Re-verified on Claude Code 2.1.261**: `claude plugin --help` lists no verb that
 removes an install record by path, and `claude plugin prune --help` reports "Remove auto-installed
 dependencies that are no longer needed", a *dependency* axis, whose own `-s project` has the same
-no-path-flag behaviour documented above, so it acts on the cwd and cannot reach a record belonging to
+no-path-flag behavior documented above, so it acts on the cwd and cannot reach a record belonging to
 a directory that is gone.
 
 `fleet-state.sh` therefore annotates each project/local record (and each `divergences[].scopes[]`
@@ -266,7 +266,7 @@ level on a personal account is undocumented.
 ## `/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case
 
 Everything in this section is doc-sourced and was re-fetched 2026-09-05 with the quoted text
-unchanged. The *behaviour*, what a bare reload actually warns about in a live session, is **not
+unchanged. The *behavior*, what a bare reload actually warns about in a live session, is **not
 re-run on 2.1.261**: it needs an interactive session, which a non-interactive probe pass cannot
 drive. The `≥ 2.1.163` gate for `--force` is likewise **not re-verified on 2.1.261**, because the
 current docs page states the flag without naming the version that introduced it.
@@ -412,7 +412,7 @@ then names the new commit and the files on disk are the old one.
 
 **Consequence, and it is the reason the check exists.** The version-and-sha comparison every
 delivery script relies on passes in exactly this state, so it is not proof that the files loaded are
-the files delivered. Any measurement or behaviour test run against that cache directory is a test of
+the files delivered. Any measurement or behavior test run against that cache directory is a test of
 a different build than the one the record names, and nothing in the report says so.
 
 Observed on **Claude Code 2.1.259** (issue #3681 evidence, not re-run since). After a delivery,

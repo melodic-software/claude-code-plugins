@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.15]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.3.14]
 
 ### Changed
@@ -31,7 +37,7 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 
 ### Changed
 
-- Share the capped stderr note and line counter in dispatch, the lane measure helpers in the report, the path normaliser in pathglob and the config error clauses in resolve-config (behavior unchanged).
+- Share the capped stderr note and line counter in dispatch, the lane measure helpers in the report, the path normalizer in pathglob and the config error clauses in resolve-config (behavior unchanged).
 
 ## [0.3.9]
 
@@ -129,7 +135,7 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   clone as a pair, so N copies of one fragment arrived as N-1 rows and the summary counted the
   fragment's lines N-1 times. A post-pass (`cluster-clones.py`) now joins rows that share an
   instance with an identical file and line range into one row per class, the instances sorted by
-  path and the row labelled `clustered`; the lines count once. The merge joins on identity, not
+  path and the row labeled `clustered`; the lines count once. The merge joins on identity, not
   overlap: a copy that shares only part of a fragment stays its own group.
 - **Explicit size and line caps, reported instead of hidden.** `duplication.max_size` (default
   `1mb`, binary units) and `duplication.max_lines` (default `null`) are applied by the jscpd
@@ -176,7 +182,7 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 ### Added
 
 - **`audit-type-debt` reports per file.** One row per scope file the tool listed (`function`
-  null) plus one row per lane labelled `lane-total`; the summary's `Files:` count is the file
+  null) plus one row per lane labeled `lane-total`; the summary's `Files:` count is the file
   rows, where it read 0 before. The Python lane row sums the file rows, so a change-scoped run
   reports the scope's own coverage rather than everything mypy followed. mypy names modules, not
   files, so the collector re-derives its `--explicit-package-bases` naming from each scope path
@@ -207,9 +213,9 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 ### Fixed
 
 - **`audit-type-debt`: an aborted mypy run no longer reads as 100% typed.** mypy exits 2 on a
-  blocking error (a duplicate module name, a usage or config error) before analysing anything and
+  blocking error (a duplicate module name, a usage or config error) before analyzing anything and
   still writes a report whose only row is `Total 0 0 100.00%`; the collector accepted that as a
-  measurement labelled `mypy-reported-errors`, so a repository carrying sanctioned replication read
+  measurement labeled `mypy-reported-errors`, so a repository carrying sanctioned replication read
   as fully typed over zero expressions. Exit 2 is now the adapter contract's exit 4: the Python row
   reads `unavailable` with mypy's own message and the run continues. A Total row with zero
   expressions reports `type_coverage_pct: null`, never 100.
@@ -241,7 +247,7 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   per half on a split, and a radon run on two functions measured together and apart gave 1.667 for
   the whole against 1.000 and 1.800 for the halves. The entry and the eval now say per-file
   difficulty legitimately moves on a split, in either direction.
-- **`principles`: the §8.2.115 reading is labelled as the plugin's.** thresholds.md, measures.md,
+- **`principles`: the §8.2.115 reading is labeled as the plugin's.** thresholds.md, measures.md,
   and the configuration reference presented "a function's non-empty lines as a percentage of the
   file's" as the clause's words. The clause states `MaxNumberOfNonEmptyLinesOfCode` with a default
   of "5%" and names no base; the percentage-of-file base is this plugin's reading, and thresholds.md
@@ -333,7 +339,7 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 
 - **`scope.registries`**, the sanctioned-replication registry list every audit reads. The
   dispatcher collapses the per-file and per-function rows of every copy of a listed file into one
-  row labelled `replicated` with a `replicas` object (`count`, `registry`, `line`, `path`,
+  row labeled `replicated` with a `replicas` object (`count`, `registry`, `line`, `path`,
   `files`), so a file vendored into ten plugins shows each function once and its over-reference
   count once, and `summary.files` still counts every copy. `duplication.registries` stays as the
   older name, read when the scope-level list is empty. New `scripts/replica-collapse.py` and
@@ -521,7 +527,7 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 - **The configuration cascade:** `.claude/code-metrics.yaml` layered as user-global, team, and
   local overlay with per-key override over bundled defaults, read by a bundled parser for a
   documented YAML subset; the consumer's `.claude/ecosystems/<lane>.yaml` `globs` and `enabled`
-  honoured for lane detection; `scope.exclude`, per-lane collector overrides validated against
+  honored for lane detection; `scope.exclude`, per-lane collector overrides validated against
   the ladder, and every reference reported with the layer that supplied it
   (`reference/config.md`).
 - **`setup`:** `check` probes the interpreter, each layer (YAML subset, tracked-file guard), the

@@ -111,7 +111,7 @@
       "expected_output": "A Category B report that takes the inventory itself rather than hedging by default: it runs Phase 1.0's check-hook-coverage.sh, which enumerates settings-declared and plugin-declared hooks. On a complete inventory (exit 0) each finding is decided against what was actually enumerated. On a partial one (exit 1) the report hedges ONLY for the sources the script named as unenumerated — stating those conditionally, 'if a PreToolUse hook on Bash already blocks this family, this finding is void', and naming the specific unresolved plugin that would settle it — while deciding normally everything the run did enumerate. A missing or partial inventory is never reported as evidence that no hook covers the family.",
       "files": [],
       "expectations": [
-        "Runs the hook-coverage enumeration rather than reading 'I am not going to go look' as licence to skip it",
+        "Runs the hook-coverage enumeration rather than reading 'I am not going to go look' as license to skip it",
         "Reads the script's exit code and states whether the inventory was complete or partial",
         "Hedges only the families a partial inventory could not settle, names the specific unenumerated source, and decides the rest",
         "Does NOT treat an absent or partial hook inventory as evidence that no hook covers the family"

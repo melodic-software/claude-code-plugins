@@ -950,7 +950,7 @@ function is_negated(q, at,   head) {
 # ownership: in `x=$(stat -c …) y=$(true) || stat -f …` the `true` succeeds
 # after BSD stat fails and the fallback never runs (#1544).
 #
-# This asks the whole question rather than ruling out one neighbour shape:
+# This asks the whole question rather than ruling out one neighbor shape:
 # the matched frame must be the status-determining frame of its command.
 # Three routes reach the same principle — a later command INSIDE the frame,
 # the command ENCLOSING it, and a later frame BESIDE it — and answering
@@ -1023,7 +1023,7 @@ function is_guarded(q, p, at, m,   CMDPOS, SEG, PRE, NAME, QP, QL, lend, opos, o
   # operator. Excluding the operators matters as much here as in SEG: a gap
   # that may swallow a `;` lets the guard reach PAST the matched invocation
   # and be satisfied by a ladder belonging to a later command, which is the
-  # line-wide behaviour this anchoring replaced.
+  # line-wide behavior this anchoring replaced.
   PRE = "(\\$?[" SQ DQ "]|" BS BS ")?" "[[:space:]]+([^;|&\n]*[[:space:]])?"
   # An OPTION word may carry quotes on BOTH sides of the ladder, exactly as
   # the shipped date/stat tokens admit: quote removal hands the utility the

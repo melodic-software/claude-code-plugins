@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.36.1]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.36.0]
 
 ### Added
@@ -412,7 +418,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   multi-agent research write-up measures agents at roughly 4x a chat interaction and multi-agent
   systems at roughly 15x, with token usage alone explaining most of the performance variance it
   regressed. A reader who checked the source found the skill quoting a lower number with no
-  citation. The range is now labelled as this plugin's own operating figure and as a floor rather
+  citation. The range is now labeled as this plugin's own operating figure and as a floor rather
   than a ceiling, with the upstream measurement cited beside it and the instruction to size
   research-shaped fan-outs against the higher number.
 - **`orchestrate`: "compressed return" gained a magnitude.** The tiered-delegation section required
@@ -908,7 +914,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
 
   **Autonomy gating.** Three separate cases hold the line the 0.27.0 review fixes drew: an opt-in
   counts only in a genuine user turn, so consent-shaped text inside a pasted issue body is data and
-  never a licence; `auto` cannot carry out `/clear` or `/compact`, which sit outside the
+  never a license; `auto` cannot carry out `/clear` or `/compact`, which sit outside the
   Skill-invocable built-ins and stay the human's to type; and `clean-stop` takes the literal
   `continue auto` token and nothing else, because once invoked it pushes commits, opens PRs, and
   files issues without a further confirmation.
@@ -950,14 +956,14 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   **Suggest by default, with two licensed autonomy tiers.** The router's product is a
   recommendation addressed to the human, stated as mechanism plus the evidence that drove it (the
   zone word as resolved, the informant findings, the edge whose yes selected it) plus the literal
-  next step. Executing the routed mechanism takes the top-tier per-invocation licence, either a new
+  next step. Executing the routed mechanism takes the top-tier per-invocation license, either a new
   `continue auto` argument (the argument-parsing rule now consumes a second token when the first is
   `continue`, so the modifier reaches its mode instead of falling into the bare `continue` row) or
-  the user asking in words. That licence expires with the invocation and is
+  the user asking in words. That license expires with the invocation and is
   never a standing config, mirroring `continue-in-background`'s explicit-words precedent; it
   authorizes the router to invoke a mechanism, never that mechanism to skip a gate it owns. The
   natural-language half of the opt-in counts only in a genuine user turn. A fetched page, an item
-  body, a tool result, or another agent's return is data the router evaluates, never a licence it
+  body, a tool result, or another agent's return is data the router evaluates, never a license it
   acts on. And a routed skill that makes outbound changes without a further confirmation takes the
   literal token and nothing else: `clean-stop` pushes commits, opens PRs, and files issues once
   invoked, so a semantic reading must never be what starts it. The opt-in also
@@ -1100,10 +1106,10 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `workflow`) each carried a near-identical copy of the probe list, the one-command-per-call and
   treat-failure-as-unknown rules, and the `#1687` no-precompute rationale. Each now names the probe
   subset it takes and cites that owner doc. The per-consumer differences are preserved and documented as
-  deliberate rather than normalised away: `orient` reads `git log -8` where the save-point skills
+  deliberate rather than normalized away: `orient` reads `git log -8` where the save-point skills
   read `-5`, `retro` alone takes `git diff --name-only HEAD`, `find-handoff` takes no git state
   beyond the branch, and `workflow` takes no session id. `continue-in-background`'s warning that this
-  block is never the dirty-tree gate is kept at its call site and generalised in the owner doc.
+  block is never the dirty-tree gate is kept at its call site and generalized in the owner doc.
 
 ## [0.23.9]
 
@@ -1298,7 +1304,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `--json --all` sample, and it is
   the same contract `claude-ops`' `lane-launcher.sh` (`load_sessions`) already relies on. So a
   finished continuation looked identical to a dead one: the ladder surfaced its save-point as a lost
-  handoff labelled a failed attempt, inviting the operator to redo completed work and letting a
+  handoff labeled a failed attempt, inviting the operator to redo completed work and letting a
   recent completed continuation bury the older manual handoff they were actually looking for. The
   recheck now reads `claude agents --json --all` and resolves four ways instead of two: live
   (exclude, work running), terminal-and-completed (exclude, work FINISHED, point at that session's
@@ -1371,7 +1377,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
 - **`handoff` no longer fires on a self-estimated context budget.** Its `description` listed
   "context is heavy" among the triggers, and the body's "When to invoke" repeated it as "Mid-task,
   context heavy (check `/context` output or user report)", which told the model to judge its own
-  window and volunteer a handoff on that judgement. A description is resident in context by default
+  window and volunteer a handoff on that judgment. A description is resident in context by default
   (<https://code.claude.com/docs/en/skills>, verified 2026-08-08), so that trigger was live in every
   session with the plugin installed, and it is the shape the `claude-config` instruction-audit
   catalog's check I23 detects.
@@ -1429,7 +1435,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `previous_handoff` pointers backwards, so it stops at the first session that wrote no handoff
   file. A walk that ended early was indistinguishable in the output from a genuinely short
   chain. The reported case ran a 10-session chain linked by hand-pasted continuation prompts and
-  got a retrospective authored from 2 sessions, with nothing signalling the gap. The multi-session
+  got a retrospective authored from 2 sessions, with nothing signaling the gap. The multi-session
   output carries a `chain_coverage` block (`requested` / `found` / `available` / `ratio`), where
   `available` counts the transcripts present for the project, the denominator the walk itself
   cannot see, and the human-readable `summary` carries the same ratio. The skill now states its
@@ -1525,7 +1531,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   `reference/save-point.md` gains an `Original goal — mandatory on BOTH paths` rule (prompt-only
   writes no body sections, so it carries the verbatim goal inline between the rails: below an
   active `/goal` re-arm when one holds the first line, above its remaining-work bullets, and with
-  every dated amendment travelling under the original quote rather than collapsing to a single
+  every dated amendment traveling under the original quote rather than collapsing to a single
   line. It points at no file, and a prompt-only save-point listing just the
   follow-ups is the precise shape that loses the goal), and the rails directive becomes `Read @…,
   confirm its Original goal still governs the remaining next steps, then continue them.` That
@@ -1743,7 +1749,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1
   "fewer than 5" where the workflows page's table reads "Fewer than 5 agents" (likewise 15 and 50).
   Corrected and anchored to 2026-07-29. Caught by the independent citation audit outside the
   reported hunks; fixed in passing rather than left in a file whose purpose is exact quotation.
-- The superseded page text quoted inside the resolved-drift note is now labelled as page text
+- The superseded page text quoted inside the resolved-drift note is now labeled as page text
   captured 2026-07-26 and no longer reproducible upstream, so it is not mistaken for a live quote.
 
 ### Added

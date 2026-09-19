@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.66]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.7.65]
 
 ### Changed
@@ -226,7 +232,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   launches pinned at 4 so a fork saving cannot be confused with work removed. The pre-existing
   command-position budget stays; it cannot see these forks, which is how the regression went
   unnoticed. Skipped where `strace` is unavailable.
-- **Redirection-placement behaviour tests.** A malformed `zones.json` drives the resolver's only
+- **Redirection-placement behavior tests.** A malformed `zones.json` drives the resolver's only
   stderr path on this hook's route and pins that the notice reaches neither of the hook's streams,
   that stdout stays one parseable JSON document, and that the shipped default bands still resolve
   and inject; an unparsable payload pins that the payload pass's nonzero status still propagates
@@ -380,7 +386,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   runs as its own process, so the hoist recovers the full ~3.5 ms of a disabled
   gate's ~5.3 ms on the reference host. The predicate is inlined with the same
   semantics as `hook::is_enabled`, pinned by the new fleet gate
-  `scripts/check-killswitch-hoist.sh`. Behaviour of an ENABLED gate is
+  `scripts/check-killswitch-hoist.sh`. Behavior of an ENABLED gate is
   unchanged; `hooks/hooks.json` is untouched. (#3719)
 
 ## [0.7.39]
@@ -427,7 +433,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   returns, so the shim's own sleep was the floor for both cancellation cases
   and the suite spent most of its wall time waiting on a delay that proved
   nothing. Two seconds exercises the same cancellation window behind the same
-  readiness marker. Test-side only; no hook, script or shipped behaviour
+  readiness marker. Test-side only; no hook, script or shipped behavior
   changes.
 
 ## [0.7.36]
@@ -947,9 +953,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   withdrawn (#2355).** Two PRs fixed the same defect in parallel and both landed: #2344 shipped
   **0.7.1**, re-arming on a **dwell** (three consecutive strictly-better observations), and #2345
   shipped **0.7.2**, re-arming on a **return to `smart`**, replacing the dwell implementation
-  wholesale. The behaviour on `main` is 0.7.2's and it is tested, but the record of the swap was
+  wholesale. The behavior on `main` is 0.7.2's and it is tested, but the record of the swap was
   lost in the collision, so this release repairs the record. Documentation and tests only: **no
-  behaviour change**, and nothing here alters what the suite demands of the hook's logic.
+  behavior change**, and nothing here alters what the suite demands of the hook's logic.
 
   - **`reference/reader-contract.md` credited the wrong version.** It read "the marker decays only
     when the session returns to `smart` (**since 0.7.1**)". The return-to-`smart` rule is **0.7.2**;
@@ -958,14 +964,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
   - **0.7.2's entry argued only against 0.7.0 and never against the 0.7.1 it superseded, and two
     of its claims are false relative to the version it actually followed.** It was written with
-    0.7.0 as the parent, so "the sole behavioural delta is `acceptable → smart` re-arming" and
+    0.7.0 as the parent, so "the sole behavioral delta is `acceptable → smart` re-arming" and
     "every 0.7.0 assertion still passes unmodified" were verified against 0.7.0 and quietly became
     misleading when 0.7.1 landed first: against 0.7.1's dwell the delta is the whole re-arm rule and
     **13 assertions of this suite differ**, measured against `f57fb788`. Both are scoped in an
     erratum on that entry rather than rewritten. The underlying difference matters and is not
     stylistic: under a three-observation dwell, `acceptable → smart → acceptable`, a genuine
     recovery observed **once**, does not re-inject, which is the exact sequence 0.7.2 exists to
-    make re-inject. A dwell wide enough to absorb a band-edge flap cannot also honour a
+    make re-inject. A dwell wide enough to absorb a band-edge flap cannot also honor a
     single-observation recovery; 0.7.2 chose the recovery and accepted the residual flap at the
     `smart`/`acceptable` edge. That trade is now stated where the two versions meet.
 
@@ -989,7 +995,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 written against*. It was authored with **0.7.0** as the parent; by the time it merged the parent was
 **0.7.1's dwell**, and two of its sentences are true only of the former:
 
-- "the sole behavioural delta is `acceptable → smart` re-arming": true against 0.7.0. Against
+- "the sole behavioral delta is `acceptable → smart` re-arming": true against 0.7.0. Against
   0.7.1 the delta is the entire re-arm rule.
 - "Every 0.7.0 assertion … still passes unmodified against the new rule": true, and still true, of
   0.7.0's assertions. It is not a statement about 0.7.1: this suite reports **13 failures** against
@@ -1025,8 +1031,8 @@ write-ordering fix.
   is announced at most once, and only a return to `smart` opens a new cycle. A genuine recovery
   followed by a relapse therefore re-injects **exactly once for the band it relapses into, from any
   armed band**, and a flap that never reaches `smart` stays silent however long it oscillates. The
-  `dumb`-band behaviour is bit-for-bit what 0.7.0 shipped: the old predicate was satisfiable only at
-  `armed=dumb, new=smart`, which the new rule also admits, so the sole behavioural delta is
+  `dumb`-band behavior is bit-for-bit what 0.7.0 shipped: the old predicate was satisfiable only at
+  `armed=dumb, new=smart`, which the new rule also admits, so the sole behavioral delta is
   `acceptable → smart` re-arming. Every 0.7.0 assertion still passes unmodified against the new
   rule, alongside a new `acceptable → smart → acceptable` session that fails against 0.7.0. Those
   assertions cover the flap, the `dumb → smart → dumb` recovery, and the legacy-state seed.
@@ -1115,7 +1121,7 @@ write-ordering fix.
   silent: one observation is not a sustained improvement, so the armed rank is still `dumb` and
   `acceptable` is not worse than `dumb`. The operator has already been told this session reached
   `dumb`; announcing a better zone afterwards is the noise #2220 is about. The pre-existing test
-  that asserted the old behaviour was updated rather than deleted, and says so at its site.
+  that asserted the old behavior was updated rather than deleted, and says so at its site.
 
 ### Notes
 
@@ -1137,7 +1143,7 @@ write-ordering fix.
   than silently disarming the gate. A 0.7.0 marker holds a bare zone word: the streak parses as 0,
   which is exactly the right starting point, so no migration step and no state-format version are
   needed.
-- No blocking behaviour, no permission, no new hook registration, and no external read or write
+- No blocking behavior, no permission, no new hook registration, and no external read or write
   changes; the plugin's trust surface is untouched.
 
 ## [0.7.0]
@@ -1185,7 +1191,7 @@ write-ordering fix.
   Deliberately preserved, because they do real work and are easy to refactor away: the two-channel
   split with the continuation menu kept out of model context, the hook's refusal to claim an
   operator is present, the inert default posture, the worsening-only latch itself, and
-  `zone-gate.sh`'s structural no-deadlock exemptions. No blocking behaviour, no permission, and no
+  `zone-gate.sh`'s structural no-deadlock exemptions. No blocking behavior, no permission, and no
   external read or write changes; the plugin's trust surface is untouched.
 
 ## [0.6.6]
@@ -1195,7 +1201,7 @@ write-ordering fix.
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, giving one
   visible skip notice per session and then exit 0, which is the correct posture for every hook in
-  this plugin, so **nothing in this plugin's behaviour changes**. What is new is
+  this plugin, so **nothing in this plugin's behavior changes**. What is new is
   `hook::require_jq_blocking`, a second named function that denies the tool call instead, for the
   narrow class of guards whose job is blocking an irreversible operation (today only two, both in
   `guardrails`). A sibling function rather than a parameter, because a flag's omitted value would
@@ -1212,7 +1218,7 @@ write-ordering fix.
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.6.4]
@@ -1222,7 +1228,7 @@ write-ordering fix.
 - **A cited plugins-reference section had been renamed upstream.** `scripts/statusline-shim.sh`
   attributed the 14-day orphaned-cache-directory grace period to a section called "Plugin cache and
   file access". That section is now titled **"Plugin caching and file resolution"**, and the cache
-  root it documents is `~/.claude/plugins/cache`. The behaviour cited is unchanged and still stated
+  root it documents is `~/.claude/plugins/cache`. The behavior cited is unchanged and still stated
   verbatim; only the section title a reader would search for had moved, which is exactly the kind of
   silent rot that makes a citation unfollowable. The comment now names the current title and records
   the former one so the rename is traceable.
@@ -1237,7 +1243,7 @@ write-ordering fix.
   in the context window". The dead quote is removed and replaced with an explicit sourcing-status
   note; `statusline-tee.sh` carries the same note at its `cli_version` comment. **The floor itself is
   unchanged**: `TOKEN_SEMANTICS_MIN_VERSION` still gates the token shape at `>= 2.1.132`, and no
-  behaviour, test, or zone result moves. Dropping it could only widen which payloads the token shape
+  behavior, test, or zone result moves. Dropping it could only widen which payloads the token shape
   trusts, and the misfire it prevents (a pre-2.1.132 cumulative 170k reading as a plausible current
   occupancy) is silent, so it stays as a deliberate conservative lower bound. Re-source it before any
   change that relaxes it.
@@ -1276,7 +1282,7 @@ write-ordering fix.
   computed from the values as the payload carried them, BEFORE the strip; strip first and the flag
   would read "0" on every payload. Values themselves are unchanged, still stripped, so a scanning
   caller still sees everything after the NUL. This plugin's own hooks do not consult the new global,
-  so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.6.2]
 
