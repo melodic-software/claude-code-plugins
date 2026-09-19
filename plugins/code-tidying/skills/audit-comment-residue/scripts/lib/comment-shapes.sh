@@ -3,7 +3,8 @@
 # Shape definitions and treatments: the skill's SKILL.md "Residue shapes and treatments".
 #
 # Residue = comment text that only makes sense outside the code's present state: history
-# narration, plan/session references, conversational antecedents, ticket/PR back-references.
+# narration, plan/session references, conversational antecedents, ticket/PR back-references,
+# origin notes naming where a block came from or when it was added.
 # Detection runs ONLY on the comment portion of a line, so residue-shaped words sitting in
 # code (identifiers, string literals) are not flagged.
 
@@ -121,6 +122,18 @@ cr_detect_shapes() {
     found=1
   fi
 
+  # origin-note (tier 1): the comment names where the block came from or when it was
+  # added. Git history owns both. The cue must open the comment or a clause inside it
+  # and must be a whole word, so an ordinary description ("bytes copied from the source
+  # buffer", "helpers exported from index.ts") is not a finding. An origin VERB is
+  # required, so a bare date matches nothing, and the stamp verbs provenance:audit keys
+  # on (verified, checked, confirmed, as of) are deliberately absent.
+  if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from ]] ||
+    [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
+    printf '%s\n' 'origin-note'
+    found=1
+  fi
+
   # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
   # Sanctioned TODO(#issue) is exempt.
   if ! cr_is_sanctioned_todo "$ct"; then
@@ -136,7 +149,7 @@ cr_detect_shapes() {
 
 cr_shape_tier() {
   case "$1" in
-  history-narration | plan-reference | conversational-antecedent) printf '1' ;;
+  history-narration | plan-reference | conversational-antecedent | origin-note) printf '1' ;;
   ticket-pr-residue) printf '2' ;;
   *) printf '3' ;;
   esac

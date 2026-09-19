@@ -430,6 +430,86 @@ fi
 assert_not_contains "escaped paths are not reported as files=0" "$escaped_out" "files=0"
 assert_not_contains "no C-style octal escape leaks into a target path" "$escaped_out" '\303'
 
+# --- 12. origin-note shape ------------------------------------------------------------
+
+ORIGIN="$SCRIPT_DIR/../evals/fixtures/origin-notes.sh"
+origin_out="$(bash "$DETECT" "$ORIGIN")"
+assert_contains "origin-note shape emitted" "$origin_out" "Finding shape: origin-note"
+assert_contains "origin-note is tier 1" "$origin_out" $'Finding tier: 1\nFinding shape: origin-note'
+assert_contains "five origin notes and no other finding" "$origin_out" "T1=5 T2=0 T3=0"
+assert_contains "ported-from flagged" "$origin_out" "(ported from the melodic-software dotfiles profile)"
+assert_contains "merged-date flagged" "$origin_out" "Merged 2026-07-24 from dot_bashrc"
+assert_contains "added-date flagged" "$origin_out" "Added 2026-08-10 while wiring"
+assert_contains "copied-from flagged" "$origin_out" "Copied from the provisioning repo"
+assert_contains "backported-date flagged" "$origin_out" "Backported 2026-09-01 from main"
+assert_not_contains "copyright header is not an origin note" "$origin_out" "Copyright (c) 2026"
+assert_not_contains "SPDX header is not an origin note" "$origin_out" "SPDX-License-Identifier"
+assert_not_contains "license-grant header is not an origin note" "$origin_out" "Licensed under the MIT License"
+assert_not_contains "freshness stamp is not an origin note" "$origin_out" "verified 2026-09-03"
+assert_not_contains "no stamp verb reads as an origin note" "$origin_out" "2026-09-03"
+assert_not_contains "why-comment is not an origin note" "$origin_out" "Must stay ordered"
+assert_not_contains "bare date is not an origin note" "$origin_out" "Finding excerpt: # 2026-08-10"
+assert_not_contains "sanctioned TODO is not an origin note" "$origin_out" "TODO(#123)"
+
+# The control goes FIRST: cr_line_skipped suppresses a line when the marker is on it
+# OR on the line before it, so a control placed after the inline-marker line would be
+# swallowed and the case would pass for the wrong reason.
+ORIGIN_OPTOUT="$TEST_TMPDIR/origin-optout.py"
+cat >"$ORIGIN_OPTOUT" <<'EOF'
+# Merged 2026-07-24 from dot_bashrc
+# comment-residue-ignore
+# ported from the dotfiles profile
+value = 1  # Copied from upstream  # comment-residue-ignore
+EOF
+origin_optout_out="$(bash "$DETECT" "$ORIGIN_OPTOUT")"
+assert_contains "origin-note control still detected" "$origin_optout_out" "Finding shape: origin-note"
+assert_not_contains "origin-note marker opt-out (previous line)" "$origin_optout_out" "ported from the dotfiles"
+assert_not_contains "origin-note marker opt-out (same line)" "$origin_optout_out" "Copied from upstream"
+
+# The cue must open the comment or a clause inside it, and it must be a whole word.
+# Without both, `exported from` matches `ported from` and `padded <date>` matches
+# `added <date>`, and an ordinary description of runtime behavior becomes a finding.
+#
+# The last line is the portability pin. `[[ =~ ]]` rejects a bare `;` at parse time, so
+# the clause class has to be spelled `[,\;:]`; bash strips that backslash before regcomp
+# rather than passing it through as a bracket member. Were a bash version to pass it
+# through, a backslash would become a clause opener and this line would fire.
+ORIGIN_NEG="$TEST_TMPDIR/origin-negatives.py"
+cat >"$ORIGIN_NEG" <<'EOF'
+# helpers exported from index.ts
+# values imported from utils
+# supported from version 3.0 onward
+# padded 2026-01-01 for alignment
+# bytes copied from the source buffer are hashed
+# rows migrated from the old schema each tick
+# cache helper\ copied from the dotfiles profile
+EOF
+origin_neg_out="$(bash "$DETECT" "$ORIGIN_NEG")"
+assert_contains "origin-note word and clause boundaries hold" "$origin_neg_out" "T1=0 T2=0 T3=0"
+
+# cr_is_sanctioned_todo guards ticket-pr-residue ONLY, which is the pre-existing
+# behavior every Tier 1 shape already inherits. A TODO carrying an origin cue is an
+# origin note; the committed fixture's TODO passes on cue design, not on an exemption.
+ORIGIN_TODO="$TEST_TMPDIR/origin-todo.py"
+cat >"$ORIGIN_TODO" <<'EOF'
+# TODO(#123): tighten the upper bound
+# TODO(#124): ported from upstream, tighten the bound
+EOF
+origin_todo_out="$(bash "$DETECT" "$ORIGIN_TODO")"
+assert_contains "a TODO carrying an origin cue is still an origin note" "$origin_todo_out" "Finding shape: origin-note"
+assert_contains "the sanctioned-TODO exemption covers ticket-pr-residue only" "$origin_todo_out" "T1=1 T2=0 T3=0"
+
+# One line can carry two shapes with opposite tiers; both are reported, neither masks
+# the other.
+ORIGIN_BOTH="$TEST_TMPDIR/origin-both.py"
+cat >"$ORIGIN_BOTH" <<'EOF'
+# Merged 2026-07-24 from branch feature/x
+EOF
+origin_both_out="$(bash "$DETECT" "$ORIGIN_BOTH")"
+assert_contains "origin-note reports the branch-bearing line" "$origin_both_out" "Finding shape: origin-note"
+assert_contains "ticket-pr-residue reports the same line" "$origin_both_out" "Finding shape: ticket-pr-residue"
+assert_contains "double-fire is one T1 and one T2" "$origin_both_out" "T1=1 T2=1 T3=0"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

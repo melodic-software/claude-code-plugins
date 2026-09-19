@@ -1592,6 +1592,78 @@ empty_dir_out="$(bash "$DETECT" "$EMPTY_DIR" 2>/dev/null)"
 assert_contains "empty dir prints status: no-targets on stdout" "$empty_dir_out" "status: no-targets"
 assert_not_contains "clean scanned file is not no-targets" "$clean_out" "status: no-targets"
 
+# --- Origin notes are citations -------------------------------------------------------
+# An origin note names where a passage came from or when it was added. The cue has to
+# open the line, a list item, or a clause, and a line carrying a markdown link or a URL
+# stands the two origin cues down, because a pointer is the artifact /provenance:audit
+# asks an author to write.
+
+ORIGIN="$SCRIPT_DIR/../evals/fixtures/origin-notes.md"
+origin_out="$(bash "$DETECT" "$ORIGIN" 2>/dev/null)"
+assert_contains "origin note flags as citation" "$origin_out" "Finding shape: citation"
+assert_contains "parenthesised ported-from flags" "$origin_out" "(ported from the melodic-software dotfiles profile)"
+assert_contains "merged-date flags" "$origin_out" "Merged 2026-07-24 from dot_bashrc"
+assert_contains "added-date flags" "$origin_out" "Added 2026-08-10 while wiring"
+assert_contains "copied-from flags" "$origin_out" "Copied from the provisioning repo"
+assert_contains "backported-date flags" "$origin_out" "Backported 2026-09-01 from main"
+assert_contains "five citations and nothing else" "$origin_out" "T1=5 T2=0 T3=0"
+assert_not_contains "freshness stamp is not a citation" "$origin_out" "verified 2026-09-03"
+assert_not_contains "why-sentence is not a citation" "$origin_out" "Must stay ordered"
+assert_not_contains "bare date is not a citation" "$origin_out" "Finding excerpt: 2026-08-10"
+assert_not_contains "mid-sentence copied-from in prose is not a citation" "$origin_out" "The data was copied"
+assert_not_contains "linked attribution is not a citation" "$origin_out" "the upstream guide"
+assert_not_contains "origin note under ## Sources is exempt" "$origin_out" "Finding line: 25"
+assert_not_contains "origin note under ## History is exempt" "$origin_out" "Finding line: 29"
+assert_not_contains "origin fixture is not a no-targets run" "$origin_out" "status: no-targets"
+
+# Isolated lines so each assertion can fail independently of the others.
+COPIED_PROSE="$TEST_TMPDIR/copied-prose.md"
+printf '%s\n' 'The data was copied from the upstream table before the join runs.' >"$COPIED_PROSE"
+copied_prose_out="$(bash "$DETECT" "$COPIED_PROSE")"
+assert_not_contains "mid-sentence copied from is not a citation" "$copied_prose_out" "Finding shape: citation"
+
+BULLET_ORIGIN="$TEST_TMPDIR/bullet-origin.md"
+printf '%s\n' '- Copied from the provisioning repo.' >"$BULLET_ORIGIN"
+bullet_origin_out="$(bash "$DETECT" "$BULLET_ORIGIN")"
+assert_contains "bulleted origin note is a citation" "$bullet_origin_out" "Finding shape: citation"
+
+LINKED_ORIGIN="$TEST_TMPDIR/linked-origin.md"
+printf '%s\n' '- Adapted from [the upstream guide](https://example.com/guide).' >"$LINKED_ORIGIN"
+linked_origin_out="$(bash "$DETECT" "$LINKED_ORIGIN")"
+assert_not_contains "linked origin pointer is not a citation" "$linked_origin_out" "Finding shape: citation"
+
+# The prose clause openers are `^`, a list marker, and `,` `;` `:` `(`. Plain leading
+# indentation is deliberately NOT one, which is what keeps these cues tighter than the
+# code-side sibling's, and a backslash is not one either: `[[ =~ ]]` rejects a bare `;`
+# at parse time, so the class is spelled `[,\;:]` and bash strips that backslash before
+# regcomp. Both lines below fire if either boundary moves.
+INDENT_ORIGIN="$TEST_TMPDIR/indent-origin.md"
+printf '%s\n' '   Ported from the upstream repo.' >"$INDENT_ORIGIN"
+indent_origin_out="$(bash "$DETECT" "$INDENT_ORIGIN")"
+assert_not_contains "plain indentation is not a prose clause opener" "$indent_origin_out" "Finding shape: citation"
+
+BACKSLASH_ORIGIN="$TEST_TMPDIR/backslash-origin.md"
+printf '%s\n' 'Cache helper\ copied from the dotfiles profile.' >"$BACKSLASH_ORIGIN"
+backslash_origin_out="$(bash "$DETECT" "$BACKSLASH_ORIGIN")"
+assert_not_contains "a backslash is not a prose clause opener" "$backslash_origin_out" "Finding shape: citation"
+
+REFLINK_ORIGIN="$TEST_TMPDIR/reflink-origin.md"
+printf '%s\n' 'Adapted from [the upstream guide][1].' >"$REFLINK_ORIGIN"
+reflink_origin_out="$(bash "$DETECT" "$REFLINK_ORIGIN")"
+assert_not_contains "a reference-style link stands the origin cue down" "$reflink_origin_out" "Finding shape: citation"
+
+# The stamp verbs /provenance:audit keys on are absent from both cue lists, so a
+# verification record never reads as an origin note whichever verb it opens with.
+STAMPS="$TEST_TMPDIR/stamps.md"
+printf '%s\n' 'Checked 2026-09-03 against v2.1.259' 'Confirmed 2026-09-03 against v2.1.259' 'As of 2026-09-03 the flag is still required' 'Last updated 2026-09-03' >"$STAMPS"
+stamps_out="$(bash "$DETECT" "$STAMPS")"
+assert_not_contains "no stamp verb reads as a citation" "$stamps_out" "Finding shape: citation"
+
+RENAMED_LINKED="$TEST_TMPDIR/renamed-linked.md"
+printf '%s\n' 'Renamed from foo to bar, per [the ADR](https://example.com/adr).' >"$RENAMED_LINKED"
+renamed_linked_out="$(bash "$DETECT" "$RENAMED_LINKED")"
+assert_contains "the link stand-down does not reach the existing cues" "$renamed_linked_out" "Finding shape: citation"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
