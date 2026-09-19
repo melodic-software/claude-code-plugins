@@ -265,7 +265,7 @@ Plugin: source-control (0.55.89 to 0.56.0). This is the integration slice.
   `markdown` and exits 0.
 - `python3 scripts/sync-plugin-options-docs.py --check` exit 0.
 
-#### Phase 3: The pull-request skill routes prep by class, creates drafts, and owns the ready step [DOING]
+#### Phase 3: The pull-request skill routes prep by class, creates drafts, and owns the ready step [DONE]
 
 Plugin: source-control (same version bump as Phase 2).
 

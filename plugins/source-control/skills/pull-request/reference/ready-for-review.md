@@ -96,7 +96,12 @@ Run each skill the check named, in the pre-PR order cited at the top of this fil
 Which skill each class owes, how to invoke it when its plugin is installed, and what to do instead
 when it is not, is the class routing table in [prep.md](prep.md) §1.1. One class behaves
 differently here: **`security`** runs in this phase rather than in prep, because it reviews the
-pull request's own diff (`gh pr diff "$PR_NUMBER"`), which needs a PR to exist.
+pull request's own diff (`gh pr diff "$PR_NUMBER"`), which needs a PR to exist. Run
+`/review:security-review` over that diff when the `review` plugin is installed. Without it, run
+a security-reviewer agent when your environment ships one, and otherwise review the diff inline
+for the security scope the repository's `REVIEW.md` names (trust boundaries, injection, credential
+exposure, authorization gaps, Actions and hook permissions); that inline pass covers the class but
+writes no row, so report it as the fallback paragraph below says.
 
 **A fallback is not a row.** The ledger records a Skill tool call, so an inline fallback (the
 plugin is absent) leaves that row missing and the rendered block short. Report the gap and what
