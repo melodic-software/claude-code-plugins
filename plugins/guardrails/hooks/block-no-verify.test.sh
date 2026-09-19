@@ -229,6 +229,26 @@ run_pwsh "PS: unbalanced here-string hiding --no-verify (fail-closed block)" \
   "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")" 2
 run_pwsh "PS: brace-grouped commit --no-verify (fail-closed block)" \
   "& { git commit --no-verify }" 2
+# An EXPANDABLE `@"` body is a different shape from the verbatim `@'` body above:
+# `$( … )` inside it is a command position evaluated where it is written, and the
+# body is dropped at intake, so no git-freedom proof can be taken over what is
+# left. This guard carries no allow-list, so it is the one that still refuses the
+# class after `block-noncanonical-commit` defers it.
+run_pwsh "PS: git commit -m expandable here-string carrying a subexpression (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @\"" "msg \$(Get-Date)" "\"@")" 2
+# The `readonly-ok` relief this guard passes to the classifier does not reach the
+# class: the expandable short-circuit runs BEFORE the read-only narrowing, and it
+# has to, because the body that would prove the command read-only is the very
+# text that was dropped.
+run_pwsh "PS: expandable here-string body running read-only git (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
+# The harshest consequence of that acceptance, pinned where it actually lands: a
+# command naming no git at all is refused here, and this guard consults no
+# allow-list, so nothing narrower than its own kill switch relieves it.
+# block-dangerous-git takes ps-unparsable-herestring-subexpr; this one takes
+# nothing. Pinned so a later narrowing flips a case instead of passing silently.
+run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, no allow token here)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
 
 # Obfuscation regressions (independent security review, sink-level fail-closed).

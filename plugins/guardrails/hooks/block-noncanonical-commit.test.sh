@@ -1328,10 +1328,19 @@ run_pwsh "PS: git status (allowed — not a commit)" "git status" 0
 # case is asserted against both hooks, not just this one.
 PS_UNPARSABLE_BACKTICK="$(printf 'git commit -m x `\n --cleanup=verbatim')"
 PS_UNPARSABLE_HERESTRING="$(printf '%s\n%s\n%s' "@'" "body" "'X ; git commit -m sneaky")"
+# An EXPANDABLE `@"` `-m` value used to be refused here as an uninspectable
+# multi-line message. Its body is a command position the classifier cannot read,
+# so it now routes to the fail-closed sink FIRST, and a classifier rc 2 is
+# deferred here by the same rule as the two above: a message this guard never saw
+# is a message it cannot name. The refusal moves to the siblings asserted below,
+# which is the attribution change this case exists to record.
+PS_UNPARSABLE_EXPANDABLE_HERESTRING="$(printf '%s\n%s\n%s' "git commit -m @\"" "msg \$(Get-Date)" "\"@")"
 run_pwsh "PS: backtick-continued commit (deferred — classifier rc 2)" \
   "$PS_UNPARSABLE_BACKTICK" 0
 run_pwsh "PS: unbalanced here-string hiding a -m commit (deferred — classifier rc 2)" \
   "$PS_UNPARSABLE_HERESTRING" 0
+run_pwsh "PS: expandable here-string -m value carrying a subexpression (deferred: classifier rc 2)" \
+  "$PS_UNPARSABLE_EXPANDABLE_HERESTRING" 0
 
 # Asserting the exit code alone would stay green if a sibling started blocking
 # these for an UNRELATED reason, silently breaking the coupling the deferral
@@ -1347,12 +1356,14 @@ for sibling in block-dangerous-git block-no-verify; do
     "$sibling" "$PS_UNPARSABLE_BACKTICK"
   run_sibling "PS: unbalanced here-string commit still blocked by $sibling" \
     "$sibling" "$PS_UNPARSABLE_HERESTRING"
+  run_sibling "PS: expandable here-string -m commit still blocked by $sibling" \
+    "$sibling" "$PS_UNPARSABLE_EXPANDABLE_HERESTRING"
 done
 
 # The residual this deferral accepts, pinned at exactly its documented width: with
 # BOTH sibling kill switches off, the rc-2 commit reaches git unblocked. If a
 # future change widens or narrows the exposure, this fails loudly.
-for command in "$PS_UNPARSABLE_BACKTICK" "$PS_UNPARSABLE_HERESTRING"; do
+for command in "$PS_UNPARSABLE_BACKTICK" "$PS_UNPARSABLE_HERESTRING" "$PS_UNPARSABLE_EXPANDABLE_HERESTRING"; do
   for hook in block-noncanonical-commit block-dangerous-git block-no-verify; do
     env CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED=false \
       CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false \

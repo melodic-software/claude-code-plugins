@@ -136,6 +136,18 @@ run "PS: conforming here-string subject allowed" "$r" "$PS_GOOD" 0 PowerShell
 run "PS: violating here-string subject blocked" "$r" "$PS_BAD" 2 PowerShell
 run "PS: violating gh pr create --title blocked" "$r" \
   "gh pr create --title 'junk title'" 2 PowerShell
+# An EXPANDABLE `@"` body carrying `$( ... )` is a command position the
+# classifier cannot read, so it routes to the fail-closed sink and this guard
+# DEFERS on a classifier rc 2: its message would name a subject it never parsed.
+# What this pins is the DEFERRAL and nothing more: an rc of 0 here cannot tell
+# "deferred on a classifier rc 2" from "never matched for some other reason", and
+# this file has no sibling-invocation harness to assert the coupling with. The
+# coupling that makes the deferral sound, that the two blocking guards still
+# refuse the same input, is asserted where that harness lives, in
+# block-noncanonical-commit.test.sh's run_sibling loop.
+PS_BAD_EXPANDABLE=$'@"\njunk subject $(node -p \'x\')\n"@ | git commit -F - --cleanup=verbatim'
+run "PS: violating expandable here-string subject deferred (classifier rc 2)" "$r" \
+  "$PS_BAD_EXPANDABLE" 0 PowerShell
 
 # --- review round 1: raw subject, env-prefixed gh, alias-expanded commit ------
 r="$(newrepo "$TICKET")"

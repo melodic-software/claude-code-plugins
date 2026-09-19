@@ -1434,6 +1434,119 @@ pin_predicate "ps::might_invoke_git: an expandable operand is not data" \
 pin_sink_trigger "classify: the expandable here-string still enters the special-construct sink" \
   "$(printf '%s\n%s\n%s' "Get-Process | Where-Object { \$_.Name -eq @\"" "\$(cmd /c git push --force)" "\"@ }")" "special-construct"
 
+# --- an expandable here-string BODY is itself a command position ----------------
+# `ps::blank_herestrings` drops every body line before any sink trigger is
+# tested, so a `$( … )` inside an expandable `@"` body was gone from the text the
+# scans read: no trigger fired, the `((PS_HERESTRING_EXPANDABLE)) && return 2`
+# refusal above was never reached, and the command was allowed. The DROP is what
+# has to raise the trigger, because the dropped body is exactly where the command
+# position lives. The gate is the literal `$(`, which over-approximates (a
+# backtick-escaped `$(` is literal text to PowerShell), and over-approximating is
+# the fail-closed direction.
+ps_hs_body="$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git push --force)" "\"@")"
+run_pwsh "PS hs: expandable body invoking git push --force (blocked)" "$ps_hs_body" 2
+run_pwsh "PS hs: assignment form of the same body (blocked)" \
+  "$(printf '%s\n%s\n%s' "\$x = @\"" "\$(git push --force)" "\"@")" 2
+# Body lines are dropped one at a time, so the gate is per-line presence of `$(`:
+# the subexpression opener and the git token may sit on different lines.
+run_pwsh "PS hs: subexpression opener and git token on separate body lines (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "Write-Output @\"" "\$(" "git push --force" ")" "\"@")" 2
+# Text after the column-zero closer is preserved, so the pipeline consumer stays
+# visible. The body behind it must still refuse.
+run_pwsh "PS hs: expandable body with a trailing pipeline after the closer (blocked)" \
+  "$(printf '%s\n%s\n%s' "@\"" "\$(git push --force)" "\"@ | Out-File x.txt")" 2
+# `hook::jq_fields` strips CR, so a CRLF payload reaches the classifier as LF-only
+# text and has to reach the same verdict as its LF twin. Asserted at the HOOK
+# boundary, which is the only place that stripping happens. The rc alone does not
+# DISCRIMINATE: leave the CR in and the opener line no longer ends in `@"`, so the
+# body stays in the text and its `(` trips special-construct, refusing for a
+# different reason. The token case below pins WHICH trigger fired, and therefore
+# that the stripping happened at all.
+run_pwsh "PS hs: CRLF-line-ended copy of the same body (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output @\"" "\$(git push --force)" "\"@")" 2
+run_pwsh "PS hs: the CRLF copy is refused as a here-string body, not as a stray paren" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output @\"" "\$(git push --force)" "\"@")" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+# Inner single quotes do not make a here-string body verbatim: PowerShell still
+# expands `$( … )` inside them.
+run_pwsh "PS hs: subexpression inside inner single quotes (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "'\$(git push --force)'" "\"@")" 2
+# A read-only git subexpression is still text the Bash tokenizer never sees, so
+# the read-only narrowing has nothing to narrow on.
+run_pwsh "PS hs: read-only git subexpression in the body (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(git status)" "\"@")" 2
+# ACCEPTED OVER-BLOCKS, pinned so a later narrowing flips a case instead of
+# passing silently. No git token appears in either command: the first carries a
+# command position whose output the guard cannot read, and the second is a
+# backtick escape that PowerShell treats as literal text. Modelling backtick
+# escapes inside a dropped body is the parsing this library declines to do.
+run_pwsh "PS hs: body whose only subexpression is non-git (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
+run_pwsh "PS hs: backtick-escaped subexpression in the body (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\`\$(git push --force)" "\"@")" 2
+
+# The regression fence. An expandable body with no `$(` carries no command
+# position and a verbatim `@'` body carries none by construction, so none of
+# these may move.
+run_pwsh "PS hs: expandable body with variable interpolation only (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Hello \$name" "\"@")" 0
+run_pwsh "PS hs: expandable commit body with no command position (allowed)" \
+  "$(printf '%s\n%s\n%s' "@\"" "fix: \$subject" "\"@ | git commit -F -")" 0
+run_pwsh "PS hs: braced variable reference is not a subexpression (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\${env:PATH}" "\"@")" 0
+run_pwsh "PS hs: a \$ and a ( separated by a space are not \$( (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "cost is \$ (git)" "\"@")" 0
+run_pwsh "PS hs: verbatim body naming git stays inert (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "git push --force" "'@")" 0
+run_pwsh "PS hs: canonical verbatim commit form (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: thing" "'@ | git commit -F -")" 0
+
+# An rc of 0 cannot tell "never entered the sink" from "entered it and was waved
+# through", so the trigger is pinned on both sides of the fence. The trigger is
+# its OWN name rather than a reuse of special-construct: the allow token is
+# derived from the trigger, and an operator who allowlisted `{}`/`--%` grouping
+# would otherwise have silently allowlisted this class too, which would make the
+# refusal a no-op for exactly the operators most likely to hit it.
+pin_sink_trigger "classify: an expandable body carrying \$( enters the herestring-subexpr sink" \
+  "$ps_hs_body" "herestring-subexpr"
+pin_sink_trigger "classify: an expandable body with no command position enters no sink" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "Hello \$name" "\"@")" ""
+
+# The trigger chain is ordered, and this arm is last, so a command that already
+# had a special construct keeps reporting the construct it had. The #4188 pin
+# above asserts that from the other side.
+run_pwsh "PS hs: the special-construct token does not open the here-string body sink" \
+  "$ps_hs_body" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+# Its own token is the operator's explicit opt-in, and nothing else in the
+# command is visible, so this one is allowed.
+run_pwsh "PS hs: the herestring-subexpr token opens the expandable body" "$ps_hs_body" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+# An allow token must not fail-open a plainly visible sibling. The
+# special-construct region walk pairs the `"` of the `@"` opener with the `"` of
+# the `"@` closer, so it cannot see inside a here-string at all: the new arm has
+# to blank the here-string itself, or the caller's re-classification loop makes
+# no progress, exhausts its four attempts and exits 0 with the sibling never
+# checked (the invariant #2667 pinned).
+run_pwsh "PS hs: an unrelated token does not open the sink at all (sibling never reached)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(hi)" "\"@; git reset --hard")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS hs: the matching token does not waive a visible reset --hard sibling either" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "\$(hi)" "\"@; git reset --hard")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+# ACCEPTED OVER-BLOCK: the operator opted out of launcher refusals, not out of
+# this one. Blanking the launcher statement leaves the here-string, and the
+# re-classification names it, so the command is refused under the trigger it now
+# reports rather than the one it started with.
+run_pwsh "PS hs: a launcher token does not carry over to the here-string body (blocked)" \
+  "$(printf '%s\n%s\n%s' "pwsh -File build.ps1; Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-launcher
+# The realistic casualty of the acceptance above: a commit body built with a
+# subexpression. The remediation the guard already prints, a verbatim `@'` body
+# piped to `git commit -F -`, is the way out.
+run_pwsh "PS hs: commit body built with a subexpression (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "@\"" "fix: bump to \$(node -p 'x')" "\"@ | git commit -F -")" 2
+
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
 # so the read-only allowlist admits it and these stay allowed. Pinned so a later
