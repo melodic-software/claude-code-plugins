@@ -552,6 +552,30 @@ assert_contains "only the hash NOTICE run is exempt" "$origin_block_hash_out" "T
 # The license cues are narrow: `copyright` counts beside a (c), a year, or at the start of
 # the comment, and `(c)` counts only in front of a year. Otherwise these two ordinary
 # comments would be silently exempted.
+# A doc-comment leader is decoration, not comment text. Left in place it occupies the
+# clause-opening position, so the cue right behind it never anchors.
+ORIGIN_LEADER="$TEST_TMPDIR/origin-leader.cs"
+cat >"$ORIGIN_LEADER" <<'EOF'
+/// Ported from the reference implementation.
+//! Ported from the reference implementation.
+EOF
+origin_leader_out="$(bash "$DETECT" "$ORIGIN_LEADER")"
+assert_contains "a /// doc-comment leader does not block the anchor" "$origin_leader_out" "Finding excerpt: /// Ported from the reference implementation."
+assert_contains "a //! doc-comment leader does not block the anchor" "$origin_leader_out" "Finding excerpt: //! Ported from the reference implementation."
+assert_contains "both doc-comment forms are findings" "$origin_leader_out" "T1=2 T2=0 T3=0"
+
+# The cue needs a terminator at its end, or `from` matches inside `fromage` and a date
+# matches inside a longer run of characters.
+ORIGIN_TERM="$TEST_TMPDIR/origin-terminator.js"
+cat >"$ORIGIN_TERM" <<'EOF'
+// ported fromage is a cheese
+// Copied fromage shop inventory
+// Added 2026-09-011 to the list
+// Added 2026-09-01x to the list
+EOF
+origin_term_out="$(bash "$DETECT" "$ORIGIN_TERM")"
+assert_contains "the cue must end on a boundary" "$origin_term_out" "T1=0 T2=0 T3=0"
+
 ORIGIN_NARROW="$TEST_TMPDIR/origin-narrow.js"
 cat >"$ORIGIN_NARROW" <<'EOF'
 // NAR1: Ported from the legacy fork to satisfy the copyright audit.

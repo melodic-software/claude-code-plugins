@@ -1659,6 +1659,13 @@ printf '%s\n' 'Checked 2026-09-03 against v2.1.259' 'Confirmed 2026-09-03 agains
 stamps_out="$(bash "$DETECT" "$STAMPS")"
 assert_not_contains "no stamp verb reads as a citation" "$stamps_out" "Finding shape: citation"
 
+# The two origin cues mirror the code-side sibling's, so they carry the same terminator:
+# `from` must end on a boundary and a date must not run on into more characters.
+TERM_PROSE="$TEST_TMPDIR/terminator-prose.md"
+printf '%s\n' 'Ported fromage is a cheese.' 'Added 2026-09-011 to the list.' 'Added 2026-09-01x to the list.' >"$TERM_PROSE"
+term_prose_out="$(bash "$DETECT" "$TERM_PROSE")"
+assert_contains "the prose origin cues need the same terminator" "$term_prose_out" "T1=0 T2=0 T3=0"
+
 RENAMED_LINKED="$TEST_TMPDIR/renamed-linked.md"
 printf '%s\n' 'Renamed from foo to bar, per [the ADR](https://example.com/adr).' >"$RENAMED_LINKED"
 renamed_linked_out="$(bash "$DETECT" "$RENAMED_LINKED")"

@@ -68,7 +68,11 @@ cr_comment_text() {
     esac
     nx="${line:i+1:1}"
     if [[ "$ch$nx" == '//' || "$ch$nx" == '--' ]]; then
-      printf '%s' "${line:i+2}"
+      rest="${line:i+2}"
+      # `///` and `//!` are doc-comment leaders. Left in the text they occupy the
+      # clause-opening position, so a cue right behind one would never anchor.
+      [[ "$ch$nx" == '//' ]] && rest="${rest#[/!]}"
+      printf '%s' "$rest"
       return 0
     elif [[ "$ch$nx" == '/*' ]]; then
       rest="${line:i+2}"
@@ -168,7 +172,9 @@ cr_detect_shapes() {
   # and must be a whole word, so an ordinary description ("bytes copied from the source
   # buffer", "helpers exported from index.ts") is not a finding. An origin VERB is
   # required, so a bare date matches nothing, and the stamp verbs provenance:audit keys
-  # on (verified, checked, confirmed, as of) are deliberately absent.
+  # on (verified, checked, confirmed, as of) are deliberately absent. The cue also has to
+  # END on a boundary, or `from` matches inside `fromage` and a date matches inside a
+  # longer run ("2026-09-011", "2026-09-01x").
   #
   # Tier 1 reads "remove", so two comment classes are exempt whatever verb they open
   # with: a marker comment, which is tracked work rather than residue, and a license or
@@ -178,8 +184,8 @@ cr_detect_shapes() {
   # states its licence once and attributes on a separate line; cr_license_block_lines
   # computes the run and the caller passes the verdict in.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
-    if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from ]] ||
-      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
+    if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||
+      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}([^[:alnum:]]|$) ]]; then
       printf '%s\n' 'origin-note'
       found=1
     fi

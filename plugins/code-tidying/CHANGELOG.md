@@ -13,8 +13,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `added`/`merged`/`introduced`/`backported`/`ported` in front of an ISO date. Git history owns
   origin, so the treatment is delete. The cue must open the comment or a clause inside it and must
   be a whole word, so `bytes copied from the source buffer` and `helpers exported from index.ts`
-  are not findings. A dated freshness stamp is not this shape either: the cue list carries no bare
-  date and none of the stamp verbs `provenance:audit` keys on.
+  are not findings. The cue also has to END on a boundary, so `ported fromage` and a date running
+  on into more characters (`Added 2026-09-011`) match nothing. A dated freshness stamp is not this
+  shape either: the cue list carries no bare date and none of the stamp verbs `provenance:audit`
+  keys on.
+
+  `cr_comment_text` now strips the `///` and `//!` doc-comment leaders, which previously sat in the
+  clause-opening position and stopped a cue right behind one from anchoring. That applies to every
+  shape, not just this one.
 
   Because Tier 1 reads "remove", two comment classes are exempt whatever verb they open with: a
   marker comment (`TODO`, `FIXME`, `HACK`, `XXX`), which is tracked work rather than residue, and a
