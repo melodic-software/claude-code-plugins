@@ -109,7 +109,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Markdown, so only the status code can reject it.
 - The spool is read to EOF **or to 256 KB total, whichever comes first**. Bounded slices cap each
   tool result, never their sum, so reading a near-cap response through to EOF still puts every byte
-  in the session. The ceiling is a fixed number rather than a per-invocation judgement: faced with a
+  in the session. The ceiling is a fixed number rather than a per-invocation judgment: faced with a
   5 MB response, "set a budget" admits 5 MB. 256 KB sits well above a long X Article and well below
   the transport cap. Stopping short is allowed; stopping short *silently* is not. A partial read is
   reported as partial, with where it stops.

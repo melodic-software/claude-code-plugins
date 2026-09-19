@@ -100,7 +100,7 @@ run_guard 0 "a non-pull_request event is not applicable" \
 # --- absent verdict: fail closed unless the head demonstrably moved ----------
 
 LIVE_HEAD_SHA_STUB=1111111111111111111111111111111111111111 \
-  run_guard 0 "a retired superseded run is recognised by a moved head" \
+  run_guard 0 "a retired superseded run is recognized by a moved head" \
   "${IN_SCOPE[@]}" \
   LANE_REVIEW_RAN="" \
   GITHUB_REPOSITORY=melodic-software/claude-code-plugins \

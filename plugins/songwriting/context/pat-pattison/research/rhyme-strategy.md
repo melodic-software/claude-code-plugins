@@ -540,7 +540,7 @@ scale of rhyme types moving in degrees from more to less stable," introduces it
 with "Here's a quick peek:", and prints it as a titled figure. Reproduced from
 the page scan (`image_4-page20.jpg`) rather than the text layer, which flattens
 the figure into two run-together rows and loses its bracket. The five types sit
-in one row over a spanning bracket whose two ends are labelled:
+in one row over a spanning bracket whose two ends are labeled:
 
 ```text
         Scale of Rhyme Types: Most Stable to Least Stable
@@ -1224,7 +1224,7 @@ workflow asks for ("mark identities separately from rhymes"). His other
 annotations across the search work the same way: `dance (cliché?)`,
 `knockout (id.)`, `lookout (id.)`, `(oops!)` printed under `disc` in the perfect
 column for `risk`, and `mend on, etc.` / `stretchin', etc.` closing the
-imperfect column for `attention`. The parenthesised
+imperfect column for `attention`. The parenthesized
 `(s)`, `(d)`, `(ed)` are inflection options he leaves open on the page rather
 than resolving early.
 
@@ -1247,7 +1247,7 @@ chips, apocalypse`. When a keyword's perfect rhymes amount to `disc`, the full
 search is not a refinement on perfect rhyme. It is the only way that keyword
 gets usable options at all.
 
-### Why the search is worth the labour
+### Why the search is worth the labor
 
 The chapter closes on a single claim, and it is the argument for worksheets:
 
@@ -1283,9 +1283,9 @@ numbered chapter.)
 > So write. And write fearlessly.
 
 Two things there matter for coaching. First, **the worksheet is
-training, not overhead**. Its payoff is the internalised search ("you do most
+training, not overhead**. Its payoff is the internalized search ("you do most
 of your work in your head. Effectively. Knowing your options."), so a user who
-resents the labour is being asked to keep practicing until most of the work
+resents the labor is being asked to keep practicing until most of the work
 moves into their head. Second, the standard is self-referential: "the hardest
 thing you will ever do is to write as well as *you* can." Do not turn that into a
 comparative judgment against other writers. Pat rules that out in the sentence
@@ -1306,7 +1306,7 @@ itself."
 Printed as a three-column fill-in grid over the thirteen keywords, with writing
 space under each. (In the grid, keyword 1 is printed `scare`; in the boxed
 keyword list on the same page it is `scared`. Both are as printed. Do not
-normalise either.)
+normalize either.)
 
 **EXERCISE 7.2. "Risky Business" Practice**
 

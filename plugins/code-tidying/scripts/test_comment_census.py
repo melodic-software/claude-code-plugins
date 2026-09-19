@@ -149,7 +149,7 @@ class PygmentsLayer(unittest.TestCase):
             rep["raw"]["comment_lines"], rep["deduped"]["comment_lines"] + 2
         )
 
-    def test_token_estimate_is_bytes_over_four_and_labelled(self):
+    def test_token_estimate_is_bytes_over_four_and_labeled(self):
         rep = self.report()
         self.assertEqual(
             rep["deduped"]["approx_tokens"], rep["deduped"]["comment_bytes"] // 4
@@ -283,7 +283,7 @@ class Degradation(unittest.TestCase):
         self.assertIn("pygments", p.stderr)
 
     def test_empty_scope_with_scc_installed_is_not_reported_as_no_layer(self):
-        """An empty scope must not be diagnosed as a missing analyser.
+        """An empty scope must not be diagnosed as a missing analyzer.
 
         `scc_counts` returns None both when the binary is absent AND when the
         file list is empty, so using its result as the availability proxy makes

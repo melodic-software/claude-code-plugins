@@ -946,7 +946,7 @@ fi
 # The line model is deliberately WIDER than this script's own writer uses. A
 # reader downstream may split on a bare CR as well as LF (every
 # universal-newline reader does), and may tolerate leading whitespace before a
-# key. A check that modelled only LF-terminated, column-0 markers would pass a
+# key. A check that modeled only LF-terminated, column-0 markers would pass a
 # stub that such a reader still sees as declaring one, so CR is treated as a
 # terminator too and leading whitespace is stripped before the compare.
 has_forbidden_marker() {

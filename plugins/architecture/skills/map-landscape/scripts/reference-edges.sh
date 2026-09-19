@@ -25,7 +25,7 @@
 # is the only way a bare `owner/repo` token is trusted at all.
 #
 # --print-owner prints the owner this run resolved and extracts nothing, so a
-# caller can record which organisation the graph was drawn from without
+# caller can record which organization the graph was drawn from without
 # reimplementing the resolution. `unknown` when none resolves.
 #
 # Output: JSON Lines on stdout, one object per (target, type) pair, sorted:
@@ -156,7 +156,7 @@ owner="$owner_override"
 [[ -n "$owner" ]] || owner="$(remote_owner_segment)" || owner=""
 
 # The owner this run resolved, for a caller that has to record which
-# organisation the graph was drawn from. Reading it back from here keeps one
+# organization the graph was drawn from. Reading it back from here keeps one
 # resolution: a second implementation elsewhere would drift from this one about
 # what counts as the subject, and then the edges and the nodes would disagree.
 if [[ "$print_owner" -eq 1 ]]; then
@@ -185,7 +185,7 @@ is_reserved_owner() {
 
 # A segment that can actually be a GitHub owner or repository name. This is the
 # backstop for every extractor: a regex tuned to one surface still catches
-# neighbouring punctuation and documentation templates, so `<source>`,
+# neighboring punctuation and documentation templates, so `<source>`,
 # ``acme-tools` ``, and `claude-code-plugins`;` are rejected here rather than by
 # making each pattern progressively more baroque.
 is_valid_segment() {

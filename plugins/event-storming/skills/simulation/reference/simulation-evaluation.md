@@ -32,7 +32,7 @@ point the tooling at wherever your copy lives (any path you choose):
 
 | EPUB File | Book Ch. | Content | Book % | Skill Coverage | Notes |
 |-----------|----------|---------|--------|---------------|-------|
-| chap00 | Preface | Scope, formats, audience | 100% | 95% | All formats listed; Blink Modelling in glossary |
+| chap00 | Preface | Scope, formats, audience | 100% | 95% | All formats listed; Blink Modeling in glossary |
 | chap01 | Ch. 1 | What does ES look like? (4 stories) | 98% | 90% | Core patterns from all stories captured |
 | chap03 | Ch. 2 | Problem space: silos, pretending to know | 95% | 85% | Captured in persona DEEP/GREY/PRETEND zones |
 | chap04 | Ch. 3 | Software fallacies: nouns vs verbs | 90% | 70% | "Nouns fool you" captured; PO/backlog theory not (low impact) |
@@ -61,7 +61,7 @@ point the tooling at wherever your copy lives (any path you choose):
 | chap36 | Ch. 29b | Anti-Patterns catalog | 75% | 90% | 14 anti-patterns enriched with Brandolini blog sources |
 | chap38 | Recipe | BP recipe: ingredients, setup | 100% | 90% | Shopping list, refreshments in glossary-tools |
 | chap39 | Recipe | DL recipe: ingredients, differences | 100% | 90% | Captured in design-level.md prerequisites |
-| chap41 | Glossary | Terms: fuzzy by design | 80% | 85% | Theory of Constraints, Blink Modelling, Model Storming added |
+| chap41 | Glossary | Terms: fuzzy by design | 80% | 85% | Theory of Constraints, Blink Modeling, Model Storming added |
 | chap42 | Tools | Paper rolls, markers, stickies | 90% | 90% | Physical + digital tools in glossary-and-tools.md |
 
 Coverage of any given chapter is judged per run against the copy you own, since the book is

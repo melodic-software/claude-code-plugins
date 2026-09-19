@@ -75,7 +75,7 @@ coordination provider instead of publishing a spec that cannot travel.
     the dialect **as the frontmatter spells it** (`openapi-3.1`, `c4-plantuml`), never the fence
     tag (`yaml`, `plantuml`). For example: `Design artifact from the integration-scope design
     session, written in openapi-3.1.` A reader then knows what an unrendered fence is instead of
-    meeting an unlabelled wall of syntax.
+    meeting an unlabeled wall of syntax.
   - **No path, ever.** Neither block nor note names a file, a directory, or a topic path. The
     contract slice holding the artifact is pruned before merge, so a pointer would dangle by
     construction (topic-docs pointer discipline); the content travels inlined and its origin is

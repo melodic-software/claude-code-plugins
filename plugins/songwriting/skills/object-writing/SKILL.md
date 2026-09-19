@@ -132,7 +132,7 @@ lyric lines, and being mid-conversation about a song does not authorize it to.
 | --- | --- |
 | A finished verse, chorus, or bridge line | `/songwriting:co-write` line-brainstorm |
 | A rhyme partner or rhyme list | `/songwriting:rhyme` |
-| A section rewrite, or a judgement about where a section's material belongs | `/songwriting:song-form` |
+| A section rewrite, or a judgment about where a section's material belongs | `/songwriting:song-form` |
 | A scansion or stress-map claim | `/songwriting:meter-prosody` |
 
 Routing means invoking that skill, not summarizing what you believe it would say. Emitting a lyric

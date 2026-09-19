@@ -66,7 +66,7 @@ Parse `$ARGUMENTS` to determine the action. Empty argument routes to `auto` (the
 
 Unknown actions route to `auto`; surface the unrecognized request as a one-line side note.
 
-**Default action leans to `me` (relentless prose rounds).** When invoked with no args (or by proactive auto-trigger), bias toward `me`-mode. Drive open decisions through frontier-rounds prose Q&A. Fall back to direct synthesis (`lock`-style) ONLY when context heavily informs against asking: intent already crystal-clear with no open decisions, OR the user signalled "just lock it / stop asking". Auto-detect's synthesize-directly path is for the genuinely-clear case, not the default posture.
+**Default action leans to `me` (relentless prose rounds).** When invoked with no args (or by proactive auto-trigger), bias toward `me`-mode. Drive open decisions through frontier-rounds prose Q&A. Fall back to direct synthesis (`lock`-style) ONLY when context heavily informs against asking: intent already crystal-clear with no open decisions, OR the user signaled "just lock it / stop asking". Auto-detect's synthesize-directly path is for the genuinely-clear case, not the default posture.
 
 **Question surface: inline prose by default.** Rounds render as numbered inline prose. Dictation-friendly, no per-question cap, and each question carries its recommendation, reasoning, and probe in one readable block. `AskUserQuestion` is an opt-in surface, enabled via the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`, default off). When opted in, use it ONLY for a round of ≤4 mutually independent questions that are **simple selections or binary confirms**. A card carries options, not a recommendation's reasoning or a constraint-surfacing probe, so any question needing its basis argued stays prose. Fall back to prose when the frontier exceeds 4, any question in the round depends on another, or a question needs more than a pick. The card cannot express a dependency or a rationale, and chunking a round across multiple cards fragments it. When in doubt, prose.
 
@@ -123,7 +123,7 @@ Alternatives to consider:
 
 **Define session shorthand once, then park it.** When a round introduces session-local shorthand, a coined label, an abbreviation, or cross-repo jargon the user may not share ("lanes", "gate vacuity"), define it in one clause at first use and record it in the ledger's shorthand glossary, then use the term freely. This is ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`), and never touches a project glossary. Ledger shape: [`context/loop.md`](context/loop.md) "Session-shorthand glossary".
 
-**Partial-round resolution.** The user may answer any subset, in any order, in one reply. Unanswered questions stay OPEN on the frontier. Re-surface them at the top of the next round, labelled "unanswered from last round". NEVER silently resolve an unanswered question to its recommendation; the auto-guard applies inside rounds too. Honor accept-shorthands: "accept all recommendations" resolves the whole round to the recommended answers; "yes to Q5" / "Q5–Q7 yes" resolves that subset. Answers that reshape the tree ("actually, we don't need auth at all") invalidate pending questions. Recompute the frontier before re-asking anything.
+**Partial-round resolution.** The user may answer any subset, in any order, in one reply. Unanswered questions stay OPEN on the frontier. Re-surface them at the top of the next round, labeled "unanswered from last round". NEVER silently resolve an unanswered question to its recommendation; the auto-guard applies inside rounds too. Honor accept-shorthands: "accept all recommendations" resolves the whole round to the recommended answers; "yes to Q5" / "Q5–Q7 yes" resolves that subset. Answers that reshape the tree ("actually, we don't need auth at all") invalidate pending questions. Recompute the frontier before re-asking anything.
 
 **Register at ask-time; a reply that does not answer is not an answer.** The moment a round is asked, before any reply, write one `open` row per question into the ledger's open-question register. Then, after EVERY user reply and before doing anything else, check the reply against the register's `open` rows and restate any it did not address, in one line, even when the reply changed the subject entirely. Conversational drift is never consent, and the register, not the transcript, which a compaction can empty, is the authority. One exception, and only one: the acceptance-criteria coverage prompt gets no row even when it rides along in a round, because it carries no decision to track. Every real question in that same round is registered exactly as always. Row shape, statuses, and the drift-restate wording: [`context/loop.md`](context/loop.md) "The open-question register".
 
@@ -159,13 +159,13 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 
 ## Acceptance-criteria capture
 
-Two behaviours ride on the moment acceptance criteria are captured. The first is always on; the
+Two behaviors ride on the moment acceptance criteria are captured. The first is always on; the
 second fires only when the consuming team's convention selects it.
 
 ### Coverage prompt. Always on, asked once
 
 While capturing acceptance criteria, ask ONE question: are the criteria missing an
-**unwanted-behaviour** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
+**unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
 case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
 interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
 whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
@@ -180,7 +180,7 @@ run whose ONLY question was this prompt wrote no register, has nothing to gate, 
 exactly as a run that asked nothing does. Without this, that path would ask a question it is
 forbidden to register and then trip a gate demanding the row.
 
-**The exemption covers this prompt and nothing else.** It is not a licence for a question asked
+**The exemption covers this prompt and nothing else.** It is not a license for a question asked
 beside it. A residue decision, a frontier round, a gap surfaced mid-synthesis, a `blocked` row from
 an unattended run: any OTHER question is a register question as usual. It writes its row at
 ask-time and brings the gate into scope, whether or not the coverage prompt was asked in the same
@@ -194,7 +194,7 @@ is the user saying stop asking, and reports it unexamined exactly as a non-inter
 
 A run with nobody to answer, a dispatched worker, a forked subagent, a headless invocation, or any
 caller that declared the run unattended, **SKIPS** the ask instead of blocking on it, and the
-session's returned summary states that **unwanted-behaviour and state-driven coverage went
+session's returned summary states that **unwanted-behavior and state-driven coverage went
 unexamined**. Write the same line into the Brief's `### Captured assumptions` so it outlives the
 summary. A prompt nobody can answer must not stall the run and must not silently vanish.
 
@@ -221,15 +221,15 @@ bracketed pattern prefix on that same plain-bullet form:
 | `[ubiquitous]` | an always-true requirement, no trigger and no state |
 | `[event-driven]` | `WHEN <trigger>, <response>` |
 | `[state-driven]` | `WHILE <state>, <response>` |
-| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[unwanted-behavior]` | `IF <trigger>, THEN <response>` |
 | `[optional-feature]` | `WHERE <feature is included>, <response>` |
 
 ```text
 - [event-driven] WHEN the upload completes, the manifest is rewritten
-- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 ```
 
-The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, and
+The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
 `optional-feature`. This vocabulary is a contract with whatever reads the tag downstream, and a name
 spelled any other way, `unwanted-behavior`, `unwanted`, `event`, reads as no tag at all and breaks
 detection silently rather than loudly. The tag prefixes the criterion; it never replaces the
@@ -320,7 +320,7 @@ Full surfacing-question taxonomy + categorization heuristics in [`context/loop.m
 
 Stop when the frontier is empty. Every unknown the task depends on resolved OR captured as named assumption. The user can describe the goal in one paragraph without contradicting the constraints, and acceptance criteria are testable. The coverage prompt has been asked once and answered ("neither applies" counts), or skipped and reported unexamined per "Acceptance-criteria capture". Don't stop early on impatience; don't keep asking past the stop condition.
 
-**Register gate.** Before persisting the contract or handing off, run the register through its mechanical check. An empty frontier is a judgement, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
+**Register gate.** Before persisting the contract or handing off, run the register through its mechanical check. An empty frontier is a judgment, and this is the part of it a script can decide. **Ledger only here**: the Brief does not exist yet (Step 4 writes it), and `--brief` names a file it requires to be present.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \

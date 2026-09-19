@@ -617,7 +617,7 @@ to the template re-renders here too.
 > candidate whatever else it carries, so the resolved human-gated role, not
 > the decision-pending label, is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after, and in that same edit remove the
+> role-less first and labeled after, and in that same edit remove the
 > resolved autonomous-eligible role if the item carries it. Closing an item
 > never cleared its labels, so a carrier closed while autonomous-eligible
 > comes back still wearing that role, and an item wearing both canonical

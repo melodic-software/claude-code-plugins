@@ -122,7 +122,7 @@ This script exports the five tunables to the collector adapters as
 `CODE_METRICS_DUP_MAX_LINES`, and `CODE_METRICS_DUP_MAX_SIZE`, which is the only channel an
 adapter reads them through. `jscpd` passes the first three to the tool and applies the two caps
 itself before the tool runs; the `dupl` and `cpd` adapters apply the minimum after parsing, report
-the ignore globs as unused, and scan every file in scope. Which options each tool honours, what its
+the ignore globs as unused, and scan every file in scope. Which options each tool honors, what its
 own defaults are, and why the caps are applied here rather than passed through are tool facts that
 move with the tools, so they are not restated here: the duplication rows of
 `${CLAUDE_PLUGIN_ROOT}/reference/collectors.md` carry each claim with its basis, the date it was

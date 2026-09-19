@@ -466,7 +466,7 @@ assert_eq "home exclusion: \$HOME with .claude is user scope, not project contex
 # lose both its project settings and its currentProject marker. The resolution
 # uses `builtin cd`/`builtin pwd`, so the shadow is never consulted. Unlike the
 # exclusion case above, this one is load-bearing on every platform: the failure
-# is the shadow being honoured, not a path-spelling mismatch.
+# is the shadow being honored, not a path-spelling mismatch.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -476,7 +476,7 @@ mkdir -p "$proj_dir/.claude" "$fake_home"
 write "$proj_dir/.claude/settings.json" '{"enabledPlugins":{"alpha@market1": true}}'
 # Native spelling, as the non-git-project case above derives it: a record built
 # from the MSYS path could never match what the script resolves, which would
-# make this case report `false` whether or not the shadow was honoured.
+# make this case report `false` whether or not the shadow was honored.
 proj_native=$(cd "$proj_dir" && (pwd -W 2>/dev/null || pwd))
 native_proj_path="${proj_native//\//\\}"
 write "$case_dir/installed_plugins.json" "$(

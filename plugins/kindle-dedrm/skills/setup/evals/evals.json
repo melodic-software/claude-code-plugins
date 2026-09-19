@@ -5,7 +5,7 @@
       "id": 1,
       "name": "check-is-read-only-with-tiered-status",
       "prompt": "/kindle-dedrm:setup check",
-      "expected_output": "Runs the plugin's status.sh read-only, adds the pre-flight prerequisite probes, and reports a PASS/FAIL/INFO table without downloading, extracting, installing, or mutating anything. Hard prerequisites (Calibre, Python-not-WindowsApps-stub, pwsh, admin) and a wrong installed Kindle version are FAIL; not-yet-provisioned state (absent firewall rule, ICACLS deny, Key_Finder, downloads) is INFO, not FAIL. The extracted-key store dedrm.json is reported presence-only, never printed.",
+      "expected_output": "Runs the plugin's status.sh read-only, adds the pre-flight prerequisite probes, and reports a PASS/FAIL/INFO table without downloading, extracting, installing, or mutating anything. Hard prerequisites (Caliber, Python-not-WindowsApps-stub, pwsh, admin) and a wrong installed Kindle version are FAIL; not-yet-provisioned state (absent firewall rule, ICACLS deny, Key_Finder, downloads) is INFO, not FAIL. The extracted-key store dedrm.json is reported presence-only, never printed.",
       "files": [],
       "expectations": [
         "Runs status.sh and probes prerequisites read-only, mutating nothing",
@@ -31,11 +31,11 @@
       "id": 3,
       "name": "apply-keeps-interactive-handoffs-and-verifies-after-mutations",
       "prompt": "/kindle-dedrm:setup apply",
-      "expected_output": "Runs check first, then the provisioning walkthrough by reference to reference/workflow.md, keeping the irreducible user-action hand-offs (installer UAC/EULA, sign-in race window, Calibre plugin GUI loads, keyfinder VBS) as CHECKPOINTS rather than interviewing for configuration. Automated mutations (firewall rule, ICACLS lock) are verified after the fact by re-running the relevant status.sh probe rather than trusting an exit code. It writes no Claude Code user settings, pluginConfigs, plugin cache, or plugin data, and never sends keys or extracted files off the machine.",
+      "expected_output": "Runs check first, then the provisioning walkthrough by reference to reference/workflow.md, keeping the irreducible user-action hand-offs (installer UAC/EULA, sign-in race window, Caliber plugin GUI loads, keyfinder VBS) as CHECKPOINTS rather than interviewing for configuration. Automated mutations (firewall rule, ICACLS lock) are verified after the fact by re-running the relevant status.sh probe rather than trusting an exit code. It writes no Claude Code user settings, pluginConfigs, plugin cache, or plugin data, and never sends keys or extracted files off the machine.",
       "files": [],
       "expectations": [
         "Runs check before provisioning and follows reference/workflow.md",
-        "Keeps installer, sign-in, Calibre-plugin, and keyfinder steps as user-action CHECKPOINTS, not config interviews",
+        "Keeps installer, sign-in, Caliber-plugin, and keyfinder steps as user-action CHECKPOINTS, not config interviews",
         "Verifies firewall and ICACLS mutations by re-running the status probe, not by exit code",
         "Writes no user settings, pluginConfigs, or plugin cache and never egresses keys or extracted files"
       ]

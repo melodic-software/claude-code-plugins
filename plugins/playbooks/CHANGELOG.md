@@ -759,7 +759,7 @@ only after that version increases.
   of the net score is deliberately NOT asserted: the card says only that 0.49 "places it in between
   Opus 4.8 and the two Mythos models", which does not say which way that is.
 
-  The section exists largely to FENCE the neighbouring §"Verification" delta. That section removes
+  The section exists largely to FENCE the neighboring §"Verification" delta. That section removes
   instructed self-re-checks; read broadly it would strip exactly the lookups this finding says are
   needed more. They divide by subject, re-checking work you did versus the provenance of a fact
   you assert, and the section says so explicitly. It also refuses the tempting inference that
@@ -856,7 +856,7 @@ only after that version increases.
   an earlier statement when the error would change the user's code, conclusions, or decisions; for a
   slip that changes nothing, make the fix and move on.
 
-  Tagged `[CC: direct]` on a verification rather than an assumption. The chapter's neighbouring
+  Tagged `[CC: direct]` on a verification rather than an assumption. The chapter's neighboring
   narration-*cadence* bullet is `[CC: harness-covered]`, so the same check ran here against a live
   session system prompt: Claude Code states update cadence, outcome-first ordering, and faithful
   outcome reporting, but carries no rule about narrating corrections, so this one is not covered
@@ -1012,7 +1012,7 @@ only after that version increases.
   `skills/fable-5/context/calibration.md` adds "Point at a per-model matrix; never copy one",
   triggered when a per-model table of supported values, defaults, capabilities, or limits is about to
   be written into a chapter, rule, brief, or answer. It is a **volatility** axis, distinct from the
-  surface axis and the channel axis the neighbouring sections own: a table reads as a fact and is
+  surface axis and the channel axis the neighboring sections own: a table reads as a fact and is
   actually a snapshot, so a copy is a fact about the day it was copied with nothing in it saying
   which day that was. The rule is point-at-the-owning-table, and for thinking configuration that
   table is the per-model table on [Troubleshooting
@@ -1021,7 +1021,7 @@ only after that version increases.
   A matrix stated anyway, because the reader cannot act without the values in front of them,
   carries a **re-check trigger naming the next model release**, so a stale row is found by a
   scheduled read rather than by a reader acting on it. The fourth rule connects the section to its
-  neighbour: a vendor matrix is an API-surface fact, so presence in the table is not reachability
+  neighbor: a vendor matrix is an API-surface fact, so presence in the table is not reachability
   where the reader is running.
 
   The worked instance ships with it, verified 2026-08-03 on both sides. **Claude Mythos 5 has its
@@ -1068,7 +1068,7 @@ only after that version increases.
 
 - **`fable-5` calibration gains the channel-authority rule.**
   `skills/fable-5/context/calibration.md` adds "The reference page defines; a vendor post
-  corroborates", a **channel** axis distinct from the surface axis the neighbouring section owns:
+  corroborates", a **channel** axis distinct from the surface axis the neighboring section owns:
   a vendor's own blog or launch post is first-party and still not the authority on what a term
   means, because it is written once and never revised while the page owning the term is maintained
   against the behavior it describes. The rule is cite-the-owning-page, pointer-never-copy, and
@@ -1436,7 +1436,7 @@ from `0.4.0` instead of `0.3.2`.
 
 - `fable-5`: the recommend-an-option rule and the attach-a-recommended-answer rule are both
   narrowed at their own sites: neither fires when the options exist to elicit the ranking
-  criterion itself, because naming a favourite front-loads the judgment being asked for.
+  criterion itself, because naming a favorite front-loads the judgment being asked for.
   The carve-out is defined by the missing criterion, not by a missing preference, and
   resolves without loading another chapter, because trigger-gated loading means the communication
   chapter is often the only one held.

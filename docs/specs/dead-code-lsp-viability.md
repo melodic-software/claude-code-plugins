@@ -229,7 +229,7 @@ The tool's own description string:
 
 The `.lsp.json` `diagnostics` field (default `true`) controls "*whether to push diagnostics into
 Claude's context after edits*" ([plugins reference](https://code.claude.com/docs/en/plugins-reference#lsp-servers)).
-In the binary the handler is labelled `[PASSIVE DIAGNOSTICS]` and fires on **any**
+In the binary the handler is labeled `[PASSIVE DIAGNOSTICS]` and fires on **any**
 `textDocument/publishDiagnostics` the server sends, not only for edited files, so opening a file via
 the `LSP` tool can push diagnostics in asynchronously. But:
 

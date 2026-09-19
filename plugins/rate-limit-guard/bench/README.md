@@ -38,7 +38,7 @@ On MSYS every number here is dominated by the cost of creating a process, and th
 with machine load. Each lane therefore measures the *spawn floor*, the median of 11 bare
 `bash -c exit` spawns (`BENCH_FLOOR_N` overrides the count), **before and after** the timed
 section, and prints both. A run whose floor moved materially between the two brackets is not
-comparable to its neighbour: discard it. Compare medians, not means; both are printed.
+comparable to its neighbor: discard it. Compare medians, not means; both are printed.
 
 **Bash floor.** The harness requires **bash >= 5.0** and refuses loudly below it. The tee itself
 runs down to bash 3.2 (below 4.2 it degrades to its synchronous path, documented in the
@@ -89,7 +89,7 @@ timing ever runs in CI. What does run is `bench.test.sh`, a contract smoke suite
 - **Every run** unit-tests the lib helpers: `median`, `pace_sleep_arg`, `now_ms` and the refusal
   on a bash without `EPOCHREALTIME`. No lane is spawned, so it costs milliseconds.
 - **`BENCH_LANES=1`** adds the lane cases: one tiny-parameter run of each lane against the repo
-  tee under an isolated `HOME`, plus the two failing-render aborts, asserting behaviour and
+  tee under an isolated `HOME`, plus the two failing-render aborts, asserting behavior and
   output shape, never timing. Spawning a lane is running a benchmark whatever the parameters, so
   those five cases are gated; without the variable the suite prints a `SKIP:` line and the
   runner's summary names the coverage that did not run.
@@ -97,5 +97,5 @@ timing ever runs in CI. What does run is `bench.test.sh`, a contract smoke suite
 Run them locally with `BENCH_LANES=1 bash plugins/rate-limit-guard/bench/bench.test.sh`, or in CI
 by dispatching `ci.yml` with its `bench_lanes` input set. That is the deliberate run that keeps
 the harness runnable from a clean checkout; an unrunnable harness is exactly the defect behind the
-unreproducible measurements in #2521. The tee's behavioural coverage lives in
+unreproducible measurements in #2521. The tee's behavioral coverage lives in
 `../scripts/statusline-tee.test.sh`.

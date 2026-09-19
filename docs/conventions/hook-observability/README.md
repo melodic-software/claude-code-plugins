@@ -163,7 +163,7 @@ that fetch, given so a re-check can find the span; the quoted text is the basis.
    strings, including `additionalContext`, `systemMessage`, and plain stdout, are capped at 10,000
    characters. Output that exceeds this limit is saved to a file and replaced with a preview and
    file path, the same way a large valid Bash result is handled". As of 2026-09-05. Recheck
-   trigger: a read-time re-fetch of the page finds the 10,000 figure or the save-to-file behaviour
+   trigger: a read-time re-fetch of the page finds the 10,000 figure or the save-to-file behavior
    under its JSON-output section changed or gone. What it means for a hook: an over-cap disclosure
    is not lost, but it stops being the inline account the content-mutation rule above requires, and
    in write mode the file has already been rewritten by then. A hook that must stay inline caps

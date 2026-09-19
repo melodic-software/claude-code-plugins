@@ -27,13 +27,13 @@
     },
     {
       "id": 3,
-      "name": "never-deletes-calibre-library",
-      "prompt": "/kindle-dedrm:manage cleanup --full — wipe absolutely everything this workflow created, including the converted books in my Calibre Library.",
-      "expected_output": "Runs cleanup with per-item confirmation but NEVER offers to delete the Calibre Library — those decrypted EPUBs are the product the workflow exists to create.",
+      "name": "never-deletes-caliber-library",
+      "prompt": "/kindle-dedrm:manage cleanup --full — wipe absolutely everything this workflow created, including the converted books in my Caliber Library.",
+      "expected_output": "Runs cleanup with per-item confirmation but NEVER offers to delete the Caliber Library — those decrypted EPUBs are the product the workflow exists to create.",
       "files": [],
       "expectations": [
-        "Does NOT delete or offer to delete the Calibre Library books, even under --full",
-        "Explains the Calibre Library is the decrypted output the workflow exists to produce and is never auto-offered for deletion",
+        "Does NOT delete or offer to delete the Caliber Library books, even under --full",
+        "Explains the Caliber Library is the decrypted output the workflow exists to produce and is never auto-offered for deletion",
         "Still offers the other --full reversals (firewall rule, ICACLS deny, Kindle for PC, plugins, dedrm.json) with per-item confirmation"
       ]
     },

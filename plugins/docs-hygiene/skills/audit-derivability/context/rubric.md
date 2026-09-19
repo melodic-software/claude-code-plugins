@@ -175,7 +175,7 @@ anchor is worse than the doc it replaces.
 
 | Document | Factors | Verdict |
 |---|---|---|
-| A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full axe) |
+| A `.claude/rules/` file listing the public methods of a well-named class | Derivable (code); cheap; high drift (methods change); owns nothing | `delete` (agent-facing, full ax) |
 | An empty root `CLAUDE.md` whose `git log` shows it was deliberately emptied as an instruction-baseline reset, with the decision recorded in the commit | The emptiness IS a recorded decision (Factor 4 "decisions" class), so check `git log` before grading an empty/near-empty file | `keep-owns-facts`, not `delete` |
 | A skill's `templates/checklist.md` that the skill instructs agents to copy and tick | Runtime scaffold a component consumes, not a document; the four factors do not apply | `out-of-scope: functional artifact` (no verdict) |
 | A hand-kept table restating a large generated OpenAPI spec, no regen script, no recheck trigger | Derivable; expensive; high drift; owns nothing; **no drift control** | `keep-as-derivation-cache` **demotes** → `convert-to-pointer` (point at the spec) |

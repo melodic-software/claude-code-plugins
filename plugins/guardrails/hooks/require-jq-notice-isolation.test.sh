@@ -31,7 +31,7 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # the fail-CLOSED sibling. That gate emits no once-per-session notice at all — it
 # denies the call and says why every time — so it has no notice_once key to
 # collide, and this test's whole subject does not apply to it. Its own contract
-# (which hooks may use it, and the four-cell behaviour) is
+# (which hooks may use it, and the four-cell behavior) is
 # require-jq-posture.test.sh.
 mapfile -t JQ_HOOKS < <(
   for f in "$HOOK_DIR"/*.sh; do

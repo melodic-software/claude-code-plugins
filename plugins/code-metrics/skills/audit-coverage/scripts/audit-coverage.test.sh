@@ -110,7 +110,7 @@ assert_doc "its CRAP is comp squared plus comp" "$out" \
   'any(r["function"]=="classify" and r["values"]["crap"]==r["values"]["cyclomatic"]**2+r["values"]["cyclomatic"] for r in d["measures"])'
 assert_doc "the file row still reports the lines the artifact hit" "$out" \
   'any(r["function"] is None and r["values"]["lines_executable"]==6 and r["values"]["lines_hit"]==1 for r in d["measures"])'
-assert_doc "a line-range join is labelled as one" "$out" \
+assert_doc "a line-range join is labeled as one" "$out" \
   'any(r["function"]=="classify" and r["cov_source"]=="line-range" for r in d["measures"])'
 # The Bash lane's collector (shellmetrics.csv) reports no function end lines.
 assert_doc "bash CRAP is a visible not-applicable row, not a null" "$out" \

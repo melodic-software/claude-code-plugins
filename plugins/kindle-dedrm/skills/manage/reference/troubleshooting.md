@@ -59,22 +59,22 @@ Symptoms encountered (or expected) during setup / sync / cleanup, with diagnosis
    bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/lock-updates.sh" apply
    ```
 
-## Keyfinder fails with "Calibre is running"
+## Keyfinder fails with "Caliber is running"
 
-**Symptom:** Phase 1 errors out before extracting keys; console says "Calibre process detected."
+**Symptom:** Phase 1 errors out before extracting keys; console says "Caliber process detected."
 
-**Diagnosis:** `dedrm.json` is locked by Calibre.
+**Diagnosis:** `dedrm.json` is locked by Caliber.
 
 **Recovery:**
 
-1. Quit Calibre via File → Quit (not just X).
-2. Verify no calibre processes:
+1. Quit Caliber via File → Quit (not just X).
+2. Verify no caliber processes:
 
    ```powershell
-   Get-Process | Where-Object { $_.Name -match "calibre" }
+   Get-Process | Where-Object { $_.Name -match "caliber" }
    ```
 
-3. End any remaining `calibre*.exe` processes via Task Manager.
+3. End any remaining `caliber*.exe` processes via Task Manager.
 4. Re-run keyfinder.
 
 ## Keyfinder fails with "Python not found"
@@ -133,15 +133,15 @@ The `sync-finalize.sh` script does this automatically. If `sync-finalize.sh` ran
 bash -x "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh"
 ```
 
-## Books fail Phase 3 import to Calibre
+## Books fail Phase 3 import to Caliber
 
 **Symptom:** Phase 1 extracts keys successfully, Phase 2 writes dedrm.json, but Phase 3 reports import failures for some books.
 
 **Diagnosis:** Possible causes:
 
-- DeDRM plugin not loaded in Calibre
-- KFX Input plugin not loaded in Calibre
-- Calibre Library path mismatch
+- DeDRM plugin not loaded in Caliber
+- KFX Input plugin not loaded in Caliber
+- Caliber Library path mismatch
 - Book file corrupted (rare)
 
 **Recovery:**
@@ -162,7 +162,7 @@ bash -x "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh"
 
    Should have entries under `kindlekeys` or similar.
 
-3. Manually try importing one book via Calibre GUI (drag-and-drop the `.azw` file). If Calibre import works manually but not via Phase 3, keyfinder's calibredb invocation has a path issue. Open `~/Tools/Kindle_Key_Finder/key_finder.log` for detail.
+3. Manually try importing one book via Caliber GUI (drag-and-drop the `.azw` file). If Caliber import works manually but not via Phase 3, keyfinder's calibredb invocation has a path issue. Open `~/Tools/Kindle_Key_Finder/key_finder.log` for detail.
 
 ## Cleanup leaves orphaned firewall rule
 
@@ -213,20 +213,20 @@ icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates"
 icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates" /remove:d "AzureAD\<user>"
 ```
 
-## After `cleanup --full`, Calibre still has plugins
+## After `cleanup --full`, Caliber still has plugins
 
-**Symptom:** `cleanup --full` ran, but Calibre still shows KFX Input and DeDRM under Preferences → Plugins.
+**Symptom:** `cleanup --full` ran, but Caliber still shows KFX Input and DeDRM under Preferences → Plugins.
 
-**Diagnosis:** Calibre plugins must be removed via Calibre's GUI (or by editing Calibre's plugin database directly, which is fragile). Cleanup script intentionally does NOT auto-remove plugins because Calibre may be in use for other workflows.
+**Diagnosis:** Caliber plugins must be removed via Caliber's GUI (or by editing Caliber's plugin database directly, which is fragile). Cleanup script intentionally does NOT auto-remove plugins because Caliber may be in use for other workflows.
 
 **Recovery (manual):**
 
-1. Open Calibre.
+1. Open Caliber.
 2. Preferences → Plugins.
 3. Expand "File type plugins". Find DeDRM.
 4. Click → Remove plugin.
 5. Repeat for KFX Input.
-6. Restart Calibre.
+6. Restart Caliber.
 7. Optionally remove `dedrm.json`:
 
    ```bash

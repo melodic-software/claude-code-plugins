@@ -210,7 +210,7 @@ def frontmatter_description(frontmatter: str) -> str:
     reads only a TOP-LEVEL `description` key, so a nested one under `metadata:`
     is never mistaken for the routing-effective field.
 
-    The returned value is whitespace-normalised to a single line, so a phrase
+    The returned value is whitespace-normalized to a single line, so a phrase
     that wraps across a folded or literal block still reads as one string.
     Returns "" when the block carries no top-level description.
     """

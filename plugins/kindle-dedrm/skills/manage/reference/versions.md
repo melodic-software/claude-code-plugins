@@ -37,7 +37,7 @@ Repo: `https://github.com/Satsuoni/DeDRM_tools`. This is a fork of the original 
 Asset contents (verified 2026-07-19, v10.0.28):
 
 ```text
-DeDRM_plugin.zip                    (Calibre plugin to install)
+DeDRM_plugin.zip                    (Caliber plugin to install)
 DeDRM_plugin_ReadMe.txt
 KFXArchiver291.exe                  (Kindle 2.9.1 fallback extractor)
 KFXKeyExtractor28.exe               (Kindle 2.8.x primary extractor)
@@ -54,7 +54,7 @@ obok_plugin_ReadMe.txt
 ReadMe_Overview.txt
 ```
 
-For `kindle-dedrm`, only `DeDRM_plugin.zip` is consumed directly (loaded into Calibre via "Load plugin from file"). The `.exe` files are also bundled inside `Kindle_Key_Finder` so usually not needed from this archive. The v10.0.28 additions target the newer MSIX "Amazon Kindle" reading app (Frida-instrumented decrypt path); the Kindle-for-PC 2.8.0 offset extractors this skill relies on are unchanged.
+For `kindle-dedrm`, only `DeDRM_plugin.zip` is consumed directly (loaded into Caliber via "Load plugin from file"). The `.exe` files are also bundled inside `Kindle_Key_Finder` so usually not needed from this archive. The v10.0.28 additions target the newer MSIX "Amazon Kindle" reading app (Frida-instrumented decrypt path); the Kindle-for-PC 2.8.0 offset extractors this skill relies on are unchanged.
 
 ## Kindle_Key_Finder (techy-notes.com)
 
@@ -83,9 +83,9 @@ Phase scripts (Python 3.6+, standard library only, no pip install required):
 ```text
 phase_01_key_extraction.py     (run KFXKeyExtractor + KFXArchiver, write Keys/)
 phase_01_alt_extraction.py     (Mode B: KFXArchiver-only path)
-phase_02_dedrm_config.py       (write keys to Calibre's dedrm.json)
-phase_03_calibre_import.py     (calibredb import)
-phase_03_calibre_import-msi-crosshair.py  (alternate import path)
+phase_02_dedrm_config.py       (write keys to Caliber's dedrm.json)
+phase_03_caliber_import.py     (calibredb import)
+phase_03_caliber_import-msi-crosshair.py  (alternate import path)
 phase_03_alt_import.py
 phase_04_epub_conversion.py    (KFX → EPUB via ebook-convert)
 ```
@@ -114,7 +114,7 @@ KFXARCHIVER_TOOL_MAP = [
 
 Mode A (default) = try KFXKeyExtractor first, fall back to KFXArchiver. Mode B (force_alt) = KFXArchiver only, useful on 2.8.3+.
 
-## Calibre
+## Caliber
 
 | Field | Value |
 |---|---|
@@ -124,7 +124,7 @@ Mode A (default) = try KFXKeyExtractor first, fall back to KFXArchiver. Mode B (
 | DeDRM key store | `%APPDATA%\calibre\plugins\dedrm.json` |
 | Library default | `%USERPROFILE%\Calibre Library\` |
 
-Plugin install paths (after Calibre sees them):
+Plugin install paths (after Caliber sees them):
 
 ```text
 %APPDATA%\calibre\plugins\KFX Input.zip       (or jhowell variant)

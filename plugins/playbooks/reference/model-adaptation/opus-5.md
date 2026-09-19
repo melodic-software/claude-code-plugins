@@ -83,7 +83,7 @@ a fact you assert. Read broadly, "you already self-verify" would strip exactly t
 finding says are needed more, not less. The card measures confidence calibration on stated facts,
 which self-verification of your own reasoning does not touch. The card is also silent on whether
 you abstain more or less: it says only that your abstention rate is "closer to Mythos 5 than
-previous Opus models" and gives no direction, so do not infer a licence to answer more freely.
+previous Opus models" and gives no direction, so do not infer a license to answer more freely.
 
 ## Correction narration: fix the slip, announce only what changes a decision
 

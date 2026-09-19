@@ -57,7 +57,7 @@
       "id": 5,
       "name": "audience-awareness-splits-the-verdict",
       "prompt": "The same content — a list restating each public method of a well-named class — appears both as a `.claude/rules/` file (agent-facing) and as a hand-written onboarding page for new engineers (human-facing). Audit both for derivability.",
-      "expected_output": "Splits by audience. On the agent-facing `.claude/rules/` surface, exploration is cheap and the restatement is a standing token tax — full axe, lean toward `delete`/`convert-to-pointer`. On the human-facing onboarding page the deletion bar is higher because human re-derivation cost is real — a keep or convert-to-pointer is defensible. Names the audience in each verdict and does not apply one verdict to both.",
+      "expected_output": "Splits by audience. On the agent-facing `.claude/rules/` surface, exploration is cheap and the restatement is a standing token tax — full ax, lean toward `delete`/`convert-to-pointer`. On the human-facing onboarding page the deletion bar is higher because human re-derivation cost is real — a keep or convert-to-pointer is defensible. Names the audience in each verdict and does not apply one verdict to both.",
       "files": [],
       "expectations": [
         "Classifies the agent-facing and human-facing copies separately",

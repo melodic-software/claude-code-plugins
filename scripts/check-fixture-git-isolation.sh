@@ -100,7 +100,7 @@
 #
 # Extent is tracked, not merely `<<` presence: every delimiter a code line opens
 # is queued (bash allows several per line), `<<-` tab-stripping and quoted or
-# backslash-escaped delimiters are honoured, `<<<` here-strings are not heredocs,
+# backslash-escaped delimiters are honored, `<<<` here-strings are not heredocs,
 # and a terminator must match the delimiter EXACTLY. Matching loosely would end a
 # body early and restore credit inside it — under-selection again — so where the
 # two directions conflict the extent runs long.

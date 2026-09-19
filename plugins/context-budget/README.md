@@ -3,7 +3,7 @@
 Measure a Claude Code session's fixed startup context payload **per item**, on your machine, at a
 pinned binary, and record what every trim actually saved.
 
-`/context` already itemises skills, agents, and MCP tools. What it structurally cannot itemise is
+`/context` already itemizes skills, agents, and MCP tools. What it structurally cannot itemize is
 the built-in tool pool: `System tools` and `System tools (deferred)` are lump sums, and together
 they are typically the largest single contributor to the fixed payload. This plugin attributes
 them per tool by A/B differencing: a baseline headless session versus one session per candidate

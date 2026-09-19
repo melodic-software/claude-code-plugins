@@ -177,7 +177,7 @@ assembled from three pages.
 
 Two things the projection cannot model, both over-counts rather than hidden spawns. An `if` rule
 matches only under its anchor, so an edit to a file outside the project directory never matches
-one and every gated row there is counted as firing when none of them is. And dedup is modelled
+one and every gated row there is counted as firing when none of them is. And dedup is modeled
 nowhere: "If you define the same handler in more than one settings file, it runs once. A plugin's
 or skill's copy of the same handler stays separate" (hooks), so rows that collapse upstream are
 counted twice here.
@@ -258,7 +258,7 @@ vanished process classifies as user-space too.
 **Drift record.** *Claim:* `PF_KTHREAD` is `0x00200000` and is exposed unmasked as field 9 of
 `/proc/<pid>/stat`; `/proc/<pid>/status` carries a derived `Kthread:` line on kernels that publish
 one. *Basis:* [proc_pid_stat(5)](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html) for
-the flags field and the parenthesised `comm` hazard,
+the flags field and the parenthesized `comm` hazard,
 [Documentation/filesystems/proc.rst](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
 for the `Kthread:` line, `include/linux/sched.h` for the bit value, and `kernel/umh.c`
 (`call_usermodehelper_exec_work`) for the `CLONE_PARENT` reparenting that refutes the ppid test.
@@ -298,7 +298,7 @@ The shape, not the numbers, is the transferable part:
 - **The minter is continuous, not per spawn.** Twenty back-to-back `cmd /c exit` spawns did not
   raise the rate above background, so it is impersonation-shaped: an RPC/ALPC or driver IOCTL
   path that takes a token reference per call. The host runs three raw-I/O drivers (`AsIO3.sys`,
-  `IOMap64.sys`, `MsIo64.sys`) polled continuously by Armoury Crate and lighting services, which
+  `IOMap64.sys`, `MsIo64.sys`) polled continuously by Armory Crate and lighting services, which
   is the profile that fits. That is a hypothesis, not a measurement.
 - **Reboot restores the floor; the leak re-arms immediately.** The table's sample is the
   calibration basis (25,623 live Token objects at 1 h 57 min, 3.65 per uptime second). Four
@@ -327,7 +327,7 @@ leaking, are the recheck trigger for them.
 **Attribution runbook (elevated shell; the engine never does this).** Sample the Token count over
 60 s, then stop one candidate service at a time and re-sample; the one that drops the rate to
 about zero is the minter, and every stopped service is restarted afterwards. Candidates on the
-audited host, in order: `ArmouryCrateService`, `LightingService` (Aura), `ROG Live Service`,
+audited host, in order: `ArmoryCrateService`, `LightingService` (Aura), `ROG Live Service`,
 `AsusFanControlService`, `AsusUpdateCheck`, `asComSvc`, then the Razer Chroma SDK services,
 NVIDIA's `NvContainerLocalSystem`, and Wispr Flow. Growth that persists with all of them stopped
 points at a Windows component; on an Entra-joined account the CloudAP token path is the next

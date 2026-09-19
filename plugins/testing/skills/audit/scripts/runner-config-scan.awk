@@ -35,7 +35,7 @@
 #   suite to that one passing test, which is the shape rule 2 reports.
 #
 #   retries (VR-3). Defaults to 0. An absent key resolves to 0 and a literal 0
-#   is honoured at whichever level it is written, so a provable zero is proof
+#   is honored at whichever level it is written, so a provable zero is proof
 #   the flaky shape is out of reach.
 #
 #   Where each key counts (VR-10). retries is both a TestConfig and a
@@ -299,7 +299,7 @@ function record_key(key, val, d, line) {
     d1_key = key
     if (key == "retries") count_retries(val, line)
     # A duplicate key in an object literal resolves to its LAST occurrence, so
-    # that is the one the run honours and the one each guard is read from.
+    # that is the one the run honors and the one each guard is read from.
     # Keeping the first would classify forbidOnly: true, forbidOnly: false as
     # set. retries is different: projects[] carries one per entry and every one
     # of them counts, so count_retries aggregates instead of overwriting.

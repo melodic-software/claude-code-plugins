@@ -102,7 +102,7 @@ assert_eq "ttl-0 lease is not live" "0" "$rc"
 # comment lands between our pre-check and our arbitration re-read — so the pre-check
 # sees an unclaimed item and only the re-read reveals the collision.
 #
-# Modelled by seeding the comments query TWICE: empty first, then both leases. A single
+# Modeled by seeding the comments query TWICE: empty first, then both leases. A single
 # static response could not express it, and a "race" test written against one is really
 # testing the pre-check a second time.
 #

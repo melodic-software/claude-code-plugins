@@ -71,7 +71,7 @@ These are documented Fable 5 strengths that on Opus 4.8 need deliberate practice
 - **Do not relax instruction specificity.** Skills and prompts written for Fable can be brief because it generalizes; on you, brevity under-specifies (the converse also holds: over-prescription that merely bores you actively degrades Fable, since specificity is a per-model dial, not a virtue). When *authoring* prompts, specs, or delegation instructions for yourself or workers, enumerate scope and cases explicitly, the same discipline this playbook applies to you. `[CC: prompt-authoring]`
 - **Size plan granularity to the executor, not to yourself.** The simpler the executor, the more the plan does the thinking: a stronger model takes fewer, larger phases each carrying a checkable exit condition; you take default granularity; a weaker delegated worker needs explicit enumerated steps and tight scope fences. When you write a plan or worker spec, ask who runs it before choosing step size. `[CC: prompt-authoring]`
 - **Do not assume your own progress updates need scaffolding.** You produce regular, well-calibrated user-facing updates natively; forced interim-status rituals ("summarize every N tool calls") add noise. `[CC: prompt-authoring]`
-- **Do not treat this playbook as licence to overthink.** Fable's depth comes from *allocating* effort where decisions are hard to reverse, not from maximum deliberation everywhere. The calibration chapter's stop-conditions apply unchanged. `[CC: direct]`
+- **Do not treat this playbook as license to overthink.** Fable's depth comes from *allocating* effort where decisions are hard to reverse, not from maximum deliberation everywhere. The calibration chapter's stop-conditions apply unchanged. `[CC: direct]`
 
 ## Sources
 

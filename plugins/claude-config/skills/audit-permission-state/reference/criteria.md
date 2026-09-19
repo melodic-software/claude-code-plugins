@@ -163,7 +163,7 @@ run of `inert` records.
 
 ## Bounds every run states
 
-Neither is a limitation to apologise for; both change what a finding means.
+Neither is a limitation to apologize for; both change what a finding means.
 
 - **The command-line scope has no file.** `--settings`, `--allowedTools` and `--disallowedTools` rank
   above local, project and user settings, and no file reader can see them. The merge is the effective

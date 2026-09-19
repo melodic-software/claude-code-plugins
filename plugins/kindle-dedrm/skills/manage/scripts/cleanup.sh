@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # cleanup.sh — reverse every mutation made by the kindle-dedrm skill.
 # Per-item confirmation by default. --soft skips destructive Kindle/Calibre changes.
-# --full additionally offers to uninstall Kindle for PC and remove Calibre plugins.
+# --full additionally offers to uninstall Kindle for PC and remove Caliber plugins.
 #
 # Usage: cleanup.sh [--soft|--full] [--dry-run]
 #
 # Default mode: confirm-each across the standard reversal matrix.
 # --soft: tools + downloads only (keep firewall + ICACLS + Kindle for PC + plugins).
-# --full: everything including Kindle for PC uninstaller + Calibre plugin reminder.
+# --full: everything including Kindle for PC uninstaller + Caliber plugin reminder.
 
 # shellcheck disable=SC2154
 # (Windows env vars LOCALAPPDATA/APPDATA are set on Git Bash runtime)
@@ -32,7 +32,7 @@ done
 
 KINDLE_UPDATES_DIR="${LOCALAPPDATA}/Amazon/Kindle/updates"
 KINDLE_APP_DIR="${LOCALAPPDATA}/Amazon/Kindle/application"
-CALIBRE_PLUGINS_DIR="${APPDATA}/calibre/plugins"
+CALIBER_PLUGINS_DIR="${APPDATA}/calibre/plugins"
 KEY_FINDER_DIR="${HOME}/Tools/Kindle_Key_Finder"
 DOWNLOADS_DIR="${HOME}/Downloads"
 
@@ -40,13 +40,13 @@ ask_yn() {
   local prompt="$1"
   if [[ "${MODE}" == "soft" ]]; then
     case "${prompt}" in
-    *"firewall"* | *"ICACLS"* | *"Kindle for PC uninstall"* | *"Calibre plugin"*) return 1 ;;
+    *"firewall"* | *"ICACLS"* | *"Kindle for PC uninstall"* | *"Caliber plugin"*) return 1 ;;
     *) ;;
     esac
   fi
   if [[ "${MODE}" == "full" ]]; then
     case "${prompt}" in
-    *"Calibre Library"*) return 1 ;;
+    *"Caliber Library"*) return 1 ;;
     *) ;;
     esac
   fi
@@ -82,7 +82,7 @@ rm_or_show() {
 echo "=== kindle-dedrm: cleanup (mode=${MODE}, dry-run=${DRY_RUN}) ==="
 echo
 echo "Reversal walkthrough. Each item is confirmed independently."
-echo "The user's Calibre Library (decrypted EPUBs) is NEVER offered for deletion."
+echo "The user's Caliber Library (decrypted EPUBs) is NEVER offered for deletion."
 echo
 
 if [[ "${MODE}" != "soft" ]]; then
@@ -172,22 +172,22 @@ EOF
     fi
   fi
 
-  # --- 7. Calibre plugin reminder ---
+  # --- 7. Caliber plugin reminder ---
   cat <<EOF
 
-  Calibre plugin removal is GUI-only. To complete cleanup:
+  Caliber plugin removal is GUI-only. To complete cleanup:
 
-    1. Open Calibre.
+    1. Open Caliber.
     2. Preferences → Plugins.
     3. Expand "File type plugins" — find DeDRM and KFX Input.
     4. Click each → Remove plugin.
-    5. Restart Calibre.
-    6. Optional: rm '${CALIBRE_PLUGINS_DIR}/dedrm.json'
+    5. Restart Caliber.
+    6. Optional: rm '${CALIBER_PLUGINS_DIR}/dedrm.json'
 
-  Calibre Library (decrypted EPUBs) is NEVER deleted by this skill.
+  Caliber Library (decrypted EPUBs) is NEVER deleted by this skill.
 EOF
-  if [[ -f "${CALIBRE_PLUGINS_DIR}/dedrm.json" ]] && ask_yn "Delete Calibre's dedrm.json (key store)?"; then
-    run_or_show "rm -f '${CALIBRE_PLUGINS_DIR}/dedrm.json'"
+  if [[ -f "${CALIBER_PLUGINS_DIR}/dedrm.json" ]] && ask_yn "Delete Caliber's dedrm.json (key store)?"; then
+    run_or_show "rm -f '${CALIBER_PLUGINS_DIR}/dedrm.json'"
   fi
 fi
 

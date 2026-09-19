@@ -83,7 +83,7 @@ identifiers are placeholders.
 
 When the form is a chart and a chart-craft/dataviz capability is installed, invoke
 it for the craft (form heuristic, palette, mark specs); when it is not installed,
-fall back to a simple, honest default (a labelled bar/line as inline SVG on a
+fall back to a simple, honest default (a labeled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable.
 

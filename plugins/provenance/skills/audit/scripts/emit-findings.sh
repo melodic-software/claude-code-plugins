@@ -479,7 +479,7 @@ def opt($k): if type == "object" then .[$k] else null end;
         elif $slug == "rule-trigger-less-stamp" then
           "stamp \(.stamp_date // "?") on a surface stating no recheck trigger"
         else "" end),
-      # Defence in depth for the boundary above: only the ONE kind that prints a
+      # Defense in depth for the boundary above: only the ONE kind that prints a
       # raw record carries one into the composition stage, so no later edit to the
       # awk half can print a withheld payload by accident.
       raw: (if $kind == "U" then (. | tojson) else "" end)

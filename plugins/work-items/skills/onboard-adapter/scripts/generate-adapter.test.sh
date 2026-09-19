@@ -286,7 +286,7 @@ anchor_err="$(gen_err "$(with '.api.scope_pattern = "[a-z]+"')")"
 assert_contains "unanchored pattern names the risk" "$anchor_err" "conforming prefix"
 
 # scope_pattern carries a regex, so it cannot be charset-bounded the way its
-# neighbours are; quote_safe() is its only guard, and it must ABORT. It did not:
+# neighbors are; quote_safe() is its only guard, and it must ABORT. It did not:
 # every render() call is made as `$(render …)`, and an `exit` inside a command
 # substitution kills only that subshell — so the refusal printed once per template
 # while the generator went on to write a directory of empty executable scripts and

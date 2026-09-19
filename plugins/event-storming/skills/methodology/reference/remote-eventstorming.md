@@ -175,7 +175,7 @@ The quality standard doesn't change. The facilitation intensity does.
 ## Sources
 
 - Alberto Brandolini, "EventStorming in COVID-19 times", Avanscoperta Blog (March 2020)
-- Alberto Brandolini, Miro EventStorming Process Modelling Template (Miroverse)
+- Alberto Brandolini, Miro EventStorming Process Modeling Template (Miroverse)
 - Alberto Brandolini, Miro EventStorming Software Design Template (Miroverse)
 - Selleo, "How To Run A Remote Event Storming Session?"
 - VMware Tanzu, "How to Conduct a Remote Event Storming Session"

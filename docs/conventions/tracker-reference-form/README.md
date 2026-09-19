@@ -12,7 +12,7 @@ pushing. Authors need the shape up front rather than from a red lane.
 
 ## The shape
 
-Use the **bare parenthesised form**, `(#1491)`, to attach an issue number to a comment. It is
+Use the **bare parenthesized form**, `(#1491)`, to attach an issue number to a comment. It is
 not a tracker reference by the policy's definition and is used throughout this repository.
 
 These forms are rejected in a scanned file's comments:

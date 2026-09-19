@@ -139,8 +139,8 @@ printf '%s\n' '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"
 rc=0
 out=$(run "$m" 2>&1) || rc=$?
 assert_exit "case 2: exit 0" 0 "$rc"
-assert_contains "case 2: project scope labelled" "$out" "settings:project"
-assert_contains "case 2: user scope labelled" "$out" "settings:user"
+assert_contains "case 2: project scope labeled" "$out" "settings:project"
+assert_contains "case 2: user scope labeled" "$out" "settings:user"
 assert_contains "case 2: missing matcher defaults to *" "$out" "SessionStart"
 
 # --- Case 3: an enabled plugin with no registry entry is PARTIAL, not absent ---

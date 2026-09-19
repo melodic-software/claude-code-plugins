@@ -66,7 +66,7 @@ class ReplicaCollapseTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def test_copies_under_distinct_carriers_collapse_to_one_labelled_row(self) -> None:
+    def test_copies_under_distinct_carriers_collapse_to_one_labeled_row(self) -> None:
         rows = [
             row("plugins/b/hooks/hook-utils.sh"),
             row("plugins/a/hooks/hook-utils.sh"),

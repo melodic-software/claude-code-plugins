@@ -267,7 +267,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
 
 ### Known issues
 
-- **The suite barely covers the deleted line's neighbourhood.** Two coarser
+- **The suite barely covers the deleted line's neighborhood.** Two coarser
   mutations of the surviving expansion also survive with zero failures; only a
   gross one is caught. The deletion is safe on the evidence above, but the suite
   is not what makes it safe.
@@ -771,11 +771,11 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   ordering identical. Per-file rows are the comparison that matters. Two files with offsetting
   extraction errors produce a matching aggregate and a clean report diff while the parser is broken.
 
-  This is a **port, not a rewrite**: the awk program reimplements, behaviour for behaviour, the four
+  This is a **port, not a rewrite**: the awk program reimplements, behavior for behavior, the four
   helpers the loop shelled out to: `skill_frontmatter::extract`, `::field` (block-scalar unfolding
   for `|` and `>`, and the quote-aware trailing-comment strip including the doubled-single-quote
   case), `::strip_quotes` (one outer layer, double OR single, never both), and
-  `normalize_bool`/`trim_ws`. Two behaviours the old pipeline got free from command substitution are
+  `normalize_bool`/`trim_ws`. Two behaviors the old pipeline got free from command substitution are
   reproduced explicitly and commented as such: trailing newlines stripped from the extracted
   frontmatter (so a trailing blank line cannot add a separator inside a block scalar, and an
   all-blank block counts as no frontmatter), and trailing newlines stripped from each field's value.
@@ -969,7 +969,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   backslash escape makes the next character literal (`` \` `` opens no span, `\<!-- ... -->`
   is text rather than a directive), while inside a span nothing is escaped, so a literal
   backslash before the closing run does not stop it closing. Each directive on a line is
-  classified independently (a malformed one cannot borrow a valid neighbour's class), and
+  classified independently (a malformed one cannot borrow a valid neighbor's class), and
   delegation wording only counts when the same line names the worker or dispatch as a whole
   word. Embedded stems satisfy neither half ("agentless" is no worker, "Refresh context" is
   not the fresh-context wording).
@@ -1053,7 +1053,7 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   several was silently skipped while its subtree vanished from an "OK" aggregate. A fixed
   `CHECK_SKILL_LISTING_BUDGET_CHARS` now takes precedence over the token/fraction reconstruction as
   its own documentation always claimed, announcing the ignored input rather than discarding it
-  silently, and is labelled an override instead of the "documented default". The report header
+  silently, and is labeled an override instead of the "documented default". The report header
   counts roots actually scanned rather than arguments given, and `--help` derives its range from the
   header block so editing that block can no longer clip or overrun the help text.
 

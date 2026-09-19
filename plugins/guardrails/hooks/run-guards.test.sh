@@ -68,7 +68,7 @@ printf "%s\n" "${HOOK_JQ_FIELDS[@]}" >>"'"$SEEN"'"'
 stub lib.sh 'printf "ps=%s\n" "${_GUARDRAILS_PS_COMMAND_LOADED:-unset}" >>"'"$SEEN"'"'
 stub dirname.sh 'printf "%s %s\n" "$(type -t dirname)" "$(dirname /foo)" >>"'"$SEEN"'"'
 # Raw documents (no library call) so the no-jq merge fallback is exercised on
-# the shapes it has to recognise, not on what hook::emit_channels happens to build.
+# the shapes it has to recognize, not on what hook::emit_channels happens to build.
 stub deny.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"stub deny\"}}"'
 stub ask.sh 'hook::emit_document "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\": \"ask\"}}"'
 
@@ -764,7 +764,7 @@ done <<<"$DISPATCH_CMDS"
 # --- a primed field is read by NAME, never by position -----------------------
 # The dispatcher reads `.tool_name` to decide whether the event needs the
 # PowerShell classifier. Read by index, a filter inserted ahead of it hands
-# that decision a neighbouring field's value: the classifier is then parsed on
+# that decision a neighboring field's value: the classifier is then parsed on
 # the Bash hot path and absent on the PowerShell one, with nothing at run time
 # saying so. abort-boundary.test.sh pins the same property for the event name.
 assert_absent "dispatcher reads no primed value by position" "$DISPATCH_SRC" 'RUN_GUARDS_VALUES['

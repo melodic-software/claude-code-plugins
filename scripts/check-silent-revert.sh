@@ -65,7 +65,7 @@
 #
 # So `strict` would have passed all three merges, and so would a merge queue
 # (CI was green -- the tests were deleted alongside the code). That is why this
-# canary is not defence in depth behind a real fix; for this failure class it is
+# canary is not defense in depth behind a real fix; for this failure class it is
 # the only control that fires at all. It is also why the global strict toggle
 # stays off, which is separately governed by an accepted ADR in
 # melodic-software/github-iac (docs/adr/0001-relax-strict-required-status-checks.md).
@@ -118,7 +118,7 @@
 #
 #   2. RECENCY. The culprit must be within the last SILENT_REVERT_WINDOW
 #      first-parent commits. This class is created by PRs open CONCURRENTLY, so
-#      the culprit is always a near neighbour. Corollary limitation, stated
+#      the culprit is always a near neighbor. Corollary limitation, stated
 #      plainly: content reverted from OUTSIDE that window is missed by design.
 #      Widening the window buys little (deletions of older code are normal
 #      maintenance) and costs a lot of noise.
@@ -501,7 +501,7 @@ ack_reason() {
 # rename reports as R and the --diff-filter=MD enumeration skips it.
 #
 # The measured false-positive rate in the header was taken with detection on,
-# so this is also what keeps the shipped behaviour and the calibrated number
+# so this is also what keeps the shipped behavior and the calibrated number
 # describing the same detector.
 #
 # The cost is a narrow blind spot, stated rather than hidden: content gutted in
@@ -862,7 +862,7 @@ scan_commit() {
   # header says must never happen, reachable on a clean machine with no
   # hostile config (#2884). Exact-rename and basename-preserving
   # pre-passes are not limit-gated; only the inexact pass is. This flag
-  # is a behaviour change, not a pin, and it is inert on attribute_file
+  # is a behavior change, not a pin, and it is inert on attribute_file
   # (pathspec-limited, no pair can form).
   run_attributing_git "$enum_list" \
     "git diff --name-only failed enumerating $sha" \

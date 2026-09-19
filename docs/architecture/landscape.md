@@ -3,7 +3,7 @@
 Generated on 2026-09-11 from current repository plus reference graph. Remote facts: not used.
 
 Every fact traces to the file the probe named. Every edge is typed by the
-syntax that carries it and labelled with how many references support it.
+syntax that carries it and labeled with how many references support it.
 A system with no probed runtime is one this checkout names but does not
 contain.
 
@@ -61,7 +61,7 @@ freely; the renderer appends it and never overwrites it.
 | `claude-code-plugins` | This repository. The plugin marketplace and its skills. |
 | `ci-workflows` | The reusable workflows and composite actions every lane here calls. |
 | `standards` | The engineering conventions this repository restates and defers to. |
-| `github-iac` | GitHub organisation and repository configuration as code. |
+| `github-iac` | GitHub organization and repository configuration as code. |
 | `medley` | An application repository that consumes these plugins. |
 | `provisioning` | Machine provisioning. |
 | `dotfiles` | Developer environment setup. |

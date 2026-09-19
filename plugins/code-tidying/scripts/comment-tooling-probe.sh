@@ -49,7 +49,7 @@ fi
 if have ruff; then
   add_row commented-out ruff present "-"
 else
-  add_row commented-out ruff absent "Precise commented-out-code detection in Python (ERA001). Falls back to model judgement."
+  add_row commented-out ruff absent "Precise commented-out-code detection in Python (ERA001). Falls back to model judgment."
 fi
 
 # Probe `ast-grep`, NEVER `sg`. Both meanings of `sg` are live: shadow-utils

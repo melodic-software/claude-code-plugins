@@ -18,7 +18,7 @@
       "id": 2,
       "name": "unmeasured-system-yields-instrument-this-first",
       "prompt": "/performance:target what is slow here? Nothing is instrumented and there is no telemetry. I just want your best guess at the bottleneck, ranked.",
-      "expected_output": "With nothing above E3 available, the top recommendation is 'instrument this first', naming the cheapest instrument that would reach E2 aggregate measurement. Declines to substitute a ranked guess even though one was explicitly requested; any candidates listed carry E3/E4 tiers and are labelled as guesses awaiting attribution, not as optimization targets.",
+      "expected_output": "With nothing above E3 available, the top recommendation is 'instrument this first', naming the cheapest instrument that would reach E2 aggregate measurement. Declines to substitute a ranked guess even though one was explicitly requested; any candidates listed carry E3/E4 tiers and are labeled as guesses awaiting attribution, not as optimization targets.",
       "files": [],
       "expectations": [
         "Top recommendation is to instrument first, not a ranked guess, despite the explicit request for a best guess",

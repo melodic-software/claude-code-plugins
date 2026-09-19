@@ -219,7 +219,7 @@ diff, or fold it into the
 PR description or an ADR when the repo keeps them. For explicit-target runs on already-committed
 code, note in the report that the narrative belongs with the *next* commit touching that code,
 or keep the comment if no vehicle exists (staging with no landing place is not a deletion
-licence).
+license).
 
 `--notes <path>` gives the block a second home: the run appends it to that file as well as
 reporting it. Refuse a symlink first: `git ls-files --error-unmatch <path>` reads the index entry
@@ -252,7 +252,7 @@ paired record is a correctness bug, not a style change.
 Test to apply: if a comment asserts something about code that is **not present**, it is class C by
 default. Class-A deletion requires the comment to be redundant with code that IS present.
 
-## Gotcha: the earn-its-keep bar is not a licence for a sweep
+## Gotcha: the earn-its-keep bar is not a license for a sweep
 
 The empirical record does not support a blanket policy in either direction. An eye-tracking study
 of comment effects on program comprehension (Abdelsalam et al., *Empirical Software Engineering*)

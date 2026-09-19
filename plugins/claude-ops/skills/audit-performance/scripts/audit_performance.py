@@ -144,7 +144,7 @@ CLAUDE_ON_PATH_NAMES = ("claude", "claude.exe", "claude.cmd")
 #: Every CLI-probe finding routes to the first-party install-diagnostics command; this engine
 #: observes which binary it measured and never adjudicates an install.
 DOCTOR_ROUTE = "run `claude doctor`"
-#: Only the native installer has a documented binary path, so an unrecognised path is an
+#: Only the native installer has a documented binary path, so an unrecognized path is an
 #: unclassified layout rather than evidence of an irregular install.
 UNCLASSIFIED_LAYOUT_NOTE = (
     "official docs publish a binary path only for the native installer; Homebrew, WinGet, "
@@ -206,7 +206,7 @@ HOOK_ANCHOR_NOTE = (
     "there."
 )
 HOOK_DEDUP_NOTE = (
-    'Cross-settings-file dedup is not modelled. Upstream: "If you define the same handler in '
+    'Cross-settings-file dedup is not modeled. Upstream: "If you define the same handler in '
     "more than one settings file, it runs once. A plugin's or skill's copy of the same handler "
     'stays separate." Rows that dedup upstream are counted twice here.'
 )

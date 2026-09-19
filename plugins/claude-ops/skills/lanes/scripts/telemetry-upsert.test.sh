@@ -559,7 +559,7 @@ assert_not_contains "404 read-back does not assert the comment is intact" "$out"
 # INT here would test the harness rather than the trap.
 # Timing is not guessed: the stub logs the read-back GET before failing it, so
 # waiting for that line puts the signal inside the retry sleep deterministically
-# — signalling on a fixed delay raced the trap's installation and reported the
+# — signaling on a fixed delay raced the trap's installation and reported the
 # un-trapped default (143) instead.
 SIGLOG="$TMP/sig.log"
 : >"$SIGLOG"

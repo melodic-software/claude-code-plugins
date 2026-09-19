@@ -426,7 +426,7 @@ else
   # would let an admin-level key with an unreadable value fall through to HKCU
   # and report user-level policy as the managed policy while the admin-level key
   # is what is in force. A key that exists but yields nothing readable is
-  # reported as `unreadable`, never as a licence to consult the next key.
+  # reported as `unreadable`, never as a license to consult the next key.
   registry_status="absent"
   registry_path="-"
   while IFS= read -r key; do

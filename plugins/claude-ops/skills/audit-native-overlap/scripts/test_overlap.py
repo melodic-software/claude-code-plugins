@@ -353,7 +353,7 @@ class GenerateTests(unittest.TestCase):
         self.assertEqual(self.repo.generate(), 0)
         restored = self.repo.view_path.read_text(encoding="utf-8")
         self.assertIn("MY HEADER NOTE", restored)
-        self.assertNotIn("vandalised", restored)
+        self.assertNotIn("vandalized", restored)
 
     def test_missing_markers_fail_rather_than_overwrite(self):
         self.repo.view_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1185,7 +1185,7 @@ class DetectTests(unittest.TestCase):
             report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
         )
 
-    def test_an_inventory_without_lanes_keeps_the_old_behaviour(self):
+    def test_an_inventory_without_lanes_keeps_the_old_behavior(self):
         self.write_inventory()
         out = self.repo.root / "candidates.json"
         self.assertEqual(self.detect(out), 0)

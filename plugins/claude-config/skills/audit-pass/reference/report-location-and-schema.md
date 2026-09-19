@@ -81,7 +81,7 @@ while excluding its `findings.json`, which is the same unfalsifiable-idempotence
   exclusion entry, because there is nothing to exclude from a tree the path is not in.
 - **The destination gate is evaluated over the two resolved paths inside the directory, and each is
   accepted only if it is an `audit-pass`-owned artifact or does not exist.** Recording a path
-  unconditionally is right for the *exclusion* and no licence to *write*: a destination directory
+  unconditionally is right for the *exclusion* and no license to *write*: a destination directory
   whose `report.md` is somebody's hand-written document would have that document overwritten by a
   rendering, with no `--fix` and no confirmation, a read-only invocation destroying target content.
   It would then exclude the corrupted path from every later run, so the damage hides itself.

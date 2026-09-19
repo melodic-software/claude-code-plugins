@@ -59,7 +59,7 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 ### Changed
 
 - **`clarify`'s boundary splits three ways: structure, altitude, medium.** It previously named one
-  neighbour for everything it is not, routing both "explain this simply" and "ELI5 this" to
+  neighbor for everything it is not, routing both "explain this simply" and "ELI5 this" to
   `education:explain`. Now a prose drop to plain words routes to `education:explain` and a picture
   explainer routes to `education:eli5`, while `clarify` keeps structure. The description, the
   Boundaries section, the altitude note, the not-a-simplifier line, and the README's routing

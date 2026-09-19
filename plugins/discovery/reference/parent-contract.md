@@ -34,7 +34,7 @@ Six shared fields. The agent refuses to guess any of them, which is what makes t
 mandate: an unresolved field surfaces as a failed dispatch instead of a confident answer to a
 question nobody asked.
 
-Write them as **labelled lines in the dispatch prompt**, not as prose the agent has to parse a
+Write them as **labeled lines in the dispatch prompt**, not as prose the agent has to parse a
 parenthetical out of:
 
 ```text
@@ -47,7 +47,7 @@ Budget: <the depth this session authorized>
 Capability flags: nested spawning <available|unavailable>
 ```
 
-**Research adds one more labelled line**, because source breadth is the caller's level and
+**Research adds one more labeled line**, because source breadth is the caller's level and
 the researcher lane is pinned `high` for reasoning:
 
 ```text
@@ -139,7 +139,7 @@ non-fork subagent starts with no history by design. So the operative rule is:
 
 > **Never rely on seeing an unfilled slot.** Whatever a preloaded body renders as, the agent treats
 > a topic or scope that did not arrive in its dispatch prompt as a **parent-envelope failure it
-> reports rather than repairs**, never as an empty scope to fill in, and never as a licence to run
+> reports rather than repairs**, never as an empty scope to fill in, and never as a license to run
 > a general sweep.
 
 That rule holds whichever way the harness renders the placeholder, which matters because **the

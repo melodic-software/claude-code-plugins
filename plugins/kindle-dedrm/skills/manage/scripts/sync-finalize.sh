@@ -74,18 +74,18 @@ cat <<'EOF'
 
 After firewall is re-enabled:
 
-1. Quit Calibre completely (the keyfinder writes to dedrm.json — conflicts if Calibre is running).
+1. Quit Caliber completely (the keyfinder writes to dedrm.json — conflicts if Caliber is running).
 
 2. Double-click ~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs (UAC prompt → Yes).
 
 3. Saved config auto-loads (10s countdown). Tool processes only new books:
    - Phase 1: Key extraction
    - Phase 2: DeDRM config (writes new keys to dedrm.json)
-   - Phase 3: Calibre import (DeDRM strips encryption)
+   - Phase 3: Caliber import (DeDRM strips encryption)
    - Phase 4: KFX → EPUB conversion
 
 4. Verify new EPUBs:
-   find "${USERPROFILE}/Calibre Library" -name "*.epub" -mtime -1
+   find "${USERPROFILE}/Caliber Library" -name "*.epub" -mtime -1
 
 === END ===
 EOF

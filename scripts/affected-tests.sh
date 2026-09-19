@@ -218,7 +218,7 @@
 # strip only ADDS pairs back, every one of them a pair the old substring rule
 # also served. So it moves the counts toward the pre-rule baseline and can
 # reverse none of the sweep's directions: nothing that was mapped becomes
-# unmapped, and no file gains a suite the old behaviour did not already give it.
+# unmapped, and no file gains a suite the old behavior did not already give it.
 # Measured on the corpus as it stands, the strip re-admits two (file, basename)
 # pairs in total, one of which R3/R4 discards anyway as a structural basename.
 #

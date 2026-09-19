@@ -76,7 +76,7 @@
     {
       "id": 7,
       "name": "reverts-when-ast-proof-fails",
-      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighbouring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighboring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
       "narration": true,
       "expectations": [
         "Runs the change-shape check after applying the move, before deleting the comment",
@@ -142,7 +142,7 @@
         "States the resolved rung and asks for confirmation before widening to the whole repository in an interactive session",
         "Runs rank-comment-targets.py and triages in its order, and says the ranking is a reading order, not evidence",
         "The ranking excludes the changelog, manifest and CI workflow as administrative paths and shows the 18-copy library once with instances=18",
-        "Runs comment-census.py --json as the baseline before any edit and reports the delta in lines, bytes and estimated tokens at the end, with tokens labelled as an estimate"
+        "Runs comment-census.py --json as the baseline before any edit and reports the delta in lines, bytes and estimated tokens at the end, with tokens labeled as an estimate"
       ]
     },
     {

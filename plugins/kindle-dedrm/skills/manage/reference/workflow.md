@@ -10,7 +10,7 @@ Run `scripts/status.sh` and confirm:
 
 | Probe | Required state for `setup` |
 |---|---|
-| Calibre installed | yes (any recent version) |
+| Caliber installed | yes (any recent version) |
 | Python on PATH | yes (3.6+, not WindowsApps stub) |
 | pwsh available | yes (PowerShell 7.x or 5.x both work) |
 | Existing Kindle for PC install | absent OR exactly 2.8.0.70980 |
@@ -89,7 +89,7 @@ Expected after extract:
 
 ```text
 ~/Downloads/DeDRM_tools-<tag>/
-  DeDRM_plugin.zip          (load this into Calibre)
+  DeDRM_plugin.zip          (load this into Caliber)
   KFXKeyExtractor28.exe
   KFXArchiver291.exe
   ... (others not used)
@@ -204,19 +204,19 @@ touch "${LOCALAPPDATA}/Amazon/Kindle/updates/test-write" && echo "LOCK FAILED" |
 
 Expect `LOCK OK` (Permission denied).
 
-## Step 7: Install Calibre plugins (user-driven GUI)
+## Step 7: Install Caliber plugins (user-driven GUI)
 
-Cannot drive Calibre's plugin UI programmatically. Tell the user:
+Cannot drive Caliber's plugin UI programmatically. Tell the user:
 
 ```text
-Open Calibre.
+Open Caliber.
 
 Plugin 1: KFX Input
 1. Preferences → Plugins (Advanced section)
 2. Click "Get new plugins"
 3. Filter: "KFX Input"
 4. Select → Install → Yes (security warning)
-5. Restart Calibre when prompted
+5. Restart Caliber when prompted
 
 Plugin 2: DeDRM
 1. After restart: Preferences → Plugins
@@ -225,16 +225,16 @@ Plugin 2: DeDRM
 4. Navigate to the ~/Downloads/DeDRM_tools-<tag>/ directory you extracted in step 2
 5. Select DeDRM_plugin.zip → Open
 6. Yes (install)
-7. Restart Calibre
+7. Restart Caliber
 
 Verify: Preferences → Plugins → expand "File type plugins" → see both KFX Input and DeDRM (multiple entries).
 ```
 
-**CHECKPOINT: wait for user confirmation that both plugins loaded and Calibre restarted.**
+**CHECKPOINT: wait for user confirmation that both plugins loaded and Caliber restarted.**
 
 ## Step 8: Run keyfinder
 
-Quit Calibre completely (keyfinder writes to Calibre's `dedrm.json` and conflicts if Calibre is running).
+Quit Caliber completely (keyfinder writes to Caliber's `dedrm.json` and conflicts if Caliber is running).
 
 User double-clicks `~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`. UAC → Yes.
 
@@ -244,7 +244,7 @@ First-run wizard prompts (defaults are fine):
 - Kindle Content Path: %USERPROFILE%\Documents\My Kindle Content (default)
 - Privacy obfuscation: user choice
 - Display options: defaults
-- Calibre integration: enable (auto-import + EPUB convert)
+- Caliber integration: enable (auto-import + EPUB convert)
 - Confirm: Yes
 ```
 
@@ -252,7 +252,7 @@ Tool runs four phases in order:
 
 1. **Phase 1: Key extraction.** Runs KFXKeyExtractor28.exe per book; falls back to KFXArchiver283.exe for unsupported versions. Writes `~/Tools/Kindle_Key_Finder/Keys/kindlekey.txt` + `kindlekey.k4i`.
 2. **Phase 2: DeDRM config.** Reads keys, writes them to `%APPDATA%\calibre\plugins\dedrm.json`.
-3. **Phase 3: Calibre import.** Uses `calibredb add` per book; DeDRM strips encryption on import.
+3. **Phase 3: Caliber import.** Uses `calibredb add` per book; DeDRM strips encryption on import.
 4. **Phase 4: KFX → EPUB conversion.** Uses `ebook-convert` per book.
 
 **CHECKPOINT: wait for user confirmation that all 4 phases completed without errors.**
@@ -262,10 +262,10 @@ Console output is verbose. If any book fails, tool prints a per-book summary at 
 ## Step 9: Verify EPUBs
 
 ```bash
-find "${USERPROFILE}/Calibre Library/" -name "*.epub" | grep -v "Quick Start"
+find "${USERPROFILE}/Caliber Library/" -name "*.epub" | grep -v "Quick Start"
 ```
 
-Expect one EPUB per book under `<author>/<title> (N)/`. Spot-check by opening one in Calibre or a third-party EPUB reader.
+Expect one EPUB per book under `<author>/<title> (N)/`. Spot-check by opening one in Caliber or a third-party EPUB reader.
 
 ## Done
 
@@ -276,8 +276,8 @@ State checklist after successful setup:
 - ICACLS deny applied to `%LOCALAPPDATA%\Amazon\Kindle\updates`
 - `~/Tools/Kindle_Key_Finder/` populated with phase scripts + tools + saved config
 - `~/Downloads/{KindleForPC-installer-2.8.70980.exe, DeDRM_tools-*, Kindle_Key_Finder_*.JH.zip}` retained for re-runs
-- Calibre has KFX Input + DeDRM plugins loaded
-- Calibre `dedrm.json` populated with extracted keys
+- Caliber has KFX Input + DeDRM plugins loaded
+- Caliber `dedrm.json` populated with extracted keys
 - `%USERPROFILE%\Calibre Library\` has DRM-stripped EPUBs of every synced book
 
 This state is precondition for `sync` mode (no further setup needed for new books).

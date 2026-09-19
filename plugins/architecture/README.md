@@ -41,7 +41,7 @@ inside one codebase. Run `/architecture:map-landscape` with no arguments and it
 charts the repository you are in plus every repository its tracked files name,
 one hop out. Your workflows, marketplace sources, module paths, and docs already
 say which systems you build against; the skill reads them rather than requiring
-every neighbour to be checked out beside you.
+every neighbor to be checked out beside you.
 
 Two tested scripts do the collecting. `portfolio-facts.sh` derives owner,
 runtime, target framework, dependencies, tooling, and last touched, each with the
@@ -82,7 +82,7 @@ Where nothing is declared and nothing exists, it names the rungs it searched,
 offers two or three common shapes, and writes nothing at all until you pick one:
 this plugin never prescribes a convention to a repository that has none. The
 upstream template catalog is cited by URL for you to read, under its own
-CC BY-NC-SA 4.0 licence; no template prose is copied into this plugin or into
+CC BY-NC-SA 4.0 license; no template prose is copied into this plugin or into
 your records.
 
 ## Invoke

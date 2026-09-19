@@ -549,7 +549,7 @@ EOF
 fence_after_prose_out="$(bash "$DETECT" "$FENCE_AFTER_PROSE" 2>&1)"
 fence_after_prose_exit=$?
 assert_exit "fence opening after prose does not abort" 0 "$fence_after_prose_exit"
-assert_contains "fence opening after prose still summarises" \
+assert_contains "fence opening after prose still summarizes" \
   "$fence_after_prose_out" "Summary file: $FENCE_AFTER_PROSE"
 assert_not_contains "fence delimiter capture survives the negation flush" \
   "$fence_after_prose_out" "BASH_REMATCH"
@@ -570,7 +570,7 @@ EOF
 heading_after_prose_out="$(bash "$DETECT" "$HEADING_AFTER_PROSE" 2>&1)"
 heading_after_prose_exit=$?
 assert_exit "heading opening after prose does not abort" 0 "$heading_after_prose_exit"
-assert_contains "heading opening after prose still summarises" \
+assert_contains "heading opening after prose still summarizes" \
   "$heading_after_prose_out" "Summary file: $HEADING_AFTER_PROSE"
 assert_not_contains "heading text capture survives the negation flush" \
   "$heading_after_prose_out" "BASH_REMATCH"
@@ -961,7 +961,7 @@ assert_not_contains "a paired positive suppresses the finding" "$paired_out" "Fi
 
 # A positive supplied as a bare imperative after a separator carries none of
 # the marker words, so a marker-list pairing miss-reports it. The closed
-# function-word stoplist recognises the clause by what it is NOT. A leading
+# function-word stoplist recognizes the clause by what it is NOT. A leading
 # adverb is looked through rather than treated as the clause head.
 BARE_IMP="$TEST_TMPDIR/negation-bare-imperative.md"
 cat >"$BARE_IMP" <<'EOF'

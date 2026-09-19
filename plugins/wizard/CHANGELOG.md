@@ -41,7 +41,7 @@ All notable changes to the `wizard` plugin are documented here. Format follows
   defense (with a control case proving the fixture really does carry a bypass payload), key-name
   validation, `.env` upsert and quote round-tripping through a real shell read, owner-only file
   mode, the once-only gitignore warning, https-only `open_url`, `gh` secret and variable values
-  travelling over stdin and never argv, resolve-the-repo-once, every `gh` degradation path, the
+  traveling over stdin and never argv, resolve-the-repo-once, every `gh` degradation path, the
   names-only closing summary, and the `_cleanup` if-form that keeps a clean run exiting 0 under
   `set -e`. The template is a runnable wizard, so each case extracts the library half above the
   `STAGES` marker and rewrites its one `exec 3</dev/tty` to a fixture file; the suite pins that

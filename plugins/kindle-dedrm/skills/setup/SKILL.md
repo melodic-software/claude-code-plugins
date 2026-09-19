@@ -1,5 +1,5 @@
 ---
-description: "Verify and provision the Kindle for PC 2.8.0 + Calibre DeDRM workflow (Windows only, personal-use, books the user owns). check probes prerequisites and current state read-only (Calibre, Python, pwsh, admin, Kindle version, firewall/ICACLS lock, downloads, plugins) via the plugin's own status script; apply runs the first-time provisioning walkthrough: the gated artifact download, install, firewall block, ICACLS lock, Calibre plugins, and keyfinder. Use when: 'set up Kindle DRM removal', 'is my DeDRM setup ready', 'provision kindle-dedrm', 'download DeDRM tools', 'check DeDRM prerequisites'. Re-runnable and safe."
+description: "Verify and provision the Kindle for PC 2.8.0 + Caliber DeDRM workflow (Windows only, personal-use, books the user owns). check probes prerequisites and current state read-only (Caliber, Python, pwsh, admin, Kindle version, firewall/ICACLS lock, downloads, plugins) via the plugin's own status script; apply runs the first-time provisioning walkthrough: the gated artifact download, install, firewall block, ICACLS lock, Caliber plugins, and keyfinder. Use when: 'set up Kindle DRM removal', 'is my DeDRM setup ready', 'provision kindle-dedrm', 'download DeDRM tools', 'check DeDRM prerequisites'. Re-runnable and safe."
 argument-hint: "check | apply [download]"
 user-invocable: true
 disable-model-invocation: true
@@ -27,7 +27,7 @@ extracted files off the machine).
 ## Interactivity
 
 Much of provisioning is irreducibly interactive. The installer's UAC + EULA, the Amazon sign-in race
-window, the Calibre plugin GUI loads, and the keyfinder VBS are actions on the user's machine the agent
+window, the Caliber plugin GUI loads, and the keyfinder VBS are actions on the user's machine the agent
 physically cannot drive. `apply` keeps these as **user-action hand-offs** (hand the user the exact step,
 wait for confirmation at each CHECKPOINT), not interview prompts. There are no configuration decisions
 to interview for. The parts that genuinely automate, artifact download + SHA verification, the firewall
@@ -46,7 +46,7 @@ nothing, download nothing, extract nothing.
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
 ```
 
-1. **Hard prerequisites.** FAIL when absent: Calibre installed (any recent version); Python 3.6+ on
+1. **Hard prerequisites.** FAIL when absent: Caliber installed (any recent version); Python 3.6+ on
    PATH and **not** the Windows Store `WindowsApps` stub; `pwsh` available; admin rights available.
    These are true prerequisites, not opt-in state.
 2. **Kindle for PC version.** Installed and **not** `2.8.0.70980` is FAIL (the user must uninstall it
@@ -60,7 +60,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
    auto-update payload that breaks key extraction; remediation is
    `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/lock-updates.sh apply` /
    `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh delete-cache` (never run it).
-5. **Calibre plugins and books.** INFO: report `calibre_plugins` (KFX Input, DeDRM, `dedrm.json`
+5. **Caliber plugins and books.** INFO: report `caliber_plugins` (KFX Input, DeDRM, `dedrm.json`
    presence) and the `books` synced/converted counts. Report the key store `dedrm.json` presence-only.
    Never print its contents (it holds extracted keys).
 
@@ -84,7 +84,7 @@ confirmation.
   the installer (UAC/EULA hand-off, CHECKPOINT) → sign-in race window (CHECKPOINT) → verify books on
   disk → firewall block (`${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/firewall.ps1 enable`) →
   delete cached installer + ICACLS deny
-  (`${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/lock-updates.sh apply`) → Calibre plugin loads
+  (`${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/lock-updates.sh apply`) → Caliber plugin loads
   (GUI hand-off, CHECKPOINT) → run keyfinder (VBS hand-off, CHECKPOINT) → verify EPUBs.
 - **Verify after each remediation.** After each automated mutation re-run the relevant `status.sh`
   probe (firewall rule enabled, ICACLS `LOCK OK`, downloads `3/3`, Kindle version `2.8.0.70980`) and

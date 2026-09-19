@@ -17,7 +17,7 @@
 A practitioner article on context engineering — *"The new rules of context engineering for Claude 5
 models"*, Thariq, 2026-07-24, <https://x.com/trq212/status/2080710971228918066> — argued that
 instruction surfaces accrete constraints a capable model no longer needs, and prescribed deleting
-them so the model can use surrounding context and judgement instead. The source is named here rather
+them so the model can use surrounding context and judgment instead. The source is named here rather
 than restated because the digests that measured it are working material and prune with the contract
 slice; a reader auditing this ADR's premises reads the article, not a copy of it. Thirteen blind
 section digests measured that argument against this
@@ -33,7 +33,7 @@ evidence-tiered criteria catalog at
 `plugins/claude-config/skills/audit-instructions/reference/criteria.md`, which nobody looking at the
 discovery surface could see.
 
-The competing posture was the article's own: delete constraints by default and let judgement fill the
+The competing posture was the article's own: delete constraints by default and let judgment fill the
 gap. This repository had already chosen the opposite where safety is involved, so the real question
 was where each posture applies rather than which wins outright.
 

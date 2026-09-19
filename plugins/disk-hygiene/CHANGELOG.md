@@ -1084,7 +1084,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `run-python-hook.sh` directly with `"shell": "bash"` and no `args`, which Claude Code routes
   through Git Bash instead of a `PATH` lookup. Every `${CLAUDE_PLUGIN_ROOT}` /
   `${CLAUDE_PLUGIN_DATA}` placeholder is double-quoted, so the argv is byte-identical to the
-  exec-form vector across paths containing spaces. The #1504 Python-resolution behaviour is
+  exec-form vector across paths containing spaces. The #1504 Python-resolution behavior is
   unchanged. Only the launch mechanism moves. `hooks/run-python-hook.test.sh` previously
   asserted `.command == "bash"`, encoding the defect as the contract; it now asserts the
   portability property (launcher named in `command`, no `args`, `shell: bash`, every
@@ -1207,7 +1207,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Follow-ups left open on #1806
 
-Findings 3 (a `summarize` surface), 4 (Stop-detector marker amortisation), 6 (probe path
+Findings 3 (a `summarize` surface), 4 (Stop-detector marker amortization), 6 (probe path
 provenance vs the guard's trusted settings channel), and 7 (run-state retention / snapshot path
 containment) stay out of this PR. Each needs a design or coupled-grammar call rather than a
 mechanical completion of the byte-qualification vertical slice. Findings 1 and 5 already shipped in
@@ -1357,10 +1357,10 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
   `protected_reasons: []`. Its `logical_size` is the **remote** byte count while local occupancy is
   roughly zero, so the tree also looked like the largest reclaimable win on the volume. Deleting a
   placeholder propagates the delete to the provider, which for a tenant sync root is the
-  organisation's only copy.
+  organization's only copy.
 
   Measured on the audit host before the fix: 1,101 files walked, 872 dehydrated placeholders
-  totalling 13,770,936,008 bytes, **0 of 872** flagged by `is_linkish()`. After the fix the same
+  totaling 13,770,936,008 bytes, **0 of 872** flagged by `is_linkish()`. After the fix the same
   tree reports 842 entries carrying `cloud-placeholder` (the remaining 30 sit under subtrees an
   existing name protection already truncates), and the only entries left unprotected are the 229
   genuinely local, hydrated files.
@@ -1415,7 +1415,7 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
 
   Only the OneDrive class was measured. `iCloud Drive` and `Dropbox` were confirmed unprotected by
   name on the audit host, but their file attributes were never sampled, so they are protected on
-  name alone and their placeholder behaviour remains unverified. `iCloud Drive` carries the space
+  name alone and their placeholder behavior remains unverified. `iCloud Drive` carries the space
   and is the folder name Apple documents directly under the Windows user profile.
 
   Effect on the reported scenario: in a depth-1 scan of the user home, `OneDrive - <Organization>`
@@ -1489,7 +1489,7 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
   removed before tokenizing, because the shell eats `\` + newline while reading the line and
   otherwise it stays welded to the filename as `hygiene.py\`, hiding a multi-line invocation of the
   real engine. And the basename is taken by splitting on both separators rather than with
-  `Path().name`, which is platform-flavoured: `PureWindowsPath("/x/hygiene.py\")` yields
+  `Path().name`, which is platform-flavored: `PureWindowsPath("/x/hygiene.py\")` yields
   `hygiene.py` while `PurePosixPath` keeps the backslash, so a `Path`-based predicate would gate on
   Windows and fail open on Linux.
 
@@ -1868,7 +1868,7 @@ mechanical completion of the byte-qualification vertical slice. Findings 1 and 5
 ### Design note
 
 - This supersedes the planned SessionStart-hook + state-file delivery ("C′"). Both guard surfaces are the
-  same script funnelling through one resolve point, so there is nothing to distribute between sessions or
+  same script funneling through one resolve point, so there is nothing to distribute between sessions or
   surfaces: a direct read is a smaller trust surface (a settings *read*, no state-file *write*), honors a
   mid-session settings change, and needs no session-start timing dependency. Semantics are unchanged from
   the locked resolver decision: read user-scope `pluginConfigs`, ignore env, fail closed to enabled.

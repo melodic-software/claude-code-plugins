@@ -17,11 +17,11 @@
       "id": 2,
       "name": "over-application-guarded",
       "prompt": "script the deterministic work — write me a script that decides whether each of these modules has the right abstraction boundaries.",
-      "expected_output": "The skill declines to script the judgement: 'is this the right abstraction' is reasoning-only, so a script would manufacture false confidence. It offers to script only any deterministic detect step (e.g. flag modules over a size or fan-out threshold as candidates) while keeping the boundary verdict as model judgement.",
+      "expected_output": "The skill declines to script the judgment: 'is this the right abstraction' is reasoning-only, so a script would manufacture false confidence. It offers to script only any deterministic detect step (e.g. flag modules over a size or fan-out threshold as candidates) while keeping the boundary verdict as model judgment.",
       "files": [],
       "expectations": [
-        "Refuses to reduce a reasoning-only judgement to a script's output",
-        "Distinguishes a deterministic detect step (advisory flag) from the judgement verdict",
+        "Refuses to reduce a reasoning-only judgment to a script's output",
+        "Distinguishes a deterministic detect step (advisory flag) from the judgment verdict",
         "Does not treat a flagged candidate as the ruling"
       ]
     },

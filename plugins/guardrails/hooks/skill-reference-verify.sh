@@ -201,10 +201,10 @@ shopt -u nullglob
 # "Path behavior rules", fetched 2026-08-10). Collect them per plugin so a skill
 # loaded from a declared location resolves like any other.
 #
-# One documented exception is NOT modelled: for a marketplace entry whose `source`
+# One documented exception is NOT modeled: for a marketplace entry whose `source`
 # resolves to the marketplace root, declared subdirectories REPLACE the default
-# `skills/` scan. Modelling it would mean reading marketplace.json to learn how
-# each entry resolves, and the cost of not modelling it is bounded — the default
+# `skills/` scan. Modeling it would mean reading marketplace.json to learn how
+# each entry resolves, and the cost of not modeling it is bounded — the default
 # stays in the search set, so at worst a reference resolves that Claude Code would
 # not offer and this advisory stays quiet. Staying quiet is the failure this guard
 # is allowed to have; a false alarm is not.
@@ -295,7 +295,7 @@ skill_frontmatter_name() {
 # key also accepts `.`, and both `.` and `./` denote the root); they ADD to the
 # default `skills/` scan; and a plugin with a root SKILL.md, no `skills/`
 # subdirectory and no `skills` key auto-loads as a single-skill plugin. That last
-# condition is honoured as written rather than widened — a root SKILL.md sitting
+# condition is honored as written rather than widened — a root SKILL.md sitting
 # beside a populated `skills/` is not loaded, and accepting it would suppress the
 # advisory for a command Claude Code does not actually offer.
 #
@@ -557,7 +557,7 @@ anchor_offsets() {
 # lines. A multi-line `new_string` is not filtered at all: its anchor extent spans
 # several lines and matches no single patch line. Where `structuredPatch` is absent
 # (an older harness, or any payload without `tool_response`) the filter is inert by
-# construction. Every one of those degrades to the pre-gate behaviour, which is
+# construction. Every one of those degrades to the pre-gate behavior, which is
 # over-reporting — the direction this guard already accepts — never under-reporting.
 # Reconstruction remains a best effort under an advisory guard, not a proof that
 # every reported line was written by this call; it simply no longer reports a line
@@ -676,7 +676,7 @@ reconstruct_partial_edit() {
   # having written, as a hash. Built only where it is consulted — under
   # `replace_all`, whose suspended uniqueness rule is the reason an external
   # witness is needed at all. Empty (no `tool_response`, or a patch with no added
-  # lines) leaves the filter inert, which is the pre-existing behaviour.
+  # lines) leaves the filter inert, which is the pre-existing behavior.
   local -A wrote=()
   local filter_wrote=0 wl NORM_WS
   if [[ "$REPLACE_ALL" == "true" && -n "$EDIT_WROTE_LINES" ]]; then
@@ -748,7 +748,7 @@ reconstruct_partial_edit() {
       # the write and this read, which is the very case the fallback above exists
       # for. Letting a stale witness exclude every occurrence would turn this gate
       # into a silent mute. Falling back to the unfiltered set is exactly the
-      # behaviour that shipped before this gate, so the gate can only ever remove
+      # behavior that shipped before this gate, so the gate can only ever remove
       # occurrences when it can positively identify at least one the call wrote.
       ((${#keep[@]})) || keep=("${offs[@]}")
     fi
