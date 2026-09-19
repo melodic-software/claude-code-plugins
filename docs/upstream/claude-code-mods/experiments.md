@@ -387,8 +387,10 @@ Arms: (a) a classic `PreToolUse` command hook running `node` on a file whose who
 (c) the E2 bare-`next(e)` module; control loads no `--plugin-dir`.
 
 Arm (c) reuses `$P/e2` from
-[E2](#e2--does-a-passthrough-bash-toolcall-hook-break-worktree-isolation). Arms (a) and (b) are three files
-each, and the loop below will not find them otherwise:
+[E2](#e2--does-a-passthrough-bash-toolcall-hook-break-worktree-isolation). Arms (a) and (b) are
+three files each, reconstructed here to the descriptions above — like the parser below, the
+2026-09-19 originals were machine-local and not committed, so the medians are the shape to
+reproduce, not bytes to match. The loop will not find the two directories otherwise:
 
 ```sh
 mkdir -p "$P/e6a-node/.claude-plugin" "$P/e6a-node/hooks" \
