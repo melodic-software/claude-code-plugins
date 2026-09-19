@@ -367,7 +367,7 @@ measured firing rate before default-on. Kept as briefed; the flip line at presen
 - A hook payload for `gh pr ready 1` against a fixture with an empty ledger prints JSON containing
   `additionalContext` and exits 0.
 
-#### Phase 5: The `ci-status` validator and the lint job's prose-detector step [DOING]
+#### Phase 5: The `ci-status` validator and the lint job's prose-detector step [DONE]
 
 Review: security
 
