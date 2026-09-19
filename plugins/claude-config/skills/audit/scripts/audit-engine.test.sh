@@ -462,6 +462,55 @@ assert_eq "case 20: severity stays error" "error" "$(jq -r '.findings[] | select
 assert_contains "case 20: the detail names the unread levers" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .detail' <<<"$out")" "could not be read"
 assert_eq "case 20: the lever state is reported not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="lever-state-unknown") | .status' <<<"$out")"
 
+# --- Case 21: an oversize assembled payload still produces a document ---------
+# The document assembly bound nine payloads to one jq call as --argjson values.
+# The whole argv is ONE Win32 command line, and on Git for Windows an argument
+# past about 32,760 bytes dies with "Argument list too long": the document came
+# back EMPTY, every later `jq <<<"$DOC"` printed nothing, and the engine still
+# exited 1 and still wrote --out, so the failure was silent.
+#
+# TOTAL PAYLOAD BYTES is the mechanism, not row count, so a few servers with very
+# long names reproduce it far faster than many ordinary ones. The names are
+# padded to about 3,000 characters and not to 9,000 on purpose: the fix moves
+# only the ASSEMBLY off argv, and the per-row jq calls still pass claim, detail
+# and anchor as --arg, so a 9,000-character name would put a single row call
+# within a few kilobytes of the same cap and fail for a reason this case is not
+# about.
+#
+# WINDOWS-ONLY. The argument cap off Windows is orders of magnitude larger, so
+# this case passes on Linux and macOS whether the defect is present or not. A
+# green non-Windows lane is not coverage for it.
+m="$(make_machine bigpayload)"
+printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
+pad="$(printf '%*s' 3000 '' | tr ' ' 'x')"
+printf '{"mcpServers":{' >"$m/project/.mcp.json"
+sep=""
+for i in 1 2 3 4; do
+  printf '%s"srv%s-%s":{"command":"jq"}' "$sep" "$i" "$pad" >>"$m/project/.mcp.json"
+  sep=","
+done
+printf '}}\n' >>"$m/project/.mcp.json"
+rc=0
+# stderr is captured SEPARATELY here, unlike every other case. The usual 2>&1
+# idiom merges the overflow diagnostic into the captured document, which leaves
+# the assertions below nothing parseable to read.
+out=$(run "$m" --json --out "$m/findings.json" 2>"$m/err") || rc=$?
+assert_exit "case 21: the unlisted servers still make it exit 1" 1 "$rc"
+assert_eq "case 21: the payload is over the Win32 command-line cap" "true" "$([[ ${#out} -gt 32764 ]] && echo true || echo false)"
+assert_eq "case 21: assembly did not overflow the command line" "0" "$(grep -c 'Argument list too long' "$m/err")"
+assert_eq "case 21: the document parses" "object" "$(jq -r 'type' <<<"$out" 2>/dev/null)"
+# The padded server names are what pushes the payload over the cap, so proving
+# they reached the document proves the oversize payload survived the transport.
+# Counted from the document rather than hardcoded beyond the fixture's own four
+# servers, so an unrelated new check does not break the case. `.summary.rows`
+# against `.rows | length` would NOT do: the document builds the former from the
+# latter in one jq expression, so they can never disagree.
+assert_eq "case 21: every padded server name survived the transport" "4" "$(jq --arg p "$pad" '[.rows[] | select(.claim | startswith("unlisted-server:")) | select(.claim | contains($p))] | length' <<<"$out")"
+assert_eq "case 21: the document carries rows" "true" "$(jq '(.rows | length) > 0' <<<"$out")"
+assert_eq "case 21: findings file written" "true" "$([[ -f "$m/findings.json" ]] && echo true || echo false)"
+assert_eq "case 21: the findings file carries the findings" "true" "$(jq '(.findings | length) > 0' "$m/findings.json" 2>/dev/null)"
+assert_eq "case 21: findings file matches the document" "$(jq '.findings | length' <<<"$out")" "$(jq '.findings | length' "$m/findings.json")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

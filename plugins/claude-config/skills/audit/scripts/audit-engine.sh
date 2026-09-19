@@ -1086,30 +1086,43 @@ suppressed_json="$(if [[ ${#SUPPRESSED[@]} -gt 0 ]]; then printf '%s\n' "${SUPPR
 personal_json="$(if [[ ${#PERSONAL_ONLY[@]} -gt 0 ]]; then printf '%s\n' "${PERSONAL_ONLY[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORMED[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 
-DOC="$(jq -n \
-  --arg root "$PROJECT_ROOT" \
-  --argjson scopes "$SCOPES_JSON" \
-  --argjson rows "$rows_json" \
-  --argjson findings "$findings_json" \
-  --argjson suppressed "$suppressed_json" \
-  --argjson personal "$personal_json" \
-  --argjson malformed "$malformed_json" \
-  --argjson inv "$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")" \
-  --argjson coverage "$COVERAGE_JSON" \
-  --arg drift_state "$DRIFT_STATE" \
-  --argjson listing "$G_JSON" \
-  --argjson errors "$ERROR_COUNT" \
-  '{engine:"claude-config/audit-engine/1",project_root:$root,scopes:$scopes,
-    hook_inventory:$inv,coverage_manifests:$coverage,drift:{state:$drift_state},skill_listing:$listing,
-    suppressions:{applied:$suppressed,personal_only:$personal,malformed:$malformed},
-    summary:{rows:($rows|length),findings:($findings|length),errors:$errors,
-      warnings:([$findings[]|select(.severity=="warning")]|length),
-      info:([$findings[]|select(.severity=="info")]|length)},
-    rows:$rows,findings:$findings}')"
+inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
+
+# The payloads ride stdin and are slurped, rather than being bound as --argjson
+# values. The whole argv is ONE Win32 command line, and a single argument past
+# about 32,760 bytes dies with "Argument list too long", which left $DOC empty
+# and every reader below printing nothing while the exit code still said 1. A
+# pipe has no such cap, and unlike --slurpfile it leaves no temp file to clean
+# up. The `:-null` defaults keep the positional contract total: an empty payload
+# would otherwise shift every later binding by one. `jq -s` slurps by JSON value,
+# not by line, so a pretty-printed payload is still exactly one element. Only
+# the three small scalars stay on argv; none can approach the cap.
+DOC="$(printf '%s\n' \
+  "${SCOPES_JSON:-null}" "${rows_json:-null}" "${findings_json:-null}" \
+  "${suppressed_json:-null}" "${personal_json:-null}" "${malformed_json:-null}" \
+  "${inv_json:-null}" "${COVERAGE_JSON:-null}" "${G_JSON:-null}" |
+  jq -s \
+    --arg root "$PROJECT_ROOT" \
+    --arg drift_state "$DRIFT_STATE" \
+    --argjson errors "$ERROR_COUNT" \
+    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing] |
+     {engine:"claude-config/audit-engine/1",project_root:$root,scopes:$scopes,
+      hook_inventory:$inv,coverage_manifests:$coverage,drift:{state:$drift_state},skill_listing:$listing,
+      suppressions:{applied:$suppressed,personal_only:$personal,malformed:$malformed},
+      summary:{rows:($rows|length),findings:($findings|length),errors:$errors,
+        warnings:([$findings[]|select(.severity=="warning")]|length),
+        info:([$findings[]|select(.severity=="info")]|length)},
+      rows:$rows,findings:$findings}')"
 
 if [[ -n "$OUT" ]]; then
-  jq -n --argjson f "$findings_json" --argjson s "$suppressed_json" --arg root "$PROJECT_ROOT" \
-    '{schemaVersion:1,producer:"claude-config/audit-engine/1",target:$root,lane:"claude-config/audit",findings:$f,suppressed:$s}' >"$OUT"
+  # Same argv exposure, same transport change, and deliberately INDEPENDENT of
+  # $DOC: this writer succeeds even when the assembly above does not, and reading
+  # an empty $DOC would truncate the findings file to zero bytes, which is worse
+  # for the audit-pass consumer than either outcome available today. No -c: the
+  # findings file is a diffable artifact and stays pretty-printed.
+  printf '%s\n' "${findings_json:-null}" "${suppressed_json:-null}" |
+    jq -s --arg root "$PROJECT_ROOT" \
+      '. as [$f,$s] | {schemaVersion:1,producer:"claude-config/audit-engine/1",target:$root,lane:"claude-config/audit",findings:$f,suppressed:$s}' >"$OUT"
 fi
 
 if [[ "$MODE" == "json" ]]; then

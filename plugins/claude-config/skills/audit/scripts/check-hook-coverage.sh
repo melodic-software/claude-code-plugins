@@ -74,6 +74,18 @@ set -uo pipefail
 # on exactly the axis this script exists to make trustworthy.
 jqs() { jq "$@" 2>/dev/null | tr -d '\r'; }
 
+# Every value the --json emitter builds a node from goes through this. A jq
+# --arg value is DATA, never a path for jq to open, but on Git for Windows the
+# call crosses CreateProcess and MSYS rewrites any argument whose tail looks
+# like a POSIX path: a plugin's shipped hook command
+# "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh arrives as
+# "${CLAUDE_PLUGIN_ROOT}"C:/Program Files/Git/hooks/x.sh, so the engine reports
+# hook-path-missing for a file that exists. Suppressing the conversion is safe
+# for every call routed here because not one passes a file for jq to OPEN; a
+# site that does must keep the conversion, or jq could no longer find the file.
+# Set inline per call, never exported.
+jqn() { MSYS2_ARG_CONV_EXCL='*' jq -cn "$@"; }
+
 usage() {
   cat <<'EOF'
 check-hook-coverage.sh — enumerate the hooks actually installed for this project.
@@ -316,7 +328,7 @@ resolve_install_path() {
     | map(. + {scope: (.scope // "user"), projectPath: ((.projectPath // "") | gsub("\\\\"; "/") | rtrimstr("/"))})
     | map(select(
         .projectPath == "" or .projectPath == $project
-        or ($project | startswith(.projectPath + "/"))
+        or (.projectPath as $pp | $project | startswith($pp + "/"))
       ))
     | sort_by(-(rank(.scope)))
     | .[0].installPath // empty
@@ -532,19 +544,23 @@ fi
 
 # --- Output ------------------------------------------------------------------
 
+# Every single-quoted string in this block is a jq program and every $name in one
+# is a jq binding, not a shell variable. shellcheck special-cases a literal `jq`
+# command word and stays quiet; it cannot see through the jqn wrapper.
+# shellcheck disable=SC2016
 if [[ $EMIT_JSON -eq 1 ]]; then
   {
     printf '{\n'
     printf '  "inventory": "%s",\n' "$([[ $PARTIAL -eq 0 ]] && echo complete || echo partial)"
     printf '  "lever_state": "%s",\n' "$LEVER_STATE"
-    printf '  "project_root": %s,\n' "$(jq -cn --arg r "$PROJECT_ROOT" '$r')"
+    printf '  "project_root": %s,\n' "$(jqn --arg r "$PROJECT_ROOT" '$r')"
     printf '  "hooks": ['
     sep=""
     for r in ${ROWS+"${ROWS[@]}"}; do
       IFS=$'\t' read -r src event matcher cmd extra <<<"$r"
       printf '%s\n    ' "$sep"
       # shellcheck disable=SC2016  # $x is a jq --argjson binding, not a shell variable
-      jq -cn --arg s "$src" --arg e "$event" --arg m "$matcher" --arg c "$cmd" --argjson x "${extra:-{\}}" \
+      jqn --arg s "$src" --arg e "$event" --arg m "$matcher" --arg c "$cmd" --argjson x "${extra:-{\}}" \
         '{source:$s,event:$e,matcher:$m,command:$c} + $x'
       sep=","
     done
@@ -554,7 +570,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     for p in ${PLUGIN_STATUS+"${PLUGIN_STATUS[@]}"}; do
       IFS=$'\t' read -r pk st note ppath <<<"$p"
       printf '%s\n    ' "$sep"
-      jq -cn --arg k "$pk" --arg s "$st" --arg n "$note" --arg p "${ppath:-}" '{plugin:$k,status:$s,note:$n,path:$p}'
+      jqn --arg k "$pk" --arg s "$st" --arg n "$note" --arg p "${ppath:-}" '{plugin:$k,status:$s,note:$n,path:$p}'
       sep=","
     done
     printf '\n  ],\n'
@@ -563,7 +579,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     for d in ${DIVERGENCE+"${DIVERGENCE[@]}"}; do
       IFS=$'\t' read -r dk dl dc <<<"$d"
       printf '%s\n    ' "$sep"
-      jq -cn --arg p "$dk" --arg l "$dl" --arg c "$dc" '{plugin:$p,loaded:$l,cached:$c}'
+      jqn --arg p "$dk" --arg l "$dl" --arg c "$dc" '{plugin:$p,loaded:$l,cached:$c}'
       sep=","
     done
     printf '\n  ],\n'
@@ -572,7 +588,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     for l in ${LEVERS+"${LEVERS[@]}"}; do
       IFS=$'\t' read -r sc lk lv <<<"$l"
       printf '%s\n    ' "$sep"
-      jq -cn --arg s "$sc" --arg k "$lk" --arg v "$lv" '{scope:$s,key:$k,value:$v}'
+      jqn --arg s "$sc" --arg k "$lk" --arg v "$lv" '{scope:$s,key:$k,value:$v}'
       sep=","
     done
     printf '\n  ],\n'
@@ -580,7 +596,7 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     sep=""
     for u in ${UNREADABLE+"${UNREADABLE[@]}"}; do
       printf '%s\n    ' "$sep"
-      jq -cn --arg m "$u" '$m'
+      jqn --arg m "$u" '$m'
       sep=","
     done
     printf '\n  ]\n}\n'
