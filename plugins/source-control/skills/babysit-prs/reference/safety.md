@@ -279,6 +279,35 @@ The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it a
 reports merge-readiness as **unchecked**. An unavailable merge gate is never grounds to promote
 `READINESS_OK` into a merge-ready claim.
 
+## Skill-Evidence Record
+
+The merge gate reads one more thing off the PR it is judging, and judges nothing by it. A pull
+request carries a fenced `skill-evidence` block in its body, one `<skill> <sha> <utc-timestamp>`
+row per mandatory skill that ran. `evaluate()` parses that block for every tier and reports a
+`skillEvidence` record beside `labels`, on the same footing: a fact to reason from, never a merge
+input. Nothing in `blockers` comes from it.
+
+The record answers what the block itself claims, not what the diff owes. The terminal skill is the
+one the `## pr_skill_evidence` map marks with a trailing `!`, read from `.claude/source-control.md`
+in the checkout the gate runs from and defaulted to `verification:confirm` when no map is readable;
+the record names the file it read in `mapSource`, so a fleet pass over a repository this checkout
+is not of shows which map answered. The terminal row needs a SHA that equals the live head exactly; it is the seal the
+pre-PR order places last, and it is non-mutating, so the sequence terminates. Every other row
+needs only to sit on the head's history, read over one REST `compare/{row}...{head}` call each,
+because a row is stamped when its skill is invoked, before the edits that skill goes on to make.
+An ancestry call that cannot be read is unproven, never stale, and makes no gap on its own.
+Classifying the diff against the map is `skill-evidence.sh`'s job on the seat that owns a
+checkout; this gate needs no checkout and does none of it.
+
+`gap` is true when the block is absent, when the terminal row is missing or is not at the head, or
+when a row is proven off the head's history. A gap **routes**, it does not hold: the snapshot
+carries it as the `skill_evidence_gap` worker reason, and the worker tier dispatches a worker
+whose brief is to run `/source-control:pull-request ready` on that PR, which merges the base
+branch, runs the skills the diff owes, and re-renders the block. The safe tier reports the record
+and dispatches nothing. A PR the gate otherwise proves ready still merges with a gap outstanding,
+in every tier. An unparsable block is reported with `parsed: false` and is never fatal; a second
+block in the same body is counted and noted, and only the first is read.
+
 ## Review-Settle Hold
 
 `mergeStateStatus == CLEAN` is a statement about the *present*, and a reviewer that re-reviews on

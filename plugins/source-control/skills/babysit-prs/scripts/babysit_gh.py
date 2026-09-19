@@ -19,6 +19,7 @@ from babysit_util import (
     is_json_object,
     json_array,
     json_object,
+    parse_skill_evidence_block,
     run_command,
 )
 
@@ -608,7 +609,16 @@ def repository_is_archived(repo: str) -> bool:
 
 def view_pr(repo: str, number: int) -> dict[str, Any]:
     repo = repo.casefold()
-    data, graphql_available = view_pr_fields(repo, number, VIEW_FIELD_NAMES)
+    # `body` is requested beside the persistent field set and immediately
+    # replaced by what the engine actually consumes from it: the parsed
+    # skill-evidence block. A PR body is arbitrarily long prose, and every
+    # consumer downstream of here (the classifier, the snapshot JSON, the
+    # persisted state) reads only whether the block is there and what it
+    # claims, so carrying the raw text would inflate every snapshot for a fact
+    # already extracted. Parsing here keeps classification network-free, the
+    # same reason `_blocked_base_compare` is resolved at this one choke point.
+    data, graphql_available = view_pr_fields(repo, number, (*VIEW_FIELD_NAMES, "body"))
+    data["skillEvidence"] = parse_skill_evidence_block(data.pop("body", ""))
     data["repo"] = repo
     data["_graphql_available"] = graphql_available
     data["baseRepositoryArchived"] = repository_is_archived(repo)
@@ -748,6 +758,10 @@ def rest_view_pr(repo: str, number: int) -> dict[str, Any]:
     return {
         "author": normalized_rest_author(pull),
         "baseRefName": str(base.get("ref") or ""),
+        # The body carries the skill-evidence block, so the REST bundle must
+        # rebuild it or the gate would read "no block" for every session that
+        # is served REST instead of GraphQL.
+        "body": str(pull.get("body") or ""),
         "comments": [],
         "headRefName": str(head.get("ref") or ""),
         "headRefOid": head_sha,
@@ -831,6 +845,36 @@ def fetch_blocked_base_compare(
     ):
         return None
     return {"status": status, "ahead_by": ahead_by, "behind_by": behind_by}
+
+
+def fetch_commit_ancestry(repo: str, base_sha: str, head_sha: str) -> str | None:
+    """Whether `base_sha` sits on `head_sha`'s history, over one REST call.
+
+    `compare/{base}...{head}` answers ancestry without a checkout that carries
+    history: `identical` or `ahead` means the base commit IS on the head's
+    history, `behind` or `diverged` means it is not. That is how a rewritten
+    (rebased or amended) commit is told from one the branch still contains.
+
+    Unpaginated on purpose. `status` sits at the top level of the first page;
+    only the `files` array the verdict never reads is paginated, so `--paginate`
+    would buy nothing and cost a page walk per call.
+
+    Returns None when the comparison cannot be read (an unknown commit, a
+    permission gap, a transport failure). A caller must treat None as unproven,
+    never as either verdict.
+    """
+    if not re.fullmatch(r"[0-9a-fA-F]{7,40}", base_sha) or not re.fullmatch(
+        r"[0-9a-fA-F]{7,40}", head_sha
+    ):
+        return None
+    try:
+        data = gh_json(["api", f"repos/{repo}/compare/{base_sha}...{head_sha}"])
+    except RuntimeError:
+        return None
+    if not is_json_object(data):
+        return None
+    status = str(data.get("status") or "")
+    return status if status in {"identical", "ahead", "behind", "diverged"} else None
 
 
 def flatten_paginated_items(

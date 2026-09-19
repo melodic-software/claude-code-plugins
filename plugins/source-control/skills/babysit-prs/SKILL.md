@@ -102,7 +102,7 @@ Autonomy is decomposed per action, not per run. Irreversibility governs the gate
 | Dispatch a dedicated conflict worker (`git merge`, never rebase; it resolves locally and never pushes, the orchestrator re-verifies and pushes, [reference/orchestration.md](reference/orchestration.md)) | no, report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
 | Resolve review threads | no, report | **pre-push-outdated bot threads only** | any thread **it has addressed**, bot, AI-review, or human |
 | Merge a PR | no. Report readiness | only when the gate proves 100% ready | only when the gate proves 100% ready |
-| Mark a completed draft ready (`gh pr ready`) | no, report | no, report | yes, via its worker's completeness assessment |
+| Mark a completed draft ready (`/source-control:pull-request ready`) | no, report | no, report | yes, via its worker's completeness assessment |
 | Refresh a stale (behind-base) branch, post a review trigger | orchestrator-only | orchestrator-only | orchestrator-only |
 | `CHANGES_REQUESTED`, security/P1, posture, design, dependency acceptance | escalate | escalate | attempt with research; escalate only when it cannot confidently and safely resolve |
 
@@ -128,9 +128,21 @@ never merged autonomously in ANY tier, the merge gate refuses it absent `--allow
 which is passed only on an explicit user instruction to merge that specific PR.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
-draft skip. Safe: evaluate and report draft status, never `gh pr ready`. Worker and autopilot:
-zero-blocker drafts always route through a worker (see Fan out). `gh pr ready` happens only in
-autopilot, only for a draft its worker assesses complete.
+draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
+autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
+happens only in autopilot, only for a draft its worker assesses complete, and it runs
+`/source-control:pull-request ready` rather than a bare `gh pr ready`: that step merges the base
+branch, runs the mandatory skills the diff owes, and renders the evidence block into the body,
+none of which a bare flip does.
+
+**Skill-evidence routing (per tier).** The merge gate reports a `skillEvidence` record for every
+tier, read from the fenced `skill-evidence` block in the PR body: which mandatory skills the body
+claims ran, whether the terminal skill's row sits at the live head, and whether every other row
+sits on that head's history. A PR whose block is missing or stale carries a `skill_evidence_gap`
+reason out of the snapshot, and the worker tier dispatches a worker whose brief is to run
+`/source-control:pull-request ready` on it. The safe tier reports the record and dispatches
+nothing. No tier holds a merge on it: the record raises no blocker in any tier, so a PR the gate
+otherwise proves ready still merges while the gap is advisory.
 
 ## Autopilot
 
@@ -231,8 +243,8 @@ snapshot and assessment, never an unattended unpinned override.
 
 **Zero-blocker drafts are the exception:** always route them through a worker, never directly
 to the merge gate. In autopilot, that worker assesses whether the draft is complete: a
-completed draft is marked ready with `gh pr ready` and continues through the normal guarded
-path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
+completed draft is marked ready with `/source-control:pull-request ready` and continues through
+the normal guarded path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
 GitHub's
 [draft-stage contract](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request)
 confirms a draft cannot merge until it is marked ready. Completeness of the diff is not the
