@@ -245,29 +245,51 @@
 #     written that way, and the remedy is a registry-row conversation, not a
 #     silent pass. A quoted literal carrying a space or an expansion
 #     (`emit "$sev" P4`) is the same answer.
-#   - MISSED, SAFE DIRECTION: a heredoc whose delimiter is not a single word
+#   - MISSED, USUALLY SAFE: a heredoc whose delimiter is not a single word
 #     after the walk -- `<<"E O F"`, or one carrying an expansion (`<<$DELIM`)
 #     -- arms nothing, so its BODY is read as code. An `emit` in prose there
-#     either resolves to an id, which over-counts and demands coverage, or does
-#     not, which is exit 2. Neither is a silent pass. Arming on a delimiter
-#     that cannot be matched IS one, which is why the matcher above reads the
-#     delimiter whole rather than accepting a prefix of it.
-#   - MISREAD, NO LONGER SILENT: quoting is resolved PER LINE, so a `<<` on a
-#     later line of a multi-line quoted string -- double OR single quoted, and
-#     the single-quoted spelling is the commoner one, being every embedded awk,
-#     sed and python program -- is still read as code. `$'...'` ANSI-C quoting
-#     with an escaped apostrophe (`msg=$'it\'s << EOF'`) still desyncs the
-#     walk. Both need state the walk does not carry: a line-crossing quote
-#     stack, and `$'...'` escape semantics. What changed is the CONSEQUENCE.
-#     Each one used to arm a delimiter nothing closes and pass silently; the
-#     unclosed-at-EOF rule now turns that into exit 2. The gate stops, which is
-#     the answer a scanner that cannot read its input owes.
+#     usually resolves to an id, which over-counts and demands coverage, or
+#     does not, which is exit 2. It is NOT unconditionally safe, and a revision
+#     of this bullet said it was: if that body carries a `<<WORD` of its own,
+#     the skip it arms closes on a later WORD line and swallows what lies
+#     between, silently. Arming on a delimiter that cannot be matched has the
+#     same shape, which is why the matcher above reads the delimiter whole
+#     rather than accepting a prefix of it -- but "not arming" buys a smaller
+#     margin than that sentence claimed.
+#   - MISSED, SILENT. THE WALK HAS NO NESTED QUOTING CONTEXT, and that is the
+#     largest hole in this scanner. A revision of this bullet claimed these
+#     shapes were "no longer silent" because the unclosed-at-EOF rule caught
+#     them. That was FALSE, and a cross-model review refuted it by running the
+#     shapes: the skip re-syncs on the file's own next real terminator, so
+#     nothing is outstanding at EOF and the gate exits 0.
 #
-#     Two rounds of adversarial review found these by enumerating shell shapes,
-#     and both rounds' enumerations were incomplete -- the second found seven
-#     more, three of them introduced by the first round's own fix. So the list
-#     is written as what is KNOWN to be misread, not as what remains, and the
-#     structural guard above is there because the next entry is not in it.
+#     The shapes, each verified to EXECUTE under bash while producing no `ID`
+#     and no `UNRESOLVED` here:
+#       * `x="$(emit error P1)"`. A command substitution INSIDE double quotes
+#         collapses to one `@Q@` token, so its call sites never reach the
+#         tokenizer at all. This is one line of ordinary shell -- a detector
+#         that captures its emitter's output is wholly invisible to the gate --
+#         and five rounds of same-model review did not find it.
+#       * the CLOSING line of a multi-line quoted string, when it carries a
+#         call after the quote (`' ... )" || emit error P2`). Per-line
+#         resolution inverts the quote state there.
+#       * `$'...'` with an escaped apostrophe, whose tail arms a delimiter that
+#         a later genuine heredoc then closes.
+#       * a `)#` comment carrying a `<<WORD`, which swallows to the next WORD.
+#       * command positions the walk does not model: `coproc`, `time -p`, a
+#         leading redirection, a `+=` or escaped-space assignment prefix, a
+#         quoted command name (`"emit" error P8`), `trap '...' EXIT`, `eval`.
+#
+#     All of them need parser state this scanner does not have. None appears in
+#     the registered detector, which is why the gate is correct today rather
+#     than by construction. claude-code-plugins#4222 tracks replacing the
+#     extraction with a real parser, which is the only fix for this class.
+#
+#     Five rounds of adversarial review found the shapes above it, and every
+#     enumeration was incomplete -- four rounds found defects introduced by the
+#     previous round's fix, and a different model family then found six more
+#     that all five rounds had missed. So this list is what is KNOWN to be
+#     misread, never what remains.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
 # that each severity-crosswalk row in docs/conventions/detector-findings/ argues
@@ -546,10 +568,18 @@ BEGIN {
         # off its text.
         #
         # Only characters that SETTLE it are here. `{`, `}`, `)` and a backtick
-        # are all ambiguous, and the ambiguity is not symmetric: reading a
-        # comment as code over-counts or exits 2, while reading code as a
-        # comment TRUNCATES the line and loses whatever followed, silently. So
-        # an ambiguous character is left out.
+        # are all ambiguous, and the ambiguity is not symmetric: reading code
+        # as a comment TRUNCATES the line and loses whatever followed, while
+        # reading a comment as code usually over-counts or exits 2. So an
+        # ambiguous character is left out.
+        #
+        # "Usually" is doing real work in that sentence and an earlier revision
+        # omitted it, claiming the over-count direction was always safe. It is
+        # not: a comment carrying a `<<WORD` (`a)# see the <<EOF block below`)
+        # arms a skip off comment prose, and a later genuine WORD line closes
+        # it, so the sites in between vanish with nothing outstanding at EOF.
+        # Read as code is the BETTER direction, not a safe one, and the class
+        # is only closed by a parser that knows which construct opened the `)`.
         #   - `${#arr}`: the `#` follows a `{` and is not a comment.
         #   - `$(printf a)#tag`: bash prints `a#tag`, so the `#` after that `)`
         #     is not a comment -- while `(echo a)#tag` IS one. The same
