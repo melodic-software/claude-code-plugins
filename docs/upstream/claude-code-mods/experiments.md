@@ -539,8 +539,11 @@ The procedure, by hand:
    The route that worked on 2026-09-19: fully quit the app, confirm zero processes, then launch it
    from PowerShell with `$env:CLAUDE_CODE_ENABLE_FUNCTION_HOOKS = '1'` set for that process only,
    which rests on the documented rule that on Windows the app inherits user and system environment
-   variables. It sets no global variable, so there is nothing to undo. That any of the three actually
-   reaches the Desktop-bundled CLI process is **inference, not documented**.
+   variables. That sets no user or system variable, but the assignment persists in the PowerShell
+   session that made it and is inherited by everything else launched from that shell: use a throwaway
+   shell, or clear it with `Remove-Item Env:\CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` once Desktop is up.
+   That any of the three actually reaches the Desktop-bundled CLI process is **inference, not
+   documented**.
 4. Fully quit Claude Desktop, tray icon included, and start it again; route (c) already did this.
    Environment variables and plugin enablement are read at session start.
 5. In the Code tab open a **local** session, not a cloud session — the plugin browser and locally
