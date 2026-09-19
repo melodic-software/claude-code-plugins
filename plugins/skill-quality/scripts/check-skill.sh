@@ -412,7 +412,7 @@ fi
 # is the repo this run will query. Placed before the USAGE check specifically,
 # so a no-argument call still reports the base ref first exactly as it did
 # before the verdict was deferred. It sits AFTER the dispatch refusals, so a
-# call that also mis-specifies its positionals now names that instead; all of
+# call that also gets its positionals wrong now names that instead; all of
 # those paths exit 2 either way, and the positional error is the more specific.
 if [[ -n "$BASE_REF_ERR" ]]; then
   printf '%s\n' "$BASE_REF_ERR" >&2
