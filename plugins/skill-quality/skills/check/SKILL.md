@@ -222,7 +222,10 @@ tool. This gate does not automate that reachability check; author and review aga
   consumer's markdownlint config's call (disable `MD013`, or wrap the lines), never something this gate
   overrides. In this marketplace's own CI the division of labor is explicit: the skill-quality gate skips
   markdownlint (`CHECK_SKILL_SKIP_MARKDOWNLINT=1` in the repo's `check-changed-skills.sh` gate) and the
-  hygiene lane lints all repo markdown, SKILL.md included, under the repo config.
+  hygiene lane lints all repo markdown, SKILL.md included, under the repo config. **Root mode
+  satisfies this rule for you**: each child runs at its own root, so the config discovered is the
+  DISPATCHED tree's, not the config next to wherever you happened to be standing. A dispatched tree
+  that ships no config still gets markdownlint's defaults, exactly as the paragraph above describes.
 - Trigger-keyword preservation compares the working tree against `HEAD` by default, so a brand-new skill
   (no committed version) skips check 3. That is expected, not a silent pass. For a post-commit audit
   (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a
@@ -307,6 +310,16 @@ tool. This gate does not automate that reachability check; author and review aga
   sharing one rollup, never one merged corpus. Pooling them would change what those checks mean,
   which is why it is not done. `listing-budget` is the opposite by design: it pools, because the
   budget it reports is the shared one.
+- **In root mode each skill is gated with the DISPATCHED tree's git context, never the caller's.**
+  Every git-backed check (3 trigger preservation, 8 vendor byte-identity, 9 stale metadata, 13
+  committed artifacts) joins two values that both derive from the working directory: the repository
+  root, and the skill's path within it. A child left at the caller's directory takes those from two
+  different repositories and reports one against the other, so a path tracked in *your* repo
+  surfaces as a finding against a skill that lives somewhere else entirely. Each child therefore
+  runs at its own root. A root outside any repository skips the git-backed checks with their usual
+  named notes rather than borrowing the caller's repository, and `CHECK_SKILL_BASE_REF` is resolved
+  against the dispatched repository, so a ref that exists only there is accepted and one absent
+  there is an environment error in that child.
 - **One resolved root stays the DEFAULT deliberately.** An explicit root list is how you widen
   coverage; the resolution ladder never grows on its own to the union of every skills tree in
   reach. Widening the default would silently widen every existing consumer's gate, including this

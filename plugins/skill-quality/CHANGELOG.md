@@ -26,9 +26,18 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   and more than one skill name in one call, both exit 2 instead of guessing or dropping the extra
   positionals. When a child run hits an environment error the rollup keeps its exact
   `N passed, M failed` wording and a separate stderr line says so before the exit 2, since such a
-  run is counted in neither tally. Nothing is pooled across roots: the cross-skill scans stay per
-  root, and one resolved root remains the default, because widening the default would widen every
-  existing consumer's gate without anyone asking.
+  run is counted in neither tally. Each skill is gated with the DISPATCHED tree's git context
+  rather than the caller's: the git-backed checks (3, 8, 9, 13) each join a repository root with a
+  path inside it, and both derive from the working directory, so a run driven from one repository
+  against a root in another would otherwise report the caller's tracked paths against the
+  dispatched skill and give the same root opposite verdicts depending on where it was invoked. A
+  root outside any repository skips those checks with their usual named notes instead of borrowing
+  the caller's repository, `CHECK_SKILL_BASE_REF` is resolved against the dispatched repository so
+  a ref that exists only there is accepted and one absent there is an environment error, and check
+  6 discovers that tree's markdownlint config, which is what the skill body already told operators
+  to arrange by hand. Nothing is pooled across roots: the cross-skill scans stay per root, and one
+  resolved root remains the default, because widening the default would widen every existing
+  consumer's gate without anyone asking.
 
 ## [0.23.1]
 

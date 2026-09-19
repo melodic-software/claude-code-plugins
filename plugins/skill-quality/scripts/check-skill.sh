@@ -32,6 +32,15 @@
 # and the plugin-root detection behind check 14's warrant lookup) stay per
 # root by construction.
 #
+# Each child also runs WITH ITS CWD AT ITS ROOT, so its git context is the
+# dispatched tree's and never the caller's. The git-backed checks (3, 8, 9, 13)
+# each join a repo root with a path inside it and both come from cwd, so a run
+# driven from one repo against a root in another would report the caller's
+# tracked paths against the dispatched skill. A root outside any repo therefore
+# resolves to no git and skips those checks with their named notes rather than
+# borrowing the caller's repo; CHECK_SKILL_BASE_REF is resolved against the
+# dispatched repo; and check 6 picks up that tree's markdownlint config.
+#
 # --require-evals (or CHECK_SKILL_REQUIRE_EVALS=1) FAILs when evals/evals.json
 # is absent for any skill shape, unless the skill has a recorded skip in
 # scripts/evals-warrant-exemptions.txt (walked up from the repo root; absent
@@ -152,6 +161,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Absolute self-path. Root mode re-invokes this script with the child's cwd AT
+# the dispatched root, so a relative "${BASH_SOURCE[0]}" the caller happened to
+# type would no longer resolve from there.
+SCRIPT_PATH="$SCRIPT_DIR/$(basename -- "${BASH_SOURCE[0]}")"
 
 # The header range is derived from the comment block itself (same idiom as the
 # sibling checkers), so adding header lines can never desync the help output.
@@ -199,11 +212,18 @@ source "$SCRIPT_DIR/skill-frontmatter.sh"
 # Base ref for the git-backed diff checks (3, 8, 9) — see the header. Default
 # HEAD (uncommitted-rewrite case); an explicit ref enables a post-commit audit.
 # Validated only when a git repo is present; ignored otherwise.
+#
+# The verdict is DEFERRED rather than fatal here, for the same reason the skills
+# root resolution is: this runs before the dispatch, against the CALLER's repo,
+# and in root mode the ref belongs to the DISPATCHED repo instead. A caller in
+# repo A gating a root in repo B with a ref that exists only in B must not be
+# rejected before anything is dispatched. Each child re-runs this check against
+# its own repo, where a genuinely absent ref is still exit 2.
 BASE_REF="${CHECK_SKILL_BASE_REF:-HEAD}"
+BASE_REF_ERR=""
 if [[ "$HAVE_GIT" == 1 && "$BASE_REF" != "HEAD" ]] &&
   ! git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null 2>&1; then
-  printf 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit\n' "$BASE_REF" >&2
-  exit 2
+  printf -v BASE_REF_ERR 'Error: CHECK_SKILL_BASE_REF=%s is not a valid commit' "$BASE_REF"
 fi
 
 # Resolve the skills root without baking a repo layout (convention-resolution
@@ -225,7 +245,7 @@ elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
 elif [[ "$HAVE_GIT" == 1 ]]; then
   SKILLS_ROOT="$REPO_ROOT/.claude/skills"
 else
-  SKILLS_ROOT_ERR='Error: not in a git repo and no skills root set — set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), or run from inside a git repository'
+  SKILLS_ROOT_ERR='Error: not in a git repo and no skills root set: set CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR), or run from inside a git repository'
 fi
 
 # Anchor a relative skills root to the project root. The setup action persists a
@@ -296,7 +316,7 @@ done
 if ((${#DISPATCH_ROOTS[@]} > 0)); then
   if ((${#DISPATCH_NAMES[@]} > 0)); then
     printf 'Error: mixed skill name and skills root in one call: %s\n' "${DISPATCH_NAMES[*]}" >&2
-    printf 'Pass one <skill-name>, or one or more skills roots — never both.\n' >&2
+    printf 'Pass one <skill-name>, or one or more skills roots; never both.\n' >&2
     exit 2
   fi
   if ((${#DISPATCH_BAD[@]} > 0)); then
@@ -329,9 +349,25 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
       # it against "1", so the child's verdict is exactly the parent's. Every
       # other CHECK_SKILL_* seam is read from the environment and inherits. `--`
       # keeps a leaf beginning with `-` off the child's unknown-option arm.
-      CHECK_SKILL_SKILLS_ROOT="$dispatch_root" \
-        CHECK_SKILL_REQUIRE_EVALS="$REQUIRE_EVALS" \
-        bash "${BASH_SOURCE[0]}" -- "$dispatch_leaf"
+      #
+      # The child runs with its cwd AT the dispatched root, which is what makes
+      # its git context the DISPATCHED tree's rather than the caller's. Both
+      # halves of every git-backed check derive from cwd: REPO_ROOT from
+      # `rev-parse --show-toplevel`, SKILL_REL from `rev-parse --show-prefix`
+      # inside the skill dir. Left at the caller's cwd those two come from
+      # DIFFERENT repositories and checks 3, 8, 9 and 13 join them, so a path
+      # tracked in the caller's repo is reported against a skill that lives
+      # somewhere else entirely. Running at the root also makes a root outside
+      # any repo resolve to HAVE_GIT=0, so the git-backed checks skip with their
+      # documented notes instead of silently answering from the caller's repo,
+      # and check 6 discovers the DISPATCHED repo's markdownlint config, which
+      # is the behavior the skill body's own gotcha prescribes.
+      (
+        CDPATH='' cd -- "$dispatch_root" || exit 2
+        CHECK_SKILL_SKILLS_ROOT="$dispatch_root" \
+          CHECK_SKILL_REQUIRE_EVALS="$REQUIRE_EVALS" \
+          exec bash "$SCRIPT_PATH" -- "$dispatch_leaf"
+      )
       case $? in
       0) DISPATCH_PASSED=$((DISPATCH_PASSED + 1)) ;;
       1) DISPATCH_FAILED=$((DISPATCH_FAILED + 1)) ;;
@@ -368,6 +404,18 @@ elif (($# > 1)); then
   # kill.
   printf 'Error: more than one skill name given: %s\n' "$*" >&2
   printf 'Pass one <skill-name>, or one or more skills roots.\n' >&2
+  exit 2
+fi
+
+# Single-skill path only (root mode has already exited above): the deferred
+# base-ref verdict is this run's own, because the repo it was validated against
+# is the repo this run will query. Placed before the USAGE check specifically,
+# so a no-argument call still reports the base ref first exactly as it did
+# before the verdict was deferred. It sits AFTER the dispatch refusals, so a
+# call that also mis-specifies its positionals now names that instead; all of
+# those paths exit 2 either way, and the positional error is the more specific.
+if [[ -n "$BASE_REF_ERR" ]]; then
+  printf '%s\n' "$BASE_REF_ERR" >&2
   exit 2
 fi
 

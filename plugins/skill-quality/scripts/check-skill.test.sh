@@ -4439,6 +4439,103 @@ else
   fail "R16: an explicit root should work with no env and no git (rc=$rc): $out"
 fi
 
+# R17. Each child's git context is the DISPATCHED tree's, never the caller's.
+#      Both halves of every git-backed check derive from cwd: REPO_ROOT from
+#      `rev-parse --show-toplevel`, SKILL_REL from `rev-parse --show-prefix`
+#      inside the skill dir. A child left at the caller's cwd takes those from
+#      two DIFFERENT repositories and checks 3/8/9/13 join them, so a path
+#      tracked in the caller's repo is reported against a skill that lives
+#      somewhere else. The fixture plants a tracked node_modules artifact in the
+#      caller's repo at the SAME relative path the external skill occupies, so
+#      the wrong-repo answer FAILs and the right-repo answer PASSes.
+XREPO="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO"' EXIT
+mkdir -p "$XREPO/caller/skills/xskill/node_modules" "$XREPO/external/skills/xskill"
+printf 'module.exports = 1;\n' >"$XREPO/caller/skills/xskill/node_modules/dep.js"
+printf 'placeholder\n' >"$XREPO/caller/README.md"
+printf '%s' "$root_body" >"$XREPO/external/skills/xskill/SKILL.md"
+for xrepo_r in caller external; do
+  git -C "$XREPO/$xrepo_r" init -q
+  git -C "$XREPO/$xrepo_r" config user.email test@example.com
+  git -C "$XREPO/$xrepo_r" config user.name test
+  git -C "$XREPO/$xrepo_r" add -A
+  git -C "$XREPO/$xrepo_r" commit -qm fixture
+done
+# Driven from the CALLER's repo, against a root inside the EXTERNAL repo.
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+    CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q '^1 passed, 0 failed$' <<<"$out" &&
+  ! grep -q 'committed cache/build artifact' <<<"$out"; then
+  pass "R17: a child's git-backed checks query the dispatched repo, not the caller's"
+else
+  fail "R17: the caller's repo must not answer for the dispatched tree (rc=$rc): $out"
+fi
+
+# R17b. The same root gated from INSIDE its own repo must agree. A verdict that
+#       depends on where the operator happened to stand is the defect.
+out2="$(cd "$XREPO/external" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+    CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc2=$?
+if [[ $rc2 -eq $rc ]] && grep -q '^1 passed, 0 failed$' <<<"$out2"; then
+  pass "R17b: the same root gives the same verdict from either cwd"
+else
+  fail "R17b: verdict must not depend on the caller's cwd (from-caller=$rc from-own=$rc2): $out2"
+fi
+
+# R18. A root in NO repo at all, driven from a repo cwd, SKIPS the git-backed
+#      checks with their documented notes rather than answering from the
+#      caller's repo. Before the cwd fix this passed only by accident: SKILL_REL
+#      came out empty, `git ls-files ""` failed as an invalid pathspec, and the
+#      error was swallowed, so the run misreported "new skill" instead of
+#      naming the absent repo.
+mkdir -p "$XREPO/nogit/skills/xskill"
+printf '%s' "$root_body" >"$XREPO/nogit/skills/xskill/SKILL.md"
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+    CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$XREPO/nogit/skills" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'trigger-keyword preservation (check 3) skipped' <<<"$out" &&
+  grep -q 'committed-artifact scan (check 13) skipped' <<<"$out" &&
+  grep -q '^1 passed, 0 failed$' <<<"$out"; then
+  pass "R18: a non-git root skips the git-backed checks by name instead of answering from the caller's repo"
+else
+  fail "R18: a non-git root should name the absent repo (rc=$rc): $out"
+fi
+
+# R19. CHECK_SKILL_BASE_REF is validated against the DISPATCHED repo. The
+#      parent validates before the dispatch against the CALLER's repo, so that
+#      verdict is deferred; a ref that exists only in the dispatched repo must
+#      not be rejected before anything runs.
+git -C "$XREPO/external" branch -q dispatched-only
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+    CHECK_SKILL_BASE_REF=dispatched-only CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+    bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q '^1 passed, 0 failed$' <<<"$out"; then
+  pass "R19: a base ref present only in the dispatched repo is accepted"
+else
+  fail "R19: a dispatched-repo base ref should be accepted (rc=$rc): $out"
+fi
+
+# R19b. A ref absent from the dispatched repo is still an environment error in
+#       that child, surfacing as the run's exit 2 rather than a check failure.
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR \
+    CHECK_SKILL_BASE_REF=no-such-ref-anywhere CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+    bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'is not a valid commit' <<<"$out"; then
+  pass "R19b: a base ref absent from the dispatched repo is an environment error there"
+else
+  fail "R19b: an absent base ref should exit 2 from the child (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
