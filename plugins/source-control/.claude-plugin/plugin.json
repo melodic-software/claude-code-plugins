@@ -40,6 +40,12 @@
       "description": "Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required PR-contract check (closing keyword plus non-empty `## Summary`, `## Fix`, `## Verification`, and `## Related`), the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step, and only for the repository the origin remote names.",
       "default": true
     },
+    "pr_ready_evidence_gate_enabled": {
+      "type": "boolean",
+      "title": "pr-ready-evidence-gate hook",
+      "description": "Nudge, never block, when a call flips a pull request to ready for review while the skill-usage ledger carries no fresh evidence at HEAD that every mandatory pre-PR skill ran. Covers the CLI surface (`gh pr ready`, the `markPullRequestReadyForReview` GraphQL mutation, and the cloud proxy's `ready_for_review` route) and the GitHub MCP surface (`update_pull_request` with `draft: false`, only for the repository the origin remote names). The verdict comes from scripts/skill-evidence.sh, so the gate is inert in a repository whose .claude/source-control.md declares no `pr_skill_evidence` map; a missing ledger is reported once and then read as no rows. One switch for both surfaces.",
+      "default": true
+    },
     "worktree_add_containment_gate_enabled": {
       "type": "boolean",
       "title": "worktree-add-containment-gate hook",
