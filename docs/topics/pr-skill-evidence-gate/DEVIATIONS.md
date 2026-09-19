@@ -48,6 +48,11 @@ A deviation carries four fields: plan said, found, chose, revisit.
 - **plan-confirmed (Phase 3)**. No cloud proxy ready route exists in docs/ or
   plugins/source-control; the cloud flip is the MCP `update_pull_request` call with `draft:false`,
   so Phase 4 drops the `gh api .../ready_for_review` matcher its brief made conditional.
+- **deviation (orchestration, second occurrence)**. The Phase 8 commit swept in two hook
+  scripts the Phase 4 worker had staged for their exec bit. Chose: soft-reset the two commits
+  before any PR existed and recommit with `git commit --only -- <paths>`, which ignores the rest
+  of the index; every later commit uses that form. Evidence: the recommitted Phase 8 stat lists
+  four files.
 - **deviation (orchestration)**. Plan said: one commit per phase. Found: the Phase 1 commit swept
   in the Phase 6 worker's staged deletions because `git commit` took the whole shared index. Chose:
   split the commit before any PR existed (soft reset, recommit Phase 1 from its own paths, commit
