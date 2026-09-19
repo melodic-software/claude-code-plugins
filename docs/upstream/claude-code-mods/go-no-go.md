@@ -179,7 +179,8 @@ the changelog is 7,158 lines from `## 2.1.278` down to `## 0.2.21`, and a word-b
 `grep -icwE "mods?"` over it also returns `0`. `67` is the live control — `plugin-dir` is a
 documented flag, so a non-zero control proves the sweep reached real text.
 
-**Met when:** either sweep returns a non-zero count while the control still returns 67 or more.
+**Met when:** either sweep returns a non-zero count while the control is still non-zero (recorded
+baseline `67`; a materially lower control means re-read the corpus before trusting either arm).
 
 Risks: always grep `llms-full.txt`, never the curated `llms.txt`, which greps clean against a
 documented feature. This is a **first-mention detector only** — `/diff` and AGENTS.md are documented

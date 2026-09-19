@@ -103,15 +103,17 @@ Probe behaviour, not help text.
   while mods are deferred, nothing under `plugins/` depends on `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`.
 - A performance argument for mods does not survive this repository's hook budget, which is
   max-shaped: Claude Code runs matching hooks in parallel, so removing cost from every hook except
-  the slowest moves the budgeted wall by zero. Only replacing the `guardrails` dispatcher would move
-  it, and `guardrails` is Class A under
+  the slowest moves the budgeted wall by zero
+  ([docs/conventions/hook-budget/README.md](../conventions/hook-budget/README.md)). Only replacing
+  the `guardrails` dispatcher would move it, and `guardrails` is Class A under
   [0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md](0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md),
   which never splits.
 - Mods cannot take per-repository configuration: a project's `.claude/settings.json` is not read for
   plugin options (`SOURCE`), so the extensibility contract's first seam has no path here. That
   misfit is structural and survives every version bump until upstream changes it.
 - The built-in `agents-md` mod has no effect on this repository. All six `AGENTS.md` files have a
-  `CLAUDE.md` beside them, and the default mode `claude-md-or-agents-md` loads none of them.
+  `CLAUDE.md` beside them, and the default mode `claude-md-or-agents-md` loads none of them
+  (`SOURCE`).
 - **#92533 reproduces here.** 2026-09-19 at 2.1.278 on Windows: a mod whose only `tool.call` hook is
   a bare `next(e)` matched to Bash left every shell exec inside an agent worktree refused, against an
   otherwise identical control that ran the same command (`OBSERVED`). The parent session's cwd did
