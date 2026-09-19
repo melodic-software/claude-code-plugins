@@ -48,6 +48,16 @@ A deviation carries four fields: plan said, found, chose, revisit.
 - **plan-confirmed (Phase 3)**. No cloud proxy ready route exists in docs/ or
   plugins/source-control; the cloud flip is the MCP `update_pull_request` call with `draft:false`,
   so Phase 4 drops the `gh api .../ready_for_review` matcher its brief made conditional.
+- **discovery (Phase 5)**. The evidence script detects the `renames` class only in `--base`
+  mode (the local hook, prep, and ready); in the validator's `--files` mode it never fires, so CI
+  under-reports `docs-hygiene:rename-references` and never over-reports. Accepted for the
+  advisory window; the follow-up is a `--renamed <list>` input on `classes` and `check`, fed from
+  the pull request's `previous_filename` entries the validator already fetches. Outcome:
+  unverified in CI until the first renamed-file pull request lands.
+- **discovery (Phase 5)**. `report` already reads every marker in a comment, so appending one
+  marker per evaluated head to the single upserted comment needed no parser change; that
+  behaviour is not yet pinned by the Phase 2 suite (follow-up: one `report` case with two markers
+  in one comment).
 - **deviation (orchestration, second occurrence)**. The Phase 8 commit swept in two hook
   scripts the Phase 4 worker had staged for their exec bit. Chose: soft-reset the two commits
   before any PR existed and recommit with `git commit --only -- <paths>`, which ignores the rest

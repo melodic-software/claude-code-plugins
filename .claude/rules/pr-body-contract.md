@@ -15,6 +15,13 @@ Every pull request body:
 - Carries a non-empty section for each of `## Summary`, `## Fix`,
   `## Verification`, and `## Related`.
 
+The `## Verification` section carries the `skill-evidence` block that
+`/source-control:pull-request ready` renders: one fenced `skill-evidence` code
+block, one row per mandatory skill, each naming the commit that skill ran at. A
+block that misses a skill the changed files require draws an advisory comment
+from `ci-status` and the `needs-skill-evidence` label. Neither turns the
+required check red.
+
 Draft the body to this contract BEFORE creating the PR (`gh pr create`, MCP, or
 web); the advisory comment and label are noise this rule exists to prevent.
 
