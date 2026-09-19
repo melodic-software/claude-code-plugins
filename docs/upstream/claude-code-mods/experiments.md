@@ -386,6 +386,43 @@ Arms: (a) a classic `PreToolUse` command hook running `node` on a file whose who
 `process.stdout.write`; (b) the same shape running `bash` on a file whose whole body is `echo`;
 (c) the E2 bare-`next(e)` module; control loads no `--plugin-dir`.
 
+Arm (c) reuses `$P/e2` from
+[E2](#e2--does-a-passthrough-bash-toolcall-hook-break-worktree-isolation). Arms (a) and (b) are three files
+each, and the loop below will not find them otherwise:
+
+```sh
+mkdir -p "$P/e6a-node/.claude-plugin" "$P/e6a-node/hooks" \
+         "$P/e6b-bash/.claude-plugin" "$P/e6b-bash/hooks"
+```
+
+`$P/e6a-node/.claude-plugin/plugin.json`, and the same with `e6b-bash` twice over for arm (b):
+
+```json
+{ "name": "e6a-node", "version": "0.0.1", "description": "E6 arm (a) latency probe",
+  "author": { "name": "e6" } }
+```
+
+`$P/e6a-node/hooks/hooks.json`, and for arm (b) the same with `bash` and `probe.sh`:
+
+```json
+{
+  "description": "E6 arm (a)",
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [
+        { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/probe.js\"",
+          "timeout": 60 } ] }
+    ]
+  }
+}
+```
+
+The probe bodies, one statement each so the arm measures the mechanism and not the work.
+`$P/e6a-node/hooks/probe.js` is `process.stdout.write('{}');` and `$P/e6b-bash/hooks/probe.sh` is
+`echo '{}'`. Neither needs an exec bit — both are invoked through their interpreter. Inside this
+repository the `guardrails` plugin refuses shell file-writes, so create all six files with the
+editor or the Write tool.
+
 ```sh
 PROMPT="Run the Bash tool exactly 20 times, one call at a time and never in parallel, each with the command: true . Then reply done."
 
