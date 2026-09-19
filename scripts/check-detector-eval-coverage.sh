@@ -186,7 +186,7 @@
 #
 # So the standing lesson is about the claim rather than the rule. A guard that
 # catches one end state is worth having and is not the same thing as a guard
-# that cannot be got around, and writing it up as the latter is what three
+# that cannot be got around, and writing it up as the latter is what six
 # rounds of review have each had to correct.
 #
 # The guards are the P3b block of the self-test, and they fail against every
@@ -203,8 +203,8 @@
 # an unterminated span, and the current suite asserts that guessing at all is
 # wrong. The revision each count is measured at is named because these go stale
 # on any commit that adds a guard: the previous numbers here (22/18/14/9) were
-# four commits old and a cross-model review caught them, having been left
-# behind by the very rule the next sentence states. Every ARMING
+# last restated at 48065f840 and a cross-model review caught them, having been
+# left behind by the very rule the next sentence states. Every ARMING
 # case asserts arm-AND-CLOSE -- a call site after the terminator must still be
 # SEEN. That is the lesson worth keeping. The first round of guards asserted
 # only that the body's own emit was not counted, which a swallow-to-EOF satisfies
@@ -256,16 +256,25 @@
 #     silent pass. A quoted literal carrying a space or an expansion
 #     (`emit "$sev" P4`) is the same answer.
 #   - MISSED, USUALLY SAFE: a heredoc whose delimiter is not a single word
-#     after the walk -- `<<"E O F"`, or one carrying an expansion (`<<$DELIM`)
-#     -- arms nothing, so its BODY is read as code. An `emit` in prose there
-#     usually resolves to an id, which over-counts and demands coverage, or
-#     does not, which is exit 2. It is NOT unconditionally safe, and a revision
-#     of this bullet said it was: if that body carries a `<<WORD` of its own,
-#     the skip it arms closes on a later WORD line and swallows what lies
-#     between, silently. Arming on a delimiter that cannot be matched has the
-#     same shape, which is why the matcher above reads the delimiter whole
+#     after the walk -- `<<"E O F"`, or the braced `<<${DELIM}` that strip_pexp
+#     removes -- arms nothing, so its BODY is read as code. An `emit` in prose
+#     there usually resolves to an id, which over-counts and demands coverage,
+#     or does not, which is exit 2. It is NOT unconditionally safe, and a
+#     revision of this bullet said it was: if that body carries a `<<WORD` of
+#     its own, the skip it arms closes on a later WORD line and swallows what
+#     lies between, silently. Arming on a delimiter that cannot be matched has
+#     the same shape, which is why the matcher above reads the delimiter whole
 #     rather than accepting a prefix of it -- but "not arming" buys a smaller
 #     margin than that sentence claimed.
+#
+#     `<<$DELIM` was listed here as an expansion that arms nothing. That was
+#     FALSE twice over, and a cross-model review caught it: bash does NOT
+#     expand a heredoc delimiter (`<<$DELIM` is closed by a literal `$DELIM`
+#     line, not by the variable's value), and this scanner agrees with it --
+#     the delimiter arms as the literal `$DELIM` and closes correctly. Only the
+#     BRACED spelling reaches the bullet above, and only because strip_pexp
+#     removed it before the scan. Read as a claim about bash, the old sentence
+#     described a shell that does not exist.
 #   - MISSED, SILENT. THE WALK HAS NO NESTED QUOTING CONTEXT, and that is the
 #     largest hole in this scanner. A revision of this bullet claimed these
 #     shapes were "no longer silent" because the unclosed-at-EOF rule caught
@@ -287,8 +296,18 @@
 #         a later genuine heredoc then closes.
 #       * a `)#` comment carrying a `<<WORD`, which swallows to the next WORD.
 #       * command positions the walk does not model: `coproc`, `time -p`, a
-#         leading redirection, a `+=` or escaped-space assignment prefix, a
-#         quoted command name (`"emit" error P8`), `trap '...' EXIT`, `eval`.
+#         leading redirection, a `+=` or escaped-space assignment prefix, and a
+#         quoted command name (`"emit" error P8`, which bash runs).
+#       * `trap 'emit error P9' EXIT` and `eval 'emit error P10'`, which look
+#         like command-position gaps and are not: `cmd_position()` names `eval`
+#         and BARE `eval emit error P10` resolves. What is lost is the QUOTED
+#         body, so both belong to the quoting hole above. A cross-model review
+#         corrected that attribution, and it matters because the two have
+#         different fixes.
+#       * `x=$[ 1 << EOF ]` before a genuine `cat <<EOF` block: deprecated
+#         arithmetic arms `EOF`, and the real block's terminator closes it.
+#       * `cat <<A <<B` on one line: only A arms, so B's body is read as code
+#         and a `<<WORD` in it cascades.
 #
 #     All of them need parser state this scanner does not have. None appears in
 #     the registered detector, which is why the gate is correct today rather
@@ -661,8 +680,9 @@ BEGIN {
   # NARROWED TO TAILS CARRYING A `<<`, because that is the whole of what is
   # undecidable here: with no `<<` there is no arming decision to get wrong.
   # The distinction is not cosmetic. An unterminated span is ORDINARY in this
-  # repo -- 61 hits across 34 tracked files, every one a jq filter with an
-  # unbalanced `)` or a `${var%%...}` pattern, and NONE of them carrying a `<<`
+  # repo -- 61 hits across 34 tracked files, nearly all of them a jq filter
+  # with an unbalanced `)` or a `${var%%...}` pattern (a line-wrapped `(( ... ||`
+  # is one of the exceptions), and NONE of them carrying a `<<`
   # -- so refusing on all of them would have turned three real scripts inside
   # the discovery glob un-gateable to buy nothing. Refusing on the `<<` subset
   # costs nothing today and closes the class.
@@ -688,8 +708,10 @@ BEGIN {
     # each truncated the next delimiter outside them -- `[A-Za-z_][A-Za-z0-9_]*`
     # cut `<<'PY.END'` to `PY`, a wider class still cut `<<EOF@1` to `EOF` --
     # and requiring the match to reach a boundary only converted those into a
-    # REFUSAL to arm, on sixteen spellings bash accepts (`<<EOF{`, `<<EOF#`,
-    # `<<EOF%` and the rest).
+    # REFUSAL to arm, on every spelling bash accepts whose delimiter carries a
+    # printable character outside that class (`<<EOF{`, `<<EOF#`, `<<EOF%` and
+    # so on). An earlier revision said "sixteen", which counted an enumeration
+    # nothing in the tree measures; the suite pins seven of them.
     #
     # Refusing looked like the safe direction and is not, quite. The body is
     # then read as code, and a `<<` INSIDE that body arms on a delimiter of its
