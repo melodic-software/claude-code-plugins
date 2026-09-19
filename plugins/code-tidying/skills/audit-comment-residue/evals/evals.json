@@ -78,11 +78,11 @@
       "files": ["evals/fixtures/origin-notes.sh"],
       "expectations": [
         "All five origin-note lines are classified as origin-note at Tier 1 with a delete treatment",
-        "The three license-header lines (Copyright, SPDX-License-Identifier, Licensed under the MIT License) are NOT flagged",
+        "The three license-header lines (Copyright, SPDX-License-Identifier, Licensed under the MIT License) are NOT flagged; a license or attribution header is exempt from this shape even when it carries an origin cue",
         "None of the four dated stamp lines (verified, Checked, Confirmed, As of) is flagged: a dated stamp is load-bearing, not an origin note",
         "The why-comment 'Must stay ordered because the parser reads the first match' is NOT flagged",
         "The bare date line '2026-08-10' is NOT flagged: an origin verb is required",
-        "The 'TODO(#123): tighten the upper bound' marker is NOT flagged, because it carries no origin cue rather than because TODO is exempt from this shape",
+        "The 'TODO(#123): tighten the upper bound' marker is NOT flagged; a marker comment is exempt from this shape even when it carries an origin cue",
         "The output is a classification report with tiers and treatments; no file is edited"
       ]
     }

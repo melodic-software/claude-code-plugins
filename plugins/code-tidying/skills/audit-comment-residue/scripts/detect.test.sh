@@ -487,17 +487,25 @@ EOF
 origin_neg_out="$(bash "$DETECT" "$ORIGIN_NEG")"
 assert_contains "origin-note word and clause boundaries hold" "$origin_neg_out" "T1=0 T2=0 T3=0"
 
-# cr_is_sanctioned_todo guards ticket-pr-residue ONLY, which is the pre-existing
-# behavior every Tier 1 shape already inherits. A TODO carrying an origin cue is an
-# origin note; the committed fixture's TODO passes on cue design, not on an exemption.
-ORIGIN_TODO="$TEST_TMPDIR/origin-todo.py"
-cat >"$ORIGIN_TODO" <<'EOF'
-# TODO(#123): tighten the upper bound
-# TODO(#124): ported from upstream, tighten the bound
+# origin-note is tier 1, which reads "remove". A license or attribution header carries
+# text the reader may be legally required to keep, and a marker comment is tracked work,
+# so neither is an origin note however it opens. The marker test reuses
+# cr_is_sanctioned_todo verbatim rather than redefining which markers count, so a bare
+# TODO is exempt here exactly as it already is for ticket-pr-residue.
+ORIGIN_EXEMPT="$TEST_TMPDIR/origin-exempt.py"
+cat >"$ORIGIN_EXEMPT" <<'EOF'
+# TODO(#123): ported from lib/x
+# TODO: ported from lib/x
+# FIXME: copied from the vendor SDK
+# Copyright (c) 2026 Example Corp. Adapted from lib/x
+# SPDX-License-Identifier: MIT; copied from the upstream license text
+# Licensed under the MIT License; ported from the vendor SDK
+# License: Apache-2.0, adapted from the reference implementation
+# Ported from lib/x
 EOF
-origin_todo_out="$(bash "$DETECT" "$ORIGIN_TODO")"
-assert_contains "a TODO carrying an origin cue is still an origin note" "$origin_todo_out" "Finding shape: origin-note"
-assert_contains "the sanctioned-TODO exemption covers ticket-pr-residue only" "$origin_todo_out" "T1=1 T2=0 T3=0"
+origin_exempt_out="$(bash "$DETECT" "$ORIGIN_EXEMPT")"
+assert_contains "an ordinary origin note still fires beside the exempt lines" "$origin_exempt_out" "Finding excerpt: # Ported from lib/x"
+assert_contains "marker and license comments are exempt from origin-note" "$origin_exempt_out" "T1=1 T2=0 T3=0"
 
 # One line can carry two shapes with opposite tiers; both are reported, neither masks
 # the other.

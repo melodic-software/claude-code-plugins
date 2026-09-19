@@ -128,10 +128,20 @@ cr_detect_shapes() {
   # buffer", "helpers exported from index.ts") is not a finding. An origin VERB is
   # required, so a bare date matches nothing, and the stamp verbs provenance:audit keys
   # on (verified, checked, confirmed, as of) are deliberately absent.
-  if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from ]] ||
-    [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
-    printf '%s\n' 'origin-note'
-    found=1
+  #
+  # Tier 1 reads "remove", so two comment classes are exempt whatever verb they open
+  # with: a marker comment, which is tracked work rather than residue, and a license or
+  # attribution header, whose text the reader may be legally required to keep. The
+  # marker test reuses cr_is_sanctioned_todo rather than redefining which markers count.
+  # The license test is line-level by design; a header BLOCK whose later lines carry no
+  # license cue of their own is not covered.
+  if ! cr_is_sanctioned_todo "$ct" &&
+    ! [[ "$lc" =~ (copyright|\(c\)|spdx-license-identifier|licensed[[:space:]]+under|license:) ]]; then
+    if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from ]] ||
+      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
+      printf '%s\n' 'origin-note'
+      found=1
+    fi
   fi
 
   # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
