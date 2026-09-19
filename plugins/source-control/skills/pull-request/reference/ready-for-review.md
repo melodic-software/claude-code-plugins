@@ -35,6 +35,9 @@ gh pr update-branch "$PR_NUMBER"                     # merges the base into the 
 git fetch "$REMOTE" "$BRANCH" && git merge --ff-only FETCH_HEAD
 ```
 
+Push any local commits first: `git merge --ff-only FETCH_HEAD` refuses when the local branch
+carries commits the remote lacks, and the local-merge fallback below handles that case too.
+
 Where `gh pr update-branch` is unavailable or refuses (a fork head, a session that cannot reach the
 endpoint), do the same thing locally:
 

@@ -37,18 +37,38 @@ request:
   workflow runs in CI. The wrapper supplies the target and owns posting; this skill owns what to
   hunt for.
 
-**Routing.** This skill runs only where the workflow invokes it. In a session, when the native
-command resolves, prefer it for a local single pass before pushing; prefer this lane's criteria
-when the question is what the CI review will flag. A deep multi-agent scan or repository
-monitoring is neither surface: those are the Claude Security plugin and product.
+**Routing.** This skill runs in two modes: the CI lane, where the reusable workflow invokes it,
+and seat-run mode, where the pull-request skill's ready step or the operator invokes it directly
+(the section below). In a session, when the native command resolves, prefer it for an ad-hoc
+pass before a pull request exists; the run a repository's mandatory-skill map asks for by name
+is this skill, not that command, because the two stamp different names into the skill-usage
+ledger a map reads. A deep multi-agent scan or repository monitoring is neither surface: those
+are the Claude Security plugin and product.
 
-**Mutation gate.** This lane posts only through its wrapper's mechanics and edits nothing, so
-never invoke the native command on this lane's behalf.
+**Mutation gate.** In the CI lane this skill posts only through its wrapper's mechanics; in
+seat-run mode it posts nothing at all. It edits nothing in either mode, so never invoke the
+native command on this lane's behalf.
 
 **Availability is never assumed.** Native surfaces are gated by their backing plugin, settings,
 environment, and host; this section states what to do when one resolves, never that it is
 present. The four-part records live in
 [reference/bundled-security-review.md](reference/bundled-security-review.md).
+
+## Seat-run mode
+
+The same criteria run outside CI, on the operator's own session: invoked by the pull-request
+skill's ready step, or by hand against an open pull request. No wrapper supplies the inputs
+there, so read them:
+
+- `gh pr view <n> --json number,headRefOid` for the number and the head SHA. REST serves both,
+  so no checkout with history is needed.
+- `gh pr diff <n>` for the diff, or `gh api repos/{owner}/{repo}/pulls/<n>/files --paginate`
+  when per-file entries are wanted instead of one patch.
+
+Return the findings in the conversation, in the same severity vocabulary
+(CRITICAL / IMPORTANT / SUGGESTION) and against the same high-signal bar. Post nothing to
+GitHub: no review, no comment, no label. The inline-comment MCP server is a wrapper grant the
+CI lane alone gets, so it is not used here; on the seat the transcript is the report.
 
 ## Gotchas
 

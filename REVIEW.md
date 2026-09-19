@@ -13,11 +13,13 @@ The **code-review lane** (the `review` plugin's code-review skill, run
 on the operator's seat here, and Managed Code Review where a repository
 enables it) reads this file and applies the code-review scope below. A
 **security review** runs from its own security-only prompt rather than
-reading this file; its scope section below records the same split for
-every surface that does read it, so the code-review lane knows what to
-leave to a separate security pass where one runs, and so a self-hosted
-or local review (for example a `review`-plugin security agent) applies
-the right section.
+reading this file; here that is `review:security-review`, run on the
+operator's seat for every pull request touching a path in
+`.github/claude-security-paths`. Its scope section below records the same
+split for every surface that does read it, so the code-review lane knows
+what to leave to a separate security pass where one runs, and so a
+self-hosted or local review (for example a `review`-plugin security
+agent) applies the right section.
 
 ## Severity
 
@@ -63,11 +65,17 @@ criterion; a citation here never substitutes prose that isn't needed, per
 ## Code-review lane scope
 
 This lane owns every review dimension: correctness, design, conventions,
-error handling, observability, tests, and documentation. This repository
-runs no separate security lane, so a suppressed security finding would
-have no other reader: report security findings here too, such as
-vulnerabilities, authorization or tenancy gaps, credential exposure, or
-injection, applying the security-scope checks below.
+error handling, observability, tests, and documentation. Security is the
+one dimension whose owner depends on what the pull request touches. A
+separate security review runs on the operator's seat whenever the pull
+request touches a path in `.github/claude-security-paths`: the `security`
+class of the `pr_skill_evidence` map in `.claude/source-control.md` owes
+`review:security-review` on that diff, and this lane leaves security
+findings to it there. On a pull request that touches none of those paths
+nothing else reads security, so a suppressed finding would have no other
+reader: report security findings here too, such as vulnerabilities,
+authorization or tenancy gaps, credential exposure, or injection,
+applying the security-scope checks below.
 
 Always check:
 

@@ -31,7 +31,7 @@ open pull request:
 - **This skill (marketplace plugin).** The review logic the `claude-review` reusable workflow runs
   in CI. The wrapper supplies the target and owns posting; this skill owns what to look for.
 
-**Routing.** This skill runs only where the workflow invokes it. In a session, when the bundled
+**Routing.** This skill runs where a CI workflow invokes it and on the operator's seat when a repository's mandatory-skill map names it. In a session, when the bundled
 `code-review` skill resolves, prefer it for a local review before pushing; prefer this lane's
 criteria when the question is what the CI review will flag. The two do not chain: the wrapper
 never invokes the bundled skill, and a session review never posts through this lane.

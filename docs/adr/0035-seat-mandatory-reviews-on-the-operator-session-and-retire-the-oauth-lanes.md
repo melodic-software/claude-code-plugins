@@ -46,8 +46,10 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
 3. **Evidence is a ledger row plus a body block.** Every skill-usage row now carries the commit
    the skill was invoked at and the pull request number when the branch records one. The
    pull-request skill renders a fenced `skill-evidence` block under the body's Verification
-   section, one `<skill> <sha> <utc-timestamp>` row per skill. One script,
-   `plugins/source-control/scripts/skill-evidence.sh`, is the only reader and renderer.
+   section, one `<skill> <sha> <utc-timestamp>` row per skill. That is one grammar with two
+   readers: the script `plugins/source-control/scripts/skill-evidence.sh` (the renderer, and the
+   reader behind the hook and the validator) and the babysit gate's Python parser, pinned to the
+   same row format and the same freshness rule.
 4. **Freshness has two tiers.** A row is stamped when a skill is invoked, before any edit the
    skill goes on to make, so the terminal skill's row must equal HEAD exactly and every other
    skill's row must sit on HEAD's history. A base refresh by merge keeps every non-terminal row
@@ -98,12 +100,16 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
   operator-account pull requests when their one trigger fired; that coverage is gone.
 - Every base refresh re-runs the terminal skill on the seat. That is the cost of refreshing, and
   it replaces the lanes' cost of one review per pull request at most.
+- On merge, every open non-draft pull request carries no block yet, and the babysit worker tier
+  is on in this repository, so each one is routed once per head to a worker that runs the ready
+  step. The backfill therefore costs one mandatory-set run per open pull request.
 - The security class fires on nearly every non-docs pull request, at the breadth
   `.github/claude-security-paths` declares. Narrowing the list narrows the class.
 - The measurement keys on the pull request's head SHA at merge time, read over REST, because the
   base ruleset squash-merges and the squash commit never appears in a row.
 - The `needs-skill-evidence` label is IaC-owned and provisioned through github-iac; until then
-  the validator comments only. The org pull-request template
+  the validator comments only, which is why the body-contract rule names the label where
+  github-iac has provisioned it rather than unconditionally. The org pull-request template
   (`melodic-software/.github`) should name the block; this repository deleted its local template
   to inherit the org default, so that wording is a request against the org repository.
 - The claude-ops writer and the source-control readers resolve the ledger path by paired
