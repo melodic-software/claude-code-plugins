@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.15]
+
+### Changed
+
+- The prose-context platform bound in `reference/prerequisite-resolution.md`, and the one clause each in the setup skill and the resolution slice that point there, say what the harness now does: a secondary agent-instruction file loads at session start where no primary instruction file sits in the working directory or above it, and reaches a session through a reference otherwise. The dated record is re-verified against harness 2.1.278, superseding the 2026-09-06 reading that the secondary file was never read.
+
 ## [0.23.14]
 
 ### Changed

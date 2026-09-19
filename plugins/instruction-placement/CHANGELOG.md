@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Added
+
+- New skill `/instruction-placement:migrate`: moves a repository's instruction content to `AGENTS.md` as the one content home and keeps a one-line `@AGENTS.md` `CLAUDE.md` shim while a shim is still what makes it load. `scripts/plan-migration.sh` is the read-only plan (`--dry-run` is the only mode): one state per directory (`content-in-claude`, `shim`, `agents-only`, `both-with-content`, `zero-byte`), Codex's 32,768-byte project-doc budget summed along each root-to-directory path, case-variant filenames, bare `~/CLAUDE.md` suppressors, code that finds a path by the existence of `CLAUDE.md`, markdown links resolving into `CLAUDE.md`, the detected docs home, and every `claude-code-action` pin. Removing shims is a separate cutover and has no code path here.
+
+### Changed
+
+- `render-index.sh reachable` and `wiring` decide on what a repository can show rather than on the claim that Claude Code never reads `AGENTS.md`. A `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` on the file's own path is what makes an unimported `AGENTS.md` inert, so `UNREACHABLE` and `UNWIRED` now fire only where one of those is read instead of the file. A file nothing blocks gets the new `NATIVE` verdict, which is not a pass either: availability, and a `CLAUDE.md` above the repository root, are outside what a static check can see. Exit codes are unchanged for the blocked case.
+- `lib/discover.sh`'s `ip_index_target_loaded` gained the `NATIVE` verdict on the same rule, and only for the `AGENTS.md` names Claude Code reads on its own.
+- The plugin description, `README.md`, `setup`, `check` and `realign` bodies, `context/routing-rubric.md`, `context/verified-mechanics.md` and `realign/context/apply-recipes.md` restate the shim as conditional, each with the four-part dated record. `realign` and `migrate` are named as the two mutating surfaces, replacing "the only mutating surface".
+
 ## [0.13.11]
 
 ### Changed

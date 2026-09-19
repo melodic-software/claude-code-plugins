@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.11]
+
+### Changed
+
+- `audit-instructions`: the I-check exemption for "read `AGENTS.md`" instructions and I15's `AGENTS.md` exclusion are both conditional now. A repository with no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it loads its `AGENTS.md` at startup like a `CLAUDE.md` (Claude Code 2.1.277 and later, where support is available), so the file is a real instruction surface there and belongs in the comparison set. The import claim carries its dated record.
+
 ## [0.46.10]
 
 ### Fixed
