@@ -323,7 +323,7 @@ Plugin: source-control (same version bump as Phase 2).
 - `CHECK_SKILL_SKILLS_ROOT=plugins/source-control/skills bash plugins/skill-quality/scripts/check-skill.sh pull-request`
   exit 0; `scripts/check-changed-skills.sh origin/main` exit 0.
 
-#### Phase 4: Advisory PreToolUse gate on the ready flip [TODO]
+#### Phase 4: Advisory PreToolUse gate on the ready flip [DOING]
 
 Review: security
 
@@ -367,7 +367,7 @@ measured firing rate before default-on. Kept as briefed; the flip line at presen
 - A hook payload for `gh pr ready 1` against a fixture with an empty ledger prints JSON containing
   `additionalContext` and exits 0.
 
-#### Phase 5: The `ci-status` validator and the lint job's prose-detector step [TODO]
+#### Phase 5: The `ci-status` validator and the lint job's prose-detector step [DOING]
 
 Review: security
 
