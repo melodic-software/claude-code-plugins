@@ -26,6 +26,10 @@ if [[ -s "$STORE" ]]; then
   assert_eq "second store skill (slash stripped)" "research" "$(jq -r '.skill' "$STORE")"
   assert_eq "second store hook" "skill-usage-audit" "$(jq -r '.hook' "$STORE")"
   assert_eq "second store source" "tool" "$(jq -r '.source' "$STORE")"
+  assert_eq "second store omits sha outside a git work tree" "false" \
+    "$(jq 'has("sha")' "$STORE")"
+  assert_eq "second store omits pr outside a git work tree" "false" \
+    "$(jq 'has("pr")' "$STORE")"
 else
   bad "second store not written (unconditional)"
 fi
@@ -114,6 +118,47 @@ if git -C "$PROJG" init -q 2>/dev/null; then
     ok "git status clean after hook write"
   else
     bad "git status clean after hook write"
+  fi
+  # An unborn HEAD resolves no commit, so the row drops sha rather than
+  # carrying a placeholder a reader would have to special-case.
+  assert_eq "unborn HEAD omits sha" "false" \
+    "$(jq 'has("sha")' "$PROJG/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
+  assert_eq "unborn HEAD keeps branch unknown" "unknown" \
+    "$(jq -r '.branch' "$PROJG/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
+fi
+
+# --- Repo scope with a commit: the row carries sha, and pr when configured --
+# The evidence contract downstream readers join on: sha is HEAD at the moment
+# the Skill call returned, pr is the number the pull-request skill wrote onto
+# the branch, absent until it does.
+PROJH="$TEST_TMPDIR/projh"
+mkdir -p "$PROJH"
+if git -C "$PROJH" init -q 2>/dev/null &&
+  git -C "$PROJH" -c user.email=test@example.invalid -c user.name=test \
+    commit -q --allow-empty -m seed 2>/dev/null; then
+  PROJH_STORE="$PROJH/.claude/observability/skill-usage.jsonl"
+  PROJH_HEAD="$(git -C "$PROJH" rev-parse HEAD)"
+  PROJH_BRANCH="$(git -C "$PROJH" rev-parse --abbrev-ref HEAD)"
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJH" \
+    bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
+  PROJH_SHA="$(jq -r '.sha // empty' "$PROJH_STORE" 2>/dev/null | head -1)"
+  if [[ "$PROJH_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+    ok "row sha is 40 lowercase hex"
+  else
+    bad "row sha is 40 lowercase hex (got '$PROJH_SHA')"
+  fi
+  assert_eq "row sha equals git rev-parse HEAD" "$PROJH_HEAD" "$PROJH_SHA"
+  assert_eq "row omits pr while the branch config key is unset" "false" \
+    "$(head -1 "$PROJH_STORE" | jq 'has("pr")')"
+  git -C "$PROJH" config "branch.${PROJH_BRANCH}.pr-number" 7 >/dev/null 2>&1
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJH" \
+    bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
+  assert_eq "row carries pr once the branch config key is set" "7" \
+    "$(tail -1 "$PROJH_STORE" | jq -r '.pr')"
+  if [[ -z "$(git -C "$PROJH" status --porcelain 2>/dev/null)" ]]; then
+    ok "git status clean after the sha-bearing writes"
+  else
+    bad "git status clean after the sha-bearing writes"
   fi
 fi
 
