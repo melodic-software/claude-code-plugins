@@ -70,6 +70,20 @@ A deviation carries four fields: plan said, found, chose, revisit.
   patterns rejected with a warning); all five applied in the review-fix commit. The ai-slop audit
   reported 47 pre-existing em dashes in ADR 0002, none added by this branch; the Phase 8 sanity
   check is scoped to exclude that file rather than rewrite a historical record here.
+- **discovery (Phase 9)**. `scripts/affected-tests.sh --run` selected 303 suites; one failed,
+  `plugins/session-flow/scripts/save_point.test.sh`
+  (`test_new_origin_falls_back_to_directory_name`). The branch changes nothing under
+  `plugins/session-flow` (the suite was selected through a shared helper reference), and the same
+  suite fails identically from an `origin/main` snapshot extracted with `git archive`, so the
+  failure is not this pull request's. Outcome: reported, not fixed here.
+- **discovery (Phase 9)**. The fan-out review of #4210 found one critical item (the new checkout
+  step in `ci-status` carried no `continue-on-error`, so a transient checkout failure could red
+  the required check) and nine important ones (the sparse checkout read the map from the pull
+  request head rather than the base; REVIEW.md and the security-review skill still described
+  the lane era; compare payloads matched on the merge base as well as the row; body rows were
+  not validated as 40-hex; `report` dropped a clean marker at the gap's own head and paginated
+  every closed pull request). All are applied in the review-fix commits that follow, each pinned
+  by a suite case where a mechanism changed.
 - **deviation (orchestration, second occurrence)**. The Phase 8 commit swept in two hook
   scripts the Phase 4 worker had staged for their exec bit. Chose: soft-reset the two commits
   before any PR existed and recommit with `git commit --only -- <paths>`, which ignores the rest
