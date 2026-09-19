@@ -3,6 +3,14 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.10]
+
+### Fixed
+
+- **`check-hook-coverage.sh` resolves a plugin whose registry entry also holds a record for another project.** The install-record filter read `($project | startswith(.projectPath + "/"))`, where the input `.` is the string `$project`, so `.projectPath` raised `Cannot index string with string ("projectPath")` and jq abandoned the whole program with rc 5. `or` short-circuits, so it fired only when a record carried a non-empty `projectPath` differing from the current root. The shared helper discards jq's stderr, so the plugin was silently reported UNRESOLVED on a machine where it is installed and the inventory went partial, which withdraws Category B's third baseline narrowing. The clause now binds the value first, as `(.projectPath as $pp | $project | startswith($pp + "/"))`.
+- **`check-hook-coverage.sh`'s `--json` emitter no longer lets MSYS rewrite the values it encodes.** Every node was built by a native `jq -cn` call binding its values as `--arg`. On Git for Windows each call crosses `CreateProcess` and MSYS rewrites any argument whose tail looks like a POSIX path, so a plugin's shipped hook command `"${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` arrived as `"${CLAUDE_PLUGIN_ROOT}"C:/Program Files/Git/hooks/x.sh` and the engine reported `hook-path-missing` for a file that exists; the emitted project root was rewritten the same way. The six emitter sites now go through a `jqn()` wrapper that suppresses the conversion inline, which is safe because not one of them passes a file for jq to open.
+- **`audit-engine.sh` assembles its document off the command line.** The nine payloads were bound to one `jq -n` call as `--argjson` values. The whole argv is one Win32 command line, and a single argument past about 32,760 bytes fails with `Argument list too long`, which left the document empty and every later reader printing nothing while the engine still exited 1 and still wrote `--out`, so a real audit produced no output and said nothing about it. The payloads now ride stdin and are slurped by `jq -s`, and the `--out` writer gets the same treatment while staying independent of the document, so it still succeeds when the assembly does not. The document schema, the row set, the exit codes and the findings file (byte for byte) are unchanged.
+
 ## [0.46.9]
 
 ### Changed

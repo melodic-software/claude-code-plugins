@@ -19,6 +19,9 @@ fail() {
   FAILED=$((FAILED + 1))
   printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
 }
+assert_eq() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
+}
 assert_exit() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
 }
@@ -427,6 +430,73 @@ assert_exit "case 19: an unparsable catalog leaves the inventory partial" 1 "$rc
 assert_contains "case 19: the catalog is named as unreadable" "$out" "marketplace:mkt"
 assert_contains "case 19: the reason is the parse failure" "$out" "not valid JSON"
 assert_contains "case 19: the registry route still enumerates the plugin" "$out" "registry-hook.sh"
+
+# --- Case 21: a record for a FOREIGN project does not break resolution --------
+# The registry can hold several records under one plugin key, and a project-scoped
+# record carries the project it belongs to. A record naming a different project
+# must simply be filtered out. In the shipped program the third select clause read
+# `($project | startswith(.projectPath + "/"))`, where `.` is the string $project,
+# so `.projectPath` raised "Cannot index string with string" and jq abandoned the
+# whole program. `or` short-circuits, so it fired only when a record carried a
+# non-empty projectPath differing from this root: exactly this fixture. The plugin
+# was then silently reported UNRESOLVED on a machine where it is installed.
+m="$(make_machine foreign-project-record)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+mkdir -p "$m/plugins/guard/hooks"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"user-scope-hook.sh"}]}]}}' \
+  >"$m/plugins/guard/hooks/hooks.json"
+reg "$m" "guard@mkt" "$m/plugins/guard" "user" ""
+# A Windows-form path, so the projectPath backslash normalization is exercised too.
+reg "$m" "guard@mkt" 'C:\Other\Project\plugins\guard' "project" 'C:\Other\Project'
+rc=0
+out=$(run "$m" 2>&1) || rc=$?
+assert_exit "case 21: a foreign-project record leaves the inventory complete" 0 "$rc"
+assert_contains "case 21: the record for this project still resolves" "$out" "user-scope-hook.sh"
+assert_not_contains "case 21: the plugin is not reported unresolved" "$out" "UNRESOLVED"
+assert_contains "case 21: inventory declared complete" "$out" "INVENTORY: complete"
+
+# --- Case 22: a ${CLAUDE_PLUGIN_ROOT} command survives the --json emitter -----
+# The emitter binds each hook command to native jq as `--arg c`. On Git for
+# Windows every jq invocation crosses CreateProcess, and MSYS rewrites any
+# argument whose tail looks like a POSIX path: the shipped placeholder
+# "${CLAUDE_PLUGIN_ROOT}"/hooks/<x>.sh came out as
+# "${CLAUDE_PLUGIN_ROOT}"C:/Program Files/Git/hooks/<x>.sh, and the engine then
+# reported hook-path-missing for a file that exists. A jq --arg value is DATA,
+# never a path for the tool to open, so the emitter suppresses the conversion.
+#
+# WINDOWS-ONLY. There is no MSYS argument conversion off Git for Windows, so this
+# case passes on Linux and macOS whether the defect is present or not. A green
+# non-Windows lane is not coverage for it.
+m="$(make_machine msys-argconv)"
+printf '{"enabledPlugins":{"guard@mkt":true}}\n' >"$m/project/.claude/settings.json"
+mkdir -p "$m/plugins/guard/hooks"
+# Written literally, never through hook_file(): that helper builds its hooks.json
+# with `jq -n --arg c`, which is the mangling under test, so the placeholder would
+# already be corrupted on disk and this case would be red before AND after.
+# shellcheck disable=SC2016  # ${CLAUDE_PLUGIN_ROOT} is the literal placeholder a plugin hook ships; it must stay unexpanded
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/msys-guard.sh"}]}]}}' \
+  >"$m/plugins/guard/hooks/hooks.json"
+reg "$m" "guard@mkt" "$m/plugins/guard"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 22: exit 0" 0 "$rc"
+# Read the command back through jq rather than matching the raw document: the
+# quotes are backslash-escaped there. Equality rather than containment, so a
+# mangling that wrapped the value instead of splicing into it is caught too. The
+# CR here is appended by THIS pipeline's own jq, not carried in the document, so
+# the strip stays even once the emitter emits none of its own.
+# shellcheck disable=SC2016  # the expected value is the literal placeholder, not a shell expansion
+assert_eq "case 22: the placeholder command is emitted byte for byte" \
+  '"${CLAUDE_PLUGIN_ROOT}"/hooks/msys-guard.sh' "$(json_field "$out" '.hooks[0].command' | tr -d '\r')"
+# So a regression reads as the actual mangling, not merely as a missing substring.
+assert_not_contains "case 22: no MSYS-injected interpreter prefix" "$out" "Program Files"
+# Native jq writes stdout in TEXT mode on Git for Windows and terminates every
+# line with CRLF, so each emitter fragment carried a stray CR into the assembled
+# document. They land between tokens, where JSON counts them as whitespace, so
+# nothing was corrupted; this pins the emitter to the same output hygiene jqs()
+# has always had, so a value captured from it can never carry one.
+assert_eq "case 22: the emitted document carries no carriage return" \
+  "0" "$(printf '%s' "$out" | tr -dc '\r' | wc -c | tr -d ' ')"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
