@@ -73,7 +73,9 @@ The section body is a flat bullet list, one rule per bullet, three fields separa
 - `<class>` is a label used in messages.
 - `<patterns>` is a space-separated list of gitignore-style patterns; `@file:<path>` reads
   patterns from a repo file; the single pseudo-pattern `@renamed` matches any path the diff
-  reports as renamed.
+  reports as renamed. The reader strips one pair of wrapping backticks from each field, and this
+  repository's map writes the patterns field as a code span: a bare `**/*.sh **/*.py` is a pair
+  of strong-emphasis markers to markdownlint, which rewrites it on save.
 - `<skills>` is a space-separated list of required skills; a token `a,b` means "any one of a or b";
   a trailing `!` marks the terminal skill (at most one per map, checked at HEAD exactly).
 - Absent from every layer, or `none`: no rules, the mechanism is inert (lane-1 portable default).

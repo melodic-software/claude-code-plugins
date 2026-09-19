@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.0]
+
+### Added
+
+- `scripts/skill-evidence.sh`, the one reader of the mandatory-skill evidence a pull request carries for a head commit: `classes` (which classes a diff touches), `check` (the per-skill verdict, from a skill-usage ledger or from the fenced `skill-evidence` block of a PR body), `render` (that block), and `report` (the advisory gate's firing counts over merged PRs). Every audit path exits 0 and a usage error exits 2, so no reader of it can go red. Ancestry comes from git, or from a saved REST compare payload, so a caller with no history on disk gets the same verdicts.
+- Config key `pr_skill_evidence` on the layered `.claude/source-control.md` surface: one bullet per rule, `- <class> | <patterns> | <skills>`, with `@file:<path>` and `@renamed` patterns, `a,b` any-of skill tokens, and a trailing `!` marking the terminal skill, which is the one checked at the head exactly. Absent or `none` in every layer means no rules and an inert mechanism.
+- Plugin option `skill_evidence_store` (`repo`, `user`, or a path) naming where that ledger is read. It pairs with the claude-ops `skill_usage_scope` option that writes it; claude-ops' `data-dir` scope is unsupported for evidence.
+
 ## [0.55.89]
 
 ### Changed

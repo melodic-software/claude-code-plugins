@@ -18,6 +18,7 @@ merge-conflict resolution.
   - [`pr-body-linkage-gate`](#pr-body-linkage-gate)
   - [`pr-linkage-mcp-gate`](#pr-linkage-mcp-gate)
   - [`worktree-add-claim-gate`](#worktree-add-claim-gate)
+- [Skill evidence](#skill-evidence)
 - [Works in any repo](#works-in-any-repo)
 - [Install](#install)
 - [Configuration](#configuration)
@@ -285,6 +286,31 @@ third time, and a block message that names a configured root reads the
 numbers as ceilings, proves itself non-vacuous against seven mutants, one per change, and
 fails when a gate feeds its payload to a reader by here-string.
 
+## Skill evidence
+
+`scripts/skill-evidence.sh` answers one question for every reader that asks it: which mandatory
+skills have evidence that they ran against a given pull request head. It has four subcommands,
+`classes` (which classes a diff touches), `check` (the per-skill verdict for a head, from a ledger
+or from the block in a PR body), `render` (that block), and `report` (the advisory gate's firing
+counts). Every audit path exits 0, because every reader of it is advisory; a usage or environment
+error exits 2. `--help` on any level prints the surface.
+
+What it requires is the consuming repository's own map, the `pr_skill_evidence` key of
+[`.claude/source-control.md`](reference/config-resolution.md), which names a class, the patterns
+that put a diff in that class, and the skills that class owes. No map, or a map whose body is
+`none`: the mechanism is inert and every subcommand says nothing. Freshness has two tiers, because
+a ledger row is stamped when a skill is invoked, before any edit it goes on to make: the terminal
+skill (the map marks it with a trailing `!`) needs a row at the head exactly, and every other skill
+needs a row at the head or on its history.
+
+The ledger itself is written by another plugin. `claude-ops` records each Skill call, and its
+`skill_usage_scope` option decides where. This plugin's `skill_evidence_store` option decides where
+to read, and the two have to agree, because plugin options are per plugin and neither can read the
+other's. Set both to the same scope word: `repo` for a per-checkout ledger (the default on both
+sides), `user` for one under `$HOME`. claude-ops' `data-dir` scope is **unsupported** here: that
+path belongs to the writing plugin and is not addressable from this one. A store that is not there
+is reported once and then read as no rows, never as a pass.
+
 ## Works in any repo
 
 - **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
@@ -329,6 +355,7 @@ repo's owner.
 | `lane_instance` | string | sanitized lowercased hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `pr-contract` step) |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `pr-contract` step) |
+| `skill_evidence_store` | string | `repo` (`.claude/observability/skill-usage.jsonl` under the checkout; `user` reads the same subpath under `$HOME`, or give an explicit path. Pair it with claude-ops' `skill_usage_scope`, which writes that ledger; `data-dir` is unsupported) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
@@ -386,6 +413,7 @@ reads it from.
 | `worktree_add_containment_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED` | Block a raw Bash `git worktree add` whose resolved target lands inside a git repository, meaning a working tree or a .git / bare directory, with a message naming the configured external root (worktreeroot.path git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, verified". |
 | `worktree_add_claim_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED` | After a raw Bash `git worktree add`, lock the parsed add target with a session-distinct claim (host + session id + timestamp). Only that path is claimed, not every currently unlocked linked worktree, so two concurrent adds cannot steal each other's trees. Existing reasons, including the worktree-create.sh helper string, are never rewritten. The lock is a claim other agents can read, not a write mutex. Turning this OFF leaves plain-add trees unclaimed; `scripts/worktree-claim.sh report` still lists them and `check-enter` still surfaces a foreign live claim. Kill switch only: worktree_add_claim_gate_enabled. |
 | `worktree_create_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` | Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel, and measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation. That is why `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: "worktree"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `"none"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`. |
+| `skill_evidence_store` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_EVIDENCE_STORE` | Where scripts/skill-evidence.sh reads the skill-usage ledger that proves the mandatory pre-PR skills ran: `repo` (default, .claude/observability/skill-usage.jsonl under the checkout the skill runs in, which in `create --pushed --worktree` mode is the target worktree), `user` (the same subpath under $HOME), or an explicit path to a JSONL file. Pair it with the claude-ops `skill_usage_scope` option that writes the ledger: plugin options are per plugin, so this one cannot read that one, and the two have to agree. claude-ops' `data-dir` scope is unsupported here, since that path is private to the writing plugin. A store that is not there is reported once and then read as no rows. |
 | `babysit_watched_owners` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WATCHED_OWNERS` | GitHub owners (users/orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
 | `babysit_self_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_SELF_LOGINS` | Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login, forming the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, the merge-gate self-exemption, and the resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a disqualifying human participant). Not a discovery filter. Which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone. |
 | `babysit_intended_write_identity` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_INTENDED_WRITE_IDENTITY` | The single GitHub login babysit-prs's own writes are intended to land under, typically the bot posting identity. When a write the orchestrator recorded performing lands under a different `babysit_self_logins` identity (e.g. a bot-token mint failed and the write silently fell back to your personal login), the cycle status surfaces an attribution-drift material finding instead of proceeding silently. Set it to one of your self logins; a value that is not actually a posting identity would flag every write. Absent: the check is dormant. |

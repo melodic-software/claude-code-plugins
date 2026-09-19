@@ -26,6 +26,19 @@ A deviation carries four fields: plan said, found, chose, revisit.
 - **discovery (Phase 6)**. The runner label `melodic-review-ubuntu-24.04-x64` is now used by no
   workflow here; it stays declared in `.github/actionlint.yaml` and the upstream-managed
   runner-policy files, and the analyzer passes. No action.
+- **deviation (Phase 2)**. Plan said: map bullets `- <class> | <patterns> | <skills>` written
+  literally. Found: `**/*.sh **/*.py` is a strong-emphasis pair to markdownlint (MD037), which
+  rewrote the map on save. Chose: the reader strips one pair of wrapping backticks per field and
+  this repo's map writes the patterns field as a code span; recorded in the design resolution.
+  Revisit: never; pinned by the Phase 2 suite.
+- **discovery (Phase 2)**. Unquoted pattern fields were pathname-expanded by bash, so
+  `**/*.sh` matched whatever sat two levels below the working directory. Fixed with `set -f` for
+  the whole script and pinned by a regression case; mutant-verified by the worker (flipping it
+  fails exactly that case).
+- **discovery (Phase 2, for Phase 5)**. `report` counts fired and agreed from
+  `<!-- pr-skill-evidence head=<sha> verdict=<v> -->` markers; an upserted comment that rewrites
+  its marker loses the pair. Phase 5 appends one marker line per head inside the single
+  upserted comment instead of replacing it.
 - **deviation (orchestration)**. Plan said: one commit per phase. Found: the Phase 1 commit swept
   in the Phase 6 worker's staged deletions because `git commit` took the whole shared index. Chose:
   split the commit before any PR existed (soft reset, recommit Phase 1 from its own paths, commit
