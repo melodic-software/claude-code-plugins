@@ -491,16 +491,32 @@ effect, so treat the `bash` number as an order of magnitude.
 
 ### Claude Desktop
 
-Unanswered: does Desktop's Code tab load a **user-authored** mod? Desktop is not this repository's
-primary audience, so this stayed a manual probe. It is worth running if a consumer reports using
-these plugins mainly through Desktop.
+Answered on 2026-09-19 for the main arm: **a user-authored mod loads in Desktop's Code tab**
+(`OBSERVED`). What enabled it is `INFERRED`, and four arms stay untested; both are below. Rerun the
+procedure if a consumer reports using these plugins mainly through Desktop.
 
-There is **no documented way to point Desktop at a local plugin directory** — `--plugin-dir` has no
-Desktop equivalent. The route below works only because Desktop and the CLI read the same
-configuration: settings in `~/.claude.json` and `~/.claude/settings.json` are shared, so a plugin
-installed at user scope by the CLI is visible to Desktop local sessions. If the probe comes back
-negative, that shared-configuration premise is one of the things that could be wrong, not only the
-mods gate.
+The result, 2026-09-19, Windows 11, Desktop build `app-2.2553.1`, whose bundled Claude Code is
+**2.1.275** (`%APPDATA%\Claude\claude-code\2.1.275\claude.exe`) and not the 2.1.278 CLI on `PATH`. A
+probe plugin carrying one `session.start` hook was installed at user scope from a local marketplace
+with the `PATH` CLI; the fully quit app was then launched from PowerShell with
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` set for that process only (step 3 route (c) below); a local
+Code tab session wrote the marker two seconds after the bundled CLI process started. No other CLI
+process started within five hours of it and none carried the flag, so nothing else could have written
+it.
+
+That the flag is **what** enabled it is `INFERRED`, not observed. The flag-unset arm was never run in
+Desktop, so this probe cannot separate "the variable reached the bundled process" from "the rollout
+gate is already on in that build".
+
+Untested and still open: the flag unset in Desktop (the rollout-gate arm), cloud sessions, Cowork,
+and mods that draw UI.
+
+The premise the route rests on held. There is **no documented way to point Desktop at a local plugin
+directory** — `--plugin-dir` has no Desktop equivalent — and the route works only because Desktop and
+the CLI read the same configuration: settings in `~/.claude.json` and `~/.claude/settings.json` are
+shared, so a plugin installed at user scope by the CLI is visible to Desktop local sessions. If a
+rerun comes back negative, that shared-configuration premise is one of the things that could have
+changed, not only the mods gate.
 
 The procedure, by hand:
 
@@ -515,21 +531,27 @@ The procedure, by hand:
    claude plugin list
    ```
 
-3. Turn function hooks on for the Desktop process. Two documented levers; prefer the first. (a)
-   Desktop's own environment editor: open the environment dropdown in the prompt box, hover over
-   **Local**, click the gear, and add `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS = 1`. (b) The `env` key in
-   `~/.claude/settings.json`, which is user-global and affects the CLI too — undo it afterwards.
-   That either route actually reaches the Desktop-bundled CLI process is **inference, not
-   documented**, and is one of the two things the probe tests.
-4. Fully quit Claude Desktop, tray icon included, and start it again. Environment variables and
-   plugin enablement are read at session start.
+3. Turn function hooks on for the Desktop process. Three levers. (a) Desktop's own environment
+   editor: open the environment dropdown in the prompt box, hover over **Local**, click the gear, and
+   add `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS = 1`. **The gear was absent in `app-2.2553.1`**, so this
+   route was unavailable on 2026-09-19; check whether the build in hand has it. (b) The `env` key in
+   `~/.claude/settings.json`, which is user-global and affects the CLI too — undo it afterwards. (c)
+   The route that worked on 2026-09-19: fully quit the app, confirm zero processes, then launch it
+   from PowerShell with `$env:CLAUDE_CODE_ENABLE_FUNCTION_HOOKS = '1'` set for that process only,
+   which rests on the documented rule that on Windows the app inherits user and system environment
+   variables. It sets no global variable, so there is nothing to undo. That any of the three actually
+   reaches the Desktop-bundled CLI process is **inference, not documented**.
+4. Fully quit Claude Desktop, tray icon included, and start it again; route (c) already did this.
+   Environment variables and plugin enablement are read at session start.
 5. In the Code tab open a **local** session, not a cloud session — the plugin browser and locally
    installed plugins are documented as unavailable in cloud sessions. Any folder. Send one message.
 6. Check the marker file.
 
-Reading the result: marker present and newer than the probe run means **loads**. No marker but the
-plugin listed means **does not load**, a negative with three causes the probe cannot separate —
-Desktop's bundled CLI may predate hooks modules (find its version under Settings, About), the
+Reading the result: marker present and newer than the probe run means **loads**, as it did on
+2026-09-19. No marker but the plugin listed means **does not load**, a negative with three causes the
+probe cannot separate — Desktop's bundled CLI may predate hooks modules (its version is under
+Settings, About, and is the directory name under `%APPDATA%\Claude\claude-code\`; it was 2.1.275 on
+2026-09-19, against 2.1.278 on `PATH`), the
 variable may not reach that process, or the session may have been a cloud session. Narrow it before
 reporting, and cross-check that the same plugin loads in the CLI on the same machine. No marker and
 the plugin not listed means the install did not take: nothing about Desktop was tested.
