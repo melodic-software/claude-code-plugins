@@ -3,6 +3,25 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Added
+
+- **`audit-comment-residue` gains a fifth residue shape, `origin-note`, at Tier 1.** A comment
+  naming where a block came from or when it was added is a finding: `ported from`, `copied from`,
+  `migrated from`, `adapted from`, `borrowed from`, `lifted from`, `taken from`, and
+  `added`/`merged`/`introduced`/`backported`/`ported` in front of an ISO date. Git history owns
+  origin, so the treatment is delete. The cue must open the comment or a clause inside it and must
+  be a whole word, so `bytes copied from the source buffer` and `helpers exported from index.ts`
+  are not findings. A dated freshness stamp is not this shape either: the cue list carries no bare
+  date and none of the stamp verbs `provenance:audit` keys on.
+
+### Changed
+
+- The `ticket-pr-residue` treatment says "bare back-reference" where it said "bare provenance", so
+  "provenance" keeps one sense across the repository.
+- `dissolve-comments`' triage reference names origin notes under class A.
+
 ## [0.20.0]
 
 ### Added
