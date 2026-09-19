@@ -616,22 +616,35 @@ p3b_case 'a `<<` inside a double-quoted argument' 'emit error P1 SRC "redact <<s
 p3b_case 'a `<<` inside double-quoted prose' 'echo "a << b"'
 p3b_case 'a `<<` inside single-quoted prose' "echo 'a << b'"
 p3b_case 'a `<<` inside a trailing comment' 'emit error P1 SRC "m"  # see <<EOF'
+p3b_case 'a `<<` in a comment opened after `;`' 'foo;#<<EOF'
+p3b_case 'a bare arithmetic COMMAND left shift' '(( mask = 1 << bits ))'
+p3b_case 'a bare arithmetic command, literal shift' '(( mask = 1 << 3 ))'
+p3b_case 'a `<<` inside a parameter expansion' 'x=${v//y/<<EOF}'
 
 # The other direction: a REAL heredoc must still arm, in every delimiter
 # spelling, or the fix above trades a false pass for a false failure. The
 # quoted-delimiter form is already covered by the P3 case above; these are the
 # spellings the rewritten delimiter matcher had to keep reading.
+# ARM **AND CLOSE**. An earlier version of this helper asserted only that the
+# body's `emit error P9` was not counted, and that is the assertion that let
+# four regressions through: a heredoc armed on a delimiter no line can match
+# hides the body AND everything after it, so "P9 is not counted" passes exactly
+# when the gate is most broken. Every case therefore also puts a call site
+# AFTER the terminator and requires it to be SEEN, which only a body that
+# actually closed can satisfy.
+#
+# The caller passes the heredoc lines; the terminator must be among them.
 p3b_arms() {
   local label="$1"
   shift
   mk_tree
-  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@" 'emit error P4 SRC "message"'
   mk_evals evals.json "$(evals_json 'exercises P1 classification')"
   run_gate "$(pair det.sh evals.json)" --check
-  if [[ $RC -eq 0 && "$ERR" != *"P9"* && -z "$ERR" ]]; then
-    ok "P3b: $label still arms the body skip"
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"P9"* ]]; then
+    ok "P3b: $label arms the body skip and closes it"
   else
-    fail "P3b $label stopped arming: rc=$RC out='$OUT' err='$ERR'"
+    fail "P3b $label did not arm-and-close: rc=$RC out='$OUT' err='$ERR'"
   fi
   rm -rf "$root"
 }
@@ -643,6 +656,37 @@ p3b_arms 'a double-quoted delimiter' 'usage() { cat <<"USAGE"' 'emit error P9 SR
   'USAGE' '}'
 p3b_arms 'a redirected heredoc (`>&2 <<EOF`)' 'usage() { cat >&2 <<USAGE' \
   'emit error P9 SRC "someday"' 'USAGE' '}'
+p3b_arms 'a single-quoted delimiter' "usage() { cat <<'USAGE'" 'emit error P9 SRC "someday"' \
+  'USAGE' '}'
+
+# The four spellings a narrowed delimiter matcher armed on the WRONG word, each
+# swallowing to EOF. `<<\USAGE` is a plain POSIX heredoc: the backslash only
+# suppresses expansion, exactly as quoting the delimiter does.
+p3b_arms 'a backslash-escaped delimiter' 'usage() { cat <<\USAGE' \
+  'emit error P9 SRC "someday"' 'USAGE' '}'
+p3b_arms 'a backslash-escaped `<<-` delimiter' 'usage() { cat <<-\USAGE' \
+  'emit error P9 SRC "someday"' '	USAGE' '}'
+p3b_arms 'a quoted delimiter carrying a dot' "usage() { cat <<'PY.END'" \
+  'emit error P9 SRC "someday"' 'PY.END' '}'
+p3b_arms 'an unquoted hyphenated delimiter' 'usage() { cat <<USAGE-1' \
+  'emit error P9 SRC "someday"' 'USAGE-1' '}'
+# Removing `${ ... }` from the scan's copy must not cost a real opener sharing
+# the line with one.
+p3b_arms 'a heredoc opened beside a parameter expansion' 'usage() { cat ${opt} <<USAGE' \
+  'emit error P9 SRC "someday"' 'USAGE' '}'
+
+# The call-site tokenizer never sees those strips: an `emit` whose id is a
+# parameter expansion must still be UNRESOLVED (exit 2), not silently dropped.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error ${id} SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 2 && "$ERR" == *"emit call site"* ]]; then
+  ok "P3b: an id carried by a parameter expansion is still unreadable, not dropped"
+else
+  fail "P3b parameter-expansion id: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
 
 # A here-string opens no body, so the sites after it must survive.
 p3b_case 'a here-string (`<<<`)' 'grep x <<<"$v"'

@@ -128,20 +128,45 @@
 # site (which the greedy sed counted, yielding a permanent false failure), and a
 # `#` comment after real code is dropped once quoting is resolved.
 #
-# A HEREDOC OPENING IS READ OFF THE QUOTE-RESOLVED LINE, and that ordering is
-# the whole of it. The first revision resolved quoting for the CALL SITES but
+# A HEREDOC OPENING IS READ OFF THE QUOTE-RESOLVED LINE, AND ITS DELIMITER IS
+# READ WHOLE. Two halves, because getting only the first right reopened the
+# defect from the other side.
+#
+# THE ORDERING. An earlier revision resolved quoting for the CALL SITES but
 # looked for the heredoc OPENING on the raw line, one step earlier, so a `<<`
-# that was never a redirection operator -- inside a string, inside `$(( x << n
-# ))`, inside a trailing comment -- armed a body whose delimiter no later line
-# could close. The skip then ran to EOF and every call site below that line left
-# the extraction AND the candidate count together, so the count-vs-resolved
+# that was never a redirection operator -- inside a string, inside arithmetic,
+# inside a trailing comment -- armed a body whose delimiter no later line could
+# close. The skip then ran to EOF and every call site below that line left the
+# extraction AND the candidate count together, so the count-vs-resolved
 # accounting below, which exists precisely to turn a partial loss into exit 2,
 # had nothing left to disagree about. One ordinary line of shell turned real
-# UNCOVERED findings into exit 0 with no advisory. Found by a defeat attempt
-# against the merged gate rather than by a failing run: the registered detector
-# spells both its heredocs `<<'EOF'` and was never affected. The regression
-# guards are the P3b block of the self-test, and six of the seven fail against
-# the revision before this one.
+# UNCOVERED findings into exit 0 with no advisory.
+#
+# THE DELIMITER. Fixing only the ordering narrowed the delimiter matcher, and a
+# delimiter read WRONG is worse than a `<<` read wrong: it arms a word no line
+# can match, which is the same swallow. Four spellings broke that way, two of
+# them plain POSIX heredocs the revision before had read correctly:
+#   - `cat <<\EOF`. The walk dropped an escaped character along with its
+#     backslash, so the scan saw `cat <<OF` and armed `OF`. `\X` outside quotes
+#     is a literal X, so the walk now KEEPS the X -- which also fixes `\emit
+#     error P1`, a real call that had been read as `mit`.
+#   - `cat <<-\EOF`, the same.
+#   - `cat <<'PY.END'` and `cat <<EOF-1`. A quoted delimiter survives the walk
+#     as `@L@<word>`, but matching it with `[A-Za-z_][A-Za-z0-9_]*` truncated
+#     it at the punctuation and armed `PY` / `EOF`. The matcher now uses the
+#     walk's OWN literal-word class, so the delimiter arrives whole.
+#
+# Both halves were found by defeat attempts rather than by a failing run, the
+# second by an adversarial verifier reading the first. The registered detector
+# spells both its heredocs `<<'EOF'` and was never affected by either.
+#
+# The guards are the P3b block of the self-test. Ten of them fail against the
+# revision that had neither fix and six against the revision that had only the
+# first, and every ARMING case asserts arm-AND-CLOSE: a call site after the
+# terminator must still be SEEN. That last point is the lesson. The first round
+# of guards asserted only that the body's own emit was not counted, which a
+# swallow-to-EOF satisfies perfectly -- they passed while the gate was at its
+# most broken, and that is how the four regressions above reached a green run.
 #
 # ORDINARY SHELL IS NOT A PARTIAL LOSS. The first version of that scanner was
 # too literal and too loose at once, and exit 2 means "cannot determine", so
@@ -187,13 +212,23 @@
 #     written that way, and the remedy is a registry-row conversation, not a
 #     silent pass. A quoted literal carrying a space or an expansion
 #     (`emit "$sev" P4`) is the same answer.
-#   - MISSED (narrowed but not closed): a heredoc whose delimiter is not a bare
-#     word after the walk -- `<<"E O F"`, or one carrying an expansion -- arms
-#     nothing, so its BODY is read as code. That direction is the safe one: an
-#     `emit` in prose either resolves to an id, which over-counts and demands
-#     coverage, or does not, which is exit 2. Neither is a silent pass, and the
-#     opposite choice (arm on a delimiter that cannot be matched) is exactly the
-#     EOF-swallowing defect above.
+#   - MISSED, SAFE DIRECTION: a heredoc whose delimiter is not a single word
+#     after the walk -- `<<"E O F"`, or one carrying an expansion (`<<$DELIM`)
+#     -- arms nothing, so its BODY is read as code. An `emit` in prose there
+#     either resolves to an id, which over-counts and demands coverage, or does
+#     not, which is exit 2. Neither is a silent pass. Arming on a delimiter
+#     that cannot be matched IS one, which is why the matcher above reads the
+#     delimiter whole rather than accepting a prefix of it.
+#   - MISSED, SILENT (three shapes, open): quoting is resolved PER LINE, so a
+#     `<<` on the second line of a multi-line double-quoted string is read as
+#     code and arms. `$'...'` ANSI-C quoting with an escaped apostrophe
+#     (`msg=$'it\'s << EOF'`) desyncs the walk's quote state and the `<<`
+#     emerges unquoted. Both swallow to EOF silently, the severe outcome, and
+#     both need state the walk does not carry today: a line-crossing quote
+#     stack, and `$'...'` escape semantics. Named here rather than guessed at,
+#     because the residue list being wrong is how the delimiter regression
+#     survived its own review. Parameter expansions were a third and are
+#     closed: `strip_pexp` removes `${ ... }` from the scan's own copy.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
 # that each severity-crosswalk row in docs/conventions/detector-findings/ argues
@@ -322,19 +357,47 @@ function cmd_position(p) {
 }
 function forwarded(t) { return (t == "@FWD@" || t == "$@" || t == "$*") }
 function strip_arith(s,   r, j, n, depth, c, head) {
-  # `$(( ... ))` removed, because `<<` inside it is the left-shift OPERATOR.
-  # Only `$((` is stripped: a `<<` inside a COMMAND substitution (`$(cat
-  # <<EOF)`) really does open a body. An unterminated span drops its tail,
-  # which is the safe direction here: an unreadable arithmetic expression arms
-  # nothing rather than arming on its operator.
-  while ((r = index(s, "$((")) > 0) {
+  # Arithmetic removed, because `<<` inside it is the left-shift OPERATOR.
+  # BOTH spellings: the `$(( ... ))` expansion and bash's bare `(( ... ))`
+  # arithmetic COMMAND, which this repo writes constantly (`if ((rc == 0))`).
+  # Stripping only the first left `(( n << bits ))` armed and swallowed to EOF,
+  # the same silent pass one spelling over.
+  #
+  # A `<<` inside a COMMAND substitution (`$(cat <<EOF)`) is untouched and
+  # really does open a body: `$((` and `((` are matched, `$(` is not. An
+  # unterminated span drops its tail, which is the safe direction here: an
+  # unreadable arithmetic expression arms nothing rather than arming on its
+  # operator.
+  while ((r = index(s, "((")) > 0) {
+    n = length(s)
+    depth = 0
+    j = r
+    while (j <= n) {
+      c = substr(s, j, 1)
+      if (c == "(") depth++
+      else if (c == ")") { depth--; if (depth == 0) break }
+      j++
+    }
+    head = substr(s, 1, r - 1)
+    if (j > n) return head
+    s = head " " substr(s, j + 1)
+  }
+  return s
+}
+function strip_pexp(s,   r, j, n, depth, c, head) {
+  # `${ ... }` removed for the same reason: a `<<` inside a parameter
+  # expansion (`x=${v//y/<<EOF}`) is data, never a redirection operator. This
+  # runs on the heredoc scan's OWN copy, so nothing here reaches the call-site
+  # tokenizer, where an unreadable `${...}` argument must still land as
+  # UNRESOLVED rather than quietly vanish.
+  while ((r = index(s, "${")) > 0) {
     n = length(s)
     depth = 0
     j = r + 1
     while (j <= n) {
       c = substr(s, j, 1)
-      if (c == "(") depth++
-      else if (c == ")") { depth--; if (depth == 0) break }
+      if (c == "{") depth++
+      else if (c == "}") { depth--; if (depth == 0) break }
       j++
     }
     head = substr(s, 1, r - 1)
@@ -392,11 +455,19 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
   while (i <= n) {
     c = substr(line, i, 1)
     if (q == "") {
-      if (c == "\\") { i += 2; continue }
+      # `\X` outside quotes is a LITERAL X, so keep the X. Dropping the pair
+      # lost the character: `cat <<\EOF` reached the opening scan as `cat
+      # <<OF`, which armed `OF` and swallowed to EOF, and `\emit error P1` --
+      # a real call, since a backslash only suppresses alias expansion --
+      # became `mit` and was never counted.
+      if (c == "\\") { out = out substr(line, i + 1, 1); i += 2; continue }
       if (c == "\"" || c == "'") { q = c; qbuf = ""; i++; continue }
       if (c == "#") {
+        # A comment opens at the start of a WORD, which is after whitespace or
+        # after something that ended a command. `foo;#<<EOF` is a comment to
+        # bash, and reading it as code armed a heredoc off its text.
         p = (out == "") ? "" : substr(out, length(out), 1)
-        if (p == "" || p ~ /[[:space:]]/) break
+        if (p == "" || p ~ /[[:space:]]/ || p ~ /[;&|]/) break
       }
       out = out c
       i++
@@ -429,14 +500,18 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
   # ordinary line of shell could therefore turn real UNCOVERED findings into a
   # silent pass. The delimiter survives the walk as `@L@<word>` when it was
   # quoted (`<<'EOF'`), so both spellings still arm.
-  s2 = strip_arith(out)
+  s2 = strip_pexp(strip_arith(out))
   while ((r = index(s2, "<<")) > 0) {
     tail = substr(s2, r + 2)
     if (substr(tail, 1, 1) == "<") { s2 = substr(s2, r + 3); continue }
     if (substr(tail, 1, 1) == "-") tail = substr(tail, 2)
     sub(/^[[:space:]]*/, "", tail)
     if (substr(tail, 1, 3) == "@L@") tail = substr(tail, 4)
-    if (match(tail, /^[A-Za-z_][A-Za-z0-9_]*/)) hd = substr(tail, RSTART, RLENGTH)
+    # The delimiter is matched with the WALK'S OWN literal-word class, not a
+    # narrower one. Matching `[A-Za-z_][A-Za-z0-9_]*` truncated every delimiter
+    # carrying punctuation -- `<<'PY.END'` armed `PY`, `<<EOF-1` armed `EOF` --
+    # and a delimiter no line can match is the EOF-swallowing defect again.
+    if (match(tail, /^[A-Za-z0-9_][A-Za-z0-9_.:\/+-]*/)) hd = substr(tail, RSTART, RLENGTH)
     break
   }
 
