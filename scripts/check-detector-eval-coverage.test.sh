@@ -680,6 +680,12 @@ undecidable_case 'an unterminated `${` carrying a backtick substitution' \
 p3b_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"'
 p3b_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3'
 p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
+# The escaped character must leave a SEPARATOR behind, not vanish. Emitting ""
+# instead of a space rejoins two non-adjacent `<` into a `<<` operator, which
+# arms a heredoc bash never opened. The walk's comment asserts both halves --
+# not the literal character, and not nothing -- and only the first half was
+# guarded until an audit mutated the second and no case failed.
+p3b_case 'an escaped char that vanishes rejoins `<` into `<<`' 'cat <\<<EOF' # portability-ok: fixture shell with an escaped redirection operator, not a GNU grep word boundary
 p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
 p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'
 p3b_case 'a comment opened after `(`' 'f() (#<<EOF'
@@ -850,8 +856,15 @@ else
 fi
 rm -rf "$root"
 
-# A here-string opens no body, so the sites after it must survive.
-p3b_case 'a here-string (`<<<`)' 'grep x <<<"$v"'
+# A here-string opens no body, so the sites after it must survive. TWO
+# independent mechanisms give that outcome -- the explicit `<<<` branch in the
+# opening scan, and the delimiter class excluding `<` so the third `<` cannot
+# start a word -- so no SINGLE mutation of either falsifies this case. An audit
+# flagged it as a guard naming a path it does not exercise, and the label is
+# corrected rather than the redundancy removed: defence in depth here is worth
+# more than a case that fails on one mutation, and the belt-and-braces is now
+# stated instead of being mistaken for coverage it does not provide.
+p3b_case 'a here-string (`<<<`) opens no body, by either mechanism' 'grep x <<<"$v"'
 
 # ====== N2: ordinary shell is not a partial extraction loss (exit 2) ======
 # Reproduced against c7f71c36: each shape below made a well-formed detector
@@ -957,18 +970,24 @@ rm -rf "$root"
 
 # THE PROPERTY THE ACCOUNTING EXISTS FOR, restated after the narrowing: a call
 # site that DOES carry a literal id this scanner cannot read is still exit 2.
-# (The P2 block above proves the same for `"$sev"` and `"$id"` separately; this
-# one guards the specific risk that reading quoted words made every quoted
-# argument look resolvable.)
+#
+# The fixture is a quoted run that is ONE bare word and so survives the walk as
+# `@L@<word>`, but whose word is `P2ab` -- id-SHAPED and outside the row's
+# `P[0-9]+[a-z]?` pattern, the exact spelling the header names as a partial
+# loss. That is the specific risk of reading quoted words at all: `@L@` makes a
+# quoted argument resolvable, and this asserts resolvable is not the same as
+# resolved. It must differ from the P2 block above, which covers the `"$sev"`
+# EXPANSION shape -- this guard was a byte-identical copy of that fixture until
+# an audit caught it, a duplicate masquerading as a second dimension of
+# coverage. (`P1x` would NOT do: it matches the pattern and resolves.)
 mk_tree
-# shellcheck disable=SC2016  # the unexpanded "$sev" is the defect under test
-mk_detector det.sh 'emit warning P1 SRC "message"' 'emit "$sev" P4 SRC "message"'
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error "P2ab" SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P1 classification')"
 run_gate "$(pair det.sh evals.json)" --check
 if [[ $RC -eq 2 && "$ERR" == *"emit call site"* && -z "$OUT" ]]; then
-  ok "N2: a quoted EXPANSION is still unreadable, so a genuine partial loss still exits 2"
+  ok "N2: a quoted literal that is not an id is unreadable, not silently dropped"
 else
-  fail "N2 quoted expansion wrongly resolved: rc=$RC out='$OUT' err='$ERR'"
+  fail "N2 quoted non-id wrongly resolved: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
 
