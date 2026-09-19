@@ -9,14 +9,15 @@ plugin reads this file too, and additionally follows its citations into the
 
 Review in this organization is split into two mutually exclusive scopes,
 so a finding belongs to exactly one scope and is never reported twice.
-The **code-review lane** (`claude-review`, and Managed Code Review)
-reads this file and applies the code-review scope below. The **security
-lane** (`claude-security-review`) runs from its own security-only prompt
-rather than reading this file; its scope section below records the same
-split for every surface that does read it, so the code-review lane
-knows what to leave to the security lane, and so a self-hosted or local
-review (for example a `review`-plugin security agent) applies the right
-section.
+The **code-review lane** (the `review` plugin's code-review skill, run
+on the operator's seat here, and Managed Code Review where a repository
+enables it) reads this file and applies the code-review scope below. A
+**security review** runs from its own security-only prompt rather than
+reading this file; its scope section below records the same split for
+every surface that does read it, so the code-review lane knows what to
+leave to a separate security pass where one runs, and so a self-hosted
+or local review (for example a `review`-plugin security agent) applies
+the right section.
 
 ## Severity
 
@@ -75,7 +76,7 @@ Always check:
   corresponding audit-log
   entry (`conventions/review/observability.md#logging`). This is an
   observability completeness check on the logging seam; whether the action
-  itself is safe is the security lane's question.
+  itself is safe is the security review's question.
 - A change that writes two or more related records, files, or state
   locations carries an atomicity mechanism spanning them: a transaction,
   an atomic rename, a constraint, or a compensation step. An
