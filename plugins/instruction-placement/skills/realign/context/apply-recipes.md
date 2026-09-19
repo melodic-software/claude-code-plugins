@@ -76,14 +76,23 @@ Content keyed to a place rather than a file kind.
 
 1. **Create `<dir>/AGENTS.md`** with the relocated content under a `#` heading naming the subtree.
 
-2. **Create `<dir>/CLAUDE.md`, mandatory, exactly:**
+2. **Create `<dir>/CLAUDE.md`, exactly:**
 
    ```markdown
    @AGENTS.md
    ```
 
-   A nested `AGENTS.md` with no shim beside it is never loaded by Claude Code. This is measured, not
-   inferred. Skipping the shim produces a file that looks correct in review and reaches nothing.
+   Write it whenever a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits on the new file's
+   own path, the repository root's included: Claude Code reads that file *instead* of the
+   `AGENTS.md`, so skipping the shim produces a file that looks correct in review and reaches
+   nothing. This is measured, not inferred. Run
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" wiring` to see which it is: an `UNWIRED` row
+   needs the shim, a `NATIVE` row does not, because nothing blocks that file.
+
+   The shim is also what covers the sessions where reading `AGENTS.md` directly is unavailable
+   (before v2.1.277, on some providers, with telemetry or hooks disabled, the first session after an
+   upgrade), so a repository that still carries a root `CLAUDE.md` keeps writing it. Removing shims
+   across a repository is `/instruction-placement:migrate`'s business, not this recipe's.
 
 3. **Merge, do not clobber.** If either file already exists, append under a new heading and preserve
    what is there. Claude-specific additions go in the `CLAUDE.md` *below* the import line, never
@@ -97,12 +106,16 @@ nearest-wins while Claude concatenates the whole ancestor chain, so a subtree fi
 override behaves differently under the two tools. A candidate that only makes sense as an override
 does not belong in this destination. Mark the finding `blocked` and say why.
 
-Verified 2026-09-06 against Claude Code 2.1.263 and two sources. The `AGENTS.md` convention states
+Verified 2026-09-19 against Claude Code 2.1.278 and two sources. The `AGENTS.md` convention states
 that agents read the nearest file in the directory tree, so the closest one takes precedence
 (<https://agents.md/>, the nested-files section). The memory page states that `CLAUDE.md` files in
 the directory hierarchy above the working directory are all loaded at launch, broadest scope first
-(<https://code.claude.com/docs/en/memory>, "Choose where to put CLAUDE.md files"). Recheck when
-either source stops carrying its statement, or when a release note names `CLAUDE.md` load order.
+(<https://code.claude.com/docs/en/memory>, "Choose where to put CLAUDE.md files"). The same page's
+"AGENTS.md" section states that Claude reads `AGENTS.md` only where no `CLAUDE.md`, `.claude/CLAUDE.md`
+or `CLAUDE.local.md` sits in the working directory or above it, and attaches a subdirectory's
+`AGENTS.md` on a Read there under the same condition. Recheck when either source stops carrying its
+statement, when a release note names `CLAUDE.md` load order or `AGENTS.md`, or when
+`/instruction-placement:migrate cutover-check` reports every condition met.
 
 ## Recipe C: promote from ordinary documentation
 

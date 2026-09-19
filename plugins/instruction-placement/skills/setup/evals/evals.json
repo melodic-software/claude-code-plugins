@@ -5,12 +5,12 @@
       "id": 1,
       "name": "unreachable-index-target-is-the-headline",
       "prompt": "/instruction-placement:setup — we have a CLAUDE.md and an AGENTS.md, and I ran the index generator last week. Everything reports green but I don't think the rules are reaching subagents.",
-      "expected_output": "Resolves the index target, runs the reachability probe, and leads with the UNREACHABLE verdict: the root CLAUDE.md does not import AGENTS.md, so Claude Code — which reads CLAUDE.md, not AGENTS.md — never loads the index at all. It distinguishes this from staleness explicitly, since a reachable index can be stale and a stale index can be reachable, and names sync as the sibling check skill's job. The remediation is shown as an exact change (an `@AGENTS.md` first line, or a CLAUDE.md symlink) and is not applied under the read-only check action.",
+      "expected_output": "Resolves the index target, runs the reachability probe, and leads with the UNREACHABLE verdict: the root CLAUDE.md is read instead of the AGENTS.md beside it and does not import it, so the index never loads at all. It distinguishes this from staleness explicitly, since a reachable index can be stale and a stale index can be reachable, and names sync as the sibling check skill's job. The remediation is shown as an exact change (an `@AGENTS.md` first line, or a CLAUDE.md symlink) and is not applied under the read-only check action.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs the reachability probe rather than only checking the file exists",
-        "Leads with UNREACHABLE and explains that Claude Code reads CLAUDE.md, not AGENTS.md",
+        "Leads with UNREACHABLE and explains that the root CLAUDE.md is read instead of the AGENTS.md beside it",
         "Distinguishes reachability from index staleness",
         "Shows the exact remediation without applying it under check"
       ]

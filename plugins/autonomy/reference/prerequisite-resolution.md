@@ -81,18 +81,22 @@ tokens"; they are not reused as probe labels.
 4. **prose-context inference**: host instruction files, agent-instruction files, README are a
    judgment-only inference source for *proposing* declarations into non-security keys,
    interactively. The deterministic resolver never parses prose, and prose is never runtime
-   authority. Platform bound: the host harness reads its primary instruction file, not a
-   secondary agent-instruction file, and a secondary file reaches a session only through a
-   reference the primary file carries. This contract owns that platform bound; the resolution
-   slice and the setup skill state it in one clause each and point here.
+   authority. Platform bound: a primary instruction file anywhere from the working directory
+   upward is read *instead of* a secondary agent-instruction file, so in a repository carrying one,
+   the secondary file reaches a session only through a reference the primary file carries. This
+   contract owns that platform bound; the resolution slice and the setup skill state it in one
+   clause each and point here.
 
-**Platform bound, dated record.** *Claim:* the host harness loads its primary instruction file
-at session start and does not load a secondary agent-instruction file on its own; an import line
-in the primary file is the supported way to make the secondary one reach a session. *Basis:* the
-harness documentation page on project memory, which states the primary file is the one read and
-gives the import form for the secondary. *Verified:* 2026-09-06, against harness version 2.1.263
-and that page as fetched the same day. *Recheck trigger:* that page stops saying the secondary
-file is unread, or a release note names direct loading of secondary agent-instruction files.
+**Platform bound, dated record.** *Claim:* the host harness loads a secondary agent-instruction
+file at session start only where no primary instruction file sits in the working directory or above
+it, and only on a recent enough harness version in a session kind that supports it; with a primary
+file present, or on an unsupporting session, an import line in the primary file is the supported way
+to make the secondary one reach a session. *Basis:* the harness documentation page on project
+memory, which gives the file-combination table, the version floor, and the sessions where direct
+reading is unavailable, and gives the import form for those. *Verified:* 2026-09-19, against harness
+version 2.1.278 and that page as fetched the same day, which supersedes the 2026-09-06 reading that
+the secondary file was never read. *Recheck trigger:* that page changes which file names count for
+that check or which sessions lack support, or a release note names secondary-file loading.
 
 Probe evidence is durable per surface under the existing isolation-binding pattern. Only signals
 with no owner (CI-config presence, flag-SDK presence) gain probes owned by this contract;

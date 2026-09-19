@@ -281,10 +281,25 @@ Per [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-h
 | Auto-memory MEMORY.md | First 200 lines / 25KB | Persists on disk | None |
 | Output style | If non-default | Persists for session | `/config` |
 
-`AGENTS.md` is deliberately absent from that table: the memory doc's `AGENTS.md` section states
-"Claude Code reads `CLAUDE.md`, not `AGENTS.md`", and prescribes an `@AGENTS.md` import or a symlink
-as the way to make one load. So an `AGENTS.md` loads only through a `CLAUDE.md` that references it,
-on that `CLAUDE.md`'s row, never as a surface of its own.
+`AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The memory
+doc's `AGENTS.md` section used to state "Claude Code reads `CLAUDE.md`, not `AGENTS.md`", and
+prescribed an `@AGENTS.md` import or a symlink as the way to make one load; that sentence is gone
+from the page as fetched 2026-09-19 and is quoted here only as the superseded basis. The page now
+says Claude reads `AGENTS.md` as the project instructions where there is no `CLAUDE.md`,
+`.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, needs v2.1.277 or
+later to do so, and cannot in some sessions (a provider without it, telemetry off,
+`disableAllHooks` or `allowManagedHooksOnly` set, the built-in `agents-md` plugin disabled, the
+first session after an upgrade), where the import is still what carries it.
+
+- **Claim**: an `AGENTS.md` loads either directly, where no `CLAUDE.md` displaces it and support is
+  available, or through a `CLAUDE.md` that imports or symlinks it, on that `CLAUDE.md`'s row.
+  Directly read, it is absent from `/memory` and `/context` Memory files and fires no
+  `InstructionsLoaded` hook; imported, it behaves as part of its `CLAUDE.md`.
+- **Basis**: code.claude.com/docs/en/memory, "AGENTS.md", "When Claude Code reads AGENTS.md", "When
+  AGENTS.md support is unavailable", "Where AGENTS.md differs from CLAUDE.md".
+- **As of**: 2026-09-19.
+- **Recheck trigger**: that section changes which file names count for the check or which sessions
+  lack support, or a release note names `AGENTS.md`.
 
 ## No official scoring rubric
 

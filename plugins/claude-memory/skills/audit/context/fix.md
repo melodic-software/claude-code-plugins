@@ -86,6 +86,12 @@ The fix is mechanical: a `CLAUDE.md` beside the unwired `AGENTS.md` whose whole 
 `nested-agents-check.sh --count` and expect `0`. When the directory already carries a `CLAUDE.md`
 with content of its own, add the `@AGENTS.md` line at its top rather than replacing it.
 
+The finding exists because a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` on the file's own
+path, the repository root's included, is read *instead of* the `AGENTS.md`. Removing that
+`CLAUDE.md` is the other way to make the `AGENTS.md` load, and it is not this fix: it is a
+repository-wide move with its own conditions, owned by `/instruction-placement:migrate`. Propose the
+shim here; route a repository that wants to drop its shims there.
+
 ### Synced files: never edit here
 
 Before proposing any edit, run `file-provenance.sh <path>`. A `synced` file (a `SYNC-MANAGED` marker,

@@ -779,9 +779,13 @@ skill bodies.
   read either one before operating in that package can be doing real work. Flag only when the
   specific file named is one of the startup-loaded set above; when a surface's residency is not
   established, leave it.
-- **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded: `AGENTS.md`,
-  contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
-  progressive disclosure, **but only while no active startup import reaches them.** A startup file
+- **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded: contributing
+  guides, ADRs, CI workflow files, per-ecosystem convention docs, and an `AGENTS.md` that a
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it
+  displaces. A repository with no such file loads its `AGENTS.md` at startup like a `CLAUDE.md`
+  (v2.1.277 and later, where support is available), so resolve which case the repository is in
+  before exempting it. Those are ordinary progressive disclosure, **but only while no active startup
+  import reaches them.** A startup file
   that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
   `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
   an instruction to go read it is exactly the redundant retrieval this check exists to find.
@@ -802,8 +806,11 @@ skill bodies.
   memory, on `@path` imports, is what puts an imported supporting document inside it: "Imported
   files are expanded and loaded into context at launch alongside the CLAUDE.md that references
   them", and "Imported files can recursively import other files, with a maximum depth of four hops";
-  memory's `AGENTS.md` guidance recommends exactly such an import, and requires it on Windows, where
-  the symlink alternative needs elevation.
+  memory's `AGENTS.md` guidance names exactly such an import as what carries an `AGENTS.md` into a
+  session that cannot read it directly, and it is the portable form on Windows, where the symlink
+  alternative needs elevation (code.claude.com/docs/en/memory, "When AGENTS.md support is
+  unavailable" and "Share one file with other coding tools"; verified 2026-09-19; recheck trigger:
+  that section stops naming the import, or a release note names `AGENTS.md` loading).
 
 ### I15: Cross-surface instruction conflict
 
@@ -822,9 +829,12 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   since a contradiction is real whether or not this repository may edit either side. Resolve `@path` imports
   and symlinks to their targets before pairing, so an imported file is compared as part of the
   surface importing it rather than as a separate one.
-- **Excluded from the comparison set:** `AGENTS.md` and other files that are not Claude Code
-  instruction surfaces. They shape no behavior here, so a divergence between one and a `CLAUDE.md`
-  is not a conflict this check reports.
+- **Excluded from the comparison set:** files that are not Claude Code instruction surfaces here.
+  An `AGENTS.md` is excluded only while a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in
+  the working directory or above it displaces it and no import reaches it: then it shapes no
+  behavior here, so a divergence between it and a `CLAUDE.md` is not a conflict this check reports.
+  Where nothing displaces it, Claude Code reads it as the project instructions and it is in the set
+  like any other surface.
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as
   `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps

@@ -73,7 +73,7 @@
       "name": "creation-governing-content-is-denied-path-scoping",
       "prompt": "/instruction-placement:audit — the 'New service checklist' section here says what every new service must ship with. Scope it to services/**.",
       "files": ["evals/fixtures/bloated-agents.md"],
-      "expected_output": "Recognizes the structural problem with the requested destination: path-scoped rules trigger when Claude reads a matching file, and creating a new file is not a read, so a rule about how new components are made would not fire in the exact case it exists for. The glob is not the issue and re-deriving it would not help. The candidate is routed to a subtree destination — a nested AGENTS.md with its CLAUDE.md shim in the components directory — or reported as staying put, with the read-versus-write trigger stated as the reason rather than left as an unexplained refusal.",
+      "expected_output": "Recognizes the structural problem with the requested destination: path-scoped rules trigger when Claude reads a matching file, and creating a new file is not a read, so a rule about how new components are made would not fire in the exact case it exists for. The glob is not the issue and re-deriving it would not help. The candidate is routed to a subtree destination — a nested AGENTS.md in the components directory, with a CLAUDE.md shim beside it where a CLAUDE.md on that path would otherwise be read instead — or reported as staying put, with the read-versus-write trigger stated as the reason rather than left as an unexplained refusal.",
       "expectations": [
         "Identifies the content as creation-governing",
         "Explains that the path-scoping trigger is a read, not a write or a create",

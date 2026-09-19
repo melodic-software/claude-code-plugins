@@ -21,7 +21,7 @@ Last updated: 2026-08-15
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition: what a cross-surface conflict *is*, its comparison set, its import and symlink
-resolution, its `AGENTS.md` exclusion, its remediation-by-scope rules, and its five must-not-flag
+resolution, its conditional `AGENTS.md` exclusion, its remediation-by-scope rules, and its five must-not-flag
 cases. None of that is restated here. This file owns the part a check entry has no room for: **how a
 candidate pair is adjudicated**. That covers whether the two surfaces can even co-load, what the
 official docs settle about precedence and what they refuse to, and the further must-not-flag cases

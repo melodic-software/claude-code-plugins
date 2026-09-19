@@ -20,7 +20,7 @@ skill's reference file.
 | 6 | Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start, root→cwd; excludable via `claudeMdExcludes` |
 | 7 | Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude reads files there; NOT re-injected after `/compact` until next matching read |
 | 8 | `--add-dir` CLAUDE.md | added dirs' CLAUDE.md/rules | Session start only with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1` |
-| 9 | AGENTS.md | **not read natively** (CHANGELOG 0 mentions through v2.1.233) | Only via `@AGENTS.md` import, symlink, `/init` (`CLAUDE_CODE_NEW_INIT=1`), `/import` (v2.1.213+) |
+| 9 | AGENTS.md | `./AGENTS.md`, `./.claude/AGENTS.md`, and the same names in ancestor dirs; nested on a Read there (native since v2.1.277, 2026-09-18) | Session start, but only where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in cwd or above it, and only where support is available (not on some providers, with telemetry disabled, with `disableAllHooks` / `allowManagedHooksOnly`, with the built-in `agents-md` plugin off, or in the first session after an upgrade). Otherwise via `@AGENTS.md` import, symlink, `/init` (`CLAUDE_CODE_NEW_INIT=1`), `/import` (v2.1.213+). Read directly, it is absent from `/memory` and `/context` Memory files and fires no `InstructionsLoaded` hook (code.claude.com/docs/en/memory, verified 2026-09-19; recheck: that page changes the combination table or a release note names AGENTS.md) |
 | 10 | Project rules | `.claude/rules/**/*.md` (recursive, symlinks followed) | No `paths:` → session start; with `paths:` globs → on-demand on matching file read |
 | 11 | User rules | `~/.claude/rules/*.md` | Session start, before project rules (lower priority) |
 | 12 | `@` imports | `@path` in CLAUDE.md/rules; max 4 hops; skipped in code spans/fences | Expanded at launch with the importer; external imports gate behind one-time approval (project scope) |
@@ -49,7 +49,7 @@ guidance <200 lines per CLAUDE.md.
 
 | Convention | File(s) | Auto-read |
 |---|---|---|
-| AGENTS.md open standard (Linux Foundation-stewarded) | `AGENTS.md` root + nested, nearest wins | Native in Codex, Cursor, Copilot agent, Gemini CLI (config), Windsurf, Zed, Roo, others; NOT Claude Code |
+| AGENTS.md open standard (Linux Foundation-stewarded) | `AGENTS.md` root + nested, nearest wins | Native in Codex, Cursor, Copilot agent, Gemini CLI (config), Windsurf, Zed, Roo, others; and in Claude Code since v2.1.277, where no `CLAUDE.md` displaces it (row 9). Claude Code concatenates the ancestor chain rather than resolving nearest-wins |
 | Cursor rules | `.cursor/rules/*.mdc` (+ nested); legacy `.cursorrules` deprecated | Per-rule types: Always / Auto Attached (globs) / Agent Requested / Manual; also reads AGENTS.md + CLAUDE.md |
 | GitHub Copilot | `.github/copilot-instructions.md`; `.github/instructions/**.instructions.md` (`applyTo:` globs); AGENTS.md (agent) | Auto-added to matching requests |
 | Gemini CLI | `~/.gemini/GEMINI.md`; workspace + ancestors; JIT subdir scan; `@` imports; `context.fileName` configurable | Concatenated into every prompt |
