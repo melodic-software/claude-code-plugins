@@ -1736,7 +1736,7 @@ ps::classify_git_command() {
 #   launcher           — Start-Process / pwsh / powershell / cmd statements
 #   special-construct  — `--%` tails, `{}`/`()` groups, backtick escapes
 #   herestring-unbalanced — from the hanging opener through end of input
-#   herestring-subexpr — every BALANCED here-string body, which is wider than the
+#   herestring-subexpr: every BALANCED here-string body, which is wider than the
 #     trigger itself: a verbatim `@'` body goes too, because the reduction is
 #     ps::blank_herestrings rather than a region walk of its own
 #
