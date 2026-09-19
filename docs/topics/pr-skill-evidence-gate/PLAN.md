@@ -192,7 +192,7 @@ Plugin: claude-ops (0.56.17 to 0.57.0).
   `jq -r .sha` matches `^[0-9a-f]{40}$` and equals `git rev-parse HEAD`.
 - `scripts/check-changelog-parity.sh --check` exit 0.
 
-#### Phase 2: The evidence script, config key, and this repo's mandatory map [TODO]
+#### Phase 2: The evidence script, config key, and this repo's mandatory map [DONE]
 
 Plugin: source-control (0.55.89 to 0.56.0). This is the integration slice.
 
