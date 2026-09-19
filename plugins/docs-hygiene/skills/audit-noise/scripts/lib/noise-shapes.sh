@@ -265,14 +265,16 @@ audit_noise_line_has_citation() {
   # out ("the data was copied from the upstream table"). An origin verb is required, so a
   # bare date matches nothing, and the stamp verbs /provenance:audit keys on are absent.
   # The cue also has to END on a boundary, mirroring the code-side sibling: otherwise
-  # `from` matches inside `fromage` and a date matches inside a longer run.
+  # `from` matches inside `fromage` and a date matches inside a longer run. An ISO-8601
+  # time is spelled out because its `T` is alphanumeric and the boundary alone would
+  # reject a timestamped note.
   # A link or a bare URL stands these two cues down (never the six above), because a
   # pointer is what /provenance:audit asks for. It reads the inline-code-stripped line,
   # so a URL inside a code span is already gone; that case and an attribution naming a
   # work rather than a location both still match, and both land on relocate, not delete.
   if [[ ! "$line" =~ (https?://|\]\(|\]\[) ]]; then
     [[ "$line" =~ (^|^[[:space:]]*[-*+][[:space:]]+|[,\;:][[:space:]]+|\([[:space:]]*)([Pp]orted|[Cc]opied|[Mm]igrated|[Aa]dapted|[Bb]orrowed|[Ll]ifted|[Tt]aken)[[:space:]]+from([^[:alnum:]]|$) ]] && return 0
-    [[ "$line" =~ (^|^[[:space:]]*[-*+][[:space:]]+|[,\;:][[:space:]]+)([Aa]dded|[Mm]erged|[Ii]ntroduced|[Bb]ackported|[Pp]orted)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}([^[:alnum:]]|$) ]] && return 0
+    [[ "$line" =~ (^|^[[:space:]]*[-*+][[:space:]]+|[,\;:][[:space:]]+)([Aa]dded|[Mm]erged|[Ii]ntroduced|[Bb]ackported|[Pp]orted)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}([Tt][0-9:]{4,8}[Zz]?)?([^[:alnum:]]|$) ]] && return 0
   fi
   return 1
 }

@@ -174,7 +174,8 @@ cr_detect_shapes() {
   # required, so a bare date matches nothing, and the stamp verbs provenance:audit keys
   # on (verified, checked, confirmed, as of) are deliberately absent. The cue also has to
   # END on a boundary, or `from` matches inside `fromage` and a date matches inside a
-  # longer run ("2026-09-011", "2026-09-01x").
+  # longer run ("2026-09-011", "2026-09-01x"). An ISO-8601 time is spelled out because
+  # the `T` is alphanumeric, so the boundary alone would reject a timestamped note.
   #
   # Tier 1 reads "remove", so two comment classes are exempt whatever verb they open
   # with: a marker comment, which is tracked work rather than residue, and a license or
@@ -185,7 +186,7 @@ cr_detect_shapes() {
   # computes the run and the caller passes the verdict in.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
     if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||
-      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}([^[:alnum:]]|$) ]]; then
+      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?([^[:alnum:]]|$) ]]; then
       printf '%s\n' 'origin-note'
       found=1
     fi

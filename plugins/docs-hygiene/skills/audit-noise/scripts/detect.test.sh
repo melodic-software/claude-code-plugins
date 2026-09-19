@@ -1666,6 +1666,11 @@ printf '%s\n' 'Ported fromage is a cheese.' 'Added 2026-09-011 to the list.' 'Ad
 term_prose_out="$(bash "$DETECT" "$TERM_PROSE")"
 assert_contains "the prose origin cues need the same terminator" "$term_prose_out" "T1=0 T2=0 T3=0"
 
+DT_PROSE="$TEST_TMPDIR/datetime-prose.md"
+printf '%s\n\n%s\n' 'Added 2026-09-01T12:00 from the vendor feed.' 'Merged 2026-09-01T12:00:00Z from the vendor feed.' >"$DT_PROSE"
+dt_prose_out="$(bash "$DETECT" "$DT_PROSE")"
+assert_contains "an ISO-8601 datetime is still a citation" "$dt_prose_out" "T1=2 T2=0 T3=0"
+
 RENAMED_LINKED="$TEST_TMPDIR/renamed-linked.md"
 printf '%s\n' 'Renamed from foo to bar, per [the ADR](https://example.com/adr).' >"$RENAMED_LINKED"
 renamed_linked_out="$(bash "$DETECT" "$RENAMED_LINKED")"

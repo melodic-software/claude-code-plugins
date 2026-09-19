@@ -10,7 +10,8 @@
   (`added`/`merged`/`introduced`/`backported`/`ported` before an ISO date). The verb-from cue must
   open the line, follow a list bullet, or follow a comma, semicolon, colon, or opening parenthesis;
   the dated cue takes every anchor but the parenthesis. Both must also END on a boundary, so
-  `Ported fromage` and a date running on into more characters (`Added 2026-09-011`) match nothing.
+  `Ported fromage` and a date running on into more characters (`Added 2026-09-011`) match nothing;
+  an ISO-8601 time is spelled out, so `Added 2026-09-01T12:00:00Z` still is a finding.
   That keeps ordinary prose such as "the data was copied from the upstream table" out. A line
   carrying an inline or full reference link, or a bare URL, stands the two new cues down, because a
   pointer is the artifact `provenance:audit` asks an author to write; a shortcut reference link

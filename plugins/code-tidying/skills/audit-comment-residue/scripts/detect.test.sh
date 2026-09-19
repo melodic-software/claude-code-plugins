@@ -576,6 +576,17 @@ EOF
 origin_term_out="$(bash "$DETECT" "$ORIGIN_TERM")"
 assert_contains "the cue must end on a boundary" "$origin_term_out" "T1=0 T2=0 T3=0"
 
+# The boundary must not swallow an ISO-8601 datetime: the `T` is alphanumeric, so a
+# terminator alone would stop a timestamped origin note from matching.
+ORIGIN_DT="$TEST_TMPDIR/origin-datetime.js"
+cat >"$ORIGIN_DT" <<'EOF'
+// Added 2026-09-01T12:00 from the vendor feed
+// Merged 2026-09-01T12:00:00Z from the vendor feed
+// Added 2026-09-01T12:00:00+01:00 from the vendor feed
+EOF
+origin_dt_out="$(bash "$DETECT" "$ORIGIN_DT")"
+assert_contains "an ISO-8601 datetime is still an origin note" "$origin_dt_out" "T1=3 T2=0 T3=0"
+
 ORIGIN_NARROW="$TEST_TMPDIR/origin-narrow.js"
 cat >"$ORIGIN_NARROW" <<'EOF'
 // NAR1: Ported from the legacy fork to satisfy the copyright audit.
