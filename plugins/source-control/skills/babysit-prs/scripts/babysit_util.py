@@ -3,14 +3,15 @@
 
 Deliberately small mixed-utility module: stdio configuration, JSON narrowing
 helpers, timestamp parsing, comma-separated option parsing, the head-SHA pin
-floor, and the single subprocess core every script funnels through. Splitting
-these tiny concerns into separate modules would cost more coupling than it buys
-cohesion.
+floor, the pull-request skill-evidence block parser, and the single subprocess
+core every script funnels through. Splitting these tiny concerns into separate
+modules would cost more coupling than it buys cohesion.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,20 @@ from typing import Any, TypeGuard
 # without importing any snapshot/state machinery.
 MIN_HEAD_SHA_PREFIX_LENGTH = 12
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 60.0
+
+# A pull request carries the skills that ran for its head in one fenced block
+# with this info string, one `<skill> <sha> <utc-timestamp>` row per skill.
+# `plugins/source-control/scripts/skill-evidence.sh` renders it and
+# `plugins/source-control/reference/config-resolution.md` owns the grammar.
+SKILL_EVIDENCE_INFO_STRING = "skill-evidence"
+_FENCE_RE = re.compile(r"^(?P<fence>`{3,}|~{3,})(?P<info>[^`~]*)$")
+_SKILL_EVIDENCE_ROW_RE = re.compile(
+    r"^(?P<skill>\S+)[ \t]+(?P<sha>[0-9a-fA-F]{40})[ \t]+(?P<timestamp>\S+)$"
+)
+# The body is markdown, where an HTML comment is invisible to a reader. A
+# commented-out row is not evidence a human can see, so comments come out
+# before the fences are read rather than being parsed and then filtered.
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 def is_json_object(value: Any) -> TypeGuard[dict[Any, Any]]:
@@ -124,6 +139,76 @@ def parse_allowed_owners(raw: str | None) -> set[str]:
 def split_owner(repo: str) -> str:
     """The owner half of an `owner/repo` pair."""
     return repo.split("/", 1)[0]
+
+
+def parse_skill_evidence_block(body: Any) -> dict[str, Any]:
+    """Read the skill-evidence block out of a pull-request body.
+
+    Pure text: no network, no filesystem, no verdict. The caller decides what a
+    row means; this only reports what the body claims.
+
+    Returns `present` (a block with the info string exists), `parsed` (the
+    block's content is entirely rows this grammar accepts), `rows` (the latest
+    row per skill, sorted by skill name) and `blocks` (how many blocks carry the
+    info string). Only the FIRST block is read, because a body may legitimately
+    quote the shape in prose; a second one is reported through `blocks` so a
+    caller can warn, never treated as fatal. An unparsable block stays
+    `present` with `parsed` false and whatever rows did match, so a malformed
+    body degrades to "cannot confirm" rather than to an exception.
+    """
+    if not isinstance(body, str) or not body:
+        return {"present": False, "parsed": False, "rows": [], "blocks": 0}
+    text = _HTML_COMMENT_RE.sub("", body.replace("\r\n", "\n"))
+    blocks = 0
+    fence: str | None = None
+    capturing = False
+    captured: list[str] = []
+    for line in text.split("\n"):
+        match = _FENCE_RE.match(line.strip())
+        if fence is None:
+            if match and match["info"].strip() == SKILL_EVIDENCE_INFO_STRING:
+                blocks += 1
+                fence = match["fence"]
+                capturing = blocks == 1
+            continue
+        closes = (
+            match is not None
+            and match["fence"][0] == fence[0]
+            and len(match["fence"]) >= len(fence)
+            and not match["info"].strip()
+        )
+        if closes:
+            fence = None
+            capturing = False
+            continue
+        if capturing:
+            captured.append(line)
+    if not blocks:
+        return {"present": False, "parsed": False, "rows": [], "blocks": 0}
+    latest: dict[str, dict[str, str]] = {}
+    malformed = False
+    for line in captured:
+        content = line.strip()
+        if not content:
+            continue
+        row = _SKILL_EVIDENCE_ROW_RE.match(content)
+        if row is None:
+            malformed = True
+            continue
+        # Last row per skill wins: the renderer appends, so a re-run of the
+        # same skill leaves both rows behind and the later one is the claim.
+        latest[row["skill"]] = {
+            "skill": row["skill"],
+            "sha": row["sha"].lower(),
+            "timestamp": row["timestamp"],
+        }
+    rows = [latest[skill] for skill in sorted(latest)]
+    return {
+        "present": True,
+        "parsed": bool(rows) and not malformed,
+        "rows": rows,
+        "blocks": blocks,
+    }
 
 
 def run_command(

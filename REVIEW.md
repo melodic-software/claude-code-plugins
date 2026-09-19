@@ -9,14 +9,17 @@ plugin reads this file too, and additionally follows its citations into the
 
 Review in this organization is split into two mutually exclusive scopes,
 so a finding belongs to exactly one scope and is never reported twice.
-The **code-review lane** (`claude-review`, and Managed Code Review)
-reads this file and applies the code-review scope below. The **security
-lane** (`claude-security-review`) runs from its own security-only prompt
-rather than reading this file; its scope section below records the same
-split for every surface that does read it, so the code-review lane
-knows what to leave to the security lane, and so a self-hosted or local
-review (for example a `review`-plugin security agent) applies the right
-section.
+The **code-review lane** (the `review` plugin's code-review skill, run
+on the operator's seat here, and Managed Code Review where a repository
+enables it) reads this file and applies the code-review scope below. A
+**security review** runs from its own security-only prompt rather than
+reading this file; here that is `review:security-review`, run on the
+operator's seat for every pull request touching a path in
+`.github/claude-security-paths`. Its scope section below records the same
+split for every surface that does read it, so the code-review lane knows
+what to leave to a separate security pass where one runs, and so a
+self-hosted or local review (for example a `review`-plugin security
+agent) applies the right section.
 
 ## Severity
 
@@ -61,17 +64,18 @@ criterion; a citation here never substitutes prose that isn't needed, per
 
 ## Code-review lane scope
 
-This lane owns every review dimension except security: correctness,
-design, conventions, error handling, observability, tests, and
-documentation. On a repository whose CI runs the security lane (a
-`.github/workflows/claude-security-review.yml` workflow exists), it does
-**not** report security findings, such as vulnerabilities, authorization
-or tenancy gaps, credential exposure, or injection: every security
-finding belongs exclusively to that lane and is omitted here even when a
-hunk plainly contains one.
-On a repository without that workflow no security lane exists yet, and
-suppressed findings would have no other reader: report security findings
-under this lane too, applying the security-scope checks below.
+This lane owns every review dimension: correctness, design, conventions,
+error handling, observability, tests, and documentation. Security is the
+one dimension whose owner depends on what the pull request touches. A
+separate security review runs on the operator's seat whenever the pull
+request touches a path in `.github/claude-security-paths`: the `security`
+class of the `pr_skill_evidence` map in `.claude/source-control.md` owes
+`review:security-review` on that diff, and this lane leaves security
+findings to it there. On a pull request that touches none of those paths
+nothing else reads security, so a suppressed finding would have no other
+reader: report security findings here too, such as vulnerabilities,
+authorization or tenancy gaps, credential exposure, or injection,
+applying the security-scope checks below.
 
 Always check:
 
@@ -80,7 +84,7 @@ Always check:
   corresponding audit-log
   entry (`conventions/review/observability.md#logging`). This is an
   observability completeness check on the logging seam; whether the action
-  itself is safe is the security lane's question.
+  itself is safe is the security review's question.
 - A change that writes two or more related records, files, or state
   locations carries an atomicity mechanism spanning them: a transaction,
   an atomic rename, a constraint, or a compensation step. An

@@ -18,6 +18,7 @@ merge-conflict resolution.
   - [`pr-body-linkage-gate`](#pr-body-linkage-gate)
   - [`pr-linkage-mcp-gate`](#pr-linkage-mcp-gate)
   - [`worktree-add-claim-gate`](#worktree-add-claim-gate)
+- [Skill evidence](#skill-evidence)
 - [Works in any repo](#works-in-any-repo)
 - [Install](#install)
 - [Configuration](#configuration)
@@ -231,6 +232,89 @@ Telemetry matches the sibling's: one envelope per run (`ok`/`blocked`,
 `duration_ms`, and the tool name as its only data label), only when
 `HOOK_TELEMETRY_SINK` is set.
 
+### `pr-ready-evidence-gate`
+
+A `PreToolUse` hook on the Bash tool that nudges and never blocks. When a call
+flips a pull request to ready for review, it reads the skill-usage ledger
+through [`scripts/skill-evidence.sh`](#skill-evidence) `check` and, when a
+mandatory pre-PR skill has no fresh row at the head commit, injects
+`additionalContext` naming the skills that are owed and pointing at
+`/source-control:pull-request ready`, which runs them against the committed
+head and re-renders the evidence block in the body before the flip. The verdict
+is advisory on every path, including a broken environment: the hook exits 0
+whatever it finds, because the `ci-status` validator reports the same gap on
+every flip however the flip was made. It records nothing of its own either, so
+the validator's comment marker stays the single count of record.
+
+What it matches is parsed argv, never a token co-occurrence: `gh pr ready`, and
+`gh api graphql` whose `-f` / `-F` / `--field` / `--raw-field` `query=` operand
+names `markPullRequestReadyForReview`. Flipping out of draft is a GraphQL
+mutation with no REST equivalent, so there is no `gh api <path>` form to read;
+cloud sessions, which cannot reach GraphQL, flip through the MCP tool the
+sibling below covers. Out of scope and silent: `gh pr ready --undo`, which
+converts a pull request back to a draft; `--help`, which prints and flips
+nothing; a `cd` / `pushd` / `popd` earlier on the command line, after which the
+directory the repository resolves from is not knowable; `--repo` / `-R`, which
+names a repository whose evidence map this checkout does not hold; and a
+repository declaring no `pr_skill_evidence` map, where the whole mechanism is
+inert. A ledger that is not there is reported once per session, naming the
+claude-ops pairing and the `skill_evidence_store` option, and then read as no
+rows, never as a pass. Set `pr_ready_evidence_gate_enabled` to `false` to turn
+this hook and its MCP sibling off together.
+
+The registration carries the same `if` filter as `pr-body-linkage-gate`,
+`Bash(*gh *)`, for the same reasons and with the same best-effort caveat: a `gh`
+that appears only after an expansion spawns the hook regardless, and the gate
+judges it.
+
+#### Measured cost
+
+Its share of the [hook budget](../../docs/conventions/hook-budget/README.md),
+counted as kernel process creations rather than wall time, with
+`strace -f -e trace=clone,clone3,fork,vfork,execve` on Linux at Bash 5.2, the
+telemetry sink off:
+
+| Path | clone-family | `execve` |
+| --- | --- | --- |
+| A `gh` call that is not a ready flip | 2 | 1 |
+| A ready flip, verdict rendered | 37 | 42 |
+| `pr-ready-evidence-mcp-gate`, a tool that is not `update_pull_request` | 5 | 2 |
+| `pr-ready-evidence-mcp-gate`, a `draft: false` flip, verdict rendered | 41 | 44 |
+
+The always-on share is the first row, and the third on the MCP matcher. Every
+step that costs a process (the repository resolution, the base refs, the ledger
+read, and `skill-evidence.sh` itself) sits BELOW the segment match, so an
+ordinary `gh` call pays the shared library's payload validation and nothing
+else. `hooks/pr-linkage-spawn-budget.test.sh` holds these numbers as ceilings
+and proves the deferral non-vacuous against a mutant that hoists the repository
+resolution above the match.
+
+The two flip rows are dominated by `scripts/skill-evidence.sh`, a separate
+process doing its own git and jq work. They are paid once per ready flip, which
+is once per pull request rather than once per tool call, so they are not a
+per-tool-call cost. On a flip made through `/source-control:pull-request ready`
+the skill has already run that same check, so the hook's read is a second one;
+on a flip made outside the skill, which is the case this gate exists for, it is
+the only one.
+
+### `pr-ready-evidence-mcp-gate`
+
+The MCP-surface sibling of `pr-ready-evidence-gate`: a `PreToolUse` hook on the
+GitHub MCP server's `update_pull_request` tool, which is how cloud and remote
+sessions, where the `gh` CLI does not exist, flip a pull request out of draft.
+Same reader, same verdict, same advisory posture, on the payload shape the MCP
+tool delivers, where the flip is a plain JSON field rather than a command line
+to tokenize.
+
+In scope is `draft: false` and nothing else: an update carrying no `draft`
+field changes no draft state, and `draft: true` converts the pull request back
+to a draft. The remaining scope guard is an origin-remote match on the call's
+`owner` and `repo`, as in `pr-linkage-mcp-gate`, since another repository's flip
+is not this repository's policy; a target the payload and the remote cannot
+establish between them is silent for the same reason. One switch,
+`pr_ready_evidence_gate_enabled`, covers both surfaces, because an operator who
+turns the nudge off means both.
+
 ### `worktree-add-claim-gate`
 
 A `PostToolUse` hook on the Bash tool. After a raw `git worktree add` it
@@ -285,6 +369,31 @@ third time, and a block message that names a configured root reads the
 numbers as ceilings, proves itself non-vacuous against seven mutants, one per change, and
 fails when a gate feeds its payload to a reader by here-string.
 
+## Skill evidence
+
+`scripts/skill-evidence.sh` answers one question for every reader that asks it: which mandatory
+skills have evidence that they ran against a given pull request head. It has four subcommands,
+`classes` (which classes a diff touches), `check` (the per-skill verdict for a head, from a ledger
+or from the block in a PR body), `render` (that block), and `report` (the advisory gate's firing
+counts). Every audit path exits 0, because every reader of it is advisory; a usage or environment
+error exits 2. `--help` on any level prints the surface.
+
+What it requires is the consuming repository's own map, the `pr_skill_evidence` key of
+[`.claude/source-control.md`](reference/config-resolution.md), which names a class, the patterns
+that put a diff in that class, and the skills that class owes. No map, or a map whose body is
+`none`: the mechanism is inert and every subcommand says nothing. Freshness has two tiers, because
+a ledger row is stamped when a skill is invoked, before any edit it goes on to make: the terminal
+skill (the map marks it with a trailing `!`) needs a row at the head exactly, and every other skill
+needs a row at the head or on its history.
+
+The ledger itself is written by another plugin. `claude-ops` records each Skill call, and its
+`skill_usage_scope` option decides where. This plugin's `skill_evidence_store` option decides where
+to read, and the two have to agree, because plugin options are per plugin and neither can read the
+other's. Set both to the same scope word: `repo` for a per-checkout ledger (the default on both
+sides), `user` for one under `$HOME`. claude-ops' `data-dir` scope is **unsupported** here: that
+path belongs to the writing plugin and is not addressable from this one. A store that is not there
+is reported once and then read as no rows, never as a pass.
+
 ## Works in any repo
 
 - **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
@@ -329,6 +438,8 @@ repo's owner.
 | `lane_instance` | string | sanitized lowercased hostname (writer identity suffixing `babysit-loop`'s telemetry marker; must be distinct across concurrent lane instances) |
 | `pr_body_linkage_gate_enabled` | boolean | `true` (the PR-body hook above; inert in a repo with no workflow using the `pr-contract` step) |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` (the MCP-surface sibling; inert in a repo with no workflow using the `pr-contract` step) |
+| `pr_ready_evidence_gate_enabled` | boolean | `true` (the advisory ready-for-review nudge above, on both the CLI and the GitHub MCP path; inert in a repo whose `.claude/source-control.md` declares no `pr_skill_evidence` map) |
+| `skill_evidence_store` | string | `repo` (`.claude/observability/skill-usage.jsonl` under the checkout; `user` reads the same subpath under `$HOME`, or give an explicit path. Pair it with claude-ops' `skill_usage_scope`, which writes that ledger; `data-dir` is unsupported) |
 | `babysit_watched_owners` | string (multiple) | infer the current repo's owner |
 | `babysit_self_logins` | string (multiple) | your `gh api user` login (extras add to it) |
 | `babysit_default_tier` | string | `safe` (explicit invocations only) |
@@ -383,9 +494,11 @@ reads it from.
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the babysit-loop telemetry sentinel marker (`source-control:babysit-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments. Set an opaque id if a machine name should not be published in a public tracker. |
 | `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Block a `gh pr create`/`gh pr edit` whose statically-readable PR body would fail the repository's required PR-contract check (missing a closing keyword, or a missing/empty `## Summary`, `## Fix`, `## Verification`, or `## Related` section). Enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step; a body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required PR-contract check (closing keyword plus non-empty `## Summary`, `## Fix`, `## Verification`, and `## Related`), the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step, and only for the repository the origin remote names. |
+| `pr_ready_evidence_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_READY_EVIDENCE_GATE_ENABLED` | Nudge, never block, when a call flips a pull request to ready for review while the skill-usage ledger carries no fresh evidence at HEAD that every mandatory pre-PR skill ran. Covers the three Bash routes (`gh pr ready`, the `markPullRequestReadyForReview` GraphQL mutation through `gh api`, and the cloud proxy's `gh api` route `repos/<owner>/<repo>/pulls/<n>/ccr/ready_for_review`) and the GitHub MCP surface (`update_pull_request` with `draft: false`, only for the repository the origin remote names). The verdict comes from scripts/skill-evidence.sh, so the gate is inert in a repository whose .claude/source-control.md declares no `pr_skill_evidence` map; a missing ledger is reported once and then read as no rows. One switch for both surfaces. |
 | `worktree_add_containment_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED` | Block a raw Bash `git worktree add` whose resolved target lands inside a git repository, meaning a working tree or a .git / bare directory, with a message naming the configured external root (worktreeroot.path git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, verified". |
 | `worktree_add_claim_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED` | After a raw Bash `git worktree add`, lock the parsed add target with a session-distinct claim (host + session id + timestamp). Only that path is claimed, not every currently unlocked linked worktree, so two concurrent adds cannot steal each other's trees. Existing reasons, including the worktree-create.sh helper string, are never rewritten. The lock is a claim other agents can read, not a write mutex. Turning this OFF leaves plain-add trees unclaimed; `scripts/worktree-claim.sh report` still lists them and `check-enter` still surfaces a foreign live claim. Kill switch only: worktree_add_claim_gate_enabled. |
 | `worktree_create_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` | Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel, and measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation. That is why `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: "worktree"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `"none"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`. |
+| `skill_evidence_store` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_EVIDENCE_STORE` | Where scripts/skill-evidence.sh reads the skill-usage ledger that proves the mandatory pre-PR skills ran: `repo` (default, .claude/observability/skill-usage.jsonl under the checkout the skill runs in, which in `create --pushed --worktree` mode is the target worktree), `user` (the same subpath under $HOME), or an explicit path to a JSONL file. Pair it with the claude-ops `skill_usage_scope` option that writes the ledger: plugin options are per plugin, so this one cannot read that one, and the two have to agree. claude-ops' `data-dir` scope is unsupported here, since that path is private to the writing plugin. A store that is not there is reported once and then read as no rows. |
 | `babysit_watched_owners` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WATCHED_OWNERS` | GitHub owners (users/orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
 | `babysit_self_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_SELF_LOGINS` | Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login, forming the self set babysit-prs treats as its own: self-comment suppression, same-login classification, readiness-gate classification rows, the merge-gate self-exemption, and the resolve-thread bot-only test (a self-authored reply to a bot thread no longer counts as a disqualifying human participant). Not a discovery filter. Which authors' PRs the queue discovers is `--author`'s job, independent of this set. Absent: your gh login alone. |
 | `babysit_intended_write_identity` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_INTENDED_WRITE_IDENTITY` | The single GitHub login babysit-prs's own writes are intended to land under, typically the bot posting identity. When a write the orchestrator recorded performing lands under a different `babysit_self_logins` identity (e.g. a bot-token mint failed and the write silently fell back to your personal login), the cycle status surfaces an attribution-drift material finding instead of proceeding silently. Set it to one of your self logins; a value that is not actually a posting identity would flag every write. Absent: the check is dormant. |

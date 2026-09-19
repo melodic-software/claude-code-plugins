@@ -74,6 +74,8 @@
 
 Ensure the branch is current with the default branch before pushing. Prevents merge conflicts and stale-branch CI failures.
 
+**This step keeps its rebase, and it is the last place one is allowed.** It runs before the first push, when no pull request exists and no skill-evidence row is owed for a head anyone can review: rewriting the branch's SHAs here costs nothing but the prep rows of [prep.md](prep.md) §1.6, which were never the evidence. Once the PR exists, every base refresh is a merge instead, per [ready-for-review.md](ready-for-review.md) §2.5.2, because a SHA rewrite would invalidate the evidence the PR carries.
+
 **Ordering: rebase needs a clean tree.** `git rebase` refuses to run with unstaged changes (`error: cannot rebase: You have unstaged changes.`). On the normal `create` path the PR changes are still uncommitted when this phase starts. In that case run 2.3 (classify unrelated changes + stage + commit) FIRST, then return here and integrate before the 2.4 push. Run 2.2 in the listed order only when the tree is already clean (all work committed).
 
 ```bash
@@ -263,6 +265,15 @@ empty `TEMPLATE`, and the assembled body carries only the closing-keyword line, 
 user-supplied content), and the §2.4.3 attribution line.
 
 The content inside those headings is prose a reviewer reads: shape it bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, and `${REFS_LINES}` are untouched and the §2.4.2 gate sees the same shape either way.
+
+**Render the skill-evidence block when the ledger already carries rows for this head.**
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/skill-evidence.sh" render \
+  --ledger "$LEDGER" --head "$(git rev-parse HEAD)"
+```
+
+Output: put it under the `## Verification` heading's content, below that section's prose (or under whichever heading the resolved `pr_body_required_sections` gives that role). No output: leave the section as assembled, because no row qualifies. `$LEDGER` is the store the `skill_evidence_store` plugin option names, `repo` by default, which is `.claude/observability/skill-usage.jsonl` under the checkout this phase runs in. What a draft carries here is a starting point rather than the evidence: the prep rows behind it were stamped before §2.2 rewrote the branch's SHAs, and [ready-for-review.md](ready-for-review.md) §2.5.5 re-renders the block on the head it flips.
 
 ```bash
 # One content resolver, reused whether Related is required or ad hoc — the single place
@@ -512,20 +523,32 @@ if [[ -z "$BRANCH" ]]; then
   echo "Cannot create PR: not on a named branch (detached HEAD?)." >&2
   exit 1
 fi
-PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+# --draft: every PR opens as a draft. Draft is the state in which no gate
+# fires and no review is owed; `/source-control:pull-request ready` produces
+# the evidence and performs the flip (reference/ready-for-review.md).
+PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).
 # This number is the source of truth for the rest of this phase — pass it
 # explicitly to every subsequent gh call.
 PR_NUMBER=$(basename "$PR_URL")
+
+# Record the number against the branch. The skill-usage ledger reads this key
+# when it stamps a row, so every later row carries the PR it belongs to.
+git config "branch.${BRANCH}.pr-number" "$PR_NUMBER"
 ```
 
-**Sandboxed sessions: open the PR over REST.** `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and `base`, and `title` unless an existing `issue` is being converted; `body`, `draft`, and `maintainer_can_modify` are optional. Four differences from `gh pr create` matter:
+**`--draft` is not a preference here.** A draft is the state in which nothing is owed: the evidence block, the advisory validator, and the ready-flip gate all key on the flip out of draft, so opening ready-for-review claims a review that has not happened yet. The flip belongs to [ready-for-review.md](ready-for-review.md). A consuming project whose own convention opens PRs ready for review overrides this, and then owes its evidence at creation instead.
+
+**The `pr-number` config key is not an identity cache.** Every phase still resolves the PR number live through `gh`, as the SKILL.md identity rule requires. The key exists for one reader: the hook that writes a skill-usage row reads it so the row carries the PR number, which is what lets evidence be traced back to a pull request later. A branch with no key simply yields rows without that field.
+
+**Sandboxed sessions: open the PR over REST.** `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and `base`, and `title` unless an existing `issue` is being converted; `body`, `draft`, and `maintainer_can_modify` are optional. Five differences from `gh pr create` matter:
 
 - **`base` is required.** `gh pr create` defaults it to the repository's default branch; REST does not. Resolve it over REST as well, since §2.2's `gh repo view --json defaultBranchRef` reads the same GraphQL surface and 403s alongside the rest.
 - **`head` is bare `<branch>` only for a same-repo PR.** From a fork (the triangular flow §2.7's remote resolver allows), it must be namespaced `<fork-owner>:<branch>`, and when both repositories belong to the same organization, REST additionally requires `head_repo=<fork-repo-name>`.
 - **Send the body with `-f`, not `-F`.** `-f`/`--raw-field` sends the value as a string. `-F`/`--field` type-converts values that look like numbers, booleans, or `null`, and reads a leading `@` as a filename. That is useful when the body is already on disk (`-F body=@<file>`), and wrong here, where §2.4.1 assembled it into a shell variable.
 - **The response carries the PR identity.** Read `.number` and `.html_url` from it rather than parsing the number back out of the URL.
+- **`draft` is a boolean, so it goes with `-F`.** `-f draft=true` sends the string `"true"`, which the API rejects; `-F` is the flag that type-converts it. This is the one field on this call that wants `-F`, for the same reason the body wants `-f`.
 
 ```bash
 BASE=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
@@ -533,9 +556,13 @@ PR_JSON=$(gh api --method POST "repos/{owner}/{repo}/pulls" \
   -f title="<type>: <description>" \
   -f head="$BRANCH" \
   -f base="$BASE" \
-  -f body="$BODY")
+  -f body="$BODY" \
+  -F draft=true)
 PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.html_url')
 PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
+
+# Same key as the gh path, same one reader: the skill-usage ledger.
+git config "branch.${BRANCH}.pr-number" "$PR_NUMBER"
 ```
 
 `--method POST` and `-X POST` are the same flag. Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both calls above.
@@ -560,7 +587,7 @@ Record the expected set for comparison in Phase 3.
 
 ## 2.6 Report and stop
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. End Phase 2 there. Monitor (Phase 3), if needed, is invoked explicitly via `/source-control:pull-request monitor` or `/source-control:pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Say that the PR is a draft and that `/source-control:pull-request ready` is what produces its evidence and flips it. End Phase 2 there. The flip (Phase 2.5) and monitoring (Phase 3), if needed, are invoked explicitly via `/source-control:pull-request ready`, `/source-control:pull-request monitor`, or `/source-control:pull-request full`.
 
 ## 2.7 `create --pushed`: PR-only entry for an orchestrated flow
 
@@ -596,18 +623,22 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
 - **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by `gh pr view --json mergeable` and CI in Phase 3. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
+- **§2.4.1 (the skill-evidence block):** the store is read **under the target worktree**, not under the session's checkout. The `repo` scope resolves `.claude/observability/skill-usage.jsonl` relative to the checkout the skill runs in, and the rows that matter were written by the worker inside `$WT`, so pass `--ledger "$WT/.claude/observability/skill-usage.jsonl"` for that scope and `--head "$(git -C "$WT" rev-parse HEAD)"`. A `user` scope or an explicit path is machine-wide and needs no anchoring. Reading the orchestrator's own checkout instead finds no rows and renders an empty block, which reads as a PR that ran nothing.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional (`parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`). The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
 - **§2.4.3 (create):** `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
 
   ```bash
-  PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+  PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+  git -C "$WT" config "branch.${BRANCH}.pr-number" "$(basename "$PR_URL")"
   ```
+
+  `--draft` and the `pr-number` key are as §2.4.3 states them; the config write is anchored to the worktree, since that is the checkout whose ledger rows carry the number.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`:
 
   ```bash
   PR_JSON=$( cd "$WT" && gh api --method POST "repos/{owner}/{repo}/pulls" \
-    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -f body="$BODY" )
+    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -f body="$BODY" -F draft=true )
   ```
 
   `$BASE` needs its own resolution here: §2.2 is skipped in this mode, so nothing has set a default branch. Resolve it the same anchored way: `BASE=$( cd "$WT" && gh api "repos/{owner}/{repo}" --jq '.default_branch' )`.
@@ -618,7 +649,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
   BASE_REPO="<base-owner>/<repo>"                # the PR's target, not the push destination
   PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls" \
     -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
-    -f base="$BASE" -f body="$BODY")
+    -f base="$BASE" -f body="$BODY" -F draft=true)
   ```
 
   `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. On a triangular flow resolve `$BASE` through `GH_REPO` too, as `BASE=$(GH_REPO="$BASE_REPO" gh api "repos/{owner}/{repo}" --jq '.default_branch')`, not through the `cd "$WT"` form above, which would read the fork's default branch.

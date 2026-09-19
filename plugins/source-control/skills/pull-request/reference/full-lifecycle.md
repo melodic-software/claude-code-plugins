@@ -1,18 +1,20 @@
 # Full lifecycle (`/source-control:pull-request full`)
 
-What `/source-control:pull-request full` does that running prep, create, monitor, and merge by
-hand does not: the phase-to-phase handoff state and the abort points. Read it only when the
+What `/source-control:pull-request full` does that running prep, create, ready, monitor, and merge
+by hand does not: the phase-to-phase handoff state and the abort points. Read it only when the
 invocation carried `full`; every other action routes through the phase table in
 [`../SKILL.md`](../SKILL.md).
 
-Run Phase 1 → Phase 2 → Phase 3 → Phase 4 as a continuous flow. Phase transitions are automatic. Don't pause between phases except at **decision gates** where the outcome could vary, plus one interactive-only checkpoint at the create→monitor boundary.
+Run Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 as a continuous flow. Phase transitions are automatic. Don't pause between phases except at **decision gates** where the outcome could vary, plus one interactive-only checkpoint at the create boundary.
 
-**Create→monitor checkpoint (`full` only):**
+**Phase 2.5 sits between create and monitor.** Phase 2 opens a draft, Phase 2.5 produces the pull request's skill evidence and flips it out of draft ([ready-for-review.md](ready-for-review.md)), and Phase 3 monitors the CI and review activity that flip starts. Reaching monitor without the flip means monitoring a draft that no reviewer has been asked to read.
+
+**Create→ready checkpoint (`full` only):**
 
 After Phase 2 reports the PR URL, detect session mode:
 
-- **Interactive** (no autonomous-session marker like `CLAUDE_CODE_REMOTE=true`): ask the user whether to proceed to Phase 3 (monitor) in this session. Acceptable responses: proceed (continue to Phase 3) / stop (end after create) / handoff (end; another session/routine will pick up monitoring). Default on no-response is stop.
-- **Autonomous** (`CLAUDE_CODE_REMOTE=true` or equivalent): no prompt; continue to Phase 3 without pausing. There is no user to ask.
+- **Interactive** (no autonomous-session marker like `CLAUDE_CODE_REMOTE=true`): ask the user whether to proceed to Phase 2.5 (ready) and Phase 3 (monitor) in this session. Acceptable responses: proceed (continue to Phase 2.5) / stop (end after create, leaving the draft) / handoff (end; another session/routine will pick up the flip and monitoring). Default on no-response is stop.
+- **Autonomous** (`CLAUDE_CODE_REMOTE=true` or equivalent): no prompt; continue to Phase 2.5 without pausing. There is no user to ask.
 
 Standalone `create` (not invoked inside `full`) always stops after Phase 2. See [reference/create.md](create.md) §2.6.
 
@@ -22,7 +24,7 @@ Standalone `create` (not invoked inside `full`) always stops after Phase 2. See 
 |------|-------------------|
 | Prep findings have VALID fixes | User decides which to fix vs defer |
 | Commit message content | User may want different wording |
-| Create→monitor (interactive only, `full` mode) | User may want to hand off monitoring to another session/routine |
+| Create→ready (interactive only, `full` mode) | User may want to hand off the flip and monitoring to another session/routine |
 | CI failure fix proposal | Fix approach has multiple options |
 | Merge confirmation | Irreversible action |
 
@@ -31,6 +33,7 @@ Standalone `create` (not invoked inside `full`) always stops after Phase 2. See 
 | Transition | Just do it |
 |-----------|-----------|
 | Prep complete → create | Obvious next step |
+| Ready flip verified → monitor | The flip is what starts the review round |
 | All [readiness gates](readiness.md) pass → suggest merge | Report with full readiness verdict |
 | Comment classified INCORRECT → react + reply | Evidence already gathered |
 | Fix pushed → re-monitor | New push = new cycle |
