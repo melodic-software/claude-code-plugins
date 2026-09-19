@@ -19,6 +19,9 @@ fail() {
   FAILED=$((FAILED + 1))
   printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
 }
+assert_eq() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
+}
 assert_exit() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
 }
@@ -478,11 +481,12 @@ rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 22: exit 0" 0 "$rc"
 # Read the command back through jq rather than matching the raw document: the
-# quotes are backslash-escaped there. assert_contains, not assert_eq, because jq
-# on this host appends a CR to its own stdout.
+# quotes are backslash-escaped there. Equality rather than containment, so a
+# mangling that wrapped the value instead of splicing into it is caught too; the
+# CR is stripped because jq on this host appends one to its own stdout.
 # shellcheck disable=SC2016  # the expected value is the literal placeholder, not a shell expansion
-assert_contains "case 22: the placeholder command is emitted byte for byte" \
-  "$(json_field "$out" '.hooks[0].command')" '"${CLAUDE_PLUGIN_ROOT}"/hooks/msys-guard.sh'
+assert_eq "case 22: the placeholder command is emitted byte for byte" \
+  '"${CLAUDE_PLUGIN_ROOT}"/hooks/msys-guard.sh' "$(json_field "$out" '.hooks[0].command' | tr -d '\r')"
 # So a regression reads as the actual mangling, not merely as a missing substring.
 assert_not_contains "case 22: no MSYS-injected interpreter prefix" "$out" "Program Files"
 
