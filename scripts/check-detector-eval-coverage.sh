@@ -128,6 +128,79 @@
 # site (which the greedy sed counted, yielding a permanent false failure), and a
 # `#` comment after real code is dropped once quoting is resolved.
 #
+# A HEREDOC OPENING IS READ OFF THE QUOTE-RESOLVED LINE, AND ITS DELIMITER IS
+# READ WHOLE. Two halves, because getting only the first right reopened the
+# defect from the other side.
+#
+# THE ORDERING. An earlier revision resolved quoting for the CALL SITES but
+# looked for the heredoc OPENING on the raw line, one step earlier, so a `<<`
+# that was never a redirection operator -- inside a string, inside arithmetic,
+# inside a trailing comment -- armed a body whose delimiter no later line could
+# close. The skip then ran to EOF and every call site below that line left the
+# extraction AND the candidate count together, so the count-vs-resolved
+# accounting below, which exists precisely to turn a partial loss into exit 2,
+# had nothing left to disagree about. One ordinary line of shell turned real
+# UNCOVERED findings into exit 0 with no advisory.
+#
+# THE DELIMITER. Fixing only the ordering narrowed the delimiter matcher, and a
+# delimiter read WRONG is worse than a `<<` read wrong: it arms a word no line
+# can match, which is the same swallow. Four spellings broke that way, two of
+# them plain POSIX heredocs the revision before had read correctly:
+#   - `cat <<\EOF`. The walk dropped an escaped character along with its
+#     backslash, so the scan saw `cat <<OF` and armed `OF`. `\X` outside quotes
+#     is a literal X, so the walk now KEEPS the X -- which also fixes `\emit
+#     error P1`, a real call that had been read as `mit`.
+#   - `cat <<-\EOF`, the same.
+#   - `cat <<'PY.END'` and `cat <<EOF-1`. A quoted delimiter survives the walk
+#     as `@L@<word>`, but matching it with `[A-Za-z_][A-Za-z0-9_]*` truncated
+#     it at the punctuation and armed `PY` / `EOF`. The matcher now uses the
+#     walk's OWN literal-word class, so the delimiter arrives whole.
+#
+# Both halves were found by defeat attempts rather than by a failing run, the
+# second by an adversarial verifier reading the first. The registered detector
+# spells both its heredocs `<<'EOF'` and was never affected by either.
+#
+# THE DELIMITER MUST BE READ WHOLE OR NOT AT ALL. Widening the matcher's
+# character class was itself only half an answer: `match()` does not require
+# its match to END anywhere in particular, so the next delimiter carrying a
+# character outside the class (`<<EOF@1`, `<<EOF=1`, `<<EOF!`) armed the prefix
+# and swallowed exactly as before. The rule is therefore the BOUNDARY, not the
+# class: a partial match arms nothing, and the body is read as code instead,
+# which over-counts or exits 2 but never passes silently.
+#
+# AN UNCLOSED HEREDOC AT EOF IS EXIT 2. A body skip that never closes is the
+# end state of most of the defects above, it is checkable without knowing which
+# shape of shell produced it, and the END rule reports it -- with a dangling
+# line continuation -- as an unresolved candidate, so the count-vs-resolved
+# accounting answers "cannot determine".
+#
+# IT IS NOT THE GENERAL GUARD an earlier revision of this comment claimed, that
+# every heredoc defect known or unknown ends in that one state. A skip that
+# closes EARLY, on a line bash reads as body, desyncs just as badly and then
+# RE-SYNCS on a later line: the call sites in between are swallowed and nothing
+# is outstanding at EOF, so this rule sees a clean finish and the accounting
+# agrees with itself. Two spellings reached it, a terminator carrying a
+# trailing space and a space-indented `<<-` terminator, and what prevents that
+# direction is not this rule but matching the terminator the way bash matches
+# it -- exactly, and with tabs -- which is what the body-skip rule now does.
+#
+# So the standing lesson is about the claim rather than the rule. A guard that
+# catches one end state is worth having and is not the same thing as a guard
+# that cannot be got around, and writing it up as the latter is what three
+# rounds of review have each had to correct.
+#
+# The guards are the P3b block of the self-test, and they fail against every
+# revision that preceded them: 22 against the original, 18 against the
+# ordering-only fix, 14 against the delimiter-class fix, 9 against the
+# terminator-and-word fix. Those counts are MEASURED, by swapping each revision
+# in and running the current suite, and they are restated here whenever guards
+# are added because a stale count reads as evidence and is not. Every ARMING
+# case asserts arm-AND-CLOSE -- a call site after the terminator must still be
+# SEEN. That is the lesson worth keeping. The first round of guards asserted
+# only that the body's own emit was not counted, which a swallow-to-EOF satisfies
+# perfectly: they passed while the gate was at its most broken, and that is how
+# four regressions reached a green run.
+#
 # ORDINARY SHELL IS NOT A PARTIAL LOSS. The first version of that scanner was
 # too literal and too loose at once, and exit 2 means "cannot determine", so
 # every shape it misread failed CLOSED on a detector that was perfectly well
@@ -172,6 +245,29 @@
 #     written that way, and the remedy is a registry-row conversation, not a
 #     silent pass. A quoted literal carrying a space or an expansion
 #     (`emit "$sev" P4`) is the same answer.
+#   - MISSED, SAFE DIRECTION: a heredoc whose delimiter is not a single word
+#     after the walk -- `<<"E O F"`, or one carrying an expansion (`<<$DELIM`)
+#     -- arms nothing, so its BODY is read as code. An `emit` in prose there
+#     either resolves to an id, which over-counts and demands coverage, or does
+#     not, which is exit 2. Neither is a silent pass. Arming on a delimiter
+#     that cannot be matched IS one, which is why the matcher above reads the
+#     delimiter whole rather than accepting a prefix of it.
+#   - MISREAD, NO LONGER SILENT: quoting is resolved PER LINE, so a `<<` on a
+#     later line of a multi-line quoted string -- double OR single quoted, and
+#     the single-quoted spelling is the commoner one, being every embedded awk,
+#     sed and python program -- is still read as code. `$'...'` ANSI-C quoting
+#     with an escaped apostrophe (`msg=$'it\'s << EOF'`) still desyncs the
+#     walk. Both need state the walk does not carry: a line-crossing quote
+#     stack, and `$'...'` escape semantics. What changed is the CONSEQUENCE.
+#     Each one used to arm a delimiter nothing closes and pass silently; the
+#     unclosed-at-EOF rule now turns that into exit 2. The gate stops, which is
+#     the answer a scanner that cannot read its input owes.
+#
+#     Two rounds of adversarial review found these by enumerating shell shapes,
+#     and both rounds' enumerations were incomplete -- the second found seven
+#     more, three of them introduced by the first round's own fix. So the list
+#     is written as what is KNOWN to be misread, not as what remains, and the
+#     structural guard above is there because the next entry is not in it.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
 # that each severity-crosswalk row in docs/conventions/detector-findings/ argues
@@ -299,17 +395,89 @@ function cmd_position(p) {
   return 0
 }
 function forwarded(t) { return (t == "@FWD@" || t == "$@" || t == "$*") }
+function strip_arith(s,   r, j, n, depth, c, head) {
+  # Arithmetic removed, because `<<` inside it is the left-shift OPERATOR.
+  # BOTH spellings: the `$(( ... ))` expansion and bash's bare `(( ... ))`
+  # arithmetic COMMAND, which this repo writes constantly (`if ((rc == 0))`).
+  # Stripping only the first left `(( n << bits ))` armed and swallowed to EOF,
+  # the same silent pass one spelling over.
+  #
+  # A `<<` inside a COMMAND substitution (`$(cat <<EOF)`) is untouched and
+  # really does open a body: `$((` and `((` are matched, `$(` is not. An
+  # unterminated span drops its tail, which is the safe direction here: an
+  # unreadable arithmetic expression arms nothing rather than arming on its
+  # operator.
+  while ((r = index(s, "((")) > 0) {
+    n = length(s)
+    depth = 0
+    j = r
+    while (j <= n) {
+      c = substr(s, j, 1)
+      if (c == "(") depth++
+      else if (c == ")") { depth--; if (depth == 0) break }
+      j++
+    }
+    head = substr(s, 1, r - 1)
+    if (j > n) return head
+    s = head " " substr(s, j + 1)
+  }
+  return s
+}
+function strip_pexp(s,   r, j, n, depth, c, head) {
+  # `${ ... }` removed for the same reason: a `<<` inside a parameter
+  # expansion (`x=${v//y/<<EOF}`) is data, never a redirection operator. This
+  # runs on the heredoc scan's OWN copy, so nothing here reaches the call-site
+  # tokenizer, where an unreadable `${...}` argument must still land as
+  # UNRESOLVED rather than quietly vanish.
+  while ((r = index(s, "${")) > 0) {
+    n = length(s)
+    depth = 0
+    j = r + 1
+    while (j <= n) {
+      c = substr(s, j, 1)
+      if (c == "{") depth++
+      else if (c == "}") { depth--; if (depth == 0) break }
+      j++
+    }
+    head = substr(s, 1, r - 1)
+    if (j > n) return head
+    s = head " " substr(s, j + 1)
+  }
+  return s
+}
 function unquoted_value(t) { return (substr(t, 1, 3) == "@L@") ? substr(t, 4) : t }
-BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startfnr = 0 }
+BEGIN {
+  hd = ""; hdtab = 0; hdline = 0
+  candidates = 0; anchored = "^(" idre ")$"; pending = ""; startfnr = 0
+}
 {
   line = $0
 
   # Inside a heredoc body: prose, usage text, or a template. Never a call site.
+  #
+  # Leading whitespace is stripped from the terminator ONLY for `<<-`, which is
+  # the whole of what the dash means. Stripping it unconditionally closed a
+  # plain `<<USAGE` on an INDENTED `USAGE` that bash reads as body text, and the
+  # lines after it were then read as code -- so a `<<FOO` among them armed and
+  # swallowed the real terminator and everything past it.
+  # The terminator is matched the way BASH matches it, which is exactly and
+  # with tabs, because closing EARLY is as silent as never closing and the END
+  # rule below cannot see it. A scanner that closes a skip bash keeps open
+  # re-syncs on some later line, so it swallows the real call sites in between
+  # and still finishes with nothing outstanding to report.
+  #   - No trailing-whitespace strip. `EOF ` with a trailing space is BODY to
+  #     bash, verified; stripping it closed the skip, and the next `<<` in the
+  #     body then armed and ate the real terminator and the code after it.
+  #   - `<<-` strips TABS only, which is the whole of what the dash does. Using
+  #     `[[:space:]]` also closed on a SPACE-indented terminator, which bash
+  #     reads as body, with the same cascade.
+  # A trailing `\r` is dropped as a line-ending artifact rather than as
+  # whitespace, so a CRLF file still closes.
   if (hd != "") {
     t = line
-    sub(/^[[:space:]]*/, "", t)
-    sub(/[[:space:]]*$/, "", t)
-    if (t == hd) hd = ""
+    sub(/\r$/, "", t)
+    if (hdtab) sub(/^\t*/, "", t)
+    if (t == hd) { hd = ""; hdtab = 0 }
     next
   }
 
@@ -331,22 +499,6 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
   pending = ""
   if (startfnr == 0) startfnr = FNR
 
-  # A heredoc OPENING on this line arms the skip for the lines after it. `<<<`
-  # is a here-string and opens no body.
-  s2 = line
-  while ((r = index(s2, "<<")) > 0) {
-    tail = substr(s2, r + 2)
-    if (substr(tail, 1, 1) == "<") { s2 = substr(s2, r + 3); continue }
-    if (substr(tail, 1, 1) == "-") tail = substr(tail, 2)
-    sub(/^[[:space:]]*/, "", tail)
-    if (match(tail, /^("[A-Za-z_][A-Za-z0-9_]*"|'[A-Za-z_][A-Za-z0-9_]*'|\\?[A-Za-z_][A-Za-z0-9_]*)/)) {
-      d = substr(tail, RSTART, RLENGTH)
-      gsub(/["'\\]/, "", d)
-      hd = d
-    }
-    break
-  }
-
   # Each quoted run collapses to ONE token, which preserves every call site's
   # ARITY (so `emit "$sev" P4` stays three words and is seen as unresolved)
   # while making prose inside a string unreadable as code. Three outcomes:
@@ -364,11 +516,45 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
   while (i <= n) {
     c = substr(line, i, 1)
     if (q == "") {
-      if (c == "\\") { i += 2; continue }
+      # `\X` outside quotes is a LITERAL X. A WORD character is kept, because
+      # dropping the pair lost it: `cat <<\EOF` reached the opening scan as
+      # `cat <<OF`, which armed `OF` and swallowed to EOF, and `\emit error P1`
+      # -- a real call, since a backslash only suppresses alias expansion --
+      # became `mit` and was never counted.
+      #
+      # Anything else becomes a SPACE rather than itself. Emitting the literal
+      # character un-escaped a metacharacter back into an operator: `printf
+      # '%s' \<\<EOF`, which prints the text `<<EOF` and opens nothing, was
+      # read as a heredoc and swallowed the rest of the file. A space carries
+      # the one property that matters downstream, that the character is a
+      # literal and not an operator, and it separates words exactly as an
+      # escaped character cannot join them into one.
+      if (c == "\\") {
+        e = substr(line, i + 1, 1)
+        out = out ((e ~ /[A-Za-z0-9_]/) ? e : " ")
+        i += 2
+        continue
+      }
       if (c == "\"" || c == "'") { q = c; qbuf = ""; i++; continue }
       if (c == "#") {
+        # A comment opens at the start of a WORD, which is after whitespace or
+        # after something that ended a command. `foo;#<<EOF` and `f() (#<<EOF`
+        # are both comments to bash, and reading either as code armed a heredoc
+        # off its text.
+        #
+        # Only characters that SETTLE it are here. `{`, `}`, `)` and a backtick
+        # are all ambiguous, and the ambiguity is not symmetric: reading a
+        # comment as code over-counts or exits 2, while reading code as a
+        # comment TRUNCATES the line and loses whatever followed, silently. So
+        # an ambiguous character is left out.
+        #   - `${#arr}`: the `#` follows a `{` and is not a comment.
+        #   - `$(printf a)#tag`: bash prints `a#tag`, so the `#` after that `)`
+        #     is not a comment -- while `(echo a)#tag` IS one. The same
+        #     character, decided by which construct opened it, which this walk
+        #     does not track.
+        #   - `` `cmd`#tag ``: the same, one construct over.
         p = (out == "") ? "" : substr(out, length(out), 1)
-        if (p == "" || p ~ /[[:space:]]/) break
+        if (p == "" || p ~ /[[:space:]]/ || p ~ /[;&|(]/) break
       }
       out = out c
       i++
@@ -387,6 +573,54 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
     }
   }
   if (q != "") out = out "@Q@"
+
+  # A heredoc OPENING on this line arms the skip for the lines after it. `<<<`
+  # is a here-string and opens no body.
+  #
+  # Read off the QUOTE-RESOLVED line, and with arithmetic removed, because a
+  # `<<` is a redirection operator in neither of those places. Scanning the raw
+  # line armed a body on `v=$((x << n))` and on any `<<` inside a string, and
+  # since no line after it can close a delimiter that was never a delimiter, the
+  # arm ran to EOF: every later call site vanished from the extraction AND from
+  # the candidate count together, so the count-vs-resolved accounting that
+  # exists to turn a partial loss into exit 2 saw nothing to compare. One
+  # ordinary line of shell could therefore turn real UNCOVERED findings into a
+  # silent pass. The delimiter survives the walk as `@L@<word>` when it was
+  # quoted (`<<'EOF'`), so both spellings still arm.
+  s2 = strip_pexp(strip_arith(out))
+  while ((r = index(s2, "<<")) > 0) {
+    tail = substr(s2, r + 2)
+    if (substr(tail, 1, 1) == "<") { s2 = substr(s2, r + 3); continue }
+    dash = 0
+    if (substr(tail, 1, 1) == "-") { tail = substr(tail, 2); dash = 1 }
+    sub(/^[[:space:]]*/, "", tail)
+    if (substr(tail, 1, 3) == "@Q@") break
+    if (substr(tail, 1, 3) == "@L@") tail = substr(tail, 4)
+    # THE DELIMITER IS A WORD, spelled the way bash spells one: everything up
+    # to whitespace or an unquoted metacharacter. Successive narrower guesses
+    # each truncated the next delimiter outside them -- `[A-Za-z_][A-Za-z0-9_]*`
+    # cut `<<'PY.END'` to `PY`, a wider class still cut `<<EOF@1` to `EOF` --
+    # and requiring the match to reach a boundary only converted those into a
+    # REFUSAL to arm, on sixteen spellings bash accepts (`<<EOF{`, `<<EOF#`,
+    # `<<EOF%` and the rest).
+    #
+    # Refusing looked like the safe direction and is not, quite. The body is
+    # then read as code, and a `<<` INSIDE that body arms on a delimiter of its
+    # own, swallows the real terminator and the code after it, and closes on
+    # some later line -- silent, and invisible to the END rule because nothing
+    # is left open. Reading the delimiter correctly in the first place is what
+    # avoids the cascade, so the class is bash's rather than a guess at it.
+    #
+    # A leading digit still refuses, because `<<3` is not a delimiter anyone
+    # writes while `1 << 3` outside the arithmetic forms stripped above --
+    # `a[1<<3]=5`, `$[ 1 << 3 ]` -- is ordinary shell that armed `3`. That
+    # refusal keeps its cascade risk, and it is the narrower bet of the two.
+    if (match(tail, /^[^[:space:];&|<>()]+/)) {
+      d = substr(tail, RSTART, RLENGTH)
+      if (d !~ /^[0-9]/) { hd = d; hdtab = dash; hdline = startfnr }
+    }
+    break
+  }
 
   # A definition (`emit() {`) is not a call. Separators become an explicit
   # @SEP@ so that two call sites on one line are two sites, not one, AND so
@@ -430,7 +664,29 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
   }
   startfnr = 0
 }
-END { print "CANDIDATES " candidates }
+END {
+  # AN UNCLOSED STATE AT EOF IS A CANDIDATE THIS SCAN COULD NOT READ, never a
+  # clean finish. Every heredoc defect this scanner has had -- a `<<` that was
+  # not an operator, a delimiter read truncated, an escaped `<` resurrected, a
+  # terminator closed early -- ends in exactly one observable state: a body skip
+  # that never closes, running to EOF and taking every later call site out of
+  # the extraction AND the candidate count together. Reporting it here puts an
+  # unresolved candidate back on the books, so the count-vs-resolved accounting
+  # sees the disagreement and answers exit 2, "cannot determine".
+  #
+  # That is the structural guard the individual fixes above cannot be: it does
+  # not depend on this scanner having correctly enumerated the shapes of shell
+  # that fool it. The next shape it has not met fails closed.
+  if (pending != "") {
+    candidates++
+    print "UNRESOLVED line " startfnr ": line continuation dangling at end of file"
+  }
+  if (hd != "") {
+    candidates++
+    print "UNRESOLVED line " hdline ": heredoc <<" hd " opened here is never closed"
+  }
+  print "CANDIDATES " candidates
+}
 AWK
 
 # --- the coverage-bearing-string reader --------------------------------------

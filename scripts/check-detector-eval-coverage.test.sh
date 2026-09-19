@@ -42,6 +42,7 @@
 # adcbb777; the two beside it are preservation guards that keep the wider
 # extraction from being bought with a false positive or a lowered threshold, and
 # pass on both sides.
+# shellcheck disable=SC2016  # fixture bodies are literal detector source in single quotes; expansion would destroy the shape under test
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -580,6 +581,218 @@ else
   fail "P3 trailing comment counted: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
+
+# ===== P3b: a `<<` that is not a heredoc operator arms no heredoc body =====
+# The defect this section is the regression guard for, found by a defeat attempt
+# against the merged gate. The opening scan read the RAW line, so a `<<` inside
+# a quoted string or an arithmetic left shift armed a body whose delimiter no
+# later line could close, and the skip ran to EOF. Every call site below the
+# line disappeared from the extraction AND from the candidate count at once, so
+# the accounting that turns a partial loss into exit 2 had nothing to compare
+# and the gate passed clean on a detector with uncovered ids. One line of
+# ordinary shell, no advisory, exit 0.
+#
+# Each case puts the shape between a COVERED id and an UNCOVERED one: exit 1
+# naming P4 proves the sites below the shape were still read.
+
+p3b_case() {
+  local label="$1" shape="$2"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$shape" 'emit error P4 SRC "message"'
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* ]]; then
+    ok "P3b: $label arms no heredoc"
+  else
+    fail "P3b $label swallowed the rest of the file: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+p3b_case 'an arithmetic left shift by a variable' 'v=$((x << n))'
+p3b_case 'an arithmetic left shift by a literal' 'v=$((x << 3))'
+p3b_case 'a nested arithmetic left shift' 'v=$(( (x + 1) << n ))'
+p3b_case 'a `<<` inside a double-quoted argument' 'emit error P1 SRC "redact <<secret>> now"'
+p3b_case 'a `<<` inside double-quoted prose' 'echo "a << b"'
+p3b_case 'a `<<` inside single-quoted prose' "echo 'a << b'"
+p3b_case 'a `<<` inside a trailing comment' 'emit error P1 SRC "m"  # see <<EOF'
+p3b_case 'a `<<` in a comment opened after `;`' 'foo;#<<EOF'
+p3b_case 'a bare arithmetic COMMAND left shift' '(( mask = 1 << bits ))'
+p3b_case 'a bare arithmetic command, literal shift' '(( mask = 1 << 3 ))'
+p3b_case 'a `<<` inside a parameter expansion' 'x=${v//y/<<EOF}'
+p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
+p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
+p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'
+p3b_case 'a comment opened after `(`' 'f() (#<<EOF'
+
+# (The delimiter-carrying-punctuation cases live with the other `p3b_arms`
+# calls below, after that helper is defined.)
+
+# The other direction: a REAL heredoc must still arm, in every delimiter
+# spelling, or the fix above trades a false pass for a false failure. The
+# quoted-delimiter form is already covered by the P3 case above; these are the
+# spellings the rewritten delimiter matcher had to keep reading.
+# ARM **AND CLOSE**. An earlier version of this helper asserted only that the
+# body's `emit error P9` was not counted, and that is the assertion that let
+# four regressions through: a heredoc armed on a delimiter no line can match
+# hides the body AND everything after it, so "P9 is not counted" passes exactly
+# when the gate is most broken. Every case therefore also puts a call site
+# AFTER the terminator and requires it to be SEEN, which only a body that
+# actually closed can satisfy.
+#
+# The caller passes the heredoc lines; the terminator must be among them.
+p3b_arms() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@" 'emit error P4 SRC "message"'
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"P9"* ]]; then
+    ok "P3b: $label arms the body skip and closes it"
+  else
+    fail "P3b $label did not arm-and-close: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+p3b_arms 'an unquoted delimiter' 'usage() { cat <<USAGE' 'emit error P9 SRC "someday"' 'USAGE' '}'
+p3b_arms 'a tab-stripped `<<-` delimiter' 'usage() { cat <<-USAGE' 'emit error P9 SRC "someday"' \
+  '	USAGE' '}'
+p3b_arms 'a double-quoted delimiter' 'usage() { cat <<"USAGE"' 'emit error P9 SRC "someday"' \
+  'USAGE' '}'
+p3b_arms 'a redirected heredoc (`>&2 <<EOF`)' 'usage() { cat >&2 <<USAGE' \
+  'emit error P9 SRC "someday"' 'USAGE' '}'
+p3b_arms 'a single-quoted delimiter' "usage() { cat <<'USAGE'" 'emit error P9 SRC "someday"' \
+  'USAGE' '}'
+
+# The four spellings a narrowed delimiter matcher armed on the WRONG word, each
+# swallowing to EOF. `<<\USAGE` is a plain POSIX heredoc: the backslash only
+# suppresses expansion, exactly as quoting the delimiter does.
+p3b_arms 'a backslash-escaped delimiter' 'usage() { cat <<\USAGE' \
+  'emit error P9 SRC "someday"' 'USAGE' '}'
+p3b_arms 'a backslash-escaped `<<-` delimiter' 'usage() { cat <<-\USAGE' \
+  'emit error P9 SRC "someday"' '	USAGE' '}'
+# A delimiter carrying punctuation is a delimiter. These were written as `arms
+# nothing` cases when the matcher used a character class and refused whatever
+# fell outside it. bash accepts all of them, and REFUSING is not safe: the body
+# is then read as code and a `<<` inside it arms and swallows. They assert the
+# whole delimiter is read, which is what stops that cascade.
+p3b_arms 'a delimiter carrying `@`' 'usage() { cat <<USAGE@1' \
+  'emit error P9 SRC "someday"' 'USAGE@1' '}'
+p3b_arms 'a delimiter carrying `=`' 'usage() { cat <<USAGE=1' \
+  'emit error P9 SRC "someday"' 'USAGE=1' '}'
+p3b_arms 'a delimiter carrying `!`' 'usage() { cat <<USAGE!' \
+  'emit error P9 SRC "someday"' 'USAGE!' '}'
+p3b_arms 'a delimiter carrying `{`' 'usage() { cat <<USAGE{' \
+  'emit error P9 SRC "someday"' 'USAGE{' '}'
+p3b_arms 'a delimiter carrying `#`' 'usage() { cat <<USAGE#' \
+  'emit error P9 SRC "someday"' 'USAGE#' '}'
+
+p3b_arms 'a quoted delimiter carrying a dot' "usage() { cat <<'PY.END'" \
+  'emit error P9 SRC "someday"' 'PY.END' '}'
+p3b_arms 'an unquoted hyphenated delimiter' 'usage() { cat <<USAGE-1' \
+  'emit error P9 SRC "someday"' 'USAGE-1' '}'
+# Removing `${ ... }` from the scan's copy must not cost a real opener sharing
+# the line with one.
+# CLOSING EARLY IS AS SILENT AS NEVER CLOSING, and the unclosed-at-EOF rule
+# cannot see it: a skip that closes on a line bash treats as body re-syncs on
+# some later line, so it swallows the real call sites in between and still
+# finishes with nothing outstanding. These three are that direction, and each
+# needs the terminator matched exactly the way bash matches it.
+#
+# The fixture is the CASCADE, not just the early close, because "the body's own
+# emit is hidden" is satisfied by a swallow too. A line bash reads as body but
+# the scanner reads as a terminator is followed by a second `<<`: on the buggy
+# path that second opener arms, eats the true terminator and the code past it,
+# and closes later, so the call site after the function disappears. On the
+# correct path the whole block is body and that call site is plain code.
+early_close_case() {
+  local label="$1" fake="$2" true_term="$3" opener="$4"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' \
+    "usage() { cat $opener" 'body' "$fake" 'cat <<HELP' 'emit error P9 SRC "someday"' \
+    "$true_term" '}' 'emit error P4 SRC "message"' 'HELP'
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* && "$ERR" != *"P9"* ]]; then
+    ok "P3b: $label does not close the skip early"
+  else
+    fail "P3b $label closed early and swallowed: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+# `USAGE ` with a trailing space is BODY to bash, not a terminator.
+early_close_case 'a terminator carrying a trailing space' 'USAGE ' 'USAGE' '<<USAGE'
+# `<<-` strips TABS only, so a space-indented terminator is body.
+early_close_case 'a `<<-` terminator indented by spaces' '  USAGE' '	USAGE' '<<-USAGE'
+# The plain-`<<` direction the tab-stripped guard above never exercised: an
+# indented terminator is body until the column-0 one arrives.
+early_close_case 'a plain `<<` terminator indented by a tab' '	USAGE' 'USAGE' '<<USAGE'
+
+# `#` after `)` or a backtick is NOT reliably a comment: `$(printf a)#tag`
+# prints `a#tag`. Reading it as one truncates the line and loses what followed,
+# so the call site has to be ON THE SAME LINE, after the `#`. With it on the
+# next line the fixture proves nothing: truncating a line that carries no emit
+# costs nothing, and the guard passes against the revision that has the bug.
+p3b_samecase() {
+  local label="$1" shape="$2"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$shape"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* ]]; then
+    ok "P3b: $label does not truncate the line"
+  else
+    fail "P3b $label truncated the line: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+p3b_samecase 'a `#` after a command substitution `)`' 'echo $(printf a)#tag; emit error P4 SRC "x"'
+p3b_samecase 'a `#` after a backtick' 'echo `printf a`#tag; emit error P4 SRC "x"'
+
+# THE STRUCTURAL GUARD. Every heredoc defect this scanner has had ends in one
+# observable state -- a body skip that never closes -- so an unclosed state at
+# EOF must be exit 2, whatever shape of shell produced it. These two assert
+# that directly, and they are the cases that hold when the enumeration above
+# misses the next shape.
+unclosed_case() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 2 && "$ERR" == *"emit call site"* ]]; then
+    ok "P3b: $label is exit 2, not a clean finish"
+  else
+    fail "P3b $label did not fail closed: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+unclosed_case 'a heredoc never closed before EOF' 'usage() { cat <<USAGE' 'emit error P9 SRC "x"'
+unclosed_case 'a line continuation dangling at EOF' "emit error P4 SRC \"x\" \\"
+
+p3b_arms 'a heredoc opened beside a parameter expansion' 'usage() { cat ${opt} <<USAGE' \
+  'emit error P9 SRC "someday"' 'USAGE' '}'
+
+# The call-site tokenizer never sees those strips: an `emit` whose id is a
+# parameter expansion must still be UNRESOLVED (exit 2), not silently dropped.
+mk_tree
+mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error ${id} SRC "message"'
+mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+run_gate "$(pair det.sh evals.json)" --check
+if [[ $RC -eq 2 && "$ERR" == *"emit call site"* ]]; then
+  ok "P3b: an id carried by a parameter expansion is still unreadable, not dropped"
+else
+  fail "P3b parameter-expansion id: rc=$RC out='$OUT' err='$ERR'"
+fi
+rm -rf "$root"
+
+# A here-string opens no body, so the sites after it must survive.
+p3b_case 'a here-string (`<<<`)' 'grep x <<<"$v"'
 
 # ====== N2: ordinary shell is not a partial extraction loss (exit 2) ======
 # Reproduced against c7f71c36: each shape below made a well-formed detector
