@@ -6,9 +6,11 @@ no-go. It assumes no memory of the 2026-09-19 investigation. The verdict feeds
 "Recorded gate runs" in [docs/plugin-philosophy.md](../../plugin-philosophy.md).
 
 Beside this file: [experiments.md](experiments.md) holds E1 to E6 as rerunnable procedures with
-their 2026-09-19 baselines plus the open manual probes; [sources.md](sources.md) indexes every
-external link both files rely on; [research-2026-09-19/](research-2026-09-19/) is the frozen
-evidence, dated and never current state.
+their 2026-09-19 baselines, the Desktop probe the maintainer has since run by hand (a user-authored
+mod loads in Desktop's Code tab, 2026-09-19, `OBSERVED`; the flag-unset, cloud-session, Cowork and
+UI-drawing arms stay untested), and the manual probes that are still open; [sources.md](sources.md)
+indexes every external link both files rely on; [research-2026-09-19/](research-2026-09-19/) is the
+frozen evidence, dated and never current state.
 
 ## The verdict rule
 
