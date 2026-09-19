@@ -460,7 +460,7 @@ Structural commit (Tidy First: deletions and citation updates only, no behaviour
   after a second run).
 - `/docs-hygiene:rename-references` audit over the deleted paths reports zero dangling references.
 
-#### Phase 7: The babysit merge gate reads the block [DOING]
+#### Phase 7: The babysit merge gate reads the block [DONE]
 
 `[FALLBACK, confirm or override]` (flagged close call, both reviews raised it): the Brief's
 constraint "advisory before blocking" and its acceptance criterion "hold a merge" pull against each
@@ -493,7 +493,7 @@ The flip line at presentation turns the route into a hold.
   is at least 1; `grep -c 'pull-request ready' plugins/source-control/skills/babysit-prs/SKILL.md`
   is at least 1.
 
-#### Phase 8: ADR 0035, ADR 0002 pointer, and the promotion record [TODO]
+#### Phase 8: ADR 0035, ADR 0002 pointer, and the promotion record [DONE]
 
 1. Create `docs/adr/0035-seat-mandatory-reviews-on-the-operator-session-and-retire-the-oauth-lanes.md`
    in the house ADR shape (`- Status: accepted`, `- Date:`, Context, Decision, Consequences,
