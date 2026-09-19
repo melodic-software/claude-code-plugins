@@ -158,7 +158,7 @@ feasibility questions (forgeability, trigger behaviour, hook events) were settle
 
 #### Phase 1: Ledger rows carry the head SHA and the PR number [TODO]
 
-Plugin: claude-ops (0.49.0 to 0.50.0).
+Plugin: claude-ops (0.56.17 to 0.57.0).
 
 1. **Pre-flight, identify consumers** (first work item): the readers of `skill-usage.jsonl` are
    `skills/audit-skill-visibility/scripts/audit_skill_visibility.py` (skips rows without `skill`
@@ -181,7 +181,7 @@ Plugin: claude-ops (0.49.0 to 0.50.0).
 | `plugins/claude-ops/hooks/claude-ops-paths.test.sh` | Modify | field assertions |
 | `plugins/claude-ops/hooks/skill-usage-audit.test.sh` | Modify | end-to-end row shape |
 | `plugins/claude-ops/README.md` | Modify | field table, budget line |
-| `plugins/claude-ops/CHANGELOG.md`, `.claude-plugin/plugin.json` | Modify | 0.50.0 |
+| `plugins/claude-ops/CHANGELOG.md`, `.claude-plugin/plugin.json` | Modify | 0.57.0 |
 | `plugins/claude-ops/skills/audit-skill-visibility/scripts/*`, `skills/observability/scripts/clean.sh` | KEEP | audited tolerant readers |
 
 **Sanity Check:**
@@ -194,7 +194,7 @@ Plugin: claude-ops (0.49.0 to 0.50.0).
 
 #### Phase 2: The evidence script, config key, and this repo's mandatory map [TODO]
 
-Plugin: source-control (0.55.74 to 0.56.0). This is the integration slice.
+Plugin: source-control (0.55.89 to 0.56.0). This is the integration slice.
 
 1. Create `plugins/source-control/scripts/skill-evidence.sh` with the four subcommands of
    `design/design-resolution.md` (`classes`, `check`, `render`, `report`), `--help`, exit 0 on
@@ -388,7 +388,7 @@ Review: security
    `unlabeled` re-run `ci-status`. A missing label (not yet provisioned) is a notice, not an error.
 2. The label is IaC-owned (loop-lane README: no lane creates labels): file the request in
    github-iac as a work item (`/work-items:track`) and record the label beside
-   `needs-issue-linkage` in `.github/pull_request_template.md` and ADR 0033. `[FALLBACK, confirm
+   `needs-issue-linkage` in `.github/pull_request_template.md` and ADR 0035. `[FALLBACK, confirm
    or override]`: until github-iac provisions it, the validator comments only.
 3. Lint job step `Report ai-slop findings on changed markdown` (id `ai_slop_report`): after the
    docs-only resolver, list changed `.md` files against `origin/$BASE_REF`, write them to a paths
@@ -493,9 +493,9 @@ The flip line at presentation turns the route into a hold.
   is at least 1; `grep -c 'pull-request ready' plugins/source-control/skills/babysit-prs/SKILL.md`
   is at least 1.
 
-#### Phase 8: ADR 0033, ADR 0002 pointer, and the promotion record [TODO]
+#### Phase 8: ADR 0035, ADR 0002 pointer, and the promotion record [TODO]
 
-1. Create `docs/adr/0033-seat-mandatory-reviews-on-the-operator-session-and-retire-the-oauth-lanes.md`
+1. Create `docs/adr/0035-seat-mandatory-reviews-on-the-operator-session-and-retire-the-oauth-lanes.md`
    in the house ADR shape (`- Status: accepted`, `- Date:`, Context, Decision, Consequences,
    Revisit triggers). Decision records: the seat-based posture; the retirement of both lanes,
    their evidence guards, the skip-actors read, and the count and last-head comments; the evidence
@@ -508,8 +508,8 @@ The flip line at presentation turns the route into a hold.
    assumption does not hold and is corrected here); PRs opened outside the skill (the UI, a bare
    REST call, a bot) receive no review and only the advisory label; the security review now runs on
    the seat at the lane's former breadth.
-2. ADR 0002: one line under its Status line pointing at 0033 for the superseded sections.
-   Re-check `ls docs/adr/0033-*` at merge time (two numbers are already duplicated in that
+2. ADR 0002: one line under its Status line pointing at 0035 for the superseded sections.
+   Re-check `ls docs/adr/0035-*` at merge time (0033 and 0034 landed on main while this plan was drafted, so re-check the number at merge time; two numbers are already duplicated in that
    directory).
 3. `AGENTS.md` "Open a pull request as a draft" gains the sentence that the ready flip runs
    `/source-control:pull-request ready`, which renders the evidence block.
@@ -517,9 +517,9 @@ The flip line at presentation turns the route into a hold.
 
 **Sanity Check:**
 
-- `ls docs/adr/0033-*.md` lists exactly one file; `grep -c '0033' docs/adr/0002-*.md` is 1.
+- `ls docs/adr/0035-*.md` lists exactly one file; `grep -c '0035' docs/adr/0002-*.md` is 1.
 - `/ai-slop:audit` on the new ADR and every markdown file this branch changed reports zero
-  findings; `grep -c $'\xe2\x80\x94' docs/adr/0033-*.md` is 0.
+  findings; `grep -c $'\xe2\x80\x94' docs/adr/0035-*.md` is 0.
 
 #### Phase 9: Verification and the pull request [TODO]
 
@@ -589,7 +589,7 @@ Existing tests to update: `pr-linkage-spawn-budget.test.sh` (new hook ceilings),
 | The ledger is written by claude-ops and read by source-control; a consumer with one plugin and not the other sees a silent gate | Med | Low | Ledger absent: one-time notice naming the pairing, then "no rows"; README states the pairing; `data-dir` scope documented unsupported |
 | The validator step lengthens the required job | Low | Med | Sparse depth-1 checkout after the aggregate; measured on the first run; separate-job switch condition recorded |
 | A wrapper failure reds the required check | Low | High | `continue-on-error: true` with a reasoned opt-out entry, `trap` exit 0, and a suite case with a failing `gh` |
-| The block is edited by hand to force a clean verdict | Low | Low (advisory phase) | Accepted per ADR 0024 and stated in ADR 0033; the promotion review samples blocks against ledger rows |
+| The block is edited by hand to force a clean verdict | Low | Low (advisory phase) | Accepted per ADR 0024 and stated in ADR 0035; the promotion review samples blocks against ledger rows |
 | Cloud sessions flip ready through a route the hook does not match | Med | Low | The MCP twin covers `update_pull_request`; the validator catches every flip regardless |
 | Every base refresh re-runs `verification:confirm` | High | Low | That is the honest cost of refreshing; non-terminal rows survive a merge; the ready step merges, never rebases |
 | The security class fires on nearly every non-docs PR | High | Med | Same breadth as the retired lane; stated in the map's comment and the ADR; the operator can narrow the patterns file |
@@ -663,7 +663,7 @@ base refresh are stated, not measured; the promotion window measures them).
 | 5 | `.github/workflows/ci.yml`, `scripts/pr-skill-evidence-ci*`, `scripts/lane-coverage-step-opt-outs.txt`, `.github/pull_request_template.md` | 6 (ci.yml), 3 (template) |
 | 6 | the deletions, `ci.yml` schema list, `REVIEW.md`, cheat sheet, review plugin, `landscape.json`, ADR 0002 pointer | 5 (ci.yml), 8 (ADR 0002) |
 | 7 | `plugins/source-control/skills/babysit-prs/**` | none |
-| 8 | `docs/adr/0033-*.md`, `docs/adr/0002-*.md`, `AGENTS.md` | 6 (ADR 0002) |
+| 8 | `docs/adr/0035-*.md`, `docs/adr/0002-*.md`, `AGENTS.md` | 6 (ADR 0002) |
 | 9 | none (verification, PR) | all (reads) |
 
 ### Dependency graph
