@@ -190,11 +190,14 @@
 # rounds of review have each had to correct.
 #
 # The guards are the P3b block of the self-test, and they fail against every
-# revision that preceded them: 17 against the original, 13 against the
-# ordering-only fix, 9 against the delimiter-class fix. Every ARMING case
-# asserts arm-AND-CLOSE -- a call site after the terminator must still be SEEN.
-# That is the lesson worth keeping. The first round of guards asserted only
-# that the body's own emit was not counted, which a swallow-to-EOF satisfies
+# revision that preceded them: 22 against the original, 18 against the
+# ordering-only fix, 14 against the delimiter-class fix, 9 against the
+# terminator-and-word fix. Those counts are MEASURED, by swapping each revision
+# in and running the current suite, and they are restated here whenever guards
+# are added because a stale count reads as evidence and is not. Every ARMING
+# case asserts arm-AND-CLOSE -- a call site after the terminator must still be
+# SEEN. That is the lesson worth keeping. The first round of guards asserted
+# only that the body's own emit was not counted, which a swallow-to-EOF satisfies
 # perfectly: they passed while the gate was at its most broken, and that is how
 # four regressions reached a green run.
 #
