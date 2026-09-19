@@ -620,6 +620,31 @@ p3b_case 'a `<<` in a comment opened after `;`' 'foo;#<<EOF'
 p3b_case 'a bare arithmetic COMMAND left shift' '(( mask = 1 << bits ))'
 p3b_case 'a bare arithmetic command, literal shift' '(( mask = 1 << 3 ))'
 p3b_case 'a `<<` inside a parameter expansion' 'x=${v//y/<<EOF}'
+
+# An UNTERMINATED `${` or `((` must keep the rest of its line, because a real
+# heredoc opener can live in there: `x=${unset:-$(cat <<EOF` is valid bash.
+# Discarding the tail hid the opener, the body was read as code, a `cat <<HELP`
+# inside it armed, the uncovered emit was swallowed, and a later `HELP` closed
+# the skip so nothing was outstanding at EOF -- exit 0, silently wrong.
+unterminated_case() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -ne 0 && "$ERR" == *"P4"* ]]; then
+    ok "P3b: $label keeps the nested heredoc opener"
+  else
+    fail "P3b $label discarded the opener: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+unterminated_case 'an unterminated `${` carrying a heredoc opener' \
+  'x=${unset:-$(cat <<EOF' 'cat <<HELP' 'EOF' ')}' 'emit error P4 SRC "message"' 'HELP'
+unterminated_case 'an unterminated `((` carrying a heredoc opener' \
+  'x=$(( a + $(cat <<EOF' 'cat <<HELP' 'EOF' ') ))' 'emit error P4 SRC "message"' 'HELP'
 p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
 p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
 p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'

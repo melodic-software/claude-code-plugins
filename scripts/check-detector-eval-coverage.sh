@@ -418,7 +418,12 @@ function strip_arith(s,   r, j, n, depth, c, head) {
       j++
     }
     head = substr(s, 1, r - 1)
-    if (j > n) return head
+    # UNTERMINATED: keep the tail, drop only the `((`. Returning the head threw
+    # the rest of the line away, and a REAL heredoc opener can live in there --
+    # see strip_pexp below, where that cost a silent loss. Keeping it can arm a
+    # `<<` that was only arithmetic, which never closes and so exits 2. That is
+    # the safe side of the trade; discarding is not.
+    if (j > n) return head " " substr(s, r + 2)
     s = head " " substr(s, j + 1)
   }
   return s
@@ -440,7 +445,13 @@ function strip_pexp(s,   r, j, n, depth, c, head) {
       j++
     }
     head = substr(s, 1, r - 1)
-    if (j > n) return head
+    # UNTERMINATED: keep the tail, drop only the `${`. A multi-line parameter
+    # expansion can carry a command substitution that opens a REAL heredoc --
+    # `x=${unset:-$(cat <<EOF` is valid bash -- and returning the head threw
+    # that opener away. The body was then read as code, a `cat <<HELP` inside
+    # it armed, an uncovered `emit` was swallowed, and a later `HELP` closed
+    # the skip so nothing was outstanding at EOF: exit 0, silently wrong.
+    if (j > n) return head " " substr(s, r + 2)
     s = head " " substr(s, j + 1)
   }
   return s
