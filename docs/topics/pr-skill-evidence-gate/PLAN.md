@@ -521,7 +521,7 @@ The flip line at presentation turns the route into a hold.
 - `/ai-slop:audit` on the new ADR and every markdown file this branch changed reports zero
   findings; `grep -c $'\xe2\x80\x94' docs/adr/0035-*.md` is 0.
 
-#### Phase 9: Verification and the pull request [TODO]
+#### Phase 9: Verification and the pull request [DOING]
 
 1. `scripts/affected-tests.sh --run --explain` exit 0 (every new script maps to a suite: the new
    `*.test.sh` files sit beside their scripts, so the co-location rule maps them).
