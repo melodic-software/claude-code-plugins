@@ -1,5 +1,29 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.8]
+
+### Fixed
+
+- **`audit-noise`'s `citation` shape now matches the origin notes its own table already claimed.**
+  The cue list gains the origin verbs (`ported from`, `copied from`, `migrated from`, `adapted
+  from`, `borrowed from`, `lifted from`, `taken from`) and the dated forms
+  (`added`/`merged`/`introduced`/`backported`/`ported` before an ISO date). The verb-from cue must
+  open the line, follow a list bullet, or follow a comma, semicolon, colon, or opening parenthesis;
+  the dated cue takes every anchor but the parenthesis. Both must also END on a boundary, so
+  `Ported fromage` and a date running on into more characters (`Added 2026-09-011`) match nothing;
+  an ISO-8601 time is spelled out, so `Added 2026-09-01T12:00:00Z` still is a finding.
+  That keeps ordinary prose such as "the data was copied from the upstream table" out. A line
+  carrying an inline or full reference link, or a bare URL, stands the two new cues down, because a
+  pointer is the artifact `provenance:audit` asks an author to write; a shortcut reference link
+  (`[the guide]` with its definition elsewhere in the file) is not stood down, because the line-level
+  predicate has no view of the file's link definitions. The shape stays Tier 1 and the treatment stays relocate-or-strip. The six
+  pre-existing cues are unchanged and are not stood down.
+
+### Changed
+
+- The `citation` row says "inline origin notes" where it said "inline provenance attribution", and
+  both `ticket-pr-residue` surfaces say "bare back-reference" where they said "bare provenance".
+
 ## [0.22.7]
 
 ### Changed

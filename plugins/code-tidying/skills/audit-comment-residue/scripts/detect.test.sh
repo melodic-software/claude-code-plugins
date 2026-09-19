@@ -430,6 +430,185 @@ fi
 assert_not_contains "escaped paths are not reported as files=0" "$escaped_out" "files=0"
 assert_not_contains "no C-style octal escape leaks into a target path" "$escaped_out" '\303'
 
+# --- 12. origin-note shape ------------------------------------------------------------
+
+ORIGIN="$SCRIPT_DIR/../evals/fixtures/origin-notes.sh"
+origin_out="$(bash "$DETECT" "$ORIGIN")"
+assert_contains "origin-note shape emitted" "$origin_out" "Finding shape: origin-note"
+assert_contains "origin-note is tier 1" "$origin_out" $'Finding tier: 1\nFinding shape: origin-note'
+assert_contains "five origin notes and no other finding" "$origin_out" "T1=5 T2=0 T3=0"
+assert_contains "ported-from flagged" "$origin_out" "(ported from the melodic-software dotfiles profile)"
+assert_contains "merged-date flagged" "$origin_out" "Merged 2026-07-24 from dot_bashrc"
+assert_contains "added-date flagged" "$origin_out" "Added 2026-08-10 while wiring"
+assert_contains "copied-from flagged" "$origin_out" "Copied from the provisioning repo"
+assert_contains "backported-date flagged" "$origin_out" "Backported 2026-09-01 from main"
+assert_not_contains "copyright header is not an origin note" "$origin_out" "Copyright (c) 2026"
+assert_not_contains "SPDX header is not an origin note" "$origin_out" "SPDX-License-Identifier"
+assert_not_contains "license-grant header is not an origin note" "$origin_out" "Licensed under the MIT License"
+assert_not_contains "freshness stamp is not an origin note" "$origin_out" "verified 2026-09-03"
+assert_not_contains "no stamp verb reads as an origin note" "$origin_out" "2026-09-03"
+assert_not_contains "why-comment is not an origin note" "$origin_out" "Must stay ordered"
+assert_not_contains "bare date is not an origin note" "$origin_out" "Finding excerpt: # 2026-08-10"
+assert_not_contains "sanctioned TODO is not an origin note" "$origin_out" "TODO(#123)"
+
+# The control goes FIRST: cr_line_skipped suppresses a line when the marker is on it
+# OR on the line before it, so a control placed after the inline-marker line would be
+# swallowed and the case would pass for the wrong reason.
+ORIGIN_OPTOUT="$TEST_TMPDIR/origin-optout.py"
+cat >"$ORIGIN_OPTOUT" <<'EOF'
+# Merged 2026-07-24 from dot_bashrc
+# comment-residue-ignore
+# ported from the dotfiles profile
+value = 1  # Copied from upstream  # comment-residue-ignore
+EOF
+origin_optout_out="$(bash "$DETECT" "$ORIGIN_OPTOUT")"
+assert_contains "origin-note control still detected" "$origin_optout_out" "Finding shape: origin-note"
+assert_not_contains "origin-note marker opt-out (previous line)" "$origin_optout_out" "ported from the dotfiles"
+assert_not_contains "origin-note marker opt-out (same line)" "$origin_optout_out" "Copied from upstream"
+
+# The cue must open the comment or a clause inside it, and it must be a whole word.
+# Without both, `exported from` matches `ported from` and `padded <date>` matches
+# `added <date>`, and an ordinary description of runtime behavior becomes a finding.
+#
+# The last line is the portability pin. `[[ =~ ]]` rejects a bare `;` at parse time, so
+# the clause class has to be spelled `[,\;:]`; bash strips that backslash before regcomp
+# rather than passing it through as a bracket member. Were a bash version to pass it
+# through, a backslash would become a clause opener and this line would fire.
+ORIGIN_NEG="$TEST_TMPDIR/origin-negatives.py"
+cat >"$ORIGIN_NEG" <<'EOF'
+# helpers exported from index.ts
+# values imported from utils
+# supported from version 3.0 onward
+# padded 2026-01-01 for alignment
+# bytes copied from the source buffer are hashed
+# rows migrated from the old schema each tick
+# cache helper\ copied from the dotfiles profile
+EOF
+origin_neg_out="$(bash "$DETECT" "$ORIGIN_NEG")"
+assert_contains "origin-note word and clause boundaries hold" "$origin_neg_out" "T1=0 T2=0 T3=0"
+
+# origin-note is tier 1, which reads "remove". A license or attribution header carries
+# text the reader may be legally required to keep, and a marker comment is tracked work,
+# so neither is an origin note however it opens. The marker test reuses
+# cr_is_sanctioned_todo verbatim rather than redefining which markers count, so a bare
+# TODO is exempt here exactly as it already is for ticket-pr-residue.
+ORIGIN_EXEMPT="$TEST_TMPDIR/origin-exempt.py"
+cat >"$ORIGIN_EXEMPT" <<'EOF'
+# TODO(#123): ported from lib/x
+# TODO: ported from lib/x
+# FIXME: copied from the vendor SDK
+
+# Copyright 2019 Acme Corp. Adapted from lib/x
+
+# (c) 2019 Acme Corp. Copied from lib/x
+
+# SPDX-License-Identifier: MIT; copied from the upstream license text
+
+# Licensed under the MIT License; ported from the vendor SDK
+
+# License: Apache-2.0, adapted from the reference implementation
+
+# Ported from lib/x
+EOF
+origin_exempt_out="$(bash "$DETECT" "$ORIGIN_EXEMPT")"
+assert_contains "an ordinary origin note still fires beside the exempt lines" "$origin_exempt_out" "Finding excerpt: # Ported from lib/x"
+assert_contains "marker and license comments are exempt from origin-note" "$origin_exempt_out" "T1=1 T2=0 T3=0"
+
+# The exemption is BLOCK-scoped: a contiguous comment run carrying a license cue anywhere
+# in it is exempt whole, because the canonical NOTICE header does not repeat the cue on
+# the attribution line. The run ends at a blank line or at code, so the same sentence in
+# the next comment run is an ordinary origin note again.
+ORIGIN_BLOCK="$TEST_TMPDIR/origin-block.js"
+cat >"$ORIGIN_BLOCK" <<'EOF'
+/*
+ * Copyright (c) 2019 Acme Corp.
+ * Ported from the reference implementation.
+ * Licensed under the MIT License.
+ */
+
+// BLK1: Ported from the reference implementation.
+const a = 1;
+// BLK2: Copied from the reference implementation.
+EOF
+origin_block_out="$(bash "$DETECT" "$ORIGIN_BLOCK")"
+assert_not_contains "a cue-less line inside a NOTICE block is exempt" "$origin_block_out" "Finding excerpt: * Ported from the reference implementation."
+assert_contains "the same sentence after a blank line still fires" "$origin_block_out" "Finding excerpt: // BLK1: Ported from the reference implementation."
+assert_contains "the same sentence after a code line still fires" "$origin_block_out" "Finding excerpt: // BLK2: Copied from the reference implementation."
+assert_contains "only the NOTICE block is exempt" "$origin_block_out" "T1=2 T2=0 T3=0"
+
+# The hash-comment run form, and the run ending at code rather than a blank line.
+ORIGIN_BLOCK_HASH="$TEST_TMPDIR/origin-block-hash.sh"
+cat >"$ORIGIN_BLOCK_HASH" <<'EOF'
+# Copyright 2019 Acme Corp.
+# Ported from the reference implementation.
+value=1
+# HASH1: Ported from the reference implementation.
+EOF
+origin_block_hash_out="$(bash "$DETECT" "$ORIGIN_BLOCK_HASH")"
+assert_not_contains "a hash NOTICE run is exempt whole" "$origin_block_hash_out" "Finding excerpt: # Ported from the reference implementation."
+assert_contains "a hash run after code still fires" "$origin_block_hash_out" "Finding excerpt: # HASH1: Ported from the reference implementation."
+assert_contains "only the hash NOTICE run is exempt" "$origin_block_hash_out" "T1=1 T2=0 T3=0"
+
+# The license cues are narrow: `copyright` counts beside a (c), a year, or at the start of
+# the comment, and `(c)` counts only in front of a year. Otherwise these two ordinary
+# comments would be silently exempted.
+# A doc-comment leader is decoration, not comment text. Left in place it occupies the
+# clause-opening position, so the cue right behind it never anchors.
+ORIGIN_LEADER="$TEST_TMPDIR/origin-leader.cs"
+cat >"$ORIGIN_LEADER" <<'EOF'
+/// Ported from the reference implementation.
+//! Ported from the reference implementation.
+EOF
+origin_leader_out="$(bash "$DETECT" "$ORIGIN_LEADER")"
+assert_contains "a /// doc-comment leader does not block the anchor" "$origin_leader_out" "Finding excerpt: /// Ported from the reference implementation."
+assert_contains "a //! doc-comment leader does not block the anchor" "$origin_leader_out" "Finding excerpt: //! Ported from the reference implementation."
+assert_contains "both doc-comment forms are findings" "$origin_leader_out" "T1=2 T2=0 T3=0"
+
+# The cue needs a terminator at its end, or `from` matches inside `fromage` and a date
+# matches inside a longer run of characters.
+ORIGIN_TERM="$TEST_TMPDIR/origin-terminator.js"
+cat >"$ORIGIN_TERM" <<'EOF'
+// ported fromage is a cheese
+// Copied fromage shop inventory
+// Added 2026-09-011 to the list
+// Added 2026-09-01x to the list
+EOF
+origin_term_out="$(bash "$DETECT" "$ORIGIN_TERM")"
+assert_contains "the cue must end on a boundary" "$origin_term_out" "T1=0 T2=0 T3=0"
+
+# The boundary must not swallow an ISO-8601 datetime: the `T` is alphanumeric, so a
+# terminator alone would stop a timestamped origin note from matching.
+ORIGIN_DT="$TEST_TMPDIR/origin-datetime.js"
+cat >"$ORIGIN_DT" <<'EOF'
+// Added 2026-09-01T12:00 from the vendor feed
+// Merged 2026-09-01T12:00:00Z from the vendor feed
+// Added 2026-09-01T12:00:00+01:00 from the vendor feed
+EOF
+origin_dt_out="$(bash "$DETECT" "$ORIGIN_DT")"
+assert_contains "an ISO-8601 datetime is still an origin note" "$origin_dt_out" "T1=3 T2=0 T3=0"
+
+ORIGIN_NARROW="$TEST_TMPDIR/origin-narrow.js"
+cat >"$ORIGIN_NARROW" <<'EOF'
+// NAR1: Ported from the legacy fork to satisfy the copyright audit.
+
+// NAR2: Copied from the legacy fork; the callback signature f(c) is unchanged.
+EOF
+origin_narrow_out="$(bash "$DETECT" "$ORIGIN_NARROW")"
+assert_contains "a bare copyright mention does not exempt" "$origin_narrow_out" "Finding excerpt: // NAR1: Ported from the legacy fork"
+assert_contains "a yearless (c) token does not exempt" "$origin_narrow_out" "Finding excerpt: // NAR2: Copied from the legacy fork"
+assert_contains "both narrowed cases are findings again" "$origin_narrow_out" "T1=2 T2=0 T3=0"
+
+# One line can carry two shapes with opposite tiers; both are reported, neither masks
+# the other.
+ORIGIN_BOTH="$TEST_TMPDIR/origin-both.py"
+cat >"$ORIGIN_BOTH" <<'EOF'
+# Merged 2026-07-24 from branch feature/x
+EOF
+origin_both_out="$(bash "$DETECT" "$ORIGIN_BOTH")"
+assert_contains "origin-note reports the branch-bearing line" "$origin_both_out" "Finding shape: origin-note"
+assert_contains "ticket-pr-residue reports the same line" "$origin_both_out" "Finding shape: ticket-pr-residue"
+assert_contains "double-fire is one T1 and one T2" "$origin_both_out" "T1=1 T2=1 T3=0"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

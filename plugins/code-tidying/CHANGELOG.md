@@ -3,6 +3,45 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Added
+
+- **`audit-comment-residue` gains a fifth residue shape, `origin-note`, at Tier 1.** A comment
+  naming where a block came from or when it was added is a finding: `ported from`, `copied from`,
+  `migrated from`, `adapted from`, `borrowed from`, `lifted from`, `taken from`, and
+  `added`/`merged`/`introduced`/`backported`/`ported` in front of an ISO date. Git history owns
+  origin, so the treatment is delete. The cue must open the comment or a clause inside it and must
+  be a whole word, so `bytes copied from the source buffer` and `helpers exported from index.ts`
+  are not findings. The cue also has to END on a boundary, so `ported fromage` and a date running
+  on into more characters (`Added 2026-09-011`) match nothing; an ISO-8601 time is spelled out, so
+  `Added 2026-09-01T12:00:00Z` still is one. A dated freshness stamp is not this
+  shape either: the cue list carries no bare date and none of the stamp verbs `provenance:audit`
+  keys on.
+
+  `cr_comment_text` now strips the `///` and `//!` doc-comment leaders, which previously sat in the
+  clause-opening position and stopped a cue right behind one from anchoring. That applies to every
+  shape, not just this one.
+
+  Because Tier 1 reads "remove", two comment classes are exempt whatever verb they open with: a
+  marker comment (`TODO`, `FIXME`, `HACK`, `XXX`), which is tracked work rather than residue, and a
+  license or attribution header, whose text the reader may be legally required to keep. The license
+  exemption is BLOCK-scoped: a run of contiguous comment lines in which any line carries
+  `SPDX-License-Identifier`, `Licensed under`, `License:`, a `Copyright` beside a year or a
+  `(c)`/`©` sign, or a `(c)` in front of a year is exempt whole, so the attribution line of a NOTICE
+  header is covered even though the cue sits on another line of the block. The run ends at the first
+  blank line or line of code, and a trailing comment on a code line opens no run. The `Copyright`
+  and `(c)` cues each require that corroboration because both are ordinary words a comment uses, as
+  in "to satisfy the copyright audit" or "the callback signature `f(c)`". The same exemptions are
+  NOT yet wired into `history-narration`, `plan-reference` or `conversational-antecedent`, which
+  still report a license header narrating a change.
+
+### Changed
+
+- The `ticket-pr-residue` treatment says "bare back-reference" where it said "bare provenance", so
+  "provenance" keeps one sense across the repository.
+- `dissolve-comments`' triage reference names origin notes under class A.
+
 ## [0.20.0]
 
 ### Added

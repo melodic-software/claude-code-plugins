@@ -3,7 +3,8 @@
 # Shape definitions and treatments: the skill's SKILL.md "Residue shapes and treatments".
 #
 # Residue = comment text that only makes sense outside the code's present state: history
-# narration, plan/session references, conversational antecedents, ticket/PR back-references.
+# narration, plan/session references, conversational antecedents, ticket/PR back-references,
+# origin notes naming where a block came from or when it was added.
 # Detection runs ONLY on the comment portion of a line, so residue-shaped words sitting in
 # code (identifiers, string literals) are not flagged.
 
@@ -67,7 +68,11 @@ cr_comment_text() {
     esac
     nx="${line:i+1:1}"
     if [[ "$ch$nx" == '//' || "$ch$nx" == '--' ]]; then
-      printf '%s' "${line:i+2}"
+      rest="${line:i+2}"
+      # `///` and `//!` are doc-comment leaders. Left in the text they occupy the
+      # clause-opening position, so a cue right behind one would never anchor.
+      [[ "$ch$nx" == '//' ]] && rest="${rest#[/!]}"
+      printf '%s' "$rest"
       return 0
     elif [[ "$ch$nx" == '/*' ]]; then
       rest="${line:i+2}"
@@ -86,10 +91,51 @@ cr_is_sanctioned_todo() {
   [[ "$1" =~ (TODO|FIXME|HACK|XXX) ]]
 }
 
+# A line whose first non-blank characters are a comment leader. A trailing comment on a code
+# line is NOT one, so a license block never runs on through code.
+cr_is_comment_line() {
+  [[ "$1" =~ ^[[:space:]]*(#|//|/\*|\*|--) ]]
+}
+
+# License or attribution cue, tested against comment TEXT. Narrow on purpose: `copyright` and
+# `(c)` are ordinary words a comment uses ("to satisfy the copyright audit", "the callback
+# signature f(c)"), so each needs corroboration — a year, a (c)/© sign, or the start of the
+# comment — before it exempts anything.
+cr_has_license_cue() {
+  local lc="${1,,}"
+  [[ "$lc" =~ (spdx-license-identifier|licensed[[:space:]]+under|license:) ]] && return 0
+  [[ "$lc" =~ copyright[[:space:]]*(\(c\)|©|[0-9]{4}) ]] && return 0
+  [[ "$lc" =~ ^[[:space:]]*copyright ]] && return 0
+  [[ "$lc" =~ \(c\)[[:space:]]*[0-9]{4} ]] && return 0
+  return 1
+}
+
+# Line numbers belonging to a license block: a run of contiguous comment lines in which at
+# least one line carries a license cue. The whole run is exempt from origin-note, because a
+# NOTICE header states its licence once and then attributes on a line of its own. The run ends
+# at the first non-comment line, so the same sentence elsewhere in the file is unaffected.
+cr_license_block_lines() {
+  local line n=0 start=0 cue=0 i
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    n=$((n + 1))
+    if cr_is_comment_line "$line"; then
+      ((start == 0)) && start=$n
+      ((cue)) || { cr_has_license_cue "$(cr_comment_text "$line")" && cue=1; }
+      continue
+    fi
+    ((start > 0 && cue)) && for ((i = start; i < n; i++)); do printf '%s\n' "$i"; done
+    start=0
+    cue=0
+  done <"$1"
+  ((start > 0 && cue)) && for ((i = start; i <= n; i++)); do printf '%s\n' "$i"; done
+  return 0
+}
+
 # Emit zero or more shape names (one per line on stdout). Return 1 if any emitted (cosmetic;
 # the caller reads stdout).
 cr_detect_shapes() {
   local line="$1"
+  local in_license_block="${2:-0}"
   local ct
   ct="$(cr_comment_text "$line")"
   [[ -z "${ct//[[:space:]]/}" ]] && return 0
@@ -121,6 +167,31 @@ cr_detect_shapes() {
     found=1
   fi
 
+  # origin-note (tier 1): the comment names where the block came from or when it was
+  # added. Git history owns both. The cue must open the comment or a clause inside it
+  # and must be a whole word, so an ordinary description ("bytes copied from the source
+  # buffer", "helpers exported from index.ts") is not a finding. An origin VERB is
+  # required, so a bare date matches nothing, and the stamp verbs provenance:audit keys
+  # on (verified, checked, confirmed, as of) are deliberately absent. The cue also has to
+  # END on a boundary, or `from` matches inside `fromage` and a date matches inside a
+  # longer run ("2026-09-011", "2026-09-01x"). An ISO-8601 time is spelled out because
+  # the `T` is alphanumeric, so the boundary alone would reject a timestamped note.
+  #
+  # Tier 1 reads "remove", so two comment classes are exempt whatever verb they open
+  # with: a marker comment, which is tracked work rather than residue, and a license or
+  # attribution header, whose text the reader may be legally required to keep. The
+  # marker test reuses cr_is_sanctioned_todo rather than redefining which markers count.
+  # The license test is BLOCK-scoped and the caller owns it, because a NOTICE header
+  # states its licence once and attributes on a separate line; cr_license_block_lines
+  # computes the run and the caller passes the verdict in.
+  if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
+    if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||
+      [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?([^[:alnum:]]|$) ]]; then
+      printf '%s\n' 'origin-note'
+      found=1
+    fi
+  fi
+
   # ticket-pr-residue (tier 2): back-reference to a tracker/PR/branch a future reader won't see.
   # Sanctioned TODO(#issue) is exempt.
   if ! cr_is_sanctioned_todo "$ct"; then
@@ -136,7 +207,7 @@ cr_detect_shapes() {
 
 cr_shape_tier() {
   case "$1" in
-  history-narration | plan-reference | conversational-antecedent) printf '1' ;;
+  history-narration | plan-reference | conversational-antecedent | origin-note) printf '1' ;;
   ticket-pr-residue) printf '2' ;;
   *) printf '3' ;;
   esac

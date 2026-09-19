@@ -18,11 +18,12 @@ The comment adds nothing beyond the adjacent code, or is actively wrong.
 - Narrates the obvious flow of a block the reader can see
 - Obsolete: describes behavior the code no longer has
 - Commented-out code (version control owns history)
+- Names where the block came from or when it was added (git history owns origin)
 
 Deletion is the complete treatment: no refactor needed, no information lost. This class overlaps
-`/code-tidying:audit-comment-residue`'s four residue shapes (history narration, plan references,
-conversational antecedents, ticket back-references); when that skill has already produced findings,
-its Tier 1 rows are class-A input here.
+`/code-tidying:audit-comment-residue`'s five residue shapes (history narration, plan references,
+conversational antecedents, ticket back-references, origin notes); when that skill has already
+produced findings, its Tier 1 rows are class-A input here.
 
 **Carve-out for issue references.** A comment is class A on the ticket-back-reference shape only
 when the reference is its **whole content**. An issue reference that is a citation inside a

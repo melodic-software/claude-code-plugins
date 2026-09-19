@@ -52,7 +52,7 @@
       "id": 5,
       "name": "not-delete-all-comments",
       "prompt": "Audit a file with `# Sums the payload bytes modulo 2**32.` above the code. Flag it.",
-      "expected_output": "Does NOT flag a legitimate present-tense why/what-it-can't-express comment. Only the four residue shapes are findings; a comment that carries non-obvious intent or a contract stays.",
+      "expected_output": "Does NOT flag a legitimate present-tense why/what-it-can't-express comment. Only the five residue shapes are findings; a comment that carries non-obvious intent or a contract stays.",
       "files": [],
       "expectations": [
         "The legitimate present-tense comment is NOT classified as any residue shape",
@@ -68,6 +68,22 @@
       "expectations": [
         "The .md file is not audited (no findings emitted for it)",
         "Output routes markdown noise to /audit-noise rather than handling it here"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "origin-notes-are-tier-1-findings",
+      "prompt": "Audit code comments for residue: read evals/fixtures/origin-notes.sh relative to the skill directory and classify what you find.",
+      "expected_output": "Emits exactly five origin-note findings at Tier 1, one per line naming where the block came from or when it was added ('ported from the melodic-software dotfiles profile', 'Merged 2026-07-24 from dot_bashrc', 'Added 2026-08-10 while wiring permission/hook telemetry', 'Copied from the provisioning repo and adapted for Windows', 'Backported 2026-09-01 from main'), each with a delete treatment because git history owns origin. Nothing else in the file is a finding. No edits are applied.",
+      "files": ["evals/fixtures/origin-notes.sh"],
+      "expectations": [
+        "All five origin-note lines are classified as origin-note at Tier 1 with a delete treatment",
+        "The three license-header lines (Copyright, SPDX-License-Identifier, Licensed under the MIT License) are NOT flagged; a license or attribution header is exempt from this shape even when it carries an origin cue",
+        "None of the four dated stamp lines (verified, Checked, Confirmed, As of) is flagged: a dated stamp is load-bearing, not an origin note",
+        "The why-comment 'Must stay ordered because the parser reads the first match' is NOT flagged",
+        "The bare date line '2026-08-10' is NOT flagged: an origin verb is required",
+        "The 'TODO(#123): tighten the upper bound' marker is NOT flagged; a marker comment is exempt from this shape even when it carries an origin cue",
+        "The output is a classification report with tiers and treatments; no file is edited"
       ]
     }
   ]
