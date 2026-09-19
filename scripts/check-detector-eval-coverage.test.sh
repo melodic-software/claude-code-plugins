@@ -620,6 +620,17 @@ p3b_case 'a `<<` in a comment opened after `;`' 'foo;#<<EOF'
 p3b_case 'a bare arithmetic COMMAND left shift' '(( mask = 1 << bits ))'
 p3b_case 'a bare arithmetic command, literal shift' '(( mask = 1 << 3 ))'
 p3b_case 'a `<<` inside a parameter expansion' 'x=${v//y/<<EOF}'
+p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
+p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
+p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'
+p3b_case 'a comment opened after `(`' 'f() (#<<EOF'
+
+# A delimiter the matcher can only read a PREFIX of arms NOTHING. Widening the
+# class alone just moves the truncation one character along, so the rule is the
+# boundary, not the character set.
+p3b_case 'a delimiter carrying `@`' 'cat <<EOF@1'
+p3b_case 'a delimiter carrying `=`' 'cat <<EOF=1'
+p3b_case 'a delimiter carrying `!`' 'cat <<EOF!'
 
 # The other direction: a REAL heredoc must still arm, in every delimiter
 # spelling, or the fix above trades a false pass for a false failure. The
@@ -672,6 +683,34 @@ p3b_arms 'an unquoted hyphenated delimiter' 'usage() { cat <<USAGE-1' \
   'emit error P9 SRC "someday"' 'USAGE-1' '}'
 # Removing `${ ... }` from the scan's copy must not cost a real opener sharing
 # the line with one.
+# A plain `<<` closes on its terminator at column 0 only; the dash is what
+# licenses an indented one. Closing early read the rest of the body as code.
+p3b_arms 'a `<<-` terminator indented by a tab' 'usage() { cat <<-USAGE' \
+  'emit error P9 SRC "someday"' '	USAGE' '}'
+
+# THE STRUCTURAL GUARD. Every heredoc defect this scanner has had ends in one
+# observable state -- a body skip that never closes -- so an unclosed state at
+# EOF must be exit 2, whatever shape of shell produced it. These two assert
+# that directly, and they are the cases that hold when the enumeration above
+# misses the next shape.
+unclosed_case() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 2 && "$ERR" == *"emit call site"* ]]; then
+    ok "P3b: $label is exit 2, not a clean finish"
+  else
+    fail "P3b $label did not fail closed: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+unclosed_case 'a heredoc never closed before EOF' 'usage() { cat <<USAGE' 'emit error P9 SRC "x"'
+unclosed_case 'a line continuation dangling at EOF' "emit error P4 SRC \"x\" \\"
+
 p3b_arms 'a heredoc opened beside a parameter expansion' 'usage() { cat ${opt} <<USAGE' \
   'emit error P9 SRC "someday"' 'USAGE' '}'
 
