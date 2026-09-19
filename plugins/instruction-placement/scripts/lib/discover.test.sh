@@ -271,6 +271,25 @@ assert_eq "an imported AGENTS.md is reachable" "0" "$?"
 ip_index_target_loaded "$chain" "CLAUDE.md" >/dev/null 2>&1
 assert_eq "a root CLAUDE.md target is reachable" "0" "$?"
 
+# With no root CLAUDE.md at all, the import is not what decides whether the
+# target is read: nothing blocks Claude Code's own AGENTS.md walk. The verdict
+# is a third one, because availability is not observable from the repository.
+nativeroot="$(mktemp -d)"
+git -C "$nativeroot" init -q .
+printf '# Shared agent instructions\n' >"$nativeroot/AGENTS.md"
+commit_all "$nativeroot"
+ip_index_target_loaded "$nativeroot" "AGENTS.md" >/dev/null 2>&1
+assert_eq "an AGENTS.md with no root CLAUDE.md is not a failure" "0" "$?"
+reason="$(ip_index_target_loaded "$nativeroot" "AGENTS.md" 2>&1)"
+assert_eq "and the verdict is NATIVE, not LOADED" "NATIVE" "$(printf '%s' "$reason" | cut -f1)"
+
+# A non-AGENTS.md target gets no NATIVE verdict: Claude Code reads only the
+# AGENTS.md names on its own, so any other index target still needs an import.
+printf '# Index\n' >"$nativeroot/docs-index.md"
+commit_all "$nativeroot"
+ip_index_target_loaded "$nativeroot" "docs-index.md" >/dev/null 2>&1
+assert_eq "a target under another name is still unreachable" "1" "$?"
+
 # An ABSOLUTE target must not be re-anchored under the root. Prefixing it
 # unconditionally built `<root>//abs/path`, which collapses to a path under the
 # root that does not exist, so a real file was reported "does not exist" —

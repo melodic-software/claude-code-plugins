@@ -340,6 +340,29 @@ assert_eq "no warning once the target is reachable" "" "$warn"
 out="$(run reachable --file "$unwired/CLAUDE.md" --root "$unwired")"
 assert_contains "a root CLAUDE.md target is always reachable" "$out" "LOADED"
 
+# No root CLAUDE.md anywhere: nothing blocks the session-start walk, so the
+# import is not what decides whether the file is read. The verdict is neither
+# LOADED nor UNREACHABLE, because whether Claude Code reads AGENTS.md directly
+# depends on availability this script cannot observe.
+native="$(mktemp -d)"
+git -C "$native" init -q .
+printf '# Shared\n' >"$native/AGENTS.md"
+commit_all "$native"
+out="$(run reachable --file "$native/AGENTS.md" --root "$native")"
+assert_contains "an AGENTS.md with no CLAUDE.md above it reports NATIVE" "$out" "NATIVE"
+assert_not_contains "NATIVE is not UNREACHABLE" "$out" "UNREACHABLE"
+run reachable --file "$native/AGENTS.md" --root "$native" >/dev/null 2>&1
+assert_eq "a NATIVE target exits 0" "0" "$?"
+warn="$(warn_only write --file "$native/AGENTS.md" --root "$native")"
+assert_eq "write does not warn about a NATIVE target" "" "$warn"
+
+# The same repo with a root CLAUDE.md that imports nothing: the CLAUDE.md is
+# what Claude Code reads, and the AGENTS.md beside it is not read.
+printf '# Claude instructions\n\nNo import here.\n' >"$native/CLAUDE.md"
+commit_all "$native"
+out="$(run reachable --file "$native/AGENTS.md" --root "$native")"
+assert_contains "adding a non-importing root CLAUDE.md makes it UNREACHABLE" "$out" "UNREACHABLE"
+
 # --------------------------------------------------------------------------
 # wiring — an indexed nested AGENTS.md that no sibling imports never loads
 # --------------------------------------------------------------------------
@@ -383,6 +406,29 @@ out="$(run wiring --root "$wiring")"
 assert_not_contains "adding the shim clears the UNWIRED row" "$out" "UNWIRED"
 run wiring --root "$wiring" >/dev/null 2>&1
 assert_eq "all wired exits 0" "0" "$?"
+
+# No CLAUDE.md anywhere above the nested file: nothing blocks the nested walk,
+# so the missing shim is not a defect and the row is not a failure.
+nativewiring="$(mktemp -d)"
+git -C "$nativewiring" init -q .
+mkdir -p "$nativewiring/bare" "$nativewiring/ownclaude"
+printf '# Root\n' >"$nativewiring/AGENTS.md"
+printf '# Bare\n' >"$nativewiring/bare/AGENTS.md"
+printf '# Own\n' >"$nativewiring/ownclaude/AGENTS.md"
+printf '# Directory notes, no import\n' >"$nativewiring/ownclaude/CLAUDE.md"
+commit_all "$nativewiring"
+
+out="$(run wiring --root "$nativewiring")"
+assert_contains "no CLAUDE.md above it makes the bare row NATIVE" "$out" "NATIVE	bare/AGENTS.md"
+assert_not_contains "the NATIVE row is not UNWIRED" "$out" "UNWIRED	bare/AGENTS.md"
+assert_contains "a non-importing CLAUDE.md in its own directory keeps it UNWIRED" "$out" "UNWIRED	ownclaude/AGENTS.md"
+run wiring --root "$nativewiring" >/dev/null 2>&1
+assert_eq "a NATIVE row alongside an UNWIRED row still exits 1" "1" "$?"
+
+printf '@AGENTS.md\n' >"$nativewiring/ownclaude/CLAUDE.md"
+commit_all "$nativewiring"
+run wiring --root "$nativewiring" >/dev/null 2>&1
+assert_eq "NATIVE rows alone exit 0" "0" "$?"
 
 nonested="$(mktemp -d)"
 git -C "$nonested" init -q .

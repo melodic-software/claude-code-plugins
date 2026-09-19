@@ -18,8 +18,9 @@
 #       Tracked CLAUDE.md / AGENTS.md files BELOW the root, which load on demand.
 #
 #   ip_index_target_loaded <root> <target>
-#       Whether Claude Code would actually load <target>. Exit 0 reachable,
-#       1 unreachable; prints "<VERDICT>\t<reason>".
+#       Whether anything in the repository stops Claude Code loading <target>.
+#       Exit 0 reachable or unblocked, 1 blocked; prints "<VERDICT>\t<reason>",
+#       where the verdict is LOADED, NATIVE or UNREACHABLE.
 
 # ---------------------------------------------------------------------------
 # Portable canonicalization.
@@ -327,16 +328,35 @@ ip_index_target_loaded() {
   esac
 
   # Otherwise it must be reachable from one, by import or by symlink.
-  local entry
+  local entry blocker=""
   for entry in "$root/CLAUDE.md" "$root/.claude/CLAUDE.md" "$root/CLAUDE.local.md"; do
     [[ -f "$entry" ]] || continue
+    [[ -n "$blocker" ]] || blocker="${entry#"$root"/}"
     if _ip_reaches "$entry" "$abs_target" 0; then
       printf 'LOADED\t%s reaches %s\n' "${entry#"$root"/}" "$target"
       return 0
     fi
   done
 
-  printf 'UNREACHABLE\t%s is not imported by any root memory file; Claude Code reads CLAUDE.md, not %s\n' \
-    "$target" "$target"
+  # No root memory file at all, and the target carries one of the two names
+  # Claude Code reads on its own. Nothing in the repository blocks it, so an
+  # import is not what decides the outcome. That is not the same as LOADED:
+  # reading AGENTS.md directly needs a Claude Code version and a session kind
+  # this function cannot see, and a CLAUDE.md above the repository root would
+  # block it invisibly from here.
+  if [[ -z "$blocker" ]]; then
+    case "$target" in
+    AGENTS.md | .claude/AGENTS.md | */AGENTS.md | */.claude/AGENTS.md)
+      printf 'NATIVE\t%s is not blocked: no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md at the root, so Claude Code reads it directly where AGENTS.md support is available\n' \
+        "$target"
+      return 0
+      ;;
+    *) ;;
+    esac
+  fi
+
+  printf 'UNREACHABLE\t%s is not imported by any root memory file%s\n' \
+    "$target" \
+    "${blocker:+, and $blocker is read instead of it}"
   return 1
 }

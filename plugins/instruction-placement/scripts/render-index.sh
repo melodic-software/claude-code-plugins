@@ -28,18 +28,36 @@
 #   render              print the block to stdout
 #   check --file F      compare F's block against a fresh render
 #   write --file F      replace F's block in place (creates it at end if absent)
-#   reachable --file F  would Claude Code actually load F?
+#   reachable --file F  does anything in this repository stop Claude Code
+#                       loading F?
 #   wiring              does every nested AGENTS.md the index lists actually load?
 #
-# `reachable` exists because Claude Code reads CLAUDE.md, not AGENTS.md. A
-# repository carrying both with no import between them gets an index nothing
-# ever reads, while every other gate reports green — the entire subagent-gap
-# mitigation silently doing nothing.
+# `reachable` exists because a CLAUDE.md is read INSTEAD of the AGENTS.md beside
+# it. A repository carrying both with no import between them gets an index
+# nothing ever reads, while every other gate reports green — the entire
+# subagent-gap mitigation silently doing nothing.
+#
+#   Claim: Claude Code reads AGENTS.md as the project instructions only when
+#     there is no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md in the working
+#     directory or above it; with one there, it reads the CLAUDE.md files, and
+#     an `@AGENTS.md` import or symlink is what carries the AGENTS.md in.
+#   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code
+#     reads AGENTS.md"; confirmed by canary runs on Claude Code 2.1.278.
+#   As of: 2026-09-19.
+#   Recheck trigger: that section changes which file names count for the check,
+#     or a release note names AGENTS.md or instruction-file loading.
+#
+# So a target nothing blocks gets the third verdict NATIVE rather than a pass or
+# a failure: availability (version, provider, telemetry and hook settings, the
+# first session after an upgrade) is not observable from a repository, and
+# neither is a CLAUDE.md above the repository root.
 #
 # `wiring` asks the same question one level down. The index lists every nested
 # AGENTS.md as a surface that "enters context automatically when Claude reads a
-# file it covers", and that is true only when a CLAUDE.md or CLAUDE.local.md
-# beside it imports or symlinks it. A nested AGENTS.md with no such sibling is
+# file it covers". A nested CLAUDE.md and a nested AGENTS.md share that Read
+# trigger; what separates them is that a CLAUDE.md on the file's own path is
+# read instead of it, and then only an import or symlink from one of those
+# CLAUDE.md files brings it in. A blocked, unimported nested AGENTS.md is
 # indexed, in sync, and never loaded; `check` cannot see the difference because
 # it compares text, not wiring.
 #
@@ -51,9 +69,10 @@
 #   render-index.sh wiring [--root <dir>]
 #   render-index.sh --help
 #
-# Exit: 0 success / in sync / reachable / every nested AGENTS.md wired
+# Exit: 0 success / in sync / target loaded or unblocked / no nested AGENTS.md
+#         blocked and unimported
 #       1 check found drift, write failed, target unreachable, or a nested
-#         AGENTS.md unwired
+#         AGENTS.md blocked and unimported
 #       2 usage error or unusable path
 #       3 check found no index block in the file
 
@@ -93,19 +112,22 @@ Usage:
 render     print the generated block to stdout
 check      compare the block inside <path> against a fresh render
 write      replace the block inside <path> in place, appending it if absent
-reachable  report whether Claude Code would load <path> at all (it reads
-           CLAUDE.md, not AGENTS.md, so an unimported AGENTS.md is inert)
+reachable  report whether anything in this repository stops Claude Code loading
+           <path>: LOADED (a root memory file reaches it), UNREACHABLE (a root
+           CLAUDE.md is read instead of it), or NATIVE (nothing blocks it, so
+           Claude Code reads it directly where AGENTS.md support is available)
 wiring     report, for every nested AGENTS.md the index would list, whether a
-           CLAUDE.md or CLAUDE.local.md beside it imports or symlinks it
-           (WIRED / UNWIRED rows; exit 1 when any row is UNWIRED)
+           CLAUDE.md on its own path blocks it and whether one imports or
+           symlinks it (WIRED / NATIVE / UNWIRED rows; exit 1 on any UNWIRED)
 
 Indexes only surfaces that load on demand: path-scoped rules (`paths:`
 frontmatter) and nested CLAUDE.md / AGENTS.md files below the repository root.
 Unscoped rules and root-level instruction files already load every session and
 are deliberately left out.
 
-Exit: 0 success, in sync, or every nested AGENTS.md wired; 1 drift, write failure,
-an unreachable target, or an unwired nested AGENTS.md; 2 usage error; 3 no block found.
+Exit: 0 success, in sync, or no blocked-and-unimported nested AGENTS.md; 1 drift,
+write failure, an unreachable target, or a blocked unimported nested AGENTS.md;
+2 usage error; 3 no block found.
 EOF
 }
 
@@ -387,26 +409,34 @@ if [[ "$SUBCOMMAND" == "reachable" ]]; then
   exit $?
 fi
 
-# One `WIRED|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested AGENTS.md
-# discovery returns. Wired means some instruction entry point IS the file (a
-# symlink) or reaches it through the import chase the rest of this plugin
-# uses: the CLAUDE.md or CLAUDE.local.md beside it (the prescribed layout,
-# checked first), one in any ancestor directory, or the root's
+# One `WIRED|NATIVE|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested
+# AGENTS.md discovery returns. Wired means some instruction entry point IS the
+# file (a symlink) or reaches it through the import chase the rest of this
+# plugin uses: the CLAUDE.md or CLAUDE.local.md beside it (the prescribed
+# layout, checked first), one in any ancestor directory, or the root's
 # .claude/CLAUDE.md. An import from any of those brings the file into context,
 # so a file reached that way loads and is not a finding. Entry points are read
-# from the filesystem, so a gitignored CLAUDE.local.md shim counts. Returns 1
-# when any row is UNWIRED.
+# from the filesystem, so a gitignored CLAUDE.local.md shim counts.
+#
+# NATIVE means no CLAUDE.md, CLAUDE.local.md or root .claude/CLAUDE.md sits on
+# the file's own path, so nothing in this repository stops Claude Code reading
+# it and the import would add nothing. It is not a pass: availability, and a
+# CLAUDE.md above the repository root, are outside what this can see.
+#
+# Returns 1 when any row is UNWIRED.
 nested_agents_wiring() {
-  local nested dir want entry wired unwired=0
+  local nested dir want entry wired blocker unwired=0
   while IFS= read -r nested; do
     [[ -n "$nested" ]] || continue
     [[ "$(basename "$nested")" == "AGENTS.md" ]] || continue
     dir="$(dirname "$nested")"
     want="$(ip_realpath "$nested")"
     wired=""
+    blocker=""
     while :; do
       for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
         [[ -f "$entry" ]] || continue
+        [[ -n "$blocker" ]] || blocker="$entry"
         if _ip_reaches "$entry" "$want" 0; then
           wired="$entry"
           break 2
@@ -415,13 +445,18 @@ nested_agents_wiring() {
       [[ "$dir" == "." ]] && break
       dir="$(dirname "$dir")"
     done
-    if [[ -z "$wired" && -f ".claude/CLAUDE.md" ]] && _ip_reaches ".claude/CLAUDE.md" "$want" 0; then
-      wired=".claude/CLAUDE.md"
+    if [[ -z "$wired" && -f ".claude/CLAUDE.md" ]]; then
+      [[ -n "$blocker" ]] || blocker=".claude/CLAUDE.md"
+      if _ip_reaches ".claude/CLAUDE.md" "$want" 0; then
+        wired=".claude/CLAUDE.md"
+      fi
     fi
     if [[ -n "$wired" ]]; then
       printf 'WIRED\t%s\t%s reaches it\n' "$nested" "$wired"
+    elif [[ -z "$blocker" ]]; then
+      printf 'NATIVE\t%s\tno CLAUDE.md on its path, so Claude Code reads it on a Read in that directory where AGENTS.md support is available\n' "$nested"
     else
-      printf 'UNWIRED\t%s\tno CLAUDE.md or CLAUDE.local.md beside it imports it; Claude Code reads CLAUDE.md, not AGENTS.md, so it never loads\n' "$nested"
+      printf 'UNWIRED\t%s\t%s is read instead of it and does not import it, so it never loads\n' "$nested" "$blocker"
       unwired=1
     fi
   done < <(ip_discover_nested_instructions .)

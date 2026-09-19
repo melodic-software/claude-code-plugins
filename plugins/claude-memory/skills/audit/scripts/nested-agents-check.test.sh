@@ -41,6 +41,10 @@ REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 mkdir -p "$REPO/shimmed" "$REPO/bare" "$REPO/linked" "$REPO/localonly" "$REPO/deep/a/b" "$REPO/vendor/x" "$REPO/node_modules/y"
 printf 'root agents\n' >"$REPO/AGENTS.md" # root-level: not examined
+# The root CLAUDE.md is what makes an unshimmed nested AGENTS.md a finding: with
+# a CLAUDE.md in the working directory or above it, Claude Code reads CLAUDE.md
+# files and never attaches a bare nested AGENTS.md.
+printf '@AGENTS.md\n' >"$REPO/CLAUDE.md"
 printf 'shimmed\n' >"$REPO/shimmed/AGENTS.md"
 printf '@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md" # wired by import
 printf 'bare\n' >"$REPO/bare/AGENTS.md"          # UNWIRED
@@ -148,6 +152,32 @@ commit_all "$HOPS"
 OUT=$(cd "$HOPS" && bash "$SCRIPT")
 assert_not_contains "a fourth-hop AGENTS.md is wired" "$OUT" "four/AGENTS.md"
 assert_contains "a fifth-hop AGENTS.md is not loaded, so it is a finding" "$OUT" "FAIL [N1]: five/AGENTS.md"
+
+# --- Case 7: no CLAUDE.md above it, so the missing shim is not a finding ---
+# Claude Code attaches a subdirectory's AGENTS.md on a Read there when neither
+# that directory nor any directory above it carries a CLAUDE.md, .claude/CLAUDE.md
+# or CLAUDE.local.md. Nothing blocks it here, so there is nothing to fix.
+
+NATIVE="$TEST_TMPDIR/native"
+make_repo "$NATIVE"
+mkdir -p "$NATIVE/bare" "$NATIVE/ownclaude"
+printf 'root agents\n' >"$NATIVE/AGENTS.md"
+printf 'bare\n' >"$NATIVE/bare/AGENTS.md"
+printf 'own\n' >"$NATIVE/ownclaude/AGENTS.md"
+printf '# Directory notes, no import\n' >"$NATIVE/ownclaude/CLAUDE.md"
+commit_all "$NATIVE"
+
+OUT=$(cd "$NATIVE" && bash "$SCRIPT")
+assert_not_contains "a bare nested AGENTS.md with no CLAUDE.md above it is not a finding" "$OUT" "bare/AGENTS.md"
+assert_contains "a non-importing CLAUDE.md in its own directory still blocks it" "$OUT" "FAIL [N1]: ownclaude/AGENTS.md"
+OUT=$(cd "$NATIVE" && bash "$SCRIPT" --count)
+assert_eq "--count counts only the blocked one" "1" "$OUT"
+
+printf '@AGENTS.md\n' >"$NATIVE/ownclaude/CLAUDE.md"
+commit_all "$NATIVE" "shim the blocked one"
+rc=0
+(cd "$NATIVE" && bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
+assert_eq "--check exits 0 when only unblocked files remain" 0 "$rc"
 
 # --- Case 6: a repo with no nested AGENTS.md at all ---
 
