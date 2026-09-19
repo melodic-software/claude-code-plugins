@@ -91,15 +91,25 @@ PS_HERESTRING_QUOTE=""
 # POSITION that the placeholder hides. Read by ps::classify_git_command, which
 # will not accept a git-freedom proof taken over text with that body removed.
 PS_HERESTRING_EXPANDABLE=0
+# 1 when a DROPPED expandable here-string body line carried the literal `$(`.
+# Inside an expandable body the only construct that reaches a command position is
+# `$( … )`: `${name}` is a variable reference, `@( … )` is not expanded there, and
+# a backtick before `$` makes the `$` literal. Gating on the two characters `$(`
+# therefore OVER-approximates (it also matches the backtick-escaped spelling),
+# which is the fail-closed direction and the one this library takes rather than
+# modelling escapes inside text it has already decided it cannot parse. Read by
+# ps::classify_git_command, where it is the trigger of last resort.
+PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 # 1 when the last ps::_walk_quoted_spans_to pass crossed a DOUBLE-quote opener,
 # i.e. the walked text carries an expandable string. Written by the walk and read
 # by its IMMEDIATE caller; any later walk overwrites it.
 PS_QUOTED_SPAN_SAW_EXPANDABLE=0
 # Set by ps::classify_git_command when a command routes to the fail-closed sink:
-# which of the four triggers fired (`herestring-unbalanced`, `special-construct`,
-# `dynamic-invocation`, `launcher`), empty otherwise. Read by the block messages
+# which of the five triggers fired (`herestring-unbalanced`, `special-construct`,
+# `dynamic-invocation`, `launcher`, `herestring-subexpr`), empty otherwise. Read
+# by the block messages
 # (so they name the construct actually present) and by the callers' telemetry (so
-# the four sink shapes are distinguishable in aggregate rather than collapsed into
+# the five sink shapes are distinguishable in aggregate rather than collapsed into
 # one `powershell-unparsable` token that hides which one over-blocks).
 PS_SINK_TRIGGER=""
 # Set by ps::classify_git_command — the command the caller should parse. Read by
@@ -302,6 +312,7 @@ ps::blank_herestrings() {
   PS_HERESTRING_UNBALANCED=0
   PS_HERESTRING_QUOTE=""
   PS_HERESTRING_EXPANDABLE=0
+  PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 
   ps::_split_lines_to hs_lines "$cmd"
   for line in "${hs_lines[@]}"; do
@@ -316,6 +327,18 @@ ps::blank_herestrings() {
         pending=""
         in_hs=0
         hs_quote=""
+      elif [[ "$hs_quote" == '"' && "$line" == *"\$("* ]]; then
+        # A body line about to be DROPPED from an expandable here-string, and it
+        # carries a command position. The needle is the two characters `$(`,
+        # spelled `\$(` inside a QUOTED pattern segment so it matches literally
+        # and `${name}` cannot match it; the escape is what keeps the line free
+        # of a `# shellcheck disable=SC2016` directive that an `elif` cannot
+        # carry anyway. This branch sits on the body-drop path rather than
+        # at the top of the block because the closer branch above KEEPS its
+        # trailing text in the output, where every later scan can still see it:
+        # only what the drop removes is hidden, and only that may raise the
+        # trigger.
+        PS_HERESTRING_EXPANDABLE_SUBEXPR=1
       fi
       # A body line (no column-zero closer) is dropped.
       continue
@@ -353,6 +376,7 @@ ps::blank_herestrings() {
     # Nothing was blanked, so no expandable body is hidden: PS_BLANKED is the raw
     # command and every body in it stays in view for the callers' own probes.
     PS_HERESTRING_EXPANDABLE=0
+    PS_HERESTRING_EXPANDABLE_SUBEXPR=0
     return 0
   fi
   PS_BLANKED="${out%$'\n'}"
@@ -1629,7 +1653,7 @@ ps::classify_git_command() {
 
   ps::blank_herestrings "$cmd"
   ps::blank_quoted_spans_to scan "$PS_BLANKED"
-  # Record WHICH trigger routed the command here. Four distinct shapes reach this
+  # Record WHICH trigger routed the command here. Five distinct shapes reach this
   # sink and they need different remediation: an operator told to "remove the
   # unparsable construct" when the trigger was a launcher or a computed call
   # target has nothing to remove (#1968). The order matches the test order below,
@@ -1642,6 +1666,20 @@ ps::classify_git_command() {
     PS_SINK_TRIGGER="dynamic-invocation"
   elif ps::has_launcher "$PS_BLANKED"; then
     PS_SINK_TRIGGER="launcher"
+  elif ((PS_HERESTRING_EXPANDABLE_SUBEXPR)); then
+    # The hole the other four leave open: every body line of an expandable
+    # here-string is dropped before any of them runs, so a `$( … )` in that body
+    # is not in the text they scan and nothing routes the command here at all.
+    # The refusal below is reached only through a trigger, so the DROP has to
+    # raise one. Last in the chain on purpose: a command that already carries a
+    # construct keeps reporting the construct it carries, so no existing
+    # command's telemetry or allow-token attribution moves.
+    #
+    # Its OWN name, not a reuse of special-construct: the allow token is derived
+    # from the trigger, so reusing that name would hand this class to every
+    # operator who allowlisted `{}` grouping or a `--%` tail, which is the only
+    # relief those shapes have. A distinct token keeps the opt-ins separate.
+    PS_SINK_TRIGGER="herestring-subexpr"
   fi
   if [[ -n "$PS_SINK_TRIGGER" ]]; then
     # Not faithfully tokenizable. Fail closed unless provably git-free. The git
@@ -1698,6 +1736,9 @@ ps::classify_git_command() {
 #   launcher           — Start-Process / pwsh / powershell / cmd statements
 #   special-construct  — `--%` tails, `{}`/`()` groups, backtick escapes
 #   herestring-unbalanced — from the hanging opener through end of input
+#   herestring-subexpr — every BALANCED here-string body, which is wider than the
+#     trigger itself: a verbatim `@'` body goes too, because the reduction is
+#     ps::blank_herestrings rather than a region walk of its own
 #
 # Statement tails stop at top-level `;` / newline / `|` / `&&` / `||` so a
 # pipeline consumer or following statement remains for normal checks.
@@ -1708,6 +1749,28 @@ ps::blank_sink_opaque_regions() {
   launcher) ps::_blank_cmd_statements "$cmd" "launcher" ;;
   special-construct) ps::_blank_special_construct_regions "$cmd" ;;
   herestring-unbalanced) ps::_blank_unbalanced_herestring_tail "$cmd" ;;
+  herestring-subexpr)
+    # The opaque region IS the here-string body, and blanking it is exactly what
+    # ps::blank_herestrings already does, so the reduced command keeps every
+    # sibling segment the caller must still check. The region walks above cannot
+    # stand in for this: ps::_skip_double_quote_to pairs the `"` of an `@"`
+    # opener with the `"` of its `"@` closer, so a here-string body is copied
+    # through untouched and the caller's bounded re-classification loop makes no
+    # progress at all: it would exhaust its attempt budget and exit 0 with a
+    # visible `git reset --hard` sibling never checked.
+    #
+    # WHAT THIS ARM DOES NOT FIX. The same no-progress loop is still reachable
+    # through the `special-construct` arm above, for a here-string this function
+    # does not recognize as one (an opener with trailing whitespace) or a second
+    # opener sitting on a closer line, which the opener scan never rescans. Those
+    # shapes refuse at default config and fail OPEN only under an
+    # `ps-unparsable-special-construct` token. Closing them needs the opener model
+    # tightened AND the caller's exhaustion path turned from exit 0 into exit 2,
+    # neither of which belongs to the trigger this arm serves.
+    ps::blank_herestrings "$cmd"
+    # shellcheck disable=SC2034
+    PS_SAFE_COMMAND="$PS_BLANKED"
+    ;;
   *)
     # shellcheck disable=SC2034
     PS_SAFE_COMMAND=""
@@ -1972,7 +2035,7 @@ ps::_blank_unbalanced_herestring_tail() {
 }
 
 # One line naming the construct that actually routed this command to the sink,
-# plus what to do about it. Each of the four triggers needs different advice:
+# plus what to do about it. Each of the five triggers needs different advice:
 # "remove the unparsable construct" is unactionable for a launcher or a dynamic
 # invocation, because there is no such construct to remove (#1968). Each line
 # must also stay true of every command that reaches it — advice that describes
@@ -2011,6 +2074,12 @@ ps::print_sink_trigger_line() {
   launcher)
     echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the program directly, or run the command via the Bash tool." >&2
     ;;
+  herestring-subexpr)
+    # What is true of EVERY command that reaches here: an expandable body was
+    # removed and it carried `$(`. The advice has to work for a body that never
+    # named git, because the trigger is the command position, not its content.
+    echo "Trigger: an expandable here-string (@\" … \"@) whose body carries a '\$( … )' subexpression. PowerShell evaluates that subexpression where the here-string is written, so the body is a command position, and the body is removed before the guard's git probe runs, which makes a 'no git here' answer a statement about text the command does not have. Use a verbatim here-string (@' … '@), or compute the value into a variable before the here-string, or run the command via the Bash tool." >&2
+    ;;
   *)
     echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2
     ;;
@@ -2044,7 +2113,7 @@ ps::print_unparsable_git_block_message() {
   ps::print_sink_trigger_line
   # Sink-shape allow tokens (ps-unparsable-<trigger>) are distinct from destructive
   # form tokens so an existing allow-list value cannot silently open this branch (#2664).
-  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, or ps-unparsable-herestring-unbalanced), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, or ps-unparsable-herestring-subexpr), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
