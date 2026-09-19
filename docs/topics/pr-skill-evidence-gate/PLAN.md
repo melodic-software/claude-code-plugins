@@ -460,7 +460,7 @@ Structural commit (Tidy First: deletions and citation updates only, no behaviour
   after a second run).
 - `/docs-hygiene:rename-references` audit over the deleted paths reports zero dangling references.
 
-#### Phase 7: The babysit merge gate reads the block [TODO]
+#### Phase 7: The babysit merge gate reads the block [DOING]
 
 `[FALLBACK, confirm or override]` (flagged close call, both reviews raised it): the Brief's
 constraint "advisory before blocking" and its acceptance criterion "hold a merge" pull against each
