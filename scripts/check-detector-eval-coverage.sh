@@ -168,14 +168,26 @@
 # class: a partial match arms nothing, and the body is read as code instead,
 # which over-counts or exits 2 but never passes silently.
 #
-# AN UNCLOSED HEREDOC AT EOF IS EXIT 2. Every defect above -- five revisions of
-# them -- ends in one observable state, a body skip that never closes. That is
-# checkable directly and without knowing which shape of shell caused it, so the
-# END rule reports an unclosed skip (and a dangling line continuation) as an
-# unresolved candidate, and the count-vs-resolved accounting answers "cannot
-# determine". It is the only guard here that does not depend on this scanner
-# having correctly enumerated what fools it, and it is what the enumeration
-# kept proving it needs.
+# AN UNCLOSED HEREDOC AT EOF IS EXIT 2. A body skip that never closes is the
+# end state of most of the defects above, it is checkable without knowing which
+# shape of shell produced it, and the END rule reports it -- with a dangling
+# line continuation -- as an unresolved candidate, so the count-vs-resolved
+# accounting answers "cannot determine".
+#
+# IT IS NOT THE GENERAL GUARD an earlier revision of this comment claimed, that
+# every heredoc defect known or unknown ends in that one state. A skip that
+# closes EARLY, on a line bash reads as body, desyncs just as badly and then
+# RE-SYNCS on a later line: the call sites in between are swallowed and nothing
+# is outstanding at EOF, so this rule sees a clean finish and the accounting
+# agrees with itself. Two spellings reached it, a terminator carrying a
+# trailing space and a space-indented `<<-` terminator, and what prevents that
+# direction is not this rule but matching the terminator the way bash matches
+# it -- exactly, and with tabs -- which is what the body-skip rule now does.
+#
+# So the standing lesson is about the claim rather than the rule. A guard that
+# catches one end state is worth having and is not the same thing as a guard
+# that cannot be got around, and writing it up as the latter is what three
+# rounds of review have each had to correct.
 #
 # The guards are the P3b block of the self-test, and they fail against every
 # revision that preceded them: 17 against the original, 13 against the
@@ -445,10 +457,23 @@ BEGIN {
   # plain `<<USAGE` on an INDENTED `USAGE` that bash reads as body text, and the
   # lines after it were then read as code -- so a `<<FOO` among them armed and
   # swallowed the real terminator and everything past it.
+  # The terminator is matched the way BASH matches it, which is exactly and
+  # with tabs, because closing EARLY is as silent as never closing and the END
+  # rule below cannot see it. A scanner that closes a skip bash keeps open
+  # re-syncs on some later line, so it swallows the real call sites in between
+  # and still finishes with nothing outstanding to report.
+  #   - No trailing-whitespace strip. `EOF ` with a trailing space is BODY to
+  #     bash, verified; stripping it closed the skip, and the next `<<` in the
+  #     body then armed and ate the real terminator and the code after it.
+  #   - `<<-` strips TABS only, which is the whole of what the dash does. Using
+  #     `[[:space:]]` also closed on a SPACE-indented terminator, which bash
+  #     reads as body, with the same cascade.
+  # A trailing `\r` is dropped as a line-ending artifact rather than as
+  # whitespace, so a CRLF file still closes.
   if (hd != "") {
     t = line
-    if (hdtab) sub(/^[[:space:]]*/, "", t)
-    sub(/[[:space:]]*$/, "", t)
+    sub(/\r$/, "", t)
+    if (hdtab) sub(/^\t*/, "", t)
     if (t == hd) { hd = ""; hdtab = 0 }
     next
   }
@@ -514,11 +539,19 @@ BEGIN {
         # are both comments to bash, and reading either as code armed a heredoc
         # off its text.
         #
-        # `{` and `}` are deliberately NOT here: the `#` of `${#arr}` follows a
-        # `{`, and treating that as a comment would truncate the line. It is
-        # the one spelling where the preceding character does not settle it.
+        # Only characters that SETTLE it are here. `{`, `}`, `)` and a backtick
+        # are all ambiguous, and the ambiguity is not symmetric: reading a
+        # comment as code over-counts or exits 2, while reading code as a
+        # comment TRUNCATES the line and loses whatever followed, silently. So
+        # an ambiguous character is left out.
+        #   - `${#arr}`: the `#` follows a `{` and is not a comment.
+        #   - `$(printf a)#tag`: bash prints `a#tag`, so the `#` after that `)`
+        #     is not a comment -- while `(echo a)#tag` IS one. The same
+        #     character, decided by which construct opened it, which this walk
+        #     does not track.
+        #   - `` `cmd`#tag ``: the same, one construct over.
         p = (out == "") ? "" : substr(out, length(out), 1)
-        if (p == "" || p ~ /[[:space:]]/ || p ~ /[;&|()`]/) break
+        if (p == "" || p ~ /[[:space:]]/ || p ~ /[;&|(]/) break
       }
       out = out c
       i++
@@ -558,24 +591,30 @@ BEGIN {
     dash = 0
     if (substr(tail, 1, 1) == "-") { tail = substr(tail, 2); dash = 1 }
     sub(/^[[:space:]]*/, "", tail)
+    if (substr(tail, 1, 3) == "@Q@") break
     if (substr(tail, 1, 3) == "@L@") tail = substr(tail, 4)
-    # The delimiter is matched with the WALK'S OWN literal-word class, not a
-    # narrower one, AND THE MATCH MUST REACH A WORD BOUNDARY. Matching
-    # `[A-Za-z_][A-Za-z0-9_]*` truncated every delimiter carrying punctuation
-    # (`<<'PY.END'` armed `PY`, `<<EOF-1` armed `EOF`), and widening the class
-    # alone only moved the truncation to the next character outside it
-    # (`<<EOF@1` armed `EOF`). A delimiter no line can match is the
-    # EOF-swallowing defect either way, so a PARTIAL match arms nothing at all.
-    # Not arming is the safe direction: the body is then read as code, which
-    # over-counts or exits 2, and never passes silently.
+    # THE DELIMITER IS A WORD, spelled the way bash spells one: everything up
+    # to whitespace or an unquoted metacharacter. Successive narrower guesses
+    # each truncated the next delimiter outside them -- `[A-Za-z_][A-Za-z0-9_]*`
+    # cut `<<'PY.END'` to `PY`, a wider class still cut `<<EOF@1` to `EOF` --
+    # and requiring the match to reach a boundary only converted those into a
+    # REFUSAL to arm, on sixteen spellings bash accepts (`<<EOF{`, `<<EOF#`,
+    # `<<EOF%` and the rest).
     #
-    # A leading digit is excluded because `<<3` is not a delimiter anyone
-    # writes, while `1 << 3` outside the arithmetic forms stripped above --
-    # `a[1<<3]=5`, `$[ 1 << 3 ]` -- is ordinary shell that armed `3`.
-    if (match(tail, /^[A-Za-z_][A-Za-z0-9_.:\/+-]*/)) {
+    # Refusing looked like the safe direction and is not, quite. The body is
+    # then read as code, and a `<<` INSIDE that body arms on a delimiter of its
+    # own, swallows the real terminator and the code after it, and closes on
+    # some later line -- silent, and invisible to the END rule because nothing
+    # is left open. Reading the delimiter correctly in the first place is what
+    # avoids the cascade, so the class is bash's rather than a guess at it.
+    #
+    # A leading digit still refuses, because `<<3` is not a delimiter anyone
+    # writes while `1 << 3` outside the arithmetic forms stripped above --
+    # `a[1<<3]=5`, `$[ 1 << 3 ]` -- is ordinary shell that armed `3`. That
+    # refusal keeps its cascade risk, and it is the narrower bet of the two.
+    if (match(tail, /^[^[:space:];&|<>()]+/)) {
       d = substr(tail, RSTART, RLENGTH)
-      nxt = substr(tail, RSTART + RLENGTH, 1)
-      if (nxt == "" || nxt ~ /[[:space:];&|<>()]/) { hd = d; hdtab = dash; hdline = startfnr }
+      if (d !~ /^[0-9]/) { hd = d; hdtab = dash; hdline = startfnr }
     }
     break
   }
