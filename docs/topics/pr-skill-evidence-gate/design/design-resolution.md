@@ -52,7 +52,7 @@ pass) always precede the commit that carries their result:
   so a human sees how far back the evidence sits.
 
 Consequences the plan states plainly: a base refresh by merge keeps every non-terminal row and
-re-runs the terminal skill at the merge commit (the honest cost of refreshing); a rebase or
+re-runs the terminal skill at the merge commit (the cost of refreshing); a rebase or
 amend rewrites SHAs and invalidates every row, so once a PR exists the ready step merges, never
 rebases; a conflict-resolution merge moves HEAD and so re-runs the terminal skill, which closes
 the evil-merge hole a merge-only ancestry rule would have left.

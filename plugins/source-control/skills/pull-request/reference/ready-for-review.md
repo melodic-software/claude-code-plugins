@@ -19,8 +19,8 @@ PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
 ```
 
 Empty: stop and report. There is nothing to flip, nothing to render into, and no head a reviewer
-can reach. Route to `/source-control:pull-request create`, which opens the draft this phase flips.
-Never open the PR from here.
+can reach. Route to `/source-control:pull-request create`, which opens the draft this phase flips,
+rather than opening one here.
 
 Already out of draft (`gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`): the
 flip is done but the evidence may still be stale, so run 2.5.2 through 2.5.5 and skip 2.5.6.
@@ -48,8 +48,8 @@ every evidence row is keyed to the SHA it was stamped at. Conflicts route to
 
 What the merge costs: it moves HEAD, so the terminal skill's row is stale by construction and runs
 again in 2.5.4, while every other row stays fresh because its commit is still on the new HEAD's
-history. That is the honest price of refreshing, and it is why this step comes before the check
-rather than after it.
+history. That is the price of refreshing, and it is why this step comes before the check rather
+than after it.
 
 Completion criterion: `git rev-parse HEAD` equals
 `gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid'`. After `gh pr update-branch` the merge
@@ -145,8 +145,15 @@ Completion criterion: `gh pr view "$PR_NUMBER" --json body -q '.body'` carries e
 gh pr ready "$PR_NUMBER"
 ```
 
-In a cloud session, use the GitHub MCP `update_pull_request` call with `draft: false`. The flip is
-a GraphQL mutation and has no REST route, so the body patch of 2.5.5 cannot perform it.
+In a cloud session `gh pr ready` fails, because the flip is a GraphQL mutation. Two routes work
+there. The proxy's REST route:
+
+```bash
+gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
+```
+
+Or the GitHub MCP `update_pull_request` call with `draft: false`. The body patch of 2.5.5 edits
+the body alone and cannot perform the flip.
 
 Completion criterion: `gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`.
 

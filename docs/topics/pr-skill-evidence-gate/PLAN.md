@@ -214,7 +214,7 @@ Plugin: source-control (0.55.89 to 0.56.0). This is the integration slice.
    documented as unsupported), resolved against the checkout the skill runs in, which in
    `create --pushed --worktree` mode is the target worktree. `[EXEC-SHAPE]`: plugin options are per
    plugin, so source-control cannot read claude-ops' scope option; a paired default is the cheapest
-   honest resolution, and the README states the pairing.
+   resolution, and the README states the pairing.
 4. This repo's map in `.claude/source-control.md`:
 
    ```text
@@ -228,7 +228,7 @@ Plugin: source-control (0.55.89 to 0.56.0). This is the integration slice.
    - security | @file:.github/claude-security-paths | review:security-review
    ```
 
-   Stated plainly: `.github/claude-security-paths` lists `scripts/**`, `.claude/**`, every
+   `.github/claude-security-paths` lists `scripts/**`, `.claude/**`, every
    `plugins/*/skills/**` and every `**/*.sh`, so the `security` class fires on nearly every
    non-docs PR, exactly as the retired lane did; the local review replaces the lane at the same
    breadth. The `markdown` class matches `docs/topics/**` too, so a docs-only PR is not inert: it
@@ -503,7 +503,7 @@ The flip line at presentation turns the route into a hold.
    measurement and the `head.sha` measurement key; the promotion window and the two counts read from
    the validator's markers; which sections of ADR 0002 are superseded for this repository (the lane
    wiring, the skip-actor exception, the 2026-09-07 trigger set) and which stand (advisory before
-   blocking, earned promotion). Consequences state plainly: the evidence is self-reported and a
+   blocking, earned promotion). Consequences: the evidence is self-reported and a
    plain Write can forge it (accepted per ADR 0024; the Brief's "fenced by the write-bypass hook"
    assumption does not hold and is corrected here); PRs opened outside the skill (the UI, a bare
    REST call, a bot) receive no review and only the advisory label; the security review now runs on
@@ -518,8 +518,9 @@ The flip line at presentation turns the route into a hold.
 **Sanity Check:**
 
 - `ls docs/adr/0035-*.md` lists exactly one file; `grep -c '0035' docs/adr/0002-*.md` is 1.
-- `/ai-slop:audit` on the new ADR and every markdown file this branch changed reports zero
-  findings; `grep -c $'\xe2\x80\x94' docs/adr/0035-*.md` is 0.
+- `/ai-slop:audit` reports zero findings on the new ADR and on every markdown file this branch
+  changed other than ADR 0002, whose pre-existing em dashes the branch did not add;
+  `grep -c $'\xe2\x80\x94' docs/adr/0035-*.md` is 0.
 
 #### Phase 9: Verification and the pull request [DOING]
 
@@ -546,7 +547,7 @@ The flip line at presentation turns the route into a hold.
 | Alternative | Why rejected | Switch condition |
 |---|---|---|
 | Keep the lanes and restore `synchronize` with the upstream cap | Still bills the OAuth seat per push, keeps the count comment, and reviews at most five heads per PR | The operator gets an API-key or App-billed seat that makes CI review free of the subscription window |
-| Managed Claude Code Review app | Bills usage credits; its check is always neutral; no evidence the skill set ran | Usage credits become available and an App-authored check becomes load-bearing (autonomous merge on) |
+| Managed Claude Code Review app | Bills usage credits; its check is always neutral; no evidence the skill set ran | Usage credits become available and an App-authored check becomes a merge input (autonomous merge on) |
 | Mergify Merge Protections as an App-authored required check | Unforgeable, but a third-party App for a gate that is advisory today | Autonomous merge is switched on and same-name forgeability stops being acceptable |
 | HTML-comment evidence block | Invisible to humans; stripped by the pr-contract composite before section counting | Never, while the block is meant to be read by people |
 | Every mandatory row at HEAD exactly | Rows are stamped at invocation, so every mutating skill would read stale by construction and the set would run twice per PR | A row can be stamped after the skill's edits land (a hook event at skill completion) |
@@ -591,7 +592,7 @@ Existing tests to update: `pr-linkage-spawn-budget.test.sh` (new hook ceilings),
 | A wrapper failure reds the required check | Low | High | `continue-on-error: true` with a reasoned opt-out entry, `trap` exit 0, and a suite case with a failing `gh` |
 | The block is edited by hand to force a clean verdict | Low | Low (advisory phase) | Accepted per ADR 0024 and stated in ADR 0035; the promotion review samples blocks against ledger rows |
 | Cloud sessions flip ready through a route the hook does not match | Med | Low | The MCP twin covers `update_pull_request`; the validator catches every flip regardless |
-| Every base refresh re-runs `verification:confirm` | High | Low | That is the honest cost of refreshing; non-terminal rows survive a merge; the ready step merges, never rebases |
+| Every base refresh re-runs `verification:confirm` | High | Low | That is the cost of refreshing; non-terminal rows survive a merge; the ready step merges, never rebases |
 | The security class fires on nearly every non-docs PR | High | Med | Same breadth as the retired lane; stated in the map's comment and the ADR; the operator can narrow the patterns file |
 | Removing the callers leaves unused runner-policy entries the analyzer rejects | Med | Low | Phase 6 runs the analyzer first; the file is upstream-managed, so a rejection becomes a work item, not a local edit |
 | Skill prose grows past `check-skill.sh` line caps | Med | Low | `ready-for-review.md` is a new reference file; SKILL.md gains one table row |

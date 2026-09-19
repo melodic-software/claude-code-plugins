@@ -14,8 +14,7 @@ file carries, and they are set explicitly.
 `pr_skill_evidence` at the end of this file is this repository's mandatory map: which skills a pull
 request owes evidence for, keyed on what its diff touches.
 `plugins/source-control/scripts/skill-evidence.sh` is the one reader, and
-`plugins/source-control/reference/config-resolution.md` owns the grammar. Two consequences of the
-map below are worth stating plainly rather than leaving a reader to derive them.
+`plugins/source-control/reference/config-resolution.md` owns the grammar.
 `.github/claude-security-paths` lists `scripts/**`, `.claude/**`, every `plugins/*/skills/**` and
 every `**/*.sh`, so the `security` class fires on nearly every non-docs pull request, which is the
 breadth the local security review is meant to have. The `markdown` class matches `docs/topics/**`

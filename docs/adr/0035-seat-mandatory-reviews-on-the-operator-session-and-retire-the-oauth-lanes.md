@@ -75,9 +75,9 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
 
 ## Evidence
 
-- Coverage baseline: 40 merged pull requests, 14 with no successful review-lane run, 1 reviewed
-  on the merged head (`.work/pr-skill-evidence-gate/BREAKDOWN.md` in the writing checkout;
-  distilled in `docs/topics/pr-skill-evidence-gate/PLAN.md`).
+- Coverage baseline: 40 merged pull requests read over REST on 2026-09-12, 14 with no successful
+  review-lane run, 1 reviewed on the merged head. Pull request #4210 carried the plan for this
+  change.
 - GitHub skips `pull_request` runs while the pull request has a merge conflict (the events
   reference, fetched 2026-09-12).
 - Two fresh-context reviews of the plan found that a rule demanding every row at HEAD marks every
@@ -96,8 +96,8 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
 - Pull requests opened outside the pull-request skill (the GitHub UI, a bare REST call, a bot)
   receive no review at all and only the advisory comment. The retired lanes reviewed those
   operator-account pull requests when their one trigger fired; that coverage is gone.
-- Every base refresh re-runs the terminal skill on the seat. That is the honest cost of
-  refreshing, and it replaces the lanes' cost of one review per pull request at most.
+- Every base refresh re-runs the terminal skill on the seat. That is the cost of refreshing, and
+  it replaces the lanes' cost of one review per pull request at most.
 - The security class fires on nearly every non-docs pull request, at the breadth
   `.github/claude-security-paths` declares. Narrowing the list narrows the class.
 - The measurement keys on the pull request's head SHA at merge time, read over REST, because the
@@ -122,5 +122,5 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
   change → an upstream caller still runs; find and retire it.
 - The audit-noise corpus reaches zero findings on main → add its detector to the lint job's
   warning step.
-- A forged row or block is observed → the readers stop being advisory-by-honesty; revisit the
+- A forged row or block is observed → the readers stop being advisory on trust alone; revisit the
   App-authored check.
