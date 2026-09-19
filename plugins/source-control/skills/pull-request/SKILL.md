@@ -1,5 +1,5 @@
 ---
-description: "Orchestrate the full PR lifecycle: prep (review + verify), create, monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
+description: "Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (run the mandatory skills, render the evidence, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /pull-request prep, /pull-request create, /pull-request monitor, /pull-request merge, /pull-request full, /pull-request status)"
@@ -58,8 +58,9 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `prep quick` | Phase 1 (fast) | Code errors only, skip simplify |
 | `prep review-only` | Phase 1 (partial) | Just review + verify findings |
 | `prep simplify-only` | Phase 1 (partial) | Just simplify + re-verify |
-| `create` | Phase 2 | Branch-name check + commit + push + `gh pr create`. Reports the PR URL and stops |
-| `create --pushed --worktree <path>` | Phase 2 (PR-only) | **PR-only entry for an orchestrated flow**, the branch is already committed and pushed (by a dispatched worker), so this skips commit / push / rebase, re-resolves branch and diff from the given target worktree (not the session cwd), and runs body assembly + gates + `gh pr create --head <branch>`. Used by `/work-items:work`'s orchestrator after its pre-PR gate. See [reference/create.md](reference/create.md) §2.7 |
+| `create` | Phase 2 | Branch-name check + commit + push + `gh pr create --draft`. Reports the PR URL and stops |
+| `create --pushed --worktree <path>` | Phase 2 (PR-only) | **PR-only entry for an orchestrated flow**, the branch is already committed and pushed (by a dispatched worker), so this skips commit / push / rebase, re-resolves branch and diff from the given target worktree (not the session cwd), and runs body assembly + gates + `gh pr create --draft --head <branch>`. Used by `/work-items:work`'s orchestrator after its pre-PR gate. See [reference/create.md](reference/create.md) §2.7 |
+| `ready` | Phase 2.5 | Merge the base into the branch (never a rewrite of its history), run every mandatory skill with no fresh evidence row for HEAD in the pre-PR order with the terminal skill last, render the evidence block into the PR body, then flip the draft with `gh pr ready`. Refuses on a branch with no PR. See [reference/ready-for-review.md](reference/ready-for-review.md) |
 | `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a GitHub-events channel (an MCP server delivering webhook events into the session), ~0 idle requests; **(2) Monitor tool** fallback (30s `gh` poll); **(3) plain `gh` polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
 | `merge` | Phase 4 | Squash merge + worktree cleanup + verify |
@@ -108,13 +109,15 @@ Parse `$ARGUMENTS` to extract the action (first token) and any sub-arguments.
 ```text
 1. Check git branch — on the default branch? → "Create a worktree or branch first"
 2. Resolve PR for current branch:
-   gh pr view --json state,number 2>/dev/null
+   gh pr view --json state,number,isDraft 2>/dev/null
    a. exit non-zero → no PR yet → START AT PHASE 1 (prep); skip steps 3-6
       entirely (they all need a PR number that does not exist yet)
    b. state = MERGED → skip to Phase 4.3 (cleanup only — pull default branch, delete branch, prune)
    c. state = CLOSED → report "PR was closed without merging" and stop
    d. state = OPEN → capture pr_number, continue to step 3
-3. Check CI status (gh pr checks <pr_number>) — still running? → start at monitor
+3. isDraft = true → START AT PHASE 2.5 (ready); skip steps 4-6. A draft owes its
+   evidence and its flip, not monitoring: no reviewer has been asked to read it yet
+4. Check CI status (gh pr checks <pr_number>) — still running? → start at monitor
 5. Check for unaddressed comments → start at monitor (comments sub-phase)
 6. CI green + comments addressed → suggest merge
 ```
@@ -133,6 +136,7 @@ Execute in order. Each phase is self-contained. Read the relevant file for detai
 |-------|------|--------------|
 | 1. Prep | [reference/prep.md](reference/prep.md) | `prep`, `prep quick`, `prep review-only`, `prep simplify-only` |
 | 2. Create | [reference/create.md](reference/create.md) | `create` |
+| 2.5. Ready for review | [reference/ready-for-review.md](reference/ready-for-review.md) | `ready` |
 | 3. Monitor | [reference/monitor.md](reference/monitor.md) | `monitor`, `comments` |
 | 4. Merge | [reference/merge.md](reference/merge.md) | `merge` |
 
