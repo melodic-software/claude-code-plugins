@@ -84,7 +84,15 @@ jqs() { jq "$@" 2>/dev/null | tr -d '\r'; }
 # for every call routed here because not one passes a file for jq to OPEN; a
 # site that does must keep the conversion, or jq could no longer find the file.
 # Set inline per call, never exported.
-jqn() { MSYS2_ARG_CONV_EXCL='*' jq -cn "$@"; }
+#
+# The CR strip is the same one jqs() above does, for the same reason: native jq
+# writes stdout in TEXT mode here and ends every line CRLF. In a node fragment
+# the stray CR lands between JSON tokens, where it is only whitespace, so it
+# corrupts nothing today; stripping it keeps the two jq wrappers honest about the
+# same platform quirk, so a value ever captured from this one cannot carry a CR
+# into a comparison. jq escapes a control character inside a string as \r, so a
+# literal CR byte in its output is only ever the line terminator.
+jqn() { MSYS2_ARG_CONV_EXCL='*' jq -cn "$@" | tr -d '\r'; }
 
 usage() {
   cat <<'EOF'

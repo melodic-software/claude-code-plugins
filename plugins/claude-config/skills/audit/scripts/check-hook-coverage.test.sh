@@ -482,13 +482,21 @@ out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 22: exit 0" 0 "$rc"
 # Read the command back through jq rather than matching the raw document: the
 # quotes are backslash-escaped there. Equality rather than containment, so a
-# mangling that wrapped the value instead of splicing into it is caught too; the
-# CR is stripped because jq on this host appends one to its own stdout.
+# mangling that wrapped the value instead of splicing into it is caught too. The
+# CR here is appended by THIS pipeline's own jq, not carried in the document, so
+# the strip stays even once the emitter emits none of its own.
 # shellcheck disable=SC2016  # the expected value is the literal placeholder, not a shell expansion
 assert_eq "case 22: the placeholder command is emitted byte for byte" \
   '"${CLAUDE_PLUGIN_ROOT}"/hooks/msys-guard.sh' "$(json_field "$out" '.hooks[0].command' | tr -d '\r')"
 # So a regression reads as the actual mangling, not merely as a missing substring.
 assert_not_contains "case 22: no MSYS-injected interpreter prefix" "$out" "Program Files"
+# Native jq writes stdout in TEXT mode on Git for Windows and terminates every
+# line with CRLF, so each emitter fragment carried a stray CR into the assembled
+# document. They land between tokens, where JSON counts them as whitespace, so
+# nothing was corrupted; this pins the emitter to the same output hygiene jqs()
+# has always had, so a value captured from it can never carry one.
+assert_eq "case 22: the emitted document carries no carriage return" \
+  "0" "$(printf '%s' "$out" | tr -dc '\r' | wc -c | tr -d ' ')"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
