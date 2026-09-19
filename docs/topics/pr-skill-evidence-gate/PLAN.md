@@ -323,7 +323,7 @@ Plugin: source-control (same version bump as Phase 2).
 - `CHECK_SKILL_SKILLS_ROOT=plugins/source-control/skills bash plugins/skill-quality/scripts/check-skill.sh pull-request`
   exit 0; `scripts/check-changed-skills.sh origin/main` exit 0.
 
-#### Phase 4: Advisory PreToolUse gate on the ready flip [DOING]
+#### Phase 4: Advisory PreToolUse gate on the ready flip [DONE]
 
 Review: security
 

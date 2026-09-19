@@ -43,7 +43,7 @@
     "pr_ready_evidence_gate_enabled": {
       "type": "boolean",
       "title": "pr-ready-evidence-gate hook",
-      "description": "Nudge, never block, when a call flips a pull request to ready for review while the skill-usage ledger carries no fresh evidence at HEAD that every mandatory pre-PR skill ran. Covers the CLI surface (`gh pr ready`, the `markPullRequestReadyForReview` GraphQL mutation, and the cloud proxy's `ready_for_review` route) and the GitHub MCP surface (`update_pull_request` with `draft: false`, only for the repository the origin remote names). The verdict comes from scripts/skill-evidence.sh, so the gate is inert in a repository whose .claude/source-control.md declares no `pr_skill_evidence` map; a missing ledger is reported once and then read as no rows. One switch for both surfaces.",
+      "description": "Nudge, never block, when a call flips a pull request to ready for review while the skill-usage ledger carries no fresh evidence at HEAD that every mandatory pre-PR skill ran. Covers the CLI surface (`gh pr ready` and the `markPullRequestReadyForReview` GraphQL mutation through `gh api`) and the GitHub MCP surface (`update_pull_request` with `draft: false`, only for the repository the origin remote names). The verdict comes from scripts/skill-evidence.sh, so the gate is inert in a repository whose .claude/source-control.md declares no `pr_skill_evidence` map; a missing ledger is reported once and then read as no rows. One switch for both surfaces.",
       "default": true
     },
     "worktree_add_containment_gate_enabled": {
