@@ -156,7 +156,7 @@ evidence is owed. Once a PR exists, every base refresh is a merge, never a rebas
 Build technique: kept tracer bullet (Phase 2), then horizontal wiring. No throwaway spike: the
 feasibility questions (forgeability, trigger behaviour, hook events) were settled by research.
 
-#### Phase 1: Ledger rows carry the head SHA and the PR number [TODO]
+#### Phase 1: Ledger rows carry the head SHA and the PR number [DONE]
 
 Plugin: claude-ops (0.56.17 to 0.57.0).
 
@@ -416,7 +416,7 @@ Review: security
 - On the PR that ships this change, the `ci-status` run log shows the step after the aggregate,
   and the PR carries either a fresh block and no label, or one marker comment.
 
-#### Phase 6: Retire both lanes and sweep every citation [TODO]
+#### Phase 6: Retire both lanes and sweep every citation [DONE]
 
 Structural commit (Tidy First: deletions and citation updates only, no behaviour change elsewhere).
 
