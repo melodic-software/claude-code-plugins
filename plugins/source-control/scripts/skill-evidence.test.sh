@@ -149,6 +149,50 @@ git -C "$RENAME_REPO" commit -qm rename >/dev/null 2>&1
 run_in "$RENAME_REPO" classes --base main
 assert_contains "@renamed detects a rename" "$RUN_OUT" "class=renames"
 
+# A `@file:` ref reads a file inside the checkout or nothing at all. An
+# absolute ref and a `..` segment are both refused, and the run keeps going.
+for BAD_REF in "/etc/passwd" "../../etc/passwd"; do
+  ESCAPE_REPO="$(mkfixture)"
+  printf '# repo config\n\n## pr_skill_evidence\n\n- escape | @file:%s | review:security-review\n' \
+    "$BAD_REF" >"$ESCAPE_REPO/.claude/source-control.md"
+  run_in "$ESCAPE_REPO" classes --base main
+  assert_exit "an escaping @file: ref still exits 0 ($BAD_REF)" 0 "$RUN_CODE"
+  assert_contains "an escaping @file: ref is warned about ($BAD_REF)" "$RUN_OUT" \
+    "warning=unsafe-pattern-file"
+  assert_not_contains "an escaping @file: ref matches no class ($BAD_REF)" "$RUN_OUT" \
+    "class=escape"
+done
+
+# A gitignore negation re-includes a path, and `check-ignore -v` reports the
+# negated line as the source of the match exactly as it reports a positive one.
+# Left in the patterns file, `!scripts/keep.sh` therefore MATCHES scripts/keep.sh
+# and nothing else: the one path the author wrote the line to exclude becomes
+# the only path that selects the class. Dropping the line is what stops a
+# negation from registering a match of its own. A positive pattern written
+# beside it still matches on its own terms, since the negation is dropped and
+# not honoured.
+NEGATION_REPO="$(mkfixture)"
+{
+  printf '# repo config\n\n## pr_skill_evidence\n\n'
+  # shellcheck disable=SC2016  # the pattern field is a literal markdown code span
+  printf -- '- code | `scripts/** !scripts/keep.sh` | review:security-review\n'
+  # shellcheck disable=SC2016  # the pattern field is a literal markdown code span
+  printf -- '- negated | `!scripts/keep.sh` | review:security-review\n'
+} >"$NEGATION_REPO/.claude/source-control.md"
+KEEP_ONLY="$TEST_TMPDIR/keep-only.txt"
+printf 'scripts/keep.sh\n' >"$KEEP_ONLY"
+run_in "$NEGATION_REPO" classes --files "$KEEP_ONLY"
+assert_exit "a negation pattern still exits 0" 0 "$RUN_CODE"
+assert_contains "a negation pattern is warned about" "$RUN_OUT" \
+  "warning=negation-pattern-ignored pattern=!scripts/keep.sh"
+assert_not_contains "a negation registers no class match of its own" "$RUN_OUT" "class=negated"
+assert_contains "a positive pattern beside a negation still matches" "$RUN_OUT" "class=code"
+OTHER_ONLY="$TEST_TMPDIR/other-only.txt"
+printf 'scripts/other.sh\n' >"$OTHER_ONLY"
+run_in "$NEGATION_REPO" classes --files "$OTHER_ONLY"
+assert_contains "the positive pattern matches the path it names" "$RUN_OUT" "class=code"
+assert_not_contains "a dropped negation leaves its class with no patterns" "$RUN_OUT" "class=negated"
+
 # --- inert config ------------------------------------------------------------
 
 INERT="$(mkfixture)"
@@ -351,27 +395,36 @@ STUB_DIR="$TEST_TMPDIR/stub"
 mkdir -p "$STUB_DIR"
 cat >"$STUB_DIR/gh" <<'STUB'
 #!/usr/bin/env bash
-# Stubbed gh: three closed PRs, two of them merged. PR 1 carried a gap marker
-# and then a clean one at a later head (agreed); PR 2 carried a gap marker and
-# nothing after it; PR 3 never merged and is not sampled.
+# Stubbed gh: four closed PRs, three of them merged. PR 1 carried a validator
+# gap marker and then a validator clean one at a later head (agreed); PR 2
+# carried a validator gap marker, with an OUTSIDER's clean marker after it that
+# must not read as an agreement; PR 3 never merged and is not sampled; PR 4's
+# only marker is an outsider's and is no firing at all.
 set -u
 case "$*" in
 *pulls*)
   cat <<'JSON'
 [{"number":1,"merged_at":"2026-09-01T00:00:00Z"},
  {"number":2,"merged_at":"2026-09-02T00:00:00Z"},
- {"number":3,"merged_at":null}]
+ {"number":3,"merged_at":null},
+ {"number":4,"merged_at":"2026-09-03T00:00:00Z"}]
 JSON
   ;;
 *issues/1/comments*)
   cat <<'JSON'
-[{"body":"gap <!-- pr-skill-evidence head=aaaaaaa verdict=gap -->"},
- {"body":"clean <!-- pr-skill-evidence head=bbbbbbb verdict=clean -->"}]
+[{"user":{"login":"github-actions[bot]"},"body":"gap <!-- pr-skill-evidence head=aaaaaaa verdict=gap -->"},
+ {"user":{"login":"github-actions[bot]"},"body":"clean <!-- pr-skill-evidence head=bbbbbbb verdict=clean -->"}]
 JSON
   ;;
 *issues/2/comments*)
   cat <<'JSON'
-[{"body":"gap <!-- pr-skill-evidence head=ccccccc verdict=gap -->"}]
+[{"user":{"login":"github-actions[bot]"},"body":"gap <!-- pr-skill-evidence head=ccccccc verdict=gap -->"},
+ {"user":{"login":"drive-by"},"body":"clean <!-- pr-skill-evidence head=ddddddd verdict=clean -->"}]
+JSON
+  ;;
+*issues/4/comments*)
+  cat <<'JSON'
+[{"user":{"login":"drive-by"},"body":"gap <!-- pr-skill-evidence head=eeeeeee verdict=gap -->"}]
 JSON
   ;;
 *) printf '[]\n' ;;
@@ -381,8 +434,10 @@ chmod +x "$STUB_DIR/gh"
 RUN_OUT="$(cd "$REPO" && PATH="$STUB_DIR:$PATH" "$ENGINE" report --repo acme/app 2>"$TEST_TMPDIR/stderr.txt")"
 RUN_CODE=$?
 assert_exit "report exits 0" 0 "$RUN_CODE"
-assert_eq "report counts firings, agreements and the sample" \
-  "fired=2 agreed=1 sampled=2" "$RUN_OUT"
+# fired=2: PRs 1 and 2. agreed=1: PR 1 only, because PR 2's clean marker is an
+# outsider's. sampled=3: PRs 1, 2 and 4, PR 4 carrying no countable marker.
+assert_eq "report counts only the validator's own markers" \
+  "fired=2 agreed=1 sampled=3" "$RUN_OUT"
 
 # --- usage -------------------------------------------------------------------
 

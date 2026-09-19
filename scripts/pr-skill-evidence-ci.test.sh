@@ -52,6 +52,15 @@ case "$*" in
 *"--input -"*) cat >>"$GH_STDIN_LOG" ;;
 *) ;;
 esac
+# The `--jq` expression, so a case that supplies a comments FIXTURE gets the
+# real filter applied to it rather than a canned answer. Real gh runs that
+# expression itself, which is where the author filter lives.
+JQ_FILTER=""
+PREV=""
+for arg in "$@"; do
+  [[ "$PREV" == "--jq" ]] && JQ_FILTER="$arg"
+  PREV="$arg"
+done
 if [[ -n "${GH_FAIL:-}" ]]; then
   printf 'stubbed gh failure\n' >&2
   exit 1
@@ -72,7 +81,13 @@ case "$*" in
   ;;
 *pulls/*) cat "${GH_BODY_FILE:-/dev/null}" ;;
 *issues/comments/*) cat "${GH_COMMENT_BODY_FILE:-/dev/null}" ;;
-*issues/*/comments*) printf '%s\n' "${GH_COMMENT_ID:-}" ;;
+*issues/*/comments*)
+  if [[ -n "${GH_COMMENTS_FILE:-}" ]]; then
+    jq -r "${JQ_FILTER:-.}" "$GH_COMMENTS_FILE"
+  else
+    printf '%s\n' "${GH_COMMENT_ID:-}"
+  fi
+  ;;
 *) printf '\n' ;;
 esac
 STUB
@@ -274,6 +289,31 @@ else
   bad "a re-run at the same head appends no second marker" "found $REPEATS markers for this head"
 fi
 contains "a re-run still keeps the earlier marker" "$(payload)" "$OLD_MARKER"
+
+# --- only the Actions bot's own comment is rewritten -------------------------
+# The marker is plain text and a pull request's comments are attacker-supplied.
+# A marker-bearing comment under anyone else's name is left alone, and this
+# step posts one of its own beside it.
+
+OUTSIDER_COMMENTS="$TEST_TMPDIR/outsider-comments.json"
+jq -n --arg body "$OLD_MARKER" \
+  '[{id: 77, user: {login: "drive-by", type: "User"}, body: $body}]' >"$OUTSIDER_COMMENTS"
+BOT_COMMENTS="$TEST_TMPDIR/bot-comments.json"
+jq -n --arg body "$OLD_MARKER" \
+  '[{id: 77, user: {login: "drive-by", type: "User"}, body: $body},
+    {id: 88, user: {login: "github-actions[bot]", type: "Bot"}, body: $body}]' >"$BOT_COMMENTS"
+
+run "$GAP_REPORT" GH_COMMENTS_FILE="$OUTSIDER_COMMENTS" GH_LABELS="" GH_LABEL_EXISTS=1
+exits "an outsider's marker comment exits 0" 0 "$RUN_CODE"
+lacks "an outsider's marker comment is not patched" "$(log)" "--method PATCH"
+contains "an outsider's marker comment earns a fresh comment instead" "$(log)" \
+  "--method POST repos/$REPO_NAME/issues/$PR/comments"
+
+run "$GAP_REPORT" GH_COMMENTS_FILE="$BOT_COMMENTS" GH_COMMENT_BODY_FILE="$OLD_COMMENT" \
+  GH_LABELS="" GH_LABEL_EXISTS=1
+exits "the bot's own marker comment exits 0" 0 "$RUN_CODE"
+contains "the bot's own marker comment is the one patched" "$(log)" \
+  "--method PATCH repos/$REPO_NAME/issues/comments/88"
 
 # --- a label the repository does not carry is a notice -----------------------
 

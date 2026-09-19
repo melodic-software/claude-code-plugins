@@ -18,9 +18,15 @@
 #   <class>     a label used in messages.
 #   <patterns>  whitespace-separated gitignore patterns. `@file:<path>` reads
 #               patterns from a repository file (`#` comments and blank lines
-#               ignored). `@renamed` matches when the diff renames anything.
-#               A field may be wrapped in one pair of backticks, which is how a
-#               glob list survives a markdown formatter, and is stripped here.
+#               ignored), and the path stays inside the checkout: an absolute
+#               ref or one carrying a `..` segment is refused with a `warning=`
+#               line and its rule skipped. A pattern starting with `!` is a
+#               gitignore negation, which `check-ignore` would report as a
+#               match on the very path it excludes, so it is dropped with a
+#               `warning=` line. `@renamed` matches when the diff renames
+#               anything. A field may be wrapped in one pair of backticks,
+#               which is how a glob list survives a markdown formatter, and is
+#               stripped here.
 #   <skills>    whitespace-separated required skills. `a,b` means any one of a
 #               or b. A trailing `!` marks the terminal skill, of which the map
 #               holds at most one.
@@ -118,7 +124,8 @@ usage_classes() {
 skill-evidence.sh classes (--base <ref> | --files <file>) [--config <file>]
 
 Print one `class=<name>` line per class of the mandatory map that the changed
-paths match, in map order. Inert map: no output.
+paths match, in map order, and a `warning=<what>` line per pattern the reader
+refuses to honour as written. Inert map: no output.
 
   --base <ref>    Diff `merge-base(<ref>, HEAD)..HEAD` for the changed paths.
   --files <file>  Read the changed paths from this file, one per line, instead
@@ -152,7 +159,8 @@ Report the mandatory skills of every detected class against <sha>.
 
 Output lines: `class=<name>`, `missing=<skill>` (an any-of group prints the
 group), `stale=<skill> sha=<sha>`, `fresh=<skill> sha=<sha> commits-since=<n>`,
-and a final `verdict=clean|gap|inert`.
+`warning=<what>` for a map the reader would not honour as written, and a final
+`verdict=clean|gap|inert`.
 EOF
 }
 
@@ -180,7 +188,9 @@ requests and print `fired=<n> agreed=<n> sampled=<n>`:
 
 Reads the markers currently visible over `gh api --paginate`, so a validator
 that rewrites its comment in place is counted by what the comment says now.
-This is the promotion-time report, never a gate.
+Only comments authored by `github-actions[bot]` are counted: the marker is
+plain text anyone can paste, and a count a pull request can inflate is not a
+promotion signal. This is the promotion-time report, never a gate.
 EOF
 }
 
@@ -331,9 +341,11 @@ collect_paths_from_file() {
 
 # class_matches <patterns> — 0 when any changed path matches the class.
 class_matches() {
-  local pats="$1" tok pfile out ref
+  local pats="$1" tok pfile raw out ref line
   pfile="$WORKDIR/patterns"
+  raw="$WORKDIR/patterns.raw"
   : >"$pfile"
+  : >"$raw"
 
   for tok in $pats; do
     case "$tok" in
@@ -344,18 +356,42 @@ class_matches() {
       ;;
     '@file:'*)
       ref="${tok#@file:}"
+      # The ref is joined to the repository root, so it names a file inside the
+      # checkout or it names nothing. An absolute path or a `..` segment would
+      # read a file the map has no claim on, which is how a map becomes a
+      # reader of `/etc/passwd`. The rule is skipped, not the run: the map is
+      # advisory everywhere it is read.
+      case "/$ref/" in
+      "//"* | *"/../"*)
+        printf 'warning=unsafe-pattern-file ref=%s\n' "$ref"
+        return 1
+        ;;
+      *) ;;
+      esac
       if [[ -n "$REPO_ROOT" ]] && [[ -f "$REPO_ROOT/$ref" ]]; then
         tr -d '\r' <"$REPO_ROOT/$ref" |
-          awk '{ sub(/^[ \t]+/, ""); sub(/[ \t]+$/, "") } NF > 0 && substr($0, 1, 1) != "#"' >>"$pfile"
+          awk '{ sub(/^[ \t]+/, ""); sub(/[ \t]+$/, "") } NF > 0 && substr($0, 1, 1) != "#"' >>"$raw"
       else
         note "pattern file not found, class rule degraded: $ref"
       fi
       ;;
     *)
-      printf '%s\n' "$tok" >>"$pfile"
+      printf '%s\n' "$tok" >>"$raw"
       ;;
     esac
   done
+
+  # A gitignore negation re-includes a path, and `check-ignore -v` reports the
+  # negated line as the matching source just as it reports a positive one. A
+  # class would therefore count `!scripts/keep.sh` as a match on the very file
+  # the author wrote it to exclude. Negations are dropped before git sees them,
+  # from both sources, so a class matches only what it names.
+  while IFS= read -r line; do
+    case "$line" in
+    '!'*) printf 'warning=negation-pattern-ignored pattern=%s\n' "$line" ;;
+    *) printf '%s\n' "$line" >>"$pfile" ;;
+    esac
+  done <"$raw"
 
   [[ -s "$pfile" ]] || return 1
   [[ -s "$PATHS_FILE" ]] || return 1
@@ -866,7 +902,9 @@ cmd_report() {
   for number in $numbers; do
     sampled=$((sampled + 1))
     markers=$(gh api --paginate "repos/$repo/issues/$number/comments?per_page=100" 2>/dev/null |
-      jq -r 'if type == "array" then .[] else . end | (.body // "")' 2>/dev/null |
+      jq -r 'if type == "array" then .[] else . end
+             | select((.user.login // "") == "github-actions[bot]")
+             | (.body // "")' 2>/dev/null |
       tr -d '\r' |
       grep -o '<!-- pr-skill-evidence head=[0-9a-fA-F]* verdict=[a-z]* -->') || markers=""
     [[ -n "$markers" ]] || continue

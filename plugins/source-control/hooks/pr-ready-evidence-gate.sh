@@ -22,16 +22,20 @@
 # of record for the promotion window, and a second writer would double-count it.
 #
 # WHAT IT MATCHES, per parsed argv rather than token co-occurrence
-# (hook-precision rules 2 and 5), on each segment of the command line:
-#   * `gh pr ready [...]`, the local flip;
+# (hook-precision rules 2 and 5), on each segment of the command line, one
+# matcher per route a session can flip a pull request through:
+#   * `gh pr ready [...]`, the CLI flip;
 #   * `gh api graphql` whose `-f`/`-F`/`--field`/`--raw-field` `query=` operand
-#     names `markPullRequestReadyForReview`, the flip's GraphQL mutation.
+#     names `markPullRequestReadyForReview`, the flip's GraphQL mutation;
+#   * `gh api` whose path operand is the cloud proxy's route,
+#     `repos/<owner>/<repo>/pulls/<n>/ccr/ready_for_review`, with POST or with
+#     no method flag. A session that cannot reach GraphQL is told to use that
+#     route by name, so it is a flip surface of its own and not a REST
+#     lookalike. Its sibling `ccr/convert_to_draft` is the undo, which owes no
+#     evidence and is not matched.
 #
-# There is no REST route to match. Flipping a pull request out of draft is a
-# GraphQL mutation with no REST equivalent, so a `gh api <path>` form does not
-# exist to be read. Cloud sessions, which cannot reach GraphQL, flip through the
-# GitHub MCP tool instead, and the sibling pr-ready-evidence-mcp-gate.sh covers
-# that surface.
+# The GitHub MCP tool is a fourth surface, covered by the sibling
+# pr-ready-evidence-mcp-gate.sh.
 #
 # OUT OF SCOPE, silent and allowed: `gh pr ready --undo`, which converts a pull
 # request back to a draft and owes no evidence; `--help` on either form, which
@@ -187,6 +191,48 @@ is_api_ready() {
   ((graphql && mutation))
 }
 
+# Does this `gh api ...` segment call the cloud proxy's ready-for-review route?
+# <start> is the index of the word after `api`. The route carries the owner,
+# the repository and the number in one path operand, so it is read whole rather
+# than from any token on its own.
+# shellcheck disable=SC2329  # reached through the hook::bash_parse_segments callback chain
+is_ccr_ready() {
+  local start="$1"
+  shift
+  local -a w=("$@")
+  local n=${#w[@]} i word method="" path=""
+  for ((i = start; i < n; i++)); do
+    word="${w[i]}"
+    case "$word" in
+    --) break ;;
+    --help | -h) return 1 ;;
+    --method | -X)
+      method="${w[i + 1]:-}"
+      ((i++))
+      ;;
+    --method=*) method="${word#*=}" ;;
+    -X?*) method="${word:2}" ;;
+    -*)
+      # shellcheck disable=SC2310  # takes_value is a pure classifier; a false return is the "no value" case
+      if takes_value "${word%%=*}" && [[ "$word" != *=* ]]; then ((i++)); fi
+      ;;
+    *)
+      # The first non-flag word is the endpoint; a later one is an operand of
+      # something else.
+      [[ -n "$path" ]] || path="$word"
+      ;;
+    esac
+  done
+  # No method flag is the shape the proxy's own message prints; any method
+  # other than POST is a different call on the same path.
+  [[ -z "$method" || "${method,,}" == "post" ]] || return 1
+  # A query string is stripped so the suffix is read against the path alone,
+  # and a full `https://api.github.com/...` form is read the same way a bare
+  # path is.
+  path="${path%%\?*}"
+  [[ "$path" =~ (^|/)repos/[^/]+/[^/]+/pulls/[0-9]+/ccr/ready_for_review$ ]]
+}
+
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=("$@")
@@ -238,6 +284,8 @@ check_segment() {
   api)
     # shellcheck disable=SC2310  # the return status IS the verdict
     is_api_ready "$((i + 2))" "${w[@]}" && MATCHED=1
+    # shellcheck disable=SC2310  # the return status IS the verdict
+    is_ccr_ready "$((i + 2))" "${w[@]}" && MATCHED=1
     ;;
   *) ;;
   esac

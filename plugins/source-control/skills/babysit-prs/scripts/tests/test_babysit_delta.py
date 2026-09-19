@@ -1038,6 +1038,21 @@ class SkillEvidenceGapTests(unittest.TestCase):
         self.assertFalse(result["skill_evidence_gap"])
         self.assertFalse(result["needs_worker"])
 
+    def test_an_external_fork_reports_the_gap_and_dispatches_nothing(self) -> None:
+        # Closing the gap is a commit to the head branch and a body edit, and
+        # this session may do neither on a fork outside the configured owners.
+        # The record still states the gap; only the routing stands down.
+        result = self._classify(
+            skillEvidence={"present": False},
+            isCrossRepository=True,
+            headRepository={"nameWithOwner": "fork/repo"},
+            headRepositoryOwner={"login": "fork"},
+        )
+
+        self.assertFalse(result["mutation_policy"]["branch_write_allowed"])
+        self.assertTrue(result["skill_evidence_gap"])
+        self.assertNotIn("skill_evidence_gap", result["needs_worker_reasons"])
+
     def test_the_gap_raises_no_blocker(self) -> None:
         # Advisory: it routes a worker, it never holds the merge.
         result = self._classify(skillEvidence={"present": False})

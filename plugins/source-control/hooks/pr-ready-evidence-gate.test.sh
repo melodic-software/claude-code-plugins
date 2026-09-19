@@ -148,6 +148,12 @@ nudges "a flip reached through bash -c is still parsed" \
   "$(payload "bash -c 'gh pr ready 1'")" \
   "verification:confirm"
 
+# The cloud proxy's own route. A session with no GraphQL is told to POST this
+# path by name, so it is a flip and not a REST lookalike.
+nudges "the cloud proxy's ccr ready_for_review route is a ready flip" \
+  "$(payload 'gh api --method POST repos/acme/widgets/pulls/1/ccr/ready_for_review')" \
+  "verification:confirm"
+
 # --- MUST STAY QUIET ----------------------------------------------------------
 
 ledger "verification:confirm=$HEAD_SHA" "simplify=$HEAD_SHA"
@@ -167,10 +173,8 @@ quiet "a gh command that is not a ready flip says nothing" \
   "$(payload 'gh pr view 1')"
 quiet "an unrelated gh api endpoint says nothing" \
   "$(payload 'gh api -X POST repos/acme/widgets/pulls/1/comments')"
-# Flipping out of draft has no REST route, so a REST-shaped path that merely
-# reads like one is not a flip and must stay quiet.
-quiet "a REST-shaped ready_for_review path is not a flip" \
-  "$(payload 'gh api -X POST repos/acme/widgets/pulls/1/ready_for_review')"
+quiet "a pull request read over the same path prefix is not a flip" \
+  "$(payload 'gh api repos/acme/widgets/pulls/1')"
 quiet "a GraphQL call that is not the mutation says nothing" \
   "$(payload "gh api graphql -f query='query { viewer { login } }'")"
 quiet "a payload for another tool says nothing" \

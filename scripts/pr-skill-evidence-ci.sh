@@ -38,6 +38,13 @@
 # different head, so a rewrite that dropped the earlier marker would erase the
 # pair it exists to count.
 #
+# ONLY THIS STEP'S OWN COMMENT IS UPSERTED. The marker is plain text anyone can
+# write into a comment of their own, and the comment body is attacker-supplied
+# on a pull request from a fork. The comment this step rewrites is selected by
+# author as well as by marker: the Actions bot is the only writer of record, so
+# an outsider's marker-bearing comment is left alone and a fresh comment is
+# posted beside it. The promotion report filters on the same author.
+#
 # LABEL WRITES ARE STATE-DIFFED. `labeled` and `unlabeled` re-run `ci-status`,
 # so an unconditional add or remove would make this step re-trigger the job it
 # runs in. The label is written only when the PR is not already in the target
@@ -51,6 +58,9 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE="${SKILL_EVIDENCE_BIN:-$SELF_DIR/../plugins/source-control/scripts/skill-evidence.sh}"
 LABEL="needs-skill-evidence"
 MARKER_PREFIX="<!-- pr-skill-evidence"
+# The login every comment this step writes carries, because the workflow token
+# is the Actions bot's. Nothing else may be rewritten under this step's hand.
+BOT_LOGIN="github-actions[bot]"
 # The compare budget. A legitimate block carries one row per mandatory skill,
 # a single-digit number; a body is attacker-supplied text, so an unbounded
 # loop over its rows is an unbounded number of API calls.
@@ -283,11 +293,13 @@ act_on_verdict() {
 }
 
 # comment_id <repo> <number> — the id of this validator's comment, empty when
-# it has not written one yet.
+# it has not written one yet. Marker AND author: a comment carrying the marker
+# under anyone else's name is another account's text, and patching it would let
+# a pull request choose what this step appears to have said.
 comment_id() {
   local repo="$1" number="$2" ids
   ids=$(gh api --paginate "repos/$repo/issues/$number/comments?per_page=100" \
-    --jq ".[] | select((.body // \"\") | contains(\"$MARKER_PREFIX\")) | .id" 2>/dev/null) || ids=""
+    --jq ".[] | select((.user.login // \"\") == \"$BOT_LOGIN\") | select((.body // \"\") | contains(\"$MARKER_PREFIX\")) | .id" 2>/dev/null) || ids=""
   printf '%s\n' "$ids" | awk 'NF > 0 { print; exit }'
 }
 

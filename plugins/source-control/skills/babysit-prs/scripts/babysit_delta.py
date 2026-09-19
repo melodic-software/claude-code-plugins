@@ -975,6 +975,15 @@ def classify_pr(
         )
         and last_worker_checkin_head_sha != head_sha
     )
+    # Closing the gap means committing to the head branch and editing the body:
+    # a worker dispatched where `branch_write_allowed` is false cannot do
+    # either, so the dispatch would burn a cycle and return with the gap
+    # intact. The record below still reports the gap, which is the honest
+    # statement -- the evidence really is absent -- and the trust boundary
+    # decides only whether a worker is routed at it.
+    skill_evidence_gap_actionable = bool(
+        skill_evidence_gap and mutation_policy["branch_write_allowed"]
+    )
     # Computed here (rather than alongside `quiet_recheck_due` below) so
     # `dispatch_pending_unconfirmed` can consult it too.
     last_worker_checkin = parse_timestamp(prev.get("last_worker_checkin_at"))
@@ -1116,17 +1125,19 @@ def classify_pr(
     #   transition regardless of CI cleanliness ("Zero-blocker drafts are
     #   the exception: always route them through a worker"); the merge gate
     #   only re-validates mergeability, never completeness.
-    # - `skill_evidence_gap`: the mandatory skills have no fresh claim at this
-    #   head, and the merge gate can neither run them nor render the block --
-    #   only a worker running `/source-control:pull-request ready` can. A clean
-    #   zero-blocker PR is exactly the case that needs it, so suppressing it
-    #   there would leave the gap unrouted on every PR it matters for.
+    # - `skill_evidence_gap_actionable`: the mandatory skills have no fresh
+    #   claim at this head, and the merge gate can neither run them nor render
+    #   the block -- only a worker running `/source-control:pull-request ready`
+    #   can. A clean zero-blocker PR is exactly the case that needs it, so
+    #   suppressing it there would leave the gap unrouted on every PR it
+    #   matters for. Gated on `branch_write_allowed`, because the worker's fix
+    #   is a commit to the head branch and an edit to the body.
     unsuppressible_delta = bool(
         new_blocking_feedback
         or new_material_feedback
         or new_human_blocking_feedback
         or became_ready_for_review
-        or skill_evidence_gap
+        or skill_evidence_gap_actionable
     )
     worker_actionable_delta = bool(
         (suppressible_delta and not pr_clean_ready_for_direct_gate)
@@ -1221,7 +1232,7 @@ def classify_pr(
                 ("checks_changed", checks_changed, True),
                 ("merge_state_became_actionable", merge_state_became_actionable, True),
                 ("became_ready_for_review", became_ready_for_review, False),
-                ("skill_evidence_gap", skill_evidence_gap, False),
+                ("skill_evidence_gap", skill_evidence_gap_actionable, False),
                 # Not suppressible while a same-head dispatch remains unconfirmed
                 # from a prior cycle -- see `dispatch_pending_unconfirmed` above.
                 (
@@ -1301,7 +1312,9 @@ def classify_pr(
         },
         # Reported beside the reason so a cycle report can name the gap without
         # re-deriving it. Never a blocker: during the advisory window a gap
-        # routes a worker, it never holds a merge.
+        # routes a worker, it never holds a merge. The gap itself, not the
+        # routing decision: a PR whose head branch this session may not write
+        # still reports the gap it has, and simply earns no worker for it.
         "skill_evidence_gap": skill_evidence_gap,
         "updated_at": updated_at,
         "is_draft": bool(pr.get("isDraft")),
