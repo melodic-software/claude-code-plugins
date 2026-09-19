@@ -395,47 +395,6 @@ function cmd_position(p) {
   return 0
 }
 function forwarded(t) { return (t == "@FWD@" || t == "$@" || t == "$*") }
-function cmdsub_tail(s,   n, i, j, c, cc, d, top, stack) {
-  # Inside an UNTERMINATED `${` or `((`, a `<<` is literal data or a left
-  # shift -- EXCEPT inside a command substitution, which is its own parsing
-  # context and where a heredoc really can be opened. So this returns the tail
-  # after the LAST UNCLOSED `$(`, and "" when there is none.
-  #
-  # Keeping the WHOLE tail instead armed a skip bash never opens
-  # (`hint=${HINT:-<<EOF opens a heredoc body`), and that skip then CLOSED on
-  # the file's own later `EOF` terminator, swallowing the real call sites in
-  # between and leaving nothing outstanding at EOF. Silent, and the mirror of
-  # the loss that keeping the tail was meant to fix.
-  n = length(s)
-  top = 0
-  i = 1
-  while (i <= n) {
-    c = substr(s, i, 1)
-    if (c == "$" && substr(s, i + 1, 1) == "(") {
-      if (substr(s, i + 2, 1) == "(") {
-        # Arithmetic, not a command substitution: skip its whole span.
-        d = 0
-        j = i + 1
-        while (j <= n) {
-          cc = substr(s, j, 1)
-          if (cc == "(") d++
-          else if (cc == ")") { d--; if (d == 0) break }
-          j++
-        }
-        i = (j > n) ? n + 1 : j + 1
-        continue
-      }
-      top++
-      stack[top] = i + 2
-      i += 2
-      continue
-    }
-    if (c == ")" && top > 0) { top-- }
-    i++
-  }
-  if (top > 0) return substr(s, stack[top])
-  return ""
-}
 function strip_arith(s,   r, j, n, depth, c, head) {
   # Arithmetic removed, because `<<` inside it is the left-shift OPERATOR.
   # BOTH spellings: the `$(( ... ))` expansion and bash's bare `(( ... ))`
@@ -459,12 +418,8 @@ function strip_arith(s,   r, j, n, depth, c, head) {
       j++
     }
     head = substr(s, 1, r - 1)
-    # UNTERMINATED: keep only what a COMMAND SUBSTITUTION in the tail opened.
-    # Returning the bare head threw away a real opener; returning the whole
-    # tail armed on a left shift (`mask=$(( (1 << SHIFT) -`), and that skip
-    # closed on a later `SHIFT` line rather than running to EOF. Both are
-    # silent losses. See cmdsub_tail.
-    if (j > n) { c = cmdsub_tail(substr(s, r + 2)); return (c == "") ? head : head " " c }
+    # UNTERMINATED: undecidable ONLY if the tail carries a `<<`. See below.
+    if (j > n) { if (index(substr(s, r + 2), "<<") > 0) unreadable = 1; return head }
     s = head " " substr(s, j + 1)
   }
   return s
@@ -486,15 +441,8 @@ function strip_pexp(s,   r, j, n, depth, c, head) {
       j++
     }
     head = substr(s, 1, r - 1)
-    # UNTERMINATED: keep only what a COMMAND SUBSTITUTION in the tail opened.
-    # `x=${unset:-$(cat <<EOF` is valid bash and really does open a heredoc,
-    # so returning the bare head lost that opener silently. But the rest of an
-    # unterminated `${` is DATA -- `hint=${HINT:-<<EOF opens a heredoc body`
-    # prints that text -- so returning the whole tail armed a skip bash never
-    # opened, which then closed on the file's own later `EOF` and swallowed
-    # the call sites in between. Equally silent, in the other direction. Only
-    # the command-substitution part is shell. See cmdsub_tail.
-    if (j > n) { c = cmdsub_tail(substr(s, r + 2)); return (c == "") ? head : head " " c }
+    # UNTERMINATED: undecidable ONLY if the tail carries a `<<`. See below.
+    if (j > n) { if (index(substr(s, r + 2), "<<") > 0) unreadable = 1; return head }
     s = head " " substr(s, j + 1)
   }
   return s
@@ -503,6 +451,7 @@ function unquoted_value(t) { return (substr(t, 1, 3) == "@L@") ? substr(t, 4) : 
 BEGIN {
   hd = ""; hdtab = 0; hdline = 0
   candidates = 0; anchored = "^(" idre ")$"; pending = ""; startfnr = 0
+  unreadable = 0
 }
 {
   line = $0
@@ -642,6 +591,50 @@ BEGIN {
   # silent pass. The delimiter survives the walk as `@L@<word>` when it was
   # quoted (`<<'EOF'`), so both spellings still arm.
   s2 = strip_pexp(strip_arith(out))
+
+  # AN UNTERMINATED `${` OR `((` WHOSE TAIL CARRIES A `<<` IS EXIT 2, NOT A
+  # GUESS.
+  #
+  # Such a line continues onto the next, and this scanner is line-based, so it
+  # cannot tell which of the text after the opener is shell and which is data.
+  # Three revisions tried to decide it anyway and every one of them was wrong
+  # in a way that lost call sites SILENTLY:
+  #   - return the head: threw away a real opener inside a command
+  #     substitution (`x=${unset:-$(cat <<EOF`).
+  #   - return the whole tail: armed on data and on a left shift
+  #     (`hint=${HINT:-<<EOF ...`, `mask=$(( (1 << SHIFT) -`).
+  #   - return the tail after the last unclosed `$(`: popped that `$(` on any
+  #     `)` -- a subshell, a `case` label, a function definition -- and threw
+  #     the opener away again; also could not see a backtick substitution, and
+  #     composed wrongly when `strip_arith` handed its splice to `strip_pexp`.
+  # Each of those was a silent loss found by the round after the one that
+  # introduced it. The shape of the mistake never changed: guess, be wrong,
+  # and be wrong invisibly.
+  #
+  # So this stops guessing. The line is reported as an unresolved candidate,
+  # which puts the count-vs-resolved accounting into disagreement and answers
+  # exit 2, "cannot determine" -- the answer this gate's own contract already
+  # requires of an input it cannot read. The remedy is in the operator's hands
+  # and is cheap: keep the construct on one line, or take it out of a detector.
+  # A verdict withheld is recoverable; a silent pass is not.
+  #
+  # NARROWED TO TAILS CARRYING A `<<`, because that is the whole of what is
+  # undecidable here: with no `<<` there is no arming decision to get wrong.
+  # The distinction is not cosmetic. An unterminated span is ORDINARY in this
+  # repo -- 61 hits across 34 tracked files, every one a jq filter with an
+  # unbalanced `)` or a `${var%%...}` pattern, and NONE of them carrying a `<<`
+  # -- so refusing on all of them would have turned three real scripts inside
+  # the discovery glob un-gateable to buy nothing. Refusing on the `<<` subset
+  # costs nothing today and closes the class.
+  if (unreadable) {
+    unreadable = 0
+    candidates++
+    site = line
+    sub(/^[[:space:]]*/, "", site)
+    print "UNRESOLVED line " startfnr ": unterminated ${ or (( -- this line spans a continuation this scanner cannot read: " site
+    next
+  }
+
   while ((r = index(s2, "<<")) > 0) {
     tail = substr(s2, r + 2)
     if (substr(tail, 1, 1) == "<") { s2 = substr(s2, r + 3); continue }

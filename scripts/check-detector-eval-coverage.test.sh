@@ -621,61 +621,64 @@ p3b_case 'a bare arithmetic COMMAND left shift' '(( mask = 1 << bits ))'
 p3b_case 'a bare arithmetic command, literal shift' '(( mask = 1 << 3 ))'
 p3b_case 'a `<<` inside a parameter expansion' 'x=${v//y/<<EOF}'
 
-# An UNTERMINATED `${` or `((` must keep the rest of its line, because a real
-# heredoc opener can live in there: `x=${unset:-$(cat <<EOF` is valid bash.
-# Discarding the tail hid the opener, the body was read as code, a `cat <<HELP`
-# inside it armed, the uncovered emit was swallowed, and a later `HELP` closed
-# the skip so nothing was outstanding at EOF -- exit 0, silently wrong.
-unterminated_case() {
+# AN UNTERMINATED `${`/`((` WHOSE TAIL CARRIES A `<<` IS UNDECIDABLE, and must
+# answer exit 2 rather than guess. All four fixtures below are valid bash and
+# all four were SILENT LOSSES under one revision or another, in both
+# directions:
+#   - `x=${unset:-$(cat <<EOF` really does open a heredoc; the revision that
+#     returned the bare head threw that opener away.
+#   - `hint=${HINT:-<<EOF ...` and `mask=$(( (1 << SHIFT) -` do NOT; the
+#     revision that kept the whole tail armed on that data, and the junk skip
+#     then closed on the file's own later terminator.
+#   - the revision that tried to split the difference (keep the tail after the
+#     last unclosed `$(`) popped that `$(` on any `)` and lost the opener
+#     again, and could not see a backtick substitution at all.
+# Three attempts, three silent losses, each found by the round after the one
+# that shipped it. Refusing a verdict is the answer that cannot be wrong
+# invisibly, so these assert exit 2 and nothing finer.
+undecidable_case() {
   local label="$1"
   shift
   mk_tree
   mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
   mk_evals evals.json "$(evals_json 'exercises P1 classification')"
   run_gate "$(pair det.sh evals.json)" --check
-  if [[ $RC -ne 0 && "$ERR" == *"P4"* ]]; then
-    ok "P3b: $label keeps the nested heredoc opener"
+  if [[ $RC -eq 2 && "$ERR" == *"emit call site"* ]]; then
+    ok "P3b: $label withholds a verdict"
   else
-    fail "P3b $label discarded the opener: rc=$RC out='$OUT' err='$ERR'"
+    fail "P3b $label did not withhold: rc=$RC out='$OUT' err='$ERR'"
   fi
   rm -rf "$root"
 }
 
-unterminated_case 'an unterminated `${` carrying a heredoc opener' \
+# A real opener inside a command substitution.
+undecidable_case 'an unterminated `${` carrying a heredoc opener' \
   'x=${unset:-$(cat <<EOF' 'cat <<HELP' 'EOF' ')}' 'emit error P4 SRC "message"' 'HELP'
-unterminated_case 'an unterminated `((` carrying a heredoc opener' \
+undecidable_case 'an unterminated `((` carrying a heredoc opener' \
   'x=$(( a + $(cat <<EOF' 'cat <<HELP' 'EOF' ') ))' 'emit error P4 SRC "message"' 'HELP'
-
-# THE OTHER DIRECTION, which the two above do not cover and whose absence let a
-# regression through: a `<<` that is INSIDE the unterminated construct is DATA
-# (or a left shift), not an opener, and must arm nothing. Keeping the whole
-# tail armed a skip bash never opens, and it then CLOSED on the file's own
-# later terminator -- swallowing the sites between, with nothing outstanding at
-# EOF. That is a silent loss the unclosed-at-EOF rule cannot see, so each
-# fixture puts a real call site in the swallow window and requires it back.
-inside_data_case() {
-  local label="$1"
-  shift
-  mk_tree
-  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
-  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
-  run_gate "$(pair det.sh evals.json)" --check
-  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* ]]; then
-    ok "P3b: $label arms nothing"
-  else
-    fail "P3b $label armed on data: rc=$RC out='$OUT' err='$ERR'"
-  fi
-  rm -rf "$root"
-}
-
 # `hint=${HINT:-<<EOF ...}` prints the text `<<EOF ...`; bash opens no heredoc.
-inside_data_case 'a `<<` that is data inside an unterminated `${`' \
+undecidable_case 'a `<<` that is data inside an unterminated `${`' \
   'hint=${HINT:-<<EOF opens a heredoc body' '}' 'emit error P4 SRC "message"' \
   'cat <<EOF' 'usage text' 'EOF' 'emit warning P1 SRC "message"'
 # A line-wrapped arithmetic expansion: the `<<` is the left-shift operator.
-inside_data_case 'a left shift inside an unterminated `$((`' \
+undecidable_case 'a left shift inside an unterminated `$((`' \
   'mask=$(( (1 << SHIFT) -' '         1 ))' 'emit error P4 SRC "message"' \
   'cat <<SHIFT' 'usage text' 'SHIFT' 'emit warning P1 SRC "message"'
+# A `)` that is not a command-substitution closer, which defeated the
+# last-unclosed-`$(` attempt, and a backtick substitution, which it could not
+# see at all.
+undecidable_case 'an unterminated `${` whose tail holds a subshell `)`' \
+  'usage=${U:-$( (echo banner) && cat <<HELP' '  prog <<DATA' 'HELP' ')}' \
+  'emit error P4 SRC "message"' "cat <<'DATA'" 'fixture text' 'DATA'
+undecidable_case 'an unterminated `${` carrying a backtick substitution' \
+  'x=${UNSET:-`cat <<EOF' 'body' 'EOF' '`}' 'emit error P4 SRC "message"'
+
+# An unterminated span with NO `<<` in its tail is ORDINARY -- 61 such hits
+# across 34 tracked files, every one a jq filter or a `${var%%...}` pattern --
+# and must stay readable. Refusing on those would have made three real scripts
+# inside the discovery glob un-gateable for no benefit.
+p3b_case 'an unterminated `${` with no `<<` in its tail' 'x=${v:-$(printf "%s" "a"'
+p3b_case 'an unterminated `((` with no `<<` in its tail' 'v=$(( 1 + (2 * 3'
 p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
 p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
 p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'
