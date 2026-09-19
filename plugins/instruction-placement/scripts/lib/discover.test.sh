@@ -248,6 +248,29 @@ assert_lacks "the root CLAUDE.md is not a nested surface" "$out" "CLAUDE.md"
 assert_lacks "the root AGENTS.md is not a nested surface" "$out" "AGENTS.md"
 assert_has "a subdirectory instruction file is a nested surface" "$out" "sub/AGENTS.md"
 
+# Another tool's instruction files are that tool's. Discovery feeds the index
+# and the wiring gate alike, so a `.cursor/AGENTS.md` appearing here would both
+# advertise a Cursor file as a Claude on-demand surface and demand a Claude
+# shim beside it.
+tools="$(mktemp -d)"
+git -C "$tools" init -q .
+mkdir -p "$tools/.cursor/rules" "$tools/.codex" "$tools/.github/workflows" "$tools/src"
+printf '@AGENTS.md\n' >"$tools/CLAUDE.md"
+printf '# Root\n' >"$tools/AGENTS.md"
+printf '# Cursor\n' >"$tools/.cursor/AGENTS.md"
+printf '# Cursor rules\n' >"$tools/.cursor/rules/AGENTS.md"
+printf '# Codex\n' >"$tools/.codex/AGENTS.md"
+printf '# Actions\n' >"$tools/.github/AGENTS.md"
+printf '# Src\n' >"$tools/src/AGENTS.md"
+commit_all "$tools"
+
+out="$(ip_discover_nested_instructions "$tools")"
+assert_lacks "a .cursor tree is not a Claude surface" "$out" ".cursor/AGENTS.md"
+assert_lacks "and neither is a nested .cursor/rules tree" "$out" ".cursor/rules/AGENTS.md"
+assert_lacks "a .codex tree is not a Claude surface" "$out" ".codex/AGENTS.md"
+assert_lacks "a .github tree is not a Claude surface" "$out" ".github/AGENTS.md"
+assert_has "an ordinary subtree still is" "$out" "src/AGENTS.md"
+
 # ==========================================================================
 # BUG (d) — index target must actually be reachable by Claude Code
 # ==========================================================================

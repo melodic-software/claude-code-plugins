@@ -129,6 +129,20 @@ It drives one real `claude -p` turn with an `InstructionsLoaded` hook and prints
 probe could not measure, so rerun it once and escalate if it stays `UNKNOWN`. A canary counts only
 against a non-empty `AGENTS.md`; an empty file passes every canary and carries nothing.
 
+For a headless canary, put a token in the working-tree `AGENTS.md`, never in a commit, and ask for
+the instruction lines rather than for the tokens:
+
+```bash
+claude -p "Read the file <a file in that directory>. Then quote back, verbatim, every line of your
+  project instructions that contains the word CANARY. If there are none, say NONE." \
+  --model haiku --allowedTools Read
+```
+
+**Ask for the lines, and name a file that exists.** "List every canary token in your instructions"
+reads as an exfiltration request and gets refused, which proves nothing about the loader; and a
+Read of a missing file never fires the nested trigger the canary is testing. Remove the token and
+confirm `git status --porcelain` is clean before committing.
+
 Then run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is installed, on
 the finished root `AGENTS.md`: a root file that grew during the migration has moved the cost rather
 than removed it.

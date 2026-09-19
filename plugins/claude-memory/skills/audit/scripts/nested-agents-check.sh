@@ -59,8 +59,8 @@ Usage: nested-agents-check.sh [--count|--check|--help]
   --check    print the findings; exit 1 when there is at least one
   --help     this message
 
-Blocked = a CLAUDE.md or CLAUDE.local.md in its own directory or any directory
-above it, or the root .claude/CLAUDE.md; Claude Code reads those instead of the
+Blocked = a CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md in its own
+directory or any directory above it; Claude Code reads those instead of the
 AGENTS.md. Wired = one of them is the AGENTS.md (symlink) or imports it within
 four hops. A nested AGENTS.md nothing blocks is read directly and is not a
 finding. Root-level AGENTS.md and the .claude, .codex, .cursor, .github,
@@ -105,41 +105,48 @@ nested_agents() {
 }
 
 # Wired = some instruction entry point reaches the file. The sibling CLAUDE.md
-# or CLAUDE.local.md is the prescribed layout, and it is checked first. A
-# CLAUDE.md or CLAUDE.local.md in any ancestor directory, or the root's
-# .claude/CLAUDE.md, is also an entry point: the root ones load at launch and
-# an ancestor's loads when Claude reads under it, and an import from either
-# brings the nested AGENTS.md in with it. A file reached that way loads, so it
-# is not a finding, whatever layout it uses.
+# or CLAUDE.local.md is the prescribed layout, and it is checked first. Any of
+# the three names in any ancestor directory up to the root is also an entry
+# point: the root ones load at launch and an ancestor's loads when Claude reads
+# under it, and an import from either brings the nested AGENTS.md in with it. A
+# file reached that way loads, so it is not a finding, whatever layout it uses.
+#
+# All three names count at EVERY level, the root's `.claude/CLAUDE.md` included
+# but not alone: the memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or
+# CLAUDE.local.md in your working directory or any directory above it", and
+# fires the nested attach only where a subdirectory "has none of the three
+# CLAUDE.md files of its own" (code.claude.com/docs/en/memory, "When Claude
+# Code reads AGENTS.md"; fetched 2026-09-19; recheck when that list changes).
 is_wired() {
   local agents="$1" dir want entry
   dir="$(dirname "$agents")"
   want="$(il_realpath "$agents")"
   while :; do
-    for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
+    for entry in "$dir/CLAUDE.md" "$dir/.claude/CLAUDE.md" "$dir/CLAUDE.local.md"; do
       [[ -f "$entry" ]] || continue
       il_reaches "$entry" "$want" && return 0
     done
     [[ "$dir" == "." ]] && break
     dir="$(dirname "$dir")"
   done
-  [[ -f ".claude/CLAUDE.md" ]] && il_reaches ".claude/CLAUDE.md" "$want"
+  return 1
 }
 
-# Blocked = a CLAUDE.md, CLAUDE.local.md or root .claude/CLAUDE.md sits on the
-# file's own path, which is what stops Claude Code reading the AGENTS.md beside
-# it. Only a blocked file needs the import; an unblocked one is read directly
-# wherever AGENTS.md support is available. Nothing here can see a CLAUDE.md
-# above the repository root, so that case is the operator's to know.
+# Blocked = a CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md sits on the
+# file's own path, at any level, which is what stops Claude Code reading the
+# AGENTS.md beside it. Only a blocked file needs the import; an unblocked one
+# is read directly wherever AGENTS.md support is available. Nothing here can
+# see a CLAUDE.md above the repository root, so that case is the operator's to
+# know.
 is_blocked() {
   local agents="$1" dir
   dir="$(dirname "$agents")"
   while :; do
-    [[ -f "$dir/CLAUDE.md" || -f "$dir/CLAUDE.local.md" ]] && return 0
+    [[ -f "$dir/CLAUDE.md" || -f "$dir/.claude/CLAUDE.md" || -f "$dir/CLAUDE.local.md" ]] && return 0
     [[ "$dir" == "." ]] && break
     dir="$(dirname "$dir")"
   done
-  [[ -f ".claude/CLAUDE.md" ]]
+  return 1
 }
 
 findings=()

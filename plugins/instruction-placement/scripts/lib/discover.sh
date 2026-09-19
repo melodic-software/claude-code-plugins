@@ -189,12 +189,29 @@ ip_discover_rules() {
 }
 
 # ---------------------------------------------------------------------------
+# Excluded trees, one list for this whole plugin.
+#
+# Two corpus rules, not performance shortcuts. Vendored third-party
+# instructions (`vendor`, `node_modules`) must never be pulled into the
+# consuming repository's own surface. And `.cursor`, `.codex` and `.github`
+# hold ANOTHER TOOL's instruction files: listing one would advertise a Cursor
+# file as a Claude on-demand surface, and the wiring gate would go on to demand
+# a Claude shim beside it. `.claude` is the plugin's own configuration tree
+# rather than a nested convention, and `.git` is not content.
+#
+# Every consumer inside this plugin reads this one variable, so the rule cannot
+# drift between the index, the wiring gate and the migration plan.
+# `claude-memory`'s `nested-agents-check.sh` keeps its own copy of the same
+# list: a plugin never imports a file from a sibling plugin
+# (`docs/plugin-philosophy.md`, "Keep plugins horizontally decoupled").
+# ---------------------------------------------------------------------------
+IP_EXCLUDED_TREES=".claude .codex .cursor .github node_modules vendor .git"
+
+# ---------------------------------------------------------------------------
 # Nested instruction-file discovery
 #
-# Tracked-only, and excluding vendored trees. Both are corpus rules rather than
-# performance shortcuts: what is not tracked is not a shared convention, and
-# vendored third-party instructions must never be pulled into the consuming
-# repository's own always-loaded surface.
+# Tracked-only, and excluding the trees above. What is not tracked is not a
+# shared convention.
 #
 # Root-level files are excluded because they already load at session start;
 # this function answers "what loads on demand", which is what the index covers.
@@ -213,17 +230,15 @@ ip_discover_nested_instructions() {
       \( -name 'CLAUDE.md' -o -name 'AGENTS.md' \) 2>/dev/null | sed 's|^\./||')"
   fi
 
-  printf '%s\n' "$listing" | awk '
+  printf '%s\n' "$listing" | awk -v excluded="$IP_EXCLUDED_TREES" '
+    BEGIN { split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1 }
     $0 == "" { next }
     {
       n = split($0, seg, "/")
       if (n < 2) next                                   # root-level: loads at start
       base = seg[n]
       if (base != "CLAUDE.md" && base != "AGENTS.md") next
-      for (i = 1; i < n; i++) {
-        if (seg[i] == ".claude" || seg[i] == "node_modules" ||
-            seg[i] == "vendor" || seg[i] == ".git") next
-      }
+      for (i = 1; i < n; i++) if (seg[i] in skip) next
       print
     }
   ' | LC_ALL=C sort
@@ -233,9 +248,10 @@ ip_discover_nested_instructions() {
 # Import-chain reachability
 #
 # Writing the index into a root AGENTS.md is only useful if Claude Code loads
-# that file, and it loads CLAUDE.md — not AGENTS.md. A repository carrying both
-# with no import between them gets an index nothing ever reads, while every
-# other gate reports green. This function is what stops that.
+# that file, and a root CLAUDE.md is read INSTEAD of the AGENTS.md beside it. A
+# repository carrying both with no import between them gets an index nothing
+# ever reads, while every other gate reports green. This function is what stops
+# that.
 # ---------------------------------------------------------------------------
 
 # Emit the @import targets of one markdown file, resolved to absolute paths.

@@ -430,6 +430,57 @@ commit_all "$nativewiring"
 run wiring --root "$nativewiring" >/dev/null 2>&1
 assert_eq "NATIVE rows alone exit 0" "0" "$?"
 
+# Another tool's directories never reach either surface: not the wiring gate,
+# which would demand a Claude shim beside a Cursor file, and not the rendered
+# index, which would advertise one as a Claude on-demand surface.
+othertools="$(mktemp -d)"
+git -C "$othertools" init -q .
+mkdir -p "$othertools/.cursor/rules" "$othertools/.codex" "$othertools/.github" "$othertools/src"
+printf '@AGENTS.md\n' >"$othertools/CLAUDE.md"
+printf '# Root\n' >"$othertools/AGENTS.md"
+printf '# Cursor\n' >"$othertools/.cursor/AGENTS.md"
+printf '# Cursor rules\n' >"$othertools/.cursor/rules/AGENTS.md"
+printf '# Codex\n' >"$othertools/.codex/AGENTS.md"
+printf '# Actions\n' >"$othertools/.github/AGENTS.md"
+printf '# Src\n' >"$othertools/src/AGENTS.md"
+printf '@AGENTS.md\n' >"$othertools/src/CLAUDE.md"
+commit_all "$othertools"
+
+out="$(run wiring --root "$othertools")"
+assert_not_contains "wiring emits no row for a .cursor tree" "$out" ".cursor"
+assert_not_contains "wiring emits no row for a .codex tree" "$out" ".codex"
+assert_not_contains "wiring emits no row for a .github tree" "$out" ".github"
+assert_contains "wiring still reports an ordinary subtree" "$out" "WIRED	src/AGENTS.md"
+run wiring --root "$othertools" >/dev/null 2>&1
+assert_eq "another tool's unshimmed AGENTS.md does not fail the gate" "0" "$?"
+
+out="$(run render --root "$othertools")"
+assert_not_contains "the index does not list a .cursor file" "$out" '`.cursor'
+assert_not_contains "the index does not list a .codex file" "$out" '`.codex'
+assert_not_contains "the index does not list a .github file" "$out" '`.github'
+assert_contains "the index still lists an ordinary subtree" "$out" '`src/AGENTS.md`'
+
+# `.claude/CLAUDE.md` counts at every level, not only the repository root: the
+# memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in
+# your working directory or any directory above it".
+dotclaude="$(mktemp -d)"
+git -C "$dotclaude" init -q .
+mkdir -p "$dotclaude/svc/.claude"
+printf '# Root\n' >"$dotclaude/AGENTS.md"
+printf '# Service\n' >"$dotclaude/svc/AGENTS.md"
+printf '# Service Claude notes, no import\n' >"$dotclaude/svc/.claude/CLAUDE.md"
+commit_all "$dotclaude"
+
+out="$(run wiring --root "$dotclaude")"
+assert_contains "a nested .claude/CLAUDE.md blocks the AGENTS.md beside it" "$out" "UNWIRED	svc/AGENTS.md"
+run wiring --root "$dotclaude" >/dev/null 2>&1
+assert_eq "and that is a gate failure" "1" "$?"
+
+printf '@../AGENTS.md\n' >"$dotclaude/svc/.claude/CLAUDE.md"
+commit_all "$dotclaude"
+out="$(run wiring --root "$dotclaude")"
+assert_not_contains "a nested .claude/CLAUDE.md that imports it wires it" "$out" "UNWIRED"
+
 nonested="$(mktemp -d)"
 git -C "$nonested" init -q .
 printf '# Root only\n' >"$nonested/CLAUDE.md"

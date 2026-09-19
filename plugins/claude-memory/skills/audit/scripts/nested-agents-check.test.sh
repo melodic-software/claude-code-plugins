@@ -179,6 +179,27 @@ rc=0
 (cd "$NATIVE" && bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
 assert_eq "--check exits 0 when only unblocked files remain" 0 "$rc"
 
+# --- Case 8: a nested .claude/CLAUDE.md counts, not only the root's ---
+# The memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in
+# your working directory or any directory above it", so a subdirectory's own
+# .claude/CLAUDE.md displaces the AGENTS.md beside it exactly as a plain one does.
+
+DOTC="$TEST_TMPDIR/dotclaude"
+make_repo "$DOTC"
+mkdir -p "$DOTC/blocked/.claude" "$DOTC/wired/.claude" "$DOTC/free"
+printf 'root agents\n' >"$DOTC/AGENTS.md"
+printf 'blocked\n' >"$DOTC/blocked/AGENTS.md"
+printf '# Notes, no import\n' >"$DOTC/blocked/.claude/CLAUDE.md"
+printf 'wired\n' >"$DOTC/wired/AGENTS.md"
+printf '@../AGENTS.md\n' >"$DOTC/wired/.claude/CLAUDE.md"
+printf 'free\n' >"$DOTC/free/AGENTS.md"
+commit_all "$DOTC"
+
+OUT=$(cd "$DOTC" && bash "$SCRIPT")
+assert_contains "a nested .claude/CLAUDE.md with no import is a finding" "$OUT" "FAIL [N1]: blocked/AGENTS.md"
+assert_not_contains "a nested .claude/CLAUDE.md that imports it wires it" "$OUT" "wired/AGENTS.md"
+assert_not_contains "a directory with none of the three is not a finding" "$OUT" "free/AGENTS.md"
+
 # --- Case 6: a repo with no nested AGENTS.md at all ---
 
 NONE="$TEST_TMPDIR/none"

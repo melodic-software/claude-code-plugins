@@ -412,11 +412,18 @@ fi
 # One `WIRED|NATIVE|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested
 # AGENTS.md discovery returns. Wired means some instruction entry point IS the
 # file (a symlink) or reaches it through the import chase the rest of this
-# plugin uses: the CLAUDE.md or CLAUDE.local.md beside it (the prescribed
-# layout, checked first), one in any ancestor directory, or the root's
-# .claude/CLAUDE.md. An import from any of those brings the file into context,
-# so a file reached that way loads and is not a finding. Entry points are read
-# from the filesystem, so a gitignored CLAUDE.local.md shim counts.
+# plugin uses: the CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md beside it
+# (the prescribed layout, checked first), or one in any ancestor directory up
+# to the root. An import from any of those brings the file into context, so a
+# file reached that way loads and is not a finding. Entry points are read from
+# the filesystem, so a gitignored CLAUDE.local.md shim counts.
+#
+# All three names count at EVERY level, not only the root: the memory page
+# counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in your working
+# directory or any directory above it", and describes the nested attach as
+# firing only where a subdirectory "has none of the three CLAUDE.md files of
+# its own" (code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md";
+# fetched 2026-09-19; recheck when that list changes).
 #
 # NATIVE means no CLAUDE.md, CLAUDE.local.md or root .claude/CLAUDE.md sits on
 # the file's own path, so nothing in this repository stops Claude Code reading
@@ -434,23 +441,17 @@ nested_agents_wiring() {
     wired=""
     blocker=""
     while :; do
-      for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
+      for entry in "$dir/CLAUDE.md" "$dir/.claude/CLAUDE.md" "$dir/CLAUDE.local.md"; do
         [[ -f "$entry" ]] || continue
-        [[ -n "$blocker" ]] || blocker="$entry"
+        [[ -n "$blocker" ]] || blocker="${entry#./}"
         if _ip_reaches "$entry" "$want" 0; then
-          wired="$entry"
+          wired="${entry#./}"
           break 2
         fi
       done
       [[ "$dir" == "." ]] && break
       dir="$(dirname "$dir")"
     done
-    if [[ -z "$wired" && -f ".claude/CLAUDE.md" ]]; then
-      [[ -n "$blocker" ]] || blocker=".claude/CLAUDE.md"
-      if _ip_reaches ".claude/CLAUDE.md" "$want" 0; then
-        wired=".claude/CLAUDE.md"
-      fi
-    fi
     if [[ -n "$wired" ]]; then
       printf 'WIRED\t%s\t%s reaches it\n' "$nested" "$wired"
     elif [[ -z "$blocker" ]]; then

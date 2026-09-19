@@ -47,10 +47,10 @@
 #   both-with-content   both carry content; the split has to be decided
 #   zero-byte           every instruction file here is empty
 #
-# Discovery is tracked files only (git ls-files). The `.claude`, `.codex`,
-# `.cursor`, `.github`, `node_modules`, `vendor` and `.git` trees are skipped:
-# another tool's instruction files are that tool's, and must never be given a
-# Claude shim.
+# Discovery is tracked files only (git ls-files), minus the excluded trees this
+# plugin defines once as `IP_EXCLUDED_TREES` in `lib/discover.sh`: another
+# tool's instruction files are that tool's, and must never be given a Claude
+# shim.
 #
 # Usage:
 #   plan-migration.sh [--dry-run] [--root <dir>] [--home <dir>]
@@ -59,6 +59,13 @@
 # Exit: 0 the plan printed; 1 not a git repository; 2 usage error.
 
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The excluded-tree list is this plugin's, defined once in lib/discover.sh so
+# the plan, the index and the wiring gate cannot disagree about whose files a
+# directory holds.
+# shellcheck source=../../../scripts/lib/discover.sh
+source "$SCRIPT_DIR/../../../scripts/lib/discover.sh"
 
 CODEX_PROJECT_DOC_BUDGET=32768
 
@@ -119,15 +126,6 @@ git rev-parse --show-toplevel >/dev/null 2>&1 || {
   exit 1
 }
 
-# Excluded trees, as one awk condition and one grep alternation. Kept beside
-# each other so the two can never drift apart.
-skip_segment() {
-  case "$1" in
-  .claude | .codex | .cursor | .github | node_modules | vendor | .git) return 0 ;;
-  *) return 1 ;;
-  esac
-}
-
 file_bytes() {
   [[ -f "$1" ]] || {
     printf '0\n'
@@ -162,16 +160,13 @@ is_pure_shim() {
 # 140 ms a spawn, and a repository of a few thousand files turns a per-file
 # `basename` into minutes of wall clock.
 instruction_dirs() {
-  git ls-files -z 2>/dev/null | tr '\0' '\n' | awk '
+  git ls-files -z 2>/dev/null | tr '\0' '\n' | awk -v excluded="$IP_EXCLUDED_TREES" '
+    BEGIN { split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1 }
     $0 == "" { next }
     {
       n = split($0, seg, "/")
       if (seg[n] != "CLAUDE.md" && seg[n] != "AGENTS.md") next
-      for (i = 1; i < n; i++) {
-        if (seg[i] == ".claude" || seg[i] == ".codex" || seg[i] == ".cursor" ||
-            seg[i] == ".github" || seg[i] == "node_modules" ||
-            seg[i] == "vendor" || seg[i] == ".git") next
-      }
+      for (i = 1; i < n; i++) if (seg[i] in skip) next
       if (n == 1) { print "."; next }
       dir = seg[1]
       for (i = 2; i < n; i++) dir = dir "/" seg[i]
