@@ -3,6 +3,42 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Added
+
+- **`check` accepts one or more skills roots as positionals.** `check-skill.sh <root> [<root> ...]`
+  walks every immediate subdirectory holding a `SKILL.md` under each given root, runs the gate once
+  per skill under that root, prints a `=== <root> ===` header per root and ends with a
+  `N passed, M failed` rollup. The single-skill form is unchanged, including the bare-name call the
+  repo's own changed-skills gate makes: a slash-free positional that resolves to
+  `<resolved-root>/<arg>/SKILL.md` is still read as a skill name, so a same-named directory beside
+  the caller cannot hijack it. Every root is absolutized before it is walked or handed to a child,
+  which makes a relative root resolve against the caller's working directory and keeps a trailing
+  slash from defeating the `/plugins/<x>/skills` plugin-root detection, and a relative root is
+  resolved against the caller's working directory rather than through `CDPATH`. A path that does
+  not exist exits 2 naming it rather than silently omitting a whole subtree, whether or not another
+  root in the same call resolved, which is also what an unmatched `plugins/*/skills` glob reaching
+  the script hits. A directory holding its own `SKILL.md` is a skill directory, not a skills root,
+  and exits 2 pointing at its parent, because walking it would report no skills at exit 0 and leave
+  a CI lane written that way permanently green. A root that exists but genuinely holds no skills is
+  named and is not an error, matching `check-listing-budget.sh`. A skill name mixed with a root,
+  and more than one skill name in one call, both exit 2 instead of guessing or dropping the extra
+  positionals. When a child run hits an environment error the rollup keeps its exact
+  `N passed, M failed` wording and a separate stderr line says so before the exit 2, since such a
+  run is counted in neither tally. Each skill is gated with the DISPATCHED tree's git context
+  rather than the caller's: the git-backed checks (3, 8, 9, 13) each join a repository root with a
+  path inside it, and both derive from the working directory, so a run driven from one repository
+  against a root in another would otherwise report the caller's tracked paths against the
+  dispatched skill and give the same root opposite verdicts depending on where it was invoked. A
+  root outside any repository skips those checks with their usual named notes instead of borrowing
+  the caller's repository, `CHECK_SKILL_BASE_REF` is resolved against the dispatched repository so
+  a ref that exists only there is accepted and one absent there is an environment error, and check
+  6 discovers that tree's markdownlint config, which is what the skill body already told operators
+  to arrange by hand. Nothing is pooled across roots: the cross-skill scans stay per root, and one
+  resolved root remains the default, because widening the default would widen every existing
+  consumer's gate without anyone asking.
+
 ## [0.23.1]
 
 ### Changed
