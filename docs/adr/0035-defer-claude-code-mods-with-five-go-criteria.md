@@ -124,11 +124,16 @@ Probe behaviour, not help text.
   private global `CLAUDE.md`, plus the account email block, on the first prompt of the session and
   before the model was called (`OBSERVED`). Any review posture for a mod written elsewhere starts
   there.
-- Two probes are recorded as open rather than answered: no Team or Enterprise account was available
-  for a rollout-switch probe, so the rollout-switch question stays unanswered; and Claude Desktop is
-  not this repository's primary audience, so its probe is one manual step the maintainer runs by
-  hand. Revisit the first if such an account becomes available, the second if a consumer reports
-  using these plugins mainly through Claude Desktop.
+- One probe stays open and one is now partly answered. No Team or Enterprise account was available
+  for a rollout-switch probe, so the rollout-switch question stays unanswered; revisit it if such an
+  account becomes available. **Claude Desktop loads a user-authored mod.** 2026-09-19 on Windows 11,
+  Desktop build `app-2.2553.1` whose bundled Claude Code is 2.1.275: a probe plugin installed at user
+  scope, with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` supplied to the app process only, fired its
+  `session.start` hook in a local Code tab session (`OBSERVED`). That the flag is what enabled it is
+  `INFERRED` — the flag-unset arm was not run in Desktop. Still untested: that unset arm, cloud
+  sessions, Cowork, and mods that draw UI. Commands and the exact route:
+  [experiments.md](../upstream/claude-code-mods/experiments.md), under the Desktop probe. None of
+  this moves the verdict: Desktop loading is in no go criterion.
 
 ## Links
 

@@ -133,7 +133,7 @@ per-page fetch provenance differs between lanes.
 | <https://code.claude.com/docs/en/env-vars> | `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` is not listed. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://code.claude.com/docs/en/managed-settings> | Managed settings as documented; `prependPlugins` / `appendPlugins` are absent. | 2026-09-19 | `research-security-and-semantics.md` |
 | <https://code.claude.com/docs/en/server-managed-settings> | Which surfaces fetch server-managed settings, and that Cowork never does. | 2026-09-19 | `research-surfaces.md` |
-| <https://code.claude.com/docs/en/desktop> | Desktop Code tab runs "the same underlying engine with a graphical interface" and shares `~/.claude` config. | 2026-09-19 | `research-surfaces.md` |
+| <https://code.claude.com/docs/en/desktop> | Desktop Code tab runs "the same underlying engine with a graphical interface" and shares `~/.claude` config; on Windows the app inherits user and system environment variables, the route the Desktop probe used. | 2026-09-19 | `research-surfaces.md`, experiments.md |
 | <https://code.claude.com/docs/en/vs-code> | The VS Code extension bundles a private CLI copy. | 2026-09-19 | `research-surfaces.md` |
 | <https://code.claude.com/docs/en/jetbrains> | JetBrains runs `claude` in the integrated terminal, so it is a `terminal` surface. | 2026-09-19 | `research-surfaces.md` |
 | <https://code.claude.com/docs/en/claude-code-on-the-web> | Web and mobile Code clients onto cloud sessions; `/plugin` unavailable. | 2026-09-19 | `research-surfaces.md` |
