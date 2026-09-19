@@ -106,6 +106,19 @@ file-writes — create the three files with the editor or the Write tool instead
 Two standing mechanics: `--debug-file` **appends**, so use a fresh filename per run; and
 `go-no-go-probe` is the grep anchor, appearing in every engine line as `go-no-go-probe@inline`.
 
+### Fetch the upstream README
+
+Criteria 4 and 5 both grep `mods/README.md`. Fetch it once, here, so a top-to-bottom run has the file
+before criterion 4 reads it.
+
+```sh
+curl -sS -o "$P/out/mods-readme.md" -w 'http=%{http_code} bytes=%{size_download}\n' \
+  https://raw.githubusercontent.com/anthropics/claude-code/main/mods/README.md
+```
+
+Expected today: `http=200 bytes=6347`. Anything else and criteria 4 and 5 are both reading an error
+page or a moved file — settle it with the sha pin under criterion 5 before reading either count.
+
 ## The five criteria
 
 ### Criterion 1 — a test mod loads with the variable unset
@@ -205,6 +218,11 @@ curl -sS https://raw.githubusercontent.com/anthropics/claude-code/main/mods/type
 gh issue view 91870 -R anthropics/claude-code --json state,updatedAt,body | head -40  # roadmap
 ```
 
+Expected today: `5`, then `1`, then eight JSDoc lines (3209, 4180, 5245, 5260, 5395, 7264, 7267,
+9315), then `"state":"OPEN"`. **Not one of those counts is a pass.** The `5` is entirely Claude Apps
+Gateway spend-limit text, the `1` is a bare `catch`, and the JSDoc hits are the false positive the
+met-bar excludes by name. See Risks before reading any of them.
+
 State on 2026-09-19 is three things and must be recorded as three:
 
 - **Observed behaviour is fail-open, twice over.** A hook that throws with no `.catch` is skipped and
@@ -229,21 +247,24 @@ State on 2026-09-19 is three things and must be recorded as three:
 semantics **and** the engine's default on an uncaught throw is settled upstream — not when the
 generated `.d.ts` JSDoc mentions them, which it already does.
 
-Risk: a `.d.ts` hit is therefore a **false positive** for this criterion, as is a bare hit on the
-word `catch` in `mods/README.md`. Read the sentence, and check both halves of the bar.
+Risks: a `.d.ts` hit is a **false positive** for this criterion, as is a bare hit on the word
+`catch` in `mods/README.md`. So is the docs-site count: `fail-open` and `fails open` also match the
+Claude Apps Gateway spend-limit pages, which on 2026-09-19 is all 5 hits and none of them about
+hooks. Read every hit's surrounding sentence, never decide from the count, and check both halves of
+the bar.
 
 ### Criterion 5 — the early-access warning is gone from `mods/README.md`
 
+Reuses the `mods/README.md` fetched under ["Fetch the upstream README"](#fetch-the-upstream-readme).
+
 ```sh
-curl -sS -o "$P/out/mods-readme.md" -w 'http=%{http_code} bytes=%{size_download}\n' \
-  https://raw.githubusercontent.com/anthropics/claude-code/main/mods/README.md
 tr '\n' ' ' < "$P/out/mods-readme.md" | grep -c 'may change between releases without notice'
 tr '\n' ' ' < "$P/out/mods-readme.md" | grep -ci 'hooks module'
 ```
 
-Expected today: `http=200 bytes=6347`, then `1`, `1`. Both are `1` because `tr` collapses the file to
-one line; the second is the control, proving the fetched bytes are the mods README and not an error
-page. **Met when:** the sentence count is `0` while `http=200` and the control is `1`.
+Expected today: `1`, then `1`. Both are `1` because `tr` collapses the file to one line; the second
+is the control, proving the fetched bytes are the mods README and not an error page. **Met when:**
+the sentence count is `0` while that fetch returned `http=200` and the control is `1`.
 
 **The `tr` is not cosmetic.** In the recorded file the sentence wraps across two lines:
 
