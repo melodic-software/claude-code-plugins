@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.21]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.8.20]
 
 ### Changed

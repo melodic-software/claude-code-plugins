@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.30]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.23.29]
 
 ### Changed

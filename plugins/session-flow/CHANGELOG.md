@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.36.1]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.36.0]
 
 ### Added

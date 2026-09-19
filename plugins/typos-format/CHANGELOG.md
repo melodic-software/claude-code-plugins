@@ -3,6 +3,12 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.56]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.6.55]
 
 ### Changed

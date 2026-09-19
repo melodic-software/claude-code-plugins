@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.9]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.22.8]
 
 ### Fixed

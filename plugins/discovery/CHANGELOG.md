@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.19.19]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.19.18]
 
 ### Changed

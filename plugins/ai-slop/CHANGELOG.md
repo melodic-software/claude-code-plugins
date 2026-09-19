@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.3]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [0.6.2]
 
 ### Changed

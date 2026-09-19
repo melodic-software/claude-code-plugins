@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.29]
+
+### Changed
+
+- US-English spelling corrections required by the standards-sync typos locale.
+
 ## [1.4.28]
 
 ### Changed
