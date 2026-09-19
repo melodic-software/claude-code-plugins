@@ -58,6 +58,18 @@ A deviation carries four fields: plan said, found, chose, revisit.
   marker per evaluated head to the single upserted comment needed no parser change; that
   behaviour is not yet pinned by the Phase 2 suite (follow-up: one `report` case with two markers
   in one comment).
+- **deviation (Phase 9, supersedes the Phase 3 plan-confirmed entry above)**. Plan said: the
+  hook matches the cloud ready-for-review route if one exists. Found: the Phase 3 pre-flight
+  searched docs/ and plugins/ only; the cloud proxy's own GraphQL refusal names
+  `POST /repos/{owner}/{repo}/pulls/{n}/ccr/ready_for_review` (probed 2026-09-19 with
+  `gh api graphql`). Chose: restore the matcher for that `ccr/` route in the Bash gate and document
+  the route in the ready step beside the MCP call. Revisit: never; pinned by the gate's suite.
+- **discovery (Phase 9)**. The security review of #4210 found no critical or important finding
+  and five suggestions (author-filtered validator comments and report markers, a
+  `branch_write_allowed` guard on the babysit routing reason, `@file:` path containment, negation
+  patterns rejected with a warning); all five applied in the review-fix commit. The ai-slop audit
+  reported 47 pre-existing em dashes in ADR 0002, none added by this branch; the Phase 8 sanity
+  check is scoped to exclude that file rather than rewrite a historical record here.
 - **deviation (orchestration, second occurrence)**. The Phase 8 commit swept in two hook
   scripts the Phase 4 worker had staged for their exec bit. Chose: soft-reset the two commits
   before any PR existed and recommit with `git commit --only -- <paths>`, which ignores the rest
