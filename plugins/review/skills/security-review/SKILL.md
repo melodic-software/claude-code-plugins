@@ -5,7 +5,7 @@ disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]
 metadata:
   workflow-stage: review
-  summary: Org CI security-review command for claude-security-review.yml
+  summary: Org CI security-review lane command for a GitHub pull request
 ---
 
 # CI security review (`/review:security-review`)

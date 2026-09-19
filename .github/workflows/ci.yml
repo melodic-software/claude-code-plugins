@@ -492,8 +492,6 @@ jobs:
           builtin-schema: vendor.github-workflows
           files: >-
             .github/workflows/ci.yml
-            .github/workflows/claude-review.yml
-            .github/workflows/claude-security-review.yml
             .github/workflows/dependabot-miro-bundle.yml
             .github/workflows/silent-revert-canary.yml
             .github/workflows/test-windows.yml

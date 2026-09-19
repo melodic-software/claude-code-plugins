@@ -5,7 +5,7 @@ disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]
 metadata:
   workflow-stage: review
-  summary: Org CI code-review command for claude-review.yml
+  summary: Org CI code-review lane command for a GitHub pull request
 ---
 
 # CI code review (`/review:code-review`)
@@ -52,8 +52,10 @@ records behind these statements live in
   in the action's `claude_args` (`--allowedTools
   mcp__github_inline_comment__create_inline_comment`). Rely on the lane
   wrapper's grant; do not assume this frontmatter installed it.
-- Scope security findings **out** of this lane wherever the consumer carries a
-  `claude-security-review` workflow file. Leave those to `/review:security-review`.
+- Scope security findings **out** of this lane wherever the consumer runs a
+  separate security lane, and leave those to `/review:security-review`. Where no
+  security lane runs, report them here: a suppressed finding would have no other
+  reader.
 
 ## Skip gate (cheap)
 
@@ -70,9 +72,9 @@ post nothing else):
 This is the CODE-REVIEW lane. Review the pull request for correctness and
 alignment with the project's `CLAUDE.md` guidelines (and `REVIEW.md` criteria
 when present). Focus on architecture decisions, error handling, test coverage,
-and maintainability. Where `REVIEW.md` splits review scope across lanes. It
-scopes security review to the dedicated security lane wherever a
-`claude-security-review` workflow exists. Follow that split.
+and maintainability. Where `REVIEW.md` splits review scope across lanes, follow
+that split: it scopes security review to the dedicated security lane wherever
+one runs, and folds security findings back into this lane where none does.
 
 Scope the review to files changed in this PR. Use `gh pr diff` to identify what
 changed, then review those files. Do not explore unrelated parts of the

@@ -61,17 +61,12 @@ criterion; a citation here never substitutes prose that isn't needed, per
 
 ## Code-review lane scope
 
-This lane owns every review dimension except security: correctness,
-design, conventions, error handling, observability, tests, and
-documentation. On a repository whose CI runs the security lane (a
-`.github/workflows/claude-security-review.yml` workflow exists), it does
-**not** report security findings, such as vulnerabilities, authorization
-or tenancy gaps, credential exposure, or injection: every security
-finding belongs exclusively to that lane and is omitted here even when a
-hunk plainly contains one.
-On a repository without that workflow no security lane exists yet, and
-suppressed findings would have no other reader: report security findings
-under this lane too, applying the security-scope checks below.
+This lane owns every review dimension: correctness, design, conventions,
+error handling, observability, tests, and documentation. This repository
+runs no separate security lane, so a suppressed security finding would
+have no other reader: report security findings here too, such as
+vulnerabilities, authorization or tenancy gaps, credential exposure, or
+injection, applying the security-scope checks below.
 
 Always check:
 
