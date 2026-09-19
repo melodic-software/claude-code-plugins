@@ -39,6 +39,15 @@ A deviation carries four fields: plan said, found, chose, revisit.
   `<!-- pr-skill-evidence head=<sha> verdict=<v> -->` markers; an upserted comment that rewrites
   its marker loses the pair. Phase 5 appends one marker line per head inside the single
   upserted comment instead of replacing it.
+- **deviation (Phases 3 and 5)**. Plan said: edit `.github/pull_request_template.md` (block
+  guidance, label mention). Found: the file was deleted on main (#4177) so the repository inherits
+  the org template. Chose: the guidance goes into `.claude/rules/pr-body-contract.md`, the
+  agent-facing owner of the body contract, in Phase 5; the org template is a follow-up request
+  against melodic-software/.github, named in ADR 0035. Revisit: when the org template gains the
+  wording.
+- **plan-confirmed (Phase 3)**. No cloud proxy ready route exists in docs/ or
+  plugins/source-control; the cloud flip is the MCP `update_pull_request` call with `draft:false`,
+  so Phase 4 drops the `gh api .../ready_for_review` matcher its brief made conditional.
 - **deviation (orchestration)**. Plan said: one commit per phase. Found: the Phase 1 commit swept
   in the Phase 6 worker's staged deletions because `git commit` took the whole shared index. Chose:
   split the commit before any PR existed (soft reset, recommit Phase 1 from its own paths, commit
