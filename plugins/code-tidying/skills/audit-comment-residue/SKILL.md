@@ -1,5 +1,5 @@
 ---
-description: "Classify code comments for four residue shapes. History narration (\"used to… now…\"), plan/session references (\"Task 2 replaces the old…\", \"in this PR\"), conversational antecedents (\"per your request\", \"as you asked\"), and ticket/PR/branch back-references a future reader will never see. Emitting Tier 1 (remove) and Tier 2 (review) findings with treatment guidance; read-only, no edits applied. Use when: 'comment residue', 'audit code comments', 'find stale/narrative comments', 'strip conversational comments', or before committing agent-written code, not for removing ALL comments, restating-the-code redundancy (that is /code-tidying:tidy's Beck tidyings), or markdown noise (use /audit-noise)."
+description: "Classify code comments for five residue shapes. History narration (\"used to… now…\"), plan/session references (\"Task 2 replaces the old…\", \"in this PR\"), conversational antecedents (\"per your request\", \"as you asked\"), ticket/PR/branch back-references a future reader will never see, and origin notes naming where a block came from or when it was added (\"ported from X\", \"Merged <date> from Y\"). Emitting Tier 1 (remove) and Tier 2 (review) findings with treatment guidance; read-only, no edits applied. Use when: 'comment residue', 'audit code comments', 'find stale/narrative comments', 'strip conversational comments', 'origin note', or before committing agent-written code, not for removing ALL comments, restating-the-code redundancy (that is /code-tidying:tidy's Beck tidyings), or markdown noise (use /audit-noise)."
 argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -33,10 +33,11 @@ Residue findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null |
 
 Code comments accumulate RESIDUE. Text that only makes sense outside the code's present state:
 narration of what the code used to be, references to the plan/session/changeset that produced it,
-asides addressed to the requester, and back-references to a ticket, PR, or branch no future reader
-will ever open. Version control owns history; the comment describes the present. A comment that only
-makes sense inside the chat thread that produced it is dead. This skill is a read-only classifier: it
-surfaces candidates with treatment guidance.
+asides addressed to the requester, back-references to a ticket, PR, or branch no future reader will
+ever open, and origin notes naming where a block came from or when it was added. Version control
+owns history; the comment describes the present. A comment that only makes sense inside the chat
+thread that produced it is dead. This skill is a read-only classifier: it surfaces candidates with
+treatment guidance.
 
 It detects residue on the COMMENT portion of a line only, so a residue-shaped word sitting in an
 identifier or string literal is never flagged. The positive question, *does this comment capture
@@ -49,7 +50,8 @@ something the code cannot (a non-obvious why, a constraint, an interface/design-
 | `history-narration` | The comment narrates the code's past: "used to…", "no longer…", "previously", "renamed from X", "we switched from…", "now returns…" | 1 | Delete. Version control owns history. Keep only if the *reason* for the change is a load-bearing constraint, rewritten as present-tense rationale ("must stay ordered because…") |
 | `plan-reference` | References a work plan, session, or changeset rather than the code: `"Task 2 replaces the old…"`, `"as planned"`, `"in this PR/commit/refactor"` | 1 | Delete, the plan is not part of the code's meaning. Fold any surviving intent into a present-tense why-comment |
 | `conversational-antecedent` | Addresses the requester or the producing conversation: `"per your request"`, `"as you asked"`, `"like you said"`, `"per our discussion"` | 1 | Delete, the conversation is invisible to every future reader |
-| `ticket-pr-residue` | Back-reference to a tracker/PR/branch a reader can't follow: `"see PR #45"`, `"from the feature branch"`, `"JIRA-123"` | 2 | Review. Delete a bare provenance reference; a `TODO(#issue)` tracking real outstanding work is the sanctioned exception and is NOT flagged |
+| `ticket-pr-residue` | Back-reference to a tracker/PR/branch a reader can't follow: `"see PR #45"`, `"from the feature branch"`, `"JIRA-123"` | 2 | Review. Delete a bare back-reference; a `TODO(#issue)` tracking real outstanding work is the sanctioned exception and is NOT flagged |
+| `origin-note` | The comment names where the block came from or when it was added: `"ported from the dotfiles profile"`, `"Merged 2026-07-24 from dot_bashrc"`, `"Added 2026-08-10 while wiring telemetry"` | 1 | Delete. Git history owns origin. Boundaries: a dated freshness stamp (`"verified 2026-09-03 against v2.1.259"`, and the same with `checked`, `confirmed` or `as of`) is not this shape and stays, a bare date matches nothing, and the verb-from cue has to open the comment or a clause inside it, so `"bytes copied from the source buffer"` is not a finding (the dated cue takes every anchor but the parenthesis). Two comments DO fire and are the author's call: a license or attribution header that itself OPENS with an origin verb, and a `TODO` that carries one, since the sanctioned-`TODO` exemption covers `ticket-pr-residue` only. Mark either `comment-residue-ignore` |
 
 Consumers with their own comment conventions can refine these defaults in their repo's `CLAUDE.md` /
 rules; the classifier's shapes and tiers above are the skill's built-in baseline.
@@ -90,7 +92,8 @@ Per target file:
 |------|-------|------|---------|-----------|
 | 1    | history-narration | 42 | "// used to buffer; now flushes" | Delete — version control owns history |
 | 1    | conversational-antecedent | 12 | "# as you asked, retry three times" | Delete — invisible to future readers |
-| 2    | ticket-pr-residue | 88 | "// see PR #45 for rationale" | Review — delete bare provenance; keep TODO(#issue) |
+| 1    | origin-note | 5 | "# ported from the dotfiles profile" | Delete. Git history owns origin |
+| 2    | ticket-pr-residue | 88 | "// see PR #45 for rationale" | Review. Delete a bare back-reference; keep TODO(#issue) |
 ```
 
 Batch aggregate at end:
@@ -99,7 +102,7 @@ Batch aggregate at end:
 Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2 findings.
 ```
 
-`shape` values: `history-narration`, `plan-reference`, `conversational-antecedent`, `ticket-pr-residue`.
+`shape` values: `history-narration`, `plan-reference`, `conversational-antecedent`, `ticket-pr-residue`, `origin-note`.
 
 ## What this skill is NOT
 
