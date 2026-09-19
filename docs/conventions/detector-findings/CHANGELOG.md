@@ -4,6 +4,17 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.1.1] - 2026-09-19
+
+**Patch, docs-only.** The `claude-config:audit-instructions` row described its Case 9b evidence as
+applying *each* `Action` at its own `Location`. The test applies one of the two, the
+coercive-emphasis remedy, by hand, and its `frontmatter is untouched` assertion reads the same
+unmodified fixture twice and so cannot fail. The row now says which remedy is pinned to an outcome
+and which is pinned at the wording level only. The **2 of 2 ratio is unchanged** and was never at
+issue: it rests on Case 9's four positive and two negative `Action` assertions, which were verified
+against the test and hold. No producer-owned field's rule, coexistence obligation, or enforceability
+verdict moves.
+
 ## [3.1.0] - 2026-09-13
 
 **Minor under this contract's own rule.** An existing producer's rule set gains two rows; no

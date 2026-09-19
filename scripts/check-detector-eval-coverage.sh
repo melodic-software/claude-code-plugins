@@ -128,6 +128,21 @@
 # site (which the greedy sed counted, yielding a permanent false failure), and a
 # `#` comment after real code is dropped once quoting is resolved.
 #
+# A HEREDOC OPENING IS READ OFF THE QUOTE-RESOLVED LINE, and that ordering is
+# the whole of it. The first revision resolved quoting for the CALL SITES but
+# looked for the heredoc OPENING on the raw line, one step earlier, so a `<<`
+# that was never a redirection operator -- inside a string, inside `$(( x << n
+# ))`, inside a trailing comment -- armed a body whose delimiter no later line
+# could close. The skip then ran to EOF and every call site below that line left
+# the extraction AND the candidate count together, so the count-vs-resolved
+# accounting below, which exists precisely to turn a partial loss into exit 2,
+# had nothing left to disagree about. One ordinary line of shell turned real
+# UNCOVERED findings into exit 0 with no advisory. Found by a defeat attempt
+# against the merged gate rather than by a failing run: the registered detector
+# spells both its heredocs `<<'EOF'` and was never affected. The regression
+# guards are the P3b block of the self-test, and six of the seven fail against
+# the revision before this one.
+#
 # ORDINARY SHELL IS NOT A PARTIAL LOSS. The first version of that scanner was
 # too literal and too loose at once, and exit 2 means "cannot determine", so
 # every shape it misread failed CLOSED on a detector that was perfectly well
@@ -172,6 +187,13 @@
 #     written that way, and the remedy is a registry-row conversation, not a
 #     silent pass. A quoted literal carrying a space or an expansion
 #     (`emit "$sev" P4`) is the same answer.
+#   - MISSED (narrowed but not closed): a heredoc whose delimiter is not a bare
+#     word after the walk -- `<<"E O F"`, or one carrying an expansion -- arms
+#     nothing, so its BODY is read as code. That direction is the safe one: an
+#     `emit` in prose either resolves to an id, which over-counts and demands
+#     coverage, or does not, which is exit 2. Neither is a silent pass, and the
+#     opposite choice (arm on a delimiter that cannot be matched) is exactly the
+#     EOF-swallowing defect above.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
 # that each severity-crosswalk row in docs/conventions/detector-findings/ argues
@@ -299,6 +321,28 @@ function cmd_position(p) {
   return 0
 }
 function forwarded(t) { return (t == "@FWD@" || t == "$@" || t == "$*") }
+function strip_arith(s,   r, j, n, depth, c, head) {
+  # `$(( ... ))` removed, because `<<` inside it is the left-shift OPERATOR.
+  # Only `$((` is stripped: a `<<` inside a COMMAND substitution (`$(cat
+  # <<EOF)`) really does open a body. An unterminated span drops its tail,
+  # which is the safe direction here: an unreadable arithmetic expression arms
+  # nothing rather than arming on its operator.
+  while ((r = index(s, "$((")) > 0) {
+    n = length(s)
+    depth = 0
+    j = r + 1
+    while (j <= n) {
+      c = substr(s, j, 1)
+      if (c == "(") depth++
+      else if (c == ")") { depth--; if (depth == 0) break }
+      j++
+    }
+    head = substr(s, 1, r - 1)
+    if (j > n) return head
+    s = head " " substr(s, j + 1)
+  }
+  return s
+}
 function unquoted_value(t) { return (substr(t, 1, 3) == "@L@") ? substr(t, 4) : t }
 BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startfnr = 0 }
 {
@@ -330,22 +374,6 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
   line = pending line
   pending = ""
   if (startfnr == 0) startfnr = FNR
-
-  # A heredoc OPENING on this line arms the skip for the lines after it. `<<<`
-  # is a here-string and opens no body.
-  s2 = line
-  while ((r = index(s2, "<<")) > 0) {
-    tail = substr(s2, r + 2)
-    if (substr(tail, 1, 1) == "<") { s2 = substr(s2, r + 3); continue }
-    if (substr(tail, 1, 1) == "-") tail = substr(tail, 2)
-    sub(/^[[:space:]]*/, "", tail)
-    if (match(tail, /^("[A-Za-z_][A-Za-z0-9_]*"|'[A-Za-z_][A-Za-z0-9_]*'|\\?[A-Za-z_][A-Za-z0-9_]*)/)) {
-      d = substr(tail, RSTART, RLENGTH)
-      gsub(/["'\\]/, "", d)
-      hd = d
-    }
-    break
-  }
 
   # Each quoted run collapses to ONE token, which preserves every call site's
   # ARITY (so `emit "$sev" P4` stays three words and is seen as unresolved)
@@ -387,6 +415,30 @@ BEGIN { hd = ""; candidates = 0; anchored = "^(" idre ")$"; pending = ""; startf
     }
   }
   if (q != "") out = out "@Q@"
+
+  # A heredoc OPENING on this line arms the skip for the lines after it. `<<<`
+  # is a here-string and opens no body.
+  #
+  # Read off the QUOTE-RESOLVED line, and with arithmetic removed, because a
+  # `<<` is a redirection operator in neither of those places. Scanning the raw
+  # line armed a body on `v=$((x << n))` and on any `<<` inside a string, and
+  # since no line after it can close a delimiter that was never a delimiter, the
+  # arm ran to EOF: every later call site vanished from the extraction AND from
+  # the candidate count together, so the count-vs-resolved accounting that
+  # exists to turn a partial loss into exit 2 saw nothing to compare. One
+  # ordinary line of shell could therefore turn real UNCOVERED findings into a
+  # silent pass. The delimiter survives the walk as `@L@<word>` when it was
+  # quoted (`<<'EOF'`), so both spellings still arm.
+  s2 = strip_arith(out)
+  while ((r = index(s2, "<<")) > 0) {
+    tail = substr(s2, r + 2)
+    if (substr(tail, 1, 1) == "<") { s2 = substr(s2, r + 3); continue }
+    if (substr(tail, 1, 1) == "-") tail = substr(tail, 2)
+    sub(/^[[:space:]]*/, "", tail)
+    if (substr(tail, 1, 3) == "@L@") tail = substr(tail, 4)
+    if (match(tail, /^[A-Za-z_][A-Za-z0-9_]*/)) hd = substr(tail, RSTART, RLENGTH)
+    break
+  }
 
   # A definition (`emit() {`) is not a call. Separators become an explicit
   # @SEP@ so that two call sites on one line are two sites, not one, AND so

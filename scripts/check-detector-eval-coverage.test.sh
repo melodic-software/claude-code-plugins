@@ -42,6 +42,7 @@
 # adcbb777; the two beside it are preservation guards that keep the wider
 # extraction from being bought with a false positive or a lowered threshold, and
 # pass on both sides.
+# shellcheck disable=SC2016  # fixture bodies are literal detector source in single quotes; expansion would destroy the shape under test
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -580,6 +581,71 @@ else
   fail "P3 trailing comment counted: rc=$RC out='$OUT' err='$ERR'"
 fi
 rm -rf "$root"
+
+# ===== P3b: a `<<` that is not a heredoc operator arms no heredoc body =====
+# The defect this section is the regression guard for, found by a defeat attempt
+# against the merged gate. The opening scan read the RAW line, so a `<<` inside
+# a quoted string or an arithmetic left shift armed a body whose delimiter no
+# later line could close, and the skip ran to EOF. Every call site below the
+# line disappeared from the extraction AND from the candidate count at once, so
+# the accounting that turns a partial loss into exit 2 had nothing to compare
+# and the gate passed clean on a detector with uncovered ids. One line of
+# ordinary shell, no advisory, exit 0.
+#
+# Each case puts the shape between a COVERED id and an UNCOVERED one: exit 1
+# naming P4 proves the sites below the shape were still read.
+
+p3b_case() {
+  local label="$1" shape="$2"
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$shape" 'emit error P4 SRC "message"'
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* ]]; then
+    ok "P3b: $label arms no heredoc"
+  else
+    fail "P3b $label swallowed the rest of the file: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+p3b_case 'an arithmetic left shift by a variable' 'v=$((x << n))'
+p3b_case 'an arithmetic left shift by a literal' 'v=$((x << 3))'
+p3b_case 'a nested arithmetic left shift' 'v=$(( (x + 1) << n ))'
+p3b_case 'a `<<` inside a double-quoted argument' 'emit error P1 SRC "redact <<secret>> now"'
+p3b_case 'a `<<` inside double-quoted prose' 'echo "a << b"'
+p3b_case 'a `<<` inside single-quoted prose' "echo 'a << b'"
+p3b_case 'a `<<` inside a trailing comment' 'emit error P1 SRC "m"  # see <<EOF'
+
+# The other direction: a REAL heredoc must still arm, in every delimiter
+# spelling, or the fix above trades a false pass for a false failure. The
+# quoted-delimiter form is already covered by the P3 case above; these are the
+# spellings the rewritten delimiter matcher had to keep reading.
+p3b_arms() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 0 && "$ERR" != *"P9"* && -z "$ERR" ]]; then
+    ok "P3b: $label still arms the body skip"
+  else
+    fail "P3b $label stopped arming: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+p3b_arms 'an unquoted delimiter' 'usage() { cat <<USAGE' 'emit error P9 SRC "someday"' 'USAGE' '}'
+p3b_arms 'a tab-stripped `<<-` delimiter' 'usage() { cat <<-USAGE' 'emit error P9 SRC "someday"' \
+  '	USAGE' '}'
+p3b_arms 'a double-quoted delimiter' 'usage() { cat <<"USAGE"' 'emit error P9 SRC "someday"' \
+  'USAGE' '}'
+p3b_arms 'a redirected heredoc (`>&2 <<EOF`)' 'usage() { cat >&2 <<USAGE' \
+  'emit error P9 SRC "someday"' 'USAGE' '}'
+
+# A here-string opens no body, so the sites after it must survive.
+p3b_case 'a here-string (`<<<`)' 'grep x <<<"$v"'
 
 # ====== N2: ordinary shell is not a partial extraction loss (exit 2) ======
 # Reproduced against c7f71c36: each shape below made a well-formed detector
