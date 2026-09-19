@@ -55,10 +55,18 @@ them.
   extraction. Settled by: the shipped `evals/evals.json` suite, where every positive case fires the
   skill, every negative control (audit phrasing, "create a skill", human-README writing) does
   not. This criterion was drafted naming `claude plugin eval`; the skill shipped in #3003 with
-  this marketplace's own eval format, which `MIGRATION-PLAYBOOK.md` "Evals" explains is
+  this marketplace's own eval format, which `migration-playbook.md` "Evals" explains is
   `skill-creator`'s and not that command's, and which nothing executes, so the suite is a
   written specification checked by `check-evals-quality.sh`, exercised by hand per that
   section's recipe, rather than a pass/fail gate on the implementation PR.
+
+  > **Adoption note, 2026-09-12.** The criterion now has a runner: `claude plugin eval` shipped in
+  > Claude Code 2.1.269 on 2026-09-11 and this marketplace adopted it, so a trigger-family claim of
+  > this shape can be settled by a case suite run with the plugin and again against a no-plugin
+  > baseline. The adoption record is the "Adoption record" paragraph under
+  > [migration-playbook.md § "Evals: warrant policy and consumer-verify recipe"](../migration-playbook.md#evals-warrant-policy-and-consumer-verify-recipe);
+  > it keeps the two formats separate, so the suite shipped for this criterion stays as it shipped
+  > and stays statically checked. The criterion above is left as recorded.
 - [ ] Scope statement grounded in the verified auto-read enumeration (research artifact in the
   topic memory slice, adapted into the skill's reference table). Settled by: the reference file
   citing the enumeration's surfaces.

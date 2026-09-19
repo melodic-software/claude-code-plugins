@@ -121,29 +121,28 @@ fi
 
 # --- Roots -------------------------------------------------------------------
 
-if [[ -n "${HOOK_COVERAGE_FIXTURE_DIR:-}" ]]; then
-  PROJECT_ROOT="$HOOK_COVERAGE_FIXTURE_DIR"
-else
-  # Consumer project root: the cwd's git toplevel, then Claude Code's exported
-  # project dir, then cwd. Never the plugin's own install directory.
-  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-  [[ -n "$PROJECT_ROOT" ]] || PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
-fi
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
-if [[ -n "${HOOK_COVERAGE_USER_DIR:-}" ]]; then
-  USER_DIR="$HOOK_COVERAGE_USER_DIR"
-elif [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
-  USER_DIR="$CLAUDE_CONFIG_DIR"
-elif [[ -n "${HOME:-}" ]]; then
-  USER_DIR="$HOME/.claude"
-else
-  USER_DIR=""
+# The project-root, user-dir and registry ladders are shared vocabulary
+# (lib/resolve-scopes.sh), not this script's to restate. Fail loudly rather than
+# fall through: an unsourced library leaves every root empty and the inventory
+# would report "no settings scope" on a machine that has them.
+RESOLVE_SCOPES_LIB="$PLUGIN_ROOT/lib/resolve-scopes.sh"
+if [[ ! -r "$RESOLVE_SCOPES_LIB" ]]; then
+  echo "ERROR: cannot read $RESOLVE_SCOPES_LIB; the plugin's shared scope-resolution library is missing" >&2
+  exit 2
 fi
+# shellcheck source=../../../lib/resolve-scopes.sh
+# shellcheck disable=SC1091
+source "$RESOLVE_SCOPES_LIB"
 
-INSTALLED_JSON="${HOOK_COVERAGE_INSTALLED_JSON:-}"
-if [[ -z "$INSTALLED_JSON" && -n "$USER_DIR" ]]; then
-  INSTALLED_JSON="$USER_DIR/plugins/installed_plugins.json"
-fi
+# Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
+PROJECT_ROOT=""
+scopes::project_root_to PROJECT_ROOT "${HOOK_COVERAGE_FIXTURE_DIR:-}"
+USER_DIR=""
+scopes::user_dir_to USER_DIR "${HOOK_COVERAGE_USER_DIR:-}"
+INSTALLED_JSON=""
+scopes::installed_registry_to INSTALLED_JSON "${HOOK_COVERAGE_INSTALLED_JSON:-}" "$USER_DIR"
 
 SCOPES=()
 SCOPE_LABELS=()
@@ -172,7 +171,6 @@ add_scope "$PROJECT_ROOT/.claude/settings.json" "project"
 add_scope "$PROJECT_ROOT/.claude/settings.local.json" "local"
 [[ -n "$USER_DIR" ]] && add_scope "$USER_DIR/settings.json" "user"
 
-PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
 MANAGED_NOTE=""
 if [[ -r "$MANAGED_SCOPE_LIB" ]]; then

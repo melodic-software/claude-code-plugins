@@ -65,6 +65,17 @@ assert_present() {
   fi
 }
 
+# assert_absent_in <label> <file> <extended-regex>
+# The label states the absence, so it is the same text either way.
+assert_absent_in() {
+  local label="$1" file="$2" pattern="$3"
+  if grep -qE -- "$pattern" "$PLUGIN_ROOT/$file"; then
+    fail "$label"
+  else
+    pass "$label"
+  fi
+}
+
 printf '# discovery contract test\n\n'
 
 # ---------------------------------------------------------------------------
@@ -253,13 +264,12 @@ done
 # made that worse: the agent could echo it without seeing the skill at all.
 # Provenance is the structured `preload:` field.
 # ---------------------------------------------------------------------------
-if grep -qE 'discovery-research-preload-4c1f9a' "$PLUGIN_ROOT/agents/researcher.md"; then
-  fail 'agents/researcher.md does not embed the discipline-liveness token'
-else
-  pass 'agents/researcher.md does not embed the discipline-liveness token'
-fi
+assert_absent_in 'agents/researcher.md does not embed the discipline-liveness token' \
+  'agents/researcher.md' 'discovery-research-preload-4c1f9a'
 assert_present 'researcher payload contract carries preload: fired|fallback' \
   'agents/researcher.md' 'preload: fired'
+assert_present 'researcher early-emission checklist sets preload: beside the token' \
+  'agents/researcher.md' '`preload_token` echoed, `preload:` set'
 assert_present 'research SKILL.md demotes the token to file-identity' \
   'skills/research/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
 assert_present 'research SKILL.md requires the structured preload field' \
@@ -268,13 +278,32 @@ assert_present 'research dispatch contract forbids inferring fired from the toke
   'skills/research/context/dispatch.md' 'MUST NOT infer'
 assert_present 'research evals grade matching-token-is-not-preload-proof' \
   'skills/research/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
-if grep -qE 'discovery-trace-intent-preload-7b3e2d' "$PLUGIN_ROOT/agents/intent-tracer.md"; then
-  fail 'agents/intent-tracer.md does not embed the discipline-liveness token'
-else
-  pass 'agents/intent-tracer.md does not embed the discipline-liveness token'
-fi
+assert_absent_in 'agents/explorer.md does not embed the preload token' \
+  'agents/explorer.md' 'discovery-explore-preload-8e2b7d'
+assert_present 'explorer reads the skill body from disk when preload did not deliver it' \
+  'agents/explorer.md' 'skills/explore/SKILL\.md'
+assert_present 'explorer payload contract carries preload: fired|fallback' \
+  'agents/explorer.md' 'preload: fired'
+assert_present 'explorer early-emission checklist sets preload: beside the token' \
+  'agents/explorer.md' '`preload_token` echoed, `preload:` set'
+assert_present 'explorer never reports a token it Read from disk as fired' \
+  'agents/explorer.md' 'Never treat a token you found by'
+assert_present 'explore SKILL.md demotes the token to file-identity' \
+  'skills/explore/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
+assert_present 'explore SKILL.md requires the structured preload field' \
+  'skills/explore/SKILL.md' 'preload: fired \| fallback'
+assert_present 'explore SKILL.md gate treats a missing preload field as out-of-date' \
+  'skills/explore/SKILL.md' 'A missing or unrecognized `preload:` field is an out-of-date agent definition'
+assert_present 'explore dispatch contract forbids inferring fired from the token' \
+  'skills/explore/reference/dispatch.md' 'MUST NOT infer'
+assert_present 'explore evals grade matching-token-is-not-preload-proof' \
+  'skills/explore/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
+assert_absent_in 'agents/intent-tracer.md does not embed the discipline-liveness token' \
+  'agents/intent-tracer.md' 'discovery-trace-intent-preload-7b3e2d'
 assert_present 'intent-tracer payload contract carries preload: fired|fallback' \
   'agents/intent-tracer.md' 'preload: fired'
+assert_present 'intent-tracer early-emission checklist sets preload: beside the token' \
+  'agents/intent-tracer.md' '`preload_token` echoed, `preload:` set'
 assert_present 'trace-intent SKILL.md demotes the token to file-identity' \
   'skills/trace-intent/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
 assert_present 'trace-intent SKILL.md requires the structured preload field' \

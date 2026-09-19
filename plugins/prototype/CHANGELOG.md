@@ -3,6 +3,30 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.5]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.11.4]
+
+### Changed
+
+- Route the ecosystem-detector smoke invocations in the root and wrapper suites through shared run helpers (behavior unchanged).
+
+## [0.11.3]
+
+### Changed
+
+- The `allowed-tools` pairing gate's header and fail message no longer give "never substituted there, inert grant" as their reason. `${CLAUDE_PLUGIN_ROOT}` does substitute in a plugin skill's `allowed-tools`, with a v2.1.0 floor. The gate is unchanged and still requires the skill-local path, because the docs establish substitution rather than runtime matching on every host.
+
+## [0.11.2]
+
+### Changed
+
+- **`explore-directions`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.11.1]
 
 ### Changed

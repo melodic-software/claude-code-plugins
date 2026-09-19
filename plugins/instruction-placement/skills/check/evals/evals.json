@@ -19,11 +19,11 @@
       "id": 2,
       "name": "missing-index-is-a-recommendation-not-a-failure",
       "prompt": "/instruction-placement:check — we have rules but we've never generated an index.",
-      "expected_output": "Treats the absent index as a recommendation rather than a gate failure: the index checker's exit 3 means 'nothing to compare', not 'broken'. It explains what the index buys — deferred surfaces are invisible inside subagents, and an always-loaded index is what makes them reachable by an ordinary Read — and names the skill that generates it. The gate's verdict is decided by the glob checks alone, so a repository with valid rules and no index yet passes while still being told what it is missing. A repository that HAS an index and let it drift is a different case and does fail.",
+      "expected_output": "Treats the absent index as a recommendation rather than a gate failure: the index checker's exit 3 means 'nothing to compare', not 'broken'. It explains what the index buys — a deferred surface never announces that it exists, so nothing tells an agent about it until a read happens to match its glob, and an always-loaded index is what names every one of them so an ordinary Read can fetch it first — and names the skill that generates it. The gate's verdict is decided by the glob checks alone, so a repository with valid rules and no index yet passes while still being told what it is missing. A repository that HAS an index and let it drift is a different case and does fail.",
       "files": [],
       "expectations": [
         "Does not fail the gate solely because no index block exists",
-        "Explains the subagent reachability the index provides",
+        "Explains the discoverability the index provides, since no deferred surface announces itself",
         "Distinguishes the missing-index case from the drifted-index case",
         "Names which file it resolved as the index target"
       ]

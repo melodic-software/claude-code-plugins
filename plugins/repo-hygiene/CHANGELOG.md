@@ -3,6 +3,36 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.45]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.10.44]
+
+### Changed
+
+- The repo-hygiene clean scripts share worktree-branch listing and loss counting through clean-common.sh, hoist the merged and open PR regexes into constants, select the manifest child through one helper in both batch loops, and fold the tree-reset success and failure tails behind one flag, with identical output and exit codes.
+
+## [0.10.43]
+
+### Changed
+
+- Count the preserve classes through one helper in remove-path, merge the single-caller token resolver in resolve-clean-action and route the remove-path suite through shared runners (behavior unchanged).
+
+## [0.10.42]
+
+### Changed
+
+- The `allowed-tools` pairing gate's header and fail message no longer give "never substituted there, inert grant" as their reason. `${CLAUDE_PLUGIN_ROOT}` does substitute in a plugin skill's `allowed-tools`, with a v2.1.0 floor. The gate and its two-form split are unchanged and still require the skill-local path, because the docs establish substitution rather than runtime matching on every host.
+
+## [0.10.41]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.10.40]
 
 ### Changed

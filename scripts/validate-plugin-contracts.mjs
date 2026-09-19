@@ -51,7 +51,7 @@ function loadOrgAgnosticismTokens() {
 }
 
 function orgAgnosticismRegex(pats) {
-  if (!pats || pats.length === 0) return null;
+  if (pats.length === 0) return null;
   return new RegExp(pats.join("|"), "i");
 }
 
@@ -94,11 +94,16 @@ function filesIn(directory) {
   return pluginFiles.filter((path) => path.startsWith(directory + sep));
 }
 
+// A plugin file's path segments below plugins/: [0] is the plugin directory.
+function pluginPathParts(path) {
+  return relative(pluginRoot, path).split(sep);
+}
+
 const setupSkills = pluginFiles.filter((path) =>
   /[\\/]skills[\\/]setup[\\/]SKILL\.md$/.test(path),
 );
 
-// PLUGIN-PHILOSOPHY's check-only carve-out is a consequence of a plugin's
+// plugin-philosophy's check-only carve-out is a consequence of a plugin's
 // surface, not a claim it may assert: "A plugin with even one writable owned
 // artifact takes the narrow-write shape instead." Tracked consumer config is
 // the writable artifact class this repo already registers, in the Implementers
@@ -184,7 +189,7 @@ for (const path of setupSkills) {
   if (!/^disable-model-invocation:\s*true\s*$/m.test(frontmatter)) {
     fail(path, "setup skills must set disable-model-invocation: true");
   }
-  // Uniform contract shape (PLUGIN-PHILOSOPHY "Setup is explicit and repeatable"):
+  // Uniform contract shape (plugin-philosophy "Setup is explicit and repeatable"):
   // check is the default read-only action; apply exists unless the skill declares the
   // check-only carve-out the doctrine sanctions. The registry check below is the
   // writable-artifact exclusion (tracked consumer config). Native userConfig is
@@ -216,7 +221,7 @@ for (const path of setupSkills) {
     );
   }
   if (!offersApply) {
-    const plugin = relative(pluginRoot, path).split(sep)[0];
+    const plugin = pluginPathParts(path)[0];
     if (!/check-only/i.test(body)) {
       fail(path, "a setup skill offering no apply must declare the check-only carve-out it relies on");
     }
@@ -289,12 +294,12 @@ for (const plugin of ["discovery", "planning", "implementation"]) {
   }
 }
 
-const canonicalLifecycleProtocol = join(root, "docs", "PLUGIN-ARTIFACT-PROTOCOL.md");
+const canonicalLifecycleProtocol = join(root, "docs", "plugin-artifact-protocol.md");
 const canonicalLifecycleContent = existsSync(canonicalLifecycleProtocol)
   ? read(canonicalLifecycleProtocol)
   : null;
 if (canonicalLifecycleContent === null) {
-  failures.push("docs/PLUGIN-ARTIFACT-PROTOCOL.md: shared lifecycle protocol is required");
+  failures.push("docs/plugin-artifact-protocol.md: shared lifecycle protocol is required");
 }
 
 const lifecycleProtocolCopies = [
@@ -313,7 +318,7 @@ for (const path of lifecycleProtocolCopies) {
     continue;
   }
   if (canonicalLifecycleContent !== null && read(path) !== canonicalLifecycleContent) {
-    fail(path, "must remain byte-identical to docs/PLUGIN-ARTIFACT-PROTOCOL.md");
+    fail(path, "must remain byte-identical to docs/plugin-artifact-protocol.md");
   }
 }
 
@@ -475,7 +480,7 @@ for (const path of pluginFiles) {
 // and the `sha256` digest that pins the bytes is documented as optional. Unpinned,
 // the same URL can serve different content on every install with nothing to detect
 // it, which is the mutable-remote-artifact surface the plugin-acceptance security
-// review (docs/MIGRATION-PLAYBOOK.md, criterion 6) denies by default. The pin is
+// review (docs/migration-playbook.md, criterion 6) denies by default. The pin is
 // required here so review never has to catch it by eye.
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
 if (existsSync(marketplacePath)) {
@@ -526,7 +531,7 @@ if (existsSync(marketplacePath)) {
 
 // ---------------------------------------------------------------------------
 // Retired conventions: plugins/<plugin>/retirements.yaml
-// (docs/MIGRATION-PLAYBOOK.md § Retired conventions; owner doc
+// (docs/migration-playbook.md § Retired conventions; owner doc
 // docs/conventions/retired-conventions/README.md).
 //
 // A manifest is the append-only record of consumer-facing artifacts a plugin
@@ -595,7 +600,6 @@ function parseRetirementsManifest(text) {
   const records = [];
   const errors = [];
   let current = null;
-  let currentLine = 0;
   const flush = () => {
     if (current && Object.keys(current.fields).length > 0) records.push(current);
     current = null;
@@ -609,7 +613,6 @@ function parseRetirementsManifest(text) {
     if (/^\s*$/.test(raw) || /^\s*#/.test(raw)) return;
     if (!current) {
       current = { line: lineNo, fields: {} };
-      currentLine = lineNo;
     }
     if (/^\s/.test(raw)) {
       errors.push(`line ${lineNo}: indented lines are not allowed (flat key: value records only)`);
@@ -644,7 +647,7 @@ function parseRetirementsManifest(text) {
       value = value.slice(1, -1);
     }
     if (Object.hasOwn(current.fields, key)) {
-      errors.push(`line ${lineNo}: duplicate key "${key}" in the record starting at line ${currentLine}`);
+      errors.push(`line ${lineNo}: duplicate key "${key}" in the record starting at line ${current.line}`);
       return;
     }
     current.fields[key] = value;
@@ -721,9 +724,12 @@ function badRepoRelativePath(value) {
   );
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function textCoversRetirementId(text, id) {
-  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|[^A-Za-z0-9-])${escaped}(?:[^A-Za-z0-9-]|$)`).test(text);
+  return new RegExp(`(?:^|[^A-Za-z0-9-])${escapeRegExp(id)}(?:[^A-Za-z0-9-]|$)`).test(text);
 }
 
 // Validates one manifest's records; returns the ids it found so the
@@ -731,7 +737,7 @@ function textCoversRetirementId(text, id) {
 function validateRetirementRecords(manifestPath, plugin, records) {
   const ids = [];
   const seen = new Set();
-  const idPattern = new RegExp(`^${plugin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-r\\d{3,}$`);
+  const idPattern = new RegExp(`^${escapeRegExp(plugin)}-r\\d{3,}$`);
   records.forEach((record, index) => {
     const { fields } = record;
     const label = `record ${fields.id ? `"${fields.id}"` : `#${index + 1} (line ${record.line})`}`;
@@ -856,7 +862,7 @@ if (retirementsBaseRef === null) {
 }
 
 const retirementManifests = pluginFiles.filter((path) => {
-  const parts = relative(pluginRoot, path).split(sep);
+  const parts = pluginPathParts(path);
   return parts.length === 2 && parts[1] === RETIREMENTS_FILE;
 });
 const canonicalHelperContent = existsSync(canonicalRetirementsHelper)
@@ -871,7 +877,7 @@ if (retirementManifests.length > 0 && canonicalHelperContent === null) {
 
 const pluginsWithRetirements = new Set();
 for (const manifestPath of retirementManifests) {
-  const plugin = relative(pluginRoot, manifestPath).split(sep)[0];
+  const plugin = pluginPathParts(manifestPath)[0];
   pluginsWithRetirements.add(plugin);
   const { records, errors } = parseRetirementsManifest(read(manifestPath));
   for (const error of errors) fail(manifestPath, error);
@@ -963,7 +969,7 @@ if (retirementsAtBase !== null) {
 // manifest behind it is dead surface. claude-config is the canonical home of
 // the helper, so its copy and its setup reference stand without a manifest.
 for (const path of pluginFiles) {
-  const parts = relative(pluginRoot, path).split(sep);
+  const parts = pluginPathParts(path);
   const plugin = parts[0];
   if (plugin === "claude-config" || pluginsWithRetirements.has(plugin)) continue;
   const rest = parts.slice(1).join("/");

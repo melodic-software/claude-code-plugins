@@ -48,14 +48,12 @@ missing, and they are the ones that move a write from description into a body. W
 Do not describe one scene. Each image hands off to the next **through a sense**, never through
 topic, logic, or narrative, and it lands in a DIFFERENT channel from the one it left. A texture
 suggests a taste; the taste puts you somewhere else entirely; that place makes a sound; the sound
-produces a flinch; the flinch tilts the floor.
+produces a flinch; the flinch tilts the floor. A handoff phrased as "and also there was…" is
+topical and is the failure; a handoff where the sense channel changes is the mechanism running.
 
 Six pivots in and you should be nowhere near where you started. **Loyalty to the seed is a
 failure mode, not a virtue.** The seed is a diving board. If you are still describing it at the end
 of the write, the exercise did not happen.
-
-Before you finish, check your own handoffs. A handoff phrased as "and also there was…" is topical
-and is the failure. A handoff where the sense channel changes is the mechanism running.
 
 ## Specificity, calibrated
 

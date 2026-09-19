@@ -23,36 +23,8 @@ MERGE_SCRIPT="$SCRIPT_DIR/permission-merge.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-count_matching() { printf '%s\n' "$1" | grep -cE "$2"; }
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 diff_only() { printf '%s\n' "$1" | bash "$SCRIPT" --diff-only; }
 
@@ -221,7 +193,12 @@ OUT=$(printf '%s\n' "$PASS_IN" | bash "$SCRIPT")
 assert_contains "input records pass through by default" "$OUT" "NOTE: something the operator must know"
 assert_contains "the diff section follows" "$OUT" "entry-diff kept scopes=user Bash(git status)"
 OUT=$(diff_only "$PASS_IN")
-assert_not_contains "--diff-only drops the input records" "$OUT" "NOTE: something the operator"
+assert_not_contains "--diff-only drops the per-rule input records" "$OUT" "effective allow scopes=user"
+# --diff-only withholds the rule inventory, never the readability record. A NOTE
+# or CAVEAT is how the input says a scope could not be read, and suppressing it
+# leaves an all-zero summary as the only thing on screen — a clean-looking report
+# for a machine nothing was read from.
+assert_contains "--diff-only keeps the NOTE records" "$OUT" "NOTE: something the operator"
 
 # --- Case 4: no records is an error, never an empty diff ----------------------
 rc=0
@@ -289,18 +266,10 @@ assert_contains "an empty capture is unavailable, not an empty drop set" "$OUT" 
 assert_not_contains "no verdicts from a dead capture" "$OUT" "oracle AGREES"
 rm -f "$TEST_TMPDIR/claude-invocations.txt"
 
-# claude missing entirely: the notice still precedes the (refused) spawn.
-# Wrappers exec the real binaries by absolute path (a copied MSYS binary loses
-# the msys-2.0.dll beside it); bash is invoked by absolute path so the stub
-# PATH cannot hide the interpreter itself.
+# claude missing entirely: the notice still precedes the (refused) spawn. bash
+# is invoked by absolute path so the stub PATH cannot hide the interpreter.
 NOCLAUDE="$TEST_TMPDIR/noclaude"
-mkdir -p "$NOCLAUDE"
-real_bash="$(command -v bash)"
-for tool in cat grep sed sort mktemp rm tr; do
-  src="$(command -v "$tool" 2>/dev/null)" || continue
-  printf '#!%s\nexec "%s" "$@"\n' "$real_bash" "$src" >"$NOCLAUDE/$tool"
-  chmod +x "$NOCLAUDE/$tool"
-done
+make_stub_path "$NOCLAUDE" cat grep sed sort mktemp rm tr
 OUT=$(printf '%s\n' "$ORACLE_INPUT" | PATH="$NOCLAUDE" "$real_bash" "$SCRIPT" --diff-only --oracle 2>&1)
 assert_contains "notice before any spawn attempt" "$OUT" "ORACLE COST NOTICE"
 assert_contains "a missing claude degrades to unavailable" "$OUT" "'claude' is not on PATH"
@@ -435,9 +404,34 @@ else
   pass "end-to-end conf record flow (skipped — jq not installed)"
 fi
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+# --- The diff states its precondition and its reversibility -------------------
+# Auto mode is the starting mode in one of the seven documented run shapes, so a
+# headless or Agent SDK session gets a diff for a transition it never makes
+# unless the precondition is stated. And the docs say dropped rules are restored
+# on leaving auto mode, which "dropped" alone does not convey.
+BASE_IN=$(
+  cat <<'EOF'
+user settings present <userhome>/.claude/settings.json
+effective allow scopes=user precedence_basis=uncontested Bash(*)
+EOF
+)
+OUT_BASE=$(printf '%s\n' "$BASE_IN" | bash "$SCRIPT" --diff-only)
+assert_contains "the diff names the transition it describes" "$OUT_BASE" "applies only to a session that ENTERS auto mode"
+assert_contains "and names a run shape that never makes it" "$OUT_BASE" "claude -p"
+assert_contains "the diff says both classes are restored on leaving" "$OUT_BASE" "RESTORED"
+assert_contains "the broad rule is still classified" "$OUT_BASE" "entry-diff dropped class=blanket"
+
+# An unread scope contributes no allow rules, so an all-zero diff has two very
+# different meanings. status= separates them.
+assert_contains "a fully-read diff reports status=read" "$OUT_BASE" "status=read"
+UNREAD_DIFF=$(
+  cat <<'EOF'
+managed file unreadable <managed>/managed-settings.json
+user settings present <userhome>/.claude/settings.json
+EOF
+)
+OUT_UNREAD_DIFF=$(printf '%s\n' "$UNREAD_DIFF" | bash "$SCRIPT" --diff-only)
+assert_contains "an unread scope makes the diff incomplete" "$OUT_UNREAD_DIFF" "status=incomplete"
+assert_contains "and says which scope was not classified" "$OUT_UNREAD_DIFF" "managed scope(s) could not be read"
+
+report_and_exit

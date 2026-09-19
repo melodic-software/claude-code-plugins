@@ -13,10 +13,13 @@ directories and Pester mocks.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-CisaKevCache.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CisaKevCache.ps1' -MockHelpers
+
+    # The one-vulnerability KEV document the fetch mock and every cache seed share.
+    function ConvertTo-KevCacheJson {
+        param([Parameter(Mandatory)] [string] $CveId)
+        @{ vulnerabilities = @(@{ cveID = $CveId }) } | ConvertTo-Json
+    }
 
     function Set-KevFetchMock {
         # Mocks Invoke-WebRequest to write a one-vulnerability KEV payload to
@@ -24,7 +27,7 @@ BeforeAll {
         # payload rides in a script-scope variable because a GetNewClosure
         # body would hide the $OutFile parameter Pester injects at call time.
         param([Parameter(Mandatory)] [string] $CveId)
-        $script:KevFetchPayload = @{ vulnerabilities = @(@{ cveID = $CveId }) } | ConvertTo-Json
+        $script:KevFetchPayload = ConvertTo-KevCacheJson -CveId $CveId
         Mock Invoke-WebRequest {
             Set-Content -LiteralPath $OutFile -Value $script:KevFetchPayload -Encoding utf8
         } -ParameterFilter { $OutFile -like '*.download' }
@@ -75,8 +78,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
         }
 
         It 'fetches when the cache is older than MaxAgeDays' {
-            $fresh = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0003' }) } | ConvertTo-Json
-            Set-Content -LiteralPath $script:cachePath -Value $fresh -Encoding utf8
+            Set-Content -LiteralPath $script:cachePath -Value (ConvertTo-KevCacheJson -CveId 'CVE-2024-0003') -Encoding utf8
             (Get-Item -LiteralPath $script:cachePath).LastWriteTime = (Get-Date).AddDays(-10)
 
             Set-KevFetchMock -CveId 'CVE-2024-0099'
@@ -87,8 +89,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
         }
 
         It 'skips fetch when cache is fresh with content' {
-            $fresh = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0004' }) } | ConvertTo-Json
-            Set-Content -LiteralPath $script:cachePath -Value $fresh -Encoding utf8
+            Set-Content -LiteralPath $script:cachePath -Value (ConvertTo-KevCacheJson -CveId 'CVE-2024-0004') -Encoding utf8
 
             Mock Invoke-WebRequest { }
 
@@ -98,8 +99,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
         }
 
         It 'fetches when -ForceRefresh is passed regardless of cache state' {
-            $fresh = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-0005' }) } | ConvertTo-Json
-            Set-Content -LiteralPath $script:cachePath -Value $fresh -Encoding utf8
+            Set-Content -LiteralPath $script:cachePath -Value (ConvertTo-KevCacheJson -CveId 'CVE-2024-0005') -Encoding utf8
 
             Set-KevFetchMock -CveId 'CVE-2024-9999'
 
@@ -111,8 +111,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
 
     Context 'fetch failure handling' {
         It 'returns the prior cache when fetch throws, without clobbering' {
-            $prior = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-PRIOR' }) } | ConvertTo-Json
-            Set-Content -LiteralPath $script:cachePath -Value $prior -Encoding utf8
+            Set-Content -LiteralPath $script:cachePath -Value (ConvertTo-KevCacheJson -CveId 'CVE-2024-PRIOR') -Encoding utf8
             (Get-Item -LiteralPath $script:cachePath).LastWriteTime = (Get-Date).AddDays(-10)
 
             Mock Invoke-WebRequest { throw 'network down' }
@@ -146,8 +145,7 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
         }
 
         It 'does not overwrite a good cache when the download is unparsable' {
-            $prior = @{ vulnerabilities = @(@{ cveID = 'CVE-2024-KEEP' }) } | ConvertTo-Json
-            Set-Content -LiteralPath $script:cachePath -Value $prior -Encoding utf8
+            Set-Content -LiteralPath $script:cachePath -Value (ConvertTo-KevCacheJson -CveId 'CVE-2024-KEEP') -Encoding utf8
 
             Mock Invoke-WebRequest {
                 Set-Content -LiteralPath $OutFile -Value '{broken json' -Encoding utf8

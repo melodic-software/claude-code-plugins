@@ -618,6 +618,17 @@ function collapse_subs(q, m,   i, c, r, out, len, kinds, nc, inbt, prev, top) {
 #     rejects. A wrongly rejected guard is an over-flag with the same
 #     escape.
 function is_wordbreak(mc) { return index(" \t;&|()<>" NL BT, mc) > 0 }
+# skip_redirection <mask> <at> <limit>: the offset just past the redirection
+# starting at <at>, meaning its operator (leading fd digits and a bash `&>`
+# included) and the target word, blanks between them allowed. A redirection is
+# not an argv word, so both sides of the guard drop it whole rather than
+# reading the target as an operand or as an end-of-options marker.
+function skip_redirection(m, at, limit) {
+  while (at <= limit && substr(m, at, 1) ~ /[<>&]/) at++
+  while (at <= limit && substr(m, at, 1) ~ /[ \t]/) at++
+  while (at <= limit && !is_wordbreak(substr(m, at, 1))) at++
+  return at
+}
 function word_start(m, pos,   i) {
   for (i = pos; i > 1; i--)
     if (is_wordbreak(substr(m, i - 1, 1))) return i
@@ -690,10 +701,7 @@ function dashdash_between(view, m, from, to,   i, c, w, tainted, depth) {
     if (c == "<" || c == ">" || (c == "&" && substr(m, i + 1, 1) == ">")) {
       w = ""
       tainted = 0
-      while (i <= to && substr(m, i, 1) ~ /[<>&]/) i++
-      while (i <= to && substr(m, i, 1) ~ /[ \t]/) i++
-      while (i <= to && !is_wordbreak(substr(m, i, 1))) i++
-      i--
+      i = skip_redirection(m, i, to) - 1
       continue
     }
     if (c == ";" || c == "&" || c == "|" || c == NL) return 0
@@ -790,9 +798,7 @@ function fallback_proven(q, m, opos, os, oe,   i, c, w, uw, phase, j, wantarg) {
     c = substr(m, i, 1)
     if (c == "<" || c == ">" || (c == "&" && substr(m, i + 1, 1) == ">")) {
       w = ""
-      while (i < os && substr(m, i, 1) ~ /[<>&]/) i++
-      while (i < os && substr(m, i, 1) ~ /[ \t]/) i++
-      while (i < os && !is_wordbreak(substr(m, i, 1))) i++
+      i = skip_redirection(m, i, os - 1)
       continue
     }
     if (is_wordbreak(c)) {
@@ -1436,7 +1442,7 @@ function next_hit(kind, view, q, p, m, from) {
 # stepping past any the annotation on that line covers. Returns 1 if
 # anything was printed, so the second view is only consulted when the first
 # found nothing (one report per pattern per record, as before).
-function report_hit(line, lineno, p, annotated_above, off, view, q, m, kind,   k) {
+function report_hit(line, lineno, p, annotated_above, off, view, q, m, kind,   k, t) {
   # A backslash continuation removes the newline, so its physical lines are
   # one line in the strongest sense: the record is reported whole, at its
   # first line number, exactly as before. Only a quote-joined record, whose
@@ -1452,10 +1458,11 @@ function report_hit(line, lineno, p, annotated_above, off, view, q, m, kind,   k
     # embedded program is still prose, and leaving it to the record — whose
     # first line opened the quote and is therefore never a comment — newly
     # flagged the documentation inside this very script.
-    if (!is_comment(phys_text(k)) &&
-      !is_annotated(phys_text(k)) &&
+    t = phys_text(k)
+    if (!is_comment(t) &&
+      !is_annotated(t) &&
       !annot_block_above(k, annotated_above)) {
-      hits[++nhits] = sprintf("%d: %s -> %s", physno[k], p, phys_text(k))
+      hits[++nhits] = sprintf("%d: %s -> %s", physno[k], p, t)
       return 1
     }
     off = next_hit(kind, view, q, p, m, off + 1)

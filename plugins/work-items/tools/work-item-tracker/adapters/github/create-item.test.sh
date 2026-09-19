@@ -81,7 +81,7 @@ EOF
   assert_eq "create-item --type on gh 2.45 still emits id" "github:o/r#42" \
     "$(jq -r '.id' <<<"$TYPED_OUT")"
   assert_contains "create-item --type on gh 2.45 names the label fallback" \
-    "$(cat "$TYPED_ERR")" "type: task"
+    "$(<"$TYPED_ERR")" "type: task"
   rm -f "$TYPED_ERR"
 
   rm -rf "$STUB" "$PROJECT"

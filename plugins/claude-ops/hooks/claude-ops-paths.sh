@@ -207,7 +207,6 @@ claude_ops::record_skill_use() {
     [[ "$scope" == "repo" ]] && claude_ops::ensure_git_exclude "$project_dir" "$rel_dir"
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
     branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    exp_keys=()
     [[ -n "$exp_type" ]] && exp_keys=(expansion_type s "$exp_type")
     slog_record_to line \
       ts s "$ts" \

@@ -74,12 +74,26 @@ class HarnessError(Exception):
     """A precondition failed, or the harness could not have measured anything."""
 
 
+def resolve(value: str) -> pathlib.Path:
+    """Resolve a path spelling, reporting any conversion on stderr.
+
+    Reported rather than performed silently, so a conversion appears in the
+    harness output instead of happening behind the operator's back.
+    """
+    path, conversion = pathfix.resolve_existing(value)
+    if conversion:
+        print(f"NOTE: {conversion}", file=sys.stderr)
+    return path
+
+
 def resolve_token(name: str, bindings: dict[str, object]) -> object:
     if name.startswith("var:"):
         variables = bindings.get("__vars__")
         assert isinstance(variables, dict)
         if name[4:] not in variables:
-            raise HarnessError(f"config references {{{{{name}}}}} but `vars` has no {name[4:]!r}")
+            raise HarnessError(
+                f"config references {{{{{name}}}}} but `vars` has no {name[4:]!r}"
+            )
         return variables[name[4:]]
     if name not in bindings:
         raise HarnessError(
@@ -134,7 +148,9 @@ def build_argv(template: list[object], bindings: dict[str, object]) -> list[str]
     return argv
 
 
-def harvest_from_suite(path: pathlib.Path, helpers: set[str], arg_index: int) -> list[str]:
+def harvest_from_suite(
+    path: pathlib.Path, helpers: set[str], arg_index: int
+) -> list[str]:
     """Every string literal the suite hands positionally to a named helper.
 
     Harvesting from the suite means every shape the authors thought worth testing
@@ -171,7 +187,8 @@ def path_spellings(path: pathlib.Path) -> set[str]:
     handed `/d/...`, and a leak the harness cannot recognize is a leak it will
     report as a legitimate mismatch.
     """
-    literal = {str(path), path.as_posix(), str(path.resolve()), path.resolve().as_posix()}
+    resolved = path.resolve()
+    literal = {str(path), path.as_posix(), str(resolved), resolved.as_posix()}
     folded = {pathfix.native_to_msys(item) for item in literal}
     folded |= {pathfix.msys_to_native(item) for item in literal}
     return {item for item in literal | folded if item}
@@ -198,27 +215,24 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
 
-    baseline, baseline_note = pathfix.resolve_existing(args.baseline)
-    candidate, candidate_note = pathfix.resolve_existing(args.candidate)
-    for note in (baseline_note, candidate_note):
-        if note:
-            print(f"NOTE: {note}", file=sys.stderr)
+    baseline = resolve(args.baseline)
+    candidate = resolve(args.candidate)
     for label, path, given in (
         ("baseline", baseline, args.baseline),
         ("candidate", candidate, args.candidate),
     ):
         if not path.is_file():
             raise HarnessError(pathfix.spellings_message(f"the {label}", given))
-    if baseline.resolve() == candidate.resolve():
+    baseline_real = baseline.resolve()
+    candidate_real = candidate.resolve()
+    if baseline_real == candidate_real:
         raise HarnessError(
-            f"the baseline and the candidate resolve to the same file ({baseline.resolve()}). "
+            f"the baseline and the candidate resolve to the same file ({baseline_real}). "
             f"The differential would compare a file with itself and report parity for a "
             f"comparison it never made."
         )
 
-    config_path, config_note = pathfix.resolve_existing(args.config)
-    if config_note:
-        print(f"NOTE: {config_note}", file=sys.stderr)
+    config_path = resolve(args.config)
     if not config_path.is_file():
         raise HarnessError(pathfix.spellings_message("the config", args.config))
     try:
@@ -231,13 +245,14 @@ def main() -> int:
     matrix: dict[str, list[object]] = config.get("matrix") or {}
     for dimension, values in matrix.items():
         if not isinstance(values, list) or not values:
-            raise HarnessError(f"matrix dimension {dimension!r} must be a non-empty list")
+            raise HarnessError(
+                f"matrix dimension {dimension!r} must be a non-empty list"
+            )
     variables = config.get("vars") or {}
     stdin_template = config.get("stdin_json")
     timeout = int(config.get("timeout", 120))
 
     corpus: list[str] = []
-    seen: set[str] = set()
     if args.harvest_from:
         harvest = config.get("harvest") or {}
         helpers = set(harvest.get("helpers") or [])
@@ -246,11 +261,11 @@ def main() -> int:
                 "--harvest-from was given but config `harvest.helpers` is empty, so the "
                 "harvest would silently contribute nothing."
             )
-        suite_path, suite_note = pathfix.resolve_existing(args.harvest_from)
-        if suite_note:
-            print(f"NOTE: {suite_note}", file=sys.stderr)
+        suite_path = resolve(args.harvest_from)
         if not suite_path.is_file():
-            raise HarnessError(pathfix.spellings_message("the harvest suite", args.harvest_from))
+            raise HarnessError(
+                pathfix.spellings_message("the harvest suite", args.harvest_from)
+            )
         harvested = harvest_from_suite(
             suite_path, helpers, int(harvest.get("arg_index", 0))
         )
@@ -262,7 +277,7 @@ def main() -> int:
             )
         corpus.extend(harvested)
     corpus.extend(config.get("corpus") or [])
-    corpus = [item for item in corpus if not (item in seen or seen.add(item))]
+    corpus = list(dict.fromkeys(corpus))
     if not corpus:
         raise HarnessError("the corpus is empty; there is nothing to compare")
     if args.limit > 0:
@@ -276,9 +291,9 @@ def main() -> int:
 
     baseline_leaks = path_spellings(baseline)
     candidate_leaks = path_spellings(candidate)
-    if baseline.resolve().parent != candidate.resolve().parent:
-        baseline_leaks |= path_spellings(baseline.resolve().parent)
-        candidate_leaks |= path_spellings(candidate.resolve().parent)
+    if baseline_real.parent != candidate_real.parent:
+        baseline_leaks |= path_spellings(baseline_real.parent)
+        candidate_leaks |= path_spellings(candidate_real.parent)
 
     mismatches: list[str] = []
     disclosures: list[str] = []
@@ -312,7 +327,9 @@ def main() -> int:
                         f"An arm that never ran cannot disprove a behavior change, and two "
                         f"arms failing this way identically read as parity."
                     )
-                leaked = sorted(spelling for spelling in leaks if spelling and spelling in out)
+                leaked = sorted(
+                    spelling for spelling in leaks if spelling and spelling in out
+                )
                 if leaked:
                     disclosures.append(
                         f"  {label} arm disclosed its own location {leaked[0]!r} in stdout "
@@ -340,13 +357,20 @@ def main() -> int:
                 )
 
     distinct = {label: len(set(rows)) for label, rows in results.items()}
-    codes = {label: dict(Counter(code for code, _ in rows)) for label, rows in results.items()}
+    codes = {
+        label: dict(Counter(code for code, _ in rows))
+        for label, rows in results.items()
+    }
 
     print(f"corpus items         : {len(corpus)}")
     print(f"matrix combinations  : {len(combinations)}")
     print(f"invocations compared : {checked} (x2 arms = {checked * 2} runs)")
-    print(f"distinct results     : baseline={distinct['baseline']} candidate={distinct['candidate']}")
-    print(f"exit codes           : baseline={codes['baseline']} candidate={codes['candidate']}")
+    print(
+        f"distinct results     : baseline={distinct['baseline']} candidate={distinct['candidate']}"
+    )
+    print(
+        f"exit codes           : baseline={codes['baseline']} candidate={codes['candidate']}"
+    )
 
     never_exercised = all(
         not out and code != 0 for rows in results.values() for code, out in rows

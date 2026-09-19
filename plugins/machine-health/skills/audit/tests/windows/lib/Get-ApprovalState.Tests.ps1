@@ -13,16 +13,14 @@ approved" state rather than throwing.
 #>
 
 BeforeAll {
-    $script:TestsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:LibRoot = Join-Path (Split-Path -Parent $script:TestsRoot) 'scripts\windows\lib'
-    . (Join-Path $script:LibRoot 'Get-ApprovalState.ps1')
-    Import-Module (Join-Path $script:TestsRoot 'helpers\Mock-Helpers.psm1') -Force
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-ApprovalState.ps1' -MockHelpers
 }
 
 Describe 'Get-ApprovalState' -Tag 'lib' {
     BeforeEach {
         $script:tmpDir = New-MachineHealthTempDir -Prefix 'machine-health-approvals'
         $script:stateDir = Join-Path $script:tmpDir 'state'
+        $script:approvalsPath = Join-Path $script:stateDir 'approvals.json'
         $script:todoPath = Join-Path $script:tmpDir 'TODO.md'
         $script:logPath = Join-Path $script:tmpDir 'run.log'
     }
@@ -46,15 +44,14 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
 
         It 'returns defaults for an empty approvals.json' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
-            Set-Content -LiteralPath (Join-Path $script:stateDir 'approvals.json') -Value '' -Encoding utf8
+            Set-Content -LiteralPath $script:approvalsPath -Value '' -Encoding utf8
             $state = Get-ApprovalState -StateDir $script:stateDir -WarningAction SilentlyContinue
             $state.schema_version | Should -Be '1.0'
         }
 
         It 'returns defaults for malformed JSON (does not throw)' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
-            Set-Content -LiteralPath (Join-Path $script:stateDir 'approvals.json') `
-                -Value '{broken json' -Encoding utf8
+            Set-Content -LiteralPath $script:approvalsPath -Value '{broken json' -Encoding utf8
             $state = Get-ApprovalState -StateDir $script:stateDir -WarningAction SilentlyContinue
             $state.schema_version | Should -Be '1.0'
             @($state.remediations.PSObject.Properties).Count | Should -Be 0
@@ -63,8 +60,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
         It 'returns defaults for schema-violating JSON (does not throw)' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
             $bad = '{"schema_version":"99","remediations":{}}'
-            Set-Content -LiteralPath (Join-Path $script:stateDir 'approvals.json') `
-                -Value $bad -Encoding utf8
+            Set-Content -LiteralPath $script:approvalsPath -Value $bad -Encoding utf8
             $state = Get-ApprovalState -StateDir $script:stateDir -WarningAction SilentlyContinue
             $state.schema_version | Should -Be '1.0'
         }
@@ -83,8 +79,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
                     }
                 }
             } | ConvertTo-Json -Depth 5
-            Set-Content -LiteralPath (Join-Path $script:stateDir 'approvals.json') `
-                -Value $payload -Encoding utf8
+            Set-Content -LiteralPath $script:approvalsPath -Value $payload -Encoding utf8
 
             $state = Get-ApprovalState -StateDir $script:stateDir
             $state.remediations.'clear-temp-files'.approved | Should -BeTrue
@@ -94,8 +89,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
         It 'survives a schema_version v1.0 string with valid content' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
             $payload = '{"schema_version":"1.0","remediations":{}}'
-            Set-Content -LiteralPath (Join-Path $script:stateDir 'approvals.json') `
-                -Value $payload -Encoding utf8
+            Set-Content -LiteralPath $script:approvalsPath -Value $payload -Encoding utf8
             $state = Get-ApprovalState -StateDir $script:stateDir
             $state.schema_version | Should -Be '1.0'
         }
@@ -119,7 +113,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
             $state.migration.migrated_from_todo_md | Should -BeTrue
             $state.migration.source_checksum | Should -Not -BeNullOrEmpty
 
-            Test-Path -LiteralPath (Join-Path $script:stateDir 'approvals.json') | Should -BeTrue
+            Test-Path -LiteralPath $script:approvalsPath | Should -BeTrue
         }
 
         It 'records approved_by and a timestamp in migrated entries' {
@@ -151,8 +145,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
         It 'does NOT overwrite an existing approvals.json with a migration' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
             $existing = '{"schema_version":"1.0","remediations":{"clear-temp-files":{"approved":false}}}'
-            $approvalsPath = Join-Path $script:stateDir 'approvals.json'
-            Set-Content -LiteralPath $approvalsPath -Value $existing -Encoding utf8
+            Set-Content -LiteralPath $script:approvalsPath -Value $existing -Encoding utf8
 
             Set-Content -LiteralPath $script:todoPath `
                 -Value '- [x] Clear-TempFiles' -Encoding utf8
@@ -169,7 +162,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
             $state = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
             $state.schema_version | Should -Be '1.0'
             @($state.remediations.PSObject.Properties).Count | Should -Be 0
-            Test-Path -LiteralPath (Join-Path $script:stateDir 'approvals.json') | Should -BeFalse
+            Test-Path -LiteralPath $script:approvalsPath | Should -BeFalse
         }
 
         It 'logs a migration event when LogPath is provided' {

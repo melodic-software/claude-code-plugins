@@ -298,13 +298,10 @@ assert_not_contains "nested: a same-named nested member does not shadow them" "$
 capped_repo="$(make_repo capped)"
 {
   printf '{\n  "dependencies": {\n'
-  for i in $(seq -w 1 40); do
-    if [[ "$i" == "40" ]]; then
-      printf '    "pkg-%s": "1.0.0"\n' "$i"
-    else
-      printf '    "pkg-%s": "1.0.0",\n' "$i"
-    fi
+  for i in $(seq -w 1 39); do
+    printf '    "pkg-%s": "1.0.0",\n' "$i"
   done
+  printf '    "pkg-40": "1.0.0"\n'
   printf '  }\n}\n'
 } >"$capped_repo/package.json"
 commit_repo "$capped_repo"

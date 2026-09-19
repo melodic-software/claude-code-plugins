@@ -14,43 +14,19 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
+import { isNormalizedCanonicalUrl } from "./canonical-url.mjs";
 
 const PINNED_SCHEMA_URL = "https://opentelemetry.io/schemas/1.43.0";
 const JOIN_ATTRIBUTE = "autonomy.work_item.url";
 
 const findings = [];
 
-// A normalized canonical item URL must parse as a real URL, not merely match a
-// shape: https protocol, a non-empty hostname, none of query, fragment, or
-// trailing slash — and it must round-trip the WHATWG parser unchanged
-// (url.href === value), which is what "normalized" means. Round-tripping
-// rejects values the parser silently repairs (empty host `https:///items/101`
-// becomes `https://items/101`) and parsing rejects outright malformed ones
-// (non-numeric port `https://h:abc/items/101`).
-function isNormalizedCanonicalUrl(value) {
-  if (typeof value !== "string" || /\s/.test(value)) return false;
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  return (
-    url.protocol === "https:" &&
-    url.hostname.length > 0 &&
-    url.search === "" &&
-    url.hash === "" &&
-    url.href === value &&
-    !value.includes("?") &&
-    !value.includes("#") &&
-    !value.endsWith("/")
-  );
-}
-
-function checkAttributeList(attributes, where, hits) {
+// Returns how many join-attribute occurrences this list carried.
+function checkAttributeList(attributes, where) {
+  let hits = 0;
   for (const attribute of attributes ?? []) {
     if (attribute.key !== JOIN_ATTRIBUTE) continue;
-    hits.count += 1;
+    hits += 1;
     const value = attribute.value?.stringValue;
     if (!isNormalizedCanonicalUrl(value)) {
       findings.push(
@@ -58,6 +34,7 @@ function checkAttributeList(attributes, where, hits) {
       );
     }
   }
+  return hits;
 }
 
 function checkSchemaUrl(declared, where, tally) {
@@ -82,19 +59,18 @@ function checkResourceBlocks(blocks, file, line, tally) {
     block.forEach((entry, entryIndex) => {
       result.entries += 1;
       const where = `${file}:${line} ${signalKey}[${entryIndex}]`;
-      const hits = { count: 0 };
       checkSchemaUrl(entry.schemaUrl, where, tally);
-      checkAttributeList(entry.resource?.attributes, `${where} resource`, hits);
+      let hits = checkAttributeList(entry.resource?.attributes, `${where} resource`);
       for (const scope of entry.scopeSpans ?? entry.scopeMetrics ?? entry.scopeLogs ?? []) {
         checkSchemaUrl(scope.schemaUrl, `${where} scope`, tally);
         for (const item of scope.spans ?? scope.metrics ?? scope.logRecords ?? []) {
-          checkAttributeList(item.attributes, `${where} ${item.name ?? "record"}`, hits);
+          hits += checkAttributeList(item.attributes, `${where} ${item.name ?? "record"}`);
         }
       }
-      if (hits.count === 0) {
+      if (hits === 0) {
         findings.push(`${where}: resource entry carries no ${JOIN_ATTRIBUTE} attribute`);
       }
-      result.hits += hits.count;
+      result.hits += hits;
     });
   }
   return result;

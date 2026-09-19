@@ -21,7 +21,6 @@ Stdlib only. Python 3.9+.
 
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 from typing import List, Optional
@@ -29,15 +28,14 @@ from typing import List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from digest_fences import (  # noqa: E402
     Failures,
-    MIN_PYTHON,
     extract_fences,
-    fail,
     find_section,
     is_none_section,
+    parse_gate_args,
     payload_in_source,
     preview_payload,
     read_text,
-    use_utf8_streams,
+    run_gate,
 )
 
 PROG = "check-snippets"
@@ -105,23 +103,9 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog=PROG, description="Gate Prompt-snippets fence payloads against the source."
+    args = parse_gate_args(
+        PROG, "Gate Prompt-snippets fence payloads against the source.", argv
     )
-    parser.add_argument(
-        "--source", required=True, help="Immutable source.md / source.txt"
-    )
-    parser.add_argument(
-        "--digest",
-        action="append",
-        default=[],
-        dest="digests",
-        help="Digest file (repeatable)",
-    )
-    args = parser.parse_args(argv)
-    if not args.digests:
-        fail(PROG, 2, "no --digest given; nothing to parse is not a PASS.")
-
     source = read_text(args.source, PROG, "source")
     failures = Failures(PROG)
     exercised = 0
@@ -148,19 +132,4 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    if sys.version_info < MIN_PYTHON:
-        sys.stderr.write(
-            f"{PROG}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required.\n"
-        )
-        sys.exit(2)
-    use_utf8_streams()
-    try:
-        sys.exit(main())
-    except SystemExit:
-        raise
-    except Exception as exc:
-        sys.stderr.write(
-            f"{PROG}: ERROR: internal failure {type(exc).__name__}: {exc}. "
-            f"This is a gate bug; the run is NOT clean.\n"
-        )
-        sys.exit(3)
+    run_gate(PROG, main)

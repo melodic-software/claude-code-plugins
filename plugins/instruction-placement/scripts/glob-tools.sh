@@ -143,9 +143,11 @@ expand_braces() {
         ((j++))
         continue
       fi
-      if [[ "$c" == "{" ]]; then ((d++)); fi
-      if [[ "$c" == "}" ]]; then ((d--)); fi
-      if [[ "$c" == "," && $d -eq 0 ]]; then
+      if [[ "$c" == "{" ]]; then
+        ((d++))
+      elif [[ "$c" == "}" ]]; then
+        ((d--))
+      elif [[ "$c" == "," && $d -eq 0 ]]; then
         parts+=("$part")
         part=""
         continue
@@ -221,13 +223,12 @@ brackets_valid() {
 # ---------------------------------------------------------------------------
 glob_to_ere() {
   local pattern="$1"
-  local out="" i=0 len="${#pattern}" char next
+  local out="" i=0 len="${#pattern}" char
   while ((i < len)); do
     char="${pattern:i:1}"
     case "$char" in
     "\\")
-      next="${pattern:i+1:1}"
-      out+="\\$next"
+      out+="\\${pattern:i+1:1}"
       i=$((i + 2))
       continue
       ;;
@@ -275,15 +276,7 @@ glob_to_ere() {
       i=$((j + 1))
       continue
       ;;
-    ".") out+="\\." ;;
-    "^") out+="\\^" ;;
-    "$") out+="\\$" ;;
-    "+") out+="\\+" ;;
-    "(") out+="\\(" ;;
-    ")") out+="\\)" ;;
-    "|") out+="\\|" ;;
-    "{") out+="\\{" ;;
-    "}") out+="\\}" ;;
+    "." | "^" | "$" | "+" | "(" | ")" | "|" | "{" | "}") out+="\\$char" ;;
     *) out+="$char" ;;
     esac
     ((i++))

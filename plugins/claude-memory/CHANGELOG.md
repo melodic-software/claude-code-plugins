@@ -3,6 +3,42 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.8]
+
+### Changed
+
+- The ten claude-memory shell suites source one scripts/test-helpers.sh for their counters, asserts, fixture repo and report tail instead of ten inline copies; three suites keep their local assert_contains detail wording. Output and exit codes are byte-identical.
+
+## [0.12.7]
+
+### Changed
+
+- audit-spine, instruction-load-stats and orphan-rule-check decide whether a rule declares paths or a description through one rule-scope library reader. The reader captures the frontmatter before grepping it, so a rule whose body exceeds the pipe buffer is no longer misclassified as always-loaded; every tracked rule is far below that size and the reports are unchanged.
+
+## [0.12.6]
+
+### Changed
+
+- The two stateless memory scripts count topic files through one plugin-level library helper instead of two verbatim null-delimited loops, with identical counts including dotfile and newline-named topics.
+
+## [0.12.5]
+
+### Changed
+
+- audit skill: instruction-load-stats.sh prints uncommented lines directly instead of through an identity awk wrapper and drops a dead root reset after its walk loop, and nested-agents-check.sh returns its wiring test's status directly. No behavior change.
+
+## [0.12.4]
+
+### Changed
+
+- stateless scripts: scope-report.sh prints its scope table through one row helper instead of six inline printf calls, and enumerate-all-projects.sh substitutes the absent-index marker with a parameter default. Output byte-identical.
+
+## [0.12.3]
+
+### Fixed
+
+- **`audit/reference/official-guidance.md` no longer lists subagents among the contexts path-scoped content cannot reach.** The surviving-caveats list read "Path-scoped content is invisible to subagents, teammates, and skill-forked contexts". A first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` its shim imports, once it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. The subagent half is narrowed to the claim that holds, non-inheritance, and a second bullet states the positive behavior with the four-part verification record the upstream-drift convention requires. The teammate and skill-forked-context halves and the issue 32906 citation, its state, and its 2026-09-06 verification are untouched, because this correction supplies no evidence about them.
+
 ## [0.12.2]
 
 ### Changed

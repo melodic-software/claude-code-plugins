@@ -1,4 +1,4 @@
-"""Shared fence and section parsing for the docpage-digest standing gates.
+"""Shared parsing and CLI scaffolding for the docpage-digest standing gates.
 
 Stdlib only. Python 3.9+. Both gates stay standalone-runnable: they insert
 this directory on sys.path and import from here. Parsing is exact — no
@@ -8,9 +8,10 @@ corruption and a load-bearing trailing space earned a clean quote-gate result.
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
-from typing import Iterator, List, NamedTuple, NoReturn, Optional, Tuple
+from typing import Callable, Iterator, List, NamedTuple, NoReturn, Optional, Tuple
 
 MIN_PYTHON = (3, 9)
 
@@ -77,6 +78,47 @@ def use_utf8_streams() -> None:
 def fail(prog: str, code: int, message: str) -> NoReturn:
     sys.stderr.write(f"{prog}: ERROR: {message}\n")
     raise SystemExit(code)
+
+
+def parse_gate_args(
+    prog: str, description: str, argv: Optional[List[str]]
+) -> argparse.Namespace:
+    """Both gates take one ``--source`` and repeatable ``--digest`` paths."""
+    parser = argparse.ArgumentParser(prog=prog, description=description)
+    parser.add_argument(
+        "--source", required=True, help="Immutable source.md / source.txt"
+    )
+    parser.add_argument(
+        "--digest",
+        action="append",
+        default=[],
+        dest="digests",
+        help="Digest file (repeatable)",
+    )
+    args = parser.parse_args(argv)
+    if not args.digests:
+        fail(prog, 2, "no --digest given; nothing to parse is not a PASS.")
+    return args
+
+
+def run_gate(prog: str, main: Callable[[], int]) -> NoReturn:
+    """Version floor, UTF-8 streams, then ``main`` under the exit-3 bug net."""
+    if sys.version_info < MIN_PYTHON:
+        sys.stderr.write(
+            f"{prog}: ERROR: Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required.\n"
+        )
+        sys.exit(2)
+    use_utf8_streams()
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception as exc:
+        sys.stderr.write(
+            f"{prog}: ERROR: internal failure {type(exc).__name__}: {exc}. "
+            f"This is a gate bug; the run is NOT clean.\n"
+        )
+        sys.exit(3)
 
 
 def read_text(path: str, prog: str, what: str) -> str:
@@ -201,7 +243,7 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
         except ValueError:
             fences = []
         fence = fences[0] if fences else None
-        prose = block if not fences else block.split("```", 1)[0]
+        prose = block.split("```", 1)[0] if fences else block
         # Forbidden carriers are defects even when a later fence is valid —
         # a leftover blockquote/inline quote is still hook-corruptible.
         has_bq = bool(re.search(r"(?m)^>", prose))

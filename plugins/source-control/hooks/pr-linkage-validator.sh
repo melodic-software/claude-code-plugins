@@ -178,12 +178,10 @@ REQUIRED_SECTIONS=(Summary Fix Verification Related)
 # empty rather than holding whatever the caller had there.
 section_content_to() {
   local __plv_dest="$1" body="$2" heading_lc="${3,,}" t start=0 lvl i=0 out=""
-  local -a lines=()
   printf -v "$__plv_dest" '%s' ""
   linkage::split_lines "$body"
-  lines=("${LINKAGE_LINES[@]}")
-  for ((i = 0; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
+  for ((i = 0; i < ${#LINKAGE_LINES[@]}; i++)); do
+    t="${LINKAGE_LINES[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
     [[ "${t,,}" =~ ^##[[:space:]]+${heading_lc}$ ]] && {
@@ -192,8 +190,8 @@ section_content_to() {
     }
   done
   ((start)) || return 1
-  for ((i = start; i < ${#lines[@]}; i++)); do
-    t="${lines[i]}"
+  for ((i = start; i < ${#LINKAGE_LINES[@]}; i++)); do
+    t="${LINKAGE_LINES[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
     if [[ "$t" =~ ^#+[[:space:]]+[^[:space:]] ]]; then
@@ -201,7 +199,7 @@ section_content_to() {
       while [[ "${t:lvl:1}" == "#" ]]; do ((lvl++)); done
       ((lvl <= 2)) && break
     fi
-    out+="${lines[i]}"$'\n'
+    out+="${LINKAGE_LINES[i]}"$'\n'
   done
   trim_to "$__plv_dest" "$out"
 }
@@ -217,14 +215,15 @@ section_content_to() {
 mask_markdown_code_to() {
   local __plv_dest="$1" body="$2" line rest rendered fence_char="" fence_len=0 in_fence=0
   local marker_run marker_rest i ticks len k m j sidx nspans nruns cs ce out="" li=0
-  local -a runs_pos runs_len spans_start spans_end used lines=()
+  local -a runs_pos runs_len spans_start spans_end used
+  # Up to three leading spaces, then the fence run, then the info string.
+  local fence_re='^ {0,3}(`{3,}|~{3,})(.*)$'
   linkage::split_lines "$body"
-  lines=("${LINKAGE_LINES[@]}")
-  for ((li = 0; li < ${#lines[@]}; li++)); do
-    line="${lines[li]}"
+  for ((li = 0; li < ${#LINKAGE_LINES[@]}; li++)); do
+    line="${LINKAGE_LINES[li]}"
     rest="${line%$'\r'}"
     if ((in_fence)); then
-      if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+      if [[ "$rest" =~ $fence_re ]]; then
         marker_run="${BASH_REMATCH[1]}"
         marker_rest="${BASH_REMATCH[2]}"
         if [[ "${marker_run:0:1}" == "$fence_char" && ${#marker_run} -ge $fence_len && "$marker_rest" =~ ^[[:space:]]*$ ]]; then
@@ -236,7 +235,7 @@ mask_markdown_code_to() {
       out+=$'\n'
       continue
     fi
-    if [[ "$rest" =~ ^\ {0,3}(\`{3,}|~{3,})(.*)$ ]]; then
+    if [[ "$rest" =~ $fence_re ]]; then
       marker_run="${BASH_REMATCH[1]}"
       marker_rest="${BASH_REMATCH[2]}"
       if [[ "${marker_run:0:1}" != '`' || "$marker_rest" != *'`'* ]]; then

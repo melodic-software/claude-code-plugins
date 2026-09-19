@@ -157,6 +157,10 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 
   `commit_id` is the wrong field for this question: it re-anchors to the newest head while a comment's hunk still applies, so it counts surviving prior-round comments as current and short-circuits the wait. Unpaginated, the count also undercounts: the comments you are waiting on are the newest, and on a PR with prior review rounds the newest are exactly what page 1 omits. The count is slurped rather than passed to `--jq` for the reason rule 3 gives: a reduction like `length` inside `--jq` runs per page and prints one number per page, never the total.
 
+<!-- contract-restatement-begin: B2-lane-productivity -->
+- [ ] **A review lane that produced nothing for this round is SUBSTITUTED before the gate clears, not merely reported.** Take the roster for this item from `gh pr checks`, NOT from the bot authors the reviewer roster above is built from: a lane that posted nothing is missing from every author-derived roster by construction, so that roster would apply this item to an empty set, which is exactly the lane this item exists for. Its own check row cannot settle it either: these lanes report on their session rather than on their output, so a session that ends without error is green whether or not it reviewed anything, and cost is no signal since the session is billed either way. Judge the lane by the artifacts the scoping rule above attributes to this head, bounding a rerun of the same head by timestamp against the run's start, since a rerun's artifacts carry the same SHA; zero attributed artifacts means nothing was reviewed, however green the row. Run a local review over the same diff (`/review:fanout` for breadth, or the bundled `/code-review` against an explicit target for a correctness lane, whichever resolves in this session), then name every absent lane and its substitute on the verdict's `Review lanes:` line. A lane whose posted body admits it fell back to a manual pass counts as absent on the same terms. This is what the bound above hands off to: reaching the bound ends the wait, it does not supply the review.
+<!-- contract-restatement-end: B2-lane-productivity -->
+
 ### Gate 6: No pending work
 
 - [ ] No fix pushes are in flight (a push restarts the entire monitoring loop)
@@ -176,6 +180,7 @@ Only when ALL gates pass, present:
 **Comments:** X from N reviewers: Y fixed, Z deferred, W incorrect
 **Cooldown:** 2+ min since last activity
 **Reviewers:** [each discovered reviewer: responded, no-findings signal, or not yet responded at the bound with its missing artifacts named]
+**Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
 **Failures classified:**
 - `review`: FAILURE, usage limit (informational, safe to proceed)
 - [any other failures with classification]

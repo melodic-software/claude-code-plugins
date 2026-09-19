@@ -81,7 +81,7 @@ Class C split is urgent, and they remain the only such lever for Class A and B.
   FIRES by default.
 - [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md) — the packaging
   analogue: how code is shared across plugins once they are separate.
-- [`docs/PLUGIN-PHILOSOPHY.md` § Classifying a hook](../PLUGIN-PHILOSOPHY.md#classifying-a-hook) —
+- [`docs/plugin-philosophy.md` § Classifying a hook](../plugin-philosophy.md#classifying-a-hook) —
   the complementary axes. That rubric asks what a hook DOES (mechanism) and why it EXISTS (class);
   this one asks where it belongs. A hook can be pure policy by that rubric and still sit in a Class
   C plugin.

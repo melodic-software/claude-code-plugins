@@ -84,8 +84,8 @@ assert_eq "empty repo → exit 0" "0" "$rc"
 assert_eq "empty items array" "0" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 
 # --- pagination stops on a short page ---
-# Gitea sends no total-count header on this endpoint, so a short page is the only
-# end-of-list signal. With page_size 2, a 2-row page must be followed by another
+# These routes are seeded without a total-count header, so a short page is the only
+# end-of-list signal left. With page_size 2, a 2-row page must be followed by another
 # request and a 1-row page must not.
 gitea_write_binding '{"page_size":2}'
 gitea_reset_routes

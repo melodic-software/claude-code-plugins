@@ -120,6 +120,47 @@ def _report(
     }
 
 
+# The two sentences every non-configured report ends with. Both state that the
+# reported value is the plugin default rather than a configured one; the second
+# marks the read itself as degraded.
+_NOT_CONFIGURED_THERE = (
+    "the toggle is not configured there and the plugin default (enabled) "
+    "applies. Managed settings or a --settings flag could still carry a value "
+    "this probe cannot see."
+)
+_ASSUMED_DEFAULT = (
+    "assuming the default (enabled). This is an assumption, not the configured value."
+)
+
+
+def _unconfigured(
+    cause: str, settings_path: Path, entries: list[dict[str, object]]
+) -> dict[str, object]:
+    """Nothing configured the toggle here, and the read itself was sound."""
+    return _report(
+        True,
+        "default",
+        False,
+        f"{cause}; {_NOT_CONFIGURED_THERE}",
+        settings_path,
+        entries,
+    )
+
+
+def _indeterminate(
+    cause: str, settings_path: Path, entries: list[dict[str, object]]
+) -> dict[str, object]:
+    """The read could not reach a configured value; report the default as assumed."""
+    return _report(
+        True,
+        "indeterminate",
+        True,
+        f"{cause}; {_ASSUMED_DEFAULT}",
+        settings_path,
+        entries,
+    )
+
+
 def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object]:
     """Read the effective kill switch from ``settings_path`` with provenance.
 
@@ -130,48 +171,22 @@ def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object
     try:
         settings_stat = settings_path.stat()
     except FileNotFoundError:
-        return _report(
-            True,
-            "default",
-            False,
-            f"No settings file at {settings_path}; the toggle is not configured "
-            "there and the plugin default (enabled) applies. Managed settings or "
-            "a --settings flag could still carry a value this probe cannot see.",
-            settings_path,
-            [],
-        )
+        return _unconfigured(f"No settings file at {settings_path}", settings_path, [])
     except OSError as exc:
-        return _report(
-            True,
-            "indeterminate",
-            True,
-            f"Could not inspect {settings_path} ({exc}); assuming the default "
-            "(enabled). This is an assumption, not the configured value.",
-            settings_path,
-            [],
+        return _indeterminate(
+            f"Could not inspect {settings_path} ({exc})", settings_path, []
         )
     if not stat.S_ISREG(settings_stat.st_mode):
-        return _report(
-            True,
-            "indeterminate",
-            True,
-            f"{settings_path} exists but is not a regular file; assuming the "
-            "default (enabled). This is an assumption, not the configured value.",
-            settings_path,
-            [],
+        return _indeterminate(
+            f"{settings_path} exists but is not a regular file", settings_path, []
         )
     try:
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
         if not isinstance(settings, dict):
             raise ValueError("settings root is not a JSON object")
     except (OSError, UnicodeDecodeError, ValueError) as exc:
-        return _report(
-            True,
-            "indeterminate",
-            True,
-            f"Could not read the configured toggle from {settings_path} ({exc}); "
-            "assuming the default (enabled). This is an assumption, not the "
-            "configured value.",
+        return _indeterminate(
+            f"Could not read the configured toggle from {settings_path} ({exc})",
             settings_path,
             [],
         )
@@ -182,21 +197,15 @@ def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object
         for key in sorted(plugin_configs):
             if not _matches_plugin(key, plugin_id):
                 continue
-            entry = plugin_configs.get(key)
+            entry = plugin_configs[key]
             options = entry.get("options") if isinstance(entry, dict) else None
             if not isinstance(options, dict) or OPTION_KEY not in options:
                 continue
             entries.append({"key": key, "value": options[OPTION_KEY]})
 
     if not entries:
-        return _report(
-            True,
-            "default",
-            False,
-            f"{settings_path} carries no {PLUGIN_NAME} {OPTION_KEY} entry; the "
-            "toggle is not configured there and the plugin default (enabled) "
-            "applies. Managed settings or a --settings flag could still carry a "
-            "value this probe cannot see.",
+        return _unconfigured(
+            f"{settings_path} carries no {PLUGIN_NAME} {OPTION_KEY} entry",
             settings_path,
             entries,
         )
@@ -204,25 +213,17 @@ def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object
     interpreted = {entry["key"]: _interpret(entry["value"]) for entry in entries}
     values = set(interpreted.values())
     if None in values:
-        return _report(
-            True,
-            "indeterminate",
-            True,
+        configured = {entry["key"]: entry["value"] for entry in entries}
+        return _indeterminate(
             "A configured value is not a recognizable boolean "
-            f"({json.dumps({entry['key']: entry['value'] for entry in entries})}); "
-            "assuming the default (enabled). This is an assumption, not the "
-            "configured value.",
+            f"({json.dumps(configured)})",
             settings_path,
             entries,
         )
     if len(values) > 1:
-        return _report(
-            True,
-            "indeterminate",
-            True,
+        return _indeterminate(
             "Multiple disk-hygiene entries disagree on the toggle "
-            f"({json.dumps(interpreted)}); assuming the default (enabled). This "
-            "is an assumption, not the configured value.",
+            f"({json.dumps(interpreted)})",
             settings_path,
             entries,
         )
@@ -232,8 +233,7 @@ def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object
         effective,
         "configured",
         False,
-        f"{OPTION_KEY} is configured {str(effective).lower()} in "
-        f"{settings_path}.",
+        f"{OPTION_KEY} is configured {str(effective).lower()} in {settings_path}.",
         settings_path,
         entries,
     )

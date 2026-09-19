@@ -17,7 +17,7 @@ import { isMainModule } from "../lib/cli-entrypoint.js";
 import { UnsupportedSourceError } from "../adapters/adapter-contract.js";
 import { resolveSourceAdapter, supportedHosts } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
-import { harvestMetadataLinks, summarizeHeatmap } from "./harvest-links.js";
+import { summarizeHeatmap } from "./harvest-links.js";
 
 /**
  * @param {string[]} argv
@@ -46,15 +46,11 @@ export async function runHarvestCli(argv) {
     return 1;
   }
 
-  const raw = await fs.readFile(infoPath, "utf8");
-  const rawInfo = JSON.parse(raw);
+  const rawInfo = JSON.parse(await fs.readFile(infoPath, "utf8"));
   const metadata = parseVideoMetadata(rawInfo);
 
   const sourceUrl =
-    urlFlag ??
-    (rawInfo && typeof rawInfo === "object" && typeof rawInfo.webpage_url === "string"
-      ? rawInfo.webpage_url
-      : null);
+    urlFlag ?? (rawInfo && typeof rawInfo.webpage_url === "string" ? rawInfo.webpage_url : null);
   if (!sourceUrl) {
     writeStderr(
       `Cannot resolve the source adapter: the info JSON has no webpage_url — pass --url <source-url>. Supported sources: ${supportedHosts().join(", ")}`,
@@ -74,7 +70,7 @@ export async function runHarvestCli(argv) {
     throw error;
   }
 
-  const links = harvestMetadataLinks(metadata, adapter);
+  const links = adapter.harvestLinks(metadata);
   const heatmap = summarizeHeatmap(metadata.heatmap);
 
   writeStdout(

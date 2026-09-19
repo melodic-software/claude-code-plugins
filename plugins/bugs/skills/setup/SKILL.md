@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the bugs plugin for this repository. check inspects both surfaces read-only, the rendered output_dir userConfig value, and the tracked .claude/bugs.md lane config across its cascade layers; apply writes or updates that tracked file and nothing else. Use when: 'set up bugs', 'configure bugs', 'bugs setup', 'where do bug reports land', you want --file reports committed alongside code, or '/bugs:scan' needs project lanes and a filing posture. Actions: check (read-only, default) | apply (creates or updates the tracked lane config; output_dir still routes through Claude Code's own configuration prompt)."
+description: "Verify and configure the bugs plugin for this repository. check inspects both surfaces read-only, the rendered output_dir userConfig value, and the tracked .claude/bugs.md lane config across its cascade layers; apply writes or updates that tracked file and nothing else. Use when: 'set up bugs', 'configure bugs', 'bugs setup', 'where do bug reports land', the user wants --file reports committed alongside code, or '/bugs:scan' needs project lanes and a filing posture. Actions: check (read-only, default) | apply (creates or updates the tracked lane config; output_dir still routes through Claude Code's own configuration prompt)."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -139,7 +139,7 @@ a fresh session.
 - Do not produce or file a bug report; invoke `/bugs:write` via the Skill tool.
 - Do not run a hunt; that is `/bugs:scan`. This skill only verifies and writes its config.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform
-  setup contract (`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the
+  setup contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the
   marketplace repository).
 - Do not delete the tracked config: `apply` converges to the configured state and never removes.
 - Do not invent an organization, repository, marketplace, or environment-variable prefix.

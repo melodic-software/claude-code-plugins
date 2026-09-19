@@ -3,6 +3,119 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Added
+
+- **`audit-comment-residue` gains a fifth residue shape, `origin-note`, at Tier 1.** A comment
+  naming where a block came from or when it was added is a finding: `ported from`, `copied from`,
+  `migrated from`, `adapted from`, `borrowed from`, `lifted from`, `taken from`, and
+  `added`/`merged`/`introduced`/`backported`/`ported` in front of an ISO date. Git history owns
+  origin, so the treatment is delete. The cue must open the comment or a clause inside it and must
+  be a whole word, so `bytes copied from the source buffer` and `helpers exported from index.ts`
+  are not findings. The cue also has to END on a boundary, so `ported fromage` and a date running
+  on into more characters (`Added 2026-09-011`) match nothing; an ISO-8601 time is spelled out, so
+  `Added 2026-09-01T12:00:00Z` still is one. A dated freshness stamp is not this
+  shape either: the cue list carries no bare date and none of the stamp verbs `provenance:audit`
+  keys on.
+
+  `cr_comment_text` now strips the `///` and `//!` doc-comment leaders, which previously sat in the
+  clause-opening position and stopped a cue right behind one from anchoring. That applies to every
+  shape, not just this one.
+
+  Because Tier 1 reads "remove", two comment classes are exempt whatever verb they open with: a
+  marker comment (`TODO`, `FIXME`, `HACK`, `XXX`), which is tracked work rather than residue, and a
+  license or attribution header, whose text the reader may be legally required to keep. The license
+  exemption is BLOCK-scoped: a run of contiguous comment lines in which any line carries
+  `SPDX-License-Identifier`, `Licensed under`, `License:`, a `Copyright` beside a year or a
+  `(c)`/`©` sign, or a `(c)` in front of a year is exempt whole, so the attribution line of a NOTICE
+  header is covered even though the cue sits on another line of the block. The run ends at the first
+  blank line or line of code, and a trailing comment on a code line opens no run. The `Copyright`
+  and `(c)` cues each require that corroboration because both are ordinary words a comment uses, as
+  in "to satisfy the copyright audit" or "the callback signature `f(c)`". The same exemptions are
+  NOT yet wired into `history-narration`, `plan-reference` or `conversational-antecedent`, which
+  still report a license header narrating a change.
+
+### Changed
+
+- The `ticket-pr-residue` treatment says "bare back-reference" where it said "bare provenance", so
+  "provenance" keeps one sense across the repository.
+- `dissolve-comments`' triage reference names origin notes under class A.
+
+## [0.20.0]
+
+### Added
+
+- **`dissolve-comments` gains an aggressive dial.** `aggressive` (a per-run token and a
+  `comment_posture` value) keeps only the exempt surfaces, paired comment-plus-test records, and
+  terse warnings of consequence; every other comment is staged and deleted, rationale included.
+  `strip` (a per-run token) deletes every comment but the exempt surfaces and paired records and
+  rewrites no code. Precedence is `safe`, then `strip`, then `aggressive`, and a token beats the
+  standing posture.
+- **`--notes <path>`** appends the staged commit-message block to an untracked or out-of-repo file.
+  A tracked path is refused and the run continues with the report as the only vehicle.
+- **A calibration eval suite** under `plugins/code-tidying/evals/`, run with `claude plugin eval`:
+  three frozen real sections, invented fixtures per triage class, exempt surfaces, marker rows,
+  Python docstrings, paired records, and the dial interactions.
+
+### Changed
+
+- **"The posture ladder only descends" is replaced by "no knob loosens a gate."** The dials widen
+  what a run removes; they change no proof. Deletions still carry COMMENT-ONLY, function-local
+  renames RENAME-ONLY, tier-2 and tier-3 moves a discovered test net, and an UNPROVABLE file still
+  yields proposals only.
+- **Two rules now hold in every mode:** a comment paired with a regression test is never deleted
+  alone, and an identifier a repo-local marker row pins is never renamed.
+- **The tier tables in `safety.md` and `dissolving-moves.md` agree.** The merged set is 16 moves:
+  tier 2 gains Replace Nested Conditional with Guard Clauses and Introduce Special Case, tier 3
+  gains Inline Function in `safety.md` and Extract Class in `dissolving-moves.md`. The apply-capacity
+  counts read 2 of 16 and 0 of 16.
+- **The `Intentional-removal:` trailer is conditional.** The staged block carries it only where the
+  target repository's own gates read that trailer.
+
+## [0.19.8]
+
+### Changed
+
+- The allowed-tools pairing suite now prints a NOTE line for any skill that names no expected-granted arm instead of silently skipping the granted-set comparison. Exit codes and every PASS and FAIL string are unchanged.
+
+## [0.19.7]
+
+### Changed
+
+- Merge the line-comment leader branches in the comment-shapes library, drop the redundant target array copy in the detector and hoist the tab fixture name in its suite (behavior unchanged).
+
+## [0.19.6]
+
+### Changed
+
+- Enumerate census lines directly, total dedupe drops from the record counts, unpack tree-sitter points and collapse the census exit-code branches in the comment scripts (behavior unchanged).
+
+## [0.19.5]
+
+### Changed
+
+- Anchor scope targets in one loop, count owned files from the collected list and fold the vulture input-error match in the dead-code scan (behavior unchanged).
+
+## [0.19.4]
+
+### Changed
+
+- dissolve-comments wrappers: scope-code-files.sh points at the allowed-tools verification record that change-shape.sh carries instead of repeating it, comment-tooling-probe.sh points at the same anchor, and the six wrapper headers drop their em dashes. Comment-only; every wrapper still execs the same target.
+
+## [0.19.3]
+
+### Changed
+
+- The `allowed-tools` pairing gate's fail message no longer gives "never substituted there, inert grant" as its reason. `${CLAUDE_PLUGIN_ROOT}` does substitute in a plugin skill's `allowed-tools`. The gate is unchanged and still requires the skill-local path, on the rationale its header already carried: the docs establish substitution, not runtime matching on every host.
+- The comment-residue parity check's rationale comment states the same corrected reason.
+
+## [0.19.2]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.19.1]
 
 ### Changed

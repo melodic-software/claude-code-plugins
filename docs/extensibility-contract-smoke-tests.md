@@ -2,7 +2,7 @@
 
 These tests resolve behavior the official docs leave unspecified for the extensibility contract v2.1
 (the "Extensibility contract v2.1: the four seams" section of the [migration
-playbook](MIGRATION-PLAYBOOK.md)). Each records the commands used and the observed result, so the
+playbook](migration-playbook.md)). Each records the commands used and the observed result, so the
 contract rests on verified behavior rather than inference.
 
 Run 2026-07-12 against Claude Code 2.1.207 on Windows. Re-verify fresh before relying on a result.

@@ -59,7 +59,7 @@ async function navigateWithFallback(page, url) {
 }
 
 async function extractFrames(hlsUrl, outputDir, referer, frameConfig = {}) {
-  const result = await extractSceneFrames(
+  const { method, count } = await extractSceneFrames(
     hlsUrl,
     outputDir,
     {
@@ -71,12 +71,7 @@ async function extractFrames(hlsUrl, outputDir, referer, frameConfig = {}) {
     { log },
   );
 
-  return {
-    method: result.method,
-    sceneCount: result.sceneCount,
-    intervalCount: result.intervalCount,
-    count: result.count,
-  };
+  return { method, count };
 }
 
 function ensureFfmpegAvailable() {
@@ -89,7 +84,7 @@ function ensureFfmpegAvailable() {
   log.info("  ffmpeg: available");
 }
 
-async function runPreflight({ adapter, page, platformCfg, context, authDir, browser }) {
+async function runPreflight({ adapter, page, platformCfg, context, browser }) {
   if (!adapter.preflight) return 0;
 
   const pfStart = performance.now();
@@ -100,7 +95,7 @@ async function runPreflight({ adapter, page, platformCfg, context, authDir, brow
   if (!preflightResult.success) {
     log.error(`\n  ✗ ${preflightResult.error}`);
     log.error("  Aborting — fix the adapter selectors before extracting.\n");
-    await closeBrowser(context, authDir, browser);
+    await closeBrowser(context, browser);
     process.exit(1);
   }
 
@@ -118,7 +113,6 @@ async function runMetadataPhase({
   courseJson,
   platformCfg,
   context,
-  authDir,
   browser,
 }) {
   if (!args["metadata-only"] && course.metadata) return 0;
@@ -138,7 +132,7 @@ async function runMetadataPhase({
   }
 
   if (args["metadata-only"]) {
-    await closeBrowser(context, authDir, browser);
+    await closeBrowser(context, browser);
     log.info("\n  Done (metadata only).");
     process.exit(0);
   }
@@ -187,7 +181,7 @@ async function main() {
   const headless = /** @type {boolean|undefined} */ (!args["show-browser"] && args.headless);
   log.info("  Launching Playwright Chromium...");
   log.info(`  Browser headless: ${headless} (show-browser=${args["show-browser"]})`);
-  const { browser, context, page, authDir, cookieCount } = await launchBrowser({
+  const { browser, context, page, cookieCount } = await launchBrowser({
     headless,
     storageStatePath,
   });
@@ -211,7 +205,6 @@ async function main() {
     page,
     platformCfg,
     context,
-    authDir,
     browser,
   });
   const metadataDurationMs = await runMetadataPhase({
@@ -221,7 +214,6 @@ async function main() {
     courseJson,
     platformCfg,
     context,
-    authDir,
     browser,
   });
 
@@ -273,7 +265,7 @@ async function main() {
     tracker,
   });
 
-  await closeBrowser(context, authDir, browser);
+  await closeBrowser(context, browser);
   const extractionDurationMs = Math.round(performance.now() - extractionStart);
 
   const report = tracker.finish({

@@ -26,14 +26,14 @@
 # cost each entry below is accepted at, and the reason each description's first
 # clause has to name its object.
 
-# Contract-mandated, open owner set. docs/PLUGIN-PHILOSOPHY.md (Setup) fixes the
+# Contract-mandated, open owner set. docs/plugin-philosophy.md (Setup) fixes the
 # name for every plugin that ships consumer configuration; uniformity IS the
 # contract, so a new plugin adopting it is conformance, not a new decision. Not
 # consolidatable: ${CLAUDE_PLUGIN_ROOT} resolves per containing plugin and there
 # is no cross-plugin skill inheritance, so each plugin owns its own.
 setup *
 
-# Fixed verb meaning: read-only findings report (PLUGIN-PHILOSOPHY.md, Naming
+# Fixed verb meaning: read-only findings report (plugin-philosophy.md, Naming
 # verb table). The namespace supplies the object in every case. Qualifying the
 # verb per plugin would say the same thing twice; a topic qualifier is reserved
 # for siblings WITHIN one namespace (audit-noise beside audit-encapsulation).
@@ -138,13 +138,13 @@ diagnose computer-use,songwriting,testing
 # cases). Unrelated artifacts; the namespace supplies the object in both.
 design evals,planning
 
-# Noun reserved for knowledge routers (PLUGIN-PHILOSOPHY.md, Naming). Each
+# Noun reserved for knowledge routers (plugin-philosophy.md, Naming). Each
 # routes its own domain's method literature: event-storming:methodology the
 # EventStorming practice, evals:methodology Anthropic's evaluation guidance.
 # The namespace supplies the domain; qualifying the noun would say it twice.
 methodology evals,event-storming
 
-# Noun reserved for knowledge routers (PLUGIN-PHILOSOPHY.md, Naming), same
+# Noun reserved for knowledge routers (plugin-philosophy.md, Naming), same
 # grounds as `methodology` above. tdd:principles routes the TDD literature
 # (Beck, Khorikov) and answers WHY a test is designed as it is;
 # mutation-testing:principles routes the mutation literature (DeMillo/Lipton/
@@ -169,7 +169,7 @@ plan planning,testing
 # songwriting:workflow routes a writing session.
 workflow session-flow,songwriting
 
-# Fixed verb meaning: refreshes vendored upstream material (PLUGIN-PHILOSOPHY.md,
+# Fixed verb meaning: refreshes vendored upstream material (plugin-philosophy.md,
 # Naming verb table). firecrawl:update syncs the firecrawl wrapper skill against
 # the upstream firecrawl-cli release and SKILL.md source; playbooks:update syncs
 # each vendored pack against its own upstream. Same maintainer-facing sync

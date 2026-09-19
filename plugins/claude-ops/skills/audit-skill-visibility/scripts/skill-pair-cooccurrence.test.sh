@@ -112,8 +112,7 @@ FULL="$TMP/full.jsonl"
 } >"$FULL"
 
 out="$(bash "$SUT" --store "$FULL")"
-st=$?
-assert_status "a store over both floors exits 0" "$st" 0
+assert_status "a store over both floors exits 0" "$?" 0
 assert_contains "reports a rate over the caller-bearing denominator" "$out" "VERDICT: 80% — 4 of 5"
 assert_contains "splits the ordering: callee-first" "$out" "1 with tdd:principles first"
 assert_contains "splits the ordering: caller-first" "$out" "2 with implementation:implement first"

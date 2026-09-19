@@ -51,6 +51,31 @@ clean_default_branch() {
   printf '%s' "${branch:-main}"
 }
 
+# clean_worktree_branches <repo_root>: print the branch checked out in each
+# worktree of the repository, one per line. A branch held by a worktree is never
+# deletable, so the branch audit and the delete path read one list rather than
+# two spellings that could drift apart.
+clean_worktree_branches() {
+  git -C "$1" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r' || true
+}
+
+# clean_loss_count <repo_root> <branch>: print the number of commits on
+# refs/heads/<branch> reachable from no remote-tracking ref and no tag; exit
+# non-zero when git could not count. `--not --remotes --tags` is git's own idiom
+# for "unpushed anywhere": it negates every ref under refs/remotes/ and
+# refs/tags/, and nothing else, so another local branch, HEAD, and the
+# refs/repo-hygiene/deleted/ pins are not places the work is considered to
+# persist. One spelling for the branch audit's LOSSY verdict and the delete
+# path's live re-check, so the two can never disagree about what a deletion
+# loses.
+clean_loss_count() {
+  local n
+  n="$(git -C "$1" rev-list --count "refs/heads/$2" --not --remotes --tags 2>/dev/null)" || return 1
+  n="${n%$'\r'}"
+  [[ "$n" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$n"
+}
+
 # clean_pr_map <outfile> <json_fields> — fetch the repository's pull-request map
 # ONCE and write it to <outfile> as TSV, one row per PR, columns in the order
 # <json_fields> names them (a comma-separated `gh pr list --json` field list).

@@ -130,7 +130,40 @@ if [[ -z "$records" ]]; then
   exit 2
 fi
 
-[[ "$diff_only" == 1 ]] || printf '%s\n' "$records"
+if [[ "$diff_only" == 1 ]]; then
+  # --diff-only drops the pass-through records, and the merge's CAVEAT lines and
+  # the inventory's unread-scope NOTEs live there. Suppressing them turns "two
+  # scopes were unreadable" into silence directly above a summary of zeros, so
+  # they survive the filter; only the per-rule records are withheld.
+  printf '%s\n' "$records" | grep -E '^(CAVEAT|NOTE|MANAGED-NOTE|LINT-NOTE):' || true
+else
+  printf '%s\n' "$records"
+fi
+
+# A scope that could not be read contributes no allow rules, so an all-zero diff
+# is indistinguishable from a machine with no broad rules unless the summary says
+# which case it is.
+unread_scopes=""
+while IFS= read -r rec; do
+  # Word splitting is the point here: a surface record is positional, and $1/$3
+  # are its scope and status fields.
+  # shellcheck disable=SC2086 # deliberate field split on a positional record
+  set -- $rec
+  [[ $# -ge 3 ]] || continue
+  case "$1" in
+  rule | effective | inert | conf | entry-diff | CAVEAT: | NOTE: | MANAGED-NOTE: | LINT-NOTE: | DIFF-NOTE:) continue ;;
+  *) ;; # anything else is a surface record, which is what this loop reads
+  esac
+  case "$3" in
+  skipped | unreadable | invalid-json)
+    case ",$unread_scopes," in
+    *",$1,"*) ;; # already recorded
+    *) unread_scopes="${unread_scopes:+$unread_scopes,}$1" ;;
+    esac
+    ;;
+  *) ;; # present, absent and not-applicable are all answers, not failures to look
+  esac
+done <<<"$records"
 
 # --- classifyAllShell resolution --------------------------------------------
 #
@@ -180,6 +213,10 @@ fi
 
 # --- Per-rule classification --------------------------------------------------
 
+# Every shell-shape class is the same question asked of a different alternation
+# from the shared vocabulary: does the rule text match this ERE.
+rule_matches() { printf '%s\n' "$1" | grep -qE "$2"; }
+
 n_before=0 n_dropped=0 n_suspended=0 n_kept=0
 monitor_seen=0
 predicted_dropped=""
@@ -213,24 +250,27 @@ while read -r rec kind scopes_field _basis rule; do
     # grant is safe. The Agent branch above already handles its own bare form;
     # this is the same rule for the two shell tools.
     verdict="dropped class=blanket"
-  elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_BLANKET_ERE"; then
+  elif rule_matches "$rule" "$CCPERM_P1_BLANKET_ERE"; then
     verdict="dropped class=blanket"
-  elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_INTERP_ERE|$CCPERM_P1_SCRIPTGLOB_ERE"; then
+  elif rule_matches "$rule" "$CCPERM_P1_INTERP_ERE|$CCPERM_P1_SCRIPTGLOB_ERE"; then
     verdict="dropped class=interpreter-wildcard"
-  elif printf '%s\n' "$rule" | grep -qE "$CCPERM_P1_RUNNER_ERE"; then
+  elif rule_matches "$rule" "$CCPERM_P1_RUNNER_ERE"; then
     verdict="dropped class=package-manager-run"
   elif [[ "$cas_active" == 1 && ("$tool" == "Bash" || "$tool" == "PowerShell") ]]; then
     verdict="suspended reason=classifyAllShell"
   fi
-  if [[ "$verdict" == dropped* ]]; then
-    n_dropped=$((n_dropped + 1))
-    predicted_dropped="${predicted_dropped}${rule}"$'\n'
-  elif [[ "$verdict" == suspended* ]]; then
-    n_suspended=$((n_suspended + 1))
-    predicted_dropped="${predicted_dropped}${rule}"$'\n'
-  else
+  # Every rule that did not carry over is a predicted drop, whichever of the two
+  # labels it carries; only the counter differs.
+  if [[ -z "$verdict" ]]; then
     verdict="kept"
     n_kept=$((n_kept + 1))
+  else
+    predicted_dropped="${predicted_dropped}${rule}"$'\n'
+    if [[ "$verdict" == dropped* ]]; then
+      n_dropped=$((n_dropped + 1))
+    else
+      n_suspended=$((n_suspended + 1))
+    fi
   fi
   diff_lines="${diff_lines}entry-diff $verdict $scopes_field $rule"$'\n'
 done <<<"$records"
@@ -239,8 +279,20 @@ if [[ "$monitor_seen" == 1 ]]; then
   echo "DIFF-NOTE: a Monitor allow rule is reported as dropped. Requires Claude Code v2.1.236 or later; earlier versions leave Monitor allow rules in effect in auto mode, so on an older version that rule carries over and this verdict is inverted. This script cannot read the running version; confirm it before acting on a monitor verdict."
 fi
 
+# Both classes are restored on leaving auto mode. Neither label means a permanent
+# edit to your rules, and "dropped" alone reads as one.
+echo "DIFF-NOTE: dropped and suspended rules alike are RESTORED when the session leaves auto mode. Neither verdict changes any settings file; both describe what is in force while auto mode is active."
+
+# Auto mode is the starting mode in exactly one of the seven documented run
+# shapes. Printing this diff unconditionally hands a headless or Agent SDK run a
+# verdict for a transition it never makes.
+echo "DIFF-NOTE: this diff applies only to a session that ENTERS auto mode. Auto mode is the built-in starting mode on Pro, Max, and Team plans in a terminal or the VS Code extension; sessions under 'claude -p' or the Agent SDK, on an Enterprise plan or a Console API key, on Bedrock / Google Cloud Agent Platform / Microsoft Foundry / Claude Platform on AWS / the apps gateway, with feature-flag fetching off, in a first session after an install or upgrade, or with disableAutoMode set to \"disable\", all start in Manual instead and never make this transition."
+
 printf '%s' "$diff_lines"
-echo "entry-diff summary allow_before=$n_before dropped=$n_dropped suspended=$n_suspended kept=$n_kept"
+if [[ -n "$unread_scopes" ]]; then
+  echo "DIFF-NOTE: $unread_scopes scope(s) could not be read, so any allow rules they hold were never classified. The counts below cover the scopes that WERE read."
+fi
+echo "entry-diff summary allow_before=$n_before dropped=$n_dropped suspended=$n_suspended kept=$n_kept status=$([[ -n "$unread_scopes" ]] && echo incomplete || echo read)"
 
 [[ "$oracle" == 1 ]] || exit 0
 

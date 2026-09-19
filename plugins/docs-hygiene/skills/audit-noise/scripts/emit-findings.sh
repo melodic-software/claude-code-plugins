@@ -41,6 +41,10 @@
 # is the payload.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/opt-value.sh
+source "$SCRIPT_DIR/lib/opt-value.sh"
+
 FROM=""
 OUT=""
 BRANCH=""
@@ -67,33 +71,25 @@ row); all other shapes are counted as declined and left to the human report.
 EOF
 }
 
-require_opt_value() {
-  local opt="$1"
-  if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
-    echo "emit-findings.sh: $opt requires a value" >&2
-    exit 2
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --from)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     FROM="$2"
     shift 2
     ;;
   --out)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     OUT="$2"
     shift 2
     ;;
   --branch)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     BRANCH="$2"
     shift 2
     ;;
   --declined-carveout)
-    require_opt_value "$@"
+    require_opt_value "emit-findings.sh" "$@"
     CARVEOUT="$2"
     shift 2
     ;;
@@ -285,6 +281,8 @@ LC_ALL=C awk \
   # description and when_to_use lines would become emittable.
   function is_fence(s) { return s ~ /^---[[:space:]]*$/ }
 
+  # A break leaves fmclose >= 0, and only the no-break path (whole file read,
+  # no closing delimiter) falls back to n, so n needs no second pass to finish.
   function fm_end(file,   line, n, fmclose, result) {
     if (file in fmcache) return fmcache[file]
     n = 0; fmclose = -1
@@ -293,7 +291,6 @@ LC_ALL=C awk \
       if (n == 1) { if (!is_fence(line)) { fmclose = 0; break } ; continue }
       if (is_fence(line)) { fmclose = n; break }
     }
-    while ((getline line < file) > 0) n++
     result = (fmclose == -1) ? n : fmclose
     close(file)
     fmcache[file] = result

@@ -112,7 +112,7 @@ flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2
 | Pruning: no-ops (model-relative, run-the-document test) | `claude-config:unhobble` (empirical — operationalizes his remove-and-observe test) + `audit-instructions` (judgment) | PARITY+ |
 | MECHANICS: invocation choice | rubric at `docs/conventions/invocation-mode/` (model-invoked default + exception classes; the setup convention was already documented in PLUGIN-PHILOSOPHY, contra this row's earlier "undocumented" reading); `skill-quality:check listing-budget` instrument | ADOPTED (adapted — inverted default; lane 8, 2026-08-17; enforcement → #2968) |
 | MECHANICS: splitting by invocation | rubric § Splitting by invocation; #2962's when-to-split doctrine points there | ADOPTED (routed; lane 8, 2026-08-17) |
-| MECHANICS: router skills | rubric § Router-skill verdict; human-side answer = `docs/SKILL-CHEAT-SHEET.md` + `claude-ops:inventory`; composition-router carve-out (`discipline:sweep-all`) | REJECTED with reason (lane 8, 2026-08-17 — the always-present listing is the router under a model-invoked default) |
+| MECHANICS: router skills | rubric § Router-skill verdict; human-side answer = `docs/skill-cheat-sheet.md` + `claude-ops:inventory`; composition-router carve-out (`discipline:sweep-all`) | REJECTED with reason (lane 8, 2026-08-17 — the always-present listing is the router under a model-invoked default) |
 | Invocation-reach invariant | tracked strand (below) | CONFIRMED (docs-verified 2026-08-17; lane 8 disposition below) |
 
 ## Tracked (event-triggered re-evaluation)

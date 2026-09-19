@@ -3,6 +3,18 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7]
+
+### Changed
+
+- The ai-slop audit detector reads its phrase_add and phrase_remove config keys through one helper, its suite shares the branch-line and tier assertions, and the context7 updater drops a dead echo fallback, with identical output.
+
+## [0.5.6]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.5.5]
 
 ### Changed

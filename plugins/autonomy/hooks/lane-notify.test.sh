@@ -41,7 +41,7 @@ wait_for() {
 SHIM="$WORK/shim"
 mkdir -p "$SHIM"
 OSA_LOG="$WORK/osa.log"
-{ printf '#!/usr/bin/env bash\necho Darwin\n'; } >"$SHIM/uname"
+printf '#!/usr/bin/env bash\necho Darwin\n' >"$SHIM/uname"
 {
   printf '#!/usr/bin/env bash\n'
   # shellcheck disable=SC2016  # $#/$@/$a must stay literal in the emitted stub

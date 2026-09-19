@@ -9,20 +9,15 @@ audit_noise_trim_excerpt() {
   if ((${#line} > 120)); then
     line="${line:0:117}..."
   fi
-  # Prefer nameref when the caller wants to avoid a command-substitution subshell.
-  if [[ -n "${2:-}" ]]; then
-    local -n _audit_noise_excerpt_out="$2"
-    _audit_noise_excerpt_out="$line"
-    return 0
-  fi
-  printf '%s' "$line"
+  # Nameref out-parameter: no command-substitution subshell per call.
+  local -n _audit_noise_excerpt_out="$2"
+  _audit_noise_excerpt_out="$line"
 }
 
 # Resolve configured convention roots once per process and export them.
-# Calling this (or the legacy pattern helper) inside a command substitution
-# sets AUDIT_NOISE_CONTRACT_ROOT only in the subshell, silently exempting a
-# configured contract root's bare reviews/handoffs/running-retros child
-# against the lib's stated intent.
+# Calling this inside a command substitution sets AUDIT_NOISE_CONTRACT_ROOT
+# only in the subshell, silently exempting a configured contract root's bare
+# reviews/handoffs/running-retros child against the lib's stated intent.
 audit_noise_resolve_convention_roots() {
   if [[ -n "${AUDIT_NOISE_ROOTS_RESOLVED:-}" ]]; then
     return 0
@@ -48,14 +43,6 @@ audit_noise_resolve_convention_roots() {
   export AUDIT_NOISE_ROOTS_PATTERN AUDIT_NOISE_CONTRACT_ROOT AUDIT_NOISE_ROOTS_RESOLVED
 }
 
-# Back-compat wrapper: ensure roots are resolved, then print the pattern.
-# Prefer audit_noise_resolve_convention_roots + $AUDIT_NOISE_ROOTS_PATTERN in
-# hot paths so the assignment cannot be lost to a subshell.
-audit_noise_convention_roots_pattern() {
-  audit_noise_resolve_convention_roots
-  printf '%s' "$AUDIT_NOISE_ROOTS_PATTERN"
-}
-
 # Per-match ghost-ref scan: exemptions apply to each matched path, never to
 # the whole line, so a convention token cannot mask a concrete ghost ref
 # sharing its line. Angle-bracket slot variables (root followed by '<') are
@@ -63,21 +50,20 @@ audit_noise_convention_roots_pattern() {
 # concern-scoped roots (<memory_dir>/handoffs/, <memory_dir>/reviews/,
 # <memory_dir>/running-retros/, <memory_dir>/overengineering/,
 # <memory_dir>/enforceability/,
-# <memory_dir>/exports/, <memory_dir>/lanes/ — reserved
+# <memory_dir>/exports/, <memory_dir>/lanes/, <memory_dir>/docs-hygiene/ — reserved
 # first-level names under the memory root per docs/conventions/topic-docs/)
 # are exempt only in bare form — a
 # concrete child under them flags. Configured non-default roots from the
 # concern file scan alongside the defaults. The bare-root exemption is for
 # memory roots only — never for the contract root (default or configured).
 audit_noise_line_has_ghost_ref() {
-  local rest="$1" path root seg after roots
+  local rest="$1" path root seg after
   audit_noise_resolve_convention_roots
   # Retired locations: stale even in placeholder form.
   [[ "$rest" == *'.claude/notes/'* ||
     "$rest" == *'.claude/handoffs/'* ||
     "$rest" == *'.claude/review/'* ]] && return 0
-  roots="$AUDIT_NOISE_ROOTS_PATTERN"
-  while [[ "$rest" =~ ($roots)/([a-z0-9][a-z0-9_-]*)/ ]]; do
+  while [[ "$rest" =~ ($AUDIT_NOISE_ROOTS_PATTERN)/([a-z0-9][a-z0-9_-]*)/ ]]; do
     path="${BASH_REMATCH[0]}"
     root="${BASH_REMATCH[1]}"
     seg="${BASH_REMATCH[2]}"
@@ -87,7 +73,7 @@ audit_noise_line_has_ghost_ref() {
     # punctuation, not a hidden child — only `.` followed by a path segment
     # character counts as concrete (`.gitignore`-style names still flag).
     if [[ "$root" != 'docs/topics' && "$root" != "$AUDIT_NOISE_CONTRACT_ROOT" ]] &&
-      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' || "$seg" == 'enforceability' || "$seg" == 'exports' || "$seg" == 'lanes' ]] &&
+      [[ "$seg" == 'handoffs' || "$seg" == 'reviews' || "$seg" == 'running-retros' || "$seg" == 'overengineering' || "$seg" == 'enforceability' || "$seg" == 'exports' || "$seg" == 'lanes' || "$seg" == 'docs-hygiene' ]] &&
       { [[ ! "$after" =~ ^[A-Za-z0-9._-] ]] || [[ "$after" =~ ^\.([^A-Za-z0-9_-]|$) ]]; }; then
       rest="$after"
       continue
@@ -245,8 +231,7 @@ audit_noise_line_is_tracked_work() {
 audit_noise_line_has_ticket_pr_residue() {
   local line="$1"
   audit_noise_line_is_tracked_work "$line" && return 1
-  [[ "$line" =~ [Ss]ee[[:space:]]+(PR|MR|pull[[:space:]]+request|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
-  [[ "$line" =~ [Ss]ee[[:space:]]+the[[:space:]]+(PR|MR|pull[[:space:]]+request|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
+  [[ "$line" =~ [Ss]ee[[:space:]]+(the[[:space:]]+)?(PR|MR|pull[[:space:]]+request|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
   [[ "$line" =~ ([Ii]ntroduced|[Aa]dded|[Ll]anded|[Ss]hipped|[Ff]ixed|[Rr]everted|[Dd]ecided|[Aa]greed)[[:space:]]+in[[:space:]]+(PR|MR|issue|ticket)[[:space:]]*#?[0-9] ]] && return 0
   [[ "$line" =~ [Tt]racked[[:space:]]+in[[:space:]]+#[0-9] ]] && return 0
   [[ "$line" =~ ([Tt]racked|[Ff]iled|[Ll]ogged|[Rr]eported)[[:space:]]+(in|as|under)[[:space:]]+[A-Z][A-Z0-9]+-[0-9] ]] && return 0
@@ -261,10 +246,7 @@ audit_noise_line_has_ticket_pr_residue() {
 # Rationale (file-purpose openers, not every heading that mentions "why").
 audit_noise_line_has_preamble() {
   local line="$1"
-  [[ "$line" =~ ^#{1,6}[[:space:]]+Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists([^[:alnum:]]|$) ]] && return 0
-  [[ "$line" =~ ^#{1,6}[[:space:]]+Motivation([^[:alnum:]]|$) ]] && return 0
-  [[ "$line" =~ ^#{1,6}[[:space:]]+Rationale([^[:alnum:]]|$) ]] && return 0
-  return 1
+  [[ "$line" =~ ^#{1,6}[[:space:]]+(Why[[:space:]]+this[[:space:]]+file[[:space:]]+exists|Motivation|Rationale)([^[:alnum:]]|$) ]]
 }
 
 # Historical citations. The skill table is semantic (dated incidents,
@@ -278,6 +260,22 @@ audit_noise_line_has_citation() {
   [[ "$line" =~ [Rr]enamed[[:space:]]+from ]] && return 0
   [[ "$line" =~ [Pp]re-convention ]] && return 0
   [[ "$line" =~ [Ll]egacy[[:space:]]+layout ]] && return 0
+  # Origin notes: the prose names where the passage came from or when it was added. The
+  # cue has to open the line, a list item, or a clause, which keeps ordinary description
+  # out ("the data was copied from the upstream table"). An origin verb is required, so a
+  # bare date matches nothing, and the stamp verbs /provenance:audit keys on are absent.
+  # The cue also has to END on a boundary, mirroring the code-side sibling: otherwise
+  # `from` matches inside `fromage` and a date matches inside a longer run. An ISO-8601
+  # time is spelled out because its `T` is alphanumeric and the boundary alone would
+  # reject a timestamped note.
+  # A link or a bare URL stands these two cues down (never the six above), because a
+  # pointer is what /provenance:audit asks for. It reads the inline-code-stripped line,
+  # so a URL inside a code span is already gone; that case and an attribution naming a
+  # work rather than a location both still match, and both land on relocate, not delete.
+  if [[ ! "$line" =~ (https?://|\]\(|\]\[) ]]; then
+    [[ "$line" =~ (^|^[[:space:]]*[-*+][[:space:]]+|[,\;:][[:space:]]+|\([[:space:]]*)([Pp]orted|[Cc]opied|[Mm]igrated|[Aa]dapted|[Bb]orrowed|[Ll]ifted|[Tt]aken)[[:space:]]+from([^[:alnum:]]|$) ]] && return 0
+    [[ "$line" =~ (^|^[[:space:]]*[-*+][[:space:]]+|[,\;:][[:space:]]+)([Aa]dded|[Mm]erged|[Ii]ntroduced|[Bb]ackported|[Pp]orted)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}([Tt][0-9:]{4,8}[Zz]?)?([^[:alnum:]]|$) ]] && return 0
+  fi
   return 1
 }
 
@@ -355,20 +353,6 @@ audit_noise_detect_shapes_into() {
     fi
   fi
   ((${#_audit_noise_shapes_out[@]} > 0))
-}
-
-# Emit zero or more shape names (one per line on stdout). Prefer
-# audit_noise_detect_shapes_into in hot loops.
-audit_noise_detect_shapes() {
-  local shapes=()
-  if audit_noise_detect_shapes_into shapes "$1"; then
-    local s
-    for s in "${shapes[@]}"; do
-      printf '%s\n' "$s"
-    done
-    return 0
-  fi
-  return 1
 }
 
 audit_noise_shape_tier() {
@@ -524,11 +508,15 @@ audit_noise_split_sentences_into() {
 # extension and not portable ERE.
 AUDIT_NOISE_APOS="['’]"
 
+# The prohibition cues, shared by the anywhere-in-sentence test below and the
+# sentence-opening scope gate further down, so the two cannot drift apart.
 # The contraction wildcard has to be an apostrophe CLASS, never `.`: `don.t`
 # matches `donut`, which would emit ordinary prose as a Tier 2 finding.
+AUDIT_NOISE_PROHIBITION_ALT="never|do[[:space:]]+not|don${AUDIT_NOISE_APOS}t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn${AUDIT_NOISE_APOS}t"
+
 audit_noise_sentence_has_prohibition() {
   local s="${1,,}"
-  [[ "$s" =~ (^|[^[:alnum:]])(never|do[[:space:]]+not|don${AUDIT_NOISE_APOS}t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn${AUDIT_NOISE_APOS}t)([^[:alnum:]]|$) ]]
+  [[ "$s" =~ (^|[^[:alnum:]])(${AUDIT_NOISE_PROHIBITION_ALT})([^[:alnum:]]|$) ]]
 }
 
 # Evidence that the positive alternative is already paired in this sentence.
@@ -561,8 +549,6 @@ audit_noise_clause_names_alternative() {
   local body="$1" seg first
   body="${body//\*\*/}"
   body="${body//__/}"
-  # The separator is a GLOB here, so `?` must be escaped — unescaped it matches
-  # any single character and shreds the clause into two-letter fragments.
   body="${body//; /$'\n'}"
   body="${body//: /$'\n'}"
   body="${body//, /$'\n'}"
@@ -696,7 +682,7 @@ audit_noise_sentence_opens_with_prohibition() {
   local lead=""
   audit_noise_strip_line_lead "$1" lead
   local s="${lead,,}"
-  [[ "$s" =~ ^(never|do[[:space:]]+not|don${AUDIT_NOISE_APOS}t|avoid|must[[:space:]]+not|should[[:space:]]+not|shouldn${AUDIT_NOISE_APOS}t)([^[:alnum:]]|$) ]]
+  [[ "$s" =~ ^(${AUDIT_NOISE_PROHIBITION_ALT})([^[:alnum:]]|$) ]]
 }
 
 # True when the line closes its sentence, allowing a trailing emphasis run.

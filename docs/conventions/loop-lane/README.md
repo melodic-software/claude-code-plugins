@@ -16,9 +16,9 @@ mechanic in a self-paced drain loop over a repository's backlog. Three lanes ado
 Because those live in two different plugins, the topology, escalation contract, capability-tier
 vocabulary, and loop-layer invariants they share cannot live inside either plugin. A
 sibling-plugin file import is a defect
-([`PLUGIN-PHILOSOPHY.md`](../../PLUGIN-PHILOSOPHY.md#design-boundary)), and a cross-plugin convention
+([`plugin-philosophy.md`](../../plugin-philosophy.md#design-boundary)), and a cross-plugin convention
 lands in an owner doc before the second plugin adopts it
-([convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)). This is that owner doc.
+([convention registry](../../plugin-philosophy.md#convention-registry)). This is that owner doc.
 
 **Pointer-not-copy.** Each mechanic below is owned by a plugin or a sibling convention; this doc
 fixes the *contract* every lane holds to and points at the owner for the *mechanism*. It never

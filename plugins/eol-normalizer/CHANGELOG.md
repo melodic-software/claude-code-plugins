@@ -3,6 +3,38 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.50]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.6.49]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.6.48]
+
+### Changed
+
+- The desktop-notification, eol-normalizer, go-format, and github test suites route repeated invocations through shared runner and counter helpers, the eol-normalizer hook derives its status from the taken message directly, and the education workspace lister and firecrawl updater drop a redundant subshell and conjunct, with identical output.
+
+## [0.6.47]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.6.46]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.6.45]
 
 ### Changed

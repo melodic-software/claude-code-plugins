@@ -147,7 +147,7 @@ if [[ -n "$LABELS" ]]; then
       printf 'create-item.sh: could not accumulate label page %s for %s\n' "$PAGE" "$REPO" >&2
       exit "$EX_INTERNAL"
     }
-    LABEL_GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null || echo 0)"
+    LABEL_GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || LABEL_GOT=0
     LABEL_SEEN=$((LABEL_SEEN + LABEL_GOT))
     # An empty page ends the walk whatever the header claimed — a count that never gets
     # satisfied must not turn into an unbounded loop.

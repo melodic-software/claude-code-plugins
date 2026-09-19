@@ -78,15 +78,10 @@ try {
         default_gateway   = $gateway
         gateway_reachable = $gatewayReachable
     } `
-        -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+        -NeedsAdmin $false -RanSuccessfully $true
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'DNS health check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'DNS health check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

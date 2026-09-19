@@ -42,6 +42,15 @@ function summarize(checks) {
   };
 }
 
+function logChecks(heading, glyph, checks) {
+  if (checks.length === 0) return;
+  log.info(`  ${heading}:`);
+  for (const c of checks) {
+    log.info(`    ${glyph} ${c.message}`);
+    log.debug(`      ${JSON.stringify(c.details)}`);
+  }
+}
+
 function main() {
   const { courseDir, course } = loadCourseDir(args, { logger: log });
   const modulesDir = join(courseDir, "modules");
@@ -90,24 +99,8 @@ function main() {
 
   log.info("\n  ────────────────────────────────────────────");
 
-  const failures = allChecks.filter((c) => c.severity === FAIL);
-  const warnings = allChecks.filter((c) => c.severity === WARN);
-
-  if (failures.length > 0) {
-    log.info("  FAILURES:");
-    for (const f of failures) {
-      log.info(`    ✗ ${f.message}`);
-      log.debug(`      ${JSON.stringify(f.details)}`);
-    }
-  }
-
-  if (warnings.length > 0) {
-    log.info("  WARNINGS:");
-    for (const w of warnings) {
-      log.info(`    ⚠ ${w.message}`);
-      log.debug(`      ${JSON.stringify(w.details)}`);
-    }
-  }
+  logChecks("FAILURES", "✗", allChecks.filter((c) => c.severity === FAIL));
+  logChecks("WARNINGS", "⚠", allChecks.filter((c) => c.severity === WARN));
 
   log.info(
     `\n  Summary: ${summary.passed} passed, ${summary.warnings} warnings, ${summary.failed} failed (${summary.total} total)`,

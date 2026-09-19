@@ -28,10 +28,17 @@ def _run_script(session_id: str, base_path: str) -> subprocess.CompletedProcess[
     return _run_multi([session_id, base_path])
 
 
+def _run_events(tmp_path: Path, events: list[dict]) -> subprocess.CompletedProcess[str]:
+    """Write the events as this session's JSONL and run the script over them."""
+    (tmp_path / f"{SESSION_ID}.jsonl").write_text(
+        "\n".join(json.dumps(event) for event in events) + "\n"
+    )
+    return _run_script(SESSION_ID, str(tmp_path))
+
+
 def _run_with_event(tmp_path: Path, event: dict) -> dict:
     """Write a single JSONL event and return the parsed `data` dict from stdout."""
-    (tmp_path / f"{SESSION_ID}.jsonl").write_text(json.dumps(event) + "\n")
-    result = _run_script(SESSION_ID, str(tmp_path))
+    result = _run_events(tmp_path, [event])
     result.check_returncode()
     return json.loads(result.stdout)["data"]
 
@@ -234,39 +241,33 @@ def test_files_modified_snapshot_dedups_with_write_event(tmp_path):
     """file-history-snapshot absolute path deduplicates against a Write relative path."""
     cwd = str(tmp_path)
     events = [
-        json.dumps(
-            {
-                "type": "assistant",
-                "timestamp": "2026-03-23T18:00:00Z",
-                "cwd": cwd,
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "name": "Write",
-                            "id": "w1",
-                            "input": {"file_path": "README.md", "content": "x"},
-                        }
-                    ],
-                    "usage": {"input_tokens": 0, "output_tokens": 0},
-                },
-            }
-        ),
-        json.dumps(
-            {
-                "type": "file-history-snapshot",
-                "timestamp": "2026-03-23T18:00:01Z",
-                "snapshot": {
-                    "trackedFileBackups": {
-                        f"{cwd}/README.md": "backup-content",
+        {
+            "type": "assistant",
+            "timestamp": "2026-03-23T18:00:00Z",
+            "cwd": cwd,
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Write",
+                        "id": "w1",
+                        "input": {"file_path": "README.md", "content": "x"},
                     }
-                },
-            }
-        ),
+                ],
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        },
+        {
+            "type": "file-history-snapshot",
+            "timestamp": "2026-03-23T18:00:01Z",
+            "snapshot": {
+                "trackedFileBackups": {
+                    f"{cwd}/README.md": "backup-content",
+                }
+            },
+        },
     ]
-    jsonl = tmp_path / f"{SESSION_ID}.jsonl"
-    jsonl.write_text("\n".join(events) + "\n")
-    data = json.loads(_run_script(SESSION_ID, str(tmp_path)).stdout)["data"]
+    data = json.loads(_run_events(tmp_path, events).stdout)["data"]
     assert data["files_modified"] == ["README.md"]
 
 
@@ -296,25 +297,19 @@ def test_files_modified_no_cwd_keeps_paths_unchanged(tmp_path):
 def test_queue_operation_counted(tmp_path):
     """queue-operation enqueue events are counted."""
     events = [
-        json.dumps(
-            {
-                "type": "queue-operation",
-                "operation": "enqueue",
-                "timestamp": "2026-03-23T18:00:00Z",
-                "content": "user message",
-            }
-        ),
-        json.dumps(
-            {
-                "type": "queue-operation",
-                "operation": "remove",
-                "timestamp": "2026-03-23T18:00:01Z",
-            }
-        ),
+        {
+            "type": "queue-operation",
+            "operation": "enqueue",
+            "timestamp": "2026-03-23T18:00:00Z",
+            "content": "user message",
+        },
+        {
+            "type": "queue-operation",
+            "operation": "remove",
+            "timestamp": "2026-03-23T18:00:01Z",
+        },
     ]
-    jsonl = tmp_path / f"{SESSION_ID}.jsonl"
-    jsonl.write_text("\n".join(events) + "\n")
-    data = json.loads(_run_script(SESSION_ID, str(tmp_path)).stdout)["data"]
+    data = json.loads(_run_events(tmp_path, events).stdout)["data"]
     assert data["queued_user_messages"] == 1
 
 
@@ -337,18 +332,14 @@ def test_turn_durations_derived_from_assistant_timestamps(tmp_path):
     (empirically 0-5 per session vs hundreds of assistant turns).
     """
     events = [
-        json.dumps(
-            {
-                "type": "assistant",
-                "timestamp": f"2026-05-23T01:38:{secs:02d}.000Z",
-                "message": {"content": [], "usage": {}},
-            }
-        )
+        {
+            "type": "assistant",
+            "timestamp": f"2026-05-23T01:38:{secs:02d}.000Z",
+            "message": {"content": [], "usage": {}},
+        }
         for secs in (10, 15, 30, 45)
     ]
-    jsonl = tmp_path / f"{SESSION_ID}.jsonl"
-    jsonl.write_text("\n".join(events) + "\n")
-    data = json.loads(_run_script(SESSION_ID, str(tmp_path)).stdout)["data"]
+    data = json.loads(_run_events(tmp_path, events).stdout)["data"]
     assert data["turns"]["assistant"] == 4
     assert data["turn_durations"]["count"] == 3
     assert data["turn_durations"]["min_ms"] == 5000
@@ -371,24 +362,19 @@ def test_turn_durations_zero_when_single_turn(tmp_path):
 
 def test_output_contract_has_required_keys(tmp_path):
     """Output JSON has all required top-level and nested keys."""
-    # Re-run to capture full stdout (including status/summary), since
-    # _run_with_event only returns the inner data dict.
-    (tmp_path / f"{SESSION_ID}.jsonl").write_text(
-        json.dumps(
-            {
-                "type": "assistant",
-                "timestamp": "2026-03-23T18:00:00Z",
-                "message": {
-                    "model": "claude-opus-4-6",
-                    "content": [],
-                    "stop_reason": "end_turn",
-                    "usage": {"input_tokens": 10, "output_tokens": 5},
-                },
-            }
-        )
-        + "\n"
-    )
-    output = json.loads(_run_script(SESSION_ID, str(tmp_path)).stdout)
+    # The full stdout (status/summary included) is read here, not just the
+    # inner data dict _run_with_event returns.
+    event = {
+        "type": "assistant",
+        "timestamp": "2026-03-23T18:00:00Z",
+        "message": {
+            "model": "claude-opus-4-6",
+            "content": [],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+        },
+    }
+    output = json.loads(_run_events(tmp_path, [event]).stdout)
 
     assert "status" in output
     assert "summary" in output

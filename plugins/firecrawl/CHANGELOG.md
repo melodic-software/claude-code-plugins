@@ -3,6 +3,30 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.14]
+
+### Changed
+
+- The four update.sh copies (boris, skill-authoring, playwright, firecrawl) now share one idiom: a single tr call strips quotes and carriage returns from metadata fields, require_tool no longer carries a redundant return, and the firecrawl sha fetch uses the same short-circuit shape as its siblings. The two test suites drop an unread fixture variable.
+
+## [0.5.13]
+
+### Changed
+
+- The desktop-notification, eol-normalizer, go-format, and github test suites route repeated invocations through shared runner and counter helpers, the eol-normalizer hook derives its status from the taken message directly, and the education workspace lister and firecrawl updater drop a redundant subshell and conjunct, with identical output.
+
+## [0.5.12]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.5.11]
+
+### Changed
+
+- **`firecrawl`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.5.10]
 
 ### Changed

@@ -46,6 +46,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=worktree-path-lib.sh
+source "$HOOK_DIR/worktree-path-lib.sh"
 hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
@@ -80,164 +82,19 @@ SESSION="${SESSION//$'\r'/}"
 CLAIM="$HOOK_DIR/../scripts/worktree-claim.sh"
 [[ -f "$CLAIM" ]] || exit 0
 
-# Set once a segment changes the working directory; every later segment then
-# resolves against a directory this hook cannot see (same rule as the
-# containment sibling).
-DIR_CHANGED=0
 CLAIM_TARGETS=()
 
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-is_dynamic() {
-  [[ "$1" == *'$'* || "$1" == *'`'* ]]
-}
-
-# shellcheck disable=SC2329
-is_abs_path() {
-  [[ "$1" == /* || "$1" =~ ^[A-Za-z]:[/\\] ]]
-}
-
-# shellcheck disable=SC2329
-normalize_path() {
-  local input="$1" root rest seg
-  if [[ "$input" == /* ]]; then
-    root="/"
-    rest="${input#/}"
-  elif [[ "$input" =~ ^[A-Za-z]:/ ]]; then
-    root="${input:0:2}/"
-    rest="${input:3}"
-  else
-    root=""
-    rest="$input"
-  fi
-  local -a segs=() out=()
-  IFS='/' read -r -a segs <<<"$rest"
-  for seg in "${segs[@]}"; do
-    [[ -z "$seg" || "$seg" == "." ]] && continue
-    if [[ "$seg" == ".." ]]; then
-      ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
-      continue
-    fi
-    out+=("$seg")
-  done
-  local IFS='/'
-  printf '%s%s' "$root" "${out[*]}"
-}
-
-# shellcheck disable=SC2329
-resolve_against() {
-  local base="$1" p="$2"
-  if [[ ("$p" == *\\* || "$base" == *\\*) && ("${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin*) ]]; then
-    local bslash="\\" fwd="/"
-    p="${p//"$bslash"/"$fwd"}"
-    base="${base//"$bslash"/"$fwd"}"
-  fi
-  # shellcheck disable=SC2088
-  if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
-    p="${HOME}/${p#\~/}"
-  fi
-  # shellcheck disable=SC2310
-  if is_abs_path "$p"; then
-    printf '%s' "$p"
-    return 0
-  fi
-  [[ -n "$base" ]] || return 0
-  printf '%s/%s' "${base%/}" "$p"
-}
-
+# The parse, the `cd`/`pushd`/`popd` poisoning, the wrapper/`-C` base
+# composition and the add-target walk are worktree-path-lib.sh's, shared
+# verbatim with the containment sibling so the two gates can never disagree
+# about which target an executed command named. Only the claim is this hook's.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 collect_add() {
-  local -a w=("$@")
-  local n=$# i=0 d word
-
-  if hook::shell_c_operand "$@"; then
-    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" collect_add
-    return 0
-  fi
-
-  while ((i < n)) && [[ "${w[i]}" == *=* && "${w[i]}" != -* ]]; do ((i++)); done
-
-  d=$i
-  while ((d < n)); do
-    case "${w[d]}" in
-    command | builtin | eval | -p) ((d++)) ;;
-    *) break ;;
-    esac
-  done
-  case "${w[d]:-}" in
-  cd | pushd | popd)
-    DIR_CHANGED=1
-    return 0
-    ;;
-  *) ;;
-  esac
-  ((DIR_CHANGED)) && return 0
-
-  # One parsed invocation: the argv `env -S` splicing may have rewritten, git's
-  # index, the wrapper chdirs the [git, subcommand) walk below cannot see, and
-  # the subcommand with its index.
-  hook::git_invocation "${w[@]}" || return 0
-  local gi="$HOOK_GITINV_GI"
-  local -a words=("${HOOK_GITINV_WORDS[@]}")
-  local -a wrapper_dirs=(${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"})
-  n=${#words[@]}
-
-  [[ "$HOOK_GITINV_SUB" == "worktree" ]] || return 0
-  local sub_idx="$HOOK_GITINV_SUB_IDX"
-  [[ "${words[sub_idx + 1]:-}" == "add" ]] || return 0
-
-  local base="$HOOK_CWD" hop
-  for hop in ${wrapper_dirs[@]+"${wrapper_dirs[@]}"}; do
-    # shellcheck disable=SC2310
-    is_dynamic "$hop" && return 0
-    base=$(resolve_against "$base" "$hop")
-    [[ -n "$base" ]] || return 0
-  done
-  local j=$((gi + 1))
-  while ((j < sub_idx)); do
-    if [[ "${words[j]}" == "-C" ]]; then
-      hop="${words[j + 1]:-}"
-      [[ -n "$hop" ]] || return 0
-      # shellcheck disable=SC2310
-      is_dynamic "$hop" && return 0
-      base=$(resolve_against "$base" "$hop")
-      [[ -n "$base" ]] || return 0
-      ((j += 2))
-      continue
-    fi
-    ((j++))
-  done
-
-  local target="" seen_ddash=0
-  for ((j = sub_idx + 2; j < n; j++)); do
-    word="${words[j]}"
-    if ((seen_ddash == 0)); then
-      case "$word" in
-      --)
-        seen_ddash=1
-        continue
-        ;;
-      -b | -B | --reason)
-        ((j++))
-        continue
-        ;;
-      -*)
-        continue
-        ;;
-      *) ;;
-      esac
-    fi
-    target="$word"
-    break
-  done
-  [[ -n "$target" ]] || return 0
-  # shellcheck disable=SC2310
-  is_dynamic "$target" && return 0
-
   local abs
-  abs=$(resolve_against "$base" "$target")
-  [[ -n "$abs" ]] || return 0
-  abs=$(normalize_path "$abs")
-  CLAIM_TARGETS+=("$abs")
+  # shellcheck disable=SC2310  # the return status IS the verdict; abs is read only on 0
+  if worktree_add_target_to abs collect_add "$HOOK_CWD" "$@"; then
+    CLAIM_TARGETS+=("$abs")
+  fi
   return 0
 }
 

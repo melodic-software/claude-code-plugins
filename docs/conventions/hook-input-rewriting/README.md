@@ -1,7 +1,7 @@
 # Hook input rewriting: deny or ask, never a silent rewrite
 
 Owner doc for what a `PreToolUse` hook may do to a tool call it disagrees with. The
-[plugin philosophy](../../PLUGIN-PHILOSOPHY.md) owns the posture rule: an advisory hook is a nudge,
+[plugin philosophy](../../plugin-philosophy.md) owns the posture rule: an advisory hook is a nudge,
 a guard must not block legitimate work. [Hook precision](../hook-precision/README.md) owns
 what a hook matches. This doc owns the one question those two leave open: when a hook can see both
 that a call is wrong and what the right call would be, is it allowed to substitute the right one?

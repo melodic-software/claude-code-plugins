@@ -1,5 +1,22 @@
 # Gotchas
 
+## Contents
+
+- [Always pass the full id to `claude plugin update`: bare-name resolution is version-dependent](#always-pass-the-full-id-to-claude-plugin-update-bare-name-resolution-is-version-dependent)
+- [Trusting `plugin list` / `plugin details` for "what's loaded here"](#trusting-plugin-list--plugin-details-for-whats-loaded-here)
+- [Native-Windows `projectPath` vs Git Bash `$PWD`](#native-windows-projectpath-vs-git-bash-pwd)
+- [A subdirectory install is invisible to this skill: `currentProject` cannot see it](#a-subdirectory-install-is-invisible-to-this-skill-currentproject-cannot-see-it)
+- [Concurrency / TOCTOU](#concurrency--toctou)
+- [Dual-scope divergence is normal, not a defect](#dual-scope-divergence-is-normal-not-a-defect)
+- [A `projectPath` can outlive its directory](#a-projectpath-can-outlive-its-directory)
+- [A large absent-path count is not evidence of careless installs](#a-large-absent-path-count-is-not-evidence-of-careless-installs)
+- [A spoke file never receives `userConfig` substitution](#a-spoke-file-never-receives-userconfig-substitution)
+- [`sync` updates the plugin that provides `sync`](#sync-updates-the-plugin-that-provides-sync)
+- [`marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal](#marketplace-remove-is-a-bulk-uninstall-not-a-declaration-removal-and-it-deletes-this-skills-own-run-journal)
+- [Internal-schema drift: fail loud, never guess](#internal-schema-drift-fail-loud-never-guess)
+- [Captured values on Windows carry `\r`: strip it before embedding in any command or JSON](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)
+- [`--all` with `install_new: all` is a mass install of every catalog, and nothing warns you](#--all-with-install_new-all-is-a-mass-install-of-every-catalog-and-nothing-warns-you)
+
 Failure modes this skill is specifically built to avoid, and what breaks if the safeguard is
 bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This file is the
 "here's what goes wrong" companion, not a restatement.
@@ -7,7 +24,7 @@ bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This
 Every claim here about Claude Code's or the `claude` CLI's own behaviour names the version it was
 observed on. Where a section carries no version of its own, it was last checked against **Claude
 Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin CLI, plugin
-loading/caching, or `userConfig` substitution. A date alone is not a trigger.
+loading/caching, or `userConfig` substitution. A date, on its own, is not a trigger.
 
 A re-verification pass ran 2026-09-05 against **Claude Code 2.1.261**. Read the per-section stamps
 rather than the pass date, because the pass was partial. Re-run and now carrying 2.1.261: the
@@ -128,7 +145,8 @@ cannot execute. Routing such rows into the actionable Divergences count hands th
 guaranteed failures.
 
 `fleet-state.sh` annotates each project/local record with `projectPathPresent` so the condition is
-visible, and `SKILL.md` reports those rows in their own section, out of the Divergences count.
+visible, and the render reports those rows in their own section, out of the Divergences count (see
+[stale-records-cache-content.md](stale-records-cache-content.md)).
 
 **Do not turn that annotation into a filter, and do not call an absent path dead.** `[ -d ]` returns
 false for an unmounted volume, an offline network share, and an unplugged external drive just as
@@ -153,25 +171,28 @@ Sourcing, precedence, and the verified local write path are in
 [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the skill
 cannot reap them". Do not restate them here.
 
-## A spoke file never receives `${user_config.*}` substitution
+## A spoke file never receives `userConfig` substitution
 
 Claude Code substitutes `userConfig` values when it renders the **skill**. A context file under
-`context/` reaches the model as a later file read, plain bytes, no substitution pass. Write
-`${user_config.install_new}` in a spoke and it arrives as that literal token, with **no error and no
-warning**; the value simply never appears, and a step branching on it branches on a placeholder.
+`context/` reaches the model as a later file read, plain bytes, no substitution pass. Write the
+`user_config.install_new` placeholder, in its dollar-brace form, in a spoke and it arrives as that
+literal token, with **no error and no warning**; the value simply never appears, and a step
+branching on it branches on a placeholder.
 
-This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches on *that* line
-rather than on its own prose. Verified empirically: `context/sync-install-enable.md` on disk shows the raw
-`${user_config.install_new}` token in the same session where `SKILL.md`'s render shows the
-configured value. Nothing enforces this: a future spoke that inlines such a token fails silently,
-so it is a review-time rule, not a checkable one.
+This is why `SKILL.md` holds the `install_new` render and `sync-install-enable.md` Step 4 branches
+on *that* line rather than on its own prose. Verified empirically (2026-09-06, Claude Code
+2.1.263): a spoke that carried the placeholder on disk showed it raw in the same session where
+`SKILL.md`'s render showed the configured value. Claude Code enforces nothing here, so the rule is
+kept grep-checkable instead: no `context/*.md` file carries the dollar-brace form of the
+placeholder, and a spoke that inlines one fails silently until that grep catches it at review.
 
 **The skill-body half of the contrast is verified on Claude Code 2.1.263** (2026-09-06, throwaway
 plugin from a local marketplace): a `userConfig` key set in user settings or through `--settings`
 `pluginConfigs` substitutes into the rendered `SKILL.md` body alongside `${CLAUDE_PLUGIN_ROOT}`,
 provided the `pluginConfigs` payload nests the key under `options`; the spoke half rests on the
-on-disk observation above. Keep the render in `SKILL.md` and branch on that line. `SKILL.md`'s
-`install_new` section holds the payload shape and the probe recipe.
+on-disk observation above. Keep the render in `SKILL.md` and branch on that line.
+[scope-semantics.md](scope-semantics.md) "`userConfig`: an unset key renders the literal
+placeholder" holds the payload shape and the probe recipe.
 
 ## `sync` updates the plugin that provides `sync`
 
@@ -319,3 +340,66 @@ with a parameter expansion and no `tr` process, **and** strip `\r` the same way 
 captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
 A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
 process per call. Don't rediscover this the hard way in a second script.
+
+## `--all` with `install_new: all` is a mass install of every catalog, and nothing warns you
+
+Observed 2026-09-14 on **Claude Code 2.1.270**, claude-ops 0.56.2. A `sync --all` run under
+`install_new: all` installed **2,231** plugins at user scope in about 20 minutes, 1,953 of them
+from `claude-community`, before the operator killed it partway through the alphabet. Nothing in the
+run asked, and nothing in the report predicted the volume before Step 4 began.
+
+**The two settings are individually reasonable and catastrophic together.** `install_new: all`
+means "install every not-yet-installed catalog plugin." Against the default marketplace, the one
+whose fleet the operator already curates, that is the intended convenience: the gap is normally
+zero or a handful. Against `--all` it quantifies over *every marketplace in
+`known_marketplaces.json`*, so the same word now means "install every plugin published in every
+catalog this machine knows about," including large third-party ones nobody curated. The policy is
+read once and applied per marketplace; it carries no notion that its blast radius just grew by
+three orders of magnitude.
+
+**Why the existing safeguards do not catch it.** The downgrade guard governs direction, not volume.
+The `ask` branch is the only one that enumerates before acting, and `all` exists precisely to skip
+it. `audit` would have predicted it, but `audit` is a separate invocation an operator reaching for
+`--all` has no particular reason to run first. Step 4's report names what it installed only
+*after* installing it.
+
+**The rule, until the skill enforces a volume gate itself:** treat `--all` combined with a rendered
+`install_new` of `all` as requiring an explicit human confirmation that names the number. Resolve
+the per-marketplace install gap first (`fleet-state.sh --marketplace <name> --ids
+missing-user-install` per marketplace (the selector `sync-run.sh` itself projects for Step 4), or
+one `audit all`), present the total, and proceed only on a yes. An agent running this unattended
+should downgrade its own effective policy to `ask` rather than assume the configured `all` was
+written with the cross-marketplace case in mind: an operator sets that option while thinking about
+the marketplace they maintain.
+
+**Reverting is exact but slow.** The run journal records one `Successfully installed plugin: <id>`
+line per install, so the revert set is `grep -oE "Successfully installed plugin: [^ ]+"` over
+`journal.log`, deduplicated, and it is disjoint from the pre-existing fleet by construction. Verify
+that disjointness against the run's own `pre-refresh.*.json` snapshots before uninstalling anything.
+`claude plugin uninstall <id> -s user -y` removes both the `installed_plugins.json` record and the
+user-scope `enabledPlugins` entry, but it costs ~6s per plugin, so a four-figure revert runs for
+hours. There is no bulk uninstall verb; `marketplace remove` is not one (see its own section above,
+it also deletes this skill's run journal, which is the only record of what to revert).
+
+**A plain `claude plugin uninstall` spawns a session that loads every still-enabled plugin**, so a
+revert loop over a large set re-executes the very plugin set it is removing, once per iteration,
+including their MCP servers. Run every uninstall as `claude --bare plugin uninstall <id> -s user -y`
+instead; `--bare` skips hooks, LSP, plugin sync and the MCP boot, at roughly 15s per uninstall
+rather than 6s. Until the revert drains, use `--bare` for unrelated shell work too, and do not run
+`/reload-plugins`.
+
+*Basis:* the absence of a bulk verb is `claude plugin uninstall --help`, whose complete option list
+is `-h/--help`, `--json`, `--keep-data`, `--prune`, `-s/--scope` and nothing that takes more than
+one `<plugin>`; the spawn-and-load behaviour and the `--bare` mitigation are direct observation
+during the 2026-09-14 revert on this fleet: the host's node/bun process count climbed on every
+plain uninstall and stayed flat at 73 across six consecutive `--bare` uninstalls; the ~6s and ~15s
+figures are wall-clock from that same run and are machine- and plugin-count-dependent, so treat
+them as orders of magnitude rather than constants. Neither the spawn behaviour nor `--bare` is
+documented on
+[plugins-reference](https://code.claude.com/docs/en/plugins-reference) or
+[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), which is why this
+record exists. *As of* 2026-09-15 on **Claude Code 2.1.272** (win32); the revert itself ran on
+2.1.263–2.1.272 with no observed change in the behaviour. ***Recheck trigger:*** a bulk or
+glob-accepting form appearing on `claude plugin uninstall --help`; any release note or
+`plugins-reference` change touching what a non-interactive `plugin` subcommand loads at startup, or
+documenting `--bare`; or an observed uninstall that does not spawn a plugin-loading session.

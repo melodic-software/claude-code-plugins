@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Portability-lint gate: skills declared ecosystem/forge/tracker-agnostic must
 # not ship bare hardcoded stack/forge/branch/tracker defaults. The agnosticism
-# contract lives in docs/PLUGIN-PHILOSOPHY.md (Design boundary,
+# contract lives in docs/plugin-philosophy.md (Design boundary,
 # Two-lane convention posture, Cross-platform contract's declared-narrower-scope
 # allowance); prose states it but cannot self-verify, so this gate turns the
 # assertion into a mechanical check.
@@ -71,15 +71,15 @@ cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
-# The `./` prefixing inside require_token_file is the #1513 fail-open guard.
-# It was present in check-shell-portability.sh and MISSING here until #2914
-# (finding 2): a token list reached as `SKILL_PORTABILITY_TOKENS=t=custom.txt`
-# parsed as an awk variable assignment, so no patterns loaded, every skill
-# reported clean, and the gate exited 0 while gating nothing. Sharing one
-# definition with the twin scanner is what stops the two diverging again.
+# A missing token list fails the gate closed, and it fails HERE with a path in
+# the diagnostic rather than later as an empty pattern set: no list means no
+# patterns, and a scan with no patterns is not a clean scan. The awk operand
+# disambiguation that keeps a path shaped like `tokens=custom.txt` from parsing
+# as a variable assignment is applied below, to the active-pattern file that is
+# what actually reaches awk. Both live in the library shared with the twin
+# scanner, which is what stops the two diverging again.
 TOKENS_SRC="${SKILL_PORTABILITY_TOKENS:-scripts/skill-portability-tokens.txt}"
-TOKENS="" # assigned through the nameref below; declared so shellcheck sees it
-if ! token_scan::require_token_file TOKENS "$TOKENS_SRC"; then
+if ! token_scan::require_token_file "$TOKENS_SRC"; then
   exit 2
 fi
 

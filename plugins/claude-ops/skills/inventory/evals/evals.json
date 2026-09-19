@@ -18,12 +18,13 @@
       "id": 2,
       "name": "degraded-counts-are-floors",
       "prompt": "How many bundled skills does Claude Code ship? Just give me the number.",
-      "expected_output": "Reads the integrity block first. Because the current build reports degraded — some bundled-skill registrations use computed names — the count is reported as a floor with the shortfall named, not as a verified total. Does not round the unresolved registrations away or present the resolved number as complete.",
+      "expected_output": "Reads the integrity block first, lane by lane. Because the bundled_skills lane reports degraded — some registrations build their names at runtime (a dynamic roster) — the count is reported as a floor with the shortfall named, not as a verified total, while the healthy lanes' counts stand as totals. Does not round the dynamic registrations away or present the resolved number as complete.",
       "files": [],
       "expectations": [
         "Output reports the bundled-skill count as a floor or minimum rather than asserting it as an exact total",
-        "Output names the reason the count is not exact, referring to registrations whose names could not be resolved",
-        "Output does not silently drop the unresolved registrations from the explanation to present a cleaner number"
+        "Output names the reason the count is not exact, referring to registrations whose names are built at runtime or could not be resolved",
+        "Output does not silently drop the unresolved or dynamic registrations from the explanation to present a cleaner number",
+        "Output reads the lane statuses and does not downgrade a healthy lane's count because another lane is degraded"
       ]
     },
     {

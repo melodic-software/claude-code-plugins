@@ -184,7 +184,7 @@ assert_contains "its own H1 supplies the label" "$out" "Service specifics"
 # generator reports what exists rather than judging whether it will load.
 assert_contains "a shim-less nested AGENTS.md is still listed" "$out" '`infra/AGENTS.md`'
 
-assert_contains "the block explains the subagent gap" "$out" "subagents"
+assert_contains "the block states how the trigger behaves in subagents" "$out" "subagents"
 assert_contains "the block explains the compaction behavior" "$out" "compaction"
 
 # --------------------------------------------------------------------------

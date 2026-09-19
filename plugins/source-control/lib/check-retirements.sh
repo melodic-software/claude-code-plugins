@@ -165,12 +165,12 @@ if [[ $I_MIGRATED -eq 1 && -z "$CLEAN_ID" ]]; then
   die "--i-migrated only makes sense with --clean <id>"
 fi
 
-# tr -d '\r': Git on Windows can return a CRLF-terminated path.
 if [[ -n "$ROOT_ARG" ]]; then
   ROOT="$ROOT_ARG"
 elif [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   ROOT="$CLAUDE_PROJECT_DIR"
 else
+  # tr -d '\r': Git on Windows can return a CRLF-terminated path.
   ROOT=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
   [[ -n "$ROOT" ]] || ROOT="$PWD"
 fi
@@ -210,13 +210,8 @@ ere_valid() {
   [[ $rc -ne 2 ]]
 }
 
-# Current record's fields; reset at each `---`.
-r_start=0
-r_id="" r_retired="" r_plugin_version="" r_kind="" r_path="" r_match=""
-r_heading="" r_content_match="" r_action="" r_successor="" r_note="" r_status=""
-r_keys=" "
-r_nonempty=0
-
+# Current record's fields: reset_record initializes them before the first line
+# is read and resets them at each `---`.
 reset_record() {
   r_start=$1
   r_id="" r_retired="" r_plugin_version="" r_kind="" r_path="" r_match=""
@@ -241,11 +236,19 @@ invalid() {
 }
 
 # strip_quotes <value> — remove one layer of matching single or double quotes.
+# Each pattern needs both quote characters, so a value that matches is always
+# at least two characters long.
 strip_quotes() {
   local v="$1"
   case "$v" in
-  \'*\') [[ ${#v} -ge 2 ]] && v="${v#\'}" && v="${v%\'}" ;;
-  \"*\") [[ ${#v} -ge 2 ]] && v="${v#\"}" && v="${v%\"}" ;;
+  \'*\')
+    v="${v#\'}"
+    v="${v%\'}"
+    ;;
+  \"*\")
+    v="${v#\"}"
+    v="${v%\"}"
+    ;;
   *) ;;
   esac
   printf '%s' "$v"

@@ -33,9 +33,10 @@
 #     --label     mktemp prefix, for a readable path while debugging.
 #
 # WHY THIS IS NOT IN scripts/lib/test-harness.sh. That file owns the assertion
-# counters and the exit contract, and 33 suites source it for those alone --
-# including suites that build no fixture at all. Folding a git-repo builder into
-# it would put `. scripts/test-git-helpers.sh` on the path of every one of them.
+# counters and the exit contract, and suites across scripts/ source it for those
+# alone -- including suites that build no fixture at all. Folding a git-repo
+# builder into it would put `. scripts/test-git-helpers.sh` on the path of every
+# one of them.
 # The two files answer different questions ("did this assertion pass?" versus
 # "what world does the script under test run in?") and stay separate.
 #

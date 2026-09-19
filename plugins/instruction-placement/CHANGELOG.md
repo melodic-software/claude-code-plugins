@@ -3,6 +3,74 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.11]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.13.10]
+
+### Changed
+
+- Merge the exclusion and tier case arms, share the skip-row writer and the language-hint scan in detect, fold the brace-split and escape arms in glob-tools and share the first-heading read in render-index (behavior unchanged).
+
+## [0.13.9]
+
+### Changed
+
+- Merge the trials and filler parse arms, accumulate adherence results per arm and route index-drift through the shared hook path helpers and fixture setup (behavior unchanged).
+
+## [0.13.8]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.13.7]
+
+### Fixed
+
+- **The remaining surfaces that priced demotion as unreachability now price it as non-inheritance and silence.** `skills/audit/SKILL.md` (its `description` and its Demote lane), `skills/realign/SKILL.md`'s index-regeneration gotcha, `skills/delta/SKILL.md`'s `index-drift` row, `context/routing-rubric.md`'s pricing instruction, and the `Cost:` line of the worked example in `context/findings-artifact.md` all said a deferred surface is invisible to, unreachable from, or absent from subagents. A first-party probe on Claude Code **2.1.268**, recorded with its four-part verification record in `context/verified-mechanics.md`, shows a non-fork subagent does receive a path-scoped rule or a nested `CLAUDE.md`/`AGENTS.md` pair when it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. Each surface now states the two claims that do hold: nothing is inherited, and no deferred surface announces that it exists, so an un-indexed rule goes unnamed until a read happens to match its glob. No rubric rung, hard-deny class, artifact field, or gate moved; only the stated cost.
+
+- **`README.md` cites the measurement that stands rather than the one it supersedes.** The "why this is not just move things into `.claude/rules/`" section asserted "everything that defers is invisible inside subagents" on the **2.1.238** run. That run dispatched its subagent after the parent had loaded every surface and never had the subagent read a covered path, so it measured non-inheritance and was over-read as non-triggering. The paragraph now reports the **2.1.268** result, including the requested-path match, and re-states the index's value as inheritance plus naming rather than as the only route in. The full evidence pointer to `context/verified-mechanics.md` above it is unchanged, and that record carries the dated four-part verification.
+
+- **The pricing line, the index's stated value, and the revisit trigger move with it.** `skills/audit/SKILL.md` step 6 and `skills/realign/SKILL.md`'s present-before-asking rule told the operator to price "subagent invisibility"; `skills/check/SKILL.md`'s missing-index paragraph and `hooks/index-drift.sh`'s `WHY IT EXISTS AT ALL` comment called the index what makes a rule reachable; `evals/adherence-results.md` listed reachability as one of the three demonstrable justifications. Each now states naming rather than reachability, which is what the index actually supplies. `README.md`'s revisit-trigger table asked what to do if Claude Code ever makes deferred surfaces visible to subagents, a trigger that has now fired and been acted on; the row is re-aimed at the residual, Claude Code announcing a deferred surface so an agent learns it exists without reading a covered path. The hook's emitted message, its test, and every exit code are untouched.
+
+- **Three eval expected outputs stop grading the superseded rationale.** `skills/audit/evals/evals.json` case 2 and `skills/realign/evals/evals.json` case 3 justified holding back a safety rail with "deferred surfaces are invisible inside subagents"; `skills/check/evals/evals.json` case 2 explained the index as what makes deferred surfaces "reachable". All three now carry the corrected reason. The graded behavior is identical in every case: the safety rail is still held back with no destination, and a missing index is still a recommendation rather than a gate failure.
+
+## [0.13.6]
+
+### Fixed
+
+- **The drift hook and the check skill no longer price a stale index as unreachability.** `hooks/index-drift.sh` told the operator that "an un-indexed rule is unreachable from subagents", and `skills/check/SKILL.md`'s What-it-checks table gave the same consequence for a failed sync check. A first-party probe on Claude Code **2.1.268** shows the injection does fire inside a subagent that reads a covered path, so the index was never what made a rule reachable. Both surfaces now state the consequence that actually holds: an un-indexed rule goes unnamed, and nothing tells any agent that it exists until a read happens to match its glob. The check's verdict, exit codes, and mechanisms are unchanged; only the stated failure meaning moves. `hooks/index-drift.test.sh` still asserts that the notice says why drift matters, now against the wording the notice actually carries.
+
+- **A renderer assertion description no longer names a gap the rendered block stops describing.** `scripts/render-index.test.sh` labelled its `subagents` substring check "the block explains the subagent gap" while the block it guards now explains that the trigger fires in subagents as well as in the main session. The assertion itself is untouched, so the coverage is identical; the description now says what it is checking.
+
+## [0.13.5]
+
+### Fixed
+
+- **The generated rules index no longer tells every session that on-demand loading skips subagents.** The always-loaded preamble `render-index.sh` renders stated that the read trigger "does **not** fire inside subagents". A first-party probe on Claude Code **2.1.268** shows it does: a general-purpose subagent that reads a path a surface covers receives that surface, for a path-scoped `.claude/rules/` file and for a nested `CLAUDE.md`/`AGENTS.md` shim pair alike, and the glob is matched against the **requested** path, so a read of a covered path that does not exist injects the rule onto the failed tool result. The preamble now states that, keeps the compaction half unchanged, and keeps the standing advice to read a covered surface directly when its content is not already in context. Consuming repositories pick the correction up by re-rendering their index.
+
+- **`context/verified-mechanics.md` records what the 2.1.238 run actually measured.** Finding 4 observed that a subagent inherits none of its parent's deferred loads and was read as "deferred surfaces do not load inside subagents at all"; the run never had the subagent read a covered path, so it measured non-inheritance and not non-triggering. The finding is corrected in place, the surface table's subagent column is re-stated per row, and a new `Subagent visibility, re-measured on 2.1.268` section carries the repro, the two boundaries the measurement does not cross (it covers `Read` and says nothing about `Write`; the unscoped-rule row stays unmeasured at 2.1.268 for want of an unscoped rule to probe), and the four-part verification record the upstream-drift convention requires.
+
+- **The subagent gap is re-stated rather than dropped.** Demotion still costs something real: a subagent starts without every surface the parent had loaded and re-acquires one only by reading a covered path, and no deferred surface announces that it exists to any context that has not touched one. The always-loaded index is still the mitigation, now for discoverability rather than for reachability. The manifest description and the generator's `WHY` comment carry the same correction.
+
+## [0.13.4]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.13.3]
+
+### Changed
+
+- **`audit`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.13.2]
 
 ### Changed

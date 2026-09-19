@@ -61,13 +61,39 @@ assert_eq() {
   fi
 }
 
+# assert_succeeds <label> <expected> <actual> <command...>: the command must exit 0.
+# The command's stdout is discarded so the PASS/FAIL line stays the only stdout of
+# the case; its stderr is left alone, so a diagnostic the case does not assert on
+# still reaches the log. <expected>/<actual> are the words the FAIL line reports.
+assert_succeeds() {
+  local label="$1" expected="$2" actual="$3"
+  shift 3
+  if "$@" >/dev/null; then
+    pass "$label"
+  else
+    fail "$label" "$expected" "$actual"
+  fi
+}
+
+# assert_fails <label> <expected> <actual> <command...>: the command must exit
+# non-zero. Same stdout/stderr handling as assert_succeeds.
+assert_fails() {
+  local label="$1" expected="$2" actual="$3"
+  shift 3
+  if "$@" >/dev/null; then
+    fail "$label" "$expected" "$actual"
+  else
+    pass "$label"
+  fi
+}
+
 # assert_contains <label> <haystack> <needle> — substring match.
 assert_contains() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" == *"$needle"* ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — expected %q in: %s\n' \
       "$CASE_NUM" "$label" "$needle" "$haystack" >&2
     FAILED=$((FAILED + 1))
@@ -76,13 +102,24 @@ assert_contains() {
 
 # assert_not_contains <label> <haystack> <needle> — substring absence.
 assert_not_contains() {
-  CASE_NUM=$((CASE_NUM + 1))
   local label="$1" haystack="$2" needle="$3"
   if [[ "$haystack" != *"$needle"* ]]; then
-    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    pass "$label"
   else
+    CASE_NUM=$((CASE_NUM + 1))
     printf 'FAIL: [%d] %s — forbidden %q present in: %s\n' \
       "$CASE_NUM" "$label" "$needle" "$haystack" >&2
     FAILED=$((FAILED + 1))
   fi
+}
+
+# write_blocking_network_shim <dir>: install gh and curl stubs in <dir> that print
+# a blocked notice on stderr and exit 1. Put <dir> first on PATH to prove a code
+# path never reaches for a network tool (no unshare -n on Git Bash).
+write_blocking_network_shim() {
+  local dir="$1"
+  # shellcheck disable=SC2016  # shim body is literal by design: $(basename) evaluates at shim runtime, not here
+  printf '#!/usr/bin/env bash\necho "blocked: $(basename "$0")" >&2\nexit 1\n' >"$dir/gh"
+  cp "$dir/gh" "$dir/curl"
+  chmod +x "$dir/gh" "$dir/curl"
 }

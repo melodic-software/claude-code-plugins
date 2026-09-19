@@ -1,5 +1,84 @@
 # Changelog: discovery plugin
 
+## [0.19.18]
+
+### Changed
+
+- Fold the usage extraction into one sed, merge the cell edge guards and share the ledger and sidecar fixture helpers in the coverage-complete and dispatch-artifact gate suites (behavior unchanged).
+
+## [0.19.17]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.19.16]
+
+### Fixed
+
+- **`agents/tool-honesty.test.sh`:** the `persistence:` and `scope_as_received:`/`topic_as_received:`
+  checks no longer report a present field as missing when the suite runs beside other suites. Under
+  `set -o pipefail`, `body "$agent" | grep -q` returned 141 whenever `grep` exited on its match before
+  `awk` finished writing the agent body. Each body is now read once and matched from a here-string,
+  and the suite comes off `scripts/run-plugin-tests-serial.txt`.
+
+## [0.19.15]
+
+### Fixed
+
+- **`explorer`, `explore`:** the explore lane now carries the same preload-miss recovery the
+  research and trace-intent lanes have. `agents/explorer.md` tells a dispatched explorer to confirm
+  the skill body is in context before any exploration work and otherwise Read
+  `skills/explore/SKILL.md` from disk, and its payload gains the `preload: fired | fallback`
+  provenance field. Previously the agent's only instruction on a miss was to set
+  `preload_token: MISSING` and stop, and a run that looked for the token in the dispatch prompt or
+  the memory slice instead ran undisciplined and wrote an artifact shaped like the prompt's
+  description of the deliverable rather than `EXPLORE.md` plus sidecars. `skills/explore/SKILL.md`
+  now demotes a matching token to file-identity, grades `preload:` in gate step 1, and treats a
+  payload without the field as an out-of-date agent definition; `reference/dispatch.md` carries
+  the rationale; `contract.test.sh` section 11 pins the explore lane beside the other two; the
+  explore evals gain the fallback-recovery case. The early-emission checklist in
+  `agents/explorer.md` names `preload:` beside `preload_token`, as the researcher and intent-tracer
+  checklists do, so an interrupted fallback run does not leave the template's `fired` default in
+  its early payload; section 11 pins that clause in all three agent definitions.
+
+## [0.19.14]
+
+### Changed
+
+- **`explore`'s convention-files dimension no longer instructs a re-read of always-loaded instructions.** The root `CLAUDE.md` and the files it imports reach the exploration at startup, a dispatched run included, so re-reading them buys nothing. The bullet now points at the path-scoped `.claude/rules/` files and any nested `AGENTS.md` covering the target area, which reach a context only when a file they cover is read, something an exploration may never do for the area a rule governs. The conventions the dimension is meant to surface are the same.
+- **`explore`'s eval stops contradicting the agent body it grades.** The expectation justified reading the rule files "since a subagent does not auto-load them", which stopped matching once `explorer`'s own step was corrected. It now gives the reason that holds, that a subagent inherits none of them and one arrives only on a read matching its glob. The graded behavior is identical: the dispatched run still Reads the scope-relevant rule files explicitly and still skips any that do not exist.
+
+## [0.19.13]
+
+### Fixed
+
+- **`explorer`'s Step 0 no longer says path-scoped rules cannot reach a dispatched run.** The step opened with "A subagent does **not** auto-load path-scoped project rules", and a first-party probe on Claude Code **2.1.268** shows a non-fork subagent does receive a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` its shim imports, when it reads a path that surface covers, with the glob matched against the requested path so even a read that finds no file fires it. What holds is the narrower claim: nothing is inherited, and no deferred surface announces that it exists. The step now says that, which keeps the same instruction (Read the scope-relevant rule files first) resting on a reason that is true, and it carries the four-part verification record the upstream-drift convention requires for a restated harness specific. No dimension, payload field, write boundary, or tool grant changed.
+
+### Changed
+
+- **Three bare prohibitions in the agent definitions now carry the reason or the alternative these
+  files pair with every other "never".** `explorer`'s "do not reconstruct the workflow from memory"
+  now says what stopping buys and what a remembered set of dimensions produces (the well-formed but
+  undisciplined artifact the preload check exists to catch), matching how `researcher` and
+  `intent-tracer` already state the same rule. `researcher` and `intent-tracer`'s "never copy the
+  tool list out of it" now gives the positive alternative first, read the parent-contract record at
+  the moment it is needed, and the reason: that record is a dated snapshot of a harness surface that
+  moves, and a copy carried in an agent body would have no date of its own to age against. No rule,
+  payload field, write boundary, or tool grant changed.
+
+## [0.19.11]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.19.10]
+
+### Changed
+
+- **`blindspot`, `trace-intent`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.19.9]
 
 ### Changed

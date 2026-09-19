@@ -3,6 +3,57 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.11]
+
+### Changed
+
+- Drop the dead brief cross-check branch, hoist the candidate-row regex and share the stderr and first-line helpers in the open-questions and standards-binding suites (behavior unchanged).
+
+## [0.39.10]
+
+### Fixed
+
+- **`scripts/check-open-questions.sh`:** a ledger or Brief holding more than one heading that
+  matches the section the gate grades now exits 2 naming every matching line, instead of binding
+  silently to the first. A ledger copied from the checklist template that kept the template's own
+  `## Open-question register` (whose example rows are unfenced) above a live one was graded on the
+  example rows and reported a phantom `status=open`.
+- **`scripts/check-open-questions.sh`:** every register-derived ungradeable message (zero rows,
+  malformed row or id, duplicate or gapped id, unknown status) and the Brief's missing-id message
+  now name the heading the gate bound to and its line number, so a bind to the wrong section is
+  visible from stderr alone.
+- **`scripts/check-open-questions.sh`:** heading detection and section extraction skip fenced
+  code blocks. The template's register section carries a fenced `bash` block whose `# Step 3`
+  comment lines were read as headings, so a live row written after that fence was invisible and
+  the gate reported an empty register.
+- **`scripts/check-open-questions.sh`:** a fenced block opened and never closed is ungradeable,
+  named as the cause. Every row after such a fence was skipped as documentation, so a register with
+  one answered row and an open row hidden behind a stray fence graded clean.
+- **`scripts/check-open-questions.sh`:** a fence closes only on a line of the same character, at
+  least as long as its opener, with nothing else on it. A four-backtick fence quoting a
+  three-backtick example, or a `~~~` line inside a backtick fence, toggled the fence off and read
+  the quoted example's heading as a live one. One awk function now defines "inside a fence" for
+  heading detection and section extraction, and the row loop reads the state it emits instead of
+  detecting fences a third time.
+- **`scripts/check-open-questions.sh`:** a named `--brief` is read only when the register retired
+  a `deferred` or `blocked` row. With nothing to look up the cross-check reports `brief=ok`, so an
+  unrelated unterminated fence elsewhere in a large Brief no longer fails a clean register. The
+  Brief must still exist.
+
+## [0.39.9]
+
+### Changed
+
+- **`plan`'s stress-test step and `prd`'s skip-condition step state their requirement in the body instead of shouting it in the heading.** The headings carried "(MANDATORY. Never skip)" and "(MANDATORY)"; each body already stated the gate ("Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent", "Before any other work, validate the request matches the trigger conditions") and its reason. Both steps are still required, and neither heading is cited as an anchor anywhere in the marketplace.
+- **`prd`'s grounding step no longer instructs a re-read of always-loaded instructions.** The root `CLAUDE.md` / `AGENTS.md` are already in context. The step now takes product direction and current modules from them, and reads a nested `AGENTS.md` under the area the topic touches, which loads only when a file it covers is read.
+- **`devils-advocate`'s convention check points at the rules that do not load on their own.** The always-loaded `CLAUDE.md` is already in context; the checklist item now reads the `.claude/rules/` files, naming both kinds and why each needs reading. A path-scoped rule reaches a context only when a file it covers is read, and a plan review may open none. An unscoped rule has no glob to match, so nothing delivers it that way at all, which matters most here because this stress test dispatches to a fresh-context sub-agent whose only instruction is this body.
+
+## [0.39.8]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.39.7]
 
 ### Changed

@@ -172,6 +172,22 @@
         "The `- **Agent config** —` roster line is flagged as enum-list",
         "The file is not reported clean"
       ]
+    },
+    {
+      "id": 14,
+      "name": "origin-notes-are-citations",
+      "prompt": "Declutter this file: read evals/fixtures/origin-notes.md relative to the skill directory and audit it for noise.",
+      "expected_output": "Flags exactly five lines as citation at Tier 1 with the relocate-or-strip treatment: the parenthesised 'ported from the melodic-software dotfiles profile', 'Merged 2026-07-24 from dot_bashrc', 'Added 2026-08-10 while wiring permission/hook telemetry', 'Copied from the provisioning repo and adapted for Windows', and 'Backported 2026-09-01 from main'. Nothing else in the file is a finding.",
+      "files": ["evals/fixtures/origin-notes.md"],
+      "expectations": [
+        "All five origin-note sentences are flagged as citation at Tier 1 with a relocate-or-strip treatment",
+        "The freshness stamp 'verified 2026-09-03 against v2.1.259' is NOT flagged: a load-bearing date stays inline",
+        "The bare date line '2026-08-10' is NOT flagged: an origin verb is required",
+        "The why-sentence 'Must stay ordered because the parser reads the first match' is NOT flagged",
+        "'The data was copied from the upstream table before the join runs' is NOT flagged: the cue has to open a clause, and here it does not",
+        "'Adapted from [the upstream guide](https://example.com/guide)' is NOT flagged: a pointer is the artifact /provenance:audit asks for, and a line carrying a link or a bare URL stands the origin cues down",
+        "The copies under `## Sources` and `## History` are NOT flagged: both are exempt sections, and relocating there is the treatment"
+      ]
     }
   ]
 }

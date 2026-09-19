@@ -8,12 +8,10 @@ Returns pending winget upgrades as structured records wrapped in a result tuple.
 Two-path implementation:
 
 1. Preferred: Microsoft.WinGet.Client PowerShell module (v1.12+). The
-   authoritative cmdlet is Get-WinGetPackage; update candidates are filtered
-   with the IsUpdateAvailable property. (The previous design targeted a
-   Get-WinGetPackageUpdate cmdlet that does not exist in the module --
-   verified empirically against 1.12.440. Calling it throws
-   CommandNotFoundException and the wrapper fell through to text parsing
-   silently.) This path is localization-safe and version-aware.
+   authoritative cmdlet is Get-WinGetPackage (the module ships no
+   Get-WinGetPackageUpdate cmdlet); update candidates are filtered with the
+   IsUpdateAvailable property. This path is localization-safe and
+   version-aware.
 
 2. Fallback: parse the fixed-width text output of `winget upgrade`.
    Localization-fragile and breaks on non-English Windows. Used only when
@@ -71,8 +69,8 @@ function ConvertFrom-WingetTextOutput {
                 $line.Substring($idxVer).Trim()
             } else { '' }
             # Length-guard every later column: a row past idxVer but short of
-            # idxAvail used to throw in Substring($idxAvail), and the
-            # row-level catch swallowed the package (#3437).
+            # idxAvail would throw in Substring($idxAvail), and the row-level
+            # catch would swallow the package.
             $avail = if ($idxSource -gt $idxAvail -and $idxAvail -ge 0 -and $line.Length -ge $idxSource) {
                 $line.Substring($idxAvail, $idxSource - $idxAvail).Trim()
             } elseif ($idxAvail -ge 0 -and $line.Length -gt $idxAvail) {

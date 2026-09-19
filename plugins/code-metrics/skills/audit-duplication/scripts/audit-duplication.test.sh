@@ -9,7 +9,11 @@
 # adapter passes and exits 1, the reporting exit code the contract says is not
 # a failure (design T13; no executable is committed). The fixture cluster is
 # scripts/fixtures/sources/cluster/{alpha,beta}/shared/shared-utils.sh and the
-# registry that sanctions it is scripts/fixtures/registry/cluster.txt.
+# registry that sanctions it is scripts/fixtures/registry/cluster.txt. The
+# three-copy cases swap in the captures jscpd-aligned3.json and
+# jscpd-offset3.json, real jscpd 5.2.0 runs over
+# scripts/fixtures/clone-classes/{aligned,offset} rewritten to repo-relative
+# names.
 #
 # The last case is the Brief's own: this repository's real
 # plugins/*/hooks/hook-utils.sh cluster against
@@ -29,31 +33,13 @@ CLUSTER_REGISTRY="$FIXTURES/registry/cluster.txt"
 CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd.json"
 REAL_REGISTRY="scripts/cross-plugin-source-registry.txt"
 cd "$REPO_ROOT" || exit 2
-PY=python3
-command -v python3 >/dev/null 2>&1 || PY=python
 JSCPD_ON_PATH=0
 command -v jscpd >/dev/null 2>&1 && JSCPD_ON_PATH=1
 
 FAILED=0
 CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  expected: %s\n  actual:   %s\n' "$1" "$2" "$3" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$(printf '%s' "$2" | head -c 400)" ;;
-  esac
-}
+# shellcheck source=../../../scripts/test-helpers.sh
+source "$PLUGIN_ROOT/scripts/test-helpers.sh"
 
 STUBS="$(mktemp -d)"
 EMPTY_PATH="$(mktemp -d)"
@@ -63,7 +49,7 @@ export CODE_METRICS_REPORT_DIR="$STUBS/reports"
 cat >"$STUBS/jscpd" <<'STUB'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--version" ]]; then
-  printf 'jscpd 5.1.2\n'
+  printf 'jscpd 5.2.0\n'
   exit 0
 fi
 [[ -z "${CM_TEST_ARGV_LOG:-}" ]] || printf '%s\n' "$*" >>"$CM_TEST_ARGV_LOG"
@@ -88,23 +74,13 @@ export CM_TEST_CAPTURE="$CAPTURE"
 # interpreter stay reachable while the collectors do not.
 # shellcheck source=../../../scripts/tool-free-path.sh
 source "$PLUGIN_ROOT/scripts/tool-free-path.sh"
-cm_fill_tool_free_path "$EMPTY_PATH"
-leftover="$(cm_resolvable_ladder_collectors "$EMPTY_PATH" | sort -u | tr '\n' ' ')"
-leftover="${leftover% }"
-if [[ -z "$leftover" ]]; then
-  pass "no ladder collector is resolvable on the tool-free PATH"
-else
-  fail "no ladder collector is resolvable on the tool-free PATH" "none" "$leftover"
-fi
+cm_assert_tool_free_path "$EMPTY_PATH"
 
 # 1. The declared cluster is excluded, not counted as debt.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"
 assert_eq "the registry run exits 0" 0 "$?"
-if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["duplicated_lines"] == 0 and len(d["excluded"]) >= 1' 2>/dev/null; then
-  pass "a registry-sanctioned cluster reports zero duplicated lines"
-else
-  fail "a registry-sanctioned cluster reports zero duplicated lines" "duplicated_lines 0 with an excluded entry" "$(printf '%s' "$out" | head -c 400)"
-fi
+assert_doc "a registry-sanctioned cluster reports zero duplicated lines" "$out" \
+  'd["summary"]["duplicated_lines"] == 0 and len(d["excluded"]) >= 1'
 excluded_path="$(printf '%s' "$out" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["excluded"][0]["path"])' 2>/dev/null)"
 assert_eq "the excluded entry names the registry line" "shared/shared-utils.sh" "$excluded_path"
 excluded_registry="$(printf '%s' "$out" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["excluded"][0]["registry"])' 2>/dev/null)"
@@ -113,16 +89,10 @@ assert_contains "the excluded entry names the registry file" "$excluded_registry
 # 2. Without the registry the same clones are duplication debt.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"
 assert_eq "the run without a registry exits 0" 0 "$?"
-if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["duplicated_lines"] > 0 and d["summary"]["clone_groups"] == 1 and d["excluded"] == []' 2>/dev/null; then
-  pass "without a registry the same cluster reports duplicated lines"
-else
-  fail "without a registry the same cluster reports duplicated lines" "duplicated_lines > 0, no exclusions" "$(printf '%s' "$out" | head -c 400)"
-fi
-if printf '%s' "$out" | "$PY" -c 'import json,sys; row = json.load(sys.stdin)["measures"][0]; assert row["file"] is None and row["function"] is None and len(row["instances"]) == 2 and row["values"]["tokens"] == 110' 2>/dev/null; then
-  pass "a clone group replaces file and function with instances"
-else
-  fail "a clone group replaces file and function with instances" "instances[] with two copies" "$(printf '%s' "$out" | head -c 400)"
-fi
+assert_doc "without a registry the same cluster reports duplicated lines" "$out" \
+  'd["summary"]["duplicated_lines"] > 0 and d["summary"]["clone_groups"] == 1 and d["excluded"] == []'
+assert_doc "a clone group replaces file and function with instances" "$out" \
+  'any(r["file"] is None and r["function"] is None and len(r["instances"]) == 2 and r["values"]["tokens"] == 110 for r in d["measures"][:1])'
 
 # 3. The markdown rendering states both the debt and the exclusion.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$CLUSTER" --registry "$CLUSTER_REGISTRY")"
@@ -134,11 +104,8 @@ assert_contains "markdown states the exclusion" "$out" "Excluded by a sanctioned
 # 4. Every collector absent: a report is still produced and says so.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER")"
 assert_eq "an all-collectors-absent run exits 0" 0 "$?"
-if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["status"] == "empty" and d["unavailable"] == ["bash/duplication"]' 2>/dev/null; then
-  pass "an all-collectors-absent run is status empty with the lane unavailable"
-else
-  fail "an all-collectors-absent run is status empty with the lane unavailable" "status empty" "$(printf '%s' "$out" | head -c 400)"
-fi
+assert_doc "an all-collectors-absent run is status empty with the lane unavailable" "$out" \
+  'd["status"] == "empty" and d["unavailable"] == ["bash/duplication"]'
 assert_contains "the unavailable row carries the install hint" "$out" "npm install -g jscpd"
 
 # 5. An explicitly named registry that does not exist is a usage error.
@@ -147,19 +114,39 @@ assert_eq "a missing --registry exits 2" 2 "$?"
 
 # 6. The configured tunables reach the collector's command line.
 "$PY" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" --home "$WORK" >"$WORK/base.json" 2>/dev/null
-"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
+"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; d["duplication"]["max_size"] = "8kb"; d["duplication"]["max_lines"] = 0; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
 CM_TEST_ARGV_LOG="$WORK/argv.log" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --config "$WORK/tuned.json" >/dev/null 2>&1
 assert_eq "the tuned run exits 0" 0 "$?"
 argv="$(cat "$WORK/argv.log" 2>/dev/null)"
 assert_contains "min_tokens reaches the collector" "$argv" "--min-tokens 77"
 assert_contains "min_lines reaches the collector" "$argv" "--min-lines 9"
 assert_contains "the ignore globs reach the collector" "$argv" "--ignore **/vendor/**"
+assert_contains "max_size reaches the collector one byte above the bound" "$argv" "--max-size 8193"
+assert_contains "a max_lines of 0 means no cap and reaches the collector as the explicit large value" "$argv" "--max-lines 2147483647"
 
-# 7. --help prints the usage without running anything.
+# 7. Three byte-identical copies are one clone class, its lines counted once.
+# jscpd pairs each later copy with the first, so the capture holds two pairs
+# that name the same instance of copy `a`.
+ALIGNED="$FIXTURES/clone-classes/aligned"
+out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-aligned3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$ALIGNED")"
+assert_eq "the aligned three-copy run exits 0" 0 "$?"
+assert_doc "three aligned copies are one clone class with the lines counted once" "$out" \
+  'd["summary"]["clone_groups"] == 1 and d["summary"]["duplicated_lines"] == 41 and len(d["measures"][0]["instances"]) == 3 and "clustered" in d["measures"][0]["labels"]'
+
+# 8. A third copy that shares only part of the fragment stays its own group:
+# the two pairs name copy `c1` with different ranges, and overlap is not
+# identity.
+OFFSET="$FIXTURES/clone-classes/offset"
+out="$(CM_TEST_CAPTURE="$REPO_ROOT/$FIXTURES/tool-output/jscpd-offset3.json" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$OFFSET")"
+assert_eq "the offset three-copy run exits 0" 0 "$?"
+assert_doc "a partial third copy stays a second clone group" "$out" \
+  'd["summary"]["clone_groups"] == 2 and d["summary"]["duplicated_lines"] == 58 and all(len(r["instances"]) == 2 and "clustered" not in r["labels"] for r in d["measures"])'
+
+# 9. --help prints the usage without running anything.
 bash "$SCRIPT" --help 2>&1 | grep -q 'audit-duplication.sh \[--json\]'
 assert_eq "--help prints usage" 0 "$?"
 
-# 8. The Brief's case: this repository's own vendored hook-utils cluster.
+# 10. The Brief's case: this repository's own vendored hook-utils cluster.
 # The jscpd on PATH has to be a working detector, not another suite's stub or
 # a replaying fake: the probe copies one fixture into two directories under a
 # name nothing else uses and requires the report to name it back.
@@ -180,11 +167,8 @@ if [[ $JSCPD_ON_PATH -eq 1 ]]; then
   mapfile -t hook_copies < <(printf '%s\n' plugins/*/hooks/hook-utils.sh)
   out="$(bash "$SCRIPT" --json --registry "$REAL_REGISTRY" "${hook_copies[@]}")"
   assert_eq "the real hook-utils cluster run exits 0" 0 "$?"
-  if printf '%s' "$out" | "$PY" -c 'import json,sys; d=json.load(sys.stdin); assert d["summary"]["duplicated_lines"] == 0, d["summary"]; assert any(e["path"] == "hooks/hook-utils.sh" for e in d["excluded"]), d["excluded"]' 2>/dev/null; then
-    pass "the real hook-utils cluster reports zero debt through the registry"
-  else
-    fail "the real hook-utils cluster reports zero debt through the registry" "duplicated_lines 0 with an excluded hooks/hook-utils.sh entry" "$(printf '%s' "$out" | head -c 600)"
-  fi
+  assert_doc "the real hook-utils cluster reports zero debt through the registry" "$out" \
+    'd["summary"]["duplicated_lines"] == 0 and any(e["path"] == "hooks/hook-utils.sh" for e in d["excluded"])'
 else
   printf 'SKIP jscpd (not on PATH): real hook-utils cluster case\n'
 fi

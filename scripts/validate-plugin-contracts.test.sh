@@ -758,7 +758,9 @@ fi
 # The fixture root becomes its own repository: commit the conforming manifest,
 # mutate the working tree, run with the base ref pointed at HEAD.
 run_fixture_with_base() { (cd "$TMP" && VALIDATE_CONTRACTS_BASE_REF="$1" node "$SUT" 2>&1); }
-fixture_git() { git -C "$TMP" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
+# The one identity spelling, from the harness this suite already sources
+# through lib/fixture-tree.sh.
+fixture_git() { git_test_config "$TMP" "$@"; }
 commit_fixture() {
   rm -rf "$TMP/.git"
   fixture_git init -q

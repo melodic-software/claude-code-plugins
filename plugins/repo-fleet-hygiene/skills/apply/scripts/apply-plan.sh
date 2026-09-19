@@ -571,8 +571,7 @@ refresh_worktree_cleanup() {
 # --- Evidence refresh -------------------------------------------------------
 # Unit Separator (not tab): empty ref/expected fields must survive read.
 for line in "${UNITS[@]:-}"; do
-  [[ -n "${line:-}" ]] || continue
-  phase="" op="" canonical="" ref="" expected="" kind="" target=""
+  [[ -n "$line" ]] || continue
   IFS=$'\037' read -r phase op canonical ref expected kind target _ <<<"$line"
   case "$op" in
   delete-merged-local-branches)

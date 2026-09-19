@@ -676,6 +676,126 @@ class RenderTests(unittest.TestCase):
         )
         self.assertIn("Files: 2. Functions: 2. Over reference: none.", result.stdout)
 
+    def test_a_lane_row_sorts_among_file_rows_that_tie_on_the_value(self) -> None:
+        # audit-type-debt emits file rows and a lane row (`file: null`) that
+        # can tie on every earlier key; the sort must not compare None with
+        # a path.
+        doc = self._size_doc([])
+        doc["skill"] = "audit-type-debt"
+        doc["thresholds"] = [
+            {
+                "measure": "type_coverage",
+                "value_key": "type_coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        values = {
+            "any_expressions": 0,
+            "expressions_total": 13,
+            "type_coverage_pct": 100.0,
+        }
+        doc["measures"] = [
+            {
+                "file": None,
+                "function": None,
+                "lane": "python",
+                "values": values,
+                "labels": ["lane-total"],
+                "over_reference": [],
+            },
+            {
+                "file": "a.py",
+                "function": None,
+                "lane": "python",
+                "values": values,
+                "labels": [],
+                "over_reference": [],
+            },
+        ]
+        doc["summary"] = {"files": 1, "functions": 0, "over_reference": {}}
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("| a.py |", result.stdout)
+        self.assertIn("lane-total", result.stdout)
+        self.assertIn("Files: 1. Over reference: none.", result.stdout)
+
+    def _type_debt_doc(self, measures: list[dict]) -> dict:
+        doc = self._size_doc([])
+        doc["skill"] = "audit-type-debt"
+        doc["thresholds"] = [
+            {
+                "measure": "type_coverage",
+                "value_key": "type_coverage_pct",
+                "direction": "below",
+                "reference": None,
+                "provenance": "p",
+                "layer": "bundled default",
+            }
+        ]
+        doc["measures"] = measures
+        doc["summary"] = {"files": 0, "functions": 0, "over_reference": {}}
+        return doc
+
+    def test_two_lane_rows_with_equal_values_stay_two_lines(self) -> None:
+        # Both lanes fully typed: the rows tie on file, function and start
+        # line and must still render one line per lane.
+        doc = self._type_debt_doc(
+            [
+                {
+                    "file": None,
+                    "function": None,
+                    "lane": lane,
+                    "collector": collector,
+                    "values": {"type_coverage_pct": 100.0},
+                    "labels": ["lane-total"],
+                    "over_reference": [],
+                }
+                for lane, collector in (
+                    ("python", "mypy-report"),
+                    ("typescript", "type-coverage"),
+                )
+            ]
+        )
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("| lane-total |"), 2)
+        self.assertNotIn("mypy-report, type-coverage", result.stdout)
+
+    def test_the_lane_row_leads_and_survives_the_row_cap(self) -> None:
+        rows = [
+            {
+                "file": f"m{i:03d}.py",
+                "function": None,
+                "lane": "python",
+                "values": {"type_coverage_pct": float(i % 100)},
+                "labels": [],
+                "over_reference": [],
+            }
+            for i in range(201)
+        ]
+        rows.append(
+            {
+                "file": None,
+                "function": None,
+                "lane": "python",
+                "values": {"type_coverage_pct": 50.0},
+                "labels": ["lane-total"],
+                "over_reference": [],
+            }
+        )
+        doc = self._type_debt_doc(rows)
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("| lane-total |", result.stdout)
+        self.assertIn("more rows", result.stdout)
+        table_lines = [
+            line for line in result.stdout.splitlines() if "| python |" in line
+        ]
+        self.assertIn("lane-total", table_lines[0])
+
     def test_the_row_cap_names_the_key_it_kept_the_top_rows_by(self) -> None:
         rows = [
             {
@@ -745,6 +865,255 @@ class RenderTests(unittest.TestCase):
         self.assertIn("| a.py |  | python |  | 12 | 11 | file_lines |", result.stdout)
         self.assertIn("never a bar", result.stdout)
         self.assertIn("Over reference: file_lines 1.", result.stdout)
+
+    def test_capped_coverage_table_leads_with_the_highest_crap_function(self) -> None:
+        """Under the 200-row cap the first function row is the highest CRAP in scope,
+        function rows with a null CRAP follow, and file rows come after them, least
+        covered first with a null percentage last, whatever the file names sort to."""
+
+        def function_row(file: str, name: str, crap, cov, line: int = 1) -> dict:
+            return {
+                "file": file,
+                "function": name,
+                "lane": "python",
+                "start_line": line,
+                "values": {"coverage_pct": cov, "cyclomatic": 3, "crap": crap},
+                "over_reference": [],
+            }
+
+        def file_row(file: str, cov) -> dict:
+            return {
+                "file": file,
+                "function": None,
+                "lane": "python",
+                "start_line": None,
+                "values": {"coverage_pct": cov, "lines_executable": 10, "lines_hit": 5},
+                "over_reference": [],
+            }
+
+        # 250 alphabetically-early filler functions would fill the cap on their own.
+        filler = [
+            function_row(f"a/{i:03d}.py", f"f{i}", crap=3.0 + (i % 7), cov=50.0)
+            for i in range(250)
+        ]
+        top = function_row("zzz/join.py", "join", crap=3192.0, cov=0.0)
+        null_crap = function_row("zzz/join.py", "empty", crap=None, cov=None, line=90)
+        files = [
+            file_row("zzz/a.py", 100.0),
+            file_row("zzz/b.py", None),
+            file_row("zzz/c.py", 12.5),
+        ]
+        measures = filler + files + [null_crap, top]
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-coverage",
+            "status": "complete",
+            "scope": {"mode": "paths", "base": None, "files": 253, "excluded": 0},
+            "run": [
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": "coverage-json",
+                    "status": "ok",
+                    "reason": None,
+                }
+            ],
+            "thresholds": [],
+            "measures": measures,
+            "summary": {"files": 253, "functions": 252, "over_reference": {}},
+            "excluded": [],
+            "unavailable": [],
+        }
+        result = run("render", stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        table = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("| ") and not line.startswith("| File |")
+        ]
+        measure_rows = [
+            line
+            for line in table
+            if line.startswith("| zzz/") or line.startswith("| a/")
+        ]
+        self.assertEqual(len(measure_rows), 200)
+        self.assertTrue(
+            measure_rows[0].startswith(
+                "| zzz/join.py | join | python |  | 0 | 3 | 3192 |"
+            ),
+            measure_rows[0],
+        )
+        self.assertIn(
+            "| 55 more rows; re-run with --json for the full document |", result.stdout
+        )
+        # The filler outranks nothing above it: its rows follow the top function by
+        # CRAP descending, so the second row is the highest filler CRAP (3 + 6).
+        self.assertIn("| 9 |", measure_rows[1])
+        self.assertNotIn("| zzz/join.py | empty |", result.stdout)
+        self.assertNotIn("| zzz/c.py |", result.stdout)
+
+        # With the cap lifted, the null-CRAP function precedes every file row and the
+        # file rows read least covered first with the null percentage last.
+        doc["measures"] = files + [null_crap, top]
+        result = run("render", stdin=json.dumps(doc))
+        rows = [
+            line for line in result.stdout.splitlines() if line.startswith("| zzz/")
+        ]
+        self.assertEqual(
+            [row.split(" | ")[0] + " | " + row.split(" | ")[1] for row in rows],
+            [
+                "| zzz/join.py | join",
+                "| zzz/join.py | empty",
+                "| zzz/c.py | ",
+                "| zzz/a.py | ",
+                "| zzz/b.py | ",
+            ],
+        )
+
+    def test_a_collect_failed_row_puts_an_exit_3_line_in_the_summary(self) -> None:
+        # The dispatcher writes `collect failed (exit 3)` on the run row of a
+        # collector that ran and produced nothing parseable, and the entry script
+        # exits 3 on it; the summary names that row so the exit has a visible
+        # cause. A coverage document carries the reason forward on its crap row
+        # with no collector column, so the label comes from the reason instead.
+        base = {
+            "schema": "code-metrics/v1",
+            "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+        }
+        complexity = dict(
+            base,
+            skill="audit-complexity",
+            status="empty",
+            run=[
+                {
+                    "lane": "typescript",
+                    "measure": "cyclomatic",
+                    "collector": "eslint-complexity 10.1.0",
+                    "status": "unavailable",
+                    "reason": "collect failed (exit 3): eslint-complexity.py: no "
+                    "parseable eslint output",
+                }
+            ],
+            unavailable=["typescript/cyclomatic"],
+        )
+        result = run("render", stdin=json.dumps(complexity))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            "typescript/cyclomatic (eslint-complexity 10.1.0).",
+            result.stdout,
+        )
+        coverage = dict(
+            base,
+            skill="audit-coverage",
+            status="partial",
+            run=[
+                {
+                    "lane": "typescript",
+                    "measure": "coverage",
+                    "collector": "lcov",
+                    "status": "partial",
+                    "reason": "partial, 1 of 2 scope files present in the artifacts",
+                },
+                {
+                    "lane": "typescript",
+                    "measure": "crap",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "cyclomatic collector eslint-complexity 10.1.0 "
+                    "unavailable: collect failed (exit 3): eslint-complexity.py: "
+                    "no parseable eslint output",
+                },
+            ],
+            unavailable=["typescript/crap"],
+        )
+        result = run("render", stdin=json.dumps(coverage))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "Exit 3: a collector ran and produced nothing parseable: "
+            "typescript/crap (cyclomatic collector eslint-complexity 10.1.0 "
+            "unavailable).",
+            result.stdout,
+        )
+        clean = dict(base, skill="audit-size", status="empty", run=[], unavailable=[])
+        result = run("render", stdin=json.dumps(clean))
+        self.assertNotIn("Exit 3", result.stdout)
+
+    def test_a_no_artifact_run_ends_with_the_first_artifact_pointer(self) -> None:
+        # The coverage join writes `no coverage artifact found` on every run row
+        # when nothing was named and nothing was discovered. The markdown's last
+        # line then points at the per-lane table that says how to produce one,
+        # because the skill will not run a test or install a tool on its own.
+        # The JSON document is untouched, and a run that read an artifact, even
+        # a partial one, carries no such line.
+        base = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-coverage",
+            "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
+            "thresholds": [],
+            "measures": [],
+            "summary": {"files": 0, "functions": 0, "over_reference": {}},
+            "excluded": [],
+        }
+        searched = (
+            "no coverage artifact found; searched: coverage/lcov.info, lcov.info, "
+            "coverage.xml, cobertura.xml, coverage.json, coverage.out, cover.out"
+        )
+        missing = dict(
+            base,
+            status="empty",
+            run=[
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": searched,
+                },
+                {
+                    "lane": "python",
+                    "measure": "crap",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": searched,
+                },
+            ],
+            unavailable=["python/coverage", "python/crap"],
+        )
+        result = run("render", stdin=json.dumps(missing))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        last = result.stdout.rstrip("\n").splitlines()[-1]
+        self.assertIn("No coverage artifact was found", last)
+        self.assertIn('"Getting a first artifact" table', last)
+        self.assertIn("this skill runs none of them", last)
+        partial = dict(
+            base,
+            status="partial",
+            run=[
+                {
+                    "lane": "python",
+                    "measure": "coverage",
+                    "collector": "coverage.py",
+                    "status": "partial",
+                    "reason": "partial, 1 of 3 scope files present in the artifacts",
+                },
+                {
+                    "lane": "python",
+                    "measure": "crap",
+                    "collector": "coverage.py",
+                    "status": "partial",
+                    "reason": "partial, 1 of 3 scope files present in the artifacts",
+                },
+            ],
+            unavailable=["python/coverage", "python/crap"],
+        )
+        result = run("render", stdin=json.dumps(partial))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("Getting a first artifact", result.stdout)
 
 
 CLONE_ROW = {
@@ -862,8 +1231,337 @@ class CloneGroupRowTests(unittest.TestCase):
         self.assertEqual(out["run"], doc["run"])
 
 
-def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **scope):
+def clone_row(lane: str, first: str, second: str, lines: int, tokens: int = 90) -> dict:
+    return {
+        "file": None,
+        "function": None,
+        "lane": lane,
+        "instances": [
+            {"file": first, "start_line": 1, "end_line": lines},
+            {"file": second, "start_line": 1, "end_line": lines},
+        ],
+        "values": {"lines": lines, "tokens": tokens},
+        "over_reference": [],
+    }
+
+
+def duplication_doc(measures: list[dict], **overrides: object) -> dict:
     doc = {
+        "schema": "code-metrics/v1",
+        "skill": "audit-duplication",
+        "status": "complete",
+        "scope": {"mode": "all", "base": None, "files": 4, "excluded": 0},
+        "run": [
+            {
+                "lane": "bash",
+                "measure": "duplication",
+                "collector": "jscpd 5.2.0",
+                "status": "ok",
+                "reason": None,
+                "hint": None,
+            }
+        ],
+        "thresholds": [],
+        "measures": measures,
+        "summary": {"files": 0, "functions": 0, "over_reference": {}},
+        "excluded": [],
+        "unavailable": [],
+    }
+    doc.update(overrides)
+    return doc
+
+
+def resummarized(doc: dict, *args: str) -> dict:
+    result = run("resummarize", *args, stdin=json.dumps(doc))
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+class DuplicationRollupTests(unittest.TestCase):
+    ROWS = [
+        clone_row("bash", "a/x/u.sh", "b/x/u.sh", 20),
+        clone_row("python", "a/y/v.py", "c/y/v.py", 7, 30),
+        clone_row("bash", "a/x/w.sh", "d/x/w.sh", 5, 12),
+    ]
+
+    def test_the_rollups_sum_to_the_totals_and_root_restates_them(self) -> None:
+        summary = resummarized(duplication_doc(self.ROWS))["summary"]
+        self.assertEqual(summary["duplicated_lines"], 32)
+        self.assertEqual(
+            summary["by_lane"],
+            {
+                "bash": {"groups": 2, "duplicated_lines": 25},
+                "python": {"groups": 1, "duplicated_lines": 7},
+            },
+        )
+        self.assertEqual(
+            sum(b["duplicated_lines"] for b in summary["by_lane"].values()),
+            summary["duplicated_lines"],
+        )
+        self.assertEqual(
+            summary["by_directory"]["."], {"groups": 3, "duplicated_lines": 32}
+        )
+
+    def test_directory_rollups_are_cumulative_over_the_first_instance(self) -> None:
+        by_directory = resummarized(duplication_doc(self.ROWS))["summary"][
+            "by_directory"
+        ]
+        # Every group's first instance sits under `a`, so `a` carries all three
+        # while its children split them; the second instances count nowhere.
+        self.assertEqual(by_directory["a"], {"groups": 3, "duplicated_lines": 32})
+        self.assertEqual(by_directory["a/x"], {"groups": 2, "duplicated_lines": 25})
+        self.assertEqual(by_directory["a/y"], {"groups": 1, "duplicated_lines": 7})
+        self.assertNotIn("b", by_directory)
+        self.assertEqual(
+            set(by_directory), {".", "a", "a/x", "a/y"}, sorted(by_directory)
+        )
+
+    def test_root_makes_directory_keys_root_relative(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rows = [
+                clone_row(
+                    "bash",
+                    str(root / "plugins" / "p" / "u.sh"),
+                    str(root / "plugins" / "q" / "u.sh"),
+                    9,
+                )
+            ]
+            by_directory = resummarized(duplication_doc(rows), "--root", tmp)[
+                "summary"
+            ]["by_directory"]
+        self.assertEqual(set(by_directory), {".", "plugins", "plugins/p"})
+
+    def test_a_document_without_clone_rows_carries_no_rollup_maps(self) -> None:
+        summary = resummarized(duplication_doc([]))["summary"]
+        self.assertNotIn("by_lane", summary)
+        self.assertNotIn("by_directory", summary)
+
+
+class DuplicationRenderTests(unittest.TestCase):
+    def rendered(self, doc: dict, *args: str) -> str:
+        result = run("render", *args, stdin=json.dumps(doc))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def test_clone_groups_render_largest_first(self) -> None:
+        rows = [
+            clone_row("bash", "a/small.sh", "b/small.sh", 5, 12),
+            clone_row("bash", "a/big.sh", "b/big.sh", 20),
+            clone_row("bash", "a/mid.sh", "b/mid.sh", 5, 40),
+        ]
+        out = self.rendered(resummarized(duplication_doc(rows)))
+        self.assertLess(out.index("a/big.sh"), out.index("a/mid.sh"))
+        self.assertLess(out.index("a/mid.sh"), out.index("a/small.sh"))
+
+    def test_the_rollup_section_cuts_directories_at_the_depth(self) -> None:
+        rows = [clone_row("bash", "a/x/z/u.sh", "b/u.sh", 20)]
+        doc = resummarized(duplication_doc(rows))
+        self.assertIn("a/x/z", doc["summary"]["by_directory"])
+        out = self.rendered(doc)
+        self.assertIn("## Rollup", out)
+        self.assertIn("| bash | 1 | 20 |", out)
+        self.assertIn("| . | 1 | 20 |", out)
+        self.assertIn("| a/x | 1 | 20 |", out)
+        self.assertNotIn("| a/x/z |", out)
+        self.assertIn("| a/x/z | 1 | 20 |", self.rendered(doc, "--rollup-depth", "3"))
+
+    def test_the_summary_line_counts_files_with_clones(self) -> None:
+        rows = [clone_row("bash", "a/u.sh", "b/u.sh", 20)]
+        out = self.rendered(resummarized(duplication_doc(rows)))
+        self.assertIn("\nFiles with clones: 2.\n", out)
+        self.assertNotIn("Functions:", out)
+
+    def test_an_empty_excluded_list_is_stated_with_its_reason(self) -> None:
+        rows = [clone_row("bash", "a/u.sh", "b/u.sh", 20)]
+        out = self.rendered(resummarized(duplication_doc(rows)))
+        self.assertIn(
+            "Excluded by a sanctioned-replication registry: 0 (no registry configured, or "
+            "none matched).",
+            out,
+        )
+        doc = resummarized(duplication_doc(rows))
+        doc["excluded"] = [{"registry": "r.txt", "line": 3, "path": "u.sh"}]
+        self.assertIn(
+            "Excluded by a sanctioned-replication registry: 1.", self.rendered(doc)
+        )
+
+    def test_no_detector_prints_one_headline_with_the_hint(self) -> None:
+        hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": lane,
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "jscpd: not on PATH",
+                    "hint": hint,
+                }
+                for lane in ("bash", "python")
+            ],
+            unavailable=["bash/duplication", "python/duplication"],
+        )
+        out = self.rendered(doc)
+        self.assertEqual(out.count("No clone detector ran in any lane"), 1)
+        self.assertEqual(out.count("npm install -g jscpd"), 1)
+        self.assertIn("/code-metrics:setup", out)
+        self.assertEqual(out.count("| unavailable | jscpd: not on PATH |"), 2)
+        self.assertLess(out.index("No clone detector"), out.index("## Coverage"))
+
+    def test_a_not_applicable_lane_does_not_hide_the_no_detector_headline(
+        self,
+    ) -> None:
+        # The `other` lane carries a `not-applicable` duplication row on every
+        # run that has a file outside the language lanes; it is not a probe
+        # that failed, so it must not defeat the all-unavailable check.
+        hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": "bash",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "unavailable",
+                    "reason": "jscpd: not on PATH",
+                    "hint": hint,
+                },
+                {
+                    "lane": "other",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "not-applicable",
+                    "reason": "no collector covers this lane",
+                    "hint": None,
+                },
+            ],
+            unavailable=["bash/duplication"],
+        )
+        out = self.rendered(doc)
+        self.assertEqual(out.count("No clone detector ran in any lane"), 1)
+        self.assertEqual(out.count("npm install -g jscpd"), 1)
+
+    def test_only_not_applicable_rows_print_no_headline(self) -> None:
+        doc = duplication_doc(
+            [],
+            status="empty",
+            run=[
+                {
+                    "lane": "other",
+                    "measure": "duplication",
+                    "collector": None,
+                    "status": "not-applicable",
+                    "reason": "no collector covers this lane",
+                    "hint": None,
+                }
+            ],
+        )
+        self.assertNotIn("No clone detector ran", self.rendered(doc))
+
+    def test_a_lane_that_skipped_every_file_is_partial_not_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            result = run(
+                "assemble",
+                "--skill",
+                "audit-duplication",
+                "--scope",
+                write(d, "s.json", json.dumps({"mode": "all", "files": 1})),
+                "--run",
+                write(
+                    d,
+                    "r.jsonl",
+                    jsonl(
+                        [
+                            {
+                                "lane": "bash",
+                                "measure": "duplication",
+                                "collector": "jscpd 5.2.0",
+                                "status": "partial",
+                                "reason": "1 of 1 files skipped by duplication.max_size 1mb / max_lines none",
+                                "hint": None,
+                            }
+                        ]
+                    ),
+                ),
+                "--measures",
+                write(d, "m.jsonl", ""),
+                "--thresholds",
+                write(d, "t.json", "[]"),
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        doc = json.loads(result.stdout)
+        self.assertEqual(doc["status"], "partial")
+        out = self.rendered(doc)
+        self.assertNotIn("Measured nothing", out)
+        self.assertIn("Status: partial", out)
+        self.assertIn("\nPartial: bash/duplication.\n", out)
+
+    def test_a_size_document_renders_as_before(self) -> None:
+        doc = {
+            "schema": "code-metrics/v1",
+            "skill": "audit-size",
+            "status": "partial",
+            "scope": {"mode": "all", "base": None, "files": 1, "excluded": 0},
+            "run": [
+                {
+                    "lane": "python",
+                    "measure": "size",
+                    "collector": "scc 3.4.0",
+                    "status": "partial",
+                    "reason": "1 of 2 files unreadable",
+                    "hint": None,
+                }
+            ],
+            "thresholds": [],
+            "measures": [
+                {
+                    "file": "a.py",
+                    "function": None,
+                    "lane": "python",
+                    "values": {"lines_non_blank": 12},
+                    "over_reference": ["file_lines"],
+                }
+            ],
+            "summary": {
+                "files": 1,
+                "functions": 0,
+                "over_reference": {"file_lines": 1},
+            },
+            "excluded": [],
+            "unavailable": [],
+        }
+        out = self.rendered(doc)
+        self.assertEqual(
+            out,
+            "# code-metrics: audit-size\n"
+            "\n"
+            "Status: partial. Scope: all, 1 file(s).\n"
+            "\n"
+            "## Coverage of this run\n"
+            "\n"
+            "| Lane | Measure | Collector | Status | Reason |\n"
+            "|---|---|---|---|---|\n"
+            "| python | size | scc 3.4.0 | partial | 1 of 2 files unreadable |\n"
+            "\n"
+            "## Measures\n"
+            "\n"
+            "| File | Function | Lane | Labels | lines_non_blank | Over reference |\n"
+            "|---|---|---|---|---|---|\n"
+            "| a.py |  | python |  | 12 | file_lines |\n"
+            "\n"
+            "## Summary\n"
+            "\n"
+            "Files: 1. Over reference: file_lines 1.\n",
+        )
+
+
+def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **scope):
+    return {
         "schema": "code-metrics/v1",
         "skill": "audit-complexity",
         "status": "partial",
@@ -883,7 +1581,6 @@ def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **sc
         "excluded": [],
         "unavailable": [],
     }
-    return doc
 
 
 def function_row(**fields) -> dict:

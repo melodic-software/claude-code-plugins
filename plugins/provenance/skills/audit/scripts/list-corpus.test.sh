@@ -124,7 +124,7 @@ OUT="$(bash "$LIST_CORPUS" --help 2>&1)"
 assert_exit "--help exits 0" "$?" "0"
 assert_contains "--help names the script" "$OUT" "list-corpus.sh"
 
-OUT="$(bash "$LIST_CORPUS" --nope 2>&1)"
+bash "$LIST_CORPUS" --nope >/dev/null 2>&1
 assert_exit "unknown argument exits 2" "$?" "2"
 
 OUT="$(run_default 2>/dev/null)"

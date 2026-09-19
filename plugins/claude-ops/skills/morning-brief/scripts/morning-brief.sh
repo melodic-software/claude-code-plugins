@@ -606,9 +606,8 @@ print_queues() {
     if [[ -n "$COUNTS_JSON" ]]; then
       n="$(jq -r --arg l "$label" 'if type == "object" then (.[$l] // 0) else 0 end' "$COUNTS_JSON" 2>/dev/null)"
     else
-      local count_fn_gql=count_label_gql count_fn_rest=count_label_rest
       if [[ "$TRANSPORT" == "gh" ]]; then
-        if ! "$count_fn_gql" "$WORK/count" "$label"; then
+        if ! count_label_gql "$WORK/count" "$label"; then
           if graphql_blocked "$LAST_ERR"; then
             TRANSPORT="rest"
           else
@@ -618,7 +617,7 @@ print_queues() {
         fi
       fi
       if [[ "$TRANSPORT" == "rest" ]]; then
-        "$count_fn_rest" "$WORK/count" "$label" || {
+        count_label_rest "$WORK/count" "$label" || {
           unreadable queues "$label: $LAST_ERR"
           return
         }
@@ -659,7 +658,7 @@ fetch_prs_rest() {
   # The list endpoint carries no merge state; each PR costs one more GET for
   # `mergeable_state`, so the read is capped. A capped read is reported as
   # partial rather than rendered as the whole queue.
-  local out="$1" total i number retry=() uncomputed=()
+  local out="$1" total i number numbers=() retry=() uncomputed=()
   rest_paginate_array "$WORK/prs.rest" "repos/$REPO/pulls?state=open&per_page=100" || return 1
   total="$(jq 'length' "$WORK/prs.rest")"
   PR_PARTIAL=()
@@ -667,6 +666,7 @@ fetch_prs_rest() {
   : >"$WORK/prs.detail"
   for ((i = 0; i < total && i < PR_LIMIT; i++)); do
     number="$(jq -r ".[$i].number" "$WORK/prs.rest")"
+    numbers+=("$number")
     gh_read "$WORK/pr.$number" api "repos/$REPO/pulls/$number" || return 1
     merge_state_uncomputed "$WORK/pr.$number" && retry+=("$number")
   done
@@ -677,8 +677,8 @@ fetch_prs_rest() {
       merge_state_uncomputed "$WORK/pr.$number" && uncomputed+=("#$number")
     done
   fi
-  for ((i = 0; i < total && i < PR_LIMIT; i++)); do
-    number="$(jq -r ".[$i].number" "$WORK/prs.rest")"
+  # After the retry pass, so a re-read pull replaces its first response.
+  for number in "${numbers[@]}"; do
     cat "$WORK/pr.$number" >>"$WORK/prs.detail"
   done
   if ((${#uncomputed[@]} > 0)); then

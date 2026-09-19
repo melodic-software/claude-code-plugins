@@ -23,7 +23,7 @@ LIB="$REPO/plugins/claude-ops/hooks/session-log-lib.sh"
 f=""
 
 # shellcheck disable=SC2016  # literal hooks.json command text, never expanded here
-PRODUCER='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
 RETENTION='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 
@@ -78,16 +78,20 @@ done
 observed=$(jq '[.[] | select(.producer == "observe")] | length' "$REG")
 if ((observed == 30)); then ok "30 events are observable"; else fail "expected 30 observable events, got $observed"; fi
 
-# One producer row per observable event, with statusMessage and timeout.
+# One producer row per observable event, with statusMessage, timeout, and the
+# pinned shell: a shell-form row with no `shell` field defaults to PowerShell on
+# a Windows host without Git Bash, where `[ ... ]`, `$VAR` and `exec` all error.
 missing=0
 while IFS= read -r ev; do
-  c=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == $prod and .timeout == 5 and (.statusMessage | length > 0))] | length' "$HJ")
+  c=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(.command == $prod and .shell == "bash" and .timeout == 5 and (.statusMessage | length > 0))] | length' "$HJ")
   [[ "$c" == 1 ]] || missing=$((missing + 1))
 done < <(jq -r '.[] | select(.producer == "observe") | .name' "$REG")
-if ((missing == 0)); then ok "every observable event has exactly one producer row"; else fail "$missing observable events lack their producer row"; fi
+if ((missing == 0)); then ok "every observable event has exactly one producer row, pinned to bash"; else fail "$missing observable events lack their producer row"; fi
 
 ret=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(.command == $ret)] | length' "$HJ")
 if [[ "$ret" == 1 ]]; then ok "SessionEnd carries the retention row once"; else fail "retention rows on SessionEnd: $ret"; fi
+ret_shell=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(.command == $ret) | .shell' "$HJ")
+if [[ "$ret_shell" == bash ]]; then ok "the retention row is pinned to bash too"; else fail "retention row shell: $ret_shell"; fi
 ret_timeout=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(.command == $ret) | has("timeout")' "$HJ")
 if [[ "$ret_timeout" == false ]]; then ok "the retention row carries no timeout (a plugin timeout only lowers the cap)"; else fail "retention row has a timeout"; fi
 
@@ -142,7 +146,7 @@ fi
 new_fixture f
 odd="$(mktemp)"
 FIXTURES+=("$odd")
-{ cat "$TABLE"; } >"$odd"
+cp "$TABLE" "$odd"
 # shellcheck disable=SC2016  # the backticks are markdown table text, not a substitution
 sed 's/^| `SessionEnd`  *|/| `MysteryEvent`        |/' "$odd" >"$odd.2" && mv "$odd.2" "$odd"
 out=$(bash "$SCRIPT" --from "$odd" --root "$f" 2>&1)

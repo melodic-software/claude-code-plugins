@@ -42,8 +42,7 @@ harness_posix_form() {
   if [[ "$value" =~ ^([A-Za-z]):(/.*)?$ ]]; then
     local drive rest
     drive="${BASH_REMATCH[1]}"
-    rest="${BASH_REMATCH[2]}"
-    [[ -n "$rest" ]] || rest="/"
+    rest="${BASH_REMATCH[2]:-/}"
     printf '/%s%s\n' "${drive,,}" "$rest"
     return 0
   fi

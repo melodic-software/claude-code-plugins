@@ -5,6 +5,24 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.14.6]
+
+### Fixed
+
+- **The skill-listing claim in `skills/use-your-skills/SKILL.md` now carries a recheck trigger.** The restated claim about what the listing carries (every model-invocable skill's name, its description subject to the listing budget, the body only on invocation) cited the Skills docs and a fetch date but named no event that obliges re-deriving it, leaving it a half-conforming record under the upstream-drift convention. It now fires on that page no longer describing the listing that way, or on a release note changing what the listing carries. The claim, its basis, and its date are unchanged, as is the sibling subagent claim that already carried a trigger.
+
+## [0.14.5]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.14.4]
+
+### Changed
+
+- **`do-your-research-deep`, `follow-our-standards`, `scrutinize-dont-coast`, `setup`, `use-your-skills`, `wait-what`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.14.3]
 
 ### Changed

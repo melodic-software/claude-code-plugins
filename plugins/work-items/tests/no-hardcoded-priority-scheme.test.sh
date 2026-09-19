@@ -82,8 +82,7 @@ assert_clean 'a longer word ending in the pN- shape' \
 # --- (2) real scan: the shipped plugin corpus is clean ----------------------
 mapfile -t hits < <(
   grep -rlE "$PATTERN" --include='*.md' "$PLUGIN_ROOT" 2>/dev/null |
-    grep -v '/CHANGELOG\.md$' |
-    grep -v '/evals/' |
+    grep -vE '/CHANGELOG\.md$|/evals/' |
     sort
 )
 

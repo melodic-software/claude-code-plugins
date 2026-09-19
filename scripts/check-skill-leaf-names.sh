@@ -22,7 +22,7 @@
 # description carries, and the model faces the same ambiguity when matching
 # descriptions for auto-invocation. That cost is invisible from inside any one
 # plugin -- nothing in a single skill's own review surfaces it -- and the
-# grammar's own collision rule (docs/PLUGIN-PHILOSOPHY.md, Naming) governs
+# grammar's own collision rule (docs/plugin-philosophy.md, Naming) governs
 # siblings WITHIN one namespace, not across plugins.
 #
 # Registering a leaf name in skill-leaf-name-registry.txt records the grounds it

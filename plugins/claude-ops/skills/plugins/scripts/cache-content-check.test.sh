@@ -76,6 +76,18 @@ write() {
   printf '%s' "$content" >"$path"
 }
 
+# A throwaway marketplace clone carrying its own committer identity, so a
+# fixture commit can never be authored as the caller. One definition for every
+# case that builds a repo, so no case can drift from the isolated form.
+init_fixture_repo() {
+  local repo="$1"
+  mkdir -p "$repo"
+  git -C "$repo" init -q -b main
+  git -C "$repo" config user.email fixture@example.invalid
+  git -C "$repo" config user.name fixture
+  git -C "$repo" config commit.gpgsign false
+}
+
 # Builds the marketplace clone at TWO commits and echoes "<sha1> <sha2>".
 #   commit 1: plugins/alpha/{hooks/run.sh, lib/util.sh, gone.txt}
 #   commit 2: run.sh changed, gone.txt deleted, lib/new.sh added
@@ -84,11 +96,7 @@ write() {
 # is what the fixture models.
 seed_market_repo() {
   local case_dir="$1" repo="$1/market"
-  mkdir -p "$repo"
-  git -C "$repo" init -q -b main
-  git -C "$repo" config user.email fixture@example.invalid
-  git -C "$repo" config user.name fixture
-  git -C "$repo" config commit.gpgsign false
+  init_fixture_repo "$repo"
   write "$repo/.claude-plugin/marketplace.json" \
     '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
   write "$repo/.gitignore" 'plugins/alpha/generated/'
@@ -498,11 +506,7 @@ assert_eq "absent gitCommitSha: counted as unverifiable" "1" "$(jq -r '.unverifi
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
-mkdir -p "$repo"
-git -C "$repo" init -q -b main
-git -C "$repo" config user.email fixture@example.invalid
-git -C "$repo" config user.name fixture
-git -C "$repo" config commit.gpgsign false
+init_fixture_repo "$repo"
 write "$repo/.claude-plugin/marketplace.json" \
   '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
 write "$repo/plugins/alpha/hooks/run.sh" 'echo v1'
@@ -539,11 +543,7 @@ assert_eq "renamed source: nothing is called missing-from-cache" \
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
-mkdir -p "$repo"
-git -C "$repo" init -q -b main
-git -C "$repo" config user.email fixture@example.invalid
-git -C "$repo" config user.name fixture
-git -C "$repo" config commit.gpgsign false
+init_fixture_repo "$repo"
 write "$repo/.claude-plugin/marketplace.json" \
   '{"plugins":[{"name":"alpha","source":"./plugins/ghost"}]}'
 write "$repo/plugins/other/keep.txt" 'unrelated'
@@ -572,11 +572,7 @@ assert_eq "no-source-at-sha: no cache file is called extra" "0" "$(jq -r '.insta
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
-mkdir -p "$repo"
-git -C "$repo" init -q -b main
-git -C "$repo" config user.email fixture@example.invalid
-git -C "$repo" config user.name fixture
-git -C "$repo" config commit.gpgsign false
+init_fixture_repo "$repo"
 write "$repo/.claude-plugin/marketplace.json" \
   '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
 write "$repo/plugins/alpha/plain.sh" 'echo plain'
@@ -614,11 +610,7 @@ assert_eq "non-ASCII path: and is counted as differing, not as missing+extra" \
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
-mkdir -p "$repo/plugins/alpha"
-git -C "$repo" init -q -b main
-git -C "$repo" config user.email fixture@example.invalid
-git -C "$repo" config user.name fixture
-git -C "$repo" config commit.gpgsign false
+init_fixture_repo "$repo"
 write "$repo/.claude-plugin/marketplace.json" \
   '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
 write "$repo/plugins/alpha/real.sh" 'echo real'
@@ -771,11 +763,7 @@ assert_eq "shared source dir: exactly one of the two is stale" "1" "$(jq -r '.st
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
-mkdir -p "$repo"
-git -C "$repo" init -q -b main
-git -C "$repo" config user.email fixture@example.invalid
-git -C "$repo" config user.name fixture
-git -C "$repo" config commit.gpgsign false
+init_fixture_repo "$repo"
 write "$repo/.claude-plugin/marketplace.json" \
   '{"plugins":[{"name":"alpha","source":"./plugins/alpha"},{"name":"nested","source":"./plugins/alpha/nested"}]}'
 write "$repo/plugins/alpha/root.sh" 'echo root'
@@ -852,11 +840,7 @@ count_creations() {
 # is how many files that match covers.
 seed_budget_case() {
   local case_dir="$1" n="$2" repo="$1/market" i
-  mkdir -p "$repo"
-  git -C "$repo" init -q -b main
-  git -C "$repo" config user.email fixture@example.invalid
-  git -C "$repo" config user.name fixture
-  git -C "$repo" config commit.gpgsign false
+  init_fixture_repo "$repo"
   write "$repo/.claude-plugin/marketplace.json" \
     '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
   for ((i = 1; i <= n; i++)); do
@@ -870,11 +854,17 @@ seed_budget_case() {
 
 run_traced() {
   local case_dir="$1" trace="$2"
+  # PS4 travels through a BASH_ENV startup file, never the environment: bash
+  # 4.4 and later rebind an euid-0 shell's PS4 to '+ ' at startup, before any
+  # startup file runs (CVE-2016-7543), so an exported PS4 never reaches a root
+  # shell and the probe counts nothing. A BASH_ENV assignment lands after that
+  # rebind, and its own unstamped `+ PS4=` trace line matches no pid pattern.
   # shellcheck disable=SC2016  # PS4 must reach bash unexpanded: bash expands it per traced line
+  write "$case_dir/ps4.env" 'PS4='\''+${BASHPID}+ '\'''
   env \
     CACHE_CONTENT_INSTALLED_JSON="$case_dir/installed_plugins.json" \
     CACHE_CONTENT_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
-    PS4='+${BASHPID}+ ' \
+    BASH_ENV="$case_dir/ps4.env" \
     bash -x "$SCRIPT" --marketplace market1 2>"$trace"
 }
 

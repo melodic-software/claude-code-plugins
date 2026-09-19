@@ -4,6 +4,43 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.11.5]
+
+### Changed
+
+- The four update.sh copies (boris, skill-authoring, playwright, firecrawl) now share one idiom: a single tr call strips quotes and carriage returns from metadata fields, require_tool no longer carries a redundant return, and the firecrawl sha fetch uses the same short-circuit shape as its siblings. The two test suites drop an unread fixture variable.
+
+## [0.11.4]
+
+### Changed
+
+- **`skill-authoring`**: `reference/authoring-guidance.md` restates `claude plugin eval` from its
+  own documentation page, which the previous record named as the event to recheck on. The command
+  is documented, requires a stated minimum Claude Code version, and reads a case format its page
+  says is separate from the `evals/evals.json` the eval loop in that section uses, so the loop is
+  unchanged and a plugin measured as a plugin routes to the command. The record carries the new
+  basis, an as-of of 2026-09-12, and a trigger keyed on the format separation.
+
+## [0.11.3]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.11.2]
+
+### Changed
+
+- **`skill-authoring`: the description voice rule is stated as the page defines it.**
+  `reference/authoring-guidance.md` now says to keep first and second person out of description
+  prose, names the page's two Avoid examples and its system-prompt reason, and records that
+  imperative verb phrases and third-person singular both conform: the page's own effective
+  examples, the Claude Code skills page's examples, and the bundled skill-creator's frontmatter all
+  use the imperative, so the marketplace's imperative descriptions stand rather than being treated
+  as a deviation. Quoted trigger phrases keep the user's voice. The Record cites the three example
+  surfaces and gains a recheck trigger for the page rewriting its examples.
+  `reference/authoring-checklist.md` gains the matching judgment row.
+
 ## [0.11.1]
 
 ### Changed

@@ -165,10 +165,9 @@ try {
     # Non-elevated runs silently miss Get-StorageReliabilityCounter data on
     # most drives. Make that visible: declare admin_fields so the elevation
     # banner + report block call it out, and append a note to the summary.
-    $elevated = Test-IsElevated
     $adminFields = @()
     $adminNote = $null
-    if (-not $elevated) {
+    if (-not (Test-IsElevated)) {
         $adminFields = @('temp_c', 'wear_pct', 'read_errors', 'write_errors')
         $adminNote = 'SMART temp/wear counters require admin; re-run elevated for full coverage.'
         if ($summary) {
@@ -179,16 +178,11 @@ try {
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
         -Severity $overallSev -Summary $summary -Detail $detail -Commands $commands `
         -NeedsAdmin $false -RanSuccessfully $true `
-        -DurationMs ([int]$sw.ElapsedMilliseconds) `
         -AdminFields $adminFields `
         -Notes $adminNote
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Disk health check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Disk health check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

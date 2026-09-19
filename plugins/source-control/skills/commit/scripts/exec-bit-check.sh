@@ -133,10 +133,7 @@ while [[ "$#" -gt 0 ]]; do
     ;;
   --)
     shift
-    while [[ "$#" -gt 0 ]]; do
-      paths+=("$1")
-      shift
-    done
+    paths+=("$@")
     break
     ;;
   *)
@@ -165,7 +162,7 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   exit 3
 }
 
-# Anchor everything at the repository root. `git diff --cached --name-status`
+# Anchor everything at the repository root. `git diff --cached --raw`
 # always emits paths relative to the REPOSITORY ROOT, but a `git ls-files`
 # pathspec is interpreted relative to the CURRENT DIRECTORY. Run from a
 # subdirectory, those two disagree: every ls-files lookup misses, `stage_line`

@@ -183,6 +183,49 @@ else
   fail "interleaved output: $block_defects"
 fi
 
+# --- a serial-allowlisted suite drawn by --suites-from stays serial ----------
+#
+# The allowlist is the thing a second parallel runner would forget, and
+# scripts/affected-tests.sh --jobs N reaches this runner through --suites-from
+# rather than through discovery. Nothing proved the allowlist still holds for a
+# suite the SELECTION drew: the --suites-from block further down keeps its
+# serial suite out of the selection, so it never reaches the partition. The
+# mechanic is this file's and is identical on both entry paths, so it is pinned
+# here, beside the probes that can see concurrency, rather than re-fixtured in
+# the selector's suite.
+#
+# p2 and s2 are left out of the selection on purpose: s2 is allowlisted and
+# unselected, which must NOT be reported stale, because the stale guard reads
+# the full discovery and not the selection.
+rm -f "$probe_dir"/overlap.* "$probe_dir"/running.*
+picked="$scratch/selection-serial.txt"
+printf 'plugins/p1/p1.test.sh\nplugins/p3/p3.test.sh\nplugins/s1/s1.test.sh\n' >"$picked"
+PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 0 "a supplied selection carrying a serial suite exits 0" \
+  --root "$r" --jobs 3 --suites-from "$picked"
+assert_output_has "the supplied selection is split serial-first" "Suites: 3 (1 serial, 2 across up to 3 job(s))"
+assert_output_lacks "an allowlisted suite the selection did not draw stays unrun" "=== plugins/s2/s2.test.sh ==="
+if [[ -s "$probe_dir/overlap.s1.test.sh" ]]; then
+  fail "selected serial suite s1 overlapped another suite: $(cat "$probe_dir/overlap.s1.test.sh")"
+else
+  ok "a serial suite drawn by --suites-from still runs alone"
+fi
+sel_overlaps=0
+for name in p1 p3; do
+  [[ -s "$probe_dir/overlap.$name.test.sh" ]] && sel_overlaps=$((sel_overlaps + 1))
+done
+if ((sel_overlaps > 0)); then
+  ok "the selected parallel suites still ran concurrently ($sel_overlaps of 2 probes saw a sibling)"
+else
+  fail "no selected parallel probe saw a sibling; --suites-from collapsed the group to serial"
+fi
+sel_serial_last="$(grep -n '^PASS: plugins/s1' <<<"$RUN_OUTPUT" | tail -n 1 | cut -d: -f1)"
+sel_parallel_first="$(grep -n '^PASS: plugins/p' <<<"$RUN_OUTPUT" | head -n 1 | cut -d: -f1)"
+if [[ -n "$sel_serial_last" && -n "$sel_parallel_first" ]] && ((sel_serial_last < sel_parallel_first)); then
+  ok "the selected serial suite finishes before the selected parallel group starts"
+else
+  fail "the selected serial suite did not finish first (serial line $sel_serial_last, parallel first line $sel_parallel_first)"
+fi
+
 rm -f "$probe_dir"/overlap.* "$probe_dir"/running.*
 PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 0 "--jobs 1 still honours the allowlist" --root "$r"
 for name in p1 p2 p3 s1 s2; do
@@ -241,6 +284,80 @@ write_suite "$r" "plugins/od:d/name.test.sh" 'echo "marker from the colon path"'
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a path containing a colon runs" --root "$r"
 assert_output_has "the colon path is reported whole" "PASS: plugins/od:d/name.test.sh"
 assert_output_has "the colon path keeps its output" "marker from the colon path"
+
+# --- --shard partitions the corpus --------------------------------------------
+#
+# Sorted, the seven suites are a..g at indexes 0..6, so of three legs leg 0
+# draws a, d, g; leg 1 draws b, e; leg 2 draws c, f. The allowlist names b and
+# c, neither of which is on leg 0: the stale guard must still read the full
+# discovery there rather than call both entries stale.
+r="$(make_root shard)"
+for name in a b c d e f g; do
+  write_suite "$r" "plugins/$name/$name.test.sh" 'echo ok'
+done
+shard_list="$scratch/shard-serial.txt"
+printf 'plugins/b/b.test.sh\nplugins/c/c.test.sh\n' >"$shard_list"
+PLUGIN_TEST_SERIAL_LIST="$shard_list" run_runner 0 "unsharded reference run" --root "$r"
+whole="$(grep '^PASS: ' <<<"$RUN_OUTPUT" | sort)"
+legs=""
+for leg in 0 1 2; do
+  PLUGIN_TEST_SERIAL_LIST="$shard_list" run_runner 0 "leg $leg of 3 exits 0" --root "$r" --jobs 2 --shard "$leg/3"
+  legs+="$(grep '^PASS: ' <<<"$RUN_OUTPUT")"$'\n'
+  [[ "$leg" == 1 ]] && assert_output_has "leg 1 runs its own serial subset" "Suites: 2 (1 serial, 1 across up to 2 job(s))"
+done
+assert_output_has "the leg reports what it kept" "shard: leg 2 of 3 keeps 2 of 7 suite(s)."
+if [[ "$(grep . <<<"$legs" | sort)" == "$whole" ]]; then
+  ok "the legs are disjoint and their union is the unsharded corpus"
+else
+  fail "legs do not partition the corpus; unsharded: $whole; legs: $legs"
+fi
+
+r="$(make_root shard-empty)"
+write_suite "$r" plugins/a/a.test.sh 'echo ok'
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a leg that draws nothing exits 0" --root "$r" --shard 1/2
+assert_output_lacks "the empty leg runs nothing" "=== plugins/"
+
+for spec in 2/2 x 1 1/0 ''; do
+  PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "--shard '$spec' is rejected" --root "$r" --shard "$spec"
+done
+assert_output_has "the bad shard spec is named" "--shard wants <index>/<total>"
+
+# --- --suites-from: the supplied selection replaces the discovered corpus ------
+#
+# scripts/affected-tests.sh hands its selection here instead of carrying a
+# second parallel runner. The three properties that matters rests on: only the
+# listed suites run, a listed suite OUTSIDE the discovered corpus still runs
+# (the selector reaches scripts/ and lib/, which `find` here never sees), and
+# the serial allowlist's stale guard still reads the FULL discovery, so an
+# allowlist entry the selection did not draw is not reported stale.
+r="$(make_root suites-from)"
+write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
+write_suite "$r" plugins/b/b.test.sh 'echo "ok: b"'
+write_suite "$r" scripts/outside.test.sh 'echo "ok: outside"'
+selection="$scratch/selection.txt"
+printf 'plugins/a/a.test.sh\nscripts/outside.test.sh\n' >"$selection"
+serial_b="$scratch/serial-b.txt"
+printf 'plugins/b/b.test.sh\n' >"$serial_b"
+PLUGIN_TEST_SERIAL_LIST="$serial_b" run_runner 0 "--suites-from runs exactly the supplied selection" \
+  --root "$r" --suites-from "$selection"
+assert_output_has "a listed suite runs" "PASS: plugins/a/a.test.sh"
+assert_output_has "a listed suite outside the discovered corpus runs" "PASS: scripts/outside.test.sh"
+assert_output_lacks "an unlisted suite does not run" "=== plugins/b/b.test.sh ==="
+
+missing="$scratch/selection-missing.txt"
+printf 'plugins/a/a.test.sh\nplugins/nope/nope.test.sh\n' >"$missing"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a listed path that is not a file is rejected" \
+  --root "$r" --suites-from "$missing"
+assert_output_has "the missing path is named" "plugins/nope/nope.test.sh"
+
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a missing --suites-from file is rejected" \
+  --root "$r" --suites-from "$scratch/no-such-list.txt"
+
+empty_selection="$scratch/selection-empty.txt"
+: >"$empty_selection"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "an empty selection exits 0 having run nothing" \
+  --root "$r" --suites-from "$empty_selection"
+assert_output_lacks "the empty selection runs nothing" "=== plugins/"
 
 # --- the shipped allowlist against the shipped corpus --------------------------
 #

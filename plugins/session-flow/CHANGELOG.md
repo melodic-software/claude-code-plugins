@@ -1,5 +1,90 @@
 # Changelog: session-flow plugin
 
+## [0.36.0]
+
+### Added
+
+- **`save_point.py fill <file> --slots <json>`: one call replaces every reasoning slot.** The
+  handoff write procedure was one Edit per `<!-- FILL: ... -->` slot, up to twenty-two of them on
+  a first hop, so an interrupt mid-batch left a partly filled skeleton. `fill` reads one JSON
+  object keyed by slot name and applies every value in a single write, after every check has
+  passed. An inline prefix on a slot's line is preserved, a multi-line value lands as those lines
+  in place, and an optional slot left out of the object has its line deleted. A closing handoff is
+  written by giving the `next` slot the value `Next: none (closed)` exactly, which `fill` moves
+  onto the `Next:` line above before deleting the slot line, since that is the only shape the
+  validator accepts as closed. A required slot absent, a key naming no slot in the file, a slot
+  name occurring twice, a value that itself carries a `FILL` slot marker, and a target with no
+  slot left are each refused by name with the file left byte-identical. A missing or unreadable
+  target, and a slots file that is missing, unreadable, not a JSON object, or holds a non-string
+  or non-UTF-8-encodable value, exit 2, as does a target that is not a handoff file, the same
+  `type: handoff` guard `validate` and `emit` apply, and a target whose shape is not 2, since
+  substitutions belong to the shape this engine writes. A shape newer than 2 exits 3 with
+  `validate`'s wording, read it and do not rewrite it, so version skew cannot corrupt a
+  future-format handoff. The write goes to a temporary file in the target's own directory and is
+  replaced into place, so an interrupted write cannot truncate the handoff. The target's own line
+  endings survive, so a CRLF handoff stays CRLF. `new`, `validate`, and `emit` keep their behavior
+  and exit codes, and the Edit tool is now only the repair path after a failed `validate`.
+
+## [0.35.18]
+
+### Fixed
+
+- **`save_point.py new` no longer drops the predecessor's amendment bullets that sit below its `Opening ask:` line.** The carry skipped every line after `Opening ask:` until one starting with `**`, so a bullet (`- **Amended (verbatim, ...)`) below the ask was swallowed and the successor lost it; two hops of one real chain had to re-add those bullets by hand. The skip now ends at any structural marker, a `**` line or a bullet, which keeps the multi-paragraph verbatim ask out of the successor as before. The same boundary is used by both of the validator's reads of the section, including the hop-1 ask-length cap, so all three agree.
+
+## [0.35.17]
+
+### Changed
+
+- The three test wrappers and the observer-arm hook find a Python 3.10+ interpreter through one probe library instead of four identical loops. Skip messages, exit codes and the launcher argv are unchanged. The probe writes through `printf -v`, so the hook still finds its interpreter on the stock bash 3.2 that macOS ships.
+
+## [0.35.16]
+
+### Changed
+
+- hop_chain and save_point reconfigure stdout and stderr for UTF-8 through one io_streams module instead of two identical private functions.
+
+## [0.35.15]
+
+### Changed
+
+- The session-flow save-point and hop-chain scripts drop dead constants, unread return values, and a redundant predecessor guard, hoist loop-invariant path lookups, and compile a repeated chain-item regex, with byte-identical handoff output.
+
+## [0.35.14]
+
+### Changed
+
+- Fold the chain-coverage note into one branch, drop a redundant staging guard and share the event runner and script-dir binding in the retro and keep-going suites (behavior unchanged).
+
+## [0.35.13]
+
+### Changed
+
+- Forward the observer timing options without redundant string wrapping, simplify the memory-root ignore append, hoist the module-level imports and drop a dead test branch in running-retro (behavior unchanged).
+
+## [0.35.12]
+
+### Fixed
+
+- **Both restated external numeric anchors in `skills/orchestrate/SKILL.md` now carry a recheck trigger.** The workflow size figures (fewer than 5 agents for small, 15 for medium, 50 for large, with the large-workflow warning above 25) and the roughly 1,000 to 2,000 token return range each cited a source and a fetch date but named no event that obliges re-deriving them, leaving them half-conforming records under the upstream-drift convention. Each now fires on its own source no longer carrying those figures. The figures, their sources, and their dates are unchanged, and the third anchor on the page already carried a trigger.
+
+## [0.35.11]
+
+### Changed
+
+- **`brain-fried` output style: dropped a redundant opening sentence and gave the anti-oversimplification line its reason.** "You are still a software engineering assistant. Change only how you communicate, not what you do." restated what the style's own `keep-coding-instructions: true` frontmatter already guarantees, so it is removed with no behavior change. The line telling the model not to dumb down the work or skip load-bearing detail was a bare prohibition; it now says why: cutting a detail the operator needs to act correctly costs more than one more short sentence.
+
+## [0.35.10]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.35.9]
+
+### Changed
+
+- **`handoff`, `keep-going`, `orient`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged. The plugin manifest's orient summary follows the same wording.
+
 ## [0.35.8]
 
 ### Changed

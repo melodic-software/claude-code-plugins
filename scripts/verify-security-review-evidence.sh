@@ -45,13 +45,11 @@
 
 set -euo pipefail
 
-# The default is the ratified list in .github/claude-skip-actors, read through
-# its one parser — never a restated literal: this guard's literal is the copy
-# that drifted (2b4d8abf added cursor[bot] to both workflow lines and left it
-# out here).
-if [[ -z "${SKIP_ACTORS:-}" ]]; then
-  SKIP_ACTORS="$("$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-skip-actors.sh")" || exit 2
-fi
+# The SKIP_ACTORS default read and the entry gates below are shared with the
+# sibling claude-review guard.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+# shellcheck source=lib/review-lane-guard.sh
+. "$SCRIPT_DIR/lib/review-lane-guard.sh" || exit 2
 
 usage() {
   cat <<'EOF'
@@ -112,50 +110,20 @@ classify_absent_verdict() {
 
 main() {
   case "${1:-}" in
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    *) ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *) ;;
   esac
 
-  [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]] || {
-    echo "not a pull_request event — guard not applicable"
-    exit 0
-  }
-
-  if [[ ",${SKIP_ACTORS}," == *",${GITHUB_ACTOR:-},"* ]]; then
-    echo "actor ${GITHUB_ACTOR} is skip-listed — guard not applicable"
-    exit 0
-  fi
-
+  review_lane_guard::require_pull_request_event
+  review_lane_guard::require_unskipped_actor
   # A skipped lane job is one of the four no-verdict paths the lane documents —
   # out of scope, a fork PR, a skip-listed actor, or either kill-switch. None is
   # something this PR can act on, and the lane's own contract makes each a
   # name-stable skip a required-check ruleset reads as success.
-  case "${LANE_RESULT:-}" in
-    skipped)
-      echo "security-review job skipped — guard not applicable"
-      exit 0
-      ;;
-    cancelled)
-      echo "security-review job cancelled — guard not applicable"
-      exit 0
-      ;;
-    "")
-      # `needs.<job>.result` is populated on every outcome, so an empty value
-      # means this guard is not wired to the lane at all. It cannot determine
-      # anything, and a guard that passes on uncertainty reports safety it did
-      # not check.
-      echo "ERROR: LANE_RESULT is empty — this guard is not wired to the security-review job, so it can determine nothing about it (#2337)" >&2
-      exit 1
-      ;;
-    success) ;;
-    *)
-      echo "security-review job result=${LANE_RESULT} — deferring to job status"
-      exit 0
-      ;;
-  esac
+  review_lane_guard::triage_lane_result security-review '#2337' 'deferring to job status'
 
   if [[ "${LANE_RELEVANT:-}" == "false" ]]; then
     echo "diff does not touch security-relevant paths — guard not applicable"
@@ -163,39 +131,39 @@ main() {
   fi
 
   case "${LANE_REVIEW_RAN:-}" in
-    true)
-      echo "security-review evidence OK (the lane declares a review ran, in-scope)"
+  true)
+    echo "security-review evidence OK (the lane declares a review ran, in-scope)"
+    exit 0
+    ;;
+  false)
+    if [[ "${LANE_REVIEW_FAILED:-}" == "true" ]]; then
+      # The lane rules this GREEN on purpose: the cause is outside this PR's
+      # and the org's control, and a required context that reddens on a
+      # provider outage locks every merge for the length of it. This guard
+      # exists to catch a FALSE pass, not to overturn that ruling — so it
+      # says loudly that nothing was reviewed and defers.
+      echo "::warning::security-review was in scope and did not complete (class=${LANE_FAILURE_CLASS:-unknown}). Nothing was reviewed at this head, and the lane reports green by contract. A human should review the security-sensitive changes here before merging."
       exit 0
-      ;;
-    false)
-      if [[ "${LANE_REVIEW_FAILED:-}" == "true" ]]; then
-        # The lane rules this GREEN on purpose: the cause is outside this PR's
-        # and the org's control, and a required context that reddens on a
-        # provider outage locks every merge for the length of it. This guard
-        # exists to catch a FALSE pass, not to overturn that ruling — so it
-        # says loudly that nothing was reviewed and defers.
-        echo "::warning::security-review was in scope and did not complete (class=${LANE_FAILURE_CLASS:-unknown}). Nothing was reviewed at this head, and the lane reports green by contract. A human should review the security-sensitive changes here before merging."
-        exit 0
-      fi
-      echo "ERROR: in-scope security-review concluded success but declares that no review ran and no failure occurred — the action skipped itself (workflow-validation skip: the caller's workflow file must match the default branch's copy). Merging the caller-workflow change clears it; a re-run cannot (#2337)" >&2
+    fi
+    echo "ERROR: in-scope security-review concluded success but declares that no review ran and no failure occurred — the action skipped itself (workflow-validation skip: the caller's workflow file must match the default branch's copy). Merging the caller-workflow change clears it; a re-run cannot (#2337)" >&2
+    exit 1
+    ;;
+  *)
+    # A command substitution, so `set -e` stays live for the helper and a
+    # genuine fault inside it still aborts the guard, while the verdict
+    # travels on stdout where it cannot be confused with one. An
+    # unrecognised verdict is a fault, never a pass.
+    local absent_verdict
+    absent_verdict="$(classify_absent_verdict)"
+    case "$absent_verdict" in
+    retired) exit 0 ;;
+    blind) exit 1 ;;
+    *)
+      echo "ERROR: the absent-verdict classifier returned an unrecognised verdict: ${absent_verdict}" >&2
       exit 1
       ;;
-    *)
-      # A command substitution, so `set -e` stays live for the helper and a
-      # genuine fault inside it still aborts the guard, while the verdict
-      # travels on stdout where it cannot be confused with one. An
-      # unrecognised verdict is a fault, never a pass.
-      local absent_verdict
-      absent_verdict="$(classify_absent_verdict)"
-      case "$absent_verdict" in
-        retired) exit 0 ;;
-        blind) exit 1 ;;
-        *)
-          echo "ERROR: the absent-verdict classifier returned an unrecognised verdict: ${absent_verdict}" >&2
-          exit 1
-          ;;
-      esac
-      ;;
+    esac
+    ;;
   esac
 }
 

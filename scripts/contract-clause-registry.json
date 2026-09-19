@@ -173,6 +173,35 @@
           "hint": "carry the self-containment bullet with its three parts: no external requests, no remote scripts, assets inline"
         }
       ]
+    },
+    {
+      "id": "B2-lane-productivity",
+      "title": "A review lane is judged by what it produced for this round, and an absent one is substituted",
+      "canonical": "plugins/source-control/skills/pull-request/reference/readiness.md",
+      "detect": "review.?lane productivity|produced nothing for this round|\\bB2\\b",
+      "restates": "(ABSENT|absent)[^.]{0,60}(never PASS|not PASS|rather than PASS)|produced nothing for this round",
+      "qualifiers": [
+        {
+          "name": "roster-from-checks",
+          "pattern": "gh pr checks|checks roster",
+          "hint": "take the lane roster from the checks list, never from the authors who posted: a lane that posted nothing is missing from every author-derived roster by construction"
+        },
+        {
+          "name": "scoped-to-this-round",
+          "pattern": "current round|original_commit_id|this head",
+          "hint": "scope productivity to the head under review, so an artifact from an earlier head cannot satisfy the check"
+        },
+        {
+          "name": "substituted-not-just-reported",
+          "pattern": "/review:fanout|`/code-review`|local review",
+          "hint": "run a local review over the same diff; reporting the lane as absent without substituting leaves the change unreviewed"
+        },
+        {
+          "name": "substitution-reported",
+          "pattern": "Review lanes:|stood in for|what was run locally",
+          "hint": "name the absent lane and its substitute in the verdict, or the gap is dropped from a report that otherwise reads all-clear"
+        }
+      ]
     }
   ]
 }

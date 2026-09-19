@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defaults, deriveLandingUrl } from "./dometrain.js";
+import { defaults, deriveLandingUrl, preflight } from "./dometrain.js";
 
 describe("deriveLandingUrl", () => {
   const platformCfg = {
@@ -24,6 +24,23 @@ describe("deriveLandingUrl", () => {
     const url = "https://dometrain.com/take/course/foo/bar/";
     const result = deriveLandingUrl(url, {});
     expect(result).toBe(url);
+  });
+});
+
+describe("nullish platformConfig", () => {
+  const page = { evaluate: async () => ({}) };
+
+  it("should raise a TypeError rather than fall back to the default selector", async () => {
+    await expect(preflight(page, null)).rejects.toThrowError(TypeError);
+    await expect(preflight(page, null)).rejects.toThrow(
+      "Cannot read properties of null (reading 'videoPlayerSelector')",
+    );
+  });
+
+  it("should raise the same TypeError for an undefined platformConfig", async () => {
+    await expect(preflight(page, undefined)).rejects.toThrow(
+      "Cannot read properties of undefined (reading 'videoPlayerSelector')",
+    );
   });
 });
 

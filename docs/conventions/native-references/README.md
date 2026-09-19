@@ -19,12 +19,12 @@ This doc owns the phrasing of references **to native surfaces**. It does not own
   Its three elements are the template this doc specializes; a native surface is not a plugin, which
   is why the specialization needs its own owner rather than a clause in that doc.
 - **Whether a reference should exist at all.** That is a verdict, and verdicts live in the
-  committed overlap store rendered into [`docs/NATIVE-SURFACES.md`](../../NATIVE-SURFACES.md).
+  committed overlap store rendered into [`docs/native-surfaces.md`](../../native-surfaces.md).
   This doc governs the words once a verdict says a reference is warranted.
 - **The stamp discipline on any upstream fact a reference restates.**
   [`upstream-drift`](../upstream-drift/README.md) owns the four-part record (claim, basis, as-of
   date, recheck trigger) and the observability bar its triggers must clear.
-- **Instruction economy.** [`PLUGIN-PHILOSOPHY`](../../PLUGIN-PHILOSOPHY.md) owns the rule that
+- **Instruction economy.** [`plugin-philosophy`](../../plugin-philosophy.md) owns the rule that
   every always-loaded description is a per-session tax. This doc keeps the phrase to one clause
   because of that rule; it does not restate it.
 
@@ -173,7 +173,7 @@ Six properties the section keeps:
 
 ## Self-containment: shipped plugins never cite the registry
 
-The overlap store and [`docs/NATIVE-SURFACES.md`](../../NATIVE-SURFACES.md) live in this
+The overlap store and [`docs/native-surfaces.md`](../../native-surfaces.md) live in this
 repository. A plugin installed from the marketplace does **not** have them: a citation would be a
 broken reference at install time, and the reader would be routed to a file that does not exist.
 

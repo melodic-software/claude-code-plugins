@@ -32,6 +32,12 @@ def segment(text):
     text = HTML_COMMENT.sub("", text)
 
     out, buf, in_fence, fence = [], [], False, None
+
+    def flush():
+        if buf:
+            out.append(" ".join(buf))
+            buf.clear()
+
     for line in text.split("\n"):
         stripped = line.strip()
 
@@ -53,14 +59,10 @@ def segment(text):
             continue
 
         if not stripped:  # blank -> flush block
-            if buf:
-                out.append(" ".join(buf))
-                buf = []
+            flush()
             continue
         if stripped.startswith("#"):  # heading
-            if buf:
-                out.append(" ".join(buf))
-                buf = []
+            flush()
             continue
         if stripped.startswith("|"):  # table row
             continue
@@ -74,9 +76,7 @@ def segment(text):
 
         # list item / blockquote start their own block
         if re.match(r"^([-*+]|\d+\.)\s+", stripped) or stripped.startswith(">"):
-            if buf:
-                out.append(" ".join(buf))
-                buf = []
+            flush()
             stripped = re.sub(r"^([-*+]|\d+\.)\s+", "", stripped)
             stripped = re.sub(r"^>\s*", "", stripped)
             # checkbox marker is not prose
@@ -87,8 +87,7 @@ def segment(text):
 
         buf.append(stripped)
 
-    if buf:
-        out.append(" ".join(buf))
+    flush()
     return out
 
 
@@ -493,17 +492,17 @@ NOT_PROPER = {
 
 def signals(s):
     """Return the five D1 signals present in the sentence."""
-    found = {}
-    found["code_span"] = bool(CODE_SPAN.search(s))
-    bare = CODE_SPAN.sub(" ", s)  # signals outside code spans too
-    found["path"] = bool(PATHISH.search(s))
-    found["version"] = bool(VERSION.search(s))
-    found["threshold"] = bool(DIGIT.search(s))
-    found["envvar"] = bool(ENVVAR.search(s))
+    found = {
+        "code_span": bool(CODE_SPAN.search(s)),
+        "path": bool(PATHISH.search(s)),
+        "version": bool(VERSION.search(s)),
+        "threshold": bool(DIGIT.search(s)),
+        "envvar": bool(ENVVAR.search(s)),
+    }
 
     props = []
-    # strip the leading token before hunting proper nouns
-    body = re.sub(r"^\W*\w+\b", "", bare)
+    # proper nouns are hunted outside code spans and past the leading token
+    body = re.sub(r"^\W*\w+\b", "", CODE_SPAN.sub(" ", s))
     for m in re.finditer(r"\b[A-Z][a-zA-Z]*\b", body):
         w = m.group(0)
         if w in NOT_PROPER:

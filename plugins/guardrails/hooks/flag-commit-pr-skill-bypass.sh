@@ -45,7 +45,7 @@
 # Opt-in switch: flag_commit_pr_skill_bypass_enabled userConfig option.
 # DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
 # is a behavioral-class context injector — a fixed prose nudge that consults no
-# external ground truth — and PLUGIN-PHILOSOPHY.md's instruction-economy
+# external ground truth — and plugin-philosophy.md's instruction-economy
 # evidence gate ablates that class config-off first (the script stays; a
 # consumer opts back in by setting the option to true).
 
@@ -124,7 +124,8 @@ fi
 # keep an assignment VALUE out of the subject — a quoted value spanning the
 # whitespace the tokenizer splits on, and a bare/trailing `NAME=value` no
 # following command consumed — hold here too (#3372).
-SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
+SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
+hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
 
 # Emit one telemetry envelope per run. Advisory guards always report status
 # "ok" (they never block); the finding signal rides in `data.forms` — category

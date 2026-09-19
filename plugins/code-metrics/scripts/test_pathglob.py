@@ -6,8 +6,10 @@ but the subprocess seam is the contract every caller uses)."""
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -27,6 +29,29 @@ def run(*args: str) -> subprocess.CompletedProcess:
         text=True,
         check=False,
     )
+
+
+class RootRelativeTests(unittest.TestCase):
+    def test_a_cwd_relative_path_is_rebased_onto_the_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = os.path.realpath(tmp)
+            lib = os.path.join(root, "lib")
+            os.mkdir(lib)
+            before = os.getcwd()
+            os.chdir(lib)
+            try:
+                self.assertEqual(
+                    pathglob.root_relative("../plugins/a/x.sh", root), "plugins/a/x.sh"
+                )
+                self.assertEqual(pathglob.root_relative("x.sh", root), "lib/x.sh")
+                self.assertEqual(
+                    pathglob.root_relative(os.path.join(root, "y.sh"), root), "y.sh"
+                )
+            finally:
+                os.chdir(before)
+
+    def test_without_a_root_the_path_is_only_normalized(self) -> None:
+        self.assertEqual(pathglob.root_relative("./a\\b.sh", ""), "a/b.sh")
 
 
 class TranslateTests(unittest.TestCase):

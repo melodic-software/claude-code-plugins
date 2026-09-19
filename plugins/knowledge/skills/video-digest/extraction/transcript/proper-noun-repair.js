@@ -273,20 +273,16 @@ function repairTextCompiled(text, entries, maxWordCount) {
       }
       const match = exact ?? (fuzzy.length === 1 ? fuzzy[0] : null);
       if (!match) continue;
-      if (core === match.term) {
-        // Already the author's spelling — consume the window unrepaired so an
-        // inner word is not re-judged against a shorter term.
-        wordPos += size;
-        advanced = true;
-        break;
+      // Text already in the author's spelling is consumed unrepaired, so an
+      // inner word is not re-judged against a shorter term.
+      if (core !== match.term) {
+        const prefixEnd = windowText.indexOf(core);
+        const prefix = windowText.slice(0, prefixEnd);
+        const suffix = windowText.slice(prefixEnd + core.length);
+        parts[firstPart] = `${prefix}${match.term}${suffix}`;
+        for (let i = firstPart + 1; i <= lastPart; i += 1) parts[i] = "";
+        replacementCount += 1;
       }
-
-      const prefixEnd = windowText.indexOf(core);
-      const prefix = windowText.slice(0, prefixEnd);
-      const suffix = windowText.slice(prefixEnd + core.length);
-      parts[firstPart] = `${prefix}${match.term}${suffix}`;
-      for (let i = firstPart + 1; i <= lastPart; i += 1) parts[i] = "";
-      replacementCount += 1;
       wordPos += size;
       advanced = true;
       break;

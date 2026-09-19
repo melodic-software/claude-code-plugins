@@ -49,7 +49,7 @@ deliberate decline is never re-offered). This is deliberately user-scope, not th
 a plugin installed only at `project`/`local` scope is absent from `missing_from_install` yet still not
 usable from other directories, so installing at `user` scope below (the "usable from any directory"
 guarantee) must key off user-scope completeness. Apply the configured
-policy. SKILL.md's `${user_config.install_new}` line renders the actual value; that render, not this
+policy. SKILL.md's **Configured value** line renders the actual value; that render, not this
 step's prose, is what to branch on:
 
 - **`ask`** (default): present every entry in one batched `AskUserQuestion` multi-select, then
@@ -79,10 +79,12 @@ about to be surprised by it on the next run. Do not leave it to inference.
 
 **Capture each install's own CLI output, don't discard it.** An install can report that the plugin
 declares `userConfig` options left unset, along with its own suggested remedy. That line is
-per-install information this step is the only one positioned to see, and it belongs in the report's
-"Action needed" list rather than in the scrollback. See SKILL.md's Report section for the slot. It
-also belongs in the run journal, per [sync.md](sync.md)'s "Run journal" section: this is a mutating
-call, and its output is the only record of what it said.
+per-install information this step is the only one positioned to see, so `sync-run.sh` parses it at
+capture time into the digest's `installed_with_unset_user_config[]` (`{id, options_unset,
+required}`), and the render lists each entry under "Action needed" with the `/plugin configure`
+remedy rather than leaving it in the scrollback. The whole output also lands in the run journal,
+per [sync.md](sync.md)'s "Run journal" section: this is a mutating call, and its output is the only
+record of what it said.
 
 ### After any install: normalize user-scope `enabledPlugins` key order
 

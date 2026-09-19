@@ -1,5 +1,19 @@
 # Changelog: topic-docs convention
 
+## [3.3.0] - 2026-09-12
+
+Minor under the Versioning rule: additive. No tier moves, no `topic-docs.yaml` key is renamed,
+the slug spec is unchanged, and no visibility guarantee an implementer may rely on changes. One
+reserved first-level name is added to a set that was already closed against topic slugs, so a
+slug that collided with it took the `-x` suffix before this entry and takes it after.
+
+- **`docs-hygiene` is a reserved first-level name under the memory root.** It holds the file-name
+  rename plan on the branch axis, `docs-hygiene/<branch-slug>/file-names.md`, and stays flat like
+  every other concern-scoped name. Added to the Memory, concern-scoped tier row, to the
+  reserved-names list in the slug and filename spec, and to the `memory_dir` description in
+  `topic-docs.schema.json`. The `docs-hygiene` Implementers row already declared the home; this
+  entry is the reservation the row assumed.
+
 ## [3.2.0] - 2026-09-07
 
 Minor under the Versioning rule: additive. No tier moves, no `topic-docs.yaml` key is renamed,

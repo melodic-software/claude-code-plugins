@@ -111,7 +111,7 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
 ## Vocabulary
 
 Canonical journey terms (resolved 2026-08-17). The marketplace-wide glossary write is **no longer
-deferred**. `docs/GLOSSARY.md` landed 2026-08-20 (#3062) and declares itself repo-wide. Of the
+deferred**. `docs/glossary.md` landed 2026-08-20 (#3062) and declares itself repo-wide. Of the
 three terms below, **`phase boundary` has been promoted there and this file no longer defines it**;
 `work item` and `checkpoint` stay reference-local, because both are specific to this plugin's
 execution shapes rather than repo-wide vocabulary.
@@ -128,7 +128,7 @@ An item closed within a shared-branch (`integration branch → single PR`) flow:
 recorded on the branch and in the tracker, safe to clear context and resume, from any machine.
 An item is always a graph node; it is a checkpoint only in a shared-branch flow.
 
-**Phase boundary** is defined repo-wide in [`docs/GLOSSARY.md`](../../../docs/GLOSSARY.md), not here.
+**Phase boundary** is defined repo-wide in [`docs/glossary.md`](../../../docs/glossary.md), not here.
 
 This file used to carry its own definition ("the session-level decision moment between phases of
 work"), which diverged from the glossary's once that landed. Two definitions of one term, one of

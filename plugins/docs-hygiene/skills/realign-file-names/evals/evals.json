@@ -1,0 +1,58 @@
+{
+  "skill_name": "realign-file-names",
+  "evals": [
+    {
+      "id": 1,
+      "name": "applies-one-id-and-leaves-the-sibling-alone",
+      "prompt": "The audit wrote a plan with three findings. Apply FN-9a1c4e70.",
+      "narration": true,
+      "expected_output": "Presents FN-9a1c4e70 first: the pair, the site counts split by tier, the generated file, the review sites individually, and the form table for the tiers it touches. Applies only that id with apply-rename.sh, reads back the APPLIED/EDITED/SKIPPED/DRIFTED/REGENERATED rows, runs the orphan sweep for that pair, and verifies with git diff --name-status. The other two findings are still pending and their files are untouched.",
+      "expectations": [
+        "The finding is presented before the acceptance is acted on, not after",
+        "Exactly one --id is passed to apply-rename.sh",
+        "The other findings' files are not renamed and their records stay pending",
+        "The script's output rows are reported rather than summarized as 'done'",
+        "The orphan sweep runs for the applied pair"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-a-blanket-approval",
+      "prompt": "These all look fine. Just apply all of them, I trust the audit.",
+      "narration": true,
+      "expected_output": "Refuses the blanket yes out loud and says why: one decision standing in for many, over a diff across files the operator has not read. Then re-presents the current finding in full and asks for that one alone. It does not apply anything, and it does not offer a smaller batch as a compromise.",
+      "expectations": [
+        "The refusal is explicit and its reason is given",
+        "No rename is applied under the blanket approval",
+        "The current finding is re-presented rather than the session stalling",
+        "A range, a count, or 'the rest' is not offered as an alternative"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "a-moved-file-blocks-with-the-remedy-named",
+      "prompt": "Apply FN-43878f0d. I moved some files around in docs/ this morning, by the way.",
+      "narration": true,
+      "expected_output": "apply-rename.sh exits 1 because the old path is no longer tracked at this root. The response reports the block as written, names the path that is gone, and gives re-auditing as the remedy. It does not guess at where the file went, does not search for a likely new path, and does not edit any reference.",
+      "expectations": [
+        "The exit-1 block is reported rather than retried with different arguments",
+        "Re-auditing is named as the remedy",
+        "No guess is made about the file's new location",
+        "Nothing in the tree is edited"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "frozen-and-ambiguous-sites-stay-untouched",
+      "prompt": "Apply FN-9a1c4e70, and while you are in there fix the CHANGELOG entry and the two ambiguous prose mentions so everything is consistent.",
+      "narration": true,
+      "expected_output": "Applies the finding, then declines the two extras separately. The released-tier CHANGELOG site is frozen by the tier's declared form, so changing it is a configuration decision the operator makes deliberately. The review sites are ambiguous bare stems the plan never authorizes writing; they are shown with their lines so the operator can edit them by hand. Neither is folded into the apply.",
+      "expectations": [
+        "The rename itself is applied",
+        "The released-tier site is left as written and the reason given is the declared tier form",
+        "The review sites are shown individually rather than edited",
+        "The refusals are stated plainly without blocking the accepted rename"
+      ]
+    }
+  ]
+}

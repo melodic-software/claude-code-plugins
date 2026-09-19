@@ -2,8 +2,14 @@
 # the shape a consuming repository declares its own deliberate replication
 # (this repository's scripts/cross-plugin-source-registry.txt is the live
 # example): one path-within-plugin per line, `#` comments and blank lines
-# ignored. The cluster under fixtures/sources/cluster carries this path
-# byte-identical in alpha and beta on purpose, so a clone over the two copies
-# is an exclusion rather than duplication debt.
+# ignored, or a cluster line `<canonical> -> <member>...` naming a
+# root-relative canonical copy and the paths or globs that carry it. The
+# cluster under fixtures/sources/cluster carries this path byte-identical in
+# alpha and beta on purpose, so a clone over the two copies is an exclusion
+# rather than duplication debt.
 
 shared/shared-utils.sh
+
+# The same cluster written as a cluster line, with a root canonical; left as a
+# comment because the fixture tree carries no root copy.
+# lib/shared-utils.sh -> plugins/*/shared/shared-utils.sh

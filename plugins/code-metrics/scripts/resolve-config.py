@@ -74,6 +74,11 @@ yaml_subset = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(yaml_subset)
 
 
+def _reserved(key: str) -> bool:
+    """A key no layer may supply: the resolver's own `_` outputs, and `thresholds`."""
+    return key.startswith("_") or key == "thresholds"
+
+
 def _load_layer(path: str) -> dict[str, Any]:
     value = yaml_subset.load(path)
     if value is None:
@@ -143,13 +148,9 @@ def resolve(
             continue
         overlay = _load_layer(path)
         for key in overlay:
-            if key.startswith("_") or key == "thresholds":
+            if _reserved(key):
                 warnings.append(f"{path}: key {key!r} is reserved and ignored")
-        overlay = {
-            k: v
-            for k, v in overlay.items()
-            if not (k.startswith("_") or k == "thresholds")
-        }
+        overlay = {k: v for k, v in overlay.items() if not _reserved(k)}
         config = merge(config, overlay, layer, "", layers)
         files_read.append(path.replace("\\", "/"))
     if ladder_path:
@@ -202,15 +203,7 @@ def resolve(
             "layer": eco_layers.get("globs") or eco_layers.get("enabled") or "team",
         }
     flat: dict[str, Any] = {}
-    _walk(
-        {
-            k: v
-            for k, v in config.items()
-            if not k.startswith("_") and k != "thresholds"
-        },
-        "",
-        flat,
-    )
+    _walk({k: v for k, v in config.items() if not _reserved(k)}, "", flat)
     provenance = {
         key: {"value": value, "layer": layers.get(key, "bundled default")}
         for key, value in flat.items()
@@ -383,17 +376,22 @@ def emit_or_fail(config: dict[str, Any], fmt: str) -> int:
     return 0
 
 
+# The line-oriented formats, each a builder of the lines it prints; every other
+# format is the resolved document itself.
+LINE_FORMATS = {
+    "dispatch-args": dispatch_args,
+    "ladder-overrides": ladder_overrides,
+    "excludes": excludes,
+    "registries": registries,
+}
+
+
 def emit(config: dict[str, Any], fmt: str) -> None:
-    if fmt == "dispatch-args":
-        sys.stdout.write("".join(line + "\n" for line in dispatch_args(config)))
-    elif fmt == "ladder-overrides":
-        sys.stdout.write("".join(line + "\n" for line in ladder_overrides(config)))
-    elif fmt == "excludes":
-        sys.stdout.write("".join(line + "\n" for line in excludes(config)))
-    elif fmt == "registries":
-        sys.stdout.write("".join(line + "\n" for line in registries(config)))
-    else:
+    build = LINE_FORMATS.get(fmt)
+    if build is None:
         print(json.dumps(config, indent=2))
+        return
+    sys.stdout.write("".join(line + "\n" for line in build(config)))
 
 
 def main(argv: list[str]) -> int:
@@ -455,10 +453,7 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 2
-    except ConfigTypeError as exc:
-        print(f"resolve-config.py: {exc}", file=sys.stderr)
-        return 2
-    except OSError as exc:
+    except (ConfigTypeError, OSError) as exc:
         print(f"resolve-config.py: {exc}", file=sys.stderr)
         return 2
     for warning in config.get("_warnings", []):

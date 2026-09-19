@@ -238,6 +238,14 @@ is_main_worktree() {
   return 0
 }
 
+accept_main_worktree() {
+  # accept_main_worktree <candidate> — verify the candidate and, only then,
+  # record it (in git's own spelling) as the resolved main checkout.
+  is_main_worktree "$1" || return 1
+  main_root="$MAIN_TOP"
+  main_state="verified"
+}
+
 resolve_main_root() {
   # Sets main_root / main_state / main_reason. Candidates are proposed cheapest
   # first and each is put through is_main_worktree before being trusted; a
@@ -259,9 +267,7 @@ resolve_main_root() {
   #    submodule MAIN checkout resolves here.
   norm_path "$own_gitdir"
   own_n="$NORM_OUT"
-  if [[ "$own_n" == "$main_gitdir_n" ]] && is_main_worktree "$proj_base"; then
-    main_root="$MAIN_TOP"
-    main_state="verified"
+  if [[ "$own_n" == "$main_gitdir_n" ]] && accept_main_worktree "$proj_base"; then
     return
   fi
 
@@ -290,9 +296,7 @@ resolve_main_root() {
     # is-this-a-toplevel leg compares as a literal string — canonicalize first
     # or that leg rejects the true working tree.
     cand="$(cd "$cand" 2>/dev/null && pwd)"
-    if is_main_worktree "$cand"; then
-      main_root="$MAIN_TOP"
-      main_state="verified"
+    if accept_main_worktree "$cand"; then
       return
     fi
   fi
@@ -301,9 +305,7 @@ resolve_main_root() {
   case "$main_gitdir" in
   */.git)
     cand="${main_gitdir%/.git}"
-    if is_main_worktree "$cand"; then
-      main_root="$MAIN_TOP"
-      main_state="verified"
+    if accept_main_worktree "$cand"; then
       return
     fi
     ;;
@@ -381,10 +383,8 @@ distinct_project_root=""
 if [[ -n "$project_root" && "$proj_base" != "$repo_root" ]]; then
   distinct_project_root="yes"
 fi
-local_excluded=""
 cov_local="with-local"
 if [[ -n "$worktree_root" && -z "$distinct_project_root" ]]; then
-  local_excluded="yes"
   cov_local="no-local"
 fi
 ALL_ALLOW="$(collect '.permissions.allow' "$cov_local")"
@@ -517,16 +517,7 @@ if [[ "$mode" == "count" ]]; then
   exit 0
 fi
 
-# A path is named as "the main checkout" only when resolution VERIFIED it. When
-# it did not, the layer is UNREAD and every mode says so — including the
-# interactive one, which prints no header otherwise and would otherwise drop a
-# main-local deny in silence.
-main_unread=""
-if [[ "$main_state" == "unresolved" ]]; then
-  main_unread="yes"
-fi
-
-if [[ -n "$local_excluded" ]]; then
+if [[ "$cov_local" == "no-local" ]]; then
   if [[ -n "$main_is_proj_base" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: since Claude Code v2.1.211 its rules apply in every worktree, the fresh worker included."
   elif [[ "$main_state" == "verified" ]]; then
@@ -542,7 +533,11 @@ elif [[ -n "$distinct_project_root" ]]; then
   fi
 fi
 
-if [[ -n "$main_unread" ]]; then
+# A path is named as "the main checkout" only when resolution VERIFIED it. When
+# it did not, the layer is UNREAD and every mode says so — including the
+# interactive one, which prints no header otherwise and would otherwise drop a
+# main-local deny in silence.
+if [[ "$main_state" == "unresolved" ]]; then
   echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT read: $main_reason. Its rules apply in every worktree since Claude Code v2.1.211, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a DENY there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
 fi
 
@@ -552,7 +547,7 @@ fi
 
 # INCOMPLETE outranks BOTH OK branches: an unread main-checkout layer means the
 # probe never saw every rule, so "OK" would assert more than the run checked.
-if [[ -n "$main_unread" ]]; then
+if [[ "$main_state" == "unresolved" ]]; then
   echo "PREFLIGHT: INCOMPLETE — main-checkout layer unread ($main_reason); $gapcount gap(s) found among the layers that were read. Report-only: exit 0 regardless (see reference/permission-preflight.md)."
 elif [[ "${#findings[@]}" -eq 0 ]]; then
   echo "PREFLIGHT: OK — cwd is a git repo, probed grants present, worktree root covered."

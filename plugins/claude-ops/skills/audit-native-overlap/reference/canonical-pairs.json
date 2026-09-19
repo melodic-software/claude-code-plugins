@@ -38,6 +38,16 @@
       "why": "Both diagnose a slow or unhealthy install; doctor also offers to fix."
     },
     {
+      "native": { "name": "doctor", "class": "bundled-skill" },
+      "component": { "plugin": "claude-ops", "skill": "audit-skill-visibility", "kind": "skill" },
+      "why": "doctor's checkup covers unused extensions and skill visibility as one pass of a broader health check; the audit asks the whole-fleet visibility question."
+    },
+    {
+      "native": { "name": "skill-doctor", "class": "builtin-command" },
+      "component": { "plugin": "claude-ops", "skill": "audit-skill-visibility", "kind": "skill" },
+      "why": "Both ask which loaded skills go unused and what each costs; the built-in is a one-shot report that excludes bundled skills, the audit is the fleet-wide visibility question."
+    },
+    {
       "native": { "name": "morning", "class": "session-skill" },
       "component": { "plugin": "claude-ops", "skill": "morning-brief", "kind": "skill" },
       "why": "Both assemble an operator morning view. Session-provided, so it is observation-only: absent from the vendored binary's bundled set."

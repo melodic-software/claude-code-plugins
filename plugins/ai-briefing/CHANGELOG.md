@@ -3,6 +3,48 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.35]
+
+### Changed
+
+- The slide build pipeline no longer declares date-holidays, which nothing imported; the lockfile is regenerated with npm and the pipeline reference lists the remaining dependencies.
+
+## [0.7.34]
+
+### Changed
+
+- Share the host normaliser, dotted-quad and ip-literal helpers in the url policy, merge the section overflow filters in validate and drop two producer-less ignore rules (behavior unchanged).
+
+## [0.7.33]
+
+### Changed
+
+- generate build: emit-slides.js chunks every tier through one cap loop and reads tool labels from the matched tool, parse-briefing.js flattens a nested URL test, build-pptx.js drops single-column ternaries that always resolved the same way, brand-overlay.js and run.js drop unreachable guards, build-client-js.js drops an unused chip query and a dead scroll default, and build-css.js drops an empty ruleset and two selectors no DOM can match. Slide data and deck bytes identical apart from the removed dead source.
+
+## [0.7.32]
+
+### Changed
+
+- **The profile-variable prohibition in `skills/generate/SKILL.md` states its reason and its positive form.** It read only "Never ask the consumer to export the variable globally", a bare prohibition with neither. It now says to set the selection on each launched process and why a global export is the wrong shape: it pins one profile for every session and every other tool on that machine, including runs that asked for a different one. Same rule, no behavior change.
+
+## [0.7.31]
+
+### Changed
+
+- **`setup`: the `apply install-build-deps` runtime stamp is a copied manifest, not a shell redirect.** The step ended by composing `.version` with `printf '%s' "$VER" > .version`, and an `echo`/`printf`/`cat` redirect into a file is the shape a write-gating hook blocks, so the step could not be carried out where such a hook is on. The staged runtime now records its version by copying the plugin manifest to `.plugin-version.json`, which composes no content and needs no gated write; the `check` build-toolchain probe reads the version out of that stamp with `node -p "require(...)"`, which is why the stamp carries a `.json` suffix. Staleness semantics are unchanged: the runtime is rebuilt when its recorded version does not match `plugin.json`.
+
+## [0.7.30]
+
+### Changed
+
+- **Bump `js-yaml` 4.3.1→4.3.2 in the generate output build package** (#4085): a transitive dependency, so the bump lands in `output/build/package-lock.json` and no manifest range moves. The native `node --test` suite, including the `test/url-policy.test.js` SSRF-gate assertions, passes on the new resolution.
+
+## [0.7.29]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.7.28]
 
 ### Changed

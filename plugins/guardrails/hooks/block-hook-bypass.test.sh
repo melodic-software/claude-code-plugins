@@ -876,7 +876,7 @@ run_pwsh "PS: braced call target, single positional (allowed — #2848 verifier)
 # scanner's `[^}]*` stopped at the injected brace, the whitespace boundary failed,
 # and the call site vanished: both measuring probes returned false and the gate
 # fell through ALLOWED. The escape is now consumed BEFORE the deletion
-# (ps::fold_escaped_brace_closers), and the target token may carry non-space text
+# (ps::fold_escaped_brace_closers_to), and the target token may carry non-space text
 # glued after its closing brace. Blocked pre-0.28.33; these pin the recovery.
 # shellcheck disable=SC2016
 run_pwsh "PS: escaped closer in a braced call target, positional Path+Value (blocked — #2908 review)" \
@@ -1083,7 +1083,7 @@ run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
   "& { git diff } > out.txt" 0
 
 # --- fd-dup merge must not hide a computed writer's operands (#2927) ---------
-# The `&` inside `2>&1` sits at bracket depth ZERO, and ps::call_site_operand_region
+# The `&` inside `2>&1` sits at bracket depth ZERO, and ps::call_site_operand_region_to
 # ends a call's operand region at a depth-zero `;` `|` `&`. So the region of
 # `& $w 2>&1 f.txt x` was truncated to `" 2>"`, both measuring probes went silent,
 # and a working `Set-Content <path> <value>` — verified as a real write under
@@ -2150,7 +2150,7 @@ bash "$HOOK" <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:("git status" + 
 assert_exit "NUL in command (blocked)" 2 "$nul_rc"
 
 # --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
-# ps::blank_quoted_spans used to pair quotes with two independent `sed`
+# ps::blank_quoted_spans_to used to pair quotes with two independent `sed`
 # expressions, neither aware of which style opened first. The single-quote
 # expression matched from the apostrophe inside one double-quoted string to the
 # apostrophe inside the next and DELETED everything between them, so a computed
@@ -2179,7 +2179,7 @@ run_pwsh "PS: bare-computed writer with -Value, straddled (blocked — #2965)" \
 # Both the backtick and the doubled-quote escape therefore delete NOTHING on
 # their line. This spelling
 # reaches write_bypass through `lcq_bt` — the backtick-intact copy built before
-# backticks are stripped from `lcq` — so `ps::blank_quoted_spans` sees the
+# backticks are stripped from `lcq` — so `ps::blank_quoted_spans_to` sees the
 # backtick and the backtick-ambiguity branch emits the line verbatim. The
 # doubled-quote arm is not what catches this pinned case.
 # shellcheck disable=SC2016
@@ -2203,7 +2203,7 @@ run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed 
   "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
 
 # --- #2906: quoting an operand is not a free escape from the positional signal --
-# ps::blank_quoted_spans DELETES quoted spans, so the two-positional arm of
+# ps::blank_quoted_spans_to DELETES quoted spans, so the two-positional arm of
 # ps::computed_call_has_positional_write_signal saw `& $w 'f.txt' 'x'` as a
 # zero-operand call. Quoting is the idiomatic Path+Value spelling, not an
 # obscure one. The contained fix keeps those operands present-but-opaque for
@@ -2355,6 +2355,6 @@ assert_eq "two blocking guards dispatched: exactly one JSON document on stdout" 
 assert_contains "two blocking guards dispatched: this guard's reason survives" \
   "$GUARD_ERR" "bypasses Write/Edit hooks"
 assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
-  "$GUARD_ERR" "--no-verify / -n flags are not allowed"
+  "$GUARD_ERR" "--no-verify / -n skips the hooks"
 
 report

@@ -3,6 +3,30 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.26]
+
+### Changed
+
+- The markdown-format hook uses the shared hook-utils git-tree and dirname helpers instead of local copies, its suite and the powershell-format suite route repeated invocations through shared runners, and the mcp-tools discover, mutation-testing suppression-lint, and playwright update scripts fold duplicated blocks into helpers, with identical output.
+
+## [0.3.25]
+
+### Changed
+
+- **`setup`: `apply` step 9 drives the config and suppression record to a committed state instead of forbidding the commit.** The step staged both files and then forbade committing them, which leaves a dirty working tree; a session-end gate that refuses a dirty tree holds the session open until those files are committed and pushed, so a run that followed the step could not finish. Step 9 now offers the `git add` and the commit that follows it, runs each only on the user's explicit acceptance, and states the consequence when the user declines. Nothing is committed unasked, and probe 9's tracked-and-not-ignored checks are unchanged.
+
+## [0.3.24]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.3.23]
+
+### Changed
+
+- **`principles`: description prose no longer addresses the reader.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. Quoted trigger phrases are unchanged.
+
 ## [0.3.22]
 
 ### Changed

@@ -12,7 +12,7 @@
 #            `blocked` with arbiter USER-RESERVED. It is never captured as an assumption.
 #
 # The lane-4 audit graded both defenses as holding. They are prose rules with no runner
-# behind them: the marketplace has no model-graded eval runner (docs/MIGRATION-PLAYBOOK.md,
+# behind them: the marketplace has no model-graded eval runner (docs/migration-playbook.md,
 # "Method source" — grading is a human judgment pass until the deferred runner lands), so
 # the eval cases in skills/interview/evals/evals.json are a rubric, not a gate. This suite
 # is the gate: it pins the eval cases that grade each defense AND the load-bearing rule text
@@ -96,7 +96,7 @@
 #     ones read as bearing on them today, not a closed set.
 #   - Anything semantic. This gate proves the RULE TEXT and the CASE INPUTS are intact. It
 #     cannot prove the skill OBEYS them — only a model-graded runner could, and the
-#     marketplace has none (docs/MIGRATION-PLAYBOOK.md, "Method source").
+#     marketplace has none (docs/migration-playbook.md, "Method source").
 # Read this suite as raising the cost of a silent weakening, never as proving one
 # impossible.
 #

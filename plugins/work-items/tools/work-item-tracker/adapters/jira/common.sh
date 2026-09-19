@@ -39,9 +39,7 @@ source "$WIT_JIRA_ADAPTER_DIR/../../lib/json.sh"
 # binding.sh is sourced (not inherited): the dispatcher runs each verb as a fresh
 # `bash <verb>.sh` subprocess, so only exported env vars cross — not wit_find_binding.
 # The adapter re-locates the binding itself to read its jira-specific config subtree,
-# rather than growing the shared binding.sh with jira keys (that shared lib already
-# carries a provider-specific leak — config.storage_dir — that this adapter does not
-# extend; the generalized fix is filed as a scoped follow-up).
+# rather than growing the shared binding.sh with jira keys.
 wit_jira_require_seam_lib "$WIT_JIRA_ADAPTER_DIR/../../lib/binding.sh"
 # shellcheck source=../../lib/binding.sh
 source "$WIT_JIRA_ADAPTER_DIR/../../lib/binding.sh"

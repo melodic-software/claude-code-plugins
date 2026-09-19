@@ -100,6 +100,11 @@ bel_count() {
   jq -r '.terminalSequence' <<<"$1" | tr -cd '\007' | wc -c | tr -d ' \r'
 }
 
+# ctl_count <string> <tr set> -> how many bytes of <set> the string carries.
+ctl_count() {
+  printf '%s' "$1" | tr -cd "$2" | wc -c | tr -d ' \r'
+}
+
 # Whole milliseconds between two $EPOCHREALTIME captures. Locale-agnostic: the
 # fractional separator may be '.' or ','; 10# forces base-10 on the (possibly
 # zero-padded) microseconds so a leading 0 is not read as octal.
@@ -326,9 +331,9 @@ EVIL="$(printf -- '-danger"q\033]9;INJECTED\007mid\tafter\nline2')"
 OUT="$(run "$(build_input permission_prompt "$EVIL")" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false)"
 RC=$?
 SEQ="$(jq -r '.terminalSequence' <<<"$OUT")"
-ESC_N="$(printf '%s' "$SEQ" | tr -cd '\033' | wc -c | tr -d ' \r')"
-BEL_N="$(printf '%s' "$SEQ" | tr -cd '\007' | wc -c | tr -d ' \r')"
-OTHER_N="$(printf '%s' "$SEQ" | tr -d '\033\007' | tr -cd '\000-\037' | wc -c | tr -d ' \r')"
+ESC_N="$(ctl_count "$SEQ" '\033')"
+BEL_N="$(ctl_count "$SEQ" '\007')"
+OTHER_N="$(ctl_count "${SEQ//[$'\033'$'\007']/}" '\000-\037')"
 if [[ $RC -eq 0 ]]; then ok "sanitize/seq: exit 0"; else fail "sanitize/seq: exit $RC"; fi
 if [[ "$ESC_N" == "1" ]]; then ok "sanitize/seq: exactly 1 ESC (framing only, no smuggled ESC)"; else fail "sanitize/seq: ESC count $ESC_N, want 1"; fi
 if [[ "$BEL_N" == "1" ]]; then ok "sanitize/seq: exactly 1 BEL (OSC terminator only, no smuggled BEL)"; else fail "sanitize/seq: BEL count $BEL_N, want 1"; fi
@@ -368,7 +373,7 @@ if grep -qxF 'ARG=[Permission Required]' "$OSA_LOG" 2>/dev/null; then ok "saniti
 # Body argv line: starts with the hostile leading dash, carries no control bytes.
 BODY_LINE="$(grep -m1 '^ARG=\[-danger' "$OSA_LOG" 2>/dev/null)"
 if [[ -n "$BODY_LINE" ]]; then ok "sanitize/osascript: body passed as argv item (leading dash intact, not an option)"; else fail "sanitize/osascript: body argv item missing: $(cat "$OSA_LOG" 2>/dev/null)"; fi
-BODY_CTL="$(printf '%s' "$BODY_LINE" | tr -cd '\000-\037' | wc -c | tr -d ' \r')"
+BODY_CTL="$(ctl_count "$BODY_LINE" '\000-\037')"
 if [[ "$BODY_CTL" == "0" ]]; then ok "sanitize/osascript: body argv item has no control bytes"; else fail "sanitize/osascript: body argv item carries $BODY_CTL control bytes"; fi
 # The AppleScript program came via stdin, and no ARG= line carries the program.
 if grep '^ARG=' "$OSA_LOG" 2>/dev/null | grep -q 'display notification'; then fail "sanitize/osascript: program leaked into argv (interpolation!)"; else ok "sanitize/osascript: program not in argv"; fi
@@ -384,7 +389,6 @@ if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then o
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done

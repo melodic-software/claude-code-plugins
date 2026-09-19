@@ -3,6 +3,68 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4201): `zod` 4.5.4→4.6.2, `@biomejs/biome` 2.5.12→2.5.13, `@types/node` 26.4.1→26.5.1. `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the other two are development dependencies.
+
+## [0.4.6]
+
+### Changed
+
+- The frames and tags tool handlers test for an optional SDK method through one typed capability predicate instead of two inline in-and-typeof checks. Responses and the built bundle behave the same.
+
+## [0.4.5]
+
+### Changed
+
+- Spread the parsed sticky note into the bulk payload, drop the dead item guard in the tag capability check and derive the build root from import.meta.dirname in the server (behavior unchanged; bundle regenerated).
+
+## [0.4.4]
+
+### Changed
+
+- **Bump `vitest` and `@vitest/coverage-v8` 4.1.11→5.0.0** (#4104, absorbing #4103). Development dependencies only; the tracked bundle is unaffected and `verify-bundle` confirms `dist/index.min.js` still matches source.
+
+  The two packages had to move in one commit. `@vitest/coverage-v8` declares an exact `peerDependencies` pin on its matching `vitest`, so each half alone fails `npm ci` with `ERESOLVE`: Dependabot split the group across #4104 and #4103, and both were red on that error rather than on anything in this repository. #4104 now carries both range moves and one regenerated lockfile, and #4103 is closed as absorbed.
+
+  Nothing in `server/` needed adapting for the major. vitest 5's breaking changes that could have reached this suite are the default `clearMocks`, the removal of the `sequential` test option, the stricter unawaited-assertion failure, and the `loupe.inspect`-to-pretty-format swap in assertion output; none appear in the four test files. Verified on Node 24.20.0 and npm 11.19.0, matching `.node-version` and the CI lane: clean `npm ci`, `tsc --noEmit` clean, biome clean, 4 test files and 32 tests passing with no type errors, and coverage unchanged at 16.12% of statements.
+
+## [0.4.3]
+
+### Changed
+
+- **Bump the npm-minor-patch group** (#4102): `zod` 4.4.3→4.5.4, `@biomejs/biome` 2.5.10→2.5.12, `@types/node` 26.3.0→26.4.1. `zod` is a runtime dependency the server bundles, so `dist/index.min.js` is regenerated from source; the other two are development dependencies. Typecheck, lint, and all 32 tests pass, and `verify-bundle` confirms the committed artifact matches source.
+
+## [0.4.2]
+
+### Changed
+
+- **Bump `hono` 4.13.0→4.13.7** (#4101): a transitive runtime dependency that `@modelcontextprotocol/sdk` pulls in, so the bump lands in `server/package-lock.json` and no manifest range moves. `verify-bundle` reports `dist/index.min.js` still matches source, so the shipped artifact is byte-identical.
+
+## [0.4.1]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.4.0]
+
+### Changed
+
+- **The Node project moves from the plugin root to `server/`, so a consumer's plugin cache
+  no longer installs the dev toolchain.** Claude Code runs `npm ci --ignore-scripts` inside the
+  cached copy whenever the plugin root carries both a `package.json` and a supported lockfile,
+  and that install cannot be turned off; with the lockfile at the root every fresh install,
+  including every cloud-session container, wrote roughly 188 MB of devDependencies (biome,
+  typescript, esbuild, vitest) that the committed bundle never loads. `package.json`,
+  `package-lock.json`, `src/`, `dist/`, `build.mjs`, and the tool configs now sit under
+  `server/`; `.mcp.json` runs `server/dist/index.min.js`. CI, the Dependabot manifest, and the
+  bundle-rebuild workflow point at the new directory, so the lockfile still pins and rebuilds
+  exactly as before. The bundle's bytes are unchanged, and the `build.mjs` header now describes
+  the cache install accurately.
+
 ## [0.3.16]
 
 ### Changed

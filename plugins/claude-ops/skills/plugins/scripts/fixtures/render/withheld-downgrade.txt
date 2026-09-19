@@ -1,0 +1,9 @@
+Marketplace: market1: needs update (autoUpdate: off; enable it so the catalog refreshes at session start)
+In-repo: 0: <case> has no project/local installs
+Divergences: 0 actionable
+Timing: <elided>
+Action needed:
+  - downgrade withheld: 1 plugin(s), alpha@market1 (user): 0.5.0 → 0.1.0; likely cause: marketplace source moved backward (github:e/m); rerun with --allow-downgrade only if the rollback is intended
+
+Run journal: <run_dir>
+Timing: <elided>

@@ -19,6 +19,7 @@ have checked a judgment row is misreporting.
 |---|---|
 | Description is specific: concrete nouns a user would type, key use case first | judgment |
 | Description says what the skill does and when to use it, with "Use when" phrasing in single quotes | mechanical (check 12) |
+| Description prose carries no first or second person; quoted trigger phrases may | judgment |
 | `description` alone is at most 1,024 codepoints | mechanical (check 2b) |
 | `description` plus `when_to_use` is at most 1,536 characters | mechanical (check 2) |
 | SKILL.md is under 500 lines, whole file | mechanical (check 4) |

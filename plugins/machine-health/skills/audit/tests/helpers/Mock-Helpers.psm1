@@ -278,8 +278,7 @@ function New-MachineHealthTempDir {
     [CmdletBinding()]
     [OutputType([string])]
     param([string] $Prefix = 'machine-health-test')
-    $tmpRoot = [System.IO.Path]::GetTempPath()
-    $path = Join-Path $tmpRoot ("$Prefix-" + [guid]::NewGuid())
+    $path = Join-Path ([System.IO.Path]::GetTempPath()) ("$Prefix-" + [guid]::NewGuid())
     New-Item -ItemType Directory -Path $path -Force | Out-Null
     return $path
 }

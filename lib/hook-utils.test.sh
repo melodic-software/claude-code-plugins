@@ -57,6 +57,23 @@ wait_for_sink() {
   return 1
 }
 
+# make_logging_shim <dir> <tool> → write an executable <dir>/<tool> that appends
+# one line to <dir>/log per invocation and then execs the real tool, for the
+# spawn-census cases that assert a helper no longer forks it. Returns 1 when
+# there is no real tool on PATH to wrap, so a census can say so rather than
+# assert nothing.
+make_logging_shim() {
+  local dir="$1" tool="$2" real
+  real=$(type -P "$2") || real=""
+  [[ -n "$real" ]] || return 1
+  cat >"$dir/$tool" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "$tool" >>"$dir/log"
+exec "$real" "\$@"
+EOF
+  chmod +x "$dir/$tool"
+}
+
 # --- Test 1: HOOK_TELEMETRY_SINK unset → returns 0, no output ----------------
 unset HOOK_TELEMETRY_SINK 2>/dev/null || true
 out=$(hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"foo.py","findings":[]}' 2>/dev/null)
@@ -1634,8 +1651,7 @@ HOOK_EFFECTIVE_BASE="$gitinv_saved_base"
 # the same FIFO for write, which it does once it has its verdict. Both sides are
 # builtins with redirects; a `cat` would put a spawn back on the very path this
 # exists to keep spawns off. Measured: the pipeline ends at consumer completion
-# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms — so this
-# is also what makes the repeated sampling further down affordable.
+# (2271 ms for a 2000 ms consumer) where a fixed 8 s hold cost 8180 ms.
 bs_release_fifo="$(mktemp -u)"
 bs_mkfifo_err=$(mkfifo "$bs_release_fifo" 2>&1)
 if [[ -z "$bs_mkfifo_err" ]] && [[ -p "$bs_release_fifo" ]]; then
@@ -1651,15 +1667,15 @@ else
   printf 'WARNING: mkfifo unavailable (%s); buffer_stdin cases fall back to a fixed hold, which is slower and less precise.\n' \
     "${bs_mkfifo_err:-no FIFO created}" >&2
   # No FIFO on this host: fall back to a fixed hold. It has to clear the WORST
-  # case any call site can reach, and the worst is the stall comparison's
-  # unsliced arm. That arm pays TWO whole bounds, not one: unsliced, the first
+  # case any call site can reach, and the worst is the unsliced run of the stall
+  # read-count probe. That run pays TWO whole bounds, not one: unsliced, the first
   # 3.6 s read returns WITH the early bytes and only the second empty one
   # declares the stall (which is the overshoot the sliced form exists to cap —
   # see Test 18g). So 7.2 s of bounds plus three sequential forks, which at the
-  # 3.2 s per-fork figure measured above is ~16.8 s; a measured pass of that arm
+  # 3.2 s per-fork figure measured above is ~16.8 s; a measured unsliced run
   # came in at 10593 ms on a box that was not at its worst. A hold derived from
   # ONE bound (~13.2 s, or a 12 s constant) would sit under that worst case and
-  # truncate the slow arm. 60 s is ~3.5x the derived worst case, so it stays
+  # truncate that run. 60 s is ~3.5x the derived worst case, so it stays
   # adequate. The honest trade: a too-short hold turns a should-pass into a
   # false fail, and a long one costs wall time on a host that reaches it.
   # This path is best-effort — Linux and MSYS both provide mkfifo, so it is not
@@ -1805,252 +1821,6 @@ else
   fail "buffer_stdin late-EOF: rc=$bs_rc out=$(cat "$bs_out_file")"
 fi
 
-# ...and it must cost ONE window, not two. Re-arming on progress would otherwise
-# spend a second full window waiting for an EOF this producer never sends,
-# doubling the delay the bound is supposed to cap; the loop therefore stops as
-# soon as the buffer already parses as whole JSON. One window is the floor —
-# until a window expires, a held-open pipe is indistinguishable from a slow one.
-#
-# There is no non-clock proxy to convert this to: both the correct and the
-# reading-on implementations return rc 0 and the identical payload, so latency is
-# the only observable that tells them apart. Everything below is about making a
-# latency comparison that a loaded host cannot SYSTEMATICALLY invert. Not one it
-# cannot invert at all: item 3 below is the correction of exactly that claim, and
-# single deltas of -631 ms and -1012 ms have been measured here. What the
-# machinery buys is that inversions stay isolated samples the estimator discards,
-# instead of a standing offset that survives into the verdict.
-#
-# TWO PROPERTIES DO THE WORK, and a third that was claimed here does not.
-#
-# 1. The slow arm must do strictly MORE work than the fast one in every
-#    dimension. The override therefore performs the real completeness check and
-#    only LIES about the verdict. An override that SKIPS the work
-#    (`json_complete() { return 1; }`) makes the slow arm pay ZERO jq forks
-#    while the fast arm pays one, so on a host where a spawn costs seconds the
-#    "slow" arm wins: measured, 4855 ms fast vs 4330 ms slow, an inverted
-#    result. The ledger is fast = 1 read + 1 fork against slow = 5 reads +
-#    3 forks (two json_complete probes plus the `validated=0` probe at
-#    hook-utils.sh:940, which only the slow arm reaches).
-#
-# 2. The producer must hold its stdout open until the CONSUMER is done. A fixed
-#    `sleep` cannot do that: reaching the slow arm's verdict costs the bound plus
-#    buffer_stdin's startup spawns, and when those spawns outran the hold, EOF cut
-#    the slow arm short and the comparison measured the hold instead of the
-#    behavior (the same run: slow arm 4330 ms against a 3 s hold). bs_hold_open
-#    replaces the sleep with a handshake, so the hold is exactly as long as the
-#    consumer needs and no constant has to be guessed.
-#
-# 3. NOT TRUE, and was asserted here: that more work on the slow side means "no
-#    amount of load can invert" the result. The two arms are separate processes
-#    run SEQUENTIALLY, so they never share a load sample — dominance holds in
-#    expectation, not per sample. Instrumenting buffer_stdin's two startup forks
-#    across four back-to-back runs on an idle box gave 93/92, 762/1277,
-#    1755/3234, 107/100 ms: a 35x swing on ONE fork, up to 3.2 s. The structural
-#    gaps it has to be read against are 1.2 s for this case (one slice against a
-#    whole bound plus a slice) and 2.7 s for the stall case below, so a single
-#    bad fork exceeds one of them outright and eats most of the other. Since each
-#    arm pays several forks, single-sample comparison is not measurable here at
-#    all — which is why these cases take N interleaved samples per arm and
-#    compare an ORDER-BALANCED median of the paired deltas: a median inside each
-#    order group, averaged across the two groups (bs_paired_estimate). The median
-#    is robust to the occasional multi-second fork, which one sample is not, and
-#    the grouping is what keeps a systematic order bias from riding through it.
-#
-# Timing is taken INSIDE the consumer: bracketing the pipeline would fold the
-# producer and the handshake into the measurement.
-
-# bs_median <n> ... — the middle value. Used instead of a mean because the noise
-# is a heavy tail (one 3.2 s fork in four samples), which a mean would swallow.
-# At an even count this returns the LOWER middle rather than averaging the two;
-# every caller here passes an odd-sized group, and where it does not the choice
-# is conservative rather than pass-favoring.
-bs_median() { printf '%s\n' "$@" | sort -n | awk '{v[NR] = $0} END {print v[int((NR + 1) / 2)]}'; }
-
-# bs_paired_estimate <a-first deltas...> -- <b-first deltas...> — prints
-# "<estimate> <a-first median> <b-first median>", the order-balanced estimate of
-# B-minus-A in ms. Returns 1 (printing nothing) if the separator is missing or
-# the two groups are not the same size.
-#
-# Every delta inside ONE group carries the SAME order bias, because every pair in
-# it ran in the same order: +δ where A ran first, since B then paid the
-# second-position penalty, and -δ where B ran first. So a statistic taken
-# symmetrically across the two groups cancels δ exactly, whatever δ is, while the
-# same statistic POOLED over both groups does not — see bs_samples.
-#
-# The median WITHIN each group keeps the outlier rejection a pooled median had:
-# a lone multi-second fork never moves its group's median. The mean ACROSS the
-# two groups is what cancels the bias, and a mean is correct there precisely
-# because its two inputs are equal-sized and oppositely biased. Equal size is the
-# load-bearing precondition, so it is checked rather than assumed — an odd sample
-# count would split 3/2 and cancel only part of the bias.
-bs_paired_estimate() {
-  local -a a_first=() b_first=()
-  local seen_sep=0 arg m_a m_b
-  for arg in "$@"; do
-    if [[ "$arg" == "--" ]]; then
-      seen_sep=1
-      continue
-    fi
-    if ((seen_sep)); then b_first+=("$arg"); else a_first+=("$arg"); fi
-  done
-  ((seen_sep == 1)) || return 1
-  ((${#a_first[@]} > 0)) || return 1
-  ((${#a_first[@]} == ${#b_first[@]})) || return 1
-  m_a=$(bs_median "${a_first[@]}")
-  m_b=$(bs_median "${b_first[@]}")
-  printf '%s %s %s' "$(((m_a + m_b) / 2))" "$m_a" "$m_b"
-}
-
-# bs_paired_verdict <label> <slack-ms> <a-name> <b-name> — asserts that the
-# order-balanced estimate of B-minus-A clears <slack-ms>, reading the two order
-# groups bs_samples just filled. Prints BOTH group medians and every delta, so a
-# marginal pass is visible in the log rather than hidden behind the summary — and
-# so the size of the order bias, which is the gap between the two group medians,
-# is on the record for every run rather than inferred.
-bs_paired_verdict() {
-  local label="$1" slack="$2" a="$3" b="$4" est m_a m_b out detail
-  if ! out=$(bs_paired_estimate "${bs_deltas_a_first[@]}" -- "${bs_deltas_b_first[@]}"); then
-    fail "$label: order groups are not balanced (${#bs_deltas_a_first[@]} vs ${#bs_deltas_b_first[@]}); the sample count must be even"
-    return
-  fi
-  read -r est m_a m_b <<<"$out"
-  detail="slack ${slack} ms; $a-first median ${m_a}, $b-first median ${m_b};"
-  detail="$detail deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
-  if ((est >= slack)); then
-    ok "$label: order-balanced $b-minus-$a is ${est} ms ($detail)"
-  else
-    fail "$label: order-balanced $b-minus-$a is only ${est} ms, under the ${slack} ms slack ($detail)"
-  fi
-}
-
-# bs_samples <n> <fn> <arm-a-arg> <arm-b-arg> — runs <fn> alternately with each
-# argument, INTERLEAVED, so the two arms sample the same load window rather than
-# two different ones. Fills bs_deltas_a_first and bs_deltas_b_first with the
-# per-pair B-minus-A delta, SPLIT BY THE ORDER THE PAIR RAN IN, or empties both
-# if any sample came back untimed. <n> must be EVEN, so the two groups come out
-# the same size and bs_paired_estimate can cancel the order bias with them.
-#
-# The ORDER within each pair alternates, A-then-B on even pairs and B-then-A on
-# odd ones, while the subtraction stays B-minus-A throughout. Running A first
-# every time would put any order-dependent cost — a host that launches later
-# processes more slowly, or a monotonic warm-up or drift across the pair — into
-# every delta with the same sign, and a MEDIAN removes isolated outliers but not
-# a systematic bias. Left uncorrected on a slow-spawning host, that bias is
-# indistinguishable from the behavior gap being measured, so a regression that
-# made the arms equally fast could still clear the slack.
-#
-# ALTERNATION ALONE DOES NOT CANCEL IT. The second-position penalty lands on A
-# for half the pairs and on B for the other half, but it does NOT cancel in the
-# median, which is why the deltas are kept in two groups and combined by
-# bs_paired_estimate instead of pooled. A median pooled over both orders lands
-# INSIDE whichever group is larger and keeps that group's bias in full: at an
-# odd n=5, the 3/2 split puts the pooled median at g+δ, and the majority group
-# is the PASS-favoring one.
-# Driving the shipped helpers with a fully regressed mechanism (true gap zero) on
-# a host with a ±500 ms order bias produced deltas of 500 -500 500 -500 500 and a
-# pooled median of 500 ms — a PASS against the 400 ms slack for a mechanism that
-# had stopped working entirely. The mean of those same five numbers is 100 ms.
-# That reproduction is asserted directly against bs_paired_estimate below.
-bs_deltas_a_first=()
-bs_deltas_b_first=()
-bs_samples() {
-  local n="$1" fn="$2" arg_a="$3" arg_b="$4" i a b
-  bs_deltas_a_first=()
-  bs_deltas_b_first=()
-  for ((i = 0; i < n; i++)); do
-    if ((i % 2 == 0)); then
-      a=$("$fn" "$arg_a")
-      b=$("$fn" "$arg_b")
-    else
-      b=$("$fn" "$arg_b")
-      a=$("$fn" "$arg_a")
-    fi
-    if [[ -z "$a" || -z "$b" ]]; then
-      bs_deltas_a_first=()
-      bs_deltas_b_first=()
-      return 1
-    fi
-    # Which array a delta lands in IS its order group — recorded where the order
-    # is decided, rather than re-derived later from a position in one flat list.
-    if ((i % 2 == 0)); then
-      bs_deltas_a_first+=("$((b - a))")
-    else
-      bs_deltas_b_first+=("$((b - a))")
-    fi
-  done
-}
-
-# --- Test 18b(i): the paired estimator cancels a systematic order bias --------
-# The acceptance test for the correction above, and the one assertion in this
-# neighborhood that needs no clock at all: feed the SHIPPED estimator synthetic
-# deltas describing a fully regressed mechanism — true gap ZERO — measured on a
-# host with a ±500 ms order bias. It must report ~0 and stay under the 400 ms
-# slack the two timing cases use. The pooled median it replaced reported 500 ms
-# for exactly these numbers, i.e. it passed a mechanism that had stopped working.
-#
-# The second vector is the other half of the property: the same ±500 ms bias laid
-# over a REAL 1000 ms gap must still come back as 1000, so the fix cancels the
-# bias rather than deflating the signal along with it. The third asserts the
-# equal-size precondition is enforced, since partial cancellation would be a
-# silent return to the defect.
-bs_est_zero=$(bs_paired_estimate 500 500 500 -- -500 -500 -500)
-bs_est_real=$(bs_paired_estimate 1500 1500 1500 -- 500 500 500)
-bs_est_unbalanced_rc=0
-bs_paired_estimate 500 500 -- -500 >/dev/null || bs_est_unbalanced_rc=$?
-if [[ "${bs_est_zero%% *}" == "0" ]] && ((${bs_est_zero%% *} < 400)) &&
-  [[ "${bs_est_real%% *}" == "1000" ]] && ((bs_est_unbalanced_rc == 1)); then
-  ok "paired estimator: a ±500 ms order bias cancels (zero gap → ${bs_est_zero%% *} ms, under the 400 ms slack; 1000 ms gap → ${bs_est_real%% *} ms), and unequal groups are rejected"
-else
-  fail "paired estimator: zero-gap '$bs_est_zero' (want 0, under 400), real-gap '$bs_est_real' (want 1000), unequal-group rc=$bs_est_unbalanced_rc (want 1)"
-fi
-
-bs_time_late_eof() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
-  local t_file
-  t_file="$(mktemp)"
-  {
-    printf '{"complete":true}'
-    bs_hold_open
-  } | {
-    CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
-      source "$1"
-      eval "$2"
-      printf "%s\n" "${EPOCHREALTIME:-0}"
-      hook::buffer_stdin >/dev/null 2>&1
-      printf "%s\n" "${EPOCHREALTIME:-0}"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$1" >"$t_file"
-    bs_release
-  }
-  awk 'NR==1 {s=$0} NR==2 {e=$0}
-       END { if (s == 0 || e == 0 || NR < 2) print ""; else printf "%.0f", (e - s) * 1000 }' \
-    "$t_file"
-  rm -f "$t_file"
-}
-# Mirrors hook::json_complete's real `printf | jq -e .` body (never a here-string
-# — see that function: a here-string at pipe capacity deadlocks the shell), then
-# returns 1 regardless. Same spawn, opposite verdict.
-# shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
-bs_reads_on='hook::json_complete() { printf "%s" "$1" | jq -e . >/dev/null 2>&1; return 1; }'
-# HOOK_UTILS_TIMING gates the two interleaved-pair CLOCK comparisons in this
-# suite (this late-EOF one and the stall-overshoot one in Test 18g). Each is
-# six pairs of two arms waiting out real bounds, about 80 s of wall time on a
-# hosted runner, and both are advisory by their own terms: the load-independent
-# probes beside them (the chunk-boundary engagement check and the stall
-# read-count check) are the regression guards (#2105). Unset, which is every
-# ordinary run, the comparison is reported as deferred and the probes carry the
-# coverage; the weekly `hook-utils-timing` workflow sets HOOK_UTILS_TIMING=1
-# and runs the comparisons on both operating systems.
-if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
-  ok "buffer_stdin: late-EOF clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the chunk-boundary engagement probe is the regression guard)"
-elif bs_samples 6 bs_time_late_eof "" "$bs_reads_on"; then
-  bs_paired_verdict "buffer_stdin: late-EOF stops at the payload, not the bound" \
-    400 fast slow
-elif [[ -n "${EPOCHREALTIME:-}" ]]; then
-  # On a host that HAS EPOCHREALTIME an empty measurement means the harness
-  # broke, which would silently turn this case into a vacuous pass.
-  fail "late-EOF timing harness produced no measurement"
-else
-  ok "buffer_stdin: late-EOF window count not timed (EPOCHREALTIME absent, Bash < 5.0)"
-fi
 rm -f "$bs_rc_file" "$bs_out_file"
 
 # --- Test 18c: hook::buffer_stdin — a large payload is neither blocked nor slow -
@@ -2406,41 +2176,11 @@ rm -f "$bs_rc_file"
 # byte arrived. Armed as a single window, a producer that emits bytes early and
 # then goes quiet is not declared stalled until the SECOND window expires —
 # almost twice the configured bound. Reading the bound in slices caps that
-# overshoot at one slice. Asserted by comparison against a variant with the slice
-# count forced to 1 (the unsliced behavior), sampled as INTERLEAVED PAIRS so the
-# two arms see the same load window. Runner load does NOT cancel: the arms are
-# separate sequential processes that never share a load sample. Interleaving
-# only keeps a load spike from landing systematically on one arm; the estimator
-# is what discards it. The override is asserted to actually engage first — a
-# silently ineffective override would make this a vacuous pass.
-#
-# There is no non-clock proxy: both variants end in the same rc 2 stall with the
-# same empty payload, and only WHEN the stall is declared differs, which is the
-# whole property under test. Three things had to change for the comparison to
-# hold on a loaded host, and the 2026-08-09 runs show all three:
-#
-#  * The HOLD has to outlast the SLOW arm. The unsliced arm read 4293 ms against
-#    a 4 s hold — EOF had cut it off, so the comparison was measuring the hold
-#    rather than the overshoot. bs_hold_open now ends the hold when the consumer
-#    says so, which removes the constant rather than retuning it.
-#  * Unlike the late-EOF case, this one's arms are NOT symmetric in work: the
-#    sliced arm does slice_count+1 reads where the unsliced does 2, and it is the
-#    arm that has to finish FIRST. Every read costs a wakeup, so load taxes
-#    precisely the arm that must win. Measured on Windows Git Bash at ~420 ms per
-#    extra read, so the three extra reads eat ~1.26 s of whatever gap the bound
-#    provides — and that tax is FIXED per read, it does not grow with the bound.
-#    At a 2.4 s bound the gap is 1.8 s, leaving ~0.5 s of true signal against a
-#    400 ms slack: measured, the median came in at 532 ms, a 1.33x margin that
-#    would flake. The bound is therefore 3.6 s, where the gap is 2.7 s (0.9 s
-#    slice + 3.6 s against two 3.6 s bounds) and the tax leaves ~1.4 s — 3.6x the
-#    slack, and clear of the estimator's own sampling error at six pairs. Growing
-#    the bound is the only lever that grows the signal, because the tax does not
-#    scale with it and no tolerance can be set below it.
-#  * ONE sample of each arm decides nothing. The startup-fork swing documented
-#    above the late-EOF case (up to 3.2 s on a single fork) dwarfs even a 1.8 s
-#    gap on a bad sample, so this takes 6 interleaved pairs and compares the
-#    ORDER-BALANCED estimate. Every delta and both group medians are printed, so
-#    a marginal pass — and the order bias itself — is visible per run.
+# overshoot at one slice. Asserted load-independently against a variant with the
+# slice count forced to 1 (the unsliced behavior): the sliced stall path must
+# issue more reads before declaring the stall (#2105). The override is asserted
+# to actually engage first — a silently ineffective override would make this a
+# vacuous pass.
 bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
   local t_file
   t_file="$(mktemp)"
@@ -2486,29 +2226,27 @@ fi
 #
 # THE LATENCY HALF OF THIS CASE HAS BEEN REMOVED AS UNMEASURABLE. It compared the
 # boundary payload against a deliberately non-boundary one of the same shape, and
-# unlike the two comparisons above, its arms are structurally IDENTICAL — one
-# slice and one jq probe each — so there is no work asymmetry for the tolerance
-# to sit inside, and nothing but the regression separates them. The evidence,
-# collected 2026-08-09 on Windows Git Bash:
+# its arms are structurally IDENTICAL — one slice and one jq probe each — so
+# there is no work asymmetry for a tolerance to sit inside, and nothing but the
+# regression separates them. The evidence, collected 2026-08-09 on Windows Git
+# Bash:
 #
 #  * At a 1.2 s bound with a 400 ms tolerance: failed (1866 vs 1275 ms).
 #  * At a 3.0 s bound with a 1200 ms tolerance — a 2.25 s signal — single samples
 #    on an otherwise idle box gave paired deltas of +2938, +1688, +1110, -2245,
 #    -837 ms. The noise EXCEEDS the signal and straddles zero, so no fixed
 #    tolerance discriminates.
-#  * With the interleaved-sampling machinery the other two cases use (then a
-#    pooled median of five pairs), five interleaved pairs gave +3216, -2886,
-#    -4427, +433, -3850 ms: a 7.6 s spread and a middle value of -2886 ms, i.e. a
-#    systematic 2.9 s offset between two arms that the mechanism says should
-#    match. That offset is unexplained. Setting a tolerance on a number whose
-#    cause is unknown is how this case kept failing, so it is not being retuned
-#    again.
+#  * With interleaved sampling (a pooled median of five pairs), five pairs gave
+#    +3216, -2886, -4427, +433, -3850 ms: a 7.6 s spread and a middle value of
+#    -2886 ms, i.e. a systematic 2.9 s offset between two arms that the mechanism
+#    says should match. That offset is unexplained. Setting a tolerance on a
+#    number whose cause is unknown is how this case kept failing, so it is not
+#    being retuned again.
 #
 # The cause is buffer_stdin's own startup: it spends two command-substitution
 # forks resolving its timeout and slice, and a fork on this platform measured
 # 93 ms to 3234 ms across four back-to-back runs — a single fork's variance
-# exceeds the whole signal. The other two comparisons survive that because their
-# arms differ by several seconds of real work; this one has no such margin.
+# exceeds the whole signal.
 #
 # WHAT THE LATENCY HALF COVERED, stated plainly: a regression that removed the
 # empty-slice completeness check makes an exactly-chunk-sized payload wait out
@@ -2730,37 +2468,6 @@ else
 fi
 rm -f "$bs_stall_read_file"
 
-# Stall overshoot is load-sensitive when asserted as an absolute wall-clock gap
-# (#2105, #2080). The idle-slice probe above is the load-independent guard; this
-# relative check is advisory — fail only when every timed pair contradicts slicing.
-# Gated on HOOK_UTILS_TIMING like the late-EOF comparison (see Test 18b).
-if [[ -z "${HOOK_UTILS_TIMING:-}" ]]; then
-  ok "buffer_stdin: stall overshoot clock comparison deferred (HOOK_UTILS_TIMING unset; the weekly hook-utils-timing lane runs it, and the read-count probe above is the regression guard, #2105)"
-elif bs_samples 6 bs_time_stall "" "$bs_unsliced"; then
-  bs_rel_ok=1
-  bs_rel_detail="deltas ${bs_deltas_a_first[*]} | ${bs_deltas_b_first[*]}"
-  bs_rel_neg=0
-  bs_rel_pos=0
-  for bs_rel_d in "${bs_deltas_a_first[@]}" "${bs_deltas_b_first[@]}"; do
-    if ((bs_rel_d <= 0)); then
-      bs_rel_ok=0
-      ((bs_rel_neg++))
-    else
-      ((bs_rel_pos++))
-    fi
-  done
-  if ((bs_rel_ok)); then
-    ok "buffer_stdin: unsliced stall exceeds sliced in every interleaved pair ($bs_rel_detail)"
-  elif ((bs_rel_neg > 0 && bs_rel_pos == 0)); then
-    fail "buffer_stdin: unsliced did not exceed sliced in any interleaved pair ($bs_rel_detail) — slicing regression"
-  else
-    ok "buffer_stdin: stall timing inconclusive under load ($bs_rel_detail); read-count probe is the regression guard (#2105)"
-  fi
-elif [[ -n "${EPOCHREALTIME:-}" ]]; then
-  fail "stall timing harness produced no measurement"
-else
-  ok "buffer_stdin: stall overshoot not timed (EPOCHREALTIME absent, Bash < 5.0)"
-fi
 rm -f "$bs_release_fifo"
 
 # --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
@@ -3801,14 +3508,7 @@ fi
 # --- hook::json_escape / notice_once no longer exec tr ----------------------
 tr_shim="$(mktemp -d)"
 tr_log="$tr_shim/log"
-real_tr=$(type -P tr) || real_tr=""
-if [[ -n "$real_tr" ]]; then
-  cat >"$tr_shim/tr" <<EOF
-#!/usr/bin/env bash
-printf 'TR\\n' >>"$tr_log"
-exec "$real_tr" "\$@"
-EOF
-  chmod +x "$tr_shim/tr"
+if make_logging_shim "$tr_shim" tr; then
   PATH="$tr_shim:$PATH" hook::json_escape $'a\001b"c' >/dev/null
   if [[ -f "$tr_log" ]]; then
     fail "json_escape spawned tr ($(wc -l <"$tr_log") times)"
@@ -3855,14 +3555,7 @@ rm -rf "$hu_scratch"
 # --- hook::repo_root no longer execs tr --------------------------------------
 tr_shim="$(mktemp -d)"
 tr_log="$tr_shim/log"
-real_tr=$(type -P tr) || real_tr=""
-if [[ -n "$real_tr" ]]; then
-  cat >"$tr_shim/tr" <<EOF
-#!/usr/bin/env bash
-printf 'TR\\n' >>"$tr_log"
-exec "$real_tr" "\$@"
-EOF
-  chmod +x "$tr_shim/tr"
+if make_logging_shim "$tr_shim" tr; then
   PATH="$tr_shim:$PATH" hook::repo_root /workspace >/dev/null
   if [[ -f "$tr_log" ]]; then
     fail "repo_root spawned tr ($(wc -l <"$tr_log") times)"
@@ -4205,7 +3898,6 @@ fi
 
 # The post-read half, table-driven over path shapes no fixture can create.
 # Columns: label | file_path | want FILE_DIR | want FILE_BASE.
-bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
 while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
   [[ -n "$bg_label" ]] || continue
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
@@ -4317,14 +4009,7 @@ rm -rf "$BG_DATA" "$BG_NOJQ"
 # jq beyond hook::buffer_stdin_to's own payload validation, and the unwired
 # path must not spend one to build a telemetry value nothing will read.
 BG_SHIM="$(mktemp -d)"
-bg_real_jq=$(type -P jq) || bg_real_jq=""
-if [[ -n "$bg_real_jq" ]]; then
-  cat >"$BG_SHIM/jq" <<EOF
-#!/usr/bin/env bash
-printf 'JQ\\n' >>"$BG_SHIM/log"
-exec "$bg_real_jq" "\$@"
-EOF
-  chmod +x "$BG_SHIM/jq"
+if make_logging_shim "$BG_SHIM" jq; then
   bg_jq_count() {
     : >"$BG_SHIM/log"
     bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" PATH="$BG_SHIM:$PATH")
@@ -4450,14 +4135,7 @@ fi
 # emitter already builds, on hooks that run on every edit.
 cf_shim="$(mktemp -d)"
 cf_log="$cf_shim/log"
-cf_real_jq=$(command -v jq) || cf_real_jq=""
-if [[ -n "$cf_real_jq" ]]; then
-  cat >"$cf_shim/jq" <<EOF
-#!/usr/bin/env bash
-printf 'JQ\\n' >>"$cf_log"
-exec "$cf_real_jq" "\$@"
-EOF
-  chmod +x "$cf_shim/jq"
+if make_logging_shim "$cf_shim" jq; then
   hook::ctx_reset
   hook::ctx_append "census line"
   PATH="$cf_shim:$PATH" hook::ctx_flush PostToolUse >/dev/null
@@ -4775,6 +4453,230 @@ else
 fi
 
 rm -rf "$WU_WORK"
+
+# --- Test 22: hook::_fast_fields answers exactly what the jq program answers --
+# hook::jq_fields_uncached tries the builtin parser first and runs jq only when
+# it cannot prove the answer. Every payload shape below is put through both:
+# the fast path's proven answer must equal the jq path's, field by field and on
+# the NUL flag; a fall-back is always allowed. The jq path is reached by
+# disabling the fast path inside a subshell, so nothing here depends on the
+# order the two are tried in.
+FF_FILTERS=('.tool_input.command' '.tool_name' '.cwd' '.tool_input.file_path' '.tool_input.content' '.hook_event_name')
+fast_fields_is_jq() { # <desc> <payload>
+  local desc="$1" payload="$2" rc=0 src=0 i same=1
+  local -a fast=() slow=()
+  hook::_fast_fields "$payload" "${FF_FILTERS[@]}" || rc=$?
+  if ((rc == 2)); then
+    ok "fast fields: $desc (falls back to jq)"
+    return
+  fi
+  if ((rc != 0)); then
+    fail "fast fields ($desc): rc=$rc"
+    return
+  fi
+  fast=("${HOOK_JQ_FIELDS[@]}")
+  local fnul=$HOOK_JQ_FIELDS_NUL
+  mapfile -d '' slow < <(
+    hook::_fast_fields() { return 2; }
+    hook::jq_fields_uncached "$payload" "${FF_FILTERS[@]}" || exit $?
+    printf '%s\0' "$HOOK_JQ_FIELDS_NUL" "${HOOK_JQ_FIELDS[@]}"
+  ) || src=$?
+  if ((src != 0)); then
+    fail "fast fields ($desc): proven by the fast path but the jq path returned $src"
+    return
+  fi
+  [[ "${slow[0]}" == "$fnul" ]] || same=0
+  ((${#slow[@]} - 1 == ${#fast[@]})) || same=0
+  for ((i = 0; i < ${#fast[@]}; i++)); do
+    [[ "${fast[i]}" == "${slow[i + 1]-}" ]] || same=0
+  done
+  if ((same)); then
+    ok "fast fields: $desc (proven)"
+  else
+    fail "fast fields ($desc): fast [$(printf '%q ' "${fast[@]}")] jq [$(printf '%q ' "${slow[@]:1}")]"
+  fi
+}
+fast_fields_is_jq "Bash payload" '{"session_id":"s","cwd":"C:\\code\\proj","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","description":"probe"}}'
+# shellcheck disable=SC2016  # the $_ is PowerShell's, inside a JSON payload
+fast_fields_is_jq "PowerShell payload with braces and backslashes" '{"tool_name":"PowerShell","cwd":"C:\\Dev","tool_input":{"command":"Get-ChildItem C:\\Dev | Where-Object { $_.Name -like \"*x*\" }"}}'
+fast_fields_is_jq "escapes in the command" '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"a\\nb\" && echo \"\\t\"\\\\x"}}'
+fast_fields_is_jq "CR inside a value is stripped like jq's output" '{"tool_name":"Bash","tool_input":{"command":"a\r\nb"}}'
+fast_fields_is_jq "number and boolean siblings" '{"tool_name":"Bash","tool_input":{"command":"ls","timeout":600000,"run_in_background":true}}'
+fast_fields_is_jq "empty tool_input" '{"tool_name":"Bash","tool_input":{}}'
+fast_fields_is_jq "no tool_input" '{"tool_name":"Bash"}'
+fast_fields_is_jq "null tool_input" '{"tool_name":"Bash","tool_input":null}'
+fast_fields_is_jq "null command" '{"tool_name":"Bash","tool_input":{"command":null}}'
+fast_fields_is_jq "empty command" '{"tool_name":"Bash","tool_input":{"command":""}}'
+fast_fields_is_jq "Write payload" '{"tool_name":"Write","tool_input":{"file_path":"C:\\repo\\a.md","content":"line1\nline2 {\"x\":[1]}"}}'
+fast_fields_is_jq "pretty-printed payload" "$(jq -n '{tool_name:"Bash",cwd:"/x",tool_input:{command:"git status"}}')"
+fast_fields_is_jq "keys spelled with unicode escapes" '{"tool\u005fname":"Bash","tool_input":{"comm\u0061nd":"x"}}'
+fast_fields_is_jq "non-ASCII value" '{"tool_name":"Bash","tool_input":{"command":"echo é 日本"}}'
+fast_fields_is_jq "tool_input is a string" '{"tool_name":"Bash","tool_input":"x"}'
+fast_fields_is_jq "nested object inside tool_input" '{"tool_name":"Bash","tool_input":{"command":"ls","meta":{"a":1}}}'
+fast_fields_is_jq "key spelled as a value elsewhere" '{"tool_name":"command","tool_input":{"command":"ls"}}'
+fast_fields_is_jq "duplicate key" '{"tool_name":"Bash","tool_input":{"command":"a","command":"b"}}'
+fast_fields_is_jq "same key at the root and inside" '{"command":"root","tool_name":"Bash","tool_input":{"command":"in"}}'
+fast_fields_is_jq "non-ASCII unicode escape" '{"tool_name":"Bash","tool_input":{"command":"\u00e9"}}'
+fast_fields_is_jq "NUL escape" '{"tool_name":"Bash","tool_input":{"command":"a\u0000b"}}'
+fast_fields_is_jq "number tool_name" '{"tool_name":5,"tool_input":{"command":"x"}}'
+fast_fields_is_jq "false command" '{"tool_name":"Bash","tool_input":{"command":false}}'
+fast_fields_is_jq "truncated payload" '{"tool_name":"Bash","tool_input":{"command":"x"'
+fast_fields_is_jq "array root" '[{"tool_name":"Bash"}]'
+# The shapes that must NOT be proven, pinned by verdict: a NUL escape (the
+# flag is jq's), a duplicate key (jq takes the last), a non-string value (jq's
+# tostring), a parent that is not an object (a jq error the caller reads as
+# rc 2).
+for ff_case in '{"tool_name":"Bash","tool_input":{"command":"a\u0000b"}}' \
+  '{"tool_name":"Bash","tool_input":{"command":"a","command":"b"}}' \
+  '{"tool_name":"Bash","tool_input":{"command":7}}' \
+  '{"tool_name":"Bash","tool_input":"x"}'; do
+  ff_rc=0
+  hook::_fast_fields "$ff_case" '.tool_input.command' || ff_rc=$?
+  if ((ff_rc == 2)); then
+    ok "fast fields: not proven, jq runs: ${ff_case:19:40}"
+  else
+    fail "fast fields: rc=$ff_rc on a shape only jq may answer: $ff_case"
+  fi
+done
+# An unusual filter shape is never the fast path's to answer.
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"files":[1,2]}}' '.tool_input.files | length' || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: a non-path filter falls back to jq"; else fail "fast fields: non-path filter rc=$ff_rc"; fi
+# The absence proof: a key nobody spells is "" without jq, and that is jq's
+# answer too (`null // ""`).
+hook::_fast_fields '{"tool_name":"Bash","tool_input":{"command":"ls"}}' '.cwd' '.tool_input.file_path' '.tool_input.command'
+if [[ "${HOOK_JQ_FIELDS[0]}" == "" && "${HOOK_JQ_FIELDS[1]}" == "" && "${HOOK_JQ_FIELDS[2]}" == "ls" ]]; then
+  ok "fast fields: absent keys are proven empty beside a present one"
+else
+  fail "fast fields: absent keys: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")]"
+fi
+# The public entry point takes the fast path on the common payload: no jq on
+# PATH is needed for it, but the jq presence check still precedes it, so the
+# spawn count is what the dispatcher suite pins; here the answer is pinned.
+hook::jq_fields '{"tool_name":"Bash","tool_input":{"command":"true"}}' '.tool_input.command' '.tool_name'
+if [[ "${HOOK_JQ_FIELDS[0]}" == "true" && "${HOOK_JQ_FIELDS[1]}" == "Bash" && "$HOOK_JQ_FIELDS_NUL" == 0 ]]; then
+  ok "jq_fields: the common Bash payload is answered"
+else
+  fail "jq_fields common payload: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")] nul=$HOOK_JQ_FIELDS_NUL"
+fi
+
+# The skip bound is six times the longest REQUESTED key name, not a fixed 60:
+# an ASCII identifier character's longest escaped spelling is `\uXXXX`. Each
+# case is a differential, so what is pinned is jq's answer rather than this
+# suite's belief about it.
+ff_pair_check() { # <desc> <payload> <filter> <expected>
+  local desc="$1" payload="$2" filter="$3" want="$4" rc=0 src=0 slow
+  hook::_fast_fields "$payload" "$filter" || rc=$?
+  if ((rc != 0)); then
+    fail "$desc: the fast path did not prove it (rc=$rc)"
+    return
+  fi
+  slow=$(
+    hook::_fast_fields() { return 2; }
+    hook::jq_fields_uncached "$payload" "$filter" || exit $?
+    printf '%s' "${HOOK_JQ_FIELDS[0]}"
+  ) || src=$?
+  if ((src != 0)); then
+    fail "$desc: proven by the fast path but the jq path returned $src"
+    return
+  fi
+  if [[ "${HOOK_JQ_FIELDS[0]}" == "$want" && "$slow" == "$want" ]]; then
+    ok "$desc"
+  else
+    fail "$desc: fast=[${HOOK_JQ_FIELDS[0]}] jq=[$slow] want=[$want]"
+  fi
+}
+ff_long=""
+ff_gone=""
+for ((ff_i = 0; ff_i < 70; ff_i++)); do
+  ff_long+=k
+  ff_gone+=z
+done
+ff_pair_check "fast fields: a present key name longer than 60 characters is not skipped" \
+  "{\"$ff_long\":\"present\",\"tool_name\":\"Bash\"}" ".$ff_long" "present"
+ff_pair_check "fast fields: a key name longer than 60 characters that is absent is proven empty" \
+  "{\"$ff_long\":\"present\",\"tool_name\":\"Bash\"}" ".$ff_gone" ""
+# `hook_event_name` is 15 characters, so its fully escaped spelling is 90 bytes:
+# past the old fixed bound, inside six times the name's own length.
+ff_esc=""
+ff_name=hook_event_name
+for ((ff_i = 0; ff_i < ${#ff_name}; ff_i++)); do
+  printf -v ff_ch '\\u%04x' "'${ff_name:ff_i:1}"
+  ff_esc+=$ff_ch
+done
+ff_pair_check "fast fields: a key spelled entirely with \\u escapes is recognized" \
+  "{\"$ff_esc\":\"PreToolUse\",\"tool_name\":\"Bash\"}" ".$ff_name" "PreToolUse"
+
+# The Bash 4.0 floor. hook::_fast_fields indexes with an associative array, so
+# below 4.0 the call site must skip the whole fast path and let jq answer.
+# Forced here by overriding the predicate; hook::_fast_fields is replaced by a
+# tripwire, so a gate that is not wired shows up as a failure rather than as
+# two paths that happen to agree.
+ff_floor_payload='{"session_id":"s","cwd":"/x","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"true","file_path":"/a b","content":"c\nd"}}'
+ff_floor_rc=0
+ff_floor=()
+mapfile -d '' ff_floor < <(
+  hook::_fast_fields_supported() { return 1; }
+  hook::_fast_fields() {
+    printf 'FAST-PATH-RAN-BELOW-FLOOR\0'
+    builtin exit 99
+  }
+  hook::jq_fields "$ff_floor_payload" "${FF_FILTERS[@]}" || exit $?
+  printf '%s\0' "$HOOK_JQ_FIELDS_NUL" "${HOOK_JQ_FIELDS[@]}"
+)
+hook::jq_fields "$ff_floor_payload" "${FF_FILTERS[@]}" || ff_floor_rc=$?
+ff_same=1
+((ff_floor_rc == 0)) || ff_same=0
+((${#ff_floor[@]} == ${#FF_FILTERS[@]} + 1)) || ff_same=0
+[[ "${ff_floor[0]-}" == "$HOOK_JQ_FIELDS_NUL" ]] || ff_same=0
+for ((ff_i = 0; ff_i < ${#HOOK_JQ_FIELDS[@]}; ff_i++)); do
+  [[ "${ff_floor[ff_i + 1]-}" == "${HOOK_JQ_FIELDS[ff_i]}" ]] || ff_same=0
+done
+if ((ff_same)); then
+  ok "jq_fields: below the Bash 4.0 floor the fast path is skipped and jq answers the same"
+else
+  fail "jq_fields below the floor: got [$(printf '%q ' "${ff_floor[@]}")] want nul=$HOOK_JQ_FIELDS_NUL [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")]"
+fi
+unset ff_case ff_rc ff_long ff_gone ff_esc ff_name ff_ch ff_i ff_same ff_floor ff_floor_rc ff_floor_payload
+unset -f ff_pair_check
+
+# --- Test 23: hook::emit_document is the one stdout path --------------------
+ed_out=$(hook::emit_channels PreToolUse "ctx" "sys")
+ed_doc=$(hook::emit_document '{"a":1}')
+if [[ "$ed_out" == '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"ctx"},"systemMessage":"sys"}' && "$ed_doc" == '{"a":1}' ]]; then
+  ok "emit_document prints one document with a trailing newline, and emit_channels goes through it"
+else
+  fail "emit_document: channels=[$ed_out] doc=[$ed_doc]"
+fi
+ed_seen=$(
+  hook::emit_document() { printf '<%s>' "$1"; }
+  hook::emit_channels PostToolUse "c1" ""
+  hook::emit_channels PostToolUse "" "s2"
+)
+if [[ "$ed_seen" == '<{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"c1"}}><{"systemMessage":"s2"}>' ]]; then
+  ok "an override of emit_document collects every document emit_channels builds"
+else
+  fail "emit_document override saw: $ed_seen"
+fi
+unset ed_out ed_doc ed_seen
+
+# --- Test 24: hook::extract_bash_subject_to equals the print form -------------
+for es_case in 'Bash|git status' 'Bash|sudo git push' 'Bash|FOO=1 make all' 'Bash|TOKEN="a b" curl x' 'Bash|TOKEN=secret' 'Bash|/usr/bin/env' 'Bash|' 'PowerShell|git status' 'Write|'; do
+  es_tool="${es_case%%|*}"
+  es_cmd="${es_case#*|}"
+  es_to=""
+  hook::extract_bash_subject_to es_to "$es_tool" "$es_cmd"
+  es_print=$(hook::extract_bash_subject "$es_tool" "$es_cmd")
+  if [[ "$es_to" == "$es_print" ]]; then
+    ok "extract_bash_subject_to matches the print form: $es_case -> $es_to"
+  else
+    fail "extract_bash_subject_to [$es_to] vs print form [$es_print] for $es_case"
+  fi
+done
+es_to=""
+hook::extract_bash_subject_to es_to Bash 'TOKEN="a b" curl x'
+if [[ "$es_to" == Bash ]]; then ok "subject: a quoted assignment value never reaches the subject"; else fail "subject leaked: $es_to"; fi
+unset es_case es_tool es_cmd es_to es_print
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

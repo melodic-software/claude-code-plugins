@@ -42,7 +42,7 @@ lanes:
   - name: integration
     globs:
       - 'plugins/work-items/tools/work-item-tracker/adapters/**'
-      - 'plugins/miro/src/**/*.ts'
+      - 'plugins/miro/server/src/**/*.ts'
       - 'plugins/knowledge/skills/*/extraction/adapters/**'
       - 'plugins/knowledge/skills/*/extraction/acquisition/**'
       - 'plugins/source-control/skills/babysit-prs/scripts/*.sh'

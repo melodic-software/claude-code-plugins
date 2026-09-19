@@ -28,6 +28,7 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\ConvertFrom-Jsonc.ps1')
+. (Join-Path $PSScriptRoot '..\lib\Resolve-SkillRoot.ps1')
 
 function Get-BaselineList {
     <#
@@ -154,9 +155,8 @@ $commands = @(
 )
 
 try {
-    $skillRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent | Split-Path -Parent
     if (-not $BaselinePath) {
-        $BaselinePath = Join-Path $skillRoot 'reference\windows\drive-root-baseline.jsonc'
+        $BaselinePath = Join-Path (Resolve-SkillRoot) 'reference\windows\drive-root-baseline.jsonc'
     }
     # No baseline means no way to tell residue from a legitimate entry, so the
     # check cannot answer -- UNKNOWN, never a guess.
@@ -228,8 +228,7 @@ try {
                 "listed; $($residueSorted.Count) unexpected entries found on the rest.") `
             -Commands $commands -Detail $detail -NeedsAdmin $false `
             -RanSuccessfully $false `
-            -ErrorMessage ($failedRoots -join '; ') `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+            -ErrorMessage ($failedRoots -join '; ')
     } else {
         # Severity ladder (most severe first). This check never emits CRIT:
         # root litter is tidiness with no data-loss or security consequence,
@@ -267,16 +266,11 @@ try {
 
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
-            -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+            -NeedsAdmin $false -RanSuccessfully $true
     }
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Drive-root litter check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Drive-root litter check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

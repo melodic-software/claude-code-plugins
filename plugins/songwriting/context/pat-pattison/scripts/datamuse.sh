@@ -39,9 +39,8 @@ MODE="${1:-}"
 shift || true
 ARG="${*:-}"
 
-# Print the header block (shebang to first non-comment line). Derived rather
-# than a hardcoded sed range, which drops the trailing lines as the header
-# grows (#3424).
+# Print the header block (shebang to first non-comment line). Derived from the
+# file itself, so a growing header can never outrun the banner.
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
     "${BASH_SOURCE[0]}" >&2

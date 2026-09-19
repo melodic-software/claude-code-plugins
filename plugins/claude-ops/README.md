@@ -35,7 +35,7 @@ Claude Code's native OTEL cannot see.
 |---|---|
 | `/claude-ops:audit-skill-visibility` | Audits whether the model can actually **see** each installed skill, the question behind "why does most of my fleet never get used?", since a skill the model cannot see can never be chosen. Reports three independent things per skill: **reachability** (visible, `user-only` by design, hidden by an override or disabled plugin, or invisibly misconfigured), **observation** (what usage was actually recorded, always horizon-qualified), and **starvation** (whether it is losing the description-budget contest: Claude Code drops descriptions starting with the skills you invoke least, so an unused skill loses the keywords a request would match and stays unused). Whether the listing overflows is computed from documented settings; which particular skills lose their descriptions is a labelled likelihood band, never an exact cutoff. Withholds every cold verdict the data cannot support instead of reporting absence of data as absence of use. Read-only. |
 | `/claude-ops:audit-install-state` | Read-only audit of the machine-scope Claude Code installation directory, the `~/.claude` tree plus the home-root `~/.claude.json`. Inventories every file (entries labelled as an authored surface or a rolled-up bulk tree, with the complete per-file rows in a CSV artifact), separates what Claude Code's own `cleanupPeriodDays` sweep already manages from what nothing manages, resolves what each number in a filename actually *is* before attempting any process-liveness lookup, and deny-lists any subtree holding a revert ledger before classifying anything as stale. Never deletes; hands off to `claude project purge` and `/disk-hygiene:clean`. |
-| `/claude-ops:audit-native-overlap` | Maps native Claude Code surfaces, built-in CLI commands, bundled skills, plugin-backed built-ins, session-provided skills, against the current repo's plugin skills and agents. Bare invocation is a read-only overlap report (candidates with evidence, detection integrity floors carried through, and a shared-listing-budget exposure section); verdicts (`prefer-native` / `prefer-ours` / `complementary` / `superseded` / `defer`) are human-gated in a committed store (`docs/native-surfaces/records.json`) rendered into a generated registry (`docs/NATIVE-SURFACES.md`) whose every row carries an observable recheck trigger; only an explicit `apply` step bakes presence-gated native references into component descriptions and Boundary sections. |
+| `/claude-ops:audit-native-overlap` | Maps native Claude Code surfaces, built-in CLI commands, bundled skills, plugin-backed built-ins, session-provided skills, against the current repo's plugin skills and agents. Bare invocation is a read-only overlap report (candidates with evidence, detection integrity floors carried through, and a shared-listing-budget exposure section); verdicts (`prefer-native` / `prefer-ours` / `complementary` / `superseded` / `defer`) are human-gated in a committed store (`docs/native-surfaces/records.json`) rendered into a generated registry (`docs/native-surfaces.md`) whose every row carries an observable recheck trigger; only an explicit `apply` step bakes presence-gated native references into component descriptions and Boundary sections. |
 | `/claude-ops:audit-performance` | Read-only slowness-diagnostic capture, run at the moment the machine or a session feels slow, before restarting or deleting anything. One timed engine pass separates four documented suspects: accumulated install-tree state, version regression, component bloat, and the fan-out layer, plus on Windows a kernel-object census that names the host-level Token-object leak beneath all four. Each suspect's evidence and verdict routing is documented in the skill. Phase timings are first-class evidence; content reads are allowlisted to four non-secret config files (`settings.json`, `.last-cleanup`, `hooks.json`, `installed_plugins.json`), so `~/.claude.json` and `history.jsonl` stay stat-only. Reports and routes; never mutates, never elevates, and never executes a discovered hook or statusline command. |
 | `/claude-ops:observability` | Reads locally captured Claude Code telemetry, OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage, and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:known-issues` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
@@ -240,13 +240,18 @@ producer row per observable hook event (30 events; the generated
 `MessageDisplay` and `FileChanged` are left out). Each fire appends one line to
 `<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
 (`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
-and a repo-relative file path when present. A consumer who has not turned it on
-pays the kill-switch read and nothing else (2.42 ms against a 2.08 ms spawn
-floor on the Linux CI host); enabled, a 2 KB payload costs about 5 ms and a
-512 KB one 36 ms. Windows Git Bash, the host the hook-budget convention binds
-to, is unmeasured for these rows: the parallel-wall figure there, and the
-budget comparison it feeds, are owed before the switch is recommended on by
-default, and the default stays off until they are taken. `session_event_log_categories` narrows the set. At
+and a repo-relative file path when present. Each row is SHELL FORM and reads
+the kill switch itself, before it execs the script, so a consumer who has not
+turned it on starts nothing beyond the shell Claude Code runs the command in:
+measured on Windows Git Bash, 1 process creation per event against the 3 the
+bare script path costs (median wall 41 ms against 107 ms, n=5). The script
+keeps its own switch for a direct invocation (2.42 ms against a 2.08 ms spawn
+floor on the Linux CI host). Enabled, the row execs the script and the chain is
+the same three creations as before (median 117 ms); a 2 KB payload costs about
+5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
+hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
+is still owed, and the default stays off until it is taken.
+`session_event_log_categories` narrows the set. At
 `SessionEnd` the retention hook keeps the newest `session_log_keep_sessions`
 or the last `session_log_keep_days` days, and `session_log_pre_prune_command`
 hands an archiver the files about to go. The root carries its own `*`

@@ -3,6 +3,62 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.20]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.8.19]
+
+### Changed
+
+- `bench.test.sh` gates its five lane cases on `BENCH_LANES`. Without it the suite runs only the lib-helper assertions and prints a `SKIP:` line naming the coverage that did not run; `BENCH_LANES=1` runs every case, locally or through `ci.yml`'s `bench_lanes` dispatch input.
+
+## [0.8.18]
+
+### Changed
+
+- The formatter and lint hook suites fold run_hook onto run_hook_env, drop a dead tool-probe guard line, and extract their repeated jq context reads and trace counts into small helpers; the statusline suites share one run_env; stale narration is trimmed from four hook comments. Every suite's output is byte-identical apart from timings, and the context-zone twins stay identical.
+
+## [0.8.17]
+
+### Changed
+
+- The context-guard statusline, compose-wiring, and context-zone test suites route repeated invocations through their existing run helpers, and the registered rate-limit-guard and plugin-quality twins of the two canonical suites carry the same change.
+
+## [0.8.16]
+
+### Changed
+
+- The rate-limit-guard statusline and record-rate-limit-stop test suites route their repeated tee, CRLF shim, and config-dir invocations through shared run helpers and a record counter, with no change to any assertion.
+
+## [0.8.15]
+
+### Changed
+
+- Drop the unused positional floor override and the redundant array seed in the bench library and replace the single-use cleanup wrapper with an exit trap in its suite (behavior unchanged).
+
+## [0.8.14]
+
+### Changed
+
+- compose-statusline-wiring.sh reuses its shim-prefix recognizer when peeling a prefix and returns its syntax and shell tests directly; the compose, context-zone and statusline test suites read fixture files without a cat fork and share the mv shim builder; rate-limit-guard's statusline-tee.sh resolves the tee enablement verdict once instead of in three branches. Synced copies refreshed. No behavior change.
+
+## [0.8.13]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.8.12]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.8.11]
 
 ### Changed

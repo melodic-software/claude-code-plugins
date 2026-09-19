@@ -16,7 +16,6 @@ wit_body_has_legacy_frontier_tier_signal() {
     '[Ss]tamped for the frontier capability tier'
     '[Ff]rontier[- ]tier quota guard'
     '\*\*[Cc]apability tier:\*\*[[:space:]]*[Ff]rontier'
-    '[Cc]apability tier:[[:space:]]*[Ff]rontier[[:space:]]*\(quota guard\)'
   )
 
   # One grep over the catalogue joined as an ERE alternation (`|` binds loosest,

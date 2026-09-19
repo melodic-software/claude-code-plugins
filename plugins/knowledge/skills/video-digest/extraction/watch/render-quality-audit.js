@@ -12,6 +12,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { readLaneJson } from "../lib/watch-frame-index.js";
 
 /**
  * @param {string} sliceDir
@@ -19,8 +20,7 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  */
 export function renderQualityAudit(sliceDir) {
   const absSlice = path.resolve(sliceDir);
-  const auditPath = lanePath(absSlice, LANES.keyFrames, "key-frame-quality-audit.json");
-  const doc = JSON.parse(fs.readFileSync(auditPath, "utf8"));
+  const doc = readLaneJson(absSlice, LANES.keyFrames, "key-frame-quality-audit.json");
 
   const failures = doc.files.filter((f) => !f.pass);
   const lines = [
@@ -48,9 +48,8 @@ export function renderQualityAudit(sliceDir) {
   return outPath;
 }
 
-const sliceDir = process.argv[2];
-
 if (isMainModule(import.meta.url)) {
+  const sliceDir = process.argv[2];
   if (!sliceDir) {
     writeStderr("Usage: node watch/render-quality-audit.js <slice-dir>");
     process.exit(2);

@@ -48,7 +48,7 @@ skill's collision check then permanently refuses to resume them.
 **Trigger:** an orchestrator that justifies the cost. **Cost measured at the time
 of deferral** (2026-08, re-measure before acting): 48 occurrences across 14
 tracked files; a two-plugin change with two CHANGELOG entries and two version
-bumps; a regenerated `docs/CATALOG.md`; 24 CHANGELOG occurrences that must
+bumps; a regenerated `docs/catalog.md`; 24 CHANGELOG occurrences that must
 **not** be rewritten; an unresolved question about ADRs 0006 and 0007 citing the
 live path; and an explicit migration of 14 live work slices.
 

@@ -76,7 +76,9 @@ build subprocess; do not assume plugin configuration is inherited by an arbitrar
 AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"
 ```
 
-Never ask the consumer to export the variable globally.
+Keep the selection per-invocation: set it on each launched process as above, never as a global
+export the consumer adds to their shell profile. A global export pins one profile for every
+session and every other tool on that machine, including runs that asked for a different one.
 
 A profile may contain these team-tracked files. They are not a `*.local.*`
 cascade overlay:

@@ -23,10 +23,10 @@ def main(src, dst_md, dst_jsonl):
         strata.setdefault(r["stratum"], []).append(r)
 
     total = len(flagged)
-    alloc = {}
-    for k, v in strata.items():
-        alloc[k] = max(5, round(TARGET * len(v) / total))
-        alloc[k] = min(alloc[k], len(v))
+    alloc = {
+        k: min(len(v), max(5, round(TARGET * len(v) / total)))
+        for k, v in strata.items()
+    }
 
     rng = random.Random(SEED)
     picked = []

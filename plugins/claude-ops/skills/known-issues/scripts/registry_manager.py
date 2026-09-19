@@ -273,6 +273,16 @@ def _invalid_choice(
     return _error(action, f"Invalid {field} '{value}'. Valid: {choices}")
 
 
+def _ambiguous(
+    action: str, number: int, matches: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Error result for a bare number matching entries in several repos."""
+    repos = ", ".join(str(i.get("repo")) for i in matches)
+    return _error(
+        action, f"#{number} is ambiguous across repos ({repos}) — pass --repo"
+    )
+
+
 # ── Actions ─────────────────────────────────────────────────────
 
 
@@ -301,10 +311,9 @@ def action_list(
             if _is_stale(i, today, stale_days, missing_is_stale=True)
         ]
 
-    msg = f"Found {len(filtered)} issues"
     return _ok(
         "list",
-        msg,
+        f"Found {len(filtered)} issues",
         {
             "issues": filtered,
             "total": len(filtered),
@@ -402,11 +411,7 @@ def action_update(
     if not matches:
         return _not_found("update", f"No issue with number {number}")
     if len(matches) > 1:
-        repos = ", ".join(str(i.get("repo")) for i in matches)
-        return _error(
-            "update",
-            f"#{number} is ambiguous across repos ({repos}) — pass --repo",
-        )
+        return _ambiguous("update", number, matches)
     issue = matches[0]
 
     if "category" in updates and updates["category"] not in VALID_CATEGORIES:
@@ -441,11 +446,7 @@ def action_remove(
     if not matches:
         return _not_found("remove", f"No issue with number {number}")
     if len(matches) > 1:
-        repos = ", ".join(str(i.get("repo")) for i in matches)
-        return _error(
-            "remove",
-            f"#{number} is ambiguous across repos ({repos}) — pass --repo",
-        )
+        return _ambiguous("remove", number, matches)
     issue = matches[0]
     data["issues"] = [i for i in data["issues"] if i is not issue]
     return _ok("remove", f"Removed issue #{number}", {"removed": issue})

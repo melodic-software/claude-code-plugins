@@ -654,7 +654,7 @@ def find_deliberate_state(root: Path) -> list[dict]:
                     depth = len(here.relative_to(corroborating_below).parts)
                     depth_ok = depth <= HOTSPOT_CORROBORATING_MAX_DEPTH
                 except ValueError:  # pragma: no cover - defensive
-                    depth_ok = False
+                    pass
             for name in filenames:
                 if any(fnmatch.fnmatchcase(name, pat) for pat in STRONG_LEDGER_GLOBS):
                     record(here / name, here, label, "strong")
@@ -916,7 +916,7 @@ def walk_tree(
                     liveness=verdict.liveness,
                     liveness_reason=verdict.reason,
                     deny_listed=under_deny(rel, denied),
-                    evidence=MEASURED if not stat.S_ISLNK(st.st_mode) else INFERRED,
+                    evidence=INFERRED if stat.S_ISLNK(st.st_mode) else MEASURED,
                 )
             )
     return rows, [e if isinstance(e, dict) else {"error": repr(e)} for e in errors]
@@ -1624,7 +1624,7 @@ def sentinels_block(root: Path) -> dict:
                 read_text_guarded(root, rel)
                 content_read = True
             except OSError:
-                content_read = False
+                pass
         out[rel] = {
             "present": present,
             "role": role,

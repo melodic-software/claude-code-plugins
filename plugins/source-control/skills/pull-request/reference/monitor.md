@@ -407,6 +407,7 @@ When all readiness gates pass:
 **Check runs:** X passed, Y skipped, Z failed-informational
 **Security:** [scanner] evaluated, N findings classified
 **Comments:** X from N reviewers, Y fixed, Z deferred, W incorrect
+**Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
 **Cooldown:** 2+ min since last activity
 **Fix iterations:** N
 **Failures classified:**

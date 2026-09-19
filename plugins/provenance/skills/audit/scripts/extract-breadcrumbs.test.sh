@@ -188,7 +188,7 @@ STRADDLE_DIR="$TEST_TMPDIR/straddle"
 mkdir -p "$STRADDLE_DIR"
 {
   printf '# Straddle\n\n'
-  # Taken from docs/CLOUD-SESSIONS.md:320, which check-stamps.sh counts as a
+  # Taken from docs/cloud-sessions.md:320, which check-stamps.sh counts as a
   # candidate and this extractor did not. One keyword, and the date sits far
   # enough from it that the 60-character slice cut the year in half. Note the
   # line must carry no SECOND keyword: "as-of" beside the date would restart

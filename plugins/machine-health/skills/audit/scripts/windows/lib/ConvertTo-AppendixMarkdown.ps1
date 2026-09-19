@@ -10,9 +10,8 @@ inventories (driver list, winget upgrade list, event-log top 20, startup
 items, scheduled tasks, etc.). This helper walks all check results and
 emits one <details> block per inventory-carrying check.
 
-Keeps the main body scannable: anything over 10 rows goes to a <details>
-with the count in the summary. Under 10 rows inlines as a table or bullet
-list.
+Keeps the main body scannable: every inventory renders as a collapsed
+<details> block with its row count in the summary.
 
 Neutrally named. The per-check inventory keys are documented here -- when a
 new check adds a renderable inventory, extend this function.

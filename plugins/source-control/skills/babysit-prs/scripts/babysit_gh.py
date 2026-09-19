@@ -23,30 +23,28 @@ from babysit_util import (
 )
 
 REPOSITORY_LIST_LIMIT = 1001
-VIEW_FIELD_NAMES: tuple[str, ...] = tuple(
-    [
-        "author",
-        "baseRefName",
-        "comments",
-        "headRefName",
-        "headRefOid",
-        "headRepository",
-        "headRepositoryOwner",
-        "isDraft",
-        "isCrossRepository",
-        "latestReviews",
-        "mergeStateStatus",
-        "mergeable",
-        "maintainerCanModify",
-        "number",
-        "reviewDecision",
-        "reviews",
-        "state",
-        "statusCheckRollup",
-        "title",
-        "updatedAt",
-        "url",
-    ]
+VIEW_FIELD_NAMES: tuple[str, ...] = (
+    "author",
+    "baseRefName",
+    "comments",
+    "headRefName",
+    "headRefOid",
+    "headRepository",
+    "headRepositoryOwner",
+    "isDraft",
+    "isCrossRepository",
+    "latestReviews",
+    "mergeStateStatus",
+    "mergeable",
+    "maintainerCanModify",
+    "number",
+    "reviewDecision",
+    "reviews",
+    "state",
+    "statusCheckRollup",
+    "title",
+    "updatedAt",
+    "url",
 )
 VIEW_FIELDS = ",".join(VIEW_FIELD_NAMES)
 SEARCH_FIELDS = "number,repository,url,title,updatedAt,isDraft"
@@ -103,10 +101,9 @@ def gh_json(args: list[str]) -> Any:
 
 
 # `gh` reports the HTTP status in its own stderr message, e.g.
-# `gh: Forbidden (HTTP 403)`. The exit code alone is 1 for every failure, so
-# this is the only signal separating "the API answered no" from "the call never
-# landed". Same parse as `babysit_resolve_thread.gh_http_status`, which reads it
-# for the resolve wrapper's 404/410 distinction.
+# `gh: Forbidden (HTTP 403)` (verified against gh 2.95.0). The exit code alone is
+# 1 for every failure, so this is the only signal separating "the API answered
+# no" from "the call never landed".
 GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
 # Sandboxed sessions (Claude Code on the web and remote execution) serve only a
 # pinned set of GraphQL operations and refuse the rest with HTTP 403. The
@@ -129,9 +126,9 @@ class GraphQLUnavailableError(RuntimeError):
 def gh_http_status(text: str) -> int | None:
     """The HTTP status `gh` reported in a failure message, or None if it named none.
 
-    Ported from `babysit_resolve_thread.gh_http_status`, which reads the same
-    string off a `CompletedProcess`; here the text arrives inside the
-    `RuntimeError` `run_command` raises, which embeds the captured stderr. None
+    The single parse of that string: `babysit_resolve_thread.gh_http_status`
+    reads it off a `CompletedProcess` through here, while the text arrives here
+    inside the `RuntimeError` `run_command` raises, which embeds stderr. None
     covers every failure that never reached an HTTP response -- a timeout, an
     unreachable API, a `gh` that failed before dispatching -- and means
     "unverifiable", never a negative answer. The LAST status in the stream wins:

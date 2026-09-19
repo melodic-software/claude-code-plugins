@@ -96,7 +96,7 @@ over a corpus, so it was measured once on this repository before shipping:
 The one is `docs/hook-migration-audit.md`, which no file in the repository references under any form.
 Both rejections are more instructive than the survivor. `docs/adr/0006-...` is cited twice, but under
 the `ADR 0006` form rather than the filename form, caught by this lane's own query-form-variation
-rule. `docs/ai-briefing-design.md` is cited by `docs/MIGRATION-PLAYBOOK.md`, and was missed because
+rule. `docs/ai-briefing-design.md` is cited by `docs/migration-playbook.md`, and was missed because
 the measurement filtered to paths "cited nowhere outside their own directory" while both files sit in
 `docs/`. Two of three apparent orphans were citation-search artifacts, in two different ways.
 

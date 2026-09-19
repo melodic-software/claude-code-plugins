@@ -17,13 +17,27 @@ set -euo pipefail
 # ──────────────────────────────────────────────────────────────────────────
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
-  BOLD=$(tput bold); DIM=$(tput dim); RESET=$(tput sgr0)
-  BLUE=$(tput setaf 4); GREEN=$(tput setaf 2); YELLOW=$(tput setaf 3); RED=$(tput setaf 1)
+  BOLD=$(tput bold)
+  DIM=$(tput dim)
+  RESET=$(tput sgr0)
+  BLUE=$(tput setaf 4)
+  GREEN=$(tput setaf 2)
+  YELLOW=$(tput setaf 3)
+  RED=$(tput setaf 1)
 else
-  BOLD=""; DIM=""; RESET=""; BLUE=""; GREEN=""; YELLOW=""; RED=""
+  BOLD=""
+  DIM=""
+  RESET=""
+  BLUE=""
+  GREEN=""
+  YELLOW=""
+  RED=""
 fi
 
-fatal() { printf '%s✗ %s%s\n' "$RED" "$1" "$RESET" >&2; exit 1; }
+fatal() {
+  printf '%s✗ %s%s\n' "$RED" "$1" "$RESET" >&2
+  exit 1
+}
 
 # Every prompt reads from the controlling terminal (fd 3 ← /dev/tty), never
 # stdin. Fail closed when no TTY exists: a wizard driven by piped input would
@@ -85,7 +99,7 @@ stage() {
 }
 
 # say "..." — a plain instruction line.
-say()  { printf '  %s\n' "$1"; }
+say() { printf '  %s\n' "$1"; }
 # step "..." — an action the human takes in the browser.
 step() { printf '  %s•%s %s\n' "$BLUE" "$RESET" "$1"; }
 note() { printf '  %s%s%s\n' "$DIM" "$1" "$RESET"; }
@@ -106,10 +120,15 @@ open_url() {
   printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
   # explorer.exe exits 1 even on success, so its status must not trip the
   # manual-fallback warning on the supported Git Bash path.
-  { if   command -v wslview      >/dev/null 2>&1; then wslview "$url"
-    elif command -v explorer.exe >/dev/null 2>&1; then explorer.exe "$url" || true
-    elif command -v xdg-open     >/dev/null 2>&1; then xdg-open "$url"
-    elif command -v open         >/dev/null 2>&1; then open "$url"
+  {
+    if command -v wslview >/dev/null 2>&1; then
+      wslview "$url"
+    elif command -v explorer.exe >/dev/null 2>&1; then
+      explorer.exe "$url" || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "$url"
+    elif command -v open >/dev/null 2>&1; then
+      open "$url"
     else warn "couldn't open a browser — visit it manually: $url"; fi
   } >/dev/null 2>&1 || warn "couldn't open a browser — visit it manually: $url"
 }
@@ -159,12 +178,25 @@ _existing() {
   val="${line#*=}"
   if [[ ${#val} -ge 2 ]]; then
     case "$val" in
-    \'*\') val="${val:1:${#val}-2}"; val="${val//"$esc"/\'}" ;;
+    \'*\')
+      val="${val:1:${#val}-2}"
+      val="${val//"$esc"/\'}"
+      ;;
     \"*\") val="${val:1:${#val}-2}" ;;
     *) ;; # unquoted (hand-written line) — offer verbatim
     esac
   fi
   printf '%s' "$val"
+}
+
+# _ask_prompt "Prompt" CURRENT: the prompt line ask and ask_secret share. The
+# "[Enter keeps current]" hint shows only when a stored value can be kept.
+_ask_prompt() {
+  if [[ -n "$2" ]]; then
+    printf '  %s%s%s %s[Enter keeps current]%s ' "$BOLD" "$1" "$RESET" "$DIM" "$RESET"
+  else
+    printf '  %s%s%s ' "$BOLD" "$1" "$RESET"
+  fi
 }
 
 # ask KEY "Prompt" — read a value into $KEY. Offers the existing .env value as
@@ -175,11 +207,7 @@ ask() {
   local key="$1" prompt="$2" current input
   _valid_key "$key"
   current=$(_existing "$key" || true)
-  if [[ -n "$current" ]]; then
-    printf '  %s%s%s %s[Enter keeps current]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$RESET"
-  else
-    printf '  %s%s%s ' "$BOLD" "$prompt" "$RESET"
-  fi
+  _ask_prompt "$prompt" "$current"
   read -r -e -u 3 input || fatal "terminal closed while reading $key — aborting"
   [[ -z "$input" && -n "$current" ]] && input="$current"
   printf -v "$key" '%s' "$input"
@@ -192,11 +220,7 @@ ask_secret() {
   local key="$1" prompt="$2" current input
   _valid_key "$key"
   current=$(_existing "$key" || true)
-  if [[ -n "$current" ]]; then
-    printf '  %s%s%s %s[Enter keeps current]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$RESET"
-  else
-    printf '  %s%s%s ' "$BOLD" "$prompt" "$RESET"
-  fi
+  _ask_prompt "$prompt" "$current"
   read -rs -u 3 input || fatal "terminal closed while reading secret $key — aborting"
   printf '\n'
   [[ -z "$input" && -n "$current" ]] && input="$current"
@@ -207,7 +231,7 @@ ask_secret() {
 # git repo: a captured secret must never be one `git add .` from a commit.
 _ENV_IGNORE_WARNED=0
 _check_env_ignored() {
-  (( _ENV_IGNORE_WARNED )) && return 0
+  ((_ENV_IGNORE_WARNED)) && return 0
   command -v git >/dev/null 2>&1 || return 0
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
   if ! git check-ignore -q -- "$ENV_FILE" 2>/dev/null; then
@@ -231,8 +255,8 @@ write_env() {
   _WIZARD_TMP="$tmp"
   chmod 600 "$tmp"
   escaped=${value//\'/\'\\\'\'}
-  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
-  printf "%s='%s'\n" "$key" "$escaped" >> "$tmp"
+  grep -vE "^${key}=" "$ENV_FILE" >"$tmp" || true
+  printf "%s='%s'\n" "$key" "$escaped" >>"$tmp"
   mv -- "$tmp" "$ENV_FILE"
   _WIZARD_TMP=""
   chmod 600 "$ENV_FILE"
@@ -259,7 +283,7 @@ GH_REPO_DECLINED=0
 # shellcheck disable=SC2310  # confirm's no-branch is the handled decline path; fatal exits directly
 _resolve_repo() {
   [[ -n "$GH_REPO" ]] && return 0
-  (( GH_REPO_DECLINED )) && return 1
+  ((GH_REPO_DECLINED)) && return 1
   local repo
   if ! repo=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>&1); then
     GH_REPO_DECLINED=1
@@ -277,76 +301,57 @@ _resolve_repo() {
   GH_REPO="$repo"
 }
 
-# set_secret NAME VALUE — set a GitHub Actions repo secret via gh, value piped
-# over stdin (never argv). Empty values are refused; gh errors surface into
-# the closing summary instead of vanishing into /dev/null.
+# _gh_set KIND NAME VALUE: the shared body of set_secret/set_var. KIND is both
+# the gh subcommand and the noun every message uses, so the two helpers cannot
+# drift in their refusals or their remediation lines.
 # shellcheck disable=SC2310  # _gh_ready/_resolve_repo are status-returning gates; every false branch is handled
-set_secret() {
-  local name="$1" value="$2" err
+_gh_set() {
+  local kind="$1" name="$2" value="$3" err
   _valid_key "$name"
   if [[ -z "$value" ]]; then
-    warn "refusing to set GitHub secret $name — empty value"
-    SKIPPED+=("GitHub secret $name (empty value — nothing was sent to gh)")
+    warn "refusing to set GitHub $kind $name — empty value"
+    SKIPPED+=("GitHub $kind $name (empty value — nothing was sent to gh)")
     return 0
   fi
   if ! _gh_ready; then
-    warn "skipped GitHub secret $name — gh not ready; set it later"
-    SKIPPED+=("GitHub secret $name (gh missing/unauthenticated: gh secret set $name --repo <owner/repo>)")
+    warn "skipped GitHub $kind $name — gh not ready; set it later"
+    SKIPPED+=("GitHub $kind $name (gh missing/unauthenticated: gh $kind set $name --repo <owner/repo>)")
     return 0
   fi
   if ! _resolve_repo; then
-    SKIPPED+=("GitHub secret $name (no confirmed target repo)")
+    SKIPPED+=("GitHub $kind $name (no confirmed target repo)")
     return 0
   fi
-  if err=$(printf '%s' "$value" | gh secret set "$name" --repo "$GH_REPO" 2>&1 >/dev/null); then
-    WRITTEN_SECRET+=("$name")
-    printf '  %s✓ set%s GitHub secret %s in %s\n' "$GREEN" "$RESET" "$name" "$GH_REPO"
+  if err=$(printf '%s' "$value" | gh "$kind" set "$name" --repo "$GH_REPO" 2>&1 >/dev/null); then
+    if [[ "$kind" == secret ]]; then WRITTEN_SECRET+=("$name"); else WRITTEN_VAR+=("$name"); fi
+    printf '  %s✓ set%s GitHub %s %s in %s\n' "$GREEN" "$RESET" "$kind" "$name" "$GH_REPO"
   else
-    warn "couldn't set GitHub secret $name — see the closing summary"
-    SKIPPED+=("GitHub secret $name (gh error: ${err})")
+    warn "couldn't set GitHub $kind $name — see the closing summary"
+    SKIPPED+=("GitHub $kind $name (gh error: ${err})")
   fi
 }
+
+# set_secret NAME VALUE — set a GitHub Actions repo secret via gh, value piped
+# over stdin (never argv). Empty values are refused; gh errors surface into
+# the closing summary instead of vanishing into /dev/null.
+set_secret() { _gh_set secret "$1" "$2"; }
 
 # set_var NAME VALUE — set a GitHub Actions repo variable (non-secret), value
 # piped over stdin (gh reads standard input when --body is omitted), never
 # argv. Same refusals as set_secret.
-# shellcheck disable=SC2310  # _gh_ready/_resolve_repo are status-returning gates; every false branch is handled
-set_var() {
-  local name="$1" value="$2" err
-  _valid_key "$name"
-  if [[ -z "$value" ]]; then
-    warn "refusing to set GitHub variable $name — empty value"
-    SKIPPED+=("GitHub variable $name (empty value — nothing was sent to gh)")
-    return 0
-  fi
-  if ! _gh_ready; then
-    warn "skipped GitHub variable $name — gh not ready; set it later"
-    SKIPPED+=("GitHub variable $name (gh missing/unauthenticated: gh variable set $name --repo <owner/repo>)")
-    return 0
-  fi
-  if ! _resolve_repo; then
-    SKIPPED+=("GitHub variable $name (no confirmed target repo)")
-    return 0
-  fi
-  if err=$(printf '%s' "$value" | gh variable set "$name" --repo "$GH_REPO" 2>&1 >/dev/null); then
-    WRITTEN_VAR+=("$name")
-    printf '  %s✓ set%s GitHub variable %s in %s\n' "$GREEN" "$RESET" "$name" "$GH_REPO"
-  else
-    warn "couldn't set GitHub variable $name — see the closing summary"
-    SKIPPED+=("GitHub variable $name (gh error: ${err})")
-  fi
-}
+set_var() { _gh_set variable "$1" "$2"; }
 
 # finish — clear, then a closing summary of everything configured. Names only
 # — never values.
 finish() {
   _clear
   printf '\n%s%s  ✓ Setup complete%s\n' "$BOLD" "$GREEN" "$RESET"
-  (( ${#WRITTEN_ENV[@]} ))    && note "wrote ${#WRITTEN_ENV[@]} value(s) to $ENV_FILE: ${WRITTEN_ENV[*]}"
-  (( ${#WRITTEN_SECRET[@]} )) && note "set ${#WRITTEN_SECRET[@]} GitHub secret(s) in ${GH_REPO}: ${WRITTEN_SECRET[*]}"
-  (( ${#WRITTEN_VAR[@]} ))    && note "set ${#WRITTEN_VAR[@]} GitHub variable(s) in ${GH_REPO}: ${WRITTEN_VAR[*]}"
-  if (( ${#SKIPPED[@]} )); then
-    printf '\n'; warn "still to do by hand:"
+  ((${#WRITTEN_ENV[@]})) && note "wrote ${#WRITTEN_ENV[@]} value(s) to $ENV_FILE: ${WRITTEN_ENV[*]}"
+  ((${#WRITTEN_SECRET[@]})) && note "set ${#WRITTEN_SECRET[@]} GitHub secret(s) in ${GH_REPO}: ${WRITTEN_SECRET[*]}"
+  ((${#WRITTEN_VAR[@]})) && note "set ${#WRITTEN_VAR[@]} GitHub variable(s) in ${GH_REPO}: ${WRITTEN_VAR[*]}"
+  if ((${#SKIPPED[@]})); then
+    printf '\n'
+    warn "still to do by hand:"
     for s in "${SKIPPED[@]}"; do note "  - $s"; done
   fi
   printf '\n'
@@ -375,7 +380,7 @@ ask_secret STRIPE_SECRET_KEY "Paste the secret key:"
 write_env STRIPE_PUBLISHABLE_KEY "$STRIPE_PUBLISHABLE_KEY"
 # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
 write_env STRIPE_SECRET_KEY "$STRIPE_SECRET_KEY"
-set_secret STRIPE_SECRET_KEY "$STRIPE_SECRET_KEY"   # CI needs this one
+set_secret STRIPE_SECRET_KEY "$STRIPE_SECRET_KEY" # CI needs this one
 # ── END EXAMPLE STAGE ─────────────────────────────────────────────────────
 
 finish

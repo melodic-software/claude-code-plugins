@@ -110,7 +110,6 @@ $1 == "NOTE:" { next }
 NF >= 3 {
   n_surfaces++
   if ($1 == "managed") {
-    n_managed_surfaces++
     status = $3
     if (status == "present") n_managed_present++
     # invalid-json belongs here, not with absent: a CORRUPT managed policy is a

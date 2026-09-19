@@ -77,8 +77,12 @@ readonly EX_UNAVAILABLE=8
 # `set -u` (call-order independence).
 WIT_GH_OUT=""
 
+# wit_usage_error <message>: name the entry verb script and exit 2. The last BASH_SOURCE
+# element is the bottom of the source stack, so the verb is named whether the call sits
+# at the verb's top level or inside a helper this file defines. Indexed by length rather
+# than by -1, which needs bash 4.2 and this repo still runs on the macOS system bash 3.2.
 wit_usage_error() {
-  printf '%s: %s\n' "$(basename "${BASH_SOURCE[1]}")" "$1" >&2
+  printf '%s: %s\n' "$(basename "${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}")" "$1" >&2
   exit "$EX_USAGE"
 }
 
@@ -190,8 +194,7 @@ wit_remove_assignee() {
 }
 
 # wit_try_remove_assignee <owner> <repo> <number> <login> — best-effort rollback
-# on the session identity; never fails the caller (mirrors the bare-gh `|| true`
-# rollback calls this replaces).
+# on the session identity; never fails the caller.
 wit_try_remove_assignee() {
   gh api --method DELETE "repos/$1/$2/issues/$3/assignees" \
     -f "assignees[]=$4" >/dev/null 2>&1 || true
@@ -200,6 +203,41 @@ wit_try_remove_assignee() {
 # wit_issue_url <owner> <repo> <number>
 wit_issue_url() {
   printf 'https://github.com/%s/%s/issues/%s\n' "$1" "$2" "$3"
+}
+
+# wit_parse_edge_args <usage> <option> <args…>: parse the `<id> --<option> <id>` shape
+# the edge verbs (link-blocks, add-sub-item) share. Both ids are validated as github
+# ids and the option's value is resolved to the issue URL `gh issue edit` wants. Sets
+# WIT_EDGE_ID / WIT_EDGE_OWNER / WIT_EDGE_REPO / WIT_EDGE_NUMBER for the subject and
+# WIT_EDGE_OTHER / WIT_EDGE_OTHER_URL for the option's value. Any malformed invocation
+# exits 2 before a request is made.
+# shellcheck disable=SC2034  # the WIT_EDGE_* globals are read by the sourcing verb scripts, not within this lib
+wit_parse_edge_args() {
+  local usage="$1" option="$2"
+  shift 2
+  local id="${1:-}"
+  [[ -n "$id" ]] || wit_usage_error "$usage"
+  shift
+  local other=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    "--$option")
+      [[ $# -ge 2 ]] || wit_usage_error "--$option needs a value"
+      other="$2"
+      shift 2
+      ;;
+    *) wit_usage_error "unknown argument: $1" ;;
+    esac
+  done
+  [[ -n "$other" ]] || wit_usage_error "--$option is required"
+  wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
+  WIT_EDGE_ID="$id"
+  WIT_EDGE_OWNER="$WIT_ID_OWNER"
+  WIT_EDGE_REPO="$WIT_ID_REPO"
+  WIT_EDGE_NUMBER="$WIT_ID_NUMBER"
+  wit_require_github_id "$other" || wit_usage_error "malformed or non-github --$option id: $other"
+  WIT_EDGE_OTHER="$other"
+  WIT_EDGE_OTHER_URL="$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
 }
 
 # shellcheck disable=SC2016  # jq program — $sv/$or are jq variables, not bash expansions
@@ -242,6 +280,14 @@ wit_emit_item() {
   fields="$(wit_gh_issue_view_json_fields)"
   wit_run_gh read issue view "$number" -R "$owner/$repo" --json "$fields"
   jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
+}
+
+# wit_patch_lease_comment <owner> <repo> <comment-id> <lease-json>: rewrite a
+# lease comment in place. The marker wrapper is the single lease-body format
+# this adapter writes. WIT_GH_OUT = the patched comment id.
+wit_patch_lease_comment() {
+  wit_run_gh write api --method PATCH "repos/$1/$2/issues/comments/$3" \
+    -f body="${WIT_LEASE_MARKER}$4 -->" --jq '.id'
 }
 
 # wit_list_lease_comments <owner> <repo> <number> — JSON array of

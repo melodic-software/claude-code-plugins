@@ -15,7 +15,7 @@ requires scope from somewhere: CLI bare path / `--root` / `--repo`, or `fleet.ro
 entries in a consumed config. Absence of every config on the ladder is therefore INFO for `check`
 (nothing to validate yet) and a hard failure for a subsequent no-argument audit, not a silent
 default to the current project. Check-centric per the uniform setup contract
-(`docs/PLUGIN-PHILOSOPHY.md` "Setup is explicit and repeatable" in the marketplace repository):
+(`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` inspects read-only; `apply` creates or updates the file, then re-runs `check`. No argument
 or `check` runs the check; `apply` runs the check first, then the write. All non-interactive: when
 the arguments fully specify the change, `apply` proceeds without prompting.

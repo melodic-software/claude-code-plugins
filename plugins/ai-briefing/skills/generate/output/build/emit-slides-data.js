@@ -128,8 +128,7 @@ async function main() {
   if (briefing.meta.window) {
     // briefing.meta.window e.g. "2026-04-24T19:00:00Z → 2026-05-05T20:30:00Z (~11 days)"
     const range = parseWindowRange(briefing.meta.window);
-    if (range) windowStr = formatWindow(range.open, range.close);
-    else windowStr = briefing.meta.window;
+    windowStr = range ? formatWindow(range.open, range.close) : briefing.meta.window;
   } else if (state?.current_meeting_window?.opened_date) {
     windowStr = formatWindow(state.current_meeting_window.opened_date, new Date().toISOString());
   } else {
@@ -182,7 +181,7 @@ async function main() {
   const SLIDE_BUDGET_WARN = 55;
   if (slides.length > SLIDE_BUDGET_WARN) {
     console.warn(`\n⚠ Slide count ${slides.length} > budget ${SLIDE_BUDGET_WARN}.`);
-    console.warn(`  60-min meeting target ≈ 1.1 min/slide. Consider cutting LOW items or merging condensed slides.`);
+    console.warn("  60-min meeting target ≈ 1.1 min/slide. Consider cutting LOW items or merging condensed slides.");
   }
 }
 

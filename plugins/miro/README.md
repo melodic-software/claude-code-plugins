@@ -5,7 +5,7 @@ create and manage boards, sticky notes, shapes, frames, connectors, and tags for
 EventStorming, brainstorming, and diagramming workflows.
 
 This is the marketplace's first plugin to ship its own MCP server. The server is a
-single self-contained Node artifact (`dist/index.min.js`) invoked over local `stdio`, so
+single self-contained Node artifact (`server/dist/index.min.js`) invoked over local `stdio`, so
 enabling the plugin adds the Miro tools with no separate install, no registry token,
 and no `npx` dependency (a bundled `node <server>` sidesteps the Windows bare-`npx`
 spawn bug, [anthropics/claude-code#58510](https://github.com/anthropics/claude-code/issues/58510)).
@@ -66,18 +66,29 @@ tags, connectors, bulk create, and overlap detection. Read-only tools annotate
 Stdio MCP server ([`@modelcontextprotocol/sdk`](https://github.com/modelcontextprotocol/typescript-sdk))
 on Node ≥ 24. Cross-platform, no per-OS path divergence at the stdio boundary. Tool
 definitions are thin wrappers over the [`@mirohq/miro-api`](https://www.npmjs.com/package/@mirohq/miro-api)
-client; the request/response and error-shaping logic lives in `src/`.
+client; the request/response and error-shaping logic lives in `server/src/`.
 
-The TypeScript in `src/` is the single source of truth. `dist/index.min.js` is generated
-build output: an [esbuild](https://esbuild.github.io/) single-file bundle of the
+The TypeScript in `server/src/` is the single source of truth. `server/dist/index.min.js` is
+generated build output: an [esbuild](https://esbuild.github.io/) single-file bundle of the
 source and all runtime dependencies. Plugin install runs no build step, so the bundle
 is committed; CI rebuilds it from source with the pinned toolchain and fails on any
 drift, so the committed artifact is always exactly what the source produces.
 
+The whole Node project (`package.json`, the lockfile, `src/`, `dist/`, and the tool
+configs) lives under `server/` rather than at the plugin root. Claude Code runs
+`npm ci --ignore-scripts` inside a consumer's plugin cache whenever the plugin root
+holds both a `package.json` and a supported lockfile, and that install cannot be turned
+off; it would materialise this project's devDependencies (the TypeScript, biome, esbuild
+and vitest toolchain) on every install even though the bundle needs none of them at
+runtime. Keeping the project one level down leaves the plugin root without a lockfile,
+so nothing is installed, while CI and Dependabot still pin and rebuild from the same
+lockfile. Basis: [plugins-reference.md](https://code.claude.com/docs/en/plugins-reference.md),
+"Node.js package dependencies", verified 2026-09-11; recheck when that section changes.
+
 ## Development
 
 ```shell
-cd plugins/miro
+cd plugins/miro/server
 npm install
 npm run typecheck     # tsc --noEmit
 npm test              # vitest (with coverage + typecheck)
@@ -86,8 +97,8 @@ npm run bundle        # regenerate dist/index.min.js from src/
 npm run verify-bundle # fail if dist/index.min.js drifts from src/
 ```
 
-After editing `src/`, run `npm run bundle` and commit the regenerated `dist/index.min.js`
-alongside the source change.
+After editing `server/src/`, run `npm run bundle` and commit the regenerated
+`server/dist/index.min.js` alongside the source change.
 
 ## Configuration
 

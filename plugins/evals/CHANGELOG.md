@@ -1,5 +1,37 @@
 # Changelog: evals
 
+## [0.3.0]
+
+### Added
+
+- **`plugin-eval`**: guided practice around the Claude Code `plugin eval` command, which runs a
+  plugin's cases with the plugin loaded and again against a no-plugin baseline and scores both. The
+  skill preflights (CLI version against the floor the command requires, sandbox backend, target
+  type), validates the case files before spending, estimates cost from cases times runs times arms
+  against the configured ceiling, reads the delta first, and carries the iteration loop and a CI
+  recipe. Two facts read from kept traces of the pilot suite are recorded in the body: the with-arm
+  cannot `Read` the plugin's own `reference/` files, so a delta measures the hub `SKILL.md` alone,
+  and the without-arm's cost on a knowledge case comes from the bundled `claude-api` skill firing.
+- **`validate`**: a static check over a plugin's eval case files that makes no model call and spends
+  nothing, reporting the load failures the binary rejects and the authoring mistakes its docs name.
+- A pilot eval suite at `plugins/evals/evals/`: three read-only cases, each pairing an outcome
+  grader with a path grader, measuring what this plugin contributes over a no-plugin baseline.
+- `userConfig`: `max_cost_usd` (number, default 5), the ceiling passed to the CLI per invocation,
+  and `unlimited_cost` (boolean, default false), which drops the ceiling and keeps the estimate.
+
+### Changed
+
+- The plugin description and the README now state what runs where: the CLI runs and scores,
+  `/evals:plugin-eval` preflights, prices, validates, and reads the delta, `/evals:validate` is the
+  zero-spend check. This replaces the runner-boundary disclaimer both older skills carried, which
+  the command's release made false.
+- **`design`**: the description and the "What this skill does NOT do" list drop that disclaimer, a
+  plugin target hands to `claude plugin eval init`, and `## Next` routes by what was scaffolded. The
+  per-skill `evals/evals.json` it emits is still a separate format the CLI does not read.
+- **`methodology`**: the scope boundary points at `/evals:plugin-eval` for running and scoring, and
+  a `## Next` section names `/evals:design` and `/evals:plugin-eval`. The skill remains knowledge,
+  not a runner.
+
 ## [0.2.4]
 
 ### Changed

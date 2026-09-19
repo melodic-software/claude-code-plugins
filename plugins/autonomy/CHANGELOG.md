@@ -3,6 +3,50 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.14]
+
+### Changed
+
+- hooks: the Stop hook's payload-free pre-filter decides the managed-settings root by which fixed path exists rather than by asking `uname -s` which one to test, and the manifest read that names an unanchored install moves below the pre-filter. Outside a lane the hook now creates no process of its own (measured on Windows Git Bash: 6 creations to 4 for an anchored install, 8 to 4 for an unanchored one, against a 4-creation harness floor; the `$(uname -s)` alone cost 3 of them). Inside a lane the count is unchanged at 19 and the block decision is byte-identical. The trust boundary is unchanged: the candidate scan only routes, and every managed VALUE still comes from the `uname`-selected, absoluteness-asserted list, because the platform is now decided by which root-owned path exists, which a repository can no more forge than it could forge uname's answer.
+
+## [0.23.13]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.23.12]
+
+### Changed
+
+- The emission-conformance and signal-envelope checkers share one canonical-URL predicate module, and the two fixture suites share one pass/fail harness with their own summary wording kept. Findings, messages and exit codes are unchanged.
+
+## [0.23.11]
+
+### Changed
+
+- setup scripts: apply-prerequisite-resolution.mjs walks identity rows through one generator and a prose-rule table, resolve-prerequisites.mjs finds the first existing candidate through one helper and drops unused probe parameters, generate-identity-prerequisites.mjs merges inherited needs once, check-security-binding.mjs names its bare-host and admission vocabularies once, and the emission and envelope checkers drop an out-parameter and a repeated identity test. Output byte-identical.
+
+## [0.23.10]
+
+### Changed
+
+- hooks: lane-stop-gate-lib.sh gains gate_plugin_root_to, the one spelling of the plugin-root derivation both entry scripts carried, and drops three print-form helpers with no callers (gate_data_dir, gate_trusted_data_dir, gate_user_settings_file; the `_to` forms remain); lane-stop-gate.sh strips and chomps its payload fields in one loop and reuses chomp_nl when loading the arm record. Process budgets unchanged. No behavior change.
+
+## [0.23.9]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.23.8]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.23.7]
 
 ### Changed

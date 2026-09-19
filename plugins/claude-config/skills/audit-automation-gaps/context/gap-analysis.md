@@ -3,7 +3,7 @@
 **Hooks**: For each language with production code (`.cs`, `.py`, `.ts`, `.sh`, `.ps1`, `.md`):
 
 - Does a PostToolUse formatter hook exist?
-- Does the language's build/lint tool run fast enough for a per-edit hook (<15s)?
+- Does the language's build/lint tool run fast enough for a per-edit hook, judged against the consuming repo's own documented hook budget where it has one (see the skill's `context/hook-timing.md`)?
 - Does a higher enforcement level (compiler, analyzer, build-time) already catch what the hook would catch?
 
 **MCP Servers**: For each external service the repo interacts with:

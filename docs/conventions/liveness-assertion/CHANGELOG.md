@@ -37,4 +37,4 @@ stays open for enforcement peels).
   conforming references; #510, #385/#376, #465/#499, #509 as tracked instances.
 - Enforceability classified; peel 1 defers CI meta-check and engine self-test gates with event
   triggers.
-- Convention registry row added in `PLUGIN-PHILOSOPHY.md`; Prerequisites section gains a pointer.
+- Convention registry row added in `plugin-philosophy.md`; Prerequisites section gains a pointer.

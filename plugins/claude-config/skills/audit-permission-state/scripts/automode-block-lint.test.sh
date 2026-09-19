@@ -14,36 +14,8 @@ FIXTURES="$SCRIPT_DIR/../evals/fixtures"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-count_matching() { printf '%s\n' "$1" | grep -cE "$2"; }
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
   echo "SKIP: python3 not installed — this lane is optional by design" >&2
@@ -151,13 +123,7 @@ assert_eq "and yields no findings" 0 "$(count_matching "$OUT_GARBAGE" '^finding 
 # With python unreachable the lane must skip visibly and exit 0, so one lane's
 # prerequisite never becomes the whole skill's problem.
 STUB="$TEST_TMPDIR/stub-path"
-mkdir -p "$STUB"
-real_bash="$(command -v bash)"
-for tool in mktemp rm cat tr tail printf; do
-  src="$(command -v "$tool" 2>/dev/null)" || continue
-  printf '#!%s\nexec "%s" "$@"\n' "$real_bash" "$src" >"$STUB/$tool"
-  chmod +x "$STUB/$tool"
-done
+make_stub_path "$STUB" mktemp rm cat tr tail printf
 rc=0
 OUT_NOPY=$(env AUTOMODE_CONFIG_FIXTURE="$CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" \
   PATH="$STUB" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
@@ -235,9 +201,25 @@ assert_contains "--help states the optional-runtime contract" "$help" "exits 0 s
 assert_contains "--help states that reset is never run" "$help" "it never
 runs 'claude auto-mode reset'"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+# --- Customization is additions OR removals ----------------------------------
+# A section holding a strict SUBSET of the built-in list has no entry the
+# defaults lack. An additions-only test called that unmodified, printing "the
+# built-in lists, unmodified" directly above C4 reporting that built-in entries
+# were discarded. Dropping "$defaults" to prune the shipped list is
+# customization, and the loudest kind.
+SUBSET_CONFIG="$TEST_TMPDIR/subset-config.json"
+jq '.allow = [.allow[0]]' "$DEFAULTS" >"$SUBSET_CONFIG"
+OUT_SUBSET=$(env AUTOMODE_CONFIG_FIXTURE="$SUBSET_CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" bash "$SCRIPT")
+assert_contains "a removal-only section is reported customized" "$OUT_SUBSET" "customized section(s): allow"
+assert_not_contains "and is not called unmodified" "$OUT_SUBSET" "are the built-in lists, unmodified"
+assert_contains "C4 still reports the discarded entries" "$OUT_SUBSET" "C4-defaults"
+
+# The untouched case must still read as untouched: the CLI expands "$defaults" in
+# its own output, so an unmodified section arrives identical to the built-in one.
+IDENTICAL_CONFIG="$TEST_TMPDIR/identical-config.json"
+cp "$DEFAULTS" "$IDENTICAL_CONFIG"
+OUT_IDENTICAL=$(env AUTOMODE_CONFIG_FIXTURE="$IDENTICAL_CONFIG" AUTOMODE_DEFAULTS_FIXTURE="$DEFAULTS" bash "$SCRIPT")
+assert_contains "an identical block is reported unmodified" "$OUT_IDENTICAL" "are the built-in lists, unmodified"
+assert_contains "and finds nothing" "$OUT_IDENTICAL" "findings=0"
+
+report_and_exit

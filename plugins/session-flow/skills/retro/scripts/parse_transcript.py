@@ -490,12 +490,11 @@ def parse_one_session(session_id: str, base_path: Path) -> dict[str, Any]:
             "error": f"No transcript found at {main_jsonl}",
         }
 
-    data = build_session_data(session_id, metrics, subagents)
     return {
         "id": session_id,
         "transcript_present": True,
         "subagents_present": bool(subagents),
-        "data": data,
+        "data": build_session_data(session_id, metrics, subagents),
     }
 
 
@@ -677,8 +676,13 @@ def build_multi_session_output(
         "found": transcripts_present,
         "available": available,
     }
+    coverage_note = ""
     if available:
         chain_coverage["ratio"] = round(transcripts_present / available, 3)
+        coverage_note = (
+            f", covering {transcripts_present} of {available} transcript(s) "
+            "present for this project"
+        )
 
     if transcripts_present == len(session_ids):
         status = "pass"
@@ -689,12 +693,6 @@ def build_multi_session_output(
         # Nothing found at all — a bad base dir, stale chain, or wrong SIDs
         # must fail loudly, not read as a successful all-zero retro.
         status = "error"
-    coverage_note = ""
-    if available:
-        coverage_note = (
-            f", covering {transcripts_present} of {available} transcript(s) "
-            f"present for this project"
-        )
     summary = (
         f"Multi-session retro: {len(session_ids)} chained session(s) "
         f"({transcripts_present} with transcript), "

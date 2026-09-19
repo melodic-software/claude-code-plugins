@@ -19,19 +19,18 @@ SCRIPT="$SELF_DIR/check-vendor-version-bump.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# plugin <fixture> <name> <version> — a plugin with one vendored source file.
-plugin() {
-  local fixture="$1" name="$2" version="$3"
-  mkdir -p "$fixture/plugins/$name/.claude-plugin" "$fixture/plugins/$name/vendor/pkg"
-  printf '{"name":"%s","version":"%s"}\n' "$name" "$version" \
-    >"$fixture/plugins/$name/.claude-plugin/plugin.json"
-  printf 'module.exports = 1;\n' >"$fixture/plugins/$name/vendor/pkg/index.js"
-}
-
 set_version() {
   local fixture="$1" name="$2" version="$3"
   printf '{"name":"%s","version":"%s"}\n' "$name" "$version" \
     >"$fixture/plugins/$name/.claude-plugin/plugin.json"
+}
+
+# plugin <fixture> <name> <version> — a plugin with one vendored source file.
+plugin() {
+  local fixture="$1" name="$2"
+  mkdir -p "$fixture/plugins/$name/.claude-plugin" "$fixture/plugins/$name/vendor/pkg"
+  set_version "$@"
+  printf 'module.exports = 1;\n' >"$fixture/plugins/$name/vendor/pkg/index.js"
 }
 
 # base_fixture <out-var> → two vendored plugins committed as the base ref; the
@@ -51,6 +50,19 @@ run_gate() (
   shift
   cd "$fixture" && bash scripts/check-vendor-version-bump.sh "$@"
 )
+
+# failing_git_shim <fixture> <subcommand>: a PATH-front git that fails only
+# <subcommand>; every other subcommand passes through to the real binary, so
+# the gate's own rev-parse still resolves the base ref.
+failing_git_shim() {
+  local fixture="$1" sub="$2" real_git
+  real_git="$(command -v git)"
+  mkdir -p "$fixture/shim"
+  # shellcheck disable=SC2016  # the shim's ${1:-} and $@ are the SHIM's own expansions, deliberately unexpanded here
+  printf '#!/usr/bin/env bash\nif [ "${1:-}" = %s ]; then echo "fatal: simulated git %s failure" >&2; exit 128; fi\nexec %s "$@"\n' \
+    "$sub" "$sub" "$real_git" >"$fixture/shim/git"
+  chmod +x "$fixture/shim/git"
+}
 
 # --- no vendor change passes ------------------------------------------------
 base_fixture f
@@ -192,11 +204,7 @@ rm -rf "$f"
 # the gate reports "nothing changed" over a tree carrying a real violation.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
-mkdir -p "$f/shim"
-real_git="$(command -v git)"
-# shellcheck disable=SC2016  # the shim's ${1:-} and $@ are the SHIM's own expansions, deliberately unexpanded here
-printf '#!/usr/bin/env bash\nif [ "${1:-}" = diff ]; then echo "fatal: simulated git diff failure" >&2; exit 128; fi\nexec %s "$@"\n' "$real_git" >"$f/shim/git"
-chmod +x "$f/shim/git"
+failing_git_shim "$f" diff
 status=0
 out="$(PATH="$f/shim:$PATH" run_gate "$f" --check-bump HEAD 2>&1)" || status=$?
 if [[ "$status" -eq 2 && "$out" == *"git diff failed"* ]]; then
@@ -293,11 +301,7 @@ rm -rf "$f"
 # show subcommand; rev-parse, diff, and ls-tree pass through.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
-mkdir -p "$f/shim"
-real_git="$(command -v git)"
-# shellcheck disable=SC2016  # the shim's ${1:-} and $@ are the SHIM's own expansions, deliberately unexpanded here
-printf '#!/usr/bin/env bash\nif [ "${1:-}" = show ]; then echo "fatal: simulated git show failure" >&2; exit 128; fi\nexec %s "$@"\n' "$real_git" >"$f/shim/git"
-chmod +x "$f/shim/git"
+failing_git_shim "$f" show
 status=0
 out="$(PATH="$f/shim:$PATH" run_gate "$f" --check-bump HEAD 2>&1)" || status=$?
 if [[ "$status" -eq 2 && "$out" == *"git show failed"* ]]; then

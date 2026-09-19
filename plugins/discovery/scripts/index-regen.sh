@@ -199,11 +199,7 @@ parse_frontmatter() {
     # Indent, then content past it.
     content="${raw#"${raw%%[![:space:]]*}"}"
     indent=$((${#raw} - ${#content}))
-    if [[ -z "$content" ]]; then
-      i=$((i + 1))
-      continue
-    fi
-    if [[ "$content" == '#'* ]]; then
+    if [[ -z "$content" || "$content" == '#'* ]]; then
       i=$((i + 1))
       continue
     fi

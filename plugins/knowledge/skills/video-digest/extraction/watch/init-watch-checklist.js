@@ -14,6 +14,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { detectContentClass, outcomeFloors } from "../evals/check-watch-outcomes.js";
 import { isMainModule } from "../lib/cli-entrypoint.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
+import { readJsonFile } from "../lib/watch-frame-index.js";
 import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
 import { watchStatePath } from "./watch-state.js";
 
@@ -95,10 +96,8 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
     throw new Error(`Missing watch.json in ${absSlice}`);
   }
 
-  const watch = JSON.parse(fs.readFileSync(watchPath, "utf8"));
-  const selection = fs.existsSync(selectionPath)
-    ? JSON.parse(fs.readFileSync(selectionPath, "utf8"))
-    : null;
+  const watch = readJsonFile(watchPath);
+  const selection = fs.existsSync(selectionPath) ? readJsonFile(selectionPath) : null;
 
   const durationSec = selection?.durationSec ?? watch.phases?.watching?.metrics?.durationSec ?? 0;
   const contactSheetCount =

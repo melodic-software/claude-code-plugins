@@ -212,13 +212,10 @@ require_non_negative_int() {
 # writer's file — which is why the reason travels as an argument rather than being
 # hardcoded to the staleness case.
 require_int_at_least_one() {
-  local name="$1" value="$2" why="${3:-}"
+  local name="$1" value="$2" why="$3"
   require_non_negative_int "$name" "$value"
   if [[ "$value" -lt 1 ]]; then
-    if [[ -n "$why" ]]; then
-      die "$name must be at least 1: $value ($why)"
-    fi
-    die "$name must be at least 1: $value"
+    die "$name must be at least 1: $value ($why)"
   fi
 }
 

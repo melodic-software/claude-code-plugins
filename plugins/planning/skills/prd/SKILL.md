@@ -86,7 +86,7 @@ Tier choice rationale lives in [`context/templates.md`](context/templates.md). W
 
 ## The PRD process
 
-### Step 1. Skip-condition check (MANDATORY)
+### Step 1. Skip-condition check
 
 Before any other work, validate the request matches the trigger conditions. If it matches the skip conditions, STOP and tell the user:
 
@@ -98,7 +98,7 @@ Do not proceed unless the user explicitly overrides ("write the PRD anyway") OR 
 
 Spend the first turn grounding yourself, in parallel:
 
-- Read the consuming project's `CLAUDE.md` and `AGENTS.md` for product direction and current modules
+- Take product direction and current modules from the project's always-loaded instructions (root `CLAUDE.md` / `AGENTS.md`), already in context; read a nested `AGENTS.md` under the area the topic touches, since those load only when a file they cover is read
 - Climb to the nearest domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) if the project keeps one and the topic touches a known module. Walk UP from the relevant directory toward repo root and stop at the first match
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction

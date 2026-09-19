@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.13]
+
+### Changed
+
+- The five provenance audit scripts source one lib.sh for require_opt_value, json_str and the config-layer cascade instead of carrying private copies. Diagnostics, JSON output and exit codes are unchanged.
+
+## [0.5.12]
+
+### Changed
+
+- The provenance audit scripts split test case specs with a single read instead of parameter-expansion chains, inline a single-use jq helper in emit-findings, and drop dead default guards in list-corpus and score-golden, with byte-identical findings and scores.
+
+## [0.5.11]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.5.10]
 
 ### Changed

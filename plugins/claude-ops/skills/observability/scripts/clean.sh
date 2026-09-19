@@ -144,13 +144,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$KEEP_DAYS" in
-*[!0-9]*)
-  echo "ERROR: --keep-days must be a non-negative integer (got: $KEEP_DAYS)" >&2
-  exit 2
-  ;;
-*) ;;
-esac
+# Both retention windows are validated the same way, each naming its own flag.
+require_nonneg_int() { # <flag> <value>
+  case "$2" in
+  *[!0-9]*)
+    echo "ERROR: $1 must be a non-negative integer (got: $2)" >&2
+    exit 2
+    ;;
+  *) ;;
+  esac
+}
+
+require_nonneg_int --keep-days "$KEEP_DAYS"
 
 # A contained relative path is the only accepted root shape: the hooks refuse
 # anything else, so a prune there would touch a tree nothing writes to.
@@ -344,13 +349,7 @@ fi
 # somebody else's files, which is why `data-dir` demands an explicit directory
 # and is never guessed.
 if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
-  case "$KEEP_SKILL_USAGE_DAYS" in
-  *[!0-9]*)
-    echo "ERROR: --keep-skill-usage-days must be a non-negative integer (got: $KEEP_SKILL_USAGE_DAYS)" >&2
-    exit 2
-    ;;
-  *) ;;
-  esac
+  require_nonneg_int --keep-skill-usage-days "$KEEP_SKILL_USAGE_DAYS"
 
   case "$SKILL_USAGE_DIR" in
   /* | [A-Za-z]:* | *..*)

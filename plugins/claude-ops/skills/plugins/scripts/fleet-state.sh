@@ -54,6 +54,12 @@
 #                        Excludes ids explicitly opted out (false) in any scope,
 #                        like the two missing_* arrays — a deliberate decline is
 #                        not a gap to report as action needed.
+#   marketplace.source   the marketplace's recorded source flattened to one
+#                        line (a string source as-is, an object source as
+#                        `<kind>:<locator>`), or null; report text only.
+#   installed[].installPath  the record's cache directory as recorded, or null:
+#                        where a consumer reads the installed build's own
+#                        manifest (sync's monitor call-out reads it).
 #
 #   Each project/local record in installed[] (and each divergences[].scopes[]
 #   entry) additionally carries projectPathPresent: true|false|null — whether
@@ -140,7 +146,7 @@
 #   see the process's exit status and would otherwise read the error JSON as an
 #   id. This mode exists so a caller never hand-writes `jq -r ... | while read`
 #   — on Windows that reintroduces a CR and corrupts every id but the last. See
-#   the jq_to comment and context/gotchas.md.
+#   the `jq_to` comment in scripts/jq-capture.sh and context/gotchas.md.
 #
 # Exit codes:
 #   0  ran to completion (individual marketplace failures are reported in the
@@ -246,60 +252,23 @@ else
   exit 2
 fi
 
+# jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
+# and the `json_string_to` encoder that cache-content-check.sh and sync-run.sh
+# share. Resolved and sourced exactly like hook-utils.sh above, for the same
+# reasons.
+JQ_CAPTURE="$script_src_dir/jq-capture.sh"
+if [[ -f "$JQ_CAPTURE" ]]; then
+  # shellcheck source=jq-capture.sh
+  builtin source "$JQ_CAPTURE"
+else
+  echo "ERROR: jq-capture.sh not found at $JQ_CAPTURE" >&2
+  exit 2
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
   exit 2
 fi
-
-# --- jq capture ---------------------------------------------------------------
-# Some native-Windows jq builds CRLF-terminate every line, including
-# single-line compact output. `$(...)` strips only the trailing LF, so a
-# stray CR survives at the end of a captured value and corrupts it once
-# re-parsed as JSON, and every id but the last in a line-oriented output
-# arrives as `<name>@<marketplace>\r`. Every jq call goes through this helper,
-# which strips ALL carriage returns in the shell (no `tr` process) and stores
-# the result in the named variable. Callers never pipe jq to anything: the
-# pipeline would fork a second process for the consumer, and a `while read`
-# over a here-string of the captured value costs nothing.
-jq_to() {
-  local __jq_var="$1"
-  shift
-  local __jq_out __jq_rc=0
-  __jq_out=$(command jq "$@") || __jq_rc=$?
-  printf -v "$__jq_var" '%s' "${__jq_out//$'\r'/}"
-  return "$__jq_rc"
-}
-
-# --- JSON string literal, built with builtins ----------------------------------
-# The --all envelope and the per-marketplace error blocks are assembled in the
-# shell around jq's own compact output, so the two strings the shell itself
-# has to encode (a marketplace name, a lastUpdated stamp) get the same
-# escaping jq's encoder applies: `\"`, `\\`, the five short control escapes,
-# `\u00XX` for every other C0 byte, everything else (including non-ASCII and
-# DEL) verbatim.
-json_string_to() {
-  local __js_s="$2" __js_i __js_c __js_hex __js_out=""
-  __js_s="${__js_s//\\/\\\\}"
-  __js_s="${__js_s//\"/\\\"}"
-  __js_s="${__js_s//$'\n'/\\n}"
-  __js_s="${__js_s//$'\r'/\\r}"
-  __js_s="${__js_s//$'\t'/\\t}"
-  __js_s="${__js_s//$'\b'/\\b}" # portability-ok: JSON short escape for U+0008 in a parameter expansion, not a regex word boundary
-  __js_s="${__js_s//$'\f'/\\f}"
-  if [[ "$__js_s" == *[$'\x01'-$'\x1f']* ]]; then
-    for ((__js_i = 0; __js_i < ${#__js_s}; __js_i++)); do
-      __js_c="${__js_s:__js_i:1}"
-      if [[ "$__js_c" == [$'\x01'-$'\x1f'] ]]; then
-        printf -v __js_hex '\\u%04x' "'$__js_c"
-        __js_out+="$__js_hex"
-      else
-        __js_out+="$__js_c"
-      fi
-    done
-    __js_s="$__js_out"
-  fi
-  printf -v "$1" '"%s"' "$__js_s"
-}
 
 INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
 MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
@@ -676,7 +645,6 @@ home_native=""
 phys_tmp=""
 cwd_norm=""
 home_norm=""
-norm_root=""
 key_json=""
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
 prime_paths=()
@@ -842,7 +810,14 @@ PASS1_PROGRAM='
         ($mk | keys[] as $k
           | ("NAME\u001f" + $k),
             (if $mk[$k] then ($mk[$k]
-              | "MP\u001f\($k)\u001f\(.installLocation // "")\u001f\((.autoUpdate // false) | tostring)\u001f\(.lastUpdated // "")")
+              | "MP\u001f\($k)\u001f\(.installLocation // "")\u001f\((.autoUpdate // false) | tostring)\u001f\(.lastUpdated // "")\u001f\(
+                  # The source flattened to one line for the report: a string
+                  # source as-is, an object source as `<kind>:<locator>`.
+                  .source
+                  | if type == "string" then .
+                    elif type == "object" then ([(.source // empty), (.repo // .url // .path // empty)] | map(tostring) | join(":"))
+                    else "" end
+                  | gsub("[\n\r\t]"; " "))")
              else empty end)),
         ([$inst.plugins | to_entries[] | .value[] | select(.scope == "project" or .scope == "local") | .projectPath // empty]
           | unique | .[] | "PP\u001f\(.)"),
@@ -897,10 +872,11 @@ mp_keys=()
 mp_loc=()
 mp_au=()
 mp_lu=()
+mp_src=()
 pp_lines=()
 resolved_target=""
 location_target=""
-while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
+while IFS=$'\x1f' read -r tag f1 f2 f3 f4 f5; do
   case "$tag" in
   ERR)
     echo "ERROR: $f1" >&2
@@ -913,6 +889,7 @@ while IFS=$'\x1f' read -r tag f1 f2 f3 f4; do
     mp_loc+=("$f2")
     mp_au+=("$f3")
     mp_lu+=("$f4")
+    mp_src+=("$f5")
     ;;
   PP) pp_lines+=("$f1") ;;
   TARGET) resolved_target="$f1" ;;
@@ -1014,6 +991,9 @@ PASS3_PROGRAM='
                 id: $id,
                 scope: .scope,
                 version: .version,
+                # The record'"'"'s cache directory, as recorded: the one place a
+                # consumer can read the installed build'"'"'s own manifest from.
+                installPath: (.installPath // null),
                 projectPath: (.projectPath // null),
                 currentProject: (
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 and ($cur | length) > 0 then
@@ -1074,7 +1054,8 @@ PASS3_PROGRAM='
           versionsMatch: ((map(.version) | unique | length) == 1)
         })) as $divergences
   | {
-      marketplace: {name: $name, autoUpdate: ($au == "true"), lastUpdated: $lastUpdated},
+      marketplace: {name: $name, autoUpdate: ($au == "true"), lastUpdated: $lastUpdated,
+                    source: (if $src == "" then null else $src end)},
       project_root: (if ($cur | length) > 0 then $cur else null end),
       catalog: $catalog_names,
       catalog_versions: $cv,
@@ -1090,7 +1071,7 @@ PASS3_PROGRAM='
 
 emit_marketplace() {
   local name="$1"
-  local i idx=-1 auto_update_json=false last_updated install_location catalog_json
+  local i idx=-1 auto_update_json=false last_updated install_location source_text catalog_json
 
   for ((i = 0; i < ${#mp_keys[@]}; i++)); do
     if [[ "${mp_keys[i]}" == "$name" ]]; then
@@ -1107,6 +1088,7 @@ emit_marketplace() {
   [[ "${mp_au[idx]}" == "true" ]] && auto_update_json=true
   last_updated="${mp_lu[idx]}"
   install_location="${mp_loc[idx]}"
+  source_text="${mp_src[idx]:-}"
 
   if [[ -n "${FLEET_STATE_CATALOG_DIR:-}" ]]; then
     local fixture="$FLEET_STATE_CATALOG_DIR/$name.json"
@@ -1255,6 +1237,7 @@ emit_marketplace() {
     --arg name "$name" \
     --arg au "$auto_update_json" \
     --arg lastUpdated "$last_updated" \
+    --arg src "$source_text" \
     --arg cur "$current_project_norm" \
     --arg ci "$case_insensitive_os" \
     --arg selector "$IDS_SELECTOR" \

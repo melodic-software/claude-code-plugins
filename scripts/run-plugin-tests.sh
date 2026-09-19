@@ -3,7 +3,8 @@
 # hook tests (.claude/hooks/*.test.sh) and fail if any fails. The repo-local
 # hooks are tracked policy with the same test conventions as plugin hooks.
 #
-#   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR]
+#   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]
+#                               [--suites-from FILE]
 #
 # Each test is self-contained and cwd-independent; an individual test SKIPs
 # (exit 0) when an optional tool it needs (shellcheck, shfmt, ...) is absent, so
@@ -28,6 +29,12 @@
 # is an error rather than an ignored line: an allowlist must not outlive what
 # it excuses.
 #
+# SHARDING. --shard I/N keeps leg I of N of the sorted discovered suites, by
+# index modulo N, with scripts/affected-tests.sh's semantics: the union of legs
+# 0..N-1 is the whole corpus and no two legs share a suite, so N runners run it
+# once between them. The allowlist's stale guard still reads the full discovery,
+# each leg runs its own serial subset first, and a leg that draws nothing exits 0.
+#
 # Output stays readable under parallelism. Every suite's output is captured to
 # a file and replayed as one block under a lock (`=== path ===`, the suite's own
 # lines, then `PASS:` or `FAIL:`), so blocks from concurrent suites never
@@ -36,6 +43,17 @@
 #
 # --root DIR discovers suites under DIR instead of the repository (test
 # injection for this runner's own suite, scripts/run-plugin-tests.test.sh).
+#
+# --suites-from FILE runs exactly the newline-delimited suite paths in FILE
+# instead of the discovered corpus. This is how scripts/affected-tests.sh hands
+# its SELECTION here rather than carrying a second parallel runner of its own:
+# the worker, the print lock, the summary and the serial allowlist are this
+# file's, and there is one place where a suite is spawned concurrently. The
+# allowlist's stale guard still reads the FULL discovery, exactly as it does
+# under --shard, so a serial entry that the selection did not draw is still
+# matched; a listed suite outside plugins/ and .claude/hooks (the selector
+# reaches scripts/ and lib/ too) is simply never serial. An empty file is not
+# an error -- "this selection had nothing to run" is a real answer.
 set -uo pipefail
 
 # Fixture isolation (#2840). `-C` only changes directory, while an exported
@@ -59,8 +77,22 @@ runner="$script_dir/${BASH_SOURCE[0]##*/}"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
 
 usage() {
-  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR]" >&2
+  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE]" >&2
   exit 2
+}
+
+# parse_shard <spec>: accept exactly `<i>/<n>` with n >= 1 and 0 <= i < n,
+# mirroring scripts/affected-tests.sh. The default is 0/1 rather than unset, so
+# an explicit `--shard ""` (an environment variable that expanded to nothing)
+# is rejected instead of silently running every suite on every leg.
+parse_shard() {
+  local spec="$1" i n
+  [[ "$spec" =~ ^[0-9]+/[0-9]+$ ]] || return 1
+  i=$((10#${spec%%/*}))
+  n=$((10#${spec##*/}))
+  ((n >= 1 && i < n)) || return 1
+  shard_index="$i"
+  shard_total="$n"
 }
 
 # --worker <NNNNNN:suite>: internal. Runs ONE suite with its output captured
@@ -101,9 +133,17 @@ fi
 strict_skips=0
 jobs="${PLUGIN_TEST_JOBS:-1}"
 root=""
+shard_spec="0/1"
+suites_from=""
 while (($# > 0)); do
   case "$1" in
   --strict-skips) strict_skips=1 ;;
+  --suites-from)
+    [[ $# -ge 2 ]] || usage
+    suites_from="$2"
+    shift
+    ;;
+  --suites-from=*) suites_from="${1#--suites-from=}" ;;
   --jobs)
     [[ $# -ge 2 ]] || usage
     jobs="$2"
@@ -115,6 +155,12 @@ while (($# > 0)); do
     root="$2"
     shift
     ;;
+  --shard)
+    [[ $# -ge 2 ]] || usage
+    shard_spec="$2"
+    shift
+    ;;
+  --shard=*) shard_spec="${1#--shard=}" ;;
   *) usage ;;
   esac
   shift
@@ -122,6 +168,18 @@ done
 if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs must be a positive integer (got '$jobs')" >&2
   exit 2
+fi
+if ! parse_shard "$shard_spec"; then
+  echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total (got '$shard_spec')" >&2
+  exit 2
+fi
+# Resolved BEFORE the cd below, so a relative path means what the caller meant.
+if [[ -n "$suites_from" ]]; then
+  if [[ ! -f "$suites_from" ]]; then
+    echo "error: --suites-from file not found: $suites_from" >&2
+    exit 2
+  fi
+  suites_from="$(cd "$(dirname "$suites_from")" && pwd)/$(basename "$suites_from")" || exit 2
 fi
 
 if [[ -n "$root" ]]; then
@@ -150,21 +208,52 @@ if [[ -f "$SERIAL_LIST" ]]; then
     serial_entries+=("$line")
   done <"$SERIAL_LIST"
 fi
+declare -A discovered=()
+for t in "${tests[@]}"; do
+  discovered["$t"]=1
+done
 declare -A is_serial=()
 for s in ${serial_entries[@]+"${serial_entries[@]}"}; do
-  found=0
-  for t in "${tests[@]}"; do
-    if [[ "$t" == "$s" ]]; then
-      found=1
-      break
-    fi
-  done
-  if ((found == 0)); then
+  if [[ -z "${discovered[$s]+x}" ]]; then
     echo "error: $SERIAL_LIST names '$s', which matches no discovered suite; remove the stale entry" >&2
     exit 2
   fi
   is_serial["$s"]=1
 done
+# The supplied selection replaces the discovered corpus HERE: after the stale
+# guard, so the allowlist is still matched against the full discovery, and
+# before the shard, so --suites-from and --shard compose the way --shard alone
+# always did.
+if [[ -n "$suites_from" ]]; then
+  supplied=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    if [[ ! -f "$line" ]]; then
+      echo "error: --suites-from names '$line', which is not a file" >&2
+      exit 2
+    fi
+    supplied+=("$line")
+  done <"$suites_from"
+  if ((${#supplied[@]} == 0)); then
+    echo "The supplied selection is empty; nothing to run."
+    exit 0
+  fi
+  tests=("${supplied[@]}")
+fi
+# The partition, AFTER the stale guard so an allowlist entry that lands on
+# another leg is still matched against the full discovery.
+if ((shard_total > 1)); then
+  leg=()
+  for ((si = shard_index; si < ${#tests[@]}; si += shard_total)); do
+    leg+=("${tests[$si]}")
+  done
+  echo "shard: leg $shard_index of $shard_total keeps ${#leg[@]} of ${#tests[@]} suite(s)."
+  if ((${#leg[@]} == 0)); then
+    echo "This leg has no suites to run; the other legs carry the corpus."
+    exit 0
+  fi
+  tests=("${leg[@]}")
+fi
 serial_suites=()
 parallel_suites=()
 suite_keys=()

@@ -3,6 +3,447 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.17]
+
+### Changed
+
+- hook-failure-audit.sh audits only the transcript lines appended since the last Stop, keyed on a per-session cursor kept beside the warning marker. A turn with no new failure record now creates no process at all: measured by job-object accounting on Windows Git Bash at 3 process creations against a 3-creation harness floor (`bash -c`, `env`, `bash`), where it previously took 10. The count is the record because wall clock on that host drifts several-fold within an hour; across two runs the same turn measured 0.36-1.38 s before against 0.23-0.36 s after. The first Stop of a session keeps the tail cap and costs one `wc -lc`, which answers both the byte count the cap decision needs and the line count the cursor starts from, for 5 creations against 10, or 7 on the one session that first creates the data directory. The payload fields now ride on `hook::buffer_stdin_to`, which fuses the library's validation probe into the field read and answers both from the builtin parser. A turn that DOES carry a failure record reports exactly what it reported before, byte for byte. A cursor that is missing, malformed, pruned, ahead of a shortened transcript, or recorded against a different transcript_path rescans from the start, and rescanning cannot re-warn because the marker still decides that.
+- The cursor line count is now accepted only as a canonical decimal (no leading zero, at most 15 digits); a value like `08` used to pass the old `^[0-9]+$` check and then fail bash's octal-reading `((...))` arithmetic, printing shell diagnostics on Stop instead of running either scan path.
+
+## [0.56.16]
+
+### Changed
+
+- The 30 generated session-event-log rows are shell form and read the kill switch themselves (`[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh`), so a disabled logger spawns no chain. Measured on Windows Git Bash with a job-object process census (n=5): switched off, 1 process creation per event instead of 3 (median wall 41 ms against 107 ms), which is the 9 to 12 creations a Bash tool call charged to this hook down to 3 to 4; switched on, unchanged at 3 creations (median 117 ms) since the row execs the script. `scripts/gen-hook-event-registry.sh` owns the row template and `--check` still re-derives every row from the committed registry. The script keeps its own line-41 switch for a direct invocation. Residual: a shell-form row still costs the one shell Claude Code runs the command in, because hooks.json cannot read a plugin option: `if` takes a single permission rule and is evaluated only on tool events, and the option reaches a hook only as an environment variable.
+- Every generated row, the 30 producers and the SessionEnd retention row, pins `"shell": "bash"`. The Hooks reference documents that field as "Defaults to `bash`, or to `powershell` on Windows when Git Bash isn't installed" (https://code.claude.com/docs/en/hooks.md, the `shell` field, verified 2026-09-15), and under PowerShell the row's `[ ... ]`, `$VAR` and `exec` all error, so an unpinned row would error on every fire on such a host instead of gating. The sibling markdown-format and disk-hygiene hook configs pin the same field.
+
+## [0.56.15]
+
+### Changed
+
+- hook-utils.sh: `hook::jq_fields` answers a well-formed payload's plain-string fields with the library's builtin JSON parser and spawns jq only for a shape it cannot prove (a NUL escape, a duplicate key, a non-string value), so a hook that reads `.tool_input.command` and `.tool_name` from an ordinary payload spawns nothing; `hook::jq_fields_uncached` names the same body for a dispatcher that caches in front of it; `hook::emit_document` is the one function every stdout document goes through; `hook::extract_bash_subject_to` is the in-shell form of the telemetry subject. Every hook's decision is unchanged: the builtin answer is proven equal to jq's, or jq runs.
+- hook-utils.sh: the builtin field parser is gated on Bash 4.0, the floor its associative-array index needs. A 3.2 shell (what macOS ships, and the floor these hooks document support for) goes straight to jq instead of failing `local -A` on every `hook::jq_fields` call.
+- hook-utils.sh: the builtin field parser skips a string body without decoding it only past six times the longest REQUESTED key name, the width of `\uXXXX` per identifier character, rather than past a fixed 60 bytes. A requested key longer than 60 characters is no longer proven absent while it is present, and a key of 11 or more characters spelled entirely with `\u` escapes is still recognized.
+
+## [0.56.14]
+
+### Changed
+
+- The plugins skill records the `--all` + `install_new: all` mass install. gotchas.md gains a section on why that combination installs every plugin in every known catalog, why the downgrade guard and `audit` both miss it, the `claude --bare` requirement for the revert, and the revert recipe. SKILL.md's marketplace-resolution list now warns that `all` multiplies the install policy across catalogs, and its `install_new` section requires a counted human confirmation before that combination runs. Documentation only; no script, output, or exit code changes.
+
+## [0.56.13]
+
+### Changed
+
+- inventory.py and overlap.py read plugin registration shapes through one lib helper instead of two private copies, and overlap.py validates native and component rows through shared helpers with the original messages and order. Envelopes and exit codes are unchanged.
+
+## [0.56.12]
+
+### Changed
+
+- The three plugins-skill scripts source one jq-capture library for their jq_to and json_string_to helpers instead of carrying private copies. sync-run keeps its three sidecar-row restores spelled out, since a shared array appender would need a bash 4.3 nameref that the stock bash 3.2 on macOS lacks. Output and exit codes are unchanged.
+
+## [0.56.11]
+
+### Changed
+
+- The claude-ops test wrappers share one plugin-level Python-floor probe library for the floor parse, interpreter discovery, and floor test, keeping each wrapper's own skip and error messages.
+
+## [0.56.10]
+
+### Changed
+
+- plugins skill: sync-run.sh reads fleet state at five steps through one helper, encodes string arrays and installs each plugin through shared helpers, and initializes its per-marketplace accumulators through the existing reset function; cache-content-check.sh walks cache roots through one find invocation; fleet-state.sh and normalize-enabled-plugins.sh drop a duplicate initialization and an unreachable guard. Same digests, same output.
+
+## [0.56.9]
+
+### Changed
+
+- audit-skill-visibility: audit_skill_visibility.py builds its unreadable-lib and settings-stub records through shared helpers, reuses listing_overflows and one budget prefix in the renderer, and folds three conditionals; skill-pair-cooccurrence.sh checks value flags through one helper; the suites share their fixture and fleet builders. Output byte-identical.
+
+## [0.56.8]
+
+### Changed
+
+- lanes skill: lane-launcher.sh derives absolute-or-anchored paths through one path_under helper, machine-behavior.sh checks value flags through one helper, probe-lane-config.sh folds a never-looping argument loop and its repo-root fallback, restart-consumer.sh composes the ledger path from its existing helpers, and telemetry-upsert.sh spells two inverted glob tests as conditionals. No behavior change.
+
+## [0.56.7]
+
+### Changed
+
+- observability skill: clean.sh validates both retention windows through one helper, probe-observability-state.sh folds its repo-root fallback and prune-pending line into single expressions, the prune filter inlines its prefix length, the collector lifecycle cleanup inverts one conditional, and the observability suite emits its hook-event fixture rows through one helper. No behavior change.
+
+## [0.56.6]
+
+### Changed
+
+- hooks: hook-telemetry-sink.sh drops an unreachable exit-code default (mirrored into the repo-local sink), claude-ops-paths.sh and session-event-log.sh drop array re-initializations already made at declaration, and the emitter, failure-audit, event-log and retention suites use the shared sink wait, brace ranges and a single printf per fixture file. No behavior change.
+
+## [0.56.5]
+
+### Changed
+
+- skill scripts: audit_performance.py names its ISO timestamp helper once, registry_manager.py shares its across-repos ambiguity error, overlap.py normalizes a malformed integrity block once, inventory.py and install_state.py drop unreachable guards and re-assignments, changelog-status.sh reuses the repo toplevel it already captured, morning-brief.sh collects PR numbers once, and the inventory and check-all suites share their imports and case runner. No behavior change.
+
+## [0.56.4]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared check-retirements.sh helper from the canonical claude-config source after a behavior-preserving simplification: the dead top-level record field pre-initialization is gone (reset_record assigns every field before the first read), the unreachable length guards in strip_quotes are gone, and its test suite gained a shared fixture helper. Output, exit codes, and all 194 suite checks are unchanged.
+
+## [0.56.3]
+
+### Changed
+
+- Refreshes this plugin's vendored copy of the shared shell library from the marketplace's canonical lib/ source after a behavior-preserving simplification: hook-utils.sh folds two identical path-probe guards into one and shares the orphaned-redirect handling across the bash segment parser; index-regen.sh folds two identical frontmatter skip guards; resolve-convention-pattern.sh drops a redundant quote-match clause. Parser output, hook JSON, and every resolver result are byte-identical before and after.
+
+## [0.56.2]
+
+### Fixed
+
+- **The user-configuration contract stamp in `skills/setup/SKILL.md` now carries a recheck trigger.** "Official contract (verified 2026-07-18)" named a basis and a date but no event that obliges re-deriving it, so it was a half-conforming record under the upstream-drift convention. It now fires on that section no longer stating that Claude Code prompts for `userConfig` values and stores non-sensitive ones in user settings, on the `#user-configuration` anchor ceasing to resolve, or on a release note changing how `pluginConfigs` entries in project and local settings are treated. No option, default, or containment rule changed.
+
+## [0.56.1]
+
+### Changed
+
+- **`plugins`: three conditional blocks leave the hub for spokes.** The hub `SKILL.md` is loaded
+  in full on every invocation, and three of its blocks mattered only on uncommon paths. The stale
+  project records and cache content sections now live in `context/stale-records-cache-content.md`
+  (read when `stale_project_records.total` or `cache_content.stale_content` is above 0); the
+  `fleet-state.sh`, `cache-content-check.sh`, and `normalize-enabled-plugins.sh` invocation
+  contracts live in `context/script-contracts.md` (read when a step misbehaves or a caller other
+  than `sync-run.sh` invokes one); and the dated `userConfig` unset-key probe record, with the
+  `pluginConfigs` payload shape and the probe recipe, lives in `context/scope-semantics.md`. Each
+  block is replaced in the hub by a pointer naming its read condition, and both new spokes are in
+  the reference index. The `Configured value` line and its reading rule stay in the hub, because a
+  `userConfig` value substitutes only into content Claude Code renders and never into a file a
+  spoke read returns; the hub now states that surface in the plugins reference's own words
+  (`default` is "Value used when the user provides nothing"; values substitute in MCP and LSP
+  server configs and hook commands, and non-sensitive values also in skill and agent content)
+  instead of attributing an "is used if specified" sentence to the page. The Scope section is
+  unchanged. `context/gotchas.md` and `context/scope-semantics.md` gain a Contents block, and no
+  `context/*.md` file carries the dollar-brace `user_config` placeholder any more, so the
+  spoke-substitution rule is grep-checkable. The hub goes from 450 lines and 31,215 bytes (about
+  7,800 tokens at four characters a token) to 309 lines and 22,121 bytes (about 5,530 tokens),
+  under the 500-line guidance either way and now under the 5,000-token companion figure too.
+
+## [0.56.0]
+
+### Added
+
+- **`plugins`: `sync-run.sh` renders the Step 6 report itself; the model appends only the reload
+  guidance.** Every run writes `<run_dir>/report.txt`, and `--render` prints it after the digest
+  line, from a jq program (`scripts/render-report.jq`) over the digest, so `jq -r -f` reproduces
+  the report from a run directory later. Every fixed section, conditional row, annotation and
+  `Action needed` bullet is a function of digest fields: the three-way `autoUpdate` slot, the
+  fixed `In-repo:` row in its three variants, `Updated:` with `(direction unknown)`,
+  `Downgraded:`, `Catalog regression:`, `Installed:` with the policy-`all` recurrence clause,
+  `Normalized:`, `Enabled:`, the `Divergences:` split led by this project's count when a root
+  resolved, the self-update note, the stale project records and cache content sections, a
+  `Timing:` row naming the marketplace total, its slowest step and the clock's resolution (a
+  measurement with no threshold), and the bullets for install and enable gaps, failed CLI calls,
+  user-scope orphans, reorder refusals, an unsorted project-scope map, withheld downgrades with
+  both versions and the marketplace source as the likely cause, and every error. In `audit` mode
+  every mutating line carries `would run:` and `Would withhold:` sits beside `Would update:`
+  whether or not a downgrade was found, with `--allow-downgrade` named as ignored. Golden files
+  under `scripts/fixtures/render/` pin eight shapes: a clean current fleet, a withheld downgrade,
+  stale project records with a cache-content finding, an `ask` run stopped before install and its
+  `--only-install` re-entry, an install that left userConfig options unset, an audit, and an
+  `--all` run with a per-marketplace refresh failure (exit status still 0).
+- **`plugins`: two `Action needed` sources become digest fields.** `installed_with_unset_user_config[]`
+  (`{id, options_unset, required}`) is parsed at capture time from each install's own
+  "userConfig option(s) not yet set" line, and `updated_with_monitors[]` (`{id, scope, monitors}`)
+  counts the monitors each moved plugin's installed build declares, read from the record's cache
+  directory in the post-sweep snapshot: inline under the manifest's `experimental.monitors` key,
+  in the manifest file that key names, or in `monitors/monitors.json` at the plugin root. The
+  render lists both under `Action needed`, the monitor bullet attributing "monitors require a
+  session restart" to the plugins reference. The digest also carries top-level `cwd` (what the
+  `In-repo:` row names when no project root resolved) and per-marketplace `catalog_source`.
+- **`fleet-state.sh`: `installed[]` records carry `installPath` and the marketplace block carries
+  `source`** (a string source as-is, an object source flattened to `<kind>:<locator>`), so a
+  consumer can read an installed build's own manifest and name a marketplace's source without a
+  second reader over the internal files.
+
+### Changed
+
+- **`plugins`: the hub's Scope section states two invariants.** For `sync` and `audit` the script
+  computes every number and the model reports it (`converge` stays model-driven until it gains a
+  script), and the skill never branches on the host to change its algorithm or its report, with
+  `converge`'s destructive-tier autonomy abort and `fleet-state.sh`'s `$OSTYPE` path-form
+  detection named as the two things that invariant does not cover. The hub's Report section is now
+  a pointer to the render plus the one model-owned reload line, and the eval suite gains a case
+  whose expected behaviour is that the model pastes the render and restates none of its numbers.
+
+## [0.55.0]
+
+### Added
+
+- **`plugins`: the sync digest carries per-step timings.** Every marketplace block gains a
+  `timings` object: `pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`,
+  `install_enable`, `cache_content_check`, `post_read`, and the marketplace's `total`, each seconds
+  to three decimals, plus `resolution` naming the clock that produced them; the digest's top-level
+  `timings.total` times the whole invocation. A step this invocation did not run (a predicted
+  `audit` mutation, a policy stop before Step 4, an `--only-install` re-entry reusing the first
+  pass's cache finding) reads `null`, never 0. The clock is a ladder resolved once per run:
+  bash's `EPOCHREALTIME` (`microseconds`; bash 5.0 and later, per the GNU bash manual), else
+  `date +%s.%N` accepted only when it prints digits, a dot, and digits (`nanoseconds`; `%N` is a
+  GNU extension and an older `date` prints a literal `N`), else `date +%s` (`seconds`, the one
+  form every `date` documents, and the real rung on macOS's bash 3.2). Stamps are kept as
+  strings and subtracted in jq, with a `,` radix rewritten to `.` first, so every field is a
+  JSON number; steps round down and totals round up so a total is never below the sum of its
+  steps. Timings are a diagnostic measurement with no gate; the rendered report's `Timing:`
+  row lands with the script-rendered report. `SYNC_RUN_NO_EPOCHREALTIME=1` is the test seam
+  that forces the `date` rungs, since a child bash recreates the variable at startup.
+
+## [0.54.4]
+
+### Fixed
+
+- **`plugins`: the sync digest carries a marketplace's `autoUpdate: false` as `false`, not
+  `null`.** `sync-run.sh` built the digest's `auto_update` field with jq's alternative operator,
+  which treats `false` the same as absent, so a marketplace with autoUpdate off reached the
+  digest as `null`, the value reserved for "no fleet-state snapshot existed". The field is now
+  read directly (`fleet-state.sh` already normalizes it to a JSON boolean), and the Report
+  template renders the slot three ways: `on`, `off`, and `unreadable` for `null`, so a missing
+  snapshot is never reported as off.
+
+## [0.54.3]
+
+### Fixed
+
+- **`plugins`: the process-budget probes in `cache-content-check.test.sh` and
+  `fleet-state.test.sh` measure a real count as root.** Both suites traced the script under
+  test with `bash -x` and a pid-stamped `PS4` passed through the environment. Bash 4.4 and
+  later rebind an euid-0 shell's `PS4` to a bare plus sign at startup, before any startup file runs
+  (CVE-2016-7543), so in a root container such as Claude Code on the web the stamp never
+  reached the traced shell and `count_creations` returned -1: `cache-content-check.test.sh`
+  failed its fail-closed floor (2 of 26 cases), and `fleet-state.test.sh`, which had no floor,
+  passed every ceiling vacuously. The stamp now travels through a `BASH_ENV` startup file
+  the case directory holds, which lands after the rebind, and `fleet-state.test.sh` gains the
+  same floor its sibling has, so a probe that counts nothing fails naming the probe. The
+  ceilings themselves are unchanged. Measured in the web container as uid 0: 12 creations for
+  a one-install cache check, 11 for a `--marketplace` fleet report.
+
+## [0.54.2]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
+## [0.54.1]
+
+### Changed
+
+- **`audit-install-state`, `audit-skill-visibility`: description prose no longer addresses the reader, except for the presence-gate token.** Anthropic's skill-authoring guidance keeps first and second person out of a description because it is injected into the system prompt; the rewritten clauses name the user, the session, or the repository instead. The one clause kept as it was is the native-surface presence gate ("resolves in your session"): the native-overlap registry self-check matches that literal token against every baked row, so the two descriptions keep it until the token itself is changed fleet-wide. Quoted trigger phrases are unchanged.
+
+## [0.54.0]
+
+### Added
+
+- **`inventory.py` reads a bytecode-fragmented bundle.** Region rule: from the first bundle marker
+  to end of file, every printable run of at least 256 bytes, joined with newlines, in one regex
+  pass; `sources.binary` records `runs`, `joined_bytes`, `region_rule`, `runs_below_floor`
+  (registration tokens sitting under the floor, counted rather than lost, and degrading the
+  bundled-skill lane when positive), and `elapsed_seconds`. A build with no marker keeps the
+  largest-run fallback.
+- **Three registrar discovery routes.** The CJS getter, then the ESM export list
+  (`<ident> as registerBundledSkill`), then the canary registration; `bundled_skill_notes` records
+  `registrar_route`. The registrar-shaped-export advisory sees both export shapes, and the known
+  set gains `registerDesignCanvasSkill` and `registerWorkflowAuthoringSkill`.
+- **Computed names resolve by locality.** A hoisted constant resolves to its nearest preceding
+  binding, never a farther one, so an unrelated module's binding of the same identifier cannot
+  shadow the real one; a single-character identifier is trusted only within a locality window; a
+  loop or template-literal registration is a `dynamic_roster` note, not an unresolved name; a call
+  whose object carries no `name:` is another module's function and is counted apart.
+- **Per-registration invocation fields.** `user_invocable`, `disable_model_invocation`,
+  `terminal_oriented`, and `survives_kill_switch` when present; a function-valued field reads as
+  true with the key listed under `flag_driven`.
+- **Same-name registrations are both kept.** Two distinct bundled registrations sharing a name are
+  a list under that name with `collision: true` and are named in `bundled_skill_notes.collisions`;
+  `registrations_of(entry)` reads either shape.
+- **Integrity per lane.** `integrity.lanes` carries `builtin_commands`, `bundled_skills`, and
+  `plugin_backed`, each with its own status, problems, and advisories; the top-level status is the
+  worst lane, and top-level `broken` means every lane is broken or the binary is unreadable, so one
+  broken lane is a named `degraded` rather than a run with no counts. `plugin_backed` gains a canary
+  (`security-review`). Exit mappings are unchanged in both `inventory.py --self-check` (which now
+  prints each lane) and `overlap.py detect`.
+- **`overlap.py detect` reads the lanes.** The candidate report carries per-lane floors (a lane's
+  counts are totals only when the lane is ok and no run-wide advisory such as an unvalidated CLI
+  version stands; a lane-attributed advisory degrades only its own lane), and every
+  candidate carries `re_derivable`: false when the lane its seeded or observed class maps to is
+  broken (both directions on a class collision), null for session-provided and marketplace classes,
+  which have no lane. A name collision lists every registration with its invocation mode. An
+  inventory without `lanes` keeps the previous reading.
+- **`overlap.py self-check` flags a presence-gated native mention without the gate token.** A
+  description that names a native surface by class and kind inside a `when`, `where`, or `if`
+  clause with an availability word, and carries no gate token in that clause, is an advisory (exit
+  3) naming the row to add or the token to use. Judged per clause, so a gated marketplace clause
+  never excuses an ungated native clause beside it.
+- **`--upstream-sha` repeats.** One value per upstream repository the store cites; a recorded
+  commit matches when any provided value matches it.
+- **Seeded pairs** gain `doctor` and `skill-doctor` against `claude-ops:audit-skill-visibility`.
+
+### Changed
+
+- `VALIDATED_AGAINST` is `2.1.263`, validated on the Linux ELF build in a container; the PE
+  container path is covered by a byte-layout fixture, not a Windows run.
+- The audit-native-overlap description is under the 1,024-character Skills API cap: the same
+  claims and every trigger phrase, in fewer words.
+- The inventory skill's integrity table, the audit-native-overlap detection posture, and
+  `reference/extraction.md` describe the lanes, the region rule, the locality rule, and the
+  collision list; the inventory eval for degraded counts names dynamic rosters and lane statuses.
+
+## [0.53.0]
+
+### Added
+
+- **`audit-skill-visibility` Markdown names what it counts and points at the fix.** The
+  Reachability section tables misconfigured skills with their cause and states each cause's
+  remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
+  competing descriptions ranked by source length beside the capped charge the listing counts,
+  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  run; and a closing Next actions section names only the fixes the run's findings support,
+  pointing at the budget control the run's provenance says is effective (the env override, a
+  managed-policy file, or the settings file that set the fraction) rather than always at the
+  fraction. Every table caps at ten rows and counts the rest. JSON schema 1.2.0, additive:
+  each listing row carries `description_chars`, the uncapped source length, beside the capped
+  `demand_chars`.
+
+## [0.52.0]
+
+### Added
+
+- **audit-performance: `fan_out.hooks.by_matcher`, one row per (event, matcher) carrying row
+  count, distinct command count, if-gated row count, and sources.** A bucket count cannot tell
+  many unconditional handlers from one dispatcher replicated once per extension behind an `if`
+  gate, and those two fleets cost very differently per tool call. `per_tool_call` keeps `count`
+  as the registered-row ceiling and gains `if_gated_rows` and `distinct_commands` beside it, so
+  the ceiling and its composition are both readable without inferring either.
+- **audit-performance: `fan_out.hooks.projection`, what one tool call actually spawns.** A row
+  per (event, tool, file kind) over a fixed baseline file-kind set (`.md`, `.py`, `.sh`, `.ts`,
+  `.json`, `other`) plus every extension a classified `if` gate names, reported as
+  `discovered_file_kinds`, for `Write`, `Edit`, and `NotebookEdit`, plus a tool-only row for
+  `Bash`, each carrying `fires`, `distinct_commands`, and `fire_always_unclassified`. Matcher
+  evaluation follows the documented character-class rule (`*`, empty, or absent matches all; a
+  matcher of letters, digits, `_`, `-`, spaces, `,`, and `|` is an exact name or alternation
+  list; anything else is an unanchored regex, so `Edit.*` also selects `NotebookEdit`), with the
+  report stating that Python's `re.search` stands in for `RegExp.prototype.test`; a regex
+  Python cannot compile counts as selecting every tool and is listed in `unclassified_rows`
+  with the compile error, never as selecting nothing. The projection
+  is pure: it reads the flattened hook records and touches no filesystem and no subprocess, and
+  `spawn_cost`, `statusline`, `config_liveness`, and `concurrency_ceilings` are unchanged.
+- **audit-performance: `fan_out.hooks.unclassified_rows` and `if_on_non_tool_event`.** The
+  engine decides exactly one `if` shape, `Edit(*.<ext>)`; every other shape (`Bash(...)`,
+  `PowerShell(...)`, `Write(...)`, a directory anchor, a `**` glob, a brace list) is counted as
+  firing and listed with `{event, matcher, source, if, reason}`, so an unmodelled gate inflates
+  the projection where an operator can see it rather than hiding a spawn. An `if` on any
+  non-tool event is reported separately and counted as NEVER firing, which is what the docs say
+  it does. `fan_out.hooks.notes` states the two limits the projection cannot model, an `if`
+  matching only under its anchor and cross-settings-file dedup, alongside the standing note that
+  parallel hook cost is never a sum.
+- **audit-performance: the reference doc carries the matcher rule and a four-part drift record**
+  for the premise that an `Edit(*.<ext>)` gate covers `Write`, `Edit`, and `NotebookEdit`,
+  assembled from the hooks reference, the permissions reference, CHANGELOG 2.1.176, and this
+  repository's own hook-budget convention, with the recheck trigger that would retire the
+  assembly.
+
+### Changed
+
+- **audit-performance: `PER_TOOL_CALL_EVENTS` widens to the five events that accept `if`.**
+  `PostToolUseFailure`, `PermissionRequest`, and `PermissionDenied` join `PreToolUse` and
+  `PostToolUse`, because those five are exactly the events on which a tool call is what fires a
+  hook. Handlers on the three added events previously landed in `other` and were invisible as
+  per-tool-call cost. **`fan_out.hooks.per_tool_call.count` therefore rises on any fleet that
+  registers handlers on them, and `other.count` falls by the same amount.** The number is not a
+  regression and the fleet did not change; the earlier count was short.
+
+## [0.51.0]
+
+### Fixed
+
+- **`audit-skill-visibility` derives the listing budget from the effective settings and a
+  model band instead of hardcoded defaults.** The report read `skillListingBudgetFraction`
+  and `skillListingMaxDescChars` from nowhere and assumed a 200k window at 4 bytes per token,
+  so a repository that tunes the fraction saw an overflow that did not exist. The script now
+  merges both keys across the user, project, local, and managed scopes (the `--settings`
+  flag scope is reported as unread, never absent), enumerates managed policy only through the
+  vendored `lib/managed-scope.sh`, honors `CLAUDE_CODE_DISABLE_1M_CONTEXT` and
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` from the process environment, and reports a
+  window x bytes-per-token band when nothing pins the model. `--budget-fraction`,
+  `--max-desc-chars`, and `--bytes-per-token` join `--context-window`, whose silent 200k
+  default is gone. JSON schema 1.1.0, additive.
+- **`audit-skill-visibility` withholds per-skill starvation verdicts when every usage score is
+  zero.** With no observed usage the product's stable sort keeps catalog order, so "which
+  skills are starved" is a tie, not a ranking. The overflow arithmetic and the cannot-fit
+  count stay; the per-skill claim moves to the `withheld` section with its reason.
+- **`audit-skill-visibility` determines reachability in a live run.** `--installed` now reads
+  `enabledPlugins` through the same settings merge and marks a disabled plugin's skills
+  `hidden` with the scope file as evidence; `--plugins-root` says a checkout is not an install
+  instead of reporting every row `unknown`. The `skillOverrides` path is removed: plugin
+  skills are governed by `enabledPlugins`, and `skillOverrides` never applies to them, so the
+  description no longer names it as a way a plugin skill loses visibility.
+
+- **`audit-skill-visibility` honors `defaultEnabled` and keeps disabled plugins out of the listing
+  contest.** A plugin with no `enabledPlugins` entry anywhere falls back to the marketplace entry's
+  `defaultEnabled`, then the plugin's own `plugin.json` field, then enabled, with the source named as
+  evidence. A disabled plugin's skills are `exempt-hidden`: the product never loads them, so they
+  spend no budget and carry no starvation verdict.
+
+### Added
+
+- `lib/managed-scope.sh`, vendored from `claude-config` through `scripts/sync-managed-scope.sh`.
+
+## [0.50.0]
+
+### Added
+
+- **audit-performance: `operator_context`, the paragraph only a human at the machine can
+  supply, carried in the report instead of asked for beside it.** A repeatable `--note TEXT`
+  attaches one fact per flag (what was slow, how many terminals were open, what the session was
+  doing, what Task Manager showed) and `--note-source` declares who supplied them. A run with
+  none records `status: absent` with an empty list, because a silent gap reads like a clean bill
+  of health. The block states that the engine cannot verify the declared origin.
+- **audit-performance: the CLI probe reports WHICH `claude` it measured.** `cli` carries
+  `probe_path`, `resolved_path`, the statement that the search ran over the engine process PATH
+  rather than the operator's login shell, a `layout` of `documented-native`, `legacy-local-npm`,
+  or `unclassified`, and every `claude` found on PATH. Two findings name the ambiguity a bare
+  version claim hides: `cli-probe-project-local` when the resolved binary sits under the
+  containment base (the project directory when one is passed, else the working directory, both
+  reported) or inside a `node_modules` tree, and `cli-multiple-on-path` when more than one
+  install answers to the name. Both route to `claude doctor`, the first-party authority; the
+  engine observes and never adjudicates an install. `version`, `exe`, `seconds`, and
+  `slow_version_probe` keep their meanings.
+- **audit-performance: a second read allowlist, `PROC_TEXT_READS`, enforced in
+  `read_proc_text`.** On Linux the engine reads `/proc/<pid>/status` and `/proc/<pid>/stat`,
+  kernel-generated text with no user content, and the reader raises on any other name the way
+  `read_json` does, so SKILL.md's claim that the prose and the code cannot drift apart holds for
+  both surfaces. `cmdline` is deliberately absent.
+
+### Changed
+
+- **audit-performance: `processes.population.most_active` excludes the kernel's own threads on
+  Linux.** A row is dropped when every classified process behind its name carries `PF_KTHREAD`,
+  read from the `Kthread:` line of `/proc/<pid>/status` where the kernel publishes one and
+  otherwise from bit `0x00200000` of `/proc/<pid>/stat` field 9. Neither parent pid 2 nor an
+  empty `cmdline` is consulted: the kernel reparents user-space helpers onto kthreadd, and a
+  process can rewrite its own argument region. Classification walks the ranked rows until ten
+  non-kernel rows are kept, stops at `kernel_thread_read_cap` processes, and keeps any row it
+  leaves partially examined; the report carries `kernel_threads_excluded` and
+  `kernel_thread_reads`, and off Linux the count is null with the reason. An unclassifiable
+  process counts as user-space, so the failure mode is an investigable false alarm rather than a
+  hidden user-space leak.
+- **audit-performance: a name absent from the first population sample reads `appeared`, not
+  `accumulating`.** The accumulation verdict now requires a non-empty first sample, so one
+  arrival of a name nothing was running seconds earlier stops being written up as a leak.
+- **audit-performance: `orphan_attribution.candidate_names` carries a platform note.** The set
+  is unchanged and stays platform-agnostic: executable-suffixed names are inert on POSIX process
+  tables and are retained for WSL interop processes, which is the hybrid host the orphan probe
+  exists for.
+- **`known-performance-issues.md` gains the kernel-thread identification mechanism** with its
+  four-part drift record, and a gotcha on the probed binary not being the operator's daily
+  `claude`.
+
 ## [0.49.0]
 
 ### Added

@@ -14,36 +14,8 @@ SCRIPT="$SCRIPT_DIR/permission-state.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-FAILED=0
-CASE_NUM=0
-pass() {
-  CASE_NUM=$((CASE_NUM + 1))
-  printf 'PASS: %s\n' "$1"
-}
-fail() {
-  CASE_NUM=$((CASE_NUM + 1))
-  FAILED=$((FAILED + 1))
-  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
-}
-assert_eq() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected: $2, actual: $3"; fi
-}
-assert_exit() {
-  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
-}
-assert_contains() {
-  case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3" ;;
-  esac
-}
-assert_not_contains() {
-  case "$2" in
-  *"$3"*) fail "$1" "unexpected substring: $3" ;;
-  *) pass "$1" ;;
-  esac
-}
-count_matching() { printf '%s\n' "$1" | grep -cE "$2"; }
+# shellcheck source=test-helpers.sh
+source "$SCRIPT_DIR/test-helpers.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
@@ -63,7 +35,13 @@ jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/policy/managed-settings.d/.hidd
 jq -n '{permissions:{allow:["Bash(ls)"]}}' >"$FX/startdir/.claude/settings.local.json"
 
 run() {
-  env -u CLAUDE_CONFIG_DIR \
+  # CLAUDE_CODE_REMOTE is unset here rather than inherited: the suite is fully
+  # fixtured, and a run inside a real cloud session would otherwise emit the
+  # cloud note in every case and make the local-session assertion unrunnable
+  # exactly where it matters. TEST_CLOUD_REMOTE puts it back for the one case
+  # that is about it.
+  env -u CLAUDE_CONFIG_DIR -u CLAUDE_CODE_REMOTE \
+    ${TEST_CLOUD_REMOTE:+CLAUDE_CODE_REMOTE="$TEST_CLOUD_REMOTE"} \
     HOME="$FX/home" \
     PERMISSION_STATE_FIXTURE_DIR="$FX/proj" \
     PERMISSION_STATE_STARTDIR="$FX/startdir" \
@@ -71,6 +49,20 @@ run() {
     PERMISSION_STATE_REGISTRY_KEYS="${STUB_REGISTRY_KEYS:-}" \
     PERMISSION_STATE_PLIST_DOMAIN="${STUB_PLIST_DOMAIN:-}" \
     bash "$SCRIPT" "$@"
+}
+
+run_tree() {
+  # run_tree <root>: the reader over a second fixture tree laid out as
+  # <root>/proj, <root>/home, <root>/pol and <root>/sd, with both optional
+  # platform surfaces switched off. A case that varies one of those paths, or
+  # the environment itself, builds its own `env` invocation instead.
+  env -u CLAUDE_CONFIG_DIR HOME="$1/home" \
+    PERMISSION_STATE_FIXTURE_DIR="$1/proj" \
+    PERMISSION_STATE_STARTDIR="$1/sd" \
+    PERMISSION_STATE_MANAGED_PATH="$1/pol/managed-settings.json" \
+    PERMISSION_STATE_REGISTRY_KEYS="" \
+    PERMISSION_STATE_PLIST_DOMAIN="" \
+    bash "$SCRIPT"
 }
 
 # --- Case 1: --help ----------------------------------------------------------
@@ -125,14 +117,9 @@ assert_contains "server-managed settings disclosed" "$OUT" "Server-managed setti
 
 # --- Case 8: status vocabulary distinguishes absent from malformed -----------
 BAD="$TEST_TMPDIR/bad"
-mkdir -p "$BAD/proj/.claude" "$BAD/home/.claude" "$BAD/startdir"
+mkdir -p "$BAD/proj/.claude" "$BAD/home/.claude" "$BAD/sd"
 printf '{invalid\n' >"$BAD/proj/.claude/settings.json"
-OUT_BAD=$(env -u CLAUDE_CONFIG_DIR HOME="$BAD/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$BAD/proj" \
-  PERMISSION_STATE_STARTDIR="$BAD/startdir" \
-  PERMISSION_STATE_MANAGED_PATH="$BAD/policy/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_BAD=$(run_tree "$BAD")
 assert_contains "malformed settings reported as invalid-json" "$OUT_BAD" "project settings invalid-json"
 assert_contains "missing settings reported as absent" "$OUT_BAD" "user settings absent"
 assert_contains "missing managed file reported as absent" "$OUT_BAD" "managed file absent"
@@ -148,13 +135,7 @@ mkdir -p "$SHAPE/proj/.claude" "$SHAPE/home/.claude" "$SHAPE/pol" "$SHAPE/sd/.cl
 jq -n '{}' >"$SHAPE/pol/managed-settings.json"
 printf '["Bash(danger)"]\n' >"$SHAPE/proj/.claude/settings.json"
 printf '{"permissions":{"allow":"Bash(*)","deny":{"x":"y"}}}\n' >"$SHAPE/home/.claude/settings.json"
-OUT_SHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" \
-  PERMISSION_STATE_STARTDIR="$SHAPE/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_SHAPE=$(run_tree "$SHAPE")
 assert_contains "a top-level array is invalid-json, not present" "$OUT_SHAPE" "project settings invalid-json"
 assert_contains "a string-valued permissions key is invalid-json too" "$OUT_SHAPE" "user settings invalid-json"
 assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rule (user|project) ')"
@@ -163,13 +144,7 @@ assert_eq "and neither contributes rules" 0 "$(count_matching "$OUT_SHAPE" '^rul
 # both PRESENT -- the shape check must not reject the ordinary shapes.
 printf '{}\n' >"$SHAPE/proj/.claude/settings.json"
 printf '{"permissions":null}\n' >"$SHAPE/home/.claude/settings.json"
-OUT_OKSHAPE=$(env -u CLAUDE_CONFIG_DIR HOME="$SHAPE/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$SHAPE/proj" \
-  PERMISSION_STATE_STARTDIR="$SHAPE/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$SHAPE/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_OKSHAPE=$(run_tree "$SHAPE")
 assert_contains "an empty object is present" "$OUT_OKSHAPE" "project settings present"
 assert_contains "a null permissions key is present" "$OUT_OKSHAPE" "user settings present"
 
@@ -196,22 +171,9 @@ assert_contains "unresolvable user scope is skipped, not absent" "$OUT_NOHOME" "
 assert_contains "and says why" "$OUT_NOHOME" "neither CLAUDE_CONFIG_DIR nor HOME"
 
 # --- Case 11: optional platform legs degrade visibly, core survives ----------
-# A stub PATH holding every tool the script needs EXCEPT `reg`. Not a bare
-# `PATH=`: that makes the interpreter itself unresolvable (exit 127, "command not
-# found"), which would "pass" for a reason unrelated to the tool under test.
-#
-# Each entry is a wrapper that execs the real binary at its absolute path,
-# deliberately NOT a copy: an MSYS binary copied out of /usr/bin loses the
-# msys-2.0.dll sitting beside it and fails to start, which would make this case
-# "pass" by breaking every tool instead of the one under test.
+# A stub PATH holding every tool the script needs EXCEPT `reg`.
 STUB="$TEST_TMPDIR/stub-path"
-mkdir -p "$STUB"
-real_bash="$(command -v bash)"
-for tool in jq git tr find sort sed head grep cat mktemp rm; do
-  src="$(command -v "$tool" 2>/dev/null)" || continue
-  printf '#!%s\nexec "%s" "$@"\n' "$real_bash" "$src" >"$STUB/$tool"
-  chmod +x "$STUB/$tool"
-done
+make_stub_path "$STUB" jq git tr find sort sed head grep cat mktemp rm
 rc=0
 ADMIN_POLICY_KEY='HKLM\SOFTWARE\Policies\ClaudeCode' # portability-ok: a Windows registry key path, passed through as a literal; no regex engine sees it
 OUT_NOREG=$(env -u CLAUDE_CONFIG_DIR PATH="$STUB" HOME="$FX/home" \
@@ -282,13 +244,7 @@ mkdir -p "$NLFX/proj/.claude" "$NLFX/home/.claude" "$NLFX/pol" "$NLFX/sd/.claude
 jq -n '{}' >"$NLFX/proj/.claude/settings.json"
 jq -n '{}' >"$NLFX/pol/managed-settings.json"
 jq -n '{permissions:{allow:["Bash(echo hi\nthere *)","Bash(npm test)"]}}' >"$NLFX/home/.claude/settings.json"
-OUT_NL=$(env -u CLAUDE_CONFIG_DIR HOME="$NLFX/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$NLFX/proj" \
-  PERMISSION_STATE_STARTDIR="$NLFX/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$NLFX/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_NL=$(run_tree "$NLFX")
 assert_eq "the multi-line rule yields no rule record" 0 "$(count_matching "$OUT_NL" '^rule user settings allow Bash\(echo')"
 assert_eq "and no fragment record either" 0 "$(count_matching "$OUT_NL" '^rule user settings allow there')"
 assert_contains "it is reported as unrepresentable" "$OUT_NL" "cannot be represented as one record"
@@ -308,13 +264,7 @@ jq -n '{}' >"$CRFX/pol/managed-settings.json"
 # The CR reaches the file as a JSON backslash-r escape, which is how a real settings
 # file would carry one.
 jq -n '{permissions:{allow:["Bash(a\rb *)","Bash(npm test)"]}}' >"$CRFX/home/.claude/settings.json"
-OUT_CR=$(env -u CLAUDE_CONFIG_DIR HOME="$CRFX/home" \
-  PERMISSION_STATE_FIXTURE_DIR="$CRFX/proj" \
-  PERMISSION_STATE_STARTDIR="$CRFX/sd" \
-  PERMISSION_STATE_MANAGED_PATH="$CRFX/pol/managed-settings.json" \
-  PERMISSION_STATE_REGISTRY_KEYS="" \
-  PERMISSION_STATE_PLIST_DOMAIN="" \
-  bash "$SCRIPT")
+OUT_CR=$(run_tree "$CRFX")
 assert_eq "a CR-carrying rule yields no rule record" 0 "$(count_matching "$OUT_CR" '^rule user settings allow Bash.a')"
 assert_contains "it is reported rather than silently stripped" "$OUT_CR" "carriage return"
 assert_contains "the sibling rule is unaffected by the CR case" "$OUT_CR" "rule user settings allow Bash(npm test)"
@@ -329,9 +279,41 @@ err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 when jq missing" 2 "$rc"
 assert_contains "jq required message" "$err_out" "jq required"
 
-if [[ "$FAILED" -eq 0 ]]; then
-  printf '\nAll %d checks passed.\n' "$CASE_NUM"
-  exit 0
-fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
-exit 1
+# --- Case 14: all four documented local-file exceptions -----------------------
+# The documented list is "outside a git repository, when the repository root is
+# your home directory, on Windows, or when the repository root or its .git or
+# .claude entry isn't owned by your user". Two of the four used to be resolved;
+# a native-Windows machine therefore had its local file reported absent while it
+# was live beside settings.json.
+OUT_DEFAULT=$(run)
+assert_contains "the default anchor is the repository root" "$OUT_DEFAULT" "anchored on the repository root"
+
+OUT_WIN=$(PERMISSION_STATE_OSTYPE=msys run)
+assert_contains "on Windows the file stays in the start directory" "$OUT_WIN" "start directory (on Windows)"
+OUT_CYG=$(PERMISSION_STATE_OSTYPE=cygwin run)
+assert_contains "the cygwin OSTYPE takes the same branch" "$OUT_CYG" "start directory (on Windows)"
+OUT_LINUX=$(PERMISSION_STATE_OSTYPE=linux-gnu run)
+assert_contains "a non-Windows OSTYPE keeps the repository-root anchor" "$OUT_LINUX" "anchored on the repository root"
+
+OUT_OWNED=$(PERMISSION_STATE_OWNER_OVERRIDE=foreign run)
+assert_contains "a foreign-owned repository root moves the anchor" "$OUT_OWNED" "not owned by this user"
+OUT_SELF=$(PERMISSION_STATE_OWNER_OVERRIDE=self run)
+assert_contains "a self-owned root keeps the repository-root anchor" "$OUT_SELF" "anchored on the repository root"
+
+# The SDK caveat names the helper the docs actually describe. Claiming a whole
+# session class overstates the source, and there is no documented variable that
+# would let this reader detect such a session anyway.
+assert_contains "the SDK caveat names resolveSettings()" "$OUT_DEFAULT" "resolveSettings()"
+assert_not_contains "it does not claim to describe a session class" "$OUT_DEFAULT" "In an Agent SDK session"
+
+# --- Case 15: the cloud-session scope note -----------------------------------
+# A cloud session does not read the operator's own user or local settings, so a
+# user scope reported there is the container's file. CLAUDE_CODE_REMOTE is the
+# documented signal for that detection.
+OUT_CLOUD=$(TEST_CLOUD_REMOTE=true run)
+assert_contains "a cloud session says which scopes it does not read" "$OUT_CLOUD" "CLAUDE_CODE_REMOTE=true"
+assert_contains "and that the user scope shown is not the operator's" "$OUT_CLOUD" "not yours"
+OUT_LOCAL_SESSION=$(run)
+assert_not_contains "a local session emits no cloud note" "$OUT_LOCAL_SESSION" "CLAUDE_CODE_REMOTE=true"
+
+report_and_exit

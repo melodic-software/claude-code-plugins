@@ -155,6 +155,25 @@ skill_frontmatter::has_metadata_field() {
   '
 }
 
+# Print the length of "$1" in Unicode CODEPOINTS, not bytes, counted
+# locale-independently: UTF-8 -> UTF-32BE via iconv makes every codepoint
+# exactly 4 bytes, so byte-count/4 is the codepoint count on any host. A
+# locale-pinned ${#var} silently degrades to byte counting where the pinned
+# locale does not exist, tightening whatever cap reads this for a multi-byte
+# value; hosts without iconv take that fallback knowingly.
+skill_frontmatter::codepoint_len() {
+  local bytes
+  if command -v iconv >/dev/null 2>&1; then
+    bytes=$(printf '%s' "$1" | iconv -f UTF-8 -t UTF-32BE | wc -c)
+    printf '%s' "$((bytes / 4))"
+  else
+    (
+      LC_ALL=C.UTF-8
+      printf '%s' "${#1}"
+    )
+  fi
+}
+
 # Judge a `metadata.summary` value against the shared summary contract, printing
 # one error message when it fails and nothing when it passes. Exit status
 # mirrors that: 0 = valid, 1 = rejected.
@@ -189,19 +208,7 @@ skill_frontmatter::summary_error() {
     return 1
   fi
 
-  # Unicode CODEPOINTS, not bytes, counted locale-independently: UTF-8 ->
-  # UTF-32BE via iconv makes every codepoint exactly 4 bytes, so byte-count/4 is
-  # the codepoint count on any host. A locale-pinned ${#var} silently degrades
-  # to byte counting where the pinned locale does not exist, tightening the cap
-  # for multi-byte summaries; hosts without iconv take that fallback knowingly.
-  if command -v iconv >/dev/null 2>&1; then
-    len=$(($(printf '%s' "$s" | iconv -f UTF-8 -t UTF-32BE | wc -c) / 4))
-  else
-    len="$(
-      LC_ALL=C.UTF-8
-      printf '%s' "${#s}"
-    )"
-  fi
+  len="$(skill_frontmatter::codepoint_len "$s")"
   if ((len > cap)); then
     printf 'summary is %d codepoints (cap %d)' "$len" "$cap"
     return 1

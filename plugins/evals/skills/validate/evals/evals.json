@@ -1,0 +1,94 @@
+{
+  "skill_name": "validate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "runs-the-script-instead-of-reading-cases",
+      "prompt": "/evals:validate plugins/evals/evals",
+      "expected_output": "Runs scripts/validate-cases.py against the named eval dir and reports its findings and exit code, rather than opening prompt.md and graders/*.md and judging them by eye.",
+      "expectations": [
+        "Invokes the bundled validate-cases.py script on the named directory",
+        "Reports the script's exit code and findings rather than a hand-written verdict",
+        "Does not invoke claude plugin eval or any command that spends money"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fail-tier-blocks-the-run",
+      "prompt": "/evals:validate. My suite has two graders in graders/ both named criteria.md and criteria-2.md with the same name field, and one case has no graders at all. Is it ready to run?",
+      "expected_output": "Reports the duplicate grader name and the case with no grader as FAIL findings, states that the suite will not load, and says to fix them before paying for a run.",
+      "expectations": [
+        "Classifies duplicate grader names and a grader-less case as FAIL, not WARN",
+        "States the suite is not ready to run",
+        "Does not suggest running the suite to find out"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "warn-tier-does-not-gate",
+      "prompt": "/evals:validate. The validator printed WARN lines about target: files and an inline (?i) but exited 0. Does that mean my suite is broken?",
+      "expected_output": "Explains that WARN findings never set exit 1, that the suite loads, and what each warning costs at run time: target: files reads created paths and not contents, and an inline (?i) is not honored so the pattern silently misses casing the author intended.",
+      "expectations": [
+        "States that exit 0 with warnings means the suite loads",
+        "Explains target: files reads the list of created paths, not their contents",
+        "Explains the inline (?i) alternative is flags: i"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unparsed-is-a-failure-not-a-pass",
+      "prompt": "/evals:validate. A case.yaml of mine uses a YAML anchor for shared tags and the validator says frontmatter not parsed. Can I just ignore that and run it?",
+      "expected_output": "States that an unparsed file is a FAIL by design because the validator refuses to green-light input it did not read, and offers the two routes: simplify the file out of the anchor, or run the CLI, which carries the full parser.",
+      "expectations": [
+        "Does not tell the user the suite is fine because nothing else failed",
+        "Names the fail-closed reason: the validator did not read the file",
+        "Offers both routes, simplifying the YAML or using the full parser"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "routes-the-other-eval-format-away",
+      "prompt": "/evals:validate .claude/skills/deploy-notes/evals. Validate this evals.json for me.",
+      "expected_output": "Names the format boundary: this validator reads only the prompt.md / case.yaml / graders layout, and the skill-creator evals.json format is validated by /skill-quality:check validate-evals when the skill-quality plugin is installed, with the file left unvalidated when it is not.",
+      "expectations": [
+        "Does not claim to have validated evals.json",
+        "Names skill-quality:check validate-evals as the owner of that format, presence-gated",
+        "States what happens when skill-quality is not installed"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "does-not-assert-the-command-exists",
+      "prompt": "/evals:validate plugins/evals/evals. Also confirm my Claude Code can run this suite.",
+      "expected_output": "Validates the cases, then separates the two questions: a clean exit says the suite loads, and whether the runner is available in this install is a preflight question this skill does not answer, routed to the runner skill.",
+      "expectations": [
+        "Does not assert that claude plugin eval exists or is available",
+        "Separates suite validity from runner availability",
+        "Routes the availability question to the runner skill's preflight"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "natural-language-trigger",
+      "prompt": "I wrote a bunch of eval cases for my plugin last night and I do not want to burn credits finding out I typo'd a grader field. Anything I can do first?",
+      "expected_output": "Routes to this skill from natural language, running the static validator over the eval dir and reporting FAIL and WARN findings before any run is proposed.",
+      "expectations": [
+        "Triggers without the user typing /evals:validate",
+        "Runs the static validator rather than proposing a cheap run to find out",
+        "Reports findings by tier"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "bounds-report-the-effective-file",
+      "narration": true,
+      "prompt": "/evals:validate. The validator says runs 99 over the maximum 50 in my-case/prompt.md, but my case.yaml says runs: 3. Which one is wrong?",
+      "expected_output": "Explains that prompt.md frontmatter overrides the matching case.yaml field, so the effective value is 99 and prompt.md is the file to fix, even though case.yaml looks correct on its own.",
+      "expectations": [
+        "Names prompt.md as overriding case.yaml for matching fields",
+        "Identifies prompt.md as the file to edit",
+        "Does not tell the user to change case.yaml"
+      ]
+    }
+  ]
+}

@@ -120,7 +120,7 @@ fi
 
 # The contract's literals, kept together so the whole of it reads as one block
 # rather than as constants scattered through the assertions.
-TAB_LIT="$(printf '\t')"
+TAB="$(printf '\t')"
 RESOLVER_JOB="changes"
 DETECT_STEP_ID="detect"
 # The resolver publishes a TABLE of boolean-string outputs, not one. Every
@@ -135,13 +135,13 @@ DETECT_STEP_ID="detect"
 # compare `!= 'false'`, never `== 'true'`, so an unset group runs the lane.
 OUTPUT_NAME="run_full"
 OUTPUT_TABLE="\
-run_full${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' }}
-run_tests${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
-run_shell${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' }}
-run_node${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
-run_python${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
-run_windows${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false') }}
-run_workflows${TAB_LIT}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}"
+run_full${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' }}
+run_tests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
+run_shell${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' }}
+run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
+run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
+run_windows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false') }}
+run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}"
 # The single required context. Everything reachable from its `needs` is a
 # REQUIRED lane, and that closure is what decides whether a job-level condition
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
@@ -159,13 +159,14 @@ JOB_GATE="\${{ !(${CONTRACT_ONLY_PREDICATE}) }}"
 REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
 REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
 
-# The table's row names, space-joined, for the parser. Defined here rather than
-# with the other table readers below because the parser runs before them.
-table_names_spaced() {
-  local tn out=""
-  while IFS="$TAB_LIT" read -r tn _; do
+# The table's row names joined with <sep>: a space for the parser, ", " for a
+# message. Defined here rather than with the other table readers below because
+# the parser runs before them.
+table_names() {
+  local sep="$1" tn out=""
+  while IFS="$TAB" read -r tn _; do
     [[ -n "$tn" ]] || continue
-    out+="${out:+ }$tn"
+    out+="${out:+$sep}$tn"
   done <<<"$OUTPUT_TABLE"
   printf '%s' "$out"
 }
@@ -196,7 +197,7 @@ report() {
 #   STEPOUT  <job>                        reads a step-level docs_only output
 #   ERR      <message>
 parsed="$(
-  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names_spaced)" -v lane_opt_out="$LANE_OPT_OUT" '
+  awk -v resolver="$RESOLVER_JOB" -v output_names="$(table_names ' ')" -v lane_opt_out="$LANE_OPT_OUT" '
     function trim(s) { sub(/^[[:blank:]]+/, "", s); sub(/[[:blank:]]+$/, "", s); return s }
     function indent_of(s,   t) { t = s; sub(/[^[:blank:]].*$/, "", t); return length(t) }
 
@@ -428,13 +429,22 @@ parsed="$(
   exit 2
 }
 
-TAB="$(printf '\t')"
-
 # Partition the record stream once. Re-grepping it per assertion would fork a
 # process per lookup, which is measurable on a large workflow.
-REC_ERR=""; REC_JOB=""; REC_USES=""; REC_NEEDSFLOW=""; REC_NEEDSITEM=""
-REC_OUTPUT=""; REC_INVOKE=""; REC_SELFTEST=""; REC_COE=""; REC_STEPID=""
-REC_REF=""; REC_STEPOUT=""; REC_JOBIF=""; REC_LANEOK=""
+REC_ERR=""
+REC_JOB=""
+REC_USES=""
+REC_NEEDSFLOW=""
+REC_NEEDSITEM=""
+REC_OUTPUT=""
+REC_INVOKE=""
+REC_SELFTEST=""
+REC_COE=""
+REC_STEPID=""
+REC_REF=""
+REC_STEPOUT=""
+REC_JOBIF=""
+REC_LANEOK=""
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   case "$line" in
@@ -462,7 +472,7 @@ while IFS= read -r line; do
 done <<<"$parsed"
 
 # Newline-delimited membership test without forking.
-has_line() { case $'\n'"$1" in *$'\n'"$2"$'\n'*) return 0 ;; *) return 1 ;; esac; }
+has_line() { case $'\n'"$1" in *$'\n'"$2"$'\n'*) return 0 ;; *) return 1 ;; esac }
 
 # --- the output table, read three ways --------------------------------------
 
@@ -475,33 +485,31 @@ table_has() {
   return 1
 }
 
-# table_names_list: the row names, for a message.
-table_names_list() {
-  local tn out=""
-  while IFS="$TAB" read -r tn _; do
-    [[ -n "$tn" ]] || continue
-    out+="${out:+, }$tn"
-  done <<<"$OUTPUT_TABLE"
-  printf '%s' "$out"
-}
-
 # parse_consumer_form <bare-expression>: recognises exactly
 # `needs.<resolver>.outputs.<name> == '<true|false>'`, setting CF_NAME and
 # CF_VALUE. Deliberately whole-string: a prefix match would accept a longer
 # expression whose extra clauses this gate never reads.
-CF_NAME=""; CF_VALUE=""
+CF_NAME=""
+CF_VALUE=""
 parse_consumer_form() {
   local t="$1" rest
-  CF_NAME=""; CF_VALUE=""
+  CF_NAME=""
+  CF_VALUE=""
   [[ "$t" == "${REFERENCE_PREFIX}"* ]] || return 1
   rest="${t#"$REFERENCE_PREFIX"}"
   CF_NAME="${rest%% *}"
-  [[ -n "$CF_NAME" && "$CF_NAME" != *[^A-Za-z0-9_-]* ]] || { CF_NAME=""; return 1; }
+  [[ -n "$CF_NAME" && "$CF_NAME" != *[^A-Za-z0-9_-]* ]] || {
+    CF_NAME=""
+    return 1
+  }
   rest="${rest#"$CF_NAME"}"
   case "$rest" in
   " == 'true'") CF_VALUE="true" ;;
   " == 'false'") CF_VALUE="false" ;;
-  *) CF_NAME=""; return 1 ;;
+  *)
+    CF_NAME=""
+    return 1
+    ;;
   esac
   return 0
 }
@@ -610,7 +618,7 @@ while IFS="$TAB" read -r ojob oname oexpr; do
   [[ "$ojob" == "$RESOLVER_JOB" ]] || continue
   [[ -n "$oname" ]] || continue
   table_has "$oname" && continue
-  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$oname', which the output table does not name. Every polarity decision belongs in the table [$(table_names_list)]; an extra output is a decision this gate cannot check, and consumers reading it are invisible to the consumer-form rule."
+  report "FAIL-CLOSED DEFAULT: job '$RESOLVER_JOB' publishes '$oname', which the output table does not name. Every polarity decision belongs in the table [$(table_names ', ')]; an extra output is a decision this gate cannot check, and consumers reading it are invisible to the consumer-form rule."
 done <<<"$REC_OUTPUT"
 
 # --- 3. FAILURE IS ABSORBED -------------------------------------------------
@@ -694,9 +702,9 @@ while IFS="$TAB" read -r refjob reford kind text; do
   stepif)
     if ! parse_consumer_form "$bare"; then
       report "ONE CONSUMER FORM: job '$refjob' gates a step on an unsanctioned condition: if: $text"
-      report "  Use \"${REFERENCE_PREFIX}<output> == 'true'\" to do the work, or \"== 'false'\" to report it not applicable, naming one of the table's outputs [$(table_names_list)]. Both are plain equality against the only two values an output can hold; a negation, a truthiness test, or an index-syntax spelling is the polarity decision this contract removes."
+      report "  Use \"${REFERENCE_PREFIX}<output> == 'true'\" to do the work, or \"== 'false'\" to report it not applicable, naming one of the table's outputs [$(table_names ', ')]. Both are plain equality against the only two values an output can hold; a negation, a truthiness test, or an index-syntax spelling is the polarity decision this contract removes."
     elif ! table_has "$CF_NAME"; then
-      report "ONE CONSUMER FORM: job '$refjob' gates a step on '$CF_NAME', which the resolver's output table does not name: if: $text. Every polarity decision belongs in the table [$(table_names_list)]; an output outside it is a decision made where this gate cannot check it."
+      report "ONE CONSUMER FORM: job '$refjob' gates a step on '$CF_NAME', which the resolver's output table does not name: if: $text. Every polarity decision belongs in the table [$(table_names ', ')]; an output outside it is a decision made where this gate cannot check it."
     elif [[ "$CF_VALUE" == "true" ]]; then
       gated_ordinals+="${refjob}${TAB}${reford}${TAB}${CF_NAME}"$'\n'
     fi
@@ -710,7 +718,9 @@ while IFS="$TAB" read -r refjob reford kind text; do
     # An aggregator feed entry, for some table output X:
     #   <name>=${{ needs.<resolver>.outputs.X == 'false' && 'success' || steps.<id>.outcome }}
     ok_feed=0
-    name=""; stepref=""; feed_output=""
+    name=""
+    stepref=""
+    feed_output=""
     if [[ "$text" == *"=\${{ "*"$feed_infix"*"$feed_suffix" ]]; then
       name="${text%%=*}"
       rest="${text#"${name}=\${{ "}"
@@ -719,7 +729,7 @@ while IFS="$TAB" read -r refjob reford kind text; do
       stepref="${stepref%"$feed_suffix"}"
       if parse_consumer_form "$skip_part" && [[ "$CF_VALUE" == "false" ]] && table_has "$CF_NAME" &&
         [[ -n "$name" && "$text" == "${name}=\${{ ${skip_part}${feed_infix}${stepref}${feed_suffix}" &&
-        "$name" != *' '* && "$stepref" != *' '* && "$stepref" != *'{'* ]]; then
+          "$name" != *' '* && "$stepref" != *' '* && "$stepref" != *'{'* ]]; then
         ok_feed=1
         feed_output="$CF_NAME"
       fi
@@ -887,20 +897,12 @@ while IFS= read -r refjob; do
   [[ -n "$refjob" ]] || continue
   consumer_count=$((consumer_count + 1))
   declared=0
-  while IFS="$TAB" read -r njob ntext; do
-    [[ "$njob" == "$refjob" ]] || continue
-    # `needs: [a, b]`, `needs: ['a']`, `needs: a`, each possibly with a comment.
-    normalized="${ntext%%#*}"
-    normalized="${normalized//[/ }"
-    normalized="${normalized//]/ }"
-    normalized="${normalized//\"/ }"
-    normalized="${normalized//\'/ }"
-    normalized="${normalized//,/ }"
-    for entry in $normalized; do
-      [[ "$entry" == "$RESOLVER_JOB" ]] && declared=1
-    done
-  done <<<"$REC_NEEDSFLOW"
-  has_line "$REC_NEEDSITEM" "${refjob}${TAB}${RESOLVER_JOB}" && declared=1
+  # Both `needs:` spellings, read through the same resolver the closure uses, so
+  # the edge check and the closure cannot disagree about what a job needs.
+  deps="$(needs_of "$refjob")"
+  while IFS= read -r entry; do
+    [[ "$entry" == "$RESOLVER_JOB" ]] && declared=1
+  done <<<"$deps"
   if [[ "$declared" -eq 0 ]]; then
     report "EDGE DECLARED: job '$refjob' reads $REFERENCE but does not declare '$RESOLVER_JOB' in its needs. The expression would evaluate to an empty string, skipping both the work step and its not-applicable reporter."
   fi

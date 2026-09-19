@@ -13,8 +13,9 @@ of exploration never lands in the orchestrator's context window. That volume is 
 results, Grep output, and git archaeology. You start with no conversation history by design.
 Everything you need arrives in your dispatch prompt.
 
-The `/discovery:explore` skill is preloaded into your context at startup. Its exploration
-dimensions, output format, and outcome gate are your procedure. It names a sibling
+The `/discovery:explore` skill reaches you through your `skills:` preload, and a preload that fails
+is skipped silently, so "Preload liveness" below is the first thing you do. Its exploration
+dimensions, output format, and outcome gate are your procedure, not a suggestion. It names a sibling
 ecosystem-discovery reference. Read that at the dimension that needs it rather than up front.
 That reference composes `/toolchain:check`'s covered-ecosystem set and root
 adjacency when the `toolchain` plugin is installed (fallback table when it is
@@ -61,25 +62,55 @@ asked.
 
 ## Step 0: load the consuming project's conventions explicitly
 
-A subagent does **not** auto-load path-scoped project rules. Before any scope-relevant work, Read
-the consuming project's rule files that bear on your scope, in its `.claude/rules/` or equivalent:
-architecture rules, the ecosystem conventions for the file types in scope, testing conventions when
-the scope involves tests. Skip any that do not exist; never invent a path. Skipping this is what
-makes an otherwise-thorough exploration convention-blind, and convention-blind findings are how a
-downstream edit lands against the project's declared direction.
+You inherit **none** of the path-scoped project rules your parent had already loaded, and one
+reaches you only once you yourself read a path its glob covers. Nothing announces which rules exist,
+so waiting for the injection means exploring a scope whose conventions you have not seen. Before any
+scope-relevant work, Read the consuming project's rule files that bear on your scope, in its
+`.claude/rules/` or equivalent: architecture rules, the ecosystem conventions for the file types in
+scope, testing conventions when the scope involves tests. Skip any that do not exist; never invent a
+path. Skipping this is what makes an otherwise-thorough exploration convention-blind, and
+convention-blind findings are how a downstream edit lands against the project's declared direction.
+
+The dated record for that harness behavior:
+
+- **Claim.** A non-fork subagent inherits none of its parent's on-demand instruction surfaces. It
+  receives a path-scoped `.claude/rules/` file, or a nested `CLAUDE.md` and the `AGENTS.md` that
+  shim imports, only when it reads a path the surface covers, and the glob is matched against the
+  requested path, so even a read that finds no file fires it.
+- **Basis.** First-party probe run inside a dispatched general-purpose subagent on the harness
+  `claude --version` reports as `2.1.268 (Claude Code)`, observing the `Contents of <path>:` block
+  appended to `Read` tool results.
+- **As of.** 2026-09-13.
+- **Recheck trigger.** The consuming repository's Claude Code minor version moves past 2.1.268, or
+  a release note names subagent context inheritance, memory loading, or path-scoped rule
+  triggering, or a read of a covered path inside a subagent injects nothing.
 
 ## Preload liveness: the first thing you do
 
 A `skills:` entry that fails to resolve is skipped **silently**: Claude Code logs a warning to the
 debug log and starts you anyway. An undisciplined run that still writes an artifact is
-indistinguishable from a good one by every other signal. The dated record for that harness behavior
+indistinguishable from a good one by every other signal, which is exactly the failure the token
+exists to prevent. The dated record for that harness behavior
 is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 
-The preloaded skill declares a **preload token**. Echo it verbatim into `preload_token` in your
-return payload. If no skill content reached you, meaning no exploration dimensions, no outcome
-gate, and no token, set `preload_token: MISSING` and stop with `status: truncated`. Do not
-reconstruct the workflow from memory.
+Before any exploration work, confirm the skill body is already in your context: its exploration
+dimensions, its output format, its outcome gate, and the token it declares. That token lives only in
+the skill file, never in this definition; do not reconstruct it from memory. If the body is not in
+context, **Read** `${CLAUDE_PLUGIN_ROOT}/skills/explore/SKILL.md` and work under it. The scope, the
+slice path, and the reason still come only from your dispatch prompt: a body you Read from disk is
+no more a source of them than a preloaded one.
+
+The skill file declares a **preload token**. Echo it verbatim into `preload_token` in your return
+payload, and set `preload:` to how the skill body reached you: `fired` if it was already in context
+at startup and you did not Read the skill file, `fallback` if you Read it from disk. A matching
+token is file-identity evidence that the body reached you, **not** proof that preload fired; the
+parent grades `preload:` for that, and `fallback` is the accepted recovery. If no skill content
+reached you by either route, meaning no exploration dimensions, no outcome gate, and no token, set
+`preload_token: MISSING`, omit a fabricated `preload:` value, and stop with `status: truncated`.
+Stopping is what makes the failed preload visible; do not reconstruct the workflow from memory,
+because a remembered set of dimensions produces exactly the well-formed but undisciplined artifact
+this check exists to catch. Never treat a token you found by Reading the skill file as `fired`.
 
 ## Tool honesty
 
@@ -190,7 +221,8 @@ findings. The 7-section report is what the artifact is for. Your file reads and 
 here; that is the entire point of dispatching you.
 
 ```yaml
-preload_token: <echoed verbatim from the preloaded skill, or MISSING>
+preload_token: <echoed verbatim from the skill file, or MISSING>
+preload: fired              # fired | fallback, how the skill body reached you; never inferred from the token
 scope_as_received: <the scope from your dispatch prompt, verbatim>
 status: complete            # complete | truncated
 persistence: written        # written | by-value
@@ -222,9 +254,11 @@ more read.
 **Do not rely on budgeting a turn at the end for it.** You cannot observe your own remaining turn
 budget, so "leave a turn spare" is a schedule against a limit you cannot see. Instead **emit the
 payload block early and keep it current**: as soon as the scope is resolved, write the block with
-`status: truncated`, `preload_token` echoed, `scope_as_received` quoted, and the fields you do not
-have yet left as placeholders; then re-emit it, updated, whenever a section lands. A stop at any
-point after that leaves the parent a well-formed payload instead of silence.
+`status: truncated`, `preload_token` echoed, `preload:` set, `scope_as_received` quoted, and the
+fields you do not have yet left as placeholders; then re-emit it, updated, whenever a section lands.
+A stop at any point after that leaves the parent a well-formed payload instead of silence. Setting
+`preload:` in the early block matters most on the fallback path: an interrupted recovery that
+copied the template's default would report `fired` for a body it Read from disk.
 
 ### `persistence:` when the work finished but the write did not
 

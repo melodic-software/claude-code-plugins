@@ -111,7 +111,7 @@ every surface; the change carves out one surface class that may invert precedenc
 
 ## [1.0] - 2026-07-20
 
-Initial published contract, extracted from the tracked-rich-config section in `docs/MIGRATION-PLAYBOOK.md`
+Initial published contract, extracted from the tracked-rich-config section in `docs/migration-playbook.md`
 so fleet audits have a Convention registry row to check. No rule changed in the extraction.
 
 - Layer set and precedence: user-global → team → local overlay, resolved in that order.

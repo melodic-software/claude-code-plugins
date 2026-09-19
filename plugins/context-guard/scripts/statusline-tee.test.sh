@@ -62,6 +62,12 @@ run() {
   printf '%s' "$input" | HOME="$home" bash "$TEE" "$@"
 }
 
+# How many files `find` reports under a path that may not exist at all, as a
+# bare digit string: args are passed to find verbatim.
+count_files() {
+  find "$@" 2>/dev/null | wc -l | tr -d ' \r'
+}
+
 # --- Case 1: passthrough — wrapped stdout and exit 0 --------------------------
 HOME1="$WORK/home1"
 mkdir -p "$HOME1"
@@ -133,7 +139,7 @@ if [[ $RC -eq 3 ]]; then ok "wrapped exit code propagates (3)"; else fail "wrapp
 # --- Case 5: missing context_window → snapshot still written, key absent ------
 HOME5="$WORK/home5"
 mkdir -p "$HOME5"
-printf '{"session_id":"s-early","model":{"display_name":"Opus"}}' | HOME="$HOME5" bash "$TEE" cat >/dev/null
+run "$HOME5" '{"session_id":"s-early","model":{"display_name":"Opus"}}' cat >/dev/null
 SNAP5="$HOME5/$CTX_REL/s-early.json"
 if [[ -f "$SNAP5" ]] && jq -e '.captured_at' <"$SNAP5" >/dev/null 2>&1; then
   ok "no context_window → snapshot still written (staleness signal stays fresh)"
@@ -149,10 +155,10 @@ fi
 # --- Case 6: missing session_id → no snapshot, passthrough intact -------------
 HOME6="$WORK/home6"
 mkdir -p "$HOME6"
-OUT="$(printf '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":8}}' | HOME="$HOME6" bash "$TEE" cat)"
+OUT="$(run "$HOME6" '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":8}}' cat)"
 RC=$?
 if [[ $RC -eq 0 && -n "$OUT" ]]; then ok "no session_id → passthrough intact"; else fail "no session_id (rc=$RC out=$OUT)"; fi
-COUNT6=$(find "$HOME6/$CTX_REL" -type f 2>/dev/null | wc -l | tr -d ' \r')
+COUNT6=$(count_files "$HOME6/$CTX_REL" -type f)
 if [[ "$COUNT6" == "0" ]]; then ok "no session_id → no snapshot written"; else fail "snapshot written without session_id"; fi
 
 # --- Case 7: hostile session_id → tee skipped, no path escape -----------------
@@ -163,8 +169,8 @@ for SID in '../evil' 'a/b' 'a b' 'x;rm' '.hidden.'; do
   RC=$?
   if [[ $RC -ne 0 ]]; then fail "hostile session_id '$SID' broke passthrough (rc=$RC)"; fi
 done
-FILECOUNT7=$(find "$HOME7/.claude" -type f 2>/dev/null | wc -l | tr -d ' \r')
-EVIL=$(find "$HOME7" -name 'evil*' 2>/dev/null | wc -l | tr -d ' \r')
+FILECOUNT7=$(count_files "$HOME7/.claude" -type f)
+EVIL=$(count_files "$HOME7" -name 'evil*')
 if [[ "$FILECOUNT7" == "0" && "$EVIL" == "0" ]]; then
   ok "hostile session_id → tee skipped, no file anywhere (path containment)"
 else
@@ -177,18 +183,16 @@ make_mv_shim() {
   # $1 = shim dir, $2 = failure count file, $3 = failures before delegating
   local dir="$1" counter="$2" fails="$3"
   mkdir -p "$dir"
-  {
-    printf '#!/usr/bin/env bash\n'
-    # shellcheck disable=SC2016  # $n must appear LITERALLY in the emitted shim, not expand here
-    printf 'n=$(cat "%s" 2>/dev/null || echo 0)\n' "$counter"
-    # shellcheck disable=SC2016
-    printf 'n=$((n + 1))\n'
-    # shellcheck disable=SC2016
-    printf 'printf %%s "$n" >"%s"\n' "$counter"
-    # shellcheck disable=SC2016
-    printf 'if [ "$n" -le %s ]; then exit 1; fi\n' "$fails"
-    printf 'exec "%s" "$@"\n' "$REAL_MV"
-  } >"$dir/mv"
+  # Escaped `\$` keeps the shim's own expansions literal; the unescaped values
+  # are this function's arguments, substituted here by design.
+  cat >"$dir/mv" <<EOF
+#!/usr/bin/env bash
+n=\$(cat "$counter" 2>/dev/null || echo 0)
+n=\$((n + 1))
+printf %s "\$n" >"$counter"
+if [ "\$n" -le $fails ]; then exit 1; fi
+exec "$REAL_MV" "\$@"
+EOF
   chmod +x "$dir/mv"
 }
 
@@ -222,7 +226,7 @@ else
   fail "persistent rename failure propagated (rc=$RC out=$OUT)"
 fi
 if [[ ! -e "$HOME9/$CTX_REL/sess-42.json" ]]; then ok "persistent failure → snapshot honestly absent"; else fail "snapshot exists despite failing mv"; fi
-LEFTOVER=$(find "$HOME9/.claude/context-guard" -name '*.tmp*' 2>/dev/null | wc -l | tr -d ' \r')
+LEFTOVER=$(count_files "$HOME9/.claude/context-guard" -name '*.tmp*')
 if [[ "$LEFTOVER" == "0" ]]; then ok "persistent failure → no temp-file residue"; else fail "$LEFTOVER temp files left behind"; fi
 
 # --- jq-absent PATH: real tools minus jq -------------------------------------
@@ -230,7 +234,6 @@ FAKEBIN="$WORK/fakebin"
 mkdir -p "$FAKEBIN"
 for t in bash sh cat date dirname basename mktemp mkdir rm mv sleep tr grep sed find wc tail printf env touch; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
-  [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
@@ -243,7 +246,7 @@ RC=$?
 if [[ $RC -eq 0 ]]; then ok "jq absent → exit 0"; else fail "jq absent → exit $RC"; fi
 if printf '%s' "$OUT" | grep -q 'sess-42'; then ok "jq absent → wrapped output intact"; else fail "jq absent → wrapped output lost: $OUT"; fi
 if printf '%s' "$OUT" | grep -qi 'jq'; then ok "jq absent → visible notice appended"; else fail "jq absent → silent skip: $OUT"; fi
-COUNT10=$(find "$HOME10/$CTX_REL" -type f 2>/dev/null | wc -l | tr -d ' \r')
+COUNT10=$(count_files "$HOME10/$CTX_REL" -type f)
 if [[ "$COUNT10" == "0" ]]; then ok "jq absent → no tee file"; else fail "jq absent → tee file written"; fi
 
 # --- Case 11: standalone mode (no statusline configured) ---------------------
@@ -264,10 +267,10 @@ if [[ $RC -eq 0 && "$OUT" == *jq* ]]; then ok "standalone, jq absent → visible
 # --- Case 13: malformed stdin → passthrough intact, no snapshot --------------
 HOME13="$WORK/home13"
 mkdir -p "$HOME13"
-OUT="$(printf 'not json at all' | HOME="$HOME13" bash "$TEE" cat)"
+OUT="$(run "$HOME13" 'not json at all' cat)"
 RC=$?
 if [[ $RC -eq 0 && "$OUT" == "not json at all" ]]; then ok "malformed stdin → bytes pass through"; else fail "malformed stdin (rc=$RC out=$OUT)"; fi
-COUNT13=$(find "$HOME13/$CTX_REL" -type f 2>/dev/null | wc -l | tr -d ' \r')
+COUNT13=$(count_files "$HOME13/$CTX_REL" -type f)
 if [[ "$COUNT13" == "0" ]]; then ok "malformed stdin → no snapshot written"; else fail "malformed stdin wrote a snapshot"; fi
 
 # --- Case 14: unwritable target dir → silent skip, passthrough intact --------
@@ -302,7 +305,7 @@ mkdir -p "$HOME15B"
 HUGE_FILLER="$(head -c 1500000 /dev/zero | tr '\0' 'y')"
 HUGE_INPUT="$(printf '{"session_id":"sess-huge","filler":"%s","context_window":{"used_percentage":9}}' "$HUGE_FILLER")"
 WANT_BYTES=${#HUGE_INPUT}
-GOT_BYTES=$(printf '%s' "$HUGE_INPUT" | HOME="$HOME15B" bash "$TEE" wc -c | tr -d ' \r\n')
+GOT_BYTES=$(run "$HOME15B" "$HUGE_INPUT" wc -c | tr -d ' \r\n')
 if [[ "$GOT_BYTES" == "$WANT_BYTES" ]]; then
   ok ">1MiB payload → wrapped command receives every byte ($GOT_BYTES)"
 else
@@ -315,7 +318,7 @@ else
 fi
 
 # --- Case 16: same-session re-write → newest wins ----------------------------
-printf '{"session_id":"sess-42","context_window":{"used_percentage":77}}' | HOME="$HOME1" bash "$TEE" cat >/dev/null
+run "$HOME1" '{"session_id":"sess-42","context_window":{"used_percentage":77}}' cat >/dev/null
 if [[ "$(jq -r '.context_window.used_percentage' <"$SNAP1")" == "77" ]]; then
   ok "same-session re-write → newest snapshot wins"
 else
@@ -394,7 +397,7 @@ while ((tries-- > 0)) && [[ ! -e "$SHIM18/parked" ]]; do sleep 0.02; done
 kill -TERM "$TEE_PID" 2>/dev/null
 wait "$TEE_PID" 2>/dev/null
 sleep 0.5
-LEFT18=$(find "$HOME18/$CTX_REL" -name '.*.json.tmp.*' 2>/dev/null | wc -l | tr -d ' \r')
+LEFT18=$(count_files "$HOME18/$CTX_REL" -name '.*.json.tmp.*')
 if [[ "$LEFT18" == "0" ]]; then
   ok "cancelled mid-window → temp reclaimed by trap"
 else

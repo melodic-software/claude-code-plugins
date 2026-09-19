@@ -1,8 +1,8 @@
 # Permission Hygiene Criteria
 
-Version: 1.2.0
-Last updated: 2026-08-12
-Synced from: permission-rule-hygiene convention 1.2 (`2a481e9d`)
+Version: 1.4.0
+Last updated: 2026-09-13
+Synced from: permission-rule-hygiene convention 1.4.0 (`0a9bae33`)
 
 This file defines the checks the `audit-permission-grants` audit runs. The **principle, the three
 anti-patterns, and the prescribed correct pattern, with official-doc citations, live in the
@@ -24,10 +24,14 @@ scan could not see any of them. A user-global finding names the resolved absolut
 reporting `~/.claude/settings.json` would name the wrong file whenever `CLAUDE_CONFIG_DIR` has moved
 the config root. Frontmatter files under a `vendor/` path segment are skipped: they are
 vendored upstream references, not loadable skills/agents/commands, so their `allowed-tools` never take
-effect and a finding on them would be a false positive. Findings are advisory and never fail the run,
-so a completed scan exits 0 in either mode; `--count` prints the finding count. **An environment gap
-exits 2 instead of reporting a clean bill**: a missing `jq`, or a scan root that resolves to neither a
-git toplevel nor `$CLAUDE_PROJECT_DIR`. There is no fallback to the current directory, because outside
+effect and a finding on them would be a false positive. Findings are advisory in the default report
+mode and under `--count`, which always exit 0 however many findings they print. They are gating under
+`--check`, which exits 1 on an error-tier finding (P2, P2b, P4), and under `--strict`, which adds the
+warning tier (P1, P3); combining the flags applies the strictest. **An environment gap exits 2 instead
+of reporting a clean bill**: a missing `jq`, a missing shared pattern library, a scan root that
+resolves to neither a git toplevel nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not
+recognise. Under a gate flag, exit 2 also covers the two results a gate must never read as a pass: a
+`NOTHING TO AUDIT` run, and one that saw no gate-firing finding but could not read an input. There is no fallback to the current directory, because outside
 a repository that is usually the user profile and scanning it would walk the whole home tree and still
 exit 0. To scan an explicit directory, set **`$PERMISSION_HYGIENE_SCAN_ROOT`**, a sanctioned
 operator lever and the documented remedy for that exit 2, not a test-only override. Its predecessor
@@ -46,7 +50,9 @@ allow rules read per settings scope (with `absent` and `NOT VALID JSON` reported
 an unparsable rules file is skipped entirely and is the likeliest place for an unexamined grant),
 plugin manifests and plugin `settings.json` files parsed, paths the walk could not open, and files
 an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
-denominator; a run that parsed nothing prints `NOTHING TO AUDIT` and must not be relayed as clean.
+denominator with every input readable; a run that parsed nothing prints `NOTHING TO AUDIT`, and a run
+that found nothing but could not open or parse an input prints `INCOMPLETE SCAN, NOT A CLEAN BILL`
+with its audited and blocked counts. Neither may be relayed as clean.
 
 **The exclusion set is disclosed rather than extended by path segment, and here is why.** A
 blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
@@ -76,6 +82,11 @@ entering auto mode. The classes:
 - a script-glob command (`Bash(*.py:*)`)
 - an `Agent` allow rule (bare `Agent` or scoped `Agent(...)`, both dropped categorically, with no narrow
   carry-over form)
+
+`Monitor` allow rules are a **sixth** documented drop class, added upstream in v2.1.236 because Claude
+Code runs Monitor commands through the shell. This detector does not scan for it, and that division of
+labor is deliberate: `audit-permission-state` owns the Monitor class. Do not report a clean P1 result
+as evidence that a repo's Monitor grants are sound.
 
 **How to check**: run the detector. Each P1 alternative requires a wildcard, so an exact narrow rule
 (`Bash(npm test)`, `Bash(npm run build)`, `Bash(cargo build)`, `Bash(babysit_merge.sh:*)`) is not
@@ -133,13 +144,15 @@ blanket form is false for the file tools. Match the mechanism to the rule class:
 The two exceptions on Bash rules:
 
 1. **Token substitution in `allowed-tools`.** Claude Code substitutes `${CLAUDE_SKILL_DIR}` and
-   `${CLAUDE_PROJECT_DIR}` in both a skill's markdown content and Bash rules in `allowed-tools`
-   ([skills](https://code.claude.com/docs/en/skills#available-string-substitutions)). That is the documented
-   way to run a bundled script without a prompt, e.g.
+   `${CLAUDE_PROJECT_DIR}` in both a skill's markdown content and Bash rules in `allowed-tools`, and
+   **in a plugin skill substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two
+   places** ([skills](https://code.claude.com/docs/en/skills#available-string-substitutions), fetched
+   2026-09-12). That is the documented way to run a bundled script without a prompt, e.g.
    `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`. Two limits the convention records:
    `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code **v2.1.196 or later** (below that floor the
-   rule stays a literal string and never matches), and `${CLAUDE_PLUGIN_ROOT}` is **not** substituted at
-   all, so a rule written with it is inert.
+   rule stays a literal string and never matches), and the plugin-scoped pair is *"Substituted only in
+   plugin skills"* per the same page's variable table, so both stay literal in a personal or project
+   skill, in an agent or command, and in any settings file.
 2. **Leading env-assignment stripping**, and it is scoped: an assignment of certain known-safe variables
    is stripped, so `Bash(npm test *)` matches `NODE_ENV=test npm test`. An **allow** rule will not match
    past an assignment of any other variable; a **deny** or **ask** rule matches past any leading
@@ -167,20 +180,37 @@ command on PATH, or for `Read`/`Edit` rules the `~/` home anchor.
 
 ## P4: Inert substitution token in a `Bash(...)` rule [error]
 
-**What**: A `Bash(...)` allow rule containing `${CLAUDE_PLUGIN_ROOT}`, `%USERPROFILE%`, or
-`$env:USERPROFILE`. Only the two documented substitutions, `${CLAUDE_SKILL_DIR}` and
-`${CLAUDE_PROJECT_DIR}`, expand in allowed-tools Bash rules; these tokens stay literal and the grant
-never matches at runtime.
+**What**: A `Bash(...)` allow rule containing a token that stays literal in *that* rule's context. Two
+classes, because one of them is context-dependent:
 
-**How to check**: run the detector. Each offending `Bash(...)` token is reported separately. Non-Bash
-rules containing similar spellings are out of scope for this check.
+| Token | Inert where |
+| --- | --- |
+| `%USERPROFILE%`, `$env:USERPROFILE` | everywhere. Bash rules match literally and neither Windows spelling is ever expanded |
+| `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` | everywhere **except a plugin skill's `allowed-tools`**, meaning a personal or project skill, an agent, a command, or any settings file |
+
+A grant naming the plugin-scoped pair from inside a plugin skill **resolves and is not flagged**. The
+substitution has a version floor of **v2.1.0**, recorded upstream as *"Fixed `${CLAUDE_PLUGIN_ROOT}`
+not being substituted in plugin `allowed-tools` frontmatter, which caused tools to incorrectly require
+approval"*.
+
+The settings-scope half is not an inference from the plugin-skill rule: **no page documents
+`${CLAUDE_*}` expansion in a settings `permissions.allow` array**, so a rule there is inert whatever
+the surrounding checkout looks like.
+
+**How to check**: run the detector. It resolves plugin-skill context from a `.claude-plugin/plugin.json`
+at the plugin root, falling back to the marketplace-monorepo `plugins/<name>/skills/<name>/SKILL.md`
+layout. Each offending `Bash(...)` token is reported separately. Non-Bash rules containing similar
+spellings are out of scope for this check.
 
 **Why**: the grant looks configured but is a no-op, so operators believe a helper is pre-approved when
 it is not.
 
-**Recommend**: in skill `allowed-tools`, replace with `${CLAUDE_SKILL_DIR}` for a bundled script. In
-settings or other scopes, relocate the helper to a stable bare command on PATH and allow that name
-narrowly.
+**Recommend**: in a non-plugin skill's `allowed-tools`, replace with `${CLAUDE_SKILL_DIR}` for a
+bundled script. In settings or other scopes, relocate the helper to a stable bare command on PATH and
+allow that name narrowly. **Never recommend rewriting a plugin skill's `${CLAUDE_PLUGIN_ROOT}` grant
+to `${CLAUDE_SKILL_DIR}`**: that token cannot name a script shared between a plugin's skills, so the
+rewrite breaks a working grant. A plugin skill reaching a sibling skill's script needs the plugin-root
+token and has no alternative spelling.
 
 ## P3: Plugin self-granted permissions [warning]
 

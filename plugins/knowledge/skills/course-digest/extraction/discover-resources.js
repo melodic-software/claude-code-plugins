@@ -165,10 +165,9 @@ async function main() {
   log.info(`  Mode: ${modeLabel}`);
 
   log.info("  Launching Playwright Chromium...\n");
-  const { browser, context, page, authDir, cookieCount } = await launchBrowser({
+  const { browser, context, page, cookieCount } = await launchBrowser({
     headless: /** @type {boolean|undefined} */ (args.headless),
     storageStatePath,
-    profilePrefix: "discover-resources",
   });
   if (cookieCount > 0) log.info(`  Injected ${cookieCount} saved cookies.`);
 
@@ -179,7 +178,7 @@ async function main() {
   const firstVideoLesson = findFirstVideoLesson(course.modules);
   if (!firstVideoLesson) {
     log.error("  ✗ No video lessons found in course.json. Cannot verify authentication.");
-    await closeBrowser(context, authDir, browser);
+    await closeBrowser(context, browser);
     process.exit(1);
   }
   const authCheckUrl = adapter.buildLessonUrl(course, firstVideoLesson, platformCfg);
@@ -195,7 +194,7 @@ async function main() {
     log.error(
       "  ✗ Not authenticated. Run extract-course.js first to establish the auth session.",
     );
-    await closeBrowser(context, authDir, browser);
+    await closeBrowser(context, browser);
     process.exit(1);
   }
   log.info("  ✓ Authenticated\n");
@@ -224,7 +223,7 @@ async function main() {
   await inspectAllLessons(lessonList, discoveryCtx);
   const checked = discoveryCtx.checked;
 
-  await closeBrowser(context, authDir, browser);
+  await closeBrowser(context, browser);
 
   const withDownload = report.filter((r) => r.hasDownload).length;
   const withNotes = report.filter((r) => r.hasLessonNotes).length;

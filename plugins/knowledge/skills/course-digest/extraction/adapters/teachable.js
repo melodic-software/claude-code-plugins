@@ -22,6 +22,7 @@ import { writeStdout } from "@melodic/video-digestion/shared/terminal";
 import { loginOrPromptManual } from "../lib/auth/manual-login.js";
 import { login as teachableLogin } from "../lib/auth/teachable-sso.js";
 import { fetchMetaTags } from "../lib/meta-tags.js";
+import { hasPlayerElement, resolvePlayerSelector } from "../lib/player-presence.js";
 import {
   DEFAULT_VIDEO_PLAYER_SELECTOR,
   extractFrames as extractHotmartFrames,
@@ -87,9 +88,19 @@ function resolveResourceSelectors(platformCfg) {
   return { ...defaults.resourceSelectors, ...platformCfg.resourceSelectors };
 }
 
-/** The configured video-player selector, falling back to the adapter default. */
+/**
+ * The configured video-player selector, falling back to the adapter default.
+ * Reads the config optionally: a nullish `platformCfg` yields the default.
+ */
 export function resolveVideoPlayerSelector(platformCfg) {
-  return platformCfg?.videoPlayerSelector ?? defaults.videoPlayerSelector;
+  return resolvePlayerSelector(platformCfg, defaults.videoPlayerSelector, {
+    optionalConfig: true,
+  });
+}
+
+/** The configured subtitle language, falling back to the adapter default. */
+function resolveSubtitleLanguage(platformCfg) {
+  return platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
 }
 
 /**
@@ -98,9 +109,6 @@ export function resolveVideoPlayerSelector(platformCfg) {
  */
 export async function detectResources(page, platformCfg) {
   return timed("detect-resources", null, async () => {
-    const selectors = resolveResourceSelectors(platformCfg);
-    const videoPlayerSelector = resolveVideoPlayerSelector(platformCfg);
-
     return page.evaluate(
       ({ sel, attachmentTypeSource, videoSel }) => {
         const has = (s) => !!document.querySelector(s);
@@ -123,9 +131,9 @@ export async function detectResources(page, platformCfg) {
         };
       },
       {
-        sel: selectors,
+        sel: resolveResourceSelectors(platformCfg),
         attachmentTypeSource: LECTURE_ATTACHMENT_TYPE_SOURCE,
-        videoSel: videoPlayerSelector,
+        videoSel: resolveVideoPlayerSelector(platformCfg),
       },
     );
   });
@@ -148,8 +156,7 @@ export function deriveLandingUrl(courseUrl, platformCfg) {
  * Delegates to hotmart.installInterceptors().
  */
 export async function setupSession(page, platformCfg) {
-  const subtitleLang = platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
-  installInterceptors(page, subtitleLang);
+  installInterceptors(page, resolveSubtitleLanguage(platformCfg));
 }
 
 /**
@@ -158,7 +165,7 @@ export async function setupSession(page, platformCfg) {
  */
 export async function prepareLessonPage(page, platformCfg, lesson) {
   return timed("prepare-lesson-page", { lesson: lesson?.title }, async () => {
-    const subtitleLang = platformCfg.subtitleLanguage ?? defaults.subtitleLanguage;
+    const subtitleLang = resolveSubtitleLanguage(platformCfg);
     const manifestTimeout = platformCfg.manifestTimeoutMs ?? defaults.manifestTimeoutMs;
     const videoSelector = resolveVideoPlayerSelector(platformCfg);
 
@@ -256,12 +263,14 @@ export async function extractFramesCanvas({ page, duration, outputDir, options =
  * Pre-flight check: verify Hotmart iframe loads and Teachable API responds.
  */
 export async function preflight(page, platformCfg) {
-  const checks = await page.evaluate((videoSel) => {
-    const hotmartEl = !!document.querySelector(videoSel);
-    const lectureContent = !!document.querySelector(".lecture-content");
-    const attachments = document.querySelectorAll(".lecture-attachment").length;
-    return { hotmart: hotmartEl, lectureContent, attachments };
-  }, resolveVideoPlayerSelector(platformCfg));
+  const checks = await page.evaluate(
+    (videoSel) => ({
+      hotmart: !!document.querySelector(videoSel),
+      lectureContent: !!document.querySelector(".lecture-content"),
+      attachments: document.querySelectorAll(".lecture-attachment").length,
+    }),
+    resolveVideoPlayerSelector(platformCfg),
+  );
 
   const failures = Object.entries(checks)
     .filter(([key, val]) => key !== "attachments" && !val)
@@ -299,9 +308,7 @@ export async function authenticate({ context, page, course, storageStatePath, pl
   await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(2000);
 
-  const hasPlayer = await page
-    .evaluate((sel) => !!document.querySelector(sel), videoSelector)
-    .catch(() => false);
+  const hasPlayer = await hasPlayerElement(page, videoSelector);
 
   if (hasPlayer) {
     writeStdout("  Already authenticated.\n");

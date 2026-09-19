@@ -44,7 +44,7 @@ def render(value: float | None) -> str:
     rounded = round(value, 3)
     if rounded == int(rounded):
         return str(int(rounded))
-    return f"{rounded:.3f}".rstrip("0").rstrip(".")
+    return f"{rounded:.3f}".rstrip("0")
 
 
 def _coverage(text: str) -> float | None:

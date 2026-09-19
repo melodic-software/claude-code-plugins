@@ -53,9 +53,9 @@ unreachable() { echo "  [UNREACH] $*"; }
 note() { echo "            $*"; }
 
 # HEAD probe: prints the HTTP status code. An unreachable host prints "000000" (curl's
-# %{http_code} emits its own "000" and the fallback appends another); "000" alone means
-# curl is not installed. Both land in the callers' catch-all arm, which is why the
-# doubled form has never mattered.
+# %{http_code} emits its own "000" for a request that never completed and the fallback
+# appends another), so it lands in the callers' catch-all arm; a bare "000" means curl
+# itself is missing and lands in their "000" arm.
 http_status() { curl -sI -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"; }
 
 echo "=== kindle-dedrm: drift report ==="

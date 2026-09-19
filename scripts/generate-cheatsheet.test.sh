@@ -79,7 +79,7 @@ EOF
   printf '## 3. Plan (fixture spine)\n' \
     >"$dir/plugins/session-flow/skills/workflow/context/steps.md"
   printf '# Skill cheat sheet (fixture)\n\n<!-- cheatsheet:start -->\n<!-- cheatsheet:end -->\n' \
-    >"$dir/docs/SKILL-CHEAT-SHEET.md"
+    >"$dir/docs/skill-cheat-sheet.md"
   write_skill "$dir" alpha mapped \
     'workflow-stage: plan' \
     'summary: Fixture skill mapped to the plan stage'
@@ -115,7 +115,7 @@ run_gen "$tree"
 if [[ "$CODE" -eq 0 ]]; then ok "green generate exits 0"; else fail "green generate (exit=$CODE: $OUT)"; fi
 run_gen "$tree" --check
 if [[ "$CODE" -eq 0 ]]; then ok "green --check exits 0 after generate"; else fail "green --check (exit=$CODE: $OUT)"; fi
-sheet="$(cat "$tree/docs/SKILL-CHEAT-SHEET.md")"
+sheet="$(cat "$tree/docs/skill-cheat-sheet.md")"
 if [[ "$sheet" == *"- [3. Plan](#3-plan)"* ]]; then
   ok "TOC anchor emitted"
 else
@@ -138,7 +138,7 @@ else
 fi
 if command -v npx >/dev/null 2>&1 && npx --no-install markdownlint-cli2 --help >/dev/null 2>&1; then
   if npx --no-install markdownlint-cli2 --config "$REPO_ROOT/.markdownlint-cli2.jsonc" \
-    "$tree/docs/SKILL-CHEAT-SHEET.md" >/dev/null 2>&1; then
+    "$tree/docs/skill-cheat-sheet.md" >/dev/null 2>&1; then
     ok "fixture sheet is markdownlint-clean"
   else
     fail "fixture sheet fails markdownlint"
@@ -261,7 +261,7 @@ metadata:
 # looper
 EOF
 run_gen "$tree"
-if [[ "$CODE" -eq 0 ]] && grep -q "Keys after a blank line still read" "$tree/docs/SKILL-CHEAT-SHEET.md"; then
+if [[ "$CODE" -eq 0 ]] && grep -q "Keys after a blank line still read" "$tree/docs/skill-cheat-sheet.md"; then
   ok "blank line inside metadata block is tolerated"
 else
   fail "blank line truncated metadata keys (exit=$CODE: $OUT)"

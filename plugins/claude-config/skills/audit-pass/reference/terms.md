@@ -12,8 +12,9 @@ Terms: a **run** is one invocation against one **target**; a **lane** is **one d
 at the finest filter that skill's own interface accepts**, never finer, because the pass dispatches skills
 and never reaches inside one, so a lane it cannot invoke is a lane it cannot have; the **scan set**
 is the set of files a run reads. A surface is **live** when the
-harness actually loads it for that target, read from `InstructionsLoaded` for the memory layer and
-`/context` for skills, subagents, and MCP tools, never inferred from a filesystem walk alone. The
+harness actually loads it for that target, read from the sources Phase 1 of
+[`../SKILL.md`](../SKILL.md) names and from no interactive built-in command, never inferred from a
+filesystem walk alone, and reported with the basis that established it. The
 **live surface set** is every live surface at the moment a run starts; it can change without the tree
 changing, because startup scope depends on the launch directory and on settings the tree does not
 contain.

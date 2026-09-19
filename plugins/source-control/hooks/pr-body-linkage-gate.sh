@@ -246,9 +246,8 @@ sole_heredoc_body_to() {
   local start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
   printf -v "$__pbl_dest" '%s' ""
   linkage::split_lines "$text"
-  local -a hd_lines=("${LINKAGE_LINES[@]}")
-  for ((li = 0; li < ${#hd_lines[@]}; li++)); do
-    line="${hd_lines[li]}"
+  for ((li = 0; li < ${#LINKAGE_LINES[@]}; li++)); do
+    line="${LINKAGE_LINES[li]}"
     if ((in_hd)); then
       t="${line%$'\r'}"
       t="${t#"${t%%[![:space:]]*}"}"
@@ -465,6 +464,11 @@ parse_wrapper_flag() {
     env:u | sudo:u | sudo:g | sudo:h | sudo:p | sudo:C | sudo:T | sudo:U | sudo:r | sudo:t)
       WRAP_KIND="value"
       ;;
+    # Prints and exits without running the command; see the long-form arm.
+    sudo:V)
+      WRAP_KIND="terminal"
+      return 0
+      ;;
     # A letter this hook positively knows to be boolean: the cluster continues
     # past it. Anything else is unrecognized, and the caller bails rather than
     # assume — see WRAP_KIND=unknown handling.
@@ -473,11 +477,6 @@ parse_wrapper_flag() {
     # print a pathname instead of running anything, so no PR is created and
     # gating one would be a false block — they fall through to `unknown`, which
     # allows.
-    # Prints and exits without running the command; see the long-form arm.
-    sudo:V)
-      WRAP_KIND="terminal"
-      return 0
-      ;;
     command:p | \
       env:i | env:0 | env:v | sudo:A | sudo:B | sudo:b | sudo:E | sudo:H | sudo:K | \
       sudo:k | sudo:n | sudo:P | sudo:S | sudo:s | sudo:v)

@@ -1,12 +1,5 @@
 # claude-code-plugins
 
-## Validate a change
-
-Validate with `scripts/affected-tests.sh --run` (add `--explain` to see why each suite was
-selected) instead of running every suite; CI still runs everything. A changed file that maps
-to zero suites is an error, never "nothing to run". Full contract, including the no-suite
-allowlist and the `NOT RUN` ecosystems: [README.md, "Validate a change"](README.md#validate-a-change).
-
 ## Open a pull request as a draft
 
 Open every pull request as a draft and flip it to ready when the work is done: a draft skips the
@@ -16,18 +9,16 @@ test lanes and both AI review lanes, and the flip to ready is what asks for them
 
 ## Conventions that load on demand
 
-Each surface below enters context automatically when Claude reads a file it covers. That trigger
-does **not** fire inside subagents, and after a compaction it fires again only when a covered file
-is read again. When you are working on something an entry covers and its content is not already in
-context, read the file directly.
+Each surface below enters context automatically when Claude reads a file it covers, in subagents
+as well as in the main session. The match is on the requested path, so even a read that finds no
+file fires it. A surface whose trigger has not fired is simply absent, and after a compaction it
+returns only when a covered file is read again. When you are working on something an entry covers
+and its content is not already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
-| `.claude/rules/catalog-taxonomy.md` | `.claude-plugin/marketplace.json` | Where the marketplace category taxonomy lives; read before adding or changing a plugin's category |
-| `.claude/rules/hook-budget.md` | `plugins/*/hooks/**` | Marketplace-wide latency budget for always-on hooks; read before adding or widening a hook |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
-| `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies state the current rule and its reason, never the incident, PR, or model that motivated it, and name their successor in a `## Next` section; read before editing any skill body |
-| `.claude/rules/worktree-base-ref.md` | `.claude/settings.json, .claude/settings.local.json` | This repository sets no worktree.baseRef and never adds one back, even when a review says a merge dropped it; read before editing either settings file |
+| `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies carry a four-part verification record for any volatile specific they restate, and name their successor in a `## Next` section; read before editing any skill body |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
 | `plugins/playbooks/reference/model-adaptation/AGENTS.md` | `plugins/playbooks/reference/model-adaptation/**` | model-adaptation chapters: contributor conventions |

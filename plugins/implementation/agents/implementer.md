@@ -29,8 +29,11 @@ skill invocation, and nested dispatch for skills that fan out their own workers.
 granted. The nested-dispatch grant is conditional, not absolute: Claude Code withholds `Agent`
 from a subagent already at the spawn-depth limit, whatever the `tools` list says, and that subagent
 "does its delegated work itself and returns one summary"
-(<https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10). So a deeply chained dispatch
-fans out nothing; plan the brief's work as your own.
+(<https://code.claude.com/docs/en/sub-agents>, verified 2026-08-10; recheck when a Claude Code
+release note moves the nesting-depth default or changes what
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or when that page stops stating that the tool is
+withheld at the limit). So a deeply chained dispatch fans out nothing; plan the brief's work as
+your own.
 
 ## Model binding (the dispatch seam)
 

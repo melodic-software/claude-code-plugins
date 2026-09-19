@@ -19,15 +19,16 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from conftest import FIXTURES, parsed_output, run_parser, write
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "cobertura.py"
-FIXTURE = SCRIPT_DIR.parent / "fixtures" / "coverage" / "cobertura.xml"
-MULTI_ROOT = SCRIPT_DIR.parent / "fixtures" / "coverage" / "cobertura-multi-root.xml"
+FIXTURE = FIXTURES / "cobertura.xml"
+MULTI_ROOT = FIXTURES / "cobertura-multi-root.xml"
 BASH_FIXTURE = "plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh"
 REPO_ROOT = SCRIPT_DIR.parents[3]
 SOURCES = "plugins/code-metrics/scripts/fixtures/sources"
@@ -41,30 +42,21 @@ ALPHA = SOURCES + "/cluster/alpha"
 BETA = SOURCES + "/cluster/beta"
 
 
-def run(*args: str, scan_root: str | None = None) -> subprocess.CompletedProcess:
+def _env(scan_root: str | None) -> dict[str, str]:
+    """The environment a case runs in: `CODE_METRICS_SCAN_ROOT` set, or unset."""
     env = dict(os.environ)
     env.pop("CODE_METRICS_SCAN_ROOT", None)
     if scan_root is not None:
         env["CODE_METRICS_SCAN_ROOT"] = scan_root
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
+    return env
+
+
+def run(*args: str, scan_root: str | None = None) -> subprocess.CompletedProcess:
+    return run_parser(SCRIPT, *args, env=_env(scan_root))
 
 
 def parsed(*args: str, scan_root: str | None = None) -> dict:
-    result = run(*args, scan_root=scan_root)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
-
-
-def write(tmp: str, name: str, body: str) -> str:
-    path = Path(tmp) / name
-    path.write_text(body, encoding="utf-8")
-    return str(path)
+    return parsed_output(SCRIPT, *args, env=_env(scan_root))
 
 
 def _posix(path: str) -> str:

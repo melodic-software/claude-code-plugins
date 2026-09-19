@@ -3,6 +3,96 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.22]
+
+### Changed
+
+- The tracker test library gains assert_succeeds, assert_fails and a shared blocking-network shim writer, and fifteen suites plus the common test template collapse their if-then-fail-else-pass blocks onto them; generate-adapter.test.sh hoists its duplicated generation prologue. Every suite's output and exit code are byte-identical, and the templates still render with the same divergence set as before.
+
+## [0.40.21]
+
+### Changed
+
+- The github edge verbs parse and validate their arguments through one wit_parse_edge_args helper, generate-adapter merges its two identical parse arms, the linear scope parser drops a write-only variable, and the two jira verb suites share a mock helper like the gitea and linear suites. Adapter output, usage text and exit codes are unchanged, and the templates still render byte-identically.
+
+## [0.40.20]
+
+### Changed
+
+- The work preflight script accepts a verified main worktree through one helper and drops two mirror variables, the tracker test library reuses its pass helper in the contains assertions, and two suites fold a chained exclusion and drop needless subshells, with byte-identical output.
+
+## [0.40.19]
+
+### Changed
+
+- The onboard-adapter generator emits its per-verb option-parsing arms through one helper instead of seven near-identical heredocs, drops a render key no template references, and tidies its templates and test suite, with byte-identical generated adapters.
+
+## [0.40.18]
+
+### Changed
+
+- The lane-telemetry-upsert script normalizes equals-form options in one case arm, tests the sentinel prefix with a glob, and computes its sorted comment ids once; the capability-tier backfill drops a dead array guard and its legacy signal library drops a subsumed regex alternative.
+
+## [0.40.17]
+
+### Changed
+
+- The work-item-tracker conformance suite loops its three label-creation calls, writes the schema-skew manifest through one helper, and generates its marker bindings from a shared writer, with byte-identical files and argv.
+
+## [0.40.16]
+
+### Changed
+
+- Normalise the storage guard spelling and drop dead cleanup, a single-use helper and a redundant path re-canonicalisation in the local-markdown adapter suites (behavior unchanged).
+
+## [0.40.15]
+
+### Changed
+
+- Collapse the schema and variable error lists in the linear schema validator and merge the two field-extraction sed passes in its fidelity check (behavior unchanged).
+
+## [0.40.14]
+
+### Changed
+
+- Hoist the lease-comment loop locals, collapse the reclaim activity guard and share the issue seed and lease node builders across the linear adapter suites (behavior unchanged).
+
+## [0.40.13]
+
+### Changed
+
+- github adapter: common.sh gains wit_patch_lease_comment, the one lease-comment PATCH shape reclaim.sh and renew-lease.sh spelled three times; claim.sh reads the winning comment id only once; two suites read fixture files without a cat fork; list-sub-items.test.sh writes its gh stub through one helper. Same requests, same output.
+
+## [0.40.12]
+
+### Changed
+
+- gitea adapter: create-item.sh reads the repo-label page length with the same failure fallback its sibling reads use, mock.sh drops two single-use intermediates in its curl stand-in, and list-items.test.sh corrects a comment about the seeded total-count header. Same requests, same output.
+
+## [0.40.11]
+
+### Changed
+
+- jira adapter: get-item.test.sh writes its mock curl and binding fixtures inline instead of through single-call helpers, list-items.test.sh routes two config cases through its existing rc_for_jira helper and drops a redundant cleanup, and two header comments drop stale narration. Same cases, same output.
+
+## [0.40.10]
+
+### Changed
+
+- work-item-tracker lib: frontier.sh builds its floor label array with one jq invocation, lease.sh prints its TTL through printf, binding.sh declares its locals in one place, and the binding, frontier, lease and gh-version suites share their overlay, frontier-id and liveness assertions with one exit trap covering both temp dirs. Same cases, same output.
+
+## [0.40.9]
+
+### Changed
+
+- **`decompose` and `triage` drop their `## Purpose` sections.** Each restated the skill's own frontmatter `description`, which is already in context when the skill runs: `decompose`'s Purpose was a strict substring of the description's capability sentence, and `triage`'s repeated it word for word apart from bold markup. Nothing either section carried is lost, and no step, label, or seam verb changed.
+
+## [0.40.8]
+
+### Changed
+
+- Cite the marketplace `docs/` doctrine files by their lower-kebab names (`docs/plugin-philosophy.md`, `docs/migration-playbook.md`, and siblings); the files were renamed and the old uppercase paths no longer resolve.
+
 ## [0.40.7]
 
 ### Changed

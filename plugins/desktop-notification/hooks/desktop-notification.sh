@@ -181,16 +181,12 @@ fi
 if [[ -n "$start" ]] && hook::telemetry_enabled; then
   if ((${#CHANNELS[@]})); then
     ch_json="["
-    __ch_first=1
+    __ch_sep=""
     for __ch in "${CHANNELS[@]}"; do
       __ch_e=""
       hook::json_escape_jq_to __ch_e "$__ch"
-      if ((__ch_first)); then
-        __ch_first=0
-      else
-        ch_json+=","
-      fi
-      ch_json+="\"$__ch_e\""
+      ch_json+="$__ch_sep\"$__ch_e\""
+      __ch_sep=","
     done
     ch_json+="]"
     status="ok"

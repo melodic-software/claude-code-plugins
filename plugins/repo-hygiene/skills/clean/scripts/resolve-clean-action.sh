@@ -35,8 +35,13 @@ fi
 
 joined="$(printf '%s ' "$@" | tr '[:upper:]' '[:lower:]')"
 
-resolve_one() {
-  case "$1" in
+# resolve_token <token>: one raw argument to its canonical action name (empty
+# when unrecognized). Folds to lower case first, because the tables below are
+# all lower-case.
+resolve_token() {
+  local t
+  t="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$t" in
   scan | inventory | space | audit | report | show)
     printf 'scan'
     ;;
@@ -73,17 +78,8 @@ resolve_one() {
   all | sweep | everything)
     printf 'all'
     ;;
-  *)
-    printf ''
-    ;;
+  *) ;;
   esac
-}
-
-# resolve_token <token> — one raw argument to its canonical action name (empty
-# when unrecognized). Folds to lower case first: resolve_one's tables are all
-# lower-case.
-resolve_token() {
-  resolve_one "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
 }
 
 # A whole-phrase fleet intent ("reset all my repos", "every repo", "ghq list").

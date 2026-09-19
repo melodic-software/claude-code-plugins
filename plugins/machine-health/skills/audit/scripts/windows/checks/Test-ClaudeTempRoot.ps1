@@ -153,7 +153,7 @@ try {
     $root = Resolve-ClaudeTempRoot
 
     if (-not $root.Exists) {
-        # Not applicable exits quietly and successfully (docs/PLUGIN-PHILOSOPHY.md
+        # Not applicable exits quietly and successfully (docs/plugin-philosophy.md
         # "Prerequisites and failure behavior"). Same shape as the battery check on a
         # desktop: OK with a negative detail flag, never UNKNOWN.
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
@@ -173,8 +173,7 @@ try {
             scan_truncated          = $false
             remediation_route       = 'disk-hygiene:clean'
         } `
-            -NeedsAdmin $false -RanSuccessfully $true `
-            -DurationMs ([int]$sw.ElapsedMilliseconds)
+            -NeedsAdmin $false -RanSuccessfully $true
     } else {
         $now = Get-Date
         $totalBytes = [long]0
@@ -265,8 +264,7 @@ try {
                     "across $sessionCount session dirs.") `
                 -Commands $commands -Detail $detail -NeedsAdmin $false `
                 -RanSuccessfully $false `
-                -ErrorMessage $reason `
-                -DurationMs ([int]$sw.ElapsedMilliseconds)
+                -ErrorMessage $reason
         } else {
             # Severity ladder (most severe first). This check never emits CRIT: the
             # tree is reclaimable cache with no data-loss or security consequence, and
@@ -295,17 +293,12 @@ try {
             # than a lower bound and the threshold verdict stands on its own.
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
                 -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
-                -NeedsAdmin $false -RanSuccessfully $true `
-                -DurationMs ([int]$sw.ElapsedMilliseconds)
+                -NeedsAdmin $false -RanSuccessfully $true
         }
     }
 } catch {
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-        -Severity 'UNKNOWN' -Summary 'Claude Code temp-root check failed.' -Commands $commands `
-        -RanSuccessfully $false -ErrorMessage $_.Exception.Message `
-        -DurationMs ([int]$sw.ElapsedMilliseconds)
+    $result = New-HealthFailureResult -Id $id -Category $category `
+        -Summary 'Claude Code temp-root check failed.' -Commands $commands -ErrorRecord $_
 }
 
-$sw.Stop()
-$result.duration_ms = [int]$sw.ElapsedMilliseconds
-$result | Write-HealthResult -Human:$Human
+Complete-HealthCheck -Result $result -Stopwatch $sw -Human:$Human

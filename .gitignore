@@ -11,7 +11,6 @@ Thumbs.db
 *.swp
 
 # Local-only Claude Code state
-.claude/settings.local.json
 .claude/observability/
 .observability/
 .claude/worktrees/
@@ -26,6 +25,15 @@ CLAUDE.local.md
 
 # Test-result artifacts (Pester runner output)
 artifacts/
+
+# claude plugin eval run output (aggregate-result.json, report.html per timestamped run)
+plugins/*/evals/results/
+
+# coverage.py output of the plugin suite run documented in
+# plugins/code-metrics/README.md "Testing the plugin"
+.coverage
+.coverage.*
+plugins/code-metrics/coverage.json
 
 # Topic memory tier — never committed (docs/conventions/topic-docs/README.md "Memory")
 .work/

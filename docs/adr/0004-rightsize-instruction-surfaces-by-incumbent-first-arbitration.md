@@ -59,7 +59,7 @@ re-decide.
 | # | Decision | Consequence |
 |---|---|---|
 | D-7 | **Fold the listing-budget material into issue #1271**, and adopt its `when_to_use` lever | #1271 already measured the defect and found the field this effort's agents missed. No second ticket |
-| D-8 | **Sequence behind PR #1096** for anything touching `check-skill.sh` or `docs/PLUGIN-PHILOSOPHY.md` | Check 21 is taken. New criteria pick a free number against the post-merge file |
+| D-8 | **Sequence behind PR #1096** for anything touching `check-skill.sh` or `docs/plugin-philosophy.md` | Check 21 is taken. New criteria pick a free number against the post-merge file |
 | D-9 | **Sequence the user-scope work behind dotfiles PRs #318 and #312**, and read #312's Opus 5 re-derivation as an input before measuring | Measuring `dot_claude/CLAUDE.md` while two PRs edit it produces a diff that reverts newer rules |
 | D-10 | **Drop the stale dotfiles branch** `docs/claude-md-github-conventions` (+13 lines to `CLAUDE.md`, last commit 2026-07-15, no PR) | One fewer writer on the contested file |
 | D-11 | **Reconcile with issue #1225 before building anything sweep-shaped** | Two repo-wide sweeps become two routers |
@@ -81,7 +81,7 @@ These are the questions the section agents explicitly declined to answer, plus t
 | D-15 | **Arbitration stays the repo's default posture.** Deletion is adopted only where a constraint has no current safety rationale | Overrides the article's blanket delete-constraints posture. A lane proposing a deletion must state the constraint's rationale and why it no longer holds |
 | D-16 | **The fresh-docs mandate narrows in scope, not in substance** — it binds changes touching a plugin manifest, marketplace schema, hook contract, or documented harness behavior | Prose and mechanical edits are out. The mandate stays non-negotiable within its scope |
 | D-17 | **Auto-memory: move `autoMemoryEnabled` from `claudeSettings.force` to `claudeSettings.seed`, seeded `false`** | Two decisions, both taken. The tier move ends the silent-revert trap; `seed` writes only when absent, so this machine keeps its current value and every fresh machine starts off. Overrides the S7 agent's `true` recommendation on tracked-drift grounds — the capability unlock is available per machine by toggle |
-| D-18 | **Cut `CLAUDE.md:13-30`** (the doc-URL table) to a pointer at `docs/OFFICIAL-DOCS.md` | Verified strict subset; 29.6% of the file; line 30 already points at the superset. Accepted risk: the mandate's force must come from the rule, not from the URLs being pre-loaded |
+| D-18 | **Cut `CLAUDE.md:13-30`** (the doc-URL table) to a pointer at `docs/official-docs.md` | Verified strict subset; 29.6% of the file; line 30 already points at the superset. Accepted risk: the mandate's force must come from the rule, not from the URLs being pre-loaded |
 | D-19 | **Vendored `skill-authoring` guidance governs authoring mechanics; this effort's carve-out governs what stays constrained** | Different axes. Where they genuinely collide, upstream wins and the divergence is recorded — a vendored file is never hand-edited |
 
 ### Standing constraints these decisions inherit

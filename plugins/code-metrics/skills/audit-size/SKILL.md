@@ -59,9 +59,8 @@ side as INCONCLUSIVE); otherwise keep the JSON beside your notes and compare by 
 - The reference compares against `lines_non_blank`. The bundled default is 1000, and its
   provenance is the one sentence the report prints beside it: the plugin's own number, not
   ISO-backed: it coincides with the informative figure in ISO/IEC 5055:2021 §6.3 Table 1, which is
-  not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is the
-  operator-list figure, selectable; size.mode iso-8.2.115 selects the normative
-  function-percentage alternative.
+  not normative, while the normative form (§8.2.115) is a function-level percentage; 500 is
+  selectable; size.mode iso-8.2.115 selects the normative function-percentage alternative.
 - A `null` value means the collector did not produce it (the bundled counter has no comment
   count); it is never zero.
 - `status` is `complete` when every lane in scope was measured, `partial` when one was not, and
