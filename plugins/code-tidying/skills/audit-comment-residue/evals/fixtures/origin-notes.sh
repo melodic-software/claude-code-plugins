@@ -2,6 +2,7 @@
 # Copyright (c) 2026 Example Corp.
 # SPDX-License-Identifier: MIT
 # Licensed under the MIT License; see LICENSE for details.
+
 # --- Shell-init caching (ported from the melodic-software dotfiles profile) ---
 # Merged 2026-07-24 from dot_bashrc
 # Added 2026-08-10 while wiring permission/hook telemetry.

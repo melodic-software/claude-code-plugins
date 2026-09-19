@@ -18,11 +18,16 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
   Because Tier 1 reads "remove", two comment classes are exempt whatever verb they open with: a
   marker comment (`TODO`, `FIXME`, `HACK`, `XXX`), which is tracked work rather than residue, and a
-  license or attribution header carrying `Copyright`, `(c)`, `SPDX-License-Identifier`, `Licensed
-  under` or `License:`, whose text the reader may be legally required to keep. The license test is
-  line-level, so a header block whose later lines carry no license cue of their own is not covered.
-  The same exemptions are NOT yet wired into `history-narration`, `plan-reference` or
-  `conversational-antecedent`, which still report a license header narrating a change.
+  license or attribution header, whose text the reader may be legally required to keep. The license
+  exemption is BLOCK-scoped: a run of contiguous comment lines in which any line carries
+  `SPDX-License-Identifier`, `Licensed under`, `License:`, a `Copyright` beside a year or a
+  `(c)`/`©` sign, or a `(c)` in front of a year is exempt whole, so the attribution line of a NOTICE
+  header is covered even though the cue sits on another line of the block. The run ends at the first
+  blank line or line of code, and a trailing comment on a code line opens no run. The `Copyright`
+  and `(c)` cues each require that corroboration because both are ordinary words a comment uses, as
+  in "to satisfy the copyright audit" or "the callback signature `f(c)`". The same exemptions are
+  NOT yet wired into `history-narration`, `plan-reference` or `conversational-antecedent`, which
+  still report a license header narrating a change.
 
 ### Changed
 

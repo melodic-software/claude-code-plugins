@@ -87,10 +87,51 @@ cr_is_sanctioned_todo() {
   [[ "$1" =~ (TODO|FIXME|HACK|XXX) ]]
 }
 
+# A line whose first non-blank characters are a comment leader. A trailing comment on a code
+# line is NOT one, so a license block never runs on through code.
+cr_is_comment_line() {
+  [[ "$1" =~ ^[[:space:]]*(#|//|/\*|\*|--) ]]
+}
+
+# License or attribution cue, tested against comment TEXT. Narrow on purpose: `copyright` and
+# `(c)` are ordinary words a comment uses ("to satisfy the copyright audit", "the callback
+# signature f(c)"), so each needs corroboration — a year, a (c)/© sign, or the start of the
+# comment — before it exempts anything.
+cr_has_license_cue() {
+  local lc="${1,,}"
+  [[ "$lc" =~ (spdx-license-identifier|licensed[[:space:]]+under|license:) ]] && return 0
+  [[ "$lc" =~ copyright[[:space:]]*(\(c\)|©|[0-9]{4}) ]] && return 0
+  [[ "$lc" =~ ^[[:space:]]*copyright ]] && return 0
+  [[ "$lc" =~ \(c\)[[:space:]]*[0-9]{4} ]] && return 0
+  return 1
+}
+
+# Line numbers belonging to a license block: a run of contiguous comment lines in which at
+# least one line carries a license cue. The whole run is exempt from origin-note, because a
+# NOTICE header states its licence once and then attributes on a line of its own. The run ends
+# at the first non-comment line, so the same sentence elsewhere in the file is unaffected.
+cr_license_block_lines() {
+  local line n=0 start=0 cue=0 i
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    n=$((n + 1))
+    if cr_is_comment_line "$line"; then
+      ((start == 0)) && start=$n
+      ((cue)) || { cr_has_license_cue "$(cr_comment_text "$line")" && cue=1; }
+      continue
+    fi
+    ((start > 0 && cue)) && for ((i = start; i < n; i++)); do printf '%s\n' "$i"; done
+    start=0
+    cue=0
+  done <"$1"
+  ((start > 0 && cue)) && for ((i = start; i <= n; i++)); do printf '%s\n' "$i"; done
+  return 0
+}
+
 # Emit zero or more shape names (one per line on stdout). Return 1 if any emitted (cosmetic;
 # the caller reads stdout).
 cr_detect_shapes() {
   local line="$1"
+  local in_license_block="${2:-0}"
   local ct
   ct="$(cr_comment_text "$line")"
   [[ -z "${ct//[[:space:]]/}" ]] && return 0
@@ -133,10 +174,10 @@ cr_detect_shapes() {
   # with: a marker comment, which is tracked work rather than residue, and a license or
   # attribution header, whose text the reader may be legally required to keep. The
   # marker test reuses cr_is_sanctioned_todo rather than redefining which markers count.
-  # The license test is line-level by design; a header BLOCK whose later lines carry no
-  # license cue of their own is not covered.
-  if ! cr_is_sanctioned_todo "$ct" &&
-    ! [[ "$lc" =~ (copyright|\(c\)|spdx-license-identifier|licensed[[:space:]]+under|license:) ]]; then
+  # The license test is BLOCK-scoped and the caller owns it, because a NOTICE header
+  # states its licence once and attributes on a separate line; cr_license_block_lines
+  # computes the run and the caller passes the verdict in.
+  if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
     if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from ]] ||
       [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
       printf '%s\n' 'origin-note'

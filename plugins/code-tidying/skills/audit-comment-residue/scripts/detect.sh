@@ -147,13 +147,22 @@ audit_file() {
   local t1=0 t2=0 t3=0
   local prev_line="" line_num=0 shapes shape tier excerpt
 
+  # One pre-pass marks every line of a comment run that carries a license cue, so an
+  # attribution line inside a NOTICE header is exempt from origin-note even though the
+  # cue sits on a different line of the same block.
+  local -A license_block=()
+  local n
+  while IFS= read -r n; do
+    [[ -n "$n" ]] && license_block["$n"]=1
+  done < <(cr_license_block_lines "$file")
+
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
     if cr_line_skipped "$prev_line" "$line"; then
       prev_line="$line"
       continue
     fi
-    shapes="$(cr_detect_shapes "$line" || true)"
+    shapes="$(cr_detect_shapes "$line" "${license_block[$line_num]:-0}" || true)"
     if [[ -n "$shapes" ]]; then
       excerpt="$(cr_trim_excerpt "$line")"
       while IFS= read -r shape; do

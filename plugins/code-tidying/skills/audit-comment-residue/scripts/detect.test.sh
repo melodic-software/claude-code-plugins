@@ -497,15 +497,71 @@ cat >"$ORIGIN_EXEMPT" <<'EOF'
 # TODO(#123): ported from lib/x
 # TODO: ported from lib/x
 # FIXME: copied from the vendor SDK
-# Copyright (c) 2026 Example Corp. Adapted from lib/x
+
+# Copyright 2019 Acme Corp. Adapted from lib/x
+
+# (c) 2019 Acme Corp. Copied from lib/x
+
 # SPDX-License-Identifier: MIT; copied from the upstream license text
+
 # Licensed under the MIT License; ported from the vendor SDK
+
 # License: Apache-2.0, adapted from the reference implementation
+
 # Ported from lib/x
 EOF
 origin_exempt_out="$(bash "$DETECT" "$ORIGIN_EXEMPT")"
 assert_contains "an ordinary origin note still fires beside the exempt lines" "$origin_exempt_out" "Finding excerpt: # Ported from lib/x"
 assert_contains "marker and license comments are exempt from origin-note" "$origin_exempt_out" "T1=1 T2=0 T3=0"
+
+# The exemption is BLOCK-scoped: a contiguous comment run carrying a license cue anywhere
+# in it is exempt whole, because the canonical NOTICE header does not repeat the cue on
+# the attribution line. The run ends at a blank line or at code, so the same sentence in
+# the next comment run is an ordinary origin note again.
+ORIGIN_BLOCK="$TEST_TMPDIR/origin-block.js"
+cat >"$ORIGIN_BLOCK" <<'EOF'
+/*
+ * Copyright (c) 2019 Acme Corp.
+ * Ported from the reference implementation.
+ * Licensed under the MIT License.
+ */
+
+// BLK1: Ported from the reference implementation.
+const a = 1;
+// BLK2: Copied from the reference implementation.
+EOF
+origin_block_out="$(bash "$DETECT" "$ORIGIN_BLOCK")"
+assert_not_contains "a cue-less line inside a NOTICE block is exempt" "$origin_block_out" "Finding excerpt: * Ported from the reference implementation."
+assert_contains "the same sentence after a blank line still fires" "$origin_block_out" "Finding excerpt: // BLK1: Ported from the reference implementation."
+assert_contains "the same sentence after a code line still fires" "$origin_block_out" "Finding excerpt: // BLK2: Copied from the reference implementation."
+assert_contains "only the NOTICE block is exempt" "$origin_block_out" "T1=2 T2=0 T3=0"
+
+# The hash-comment run form, and the run ending at code rather than a blank line.
+ORIGIN_BLOCK_HASH="$TEST_TMPDIR/origin-block-hash.sh"
+cat >"$ORIGIN_BLOCK_HASH" <<'EOF'
+# Copyright 2019 Acme Corp.
+# Ported from the reference implementation.
+value=1
+# HASH1: Ported from the reference implementation.
+EOF
+origin_block_hash_out="$(bash "$DETECT" "$ORIGIN_BLOCK_HASH")"
+assert_not_contains "a hash NOTICE run is exempt whole" "$origin_block_hash_out" "Finding excerpt: # Ported from the reference implementation."
+assert_contains "a hash run after code still fires" "$origin_block_hash_out" "Finding excerpt: # HASH1: Ported from the reference implementation."
+assert_contains "only the hash NOTICE run is exempt" "$origin_block_hash_out" "T1=1 T2=0 T3=0"
+
+# The license cues are narrow: `copyright` counts beside a (c), a year, or at the start of
+# the comment, and `(c)` counts only in front of a year. Otherwise these two ordinary
+# comments would be silently exempted.
+ORIGIN_NARROW="$TEST_TMPDIR/origin-narrow.js"
+cat >"$ORIGIN_NARROW" <<'EOF'
+// NAR1: Ported from the legacy fork to satisfy the copyright audit.
+
+// NAR2: Copied from the legacy fork; the callback signature f(c) is unchanged.
+EOF
+origin_narrow_out="$(bash "$DETECT" "$ORIGIN_NARROW")"
+assert_contains "a bare copyright mention does not exempt" "$origin_narrow_out" "Finding excerpt: // NAR1: Ported from the legacy fork"
+assert_contains "a yearless (c) token does not exempt" "$origin_narrow_out" "Finding excerpt: // NAR2: Copied from the legacy fork"
+assert_contains "both narrowed cases are findings again" "$origin_narrow_out" "T1=2 T2=0 T3=0"
 
 # One line can carry two shapes with opposite tiers; both are reported, neither masks
 # the other.
