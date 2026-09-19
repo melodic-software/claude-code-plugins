@@ -645,6 +645,37 @@ unterminated_case 'an unterminated `${` carrying a heredoc opener' \
   'x=${unset:-$(cat <<EOF' 'cat <<HELP' 'EOF' ')}' 'emit error P4 SRC "message"' 'HELP'
 unterminated_case 'an unterminated `((` carrying a heredoc opener' \
   'x=$(( a + $(cat <<EOF' 'cat <<HELP' 'EOF' ') ))' 'emit error P4 SRC "message"' 'HELP'
+
+# THE OTHER DIRECTION, which the two above do not cover and whose absence let a
+# regression through: a `<<` that is INSIDE the unterminated construct is DATA
+# (or a left shift), not an opener, and must arm nothing. Keeping the whole
+# tail armed a skip bash never opens, and it then CLOSED on the file's own
+# later terminator -- swallowing the sites between, with nothing outstanding at
+# EOF. That is a silent loss the unclosed-at-EOF rule cannot see, so each
+# fixture puts a real call site in the swallow window and requires it back.
+inside_data_case() {
+  local label="$1"
+  shift
+  mk_tree
+  mk_detector det.sh 'emit warning P1 SRC "message"' "$@"
+  mk_evals evals.json "$(evals_json 'exercises P1 classification')"
+  run_gate "$(pair det.sh evals.json)" --check
+  if [[ $RC -eq 1 && "$ERR" == *"UNCOVERED CHECK ID: P4"* ]]; then
+    ok "P3b: $label arms nothing"
+  else
+    fail "P3b $label armed on data: rc=$RC out='$OUT' err='$ERR'"
+  fi
+  rm -rf "$root"
+}
+
+# `hint=${HINT:-<<EOF ...}` prints the text `<<EOF ...`; bash opens no heredoc.
+inside_data_case 'a `<<` that is data inside an unterminated `${`' \
+  'hint=${HINT:-<<EOF opens a heredoc body' '}' 'emit error P4 SRC "message"' \
+  'cat <<EOF' 'usage text' 'EOF' 'emit warning P1 SRC "message"'
+# A line-wrapped arithmetic expansion: the `<<` is the left-shift operator.
+inside_data_case 'a left shift inside an unterminated `$((`' \
+  'mask=$(( (1 << SHIFT) -' '         1 ))' 'emit error P4 SRC "message"' \
+  'cat <<SHIFT' 'usage text' 'SHIFT' 'emit warning P1 SRC "message"'
 p3b_case 'an escaped `<` is not an operator' 'printf "%s\\n" \<\<EOF' # portability-ok: fixture shell containing an escaped redirection operator, not a GNU grep word boundary
 p3b_case 'a left shift in an array subscript' 'a[1<<3]=5'
 p3b_case 'a left shift in `$[ ]` arithmetic' 'v=$[ 1 << 3 ]'

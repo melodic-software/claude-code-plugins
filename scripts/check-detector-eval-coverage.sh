@@ -395,6 +395,47 @@ function cmd_position(p) {
   return 0
 }
 function forwarded(t) { return (t == "@FWD@" || t == "$@" || t == "$*") }
+function cmdsub_tail(s,   n, i, j, c, cc, d, top, stack) {
+  # Inside an UNTERMINATED `${` or `((`, a `<<` is literal data or a left
+  # shift -- EXCEPT inside a command substitution, which is its own parsing
+  # context and where a heredoc really can be opened. So this returns the tail
+  # after the LAST UNCLOSED `$(`, and "" when there is none.
+  #
+  # Keeping the WHOLE tail instead armed a skip bash never opens
+  # (`hint=${HINT:-<<EOF opens a heredoc body`), and that skip then CLOSED on
+  # the file's own later `EOF` terminator, swallowing the real call sites in
+  # between and leaving nothing outstanding at EOF. Silent, and the mirror of
+  # the loss that keeping the tail was meant to fix.
+  n = length(s)
+  top = 0
+  i = 1
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (c == "$" && substr(s, i + 1, 1) == "(") {
+      if (substr(s, i + 2, 1) == "(") {
+        # Arithmetic, not a command substitution: skip its whole span.
+        d = 0
+        j = i + 1
+        while (j <= n) {
+          cc = substr(s, j, 1)
+          if (cc == "(") d++
+          else if (cc == ")") { d--; if (d == 0) break }
+          j++
+        }
+        i = (j > n) ? n + 1 : j + 1
+        continue
+      }
+      top++
+      stack[top] = i + 2
+      i += 2
+      continue
+    }
+    if (c == ")" && top > 0) { top-- }
+    i++
+  }
+  if (top > 0) return substr(s, stack[top])
+  return ""
+}
 function strip_arith(s,   r, j, n, depth, c, head) {
   # Arithmetic removed, because `<<` inside it is the left-shift OPERATOR.
   # BOTH spellings: the `$(( ... ))` expansion and bash's bare `(( ... ))`
@@ -418,12 +459,12 @@ function strip_arith(s,   r, j, n, depth, c, head) {
       j++
     }
     head = substr(s, 1, r - 1)
-    # UNTERMINATED: keep the tail, drop only the `((`. Returning the head threw
-    # the rest of the line away, and a REAL heredoc opener can live in there --
-    # see strip_pexp below, where that cost a silent loss. Keeping it can arm a
-    # `<<` that was only arithmetic, which never closes and so exits 2. That is
-    # the safe side of the trade; discarding is not.
-    if (j > n) return head " " substr(s, r + 2)
+    # UNTERMINATED: keep only what a COMMAND SUBSTITUTION in the tail opened.
+    # Returning the bare head threw away a real opener; returning the whole
+    # tail armed on a left shift (`mask=$(( (1 << SHIFT) -`), and that skip
+    # closed on a later `SHIFT` line rather than running to EOF. Both are
+    # silent losses. See cmdsub_tail.
+    if (j > n) { c = cmdsub_tail(substr(s, r + 2)); return (c == "") ? head : head " " c }
     s = head " " substr(s, j + 1)
   }
   return s
@@ -445,13 +486,15 @@ function strip_pexp(s,   r, j, n, depth, c, head) {
       j++
     }
     head = substr(s, 1, r - 1)
-    # UNTERMINATED: keep the tail, drop only the `${`. A multi-line parameter
-    # expansion can carry a command substitution that opens a REAL heredoc --
-    # `x=${unset:-$(cat <<EOF` is valid bash -- and returning the head threw
-    # that opener away. The body was then read as code, a `cat <<HELP` inside
-    # it armed, an uncovered `emit` was swallowed, and a later `HELP` closed
-    # the skip so nothing was outstanding at EOF: exit 0, silently wrong.
-    if (j > n) return head " " substr(s, r + 2)
+    # UNTERMINATED: keep only what a COMMAND SUBSTITUTION in the tail opened.
+    # `x=${unset:-$(cat <<EOF` is valid bash and really does open a heredoc,
+    # so returning the bare head lost that opener silently. But the rest of an
+    # unterminated `${` is DATA -- `hint=${HINT:-<<EOF opens a heredoc body`
+    # prints that text -- so returning the whole tail armed a skip bash never
+    # opened, which then closed on the file's own later `EOF` and swallowed
+    # the call sites in between. Equally silent, in the other direction. Only
+    # the command-substitution part is shell. See cmdsub_tail.
+    if (j > n) { c = cmdsub_tail(substr(s, r + 2)); return (c == "") ? head : head " " c }
     s = head " " substr(s, j + 1)
   }
   return s
