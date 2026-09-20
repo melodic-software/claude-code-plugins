@@ -159,10 +159,11 @@ echo "=== remove-shims: $REPO ==="
 echo
 echo "What removing the shims costs (reference/sources.md, 'What shim removal costs'):"
 if [[ -f "$SOURCES_MD" ]]; then
-  awk '/^## What shim removal costs/ { f = 1; next }
-       f && /^- \*\*Claim\*\*/ { p = 1 }
-       p && /^- \*\*Basis\*\*/ { exit }
-       p { print "  " $0 }' "$SOURCES_MD" | tr -d '\r'
+  tr -d '\r' <"$SOURCES_MD" |
+    awk '/^## What shim removal costs/ { f = 1; next }
+         f && /^- \*\*Claim\*\*/ { p = 1 }
+         p && /^- \*\*Basis\*\*/ { exit }
+         p { print "  " $0 }'
 else
   echo "  (records file not found at $SOURCES_MD)"
 fi

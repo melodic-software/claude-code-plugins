@@ -261,6 +261,11 @@ anything, test trees included**: in this fleet the one real blocker lives under 
 ${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/remove-shims.sh --root <repo> --confirm
 ```
 
+**`--confirm` is the operator's word, never yours.** Add it only after the operator has named this
+repository and said yes to it in this conversation: not pre-emptively, not because the check passed,
+and never carried over from a yes given about a different repository. Run it without `--confirm`
+first, show the operator what it prints, and wait.
+
 It refuses far more often than it acts, and every gate fails closed. Without `--confirm` it prints
 what removal costs and stops. With it, it refuses unless the **installed** `claude-memory` and
 `instruction-placement` carry the corrected doctrine (an older cached build advises a de-shimmed

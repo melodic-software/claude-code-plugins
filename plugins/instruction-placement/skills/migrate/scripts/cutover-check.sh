@@ -170,9 +170,11 @@ trim() {
   printf '%s' "${s%"${s##*[![:space:]]}"}"
 }
 
-# The body of one `## ` section of the records file.
+# The body of one `## ` section of the records file. Line endings are stripped
+# before the heading is matched, not after: a CRLF checkout of this file would
+# otherwise match no heading at all and make every record unparsable.
 section() {
-  awk -v h="$1" '$0 == h { f = 1; next } f && /^## / { exit } f' "$SOURCES_MD" | tr -d '\r'
+  tr -d '\r' <"$SOURCES_MD" | awk -v h="$1" '$0 == h { f = 1; next } f && /^## / { exit } f'
 }
 
 # A record this script cannot read is a fact it must not skip verifying.
@@ -227,9 +229,14 @@ repo_plan() {
   printf '%s/%s.plan' "$PLAN_OUT" "$key"
 }
 
+# A repository that cannot be planned yields no ACTION and no PATHDET rows, and
+# both conditions that read them would pass on the silence. A named site the
+# check cannot see is a usage error, not a clean result.
 for repo in "${REPOS[@]}"; do
-  bash "$PLAN_MIGRATION" --root "$repo" >"$(repo_plan "$repo")" 2>/dev/null ||
-    : >"$(repo_plan "$repo")"
+  bash "$PLAN_MIGRATION" --root "$repo" >"$(repo_plan "$repo")" 2>/dev/null || {
+    echo "cutover-check: cannot plan $repo: not a git repository, or unreadable" >&2
+    exit 2
+  }
 done
 
 # --- Condition 1 ----------------------------------------------------------
@@ -349,6 +356,10 @@ condition_2() {
     done <"$(repo_plan "$repo")"
   done
   note "CI canary: run $CI_CANARY_RUN on record, as of ${CI_CANARY_ASOF:-unknown}"
+  if ((pins == 0)); then
+    note "no pin in any named repository: a fleet verdict needs every in-scope repository named,"
+    note "and a lane that delegates to a reusable workflow is not an ACTION row"
+  fi
 
   if ((unknown > 0)); then
     unreach "$unknown pin(s) map to no known CLI version; an unreadable map is not a satisfied floor"

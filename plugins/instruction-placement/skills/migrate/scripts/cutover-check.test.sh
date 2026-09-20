@@ -162,6 +162,17 @@ rc=0
 bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/nope.md" >/dev/null 2>&1 || rc=$?
 assert_eq "a missing records file exits 2" 2 "$rc"
 
+# A named site the check cannot see is a usage error, not a clean result: an
+# unplannable repository yields no ACTION and no PATHDET rows, and both
+# conditions that read them would otherwise pass on the silence.
+mkdir -p "$TMP/norepo"
+rc=0
+ERR=$(GIT_CEILING_DIRECTORIES="$TMP" bash "$SCRIPT" --repo "$TMP/norepo" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary 2>&1) || rc=$?
+assert_eq "a repository that cannot be planned exits 2" 2 "$rc"
+assert_contains "and names the repository it could not plan" "$ERR" "cannot plan"
+assert_not_contains "and grades nothing on the silence" "$ERR" "[MET]"
+
 printf '# Records\n\n## The CI canary\n\nNothing parsable here.\n' >"$TMP/broken-sources.md"
 rc=0
 ERR=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/broken-sources.md" 2>&1 >/dev/null) || rc=$?
