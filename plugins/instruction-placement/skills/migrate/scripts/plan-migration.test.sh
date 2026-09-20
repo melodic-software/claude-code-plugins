@@ -60,8 +60,9 @@ assert_contains "--help explains the NONE row" "$OUT" "NONE"
 assert_contains "--help documents the DIR row's columns" "$OUT" "<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>"
 assert_contains "--help documents the BUDGET row's columns" "$OUT" "cumulative AGENTS.md bytes, root to that path"
 assert_contains "--help documents the mention roll-up" "$OUT" "--expand-mentions"
+assert_contains "--help documents the RULES row's columns" "$OUT" "<total> <unscoped> <unscoped bytes>"
 assert_contains "--dry-run is documented as accepted and ignored" "$OUT" "accepted and ignored"
-for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE MENTION DOCSHOME ACTION; do
+for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE MENTION RULES DOCSHOME ACTION; do
   assert_contains "--help documents the $kind row" "$OUT" "$kind"
 done
 

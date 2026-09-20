@@ -34,6 +34,11 @@
 #             list entry, a comment, a path in a config. Neither a link nor an
 #             existence call, so CITE and PATHDET miss them, and each can still
 #             break when the content moves. The operator triages.
+#   RULES     <total>  <unscoped>  <unscoped-bytes>
+#             How many `.claude/rules/**/*.md` the repository keeps, how many
+#             of them carry no `paths:` frontmatter, and the total bytes of
+#             those unscoped ones. An unscoped rule costs what a CLAUDE.md line
+#             costs, every session.
 #   DOCSHOME  <dir>  <found|absent>
 #             The repository's existing documentation home, where a pointer
 #             target lands. Detected, never imposed: the first tracked directory
@@ -124,6 +129,7 @@ Row kinds and their columns, tab-separated after the kind:
   PATHDET   <file>:<line>:<text>
   CITE      <file>:<line>:<text>
   MENTION   <file>:<line>:<text>, or <dir>/ <count> rows when rolled up
+  RULES     <total> <unscoped> <unscoped bytes>
   DOCSHOME  <dir> <found|absent>
   ACTION    <workflow>:<line>:<text>
 

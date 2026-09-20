@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Added
+
+- `migrate` gained `reference/sources.md`: one four-part dated record (claim, basis, as-of date, recheck trigger) per upstream fact the AGENTS.md cutover turns on. The GrowthBook flag `tengu_agents_md_mod` and how its code default is resolved from the shipped bundle without hardcoding the minifier-assigned identifier; the `env-vars` section "Features that need feature-flag fetching" and its AGENTS.md bullet, quoted; the CLI floor of 2.1.277; the `claude-code-action` release to installed CLI map, re-derived per tag from `base-action/action.yml` rather than copied (`v1.0.213` installs 2.1.258, `v1.0.222` 2.1.269, `v1.0.228` 2.1.275, `v1.0.231` 2.1.278, so only the last clears the floor); the CI canary result on a fresh-install runner, including that `claude-code-action` rejects the `push` event and has to be dispatched by REST; and what shim removal costs, which is that a directly read `AGENTS.md` is not listed in `/memory` or `/context` and fires no `InstructionsLoaded` hook. The canary recipe is pointed at, not restated.
+- A record in that file for what the observability loss means for measurement: `verify-load.sh` detects a load through the `InstructionsLoaded` hook, so it measures a shimmed surface and reports `VERDICT FAIL` for an `AGENTS.md` Claude reads directly, even when a headless canary from the same directory shows the file loaded. Measured on 2.1.278.
+
+### Changed
+
+- The old shim doctrine survived in two places and is corrected: `realign`'s apply recipe B said "Claude-specific additions go in the `CLAUDE.md` below the import line", and `context/routing-rubric.md` said the same in passing. Under the target shape a `CLAUDE.md` beside an `AGENTS.md` is exactly the one import line, and genuinely Claude-specific text goes to a `.claude/rules/` file scoped to the subtree.
+- `plan-migration.sh --help` documents the `RULES` row and its columns, which it has emitted since 0.14.0 without listing them, and the header comment gains the same row.
+
 ## [0.14.0]
 
 ### Added

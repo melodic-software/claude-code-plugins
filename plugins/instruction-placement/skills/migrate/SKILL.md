@@ -251,6 +251,14 @@ Memory files, and fires no `InstructionsLoaded` hook; one reached through a shim
 of its `CLAUDE.md` and keeps both. That is a reason the shim is worth its ~55 tokens, and a reason
 removing it later is a decision rather than tidying.
 
+Every upstream fact the eventual cutover turns on lives as a four-part dated record in
+[`reference/sources.md`](reference/sources.md): the remote flag and how its code default is read,
+the documented feature-flag dependency, the CLI floor, the `claude-code-action` release to CLI map,
+the CI canary result, and what shim removal costs. Read it before arguing about the shim from
+memory. One record there bears on verification today: `verify-load.sh` detects a load through the
+`InstructionsLoaded` hook, so it measures a **shimmed** surface and cannot see an `AGENTS.md` that
+Claude reads directly.
+
 **One setting changes the reading, and no repository can ship it.** Under `instructionFiles:
 claude-md-and-agents-md`, Claude Code loads both files, "each directory's `CLAUDE.md` files first
 and its `AGENTS.md` after them", so an unimported nested `AGENTS.md` does load and an `UNWIRED` row
