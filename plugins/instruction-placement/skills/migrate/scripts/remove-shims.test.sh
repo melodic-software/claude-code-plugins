@@ -385,7 +385,7 @@ assert_eq "and that one is byte-exact" "@AGENTS.md" "$(cat "$HALF/CLAUDE.md")"
 # string and score the line unique while the ancestor answers its probe.
 ESCAPED="$TMP/escaped"
 build_ready_repo "$ESCAPED"
-TRICKY='Install to C:\tools\new\bin and run .*+?[x] before the first deploy of the day.'
+TRICKY='Install to C:\tools\new\bin and run .*+?[x] before the first deploy of the day.' # portability-ok: a Windows path inside fixture text, not a GNU grep word boundary
 printf '# Conventions\n\n%s\n' "$TRICKY" >"$ESCAPED/AGENTS.md"
 printf '# Service\n\n%s\n' "$TRICKY" >"$ESCAPED/svc/AGENTS.md"
 commit_all "$ESCAPED" "root and nested share a line full of escapes"
