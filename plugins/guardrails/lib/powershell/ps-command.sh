@@ -100,16 +100,26 @@ PS_HERESTRING_EXPANDABLE=0
 # modelling escapes inside text it has already decided it cannot parse. Read by
 # ps::classify_git_command, where it is the trigger of last resort.
 PS_HERESTRING_EXPANDABLE_SUBEXPR=0
+# 1 when a line whose here-string OPENER sits inside a `#` comment was emitted as
+# ordinary text instead of opening a here-string. PowerShell reads `Write-Output
+# x # @"` as a comment that happens to carry the two characters `@"`, so the
+# lines after it are COMMANDS. The opener scan read them as here-string body and
+# dropped them, taking a live `git push --force` out of the guard's view. Nothing
+# is dropped now, so this flag is what routes the command to the sink: the two
+# readings cannot be told apart from the text alone, and the guard refuses rather
+# than picking one. Read by ps::classify_git_command, last in the trigger chain.
+PS_HERESTRING_COMMENT_OPENER=0
 # 1 when the last ps::_walk_quoted_spans_to pass crossed a DOUBLE-quote opener,
 # i.e. the walked text carries an expandable string. Written by the walk and read
 # by its IMMEDIATE caller; any later walk overwrites it.
 PS_QUOTED_SPAN_SAW_EXPANDABLE=0
 # Set by ps::classify_git_command when a command routes to the fail-closed sink:
-# which of the five triggers fired (`herestring-unbalanced`, `special-construct`,
-# `dynamic-invocation`, `launcher`, `herestring-subexpr`), empty otherwise. Read
+# which of the six triggers fired (`herestring-unbalanced`, `special-construct`,
+# `dynamic-invocation`, `launcher`, `herestring-subexpr`,
+# `herestring-comment-opener`), empty otherwise. Read
 # by the block messages
 # (so they name the construct actually present) and by the callers' telemetry (so
-# the five sink shapes are distinguishable in aggregate rather than collapsed into
+# the six sink shapes are distinguishable in aggregate rather than collapsed into
 # one `powershell-unparsable` token that hides which one over-blocks).
 PS_SINK_TRIGGER=""
 # Set by ps::classify_git_command — the command the caller should parse. Read by
@@ -288,6 +298,50 @@ ps::normalize_token_separating_spaces() {
   done
 }
 
+# ps::_herestring_opener_to <kind varname> <quote varname> <line>
+#
+# Whether LINE carries a here-string opener, and how PowerShell would read it.
+# KIND becomes `opener` (a live opener), `comment` (the opener characters sit
+# inside a `#` comment, so PowerShell reads them as comment TEXT and the
+# following lines as commands), or empty (neither). QUOTE is the opener's quote
+# (`'` or `"`) for both non-empty kinds, empty otherwise.
+#
+# ONE COPY. Three call sites need this decision (ps::blank_herestrings, the
+# unbalanced-tail blank, and the allow arm that reduces a flagged command), and a
+# second hand-maintained copy is exactly the drift this file's other SSOT notes
+# warn about: a copy that kept accepting a commented opener would blank the live
+# command lines after it in one lane while the other kept them.
+#
+# An opener is `@'` or `@"` as the final two characters of the line, as a TOKEN
+# rather than the tail of an ordinary quoted string (`Write-Output '@'` ends in
+# the characters @' but is a plain string; treating it as an opener would swallow
+# following code lines into a phantom here-string body). Distinguish by stripping
+# PAIRED quote spans first: a real opener's quote is unpaired, so its `@'`
+# survives, while `'@'` / `'foo@'` disappear. The two strips apply IN ORDER, so
+# the double-quote strip still sees the single-quote-stripped line.
+#
+# The `#` test runs on that same reduced line, which is what keeps a `#` INSIDE a
+# string from refusing a real opener (`'x # y' @"` still opens). It is
+# deliberately OVER-inclusive the other way: PowerShell starts a comment only at
+# a token start, so `Write-Output foo#bar @"` is one Generic token and a live
+# opener, and this test refuses it anyway. Modelling the token-start rule needs a
+# separator class, and an under-inclusive class leaves `;# @"` and `|# @"` live,
+# which is the fail-OPEN direction. The over-block is the cost taken instead.
+ps::_herestring_opener_to() {
+  local __ho_line="$3" __ho_scan
+  printf -v "$1" '%s' ''
+  printf -v "$2" '%s' ''
+  ps::_gsub_to __ho_scan "$__ho_line" "'[^']*'" ''
+  ps::_gsub_to __ho_scan "$__ho_scan" '"([^"\\]|\\.)*"' ''
+  [[ "$__ho_scan" == *"@'" || "$__ho_scan" == *'@"' ]] || return 0
+  printf -v "$2" '%s' "${__ho_line: -1}" # ' or "
+  if [[ "$__ho_scan" == *'#'* ]]; then
+    printf -v "$1" '%s' comment
+  else
+    printf -v "$1" '%s' opener
+  fi
+}
+
 # Blank properly-delimited PowerShell here-strings to PS_HERESTRING_PLACEHOLDER.
 # PowerShell here-string rules (about_Quoting_Rules): the opener `@'`/`@"` is the
 # last token on its line (followed by a newline); the closer `'@`/`"@` is at the
@@ -307,12 +361,14 @@ ps::blank_herestrings() {
   # matched no call site in any measuring probe and fell through ALLOWED (#2928).
   ps::normalize_token_separating_spaces "$1"
   local cmd="$PS_NORMALIZED"
-  local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer opener_scan
+  local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer
+  local hs_kind="" hs_open_quote=""
   local -a hs_lines=()
   PS_HERESTRING_UNBALANCED=0
   PS_HERESTRING_QUOTE=""
   PS_HERESTRING_EXPANDABLE=0
   PS_HERESTRING_EXPANDABLE_SUBEXPR=0
+  PS_HERESTRING_COMMENT_OPENER=0
 
   ps::_split_lines_to hs_lines "$cmd"
   for line in "${hs_lines[@]}"; do
@@ -343,18 +399,9 @@ ps::blank_herestrings() {
       # A body line (no column-zero closer) is dropped.
       continue
     fi
-    # An opener is `@'` or `@"` as the final two characters of the line — as a
-    # TOKEN, not as the tail of an ordinary quoted string (`Write-Output '@'`
-    # ends in the characters @' but is a plain string; treating it as an opener
-    # would swallow following code lines into a phantom here-string body).
-    # Distinguish by stripping PAIRED quote spans first: a real opener's quote
-    # is unpaired, so its `@'` survives, while `'@'` / `'foo@'` disappear.
-    # The two strips apply IN ORDER, so the double-quote strip still sees the
-    # single-quote-stripped line.
-    ps::_gsub_to opener_scan "$line" "'[^']*'" ''
-    ps::_gsub_to opener_scan "$opener_scan" '"([^"\\]|\\.)*"' ''
-    if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
-      hs_quote="${line: -1}" # ' or "
+    ps::_herestring_opener_to hs_kind hs_open_quote "$line"
+    if [[ "$hs_kind" == opener ]]; then
+      hs_quote="$hs_open_quote"
       # `@"` opens an EXPANDABLE body, evaluated where it is written, so the
       # placeholder about to replace it stands for text that can contain a
       # command position. `@'` opens a verbatim body and stands for inert text.
@@ -362,6 +409,14 @@ ps::blank_herestrings() {
       pending="${line%??}${PS_HERESTRING_PLACEHOLDER}"
       in_hs=1
       continue
+    fi
+    if [[ "$hs_kind" == comment ]]; then
+      # The opener sits inside a comment, so PowerShell never opens a here-string
+      # here and the lines below are COMMANDS. Emit the line as the ordinary text
+      # it is: no `in_hs`, no expandable flag, nothing dropped. The flag is what
+      # routes the command to the sink, where its git-freedom is proved over text
+      # that is actually present rather than over a body that was removed.
+      PS_HERESTRING_COMMENT_OPENER=1
     fi
     out+="${line}"$'\n'
   done
@@ -1653,7 +1708,7 @@ ps::classify_git_command() {
 
   ps::blank_herestrings "$cmd"
   ps::blank_quoted_spans_to scan "$PS_BLANKED"
-  # Record WHICH trigger routed the command here. Five distinct shapes reach this
+  # Record WHICH trigger routed the command here. Six distinct shapes reach this
   # sink and they need different remediation: an operator told to "remove the
   # unparsable construct" when the trigger was a launcher or a computed call
   # target has nothing to remove (#1968). The order matches the test order below,
@@ -1680,6 +1735,20 @@ ps::classify_git_command() {
     # operator who allowlisted `{}` grouping or a `--%` tail, which is the only
     # relief those shapes have. A distinct token keeps the opt-ins separate.
     PS_SINK_TRIGGER="herestring-subexpr"
+  elif ((PS_HERESTRING_COMMENT_OPENER)); then
+    # A here-string opener inside a `#` comment. PowerShell reads the following
+    # lines as COMMANDS, the opener scan would have read them as body, and the
+    # text alone does not settle which. Nothing is dropped, so the git probe
+    # below runs over the real lines: `Write-Output x # @"` / `git push --force`
+    # is refused on the git it can see, while a git-free one is allowed through
+    # the git-freedom branch.
+    #
+    # LAST in the chain, and its OWN name. Reusing `herestring-unbalanced` would
+    # be the closest fit by shape, and it is the one reuse that must not happen:
+    # that arm of ps::blank_sink_opaque_regions blanks from the hanging opener
+    # through end of input, so under `ps-unparsable-herestring-unbalanced` the
+    # live command lines would be hidden and the command allowed again.
+    PS_SINK_TRIGGER="herestring-comment-opener"
   fi
   if [[ -n "$PS_SINK_TRIGGER" ]]; then
     # Not faithfully tokenizable. Fail closed unless provably git-free. The git
@@ -1739,6 +1808,9 @@ ps::classify_git_command() {
 #   herestring-subexpr: every BALANCED here-string body, which is wider than the
 #     trigger itself: a verbatim `@'` body goes too, because the reduction is
 #     ps::blank_herestrings rather than a region walk of its own
+#   herestring-comment-opener: the two opener characters on each flagged line,
+#     replaced by the inert placeholder; every other line is copied through,
+#     because the whole point of the trigger is that nothing was ever opaque
 #
 # Statement tails stop at top-level `;` / newline / `|` / `&&` / `||` so a
 # pipeline consumer or following statement remains for normal checks.
@@ -1749,6 +1821,7 @@ ps::blank_sink_opaque_regions() {
   launcher) ps::_blank_cmd_statements "$cmd" "launcher" ;;
   special-construct) ps::_blank_special_construct_regions "$cmd" ;;
   herestring-unbalanced) ps::_blank_unbalanced_herestring_tail "$cmd" ;;
+  herestring-comment-opener) ps::_blank_commented_herestring_openers "$cmd" ;;
   herestring-subexpr)
     # The opaque region IS the here-string body, and blanking it is exactly what
     # ps::blank_herestrings already does, so the reduced command keeps every
@@ -1997,9 +2070,14 @@ ps::_blank_special_construct_regions() {
 # Blank from an unbalanced here-string opener through end of input. Writes
 # PS_SAFE_COMMAND (prefix before the hanging opener, if any).
 ps::_blank_unbalanced_herestring_tail() {
-  local cmd="$1" line out="" pending="" in_hs=0 hs_quote="" first2 closer opener_scan
+  local cmd="$1" line out="" pending="" in_hs=0 hs_quote="" first2 closer
+  local hs_kind="" hs_open_quote=""
   local -a hs_lines=()
-  # Mirror ps::blank_herestrings' opener detection; once an opener has no closer,
+  # Opener detection is ps::_herestring_opener_to, the same helper
+  # ps::blank_herestrings uses, so a COMMENTED opener is not taken as the hanging
+  # one here either. Taking it would drop the live command lines after it, which
+  # is how a commented opener followed by a real hanging opener reached rc 0
+  # under `ps-unparsable-herestring-unbalanced`. Once an opener has no closer,
   # drop it and everything after (extent unknown — trailing code may be inside).
   ps::_split_lines_to hs_lines "$cmd"
   for line in "${hs_lines[@]}"; do
@@ -2014,10 +2092,9 @@ ps::_blank_unbalanced_herestring_tail() {
       fi
       continue
     fi
-    ps::_gsub_to opener_scan "$line" "'[^']*'" ''
-    ps::_gsub_to opener_scan "$opener_scan" '"([^"\\]|\\.)*"' ''
-    if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
-      hs_quote="${line: -1}"
+    ps::_herestring_opener_to hs_kind hs_open_quote "$line"
+    if [[ "$hs_kind" == opener ]]; then
+      hs_quote="$hs_open_quote"
       pending="${line%??}"
       in_hs=1
       continue
@@ -2034,8 +2111,43 @@ ps::_blank_unbalanced_herestring_tail() {
   PS_SAFE_COMMAND="${out%$'\n'}"
 }
 
+# Replace the two here-string opener characters with PS_HERESTRING_PLACEHOLDER on
+# every line whose opener sits inside a `#` comment. Writes PS_SAFE_COMMAND.
+#
+# SUBSTITUTE, DO NOT STRIP. The caller's re-classification loop counts attempts
+# and exits 0 when the budget runs out, so an arm that leaves the line able to
+# flag again fails OPEN. A stacked tail re-forms an opener the moment the last
+# two characters come off: `# @"@'` strips to `# @"`, which is a commented opener
+# again, so each pass would buy one pair and the budget would run out with the
+# visible git line never checked. The placeholder carries no `#` and no quote, so
+# a line it lands on can never be read as an opener again and one pass settles
+# the command.
+#
+# Every other line is copied through unchanged. There is no here-string state to
+# track: this trigger fires precisely because no here-string was opened, and a
+# real opener elsewhere in the command is reported by its own trigger, which owns
+# its own arm.
+ps::_blank_commented_herestring_openers() {
+  # co_quote is the helper's second out-parameter; this arm needs only the kind,
+  # and the two opener characters it replaces are positional, not quote-specific.
+  # shellcheck disable=SC2034
+  local line out="" co_kind="" co_quote=""
+  local -a co_lines=()
+  ps::_split_lines_to co_lines "$1"
+  for line in "${co_lines[@]}"; do
+    ps::_herestring_opener_to co_kind co_quote "$line"
+    if [[ "$co_kind" == comment ]]; then
+      out+="${line%??}${PS_HERESTRING_PLACEHOLDER}"$'\n'
+      continue
+    fi
+    out+="${line}"$'\n'
+  done
+  # shellcheck disable=SC2034
+  PS_SAFE_COMMAND="${out%$'\n'}"
+}
+
 # One line naming the construct that actually routed this command to the sink,
-# plus what to do about it. Each of the five triggers needs different advice:
+# plus what to do about it. Each of the six triggers needs different advice:
 # "remove the unparsable construct" is unactionable for a launcher or a dynamic
 # invocation, because there is no such construct to remove (#1968). Each line
 # must also stay true of every command that reaches it — advice that describes
@@ -2080,6 +2192,15 @@ ps::print_sink_trigger_line() {
     # named git, because the trigger is the command position, not its content.
     echo "Trigger: an expandable here-string (@\" … \"@) whose body carries a '\$( … )' subexpression. PowerShell evaluates that subexpression where the here-string is written, so the body is a command position, and the body is removed before the guard's git probe runs, which makes a 'no git here' answer a statement about text the command does not have. Use a verbatim here-string (@' … '@), or compute the value into a variable before the here-string, or run the command via the Bash tool." >&2
     ;;
+  herestring-comment-opener)
+    # What is true of EVERY command that reaches here: a here-string opener sits
+    # inside a `#` comment. PowerShell reads the opener as comment TEXT and the
+    # lines after it as commands; the guard's opener scan would read them as
+    # here-string body. "Close the here-string" is the wrong advice here, because
+    # there is no here-string open to close: the remedy is to stop the opener
+    # characters from sitting in a comment.
+    echo "Trigger: a here-string opener (@\" or @') inside a '#' comment. PowerShell treats those two characters as comment text, so the lines after them are COMMANDS, while the guard's here-string scan reads them as body; the text alone does not settle which, so the command is refused instead of guessed. Move the @\" / @' out of the comment, or delete the comment, or run the command via the Bash tool." >&2
+    ;;
   *)
     echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2
     ;;
@@ -2113,7 +2234,7 @@ ps::print_unparsable_git_block_message() {
   ps::print_sink_trigger_line
   # Sink-shape allow tokens (ps-unparsable-<trigger>) are distinct from destructive
   # form tokens so an existing allow-list value cannot silently open this branch (#2664).
-  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, or ps-unparsable-herestring-subexpr), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr, or ps-unparsable-herestring-comment-opener), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses

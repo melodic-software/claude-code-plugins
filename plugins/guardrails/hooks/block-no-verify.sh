@@ -296,7 +296,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   case $? in
   2)
     ps::print_unparsable_block_message
-    # The trigger rides along in the form token: five distinct shapes reach this
+    # The trigger rides along in the form token: six distinct shapes reach this
     # sink, and one collapsed token cannot show which of them is over-blocking.
     emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
     exit 2

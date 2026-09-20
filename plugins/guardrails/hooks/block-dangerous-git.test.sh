@@ -1547,6 +1547,104 @@ run_pwsh "PS hs: a launcher token does not carry over to the here-string body (b
 run_pwsh "PS hs: commit body built with a subexpression (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "@\"" "fix: bump to \$(node -p 'x')" "\"@ | git commit -F -")" 2
 
+# --- a here-string opener inside a `#` comment is not an opener -----------------
+# PowerShell reads `Write-Output x # @"` as three tokens ending in a Comment, so
+# the `@"` is comment TEXT and the following line is a live command. The opener
+# scan never considered the `#`, so it opened a phantom here-string, dropped
+# `git push --force` as body and let the column-zero `"@` close it: a balanced
+# reduction with no sink trigger at all, allowed at rc 0. The spellings below put
+# text after the closer, which is what makes them parse clean in pwsh; the bare
+# three-line form is missing its terminator, so PowerShell would run none of it.
+ps_hs_comment="$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git push --force" "\"@ fine\"")"
+run_pwsh "PS hs: an opener in a # comment tail leaves the next line visible (blocked)" \
+  "$ps_hs_comment" 2
+run_pwsh "PS hs: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git push --force" "'@ fine'")" 2
+# The bare three-line form, kept as a secondary pin. PowerShell refuses to run it
+# ("the string is missing the terminator"), but the guard sees the same text and
+# must reach the same verdict.
+run_pwsh "PS hs: the unterminated spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git push --force" "\"@")" 2
+# `hook::jq_fields` strips CR, so the CRLF payload reaches the classifier as its
+# LF twin and has to reach the same verdict.
+run_pwsh "PS hs: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git push --force" "\"@ fine\"")" 2
+# This guard owns destructive non-push forms too, and the recovered line is an
+# ordinary command once it is no longer read as here-string body.
+run_pwsh "PS hs: reset --hard recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git reset --hard" "\"@ fine\"")" 2
+# The commit-guard shape. block-noncanonical-commit and block-convention-violation
+# DEFER on a classifier rc 2, so this guard is where the refusal lands.
+run_pwsh "PS hs: a git commit carrying a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "git commit -m fix # @\"" "Write-Output done" "\"@ fine\"")" 2
+
+# NO FLIP. The one-line form already blocked before this change, as a phantom
+# UNBALANCED here-string. It must still block; only the trigger it reports moves.
+run_pwsh "PS hs: a one-line commented opener beside a git command (blocked, unchanged)" \
+  "git log --oneline # @\"" 2
+
+# R5 DE-ESCALATION, pinned rather than hidden. Nothing is dropped now, so the
+# git-freedom proof runs over text that is actually present: this git-FREE command
+# used to block because its dropped expandable body set PS_HERESTRING_EXPANDABLE,
+# and it is allowed now. The git-CARRYING twin below must not move.
+run_pwsh "PS hs: a git-free commented opener over an expandable-looking body (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(whoami)" "\"@ fine\"")" 0
+run_pwsh "PS hs: the git-carrying twin of the same shape (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(cmd /c git push --force)" "\"@ fine\"")" 2
+
+# FALSE-POSITIVE GUARDS. The `#` test runs on the quote-STRIPPED line, so a `#`
+# that lives inside a string never refuses a real opener, and a real body is free
+# to contain one.
+run_pwsh "PS hs: a legitimate here-string whose body contains a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "release # 1" "\"@")" 0
+run_pwsh "PS hs: a # inside quotes before a real opener (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output 'x # y' @\"" "git push --force" "\"@")" 0
+# The paired-quote strip runs single-quote-first, so two apostrophes pair across
+# the `#` and this stays a REAL here-string, which is what pwsh reads it as
+# (Generic, Generic, HereStringExpandable, parse clean). Pinned as expected-0 so
+# a later switch to the ordered span walk cannot flip it silently.
+run_pwsh "PS hs: apostrophes pairing across the # keep a real opener (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Host don't # it's @\"" "git push --force" "\"@")" 0
+run_pwsh "PS hs: the canonical verbatim commit form is untouched (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: thing" "'@ | git commit -F -")" 0
+
+# An rc of 0 cannot tell "never entered the sink" from "entered and waved
+# through", and an rc of 2 cannot tell WHICH trigger refused, so both are pinned.
+# The arm is LAST in the chain: a command that already carries a special construct
+# keeps reporting the construct it carries. The construct has to sit BEFORE the
+# `#` on that line, because ps::blank_quoted_spans_to pairs the comment's unpaired
+# `"` with the next `"` in the command and erases everything between.
+pin_sink_trigger "classify: a commented opener enters the herestring-comment-opener sink" \
+  "$ps_hs_comment" "herestring-comment-opener"
+pin_sink_trigger "classify: a special construct before the # still reports itself" \
+  "$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")" "special-construct"
+
+# ALLOW-TOKEN CASES. The token narrows the sink SHAPE; it never waives a git line
+# the reduction leaves plainly visible.
+run_pwsh "PS hs: the comment-opener token does not waive the visible git push --force" \
+  "$ps_hs_comment" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-opener
+# A commented opener ABOVE a real hanging opener. `herestring-unbalanced` is first
+# in the chain and wins here, and its arm blanks from the hanging opener to end of
+# input, so the shared helper is what keeps the commented line from being taken
+# as that hanging opener and the live `git push --force` from being blanked with
+# it.
+run_pwsh "PS hs: the unbalanced token does not blank a commented opener's live line" \
+  "$(printf '%s\n%s\n%s\n%s' "Write-Output x # @\"" "git push --force" "@\"" "more")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced
+# A STACKED opener tail, in the spelling that actually re-forms: `# @"@'` strips
+# to `# @"`, a commented opener again. The arm substitutes the inert placeholder
+# for the two opener characters rather than stripping them, so the line cannot
+# flag a second time. The caller's loop counts attempts and exits 0 when the
+# budget runs out, so an arm that bought one pair per pass would fail OPEN with
+# the git line never checked.
+ps_hs_comment_stacked="$(printf '%s\n%s\n%s' "Write-Output x # @\"@'" "git push --force" "\"@ fine\"")"
+pin_sink_trigger "classify: a stacked commented opener tail still reports the comment opener" \
+  "$ps_hs_comment_stacked" "herestring-comment-opener"
+run_pwsh "PS hs: a stacked commented opener tail settles in one pass (blocked)" \
+  "$ps_hs_comment_stacked" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-opener
+
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
 # so the read-only allowlist admits it and these stay allowed. Pinned so a later
