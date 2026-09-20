@@ -15,29 +15,51 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   fatal check read as a clean bill of health. The status is now captured: above 1 is fatal, since
   1 is the check's own "drift detected". An empty document paired with status 1 is fatal too,
   because it can only mean a truncated write. Status 0 with no document stays a pass, because the
-  check exits 0 without writing when the settings file declares no `extraKnownMarketplaces`, and
-  that case now names itself on stderr, since the check's own explanation goes to the `/dev/null`
-  this script redirects.
+  check exits 0 without writing when the settings file declares no `extraKnownMarketplaces`. That
+  case names itself on stderr, since the check's own explanation goes to the `/dev/null` this
+  script redirects, and on stdout it now reads "No marketplace was audited" rather than borrowing
+  the clean-audit wording for a run that compared nothing.
 - **`fix-plugin-drift.sh --yes` backs the settings file up before it replaces it.** The only file
   operations were two `rm -f` on temporaries and a bare `mv` over the target, so an operator had
   no copy of what the script overwrote. A successful apply now copies the file to
   `<settings>.<UTC stamp>.bak` first and aborts if that copy fails, so nothing is replaced without
-  a copy of what it replaced. The backup path is named in the summary line.
+  a copy of what it replaced. The backup is created empty under `set -C` and a 0077 umask and only
+  then filled: the `O_EXCL` open refuses an existing path and a symlink alike, including a dangling
+  one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and the 0600 result does not
+  inherit a world-readable mode onto a verbatim copy of a file that can hold tokens and permission
+  rules. Backups are never pruned, so a project that tracks `.claude/` may want `.claude/*.bak`
+  ignored. The backup path is named in the summary line.
 - **`fix-plugin-drift.sh --yes` refuses to write the user settings file it reached by inference.**
   With no `CLAUDE_SETTINGS_FILE`, the project-root ladder falls through to `$PWD` when the working
   directory is not a repository, so a session started in a home directory resolved the target to
   `~/.claude/settings.json` and rewrote the live user file as if it were project scope. The apply
-  path now compares the resolved target against the user config dir's own `settings.json` and
-  exits 2 when they are the same file. Only the inferred path is refused: an explicit
-  `CLAUDE_SETTINGS_FILE` is a deliberate target and still applies. A dry run still reads and
-  reports either way.
+  path now compares the resolved target against the user config dir's own `settings.json`, and
+  against `$HOME/.claude/settings.json` for a relocated `CLAUDE_CONFIG_DIR`, and exits 2 when they
+  are the same file. Only the inferred path is refused: an explicit `CLAUDE_SETTINGS_FILE` is a
+  deliberate target and still applies, now with a warning naming the waived guard, because a
+  settings file's own `env` block can export that variable and the file under audit is the one
+  that drifted. A dry run still reads and reports either way.
+- **`fix-plugin-drift.sh --yes` refuses a settings path that is a symlink.** The replacement is a
+  rename, which replaces the link rather than the file it names, so a linked `settings.json` was
+  destroyed, the real file went unfixed, and the run still printed "Applied". Resolving the link
+  portably needs a `realpath` and `readlink -f` dance this script does not otherwise carry, so the
+  case is refused with a message naming the path instead of being mishandled quietly.
 - **`fix-plugin-drift.sh --yes` preserves the settings file's line endings.** The edit is a jq
   read-modify-write, and jq emits whatever its build emits: the native Windows build writes CRLF
   through a text-mode stdout, an MSYS or Linux build writes LF. Either one rewrites every line
   ending in a file of the other style while reporting a handful of key changes. The emitted
   document is now normalized to the line-ending style the original file carried, measured with
   `tr` because Git Bash grep never matches a carriage return, and revalidated as JSON after the
-  conversion. Indentation and the trailing newline still come from jq.
+  conversion. The rule counts bytes rather than pairing them, so a file with mixed endings comes
+  back uniform in whichever style its majority carried. Indentation and the trailing newline still
+  come from jq.
+- **`fix-plugin-drift.sh --yes` replaces the settings file with a same-directory rename.** The
+  staging temporary moved out of `$TMPDIR` and beside the target: on a host where `/tmp` is a
+  separate mount the final `mv` degraded to a copy plus an unlink, where an interruption leaves
+  the settings file truncated. The `EXIT` trap now also catches `INT`, `TERM` and `HUP`, because
+  that temporary sits in the operator's own config directory where nothing else sweeps it up, and
+  both post-edit validations moved from `jq empty`, which exits 0 on a zero-byte file, to
+  `jq -e 'type == "object"'`.
 
 ## [0.46.11]
 

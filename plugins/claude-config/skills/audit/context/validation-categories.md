@@ -137,6 +137,17 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh"
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
 ```
 
+**What `--yes` leaves behind:** each apply writes a `settings.json.<UTC stamp>.bak` sibling, mode
+0600, before it replaces the file, and never prunes one. A project that tracks `.claude/` may want
+`.claude/*.bak` ignored. Two applies within the same second collide on that name, and the second
+is refused with exit 2 rather than overwriting the first one's backup.
+
+**What `--yes` refuses:** a settings path that is a symlink, because the replacement is a rename
+and would replace the link rather than its target; and a path the project-root ladder inferred
+that turns out to be the user settings file, which is what a session started outside a repository
+resolves to. An explicit `CLAUDE_SETTINGS_FILE` at the user settings file still applies, with a
+warning naming the waived guard.
+
 **Env var contract:**
 
 | Env var | Purpose | Default |

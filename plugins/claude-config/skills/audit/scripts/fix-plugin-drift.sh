@@ -34,12 +34,17 @@
 #
 # Apply behavior:
 #   A check that fails is fatal. The run never reports an audit it did not
-#   complete.
-#   The settings file is copied to <settings>.<UTC stamp>.bak before it is
-#   replaced. Nothing is replaced if that copy cannot be made.
+#   complete. A check that completes with no marketplace to audit says so
+#   instead of reporting no drift.
+#   The settings file is copied to <settings>.<UTC stamp>.bak, mode 0600, before
+#   it is replaced. Nothing is replaced if that copy cannot be made, and a
+#   second apply in the same second is refused rather than overwriting the
+#   first one's backup.
 #   The file's own line-ending style survives the jq round trip.
 #   An apply is refused when the project-root ladder resolved the path to the
 #   user settings file. Set CLAUDE_SETTINGS_FILE to write that file on purpose.
+#   An apply is refused when the settings path is a symlink, because the
+#   replacement is a rename and would replace the link itself.
 
 set -uo pipefail
 
@@ -129,6 +134,9 @@ fi
 # --- Obtain findings ---------------------------------------------------------
 
 TMP_JSON=""
+# Set when the internal check completed with no marketplace to compare, so the
+# no-drift branch below can say that instead of claiming a clean audit.
+NOTHING_AUDITED=0
 if [[ -z "$INPUT_JSON" ]]; then
   # Positional absolute template with trailing Xs — the one mktemp form both
   # GNU and BSD accept (see docs/conventions/topic-docs ephemeral tier, #1709).
@@ -141,9 +149,7 @@ if [[ -z "$INPUT_JSON" ]]; then
   check_status=0
   SETTINGS_AUDIT_OUTPUT_JSON="$TMP_JSON" CLAUDE_SETTINGS_FILE="$SETTINGS" \
     bash "$SCRIPT_DIR/check-plugin-drift.sh" >/dev/null || check_status=$?
-  # 0 is "no drift", 1 is "drift detected" (advisory). Anything else is fatal,
-  # and so is a run that exits clean but leaves no document: an empty file
-  # passes `jq empty`, yields no findings, and would print "No drift detected".
+  # 0 is "no drift", 1 is "drift detected" (advisory). Anything else is fatal.
   if [[ "$check_status" -gt 1 ]]; then
     echo "ERROR: check-plugin-drift.sh failed with status $check_status, so no findings were produced" >&2
     exit 2
@@ -154,9 +160,12 @@ if [[ -z "$INPUT_JSON" ]]; then
   fi
   # mktemp already created $TMP_JSON as a zero-byte file, so emptiness alone
   # cannot separate a truncated write from the check's legitimate status-0 exit
-  # when the settings file declares no extraKnownMarketplaces. The check's own
-  # explanation went to the /dev/null above, so say it here.
+  # when the settings file declares no extraKnownMarketplaces. That case is a
+  # pass, but it is not an audit, so it must not borrow the wording of one. The
+  # check's own explanation went to the /dev/null above, so say it here and
+  # again on stdout where the plan is rendered.
   if [[ ! -s "$TMP_JSON" ]]; then
+    NOTHING_AUDITED=1
     echo "NOTE: check-plugin-drift.sh produced no findings document, so no marketplace was audited" >&2
   fi
   INPUT_JSON="$TMP_JSON"
@@ -243,7 +252,13 @@ if [[ "$rename_count" -gt 0 ]]; then
 fi
 
 if [[ "$remove_count" -eq 0 && "$add_count" -eq 0 && "$manual_count" -eq 0 && "$rename_count" -eq 0 ]]; then
-  printf '%sNo drift detected — nothing to do.%s\n' "$GREEN" "$RESET"
+  # "Nothing found" and "nothing looked at" are different statements, and stderr
+  # is routinely discarded, so the distinction is made here on stdout too.
+  if [[ "$NOTHING_AUDITED" -eq 1 ]]; then
+    printf '%sNo marketplace was audited, so there is nothing to report.%s\n' "$YELLOW" "$RESET"
+  else
+    printf '%sNo drift detected, nothing to do.%s\n' "$GREEN" "$RESET"
+  fi
   exit 0
 fi
 
@@ -260,37 +275,72 @@ if [[ "$remove_count" -eq 0 && "$add_count" -eq 0 ]]; then
   exit 0
 fi
 
+# The replacement below is a rename, which replaces a symlink rather than the
+# file it points at: the real settings file would go unfixed while this script
+# reported success, and the backup would deposit the link target's content in
+# this directory. Resolving the link portably needs a realpath/readlink dance
+# this script does not otherwise carry, so a symlink is refused instead of
+# silently mishandled. Placed after the exits that write nothing.
+if [[ -L "$SETTINGS" ]]; then
+  echo "ERROR: the settings path is a symlink, $SETTINGS" >&2
+  echo "The replacement is a rename and would replace the link itself. Point CLAUDE_SETTINGS_FILE at the file the link resolves to." >&2
+  exit 2
+fi
+
 # An inferred path that lands on the user settings file is refused. The ladder
 # falls through to $PWD outside a repository, so a session started in a home
 # directory resolves this script's project-scope target to the live user file.
-# Placed after the exits that write nothing, so a report-only run is never
-# refused and no backup and no write can precede the refusal.
-if [[ "$SETTINGS_FROM_LADDER" -eq 1 ]]; then
-  # Initialized here so ShellCheck SC2154 sees the assignment.
-  USER_DIR=""
-  scopes::user_dir_to USER_DIR
-  # $HOME/.claude is compared as well as the resolved user dir: with
-  # CLAUDE_CONFIG_DIR relocated, a home-directory session still resolves
-  # $SETTINGS to $HOME/.claude/settings.json, which is the hazard itself.
-  # `-ef` compares inodes, so it is immune to the /c/... against C:/... spelling
-  # split a string comparison hits on Git Bash. It is false when the candidate
-  # does not exist, which is safe: $SETTINGS was proved to exist above, so a
-  # user settings file that is missing cannot be the file about to be written.
-  for candidate in "$USER_DIR" "${HOME:-}/.claude"; do
-    [[ -z "$candidate" ]] && continue
-    if [[ "$SETTINGS" -ef "$candidate/settings.json" ]]; then
-      echo "ERROR: the project-root ladder resolved to the user settings file, $SETTINGS" >&2
-      echo "This script writes project scope. Run it from the project, or set CLAUDE_SETTINGS_FILE to the file you mean." >&2
-      exit 2
-    fi
-  done
+# An explicit CLAUDE_SETTINGS_FILE is the operator's deliberate target and is
+# honored, but it is still announced, because a settings.json `env` block can
+# export that variable and the file under audit is exactly the one that drifted.
+#
+# Candidates: the resolved user dir, plus $HOME/.claude, because with
+# CLAUDE_CONFIG_DIR relocated a home-directory session still resolves $SETTINGS
+# to $HOME/.claude/settings.json, which is the hazard itself. The list is built
+# rather than written inline so an unset HOME contributes no candidate at all
+# instead of the bare "/.claude" that "${HOME:-}/.claude" would expand to.
+#
+# `-ef` compares device and inode, so it is immune to the /c/... against C:/...
+# spelling split a string comparison hits on Git Bash. It is false when the
+# candidate does not exist, which is safe: $SETTINGS was proved to exist above,
+# so a user settings file that is missing cannot be the file about to be
+# written. On MSYS the inode is synthesized, so treat this as a strong check
+# rather than a proof.
+user_candidates=()
+# Initialized here so ShellCheck SC2154 sees the assignment.
+USER_DIR=""
+scopes::user_dir_to USER_DIR
+[[ -n "$USER_DIR" ]] && user_candidates+=("$USER_DIR")
+[[ -n "${HOME:-}" ]] && user_candidates+=("$HOME/.claude")
+if [[ "${#user_candidates[@]}" -eq 0 ]]; then
+  echo "NOTE: no user config directory could be resolved, so the user-settings guard checked nothing" >&2
 fi
+for candidate in "${user_candidates[@]+"${user_candidates[@]}"}"; do
+  [[ "$SETTINGS" -ef "$candidate/settings.json" ]] || continue
+  if [[ "$SETTINGS_FROM_LADDER" -eq 1 ]]; then
+    echo "ERROR: the project-root ladder resolved to the user settings file, $SETTINGS" >&2
+    echo "This script writes project scope. Run it from the project, or set CLAUDE_SETTINGS_FILE to the file you mean." >&2
+    exit 2
+  fi
+  echo "WARNING: CLAUDE_SETTINGS_FILE points at the user settings file, $SETTINGS" >&2
+  echo "The guard that would refuse this target is waived because the path was given explicitly." >&2
+  break
+done
 
 # Atomic edit: read-modify-write via jq + temp + rename.
 # Same portable mktemp form as TMP_JSON above (#1709).
 TMP_SETTINGS=$(mktemp "${TMPDIR:-/tmp}/settings-json-XXXXXX")
 TMP_EOL=""
-trap '[[ -n "${TMP_JSON:-}" ]] && rm -f "$TMP_JSON"; rm -f "${TMP_SETTINGS:-}" "${TMP_EOL:-}"' EXIT
+# INT TERM HUP as well as EXIT: one of the temps now lives beside the operator's
+# settings file rather than in $TMPDIR, where nothing sweeps it up for them.
+trap '[[ -n "${TMP_JSON:-}" ]] && rm -f "$TMP_JSON"; rm -f "${TMP_SETTINGS:-}" "${TMP_EOL:-}"' EXIT INT TERM HUP
+
+# No `set -e` here, so a failed mktemp would otherwise carry an empty path into
+# the jq redirect below and report the filter as the failure.
+if [[ -z "$TMP_SETTINGS" ]]; then
+  echo "ERROR: cannot create a working copy under ${TMPDIR:-/tmp}, settings unchanged" >&2
+  exit 2
+fi
 
 # The replacement is staged beside the settings file, not under $TMPDIR: /tmp is
 # commonly a separate mount, where the final `mv` degrades to a copy plus an
@@ -326,9 +376,9 @@ if ! jq -e 'type == "object"' "$TMP_SETTINGS" >/dev/null 2>&1; then
   exit 2
 fi
 
-# Stamp the replacement with the original's mode before any content reaches it.
-# The redirect below truncates the file without changing that mode, so the
-# settings file does not inherit mktemp's 0600.
+# Copy the original onto the stage so the replacement inherits its mode and not
+# mktemp's 0600. The content that lands here is overwritten below; only the mode
+# survives, which is the point.
 if ! cp -p "$SETTINGS" "$TMP_EOL"; then
   echo "ERROR: cannot stage the replacement beside $SETTINGS, settings unchanged" >&2
   exit 2
@@ -346,6 +396,8 @@ lf=$(tr -dc '\n' <"$SETTINGS" | wc -c)
 # Both terms are required. A lone carriage return used as JSON whitespace in an
 # LF file would make a bare `cr -gt 0` rewrite every line ending, and a bare
 # `cr -ge lf` holds for a newline-less minified file and would CRLF-ify it.
+# This counts bytes, it does not pair them: a mixed file goes whichever way its
+# majority points and comes back uniform. That is a style change, never a loss.
 if [[ "$cr" -gt 0 && "$cr" -ge "$lf" ]]; then
   # A read loop, not `sed 's/$/\r/'`: BSD sed reads \r as a literal r. The
   # `|| [[ -n "$line" ]]` arm keeps a final line that carries no terminator.
@@ -366,11 +418,23 @@ fi
 # deletes it. Refuse rather than clobber an earlier backup made in the same
 # second.
 BACKUP="$SETTINGS.$(date -u +%Y%m%dT%H%M%SZ).bak"
-if [[ -e "$BACKUP" ]]; then
-  echo "ERROR: backup path already exists, settings unchanged: $BACKUP" >&2
+# Created empty first, under noclobber and a 0077 umask, then filled. noclobber
+# opens with O_EXCL, which refuses an existing file AND a symlink, including a
+# dangling one that `[[ -e ]]` reads as absent and that a bare `cp` would follow
+# to whatever it names. The umask is why this is not `cp -p`: the backup is a
+# verbatim copy of a file that can hold tokens and permission rules, so it is
+# 0600 regardless of what the original allows. Both run in a subshell so neither
+# setting escapes into the rest of the script.
+if ! (
+  set -C
+  umask 077
+  : >"$BACKUP"
+) 2>/dev/null; then
+  echo "ERROR: cannot create the backup, settings unchanged: $BACKUP" >&2
+  echo "The path already exists or is not writable. A second apply within the same second hits this." >&2
   exit 2
 fi
-if ! cp -p "$SETTINGS" "$BACKUP"; then
+if ! cp "$SETTINGS" "$BACKUP"; then
   echo "ERROR: cannot write the backup, settings unchanged: $BACKUP" >&2
   exit 2
 fi

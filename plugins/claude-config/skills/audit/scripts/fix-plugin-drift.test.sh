@@ -411,7 +411,12 @@ exit_code=0
 out=$(run_fix_internal "$case_dir") || exit_code=$?
 
 assert_exit "case-12b: no declared marketplaces exits 0" 0 "$exit_code"
-assert_contains "case-12b: reports no drift" "$out" "No drift detected"
+# The pass is only safe because the run says what it did. Both halves are
+# asserted: the stderr NOTE, and the stdout line that must NOT borrow the
+# wording of a completed audit.
+assert_contains "case-12b: names the empty audit on stderr" "$out" "no marketplace was audited"
+assert_contains "case-12b: stdout says nothing was audited" "$out" "No marketplace was audited"
+assert_not_contains "case-12b: never claims a clean audit" "$out" "No drift detected"
 
 # --- Case 12: an apply preserves the original's line-ending style -----------------
 
@@ -442,8 +447,19 @@ printf '{\n  "enabledPlugins": {\r "alpha@market1": true,\n    "removed@market1"
 
 cp "$case_dir/crlf/settings.json" "$case_dir/crlf/settings.pre"
 
+# The exit code and the edit itself are asserted per variant. Without them the
+# LF and CRLF line-ending assertions would also hold for an apply that aborted
+# before writing anything, since those fixtures already carry the style they are
+# checked for.
 for variant in lf crlf stray; do
-  run_fix_apply "$case_dir/$variant" >/dev/null 2>&1 || true
+  variant_exit=0
+  run_fix_apply "$case_dir/$variant" >/dev/null 2>&1 || variant_exit=$?
+  assert_exit "case-12: $variant apply exit 0" 0 "$variant_exit"
+  edited=$(jq -e '(.enabledPlugins | has("removed@market1") | not)
+    and (.enabledPlugins["newcomer@market1"] == false)
+    and (.enabledPlugins["alpha@market1"] == true)' \
+    "$case_dir/$variant/settings.json" >/dev/null 2>&1 && echo yes || echo no)
+  assert_eq "case-12: $variant edit landed" "yes" "$edited"
 done
 
 assert_eq "case-12: LF fixture comes back with no CR" "0" "$(count_cr "$case_dir/lf/settings.json")"
@@ -465,6 +481,44 @@ else
   crlf_bak=no
 fi
 assert_eq "case-12: CRLF backup holds the untouched original" "yes" "$crlf_bak"
+
+# --- Case 13: an explicit path at the user settings file warns but applies --------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+mkdir -p "$case_dir/.claude"
+cat >"$case_dir/findings.json" <<'EOF'
+[{
+  "key": "market1",
+  "status": "ok",
+  "skip_reason": "",
+  "orphans": [{"name": "removed", "marketplace": "market1", "enabled": false}],
+  "new_upstream": [{"name": "newcomer", "marketplace": "market1"}],
+  "renames": []
+}]
+EOF
+cat >"$case_dir/.claude/settings.json" <<'EOF'
+{
+  "enabledPlugins": {
+    "alpha@market1": true,
+    "removed@market1": false
+  }
+}
+EOF
+
+# CLAUDE_SETTINGS_FILE names the same file CLAUDE_CONFIG_DIR makes the user
+# scope. The guard is waived because the path was given explicitly, so the run
+# must apply, but it must say out loud that it waived it.
+exit_code=0
+out=$(NO_COLOR=1 \
+  CLAUDE_CONFIG_DIR="$case_dir/.claude" \
+  CLAUDE_SETTINGS_FILE="$case_dir/.claude/settings.json" \
+  bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1) || exit_code=$?
+
+assert_exit "case-13: explicit user-file target still applies" 0 "$exit_code"
+assert_contains "case-13: warns that the guard was waived" "$out" "CLAUDE_SETTINGS_FILE points at the user settings file"
+applied=$(jq -e '.enabledPlugins | has("removed@market1") | not' "$case_dir/.claude/settings.json" >/dev/null && echo yes || echo no)
+assert_eq "case-13: the edit landed" "yes" "$applied"
 
 # --- Final ------------------------------------------------------------------
 
