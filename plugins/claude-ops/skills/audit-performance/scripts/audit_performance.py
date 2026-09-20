@@ -228,6 +228,15 @@ SHELL_COMMAND_FLAG = "-c"
 #: test tokenizes: `a&&bash b` and `a && bash b` are the same command line, and only the
 #: spaced spelling survives a plain split. Applied to that test's own token list only.
 OPERATOR_RUN = re.compile(r"([;|&]+)")
+#: Characters the command-position tokenizer maps to a sentinel while it is inside a quoted
+#: run, so a quoted executable containing spaces stays one token and a quoted operator is not
+#: read as a delimiter. The sentinels are control characters no real command line carries, and
+#: none of them is whitespace to `str.split`.
+QUOTED_SENTINELS = {" ": "\x00", ";": "\x01", "|": "\x02", "&": "\x03"}
+#: The reverse map, applied to one token at a time before its basename is taken.
+SENTINEL_CHARACTERS = {sentinel: raw for raw, sentinel in QUOTED_SENTINELS.items()}
+#: Quote characters that open and close a quoted run.
+QUOTE_CHARACTERS = "\"'"
 #: The variable that selects which bash Claude Code hands a shell-form command to on Windows.
 GIT_BASH_PATH_ENV = "CLAUDE_CODE_GIT_BASH_PATH"
 #: The only filenames Claude Code accepts in that variable. Any other name is ignored and the
@@ -1296,6 +1305,11 @@ def flatten_hook_block(hooks_block: dict, source: str) -> list[dict]:
                         "args": [str(a) for a in args]
                         if isinstance(args, list)
                         else [],
+                        # The KEY's presence, not the list's truthiness: upstream makes a
+                        # hook exec form when `args` is present, and an explicit `[]` is
+                        # present. `args` itself keeps its normalized value, which
+                        # `command_key` and the projection both read.
+                        "exec_form": "args" in hook,
                         "timeout": hook.get("timeout"),
                         "if": hook.get("if"),
                         "source": source,
@@ -1580,6 +1594,40 @@ def shell_basename(token: str) -> str:
     return basename[: -len(".exe")] if basename.endswith(".exe") else basename
 
 
+def tokenize_honouring_quotes(lowered: str) -> list[str]:
+    """Split a command line into tokens with quoted runs kept whole.
+
+    One walk of the string tracking the active quote character. Inside a quoted run a space
+    and the operator characters are mapped to sentinels, so `"C:/Program Files/.../pwsh.exe"`
+    survives as one token and the `|` in `grep -e 'a|sh' f` is not a delimiter. Outside a
+    quoted run both keep their meaning. The quote characters themselves become spaces, the
+    way the legacy flatten treated them, so `bash"x.sh"` still splits. The sentinels stay in
+    the returned tokens; `restore_sentinels` is what a caller applies before reading one.
+    """
+    protected: list[str] = []
+    quote: str | None = None
+    for character in lowered:
+        if quote is None and character in QUOTE_CHARACTERS:
+            quote = character
+            protected.append(" ")
+        elif quote is not None and character == quote:
+            quote = None
+            protected.append(" ")
+        elif quote is not None:
+            protected.append(QUOTED_SENTINELS.get(character, character))
+        else:
+            protected.append(character)
+    padded = OPERATOR_RUN.sub(r" \1 ", "".join(protected))
+    return padded.split()
+
+
+def restore_sentinels(token: str) -> str:
+    """One token with its protected characters put back, for reading rather than splitting."""
+    for sentinel, raw in SENTINEL_CHARACTERS.items():
+        token = token.replace(sentinel, raw)
+    return token
+
+
 def names_a_shell_in_command_position(lowered: str) -> bool:
     """Does this command line START a shell, rather than pass one a shell's name?
 
@@ -1587,22 +1635,24 @@ def names_a_shell_in_command_position(lowered: str) -> bool:
     token after `-c` whose own predecessor is a shell. The token list is padded around shell
     operators so `a&&bash b` reads the same as `a && bash b`, and it is deliberately SEPARATE
     from the list the two legacy findings read, so widening what counts as a delimiter here
-    cannot move either of them. Quotes are flattened rather than honoured, here as in those
-    legacy rules, so an operator inside a quoted argument (`grep -e 'a|sh' f`) reads as a real
-    delimiter and over-reports. The rule misses in the other direction too: a subshell and a
-    runner that takes arguments of its own first (`timeout 5 bash x.sh`) never match.
+    cannot move either of them. Quotes ARE honoured here: a quoted executable containing
+    spaces stays one token, and an operator inside a quoted argument (`grep -e 'a|sh' f`) is
+    not a delimiter. The two legacy findings still flatten quotes and read their own token
+    list, so that difference cannot move either of them. The predecessor test reads the
+    UNRESTORED token, so a quoted lone `"|"` cannot grant command position. The rule still
+    misses in one direction: a subshell and a runner that takes arguments of its own first
+    (`timeout 5 bash x.sh`) never match.
     """
-    padded = OPERATOR_RUN.sub(r" \1 ", lowered)
-    tokens = padded.replace('"', " ").replace("'", " ").split()
+    tokens = tokenize_honouring_quotes(lowered)
     for index, token in enumerate(tokens):
-        if shell_basename(token) not in SHELL_TOKENS:
+        if shell_basename(restore_sentinels(token)) not in SHELL_TOKENS:
             continue
         if index == 0 or tokens[index - 1] in COMMAND_POSITION_PREDECESSORS:
             return True
         if (
             tokens[index - 1] == SHELL_COMMAND_FLAG
             and index >= 2
-            and shell_basename(tokens[index - 2]) in SHELL_TOKENS
+            and shell_basename(restore_sentinels(tokens[index - 2])) in SHELL_TOKENS
         ):
             return True
     return False
@@ -1625,9 +1675,13 @@ def invocation_shape(entry: dict) -> list[str]:
     basenames = [shell_basename(t) for t in tokens]
     if sum(1 for b in basenames if b in SHELL_TOKENS) >= 2:
         findings.append("nested-shell-invocation")
-    # `args` present is exec form, which upstream documents as having no shell at all, so the
-    # harness wraps nothing and there is no second shell to name.
-    if not entry.get("args") and names_a_shell_in_command_position(lowered):
+    # Exec form (`args` present) is documented as having no shell at all, so the harness
+    # wraps nothing and there is no second shell to name. A record that carries `exec_form`
+    # states the KEY's presence; one that does not falls back to the list's truthiness, which
+    # is what the statusline wants: statusline.md documents a command string run in a shell
+    # and no exec form at all, so its `args: []` must stay shell form.
+    exec_form = entry["exec_form"] if "exec_form" in entry else bool(entry.get("args"))
+    if not exec_form and names_a_shell_in_command_position(lowered):
         findings.append("shell-form-hook-names-a-second-shell")
     return findings
 

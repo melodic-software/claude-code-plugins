@@ -184,7 +184,12 @@ class TestInvocationShape(unittest.TestCase):
                 )
 
     def test_an_all_in_command_chain_emits_every_shape_finding_in_order(self):
-        """The two legacy names stay first; the new one is appended last."""
+        """The two legacy names stay first; the new one is appended last.
+
+        This is the legacy-parity pin. Both legacy findings read their own naive
+        quote-flattened token list, so a change to how the command-position rule
+        tokenizes must leave this exact list untouched.
+        """
         entry = {
             "command": '"C:/Program Files/Git/bin/bash.exe" -c "bash x.sh"',
             "args": [],
@@ -238,6 +243,37 @@ class TestInvocationShape(unittest.TestCase):
                     "shell-form-hook-names-a-second-shell",
                     engine.invocation_shape({"command": command, "args": []}),
                 )
+
+    def test_an_explicit_empty_args_array_is_exec_form(self):
+        """The `args` KEY's presence decides the shape, not the list's truthiness."""
+        entry = {"command": "bash", "args": [], "exec_form": True}
+        self.assertNotIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_without_the_exec_form_key_an_empty_args_list_stays_shell_form(self):
+        """The statusline passes `args: []` and no key, and has no exec form at all."""
+        entry = {"command": "bash x.sh", "args": []}
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_a_quoted_executable_containing_spaces_is_one_token(self):
+        entry = {
+            "command": '"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1',
+            "args": [],
+        }
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_an_operator_inside_quotes_is_not_a_delimiter(self):
+        entry = {"command": "grep -e 'a|sh' f", "args": []}
+        self.assertEqual(engine.invocation_shape(entry), [])
+
+    def test_a_quoted_path_with_spaces_that_names_no_shell_reports_nothing(self):
+        entry = {"command": '"C:/Program Files/app/run.exe" x', "args": []}
+        self.assertEqual(engine.invocation_shape(entry), [])
 
     def test_the_wrapper_note_names_every_shell_that_can_do_the_wrapping(self):
         # The engine never reads a hook's own `shell` field, so the note must name that
@@ -342,6 +378,31 @@ class TestHookInventoryOverATree(unittest.TestCase):
             ]
             self.assertIn("git-bin-bash-wrapper-costs-an-extra-spawn", findings)
             self.assertIn("nested-shell-invocation", findings)
+
+    def test_a_manifest_row_spelling_an_empty_args_array_is_exec_form(self):
+        """End to end: `"args": []` in a manifest reaches the shape rule as exec form.
+
+        Its own tree, because `build`'s totals are asserted row for row elsewhere.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / ".claude"
+            write_settings(
+                root,
+                {
+                    "hooks": {
+                        "Stop": [
+                            {
+                                "hooks": [
+                                    {"type": "command", "command": "bash", "args": []}
+                                ]
+                            }
+                        ]
+                    },
+                },
+            )
+            inventory = engine.hook_inventory(root)
+            self.assertEqual(inventory["total"], 1)
+            self.assertEqual(inventory["invocation_shape_findings"], [])
 
     def test_a_plugin_installed_at_two_scopes_is_counted_once(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1458,6 +1519,18 @@ class TestStatuslineIsReportedNeverRendered(unittest.TestCase):
             root = Path(tmp) / ".claude"
             write_settings(root, {"statusLine": {"command": "x"}})
             self.assertIn("SECONDS", engine.statusline_config(root)["note"])
+
+    def test_the_statusline_names_a_second_shell_because_it_has_no_exec_form(self):
+        """statusline.md documents a command string run in a shell, and nothing else."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / ".claude"
+            write_settings(
+                root, {"statusLine": {"type": "command", "command": "bash line.sh"}}
+            )
+            self.assertIn(
+                "shell-form-hook-names-a-second-shell",
+                engine.statusline_config(root)["invocation_shape_findings"],
+            )
 
     def test_an_absent_statusline_is_reported_as_unconfigured(self):
         with tempfile.TemporaryDirectory() as tmp:

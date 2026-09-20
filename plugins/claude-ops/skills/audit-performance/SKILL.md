@@ -191,9 +191,13 @@ spawns. Read `fan_out` in this order:
    rule does not cover is missed rather than reported: a subshell (`$(bash x.sh)` or a
    backquoted one) and a runner taking arguments of its own first (`timeout 5 bash x.sh`) are
    examples, not a closed list: `xargs bash x.sh` and `find . -exec sh {} \;` miss for the same
-   reason. It errs the other way too: quotes are flattened rather than honoured, so a
-   shell operator inside a quoted argument (`grep -e 'a|sh' f`) reads as a real delimiter and
-   over-reports, so confirm a row against its own manifest before acting on it.
+   reason, so confirm a row against its own manifest before acting on it. The
+   command-position rule honours quotes: a quoted executable containing spaces
+   (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is
+   recognised, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read
+   as a delimiter. The two LEGACY findings still flatten quotes and read their own token
+   list, unchanged on every input. A row spelling an explicit `"args": []` is exec form, the
+   same as one that omits the key, and reports no second shell.
    Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
    registered-row ceiling, so read `by_matcher` and
    `projection` beside it for what one tool call of a given shape actually spawns, and
