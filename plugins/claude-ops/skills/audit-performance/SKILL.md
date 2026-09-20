@@ -213,7 +213,8 @@ spawns. Read `fan_out` in this order:
    `usr/bin/bash.exe`. A rejected filename and a path that does not exist get the SAME documented
    fallback, so a `resolves_to` shown beside either finding names a binary the harness will not
    use. Unset, Claude Code looks for `bash.exe` in two documented steps, the default install
-   locations first and the `git` on `PATH` second, taking `bin\bash.exe` from that installation;
+   locations first and the `git` on `PATH` second, taking `bash.exe` from that installation's
+   `bin` directory;
    this block reports that search and never performs it
    ([troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install), verified
    2026-09-20; recheck when that section's resolution order or accepted-name list changes). The
