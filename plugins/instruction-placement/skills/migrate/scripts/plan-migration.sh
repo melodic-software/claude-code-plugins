@@ -200,6 +200,7 @@ ours_agents_bytes() {
       printf '0\n'
       return 0
       ;;
+    *) ;;
     esac
   done
   if [[ "$dir" == "." ]]; then file_bytes "AGENTS.md"; else file_bytes "$dir/AGENTS.md"; fi
@@ -219,6 +220,9 @@ ours_agents_bytes() {
 # Comments are matched as blocks, so a note spanning several lines counts once.
 classify_claude_md() {
   local file="$1" import=0 comment=0 other=0 inblock=0 line trimmed
+  # The target shape is EXACTLY one import line. A file repeating `@AGENTS.md`
+  # loads the same content, so it looks finished, but it is not the shape and a
+  # migration reporting it as `shim` would leave the duplicate in place.
   [[ -f "$file" ]] || {
     printf 'content\n'
     return 0
@@ -234,7 +238,7 @@ classify_claude_md() {
       continue
     fi
     case "$trimmed" in
-    "@AGENTS.md" | "@./AGENTS.md") import=1 ;;
+    "@AGENTS.md" | "@./AGENTS.md") import=$((import + 1)) ;;
     "<!--"*"-->") comment=1 ;;
     "<!--"*)
       comment=1
@@ -243,7 +247,7 @@ classify_claude_md() {
     *) other=1 ;;
     esac
   done <"$file"
-  if ((other)) || ((import == 0)); then
+  if ((other)) || ((import != 1)); then
     printf 'content\n'
   elif ((comment)); then
     printf 'shim-with-comment\n'
@@ -261,7 +265,7 @@ instruction_dirs() {
     awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" '
     BEGIN {
       split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1
-      split(foreign, fo, " "); for (k in fo) theirs[fo[k]] = 1
+      split(foreign, others, " "); for (k in others) theirs[others[k]] = 1
     }
     $0 == "" { next }
     {
@@ -349,8 +353,9 @@ MENTION_ROLLUP_THRESHOLD=10
 # Configuration trees are never rolled up at any count. They are precisely
 # where an instruction-surface leak lives (a settings file, a bootstrap hook, a
 # CI gate enumerating instruction paths), so summarizing them would hide the
-# rows this kind exists to show.
-MENTION_NEVER_ROLLUP=".claude/ .github/"
+# rows this kind exists to show. `medley` rolled `.lefthook/` up to 15 rows and
+# buried two hooks that key on CLAUDE.md.
+MENTION_NEVER_ROLLUP=".claude/ .github/ .lefthook/ .husky/ .githooks/"
 
 roll_up_mentions() {
   if ((EXPAND_MENTIONS)); then
@@ -443,7 +448,19 @@ sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
 # a heading anchor. Each one has to be retargeted when the content moves. Prose
 # that merely names the file is not a citation and is deliberately not matched:
 # a row a reader has to dismiss is a row they stop reading.
-git grep -n -I -E '\]\([^)]*CLAUDE\.md(#[A-Za-z0-9_-]+)?\)' -- '*.md' 2>/dev/null >"$CITE_HITS"
+# Two citation forms, both of which die when the content moves:
+#   1. a markdown link target, with or without a heading anchor;
+#   2. a path plus a heading, backticked or bare, with the heading quoted or
+#      introduced by a section sign. `medley` uses the second exclusively and
+#      enforces it on pre-commit, and matching only the first reported NONE
+#      against thirteen live citations.
+# The section sign is spelled by its UTF-8 bytes so this file stays ASCII: a
+# literal in the source would depend on the editor and console encoding of
+# whoever touches it next.
+SECTION_SIGN=$'\302\247'
+# shellcheck disable=SC2016 # the backtick is markdown in the pattern, not a command substitution
+CITE_PATTERN='\]\([^)]*CLAUDE\.md(#[A-Za-z0-9_-]+)?\)|`?CLAUDE\.md`?[[:space:]]+("[^"]+"|'"$SECTION_SIGN"'[^[:space:]])'
+git grep -n -I -E "$CITE_PATTERN" -- '*.md' '*.mdc' 2>/dev/null >"$CITE_HITS"
 sed 's/^/CITE\t/' "$CITE_HITS" | emit_rows CITE
 
 # --- MENTION --------------------------------------------------------------
@@ -470,6 +487,24 @@ git grep -n -I -F 'CLAUDE.md' \
   roll_up_mentions |
   sed 's/^/MENTION\t/' | emit_rows MENTION
 
+# --- RULES ----------------------------------------------------------------
+# What the repository already homes in `.claude/rules/`, and how much of it is
+# always-loaded. On a large corpus this is the difference between "that text
+# has a home" and re-deriving the answer by hand across a hundred files. A rule
+# without `paths:` costs what a CLAUDE.md line costs, every session.
+rules_total=0
+rules_unscoped=0
+rules_unscoped_bytes=0
+while IFS= read -r rule; do
+  [[ -n "$rule" ]] || continue
+  rules_total=$((rules_total + 1))
+  if ! grep -qE '^paths:' "$rule" 2>/dev/null; then
+    rules_unscoped=$((rules_unscoped + 1))
+    rules_unscoped_bytes=$((rules_unscoped_bytes + $(file_bytes "$rule")))
+  fi
+done < <(git ls-files -z -- '.claude/rules/*.md' '.claude/rules/**/*.md' 2>/dev/null | tr '\0' '\n')
+printf 'RULES\t%s\t%s\t%s\n' "$rules_total" "$rules_unscoped" "$rules_unscoped_bytes"
+
 # --- DOCSHOME -------------------------------------------------------------
 # Pointer targets go to the documentation home the repository already keeps.
 # Detection only: the skill creates `docs/` solely where there is nothing to
@@ -491,7 +526,11 @@ fi
 # Every claude-code-action pin. The pin decides the CLI version CI installs,
 # and so whether a CI session reads AGENTS.md at all.
 if [[ -d ".github/workflows" ]]; then
-  grep -rn -E 'claude-code-action@' .github/workflows 2>/dev/null |
+  # A `uses:` line only. A comment mentioning the action is not a pin, and
+  # reporting one as a version CI installs sends the cutover check after a
+  # string nothing reads.
+  grep -rn -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[^#]*claude-code-action@' \
+    .github/workflows 2>/dev/null |
     sed 's/^/ACTION\t/' | emit_rows ACTION
 else
   printf 'ACTION\tNONE\n'

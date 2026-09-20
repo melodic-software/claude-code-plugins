@@ -172,7 +172,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | Trigger | Action |
 |---|---|
 | Claude Code announces deferred surfaces, so an agent learns a rule exists without reading a covered path | Re-run the measurements; the index's justification weakens and the hard-deny classes may narrow |
-| Reading `AGENTS.md` directly stops depending on a remote feature flag, and every pinned `claude-code-action` installs a CLI that reads it | Run `/instruction-placement:migrate cutover-check`; when every condition is met, the `CLAUDE.md` shims a repository carries can come out |
+| Reading `AGENTS.md` directly stops depending on a remote feature flag, and every pinned `claude-code-action` installs a CLI that reads it | Run `/instruction-placement:migrate cutover-check` once it ships (#4281); when every condition is met, the `CLAUDE.md` shims a repository carries can come out |
 | Path scoping gains a write trigger | Drop the structural deny on creation-governing content |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |

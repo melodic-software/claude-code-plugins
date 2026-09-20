@@ -116,7 +116,7 @@ or `CLAUDE.local.md` sits in the working directory or above it, and attaches a s
 `AGENTS.md` on a Read there under the same condition. Recheck when either source stops carrying its
 statement, when that page changes which file names count for the check or **which sessions lack
 `AGENTS.md` support** (the list quoted in step 2), when a release note names `CLAUDE.md` load order
-or `AGENTS.md`, or when `/instruction-placement:migrate cutover-check` reports every condition met.
+or `AGENTS.md`, or when `/instruction-placement:migrate cutover-check` ships (#4281) and reports every condition met.
 
 ## Recipe C: promote from ordinary documentation
 

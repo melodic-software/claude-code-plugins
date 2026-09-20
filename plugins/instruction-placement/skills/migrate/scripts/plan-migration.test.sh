@@ -157,6 +157,7 @@ printf 'a' >"$TMP/CaseProbe"
 [[ -f "$TMP/caseprobe" ]] || case_sensitive=1
 rm -f "$TMP/CaseProbe"
 [[ "$case_sensitive" -eq 1 ]] && printf '# Variant\n' >"$HAZARD/agents.md"
+# shellcheck disable=SC2016 # the fixture's literal text; $root must not expand here
 printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$HAZARD/tools/find-root.sh"
 printf '# Comment: -f CLAUDE.md is not a path detector\n' >>"$HAZARD/tools/find-root.sh"
 printf 'See [the conventions](../CLAUDE.md#naming) for names.\n' >"$HAZARD/docs/guide.md"
@@ -357,6 +358,104 @@ else
   CASE_NUM=$((CASE_NUM + 2))
   printf 'SKIP: SUPPRESS path form (no cygpath on this host; the path is passed through unchanged)\n'
 fi
+
+# --- Case 16: a heading citation is a CITE, not a mention ---
+# medley's form is a backticked path plus a quoted heading, which no markdown
+# link matches. Thirteen live, pre-commit-enforced citations reported NONE.
+
+HEADCITE="$TMP/headcite"
+make_repo "$HEADCITE"
+mkdir -p "$HEADCITE/docs" "$HEADCITE/.cursor/rules"
+printf '# Root\n' >"$HEADCITE/AGENTS.md"
+printf '@AGENTS.md\n' >"$HEADCITE/CLAUDE.md"
+# shellcheck disable=SC2016 # fixture prose; the backticks are markdown, not command substitution
+printf 'See `CLAUDE.md` "Verify your changes" before pushing.\n' >"$HEADCITE/docs/a.md"
+printf 'See CLAUDE.md "Build commands" for the list.\n' >"$HEADCITE/docs/b.md"
+# shellcheck disable=SC2016 # fixture prose; the backticks are markdown, not command substitution
+printf 'See `CLAUDE.md` \xc2\xa7Testing for the rule.\n' >"$HEADCITE/docs/c.md"
+# shellcheck disable=SC2016 # fixture prose; the backticks are markdown, not command substitution
+printf 'Per `CLAUDE.md` "Rules" in this repo.\n' >"$HEADCITE/.cursor/rules/d.mdc"
+printf 'CLAUDE.md is mentioned with no heading here.\n' >"$HEADCITE/docs/plain.md"
+commit_all "$HEADCITE"
+
+OUT=$(bash "$SCRIPT" --root "$HEADCITE" --home "$TMP/nohome")
+assert_contains "a backticked path plus a quoted heading is a CITE" "$OUT" "CITE	docs/a.md:1"
+assert_contains "a bare path plus a quoted heading is a CITE" "$OUT" "CITE	docs/b.md:1"
+assert_contains "a section-sign heading is a CITE" "$OUT" "CITE	docs/c.md:1"
+assert_contains "an .mdc file counts too" "$OUT" "CITE	.cursor/rules/d.mdc:1"
+assert_not_contains "a bare mention with no heading is not a CITE" "$OUT" "CITE	docs/plain.md"
+assert_contains "it stays a MENTION" "$OUT" "MENTION	docs/plain.md:1"
+
+# --- Case 17: hook and CI configuration trees are never rolled up ---
+
+HOOKS="$TMP/hooktrees"
+make_repo "$HOOKS"
+mkdir -p "$HOOKS/.lefthook" "$HOOKS/.husky" "$HOOKS/.githooks"
+printf '# Root\n' >"$HOOKS/AGENTS.md"
+printf '@AGENTS.md\n' >"$HOOKS/CLAUDE.md"
+for d in .lefthook .husky .githooks; do
+  i=1
+  while [[ "$i" -le 12 ]]; do
+    printf 'wc -l CLAUDE.md\n' >"$HOOKS/$d/h$i.sh"
+    i=$((i + 1))
+  done
+done
+commit_all "$HOOKS"
+
+OUT=$(bash "$SCRIPT" --root "$HOOKS" --home "$TMP/nohome")
+for d in .lefthook .husky .githooks; do
+  assert_not_contains "$d is never rolled up" "$OUT" "MENTION	$d/	12 rows"
+  assert_contains "and $d rows are listed" "$OUT" "MENTION	$d/h1.sh:1"
+done
+
+# --- Case 18: ACTION matches a uses: line, not a comment about one ---
+
+PINS="$TMP/pins"
+make_repo "$PINS"
+mkdir -p "$PINS/.github/workflows"
+printf '# Root\n' >"$PINS/AGENTS.md"
+printf '@AGENTS.md\n' >"$PINS/CLAUDE.md"
+{
+  printf '# Uses claude-code-action@v1 in the other lane\n'
+  printf 'jobs:\n  a:\n    steps:\n'
+  printf '      - uses: anthropics/claude-code-action@8251c10 # v1.0.213\n'
+} >"$PINS/.github/workflows/w.yml"
+commit_all "$PINS"
+
+OUT=$(bash "$SCRIPT" --root "$PINS" --home "$TMP/nohome")
+assert_contains "a uses: line is a pin" "$OUT" "ACTION	.github/workflows/w.yml:5"
+assert_not_contains "a comment naming the action is not" "$OUT" "ACTION	.github/workflows/w.yml:1"
+
+# --- Case 19: more than one import is not the target shape ---
+
+DUPE="$TMP/dupeimport"
+make_repo "$DUPE"
+mkdir -p "$DUPE/twice"
+printf '# Root\n' >"$DUPE/AGENTS.md"
+printf '@AGENTS.md\n' >"$DUPE/CLAUDE.md"
+printf '# Twice\n' >"$DUPE/twice/AGENTS.md"
+printf '@AGENTS.md\n@AGENTS.md\n' >"$DUPE/twice/CLAUDE.md"
+commit_all "$DUPE"
+
+OUT=$(bash "$SCRIPT" --root "$DUPE" --home "$TMP/nohome")
+assert_not_contains "a doubled import is not reported as the target shape" "$OUT" "DIR	twice	shim	"
+assert_contains "it is reported as content to resolve" "$OUT" "DIR	twice	both-with-content"
+
+# --- Case 20: the RULES summary row ---
+
+RULES="$TMP/rules"
+make_repo "$RULES"
+mkdir -p "$RULES/.claude/rules"
+printf '# Root\n' >"$RULES/AGENTS.md"
+printf '@AGENTS.md\n' >"$RULES/CLAUDE.md"
+printf -- '---\npaths:\n  - "**/*.py"\n---\n# Scoped\n' >"$RULES/.claude/rules/scoped.md"
+printf '# Always\n\nbody\n' >"$RULES/.claude/rules/always.md"
+commit_all "$RULES"
+
+OUT=$(bash "$SCRIPT" --root "$RULES" --home "$TMP/nohome")
+assert_contains "RULES counts the files, the unscoped ones, and their bytes" "$OUT" "RULES	2	1	"
+OUT=$(bash "$SCRIPT" --root "$HOOKS" --home "$TMP/nohome")
+assert_contains "a repo with no rules says so" "$OUT" "RULES	0	0	0"
 
 # --- Case 6: the home suppressors are reported either way ---
 

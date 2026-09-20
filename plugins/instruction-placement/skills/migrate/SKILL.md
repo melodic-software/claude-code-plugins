@@ -16,6 +16,9 @@ allowed-tools:
     "Write",
     "WebFetch",
   ]
+metadata:
+  workflow-stage: implement
+  summary: Move a repository's instruction content to AGENTS.md behind an operator gate
 ---
 
 # Migrate a repository to AGENTS.md
@@ -81,7 +84,7 @@ not available, rather than skipping the move.
 ## Plan first
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh" --root <repo>
+${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh --root <repo>
 ```
 
 **Always pass `--root`.** A shell's working directory does not persist between tool calls, so a run
@@ -153,7 +156,7 @@ between steps must leave content duplicated rather than deleted:
 3. **Write the `.claude/rules/` files.** Fetch the current rules frontmatter format at authoring
    time rather than writing it from memory: `curl -sL https://code.claude.com/docs/en/memory.md`
    and read its "Path-specific rules" section. Validate every glob with
-   `"${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh"` before the file is written; a glob matching
+   `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.
 4. **Write the shim**: `CLAUDE.md` containing exactly `@AGENTS.md`, one line. Create it where the
    directory had none (the whole job for an `agents-only` row), or reduce an existing one to that
@@ -161,12 +164,23 @@ between steps must leave content duplicated rather than deleted:
    `AGENTS.md` or delete it with the operator's say-so.
 5. **Retarget every `CITE` row** in the same change. A link into `CLAUDE.md` whose content moved is
    a dead link the moment the move lands, so it is not a follow-up.
-6. **Regenerate the index**:
-   `"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" write --file AGENTS.md --root <repo>`.
-   A repository with no path-scoped rules and no nested instruction files has nothing to index, and
-   `write` says `NO-INDEX-NEEDED` and writes nothing. That is the correct outcome, not a failure:
-   an always-loaded block reading "there is nothing here" is exactly the cost the index exists to
-   avoid. Do not hand-write one.
+6. **Offer the index; never write it unasked.** The generated rules index is a *Claude-only* block
+   in the tool-agnostic `AGENTS.md`, and it is not free: in `medley` the render was 6,860 bytes,
+   +52% on the always-loaded file, pushing the worst Codex path to 28,870 of its 32,768-byte
+   budget. So run `render` first, report the byte cost and the resulting worst-path `BUDGET` row,
+   and write it only on the operator's acceptance:
+
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh render --root <repo>
+   ${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh write --file AGENTS.md --root <repo>
+   ```
+
+   It earns its cost where deferred surfaces are many and a worker would otherwise never learn they
+   exist. It does not where the repository has a handful of nested files a reader meets anyway, or
+   where the budget is already tight. **A repository that declines the index is not broken**:
+   `check` reports `NO-BLOCK` and `index-drift` stays quiet, because a repository that never
+   adopted an index is not drifting from one. With nothing to index at all, `write` says
+   `NO-INDEX-NEEDED` and writes nothing; do not hand-write a block in either case.
 7. **Run the repository's own markdown lint**, if it has one: check for a `lint:md` script in
    `package.json`, a `lefthook.yml` markdown hook, or a `.markdownlint*` config, and run what you
    find. A regenerated block or a moved heading can trip MD022 (blanks around headings), MD024
@@ -180,16 +194,23 @@ between steps must leave content duplicated rather than deleted:
 Where a directory has a nested `AGENTS.md`, `render-index.sh wiring` says whether it needs a shim:
 an `UNWIRED` row does, a `NATIVE` row does not.
 
+**Before writing nested shims, look for a gate that classifies changed paths by directory prefix.**
+A hook or CI rule keyed on `apps/`, `libs/` or `services/` reads `<dir>/CLAUDE.md` as code and
+applies a code lane to it; in `medley` that tripped a runtime-affecting pre-push gate. Grep the
+hook and workflow configs for those prefixes, and report each as an item for the operator. **The
+fix belongs to the repository's gate, through its own tests.** Teach it that an instruction file is
+not code. Never bypass the gate, and never rename or relocate a shim to dodge it.
+
 **The rows Apply does not act on, and where each goes instead.** Every one is reported, none is
 silently dropped:
 
-- `PATHDET` — listed in the PR body as a cutover blocker. This skill changes none of them: code that
+- `PATHDET`: listed in the PR body as a cutover blocker. This skill changes none of them. Code that
   finds a path by the existence of `CLAUDE.md` keeps working while the shim exists, and rewriting it
   is the cutover's business.
-- `ACTION` — listed in the PR body for the cutover check, which is what reads the pins.
-- `SUPPRESS` — reported to the operator as theirs. No repository-side change reaches a bare
+- `ACTION`: listed in the PR body for the cutover check, which is what reads the pins.
+- `SUPPRESS`: reported to the operator as theirs. No repository-side change reaches a bare
   `~/CLAUDE.md`.
-- `BUDGET` with `OVER` — content moves out before the migration proceeds in that subtree, not after.
+- `BUDGET` with `OVER`: content moves out before the migration proceeds in that subtree, not after.
 
 ## Verify the load, never assume it
 
@@ -203,7 +224,7 @@ parallel of `wiring` and the whole load evidence for an `agents-only` repository
 the shim, `LOADED` after); a headless Claude canary; and a Codex canary where that CLI is
 installed. The worked invocations, where the canary token goes, the Codex rollout check, and the
 progressive-disclosure caveat are in
-[`reference/verification.md`](reference/verification.md) — read it before running any of them.
+[`reference/verification.md`](reference/verification.md). Read it before running any of them.
 
 ## Why the shim stays
 

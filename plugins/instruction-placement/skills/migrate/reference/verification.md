@@ -10,17 +10,19 @@ directory does not survive between tool calls.
 
 ```bash
 # The root file, through its shim. <trigger> is any tracked file that exists.
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
+${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh \
   --root <repo> --trigger README.md --expect AGENTS.md
 
-# A nested surface: the trigger has to be a file IN that directory, because the
-# nested attach fires on a Read there and nowhere else.
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
+# A nested surface: the trigger has to be a NON-INSTRUCTION file in that
+# directory or below it. The attach fires on a Read there and nowhere else, and
+# reading the nested AGENTS.md itself lets the model quote the token out of the
+# Read result, which proves nothing about loading.
+${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh \
   --root <repo> --trigger src/billing/service.ts \
   --expect AGENTS.md --expect src/billing/AGENTS.md
 
 # A path-scoped rule: the trigger is a file its `paths:` glob matches.
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
+${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh \
   --root <repo> --trigger src/api/handler.ts --expect .claude/rules/api.md
 ```
 
@@ -34,7 +36,7 @@ For an `agents-only` repository the shim is the whole change, and `reachable` is
 parallel of `wiring`. Capture both readings:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" reachable --file AGENTS.md --root <repo>
+${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh reachable --file AGENTS.md --root <repo>
 ```
 
 `NATIVE` before the shim (nothing blocks the file, and nothing carries it into a session that
@@ -52,8 +54,10 @@ carries nothing.
 
 The token lives in the working tree and never in a commit, so the order is: commit the migration,
 add the token, run the canaries, remove the token. Afterwards `git status --porcelain` is clean and
-`git grep -c CANARY` **prints nothing and exits 1** — that exit is the success signal for a
-no-match grep, not a failure, and a caller gating on exit codes has to know it. Checking for a
+`git grep -c <your token>` **prints nothing and exits 1**. That exit is the success signal for a
+no-match grep, not a failure, and a caller gating on exit codes has to know it. Grep the token you
+chose, never the bare word `CANARY`: a repository can legitimately contain it (`medley` ships a
+drift-canary feature), and grepping the word turns a clean tree into a false positive. Checking for a
 clean tree *before* the canaries can never pass: the tree is dirty by construction while they run.
 
 ## Asking Claude
@@ -64,9 +68,12 @@ claude -p "Read the file <a file in that directory>. Then quote back, verbatim, 
   --model haiku --allowedTools Read
 ```
 
-**Ask for the lines, and name a file that exists.** "List every canary token in your instructions"
-reads as an exfiltration request and gets refused, which proves nothing about the loader; and a
-Read of a missing file never fires the nested trigger the canary is testing.
+**Ask for the lines, not the tokens.** "List every canary token in your instructions" reads as an
+exfiltration request and gets refused, which proves nothing about the loader.
+
+**Name a file that exists, and never the instruction file under test.** A Read of a missing file
+never fires the nested trigger; a Read of the `AGENTS.md` itself puts the token in the transcript by
+hand, so the answer stops measuring the loader.
 
 ## Asking Codex
 
@@ -96,6 +103,13 @@ Codex loaded it.
 Codex's project-doc budget is cumulative and can silently drop a file past it. The number and its
 dated record are beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; the `BUDGET`
 rows say whether this repository is near it.
+
+## When the migration created no new rules file
+
+"Prove a new `paths:` rules file loads" is unmeetable where no Claude-specific text turned out to be
+file-specific, which is the common case. The fallback: canary an **existing** path-scoped rules file,
+so the mechanism is still proven on this repository, and report that the migration created none.
+Never invent a rules file to have something to canary.
 
 ## Progressive disclosure, with a caveat
 

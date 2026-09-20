@@ -243,7 +243,7 @@ ip_discover_nested_instructions() {
     awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" '
     BEGIN {
       split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1
-      split(foreign, fo, " "); for (k in fo) theirs[fo[k]] = 1
+      split(foreign, others, " "); for (k in others) theirs[others[k]] = 1
     }
     $0 == "" { next }
     {
@@ -417,7 +417,9 @@ ip_index_target_loaded() {
   # block it invisibly from here.
   if [[ -z "$blocker" ]]; then
     case "$target" in
-    AGENTS.md | .claude/AGENTS.md | */AGENTS.md | */.claude/AGENTS.md)
+    # `*/AGENTS.md` already covers every nested spelling, `.claude/AGENTS.md`
+    # included; only the bare root name needs its own pattern.
+    AGENTS.md | */AGENTS.md)
       printf 'NATIVE\t%s is not blocked: no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md on its path, so Claude Code reads it directly where AGENTS.md support is available\n' \
         "$target"
       return 0
