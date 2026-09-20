@@ -32,7 +32,8 @@ whether a move is safe.
 | Path-scoped rule (`paths:`) | On **read** of a matching file *(doc, measured)* | Re-injected when a match recurs *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
 | Nested `CLAUDE.md` | On read of a file in that subtree *(doc, measured)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
 | `@import` from a **nested** `CLAUDE.md` | With its parent, deferred *(measured)* | With its parent *(inferred)* | **Yes, with its parent, inside the subagent itself** *(measured 2.1.268)* |
-| Bare nested `AGENTS.md` (no shim) | **Never** *(doc, measured)* | n/a | No, it loads nowhere *(measured 2.1.238)* |
+| Bare nested `AGENTS.md` (no shim), with a `CLAUDE.md` on its path | **Never** *(doc, measured 2.1.238 and 2.1.278)* | n/a | No, it loads nowhere *(measured 2.1.238)* |
+| Bare nested `AGENTS.md` (no shim), nothing on its path | On read of a file in that subtree, where AGENTS.md support is available *(doc, measured 2.1.278)* | Reloads when the subtree is touched again *(doc)* | Yes, on a matching read inside the subagent itself *(measured 2.1.278)* |
 | Skill body | On invocation *(doc)* | Listing re-injected; body on re-invoke *(doc)* | Discovered via the Skill tool *(doc)* |
 
 Three facts from that table carry the whole design:
@@ -76,11 +77,22 @@ Four findings follow, each of which a rubric rule depends on:
    rule* inlines at session start and defeats the scoping. Both are "an import inside a deferred
    surface"; only one defers. Never generalize from one to the other. The rubric treats them as
    unrelated facts because measurement says they are.
-3. **A nested `AGENTS.md` with no `CLAUDE.md` shim never loads.** `BARE_AGENTS_CANARY` was absent at
-   session start and still absent after reading `bare/thing.txt`. The shim is a correctness
-   requirement of the portable destination, not a stylistic nicety. This is what the docs mean by
-   "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" *(doc)*, confirmed to hold at every level of the
-   tree, not only the root.
+3. **A nested `AGENTS.md` with no `CLAUDE.md` shim never loads while a `CLAUDE.md` sits on its
+   path.** `BARE_AGENTS_CANARY` was absent at session start and still absent after reading
+   `bare/thing.txt`, in a repository whose root carried a `CLAUDE.md`. The shim is what loads the
+   portable destination there, not a stylistic nicety. Re-measured on 2.1.278 the trigger is shared
+   rather than exclusive: a nested `CLAUDE.md` and a nested `AGENTS.md` both attach on a Read in
+   that directory, and what the root `CLAUDE.md` does is make Claude Code read `CLAUDE.md` files
+   *instead of* `AGENTS.md`.
+   - **Claim**: Claude reads `AGENTS.md` only where no `CLAUDE.md`, `.claude/CLAUDE.md` or
+     `CLAUDE.local.md` sits in the working directory or above it, and attaches a subdirectory's
+     `AGENTS.md` on a Read there under the same condition; reading it directly needs v2.1.277 or
+     later and is unavailable in some sessions.
+   - **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code
+     reads AGENTS.md", "When AGENTS.md support is unavailable"; canary runs on 2.1.278.
+   - **As of**: 2026-09-19.
+   - **Recheck trigger**: that section changes which file names count for the check, or a release
+     note names `AGENTS.md` or instruction-file loading.
 4. **A subagent inherits none of the parent's on-demand loads.** Dispatched *after* the parent had
    already loaded all five surfaces, a general-purpose subagent reported exactly
    `ROOT_CLAUDE_CANARY, ROOT_AGENTS_CANARY`. It inherited none of the parent's deferred loads.

@@ -70,7 +70,8 @@ each discovered file. Apply by entity type:
 - **N1**: Nested `AGENTS.md` reachability (deterministic-FAIL). Run
   `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL
   line into the report. Do NOT re-derive by hand. Discovery stays depth-1 for the C-checks; this
-  check asks only whether each nested file loads at all
+  check asks only whether each nested file loads at all, and it fires only where a `CLAUDE.md` on
+  that file's own path is read instead of it
 - **C1 counts the expanded file**: the pre-computed header's root-file figure comes from
   `instruction-load-stats.sh --lines`, imports expanded. For any other CLAUDE.md in scope, run it
   with `--file <path>`; use `--breakdown` when imports contributed, and carry the per-file rows into

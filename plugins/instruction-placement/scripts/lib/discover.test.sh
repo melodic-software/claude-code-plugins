@@ -248,6 +248,29 @@ assert_lacks "the root CLAUDE.md is not a nested surface" "$out" "CLAUDE.md"
 assert_lacks "the root AGENTS.md is not a nested surface" "$out" "AGENTS.md"
 assert_has "a subdirectory instruction file is a nested surface" "$out" "sub/AGENTS.md"
 
+# Another tool's instruction files are that tool's. Discovery feeds the index
+# and the wiring gate alike, so a `.cursor/AGENTS.md` appearing here would both
+# advertise a Cursor file as a Claude on-demand surface and demand a Claude
+# shim beside it.
+tools="$(mktemp -d)"
+git -C "$tools" init -q .
+mkdir -p "$tools/.cursor/rules" "$tools/.codex" "$tools/.github/workflows" "$tools/src"
+printf '@AGENTS.md\n' >"$tools/CLAUDE.md"
+printf '# Root\n' >"$tools/AGENTS.md"
+printf '# Cursor\n' >"$tools/.cursor/AGENTS.md"
+printf '# Cursor rules\n' >"$tools/.cursor/rules/AGENTS.md"
+printf '# Codex\n' >"$tools/.codex/AGENTS.md"
+printf '# Actions\n' >"$tools/.github/AGENTS.md"
+printf '# Src\n' >"$tools/src/AGENTS.md"
+commit_all "$tools"
+
+out="$(ip_discover_nested_instructions "$tools")"
+assert_lacks "a .cursor tree is not a Claude surface" "$out" ".cursor/AGENTS.md"
+assert_lacks "and neither is a nested .cursor/rules tree" "$out" ".cursor/rules/AGENTS.md"
+assert_lacks "a .codex tree is not a Claude surface" "$out" ".codex/AGENTS.md"
+assert_lacks "a .github tree is not a Claude surface" "$out" ".github/AGENTS.md"
+assert_has "an ordinary subtree still is" "$out" "src/AGENTS.md"
+
 # ==========================================================================
 # BUG (d) — index target must actually be reachable by Claude Code
 # ==========================================================================
@@ -270,6 +293,67 @@ assert_eq "an imported AGENTS.md is reachable" "0" "$?"
 # A CLAUDE.md target is always reachable — it is a root memory file itself.
 ip_index_target_loaded "$chain" "CLAUDE.md" >/dev/null 2>&1
 assert_eq "a root CLAUDE.md target is reachable" "0" "$?"
+
+# With no root CLAUDE.md at all, the import is not what decides whether the
+# target is read: nothing blocks Claude Code's own AGENTS.md walk. The verdict
+# is a third one, because availability is not observable from the repository.
+nativeroot="$(mktemp -d)"
+git -C "$nativeroot" init -q .
+printf '# Shared agent instructions\n' >"$nativeroot/AGENTS.md"
+commit_all "$nativeroot"
+ip_index_target_loaded "$nativeroot" "AGENTS.md" >/dev/null 2>&1
+assert_eq "an AGENTS.md with no root CLAUDE.md is not a failure" "0" "$?"
+reason="$(ip_index_target_loaded "$nativeroot" "AGENTS.md" 2>&1)"
+assert_eq "and the verdict is NATIVE, not LOADED" "NATIVE" "$(printf '%s' "$reason" | cut -f1)"
+
+# A CLAUDE.md on a NESTED target's own path blocks it exactly as a root one
+# does, so the verdict must agree with what the wiring gate says about the same
+# tree. It said NATIVE while wiring said UNWIRED.
+nestedblock="$(mktemp -d)"
+git -C "$nestedblock" init -q .
+mkdir -p "$nestedblock/svc" "$nestedblock/free"
+printf '# Service\n' >"$nestedblock/svc/AGENTS.md"
+printf '# Service notes, no import\n' >"$nestedblock/svc/CLAUDE.md"
+printf '# Free\n' >"$nestedblock/free/AGENTS.md"
+commit_all "$nestedblock"
+
+ip_index_target_loaded "$nestedblock" "svc/AGENTS.md" >/dev/null 2>&1
+assert_eq "a CLAUDE.md beside a nested target blocks it" "1" "$?"
+reason="$(ip_index_target_loaded "$nestedblock" "svc/AGENTS.md" 2>&1)"
+assert_eq "and the verdict is UNREACHABLE, not NATIVE" "UNREACHABLE" "$(printf '%s' "$reason" | cut -f1)"
+reason="$(ip_index_target_loaded "$nestedblock" "free/AGENTS.md" 2>&1)"
+assert_eq "a nested target with nothing on its path is still NATIVE" "NATIVE" "$(printf '%s' "$reason" | cut -f1)"
+
+printf '@AGENTS.md\n' >"$nestedblock/svc/CLAUDE.md"
+commit_all "$nestedblock"
+reason="$(ip_index_target_loaded "$nestedblock" "svc/AGENTS.md" 2>&1)"
+assert_eq "and an importing sibling makes it LOADED" "LOADED" "$(printf '%s' "$reason" | cut -f1)"
+
+# A Claude-owned file inside another tool's directory is still Claude's. Only
+# an AGENTS.md there belongs to that tool.
+ownedin="$(mktemp -d)"
+git -C "$ownedin" init -q .
+mkdir -p "$ownedin/.github" "$ownedin/.cursor" "$ownedin/.codex"
+printf '@AGENTS.md\n' >"$ownedin/CLAUDE.md"
+printf '# Root\n' >"$ownedin/AGENTS.md"
+printf '# Workflow conventions\n' >"$ownedin/.github/CLAUDE.md"
+printf '# Cursor notes for Claude\n' >"$ownedin/.cursor/CLAUDE.md"
+printf '# Cursor\n' >"$ownedin/.cursor/AGENTS.md"
+printf '# Codex\n' >"$ownedin/.codex/AGENTS.md"
+commit_all "$ownedin"
+
+out="$(ip_discover_nested_instructions "$ownedin")"
+assert_has "a CLAUDE.md under .github is a Claude surface" "$out" ".github/CLAUDE.md"
+assert_has "a CLAUDE.md under .cursor is a Claude surface" "$out" ".cursor/CLAUDE.md"
+assert_lacks "the AGENTS.md beside it is not" "$out" ".cursor/AGENTS.md"
+assert_lacks "and neither is a .codex AGENTS.md" "$out" ".codex/AGENTS.md"
+
+# A non-AGENTS.md target gets no NATIVE verdict: Claude Code reads only the
+# AGENTS.md names on its own, so any other index target still needs an import.
+printf '# Index\n' >"$nativeroot/docs-index.md"
+commit_all "$nativeroot"
+ip_index_target_loaded "$nativeroot" "docs-index.md" >/dev/null 2>&1
+assert_eq "a target under another name is still unreachable" "1" "$?"
 
 # An ABSOLUTE target must not be re-anchored under the root. Prefixing it
 # unconditionally built `<root>//abs/path`, which collapses to a path under the

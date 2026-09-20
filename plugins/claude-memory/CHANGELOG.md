@@ -3,6 +3,17 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.9]
+
+### Changed
+
+- `nested-agents-check.sh` (N1) flags a nested `AGENTS.md` only where a `CLAUDE.md`, `CLAUDE.local.md` or root `.claude/CLAUDE.md` on its own path is read instead of it and none of them imports it. A nested `AGENTS.md` with nothing above it is read directly and is no longer reported as a file that never loads, so a repository with no `CLAUDE.md` at all stops being told to add one.
+- `nested-agents-check.sh` skips the `.codex`, `.cursor` and `.github` trees alongside `.claude`, `node_modules`, `vendor` and `.git`: another tool's `AGENTS.md` is that tool's and must never be given a Claude shim. The check's corpus is `AGENTS.md` files only, so a `CLAUDE.md` in one of those directories was never in scope and is unaffected. The list stays this plugin's own copy, because a plugin never imports a file from a sibling plugin (`docs/plugin-philosophy.md`, "Keep plugins horizontally decoupled").
+- The N1 fix route to `/instruction-placement:migrate` is presence-gated with a stated fallback, per `docs/conventions/seam-phrasing/README.md`: where that plugin is absent, removing the root `CLAUDE.md` is named as a repository-wide change outside this fix and left to the operator.
+- Both the blocker walk and the entry-point walk count `.claude/CLAUDE.md` at every level, not only at the repository root. The memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in your working directory or any directory above it" (fetched 2026-09-19), so a subdirectory's own `.claude/CLAUDE.md` displaces the `AGENTS.md` beside it, and an import from one wires that file.
+- The N1 finding text, the audit surface table, `context/audit.md`, `context/fix.md` and `reference/criteria.md` name the displacing `CLAUDE.md` as the reason rather than asserting that Claude Code never reads `AGENTS.md`. The fix path routes a repository that wants to drop its shims to `/instruction-placement:migrate` instead of proposing it here.
+- `reference/criteria.md` and `reference/official-guidance.md` keep the quoted Anthropic sentence word for word and label it the superseded basis: its own recheck trigger fired, since the memory page no longer carries it and direct `AGENTS.md` reading shipped in Claude Code 2.1.277.
+
 ## [0.12.8]
 
 ### Changed

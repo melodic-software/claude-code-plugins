@@ -41,6 +41,10 @@ REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 mkdir -p "$REPO/shimmed" "$REPO/bare" "$REPO/linked" "$REPO/localonly" "$REPO/deep/a/b" "$REPO/vendor/x" "$REPO/node_modules/y"
 printf 'root agents\n' >"$REPO/AGENTS.md" # root-level: not examined
+# The root CLAUDE.md is what makes an unshimmed nested AGENTS.md a finding: with
+# a CLAUDE.md in the working directory or above it, Claude Code reads CLAUDE.md
+# files and never attaches a bare nested AGENTS.md.
+printf '@AGENTS.md\n' >"$REPO/CLAUDE.md"
 printf 'shimmed\n' >"$REPO/shimmed/AGENTS.md"
 printf '@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md" # wired by import
 printf 'bare\n' >"$REPO/bare/AGENTS.md"          # UNWIRED
@@ -148,6 +152,72 @@ commit_all "$HOPS"
 OUT=$(cd "$HOPS" && bash "$SCRIPT")
 assert_not_contains "a fourth-hop AGENTS.md is wired" "$OUT" "four/AGENTS.md"
 assert_contains "a fifth-hop AGENTS.md is not loaded, so it is a finding" "$OUT" "FAIL [N1]: five/AGENTS.md"
+
+# --- Case 7: no CLAUDE.md above it, so the missing shim is not a finding ---
+# Claude Code attaches a subdirectory's AGENTS.md on a Read there when neither
+# that directory nor any directory above it carries a CLAUDE.md, .claude/CLAUDE.md
+# or CLAUDE.local.md. Nothing blocks it here, so there is nothing to fix.
+
+NATIVE="$TEST_TMPDIR/native"
+make_repo "$NATIVE"
+mkdir -p "$NATIVE/bare" "$NATIVE/ownclaude"
+printf 'root agents\n' >"$NATIVE/AGENTS.md"
+printf 'bare\n' >"$NATIVE/bare/AGENTS.md"
+printf 'own\n' >"$NATIVE/ownclaude/AGENTS.md"
+printf '# Directory notes, no import\n' >"$NATIVE/ownclaude/CLAUDE.md"
+commit_all "$NATIVE"
+
+OUT=$(cd "$NATIVE" && bash "$SCRIPT")
+assert_not_contains "a bare nested AGENTS.md with no CLAUDE.md above it is not a finding" "$OUT" "bare/AGENTS.md"
+assert_contains "a non-importing CLAUDE.md in its own directory still blocks it" "$OUT" "FAIL [N1]: ownclaude/AGENTS.md"
+OUT=$(cd "$NATIVE" && bash "$SCRIPT" --count)
+assert_eq "--count counts only the blocked one" "1" "$OUT"
+
+printf '@AGENTS.md\n' >"$NATIVE/ownclaude/CLAUDE.md"
+commit_all "$NATIVE" "shim the blocked one"
+rc=0
+(cd "$NATIVE" && bash "$SCRIPT" --check) >/dev/null 2>&1 || rc=$?
+assert_eq "--check exits 0 when only unblocked files remain" 0 "$rc"
+
+# --- Case 8: a nested .claude/CLAUDE.md counts, not only the root's ---
+# The memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in
+# your working directory or any directory above it", so a subdirectory's own
+# .claude/CLAUDE.md displaces the AGENTS.md beside it exactly as a plain one does.
+
+DOTC="$TEST_TMPDIR/dotclaude"
+make_repo "$DOTC"
+mkdir -p "$DOTC/blocked/.claude" "$DOTC/wired/.claude" "$DOTC/free"
+printf 'root agents\n' >"$DOTC/AGENTS.md"
+printf 'blocked\n' >"$DOTC/blocked/AGENTS.md"
+printf '# Notes, no import\n' >"$DOTC/blocked/.claude/CLAUDE.md"
+printf 'wired\n' >"$DOTC/wired/AGENTS.md"
+printf '@../AGENTS.md\n' >"$DOTC/wired/.claude/CLAUDE.md"
+printf 'free\n' >"$DOTC/free/AGENTS.md"
+commit_all "$DOTC"
+
+OUT=$(cd "$DOTC" && bash "$SCRIPT")
+assert_contains "a nested .claude/CLAUDE.md with no import is a finding" "$OUT" "FAIL [N1]: blocked/AGENTS.md"
+assert_not_contains "a nested .claude/CLAUDE.md that imports it wires it" "$OUT" "wired/AGENTS.md"
+assert_not_contains "a directory with none of the three is not a finding" "$OUT" "free/AGENTS.md"
+
+# --- Case 9: another tool's directory hides its AGENTS.md, not a CLAUDE.md ---
+# The exclusion is about whose file it is, and only an AGENTS.md under
+# .codex/.cursor/.github belongs to that tool. A CLAUDE.md there is Claude's.
+
+OWNED="$TEST_TMPDIR/owned"
+make_repo "$OWNED"
+mkdir -p "$OWNED/.cursor" "$OWNED/.github"
+printf '@AGENTS.md\n' >"$OWNED/CLAUDE.md"
+printf 'root agents\n' >"$OWNED/AGENTS.md"
+printf 'cursor\n' >"$OWNED/.cursor/AGENTS.md"
+printf '# Cursor-dir notes for Claude, no import\n' >"$OWNED/.cursor/CLAUDE.md"
+printf '# Workflow notes for Claude\n' >"$OWNED/.github/CLAUDE.md"
+commit_all "$OWNED"
+
+OUT=$(cd "$OWNED" && bash "$SCRIPT")
+assert_not_contains "another tool's AGENTS.md is never a finding" "$OUT" ".cursor/AGENTS.md"
+OUT=$(cd "$OWNED" && bash "$SCRIPT" --count)
+assert_eq "and a Claude CLAUDE.md there is not an AGENTS.md finding either" "0" "$OUT"
 
 # --- Case 6: a repo with no nested AGENTS.md at all ---
 

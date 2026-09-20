@@ -28,18 +28,36 @@
 #   render              print the block to stdout
 #   check --file F      compare F's block against a fresh render
 #   write --file F      replace F's block in place (creates it at end if absent)
-#   reachable --file F  would Claude Code actually load F?
+#   reachable --file F  does anything in this repository stop Claude Code
+#                       loading F?
 #   wiring              does every nested AGENTS.md the index lists actually load?
 #
-# `reachable` exists because Claude Code reads CLAUDE.md, not AGENTS.md. A
-# repository carrying both with no import between them gets an index nothing
-# ever reads, while every other gate reports green — the entire subagent-gap
-# mitigation silently doing nothing.
+# `reachable` exists because a CLAUDE.md is read INSTEAD of the AGENTS.md beside
+# it. A repository carrying both with no import between them gets an index
+# nothing ever reads, while every other gate reports green — the entire
+# subagent-gap mitigation silently doing nothing.
+#
+#   Claim: Claude Code reads AGENTS.md as the project instructions only when
+#     there is no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md in the working
+#     directory or above it; with one there, it reads the CLAUDE.md files, and
+#     an `@AGENTS.md` import or symlink is what carries the AGENTS.md in.
+#   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code
+#     reads AGENTS.md"; confirmed by canary runs on Claude Code 2.1.278.
+#   As of: 2026-09-19.
+#   Recheck trigger: that section changes which file names count for the check,
+#     or a release note names AGENTS.md or instruction-file loading.
+#
+# So a target nothing blocks gets the third verdict NATIVE rather than a pass or
+# a failure: availability (version, provider, telemetry and hook settings, the
+# first session after an upgrade) is not observable from a repository, and
+# neither is a CLAUDE.md above the repository root.
 #
 # `wiring` asks the same question one level down. The index lists every nested
 # AGENTS.md as a surface that "enters context automatically when Claude reads a
-# file it covers", and that is true only when a CLAUDE.md or CLAUDE.local.md
-# beside it imports or symlinks it. A nested AGENTS.md with no such sibling is
+# file it covers". A nested CLAUDE.md and a nested AGENTS.md share that Read
+# trigger; what separates them is that a CLAUDE.md on the file's own path is
+# read instead of it, and then only an import or symlink from one of those
+# CLAUDE.md files brings it in. A blocked, unimported nested AGENTS.md is
 # indexed, in sync, and never loaded; `check` cannot see the difference because
 # it compares text, not wiring.
 #
@@ -51,9 +69,10 @@
 #   render-index.sh wiring [--root <dir>]
 #   render-index.sh --help
 #
-# Exit: 0 success / in sync / reachable / every nested AGENTS.md wired
+# Exit: 0 success / in sync / target loaded or unblocked / no nested AGENTS.md
+#         blocked and unimported
 #       1 check found drift, write failed, target unreachable, or a nested
-#         AGENTS.md unwired
+#         AGENTS.md blocked and unimported
 #       2 usage error or unusable path
 #       3 check found no index block in the file
 
@@ -78,6 +97,15 @@ MAX_ROWS="${CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS:-40}"
 BEGIN_MARKER="<!-- BEGIN GENERATED: instruction-placement rules index -->"
 END_MARKER="<!-- END GENERATED: instruction-placement rules index -->"
 
+# What a block says when there is nothing to index. `render` still prints it, so
+# a human asking what the index WOULD hold gets an answer. `write` does not: the
+# index is always-loaded, and a block announcing that the repository has no
+# deferred surfaces is pure cost, the same reason a pure shim gets no row.
+EMPTY_NOTE="No path-scoped rules or nested instruction files are present in this repository."
+
+# True when a rendered block carries the empty note rather than rows.
+block_is_empty() { [[ "$1" == *"$EMPTY_NOTE"* ]]; }
+
 usage() {
   cat <<'EOF'
 render-index.sh — generate the always-loaded index of deferred instruction surfaces.
@@ -90,22 +118,30 @@ Usage:
   render-index.sh wiring [--root <dir>]
   render-index.sh --help
 
-render     print the generated block to stdout
+render     print the generated block to stdout. With nothing to index it still
+           prints a well-formed block saying so, which is the answer to "what
+           WOULD the index hold"; `write` is the surface that decides whether
+           one is worth writing, and writes none in that case
 check      compare the block inside <path> against a fresh render
 write      replace the block inside <path> in place, appending it if absent
-reachable  report whether Claude Code would load <path> at all (it reads
-           CLAUDE.md, not AGENTS.md, so an unimported AGENTS.md is inert)
+reachable  report whether anything in this repository stops Claude Code loading
+           <path>: LOADED (a root memory file reaches it), UNREACHABLE (a root
+           CLAUDE.md is read instead of it), or NATIVE (nothing blocks it, so
+           Claude Code reads it directly where AGENTS.md support is available)
 wiring     report, for every nested AGENTS.md the index would list, whether a
-           CLAUDE.md or CLAUDE.local.md beside it imports or symlinks it
-           (WIRED / UNWIRED rows; exit 1 when any row is UNWIRED)
+           CLAUDE.md on its own path blocks it and whether one imports or
+           symlinks it (WIRED / NATIVE / UNWIRED rows; exit 1 on any UNWIRED).
+           Prints NONE when there are no nested files, so a clean repository
+           does not look like a subcommand that never ran
 
 Indexes only surfaces that load on demand: path-scoped rules (`paths:`
 frontmatter) and nested CLAUDE.md / AGENTS.md files below the repository root.
 Unscoped rules and root-level instruction files already load every session and
 are deliberately left out.
 
-Exit: 0 success, in sync, or every nested AGENTS.md wired; 1 drift, write failure,
-an unreachable target, or an unwired nested AGENTS.md; 2 usage error; 3 no block found.
+Exit: 0 success, in sync, or no blocked-and-unimported nested AGENTS.md; 1 drift,
+write failure, an unreachable target, or a blocked unimported nested AGENTS.md;
+2 usage error; 3 no block found.
 EOF
 }
 
@@ -214,7 +250,7 @@ render_block() {
 
   printf '%s\n' "$BEGIN_MARKER"
   if ((${#rows[@]} == 0)); then
-    printf '\n%s\n\n' "No path-scoped rules or nested instruction files are present in this repository."
+    printf '\n%s\n\n' "$EMPTY_NOTE"
   else
     cat <<'PREAMBLE'
 
@@ -298,6 +334,7 @@ render | check | write | reachable | wiring)
 esac
 
 ROOT="$PWD"
+ROOT_GIVEN=0
 TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -308,6 +345,7 @@ while [[ $# -gt 0 ]]; do
   --root)
     [[ $# -lt 2 ]] && die "--root needs a path"
     ROOT="$(normalize_drive_path "$2")"
+    ROOT_GIVEN=1
     shift 2
     ;;
   --file)
@@ -331,8 +369,15 @@ if [[ "$SUBCOMMAND" != "render" && "$SUBCOMMAND" != "wiring" && -z "$TARGET" ]];
   die "$SUBCOMMAND needs --file"
 fi
 
-# Resolve the target before entering --root, so a relative --file is read
-# relative to the caller's cwd rather than silently re-anchored.
+# Resolve the target before entering --root.
+#
+# A relative `--file` belongs to `--root` WHEN `--root` WAS GIVEN. A caller who
+# names a repository explicitly and then writes `--file AGENTS.md` means that
+# repository's file; anchoring it to the caller's own directory finds nothing
+# and dies with "--file is not a readable file". Without `--root` the two are
+# the same directory anyway, so the caller's cwd stays the anchor and nothing
+# is silently re-anchored: the re-anchoring only happens where the caller asked
+# for it by naming a root.
 #
 # A drive-letter path is ABSOLUTE. `git rev-parse --show-toplevel` answers
 # `C:/repo` under Git Bash, so that spelling is what the index-drift hook hands
@@ -342,7 +387,17 @@ fi
 # the error and exited 0. The production check was a no-op for every Windows
 # user until this test was widened.
 if [[ -n "$TARGET" && "$TARGET" != /* && ! "$TARGET" =~ ^[A-Za-z]:[\\/] ]]; then
-  TARGET="$PWD/$TARGET"
+  if ((ROOT_GIVEN)); then
+    # A relative --root is itself anchored to the caller's cwd, so resolve it
+    # before joining or the target stays relative past the `cd` below.
+    root_abs="$ROOT"
+    if [[ "$root_abs" != /* && ! "$root_abs" =~ ^[A-Za-z]:[\\/] ]]; then
+      root_abs="$PWD/$root_abs"
+    fi
+    TARGET="${root_abs%/}/$TARGET"
+  else
+    TARGET="$PWD/$TARGET"
+  fi
 fi
 
 cd "$ROOT" || die "cannot enter --root: $ROOT"
@@ -387,41 +442,57 @@ if [[ "$SUBCOMMAND" == "reachable" ]]; then
   exit $?
 fi
 
-# One `WIRED|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested AGENTS.md
-# discovery returns. Wired means some instruction entry point IS the file (a
-# symlink) or reaches it through the import chase the rest of this plugin
-# uses: the CLAUDE.md or CLAUDE.local.md beside it (the prescribed layout,
-# checked first), one in any ancestor directory, or the root's
-# .claude/CLAUDE.md. An import from any of those brings the file into context,
-# so a file reached that way loads and is not a finding. Entry points are read
-# from the filesystem, so a gitignored CLAUDE.local.md shim counts. Returns 1
-# when any row is UNWIRED.
+# One `WIRED|NATIVE|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested
+# AGENTS.md discovery returns. Wired means some instruction entry point IS the
+# file (a symlink) or reaches it through the import chase the rest of this
+# plugin uses. `ip_entry_points_on_path` supplies the walk, shared with
+# `ip_index_target_loaded` so the two verdicts cannot disagree about one tree:
+# the CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md beside it (the prescribed
+# layout, nearest first), then any in an ancestor directory up to the root. An
+# import from any of those brings the file into context, so a file reached that
+# way loads and is not a finding. Entry points are read from the filesystem, so
+# a gitignored CLAUDE.local.md shim counts.
+#
+# An UNWIRED row is a finding under the DEFAULT instruction-files mode. Under
+# the user-settings option `claude-md-and-agents-md` both files load, "each
+# directory's `CLAUDE.md` files first and its `AGENTS.md` after them", so an
+# unimported nested AGENTS.md does load there and the row is a false positive.
+# The import stays harmless either way: "Claude Code skips an `AGENTS.md` it has
+# already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
+# twice" (code.claude.com/docs/en/memory, "Choose which instruction files load";
+# fetched 2026-09-19; recheck when that table changes). The setting is a user,
+# `--settings` or managed one, which no repository can ship, so the gate keeps
+# the default's answer.
+#
+# NATIVE means no CLAUDE.md, CLAUDE.local.md or root .claude/CLAUDE.md sits on
+# the file's own path, so nothing in this repository stops Claude Code reading
+# it and the import would add nothing. It is not a pass: availability, and a
+# CLAUDE.md above the repository root, are outside what this can see.
+#
+# Returns 1 when any row is UNWIRED.
 nested_agents_wiring() {
-  local nested dir want entry wired unwired=0
+  local nested dir want entry wired blocker unwired=0
   while IFS= read -r nested; do
     [[ -n "$nested" ]] || continue
     [[ "$(basename "$nested")" == "AGENTS.md" ]] || continue
     dir="$(dirname "$nested")"
     want="$(ip_realpath "$nested")"
     wired=""
-    while :; do
-      for entry in "$dir/CLAUDE.md" "$dir/CLAUDE.local.md"; do
-        [[ -f "$entry" ]] || continue
-        if _ip_reaches "$entry" "$want" 0; then
-          wired="$entry"
-          break 2
-        fi
-      done
-      [[ "$dir" == "." ]] && break
-      dir="$(dirname "$dir")"
-    done
-    if [[ -z "$wired" && -f ".claude/CLAUDE.md" ]] && _ip_reaches ".claude/CLAUDE.md" "$want" 0; then
-      wired=".claude/CLAUDE.md"
-    fi
+    blocker=""
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      [[ -n "$blocker" ]] || blocker="${entry#./}"
+      if _ip_reaches "$entry" "$want" 0; then
+        wired="${entry#./}"
+        break
+      fi
+    done < <(ip_entry_points_on_path "." "$dir")
     if [[ -n "$wired" ]]; then
       printf 'WIRED\t%s\t%s reaches it\n' "$nested" "$wired"
+    elif [[ -z "$blocker" ]]; then
+      printf 'NATIVE\t%s\tno CLAUDE.md on its path, so Claude Code reads it on a Read in that directory where AGENTS.md support is available\n' "$nested"
     else
-      printf 'UNWIRED\t%s\tno CLAUDE.md or CLAUDE.local.md beside it imports it; Claude Code reads CLAUDE.md, not AGENTS.md, so it never loads\n' "$nested"
+      printf 'UNWIRED\t%s\t%s is read instead of it and does not import it, so it never loads\n' "$nested" "$blocker"
       unwired=1
     fi
   done < <(ip_discover_nested_instructions .)
@@ -429,9 +500,21 @@ nested_agents_wiring() {
 }
 
 if [[ "$SUBCOMMAND" == "wiring" ]]; then
-  nested_agents_wiring
-  exit $?
+  # A repository with no nested AGENTS.md printed nothing, which reads the same
+  # as a subcommand that never ran. The NONE line is emitted HERE rather than
+  # inside nested_agents_wiring, because the write-time warning consumes that
+  # function's rows and filters on the UNWIRED state: a NONE row reaching it
+  # would be a row it has to know to ignore.
+  wiring_out="$(nested_agents_wiring)"
+  wiring_rc=$?
+  if [[ -z "$wiring_out" ]]; then
+    printf 'NONE\n'
+    exit 0
+  fi
+  printf '%s\n' "$wiring_out"
+  exit "$wiring_rc"
 fi
+
 
 BLOCK="$(render_block)"
 
@@ -449,12 +532,25 @@ check)
     exit 3
   fi
   if [[ "$begin_count" -eq 0 ]]; then
+    # No block and nothing to index is the correct resting state, not a gap:
+    # `write` deliberately leaves no block there, so the gate must agree with
+    # the writer or a repository with no deferred surfaces can never be green.
+    if block_is_empty "$BLOCK"; then
+      printf 'IN-SYNC\t%s\tnothing to index, and no block to keep in sync\n' "$TARGET"
+      exit 0
+    fi
     printf 'NO-BLOCK\t%s\n' "$TARGET"
     exit 3
   fi
   if ! grep -qF "$END_MARKER" "$TARGET"; then
     printf 'NO-BLOCK\t%s\tbegin marker present, end marker missing\n' "$TARGET"
     exit 3
+  fi
+  # A block left behind after the last rule or nested file went away is drift:
+  # it is stale text that outlived what it indexed, and `write` clears it.
+  if block_is_empty "$BLOCK"; then
+    printf 'DRIFTED\t%s\tnothing to index; the block should be removed\n' "$TARGET"
+    exit 1
   fi
   current="$(awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
     $0 == b { inblock = 1 }
@@ -486,18 +582,37 @@ write)
         "$TARGET" >&2
       exit 1
     fi
-    # The block travels through ENVIRON, not `awk -v`. POSIX has -v process
-    # escape sequences, so a rule path carrying a backslash would be rewritten
-    # on the way in -- gawk turns `\t` into a tab and drops an unknown escape's
-    # backslash, mawk passes both through. The markers are fixed text with no
-    # backslash in them and stay on -v; the block is generated from repository
-    # paths and does not. Writing a corrupted index is the one failure this
-    # script must never have, since nothing downstream re-reads it for sanity.
-    IP_INDEX_BLOCK="$BLOCK" awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
-      $0 == b { print ENVIRON["IP_INDEX_BLOCK"]; skipping = 1; next }
-      $0 == e { skipping = 0; next }
-      !skipping { print }
-    ' "$TARGET" >"$tmp"
+    if block_is_empty "$BLOCK"; then
+      # Nothing to index: drop the block rather than replacing it with one that
+      # announces its own emptiness, and drop the blank line that separated it
+      # so removal does not leave a growing gap behind.
+      awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
+        $0 == b { skipping = 1; if (blankheld) blankheld = 0; next }
+        $0 == e { skipping = 0; next }
+        skipping { next }
+        /^$/ { blankheld = 1; next }
+        { if (blankheld) { print ""; blankheld = 0 } print }
+      ' "$TARGET" >"$tmp"
+    else
+      # The block travels through ENVIRON, not `awk -v`. POSIX has -v process
+      # escape sequences, so a rule path carrying a backslash would be rewritten
+      # on the way in -- gawk turns `\t` into a tab and drops an unknown
+      # escape's backslash, mawk passes both through. The markers are fixed text
+      # with no backslash in them and stay on -v; the block is generated from
+      # repository paths and does not. Writing a corrupted index is the one
+      # failure this script must never have, since nothing downstream re-reads
+      # it for sanity.
+      IP_INDEX_BLOCK="$BLOCK" awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
+        $0 == b { print ENVIRON["IP_INDEX_BLOCK"]; skipping = 1; next }
+        $0 == e { skipping = 0; next }
+        !skipping { print }
+      ' "$TARGET" >"$tmp"
+    fi
+  elif block_is_empty "$BLOCK"; then
+    rm -f "$tmp"
+    printf 'NO-INDEX-NEEDED\t%s\tno path-scoped rules and no nested instruction files; an always-loaded block saying so is pure cost\n' \
+      "$TARGET"
+    exit 0
   else
     cat "$TARGET" >"$tmp"
     # Separate the appended block from whatever precedes it.

@@ -33,7 +33,7 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
 | **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines / 25KB of MEMORY.md | Yes |
-| Nested `AGENTS.md` | `**/AGENTS.md` below the root | Only through a sibling `CLAUDE.md` that imports or symlinks it | Reachability only (N1); content is not audited |
+| Nested `AGENTS.md` | `**/AGENTS.md` below the root | On a Read in that directory, unless a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` on its path is read instead; then only through one that imports or symlinks it | Reachability only (N1); content is not audited |
 | Settings, hooks, MCP, agents, skills | Various | Various | No. Use `claude-config`'s `audit` / `automation-gaps` |
 
 Auto memory's effective enabled/disabled state must be resolved before auditing it, not assumed

@@ -13,10 +13,13 @@ before proposing it, and executes it behind a human gate.
 | Skill | Verb contract | What it does |
 |---|---|---|
 | `/instruction-placement:audit` | Read-only findings report | Sweeps the instruction layer and ordinary markdown, classifies candidates, emits a diffable findings artifact |
-| `/instruction-placement:realign` | Per-item human-gated apply | Executes accepted findings; the only mutating surface, with no blanket-approve path |
+| `/instruction-placement:realign` | Per-item human-gated apply | Executes accepted findings, with no blanket-approve path |
 | `/instruction-placement:check` | Deterministic pass/fail gate | Verifies every rule glob resolves and the always-loaded index is current |
 | `/instruction-placement:setup` | Verify prerequisites, report config | Confirms the index target is one Claude Code will actually read, and resolves every setting with its source |
 | `/instruction-placement:delta` | Read-only movement report | Re-runs the audit and reports only what changed since last time, above a noise budget, suppressing every finding the operator already declined |
+| `/instruction-placement:migrate` | Per-repository human-gated move | Plans and carries out a repository's move to `AGENTS.md` as the content home, with a `CLAUDE.md` shim while one is needed |
+
+`realign` and `migrate` are the two mutating surfaces; both gate every change on the operator.
 
 Run `setup` first on a new repository. It catches the one failure the other gates cannot see, an
 index Claude Code never loads. Then `audit`. Nothing changes until you accept a specific finding in
@@ -70,9 +73,24 @@ context does inherit, and that turns an unnamed rule into one an ordinary `Read`
 how new files are made would not fire in the case it exists for. Creation-governing content is denied
 the path-scoped destination structurally, not by judgment.
 
-**A nested `AGENTS.md` with no `CLAUDE.md` shim is never loaded.** Claude Code reads `CLAUDE.md`, not
-`AGENTS.md`, at every level of the tree. The shim is a correctness requirement; writing the
-`AGENTS.md` alone produces a file that reviews as correct and reaches nothing.
+**A nested `CLAUDE.md` and a nested `AGENTS.md` share one trigger: Claude reads a file in that
+directory.** What separates them is that a `CLAUDE.md` on the file's own path is read *instead* of
+the `AGENTS.md` beside it. So the `@AGENTS.md` shim is what carries a nested `AGENTS.md` into
+context wherever a `CLAUDE.md` sits above it, or wherever reading `AGENTS.md` directly is
+unavailable; where nothing blocks it, Claude Code reads it on its own and the shim is not what makes
+it load, though it stays the cover for the sessions that cannot read `AGENTS.md` at all.
+Claude Code's own AGENTS.md support is version- and session-dependent, which is why the plugin's
+posture is to write the shim while a root `CLAUDE.md` exists in a repository.
+
+- **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, and
+  attaches a subdirectory's `AGENTS.md` on a Read there under the same condition; reading
+  `AGENTS.md` directly needs v2.1.277 or later and is unavailable in some sessions.
+- **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code reads
+  AGENTS.md" and "When AGENTS.md support is unavailable"; confirmed by canary runs on 2.1.278.
+- **As of**: 2026-09-19.
+- **Recheck trigger**: that section changes which file names count for the check, or a release note
+  names `AGENTS.md` or instruction-file loading.
 
 ## What this plugin does NOT buy you
 
@@ -107,8 +125,9 @@ that can apply one. This is the single place where an operator instruction does 
 ## Portability
 
 `.claude/rules/` is Claude-only. `AGENTS.md` is read by other coding agents. The plugin's default
-posture keeps shared content portable: subtree conventions go in a nested `AGENTS.md` with a
-`CLAUDE.md` shim beside it, and the generated index lives in the root `AGENTS.md` when one exists.
+posture keeps shared content portable: subtree conventions go in a nested `AGENTS.md`, with a
+`CLAUDE.md` shim beside it wherever a `CLAUDE.md` on that path would otherwise be read instead, and
+the generated index lives in the root `AGENTS.md` when one exists.
 
 One semantic difference is deliberately not papered over: other agents resolve `AGENTS.md`
 nearest-wins, while Claude concatenates the whole ancestor chain. Subtree content is therefore
@@ -153,6 +172,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | Trigger | Action |
 |---|---|
 | Claude Code announces deferred surfaces, so an agent learns a rule exists without reading a covered path | Re-run the measurements; the index's justification weakens and the hard-deny classes may narrow |
+| Reading `AGENTS.md` directly stops depending on a remote feature flag, and every pinned `claude-code-action` installs a CLI that reads it | Run `/instruction-placement:migrate cutover-check` once it ships (#4281); when every condition is met, the `CLAUDE.md` shims a repository carries can come out |
 | Path scoping gains a write trigger | Drop the structural deny on creation-governing content |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |

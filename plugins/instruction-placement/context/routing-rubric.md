@@ -107,8 +107,9 @@ file conventions, migration file conventions. Cross-cutting by nature.
 
 **Keyed to a place → nested `AGENTS.md` + `CLAUDE.md` shim** in that directory. The content governs
 a module, package, or subtree regardless of file type: "the billing service owns its own retry
-policy", "everything under `infra/` is applied by CI, never locally". The shim is mandatory, per
-`verified-mechanics.md` finding 3, and is exactly two lines:
+policy", "everything under `infra/` is applied by CI, never locally". Write the shim wherever a
+`CLAUDE.md` on that directory's own path, the repository root's included, would be read instead of
+the new `AGENTS.md`, per `verified-mechanics.md` finding 3. It is exactly one line:
 
 ```markdown
 @AGENTS.md

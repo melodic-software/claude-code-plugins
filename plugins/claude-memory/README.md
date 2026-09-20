@@ -21,7 +21,8 @@ Audits the files you write that shape Claude's behavior against a codified check
 official Claude Code documentation (line budgets, deletion test, content placement, consistency,
 currency, auto-memory index integrity). A deterministic spine yields identical findings on identical
 repo state: the line budget counts a file with its `@` imports expanded, the way the loader does; a
-nested `AGENTS.md` with no sibling `CLAUDE.md` importing it is reported as a file that never loads;
+nested `AGENTS.md` that a `CLAUDE.md` on its own path displaces, with no `CLAUDE.md` importing it,
+is reported as a file that never loads;
 the MEMORY.md index and orphan always-loaded rules are script-checked; and each finding on a
 standards-synced file routes its fix upstream rather than proposing an edit the next sync overwrites.
 The context-cost line is a bytes-per-token estimate over the always-loaded set and says so.

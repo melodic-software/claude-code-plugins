@@ -1,5 +1,5 @@
 ---
-description: "Execute an instruction-placement audit's findings behind an explicit per-item human gate. Consumes the findings artifact the audit skill produced. It never re-judges the surface itself. For each finding the operator accepts, it performs the whole move atomically: create the path-scoped `.claude/rules/` file with its validated `paths:` glob (or the nested AGENTS.md plus its mandatory CLAUDE.md shim), excise the content from its source, regenerate the always-loaded rules index so the demoted surface stays reachable from subagents, and verify the result. Hard-denied safety content has no code path here. Use when: 'apply the placement findings', 'do the migration', 'move those conventions to rules', 'execute finding IP-004', 'realign our instruction layer', 'the audit says move it, do it'. This is the only skill in this plugin that changes anything, and there is no blanket-approve path."
+description: "Execute an instruction-placement audit's findings behind an explicit per-item human gate. Consumes the findings artifact the audit skill produced. It never re-judges the surface itself. For each finding the operator accepts, it performs the whole move atomically: create the path-scoped `.claude/rules/` file with its validated `paths:` glob (or the nested AGENTS.md plus the CLAUDE.md shim that loads it wherever a CLAUDE.md above it would be read instead), excise the content from its source, regenerate the always-loaded rules index so the demoted surface stays reachable from subagents, and verify the result. Hard-denied safety content has no code path here. Use when: 'apply the placement findings', 'do the migration', 'move those conventions to rules', 'execute finding IP-004', 'realign our instruction layer', 'the audit says move it, do it'. Every change is gated per item, with no blanket-approve path."
 argument-hint: "[finding-id ...]. Default: every finding awaiting a decision, in ranked order"
 user-invocable: true
 disable-model-invocation: false
@@ -28,8 +28,9 @@ metadata:
 ## Purpose
 
 Execute what the audit found, one finding at a time, with the operator deciding each one. This is
-the **only** mutating surface in this plugin, and the per-item gate below is the entire reason it is
-safe to point at a repository nobody has reviewed.
+the mutating surface for audit findings (`/instruction-placement:migrate` is the other mutating
+skill, and it owns a repository's move to `AGENTS.md`), and the per-item gate below is the entire
+reason it is safe to point at a repository nobody has reviewed.
 
 What makes these edits unusual is their target: every file this skill touches is a file that steers
 the agent's own behavior. A bad code edit fails a test. A bad instruction edit quietly changes what
@@ -44,7 +45,7 @@ Not restated here. A paraphrase inside a proposal is a drift seed.
 | [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's location, fields, status vocabulary, merge rules, and the finding-id constituents a suppression entry is keyed by |
 | [`../../reference/consumer-config.md`](../../reference/consumer-config.md) | The suppression surface a decline is recorded on: its layers, its per-key merge, and the offered-never-taken rule |
 | [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | The hard-deny classes and what each destination means |
-| [`../../context/verified-mechanics.md`](../../context/verified-mechanics.md) | Why the shim is mandatory and why the index exists |
+| [`../../context/verified-mechanics.md`](../../context/verified-mechanics.md) | When the shim is what makes a nested `AGENTS.md` load, and why the index exists |
 | [`context/apply-recipes.md`](context/apply-recipes.md) | The exact edit sequence per destination, and the verification each one owes |
 
 ## The per-item gate
@@ -177,9 +178,12 @@ accepted proposal.
   finding looks wrong, say so and stop. The fix is a re-audit, not an improvised alternative.
 - **Never rewrite content while moving it.** The move is a relocation. Tightening prose during a
   relocation makes the diff unreviewable and smuggles an unapproved edit past the gate.
-- **The shim is mandatory.** A nested `AGENTS.md` without a `CLAUDE.md` beside it importing it is
-  never loaded by Claude Code. That is measured, not inferred. Writing one without the other
-  produces content that silently reaches nothing.
+- **The shim is what carries a blocked `AGENTS.md`.** A `CLAUDE.md` on the file's own path, the
+  repository root's included, is read *instead* of the `AGENTS.md` beside it, so in a repository
+  that has one, a nested `AGENTS.md` written without its `CLAUDE.md` shim silently reaches nothing.
+  That is measured, not inferred. Write the shim wherever `render-index.sh wiring` would report the
+  file `UNWIRED`; where it reports `NATIVE`, nothing blocks the file and the shim is not what makes
+  it load there, though it stays the cover for sessions that cannot read `AGENTS.md` at all.
 - **Never leave the index stale.** Regenerating it is part of the move, not a follow-up. An
   un-indexed demotion is exactly the subagent gap this plugin exists to close.
 - **Stop on a failed verification.** Report what failed and leave the finding `blocked`. Do not
@@ -189,9 +193,10 @@ accepted proposal.
 
 Observed failure modes. Every one leaves a repository that looks migrated and is not.
 
-- **Writing the nested `AGENTS.md` without the `CLAUDE.md` shim.** The most likely mistake in this
-  whole plugin, because the result reviews as correct: a well-written conventions file, in the
-  right directory, that Claude Code never loads at any level of the tree. Measured, not inferred.
+- **Writing the nested `AGENTS.md` without the `CLAUDE.md` shim, in a repository whose root carries
+  a `CLAUDE.md`.** The most likely mistake in this whole plugin, because the result reviews as
+  correct: a well-written conventions file, in the right directory, that Claude Code never loads,
+  because the `CLAUDE.md` above it is read instead. Measured, not inferred.
 - **Forgetting the index regeneration.** The move succeeds, the rule fires on read, and nothing
   tells any agent the rule exists until a read happens to match its glob. In a delegation-heavy
   repo a worker briefed to edit files it was never told to read first acts before the rule can

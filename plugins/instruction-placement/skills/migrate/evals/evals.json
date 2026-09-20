@@ -1,0 +1,57 @@
+{
+  "skill_name": "migrate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "plans-before-it-writes-anything",
+      "narration": true,
+      "prompt": "/instruction-placement:migrate — our CLAUDE.md should be one line. Just move everything into AGENTS.md and write the shim.",
+      "expected_output": "Runs the read-only plan first and presents it before touching a file. The plan names, per directory, which of the five states it is in, the cumulative AGENTS.md bytes along each root-to-directory path against Codex's project-doc budget, the markdown links that resolve into CLAUDE.md and would die, any code that finds a path by the existence of CLAUDE.md, the detected docs home, and every claude-code-action pin. It then proposes a content split per file and stops for the operator, rather than treating 'just move everything' as blanket approval. Nothing is written until the operator accepts specific moves.",
+      "expectations": [
+        "Runs the plan and shows its rows before proposing any edit",
+        "Presents a per-file content split as a proposal, not as work already done",
+        "Writes nothing on the strength of 'just move everything'",
+        "Names the links into CLAUDE.md that have to be retargeted in the same change"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "splits-content-by-where-it-belongs",
+      "narration": true,
+      "prompt": "/instruction-placement:migrate — this CLAUDE.md has our build commands, a long release runbook nobody needs day to day, and a section about how Claude should format its commit messages. Put it all in AGENTS.md.",
+      "expected_output": "Declines to put all three in AGENTS.md and says where each kind of text belongs instead. The build commands are relevant to every conversation, so they stay in the root AGENTS.md. The release runbook is relevant sometimes, so it goes to the repository's existing documentation home, detected from the plan's row rather than assumed, behind a one-line pointer in AGENTS.md that names when to read it. The commit-message formatting is Claude-specific, so it becomes a .claude/rules/ file with a paths: glob or a stated always-relevant reason, and the glob is validated before the file is written. It does not invent a new docs directory when the repository already has one.",
+      "expectations": [
+        "Keeps every-conversation content in the root AGENTS.md",
+        "Routes the sometimes-relevant runbook to the repository's existing docs home behind a pointer, not into AGENTS.md",
+        "Routes the Claude-specific section to .claude/rules/ with a validated paths: glob or a stated always-relevant reason",
+        "Uses the detected docs home rather than imposing a new path"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "refuses-to-remove-a-shim",
+      "narration": true,
+      "prompt": "/instruction-placement:migrate — Claude Code reads AGENTS.md natively now, so delete every CLAUDE.md shim in this repo while you are in there.",
+      "expected_output": "Refuses, and says why in terms of consequence rather than policy. Removing shims is a separate cutover with upstream conditions this skill does not check: reading AGENTS.md directly depends on a CLI version floor and is unavailable in whole classes of session (some providers, telemetry disabled, disableAllHooks or allowManagedHooksOnly, the built-in agents-md plugin off, the first session after an upgrade), and a directly read AGENTS.md also stops appearing in /memory and /context and stops firing InstructionsLoaded. It deletes no CLAUDE.md, does the migration work that was asked for where that was asked for, and names the separate cutover as where shim removal belongs.",
+      "expectations": [
+        "Deletes no CLAUDE.md shim",
+        "Names the availability cases where a directly read AGENTS.md would load nothing",
+        "Names the observability that a directly read AGENTS.md loses",
+        "Routes shim removal to the separate cutover rather than doing it here"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "leaves-other-tools-directories-alone",
+      "narration": true,
+      "prompt": "/instruction-placement:migrate — we have AGENTS.md files under .cursor/ and .codex/ with no CLAUDE.md beside them. Shim those too so Claude picks them up.",
+      "expected_output": "Declines to shim them. Those directories belong to Cursor and Codex, their AGENTS.md files are written for those tools, and a Claude shim would pull another tool's instructions into every Claude session that reads a file there. It confirms the plan emits no row for them at all, so their absence from the plan is by design rather than a miss, and it offers the right move instead: content that genuinely applies to every agent belongs in the root AGENTS.md, which all of them already read.",
+      "expectations": [
+        "Creates no CLAUDE.md under .cursor/ or .codex/",
+        "Explains that those files are the other tools', not unshimmed Claude surfaces",
+        "Notes that the plan reports no row for them by design",
+        "Offers the root AGENTS.md as where genuinely shared content goes"
+      ]
+    }
+  ]
+}

@@ -377,26 +377,36 @@ finding, but its fix line names the sync's source rather than a local edit.
 
 ### N1: Nested AGENTS.md reachability [FAIL], deterministic
 
-**What**: A tracked `AGENTS.md` below the repository root that no sibling `CLAUDE.md` or
-`CLAUDE.local.md` reaches by import or symlink. Such a file never loads at any level of the tree,
-however well written, and every static gate around it reports green.
+**What**: A tracked `AGENTS.md` below the repository root that a `CLAUDE.md`, `.claude/CLAUDE.md` or
+`CLAUDE.local.md` on its own path displaces, and that none of them reaches by import or symlink.
+Such a file never loads, however well written, and every static gate around it reports green. A
+nested `AGENTS.md` with none of those files above it is read directly and is not a finding.
 
 **How to check**: run
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL line
 into the report. The script enumerates tracked `**/AGENTS.md` below the root (skipping `.claude`,
-`node_modules`, `vendor`, and `.git` trees), and for each asks whether a `CLAUDE.md` or
-`CLAUDE.local.md` in the same directory is the file (symlink) or imports it within four hops, using
-the same import parser C1's expansion uses. The root `AGENTS.md` is the root `CLAUDE.md`'s business
-and is not examined here. Discovery for the C-checks stays depth-1: this check is about the pointer,
-not the nested file's content. FAIL per unwired file; the fix is a one-line `@AGENTS.md` `CLAUDE.md`
-beside it.
+`.codex`, `.cursor`, `.github`, `node_modules`, `vendor`, and `.git` trees, so another tool's own
+instruction files are never reported as a missing Claude shim), and for each asks first whether any
+`CLAUDE.md` or `CLAUDE.local.md` on its path displaces it, and then whether one of them is the file
+(symlink) or imports it within four hops, using the same import parser C1's expansion uses. The root
+`AGENTS.md` is the root `CLAUDE.md`'s business and is not examined here. Discovery for the C-checks
+stays depth-1: this check is about the pointer, not the nested file's content. FAIL per displaced,
+unimported file; the fix is a one-line `@AGENTS.md` `CLAUDE.md` beside it.
 
-**Why**: Official docs: "Claude Code reads `CLAUDE.md`, not `AGENTS.md`. If your repository already
-uses `AGENTS.md` for other coding agents, create a `CLAUDE.md` that imports it", and subdirectory
-files "are included when Claude reads files in those subdirectories" as `CLAUDE.md` /
-`CLAUDE.local.md` (code.claude.com/docs/en/memory, "AGENTS.md" and "How CLAUDE.md files load";
-verified 2026-09-08; recheck trigger: a fetch of that page no longer stating that Claude Code reads
-`CLAUDE.md` rather than `AGENTS.md`).
+**Why**: Official docs: Claude reads `AGENTS.md` "only when you have no `CLAUDE.md` in your working
+directory or above it", counting "a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your
+working directory or any directory above it"; it attaches "a subdirectory's `AGENTS.md`, when Claude
+opens a file there with the Read tool and that subdirectory has none of the three `CLAUDE.md` files
+of its own"; and where reading `AGENTS.md` directly is unavailable, the page says to "import it from
+a `CLAUDE.md`" (code.claude.com/docs/en/memory, "AGENTS.md", "When Claude Code reads AGENTS.md",
+"When AGENTS.md support is unavailable"; verified 2026-09-19; recheck trigger: a fetch of that page
+no longer stating which file names count for that check).
+
+The earlier basis for this check was the same page's sentence "Claude Code reads `CLAUDE.md`, not
+`AGENTS.md`. If your repository already uses `AGENTS.md` for other coding agents, create a
+`CLAUDE.md` that imports it", verified 2026-09-08. That recheck trigger fired: the sentence is gone
+from the page as fetched 2026-09-19, and direct `AGENTS.md` reading shipped in v2.1.277. It is
+quoted here unchanged as the superseded basis, never as a current claim.
 
 ---
 
