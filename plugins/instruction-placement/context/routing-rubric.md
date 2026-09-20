@@ -125,8 +125,9 @@ no glob to get wrong, it survives the write-trigger gap, and it stays portable t
 
 A nested `AGENTS.md` is read by other coding agents natively, since the `AGENTS.md` convention is
 nearest-file-wins across the directory tree, while `.claude/rules/` is Claude-only. Putting shared
-content in the `AGENTS.md` and keeping the `CLAUDE.md` beside it as a shim (plus any genuinely
-Claude-specific additions below the import) means one copy serves every agent.
+content in the `AGENTS.md` and keeping the `CLAUDE.md` beside it as a shim of exactly one import
+line means one copy serves every agent; genuinely Claude-specific text goes to a `.claude/rules/`
+file scoped to the subtree rather than below the import.
 
 Note the semantic difference and do not paper over it: `AGENTS.md` resolution is **nearest-wins**,
 while Claude concatenates every `CLAUDE.md` from the root down. So content that *overrides* an

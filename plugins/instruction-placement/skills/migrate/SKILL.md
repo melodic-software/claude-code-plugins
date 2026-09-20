@@ -1,11 +1,12 @@
 ---
-description: "Move a repository's instruction content to AGENTS.md as the one content home, keeping a one-line `@AGENTS.md` CLAUDE.md shim while a shim is what makes it load. Plans first with a read-only script: one state per directory, Codex's byte budget per root-to-directory path, case-variant filenames, home suppressors, code that finds a path by the existence of CLAUDE.md, links into CLAUDE.md, and every claude-code-action pin. Then splits content by where each kind belongs: every-conversation text in the root AGENTS.md, sometimes-relevant text in the repo's own docs home behind a pointer, Claude-specific text in `.claude/rules/` with a `paths:` glob. Every write is operator-gated; load is verified, never assumed. Use when: 'migrate to AGENTS.md', 'move CLAUDE.md content to AGENTS.md', 'make AGENTS.md the source of truth', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'plan the AGENTS.md migration'. Not for removing shims: that is a separate cutover."
-argument-hint: "[plan | apply] [path ...]. Default: plan the repository at the current root"
+description: "Move a repository's instruction content to AGENTS.md as the one content home, keeping a one-line `@AGENTS.md` CLAUDE.md shim while a shim is what makes it load. Plans first with a read-only script: one state per directory, Codex's byte budget, code that locates a path by CLAUDE.md, and every claude-code-action pin. Then splits content by where each kind belongs: every-conversation text in the root AGENTS.md, sometimes-relevant text in the repo's own docs home behind a pointer, Claude-specific text in `.claude/rules/` with a `paths:` glob. `cutover-check` grades every shim-removal condition with its evidence; `remove-shims` takes root and nested shims out together once they all hold. Every write is operator-gated; load is verified, never assumed. Use when: 'migrate to AGENTS.md', 'plan the AGENTS.md migration', 'move CLAUDE.md content to AGENTS.md', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'."
+argument-hint: "[plan | apply | cutover-check | remove-shims] [path ...]. Default: plan the repository at the current root"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   [
     "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh:*)",
+    "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/cutover-check.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh:*)",
@@ -34,8 +35,9 @@ sibling audit produced, one at a time. This one owns a different unit of work: a
 from `CLAUDE.md` to `AGENTS.md` as the content home, which is a decision about a whole instruction
 layer rather than a list of findings. It gates every write on the operator just as `realign` does.
 
-**Removing shims is not this skill's job today.** That is a cutover with upstream conditions of its
-own, and it ships separately. Never delete a `CLAUDE.md` shim here, however unnecessary it looks.
+**A migration run never removes a shim.** Removal is a cutover with upstream conditions of its own,
+and it is the `cutover-check` and `remove-shims` arguments below. Never delete a `CLAUDE.md` shim
+during `plan` or `apply`, however unnecessary it looks.
 
 ## Invocation mode
 
@@ -102,7 +104,7 @@ indistinguishable from a run that never happened. Its rows are the facts a migra
 | `BUDGET` | `<path> <cumulative AGENTS.md bytes, root to that path> <OK\|OVER>`, against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
 | `CASE` | A filename differing only by case. Claude Code matches names exactly; NTFS does not, so the repository behaves differently per developer until it is renamed |
 | `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
-| `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks |
+| `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks. The match is **not** a list of existence-test spellings: a list misses `-e`, `Test-Path`, `os.stat`, `File.exist?` and whatever nobody thought of, and every miss reports a clean tree. Any existence-ish mention in a code file is a row, so prose in an eval file lands here too; that is the safe direction, and the acknowledgement file answers a false positive once, in writing |
 | `CITE` | A markdown link resolving into `CLAUDE.md`. Each is retargeted in the same PR as the content move, or the link dies |
 | `MENTION` | Every other tracked occurrence of the literal `CLAUDE.md`: a YAML list entry, a comment, a path in a config, including under `.claude/`, which is where a Claude-configured repo most often enumerates its own instruction files. Neither a link nor an existence call, so it is nobody else's row. A content directory holding more than ten is rolled up to `<dir>/ <count> rows`; `.claude/` and `.github/` never are, because a leak lives in configuration. `--expand-mentions` prints them all. **A roll-up is the answer, not a deferral**: a content directory (captured prose, vendored docs) is reported by count and left alone, because every one of its mentions is the same non-finding. Triage the individually-listed rows with the operator |
 | `DOCSHOME` | Where a pointer target lands |
@@ -212,6 +214,107 @@ silently dropped:
   `~/CLAUDE.md`.
 - `BUDGET` with `OVER`: content moves out before the migration proceeds in that subtree, not after.
 
+## The cutover: `cutover-check`, then `remove-shims`
+
+The shim is worth its cost only while it is load-bearing. Whether it still is
+is a question about upstream and about the fleet, not about any one repository,
+so it is graded before anything is deleted.
+
+### `cutover-check`, read-only
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/cutover-check.sh --repo <repo> [--repo <repo> ...]
+```
+
+Four graded conditions. Each prints `[MET]`, `[UNMET]` or `[UNREACH]` with the evidence behind it,
+and the run exits non-zero unless every one is `[MET]`.
+
+| Condition | What it reads |
+|---|---|
+| 1, the remote flag | The shipped bundle's code default for the flag, resolved at run time (the identifier is minifier-assigned and the offsets are per build, so neither is ever hardcoded), and the `env-vars` feature-flag list fetched live. Either the default being true or the AGENTS.md bullet being gone satisfies it |
+| 2, CI | Every `claude-code-action` pin from `plan-migration.sh`'s `ACTION` rows, mapped to the CLI it installs and compared against the floor, plus the recorded CI canary |
+| 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path |
+| 4, path detection | Every `PATHDET` row, matched against the repository's reviewed `.claude/cutover-pathdet-ack.txt` |
+
+**A canary that can read files proves nothing.** With a `Read` tool and an `AGENTS.md` in the
+working directory, a reply quoting that file is equally consistent with the model having read it
+for itself. Both canaries here run `--tools ""`, so the session has no tools at all: instructions
+load at session start, and a quotation from a session that *could* not read anything is evidence
+of a load. Measured before adoption on 2.1.278: a scratch directory holding one `AGENTS.md` and
+nothing else returned the token line with no tools, and a directory with no `AGENTS.md` answered
+`NONE`.
+
+**`[UNREACH]` is never a pass.** A probe that could not measure is not a condition that holds, and
+the script treats an unreadable bundle, a restructured docs page, a pin outside the release map and
+a canary that neither loaded nor cleanly refused all the same way.
+
+**Condition 3 is a token canary, not `verify-load.sh`.** That script detects a load through an
+`InstructionsLoaded` hook, and the hook does not fire for an `AGENTS.md` Claude reads directly,
+which is exactly the surface this condition measures. `verify-load.sh` stays the instrument for
+every **shimmed** surface, where the load arrives as an import and the hook fires.
+
+**Condition 4 needs a human first.** A grep cannot tell "reads `CLAUDE.md` as an instruction file"
+from "locates a path by its existence", and that distinction is the condition, so the judgment lives
+in a reviewed file and the default fails closed. Each row of
+`.claude/cutover-pathdet-ack.txt` is tab-separated `<path>` / `<the trimmed source line>` /
+`<one-line reason>`, with `#` comments. Matching is on path plus exact source text, never line
+number: a row that moves still matches, and a row whose code changed falls out and has to be
+re-reviewed. An unacknowledged row is `[UNMET]` and is named, **and so is a row whose reason is
+empty**: the reason is the review, and a path plus a copy of the line is only the match key.
+**No path convention exempts anything, test trees included**: in this fleet the one real blocker
+lives under `tests/`. `.claude/` is scanned like any other tree, because a hook or helper script
+there locates a path the same way. Two things are out of the scan and the condition prints both:
+markdown, which locates no path, and the acknowledgement list itself, whose every line quotes a
+detector by design.
+
+### `remove-shims`, one repository per run
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/remove-shims.sh --root <repo> --confirm
+```
+
+**`--confirm` is the operator's word, never yours.** Add it only after the operator has named this
+repository and said yes to it in this conversation: not pre-emptively, not because the check passed,
+and never carried over from a yes given about a different repository. Run it without `--confirm`
+first, show the operator what it prints, and wait.
+
+**It is deliberately not in this skill's `allowed-tools`.** Every other script here is; this one
+deletes files, so it takes a permission prompt every time rather than running on the skill's
+standing grant.
+
+It refuses far more often than it acts, and every gate fails closed. Without `--confirm` it prints
+what removal costs and stops. With it, it refuses unless the **installed** `claude-memory` and
+`instruction-placement` carry the corrected doctrine, read as the **lowest** version installed in
+any scope, because the stale copy is the one that answers in the repository being de-shimmed (an
+older cached build advises it straight back to the old shape), unless `cutover-check` reports every graded condition
+`[MET]` in that same run, and unless every instruction directory is already at the target shape. A
+zero-byte `AGENTS.md` cannot be canaried, so it is never de-shimmed.
+
+Root and nested shims come out **together**: a lone nested `AGENTS.md` never attaches while a root
+`CLAUDE.md` exists, so removing one without the other leaves files that review as correct and load
+nothing.
+
+**The nested canary runs from the nested directory, and its line has to be unique.** A session
+started there loads that directory's `AGENTS.md` and every ancestor's, measured on 2.1.278 with no
+tools available: running from the directory is itself the trigger, so no Read is needed. It also
+means a line the nested file shares with the root file is answered by the **root** file, so the
+nested surface would pass while loading nothing of its own. The canary line is therefore the longest
+plain line **contained in** no line of any other `AGENTS.md` that loads beside it, ancestors above
+the repository root included, and a file with no such line is refused **before** anything is
+removed. Containment, not equality: the canary passes on a substring match, so an ancestor line
+carrying the same sentence plus a clause answers the probe exactly as an identical one would.
+
+After removal it runs one canary per de-shimmed directory against that line of
+that directory's own `AGENTS.md`, so **no token is written into a real repository**, and any miss,
+any canary that could not measure, and any failure part way through the removal restores every shim
+the run removed. The restore writes the one import line back and verifies it byte for byte, rather
+than asking git for an index copy a staged edit may have replaced; a restore that did not land says
+so and the run still exits non-zero.
+
+Removal is priced, and the price is printed before the confirmation: a directly read `AGENTS.md`
+does not appear in `/memory` or in the `/context` Memory files, and fires no `InstructionsLoaded`
+hook. That is a decision to make, not tidying.
+
 ## Verify the load, never assume it
 
 `verify-load.sh` drives one real `claude -p` turn with an `InstructionsLoaded` hook and prints
@@ -251,6 +354,16 @@ Memory files, and fires no `InstructionsLoaded` hook; one reached through a shim
 of its `CLAUDE.md` and keeps both. That is a reason the shim is worth its ~55 tokens, and a reason
 removing it later is a decision rather than tidying.
 
+Every upstream fact the cutover turns on lives as a four-part dated record in
+[`reference/sources.md`](reference/sources.md): the remote flag and how its code default is read,
+the documented feature-flag dependency, the CLI floor, the `claude-code-action` release to CLI map,
+the CI canary result, and what shim removal costs. `cutover-check.sh` parses the floor, the release
+map and the canary run out of that file rather than carrying its own copy, and exits 2 on a record
+it cannot read: a fact it cannot parse is one it must not silently skip checking. Read it before
+arguing about the shim from memory. One record there bears on verification today: `verify-load.sh`
+detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed** surface and
+cannot see an `AGENTS.md` that Claude reads directly.
+
 **One setting changes the reading, and no repository can ship it.** Under `instructionFiles:
 claude-md-and-agents-md`, Claude Code loads both files, "each directory's `CLAUDE.md` files first
 and its `AGENTS.md` after them", so an unimported nested `AGENTS.md` does load and an `UNWIRED` row
@@ -263,8 +376,9 @@ so a repository cannot rely on it and the gates keep the default's answer
 
 ## Hard rules
 
-- **Never delete a `CLAUDE.md` shim.** Reducing one to its import line is this skill's work;
-  removing it is the separate cutover.
+- **Never delete a `CLAUDE.md` shim outside `remove-shims`.** Reducing one to its import line is
+  what `apply` does; deleting one happens only behind that script's gates, never by hand and never
+  because a repository looks ready.
 - **Never create or move instruction files into `.cursor/`, `.codex/` or `.github/`.** Another
   tool's instruction file is not an unshimmed Claude surface, and no Claude shim or moved
   instruction text belongs in those trees. That is the whole rule: a CI or tooling file that merely

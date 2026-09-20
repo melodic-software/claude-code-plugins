@@ -1,0 +1,118 @@
+# Reviewed acknowledgements for the AGENTS.md cutover's path-detection rows.
+#
+# Read by plugins/instruction-placement/skills/migrate/scripts/cutover-check.sh,
+# graded condition 4: no repository locates a path by the existence of
+# CLAUDE.md. A grep cannot tell "reads CLAUDE.md as an instruction file" from
+# "locates a path by its existence", and that distinction is the condition, so
+# the judgment lives here where it can be reviewed.
+#
+# One row per acknowledged PATHDET row, tab-separated:
+#
+#   <path>	<the trimmed source line>	<one-line reason it survives cutover>
+#
+# Matching is on path plus exact source text, never line number: a row that
+# moves still matches, and a row whose code changed falls out and has to be
+# re-reviewed. A tab inside a source line is compared as a space, because a
+# tab-separated file cannot otherwise express such a row. A row with an empty
+# reason acknowledges nothing; the reason is the review. A PATHDET row with no
+# row here is [UNMET] and is named. No path convention exempts anything, test
+# trees included.
+#
+# The scan reports any existence-ish mention of the name in a code file rather
+# than a fixed list of spellings, so prose in an eval file lands here too. That
+# is the safe direction: a miss clears a cutover that breaks a repository, and
+# a false positive costs one line in this file.
+#
+# This repository is deliberately NOT at [MET]. Two claude-memory scripts are
+# outstanding, and both are real blockers fixed in claude-memory rather than
+# acknowledged here:
+#
+#   discover-instruction-surfaces.sh  its project-scope branch tests only
+#     CLAUDE.md names, so after cutover it emits no project instruction-surface
+#     row and the audit reports a repository full of instructions as having
+#     none.
+#   instruction-load-stats.sh  its project always-loaded loop and the default
+#     target of --lines/--bytes enumerate CLAUDE.md names with no AGENTS.md
+#     branch, so a repository carrying only AGENTS.md measures 0 lines, 0 bytes
+#     and an empty breakdown. Its third site, the user-scope root, is benign on
+#     its own (~/.claude/CLAUDE.md is never removed); it is held back with the
+#     other two so the whole script is re-reviewed once, not row by row.
+#
+# Until both are fixed this repository honestly reports condition 4 unmet.
+
+# --- Convention-home resolution, one vendored copy per plugin ---------------
+plugins/architecture/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Resolves which file carries a convention-home region. AGENTS.md is checked first and treated as canonical, and the CLAUDE.md branch already detects a pure shim and skips it, so with no CLAUDE.md the resolution is unchanged.
+plugins/claude-config/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
+plugins/planning/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
+plugins/plugin-quality/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
+plugins/architecture/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	The else of "AGENTS.md carries a region", so it IS taken whenever AGENTS.md has none. With no CLAUDE.md, CLAUDE_STATE is already none, so STATE is none and the script exits 1 with "no convention-home region" exactly as it does today; cutover does not change the outcome.
+plugins/claude-config/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
+plugins/planning/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
+plugins/plugin-quality/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
+plugins/instruction-placement/scripts/lib/discover.sh	\( -name 'CLAUDE.md' -o -name 'AGENTS.md' \) 2>/dev/null | sed 's|^\./||')"	Discovers instruction files by name to inventory them, and treats AGENTS.md the same way. An absent CLAUDE.md drops out of the inventory; nothing is located by its existence.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.sh	[[ "$dir" == "." ]] && claude="CLAUDE.md"	Builds the path this plan REPORTS bytes for. The byte count is 0 when the file is absent, which is the correct report.
+
+# --- claude-memory audit scripts --------------------------------------------
+plugins/claude-memory/skills/audit/scripts/discover-instruction-surfaces.sh	if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then	User scope, and ~/.claude/CLAUDE.md is never removed by this migration; it is the one permanent CLAUDE.md.
+# instruction-load-stats.sh has NO rows here on purpose. Its three sites
+# (the project always-loaded loop, the user-scope root, and the default target
+# of --lines/--bytes) all enumerate CLAUDE.md names and none of them knows
+# about AGENTS.md, so after cutover the always-loaded byte count and the
+# default single-file target silently drop the root instructions. A separate
+# branch is fixing claude-memory and will add these rows back with true
+# reasons. Until then they report UNACKNOWLEDGED, which is correct.
+plugins/claude-memory/skills/audit/scripts/nested-agents-check.sh	[[ -f "$dir/CLAUDE.md" || -f "$dir/.claude/CLAUDE.md" || -f "$dir/CLAUDE.local.md" ]] && return 0	is_blocked(), whose whole job is to see whether a CLAUDE.md on the path stops native reading. Post-cutover it correctly reports unblocked.
+
+# --- Test fixtures: strings written into temporary repositories -------------
+# None of these locates a path in THIS repository. Each is a string a suite
+# writes into a throwaway tree, or an assertion about output.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	assert_contains "user CLAUDE.md is a user-scope root" "$OUT" "user root 2 23 $UCFG/CLAUDE.md"	An assertion about that script's output, not a path lookup.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	cat >"$CM/CLAUDE.md" <<'EOF'	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '# Plain\n\nline a\nline b\n' >"$PLAIN/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '# Project\n' >"$USR/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '# Root\n' >"$SET/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '# Root\n@../outside.md\n' >"$EXT/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '# Root\r\nline\r\n' >"$CRLF/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '# User\n@notes/prefs.md\n' >"$UCFG/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '@AGENTS.md\n' >"$REPO/CLAUDE.md"	Writes a fixture shim into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '@a.md\n' >"$DEEP/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf '@x.md\n@y.md\n' >"$CYC/CLAUDE.md"	Writes a fixture file into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf 'e\n@CLAUDE.md\n' >"$DEEP/e.md"	Writes a fixture import cycle into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	printf 'x\n@shared.md\n@CLAUDE.md\n' >"$CYC/x.md"	Writes a fixture import cycle into a temporary tree.
+plugins/claude-memory/skills/audit/scripts/nested-agents-check.test.sh	ln -s AGENTS.md "$REPO/linked/CLAUDE.md" # wired by symlink	Creates a fixture symlink in a temporary tree.
+plugins/instruction-placement/scripts/lib/discover.test.sh	ln -s AGENTS.md "$symlinked/CLAUDE.md"	Creates a fixture symlink in a temporary tree.
+plugins/instruction-placement/scripts/render-index.test.sh	ln -s AGENTS.md "$wiring/linked/CLAUDE.md"	Creates a fixture symlink in a temporary tree.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf '# a comment row\n\nnot/the/path\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\twrong path\n' \	A fixture acknowledgement list proving a row for another path does not cover this one.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf '# padding\n# padding\nif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' \	A fixture string proving a row that moved to a new line stays acknowledged.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf '# padding\nif [[ -f "$root/CLAUDE.md" || -f "$root/other" ]]; then echo found; fi\n' \	A fixture string proving a row whose code changed falls out of its acknowledgement.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$DIRTY/tools/find-root.sh"	A fixture string giving condition 4 an unacknowledged row to report.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf 'tools/find-root.sh\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\tfixture, locates nothing\n' \	A fixture acknowledgement list proving a matching row covers its detector.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf 'tools/find-root.sh\tif [[ -f "$root/CLAUDE.md" || -f "$root/other" ]]; then echo found; fi\t\n' \	A fixture acknowledgement list with an empty reason, proving such a row acknowledges nothing.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	assert_contains "--help documents the DIR row's columns" "$OUT" "<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>"	An assertion about help text.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	assert_contains "an existence test on CLAUDE.md is a path detector" "$OUT" "PATHDET tools/find-root.sh:1"	An assertion about this script's own output.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf '# Comment: -f CLAUDE.md is not a path detector\n' >>"$HAZARD/tools/find-root.sh"	A fixture string proving a commented-out detector is not reported.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'a/b.sh\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\treviewed\n' \	A fixture acknowledgement list, proving the list is not read as its own detector.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$CLAUDEDIR/.claude/hooks/guard.sh"	A fixture string proving a detector under .claude/ is scanned like any other tree.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$HAZARD/tools/find-root.sh"	A fixture string proving PATHDET detects a real detector.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'if [[ -f "CLAUDE.md" ]]; then :; fi\n' >"$MENTION/src/find.sh"	A fixture string proving MENTION does not repeat a row PATHDET already reported.
+plugins/instruction-placement/skills/migrate/scripts/remove-shims.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$BLOCKED/tools/find-root.sh"	A fixture string giving remove-shims an unmet condition to refuse on.
+
+# --- This skill's own prose and help text -----------------------------------
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.sh	echo "Condition 4: no repository locates a path by the existence of CLAUDE.md"	The condition's own heading. It prints a sentence; it locates nothing.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.sh	DIR       <path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>	Help text naming a column.
+plugins/instruction-placement/skills/migrate/scripts/remove-shims.sh	refuse "$dir is '$state' ($cb bytes of CLAUDE.md, $ab of AGENTS.md), not the target shape. Finish the migration there first."	A refusal message quoting byte counts the plan already reported.
+
+# --- Eval prose: English about CLAUDE.md, not code that looks for it --------
+plugins/claude-config/skills/audit-pass/evals/evals.json	"expected_output": "Does not dispatch /doctor. It is interactive — it reports findings and asks for confirmation before changing anything — so an unattended run cannot drive it; the pass emits an operator instruction to run it. If its three-part presence prerequisite or the v2.1.206 version floor is unmet, the pass names /doctor as the missing capability, states that the CLAUDE.md trim-and-migrate half goes unchecked, and completes normally.",	Model-graded expectation text.
+plugins/claude-memory/skills/audit/evals/evals.json	"States that nested CLAUDE.md / auto-memory / non-memory surfaces remain outside C6 and belong to I15"	Model-graded expectation text.
+plugins/claude-memory/skills/stateless/evals/evals.json	"Output limits its actions to auto-memory (status/disable/purge), not CLAUDE.md/rules",	Model-graded expectation text.
+plugins/claude-memory/skills/stateless/evals/evals.json	"Output routes the CLAUDE.md / rules request to /claude-memory:audit",	Model-graded expectation text.
+plugins/claude-memory/skills/stateless/evals/evals.json	"prompt": "Make this repo stateless — clear my CLAUDE.md, rules, and chat transcripts too while you're at it.",	An eval prompt.
+plugins/instruction-placement/skills/audit/evals/evals.json	"States that an unscoped rule costs the same as CLAUDE.md and that the glob is what produces the saving",	Model-graded expectation text.
+plugins/instruction-placement/skills/migrate/evals/evals.json	"expected_output": "Runs the read-only plan first and presents it before touching a file. The plan names, per directory, which of the five states it is in, the cumulative AGENTS.md bytes along each root-to-directory path against Codex's project-doc budget, the markdown links that resolve into CLAUDE.md and would die, any code that finds a path by the existence of CLAUDE.md, the detected docs home, and every claude-code-action pin. It then proposes a content split per file and stops for the operator, rather than treating 'just move everything' as blanket approval. Nothing is written until the operator accepts specific moves.",	Model-graded expectation text describing this very row kind.
+plugins/instruction-placement/skills/realign/evals/evals.json	"expected_output": "Creates `src/billing/AGENTS.md` with the relocated content AND `src/billing/CLAUDE.md` containing the `@AGENTS.md` import, in the same accepted move. The shim is what makes the new file load here: the root CLAUDE.md is read instead of any AGENTS.md on that path, so writing the AGENTS.md alone would produce a file that reviews as correct and reaches nothing. The content is created before the source is excised, so an interruption leaves it duplicated rather than deleted, the index is regenerated as part of the move, and verification confirms both files exist and the import resolves.",	Model-graded expectation text.
+plugins/instruction-placement/skills/setup/evals/evals.json	"expected_output": "Reports the NATIVE verdict rather than UNREACHABLE, and is careful about what it means: nothing in the repository blocks the target, because none of the three CLAUDE.md names sits on its path, so Claude Code reads the AGENTS.md directly. It does not propose an @AGENTS.md import or a symlink, because there is no root CLAUDE.md to put one in and nothing is displacing the file. It stops short of saying the index loaded: whether Claude Code read it also turns on the CLI version and the session kind, which no static check can see, and on a CLAUDE.md above the repository root, which this check cannot see either. It names verify-load.sh as the only thing that proves the file actually loaded, and keeps UNREACHABLE for the case where a root CLAUDE.md is read instead of the target.",	Model-graded expectation text.
+plugins/session-flow/skills/workflow/evals/evals.json	"expected_output": "The skill suggests the explore stage but only names a stage skill that actually exists in the consuming repo (its skill listing / CLAUDE.md). If no explore skill exists, it describes inline exploration work per the stage definition rather than inventing a skill name.",	Model-graded expectation text.
+
+# --- Other -------------------------------------------------------------------
+plugins/claude-ops/skills/audit-install-state/scripts/install_state.py	"CLAUDE.md": (AUTHORED, "Global memory file"),	A classification table row for the user-scope ~/.claude tree, which this migration never touches.

@@ -34,6 +34,11 @@
 #             list entry, a comment, a path in a config. Neither a link nor an
 #             existence call, so CITE and PATHDET miss them, and each can still
 #             break when the content moves. The operator triages.
+#   RULES     <total>  <unscoped>  <unscoped-bytes>
+#             How many `.claude/rules/**/*.md` the repository keeps, how many
+#             of them carry no `paths:` frontmatter, and the total bytes of
+#             those unscoped ones. An unscoped rule costs what a CLAUDE.md line
+#             costs, every session.
 #   DOCSHOME  <dir>  <found|absent>
 #             The repository's existing documentation home, where a pointer
 #             target lands. Detected, never imposed: the first tracked directory
@@ -69,8 +74,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The excluded-tree list is this plugin's, defined once in lib/discover.sh so
 # the plan, the index and the wiring gate cannot disagree about whose files a
 # directory holds.
+# A missing or unreadable lib is not a repository with nothing in it. Without
+# the check the exclusion lists were unset, every discovery loop produced
+# nothing, and the plan printed zero DIR rows and exited 0: a clean bill of
+# health from a script that never ran.
 # shellcheck source=../../../scripts/lib/discover.sh
-source "$SCRIPT_DIR/../../../scripts/lib/discover.sh"
+source "$SCRIPT_DIR/../../../scripts/lib/discover.sh" || {
+  echo "plan-migration: cannot load $SCRIPT_DIR/../../../scripts/lib/discover.sh" >&2
+  exit 2
+}
+[[ -n "${IP_EXCLUDED_TREES:-}" && -n "${IP_FOREIGN_AGENT_TREES:-}" ]] || {
+  echo "plan-migration: lib/discover.sh defined no exclusion lists; refusing to plan" >&2
+  exit 2
+}
 
 # Codex's project-doc budget.
 #
@@ -124,6 +140,7 @@ Row kinds and their columns, tab-separated after the kind:
   PATHDET   <file>:<line>:<text>
   CITE      <file>:<line>:<text>
   MENTION   <file>:<line>:<text>, or <dir>/ <count> rows when rolled up
+  RULES     <total> <unscoped> <unscoped bytes>
   DOCSHOME  <dir> <found|absent>
   ACTION    <workflow>:<line>:<text>
 
@@ -387,9 +404,16 @@ roll_up_mentions() {
 # CITE and PATHDET are reported on their own and must not be repeated as
 # MENTION rows, so each keeps its bare `file:line:text` hits for the exclusion.
 PATHDET_HITS="$(mktemp)"
+PATHDET_RAW="$(mktemp)"
 CITE_HITS="$(mktemp)"
 ALREADY_REPORTED="$(mktemp)"
-trap 'rm -f "$PATHDET_HITS" "$CITE_HITS" "$ALREADY_REPORTED"' EXIT
+trap 'rm -f "$PATHDET_HITS" "$PATHDET_RAW" "$CITE_HITS" "$ALREADY_REPORTED"' EXIT
+
+# A scan that FAILED and a scan that found nothing are the same empty output,
+# and a consumer reading the second for the first grades a condition met on a
+# broken probe. `git grep` and `grep` both exit 1 for "no match" and above 1
+# for an error, so every scan here reports the error as its own row.
+scan_failed() { (($1 > 1)); }
 
 # --- CASE -----------------------------------------------------------------
 # Claude Code matches the names exactly; a case-folding filesystem does not, so
@@ -438,10 +462,75 @@ fi
 # Code that finds a directory by the existence of CLAUDE.md. Each one keeps
 # working while the shim exists and breaks the day it comes out, which is why
 # this is a plan row rather than a cutover surprise.
-git grep -n -I -E '(File\.Exists|isFile|-f |test -f|os\.path\.exists|fs\.existsSync|Files\.exists)[^;]{0,40}CLAUDE\.md' \
-  -- ':!*.md' ':!.claude/*' 2>/dev/null |
-  grep -vE ':[0-9]+:[[:space:]]*(#|//|\*)' >"$PATHDET_HITS"
-sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
+#
+# `.claude/` is scanned like any other tree: a hook or helper script there can
+# locate a path by CLAUDE.md exactly as one anywhere else can. The one file
+# excluded from it is the cutover acknowledgement list, whose every line quotes
+# a detector by design; reporting those quotations as detectors would make the
+# file that answers this row also generate it.
+#
+# The match is a WIDE list of existence-ish shapes, not a narrow one, and it
+# is still a list: it reports what it recognizes. Reporting every mention of
+# the name instead was measured at 519 rows here against 54 for this pattern,
+# and an acknowledgement list nobody reads is one that gets rubber-stamped,
+# which fails the same way a miss does. So the bias is wide but bounded, and
+# the residue is stated rather than hidden:
+#
+#   REPORTED: -e/-f/-s/-r/-h/-L tests, `test -e`, `find -name`, Test-Path,
+#     File.Exists, os.path.exists, os.stat, Path(...).exists(), fs.existsSync,
+#     accessSync, statSync, File.exist?, .isFile(), a `x=CLAUDE.md` assignment,
+#     and any exists/stat/access/is-file/locate/find-root idiom within 60
+#     characters of the name.
+#   NOT REPORTED, and known: a name reached only through a variable assigned
+#     far from its use, a shell `ls`/`cat` used as an existence probe, and any
+#     spelling outside the list above. Those land in MENTION, which condition 4
+#     does not grade, so an operator triaging MENTION rows is the backstop.
+#
+# Over-reporting costs a line in the acknowledgement file; under-reporting
+# clears a cutover that breaks a repository.
+#
+# Benign shapes, dropped before reporting:
+#   - a comment line (`#`, `//`, `*`, `--`, `<!--`, `;`)
+#   - a name that is part of a LONGER filename (`CLAUDE.md.bak`, `xCLAUDE.md`)
+#   - the instruction files themselves, and markdown generally, which locate
+#     no path
+BENIGN_COMMENT=':[0-9]+:[[:space:]]*(#|//|\*|--|<!--|;)'
+
+# Every existence-ish idiom this fleet's languages spell, plus a catch-all for
+# the ones they do not: a test flag, a name containing exist/stat/access/file,
+# a `Path.`/`os.`-shaped call, a finder, or a method called ON the name. The
+# window is generous (60 characters) so `File.Exists(Path.Combine(dir, "..."))`
+# and `[[ -e "$root/CLAUDE.md" ]]` both land.
+#
+# It stops short of reporting EVERY mention, which was measured at 519 rows
+# here against 54 for this pattern. Nearly all of the difference is writes,
+# reads and English prose in eval files, and an acknowledgement list of 519
+# rows is one nobody reads: it gets rubber-stamped, which fails the same way
+# under-reporting does. A false positive here costs one line in that list.
+PATHDET_PATTERN='(\[\[|\[|\(|^|[[:space:];&|]|!)[[:space:]]*-(e|f|s|r|h|L|name)[[:space:]][^;&|]{0,60}CLAUDE\.md'
+PATHDET_PATTERN="$PATHDET_PATTERN"'|([Ee]xists?|EXISTS|[Ii]s_?[Ff]ile|[Ii]sFile|[Ss]tat|[Tt]est-[Pp]ath|[Aa]ccess(Sync)?|existsSync|statSync|[Ff]ile[Ee]xists|[Pp]ath\.[a-z]+|[Ff]ind[A-Za-z]*[Rr]oot|[Ll]ocate)[^;]{0,60}CLAUDE\.md'
+# A bare assignment of the name to a variable: the lookup itself may be lines
+# away, so the assignment is the only place a grep can see it.
+# shellcheck disable=SC2016 # the quote characters are part of the pattern, not a shell expansion
+PATHDET_PATTERN="$PATHDET_PATTERN"'|[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(=|:=|<-)[[:space:]]*("|'"'"')?CLAUDE\.md'
+# A method called ON the name, postfix, in any of the fleet's languages.
+# shellcheck disable=SC2016 # the quote characters are part of the pattern, not a shell expansion
+PATHDET_PATTERN="$PATHDET_PATTERN"'|CLAUDE\.md("|'"'"')?[[:space:]]*\)?[[:space:]]*\.[[:space:]]*([Ee]xists?|[Ii]s_?[Ff]ile|[Ss]tat|exist\?)'
+
+pathdet_rc=0
+git grep -n -I -E 'CLAUDE\.md' \
+  -- ':!*.md' ':!*.mdc' ':!.claude/cutover-pathdet-ack.txt' ':!**/.claude/cutover-pathdet-ack.txt' \
+  ':!CHANGELOG.md' ':!**/CHANGELOG.md' \
+  >"$PATHDET_RAW" 2>/dev/null || pathdet_rc=$?
+if scan_failed "$pathdet_rc"; then
+  : >"$PATHDET_HITS"
+  printf 'PATHDET\tERROR\tgit grep exited %s; the scan did not complete\n' "$pathdet_rc"
+else
+  grep -vE "$BENIGN_COMMENT" "$PATHDET_RAW" |
+    grep -E 'CLAUDE\.md([^A-Za-z0-9._-]|$)' |
+    grep -E "$PATHDET_PATTERN" >"$PATHDET_HITS"
+  sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
+fi
 
 # --- CITE -----------------------------------------------------------------
 # Citations that RESOLVE into CLAUDE.md: a markdown link target, with or without
@@ -525,13 +614,27 @@ fi
 # --- ACTION ---------------------------------------------------------------
 # Every claude-code-action pin. The pin decides the CLI version CI installs,
 # and so whether a CI session reads AGENTS.md at all.
-if [[ -d ".github/workflows" ]]; then
+#
+# Both `.github/workflows` and `.github/actions` are scanned: a composite
+# action pins the CLI exactly as a workflow does, and a repository that wraps
+# the action in one would otherwise report no pin at all. The subpath form
+# (`claude-code-action/base-action@...`) is the same pin through a different
+# entry point.
+ACTION_DIRS=()
+[[ -d ".github/workflows" ]] && ACTION_DIRS+=(".github/workflows")
+[[ -d ".github/actions" ]] && ACTION_DIRS+=(".github/actions")
+if [[ ${#ACTION_DIRS[@]} -gt 0 ]]; then
   # A `uses:` line only. A comment mentioning the action is not a pin, and
   # reporting one as a version CI installs sends the cutover check after a
   # string nothing reads.
-  grep -rn -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[^#]*claude-code-action@' \
-    .github/workflows 2>/dev/null |
-    sed 's/^/ACTION\t/' | emit_rows ACTION
+  action_rc=0
+  action_rows="$(grep -rn -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[^#]*claude-code-action(/[A-Za-z0-9._-]+)*@' \
+    "${ACTION_DIRS[@]}" 2>/dev/null)" || action_rc=$?
+  if scan_failed "$action_rc"; then
+    printf 'ACTION\tERROR\tgrep exited %s; the scan did not complete\n' "$action_rc"
+  else
+    printf '%s' "$action_rows" | sed 's/^/ACTION\t/' | emit_rows ACTION
+  fi
 else
   printf 'ACTION\tNONE\n'
 fi

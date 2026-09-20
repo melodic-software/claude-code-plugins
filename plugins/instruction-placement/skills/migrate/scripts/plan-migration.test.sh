@@ -38,8 +38,24 @@ assert_not_contains() {
   esac
 }
 
+# A helper this suite never defined used to print "command not found" to stderr
+# and move on, so the run reported every other check passing while silently
+# skipping that one. An unknown command is a failed check.
+#
+# The count goes through a FILE, not the FAILED variable: bash runs this
+# handler wherever the unknown command was, which is often a subshell, and a
+# subshell's increment dies with it. The summary adds the file's lines back in.
+UNKNOWN_COMMANDS="$(mktemp)"
+# shellcheck disable=SC2329 # bash invokes this by name when a command is not found
+command_not_found_handle() {
+  printf '%s\n' "$1" >>"$UNKNOWN_COMMANDS"
+  printf 'FAIL: unknown command in the suite: %s\n' "$1"
+  printf '      a helper is missing or misspelled; the check it belonged to did not run\n'
+  return 127
+}
+
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
 
 make_repo() {
   unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
@@ -60,8 +76,9 @@ assert_contains "--help explains the NONE row" "$OUT" "NONE"
 assert_contains "--help documents the DIR row's columns" "$OUT" "<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>"
 assert_contains "--help documents the BUDGET row's columns" "$OUT" "cumulative AGENTS.md bytes, root to that path"
 assert_contains "--help documents the mention roll-up" "$OUT" "--expand-mentions"
+assert_contains "--help documents the RULES row's columns" "$OUT" "<total> <unscoped> <unscoped bytes>"
 assert_contains "--dry-run is documented as accepted and ignored" "$OUT" "accepted and ignored"
-for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE MENTION DOCSHOME ACTION; do
+for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE MENTION RULES DOCSHOME ACTION; do
   assert_contains "--help documents the $kind row" "$OUT" "$kind"
 done
 
@@ -426,6 +443,37 @@ OUT=$(bash "$SCRIPT" --root "$PINS" --home "$TMP/nohome")
 assert_contains "a uses: line is a pin" "$OUT" "ACTION	.github/workflows/w.yml:5"
 assert_not_contains "a comment naming the action is not" "$OUT" "ACTION	.github/workflows/w.yml:1"
 
+# A composite action pins the CLI exactly as a workflow does, and the subpath
+# form is the same action through another entry point. Missing either reports a
+# repository with a pin as having none.
+mkdir -p "$PINS/.github/actions/review"
+printf 'runs:\n  steps:\n      - uses: anthropics/claude-code-action/base-action@2261fcf # v1.0.228\n' \
+  >"$PINS/.github/actions/review/action.yml"
+commit_all "$PINS" "a composite action wrapping the base action"
+OUT=$(bash "$SCRIPT" --root "$PINS" --home "$TMP/nohome")
+assert_contains "a composite action under .github/actions is scanned" "$OUT" \
+  "ACTION	.github/actions/review/action.yml:3"
+assert_contains "and the base-action subpath form is a pin" "$OUT" "claude-code-action/base-action@2261fcf"
+
+# --- Case 18b: .claude/ is scanned for detectors, minus the ack list ---
+
+CLAUDEDIR="$TMP/claudedir"
+make_repo "$CLAUDEDIR"
+mkdir -p "$CLAUDEDIR/.claude/hooks"
+printf '# Root\n' >"$CLAUDEDIR/AGENTS.md"
+printf '@AGENTS.md\n' >"$CLAUDEDIR/CLAUDE.md"
+# shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
+printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$CLAUDEDIR/.claude/hooks/guard.sh"
+# shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
+printf 'a/b.sh\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\treviewed\n' \
+  >"$CLAUDEDIR/.claude/cutover-pathdet-ack.txt"
+commit_all "$CLAUDEDIR"
+
+OUT=$(bash "$SCRIPT" --root "$CLAUDEDIR" --home "$TMP/nohome")
+assert_contains "a detector under .claude/ is reported" "$OUT" "PATHDET	.claude/hooks/guard.sh:1"
+assert_not_contains "the acknowledgement list is not its own detector" "$OUT" \
+  "PATHDET	.claude/cutover-pathdet-ack.txt"
+
 # --- Case 19: more than one import is not the target shape ---
 
 DUPE="$TMP/dupeimport"
@@ -473,9 +521,13 @@ bash "$SCRIPT" --root "$HAZARD" --home "$TMP/fakehome" >/dev/null
 AFTER=$(cd "$HAZARD" && git status --porcelain)
 assert_eq "the plan leaves the working tree untouched" "$BEFORE" "$AFTER"
 
+[[ -s "$UNKNOWN_COMMANDS" ]] && FAILED=$((FAILED + $(wc -l <"$UNKNOWN_COMMANDS")))
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
 fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
+# Both summaries go to stdout. The failure one went to stderr, so a caller
+# capturing stdout alone saw a run that printed no verdict at all.
+printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM"
 exit 1

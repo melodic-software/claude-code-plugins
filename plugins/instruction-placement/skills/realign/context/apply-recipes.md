@@ -95,8 +95,10 @@ Content keyed to a place rather than a file kind.
    across a repository is `/instruction-placement:migrate`'s business, not this recipe's.
 
 3. **Merge, do not clobber.** If either file already exists, append under a new heading and preserve
-   what is there. Claude-specific additions go in the `CLAUDE.md` *below* the import line, never
-   inside the `AGENTS.md`, which other agents also read.
+   what is there. Genuinely Claude-specific text goes in neither file: its destination is
+   `.claude/rules/<topic>.md` carrying a `paths:` glob rooted at the subtree, or a stated
+   always-relevant reason. The `CLAUDE.md` beside an `AGENTS.md` is exactly the one import line, so
+   text parked below the import is text the migration has to move again.
 
 4. **Excise the source, regenerate the index, verify** as in Recipe A. Verification here also checks
    that the shim exists and that its import resolves.
