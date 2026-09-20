@@ -215,8 +215,19 @@ SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
 #: Tokens after which the NEXT token is the thing being run rather than an argument value.
 #: Without this test a bare shell-token match convicts `node run.js cmd` and `make sh`, where
 #: `cmd` and `sh` are values and no shell starts. The list is a FLOOR: a shell reached through
-#: a position it does not cover is missed, and the note beside the finding says so.
-COMMAND_POSITION_PREDECESSORS = frozenset({"exec", "-c", "|", "||", "&&", ";"})
+#: a position it does not cover is missed, and the note beside the finding says so. Known
+#: misses: a shell reached through a subshell (`$(bash x.sh)` or a backquoted one) and one
+#: reached through a runner that takes arguments of its own first (`timeout 5 bash x.sh`).
+COMMAND_POSITION_PREDECESSORS = frozenset(
+    {"exec", "env", "sudo", "nohup", "command", "|", "||", "&&", ";"}
+)
+#: `-c` is deliberately NOT in that set: it means "count" to grep and "create" to tar, so it
+#: hands the next token the command slot only when the token before it is itself a shell.
+SHELL_COMMAND_FLAG = "-c"
+#: A run of shell operators, padded apart from its neighbours before the command-position
+#: test tokenizes: `a&&bash b` and `a && bash b` are the same command line, and only the
+#: spaced spelling survives a plain split. Applied to that test's own token list only.
+OPERATOR_RUN = re.compile(r"([;|&]+)")
 #: The variable that selects which bash Claude Code hands a shell-form command to on Windows.
 GIT_BASH_PATH_ENV = "CLAUDE_CODE_GIT_BASH_PATH"
 #: The only filenames Claude Code accepts in that variable. Any other name is ignored and the
@@ -231,13 +242,17 @@ HARNESS_WRAPPER_NOTE = (
     "that then spells a shell of its own puts at least two shells in the chain. That is the "
     "`shell-form-hook-names-a-second-shell` finding. A shell-form command naming no shell is "
     "still run inside the harness's shell, so an empty finding list is not an unwrapped hook. "
+    "The wrapping shell is `sh -c` on macOS and Linux, Git Bash on Windows, PowerShell when "
+    'Git Bash is not installed, or, when a hook sets its own `shell` field ("bash" or '
+    '"powershell"), the one that field names; this engine does not read that field. '
     "Exec form (`args` present) is spawned directly and has no shell. Which bash Windows "
     "resolves to is reported in `fan_out.shell_resolution`. This engine reads the configured "
     "string and never runs it, so it names the documented floor and counts nothing beyond it. "
     "(https://code.claude.com/docs/en/hooks.md and "
-    "https://code.claude.com/docs/en/statusline.md, verified 2026-09-20; recheck when either "
-    "page's shell-form paragraph changes, or when `args` gains a documented no-shell variant "
-    "for shell form.)"
+    "https://code.claude.com/docs/en/statusline.md, verified 2026-09-20; recheck when "
+    "hooks.md's shell-form paragraph changes, when either of that statusline page's shell "
+    "sentences changes, when the `shell` field's accepted-value list changes, or when `args` "
+    "gains a documented no-shell variant for shell form.)"
 )
 
 #: Concurrency and fan-out env vars, with the default the official docs state.
@@ -1565,6 +1580,31 @@ def shell_basename(token: str) -> str:
     return basename[: -len(".exe")] if basename.endswith(".exe") else basename
 
 
+def names_a_shell_in_command_position(lowered: str) -> bool:
+    """Does this command line START a shell, rather than pass one a shell's name?
+
+    Command position is token 0, a token after one of COMMAND_POSITION_PREDECESSORS, or a
+    token after `-c` whose own predecessor is a shell. The token list is padded around shell
+    operators so `a&&bash b` reads the same as `a && bash b`, and it is deliberately SEPARATE
+    from the list the two legacy findings read, so widening what counts as a delimiter here
+    cannot move either of them.
+    """
+    padded = OPERATOR_RUN.sub(r" \1 ", lowered)
+    tokens = padded.replace('"', " ").replace("'", " ").split()
+    for index, token in enumerate(tokens):
+        if shell_basename(token) not in SHELL_TOKENS:
+            continue
+        if index == 0 or tokens[index - 1] in COMMAND_POSITION_PREDECESSORS:
+            return True
+        if (
+            tokens[index - 1] == SHELL_COMMAND_FLAG
+            and index >= 2
+            and shell_basename(tokens[index - 2]) in SHELL_TOKENS
+        ):
+            return True
+    return False
+
+
 def invocation_shape(entry: dict) -> list[str]:
     """Name the per-spawn overhead a hook's invocation shape carries.
 
@@ -1582,15 +1622,9 @@ def invocation_shape(entry: dict) -> list[str]:
     basenames = [shell_basename(t) for t in tokens]
     if sum(1 for b in basenames if b in SHELL_TOKENS) >= 2:
         findings.append("nested-shell-invocation")
-    # Command position, not any position: token 0, or a token whose predecessor hands it the
-    # command slot. `args` present is exec form, which upstream documents as having no shell
-    # at all, so the harness wraps nothing and there is no second shell to name.
-    in_command_position = any(
-        basename in SHELL_TOKENS
-        and (index == 0 or tokens[index - 1] in COMMAND_POSITION_PREDECESSORS)
-        for index, basename in enumerate(basenames)
-    )
-    if not entry.get("args") and in_command_position:
+    # `args` present is exec form, which upstream documents as having no shell at all, so the
+    # harness wraps nothing and there is no second shell to name.
+    if not entry.get("args") and names_a_shell_in_command_position(lowered):
         findings.append("shell-form-hook-names-a-second-shell")
     return findings
 
@@ -1883,17 +1917,27 @@ def shell_resolution(root: Path, process_env: dict | None = None) -> dict:
         ),
         "note": (
             "Resolved from settings.json `env`, then the engine's own environment, then stat. "
+            "settings `env` ranks first because Claude Code applies those variables to every "
+            "session it starts. Only the install-root settings.json is read, so a project or "
+            "local .claude/settings.json `env` that outranks it is not seen here. The block "
+            "answers only for rows the harness wraps with bash: a hook whose own `shell` "
+            'field is "powershell", or a Windows host with no Git Bash installed, has '
+            "PowerShell wrap that row and no bash.exe resolved for it. "
             "This engine never executes either bash.exe, so it reports the resolution and "
             "leaves per-binary timing to the operator. "
-            "(https://code.claude.com/docs/en/troubleshoot-install, verified 2026-09-20; "
-            "recheck when that section's resolution order or accepted-name list changes.)"
+            "(https://code.claude.com/docs/en/troubleshoot-install and "
+            "https://code.claude.com/docs/en/settings-reference, the `env` section, verified "
+            "2026-09-20; recheck when troubleshoot-install's resolution order or accepted-name "
+            "list changes, when settings-reference changes what `env` applies to, or when "
+            "hooks.md changes the `shell` field's accepted-value list.)"
         ),
     }
     if error:
         record["error"] = error
     if value is None:
         findings.append(
-            f"{GIT_BASH_PATH_ENV} is unset, so Claude Code looks for bash.exe in two documented "
+            f"On Windows, {GIT_BASH_PATH_ENV} is unset, so Claude Code looks for "
+            "bash.exe in two documented "
             "steps: first the default install locations (C:\\Program Files\\Git and "
             "C:\\Program Files (x86)\\Git), then the git on PATH, taking bin\\bash.exe from that "
             "Git installation. Which step wins on this host is not resolved here."

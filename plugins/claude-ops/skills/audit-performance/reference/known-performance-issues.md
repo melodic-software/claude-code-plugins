@@ -109,7 +109,8 @@ The third names a shell the command string cannot show. Claude Code passes a she
 Git Bash on Windows, PowerShell when Git Bash is absent, and it runs the statusline command in a
 shell the same way ([hooks](https://code.claude.com/docs/en/hooks.md) and
 [statusline](https://code.claude.com/docs/en/statusline.md), verified 2026-09-20; recheck when
-either page's shell-form paragraph changes). A shell-form command that then spells a shell of its
+hooks.md's shell-form paragraph changes, or when either of that statusline page's shell sentences
+changes). A shell-form command that then spells a shell of its
 own therefore puts at least two shells in the chain, which is
 `shell-form-hook-names-a-second-shell`. Exec form, with `args` present, is spawned directly and
 has no shell. Two consequences for reading the report: an empty finding list means no row named a

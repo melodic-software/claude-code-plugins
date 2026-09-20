@@ -198,6 +198,54 @@ class TestInvocationShape(unittest.TestCase):
             ],
         )
 
+    def test_operators_count_without_surrounding_whitespace(self):
+        # Spaces around an operator are the rarer spelling; the common one has none.
+        for command in (
+            "./a.sh; bash b.sh",
+            "./a.sh&&bash b.sh",
+            "./a.sh||bash b.sh",
+            "cat x|sh",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(
+                    "shell-form-hook-names-a-second-shell",
+                    engine.invocation_shape({"command": command, "args": []}),
+                )
+
+    def test_the_legacy_rules_are_blind_to_the_operator_padding(self):
+        # Pinned: the pad is its own token list, so the legacy rules see the old tokens.
+        entry = {"command": 'sh -c "x&&bash y"', "args": []}
+        self.assertEqual(
+            engine.invocation_shape(entry), ["shell-form-hook-names-a-second-shell"]
+        )
+
+    def test_the_c_flag_grants_command_position_only_after_a_shell(self):
+        # `grep -c` counts and `tar -c` creates; neither hands the next token a shell.
+        for command in ("grep -c sh file.txt", "tar -c sh"):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    engine.invocation_shape({"command": command, "args": []}), []
+                )
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell",
+            engine.invocation_shape({"command": 'bash -c "bash x.sh"', "args": []}),
+        )
+
+    def test_a_wrapping_command_hands_the_next_token_the_command_slot(self):
+        for command in ("env bash x.sh", "sudo bash x.sh", "nohup bash x.sh"):
+            with self.subTest(command=command):
+                self.assertIn(
+                    "shell-form-hook-names-a-second-shell",
+                    engine.invocation_shape({"command": command, "args": []}),
+                )
+
+    def test_the_wrapper_note_names_every_shell_that_can_do_the_wrapping(self):
+        # The engine never reads a hook's own `shell` field, so the note must name that
+        # field and the value that changes which shell does the wrapping.
+        note = engine.HARNESS_WRAPPER_NOTE
+        self.assertIn("`shell` field", note)
+        self.assertIn('"powershell"', note)
+
 
 class TestHookInventoryOverATree(unittest.TestCase):
     """End to end over a synthetic install root: settings hooks plus enabled-plugin hooks."""
@@ -1693,6 +1741,33 @@ class TestShellResolution(unittest.TestCase):
             result = self.resolve(Path(tmp), {}, {})
             self.assertIn("observed on one", result["observation"])
             self.assertIn("never executes", result["note"])
+
+    def test_the_unset_finding_is_qualified_to_windows(self):
+        # fan_out_layer ships this block on every platform, so the finding cannot state
+        # a Windows-only search order flatly.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(Path(tmp), {}, {})
+            self.assertTrue(result["findings"][0].startswith("On Windows,"))
+
+    def test_settings_env_outranks_the_process_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            chosen = Path(tmp) / "Git" / "bin" / "bash.exe"
+            chosen.parent.mkdir(parents=True)
+            chosen.write_text("", encoding="utf-8")
+            result = self.resolve(
+                Path(tmp),
+                {engine.GIT_BASH_PATH_ENV: str(chosen)},
+                {engine.GIT_BASH_PATH_ENV: "C:/elsewhere/bash.exe"},
+            )
+            self.assertEqual(result["source"], "settings.json env")
+            self.assertEqual(result["value"], str(chosen))
+
+    def test_the_note_bounds_the_answer_to_what_the_block_actually_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            note = self.resolve(Path(tmp), {}, {})["note"]
+            self.assertIn("settings-reference", note)
+            self.assertIn("install-root", note)
+            self.assertIn('"powershell"', note)
 
 
 class TestFanOutIsWiredIntoTheReport(unittest.TestCase):

@@ -188,18 +188,21 @@ spawns. Read `fan_out` in this order:
    the hooks run un-nested.** A shell-form command is handed to a shell whatever it names, so a
    row with no finding still pays one wrapping shell; the list names only the rows that add a
    second, and its command-position rule is a floor, so a shell reached through a position the
-   rule does not cover is missed rather than reported. Claim: shell form passes the `command`
-   string to a shell, `sh -c` on macOS and Linux, Git Bash on Windows, PowerShell when Git Bash
-   is absent, while exec form, with `args` present, spawns the executable directly with no shell
-   ([hooks](https://code.claude.com/docs/en/hooks.md), verified 2026-09-20; recheck when that
-   page's shell-form paragraph changes, or when `args` gains a documented no-shell variant for
-   shell form). Which bash pays the wrapping spawn is item 3.
-   `per_tool_call.count` is the registered-row ceiling, so read `by_matcher` and
+   rule does not cover is missed rather than reported: a subshell (`$(bash x.sh)` or a
+   backquoted one) and a runner taking arguments of its own first (`timeout 5 bash x.sh`) are
+   the known misses. Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
+   registered-row ceiling, so read `by_matcher` and
    `projection` beside it for what one tool call of a given shape actually spawns, and
    `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
    firing. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
-   the total several times over.
+   the total several times over. Claim: shell form passes the `command` string to a shell,
+   `sh -c` on macOS and Linux, Git Bash on Windows, PowerShell when Git Bash is absent, or the
+   shell a hook's own `shell` field names, while exec form, with `args` present, spawns the
+   executable directly with no shell
+   ([hooks](https://code.claude.com/docs/en/hooks.md), verified 2026-09-20; recheck when that
+   page's shell-form paragraph changes, when the `shell` field's accepted-value list changes,
+   or when `args` gains a documented no-shell variant for shell form).
 3. **`fan_out.shell_resolution`**, which names WHICH bash pays that wrapping spawn on Windows:
    `CLAUDE_CODE_GIT_BASH_PATH`, where the value came from, whether the path exists, whether
    Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to
@@ -211,7 +214,11 @@ spawns. Read `fan_out` in this order:
    ([troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install), verified
    2026-09-20; recheck when that section's resolution order or accepted-name list changes). The
    `bin` launcher's re-exec of `usr/bin/bash.exe` rides in `observation` as a one-host
-   observation with its provenance, never as a count this engine asserts.
+   observation with its provenance, never as a count this engine asserts. The block answers
+   only for rows the harness wraps with bash, and only from the install-root `settings.json`:
+   a hook whose own `shell` field is `"powershell"`, or a Windows host with no Git Bash
+   installed, has PowerShell wrap that row and no `bash.exe` resolved for it, and a project or
+   local `.claude/settings.json` `env` that outranks the install root is not read here.
 4. **`fan_out.config_liveness`** before attributing any cost to configuration. Claude Code reads
    plugin enablement at startup, so `sessions_predating_settings` greater than zero means the
    file on disk does not describe what is running: a plugin toggled off an hour ago can still
