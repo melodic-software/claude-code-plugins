@@ -32,6 +32,45 @@ assert_contains() {
   *) fail "$1" "expected to contain: $3" ;;
   esac
 }
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "expected NOT to contain: $3" ;;
+  *) pass "$1" ;;
+  esac
+}
+
+# count_cr / count_lf <file> - carriage returns and line feeds in a file. Git
+# Bash grep never matches a carriage return, so the count goes through tr; the
+# arithmetic expansion strips the leading spaces BSD wc -c pads with.
+count_cr() {
+  local n
+  n=$(tr -dc '\r' <"$1" | wc -c)
+  echo "$((n))"
+}
+count_lf() {
+  local n
+  n=$(tr -dc '\n' <"$1" | wc -c)
+  echo "$((n))"
+}
+
+# backup_count <dir> - how many settings.json.<stamp>.bak siblings exist.
+# nullglob so an unmatched pattern counts 0 rather than 1 literal word.
+backup_count() {
+  local matches
+  shopt -s nullglob
+  matches=("$1"/settings.json.*.bak)
+  shopt -u nullglob
+  echo "${#matches[@]}"
+}
+
+# backup_path <dir> - the single backup sibling, or the empty string.
+backup_path() {
+  local matches
+  shopt -s nullglob
+  matches=("$1"/settings.json.*.bak)
+  shopt -u nullglob
+  echo "${matches[0]:-}"
+}
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
@@ -56,6 +95,17 @@ run_fix_apply() {
   NO_COLOR=1 \
     CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
     bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1
+}
+
+# run_fix_internal <case-dir> [args...] - no --input, so the script runs
+# check-plugin-drift.sh itself. The settings file is still pinned, so the check
+# reads the fixture and never the machine's own configuration.
+run_fix_internal() {
+  local case_dir="$1"
+  shift
+  NO_COLOR=1 \
+    CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+    bash "$SCRIPT" "$@" 2>&1
 }
 
 # --- Case 1: no drift → no-op ---------------------------------------------------
@@ -249,6 +299,172 @@ out=$(bash "$SCRIPT" --input 2>&1) || exit_code=$?
 
 assert_exit "case-8: bare --input exits 2" 2 "$exit_code"
 assert_contains "case-8: usage error message" "$out" "Missing value for --input"
+
+# --- Case 9: a fatal internal check stops the run ---------------------------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+echo 'not valid json' >"$case_dir/settings.json"
+
+exit_code=0
+out=$(run_fix_internal "$case_dir") || exit_code=$?
+
+assert_exit "case-9: fatal check exits 2" 2 "$exit_code"
+assert_contains "case-9: names the check and its status" "$out" "check-plugin-drift.sh failed with status 2"
+assert_not_contains "case-9: never reports a clean bill of health" "$out" "No drift detected"
+
+# --- Case 10: an apply leaves a backup of the pre-apply bytes ---------------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+cat >"$case_dir/findings.json" <<'EOF'
+[{
+  "key": "market1",
+  "status": "ok",
+  "skip_reason": "",
+  "orphans": [{"name": "removed", "marketplace": "market1", "enabled": false}],
+  "new_upstream": [{"name": "newcomer", "marketplace": "market1"}],
+  "renames": []
+}]
+EOF
+cat >"$case_dir/settings.json" <<'EOF'
+{
+  "enabledPlugins": {
+    "alpha@market1": true,
+    "removed@market1": false
+  }
+}
+EOF
+# Named so the .bak glob cannot match it.
+cp "$case_dir/settings.json" "$case_dir/settings.pre"
+
+exit_code=0
+out=$(run_fix_apply "$case_dir") || exit_code=$?
+
+assert_exit "case-10: apply exit 0" 0 "$exit_code"
+assert_eq "case-10: exactly one backup sibling" "1" "$(backup_count "$case_dir")"
+
+bak=$(backup_path "$case_dir")
+if [[ -n "$bak" ]] && cmp -s "$case_dir/settings.pre" "$bak"; then
+  bak_match=yes
+else
+  bak_match=no
+fi
+assert_eq "case-10: backup holds the pre-apply bytes" "yes" "$bak_match"
+assert_contains "case-10: summary names the backup" "$out" ".bak"
+
+# --- Case 11: the ladder resolving to the user settings file is refused -----------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+mkdir -p "$case_dir/.claude"
+cat >"$case_dir/findings.json" <<'EOF'
+[{
+  "key": "market1",
+  "status": "ok",
+  "skip_reason": "",
+  "orphans": [{"name": "removed", "marketplace": "market1", "enabled": false}],
+  "new_upstream": [{"name": "newcomer", "marketplace": "market1"}],
+  "renames": []
+}]
+EOF
+cat >"$case_dir/.claude/settings.json" <<'EOF'
+{
+  "enabledPlugins": {
+    "alpha@market1": true,
+    "removed@market1": false
+  }
+}
+EOF
+cp "$case_dir/.claude/settings.json" "$case_dir/settings.pre"
+
+# No CLAUDE_SETTINGS_FILE, so the ladder resolves the path. GIT_DIR points at
+# nothing, so `git rev-parse` fails and the ladder falls through to
+# CLAUDE_PROJECT_DIR; CLAUDE_CONFIG_DIR makes that same directory the user
+# scope, which is the collision the guard exists to refuse.
+exit_code=0
+out=$(NO_COLOR=1 \
+  GIT_DIR=/nonexistent \
+  CLAUDE_PROJECT_DIR="$case_dir" \
+  CLAUDE_CONFIG_DIR="$case_dir/.claude" \
+  bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1) || exit_code=$?
+
+assert_contains "case-11: the ladder landed on the fixture" "$out" "Settings file: $case_dir/.claude/settings.json"
+assert_exit "case-11: refuses with exit 2" 2 "$exit_code"
+assert_contains "case-11: refusal names the ladder" "$out" "the project-root ladder resolved to the user settings file"
+
+if cmp -s "$case_dir/settings.pre" "$case_dir/.claude/settings.json"; then
+  untouched=yes
+else
+  untouched=no
+fi
+assert_eq "case-11: settings file byte-identical" "yes" "$untouched"
+assert_eq "case-11: no backup created" "0" "$(backup_count "$case_dir/.claude")"
+
+# --- Case 12b: a check that exits 0 without a document is still a pass ------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+echo '{}' >"$case_dir/settings.json"
+
+exit_code=0
+out=$(run_fix_internal "$case_dir") || exit_code=$?
+
+assert_exit "case-12b: no declared marketplaces exits 0" 0 "$exit_code"
+assert_contains "case-12b: reports no drift" "$out" "No drift detected"
+
+# --- Case 12: an apply preserves the original's line-ending style -----------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+for variant in lf crlf stray; do
+  mkdir -p "$case_dir/$variant"
+  cat >"$case_dir/$variant/findings.json" <<'EOF'
+[{
+  "key": "market1",
+  "status": "ok",
+  "skip_reason": "",
+  "orphans": [{"name": "removed", "marketplace": "market1", "enabled": false}],
+  "new_upstream": [{"name": "newcomer", "marketplace": "market1"}],
+  "renames": []
+}]
+EOF
+done
+
+printf '{\n  "enabledPlugins": {\n    "alpha@market1": true,\n    "removed@market1": false\n  }\n}\n' \
+  >"$case_dir/lf/settings.json"
+printf '{\r\n  "enabledPlugins": {\r\n    "alpha@market1": true,\r\n    "removed@market1": false\r\n  }\r\n}\r\n' \
+  >"$case_dir/crlf/settings.json"
+# One stray CR as inter-token JSON whitespace in an otherwise LF file: cr is
+# above 0 but below lf, so the file must stay on the LF branch.
+printf '{\n  "enabledPlugins": {\r "alpha@market1": true,\n    "removed@market1": false\n  }\n}\n' \
+  >"$case_dir/stray/settings.json"
+
+cp "$case_dir/crlf/settings.json" "$case_dir/crlf/settings.pre"
+
+for variant in lf crlf stray; do
+  run_fix_apply "$case_dir/$variant" >/dev/null 2>&1 || true
+done
+
+assert_eq "case-12: LF fixture comes back with no CR" "0" "$(count_cr "$case_dir/lf/settings.json")"
+assert_eq "case-12: stray-CR fixture stays on the LF branch" "0" "$(count_cr "$case_dir/stray/settings.json")"
+
+crlf_cr=$(count_cr "$case_dir/crlf/settings.json")
+crlf_lf=$(count_lf "$case_dir/crlf/settings.json")
+if [[ "$crlf_cr" -gt 0 && "$crlf_cr" -eq "$crlf_lf" ]]; then
+  crlf_ok=yes
+else
+  crlf_ok=no
+fi
+assert_eq "case-12: CRLF fixture comes back CRLF" "yes" "$crlf_ok"
+
+bak=$(backup_path "$case_dir/crlf")
+if [[ -n "$bak" ]] && cmp -s "$case_dir/crlf/settings.pre" "$bak"; then
+  crlf_bak=yes
+else
+  crlf_bak=no
+fi
+assert_eq "case-12: CRLF backup holds the untouched original" "yes" "$crlf_bak"
 
 # --- Final ------------------------------------------------------------------
 

@@ -3,6 +3,42 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.12]
+
+### Fixed
+
+- **`fix-plugin-drift.sh` stops instead of reporting "No drift detected" when its own check dies.**
+  The internal `check-plugin-drift.sh` call ran under `|| true`. A check that exits 2 (a settings
+  file that is missing or not valid JSON, a missing jq) writes no findings document, and `mktemp`
+  had already created the target as a zero-byte file. `jq empty` accepts an empty document, every
+  count came out 0, and the script printed "No drift detected, nothing to do" and exited 0, so a
+  fatal check read as a clean bill of health. The status is now captured: above 1 is fatal, since
+  1 is the check's own "drift detected". An empty document paired with status 1 is fatal too,
+  because it can only mean a truncated write. Status 0 with no document stays a pass, because the
+  check exits 0 without writing when the settings file declares no `extraKnownMarketplaces`, and
+  that case now names itself on stderr, since the check's own explanation goes to the `/dev/null`
+  this script redirects.
+- **`fix-plugin-drift.sh --yes` backs the settings file up before it replaces it.** The only file
+  operations were two `rm -f` on temporaries and a bare `mv` over the target, so an operator had
+  no copy of what the script overwrote. A successful apply now copies the file to
+  `<settings>.<UTC stamp>.bak` first and aborts if that copy fails, so nothing is replaced without
+  a copy of what it replaced. The backup path is named in the summary line.
+- **`fix-plugin-drift.sh --yes` refuses to write the user settings file it reached by inference.**
+  With no `CLAUDE_SETTINGS_FILE`, the project-root ladder falls through to `$PWD` when the working
+  directory is not a repository, so a session started in a home directory resolved the target to
+  `~/.claude/settings.json` and rewrote the live user file as if it were project scope. The apply
+  path now compares the resolved target against the user config dir's own `settings.json` and
+  exits 2 when they are the same file. Only the inferred path is refused: an explicit
+  `CLAUDE_SETTINGS_FILE` is a deliberate target and still applies. A dry run still reads and
+  reports either way.
+- **`fix-plugin-drift.sh --yes` preserves the settings file's line endings.** The edit is a jq
+  read-modify-write, and jq emits whatever its build emits: the native Windows build writes CRLF
+  through a text-mode stdout, an MSYS or Linux build writes LF. Either one rewrites every line
+  ending in a file of the other style while reporting a handful of key changes. The emitted
+  document is now normalized to the line-ending style the original file carried, measured with
+  `tr` because Git Bash grep never matches a carriage return, and revalidated as JSON after the
+  conversion. Indentation and the trailing newline still come from jq.
+
 ## [0.46.11]
 
 ### Changed
