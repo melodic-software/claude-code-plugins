@@ -36,10 +36,11 @@
 #   A check that fails is fatal. The run never reports an audit it did not
 #   complete. A check that completes with no marketplace to audit says so
 #   instead of reporting no drift.
-#   The settings file is copied to <settings>.<UTC stamp>.bak, mode 0600, before
-#   it is replaced. Nothing is replaced if that copy cannot be made, and a
-#   second apply in the same second is refused rather than overwriting the
-#   first one's backup.
+#   The settings file is copied to <settings>.<UTC stamp>.bak before it is
+#   replaced, created under a 0077 umask so it is 0600 wherever the platform
+#   honors mode bits (MSYS does not). Nothing is replaced if that copy cannot be
+#   made, and a second apply in the same second is refused rather than
+#   overwriting the first one's backup.
 #   The file's own line-ending style survives the jq round trip.
 #   An apply is refused when the project-root ladder resolved the path to the
 #   user settings file. Set CLAUDE_SETTINGS_FILE to write that file on purpose.

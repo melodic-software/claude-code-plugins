@@ -25,10 +25,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `<settings>.<UTC stamp>.bak` first and aborts if that copy fails, so nothing is replaced without
   a copy of what it replaced. The backup is created empty under `set -C` and a 0077 umask and only
   then filled: the `O_EXCL` open refuses an existing path and a symlink alike, including a dangling
-  one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and the 0600 result does not
-  inherit a world-readable mode onto a verbatim copy of a file that can hold tokens and permission
-  rules. Backups are never pruned, so a project that tracks `.claude/` may want `.claude/*.bak`
-  ignored. The backup path is named in the summary line.
+  one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and the umask stops a verbatim
+  copy of a file that can hold tokens and permission rules inheriting a world-readable mode. The
+  umask is a no-op on MSYS, where mode bits are emulated, so the 0600 result holds on Linux and
+  macOS and not on Git Bash. Backups are never pruned, so a project that tracks `.claude/` may
+  want `.claude/*.bak` ignored. The backup path is named in the summary line.
 - **`fix-plugin-drift.sh --yes` refuses to write the user settings file it reached by inference.**
   With no `CLAUDE_SETTINGS_FILE`, the project-root ladder falls through to `$PWD` when the working
   directory is not a repository, so a session started in a home directory resolved the target to
