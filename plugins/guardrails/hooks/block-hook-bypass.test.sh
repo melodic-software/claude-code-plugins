@@ -1071,6 +1071,23 @@ run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
   "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
 run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
   "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
+# Nor is a line the quoted-span walk REFUSED to pair. The walk emits the rest of
+# a line verbatim when it meets a DOUBLED quote (PowerShell's escape: `'it''s'`),
+# so `Write-Host 'a''b @'` reaches a bare suffix test unchanged and reads as a
+# real opener; the live Set-Content under it then goes as here-string body. pwsh
+# 7.6.6 parses the payload with zero errors and line 2 is a live top-level
+# command. An opener is confirmed only when no quote survives the walk.
+run_pwsh "PS: Set-Content recovered from behind an unpaired-quote opener tail (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host 'a''b @'" "Set-Content f.txt x" "'@ fine'")" 2
+run_pwsh "PS: the doubled double-quote spelling of the same shape (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"a\"\"b @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+# rc 0 PINS. A properly paired span is DELETED by the walk, so no quote survives
+# and the opener still confirms. The body names a write, so an unconfirmed
+# reading would leave it visible and block: these pins discriminate.
+run_pwsh "PS: a paired double-quoted string before a real opener (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"x\" @\"" "Set-Content f.txt x" "\"@")" 0
+run_pwsh "PS: a bare verbatim opener after git commit -m (allowed)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @'" "Set-Content f.txt x" "'@")" 0
 
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.

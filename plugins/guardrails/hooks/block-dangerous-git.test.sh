@@ -1585,8 +1585,8 @@ run_pwsh "PS hs: a one-line commented opener beside a git command (blocked, unch
 # The rc does not move but the ATTRIBUTION does: this was a phantom
 # `herestring-unbalanced`, whose arm blanks from the opener to end of input, so a
 # standing token for that shape reduced it to a bare `git log` and allowed it.
-pin_sink_trigger "classify: the one-line form now reports the comment opener, not unbalanced" \
-  "git log --oneline # @\"" "herestring-comment-opener"
+pin_sink_trigger "classify: the one-line form now reports the unconfirmed opener, not unbalanced" \
+  "git log --oneline # @\"" "herestring-opener-unconfirmed"
 run_pwsh "PS hs: the unbalanced token no longer opens the one-line commented form" \
   "git log --oneline # @\"" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced
@@ -1617,9 +1617,10 @@ run_pwsh "PS hs: apostrophes pairing across the # keep a real opener (allowed)" 
   "$(printf '%s\n%s\n%s' "Write-Host don't # it's @\"" "git push --force" "\"@")" 0
 # ACCEPTED OVER-BLOCK, the cost of that pairing being the ordered span walk. The
 # walk refuses to pair a DOUBLED-quote escape and emits the line verbatim, so the
-# `#` inside `'a''# b'` survives and refuses the opener after it. PowerShell reads
-# this as the string `a'# b` followed by a live opener, with the git line inert
-# body; the guard refuses it.
+# quotes survive and the opener is not confirmed; the `#` inside `'a''# b'`
+# survives with them and would refuse it on its own too. PowerShell reads this as
+# the string `a'# b` followed by a live opener, with the git line inert body; the
+# guard refuses it.
 run_pwsh "PS hs: a doubled-quote escape hiding a # refuses the opener (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output 'a''# b' @\"" "git push --force" "\"@")" 2
 # THE OTHER DIRECTION, and the one a per-style strip gets wrong. An apostrophe
@@ -1643,16 +1644,16 @@ run_pwsh "PS hs: the canonical verbatim commit form is untouched (allowed)" \
 # keeps reporting the construct it carries. The construct has to sit BEFORE the
 # `#` on that line, because ps::blank_quoted_spans_to pairs the comment's unpaired
 # `"` with the next `"` in the command and erases everything between.
-pin_sink_trigger "classify: a commented opener enters the herestring-comment-opener sink" \
-  "$ps_hs_comment" "herestring-comment-opener"
+pin_sink_trigger "classify: a commented opener enters the herestring-opener-unconfirmed sink" \
+  "$ps_hs_comment" "herestring-opener-unconfirmed"
 pin_sink_trigger "classify: a special construct before the # still reports itself" \
   "$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")" "special-construct"
 
 # ALLOW-TOKEN CASES. The token narrows the sink SHAPE; it never waives a git line
 # the reduction leaves plainly visible.
-run_pwsh "PS hs: the comment-opener token does not waive the visible git push --force" \
+run_pwsh "PS hs: the opener-unconfirmed token does not waive the visible git push --force" \
   "$ps_hs_comment" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-opener
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
 # A commented opener ABOVE a real hanging opener. `herestring-unbalanced` is first
 # in the chain and wins here, and its arm blanks from the hanging opener to end of
 # input, so the shared helper is what keeps the commented line from being taken
@@ -1677,11 +1678,73 @@ pin_sink_trigger "classify: a commented opener above a real hanging opener still
 # budget runs out, so an arm that bought one pair per pass would fail OPEN with
 # the git line never checked.
 ps_hs_comment_stacked="$(printf '%s\n%s\n%s' "Write-Output x # @\"@'" "git push --force" "\"@ fine\"")"
-pin_sink_trigger "classify: a stacked commented opener tail still reports the comment opener" \
-  "$ps_hs_comment_stacked" "herestring-comment-opener"
+pin_sink_trigger "classify: a stacked commented opener tail still reports the unconfirmed opener" \
+  "$ps_hs_comment_stacked" "herestring-opener-unconfirmed"
 run_pwsh "PS hs: a stacked commented opener tail settles in one pass (blocked)" \
   "$ps_hs_comment_stacked" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-opener
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+
+# --- a line whose quoting the walk REFUSED to pair confirms no opener ----------
+# ps::blank_quoted_spans_to emits the rest of the line VERBATIM when it meets a
+# DOUBLED quote (PowerShell's escape: `'it''s'`, `"say ""hi"""`), because the
+# pairing is ambiguous. `Write-Host 'a''b @'` therefore comes out of the walk
+# unchanged: it still ends in `@'` and carries no `#`, so a suffix test paired
+# with a `#` test alone reads it as a real opener and the live command line under
+# it goes as here-string body. pwsh 7.6.6 parses each payload below with zero
+# errors and line 2 is a live top-level command in every one. An opener is
+# confirmed only when NO quote survives the walk.
+ps_hs_unpaired_sq="$(printf '%s\n%s\n%s' "Write-Host 'a''b @'" "git push --force" "'@ fine'")"
+ps_hs_unpaired_dq="$(printf '%s\n%s\n%s' "Write-Host \"a\"\"b @\"" "git push --force" "\"@ fine\"")"
+run_pwsh "PS hs: a doubled single quote before the opener tail (blocked)" \
+  "$ps_hs_unpaired_sq" 2
+run_pwsh "PS hs: the doubled double-quote spelling of the same shape (blocked)" \
+  "$ps_hs_unpaired_dq" 2
+# This guard owns destructive non-push forms too.
+run_pwsh "PS hs: reset --hard recovered from behind an unpaired-quote tail (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host 'a''b @'" "git reset --hard" "'@ fine'")" 2
+# `hook::jq_fields` strips CR, so the CRLF payload reaches the classifier as its
+# LF twin and has to reach the same verdict.
+run_pwsh "PS hs: CRLF-line-ended copy of the unpaired-quote form (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Host 'a''b @'" "git push --force" "'@ fine'")" 2
+# An rc of 2 cannot tell WHICH trigger refused, and the trigger fires for two
+# distinct causes now, so the quoting cause is pinned on its own.
+pin_sink_trigger "classify: an unconfirmable opener enters the herestring-opener-unconfirmed sink" \
+  "$ps_hs_unpaired_sq" "herestring-opener-unconfirmed"
+# The token narrows the sink SHAPE; it never waives a git line the reduction
+# leaves plainly visible.
+run_pwsh "PS hs: the opener-unconfirmed token does not waive the visible git push --force" \
+  "$ps_hs_unpaired_sq" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+run_pwsh "PS hs: the same, in the doubled double-quote spelling" \
+  "$ps_hs_unpaired_dq" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+# The arm replaces the line's opaque TAIL, not just the two opener characters.
+# Taking only those two off leaves the surviving quote standing, and the Bash
+# tokenizer this reduction is handed to pairs a single-quoted span ACROSS
+# newlines, so the live git line below would be swallowed into one quoted word.
+# A sibling statement standing BEFORE the ambiguity on the same line stays
+# visible, which is the invariant #2667 pins.
+run_pwsh "PS hs: a sibling before the ambiguity stays visible under the token" \
+  "$(printf '%s\n%s\n%s' "git reset --hard; Write-Host 'a''b @'" "Write-Output body" "'@ fine'")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+# ACCEPTED OVER-BLOCK. `Write-Output 'a''b' @"` is a REAL here-string to
+# PowerShell: the string `a'b`, then a live opener, with the git line as inert
+# body. The walk refuses to pair the doubled quote, so a quote survives the line
+# and the opener is not confirmed. Leaving text in view can only over-block.
+run_pwsh "PS hs: a doubled-quote string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output 'a''b' @\"" "git push --force" "\"@")" 2
+# rc 0 PINS FOR LEGITIMATE OPENERS. The walk DELETES a properly paired span, so
+# no quote survives and the opener still confirms. Each body names git, so an
+# unconfirmed reading would route to the sink and block on the git it can see:
+# these pins discriminate rather than passing either way.
+run_pwsh "PS hs: a paired double-quoted string before a real opener (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"x\" @\"" "git push --force" "\"@")" 0
+run_pwsh "PS hs: a paired single-quoted string before a real opener (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output 'a' @\"" "git push --force" "\"@")" 0
+run_pwsh "PS hs: an apostrophe inside a paired double-quoted string (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"it's fine\" @\"" "git push --force" "\"@")" 0
+run_pwsh "PS hs: a bare verbatim opener after git commit -m (allowed)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @'" "subject" "'@")" 0
 
 # RECORDED RESIDUALS, not endorsements. Both are rc 0 on this change and on its
 # base, at default configuration with no allow token, and both are pinned so

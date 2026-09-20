@@ -251,6 +251,26 @@ run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, n
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
 
+# A here-string opener the library cannot CONFIRM must not hide the next line.
+# The quoted-span walk emits the rest of a line verbatim when it meets a DOUBLED
+# quote (PowerShell's escape: `'it''s'`), so `Write-Host 'a''b @'` reaches a bare
+# suffix test unchanged and reads as a real opener; the live `git commit
+# --no-verify` under it then goes as here-string body. pwsh 7.6.6 parses the
+# payload with zero errors and line 2 is a live top-level command. An opener is
+# confirmed only when no quote survives the walk, so the line stays in view and
+# this guard refuses the bypass it can now see.
+run_pwsh "PS: --no-verify recovered from behind an unpaired-quote opener tail (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host 'a''b @'" "git commit --no-verify -m x" "'@ fine'")" 2
+run_pwsh "PS: the doubled double-quote spelling of the same shape (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"a\"\"b @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
+# rc 0 PINS. A properly paired span is DELETED by the walk, so no quote survives
+# and the opener still confirms. The body names a bypass, so an unconfirmed
+# reading would leave it visible and block: these pins discriminate.
+run_pwsh "PS: a paired double-quoted string before a real opener (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"x\" @\"" "git commit --no-verify -m x" "\"@")" 0
+run_pwsh "PS: a bare verbatim opener after git commit -m (allowed)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @'" "subject" "'@")" 0
+
 # Obfuscation regressions (independent security review, sink-level fail-closed).
 # A construct that defeats the Bash tokenizer must not let an obfuscated git
 # invocation through — the sink blocks unless the command is provably git-free,

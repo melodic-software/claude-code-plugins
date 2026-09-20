@@ -26,7 +26,7 @@
 #   ps-unparsable-special-construct
 #   ps-unparsable-herestring-unbalanced
 #   ps-unparsable-herestring-subexpr
-#   ps-unparsable-herestring-comment-opener
+#   ps-unparsable-herestring-opener-unconfirmed
 # These narrow the unparsable-PowerShell sink by the trigger that routed there.
 # They are NOT interchangeable with the destructive-form tokens above: an
 # unparsable command cannot prove which forms it carries, so reset-hard (etc.)
