@@ -1587,7 +1587,10 @@ def names_a_shell_in_command_position(lowered: str) -> bool:
     token after `-c` whose own predecessor is a shell. The token list is padded around shell
     operators so `a&&bash b` reads the same as `a && bash b`, and it is deliberately SEPARATE
     from the list the two legacy findings read, so widening what counts as a delimiter here
-    cannot move either of them.
+    cannot move either of them. Quotes are flattened rather than honoured, here as in those
+    legacy rules, so an operator inside a quoted argument (`grep -e 'a|sh' f`) reads as a real
+    delimiter and over-reports. The rule misses in the other direction too: a subshell and a
+    runner that takes arguments of its own first (`timeout 5 bash x.sh`) never match.
     """
     padded = OPERATOR_RUN.sub(r" \1 ", lowered)
     tokens = padded.replace('"', " ").replace("'", " ").split()

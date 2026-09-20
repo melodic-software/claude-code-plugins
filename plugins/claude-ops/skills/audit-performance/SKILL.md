@@ -190,7 +190,10 @@ spawns. Read `fan_out` in this order:
    second, and its command-position rule is a floor, so a shell reached through a position the
    rule does not cover is missed rather than reported: a subshell (`$(bash x.sh)` or a
    backquoted one) and a runner taking arguments of its own first (`timeout 5 bash x.sh`) are
-   the known misses. Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
+   the known misses. It errs the other way too: quotes are flattened rather than honoured, so a
+   shell operator inside a quoted argument (`grep -e 'a|sh' f`) reads as a real delimiter and
+   over-reports, so confirm a row against its own manifest before acting on it.
+   Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
    registered-row ceiling, so read `by_matcher` and
    `projection` beside it for what one tool call of a given shape actually spawns, and
    `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
