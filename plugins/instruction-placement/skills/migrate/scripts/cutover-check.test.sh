@@ -291,6 +291,28 @@ assert_not_contains "and is never read as the bullet being gone" "$OUT" \
   "no longer carries the AGENTS.md bullet"
 assert_contains "so condition 1 is UNREACH" "$OUT" "[UNREACH] neither probe could answer"
 
+# A bullet that MOVED to another heading reads, from inside one section,
+# exactly like a bullet that was deleted. Both are UNREACH.
+ENVVARS_MOVED="$TMP/env-vars-moved.md"
+cat >"$ENVVARS_MOVED" <<'EOF'
+# Environment variables
+
+## Features that need feature-flag fetching
+
+- Some other flag-gated feature.
+
+## Features behind a different flag mechanism
+
+- Have Claude Code read `AGENTS.md` files as project instructions; this one is flag-gated too.
+
+### First session after an install or upgrade
+EOF
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-false" --env-vars-file "$ENVVARS_MOVED" --skip-canary)
+assert_contains "a bullet that moved elsewhere is not a bullet that left" "$OUT" \
+  "still ties AGENTS.md to a flag elsewhere"
+assert_not_contains "and is never MET" "$OUT" "ties AGENTS.md to no flag anywhere"
+
 # A bundle with no readable window is UNREACH too, not a default of true.
 printf 'tengu_agents_md_mod appears with no export beside it\n' >"$TMP/bundle-opaque"
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \

@@ -260,12 +260,10 @@ bash "$PLAN_MIGRATION" --root "$REPO" >"$PLAN" 2>/dev/null ||
   refuse "plan-migration.sh could not plan $REPO"
 
 SHIM_DIRS=()
-AGENTS_DIRS=()
 DIR_ROWS=""
 while IFS=$'\t' read -r kind dir state cb ab; do
   [[ "$kind" == "DIR" ]] || continue
   DIR_ROWS="${DIR_ROWS}."
-  [[ "$ab" != "0" ]] && AGENTS_DIRS+=("$dir")
   case "$state" in
   shim) SHIM_DIRS+=("$dir") ;;
   agents-only) echo "  $dir: already unshimmed ($ab bytes of AGENTS.md)" ;;
@@ -301,14 +299,19 @@ done <"$PLAN"
 # nested surface would pass its canary while loading nothing of its own.
 AGENTS_LINES="$(mktemp)"
 build_line_index() {
-  local d file up
+  local file up
   : >"$AGENTS_LINES"
-  for d in ${AGENTS_DIRS[@]+"${AGENTS_DIRS[@]}"}; do
-    if [[ "$d" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$d/AGENTS.md"; fi
-    [[ -f "$file" ]] || continue
-    F="$d" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
+  # Every AGENTS.md ON DISK inside the repository, not the plan's DIR rows.
+  # The plan lists tracked files, and Claude Code loads by filesystem: a
+  # gitignored `mid/AGENTS.md` carrying the same line as `mid/svc/AGENTS.md`
+  # is invisible to `git ls-files`, so the nested line scored unique and the
+  # untracked ancestor answered its probe. The index keys on the file's own
+  # path so a directory compares against itself and nothing else.
+  while IFS= read -r file; do
+    [[ -n "$file" && -f "$file" ]] || continue
+    F="$file" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
       "$file" >>"$AGENTS_LINES"
-  done
+  done < <(find "$REPO" -name 'AGENTS.md' -type f 2>/dev/null)
   # An AGENTS.md ABOVE the repository root loads in every session inside it and
   # is in no DIR row, so a line it shares would go unseen by an index built
   # from the plan alone.
@@ -318,7 +321,7 @@ build_line_index() {
   up="$(dirname "$REPO")"
   while :; do
     if [[ -f "$up/AGENTS.md" ]]; then
-      F="$up" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
+      F="$up/AGENTS.md" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
         "$up/AGENTS.md" >>"$AGENTS_LINES"
     fi
     [[ "$up" == "$(dirname "$up")" ]] && break
@@ -336,9 +339,11 @@ build_line_index() {
 # the nested surface passes while loading nothing of its own. Equality closed
 # the identical case and left that one open.
 canary_line() { # <dir>
-  local file line best="" seen
+  local file self line best="" seen
   if [[ "$1" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$1/AGENTS.md"; fi
   [[ -f "$file" ]] || return 1
+  # The index key for THIS file, so a line only ever competes with other files.
+  self="$file"
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"
@@ -354,7 +359,7 @@ canary_line() { # <dir>
     # arrives at awk as one holding a newline and a backspace, matches nothing,
     # and scores as unique while an identical ancestor line answers its probe.
     # `index()` is a fixed-string search, so regex metacharacters are literal.
-    seen="$(WANT="$line" SELF="$1" awk -F'\t' '
+    seen="$(WANT="$line" SELF="$self" awk -F'\t' '
       $1 != ENVIRON["SELF"] && index($2, ENVIRON["WANT"]) > 0 { n++ }
       END { print n + 0 }' "$AGENTS_LINES")"
     ((seen == 0)) || continue

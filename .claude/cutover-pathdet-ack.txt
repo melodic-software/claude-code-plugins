@@ -31,10 +31,12 @@
 #     CLAUDE.md names, so after cutover it emits no project instruction-surface
 #     row and the audit reports a repository full of instructions as having
 #     none.
-#   instruction-load-stats.sh  the project always-loaded loop, the user-scope
-#     root and the default target of --lines/--bytes all enumerate CLAUDE.md
-#     names with no AGENTS.md branch, so the always-loaded byte count and the
-#     default single-file target drop the root instructions.
+#   instruction-load-stats.sh  its project always-loaded loop and the default
+#     target of --lines/--bytes enumerate CLAUDE.md names with no AGENTS.md
+#     branch, so a repository carrying only AGENTS.md measures 0 lines, 0 bytes
+#     and an empty breakdown. Its third site, the user-scope root, is benign on
+#     its own (~/.claude/CLAUDE.md is never removed); it is held back with the
+#     other two so the whole script is re-reviewed once, not row by row.
 #
 # Until both are fixed this repository honestly reports condition 4 unmet.
 

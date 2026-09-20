@@ -397,6 +397,27 @@ assert_eq "a shared line carrying backslashes is still rejected" 1 "$rc"
 assert_contains "and says the ancestor would answer for it" "$OUT" "answered by the ancestor"
 assert_eq "and nothing was removed" "" "$(cd "$ESCAPED" && git status --porcelain)"
 
+# Claude Code loads by filesystem, not by tracking status. An UNTRACKED
+# intermediate AGENTS.md is in no plan row, so an index built from the plan
+# missed it and the nested line below it scored unique while that file would
+# answer its probe in a real session.
+UNTRACKED="$TMP/untracked"
+build_ready_repo "$UNTRACKED"
+mkdir -p "$UNTRACKED/mid/svc"
+SHARED_LINE='The middle tier owns its own migrations and its own rollback windows.'
+printf '# Mid\n\n%s\n' "$SHARED_LINE" >"$UNTRACKED/mid/AGENTS.md"
+printf '# Mid service\n\n%s\n' "$SHARED_LINE" >"$UNTRACKED/mid/svc/AGENTS.md"
+printf '@AGENTS.md\n' >"$UNTRACKED/mid/svc/CLAUDE.md"
+printf 'mid/AGENTS.md\n' >"$UNTRACKED/.gitignore"
+(cd "$UNTRACKED" && git add -A && git commit -q -m "an untracked intermediate AGENTS.md")
+
+rc=0
+OUT=$(bash "$SCRIPT" --root "$UNTRACKED" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "an untracked ancestor still blocks a shared line" 1 "$rc"
+assert_contains "and says the ancestor would answer for it" "$OUT" "answered by the ancestor"
+assert_eq "and nothing was removed" "" "$(cd "$UNTRACKED" && git status --porcelain --untracked-files=no)"
+
 # A plan with no DIR row at all is discovery that did not run, not a repository
 # with nothing in it.
 NODIR="$TMP/nodir"

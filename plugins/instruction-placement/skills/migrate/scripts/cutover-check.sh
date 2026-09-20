@@ -386,7 +386,14 @@ condition_1() {
     return 0
   fi
   if ((heading_found == 1 && bullet_found == 0)); then
-    met "the env-vars feature-flag list no longer carries the AGENTS.md bullet"
+    # The bullet leaving THIS list is not the dependency ending if the page
+    # still ties AGENTS.md to a flag somewhere else: a moved bullet and a
+    # deleted one look identical from inside one section.
+    if grep -iE 'AGENTS\.md' "$ev" 2>/dev/null | grep -qiE 'flag'; then
+      unreach "the AGENTS.md bullet left the list, but the page still ties AGENTS.md to a flag elsewhere; a moved bullet reads the same as a removed one"
+      return 2
+    fi
+    met "the env-vars feature-flag list no longer carries the AGENTS.md bullet, and the page ties AGENTS.md to no flag anywhere"
     return 0
   fi
   if [[ "$verdict" == "default-false" ]] && ((heading_found == 1 && bullet_found == 1)); then
@@ -640,7 +647,9 @@ condition_4() {
     return 2
   fi
   if ((unacked > 0)); then
-    unmet "$unacked path-detection row(s) have no reviewed acknowledgement"
+    # With the denominator: "4 unacknowledged" alone does not tell a reader
+    # whether that is 4 of 8 or 4 of 60.
+    unmet "$unacked of $((acked + unacked)) path-detection row(s) have no reviewed acknowledgement"
     return 1
   fi
   met "$acked path-detection row(s), every one acknowledged with a reviewed reason"
