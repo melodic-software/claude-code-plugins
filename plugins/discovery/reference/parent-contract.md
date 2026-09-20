@@ -73,11 +73,12 @@ the drift this file exists to close.
 
 **The worker's model is the parent's call, and it is not an envelope field.** It travels as the
 Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
-named here rather than in the template above. None of the three worker definitions pins one: with
-no `model` frontmatter the consumer's own `CLAUDE_CODE_SUBAGENT_MODEL` decides, and the dispatching
-session raises it per run when the scope earns the spend. Pass it deliberately rather than
-defaulting by omission, because these workers are the plugin's expensive lane: `maxTurns: 40` at
-`effort: high`, spent almost entirely on reading. Dated record:
+named here rather than in the template above. None of the three worker definitions pins one, so the
+default is to **pass nothing**: the consumer's own `CLAUDE_CODE_SUBAGENT_MODEL` then decides, which
+is the whole point of carrying no pin. Supply the parameter only as a deliberate per-run change,
+because it outranks that setting and would otherwise replace the consumer's cost choice on this
+plugin's most expensive lane, `maxTurns: 40` at `effort: high`, spent almost entirely on reading.
+Under `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` it cannot be passed at all. Dated record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A per-invocation `model` outranks a subagent's frontmatter".
 
