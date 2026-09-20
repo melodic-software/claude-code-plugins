@@ -312,9 +312,10 @@ says nesting is available. Without it, go sequential: slower, same coverage. Wri
 before any fan-out either way.
 
 **The parallel worker is the built-in `Explore` agent, and it is a scout.** Spawn one per disjoint
-area, never one per dimension, on either of the two triggers the skill body names (the scope carries
-two or more disjoint areas, or the gap-list carries four or more entries in areas sharing no files),
-capped at a dozen concurrent. Tell each scout the area it owns, the area it must not wander into,
+area, never one per dimension, on either of the two triggers the preloaded skill body states under
+"When to fan out, and to what", and under the cap it sets there. Those thresholds live in that one
+place; read them from it rather than from a second copy here, which would drift the moment either
+file is edited alone. Tell each scout the area it owns, the area it must not wander into,
 and any convention that bounds its search, because it arrives without the project's CLAUDE.md. Pass
 a thoroughness level: `quick` for a known name, `medium` by default, `very thorough` when the naming
 convention is unknown.
