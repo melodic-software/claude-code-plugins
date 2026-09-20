@@ -78,7 +78,8 @@ demotion was worth making, not a statement that the rule is broken. Everything e
 ```
 
 `wiring` takes no file: it walks every nested `AGENTS.md` the index would list and prints one
-`WIRED`, `NATIVE` or `UNWIRED` row per file, exiting 1 on any `UNWIRED`. The fix for an unwired file
+`WIRED`, `NATIVE` or `UNWIRED` row per file, exiting 1 on any `UNWIRED`. A repository with no
+nested files prints `NONE` and exits 0, so silence from this subcommand means it did not run. The fix for an unwired file
 is a one-line `@AGENTS.md` `CLAUDE.md` beside it, never removing the row. A `NATIVE` row is not a
 finding: no `CLAUDE.md` on that file's path displaces it, so the shim is not what makes it load
 there. It remains the cover for sessions that cannot read `AGENTS.md` at all, which is why a

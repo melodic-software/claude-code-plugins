@@ -552,10 +552,17 @@ nonested="$(mktemp -d)"
 git -C "$nonested" init -q .
 printf '# Root only\n' >"$nonested/CLAUDE.md"
 commit_all "$nonested"
+# Silence and "nothing to report" were the same output, so a clean repository
+# looked exactly like a subcommand that never ran.
 out="$(run wiring --root "$nonested")"
-assert_eq "no nested AGENTS.md prints no rows" "" "$out"
+assert_eq "no nested AGENTS.md says so rather than printing nothing" "NONE" "$out"
 run wiring --root "$nonested" >/dev/null 2>&1
 assert_eq "no nested AGENTS.md exits 0" "0" "$?"
+
+# The write-time warning filters on the UNWIRED state, so the NONE line must
+# not reach it as a row.
+warn="$(warn_only write --file "$nonested/CLAUDE.md" --root "$nonested")"
+assert_not_contains "the NONE line is not warned about at write time" "$warn" "NONE"
 
 # An import from the root CLAUDE.md, the root .claude/CLAUDE.md, or an ancestor
 # directory's CLAUDE.md brings the nested file into context too, so those are

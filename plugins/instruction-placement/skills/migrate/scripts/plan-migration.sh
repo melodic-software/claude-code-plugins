@@ -95,6 +95,7 @@ CODEX_PROJECT_DOC_BUDGET=32768
 
 ROOT="."
 HOME_DIR="${HOME:-}"
+EXPAND_MENTIONS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -102,23 +103,45 @@ while [[ $# -gt 0 ]]; do
     cat <<'EOF'
 plan-migration.sh — what a repository's move to AGENTS.md would touch.
 
-Usage: plan-migration.sh [--dry-run] [--root <dir>] [--home <dir>] [--help]
+Usage: plan-migration.sh [--root <dir>] [--home <dir>] [--expand-mentions] [--help]
 
-  --dry-run     the only mode; read-only, and the default
-  --root <dir>  the repository to plan (default: the current directory)
-  --home <dir>  where to look for the bare ~/CLAUDE.md suppressors (default: $HOME)
-  --help        this message
+  --root <dir>        the repository to plan; any path inside it resolves to its
+                      toplevel (default: the current directory)
+  --home <dir>        where to look for the bare ~/CLAUDE.md suppressors
+                      (default: $HOME)
+  --expand-mentions   list every MENTION row instead of rolling up a directory
+                      that holds more than 10 of them. `.claude/` and `.github/`
+                      are never rolled up: a leak lives in configuration
+  --dry-run           accepted and ignored; this script only ever reads
+  --help              this message
 
-Row kinds: DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, MENTION, DOCSHOME, ACTION. Every
-row is a fact about the repository; the content split is judgment and stays in
-the skill. A kind with nothing to report prints `<KIND>\tNONE` rather than
-staying silent, so "checked, none" never looks like "did not run".
+Row kinds and their columns, tab-separated after the kind:
+
+  DIR       <path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>
+  BUDGET    <path> <cumulative AGENTS.md bytes, root to that path> <OK|OVER>
+  CASE      <path>
+  SUPPRESS  <path> <yes|no>
+  PATHDET   <file>:<line>:<text>
+  CITE      <file>:<line>:<text>
+  MENTION   <file>:<line>:<text>, or <dir>/ <count> rows when rolled up
+  DOCSHOME  <dir> <found|absent>
+  ACTION    <workflow>:<line>:<text>
+
+Every row is a fact about the repository; the content split is judgment and
+stays in the skill. A kind with nothing to report prints NONE in place of its
+columns, so "checked, none" never looks like "did not run".
 
 Exit: 0 printed, 1 not a git repository, 2 usage error.
 EOF
     exit 0
     ;;
+  # Accepted and ignored. The script has only ever read, so the flag selected
+  # nothing; it stays so an existing caller does not break on it.
   --dry-run) shift ;;
+  --expand-mentions)
+    EXPAND_MENTIONS=1
+    shift
+    ;;
   --root)
     [[ $# -ge 2 ]] || {
       echo "plan-migration: --root needs a directory" >&2
@@ -311,6 +334,51 @@ emit_rows() {
   fi
 }
 
+# A directory whose mentions would flood the report is rolled up to one line.
+#
+# N is 10 by judgment, not measurement: no standard sets it. Above about that
+# many rows from one directory a reader stops reading rows and starts skipping
+# them, and the directories that produce them in practice are content
+# directories (a captured corpus, vendored prose) whose mentions are all the
+# same non-finding. A real instruction-surface leak arrives as a handful of rows
+# in `.github`, `.claude` or a script directory, well under the threshold.
+# `--expand-mentions` prints every row when the operator wants the long form.
+# Recheck the number if a repository's real findings ever land above it.
+MENTION_ROLLUP_THRESHOLD=10
+
+# Configuration trees are never rolled up at any count. They are precisely
+# where an instruction-surface leak lives (a settings file, a bootstrap hook, a
+# CI gate enumerating instruction paths), so summarizing them would hide the
+# rows this kind exists to show.
+MENTION_NEVER_ROLLUP=".claude/ .github/"
+
+roll_up_mentions() {
+  if ((EXPAND_MENTIONS)); then
+    cat
+    return 0
+  fi
+  awk -v n="$MENTION_ROLLUP_THRESHOLD" -v keep="$MENTION_NEVER_ROLLUP" '
+    BEGIN { split(keep, k, " "); for (i in k) never[k[i]] = 1 }
+    { line[NR] = $0
+      slash = index($0, "/")
+      top = (slash ? substr($0, 1, slash) : "")
+      if (top in never) top = ""
+      dir[NR] = top
+      if (top != "") count[top]++
+    }
+    END {
+      for (i = 1; i <= NR; i++) {
+        top = dir[i]
+        if (top != "" && count[top] > n) {
+          if (!(top in done)) { printf "%s\t%d rows\n", top, count[top]; done[top] = 1 }
+          continue
+        }
+        print line[i]
+      }
+    }
+  '
+}
+
 # CITE and PATHDET are reported on their own and must not be repeated as
 # MENTION rows, so each keeps its bare `file:line:text` hits for the exclusion.
 PATHDET_HITS="$(mktemp)"
@@ -338,12 +406,25 @@ git ls-files -z 2>/dev/null | tr '\0' '\n' | awk '
 # directory below home, so no repository-side change can make AGENTS.md load
 # there. Measured 2026-09-19 on Claude Code 2.1.278; recheck when
 # code.claude.com/docs/en/memory changes which names count for that check.
+# The path is printed in a form the host's own tools accept. Under Git Bash a
+# home directory reads as `/c/Users/...`, which no Windows tool resolves, so the
+# operator cannot paste the row into anything. `cygpath -m` gives the
+# forward-slash drive form both Git Bash and Windows accept; without cygpath
+# (every non-Windows host) the path is already native and passes through.
+native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 if [[ -n "$HOME_DIR" ]]; then
   for suppressor in "$HOME_DIR/CLAUDE.md" "$HOME_DIR/CLAUDE.local.md"; do
     if [[ -f "$suppressor" ]]; then
-      printf 'SUPPRESS\t%s\tyes\n' "$suppressor"
+      printf 'SUPPRESS\t%s\tyes\n' "$(native_path "$suppressor")"
     else
-      printf 'SUPPRESS\t%s\tno\n' "$suppressor"
+      printf 'SUPPRESS\t%s\tno\n' "$(native_path "$suppressor")"
     fi
   done
 fi
@@ -383,8 +464,10 @@ printf '\x01no-such-line\n' >>"$ALREADY_REPORTED"
 git grep -n -I -F 'CLAUDE.md' \
   -- ':!CLAUDE.md' ':!AGENTS.md' ':!**/CLAUDE.md' ':!**/AGENTS.md' \
   ':!CLAUDE.local.md' ':!**/CLAUDE.local.md' \
-  ':!CHANGELOG.md' ':!**/CHANGELOG.md' ':!.claude/*' 2>/dev/null |
+  ':!CHANGELOG.md' ':!**/CHANGELOG.md' \
+  ':!.claude/CLAUDE.md' ':!**/.claude/CLAUDE.md' 2>/dev/null |
   grep -vxF -f "$ALREADY_REPORTED" |
+  roll_up_mentions |
   sed 's/^/MENTION\t/' | emit_rows MENTION
 
 # --- DOCSHOME -------------------------------------------------------------

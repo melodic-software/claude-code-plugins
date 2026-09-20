@@ -56,8 +56,11 @@ rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_eq "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
-assert_contains "--help names the row kinds" "$OUT" "DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, MENTION, DOCSHOME, ACTION"
 assert_contains "--help explains the NONE row" "$OUT" "NONE"
+assert_contains "--help documents the DIR row's columns" "$OUT" "<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>"
+assert_contains "--help documents the BUDGET row's columns" "$OUT" "cumulative AGENTS.md bytes, root to that path"
+assert_contains "--help documents the mention roll-up" "$OUT" "--expand-mentions"
+assert_contains "--dry-run is documented as accepted and ignored" "$OUT" "accepted and ignored"
 for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE MENTION DOCSHOME ACTION; do
   assert_contains "--help documents the $kind row" "$OUT" "$kind"
 done
@@ -285,6 +288,75 @@ OUT=$(bash "$SCRIPT" --root "$MENTION" --home "$TMP/nohome")
 assert_not_contains "a populated CITE kind reports no NONE row" "$OUT" "CITE	NONE"
 assert_not_contains "a populated PATHDET kind reports no NONE row" "$OUT" "PATHDET	NONE"
 assert_contains "while an empty one alongside it still does" "$OUT" "CASE	NONE"
+
+# --- Case 13: .claude/ is where a Claude repo enumerates instruction files ---
+
+DOTC2="$TMP/dotclaude-mentions"
+make_repo "$DOTC2"
+mkdir -p "$DOTC2/.claude/rules" "$DOTC2/.claude/hooks"
+printf '# Root\n' >"$DOTC2/AGENTS.md"
+printf '@AGENTS.md\n' >"$DOTC2/CLAUDE.md"
+printf '{ "docs": ["CLAUDE.md", "README.md"] }\n' >"$DOTC2/.claude/settings.json"
+printf 'cat CLAUDE.md > /dev/null\n' >"$DOTC2/.claude/hooks/bootstrap.sh"
+printf -- '---\npaths:\n  - "**/*.py"\n---\nSee CLAUDE.md for the rest.\n' >"$DOTC2/.claude/rules/py.md"
+printf '@AGENTS.md\n' >"$DOTC2/.claude/CLAUDE.md"
+commit_all "$DOTC2"
+
+OUT=$(bash "$SCRIPT" --root "$DOTC2" --home "$TMP/nohome")
+assert_contains "a .claude settings file naming CLAUDE.md is a MENTION" "$OUT" "MENTION	.claude/settings.json:1"
+assert_contains "a .claude hook naming CLAUDE.md is a MENTION" "$OUT" "MENTION	.claude/hooks/bootstrap.sh:1"
+assert_contains "a .claude rule naming CLAUDE.md is a MENTION" "$OUT" "MENTION	.claude/rules/py.md:5"
+assert_not_contains "but .claude/CLAUDE.md is an instruction file, not a mention" "$OUT" "MENTION	.claude/CLAUDE.md"
+
+# --- Case 14: MENTION rolls up a directory that would flood the report ---
+# A corpus repo printed 108 rows of captured third-party prose. A report nobody
+# reads is the same as no report.
+
+FLOOD="$TMP/flood"
+make_repo "$FLOOD"
+mkdir -p "$FLOOD/corpus" "$FLOOD/src"
+printf '# Root\n' >"$FLOOD/AGENTS.md"
+printf '@AGENTS.md\n' >"$FLOOD/CLAUDE.md"
+i=1
+while [[ "$i" -le 14 ]]; do
+  printf 'captured prose mentioning CLAUDE.md in passing\n' >"$FLOOD/corpus/doc$i.md"
+  i=$((i + 1))
+done
+printf 'a single mention of CLAUDE.md here\n' >"$FLOOD/src/notes.md"
+commit_all "$FLOOD"
+
+# A configuration tree is never rolled up, however many rows it holds: it is
+# exactly where a real instruction-surface leak lives, and the roll-up exists
+# for content directories whose every row is the same non-finding.
+mkdir -p "$FLOOD/.claude/hooks"
+i=1
+while [[ "$i" -le 14 ]]; do
+  printf 'cat CLAUDE.md > /dev/null\n' >"$FLOOD/.claude/hooks/h$i.sh"
+  i=$((i + 1))
+done
+commit_all "$FLOOD" "config mentions"
+
+OUT=$(bash "$SCRIPT" --root "$FLOOD" --home "$TMP/nohome")
+assert_not_contains "a configuration tree is never rolled up" "$OUT" "MENTION	.claude/	14 rows"
+assert_contains "its rows are listed individually" "$OUT" "MENTION	.claude/hooks/h1.sh:1"
+assert_contains "a flooding content directory is rolled up to one line" "$OUT" "MENTION	corpus/	14 rows"
+assert_not_contains "and its individual rows are withheld" "$OUT" "corpus/doc1.md"
+assert_contains "a directory under the threshold still lists its rows" "$OUT" "MENTION	src/notes.md:1"
+
+OUT=$(bash "$SCRIPT" --root "$FLOOD" --home "$TMP/nohome" --expand-mentions)
+assert_contains "--expand-mentions lists them all" "$OUT" "MENTION	corpus/doc1.md:1"
+assert_not_contains "and prints no roll-up line" "$OUT" "14 rows"
+
+# --- Case 15: SUPPRESS prints a path native tools accept ---
+
+OUT=$(bash "$SCRIPT" --root "$FLOOD" --home "$TMP/fakehome")
+if command -v cygpath >/dev/null 2>&1; then
+  assert_not_contains "a SUPPRESS path is not left in MSYS form" "$OUT" "SUPPRESS	/c/"
+  assert_contains "it is printed in a form native tools accept" "$OUT" "SUPPRESS	$(cygpath -m "$TMP/fakehome")/CLAUDE.md"
+else
+  CASE_NUM=$((CASE_NUM + 2))
+  printf 'SKIP: SUPPRESS path form (no cygpath on this host; the path is passed through unchanged)\n'
+fi
 
 # --- Case 6: the home suppressors are reported either way ---
 

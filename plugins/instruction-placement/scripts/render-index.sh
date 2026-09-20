@@ -118,7 +118,10 @@ Usage:
   render-index.sh wiring [--root <dir>]
   render-index.sh --help
 
-render     print the generated block to stdout
+render     print the generated block to stdout. With nothing to index it still
+           prints a well-formed block saying so, which is the answer to "what
+           WOULD the index hold"; `write` is the surface that decides whether
+           one is worth writing, and writes none in that case
 check      compare the block inside <path> against a fresh render
 write      replace the block inside <path> in place, appending it if absent
 reachable  report whether anything in this repository stops Claude Code loading
@@ -127,7 +130,9 @@ reachable  report whether anything in this repository stops Claude Code loading
            Claude Code reads it directly where AGENTS.md support is available)
 wiring     report, for every nested AGENTS.md the index would list, whether a
            CLAUDE.md on its own path blocks it and whether one imports or
-           symlinks it (WIRED / NATIVE / UNWIRED rows; exit 1 on any UNWIRED)
+           symlinks it (WIRED / NATIVE / UNWIRED rows; exit 1 on any UNWIRED).
+           Prints NONE when there are no nested files, so a clean repository
+           does not look like a subcommand that never ran
 
 Indexes only surfaces that load on demand: path-scoped rules (`paths:`
 frontmatter) and nested CLAUDE.md / AGENTS.md files below the repository root.
@@ -495,9 +500,21 @@ nested_agents_wiring() {
 }
 
 if [[ "$SUBCOMMAND" == "wiring" ]]; then
-  nested_agents_wiring
-  exit $?
+  # A repository with no nested AGENTS.md printed nothing, which reads the same
+  # as a subcommand that never ran. The NONE line is emitted HERE rather than
+  # inside nested_agents_wiring, because the write-time warning consumes that
+  # function's rows and filters on the UNWIRED state: a NONE row reaching it
+  # would be a row it has to know to ignore.
+  wiring_out="$(nested_agents_wiring)"
+  wiring_rc=$?
+  if [[ -z "$wiring_out" ]]; then
+    printf 'NONE\n'
+    exit 0
+  fi
+  printf '%s\n' "$wiring_out"
+  exit "$wiring_rc"
 fi
+
 
 BLOCK="$(render_block)"
 

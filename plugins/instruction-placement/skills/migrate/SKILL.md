@@ -81,27 +81,27 @@ not available, rather than skipping the move.
 ## Plan first
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh" --dry-run --root <repo>
+bash "${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh" --root <repo>
 ```
 
 **Always pass `--root`.** A shell's working directory does not persist between tool calls, so a run
 without it plans whatever directory the call happened to land in. `--root` may point anywhere inside
 the repository; the script resolves to the toplevel itself.
 
-Read-only, and `--dry-run` is the only mode it has. A kind with nothing to report prints a
+Read-only: it has no other mode, and `--dry-run` is accepted and ignored so an older caller does
+not break. A kind with nothing to report prints a
 tab-separated `<KIND>` / `NONE` row, so a clean repository is visibly clean rather than
 indistinguishable from a run that never happened. Its rows are the facts a migration turns on:
 
 | Row | What it decides |
 |---|---|
-| `DIR` | One state per directory: `content-in-claude`, `shim`, `shim-with-comment`, `agents-only`, `both-with-content`, `zero-byte`. The state names the work |
-| `shim-with-comment` | A `CLAUDE.md` that is the import plus an HTML comment and nothing else. It loads like a shim, but the target shape is the bare `@AGENTS.md` line, so the comment is content: strip it, and move the note into `AGENTS.md` or delete it, the operator's call. `dotfiles` and `medley` are both in this state |
-| `BUDGET` | `AGENTS.md` bytes summed root-to-directory against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
+| `DIR` | `<path> <state> <CLAUDE.md bytes> <AGENTS.md bytes>`. The state names the work; the table below says what Apply does for each |
+| `BUDGET` | `<path> <cumulative AGENTS.md bytes, root to that path> <OK\|OVER>`, against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
 | `CASE` | A filename differing only by case. Claude Code matches names exactly; NTFS does not, so the repository behaves differently per developer until it is renamed |
 | `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
 | `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks |
 | `CITE` | A markdown link resolving into `CLAUDE.md`. Each is retargeted in the same PR as the content move, or the link dies |
-| `MENTION` | Every other tracked occurrence of the literal `CLAUDE.md`: a YAML list entry, a comment, a path in a config. Neither a link nor an existence call, so it is nobody else's row, and it is where a CI gate that enumerates instruction files shows up. Triage each with the operator |
+| `MENTION` | Every other tracked occurrence of the literal `CLAUDE.md`: a YAML list entry, a comment, a path in a config, including under `.claude/`, which is where a Claude-configured repo most often enumerates its own instruction files. Neither a link nor an existence call, so it is nobody else's row. A content directory holding more than ten is rolled up to `<dir>/ <count> rows`; `.claude/` and `.github/` never are, because a leak lives in configuration. `--expand-mentions` prints them all. **A roll-up is the answer, not a deferral**: a content directory (captured prose, vendored docs) is reported by count and left alone, because every one of its mentions is the same non-finding. Triage the individually-listed rows with the operator |
 | `DOCSHOME` | Where a pointer target lands |
 | `ACTION` | Every `claude-code-action` pin. Each decides the CLI version CI installs, and so whether CI reads `AGENTS.md` at all |
 
@@ -110,8 +110,10 @@ the operator accepts.
 
 **Dispatched runs.** Where this skill runs under a brief that already states the accepted target
 shape, that brief is the acceptance, and the plan output is still returned to the dispatcher with
-the work. This changes nothing for an interactive run: there, the operator still accepts before
-anything is written.
+the work. The worker triages the `MENTION`, `CITE`, `PATHDET` and `ACTION` rows and returns that
+triage in its report; anything needing a write **outside** the accepted target shape is the
+dispatcher's decision, not the worker's. This changes nothing for an interactive run: there, the
+operator still accepts before anything is written.
 
 **"Nothing to split" is a valid outcome, not a failure to find work.** A small root file whose
 content is all every-conversation material stays whole in the root `AGENTS.md`. Steps 2 and 3 then
@@ -124,7 +126,19 @@ as a result so nobody reads the absence as an omission.
 
 ## Apply
 
-Work one directory at a time, deepest last, and in this order per directory, because an interruption
+**The shortest path per `DIR` state.** Most directories need a fraction of the full sequence, and a
+step with nothing to do is a result, not an omission:
+
+| State | What Apply does |
+|---|---|
+| `agents-only` | **Create the shim only**: a `CLAUDE.md` containing exactly `@AGENTS.md`. Steps 1, 2, 3 and 5 are no-ops; step 6 still runs |
+| `content-in-claude` | The full sequence: split the content, then create the shim where none existed |
+| `both-with-content` | The full sequence, deciding per section which file it belongs in, then reduce `CLAUDE.md` to the import |
+| `shim-with-comment` | **Strip the comment only.** The note moves into `AGENTS.md` or is deleted, the operator's call |
+| `shim` | Nothing. Already the target shape; report it and move on |
+| `zero-byte` | Nothing to move. Ask the operator whether the empty files are deliberate before touching them |
+
+The full sequence, one directory at a time, deepest last, in this order, because an interruption
 between steps must leave content duplicated rather than deleted:
 
 0. **Fix any `CASE` row first**, before anything else touches the tree. A filename differing only by
@@ -141,8 +155,10 @@ between steps must leave content duplicated rather than deleted:
    and read its "Path-specific rules" section. Validate every glob with
    `"${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh"` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.
-4. **Reduce `CLAUDE.md` to `@AGENTS.md`**, one line, once its content has a home. An HTML-comment
-   note inside a shim is content: move it into `AGENTS.md` or delete it with the operator's say-so.
+4. **Write the shim**: `CLAUDE.md` containing exactly `@AGENTS.md`, one line. Create it where the
+   directory had none (the whole job for an `agents-only` row), or reduce an existing one to that
+   line once its content has a home. An HTML-comment note inside a shim is content: move it into
+   `AGENTS.md` or delete it with the operator's say-so.
 5. **Retarget every `CITE` row** in the same change. A link into `CLAUDE.md` whose content moved is
    a dead link the moment the move lands, so it is not a follow-up.
 6. **Regenerate the index**:
@@ -177,67 +193,17 @@ silently dropped:
 
 ## Verify the load, never assume it
 
-```bash
-# The root file, through its shim. <trigger> is any tracked file that exists.
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
-  --root <repo> --trigger README.md --expect AGENTS.md
+`verify-load.sh` drives one real `claude -p` turn with an `InstructionsLoaded` hook and prints
+`VERDICT PASS|FAIL|UNKNOWN`. **`UNKNOWN` (exit 3) is a third outcome, never a pass**: rerun once,
+escalate if it stays. A canary counts only against a non-empty `AGENTS.md`.
 
-# A nested surface: the trigger has to be a file IN that directory, because the
-# nested attach fires on a Read there and nowhere else.
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
-  --root <repo> --trigger src/billing/service.ts \
-  --expect AGENTS.md --expect src/billing/AGENTS.md
-
-# A path-scoped rule: the trigger is a file its `paths:` glob matches.
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
-  --root <repo> --trigger src/api/handler.ts --expect .claude/rules/api.md
-
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" --help
-```
-
-Every invocation carries `--root`, for the same reason the plan command does. It drives one real
-`claude -p` turn with an `InstructionsLoaded` hook and prints
-`VERDICT PASS|FAIL|UNKNOWN`. **`UNKNOWN` (exit 3) is a third outcome, never a pass**: it means the
-probe could not measure, so rerun it once and escalate if it stays `UNKNOWN`. A canary counts only
-against a non-empty `AGENTS.md`; an empty file passes every canary and carries nothing.
-
-For a headless canary, put a token in the working-tree `AGENTS.md`, never in a commit, and ask for
-the instruction lines rather than for the tokens:
-
-```bash
-claude -p "Read the file <a file in that directory>. Then quote back, verbatim, every line of your
-  project instructions that contains the word CANARY. If there are none, say NONE." \
-  --model haiku --allowedTools Read
-```
-
-**Ask for the lines, and name a file that exists.** "List every canary token in your instructions"
-reads as an exfiltration request and gets refused, which proves nothing about the loader; and a
-Read of a missing file never fires the nested trigger the canary is testing.
-
-**The canary runs against the committed tree, with the token in the working tree only**, so the
-order is: commit the migration, add the token to the working-tree `AGENTS.md`, run the canary, then
-remove the token. `git status --porcelain` is clean and `git grep -c CANARY` finds nothing *after*
-that removal, not before it: during the run the tree is dirty by construction, and checking for a
-clean tree first can never pass.
-
-**Codex is a first-class target of this migration, so it gets the same canary.** Presence-gate it on
-the CLI (`command -v codex`); where Codex is not installed, say the leg was not run rather than
-treating it as passed:
-
-```bash
-codex exec -C <repo> "Read the file <a file in that directory>. Then quote back, verbatim, every
-  line of your project instructions that contains the word CANARY. If there are none, say NONE."
-```
-
-Then read the session rollout and confirm **no shell command went looking for the token**: a run
-that greps its way to the answer proves the file is on disk, which was never in doubt, and not that
-Codex loaded it. Codex's project-doc budget is cumulative and can silently drop a file past it; the
-number and its dated record are beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`,
-and the `BUDGET` rows are what say whether this repository is near it.
-
-Then run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is installed, on
-the finished root `AGENTS.md`: a root file that grew during the migration has moved the cost rather
-than removed it.
+Four legs, every one run, none assumed: `verify-load.sh` per migrated surface; `render-index.sh
+reachable --file AGENTS.md --root <repo>` captured **before and after**, which is the root-level
+parallel of `wiring` and the whole load evidence for an `agents-only` repository (`NATIVE` before
+the shim, `LOADED` after); a headless Claude canary; and a Codex canary where that CLI is
+installed. The worked invocations, where the canary token goes, the Codex rollout check, and the
+progressive-disclosure caveat are in
+[`reference/verification.md`](reference/verification.md) — read it before running any of them.
 
 ## Why the shim stays
 
