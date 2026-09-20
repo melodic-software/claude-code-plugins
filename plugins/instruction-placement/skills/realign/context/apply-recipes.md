@@ -114,8 +114,9 @@ the directory hierarchy above the working directory are all loaded at launch, br
 "AGENTS.md" section states that Claude reads `AGENTS.md` only where no `CLAUDE.md`, `.claude/CLAUDE.md`
 or `CLAUDE.local.md` sits in the working directory or above it, and attaches a subdirectory's
 `AGENTS.md` on a Read there under the same condition. Recheck when either source stops carrying its
-statement, when a release note names `CLAUDE.md` load order or `AGENTS.md`, or when
-`/instruction-placement:migrate cutover-check` reports every condition met.
+statement, when that page changes which file names count for the check or **which sessions lack
+`AGENTS.md` support** (the list quoted in step 2), when a release note names `CLAUDE.md` load order
+or `AGENTS.md`, or when `/instruction-placement:migrate cutover-check` reports every condition met.
 
 ## Recipe C: promote from ordinary documentation
 

@@ -1,6 +1,8 @@
 # Agent-consumed instruction-file surfaces: verified enumeration
 
-Durable adaptation of the lane-7 research run (2026-08-17, docs current at Claude Code v2.1.233;
+A row carrying its own dated verification record supersedes this header's currency line for that
+row, and is the one to read when the two disagree. Durable adaptation of the lane-7 research run
+(2026-08-17, docs current at Claude Code v2.1.233;
 full evidence table, fetch log, and coverage ledger lived in the topic's memory slice, disposable
 per session). Feeds the scope statement and reference table of `docs-hygiene:write-for-agents`
 ([#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909); Brief:

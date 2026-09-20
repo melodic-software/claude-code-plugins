@@ -77,7 +77,8 @@ the path-scoped destination structurally, not by judgment.
 directory.** What separates them is that a `CLAUDE.md` on the file's own path is read *instead* of
 the `AGENTS.md` beside it. So the `@AGENTS.md` shim is what carries a nested `AGENTS.md` into
 context wherever a `CLAUDE.md` sits above it, or wherever reading `AGENTS.md` directly is
-unavailable; where nothing blocks it, Claude Code reads it on its own and the shim adds nothing.
+unavailable; where nothing blocks it, Claude Code reads it on its own and the shim is not what makes
+it load, though it stays the cover for the sessions that cannot read `AGENTS.md` at all.
 Claude Code's own AGENTS.md support is version- and session-dependent, which is why the plugin's
 posture is to write the shim while a root `CLAUDE.md` exists in a repository.
 

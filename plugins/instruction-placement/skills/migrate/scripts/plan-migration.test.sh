@@ -177,6 +177,60 @@ assert_contains "a tracked docs directory is the detected home" "$OUT" "DOCSHOME
 OUT=$(bash "$SCRIPT" --root "$BUDGET" --home "$TMP/nohome")
 assert_contains "a repository with no docs directory reports absent" "$OUT" "DOCSHOME	docs	absent"
 
+# --- Case 8: a shim carrying a comment is not yet the target shape ---
+# The target shape is a CLAUDE.md that is exactly `@AGENTS.md`. A comment above
+# the import still loads, but it is content the migration removes, so it gets
+# its own state rather than hiding inside `shim` or `both-with-content`.
+
+COMMENT="$TMP/comment"
+make_repo "$COMMENT"
+mkdir -p "$COMMENT/oneline" "$COMMENT/multiline" "$COMMENT/clean"
+printf '# Root\n' >"$COMMENT/AGENTS.md"
+printf '@AGENTS.md\n' >"$COMMENT/CLAUDE.md"
+printf '# One\n' >"$COMMENT/oneline/AGENTS.md"
+printf '<!-- intentionally a pointer -->\n@AGENTS.md\n' >"$COMMENT/oneline/CLAUDE.md"
+printf '# Multi\n' >"$COMMENT/multiline/AGENTS.md"
+printf '<!--\nthis note spans\nseveral lines\n-->\n@AGENTS.md\n' >"$COMMENT/multiline/CLAUDE.md"
+printf '# Clean\n' >"$COMMENT/clean/AGENTS.md"
+printf '@AGENTS.md\n' >"$COMMENT/clean/CLAUDE.md"
+commit_all "$COMMENT"
+
+OUT=$(bash "$SCRIPT" --root "$COMMENT" --home "$TMP/nohome")
+assert_contains "a one-line comment above the import is shim-with-comment" "$OUT" "DIR	oneline	shim-with-comment"
+assert_contains "a multi-line comment above the import is too" "$OUT" "DIR	multiline	shim-with-comment"
+assert_contains "a bare import is still plain shim" "$OUT" "DIR	clean	shim"
+assert_not_contains "and neither comment case is both-with-content" "$OUT" "both-with-content"
+
+# --- Case 9: --root below the repository root still plans the repository ---
+# git resolves relative to the directory it is run in, so a --root pointing at a
+# subdirectory silently described a subtree as if it were the whole repository.
+
+OUT=$(bash "$SCRIPT" --root "$COMMENT/multiline" --home "$TMP/nohome")
+assert_contains "a subdirectory --root still reports the repository root" "$OUT" "DIR	.	shim"
+assert_contains "and still reports its siblings" "$OUT" "DIR	oneline	shim-with-comment"
+
+# --- Case 10: another tool's directory hides its AGENTS.md, not a CLAUDE.md ---
+
+OWNED="$TMP/owned"
+make_repo "$OWNED"
+mkdir -p "$OWNED/.cursor" "$OWNED/.github"
+printf '# Root\n' >"$OWNED/AGENTS.md"
+printf '@AGENTS.md\n' >"$OWNED/CLAUDE.md"
+printf '# Cursor\n' >"$OWNED/.cursor/AGENTS.md"
+printf '# Cursor-dir notes for Claude\n' >"$OWNED/.cursor/CLAUDE.md"
+printf '# Workflow notes for Claude\n' >"$OWNED/.github/CLAUDE.md"
+commit_all "$OWNED"
+
+OUT=$(bash "$SCRIPT" --root "$OWNED" --home "$TMP/nohome")
+assert_contains "a Claude CLAUDE.md under .github is planned" "$OUT" "DIR	.github	content-in-claude"
+# The AGENTS.md beside it is Cursor's, so it is not paired with the CLAUDE.md
+# and contributes nothing: the directory reads as Claude content with no Claude
+# AGENTS.md, which is what it is.
+assert_contains "a Claude CLAUDE.md under .cursor is planned" "$OUT" "DIR	.cursor	content-in-claude"
+# The root AGENTS.md is 7 bytes and still counts on the path; Cursor's own
+# 9-byte file does not, so the sum is the root's alone.
+assert_contains "and the Cursor file is left out of the Codex budget" "$OUT" "BUDGET	.cursor	7	OK"
+
 # --- Case 6: the home suppressors are reported either way ---
 
 mkdir -p "$TMP/fakehome"

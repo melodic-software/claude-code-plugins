@@ -53,6 +53,20 @@
         "States that the plugin works with zero configuration",
         "Does not gate a first audit behind setup"
       ]
+    },
+    {
+      "id": 5,
+      "name": "native-is-unblocked-not-loaded",
+      "narration": true,
+      "prompt": "/instruction-placement:setup — this repo has an AGENTS.md with the index in it and no CLAUDE.md anywhere, not at the root, not a .claude/CLAUDE.md, not a CLAUDE.local.md. Is the index reaching Claude?",
+      "expected_output": "Reports the NATIVE verdict rather than UNREACHABLE, and is careful about what it means: nothing in the repository blocks the target, because none of the three CLAUDE.md names sits on its path, so Claude Code reads the AGENTS.md directly. It does not propose an @AGENTS.md import or a symlink, because there is no root CLAUDE.md to put one in and nothing is displacing the file. It stops short of saying the index loaded: whether Claude Code read it also turns on the CLI version and the session kind, which no static check can see, and on a CLAUDE.md above the repository root, which this check cannot see either. It names verify-load.sh as the only thing that proves the file actually loaded, and keeps UNREACHABLE for the case where a root CLAUDE.md is read instead of the target.",
+      "files": [],
+      "expectations": [
+        "Reports NATIVE, not UNREACHABLE and not LOADED",
+        "Proposes no @AGENTS.md import or symlink for this repository",
+        "States that NATIVE means unblocked rather than proven loaded, naming version, session kind, or a CLAUDE.md above the repository root as what it cannot see",
+        "Names verify-load.sh as the empirical proof of an actual load"
+      ]
     }
   ]
 }

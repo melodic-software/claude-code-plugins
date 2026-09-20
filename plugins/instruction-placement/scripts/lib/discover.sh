@@ -189,23 +189,32 @@ ip_discover_rules() {
 }
 
 # ---------------------------------------------------------------------------
-# Excluded trees, one list for this whole plugin.
+# Excluded trees, two lists for this whole plugin, because the two exclusions
+# answer different questions.
 #
-# Two corpus rules, not performance shortcuts. Vendored third-party
-# instructions (`vendor`, `node_modules`) must never be pulled into the
-# consuming repository's own surface. And `.cursor`, `.codex` and `.github`
-# hold ANOTHER TOOL's instruction files: listing one would advertise a Cursor
-# file as a Claude on-demand surface, and the wiring gate would go on to demand
-# a Claude shim beside it. `.claude` is the plugin's own configuration tree
-# rather than a nested convention, and `.git` is not content.
+# IP_EXCLUDED_TREES is unconditional: nothing under these directories is a
+# nested convention of this repository at all. `vendor` and `node_modules` hold
+# third-party instructions that must never reach the consuming repository's own
+# surface; `.claude` is the plugin-and-config tree rather than a nested
+# convention; `.git` is not content.
 #
-# Every consumer inside this plugin reads this one variable, so the rule cannot
-# drift between the index, the wiring gate and the migration plan.
+# IP_FOREIGN_AGENT_TREES is keyed on the FILE, not the directory: `.cursor`,
+# `.codex` and `.github` hold another tool's `AGENTS.md`, and listing one would
+# advertise a Cursor file as a Claude on-demand surface while the wiring gate
+# demanded a Claude shim beside it. A `CLAUDE.md` in one of those directories is
+# nobody's but Claude's, though: `.github/CLAUDE.md` is how a repository states
+# conventions for its workflow files. Skipping the whole directory would make
+# that file silently vanish from the index and from a migration plan, so only
+# the `AGENTS.md` is skipped.
+#
+# Every consumer inside this plugin reads these two variables, so the rule
+# cannot drift between the index, the wiring gate and the migration plan.
 # `claude-memory`'s `nested-agents-check.sh` keeps its own copy of the same
-# list: a plugin never imports a file from a sibling plugin
+# lists: a plugin never imports a file from a sibling plugin
 # (`docs/plugin-philosophy.md`, "Keep plugins horizontally decoupled").
 # ---------------------------------------------------------------------------
-IP_EXCLUDED_TREES=".claude .codex .cursor .github node_modules vendor .git"
+IP_EXCLUDED_TREES=".claude node_modules vendor .git"
+IP_FOREIGN_AGENT_TREES=".codex .cursor .github"
 
 # ---------------------------------------------------------------------------
 # Nested instruction-file discovery
@@ -230,18 +239,53 @@ ip_discover_nested_instructions() {
       \( -name 'CLAUDE.md' -o -name 'AGENTS.md' \) 2>/dev/null | sed 's|^\./||')"
   fi
 
-  printf '%s\n' "$listing" | awk -v excluded="$IP_EXCLUDED_TREES" '
-    BEGIN { split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1 }
+  printf '%s\n' "$listing" |
+    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" '
+    BEGIN {
+      split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1
+      split(foreign, fo, " "); for (k in fo) theirs[fo[k]] = 1
+    }
     $0 == "" { next }
     {
       n = split($0, seg, "/")
       if (n < 2) next                                   # root-level: loads at start
       base = seg[n]
       if (base != "CLAUDE.md" && base != "AGENTS.md") next
-      for (i = 1; i < n; i++) if (seg[i] in skip) next
+      for (i = 1; i < n; i++) {
+        if (seg[i] in skip) next
+        if (base == "AGENTS.md" && seg[i] in theirs) next
+      }
       print
     }
   ' | LC_ALL=C sort
+}
+
+# ---------------------------------------------------------------------------
+# Every instruction entry point on a directory's own path, nearest first.
+#
+# The three names Claude Code counts, in <reldir> and in every directory above
+# it up to <root>. One walk, shared by the reachability verdict and the wiring
+# gate, so the two cannot disagree about the same tree.
+#
+# All three count at EVERY level: the memory page counts "a CLAUDE.md,
+# .claude/CLAUDE.md, or CLAUDE.local.md in your working directory or any
+# directory above it", and fires the nested attach only where a subdirectory
+# "has none of the three CLAUDE.md files of its own"
+# (code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md"; fetched
+# 2026-09-19; recheck when that list changes).
+#
+# Paths are emitted rooted at <root>, existing files only.
+# ---------------------------------------------------------------------------
+ip_entry_points_on_path() {
+  local root="${1:-.}" dir="${2:-.}" base entry
+  while :; do
+    if [[ "$dir" == "." ]]; then base="$root"; else base="$root/$dir"; fi
+    for entry in "$base/CLAUDE.md" "$base/.claude/CLAUDE.md" "$base/CLAUDE.local.md"; do
+      [[ -f "$entry" ]] && printf '%s\n' "$entry"
+    done
+    [[ "$dir" == "." ]] && break
+    dir="$(dirname "$dir")"
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -343,18 +387,29 @@ ip_index_target_loaded() {
   *) ;;
   esac
 
-  # Otherwise it must be reachable from one, by import or by symlink.
+  # Otherwise it must be reachable from an entry point on its OWN path, which
+  # for a nested target is not the root alone: a `svc/CLAUDE.md` beside a
+  # `svc/AGENTS.md` displaces it exactly as a root one would, and reading only
+  # the root triple made this verdict disagree with the wiring gate about the
+  # same tree. An absolute target is outside this root's tree, so its path
+  # cannot be walked and the root is all there is to check.
+  local target_dir="."
+  case "$target" in
+  /*) ;;
+  *) target_dir="$(dirname "$target")" ;;
+  esac
+
   local entry blocker=""
-  for entry in "$root/CLAUDE.md" "$root/.claude/CLAUDE.md" "$root/CLAUDE.local.md"; do
-    [[ -f "$entry" ]] || continue
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
     [[ -n "$blocker" ]] || blocker="${entry#"$root"/}"
     if _ip_reaches "$entry" "$abs_target" 0; then
       printf 'LOADED\t%s reaches %s\n' "${entry#"$root"/}" "$target"
       return 0
     fi
-  done
+  done < <(ip_entry_points_on_path "$root" "$target_dir")
 
-  # No root memory file at all, and the target carries one of the two names
+  # Nothing on the target's path, and the target carries one of the names
   # Claude Code reads on its own. Nothing in the repository blocks it, so an
   # import is not what decides the outcome. That is not the same as LOADED:
   # reading AGENTS.md directly needs a Claude Code version and a session kind
@@ -363,7 +418,7 @@ ip_index_target_loaded() {
   if [[ -z "$blocker" ]]; then
     case "$target" in
     AGENTS.md | .claude/AGENTS.md | */AGENTS.md | */.claude/AGENTS.md)
-      printf 'NATIVE\t%s is not blocked: no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md at the root, so Claude Code reads it directly where AGENTS.md support is available\n' \
+      printf 'NATIVE\t%s is not blocked: no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md on its path, so Claude Code reads it directly where AGENTS.md support is available\n' \
         "$target"
       return 0
       ;;
@@ -371,7 +426,7 @@ ip_index_target_loaded() {
     esac
   fi
 
-  printf 'UNREACHABLE\t%s is not imported by any root memory file%s\n' \
+  printf 'UNREACHABLE\t%s is not imported by any memory file on its path%s\n' \
     "$target" \
     "${blocker:+, and $blocker is read instead of it}"
   return 1

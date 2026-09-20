@@ -80,7 +80,9 @@ demotion was worth making, not a statement that the rule is broken. Everything e
 `wiring` takes no file: it walks every nested `AGENTS.md` the index would list and prints one
 `WIRED`, `NATIVE` or `UNWIRED` row per file, exiting 1 on any `UNWIRED`. The fix for an unwired file
 is a one-line `@AGENTS.md` `CLAUDE.md` beside it, never removing the row. A `NATIVE` row is not a
-finding and needs no shim: no `CLAUDE.md` on that file's path displaces it.
+finding: no `CLAUDE.md` on that file's path displaces it, so the shim is not what makes it load
+there. It remains the cover for sessions that cannot read `AGENTS.md` at all, which is why a
+`NATIVE` row is never a reason to remove one.
 
 `<index-file>` is a precedence order, not a procedure. Take the first that exists:
 

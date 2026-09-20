@@ -72,8 +72,10 @@ directory the repository already keeps (`docs/`, `doc/`, `documentation/`). Use 
 A pointer is not a summary. One line naming the file and the condition that should send a reader to
 it ("Read `docs/release-process.md` before cutting a release") beats a paragraph restating it.
 
-`/docs-hygiene:write-for-agents` owns how this text is written; invoke it via the Skill tool when it
-is installed, for the root `AGENTS.md`, every new `.claude/rules/` file, and every pointer.
+`/docs-hygiene:write-for-agents` owns how this text is written: invoke it via the Skill tool when
+that plugin is installed, for the root `AGENTS.md`, every new `.claude/rules/` file, and every
+pointer. Where it is not installed, write the text here and say that the write-side doctrine was
+not available, rather than skipping the move.
 
 ## Plan first
 
@@ -86,7 +88,7 @@ Read-only, and `--dry-run` is the only mode it has. Its rows are the facts a mig
 | Row | What it decides |
 |---|---|
 | `DIR` | One state per directory: `content-in-claude`, `shim`, `agents-only`, `both-with-content`, `zero-byte`. The state names the work |
-| `BUDGET` | `AGENTS.md` bytes summed root-to-directory against Codex's 32,768-byte project-doc budget. `OVER` means content has to move out before the migration, not after |
+| `BUDGET` | `AGENTS.md` bytes summed root-to-directory against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
 | `CASE` | A filename differing only by case. Claude Code matches names exactly; NTFS does not, so the repository behaves differently per developer until it is renamed |
 | `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
 | `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks |
@@ -172,6 +174,16 @@ Memory files, and fires no `InstructionsLoaded` hook; one reached through a shim
 of its `CLAUDE.md` and keeps both. That is a reason the shim is worth its ~55 tokens, and a reason
 removing it later is a decision rather than tidying.
 
+**One setting changes the reading, and no repository can ship it.** Under `instructionFiles:
+claude-md-and-agents-md`, Claude Code loads both files, "each directory's `CLAUDE.md` files first
+and its `AGENTS.md` after them", so an unimported nested `AGENTS.md` does load and an `UNWIRED` row
+is a false positive for that operator. The import stays harmless there: "Claude Code skips an
+`AGENTS.md` it has already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
+twice". The value is a user, `--settings` or managed setting, ignored in project and local settings,
+so a repository cannot rely on it and the gates keep the default's answer
+([memory](https://code.claude.com/docs/en/memory), "Choose which instruction files load"; fetched
+2026-09-19; recheck when that table changes or a release note names the setting).
+
 ## Hard rules
 
 - **Never delete a `CLAUDE.md` shim.** Reducing one to its import line is this skill's work;
@@ -204,7 +216,9 @@ in sync after the move.
   file holding the link target, so the import is the form that works everywhere.
 - **A `CLAUDE.local.md` one developer keeps silently turns `AGENTS.md` off for them.** It counts for
   the same check as `CLAUDE.md`, and no gate in the repository can see it.
-- **Codex truncates past its project-doc budget.** A `BUDGET` row reading `OVER` means a Codex
+- **Codex truncates past its project-doc budget**, which is one cumulative allowance across the
+  files it loads, not a per-file cap (the dated record is beside `CODEX_PROJECT_DOC_BUDGET` in
+  `scripts/plan-migration.sh`). A `BUDGET` row reading `OVER` means a Codex
   session in that directory is already losing instructions; fix it before the move, not after.
 - **A `SUPPRESS` row is outside the repository's reach.** Nothing in a PR fixes a bare
   `~/CLAUDE.md`; report it to the operator as theirs to decide.

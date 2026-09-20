@@ -412,18 +412,24 @@ fi
 # One `WIRED|NATIVE|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested
 # AGENTS.md discovery returns. Wired means some instruction entry point IS the
 # file (a symlink) or reaches it through the import chase the rest of this
-# plugin uses: the CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md beside it
-# (the prescribed layout, checked first), or one in any ancestor directory up
-# to the root. An import from any of those brings the file into context, so a
-# file reached that way loads and is not a finding. Entry points are read from
-# the filesystem, so a gitignored CLAUDE.local.md shim counts.
+# plugin uses. `ip_entry_points_on_path` supplies the walk, shared with
+# `ip_index_target_loaded` so the two verdicts cannot disagree about one tree:
+# the CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md beside it (the prescribed
+# layout, nearest first), then any in an ancestor directory up to the root. An
+# import from any of those brings the file into context, so a file reached that
+# way loads and is not a finding. Entry points are read from the filesystem, so
+# a gitignored CLAUDE.local.md shim counts.
 #
-# All three names count at EVERY level, not only the root: the memory page
-# counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in your working
-# directory or any directory above it", and describes the nested attach as
-# firing only where a subdirectory "has none of the three CLAUDE.md files of
-# its own" (code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md";
-# fetched 2026-09-19; recheck when that list changes).
+# An UNWIRED row is a finding under the DEFAULT instruction-files mode. Under
+# the user-settings option `claude-md-and-agents-md` both files load, "each
+# directory's `CLAUDE.md` files first and its `AGENTS.md` after them", so an
+# unimported nested AGENTS.md does load there and the row is a false positive.
+# The import stays harmless either way: "Claude Code skips an `AGENTS.md` it has
+# already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
+# twice" (code.claude.com/docs/en/memory, "Choose which instruction files load";
+# fetched 2026-09-19; recheck when that table changes). The setting is a user,
+# `--settings` or managed one, which no repository can ship, so the gate keeps
+# the default's answer.
 #
 # NATIVE means no CLAUDE.md, CLAUDE.local.md or root .claude/CLAUDE.md sits on
 # the file's own path, so nothing in this repository stops Claude Code reading
@@ -440,18 +446,14 @@ nested_agents_wiring() {
     want="$(ip_realpath "$nested")"
     wired=""
     blocker=""
-    while :; do
-      for entry in "$dir/CLAUDE.md" "$dir/.claude/CLAUDE.md" "$dir/CLAUDE.local.md"; do
-        [[ -f "$entry" ]] || continue
-        [[ -n "$blocker" ]] || blocker="${entry#./}"
-        if _ip_reaches "$entry" "$want" 0; then
-          wired="${entry#./}"
-          break 2
-        fi
-      done
-      [[ "$dir" == "." ]] && break
-      dir="$(dirname "$dir")"
-    done
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      [[ -n "$blocker" ]] || blocker="${entry#./}"
+      if _ip_reaches "$entry" "$want" 0; then
+        wired="${entry#./}"
+        break
+      fi
+    done < <(ip_entry_points_on_path "." "$dir")
     if [[ -n "$wired" ]]; then
       printf 'WIRED\t%s\t%s reaches it\n' "$nested" "$wired"
     elif [[ -z "$blocker" ]]; then

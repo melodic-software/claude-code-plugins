@@ -67,6 +67,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../scripts/lib/discover.sh
 source "$SCRIPT_DIR/../../../scripts/lib/discover.sh"
 
+# Codex's project-doc budget.
+#
+#   Claim: Codex reads at most 32,768 bytes of project docs per turn, and the
+#     cap is CUMULATIVE across the AGENTS.md files it loads, not per file. The
+#     key is `project_doc_max_bytes`; its default is 32768.
+#   Basis: openai/codex `codex-rs/config/defaults.toml` line 8,
+#     `project_doc_max_bytes = 32768`, read at tree
+#     df7f717c856e0634b04a12f7d4fc9e8ecb3e65be. The cumulative reading is the
+#     same repo's `codex-rs/core/src/agents_md.rs:68`, which seeds
+#     `let mut remaining = config.project_doc_max_bytes;` once and then
+#     decrements it across the loaded set. The published config reference
+#     (learn.chatgpt.com/docs/config-file/config-reference, formerly
+#     developers.openai.com/codex/config-reference) documents the key's purpose,
+#     "Maximum bytes read from `AGENTS.md` when building project instructions",
+#     but publishes no default, which is why the source is the basis here.
+#   As of: 2026-09-19.
+#   Recheck trigger: that defaults.toml line changes, `agents_md.rs` stops
+#     carrying one shared remaining-bytes counter, or the config reference
+#     starts publishing a default that differs from it.
 CODEX_PROJECT_DOC_BUDGET=32768
 
 ROOT="."
@@ -121,10 +140,16 @@ cd "$ROOT" 2>/dev/null || {
   exit 2
 }
 
-git rev-parse --show-toplevel >/dev/null 2>&1 || {
+# Every git command below resolves relative to the directory it runs in, so a
+# --root pointing at a subdirectory would describe that subtree as if it were
+# the whole repository: a silently partial plan. A migration is a
+# repository-wide decision, so climb to the toplevel first.
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+[[ -n "$REPO_ROOT" ]] || {
   echo "plan-migration: not inside a git repository" >&2
   exit 1
 }
+cd "$REPO_ROOT" || exit 1
 
 file_bytes() {
   [[ -f "$1" ]] || {
@@ -134,25 +159,67 @@ file_bytes() {
   wc -c <"$1" | tr -d ' \t\r'
 }
 
-# A pure shim is a file whose every non-blank, non-comment line is an @import of
-# the AGENTS.md beside it. An HTML comment above the import still makes it a
-# shim for loading purposes; the target shape drops the comment, which the skill
-# body handles as content, not as a state.
-is_pure_shim() {
-  local file="$1" seen=0 line trimmed
-  [[ -f "$file" ]] || return 1
+# An AGENTS.md under another tool's directory is that tool's file. It is not
+# paired with a Claude CLAUDE.md in the same directory, and it is not part of
+# what a Codex session carries, so it contributes nothing to either row.
+ours_agents_bytes() {
+  local dir="$1" seg
+  for seg in $IP_FOREIGN_AGENT_TREES; do
+    case "/$dir/" in
+    */"$seg"/*)
+      printf '0\n'
+      return 0
+      ;;
+    esac
+  done
+  if [[ "$dir" == "." ]]; then file_bytes "AGENTS.md"; else file_bytes "$dir/AGENTS.md"; fi
+}
+
+# Classify a CLAUDE.md by how far it is from the target shape, which is a file
+# that is EXACTLY `@AGENTS.md`. Prints one of:
+#
+#   shim               nothing but the import: already the target shape
+#   shim-with-comment  the import plus HTML comments and nothing else. It loads
+#                      the same way, but the comment is content the migration
+#                      still has to move or delete, so it is not `shim` and it
+#                      is not `both-with-content` either. Both `dotfiles` and
+#                      `medley` are in this state today
+#   content            anything else
+#
+# Comments are matched as blocks, so a note spanning several lines counts once.
+classify_claude_md() {
+  local file="$1" import=0 comment=0 other=0 inblock=0 line trimmed
+  [[ -f "$file" ]] || {
+    printf 'content\n'
+    return 0
+  }
   while IFS= read -r line || [[ -n "$line" ]]; do
     trimmed="${line%$'\r'}"
     trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
     trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
     [[ -z "$trimmed" ]] && continue
-    [[ "$trimmed" == "<!--"*"-->" ]] && continue
+    if ((inblock)); then
+      comment=1
+      [[ "$trimmed" == *"-->"* ]] && inblock=0
+      continue
+    fi
     case "$trimmed" in
-    "@AGENTS.md" | "@./AGENTS.md") seen=1 ;;
-    *) return 1 ;;
+    "@AGENTS.md" | "@./AGENTS.md") import=1 ;;
+    "<!--"*"-->") comment=1 ;;
+    "<!--"*)
+      comment=1
+      inblock=1
+      ;;
+    *) other=1 ;;
     esac
   done <"$file"
-  [[ "$seen" -eq 1 ]]
+  if ((other)) || ((import == 0)); then
+    printf 'content\n'
+  elif ((comment)); then
+    printf 'shim-with-comment\n'
+  else
+    printf 'shim\n'
+  fi
 }
 
 # Every directory carrying a tracked CLAUDE.md or AGENTS.md, excluded trees
@@ -160,13 +227,21 @@ is_pure_shim() {
 # 140 ms a spawn, and a repository of a few thousand files turns a per-file
 # `basename` into minutes of wall clock.
 instruction_dirs() {
-  git ls-files -z 2>/dev/null | tr '\0' '\n' | awk -v excluded="$IP_EXCLUDED_TREES" '
-    BEGIN { split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1 }
+  git ls-files -z 2>/dev/null | tr '\0' '\n' |
+    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" '
+    BEGIN {
+      split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1
+      split(foreign, fo, " "); for (k in fo) theirs[fo[k]] = 1
+    }
     $0 == "" { next }
     {
       n = split($0, seg, "/")
-      if (seg[n] != "CLAUDE.md" && seg[n] != "AGENTS.md") next
-      for (i = 1; i < n; i++) if (seg[i] in skip) next
+      base = seg[n]
+      if (base != "CLAUDE.md" && base != "AGENTS.md") next
+      for (i = 1; i < n; i++) {
+        if (seg[i] in skip) next
+        if (base == "AGENTS.md" && seg[i] in theirs) next
+      }
       if (n == 1) { print "."; next }
       dir = seg[1]
       for (i = 2; i < n; i++) dir = dir "/" seg[i]
@@ -179,10 +254,9 @@ instruction_dirs() {
 while IFS= read -r dir; do
   [[ -n "$dir" ]] || continue
   claude="$dir/CLAUDE.md"
-  agents="$dir/AGENTS.md"
-  [[ "$dir" == "." ]] && claude="CLAUDE.md" && agents="AGENTS.md"
+  [[ "$dir" == "." ]] && claude="CLAUDE.md"
   cb="$(file_bytes "$claude")"
-  ab="$(file_bytes "$agents")"
+  ab="$(ours_agents_bytes "$dir")"
 
   if [[ "$cb" -eq 0 && "$ab" -eq 0 ]]; then
     state="zero-byte"
@@ -190,10 +264,12 @@ while IFS= read -r dir; do
     state="agents-only"
   elif [[ "$ab" -eq 0 ]]; then
     state="content-in-claude"
-  elif is_pure_shim "$claude"; then
-    state="shim"
   else
-    state="both-with-content"
+    case "$(classify_claude_md "$claude")" in
+    shim) state="shim" ;;
+    shim-with-comment) state="shim-with-comment" ;;
+    *) state="both-with-content" ;;
+    esac
   fi
   printf 'DIR\t%s\t%s\t%s\t%s\n' "$dir" "$state" "$cb" "$ab"
 
@@ -203,15 +279,11 @@ while IFS= read -r dir; do
   walk="$dir"
   chain=("$walk")
   while [[ "$walk" != "." && "$walk" != "/" ]]; do
-    walk="$(dirname -- "$walk")"
+    walk="$(dirname "$walk")"
     chain+=("$walk")
   done
   for step in "${chain[@]}"; do
-    if [[ "$step" == "." ]]; then
-      cum=$((cum + $(file_bytes "AGENTS.md")))
-    else
-      cum=$((cum + $(file_bytes "$step/AGENTS.md")))
-    fi
+    cum=$((cum + $(ours_agents_bytes "$step")))
   done
   verdict="OK"
   [[ "$cum" -gt "$CODEX_PROJECT_DOC_BUDGET" ]] && verdict="OVER"

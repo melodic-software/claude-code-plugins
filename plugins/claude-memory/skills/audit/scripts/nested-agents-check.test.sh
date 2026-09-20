@@ -200,6 +200,25 @@ assert_contains "a nested .claude/CLAUDE.md with no import is a finding" "$OUT" 
 assert_not_contains "a nested .claude/CLAUDE.md that imports it wires it" "$OUT" "wired/AGENTS.md"
 assert_not_contains "a directory with none of the three is not a finding" "$OUT" "free/AGENTS.md"
 
+# --- Case 9: another tool's directory hides its AGENTS.md, not a CLAUDE.md ---
+# The exclusion is about whose file it is, and only an AGENTS.md under
+# .codex/.cursor/.github belongs to that tool. A CLAUDE.md there is Claude's.
+
+OWNED="$TEST_TMPDIR/owned"
+make_repo "$OWNED"
+mkdir -p "$OWNED/.cursor" "$OWNED/.github"
+printf '@AGENTS.md\n' >"$OWNED/CLAUDE.md"
+printf 'root agents\n' >"$OWNED/AGENTS.md"
+printf 'cursor\n' >"$OWNED/.cursor/AGENTS.md"
+printf '# Cursor-dir notes for Claude, no import\n' >"$OWNED/.cursor/CLAUDE.md"
+printf '# Workflow notes for Claude\n' >"$OWNED/.github/CLAUDE.md"
+commit_all "$OWNED"
+
+OUT=$(cd "$OWNED" && bash "$SCRIPT")
+assert_not_contains "another tool's AGENTS.md is never a finding" "$OUT" ".cursor/AGENTS.md"
+OUT=$(cd "$OWNED" && bash "$SCRIPT" --count)
+assert_eq "and a Claude CLAUDE.md there is not an AGENTS.md finding either" "0" "$OUT"
+
 # --- Case 6: a repo with no nested AGENTS.md at all ---
 
 NONE="$TEST_TMPDIR/none"

@@ -182,7 +182,8 @@ accepted proposal.
   repository root's included, is read *instead* of the `AGENTS.md` beside it, so in a repository
   that has one, a nested `AGENTS.md` written without its `CLAUDE.md` shim silently reaches nothing.
   That is measured, not inferred. Write the shim wherever `render-index.sh wiring` would report the
-  file `UNWIRED`; where it reports `NATIVE`, nothing blocks the file and the shim adds nothing.
+  file `UNWIRED`; where it reports `NATIVE`, nothing blocks the file and the shim is not what makes
+  it load there, though it stays the cover for sessions that cannot read `AGENTS.md` at all.
 - **Never leave the index stale.** Regenerating it is part of the move, not a follow-up. An
   un-indexed demotion is exactly the subagent gap this plugin exists to close.
 - **Stop on a failed verification.** Report what failed and leave the finding `blocked`. Do not

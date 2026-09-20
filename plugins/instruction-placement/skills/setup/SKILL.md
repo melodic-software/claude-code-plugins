@@ -49,6 +49,7 @@ then root `AGENTS.md`, then root `CLAUDE.md`), then verify reachability:
 | Verdict | Meaning | Say |
 |---|---|---|
 | `LOADED` | Claude Code reaches it | Name the file and the path it was reached by |
+| `NATIVE` | nothing in the repository blocks it | Report it as **unblocked, never as loaded**: no `CLAUDE.md` on its path displaces it, and whether Claude Code read it also depends on version and session kind, which no static check sees. `verify-load.sh` is the only thing that proves it loaded |
 | `UNREACHABLE` | it exists and is never read | **The headline finding.** Name the missing import |
 | target absent | no index home yet | Not a failure. Say which file `apply` would propose |
 

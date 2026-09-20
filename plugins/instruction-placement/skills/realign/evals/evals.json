@@ -94,6 +94,20 @@
         "Writes the team-tracked layer, not the user-global file or the local overlay",
         "Says the entry must be committed to reach another checkout"
       ]
+    },
+    {
+      "id": 8,
+      "name": "no-claude-md-in-the-repo-means-no-shim-is-what-loads-it",
+      "narration": true,
+      "prompt": "/instruction-placement:realign — apply IP-002, the billing subtree conventions. This repo has no CLAUDE.md at all: no root one, no .claude/CLAUDE.md, no CLAUDE.local.md. Should we still add the shim beside it?",
+      "expected_output": "Creates `src/billing/AGENTS.md` with the relocated content and does not claim the shim is what makes it load here. With none of the three CLAUDE.md names on that file's path, nothing displaces the AGENTS.md, so Claude Code attaches it directly on a Read in that directory; `render-index.sh wiring` reports the row NATIVE rather than UNWIRED, which is the check to run rather than a guess. It does not present that as a reason to remove a shim, and if it recommends writing one anyway it is explicit that the reason is availability cover, for the sessions that cannot read AGENTS.md directly at all, not reachability inside this repository. The rest of the move is unchanged: destination before excision, index regenerated, result verified.",
+      "files": [],
+      "expectations": [
+        "Creates the nested AGENTS.md and does not claim a shim is required for it to load here",
+        "Ties the answer to no CLAUDE.md sitting on that file's path, and names `render-index.sh wiring`'s NATIVE row as the check",
+        "Any shim it still recommends is justified as availability cover, never as reachability",
+        "Keeps the rest of the move intact: destination before excision, index regenerated, result verified"
+      ]
     }
   ]
 }
