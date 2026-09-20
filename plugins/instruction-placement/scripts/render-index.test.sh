@@ -203,6 +203,38 @@ out="$(run render --root "$empty")"
 assert_contains "an empty repo still emits a well-formed block" "$out" "BEGIN GENERATED"
 assert_contains "an empty repo says so plainly" "$out" "No path-scoped rules"
 
+# `render` prints what a block WOULD say, so a human can see there is nothing to
+# index. `write` is the surface that costs context, and an always-loaded block
+# saying "there is nothing here" is the cost this index exists to avoid.
+printf '# Songs\n\nEverything about this repo.\n' >"$empty/AGENTS.md"
+before="$(cat "$empty/AGENTS.md")"
+run write --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
+assert_eq "write on a repo with nothing to index exits 0" "0" "$?"
+assert_eq "and writes no block into it" "$before" "$(cat "$empty/AGENTS.md")"
+out="$(run write --file "$empty/AGENTS.md" --root "$empty")"
+assert_contains "and says why it wrote nothing" "$out" "NO-INDEX-NEEDED"
+
+run check --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
+assert_eq "check treats no block and nothing to index as in sync" "0" "$?"
+out="$(run check --file "$empty/AGENTS.md" --root "$empty")"
+assert_contains "and says so" "$out" "IN-SYNC"
+
+# A block left behind after the last rule went away is drift the writer clears.
+{
+  printf '# Songs\n\n'
+  printf '<!-- BEGIN GENERATED: instruction-placement rules index -->\n'
+  printf '\nNo path-scoped rules or nested instruction files are present in this repository.\n\n'
+  printf '<!-- END GENERATED: instruction-placement rules index -->\n'
+} >"$empty/AGENTS.md"
+run check --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
+assert_eq "a block with nothing to index is drift" "1" "$?"
+run write --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
+assert_eq "write clears it" "0" "$?"
+assert_not_contains "and the block is gone" "$(cat "$empty/AGENTS.md")" "BEGIN GENERATED"
+assert_contains "while the surrounding content survives" "$(cat "$empty/AGENTS.md")" "# Songs"
+run check --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
+assert_eq "and the repository is in sync afterwards" "0" "$?"
+
 # --------------------------------------------------------------------------
 # check — in sync, drifted, and missing
 # --------------------------------------------------------------------------
@@ -313,6 +345,12 @@ unwired="$(mktemp -d)"
 git -C "$unwired" init -q .
 printf '# Claude instructions\n\nNo import here.\n' >"$unwired/CLAUDE.md"
 printf '# Shared\n' >"$unwired/AGENTS.md"
+# One path-scoped rule, so there is something to index. The subject here is the
+# unreachable warning; without a rule the repository would have nothing to index
+# and `write` would correctly decline to write a block at all, which is a
+# different case (covered above) and would leave this one proving nothing.
+mkdir -p "$unwired/.claude/rules"
+printf -- '---\npaths:\n  - "**/*.py"\n---\n# Python\n' >"$unwired/.claude/rules/py.md"
 commit_all "$unwired"
 
 out="$(run reachable --file "$unwired/AGENTS.md" --root "$unwired")"

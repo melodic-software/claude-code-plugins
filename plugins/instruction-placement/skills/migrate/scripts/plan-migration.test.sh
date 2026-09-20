@@ -56,7 +56,10 @@ rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_eq "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
-assert_contains "--help names the row kinds" "$OUT" "DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, ACTION"
+assert_contains "--help names the row kinds" "$OUT" "DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, DOCSHOME, ACTION"
+for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE DOCSHOME ACTION; do
+  assert_contains "--help documents the $kind row" "$OUT" "$kind"
+done
 
 rc=0
 bash "$SCRIPT" --bogus >/dev/null 2>&1 || rc=$?

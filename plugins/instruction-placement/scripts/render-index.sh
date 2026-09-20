@@ -97,6 +97,15 @@ MAX_ROWS="${CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS:-40}"
 BEGIN_MARKER="<!-- BEGIN GENERATED: instruction-placement rules index -->"
 END_MARKER="<!-- END GENERATED: instruction-placement rules index -->"
 
+# What a block says when there is nothing to index. `render` still prints it, so
+# a human asking what the index WOULD hold gets an answer. `write` does not: the
+# index is always-loaded, and a block announcing that the repository has no
+# deferred surfaces is pure cost, the same reason a pure shim gets no row.
+EMPTY_NOTE="No path-scoped rules or nested instruction files are present in this repository."
+
+# True when a rendered block carries the empty note rather than rows.
+block_is_empty() { [[ "$1" == *"$EMPTY_NOTE"* ]]; }
+
 usage() {
   cat <<'EOF'
 render-index.sh — generate the always-loaded index of deferred instruction surfaces.
@@ -236,7 +245,7 @@ render_block() {
 
   printf '%s\n' "$BEGIN_MARKER"
   if ((${#rows[@]} == 0)); then
-    printf '\n%s\n\n' "No path-scoped rules or nested instruction files are present in this repository."
+    printf '\n%s\n\n' "$EMPTY_NOTE"
   else
     cat <<'PREAMBLE'
 
@@ -487,12 +496,25 @@ check)
     exit 3
   fi
   if [[ "$begin_count" -eq 0 ]]; then
+    # No block and nothing to index is the correct resting state, not a gap:
+    # `write` deliberately leaves no block there, so the gate must agree with
+    # the writer or a repository with no deferred surfaces can never be green.
+    if block_is_empty "$BLOCK"; then
+      printf 'IN-SYNC\t%s\tnothing to index, and no block to keep in sync\n' "$TARGET"
+      exit 0
+    fi
     printf 'NO-BLOCK\t%s\n' "$TARGET"
     exit 3
   fi
   if ! grep -qF "$END_MARKER" "$TARGET"; then
     printf 'NO-BLOCK\t%s\tbegin marker present, end marker missing\n' "$TARGET"
     exit 3
+  fi
+  # A block left behind after the last rule or nested file went away is drift:
+  # it is stale text that outlived what it indexed, and `write` clears it.
+  if block_is_empty "$BLOCK"; then
+    printf 'DRIFTED\t%s\tnothing to index; the block should be removed\n' "$TARGET"
+    exit 1
   fi
   current="$(awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
     $0 == b { inblock = 1 }
@@ -524,18 +546,37 @@ write)
         "$TARGET" >&2
       exit 1
     fi
-    # The block travels through ENVIRON, not `awk -v`. POSIX has -v process
-    # escape sequences, so a rule path carrying a backslash would be rewritten
-    # on the way in -- gawk turns `\t` into a tab and drops an unknown escape's
-    # backslash, mawk passes both through. The markers are fixed text with no
-    # backslash in them and stay on -v; the block is generated from repository
-    # paths and does not. Writing a corrupted index is the one failure this
-    # script must never have, since nothing downstream re-reads it for sanity.
-    IP_INDEX_BLOCK="$BLOCK" awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
-      $0 == b { print ENVIRON["IP_INDEX_BLOCK"]; skipping = 1; next }
-      $0 == e { skipping = 0; next }
-      !skipping { print }
-    ' "$TARGET" >"$tmp"
+    if block_is_empty "$BLOCK"; then
+      # Nothing to index: drop the block rather than replacing it with one that
+      # announces its own emptiness, and drop the blank line that separated it
+      # so removal does not leave a growing gap behind.
+      awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
+        $0 == b { skipping = 1; if (blankheld) blankheld = 0; next }
+        $0 == e { skipping = 0; next }
+        skipping { next }
+        /^$/ { blankheld = 1; next }
+        { if (blankheld) { print ""; blankheld = 0 } print }
+      ' "$TARGET" >"$tmp"
+    else
+      # The block travels through ENVIRON, not `awk -v`. POSIX has -v process
+      # escape sequences, so a rule path carrying a backslash would be rewritten
+      # on the way in -- gawk turns `\t` into a tab and drops an unknown
+      # escape's backslash, mawk passes both through. The markers are fixed text
+      # with no backslash in them and stay on -v; the block is generated from
+      # repository paths and does not. Writing a corrupted index is the one
+      # failure this script must never have, since nothing downstream re-reads
+      # it for sanity.
+      IP_INDEX_BLOCK="$BLOCK" awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
+        $0 == b { print ENVIRON["IP_INDEX_BLOCK"]; skipping = 1; next }
+        $0 == e { skipping = 0; next }
+        !skipping { print }
+      ' "$TARGET" >"$tmp"
+    fi
+  elif block_is_empty "$BLOCK"; then
+    rm -f "$tmp"
+    printf 'NO-INDEX-NEEDED\t%s\tno path-scoped rules and no nested instruction files; an always-loaded block saying so is pure cost\n' \
+      "$TARGET"
+    exit 0
   else
     cat "$TARGET" >"$tmp"
     # Separate the appended block from whatever precedes it.

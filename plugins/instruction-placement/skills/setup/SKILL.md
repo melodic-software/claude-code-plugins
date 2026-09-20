@@ -100,6 +100,13 @@ does not re-verify has not finished.
 - **An optional prerequisite's absence is not a failure.** Only the index-target verdict can make
   this skill report a problem with the repository itself.
 
+## Next
+
+- Prerequisites report ready: `/instruction-placement:audit`.
+- `UNREACHABLE`, and the repository wants `AGENTS.md` to be the content home rather than another
+  import: `/instruction-placement:migrate`.
+- Rules or an index already exist and only need gating: `/instruction-placement:check`.
+
 ## Gotchas
 
 - **`UNREACHABLE` is the finding people do not expect.** Everything else can be green while the

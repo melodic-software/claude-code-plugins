@@ -104,7 +104,7 @@ Usage: plan-migration.sh [--dry-run] [--root <dir>] [--home <dir>] [--help]
   --home <dir>  where to look for the bare ~/CLAUDE.md suppressors (default: $HOME)
   --help        this message
 
-Row kinds: DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, ACTION. Every row is a
+Row kinds: DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, DOCSHOME, ACTION. Every row is a
 fact about the repository; the content split is judgment and stays in the skill.
 
 Exit: 0 printed, 1 not a git repository, 2 usage error.

@@ -80,14 +80,19 @@ not available, rather than skipping the move.
 ## Plan first
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh" --dry-run
+bash "${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh" --dry-run --root <repo>
 ```
+
+**Always pass `--root`.** A shell's working directory does not persist between tool calls, so a run
+without it plans whatever directory the call happened to land in. `--root` may point anywhere inside
+the repository; the script resolves to the toplevel itself.
 
 Read-only, and `--dry-run` is the only mode it has. Its rows are the facts a migration turns on:
 
 | Row | What it decides |
 |---|---|
-| `DIR` | One state per directory: `content-in-claude`, `shim`, `agents-only`, `both-with-content`, `zero-byte`. The state names the work |
+| `DIR` | One state per directory: `content-in-claude`, `shim`, `shim-with-comment`, `agents-only`, `both-with-content`, `zero-byte`. The state names the work |
+| `shim-with-comment` | A `CLAUDE.md` that is the import plus an HTML comment and nothing else. It loads like a shim, but the target shape is the bare `@AGENTS.md` line, so the comment is content: strip it, and move the note into `AGENTS.md` or delete it, the operator's call. `dotfiles` and `medley` are both in this state |
 | `BUDGET` | `AGENTS.md` bytes summed root-to-directory against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
 | `CASE` | A filename differing only by case. Claude Code matches names exactly; NTFS does not, so the repository behaves differently per developer until it is renamed |
 | `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
@@ -99,13 +104,29 @@ Read-only, and `--dry-run` is the only mode it has. Its rows are the facts a mig
 Present the plan, with the content split you propose per file, and stop. Nothing is written until
 the operator accepts.
 
+**Dispatched runs.** Where this skill runs under a brief that already states the accepted target
+shape, that brief is the acceptance, and the plan output is still returned to the dispatcher with
+the work. This changes nothing for an interactive run: there, the operator still accepts before
+anything is written.
+
+**"Nothing to split" is a valid outcome, not a failure to find work.** A small root file whose
+content is all every-conversation material stays whole in the root `AGENTS.md`. Steps 2 and 3 then
+produce nothing, and no `docs/` directory and no `.claude/rules/` file is created. Say that plainly
+rather than manufacturing a pointer or a rule to have something to show.
+
 ## Apply
 
 Work one directory at a time, deepest last, and in this order per directory, because an interruption
 between steps must leave content duplicated rather than deleted:
 
+0. **Fix any `CASE` row first**, before anything else touches the tree. A filename differing only by
+   case means the repository already behaves differently per developer, and every later step would
+   be built on a file whose identity is not settled.
 1. **Create or extend `AGENTS.md`** with the content that belongs there. Merge under a new heading;
-   never clobber an existing file.
+   never clobber an existing file. **Moved text moves verbatim.** The hard rule below wins over any
+   write-side advice: `/docs-hygiene:write-for-agents` governs text you are *writing new* here
+   (pointer lines, a rules file's always-relevant reason, a new heading), never text you are
+   relocating. Rewording moved text is a separate, later edit the operator asks for by name.
 2. **Write the pointer targets** into the detected docs home, and the pointer lines into `AGENTS.md`.
 3. **Write the `.claude/rules/` files.** Fetch the current rules frontmatter format at authoring
    time rather than writing it from memory: `curl -sL https://code.claude.com/docs/en/memory.md`
@@ -114,11 +135,33 @@ between steps must leave content duplicated rather than deleted:
    nothing is a rule that never fires, and nothing goes red.
 4. **Reduce `CLAUDE.md` to `@AGENTS.md`**, one line, once its content has a home. An HTML-comment
    note inside a shim is content: move it into `AGENTS.md` or delete it with the operator's say-so.
-5. **Regenerate the index**: `"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" write --file AGENTS.md`.
-6. **Re-run the plan** and confirm the states moved the way the operator accepted.
+5. **Retarget every `CITE` row** in the same change. A link into `CLAUDE.md` whose content moved is
+   a dead link the moment the move lands, so it is not a follow-up.
+6. **Regenerate the index**: `"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" write --file AGENTS.md`.
+   A repository with no path-scoped rules and no nested instruction files has nothing to index, and
+   `write` says `NO-INDEX-NEEDED` and writes nothing. That is the correct outcome, not a failure:
+   an always-loaded block reading "there is nothing here" is exactly the cost the index exists to
+   avoid. Do not hand-write one.
+7. **Run the repository's own markdown lint**, if it has one: check for a `lint:md` script in
+   `package.json`, a `lefthook.yml` markdown hook, or a `.markdownlint*` config, and run what you
+   find. A regenerated block or a moved heading can trip MD022 (blanks around headings), MD024
+   (duplicate headings, likely when a section lands beside a similar one) or MD047 (single trailing
+   newline).
+8. **Re-run the plan** and confirm the states moved the way the operator accepted.
 
 Where a directory has a nested `AGENTS.md`, `render-index.sh wiring` says whether it needs a shim:
 an `UNWIRED` row does, a `NATIVE` row does not.
+
+**The rows Apply does not act on, and where each goes instead.** Every one is reported, none is
+silently dropped:
+
+- `PATHDET` — listed in the PR body as a cutover blocker. This skill changes none of them: code that
+  finds a path by the existence of `CLAUDE.md` keeps working while the shim exists, and rewriting it
+  is the cutover's business.
+- `ACTION` — listed in the PR body for the cutover check, which is what reads the pins.
+- `SUPPRESS` — reported to the operator as theirs. No repository-side change reaches a bare
+  `~/CLAUDE.md`.
+- `BUDGET` with `OVER` — content moves out before the migration proceeds in that subtree, not after.
 
 ## Verify the load, never assume it
 
@@ -142,8 +185,13 @@ claude -p "Read the file <a file in that directory>. Then quote back, verbatim, 
 
 **Ask for the lines, and name a file that exists.** "List every canary token in your instructions"
 reads as an exfiltration request and gets refused, which proves nothing about the loader; and a
-Read of a missing file never fires the nested trigger the canary is testing. Remove the token and
-confirm `git status --porcelain` is clean before committing.
+Read of a missing file never fires the nested trigger the canary is testing.
+
+**The canary runs against the committed tree, with the token in the working tree only**, so the
+order is: commit the migration, add the token to the working-tree `AGENTS.md`, run the canary, then
+remove the token. `git status --porcelain` is clean and `git grep -c CANARY` finds nothing *after*
+that removal, not before it: during the run the tree is dirty by construction, and checking for a
+clean tree first can never pass.
 
 Then run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is installed, on
 the finished root `AGENTS.md`: a root file that grew during the migration has moved the cost rather
