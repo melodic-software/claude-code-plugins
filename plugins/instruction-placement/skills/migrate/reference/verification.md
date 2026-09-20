@@ -75,6 +75,15 @@ exfiltration request and gets refused, which proves nothing about the loader.
 never fires the nested trigger; a Read of the `AGENTS.md` itself puts the token in the transcript by
 hand, so the answer stops measuring the loader.
 
+**A trigger Read belongs to a NESTED surface only, and `--tools ""` to a root one.** The recipe
+above measures attachment: a nested instruction file attaches when a file in its directory is read,
+so the Read is the event under test and the tool has to be there. A **root** surface needs no such
+event, it is loaded at session start, and there a `Read` tool is a hole in the measurement: with the
+file in the working directory, a reply quoting it is equally consistent with the model having read
+it for itself. So the cutover canaries in `scripts/cutover-check.sh` and `scripts/remove-shims.sh`
+run `--tools ""` and name no file. Use the form that matches what you are measuring, and never the
+trigger Read against a root file.
+
 ## Asking Codex
 
 Codex is a first-class target of this migration, so it gets the same canary. Presence-gate it on

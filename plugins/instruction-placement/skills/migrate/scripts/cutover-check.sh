@@ -570,12 +570,14 @@ condition_4() {
       path="${row%%:*}"
       rest="${row#*:}"
       text="$(trim "${rest#*:}")"
+      # Matching drops the line number so a row that moves still matches;
+      # reporting keeps it, so an operator has somewhere to jump to.
       if ack_lookup "$ack" "$path" "$text"; then
         acked=$((acked + 1))
-        note "$repo: acknowledged $path: ${ACK_REASON:-no reason given}"
+        note "$repo: acknowledged $path:${rest%%:*}: $ACK_REASON"
       else
         unacked=$((unacked + 1))
-        note "$repo: UNACKNOWLEDGED $path: $text"
+        note "$repo: UNACKNOWLEDGED $path:${rest%%:*}: $text"
       fi
     done <"$(repo_plan "$repo")"
   done

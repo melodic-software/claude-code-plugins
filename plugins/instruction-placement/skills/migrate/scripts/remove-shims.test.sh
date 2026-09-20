@@ -319,17 +319,36 @@ assert_contains "and restores the shims" "$OUT" "restored CLAUDE.md"
 assert_eq "leaving the worktree as it was" "" "$(cd "$UNREACHABLE" && git status --porcelain)"
 
 # A restore that did not land says so and takes the exit code with it, rather
-# than printing "restored" over a failure.
+# than printing "restored" over a failure. The fake CLI deletes the nested
+# directory during the root canary, so the nested shim has nowhere to go back
+# to while the root one restores normally.
 HALF="$TMP/halfrestore"
 build_ready_repo "$HALF"
+# shellcheck disable=SC2016 # the fixture script's own text; it must expand when IT runs, not here
+printf '#!/usr/bin/env bash\nrm -rf "$(git rev-parse --show-toplevel)/svc"\necho NONE\n' \
+  >"$TMP/bin/claude-eats-svc"
+chmod +x "$TMP/bin/claude-eats-svc"
+
 rc=0
-OUT=$(RESTORE_BLOCKER="$HALF/svc" bash -c '
-  mkdir -p "$1/svc-blocked"
-  "$2" --root "$1" --confirm --installed-plugins "$3" --claude-bin "$4" "${@:5}"
-' _ "$HALF" "$SCRIPT" "$TMP/installed-current.json" "$TMP/bin/claude-unmet" "${CHECK_ARGS[@]}") || rc=$?
-assert_eq "the restore path still exits non-zero after a miss" 1 "$rc"
-assert_contains "and every shim it removed is back" "$OUT" "restored svc/CLAUDE.md"
-assert_eq "the restored root shim is byte-exact" "@AGENTS.md" "$(cat "$HALF/CLAUDE.md")"
+OUT=$(bash "$SCRIPT" --root "$HALF" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-eats-svc" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "a restore that did not land still exits non-zero" 1 "$rc"
+assert_contains "and names the file it could not put back" "$OUT" "COULD NOT RESTORE svc/CLAUDE.md"
+assert_not_contains "and does not claim that one was restored" "$OUT" "  restored svc/CLAUDE.md"
+assert_contains "and says so in the refusal" "$OUT" "shim(s) could NOT be put back"
+assert_contains "while the shim it could restore is back" "$OUT" "restored CLAUDE.md"
+assert_eq "and that one is byte-exact" "@AGENTS.md" "$(cat "$HALF/CLAUDE.md")"
+
+# A death that is not a clean exit must not strand a de-shimmed, unverified
+# repository. A closed pipe is the case that needs no `kill` to provoke and the
+# one a named INT/TERM trap misses: `remove-shims | head` was enough to strand
+# a repository before the restore moved onto the EXIT trap.
+PIPED="$TMP/piped"
+build_ready_repo "$PIPED"
+bash "$SCRIPT" --root "$PIPED" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}" 2>/dev/null | head -n 12 >/dev/null
+assert_eq "a run whose reader closed the pipe leaves the shims in place" "" \
+  "$(cd "$PIPED" && git status --porcelain)"
 
 # A staged edit to a shim does not become the restored content: the restore
 # writes the one line the target shape guarantees, not the index copy.

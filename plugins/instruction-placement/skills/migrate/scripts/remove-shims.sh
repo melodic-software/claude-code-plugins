@@ -222,7 +222,32 @@ echo
 
 # --- 5. the target shape --------------------------------------------------
 PLAN="$(mktemp)"
-trap 'rm -f "$PLAN"' EXIT
+
+# One EXIT trap carries the restore, rather than a list of signals that has to
+# stay complete. Naming INT and TERM left HUP and PIPE out, and a run killed by
+# either left the repository de-shimmed and unverified: `remove-shims | head`
+# is enough to reach that state. The signal traps below only exit; EXIT is what
+# restores, so an exit this script never anticipated restores too.
+CLEANUP_STARTED=0
+# shellcheck disable=SC2329 # invoked by the EXIT trap set below
+on_exit() {
+  local rc=$?
+  ((CLEANUP_STARTED == 1)) && return
+  CLEANUP_STARTED=1
+  rm -f "$PLAN"
+  if ((${#REMOVED[@]} > 0)) && ((CANARY_PASSED == 0)); then
+    printf '\nexiting with shims removed and unverified; restoring:\n'
+    restore_all || :
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
+trap 'exit 1' INT TERM HUP PIPE
+
+# Declared before the trap can read them, so an early exit sees an empty list
+# rather than an unbound variable.
+REMOVED=()
+CANARY_PASSED=0
 bash "$PLAN_MIGRATION" --root "$REPO" >"$PLAN" 2>/dev/null ||
   refuse "plan-migration.sh could not plan $REPO"
 
@@ -278,11 +303,9 @@ for dir in "${SHIM_DIRS[@]}"; do
 done
 
 # --- 7. removal, root and nested together ---------------------------------
-# Past this point the repository is half-shaped until the canaries pass, so
-# every exit runs through the restore: a failed removal, an interrupt, or a
-# canary that did not return its line all put back what this run took out.
-REMOVED=()
-CANARY_PASSED=0
+# Past this point the repository is half-shaped until the canaries pass, and
+# the EXIT trap above is what puts it back: a failed removal, any signal, a
+# canary that did not return its line, and an exit nobody wrote all restore.
 SHIM_LINE='@AGENTS.md'
 
 shim_path() {
@@ -294,13 +317,16 @@ shim_path() {
 # staged edit would have replaced. The write is verified byte for byte, and a
 # restore that did not land says so and takes the exit code with it.
 restore_all() {
-  local d path target failed=0 got
+  local d path target failed=0 got size
   for d in ${REMOVED[@]+"${REMOVED[@]}"}; do
     path="$(shim_path "$d")"
     target="$REPO/$path"
     printf '%s\n' "$SHIM_LINE" >"$target" 2>/dev/null
     got="$(cat "$target" 2>/dev/null)"
-    if [[ "$got" == "$SHIM_LINE" ]]; then
+    # Byte count as well as content: `$(...)` strips trailing newlines, so the
+    # text comparison alone would accept a file missing the one this writes.
+    size="$(wc -c <"$target" 2>/dev/null | tr -d ' \t\r')"
+    if [[ "$got" == "$SHIM_LINE" && "$size" == "$((${#SHIM_LINE} + 1))" ]]; then
       printf '%s\n' "  restored $path"
     else
       failed=$((failed + 1))
@@ -310,16 +336,6 @@ restore_all() {
   REMOVED=()
   return "$failed"
 }
-
-# shellcheck disable=SC2329 # invoked by the INT/TERM trap below
-on_interrupt() {
-  if ((${#REMOVED[@]} > 0)) && ((CANARY_PASSED == 0)); then
-    printf '\ninterrupted with shims removed and unverified; restoring:\n'
-    restore_all || :
-  fi
-  exit 1
-}
-trap on_interrupt INT TERM
 
 for dir in "${SHIM_DIRS[@]}"; do
   target="$REPO/$(shim_path "$dir")"

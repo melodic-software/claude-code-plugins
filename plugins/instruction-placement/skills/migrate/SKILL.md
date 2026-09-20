@@ -263,8 +263,9 @@ re-reviewed. An unacknowledged row is `[UNMET]` and is named, **and so is a row 
 empty**: the reason is the review, and a path plus a copy of the line is only the match key.
 **No path convention exempts anything, test trees included**: in this fleet the one real blocker
 lives under `tests/`. `.claude/` is scanned like any other tree, because a hook or helper script
-there locates a path the same way; the one file left out of it is the acknowledgement list itself,
-whose every line quotes a detector by design.
+there locates a path the same way. Two things are out of the scan and the condition prints both:
+markdown, which locates no path, and the acknowledgement list itself, whose every line quotes a
+detector by design.
 
 ### `remove-shims`, one repository per run
 
