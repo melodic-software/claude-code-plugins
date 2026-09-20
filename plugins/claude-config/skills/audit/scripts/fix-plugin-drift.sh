@@ -419,24 +419,27 @@ fi
 # deletes it. Refuse rather than clobber an earlier backup made in the same
 # second.
 BACKUP="$SETTINGS.$(date -u +%Y%m%dT%H%M%SZ).bak"
-# Created empty first, under noclobber and a 0077 umask, then filled. noclobber
-# opens with O_EXCL, which refuses an existing file AND a symlink, including a
-# dangling one that `[[ -e ]]` reads as absent and that a bare `cp` would follow
-# to whatever it names. The umask is why this is not `cp -p`: the backup is a
-# verbatim copy of a file that can hold tokens and permission rules, so it is
-# 0600 regardless of what the original allows. Both run in a subshell so neither
-# setting escapes into the rest of the script.
+# Created and filled through ONE descriptor, under noclobber and a 0077 umask.
+# noclobber opens with O_EXCL, which refuses an existing file AND a symlink,
+# including a dangling one that `[[ -e ]]` reads as absent and that a bare `cp`
+# would follow to whatever it names. Creating it empty and then reopening the
+# path with `cp` would reintroduce that: the name is predictable, so between the
+# two opens it can be unlinked and replaced with a symlink, and the copy follows
+# it. Writing through the descriptor the exclusive open returned leaves no such
+# window. The umask is why this is not `cp -p`: the backup is a verbatim copy of
+# a file that can hold tokens and permission rules, so it is 0600 wherever the
+# platform honors mode bits. Both settings are scoped to the subshell.
+#
+# A failure here leaves nothing to clean up in the case that matters: when the
+# open is refused the file is not ours to remove, and the only way to get a
+# short write is a read failure on a file this script has already read.
 if ! (
   set -C
   umask 077
-  : >"$BACKUP"
+  cat "$SETTINGS" >"$BACKUP"
 ) 2>/dev/null; then
-  echo "ERROR: cannot create the backup, settings unchanged: $BACKUP" >&2
-  echo "The path already exists or is not writable. A second apply within the same second hits this." >&2
-  exit 2
-fi
-if ! cp "$SETTINGS" "$BACKUP"; then
   echo "ERROR: cannot write the backup, settings unchanged: $BACKUP" >&2
+  echo "The path already exists, is a symlink, or is not writable. A second apply within the same second hits this." >&2
   exit 2
 fi
 

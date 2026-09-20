@@ -23,9 +23,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   operations were two `rm -f` on temporaries and a bare `mv` over the target, so an operator had
   no copy of what the script overwrote. A successful apply now copies the file to
   `<settings>.<UTC stamp>.bak` first and aborts if that copy fails, so nothing is replaced without
-  a copy of what it replaced. The backup is created empty under `set -C` and a 0077 umask and only
-  then filled: the `O_EXCL` open refuses an existing path and a symlink alike, including a dangling
-  one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and the umask stops a verbatim
+  a copy of what it replaced. The backup is created and filled through ONE descriptor, under
+  `set -C` and a 0077 umask: the `O_EXCL` open refuses an existing path and a symlink alike,
+  including a dangling one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and
+  writing through that same descriptor leaves no window in which the predictable backup path could
+  be unlinked and replaced with a symlink between an exclusive create and a later reopen. The
+  umask stops a verbatim
   copy of a file that can hold tokens and permission rules inheriting a world-readable mode. The
   umask is a no-op on MSYS, where mode bits are emulated, so the 0600 result holds on Linux and
   macOS and not on Git Bash. Backups are never pruned, so a project that tracks `.claude/` may
