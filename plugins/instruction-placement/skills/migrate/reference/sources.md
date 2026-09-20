@@ -46,10 +46,13 @@ the bytes rather than paraphrased.
 
 ## The minimum CLI version
 
-- **Claim**: Claude Code reads `AGENTS.md` as project instructions from **v2.1.277**. Below that
-  version no session reads it, whatever the flag says.
-- **Basis**: `https://code.claude.com/docs/en/memory.md`, "AGENTS.md"; recorded in the migrate
-  skill's own "Why the shim stays" record and unchanged on this fetch.
+- **Claim**: Claude Code reads `AGENTS.md` as project instructions from **v2.1.277**, verbatim:
+  "Reading `AGENTS.md` directly requires Claude Code v2.1.277 or later." The same page lists
+  "You're on a Claude Code version before v2.1.277" among the cases where support is unavailable,
+  and its removal procedure step 2 is "Run `claude --version` and confirm v2.1.277 or later."
+  Below that version no session reads it, whatever the flag says.
+- **Basis**: `https://code.claude.com/docs/en/memory.md`, fetched 2026-09-20 by the rung-1 route,
+  52,465 bytes; the three quoted lines are at 332, 382 and 559.
 - **As of**: 2026-09-20.
 - **Recheck trigger**: the memory page states a different floor, or a release note moves it.
 
