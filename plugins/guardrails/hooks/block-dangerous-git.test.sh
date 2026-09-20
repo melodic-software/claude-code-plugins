@@ -1582,6 +1582,14 @@ run_pwsh "PS hs: a git commit carrying a commented opener (blocked)" \
 # UNBALANCED here-string. It must still block; only the trigger it reports moves.
 run_pwsh "PS hs: a one-line commented opener beside a git command (blocked, unchanged)" \
   "git log --oneline # @\"" 2
+# The rc does not move but the ATTRIBUTION does: this was a phantom
+# `herestring-unbalanced`, whose arm blanks from the opener to end of input, so a
+# standing token for that shape reduced it to a bare `git log` and allowed it.
+pin_sink_trigger "classify: the one-line form now reports the comment opener, not unbalanced" \
+  "git log --oneline # @\"" "herestring-comment-opener"
+run_pwsh "PS hs: the unbalanced token no longer opens the one-line commented form" \
+  "git log --oneline # @\"" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced
 
 # R5 DE-ESCALATION, pinned rather than hidden. Nothing is dropped now, so the
 # git-freedom proof runs over text that is actually present: this git-FREE command
