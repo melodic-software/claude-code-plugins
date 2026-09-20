@@ -208,8 +208,10 @@ Verified 2026-08-08 against <https://code.claude.com/docs/en/sub-agents> (the pa
   `/tasks` or an SDK `stop_task` request, doesn't auto-resume. The `SendMessage` call returns a
   refusal telling Claude the agent was cancelled." Re-dispatch instead.
 - This ladder covers `discovery:explorer` because it is a **custom** subagent. It does not extend to
-  the built-in Explore agent that `SKILL.md` names as the one alternative: "The built-in Explore and
-  Plan agents are one-shot and return no agent ID, so they can't be resumed."
+  the built-in Explore agent `SKILL.md` names as the fan-out scout, which is one-shot and returns no
+  agent ID. Dated record, with the quoted basis:
+  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  "The built-in Explore agent cannot hold this plugin's contract".
 
 The page documents no partial-return semantics for `maxTurns`, defining it only as "Maximum number
 of agentic turns before the subagent stops", which is why the agent writes `status: truncated` with

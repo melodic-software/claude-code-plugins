@@ -1,5 +1,36 @@
 # Changelog: discovery plugin
 
+## [0.20.0]
+
+### Added
+
+- **`reference/parent-contract.md`:** two harness-fact records, dated against Claude Code 2.1.278
+  and the subagents page fetched 2026-09-19. One states what the built-in Explore agent cannot do
+  (no `Write`, no skill preload, no CLAUDE.md or git status, one-shot with no agent ID) and why each
+  denial removes a load-bearing piece of the dispatch contract; the other states the four-step model
+  resolution order in which a per-invocation `model` outranks a definition's frontmatter. Every site
+  that relied on these facts now cites the record instead of restating them.
+- **`explore`, `explorer`:** built-in Explore is named as the fan-out scout, with the two triggers
+  that start a fan-out (a scope carrying two or more disjoint areas, or a post-pass gap-list carrying
+  four or more entries in areas sharing no files), a dozen-concurrent cap, and the locate-tier
+  constraint that a scout's hit is a pointer the worker must Read before any sidecar records
+  `verified: read`.
+- **`explore`:** a `## Next` section naming the successor skills.
+
+### Changed
+
+- **`explore`:** the choice between `discovery:explorer` and the built-in Explore agent is now four
+  binary tests (graded artifact, project conventions, conclusions resting on file contents,
+  resumability) rather than a prose comparison, and all four NO routes the ask out of this skill
+  entirely. The description's *Skip when* clause now says so, and `'where is X implemented'` moves
+  out of *Use when*, where it was pulling bare lookups into a six-dimension run.
+- **`explore`:** the resume ladder's built-in-Explore exclusion in `reference/dispatch.md` cites the
+  new record instead of carrying its own copy of the one-shot quote.
+- **`explorer`, `researcher`, `intent-tracer`:** drop `model: inherit`. Frontmatter outranks
+  `CLAUDE_CODE_SUBAGENT_MODEL`, so `inherit` silently overrode the consumer's configured subagent
+  model and put every one of these 40-turn readers on the main conversation's model. With no pin the
+  consumer's setting applies and the dispatching session raises it per run.
+
 ## [0.19.18]
 
 ### Changed

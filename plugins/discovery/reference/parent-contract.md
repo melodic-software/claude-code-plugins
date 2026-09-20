@@ -71,6 +71,16 @@ every return payload is `topic_as_received`. A fourth label for the same envelop
 family's name for its input in one place and the field that verifies it in another, which is exactly
 the drift this file exists to close.
 
+**The worker's model is the parent's call, and it is not an envelope field.** It travels as the
+Agent tool's per-invocation `model` parameter, not as a line the agent parses, which is why it is
+named here rather than in the template above. None of the three worker definitions pins one: with
+no `model` frontmatter the consumer's own `CLAUDE_CODE_SUBAGENT_MODEL` decides, and the dispatching
+session raises it per run when the scope earns the spend. Pass it deliberately rather than
+defaulting by omission, because these workers are the plugin's expensive lane: `maxTurns: 40` at
+`effort: high`, spent almost entirely on reading. Dated record:
+[Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
+"A per-invocation `model` outranks a subagent's frontmatter".
+
 **Memory root is its own line, not derivable from the slice path.** A nested slice is a sub-slice
 for a collision or a parallel fan-out. No one can tell from the path alone which ancestor
 is the configured root, and the root is where the self-ignoring `.gitignore` guard belongs. An agent
@@ -194,18 +204,19 @@ claim, not a fact. Say so rather than repeating it.
 
 ## Harness facts the dispatch design rests on
 
-Seven harness behaviors this plugin's dispatch design depends on, each with one dated record here
+Nine harness behaviors this plugin's dispatch design depends on, each with one dated record here
 instead of an undated restatement at every site that relies on it. A skill, context file, or agent
 definition keeps its own one-sentence operative rule and cites this section by heading; none of
 them repeats a basis. Records 1-6 were verified against Claude Code 2.1.263 with the pages
 named, fetched 2026-09-06. Record 7 was verified against the skills and sub-agents pages
-fetched 2026-09-08.
+fetched 2026-09-08. Records 8-9 were verified against Claude Code 2.1.278 with the subagents
+page fetched 2026-09-19.
 
-**One shared recheck trigger covers all seven:** any of the named pages stops carrying the quoted
+**One shared recheck trigger covers all nine:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
-subagent spawn permissions, or effort substitution, or the CLI major version moves. On any of
-those, re-fetch the page before restating the record, and re-date this section rather than
-editing a claim in place.
+subagent spawn permissions, effort substitution, built-in subagent capabilities, or subagent
+model resolution, or the CLI major version moves. On any of those, re-fetch the page before
+restating the record, and re-date this section rather than editing a claim in place.
 
 ### A preloaded skill that fails to resolve is skipped silently
 
@@ -278,6 +289,51 @@ from session." *Why the plugin cares.* `/discovery:research` scales source bread
 effort, and `discovery:researcher` is pinned `high` so reasoning does not degrade inside a
 session tuned down for cost. The worker's substituted value is therefore the pin. The parent
 writes `Source breadth:` from its own load so the table still follows the caller.
+
+### The built-in Explore agent cannot hold this plugin's contract
+
+*Claim.* Built-in Explore is a read-only locator: `Write` and `Edit` are denied, it preloads no
+skill, it skips the CLAUDE.md hierarchy and the parent's git status, and it is one-shot with no
+agent ID to resume. *Basis.*
+[Subagents](https://code.claude.com/docs/en/subagents), built-in subagents: "Tools: read-only
+tools; Write and Edit are denied"; "Explore and Plan skip your CLAUDE.md files and the parent
+session's git status to keep research fast and inexpensive. Every other built-in and custom
+subagent loads both, unless its definition sets the `omitClaudeMd` field"; the what-loads-at-startup
+list, "Preloaded skills: full content of any skill named in the agent's `skills` field. Built-in
+agents don't preload skills"; and "The built-in Explore and Plan agents are one-shot and return no
+agent ID, so Claude can't resume them. Use `general-purpose` or a custom subagent when you need to
+continue the work." The same section gives the thoroughness knob a caller passes: "quick for
+targeted lookups, medium for balanced exploration, or very thorough for comprehensive analysis."
+*Why the plugin cares.* Each denial removes one load-bearing piece of the dispatch contract, which
+is why built-in Explore is a scout under a worker and never the worker: no `Write` means no
+artifact set for the acceptance gate to grade, no preload means no discipline to fire the liveness
+token against, no CLAUDE.md means the project's own conventions never reach it, and no agent ID
+means a truncated run cannot be resumed. Its read depth is a *judgment* this plugin adds rather than
+a documented fact: "Built-in agents have predefined prompts", so how much of a file one read is
+neither stated by the page nor recoverable from its report, and a worker therefore treats every
+scout hit as a pointer backing `verified: grep`, never `verified: read`. *Not verified:* whether a
+user- or project-scope subagent *named* `Explore` inherits the CLAUDE.md and git-status skip. The
+page attributes the skip to "the built-in Explore and Plan agents" while stating every other custom
+subagent loads both, and says elsewhere "Only Explore and Plan skip it" by name. Setting
+`omitClaudeMd: true` on such an override makes the question moot.
+
+### A per-invocation `model` outranks a subagent's frontmatter
+
+*Claim.* Claude Code resolves a subagent's model as per-invocation parameter, then the definition's
+`model` frontmatter (`inherit` selecting the main conversation's model), then
+`CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
+collapses all of it. *Basis.*
+[Subagents](https://code.claude.com/docs/en/subagents): "When Claude invokes a subagent, it can
+also pass a `model` parameter for that specific invocation", with that four-step order stated
+verbatim; "Before v2.1.251, `CLAUDE_CODE_SUBAGENT_MODEL` came first in this order and overrode both
+the per-invocation parameter and the frontmatter, including `model: inherit`"; "While
+`CLAUDE_CODE_SUBAGENT_MODEL_FORCE` is on, Claude Code ignores the `model` field of every subagent
+definition, including the built-in Explore and Plan subagents, and Claude can't pass a model when
+it starts a subagent." *Why the plugin cares.* This is the plugin's cost knob and it belongs to the
+parent, not the agent definition: a worker pinned in frontmatter is a floor the dispatching session
+raises per run when the scope earns it. `model: inherit` in a worker definition is therefore a cost
+defect, not a neutral default. It outranks the environment variable, so a session on an expensive
+model pays that rate for every turn the worker spends reading files.
 
 ## Running the acceptance gate
 

@@ -1,5 +1,5 @@
 ---
-description: "Explore the local codebase before making changes. Read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration, persisting an EXPLORE.md index plus sidecars. Dispatches a fresh-context subagent by default so the file reads stay out of the main conversation, with a documented inline escape hatch. Use when: 'explore the codebase', 'what exists for X' investigation, 'how does this work', 'where is X implemented', 'trace the dependencies', 'what tests cover this', or as step 1 before any code change. Skip when: the question is why a thing was built the way it was rather than what it is or how it works. Reconstructing the reasoning behind a past decision from review discussion, tickets, and design documents is '/discovery:trace-intent'; this skill's git mode reports what changed and by whom, not the intent behind it."
+description: "Explore the local codebase before making changes. Read code, trace dependencies, scan git history, discover tests, and audit build and tool configuration, persisting an EXPLORE.md index plus sidecars. Dispatches a fresh-context subagent by default so the file reads stay out of the main conversation. Use when: 'explore the codebase', 'what exists for X', 'how does this work', 'trace the dependencies', 'what tests cover this', or as step 1 before any code change. Skip when: the ask is a bare locate question ('where is X', 'what calls Y') answered by a path and a line number, dispatch the built-in Explore agent instead of this skill. Skip when: the question is why a thing was built the way it was rather than what it is or how it works. Reconstructing the reasoning behind a past decision from review discussion, tickets, and design documents is '/discovery:trace-intent'; this skill's git mode reports what changed and by whom, not the intent behind it."
 argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config)"
 user-invocable: true
 disable-model-invocation: false
@@ -42,7 +42,16 @@ These values orient this session only. The project root is an absolute machine p
 
 **When selecting the dispatched route:** probe `check-dispatch-artifact.sh --help` before dispatching; a denied or errored probe **halts**. An un-runnable post-dispatch gate is not a reason to take the inline escape hatch *to dodge the gate*. A legitimate inline run (tight iteration, cost, already-a-subagent) does not owe that script, it has no script verdict to self-grade, so do not apply this precondition to the inline path. Invocation forms: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
-**One named alternative:** the **built-in Explore subagent**, for raw "where is X / how does Y work" search. Fast, read-only, context-isolated. It skips project memory (convention-blind) and neither runs this 6-dimension workflow nor writes `EXPLORE.md`. Pass key constraints in the prompt when conventions matter, and expect to write the artifact yourself. Scale 1→N by dispatching more, each owning a disjoint area.
+**Which agent, decided by four tests.** The named alternative is the **built-in Explore subagent**, and these four decide between it and `discovery:explorer`. **Any one YES routes to `discovery:explorer`**, and all four NO means this skill is the wrong entry point altogether, dispatch built-in Explore and do not invoke this skill:
+
+1. **Must a graded artifact survive the run?** Built-in Explore cannot write one.
+2. **Do project conventions constrain the answer** (`.claude/rules/`, a nested `AGENTS.md`, declared layer rules)? Built-in Explore never sees them.
+3. **Will a conclusion rest on the contents of a file** rather than its location? A built-in agent runs a prompt you cannot inspect and its report does not say how much of a file it read, so what it returns backs `verified: grep`, never `verified: read`.
+4. **Might the run truncate and need resuming?** Built-in Explore is one-shot.
+
+Each NO above is a harness denial, not a preference, and the four are recorded once with their basis in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "The built-in Explore agent cannot hold this plugin's contract". Read it before arguing with a test; do not restate the denials anywhere else.
+
+Built-in Explore is therefore a **scout under a worker, never the worker**. Where it earns its place: the locate-tier legwork inside a larger exploration, per the fan-out rules below. When dispatching one, pass a thoroughness level (`quick`, `medium`, `very thorough`) and restate any convention that bounds the search, because it arrives convention-blind.
 
 **Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently**. Logged to the debug log and nowhere else. The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload. The disk fallback Reads this same file, so a matching `preload_token` is file-identity, **not** proof that preload fired:
 
@@ -82,6 +91,10 @@ A missing or mismatched token is a **hard failure: the parent discards the run**
 Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md). It carries the two conditions that bind the write (filename checking and the collision rule) and why a by-value payload of findings rather than artifact bodies is a failed dispatch rather than a fallback.
 
 **Coverage discipline** when fanning out: (1) write a numbered gap-list before any deepen pass; (2) fan out by disjoint area, never split the six dimensions across agents; (3) whoever holds the workflow writes `EXPLORE.md`. `discovery:explorer` writes its own, while built-in Explore agents cannot write one at all, so their caller does.
+
+**When to fan out, and to what.** Fan-out is the worker's, not the parent's: the parent dispatches **one** `discovery:explorer`, which scales inside its own run. Two triggers, either one: the scope names **two or more disjoint areas**, or the numbered gap-list after the first pass carries **four or more** entries in areas that share no files. Below that, go sequential; a scout costs a spawn and returns a pointer, which a single-area scope does not need. The worker type is the **built-in Explore scout** described above, one per disjoint area, each told what it owns and what it must not wander into. **Cap the concurrent scouts at a dozen**, which keeps the fan-out under the session's own ceiling without reading it; that ceiling is a harness setting (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`) whose value this body deliberately does not restate, and a spawn past it comes back as a refusal naming the limit. The scout is locate-tier: its hits are pointers, and the worker Reads the file itself before any sidecar records `verified: read`.
+
+**One `EXPLORE.md`, one worker.** Fanning the six dimensions across *parent-side* explorers, the shape `/discovery:research-deep` uses for N independent topics, is deliberately not done here. Research topics are independent; codebase areas share a dependency graph, and dimension 3 is the one a parent-side split severs. Revisit only when an ask arrives as N genuinely separable modules with no cross-area dependency; then the sub-slice machinery this plugin already has applies unchanged.
 
 ## Purpose
 
@@ -218,6 +231,12 @@ This file is the authoritative stage summary, a fresh session must be able to re
 **Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read. `verified: read | grep | inferred`, not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; the fabrication is worse, because it launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
 
 **If an unrelated `EXPLORE.md` already exists** in that slice, do not clobber it, and do not rename the index to dodge it, since `EXPLORE-*.md` is the sidecar pattern and a renamed index collides with its own sidecars. Occupancy is the PARENT's to resolve, before any write: stat the slice root pre-dispatch, and when it is occupied assign a sub-slice `<memory_dir>/<slug>/<scope-slug>/` as the envelope's slice path, so the whole artifact set is written there under its normal names. A worker never picks a sub-slice itself, and on an inline run this session is the parent and applies the same check before writing. A prior exploration lost to a filename collision is silent and unrecoverable.
+
+## Next
+
+- Findings raise a question about current external practice: `/discovery:research <topic>`.
+- Findings raise a question about why the code is the way it is: `/discovery:trace-intent <subject>`.
+- The local picture is enough to decide what to build: `/planning:plan`.
 
 ## Gotchas
 

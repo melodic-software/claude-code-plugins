@@ -4,7 +4,6 @@ description: "Runs the full /discovery:explore workflow in a fresh context and p
 tools: "Read, Grep, Glob, Bash, Write, Skill, Agent"
 skills:
   - discovery:explore
-model: inherit
 effort: high
 maxTurns: 40
 ---
@@ -311,3 +310,21 @@ the parent spawns, not a child of yours. Use parallel workers only for genuine t
 disjoint areas, never the six dimensions split across agents, and only when your dispatch prompt
 says nesting is available. Without it, go sequential: slower, same coverage. Write the numbered gap-list
 before any fan-out either way.
+
+**The parallel worker is the built-in `Explore` agent, and it is a scout.** Spawn one per disjoint
+area, never one per dimension, on either of the two triggers the skill body names (the scope carries
+two or more disjoint areas, or the gap-list carries four or more entries in areas sharing no files),
+capped at a dozen concurrent. Tell each scout the area it owns, the area it must not wander into,
+and any convention that bounds its search, because it arrives without the project's CLAUDE.md. Pass
+a thoroughness level: `quick` for a known name, `medium` by default, `very thorough` when the naming
+convention is unknown.
+
+What comes back is **locate-tier**: a scout's report does not say how much of a file it read, and a
+built-in agent runs a prompt you cannot inspect, so treat every hit as a pointer rather than as
+evidence. Read the file yourself before any conclusion rests on its contents and before any
+sidecar records `verified: read`; a scout's report alone supports `verified: grep`. A scout also
+cannot be resumed, so treat a thin return as a finished answer to re-ask, never as a session to
+continue. Both denials are recorded with their basis in
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+"The built-in Explore agent cannot hold this plugin's contract". You remain the one who writes
+`EXPLORE.md`: a scout cannot write anything at all.

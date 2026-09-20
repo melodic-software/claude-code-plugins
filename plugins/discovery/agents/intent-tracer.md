@@ -4,7 +4,6 @@ description: "Runs the full /discovery:trace-intent discipline in a fresh contex
 skills:
   - discovery:trace-intent
 disallowedTools: "NotebookEdit, EnterWorktree, ExitWorktree"
-model: inherit
 effort: high
 maxTurns: 40
 ---
