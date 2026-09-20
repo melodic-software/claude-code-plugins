@@ -386,7 +386,8 @@ plainly that nothing has been applied.
   owning repository rather than being edited here.
 - Does not grade a contradiction whose two halves both sit in the
   **discover-instruction-surfaces** population, namely root-level project **or user** `CLAUDE.md` /
-  `CLAUDE.local.md` / rules, including **user↔project** pairs. That is `claude-memory:audit`'s C6.
+  `CLAUDE.local.md` / a natively read `AGENTS.md` or `.claude/AGENTS.md` / rules, including
+  **user↔project** pairs. That is `claude-memory:audit`'s C6.
   A **nested** `CLAUDE.md` / `CLAUDE.local.md` side, an auto-memory side, or any surface outside that
   population keeps the pair here;
   [reference/conflict-criteria.md](reference/conflict-criteria.md) owns the routing table and its

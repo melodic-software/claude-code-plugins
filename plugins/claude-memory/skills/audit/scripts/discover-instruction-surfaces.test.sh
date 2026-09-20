@@ -273,6 +273,32 @@ assert_not_contains "--scope user suppresses the agents-md row" "$OUT_AGENTS_USE
 # The fixture the rest of this suite uses has a CLAUDE.md, so it never gains one.
 assert_not_contains "no agents-md row without an AGENTS.md" "$OUT" "$(printf 'agents-md\t')"
 
+# --- .claude/AGENTS.md loads at session start too -----------------------------
+# "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working
+# directory and the directories above it" (memory doc). The doc states no
+# precedence between the two names, so each file that exists gets its own row.
+
+DOTAGENTS="$TEST_TMPDIR/agents-dot"
+mkdir -p "$DOTAGENTS/.claude"
+printf '# project instructions\n' >"$DOTAGENTS/.claude/AGENTS.md"
+OUT_DOTAGENTS="$(run_in "$DOTAGENTS" "$EMPTY_CONF")"
+assert_eq "a lone .claude/AGENTS.md is a project surface" "$(printf 'project\tagents-md\t.claude/AGENTS.md')" "$OUT_DOTAGENTS"
+
+BOTHAGENTS="$TEST_TMPDIR/agents-both"
+mkdir -p "$BOTHAGENTS/.claude"
+printf '# project instructions\n' >"$BOTHAGENTS/AGENTS.md"
+printf '# more project instructions\n' >"$BOTHAGENTS/.claude/AGENTS.md"
+OUT_BOTHAGENTS="$(run_in "$BOTHAGENTS" "$EMPTY_CONF")"
+assert_eq "both AGENTS.md names are emitted, root first" "$(printf 'project\tagents-md\tAGENTS.md\nproject\tagents-md\t.claude/AGENTS.md')" "$OUT_BOTHAGENTS"
+
+# The displacement rule is the same for both names.
+DOTBLOCKED="$TEST_TMPDIR/agents-dot-blocked"
+mkdir -p "$DOTBLOCKED/.claude"
+printf '# project memory\n' >"$DOTBLOCKED/CLAUDE.md"
+printf '# project instructions\n' >"$DOTBLOCKED/.claude/AGENTS.md"
+OUT_DOTBLOCKED="$(run_in "$DOTBLOCKED" "$EMPTY_CONF")"
+assert_not_contains "a CLAUDE.md displaces .claude/AGENTS.md too" "$OUT_DOTBLOCKED" "$(printf 'agents-md\t')"
+
 # --- unknown argument is advisory, not fatal ---------------------------------
 
 run_in "$PROJ" "$CONF" --nonsense >/dev/null 2>&1

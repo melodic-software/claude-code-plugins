@@ -64,10 +64,11 @@ population to that check, and keeps every other pair here, including memory-laye
 does not enumerate, and every cross-layer pair. The predicate is the population, never the layer
 name.
 
-The `claude-memory:audit` skill's check **C6** asks its question "across CLAUDE.md, CLAUDE.local.md,
-and rules files". Its live discovery is
+The `claude-memory:audit` skill's check **C6** asks its question across the memory files its own
+discovery emits. That discovery is
 `skills/audit/scripts/discover-instruction-surfaces.sh`, which emits **project and user** scope:
-root-level project `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**`, plus
+root-level project `CLAUDE.md` / `CLAUDE.local.md` / `AGENTS.md` and `.claude/AGENTS.md` where no
+`CLAUDE.md` displaces them / `.claude/rules/**`, plus
 `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and `…/rules/**`, each tagged so project-scoped criteria
 can skip personal files. Step 3 of the audit workflow then compares user-scope surfaces against
 project ones as live C6 conflicts.
@@ -76,7 +77,7 @@ Route on that population:
 
 | Pair | Owner |
 |---|---|
-| Both anchors in the **discover-instruction-surfaces** population (any mix of project / user / `both` scope among root-level `CLAUDE.md` / `CLAUDE.local.md` / rules), **including user↔project** | `claude-memory`'s C6 |
+| Both anchors in the **discover-instruction-surfaces** population (any mix of project / user / `both` scope among root-level `CLAUDE.md` / `CLAUDE.local.md` / a natively read `AGENTS.md` or `.claude/AGENTS.md` / rules), **including user↔project** | `claude-memory`'s C6 |
 | Anything else: **any nested `CLAUDE.md` / `CLAUDE.local.md` side**, any auto-memory side, settings, hooks, skills, agents, output styles, or any other surface outside that population | I15 |
 
 **Nested memory files stay with I15.** Phase A inventories every nested

@@ -30,11 +30,11 @@
 #   kind   claude-md | claude-local-md | agents-md | rule
 #   path   absolute for user scope, as-found for project scope
 #
-# `agents-md` is the project root's AGENTS.md, and only where Claude Code reads it as the
-# project instructions: see lib/agents-md.sh for the condition and its doc basis. A repo
-# whose CLAUDE.md is a one-line `@AGENTS.md` shim emits the CLAUDE.md row alone, because
-# the import already carries that content into it and a second row would count one file
-# twice.
+# `agents-md` is the project root's `AGENTS.md` and `.claude/AGENTS.md` (both load; the doc
+# states no precedence), and only where Claude Code reads them as the project instructions:
+# see lib/agents-md.sh for the condition and its doc basis. A repo whose CLAUDE.md is a
+# one-line `@AGENTS.md` shim emits the CLAUDE.md row alone, because the import already
+# carries that content into it and a second row would count one file twice.
 #
 # `both` means one PHYSICAL file that both layers reach. Two dotfiles layouts do this,
 # each colliding exactly one surface: a repo rooted at `~` collides the RULES dir
@@ -61,16 +61,17 @@ Usage: discover-instruction-surfaces.sh [--scope project|user|all] [--help]
 
 Emits one TAB-separated record per file: <scope> <kind> <path>
 
-  scope   project  — CLAUDE.md / CLAUDE.local.md / AGENTS.md at the current root, and
-                     .claude/rules/*.md
+  scope   project  — CLAUDE.md / CLAUDE.local.md / AGENTS.md / .claude/AGENTS.md at the
+                     current root, and .claude/rules/*.md
           user     — ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md and .../rules/*.md
           both     — one physical file both layers reach (a repo rooted at ~, or one
                      rooted at ~/.claude itself). Emitted once, not twice.
   kind    claude-md | claude-local-md | agents-md | rule
 
-A root AGENTS.md is emitted only where Claude Code reads it as the project instructions:
-no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md at the root to displace it. Under a
-one-line `@AGENTS.md` shim the CLAUDE.md row already covers that content, so the shim
+An AGENTS.md is emitted only where Claude Code reads it as the project instructions: no
+CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md at the root to displace it. Both AGENTS.md
+and .claude/AGENTS.md load at session start, so each existing file gets its own row. Under
+a one-line `@AGENTS.md` shim the CLAUDE.md row already covers that content, so the shim
 emits one row, not two.
 
 User-scope files load in EVERY session regardless of where the session starts, so they are
@@ -178,7 +179,9 @@ if [[ -f "CLAUDE.md" ]]; then
   emit "$proj_md_scope" claude-md "CLAUDE.md"
 fi
 [[ -f "CLAUDE.local.md" ]] && emit project claude-local-md "CLAUDE.local.md"
-agents_md_loads_natively && emit project agents-md "AGENTS.md"
+while IFS= read -r agents_file; do
+  [[ -n "$agents_file" ]] && emit project agents-md "$agents_file"
+done < <(agents_md_native_files)
 
 if [[ -d ".claude/rules" ]]; then
   proj_rule_scope=project

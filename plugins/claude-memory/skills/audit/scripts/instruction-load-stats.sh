@@ -17,8 +17,8 @@
 # A measured figure is the `context-budget` plugin's job when it is installed.
 #
 # The always-loaded set for --tokens and --breakdown is every root memory file
-# that exists (CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md; or the root
-# AGENTS.md, when none of those three is there to displace it) plus every
+# that exists (CLAUDE.md, .claude/CLAUDE.md, CLAUDE.local.md; or AGENTS.md and
+# .claude/AGENTS.md, when none of those three is there to displace them) plus every
 # `.claude/rules/**/*.md` without `paths:` frontmatter, and the same two shapes
 # in the user scope (${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md and its
 # rules/), which load in every session of every project. Each root has its
@@ -40,7 +40,7 @@
 #   instruction-load-stats.sh --help
 #
 # --file defaults to CLAUDE.md, then .claude/CLAUDE.md, whichever exists first,
-# then the root AGENTS.md when neither is there and nothing displaces it.
+# then the first natively read AGENTS.md when neither is there.
 
 set -uo pipefail
 
@@ -61,8 +61,8 @@ Usage: instruction-load-stats.sh (--lines|--bytes) [--file <path>]
 
   --lines       non-blank loaded lines of one root file with its @imports expanded
   --bytes       loaded bytes of that file with its @imports expanded
-  --file <p>    the root file (default: CLAUDE.md, else .claude/CLAUDE.md, else a
-                root AGENTS.md nothing displaces)
+  --file <p>    the root file (default: CLAUDE.md, else .claude/CLAUDE.md, else the
+                first AGENTS.md nothing displaces)
   --tokens      estimated tokens (bytes / 4) of the whole always-loaded set
   --breakdown   one TSV row per loaded file: status, lines, bytes, path; then TOTAL
   --help        this message
@@ -156,10 +156,12 @@ scope_roots() {
     for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do
       [[ -f "$f" ]] && printf '%s\t%s\n' "$scope" "$f"
     done
-    # The root AGENTS.md only where it is what the session loads. Under a shim it is
-    # already reached as the CLAUDE.md's import, so adding it here would double its
+    # The AGENTS.md files only where they are what the session loads. Under a shim one
+    # is already reached as the CLAUDE.md's import, so adding it here would double its
     # bytes; where a CLAUDE.md displaces it without importing it, it never loads.
-    agents_md_loads_natively && printf '%s\tAGENTS.md\n' "$scope"
+    while IFS= read -r agents_file; do
+      [[ -n "$agents_file" ]] && printf '%s\t%s\n' "$scope" "$agents_file"
+    done < <(agents_md_native_files)
   else
     [[ -f "$base/CLAUDE.md" ]] && printf '%s\t%s\n' "$scope" "$base/CLAUDE.md"
   fi
@@ -198,7 +200,7 @@ if [[ "$mode" == "--lines" || "$mode" == "--bytes" ]]; then
         break
       }
     done
-    [[ -z "$target" ]] && agents_md_loads_natively && target="AGENTS.md"
+    [[ -z "$target" ]] && target="$(agents_md_native_files | head -1)"
   fi
   if [[ -z "$target" || ! -f "$target" ]]; then
     echo 0

@@ -20,9 +20,10 @@ To refresh this file against current official guidance, run the skill's `update`
 
 ## Checks for CLAUDE.md and CLAUDE.local.md
 
-Every C-check here applies equally to a project root `AGENTS.md` that discovery emits as an
-`agents-md` surface: that file IS the project instructions for the session, so the same budget,
-content and currency criteria govern it. Discovery emits it only where Claude Code reads it, which
+Every C-check here applies equally to each project root `AGENTS.md` that discovery emits as an
+`agents-md` surface (`AGENTS.md` and `.claude/AGENTS.md`, both of which load at session start and
+between which the doc states no precedence): that file IS the project instructions for the
+session, so the same budget, content and currency criteria govern it. Discovery emits it only where Claude Code reads it, which
 is why a repo under a one-line `@AGENTS.md` shim has no such row (the import already counts inside
 the CLAUDE.md's expanded figure) and a displaced `AGENTS.md` has none either. Cite the finding
 against `AGENTS.md`, not against a CLAUDE.md that is not there. Basis:

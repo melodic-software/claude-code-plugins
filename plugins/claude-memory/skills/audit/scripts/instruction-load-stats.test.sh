@@ -237,4 +237,24 @@ printf '# project instructions\n\nreal content\n' >"$BLOCKED/AGENTS.md"
 OUT=$(cd "$BLOCKED" && bash "$SCRIPT" --breakdown)
 assert_not_contains "a displaced AGENTS.md is not in the always-loaded set" "$OUT" "AGENTS.md"
 
+# --- Case: .claude/AGENTS.md loads at session start too ----------------------
+# "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working
+# directory and the directories above it" (memory doc), so both are counted.
+
+DOTAG="$TEST_TMPDIR/dot-agents"
+make_repo "$DOTAG"
+mkdir -p "$DOTAG/.claude"
+printf '# project instructions\n' >"$DOTAG/.claude/AGENTS.md"
+OUT=$(cd "$DOTAG" && bash "$SCRIPT" --breakdown)
+assert_contains "a lone .claude/AGENTS.md is an always-loaded root" "$OUT" "project	root	1	23	.claude/AGENTS.md"
+OUT=$(cd "$DOTAG" && bash "$SCRIPT" --lines)
+assert_eq "--lines falls back to .claude/AGENTS.md" "1" "$OUT"
+
+printf '# root instructions\n' >"$DOTAG/AGENTS.md"
+OUT=$(cd "$DOTAG" && bash "$SCRIPT" --breakdown)
+assert_contains "both AGENTS.md names are counted: root" "$OUT" "project	root	1	20	AGENTS.md"
+assert_contains "both AGENTS.md names are counted: .claude" "$OUT" "project	root	1	23	.claude/AGENTS.md"
+OUT=$(cd "$DOTAG" && bash "$SCRIPT" --tokens)
+assert_eq "--tokens sums both AGENTS.md files (20 + 23)" "10" "$OUT"
+
 report_and_exit

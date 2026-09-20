@@ -3,6 +3,12 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.12]
+
+### Changed
+
+- `audit-instructions`: the I15 routing table and the SKILL.md boundary clause name a natively read `AGENTS.md` and `.claude/AGENTS.md` as members of the `discover-instruction-surfaces` population, which `claude-memory` 0.13.0 emits as `agents-md` rows. A contradiction whose two halves are an `AGENTS.md` and a project `CLAUDE.md` now routes to `claude-memory`'s C6, the same owner a `claude-md`-anchored pair routes to, instead of falling through to I15 on a literal reading of a list that predated the kind. The C6 paraphrase in `reference/conflict-criteria.md` defers to that discovery rather than restating a file list that can drift from it.
+
 ## [0.46.11]
 
 ### Changed

@@ -64,8 +64,12 @@ for f in CLAUDE.md .claude/CLAUDE.md; do
   }
 done
 # Same fallback instruction-load-stats.sh applies, so the header's name and its
-# line count are about the same file.
-[[ "$root_file" == "none" ]] && agents_md_loads_natively && root_file="AGENTS.md"
+# line count are about the same file. Where both AGENTS.md names load, the first
+# is named here and `--breakdown` lists them all.
+if [[ "$root_file" == "none" ]]; then
+  agents_root="$(agents_md_native_files | head -1)"
+  [[ -n "$agents_root" ]] && root_file="$agents_root"
+fi
 
 echo "Memory files: $(stat memory-dir-stats.sh --md-count)"
 echo "MEMORY.md loaded lines (200 cap): $(stat memory-dir-stats.sh --memory-lines)"

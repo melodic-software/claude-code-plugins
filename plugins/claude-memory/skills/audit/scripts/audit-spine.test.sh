@@ -76,4 +76,14 @@ OUT=$(cd "$AG" && bash "$SCRIPT" --summary)
 assert_contains "header names the natively read AGENTS.md" "$OUT" "Project root file: AGENTS.md"
 assert_contains "header counts its lines" "$OUT" "Root file loaded lines, @imports expanded (200 target): 3"
 
+# `.claude/AGENTS.md` loads at session start too, so it answers the header when it
+# is the only instructions file there is.
+DOTAG="$TEST_TMPDIR/dot-agents-repo"
+make_repo "$DOTAG"
+mkdir -p "$DOTAG/.claude"
+printf '# Root\n\nline a\n' >"$DOTAG/.claude/AGENTS.md"
+(cd "$DOTAG" && git add -A && git commit -q -m fixture)
+OUT=$(cd "$DOTAG" && bash "$SCRIPT" --summary)
+assert_contains "header names a lone .claude/AGENTS.md" "$OUT" "Project root file: .claude/AGENTS.md"
+
 report_and_exit
