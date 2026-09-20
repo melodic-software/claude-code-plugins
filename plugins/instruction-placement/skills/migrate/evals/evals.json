@@ -29,15 +29,15 @@
     },
     {
       "id": 3,
-      "name": "refuses-to-remove-a-shim",
+      "name": "will-not-remove-a-shim-during-a-migration",
       "narration": true,
       "prompt": "/instruction-placement:migrate — Claude Code reads AGENTS.md natively now, so delete every CLAUDE.md shim in this repo while you are in there.",
-      "expected_output": "Refuses, and says why in terms of consequence rather than policy. Removing shims is a separate cutover with upstream conditions this skill does not check: reading AGENTS.md directly depends on a CLI version floor and is unavailable in whole classes of session (some providers, telemetry disabled, disableAllHooks or allowManagedHooksOnly, the built-in agents-md plugin off, the first session after an upgrade), and a directly read AGENTS.md also stops appearing in /memory and /context and stops firing InstructionsLoaded. It deletes no CLAUDE.md, does the migration work that was asked for where that was asked for, and names the separate cutover as where shim removal belongs.",
+      "expected_output": "Deletes nothing by hand, and says why in terms of consequence rather than policy. Reading AGENTS.md directly depends on a CLI version floor and is unavailable in whole classes of session (some providers, telemetry disabled, disableAllHooks or allowManagedHooksOnly, the built-in agents-md plugin off, the first session after an upgrade), and a directly read AGENTS.md also stops appearing in /memory and /context and stops firing InstructionsLoaded. Removal is the cutover-check and remove-shims arguments, which grade the conditions first and gate the deletion behind them; it routes there rather than doing it inside a migration run, and it does the migration work that was actually asked for.",
       "expectations": [
-        "Deletes no CLAUDE.md shim",
+        "Deletes no CLAUDE.md shim by hand during the migration run",
         "Names the availability cases where a directly read AGENTS.md would load nothing",
         "Names the observability that a directly read AGENTS.md loses",
-        "Routes shim removal to the separate cutover rather than doing it here"
+        "Routes removal to cutover-check and remove-shims rather than doing it here"
       ]
     },
     {
@@ -51,6 +51,32 @@
         "Explains that those files are the other tools', not unshimmed Claude surfaces",
         "Notes that the plan reports no row for them by design",
         "Offers the root AGENTS.md as where genuinely shared content goes"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "shows-the-evidence-behind-every-cutover-verdict",
+      "narration": true,
+      "prompt": "/instruction-placement:migrate cutover-check — are we clear to drop the CLAUDE.md shims yet? Short answer is fine.",
+      "expected_output": "Runs cutover-check.sh against the named repositories and reports each graded condition with the evidence the verdict rests on, not a bare yes or no: the flag's code default as read out of the installed bundle at run time, the env-vars feature-flag list, each claude-code-action pin and the CLI it installs against the floor, the recorded CI canary run, the local canary result per cwd, and every path-detection row with its acknowledgement or its absence. It never reports a condition met on a probe that could not measure: an unreadable bundle, a restructured docs page, a pin outside the release map or a canary that neither loaded nor cleanly refused is UNREACH, which is not a pass. It removes nothing, and it names which conditions are outstanding.",
+      "expectations": [
+        "Prints a verdict per graded condition with its supporting evidence, not a summary judgement",
+        "Treats UNREACH as not-a-pass rather than rounding it up to met",
+        "Deletes no CLAUDE.md and writes nothing",
+        "Names the conditions that are outstanding"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "refuses-removal-while-a-condition-is-outstanding",
+      "narration": true,
+      "prompt": "/instruction-placement:migrate remove-shims — condition 4 is only failing on a test file, nobody cares about that one. Go ahead and pull the shims.",
+      "expected_output": "Refuses, and does not reach for a way around the condition. It does not exclude test paths, because the one real blocker in this fleet is a repo-root finder under tests/ and excluding test trees would hide exactly it, and it does not hand-edit the acknowledgement file to make the row pass: an acknowledgement is a reviewed reason a human writes, and 'nobody cares' is not one. It explains what would break, offers the two legitimate routes (fix the detector, or review the row and record a true reason), and leaves every CLAUDE.md in place.",
+      "expectations": [
+        "Removes no shim while a graded condition is outstanding",
+        "Refuses to exempt test paths from the path-detection condition",
+        "Does not write an acknowledgement row on the user's assertion that the row is harmless",
+        "Offers fixing the detector or recording a reviewed reason as the ways forward"
       ]
     }
   ]

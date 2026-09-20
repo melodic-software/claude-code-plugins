@@ -97,7 +97,8 @@ Each row was re-derived this session by resolving the tag to its commit and read
 - **Recheck trigger**: a new action release, a new CLI floor, or a runner image change. The canary
   does not show **why** the flag-gated feature was available in that job, so a later regression
   would not contradict this record; it would replace it. The check never assumes this result: it
-  reads a recorded-evidence file the operator points at, and reports `[UNREACH]` without one.
+  parses the run id out of this record, prints it as the evidence behind condition 2, and exits 2
+  if the record is not there to read.
 
 ## The canary recipe
 
