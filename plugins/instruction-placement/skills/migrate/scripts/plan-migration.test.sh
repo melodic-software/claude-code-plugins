@@ -427,6 +427,37 @@ OUT=$(bash "$SCRIPT" --root "$PINS" --home "$TMP/nohome")
 assert_contains "a uses: line is a pin" "$OUT" "ACTION	.github/workflows/w.yml:5"
 assert_not_contains "a comment naming the action is not" "$OUT" "ACTION	.github/workflows/w.yml:1"
 
+# A composite action pins the CLI exactly as a workflow does, and the subpath
+# form is the same action through another entry point. Missing either reports a
+# repository with a pin as having none.
+mkdir -p "$PINS/.github/actions/review"
+printf 'runs:\n  steps:\n      - uses: anthropics/claude-code-action/base-action@2261fcf # v1.0.228\n' \
+  >"$PINS/.github/actions/review/action.yml"
+commit_all "$PINS" "a composite action wrapping the base action"
+OUT=$(bash "$SCRIPT" --root "$PINS" --home "$TMP/nohome")
+assert_contains "a composite action under .github/actions is scanned" "$OUT" \
+  "ACTION	.github/actions/review/action.yml:3"
+assert_contains "and the base-action subpath form is a pin" "$OUT" "claude-code-action/base-action@2261fcf"
+
+# --- Case 18b: .claude/ is scanned for detectors, minus the ack list ---
+
+CLAUDEDIR="$TMP/claudedir"
+make_repo "$CLAUDEDIR"
+mkdir -p "$CLAUDEDIR/.claude/hooks"
+printf '# Root\n' >"$CLAUDEDIR/AGENTS.md"
+printf '@AGENTS.md\n' >"$CLAUDEDIR/CLAUDE.md"
+# shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
+printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$CLAUDEDIR/.claude/hooks/guard.sh"
+# shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
+printf 'a/b.sh\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\treviewed\n' \
+  >"$CLAUDEDIR/.claude/cutover-pathdet-ack.txt"
+commit_all "$CLAUDEDIR"
+
+OUT=$(bash "$SCRIPT" --root "$CLAUDEDIR" --home "$TMP/nohome")
+assert_contains "a detector under .claude/ is reported" "$OUT" "PATHDET	.claude/hooks/guard.sh:1"
+assert_not_contains "the acknowledgement list is not its own detector" "$OUT" \
+  "PATHDET	.claude/cutover-pathdet-ack.txt"
+
 # --- Case 19: more than one import is not the target shape ---
 
 DUPE="$TMP/dupeimport"

@@ -43,11 +43,13 @@ CUTOVER_CHECK="$SCRIPT_DIR/cutover-check.sh"
 SOURCES_MD="$SCRIPT_DIR/../reference/sources.md"
 
 # The releases that corrected the shim doctrine, from each plugin's own
-# CHANGELOG `## [<version>]` heading: instruction-placement 0.14.0 added the
-# migrate skill and the corrected reachability verdicts, claude-memory 0.12.9
-# corrected its fix path. An installed build below either one advises a
-# de-shimmed repository back to the old shape.
-FLOOR_INSTRUCTION_PLACEMENT="0.14.0"
+# CHANGELOG `## [<version>]` heading: claude-memory 0.12.9 corrected its fix
+# path, and instruction-placement 0.15.0 is where the last of the old doctrine
+# went (`realign/context/apply-recipes.md` and `context/routing-rubric.md` both
+# still sent Claude-specific text to the CLAUDE.md below the import at 0.14.0).
+# An installed build below either one advises a de-shimmed repository back to
+# the old shape.
+FLOOR_INSTRUCTION_PLACEMENT="0.15.0"
 FLOOR_CLAUDE_MEMORY="0.12.9"
 
 ROOT=""
@@ -177,19 +179,24 @@ if ((CONFIRM == 0)); then
 fi
 
 # --- 3. the installed doctrine --------------------------------------------
+# The LOWEST version installed anywhere, not the highest. A plugin is installed
+# per scope, and the scope that answers in a given project is not the newest
+# one: a user-scope 0.15.0 beside a project-scope 0.13.11 would otherwise
+# report 0.15.0 and let the stale copy give the old advice in the very
+# repository being de-shimmed.
 installed_version() { # <plugin name>
   command -v jq >/dev/null 2>&1 || return 1
   [[ -f "$INSTALLED_PLUGINS" ]] || return 1
-  local best="" v
+  local worst="" v
   while IFS= read -r v; do
     v="${v%$'\r'}"
     [[ -n "$v" ]] || continue
-    if [[ -z "$best" ]] || ver_ge "$v" "$best"; then best="$v"; fi
+    if [[ -z "$worst" ]] || ver_ge "$worst" "$v"; then worst="$v"; fi
   done < <(jq -r --arg p "$1@" '.plugins | to_entries[]
              | select(.key | startswith($p)) | .value[].version' \
     "$INSTALLED_PLUGINS" 2>/dev/null)
-  [[ -n "$best" ]] || return 1
-  printf '%s' "$best"
+  [[ -n "$worst" ]] || return 1
+  printf '%s' "$worst"
 }
 
 for pair in "instruction-placement:$FLOOR_INSTRUCTION_PLACEMENT" "claude-memory:$FLOOR_CLAUDE_MEMORY"; do
@@ -199,9 +206,9 @@ for pair in "instruction-placement:$FLOOR_INSTRUCTION_PLACEMENT" "claude-memory:
     refuse "cannot read the installed version of $name from $INSTALLED_PLUGINS (jq missing, file absent, or the plugin is not installed). An unread version is not a version that carries the corrected doctrine."
   fi
   if ! ver_ge "$have" "$floor"; then
-    refuse "installed $name is $have, below the corrected-doctrine release $floor. An older build tells a de-shimmed repository to put the shim back."
+    refuse "installed $name is $have (the lowest copy across every scope), below the corrected-doctrine release $floor. An older build tells a de-shimmed repository to put the shim back."
   fi
-  echo "  installed $name $have, at or above $floor"
+  echo "  installed $name $have (lowest across scopes), at or above $floor"
 done
 echo
 
@@ -263,56 +270,74 @@ canary_line() { # <dir> — the longest plain prose line of that directory's AGE
   printf '%s' "$best"
 }
 
-trigger_file() { # <dir> — a tracked file in that directory that is not an instruction file
-  local dir="$1" here f
-  if [[ "$dir" == "." ]]; then here="$REPO"; else here="$REPO/$dir"; fi
-  while IFS= read -r f; do
-    f="${f%$'\r'}"
-    case "$f" in
-    '' | */* | 'AGENTS.md' | 'CLAUDE.md' | 'CLAUDE.local.md') continue ;;
-    *) ;;
-    esac
-    printf '%s' "$f"
-    return 0
-  done < <(cd "$here" && git ls-files . 2>/dev/null)
-  return 1
-}
-
 declare -A CANARY_LINE
-declare -A CANARY_TRIGGER
 for dir in "${SHIM_DIRS[@]}"; do
   if ! CANARY_LINE[$dir]="$(canary_line "$dir")"; then
     refuse "$dir/AGENTS.md carries no line distinctive enough to canary. A surface that cannot be verified is not de-shimmed."
   fi
-  if ! CANARY_TRIGGER[$dir]="$(trigger_file "$dir")"; then
-    refuse "$dir has no tracked file besides its instruction files for the canary to read. A surface that cannot be verified is not de-shimmed."
-  fi
 done
 
 # --- 7. removal, root and nested together ---------------------------------
+# Past this point the repository is half-shaped until the canaries pass, so
+# every exit runs through the restore: a failed removal, an interrupt, or a
+# canary that did not return its line all put back what this run took out.
 REMOVED=()
+CANARY_PASSED=0
+SHIM_LINE='@AGENTS.md'
+
+shim_path() {
+  if [[ "$1" == "." ]]; then printf 'CLAUDE.md'; else printf '%s/CLAUDE.md' "$1"; fi
+}
+
+# Gate 5 proved every one of these files is EXACTLY the import line, so the
+# restore writes that line rather than asking git for the index copy, which a
+# staged edit would have replaced. The write is verified byte for byte, and a
+# restore that did not land says so and takes the exit code with it.
+restore_all() {
+  local d path target failed=0 got
+  for d in ${REMOVED[@]+"${REMOVED[@]}"}; do
+    path="$(shim_path "$d")"
+    target="$REPO/$path"
+    printf '%s\n' "$SHIM_LINE" >"$target" 2>/dev/null
+    got="$(cat "$target" 2>/dev/null)"
+    if [[ "$got" == "$SHIM_LINE" ]]; then
+      printf '%s\n' "  restored $path"
+    else
+      failed=$((failed + 1))
+      printf '%s\n' "  COULD NOT RESTORE $path; write it back by hand as one line: $SHIM_LINE"
+    fi
+  done
+  REMOVED=()
+  return "$failed"
+}
+
+# shellcheck disable=SC2329 # invoked by the INT/TERM trap below
+on_interrupt() {
+  if ((${#REMOVED[@]} > 0)) && ((CANARY_PASSED == 0)); then
+    printf '\ninterrupted with shims removed and unverified; restoring:\n'
+    restore_all || :
+  fi
+  exit 1
+}
+trap on_interrupt INT TERM
+
 for dir in "${SHIM_DIRS[@]}"; do
-  target="$REPO/CLAUDE.md"
-  [[ "$dir" == "." ]] || target="$REPO/$dir/CLAUDE.md"
-  rm -f "$target" || refuse "could not remove $target"
+  target="$REPO/$(shim_path "$dir")"
+  if ! rm -f "$target"; then
+    echo "could not remove $target; restoring every shim this run removed:"
+    restore_all || :
+    refuse "removal failed part way through; the repository is back at the shim shape."
+  fi
   REMOVED+=("$dir")
-  echo "  removed ${dir%/}/CLAUDE.md"
+  echo "  removed $(shim_path "$dir")"
 done
 echo
 
-restore_all() {
-  local d path
-  for d in "${REMOVED[@]}"; do
-    path="CLAUDE.md"
-    [[ "$d" == "." ]] || path="$d/CLAUDE.md"
-    (cd "$REPO" && git checkout -- "$path") 2>/dev/null ||
-      printf '%s\n' "  could not restore $path; write it back by hand as one line: @AGENTS.md"
-    printf '%s\n' "  restored $path"
-  done
-}
-
 # --- 8. one canary per de-shimmed directory -------------------------------
-echo "Canaries (the repository's own text, no token written):"
+# NO TOOLS (`--tools ""`). A canary that let the model read the file would
+# prove only that the file is readable; instructions load at session start, so
+# a reply from a session that could not read anything is evidence of a load.
+echo "Canaries (the repository's own text, no token written, no tools available):"
 MISS=0
 for dir in "${SHIM_DIRS[@]}"; do
   line="${CANARY_LINE[$dir]}"
@@ -321,8 +346,8 @@ for dir in "${SHIM_DIRS[@]}"; do
   [[ "$dir" == "." ]] || cwd="$REPO/$dir"
   rc=0
   reply="$(cd "$cwd" && "$CLAUDE_BIN" -p \
-    "Call the Read tool on the file ${CANARY_TRIGGER[$dir]}. Then quote back, verbatim, every line of your project instructions that contains \"$probe\". If there are none, say NONE." \
-    --model haiku --allowedTools Read </dev/null 2>/dev/null)" || rc=$?
+    "Quote back, verbatim, every line of your project instructions that contains \"$probe\". If there are none, say NONE." \
+    --model haiku --tools "" </dev/null 2>/dev/null)" || rc=$?
   if ((rc != 0)); then
     echo "  $dir: UNREACH, the CLI exited $rc"
     MISS=$((MISS + 1))
@@ -344,11 +369,17 @@ echo
 
 if ((MISS > 0)); then
   echo "$MISS canary result(s) were not a pass. Restoring every shim this run removed:"
-  restore_all
+  restore_rc=0
+  restore_all || restore_rc=$?
   echo
+  if ((restore_rc > 0)); then
+    refuse "the de-shimmed repository did not verify, and $restore_rc shim(s) could NOT be put back. Restore them by hand before any further work in this repository."
+  fi
   refuse "the de-shimmed repository did not verify; it is back at the shim shape."
 fi
 
-echo "=== Removed ${#REMOVED[@]} shim(s) from $REPO; every canary returned its AGENTS.md line. ==="
+CANARY_PASSED=1
+REMOVED_COUNT=${#REMOVED[@]}
+echo "=== Removed $REMOVED_COUNT shim(s) from $REPO; every canary returned its AGENTS.md line. ==="
 echo "Commit the deletions, and re-run the canaries after the merge."
 exit 0

@@ -393,9 +393,16 @@ roll_up_mentions() {
 # CITE and PATHDET are reported on their own and must not be repeated as
 # MENTION rows, so each keeps its bare `file:line:text` hits for the exclusion.
 PATHDET_HITS="$(mktemp)"
+PATHDET_RAW="$(mktemp)"
 CITE_HITS="$(mktemp)"
 ALREADY_REPORTED="$(mktemp)"
-trap 'rm -f "$PATHDET_HITS" "$CITE_HITS" "$ALREADY_REPORTED"' EXIT
+trap 'rm -f "$PATHDET_HITS" "$PATHDET_RAW" "$CITE_HITS" "$ALREADY_REPORTED"' EXIT
+
+# A scan that FAILED and a scan that found nothing are the same empty output,
+# and a consumer reading the second for the first grades a condition met on a
+# broken probe. `git grep` and `grep` both exit 1 for "no match" and above 1
+# for an error, so every scan here reports the error as its own row.
+scan_failed() { (($1 > 1)); }
 
 # --- CASE -----------------------------------------------------------------
 # Claude Code matches the names exactly; a case-folding filesystem does not, so
@@ -444,10 +451,23 @@ fi
 # Code that finds a directory by the existence of CLAUDE.md. Each one keeps
 # working while the shim exists and breaks the day it comes out, which is why
 # this is a plan row rather than a cutover surprise.
+#
+# `.claude/` is scanned like any other tree: a hook or helper script there can
+# locate a path by CLAUDE.md exactly as one anywhere else can. The one file
+# excluded from it is the cutover acknowledgement list, whose every line quotes
+# a detector by design; reporting those quotations as detectors would make the
+# file that answers this row also generate it.
+pathdet_rc=0
 git grep -n -I -E '(File\.Exists|isFile|-f |test -f|os\.path\.exists|fs\.existsSync|Files\.exists)[^;]{0,40}CLAUDE\.md' \
-  -- ':!*.md' ':!.claude/*' 2>/dev/null |
-  grep -vE ':[0-9]+:[[:space:]]*(#|//|\*)' >"$PATHDET_HITS"
-sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
+  -- ':!*.md' ':!.claude/cutover-pathdet-ack.txt' ':!**/.claude/cutover-pathdet-ack.txt' \
+  >"$PATHDET_RAW" 2>/dev/null || pathdet_rc=$?
+if scan_failed "$pathdet_rc"; then
+  : >"$PATHDET_HITS"
+  printf 'PATHDET\tERROR\tgit grep exited %s; the scan did not complete\n' "$pathdet_rc"
+else
+  grep -vE ':[0-9]+:[[:space:]]*(#|//|\*)' "$PATHDET_RAW" >"$PATHDET_HITS"
+  sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
+fi
 
 # --- CITE -----------------------------------------------------------------
 # Citations that RESOLVE into CLAUDE.md: a markdown link target, with or without
@@ -531,13 +551,27 @@ fi
 # --- ACTION ---------------------------------------------------------------
 # Every claude-code-action pin. The pin decides the CLI version CI installs,
 # and so whether a CI session reads AGENTS.md at all.
-if [[ -d ".github/workflows" ]]; then
+#
+# Both `.github/workflows` and `.github/actions` are scanned: a composite
+# action pins the CLI exactly as a workflow does, and a repository that wraps
+# the action in one would otherwise report no pin at all. The subpath form
+# (`claude-code-action/base-action@...`) is the same pin through a different
+# entry point.
+ACTION_DIRS=()
+[[ -d ".github/workflows" ]] && ACTION_DIRS+=(".github/workflows")
+[[ -d ".github/actions" ]] && ACTION_DIRS+=(".github/actions")
+if [[ ${#ACTION_DIRS[@]} -gt 0 ]]; then
   # A `uses:` line only. A comment mentioning the action is not a pin, and
   # reporting one as a version CI installs sends the cutover check after a
   # string nothing reads.
-  grep -rn -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[^#]*claude-code-action@' \
-    .github/workflows 2>/dev/null |
-    sed 's/^/ACTION\t/' | emit_rows ACTION
+  action_rc=0
+  action_rows="$(grep -rn -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[^#]*claude-code-action(/[A-Za-z0-9._-]+)*@' \
+    "${ACTION_DIRS[@]}" 2>/dev/null)" || action_rc=$?
+  if scan_failed "$action_rc"; then
+    printf 'ACTION\tERROR\tgrep exited %s; the scan did not complete\n' "$action_rc"
+  else
+    printf '%s' "$action_rows" | sed 's/^/ACTION\t/' | emit_rows ACTION
+  fi
 else
   printf 'ACTION\tNONE\n'
 fi

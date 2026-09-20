@@ -12,17 +12,34 @@
 #
 # Matching is on path plus exact source text, never line number: a row that
 # moves still matches, and a row whose code changed falls out and has to be
-# re-reviewed. A PATHDET row with no row here is [UNMET] and is named in the
+# re-reviewed. A row with an empty reason acknowledges nothing; the reason is
+# the review. A PATHDET row with no row here is [UNMET] and is named in the
 # check's output. No path convention exempts anything, test trees included.
+#
+# This repository is deliberately NOT at [MET]. One row is outstanding:
+# claude-memory's discover-instruction-surfaces.sh:159. That script has no
+# AGENTS.md handling at all (grep AGENTS over it returns nothing), so after
+# cutover it would emit no project instruction-surface row and the audit would
+# report a repository with instructions as having none. It is a real blocker,
+# it is fixed in claude-memory rather than acknowledged here, and until then
+# this repository honestly reports condition 4 unmet.
 
 plugins/architecture/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Resolves which file carries a convention-home region. AGENTS.md is checked first and treated as canonical, and the CLAUDE.md branch already detects a pure shim and skips it, so with no CLAUDE.md the resolution is unchanged.
 plugins/claude-config/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
 plugins/planning/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
 plugins/plugin-quality/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
-plugins/claude-memory/skills/audit/scripts/discover-instruction-surfaces.sh	if [[ -f "CLAUDE.md" ]]; then	Emits a claude-md row for a project CLAUDE.md. With none present it emits no row, which is the correct inventory rather than a broken path.
-plugins/claude-memory/skills/audit/scripts/discover-instruction-surfaces.sh	if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then	The user-scope equivalent of the row above, and ~/.claude/CLAUDE.md is never removed by this migration.
-plugins/claude-memory/skills/audit/scripts/instruction-load-stats.sh	[[ -f "$base/CLAUDE.md" ]] && printf '%s\t%s\n' "$scope" "$base/CLAUDE.md"	Counts always-loaded bytes per scope. With no CLAUDE.md it counts nothing there, which is the right number.
+plugins/claude-memory/skills/audit/scripts/discover-instruction-surfaces.sh	if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then	User scope, and ~/.claude/CLAUDE.md is never removed by this migration; it is the one permanent CLAUDE.md.
+plugins/claude-memory/skills/audit/scripts/instruction-load-stats.sh	[[ -f "$base/CLAUDE.md" ]] && printf '%s\t%s\n' "$scope" "$base/CLAUDE.md"	Counts always-loaded bytes per scope, and reports per surface found. A scope with no CLAUDE.md contributes zero bytes, which is the right number whether or not the file ever existed.
 plugins/claude-memory/skills/audit/scripts/nested-agents-check.sh	[[ -f "$dir/CLAUDE.md" || -f "$dir/.claude/CLAUDE.md" || -f "$dir/CLAUDE.local.md" ]] && return 0	is_blocked(), whose whole job is to see whether a CLAUDE.md on the path stops native reading. Post-cutover it correctly reports unblocked.
 plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$HAZARD/tools/find-root.sh"	A fixture string this suite writes into a temporary repository to prove PATHDET detects a real detector. It locates no path in this repository.
 plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf '# Comment: -f CLAUDE.md is not a path detector\n' >>"$HAZARD/tools/find-root.sh"	A fixture string proving a commented-out detector is not reported. It locates no path in this repository.
 plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'if [[ -f "CLAUDE.md" ]]; then :; fi\n' >"$MENTION/src/find.sh"	A fixture string proving MENTION does not repeat a row PATHDET already reported. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$CLAUDEDIR/.claude/hooks/guard.sh"	A fixture string proving a detector under .claude/ is scanned like any other tree. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.test.sh	printf 'a/b.sh\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\treviewed\n' \	A fixture acknowledgement list, written to prove the list is not read as its own detector. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$DIRTY/tools/find-root.sh"	A fixture string written into a temporary repository so condition 4 has an unacknowledged row to report. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf '# a comment row\n\nnot/the/path\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\twrong path\n' \	A fixture acknowledgement list proving a row for another path does not cover this one. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf 'tools/find-root.sh\tif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\tfixture, locates nothing\n' \	A fixture acknowledgement list proving a matching row covers its detector. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf '# padding\n# padding\nif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' \	A fixture string proving a row that moved to a new line stays acknowledged. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf '# padding\nif [[ -f "$root/CLAUDE.md" || -f "$root/other" ]]; then echo found; fi\n' \	A fixture string proving a row whose code changed falls out of its acknowledgement. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/cutover-check.test.sh	printf 'tools/find-root.sh\tif [[ -f "$root/CLAUDE.md" || -f "$root/other" ]]; then echo found; fi\t\n' \	A fixture acknowledgement list with an empty reason, proving such a row acknowledges nothing. It locates no path in this repository.
+plugins/instruction-placement/skills/migrate/scripts/remove-shims.test.sh	printf 'if [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' >"$BLOCKED/tools/find-root.sh"	A fixture string written into a temporary repository so remove-shims has an unmet condition to refuse on. It locates no path in this repository.

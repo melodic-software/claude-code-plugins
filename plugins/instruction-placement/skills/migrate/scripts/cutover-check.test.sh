@@ -238,7 +238,36 @@ assert_not_contains "and never reports it MET" "$OUT" "no longer carries the AGE
 printf 'tengu_agents_md_mod appears with no export beside it\n' >"$TMP/bundle-opaque"
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-opaque" --env-vars-file "$ENVVARS_NOHEADING" --skip-canary)
-assert_contains "an unreadable bundle reports UNREACH" "$OUT" "no window around"
+assert_contains "an unreadable bundle reports UNREACH" "$OUT" "no window ties"
+
+# The identifier comes from the registration, not from the first isOnByDefault
+# in the window: a window holding two plugins would otherwise resolve this
+# flag's default from a neighbour's variable.
+{
+  printf 'Cs(A,{isOnByDefault:()=>Q});var Q=!0;'
+  printf 'Cs(ne,{isOnByDefault:()=>W});var W=!1;var B=()=>Gl("tengu_agents_md_mod",W);'
+} >"$TMP/bundle-neighbour"
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-neighbour" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
+assert_contains "the default is read from the registered identifier" "$OUT" "var W=!1"
+assert_contains "and the neighbouring plugin's true default is not borrowed" "$OUT" \
+  "[UNMET]   code default false"
+
+# A registration with no export tying to the same identifier answers nothing.
+printf 'var B=()=>Gl("tengu_agents_md_mod",W);var W=!1;' >"$TMP/bundle-untied"
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-untied" --env-vars-file "$ENVVARS_NOHEADING" --skip-canary)
+assert_contains "an untied registration is UNREACH" "$OUT" "no isOnByDefault export ties to it"
+
+# The same declaration is reachable from more than one offset on some builds.
+# Two occurrences that AGREE are one answer, not a disagreement.
+{
+  printf 'Gl("tengu_agents_md_mod",W) mentioned once here; '
+  printf 'Cs(ne,{isOnByDefault:()=>W});var W=!0;var B=()=>Gl("tengu_agents_md_mod",W);'
+} >"$TMP/bundle-twice"
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-twice" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
+assert_contains "two agreeing occurrences are one answer" "$OUT" "code default for tengu_agents_md_mod is true"
 
 # --- Case 5: the pin map ---------------------------------------------------
 
@@ -255,6 +284,58 @@ OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
 assert_contains "a pin outside the release map is UNREACH" "$OUT" "is not in the release map"
 assert_not_contains "and is never reported as clearing the floor" "$OUT" "[MET]     1 pin"
+
+# A ref the script cannot parse must not prefix-match the release map's first
+# row and borrow its CLI version.
+BADREF="$TMP/badref"
+make_repo "$BADREF"
+mkdir -p "$BADREF/.github/workflows"
+printf '# Shared\n' >"$BADREF/AGENTS.md"
+# shellcheck disable=SC2016 # the fixture line is literal YAML; the ${{ }} must not expand here
+printf 'jobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@${{ env.PIN }}\n' \
+  >"$BADREF/.github/workflows/claude.yml"
+commit_all "$BADREF"
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$BADREF" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "an unparsable pin ref is UNREACH" "$OUT" "could not parse a ref out of the pin"
+assert_not_contains "and never borrows the first release-map row" "$OUT" "installs CLI 2.1.258"
+
+# A scan that failed and a scan that found nothing are the same empty output.
+# The plan says which it was, and a plan that says neither is UNREACH.
+ERRPLAN="$TMP/errplan"
+make_repo "$ERRPLAN"
+printf '# Shared\n' >"$ERRPLAN/AGENTS.md"
+commit_all "$ERRPLAN"
+STUB_DIR="$TMP/stub-plan"
+mkdir -p "$STUB_DIR"
+printf '#!/usr/bin/env bash\nprintf "DIR\\t.\\tshim\\t11\\t9\\n"\n' >"$STUB_DIR/plan-migration.sh"
+printf '#!/usr/bin/env bash\nprintf "ACTION\\tERROR\\tgrep exited 2\\nPATHDET\\tERROR\\tgit grep exited 2\\n"\n' \
+  >"$STUB_DIR/plan-migration-error.sh"
+chmod +x "$STUB_DIR/plan-migration.sh" "$STUB_DIR/plan-migration-error.sh"
+
+silent_plan_check() { # <stub name>
+  local stub="$TMP/silent-$1"
+  mkdir -p "$stub/scripts" "$stub/reference"
+  cp "$SCRIPT" "$stub/scripts/cutover-check.sh"
+  cp "$STUB_DIR/$2" "$stub/scripts/plan-migration.sh"
+  cp "$REAL_SOURCES" "$stub/reference/sources.md"
+  bash "$stub/scripts/cutover-check.sh" --repo "$ERRPLAN" \
+    --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary
+}
+
+rc=0
+OUT=$(silent_plan_check quiet plan-migration.sh) || rc=$?
+assert_contains "a plan with no ACTION row is UNREACH, not zero pins" "$OUT" \
+  "the plan carries no ACTION row"
+assert_contains "a plan with no PATHDET row is UNREACH, not a clean tree" "$OUT" \
+  "the plan carries no PATHDET row"
+assert_not_contains "and neither condition is graded on the silence" "$OUT" "[MET]     0 pin"
+
+rc=0
+OUT=$(silent_plan_check errored plan-migration-error.sh) || rc=$?
+assert_contains "an errored pin scan is UNREACH" "$OUT" "the pin scan failed"
+assert_contains "an errored detection scan is UNREACH" "$OUT" "the detection scan failed"
 
 # A comment naming the action is not a pin, and an absent workflow directory is
 # reported as checked rather than silently skipped.
@@ -282,6 +363,17 @@ assert_not_contains "and is never a pass" "$OUT" "both legs returned the canary 
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "--skip-canary is UNREACH, not a skip" "$OUT" "[UNREACH] --skip-canary"
+
+# The canary writes an AGENTS.md, so its scratch root must not be a working
+# tree: a repository handed here would get an instruction file it never asked
+# for, and would lose it again when the leg cleaned up.
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" \
+  --claude-bin "$TMP/bin/claude-met" --canary-home-root "$CLEAN/scratch" \
+  --canary-alt-root "$TMP/canary-alt")
+assert_contains "a canary root inside a git repository is refused" "$OUT" \
+  "is inside a git repository"
+assert_eq "and that repository is untouched" "" "$(cd "$CLEAN" && git status --porcelain)"
 
 # --- Case 7: the acknowledgement file --------------------------------------
 
@@ -322,6 +414,17 @@ commit_all "$DIRTY" "row changed"
 OUT=$(bash "$SCRIPT" --repo "$DIRTY" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "a changed row falls out and is re-reported" "$OUT" \
+  "UNACKNOWLEDGED tools/find-root.sh"
+
+# The reason IS the review. A row with a path and a copy of the line but no
+# reason acknowledges nothing.
+# shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
+printf 'tools/find-root.sh\tif [[ -f "$root/CLAUDE.md" || -f "$root/other" ]]; then echo found; fi\t\n' \
+  >"$DIRTY/.claude/cutover-pathdet-ack.txt"
+commit_all "$DIRTY" "ack row with no reason"
+OUT=$(bash "$SCRIPT" --repo "$DIRTY" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
+assert_contains "an acknowledgement with no reason acknowledges nothing" "$OUT" \
   "UNACKNOWLEDGED tools/find-root.sh"
 
 # A repository with no detection at all needs no file.

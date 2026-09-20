@@ -205,7 +205,22 @@ section '## `claude-code-action` release to installed CLI version' |
 }
 
 PLAN_OUT="$(mktemp -d)"
-trap 'rm -f "$ACTION_MAP"; rm -rf "$PLAN_OUT"' EXIT
+
+# Scratch directories the canary creates, so an interrupted leg leaves none
+# behind. Only paths this script made are ever in here, and only ones whose
+# name it chose: an empty entry is skipped rather than removed.
+CANARY_DIRS=()
+clean_canary_dirs() {
+  local d
+  for d in ${CANARY_DIRS[@]+"${CANARY_DIRS[@]}"}; do
+    case "$d" in
+    */cutover-canary.??????) rm -rf "$d" ;;
+    *) ;;
+    esac
+  done
+  CANARY_DIRS=()
+}
+trap 'rm -f "$ACTION_MAP"; rm -rf "$PLAN_OUT"; clean_canary_dirs' EXIT INT TERM
 
 # `a >= b` over dotted numeric versions. `sort -V` would do it and is GNU-only.
 ver_ge() {
@@ -260,22 +275,36 @@ condition_1() {
       ((start < 0)) && start=0
       window="$(tail -c "+$((start + 1))" "$bundle" | head -c $((BUNDLE_WINDOW * 2)) |
         tr -c '[:print:]' ' ')"
-      id="$(printf '%s' "$window" | grep -oE 'isOnByDefault:\(\)=>[A-Za-z_$][A-Za-z0-9_$]*' | head -n 1)"
-      id="${id##*>}"
+      # The identifier is taken from the REGISTRATION, `Gl("<flag>",<id>)`, not
+      # from the first `isOnByDefault` in the window. Those are the same symbol
+      # on the builds seen so far, and nothing in a minified bundle guarantees
+      # it: a window holding two plugins would otherwise resolve this flag's
+      # default from a neighbour's variable. The export is still required, and
+      # required to name the SAME identifier, so a window where the two cannot
+      # be tied together answers nothing.
+      id="$(printf '%s' "$window" |
+        grep -oE "\"${FLAG_NAME}\",[A-Za-z_\$][A-Za-z0-9_\$]*" | head -n 1)"
+      id="${id##*,}"
       [[ -n "$id" ]] || continue
       esc="$(printf '%s' "$id" | sed 's/[$]/\\$/g')"
+      printf '%s' "$window" | grep -qE "isOnByDefault:\(\)=>${esc}([^A-Za-z0-9_\$]|$)" || {
+        note "bundle offset $off: registration names $id, but no isOnByDefault export ties to it"
+        continue
+      }
       val="$(printf '%s' "$window" | grep -oE "var ${esc}=(!0|!1)" | head -n 1)"
       val="${val##*=}"
       [[ -n "$val" ]] || continue
-      note "bundle $bundle offset $off: isOnByDefault:()=>$id, var $id=$val"
+      note "bundle $bundle offset $off: \"$FLAG_NAME\",$id with isOnByDefault:()=>$id, var $id=$val"
       case "$val" in
-      '!0') seen="${seen}true " ;;
-      '!1') seen="${seen}false " ;;
+      # Agreeing occurrences are one answer, not a disagreement: the same
+      # declaration is reachable from more than one offset on some builds.
+      '!0') case "$seen" in *true*) ;; *) seen="${seen}true " ;; esac ;;
+      '!1') case "$seen" in *false*) ;; *) seen="${seen}false " ;; esac ;;
       *) ;;
       esac
     done < <(grep -abo "$FLAG_NAME" "$bundle" 2>/dev/null)
     case "$seen" in
-    "") note "bundle: no window around '$FLAG_NAME' carries isOnByDefault" ;;
+    "") note "bundle: no window ties '$FLAG_NAME' to a resolvable code default" ;;
     "true ") verdict="default-true" ;;
     "false ") verdict="default-false" ;;
     *) note "bundle: occurrences disagree on the default ($seen)" ;;
@@ -318,6 +347,8 @@ condition_1() {
 # --- Condition 2 ----------------------------------------------------------
 action_cli_version() {
   local ref="$1" tag commit ver
+  # An empty ref would prefix-match the map's first row and borrow its version.
+  [[ -n "$ref" ]] || return 1
   while IFS=$'\t' read -r tag commit ver; do
     [[ -n "$tag" ]] || continue
     if [[ "$ref" == "$tag" || "$commit" == "$ref"* ]]; then
@@ -329,19 +360,43 @@ action_cli_version() {
 }
 
 condition_2() {
-  local repo kind row ref ver pins=0 below=0 unknown=0
+  local repo kind row ref ver pins=0 below=0 unknown=0 rows
   echo "Condition 2: every claude-code-action pin installs CLI $CLI_FLOOR or later, and the CI canary is on record"
 
   for repo in "${REPOS[@]}"; do
+    # A plan with no ACTION row at all is a plan that did not run this scan.
+    # "Checked, and there is none" arrives as an explicit NONE row, so silence
+    # is a defect and never an absence of pins.
+    rows="$(awk -F'\t' '$1 == "ACTION"' "$(repo_plan "$repo")")"
+    if [[ -z "$rows" ]]; then
+      note "$repo: the plan carries no ACTION row; the pin scan did not report"
+      unknown=$((unknown + 1))
+      continue
+    fi
     while IFS=$'\t' read -r kind row; do
       [[ "$kind" == "ACTION" ]] || continue
+      # An ERROR row carries its detail in a further tab-separated field, which
+      # `read` leaves attached to this one.
+      if [[ "$row" == ERROR* ]]; then
+        note "$repo: the pin scan failed (${row#ERROR?})"
+        unknown=$((unknown + 1))
+        continue
+      fi
       if [[ "$row" == "NONE" ]]; then
         note "$repo: no claude-code-action pin"
         continue
       fi
-      ref="$(printf '%s' "$row" | grep -oE 'claude-code-action@[A-Za-z0-9._-]+' | head -n 1)"
+      ref="$(printf '%s' "$row" | grep -oE 'claude-code-action(/[A-Za-z0-9._-]+)*@[A-Za-z0-9._-]+' | head -n 1)"
       ref="${ref#*@}"
       pins=$((pins + 1))
+      # An empty ref is a `uses:` line this script could not parse, and an
+      # empty needle prefix-matches the first row of the release map, so it
+      # would silently borrow that row's CLI version.
+      if [[ -z "$ref" ]]; then
+        unknown=$((unknown + 1))
+        note "$repo: could not parse a ref out of the pin ($row)"
+        continue
+      fi
       if ver="$(action_cli_version "$ref")"; then
         if ver_ge "$ver" "$CLI_FLOOR"; then
           note "$repo: pin $ref installs CLI $ver, at or above $CLI_FLOOR"
@@ -381,24 +436,41 @@ condition_2() {
 #
 # The token is in the prompt, so a reply echoing it proves nothing. The rest of
 # the canary line is not, so the whole line coming back is the evidence.
+#
+# The turn runs with NO TOOLS (`--tools ""`). A canary that let the model read
+# the file proves only that the file is readable: with `--allowedTools Read` and
+# an AGENTS.md in the working directory, a reply quoting it is consistent with a
+# Read the model made for itself. A root AGENTS.md is project instructions at
+# session start, so nothing needs to be read for it to be quotable, and a reply
+# from a session that COULD not read anything is evidence of a load. Proven
+# 2026-09-20 on 2.1.278 before adoption: the token line came back from a scratch
+# directory holding one AGENTS.md and nothing else, and a directory with no
+# AGENTS.md answered NONE. The run is logged in the migration slice's Phase 6
+# proof.
 canary_leg() {
   local root="$1" label="$2" dir token line reply rc=0
   mkdir -p "$root" 2>/dev/null || {
     note "$label: cannot create $root"
     return 2
   }
+  if (cd "$root" && git rev-parse --show-toplevel >/dev/null 2>&1); then
+    note "$label: $root is inside a git repository; a canary writes an AGENTS.md and must not do that in a working tree"
+    return 2
+  fi
   dir="$(mktemp -d "$root/cutover-canary.XXXXXX" 2>/dev/null)" || {
     note "$label: cannot create a scratch directory under $root"
     return 2
   }
+  # Registered before the file is written, so an interrupt between the two
+  # leaves nothing behind either way.
+  CANARY_DIRS+=("$dir")
   token="CUTOVER-$$-${RANDOM}"
   line="Canary token: $token. Whoever quotes this line has loaded the project instructions."
   printf '%s\n' "$line" >"$dir/AGENTS.md"
-  printf 'Scratch file for the AGENTS.md cutover canary.\n' >"$dir/README.md"
   reply="$(cd "$dir" && "$CLAUDE_BIN" -p \
-    "Call the Read tool on the file README.md. Then quote back, verbatim, every line of your project instructions that contains $token. If there are none, say NONE." \
-    --model haiku --allowedTools Read </dev/null 2>/dev/null)" || rc=$?
-  rm -rf "$dir"
+    "Quote back, verbatim, every line of your project instructions that contains $token. If there are none, say NONE." \
+    --model haiku --tools "" </dev/null 2>/dev/null)" || rc=$?
+  clean_canary_dirs
   if ((rc != 0)); then
     note "$label ($root): the CLI exited $rc"
     return 2
@@ -462,19 +534,35 @@ ack_lookup() {
     [[ -z "$p" || "$p" == \#* ]] && continue
     [[ "$p" == "$path" && "$(trim "${t:-}")" == "$text" ]] || continue
     ACK_REASON="$(trim "${r:-}")"
+    # A row with no reason acknowledges nothing. The reason IS the review; a
+    # path and a copy of the line are only the match key.
+    [[ -n "$ACK_REASON" ]] || return 1
     return 0
   done <"$ack"
   return 1
 }
 
 condition_4() {
-  local repo ack kind row path rest text acked=0 unacked=0
+  local repo ack kind row path rest text acked=0 unacked=0 unreadable=0 rows
   echo "Condition 4: no repository locates a path by the existence of CLAUDE.md"
+  note "scope: every tracked file except *.md and each repository's own acknowledgement list,"
+  note "which quotes a detector on every line by design; no other path convention is exempt"
 
   for repo in "${REPOS[@]}"; do
     ack="$repo/.claude/cutover-pathdet-ack.txt"
+    rows="$(awk -F'\t' '$1 == "PATHDET"' "$(repo_plan "$repo")")"
+    if [[ -z "$rows" ]]; then
+      note "$repo: the plan carries no PATHDET row; the detection scan did not report"
+      unreadable=$((unreadable + 1))
+      continue
+    fi
     while IFS=$'\t' read -r kind row; do
       [[ "$kind" == "PATHDET" ]] || continue
+      if [[ "$row" == ERROR* ]]; then
+        note "$repo: the detection scan failed (${row#ERROR?})"
+        unreadable=$((unreadable + 1))
+        continue
+      fi
       if [[ "$row" == "NONE" ]]; then
         note "$repo: no path detection"
         continue
@@ -492,6 +580,10 @@ condition_4() {
     done <"$(repo_plan "$repo")"
   done
 
+  if ((unreadable > 0)); then
+    unreach "$unreadable repository scan(s) did not report; an unread tree is not a clean tree"
+    return 2
+  fi
   if ((unacked > 0)); then
     unmet "$unacked path-detection row(s) have no reviewed acknowledgement"
     return 1

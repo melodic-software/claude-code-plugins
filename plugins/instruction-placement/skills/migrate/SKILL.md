@@ -7,7 +7,6 @@ allowed-tools:
   [
     "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/cutover-check.sh:*)",
-    "Bash(${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/remove-shims.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh:*)",
     "Bash(${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh:*)",
@@ -234,8 +233,16 @@ and the run exits non-zero unless every one is `[MET]`.
 |---|---|
 | 1, the remote flag | The shipped bundle's code default for the flag, resolved at run time (the identifier is minifier-assigned and the offsets are per build, so neither is ever hardcoded), and the `env-vars` feature-flag list fetched live. Either the default being true or the AGENTS.md bullet being gone satisfies it |
 | 2, CI | Every `claude-code-action` pin from `plan-migration.sh`'s `ACTION` rows, mapped to the CLI it installs and compared against the floor, plus the recorded CI canary |
-| 3, the local canary | One metered `claude -p` turn per cwd against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path |
+| 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path |
 | 4, path detection | Every `PATHDET` row, matched against the repository's reviewed `.claude/cutover-pathdet-ack.txt` |
+
+**A canary that can read files proves nothing.** With a `Read` tool and an `AGENTS.md` in the
+working directory, a reply quoting that file is equally consistent with the model having read it
+for itself. Both canaries here run `--tools ""`, so the session has no tools at all: instructions
+load at session start, and a quotation from a session that *could* not read anything is evidence
+of a load. Measured before adoption on 2.1.278: a scratch directory holding one `AGENTS.md` and
+nothing else returned the token line with no tools, and a directory with no `AGENTS.md` answered
+`NONE`.
 
 **`[UNREACH]` is never a pass.** A probe that could not measure is not a condition that holds, and
 the script treats an unreadable bundle, a restructured docs page, a pin outside the release map and
@@ -252,8 +259,12 @@ in a reviewed file and the default fails closed. Each row of
 `.claude/cutover-pathdet-ack.txt` is tab-separated `<path>` / `<the trimmed source line>` /
 `<one-line reason>`, with `#` comments. Matching is on path plus exact source text, never line
 number: a row that moves still matches, and a row whose code changed falls out and has to be
-re-reviewed. An unacknowledged row is `[UNMET]` and is named. **No path convention exempts
-anything, test trees included**: in this fleet the one real blocker lives under `tests/`.
+re-reviewed. An unacknowledged row is `[UNMET]` and is named, **and so is a row whose reason is
+empty**: the reason is the review, and a path plus a copy of the line is only the match key.
+**No path convention exempts anything, test trees included**: in this fleet the one real blocker
+lives under `tests/`. `.claude/` is scanned like any other tree, because a hook or helper script
+there locates a path the same way; the one file left out of it is the acknowledgement list itself,
+whose every line quotes a detector by design.
 
 ### `remove-shims`, one repository per run
 
@@ -266,10 +277,15 @@ repository and said yes to it in this conversation: not pre-emptively, not becau
 and never carried over from a yes given about a different repository. Run it without `--confirm`
 first, show the operator what it prints, and wait.
 
+**It is deliberately not in this skill's `allowed-tools`.** Every other script here is; this one
+deletes files, so it takes a permission prompt every time rather than running on the skill's
+standing grant.
+
 It refuses far more often than it acts, and every gate fails closed. Without `--confirm` it prints
 what removal costs and stops. With it, it refuses unless the **installed** `claude-memory` and
-`instruction-placement` carry the corrected doctrine (an older cached build advises a de-shimmed
-repository straight back to the old shape), unless `cutover-check` reports every graded condition
+`instruction-placement` carry the corrected doctrine, read as the **lowest** version installed in
+any scope, because the stale copy is the one that answers in the repository being de-shimmed (an
+older cached build advises it straight back to the old shape), unless `cutover-check` reports every graded condition
 `[MET]` in that same run, and unless every instruction directory is already at the target shape. A
 zero-byte `AGENTS.md` cannot be canaried, so it is never de-shimmed.
 
@@ -277,7 +293,10 @@ Root and nested shims come out **together**: a lone nested `AGENTS.md` never att
 `CLAUDE.md` exists, so removing one without the other leaves files that review as correct and load
 nothing. After removal it runs one canary per de-shimmed directory against a distinctive line of
 that directory's own `AGENTS.md`, so **no token is written into a real repository**, and any miss,
-or any canary that could not measure, restores every shim the run removed.
+any canary that could not measure, and any failure part way through the removal restores every shim
+the run removed. The restore writes the one import line back and verifies it byte for byte, rather
+than asking git for an index copy a staged edit may have replaced; a restore that did not land says
+so and the run still exits non-zero.
 
 Removal is priced, and the price is printed before the confirmation: a directly read `AGENTS.md`
 does not appear in `/memory` or in the `/context` Memory files, and fires no `InstructionsLoaded`
