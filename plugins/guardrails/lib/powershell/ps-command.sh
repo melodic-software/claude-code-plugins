@@ -340,11 +340,12 @@ ps::normalize_token_separating_spaces() {
 # swallowing it, which is what leaves a real `@"` standing to be recognized.
 #
 # The QUOTE out-parameter is read from the WALKED line, not the raw one, so the
-# decision and the quote it reports cannot disagree. In `blank` mode a quote
-# character reaches the output only through the unterminated-tail verbatim copy,
-# which runs to end of line, so the walked line's trailing quote is the raw
-# line's last character; reading the raw line instead would report the `\r` of a
-# CRLF line, which the walk's chomp has already removed.
+# decision and the quote it reports come from the same text and cannot disagree.
+# They would in fact agree either way: in `blank` mode a quote character reaches
+# the output only through the unterminated-tail verbatim copy, which runs to end
+# of line, so whenever the suffix test passes the raw line ends in those same two
+# characters. Reading the scan is what keeps that from being an unstated premise
+# a later change to the blanking could quietly break.
 #
 # The `#` test runs on that same reduced line, which is what keeps a `#` INSIDE a
 # string from refusing a real opener (`'x # y' @"` still opens). It is
