@@ -44,6 +44,14 @@ assert_not_contains() {
   esac
 }
 
+# A helper this suite never defined used to print "command not found" to stderr
+# and move on, so the run reported every other check passing while silently
+# skipping that one. An unknown command is a failed check.
+# shellcheck disable=SC2329 # bash invokes this by name when a command is not found
+command_not_found_handle() {
+  fail "unknown command in the suite: $1" "a helper is missing or misspelled; the check it belonged to did not run"
+}
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cd "$TMP" || exit 1
@@ -157,6 +165,11 @@ assert_eq "no --repo exits 2" 2 "$rc"
 rc=0
 bash "$SCRIPT" --repo "$CLEAN" --bogus >/dev/null 2>&1 || rc=$?
 assert_eq "an unknown argument exits 2" 2 "$rc"
+
+rc=0
+ERR=$(bash "$SCRIPT" --repo "$CLEAN" --repo "$CLEAN" --skip-canary 2>&1 >/dev/null) || rc=$?
+assert_eq "the same --repo twice exits 2" 2 "$rc"
+assert_contains "and says which one was repeated" "$ERR" "was given more than once"
 
 rc=0
 bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/nope.md" >/dev/null 2>&1 || rc=$?
@@ -336,6 +349,26 @@ rc=0
 OUT=$(silent_plan_check errored plan-migration-error.sh) || rc=$?
 assert_contains "an errored pin scan is UNREACH" "$OUT" "the pin scan failed"
 assert_contains "an errored detection scan is UNREACH" "$OUT" "the detection scan failed"
+
+# Two repositories whose paths differ only by punctuation must not share a plan
+# file: the second would overwrite the first, grading one tree twice and the
+# other not at all.
+COLLIDE_A="$TMP/repo-x"
+COLLIDE_B="$TMP/repo_x"
+make_repo "$COLLIDE_A"
+make_repo "$COLLIDE_B"
+printf '# Shared\n' >"$COLLIDE_A/AGENTS.md"
+mkdir -p "$COLLIDE_B/.github/workflows"
+printf '# Shared\n' >"$COLLIDE_B/AGENTS.md"
+printf 'jobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@56cf60fde42f7b19c3abfd5c9c48b69a1288461f # v1.0.222\n' \
+  >"$COLLIDE_B/.github/workflows/claude.yml"
+commit_all "$COLLIDE_A"
+commit_all "$COLLIDE_B"
+
+OUT=$(bash "$SCRIPT" --repo "$COLLIDE_A" --repo "$COLLIDE_B" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
+assert_contains "the punctuation-only sibling keeps its own plan" "$OUT" "BELOW 2.1.277"
+assert_contains "and the other is still reported as pinless" "$OUT" "$COLLIDE_A: no claude-code-action pin"
 
 # A comment naming the action is not a pin, and an absent workflow directory is
 # reported as checked rather than silently skipped.

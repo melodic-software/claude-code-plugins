@@ -457,15 +457,51 @@ fi
 # excluded from it is the cutover acknowledgement list, whose every line quotes
 # a detector by design; reporting those quotations as detectors would make the
 # file that answers this row also generate it.
+#
+# The match is deliberately NOT a list of existence-test spellings. A list
+# misses `-e`, `Test-Path`, `os.stat`, `File.exist?`, a variable holding the
+# name, and every spelling nobody thought of, and each miss reports a clean
+# tree and clears the condition. So every mention of the name in a CODE file is
+# a row unless it is a known-benign shape, and the acknowledgement list is
+# where a benign one is answered once, by a human, in writing. Over-reporting
+# costs a line in that file; under-reporting clears a cutover that breaks a
+# repository.
+#
+# Benign shapes, dropped before reporting:
+#   - a comment line (`#`, `//`, `*`, `--`, `<!--`, `;`)
+#   - a name that is part of a LONGER filename (`CLAUDE.md.bak`, `xCLAUDE.md`)
+#   - the instruction files themselves, and markdown generally, which locate
+#     no path
+BENIGN_COMMENT=':[0-9]+:[[:space:]]*(#|//|\*|--|<!--|;)'
+
+# Every existence-ish idiom this fleet's languages spell, plus a catch-all for
+# the ones they do not: a test flag, a name containing exist/stat/access/file,
+# a `Path.`/`os.`-shaped call, a finder, or a method called ON the name. The
+# window is generous (60 characters) so `File.Exists(Path.Combine(dir, "..."))`
+# and `[[ -e "$root/CLAUDE.md" ]]` both land.
+#
+# It stops short of reporting EVERY mention, which was measured at 519 rows
+# here against 54 for this pattern. Nearly all of the difference is writes,
+# reads and English prose in eval files, and an acknowledgement list of 519
+# rows is one nobody reads: it gets rubber-stamped, which fails the same way
+# under-reporting does. A false positive here costs one line in that list.
+PATHDET_PATTERN='(\[\[|\[|\(|^|[[:space:];&|]|!)[[:space:]]*-(e|f|s|r|h|L)[[:space:]][^;&|]{0,60}CLAUDE\.md'
+PATHDET_PATTERN="$PATHDET_PATTERN"'|([Ee]xists?|EXISTS|[Ii]s_?[Ff]ile|[Ii]sFile|[Ss]tat|[Tt]est-[Pp]ath|[Aa]ccess(Sync)?|existsSync|statSync|[Ff]ile[Ee]xists|[Pp]ath\.[a-z]+|[Ff]ind[A-Za-z]*[Rr]oot|[Ll]ocate)[^;]{0,60}CLAUDE\.md'
+# shellcheck disable=SC2016 # the quote characters are part of the pattern, not a shell expansion
+PATHDET_PATTERN="$PATHDET_PATTERN"'|CLAUDE\.md("|'"'"')?[[:space:]]*\)?[[:space:]]*\.?(exists|is_file|stat|exist\?)'
+
 pathdet_rc=0
-git grep -n -I -E '(File\.Exists|isFile|-f |test -f|os\.path\.exists|fs\.existsSync|Files\.exists)[^;]{0,40}CLAUDE\.md' \
-  -- ':!*.md' ':!.claude/cutover-pathdet-ack.txt' ':!**/.claude/cutover-pathdet-ack.txt' \
+git grep -n -I -E 'CLAUDE\.md' \
+  -- ':!*.md' ':!*.mdc' ':!.claude/cutover-pathdet-ack.txt' ':!**/.claude/cutover-pathdet-ack.txt' \
+  ':!CHANGELOG.md' ':!**/CHANGELOG.md' \
   >"$PATHDET_RAW" 2>/dev/null || pathdet_rc=$?
 if scan_failed "$pathdet_rc"; then
   : >"$PATHDET_HITS"
   printf 'PATHDET\tERROR\tgit grep exited %s; the scan did not complete\n' "$pathdet_rc"
 else
-  grep -vE ':[0-9]+:[[:space:]]*(#|//|\*)' "$PATHDET_RAW" >"$PATHDET_HITS"
+  grep -vE "$BENIGN_COMMENT" "$PATHDET_RAW" |
+    grep -E 'CLAUDE\.md([^A-Za-z0-9._-]|$)' |
+    grep -E "$PATHDET_PATTERN" >"$PATHDET_HITS"
   sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
 fi
 

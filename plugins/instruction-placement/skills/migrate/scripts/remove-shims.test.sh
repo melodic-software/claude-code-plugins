@@ -36,6 +36,21 @@ assert_contains() {
   esac
 }
 
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "expected NOT to contain: $3" ;;
+  *) pass "$1" ;;
+  esac
+}
+
+# A helper this suite never defined used to print "command not found" to stderr
+# and move on, so the run reported every other check passing while silently
+# skipping that one. An unknown command is a failed check.
+# shellcheck disable=SC2329 # bash invokes this by name when a command is not found
+command_not_found_handle() {
+  fail "unknown command in the suite: $1" "a helper is missing or misspelled; the check it belonged to did not run"
+}
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cd "$TMP" || exit 1
@@ -259,11 +274,28 @@ build_ready_repo "$NOLINE"
 printf '# Service\n\n- a bullet\n- another bullet\n' >"$NOLINE/svc/AGENTS.md"
 commit_all "$NOLINE" "a nested AGENTS.md with no canaryable line"
 
+# A nested session loads its ancestors too, so a line the nested file shares
+# with the root file is answered by the root file and proves nothing about the
+# nested surface. Such a file has no usable line, and the refusal comes BEFORE
+# any removal.
+SHARED="$TMP/sharedline"
+build_ready_repo "$SHARED"
+printf '# Service\n\n%s\n' "$AGENTS_LINE" >"$SHARED/svc/AGENTS.md"
+commit_all "$SHARED" "the nested AGENTS.md repeats the root's only long line"
+
+rc=0
+OUT=$(bash "$SCRIPT" --root "$SHARED" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "a line an ancestor also carries is refused" 1 "$rc"
+assert_contains "and says why the ancestor would answer for it" "$OUT" \
+  "answered by the ancestor"
+assert_eq "and nothing was removed first" "" "$(cd "$SHARED" && git status --porcelain)"
+
 rc=0
 OUT=$(bash "$SCRIPT" --root "$NOLINE" --confirm --installed-plugins "$TMP/installed-current.json" \
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "a directory with no distinctive line exits 1" 1 "$rc"
-assert_contains "and says so" "$OUT" "no line distinctive enough to canary"
+assert_contains "and says so" "$OUT" "no line that is both distinctive and unique"
 assert_eq "and removes nothing, including the root shim" "" "$(cd "$NOLINE" && git status --porcelain)"
 
 # --- Case 7: the happy path, root and nested together ---------------------

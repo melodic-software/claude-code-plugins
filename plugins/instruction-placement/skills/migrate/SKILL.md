@@ -104,7 +104,7 @@ indistinguishable from a run that never happened. Its rows are the facts a migra
 | `BUDGET` | `<path> <cumulative AGENTS.md bytes, root to that path> <OK\|OVER>`, against Codex's project-doc budget, which is cumulative across the files it loads rather than per file. The number and its dated record live beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`; read it there rather than restating it. `OVER` means content has to move out before the migration, not after |
 | `CASE` | A filename differing only by case. Claude Code matches names exactly; NTFS does not, so the repository behaves differently per developer until it is renamed |
 | `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
-| `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks |
+| `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks. The match is **not** a list of existence-test spellings: a list misses `-e`, `Test-Path`, `os.stat`, `File.exist?` and whatever nobody thought of, and every miss reports a clean tree. Any existence-ish mention in a code file is a row, so prose in an eval file lands here too; that is the safe direction, and the acknowledgement file answers a false positive once, in writing |
 | `CITE` | A markdown link resolving into `CLAUDE.md`. Each is retargeted in the same PR as the content move, or the link dies |
 | `MENTION` | Every other tracked occurrence of the literal `CLAUDE.md`: a YAML list entry, a comment, a path in a config, including under `.claude/`, which is where a Claude-configured repo most often enumerates its own instruction files. Neither a link nor an existence call, so it is nobody else's row. A content directory holding more than ten is rolled up to `<dir>/ <count> rows`; `.claude/` and `.github/` never are, because a leak lives in configuration. `--expand-mentions` prints them all. **A roll-up is the answer, not a deferral**: a content directory (captured prose, vendored docs) is reported by count and left alone, because every one of its mentions is the same non-finding. Triage the individually-listed rows with the operator |
 | `DOCSHOME` | Where a pointer target lands |
@@ -292,7 +292,17 @@ zero-byte `AGENTS.md` cannot be canaried, so it is never de-shimmed.
 
 Root and nested shims come out **together**: a lone nested `AGENTS.md` never attaches while a root
 `CLAUDE.md` exists, so removing one without the other leaves files that review as correct and load
-nothing. After removal it runs one canary per de-shimmed directory against a distinctive line of
+nothing.
+
+**The nested canary runs from the nested directory, and its line has to be unique.** A session
+started there loads that directory's `AGENTS.md` and every ancestor's, measured on 2.1.278 with no
+tools available: running from the directory is itself the trigger, so no Read is needed. It also
+means a line the nested file shares with the root file is answered by the **root** file, so the
+nested surface would pass while loading nothing of its own. The canary line is therefore the longest
+plain line that appears in no other `AGENTS.md` in the repository, and a file with no such line is
+refused **before** anything is removed.
+
+After removal it runs one canary per de-shimmed directory against that line of
 that directory's own `AGENTS.md`, so **no token is written into a real repository**, and any miss,
 any canary that could not measure, and any failure part way through the removal restores every shim
 the run removed. The restore writes the one import line back and verifies it byte for byte, rather

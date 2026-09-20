@@ -234,7 +234,7 @@ on_exit() {
   local rc=$?
   ((CLEANUP_STARTED == 1)) && return
   CLEANUP_STARTED=1
-  rm -f "$PLAN"
+  rm -f "$PLAN" "${AGENTS_LINES:-}"
   if ((${#REMOVED[@]} > 0)) && ((CANARY_PASSED == 0)); then
     printf '\nexiting with shims removed and unverified; restoring:\n'
     restore_all || :
@@ -242,7 +242,15 @@ on_exit() {
   exit "$rc"
 }
 trap on_exit EXIT
-trap 'exit 1' INT TERM HUP PIPE
+trap 'exit 1' INT TERM HUP
+# SIGPIPE is IGNORED rather than trapped. A trapped one still kills the shell
+# on the default disposition path, and a script killed mid-removal leaves the
+# repository de-shimmed and unverified with no trap run at all: `remove-shims
+# --confirm | head` did exactly that on Linux. Ignored, the write returns EPIPE,
+# this script has no errexit to trip over it, and the run finishes through its
+# own logic and its own EXIT trap. A reader that left does not get to decide
+# whether a repository keeps its instruction files.
+trap '' PIPE
 
 # Declared before the trap can read them, so an early exit sees an empty list
 # rather than an unbound variable.
@@ -252,8 +260,10 @@ bash "$PLAN_MIGRATION" --root "$REPO" >"$PLAN" 2>/dev/null ||
   refuse "plan-migration.sh could not plan $REPO"
 
 SHIM_DIRS=()
+AGENTS_DIRS=()
 while IFS=$'\t' read -r kind dir state cb ab; do
   [[ "$kind" == "DIR" ]] || continue
+  [[ "$ab" != "0" ]] && AGENTS_DIRS+=("$dir")
   case "$state" in
   shim) SHIM_DIRS+=("$dir") ;;
   agents-only) echo "  $dir: already unshimmed ($ab bytes of AGENTS.md)" ;;
@@ -276,8 +286,28 @@ done <"$PLAN"
 # real repository. The probe is the head of a distinctive existing line and the
 # proof is the whole line, so a reply that merely echoes the prompt is not
 # mistaken for a load.
-canary_line() { # <dir> — the longest plain prose line of that directory's AGENTS.md
-  local file line best=""
+# A session in a nested directory loads that directory's AGENTS.md AND every
+# ancestor's, measured 2026-09-20 on 2.1.278 with no tools available: running
+# from the nested directory is itself the trigger, so no Read is needed, and
+# both files came back. That is also why the line has to be UNIQUE. A line the
+# nested file shares with the root file is answered by the root file, and the
+# nested surface would pass its canary while loading nothing of its own.
+AGENTS_LINES="$(mktemp)"
+build_line_index() {
+  local d file
+  : >"$AGENTS_LINES"
+  for d in ${AGENTS_DIRS[@]+"${AGENTS_DIRS[@]}"}; do
+    if [[ "$d" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$d/AGENTS.md"; fi
+    [[ -f "$file" ]] || continue
+    awk -v f="$d" '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print f "\t" $0 }' \
+      "$file" >>"$AGENTS_LINES"
+  done
+}
+
+# The longest line of this directory's AGENTS.md that is plain prose, long
+# enough to be distinctive, and present in NO other AGENTS.md in the repository.
+canary_line() { # <dir>
+  local file line best="" seen
   if [[ "$1" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$1/AGENTS.md"; fi
   [[ -f "$file" ]] || return 1
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -289,16 +319,20 @@ canary_line() { # <dir> — the longest plain prose line of that directory's AGE
     *) ;;
     esac
     ((${#line} >= 45)) || continue
-    ((${#line} > ${#best})) && best="$line"
+    ((${#line} > ${#best})) || continue
+    seen="$(awk -F'\t' -v want="$line" '$2 == want { n++ } END { print n + 0 }' "$AGENTS_LINES")"
+    ((seen == 1)) || continue
+    best="$line"
   done <"$file"
   [[ -n "$best" ]] || return 1
   printf '%s' "$best"
 }
 
+build_line_index
 declare -A CANARY_LINE
 for dir in "${SHIM_DIRS[@]}"; do
   if ! CANARY_LINE[$dir]="$(canary_line "$dir")"; then
-    refuse "$dir/AGENTS.md carries no line distinctive enough to canary. A surface that cannot be verified is not de-shimmed."
+    refuse "$dir/AGENTS.md carries no line that is both distinctive and unique to it. A line an ancestor AGENTS.md also carries is answered by the ancestor, so that surface cannot be verified, so it is not de-shimmed."
   fi
 done
 

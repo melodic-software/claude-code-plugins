@@ -38,6 +38,14 @@ assert_not_contains() {
   esac
 }
 
+# A helper this suite never defined used to print "command not found" to stderr
+# and move on, so the run reported every other check passing while silently
+# skipping that one. An unknown command is a failed check.
+# shellcheck disable=SC2329 # bash invokes this by name when a command is not found
+command_not_found_handle() {
+  fail "unknown command in the suite: $1" "a helper is missing or misspelled; the check it belonged to did not run"
+}
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 

@@ -154,6 +154,17 @@ done
   echo "cutover-check: at least one --repo is required" >&2
   exit 2
 }
+# A repeated --repo grades the same tree twice and inflates every count, which
+# reads as broader coverage than the run had.
+for i in "${!REPOS[@]}"; do
+  for j in "${!REPOS[@]}"; do
+    ((j > i)) || continue
+    [[ "${REPOS[$i]}" != "${REPOS[$j]}" ]] || {
+      echo "cutover-check: --repo ${REPOS[$i]} was given more than once" >&2
+      exit 2
+    }
+  done
+done
 [[ -f "$SOURCES_MD" ]] || {
   echo "cutover-check: cannot read records: $SOURCES_MD" >&2
   exit 2
@@ -169,6 +180,13 @@ trim() {
   s="${s#"${s%%[![:space:]]*}"}"
   printf '%s' "${s%"${s##*[![:space:]]}"}"
 }
+
+# A source line may carry a literal tab, and the acknowledgement file is
+# tab-separated, so such a row could never be written down. Both sides see the
+# tab as a space: a tab-versus-space difference is not a code change worth
+# re-reviewing, and a row nobody can acknowledge is a row that fails closed
+# forever.
+normalize_text() { printf '%s' "$(trim "$1")" | tr '\t' ' '; }
 
 # The body of one `## ` section of the records file. Line endings are stripped
 # before the heading is matched, not after: a CRLF checkout of this file would
@@ -238,10 +256,19 @@ ver_ge() {
 }
 
 # --- one plan per repository, reused by conditions 2 and 4 ----------------
+# Keyed by POSITION, not by the path. A name normalized for the filesystem
+# collides (`/repos/foo-bar` and `/repos/foo_bar` normalize the same), and the
+# second plan then overwrites the first, so one repository is graded twice and
+# the other not at all.
 repo_plan() {
-  local repo="$1" key
-  key="$(printf '%s' "$repo" | tr -c '[:alnum:]' '_')"
-  printf '%s/%s.plan' "$PLAN_OUT" "$key"
+  local repo="$1" i=0
+  for i in "${!REPOS[@]}"; do
+    [[ "${REPOS[$i]}" == "$repo" ]] && {
+      printf '%s/%s.plan' "$PLAN_OUT" "$i"
+      return 0
+    }
+  done
+  printf '%s/unknown.plan' "$PLAN_OUT"
 }
 
 # A repository that cannot be planned yields no ACTION and no PATHDET rows, and
@@ -532,7 +559,7 @@ ack_lookup() {
   while IFS=$'\t' read -r p t r || [[ -n "$p" ]]; do
     p="$(trim "${p:-}")"
     [[ -z "$p" || "$p" == \#* ]] && continue
-    [[ "$p" == "$path" && "$(trim "${t:-}")" == "$text" ]] || continue
+    [[ "$p" == "$path" && "$(normalize_text "${t:-}")" == "$text" ]] || continue
     ACK_REASON="$(trim "${r:-}")"
     # A row with no reason acknowledges nothing. The reason IS the review; a
     # path and a copy of the line are only the match key.
@@ -569,7 +596,7 @@ condition_4() {
       fi
       path="${row%%:*}"
       rest="${row#*:}"
-      text="$(trim "${rest#*:}")"
+      text="$(normalize_text "${rest#*:}")"
       # Matching drops the line number so a row that moves still matches;
       # reporting keeps it, so an operator has somewhere to jump to.
       if ack_lookup "$ack" "$path" "$text"; then
