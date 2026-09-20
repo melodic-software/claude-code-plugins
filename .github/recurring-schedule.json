@@ -40,6 +40,18 @@
       "next_due": "2026-11-06",
       "notes": "Report-only self-maintenance routine (digest menu #9 pilot). Sweep docs/ and top-level repo docs for references to files/checks/skills that no longer exist, stale version claims, and moved official-docs.md pages (review:doc-drift-detector or docs-hygiene audits); verify generated CATALOG/skill-cheat-sheet freshness on a scratch branch. File one issue per confirmed drift cluster or comment no-drift on the open [Maintenance] issue (#2024 is the first instance). Never edits docs directly from the routine.",
       "close_previous": true
+    },
+    {
+      "id": "agents-md-cutover-check",
+      "title": "Recurring: run /instruction-placement:migrate cutover-check",
+      "cadence": "monthly",
+      "area": [],
+      "category": "general",
+      "triggers": ["claude-code-release-agents-md"],
+      "last_checked": "2026-09-20",
+      "next_due": "2026-10-20",
+      "notes": "Run /instruction-placement:migrate cutover-check to test whether the four AGENTS.md-migration cutover conditions (native AGENTS.md reading off the remote feature flag, the CI action pin plus a CI canary, a local canary from two working-directory locations, and root+nested shims removable together) have moved to met. Also run it, independent of cadence, whenever /claude-ops:changelog reports a Claude Code release whose changelog touches AGENTS.md handling or instruction-file loading (the changelog-release trigger above). Record each run's per-condition met/unmet/unreachable output as a comment on #4281; recheck-close only once every condition reports met. #4281 is the open item for this row: it was filed directly rather than through /work-items:track add, so it carries no [Maintenance] title prefix.",
+      "close_previous": true
     }
   ]
 }
