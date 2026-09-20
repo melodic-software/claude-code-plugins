@@ -56,8 +56,9 @@ rc=0
 OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_eq "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
-assert_contains "--help names the row kinds" "$OUT" "DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, DOCSHOME, ACTION"
-for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE DOCSHOME ACTION; do
+assert_contains "--help names the row kinds" "$OUT" "DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, MENTION, DOCSHOME, ACTION"
+assert_contains "--help explains the NONE row" "$OUT" "NONE"
+for kind in DIR BUDGET CASE SUPPRESS PATHDET CITE MENTION DOCSHOME ACTION; do
   assert_contains "--help documents the $kind row" "$OUT" "$kind"
 done
 
@@ -171,9 +172,13 @@ else
   printf 'SKIP: a case-variant file is reported (host filesystem folds case)\n'
 fi
 assert_contains "an existence test on CLAUDE.md is a path detector" "$OUT" "PATHDET	tools/find-root.sh:1"
-assert_not_contains "a comment naming CLAUDE.md is not" "$OUT" "tools/find-root.sh:2"
+# A comment is not a path detector. It IS a mention, which is the row kind that
+# exists so "checked and dismissed" beats "never shown".
+assert_not_contains "a comment naming CLAUDE.md is not" "$OUT" "PATHDET	tools/find-root.sh:2"
+assert_contains "it is reported as a mention instead" "$OUT" "MENTION	tools/find-root.sh:2"
 assert_contains "a markdown link into CLAUDE.md is a citation" "$OUT" "CITE	docs/guide.md:1"
-assert_not_contains "prose naming CLAUDE.md is not a citation" "$OUT" "docs/guide.md:2"
+assert_not_contains "prose naming CLAUDE.md is not a citation" "$OUT" "CITE	docs/guide.md:2"
+assert_contains "it is reported as a mention instead" "$OUT" "MENTION	docs/guide.md:2"
 assert_contains "every claude-code-action pin is listed" "$OUT" "claude-code-action@8251c10"
 assert_contains "a tracked docs directory is the detected home" "$OUT" "DOCSHOME	docs	found"
 
@@ -233,6 +238,53 @@ assert_contains "a Claude CLAUDE.md under .cursor is planned" "$OUT" "DIR	.curso
 # The root AGENTS.md is 7 bytes and still counts on the path; Cursor's own
 # 9-byte file does not, so the sum is the root's alone.
 assert_contains "and the Cursor file is left out of the Codex budget" "$OUT" "BUDGET	.cursor	7	OK"
+
+# --- Case 11: every other mention of the literal CLAUDE.md ---
+# A YAML list entry or a comment naming CLAUDE.md is neither a markdown link nor
+# a filesystem-existence call, so CITE and PATHDET both miss it and the operator
+# never sees it. claude-code-proxy's .github/workflows/ci.yml carried exactly
+# that: a DOCUMENTATION_ROOTS list whose gate the new AGENTS.md failed.
+
+MENTION="$TMP/mention"
+make_repo "$MENTION"
+mkdir -p "$MENTION/.github/workflows" "$MENTION/docs" "$MENTION/src"
+printf '# Root\n' >"$MENTION/AGENTS.md"
+printf '@AGENTS.md\n' >"$MENTION/CLAUDE.md"
+printf 'env:\n  DOCUMENTATION_ROOTS: "CLAUDE.md README.md"\n' >"$MENTION/.github/workflows/ci.yml"
+printf '# Changelog\n\n- moved CLAUDE.md content\n' >"$MENTION/CHANGELOG.md"
+printf 'See [conventions](../CLAUDE.md) here.\n' >"$MENTION/docs/linked.md"
+printf 'if [[ -f "CLAUDE.md" ]]; then :; fi\n' >"$MENTION/src/find.sh"
+commit_all "$MENTION"
+
+OUT=$(bash "$SCRIPT" --root "$MENTION" --home "$TMP/nohome")
+assert_contains "a YAML list entry naming CLAUDE.md is a MENTION" "$OUT" "MENTION	.github/workflows/ci.yml:2"
+assert_not_contains "a markdown link stays CITE, not MENTION" "$OUT" "MENTION	docs/linked.md"
+assert_contains "and it is still reported as a CITE" "$OUT" "CITE	docs/linked.md"
+assert_not_contains "an existence call stays PATHDET, not MENTION" "$OUT" "MENTION	src/find.sh"
+assert_contains "and it is still reported as a PATHDET" "$OUT" "PATHDET	src/find.sh"
+assert_not_contains "a changelog is history, not a mention to triage" "$OUT" "MENTION	CHANGELOG.md"
+assert_not_contains "the instruction files themselves are not mentions" "$OUT" "MENTION	CLAUDE.md"
+
+# --- Case 12: an empty row kind says so rather than staying silent ---
+# "Checked, none" and "did not run" are the same output otherwise, and a reader
+# cannot tell a clean repository from a broken script.
+
+CLEAN="$TMP/cleanrows"
+make_repo "$CLEAN"
+printf '# Root\n' >"$CLEAN/AGENTS.md"
+printf '@AGENTS.md\n' >"$CLEAN/CLAUDE.md"
+commit_all "$CLEAN"
+
+OUT=$(bash "$SCRIPT" --root "$CLEAN" --home "$TMP/nohome")
+for kind in CASE PATHDET CITE MENTION ACTION; do
+  assert_contains "an empty $kind kind reports NONE" "$OUT" "$kind	NONE"
+done
+assert_not_contains "a kind with rows does not also report NONE" "$OUT" "DIR	NONE"
+
+OUT=$(bash "$SCRIPT" --root "$MENTION" --home "$TMP/nohome")
+assert_not_contains "a populated CITE kind reports no NONE row" "$OUT" "CITE	NONE"
+assert_not_contains "a populated PATHDET kind reports no NONE row" "$OUT" "PATHDET	NONE"
+assert_contains "while an empty one alongside it still does" "$OUT" "CASE	NONE"
 
 # --- Case 6: the home suppressors are reported either way ---
 

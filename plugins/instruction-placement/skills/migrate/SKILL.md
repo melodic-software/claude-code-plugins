@@ -63,6 +63,7 @@ the three destinations below follow from it.
 | Shared, relevant to **every** conversation | root `AGENTS.md` | It has to be resident, and every agent reads this file |
 | Shared, relevant **sometimes** | the repository's **existing docs home**, behind a one-line pointer in `AGENTS.md` that says *when* to read it | It earns its place only at the moment it applies, and a resident copy taxes every session |
 | **Claude-specific** | `.claude/rules/<topic>.md` with a `paths:` glob, or a stated always-relevant reason | Other tools never read it, and the glob is what makes the cost conditional |
+| **Tool-agnostic but about one file or area** | Short: stays resident in root `AGENTS.md`. Long: the docs home, behind a pointer whose condition names the file. Scoped to one directory: a nested `AGENTS.md` | `AGENTS.md` has no path scoping, and `.claude/rules/` would hide it from the other tools that need it. Length decides between resident and pointer; a directory boundary is what makes the nested file fit |
 | Another tool's | that tool's own directory, untouched | It is theirs |
 
 The docs home is **detected, never imposed**: `plan-migration.sh` emits a `DOCSHOME` row naming the
@@ -87,7 +88,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/migrate/scripts/plan-migration.sh" --dry-run 
 without it plans whatever directory the call happened to land in. `--root` may point anywhere inside
 the repository; the script resolves to the toplevel itself.
 
-Read-only, and `--dry-run` is the only mode it has. Its rows are the facts a migration turns on:
+Read-only, and `--dry-run` is the only mode it has. A kind with nothing to report prints a
+tab-separated `<KIND>` / `NONE` row, so a clean repository is visibly clean rather than
+indistinguishable from a run that never happened. Its rows are the facts a migration turns on:
 
 | Row | What it decides |
 |---|---|
@@ -98,6 +101,7 @@ Read-only, and `--dry-run` is the only mode it has. Its rows are the facts a mig
 | `SUPPRESS` | A bare `~/CLAUDE.md` or `~/CLAUDE.local.md`. Present, it is read instead of `AGENTS.md` in every directory below home, and no repository-side change fixes that |
 | `PATHDET` | Code that finds a path by the existence of `CLAUDE.md`. Each one works while the shim exists and breaks at cutover. Report them; fixing them is not this run's scope unless the operator asks |
 | `CITE` | A markdown link resolving into `CLAUDE.md`. Each is retargeted in the same PR as the content move, or the link dies |
+| `MENTION` | Every other tracked occurrence of the literal `CLAUDE.md`: a YAML list entry, a comment, a path in a config. Neither a link nor an existence call, so it is nobody else's row, and it is where a CI gate that enumerates instruction files shows up. Triage each with the operator |
 | `DOCSHOME` | Where a pointer target lands |
 | `ACTION` | Every `claude-code-action` pin. Each decides the CLI version CI installs, and so whether CI reads `AGENTS.md` at all |
 
@@ -113,6 +117,10 @@ anything is written.
 content is all every-conversation material stays whole in the root `AGENTS.md`. Steps 2 and 3 then
 produce nothing, and no `docs/` directory and no `.claude/rules/` file is created. Say that plainly
 rather than manufacturing a pointer or a rule to have something to show.
+
+Likewise, **a repository with no Claude-specific text creates no `.claude/rules/` file and never
+calls `glob-tools.sh`**. That is step 3 finding nothing to do, not step 3 being skipped; report it
+as a result so nobody reads the absence as an omission.
 
 ## Apply
 
@@ -137,7 +145,8 @@ between steps must leave content duplicated rather than deleted:
    note inside a shim is content: move it into `AGENTS.md` or delete it with the operator's say-so.
 5. **Retarget every `CITE` row** in the same change. A link into `CLAUDE.md` whose content moved is
    a dead link the moment the move lands, so it is not a follow-up.
-6. **Regenerate the index**: `"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" write --file AGENTS.md`.
+6. **Regenerate the index**:
+   `"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" write --file AGENTS.md --root <repo>`.
    A repository with no path-scoped rules and no nested instruction files has nothing to index, and
    `write` says `NO-INDEX-NEEDED` and writes nothing. That is the correct outcome, not a failure:
    an always-loaded block reading "there is nothing here" is exactly the cost the index exists to
@@ -146,7 +155,10 @@ between steps must leave content duplicated rather than deleted:
    `package.json`, a `lefthook.yml` markdown hook, or a `.markdownlint*` config, and run what you
    find. A regenerated block or a moved heading can trip MD022 (blanks around headings), MD024
    (duplicate headings, likely when a section lands beside a similar one) or MD047 (single trailing
-   newline).
+   newline). **A fresh worktree may need the repository's own install step first** (`npm ci`,
+   `uv sync`, `dotnet restore`, whatever its README names). A wall of failures on a markdown-only
+   diff is unprovisioned tooling until something shows otherwise: check that before reading it as
+   the migration's doing, and never "fix" source you did not touch to make a linter start.
 8. **Re-run the plan** and confirm the states moved the way the operator accepted.
 
 Where a directory has a nested `AGENTS.md`, `render-index.sh wiring` says whether it needs a shim:
@@ -166,10 +178,25 @@ silently dropped:
 ## Verify the load, never assume it
 
 ```bash
+# The root file, through its shim. <trigger> is any tracked file that exists.
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
+  --root <repo> --trigger README.md --expect AGENTS.md
+
+# A nested surface: the trigger has to be a file IN that directory, because the
+# nested attach fires on a Read there and nowhere else.
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
+  --root <repo> --trigger src/billing/service.ts \
+  --expect AGENTS.md --expect src/billing/AGENTS.md
+
+# A path-scoped rule: the trigger is a file its `paths:` glob matches.
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" \
+  --root <repo> --trigger src/api/handler.ts --expect .claude/rules/api.md
+
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/verify-load.sh" --help
 ```
 
-It drives one real `claude -p` turn with an `InstructionsLoaded` hook and prints
+Every invocation carries `--root`, for the same reason the plan command does. It drives one real
+`claude -p` turn with an `InstructionsLoaded` hook and prints
 `VERDICT PASS|FAIL|UNKNOWN`. **`UNKNOWN` (exit 3) is a third outcome, never a pass**: it means the
 probe could not measure, so rerun it once and escalate if it stays `UNKNOWN`. A canary counts only
 against a non-empty `AGENTS.md`; an empty file passes every canary and carries nothing.
@@ -192,6 +219,21 @@ order is: commit the migration, add the token to the working-tree `AGENTS.md`, r
 remove the token. `git status --porcelain` is clean and `git grep -c CANARY` finds nothing *after*
 that removal, not before it: during the run the tree is dirty by construction, and checking for a
 clean tree first can never pass.
+
+**Codex is a first-class target of this migration, so it gets the same canary.** Presence-gate it on
+the CLI (`command -v codex`); where Codex is not installed, say the leg was not run rather than
+treating it as passed:
+
+```bash
+codex exec -C <repo> "Read the file <a file in that directory>. Then quote back, verbatim, every
+  line of your project instructions that contains the word CANARY. If there are none, say NONE."
+```
+
+Then read the session rollout and confirm **no shell command went looking for the token**: a run
+that greps its way to the answer proves the file is on disk, which was never in doubt, and not that
+Codex loaded it. Codex's project-doc budget is cumulative and can silently drop a file past it; the
+number and its dated record are beside `CODEX_PROJECT_DOC_BUDGET` in `scripts/plan-migration.sh`,
+and the `BUDGET` rows are what say whether this repository is near it.
 
 Then run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is installed, on
 the finished root `AGENTS.md`: a root file that grew during the migration has moved the cost rather
@@ -236,8 +278,12 @@ so a repository cannot rely on it and the gates keep the default's answer
 
 - **Never delete a `CLAUDE.md` shim.** Reducing one to its import line is this skill's work;
   removing it is the separate cutover.
-- **Never write into `.cursor/`, `.codex/` or `.github/`.** Another tool's instruction file is not
-  an unshimmed Claude surface.
+- **Never create or move instruction files into `.cursor/`, `.codex/` or `.github/`.** Another
+  tool's instruction file is not an unshimmed Claude surface, and no Claude shim or moved
+  instruction text belongs in those trees. That is the whole rule: a CI or tooling file that merely
+  *enumerates* instruction-file paths (a `DOCUMENTATION_ROOTS` list, a lint glob, a docs gate) is in
+  scope for the move, because the move is what breaks it. Edit it minimally, add the new path rather
+  than rewriting the gate, and show it to the operator as its own item.
 - **Never rewrite content while moving it.** A relocation whose diff also improves the prose is a
   diff nobody can review.
 - **Create the destination before excising the source.** An interruption then duplicates content

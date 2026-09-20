@@ -29,6 +29,11 @@
 #             Each one breaks when the shim comes out.
 #   CITE      <file>:<line>  <text>
 #             A heading or path citation that resolves into CLAUDE.md.
+#   MENTION   <file>:<line>  <text>
+#             Every OTHER tracked occurrence of the literal CLAUDE.md: a YAML
+#             list entry, a comment, a path in a config. Neither a link nor an
+#             existence call, so CITE and PATHDET miss them, and each can still
+#             break when the content moves. The operator triages.
 #   DOCSHOME  <dir>  <found|absent>
 #             The repository's existing documentation home, where a pointer
 #             target lands. Detected, never imposed: the first tracked directory
@@ -104,8 +109,10 @@ Usage: plan-migration.sh [--dry-run] [--root <dir>] [--home <dir>] [--help]
   --home <dir>  where to look for the bare ~/CLAUDE.md suppressors (default: $HOME)
   --help        this message
 
-Row kinds: DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, DOCSHOME, ACTION. Every row is a
-fact about the repository; the content split is judgment and stays in the skill.
+Row kinds: DIR, BUDGET, CASE, SUPPRESS, PATHDET, CITE, MENTION, DOCSHOME, ACTION. Every
+row is a fact about the repository; the content split is judgment and stays in
+the skill. A kind with nothing to report prints `<KIND>\tNONE` rather than
+staying silent, so "checked, none" never looks like "did not run".
 
 Exit: 0 printed, 1 not a git repository, 2 usage error.
 EOF
@@ -290,6 +297,27 @@ while IFS= read -r dir; do
   printf 'BUDGET\t%s\t%s\t%s\n' "$dir" "$cum" "$verdict"
 done < <(instruction_dirs)
 
+# "Checked, and there is none" and "this row kind never ran" are the same
+# output when a kind prints nothing, and a reader cannot tell a clean repository
+# from a broken script. Every kind that can be empty prints `<KIND>\tNONE`
+# instead of nothing, so silence always means a defect.
+emit_rows() {
+  local kind="$1" rows
+  rows="$(cat)"
+  if [[ -z "${rows//[$' \t\n']/}" ]]; then
+    printf '%s\tNONE\n' "$kind"
+  else
+    printf '%s\n' "$rows"
+  fi
+}
+
+# CITE and PATHDET are reported on their own and must not be repeated as
+# MENTION rows, so each keeps its bare `file:line:text` hits for the exclusion.
+PATHDET_HITS="$(mktemp)"
+CITE_HITS="$(mktemp)"
+ALREADY_REPORTED="$(mktemp)"
+trap 'rm -f "$PATHDET_HITS" "$CITE_HITS" "$ALREADY_REPORTED"' EXIT
+
 # --- CASE -----------------------------------------------------------------
 # Claude Code matches the names exactly; a case-folding filesystem does not, so
 # a variant behaves differently per developer and is a migration hazard.
@@ -303,7 +331,7 @@ git ls-files -z 2>/dev/null | tr '\0' '\n' | awk '
     if (lower == "claude.md" || lower == "agents.md" || lower == "claude.local.md")
       printf "CASE\t%s\n", $0
   }
-'
+' | emit_rows CASE
 
 # --- SUPPRESS -------------------------------------------------------------
 # A bare ~/CLAUDE.md or ~/CLAUDE.local.md is read instead of AGENTS.md in every
@@ -326,20 +354,38 @@ fi
 # this is a plan row rather than a cutover surprise.
 git grep -n -I -E '(File\.Exists|isFile|-f |test -f|os\.path\.exists|fs\.existsSync|Files\.exists)[^;]{0,40}CLAUDE\.md' \
   -- ':!*.md' ':!.claude/*' 2>/dev/null |
-  grep -vE ':[0-9]+:[[:space:]]*(#|//|\*)' |
-  while IFS= read -r hit; do
-    printf 'PATHDET\t%s\n' "$hit"
-  done
+  grep -vE ':[0-9]+:[[:space:]]*(#|//|\*)' >"$PATHDET_HITS"
+sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
 
 # --- CITE -----------------------------------------------------------------
 # Citations that RESOLVE into CLAUDE.md: a markdown link target, with or without
 # a heading anchor. Each one has to be retargeted when the content moves. Prose
 # that merely names the file is not a citation and is deliberately not matched:
 # a row a reader has to dismiss is a row they stop reading.
-git grep -n -I -E '\]\([^)]*CLAUDE\.md(#[A-Za-z0-9_-]+)?\)' -- '*.md' 2>/dev/null |
-  while IFS= read -r hit; do
-    printf 'CITE\t%s\n' "$hit"
-  done
+git grep -n -I -E '\]\([^)]*CLAUDE\.md(#[A-Za-z0-9_-]+)?\)' -- '*.md' 2>/dev/null >"$CITE_HITS"
+sed 's/^/CITE\t/' "$CITE_HITS" | emit_rows CITE
+
+# --- MENTION --------------------------------------------------------------
+# Every OTHER tracked occurrence of the literal `CLAUDE.md`: a YAML list entry,
+# a comment, a shell string, a path in a config. None of these is a markdown
+# link or a filesystem-existence call, so CITE and PATHDET both miss them, and
+# each can still break when the content moves. `claude-code-proxy` carried the
+# case this row exists for: a `DOCUMENTATION_ROOTS` list in a CI workflow whose
+# gate the new top-level AGENTS.md failed.
+#
+# Not triage, just sight: the operator decides what each one means. The
+# instruction files themselves are excluded (a CLAUDE.md naming itself is not a
+# reference), and so are changelogs, which this fleet treats as history that is
+# never corrected.
+cat "$CITE_HITS" "$PATHDET_HITS" >"$ALREADY_REPORTED"
+# grep -f on an empty pattern file matches nothing, so seed one impossible line.
+printf '\x01no-such-line\n' >>"$ALREADY_REPORTED"
+git grep -n -I -F 'CLAUDE.md' \
+  -- ':!CLAUDE.md' ':!AGENTS.md' ':!**/CLAUDE.md' ':!**/AGENTS.md' \
+  ':!CLAUDE.local.md' ':!**/CLAUDE.local.md' \
+  ':!CHANGELOG.md' ':!**/CHANGELOG.md' ':!.claude/*' 2>/dev/null |
+  grep -vxF -f "$ALREADY_REPORTED" |
+  sed 's/^/MENTION\t/' | emit_rows MENTION
 
 # --- DOCSHOME -------------------------------------------------------------
 # Pointer targets go to the documentation home the repository already keeps.
@@ -363,9 +409,9 @@ fi
 # and so whether a CI session reads AGENTS.md at all.
 if [[ -d ".github/workflows" ]]; then
   grep -rn -E 'claude-code-action@' .github/workflows 2>/dev/null |
-    while IFS= read -r hit; do
-      printf 'ACTION\t%s\n' "$hit"
-    done
+    sed 's/^/ACTION\t/' | emit_rows ACTION
+else
+  printf 'ACTION\tNONE\n'
 fi
 
 exit 0

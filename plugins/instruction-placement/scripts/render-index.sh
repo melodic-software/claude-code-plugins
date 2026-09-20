@@ -329,6 +329,7 @@ render | check | write | reachable | wiring)
 esac
 
 ROOT="$PWD"
+ROOT_GIVEN=0
 TARGET=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -339,6 +340,7 @@ while [[ $# -gt 0 ]]; do
   --root)
     [[ $# -lt 2 ]] && die "--root needs a path"
     ROOT="$(normalize_drive_path "$2")"
+    ROOT_GIVEN=1
     shift 2
     ;;
   --file)
@@ -362,8 +364,15 @@ if [[ "$SUBCOMMAND" != "render" && "$SUBCOMMAND" != "wiring" && -z "$TARGET" ]];
   die "$SUBCOMMAND needs --file"
 fi
 
-# Resolve the target before entering --root, so a relative --file is read
-# relative to the caller's cwd rather than silently re-anchored.
+# Resolve the target before entering --root.
+#
+# A relative `--file` belongs to `--root` WHEN `--root` WAS GIVEN. A caller who
+# names a repository explicitly and then writes `--file AGENTS.md` means that
+# repository's file; anchoring it to the caller's own directory finds nothing
+# and dies with "--file is not a readable file". Without `--root` the two are
+# the same directory anyway, so the caller's cwd stays the anchor and nothing
+# is silently re-anchored: the re-anchoring only happens where the caller asked
+# for it by naming a root.
 #
 # A drive-letter path is ABSOLUTE. `git rev-parse --show-toplevel` answers
 # `C:/repo` under Git Bash, so that spelling is what the index-drift hook hands
@@ -373,7 +382,17 @@ fi
 # the error and exited 0. The production check was a no-op for every Windows
 # user until this test was widened.
 if [[ -n "$TARGET" && "$TARGET" != /* && ! "$TARGET" =~ ^[A-Za-z]:[\\/] ]]; then
-  TARGET="$PWD/$TARGET"
+  if ((ROOT_GIVEN)); then
+    # A relative --root is itself anchored to the caller's cwd, so resolve it
+    # before joining or the target stays relative past the `cd` below.
+    root_abs="$ROOT"
+    if [[ "$root_abs" != /* && ! "$root_abs" =~ ^[A-Za-z]:[\\/] ]]; then
+      root_abs="$PWD/$root_abs"
+    fi
+    TARGET="${root_abs%/}/$TARGET"
+  else
+    TARGET="$PWD/$TARGET"
+  fi
 fi
 
 cd "$ROOT" || die "cannot enter --root: $ROOT"

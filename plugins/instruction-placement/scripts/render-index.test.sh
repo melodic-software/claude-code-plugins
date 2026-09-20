@@ -235,6 +235,35 @@ assert_contains "while the surrounding content survives" "$(cat "$empty/AGENTS.m
 run check --file "$empty/AGENTS.md" --root "$empty" >/dev/null 2>&1
 assert_eq "and the repository is in sync afterwards" "0" "$?"
 
+# A relative --file belongs to --root when --root was given. An agent whose
+# working directory is not the repository writes `--file AGENTS.md --root <repo>`
+# and means the repository's own file; anchoring that to the caller's cwd finds
+# nothing and dies.
+relroot="$(mktemp -d)"
+git -C "$relroot" init -q .
+mkdir -p "$relroot/.claude/rules"
+printf -- '---\npaths:\n  - "**/*.py"\n---\n# Python\n' >"$relroot/.claude/rules/py.md"
+printf '@AGENTS.md\n' >"$relroot/CLAUDE.md"
+printf '# Root\n' >"$relroot/AGENTS.md"
+commit_all "$relroot"
+
+# Run these from a neutral empty directory. The bug being fixed is a relative
+# --file resolving against the CALLER's cwd, so a run of this case against the
+# unfixed script writes into whatever repository the suite was launched from.
+# It did exactly that once, to this repository's own AGENTS.md.
+neutral="$(mktemp -d)"
+
+out="$( (cd "$neutral" && run check --file AGENTS.md --root "$relroot") 2>&1)"
+assert_not_contains "a relative --file is resolved against --root, not cwd" "$out" "not a readable file"
+(cd "$neutral" && run check --file AGENTS.md --root "$relroot") >/dev/null 2>&1
+assert_eq "so the target is found and reported as having no block yet" "3" "$?"
+(cd "$neutral" && run write --file AGENTS.md --root "$relroot") >/dev/null 2>&1
+assert_eq "write resolves it the same way" "0" "$?"
+assert_contains "and the block lands in the repository's file" "$(cat "$relroot/AGENTS.md")" "BEGIN GENERATED"
+assert_eq "and nothing was written into the caller's directory" "" "$(ls -A "$neutral")"
+(cd "$neutral" && run check --file AGENTS.md --root "$relroot") >/dev/null 2>&1
+assert_eq "and check then reads it as in sync" "0" "$?"
+
 # --------------------------------------------------------------------------
 # check — in sync, drifted, and missing
 # --------------------------------------------------------------------------
