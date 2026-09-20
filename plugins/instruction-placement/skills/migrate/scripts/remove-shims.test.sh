@@ -46,13 +46,21 @@ assert_not_contains() {
 # A helper this suite never defined used to print "command not found" to stderr
 # and move on, so the run reported every other check passing while silently
 # skipping that one. An unknown command is a failed check.
+#
+# The count goes through a FILE, not the FAILED variable: bash runs this
+# handler wherever the unknown command was, which is often a subshell, and a
+# subshell's increment dies with it. The summary adds the file's lines back in.
+UNKNOWN_COMMANDS="$(mktemp)"
 # shellcheck disable=SC2329 # bash invokes this by name when a command is not found
 command_not_found_handle() {
-  fail "unknown command in the suite: $1" "a helper is missing or misspelled; the check it belonged to did not run"
+  printf '%s\n' "$1" >>"$UNKNOWN_COMMANDS"
+  printf 'FAIL: unknown command in the suite: %s\n' "$1"
+  printf '      a helper is missing or misspelled; the check it belonged to did not run\n'
+  return 127
 }
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
 cd "$TMP" || exit 1
 
 make_repo() {
@@ -375,12 +383,20 @@ assert_eq "and that one is byte-exact" "@AGENTS.md" "$(cat "$HALF/CLAUDE.md")"
 # repository. A closed pipe is the case that needs no `kill` to provoke and the
 # one a named INT/TERM trap misses: `remove-shims | head` was enough to strand
 # a repository before the restore moved onto the EXIT trap.
+# The reader has to survive until AFTER the first removal, or the run dies in
+# a window where there is nothing to restore and the case proves nothing. `grep
+# -q` exits on its first match, so closing on a "removed" line puts the death
+# exactly inside the window the ignore protects. A canary that then misses
+# means the restore has real work to do either way.
 PIPED="$TMP/piped"
 build_ready_repo "$PIPED"
 bash "$SCRIPT" --root "$PIPED" --confirm --installed-plugins "$TMP/installed-current.json" \
-  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}" 2>/dev/null | head -n 12 >/dev/null
-assert_eq "a run whose reader closed the pipe leaves the shims in place" "" \
+  --claude-bin "$TMP/bin/claude-unmet" "${CHECK_ARGS[@]}" 2>/dev/null |
+  grep -q 'removed svc/CLAUDE.md'
+assert_eq "a reader that closes after a removal still leaves the shims in place" "" \
   "$(cd "$PIPED" && git status --porcelain)"
+assert_eq "and the root shim is the import line again" "@AGENTS.md" "$(cat "$PIPED/CLAUDE.md")"
+assert_eq "and so is the nested one" "@AGENTS.md" "$(cat "$PIPED/svc/CLAUDE.md")"
 
 # A staged edit to a shim does not become the restored content: the restore
 # writes the one line the target shape guarantees, not the index copy.
@@ -401,6 +417,8 @@ OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/install
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "a de-shimmed repository exits 0" 0 "$rc"
 assert_contains "and says there is nothing to remove" "$OUT" "Nothing to remove"
+
+[[ -s "$UNKNOWN_COMMANDS" ]] && FAILED=$((FAILED + $(wc -l <"$UNKNOWN_COMMANDS")))
 
 echo
 if ((FAILED == 0)); then

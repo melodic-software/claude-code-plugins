@@ -36,6 +36,12 @@ plugins/architecture/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]
 plugins/claude-config/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
 plugins/planning/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
 plugins/plugin-quality/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
+plugins/architecture/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Records which file the resolution above chose, inside the branch the shim check already guards. With no CLAUDE.md the branch is not taken.
+plugins/claude-config/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
+plugins/planning/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
+plugins/plugin-quality/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
+plugins/instruction-placement/scripts/lib/discover.sh	\( -name 'CLAUDE.md' -o -name 'AGENTS.md' \) 2>/dev/null | sed 's|^\./||')"	Discovers instruction files by name to inventory them, and treats AGENTS.md the same way. An absent CLAUDE.md drops out of the inventory; nothing is located by its existence.
+plugins/instruction-placement/skills/migrate/scripts/plan-migration.sh	[[ "$dir" == "." ]] && claude="CLAUDE.md"	Builds the path this plan REPORTS bytes for. The byte count is 0 when the file is absent, which is the correct report.
 
 # --- claude-memory audit scripts --------------------------------------------
 plugins/claude-memory/skills/audit/scripts/discover-instruction-surfaces.sh	if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then	User scope, and ~/.claude/CLAUDE.md is never removed by this migration; it is the one permanent CLAUDE.md.

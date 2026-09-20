@@ -155,12 +155,19 @@ done
   exit 2
 }
 # A repeated --repo grades the same tree twice and inflates every count, which
-# reads as broader coverage than the run had.
+# reads as broader coverage than the run had. The comparison is on the
+# repository each path RESOLVES to, not on the string: `X` and `X/` and
+# `X/sub` are one tree, and the plan climbs to the toplevel anyway.
+REPO_KEYS=()
 for i in "${!REPOS[@]}"; do
-  for j in "${!REPOS[@]}"; do
+  key="$(cd "${REPOS[$i]}" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  REPO_KEYS+=("${key:-${REPOS[$i]}}")
+done
+for i in "${!REPO_KEYS[@]}"; do
+  for j in "${!REPO_KEYS[@]}"; do
     ((j > i)) || continue
-    [[ "${REPOS[$i]}" != "${REPOS[$j]}" ]] || {
-      echo "cutover-check: --repo ${REPOS[$i]} was given more than once" >&2
+    [[ "${REPO_KEYS[$i]}" != "${REPO_KEYS[$j]}" ]] || {
+      echo "cutover-check: ${REPOS[$i]} and ${REPOS[$j]} are the same repository" >&2
       exit 2
     }
   done

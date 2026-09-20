@@ -47,13 +47,21 @@ assert_not_contains() {
 # A helper this suite never defined used to print "command not found" to stderr
 # and move on, so the run reported every other check passing while silently
 # skipping that one. An unknown command is a failed check.
+#
+# The count goes through a FILE, not the FAILED variable: bash runs this
+# handler wherever the unknown command was, which is often a subshell, and a
+# subshell's increment dies with it. The summary adds the file's lines back in.
+UNKNOWN_COMMANDS="$(mktemp)"
 # shellcheck disable=SC2329 # bash invokes this by name when a command is not found
 command_not_found_handle() {
-  fail "unknown command in the suite: $1" "a helper is missing or misspelled; the check it belonged to did not run"
+  printf '%s\n' "$1" >>"$UNKNOWN_COMMANDS"
+  printf 'FAIL: unknown command in the suite: %s\n' "$1"
+  printf '      a helper is missing or misspelled; the check it belonged to did not run\n'
+  return 127
 }
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
 cd "$TMP" || exit 1
 
 make_repo() {
@@ -169,7 +177,16 @@ assert_eq "an unknown argument exits 2" 2 "$rc"
 rc=0
 ERR=$(bash "$SCRIPT" --repo "$CLEAN" --repo "$CLEAN" --skip-canary 2>&1 >/dev/null) || rc=$?
 assert_eq "the same --repo twice exits 2" 2 "$rc"
-assert_contains "and says which one was repeated" "$ERR" "was given more than once"
+assert_contains "and says which two are the same repository" "$ERR" "are the same repository"
+
+# Two spellings of one tree are one repository, not two: the plan climbs to
+# the toplevel, so a trailing slash or a subdirectory would grade it twice.
+rc=0
+ERR=$(bash "$SCRIPT" --repo "$CLEAN" --repo "$CLEAN/" --skip-canary 2>&1 >/dev/null) || rc=$?
+assert_eq "a trailing slash is the same repository" 2 "$rc"
+rc=0
+ERR=$(bash "$SCRIPT" --repo "$CLEAN" --repo "$CLEAN/.github" --skip-canary 2>&1 >/dev/null) || rc=$?
+assert_eq "a subdirectory of the same tree is the same repository" 2 "$rc"
 
 rc=0
 bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/nope.md" >/dev/null 2>&1 || rc=$?
@@ -468,6 +485,8 @@ assert_contains "no rows and no file is MET" "$OUT" "no path detection"
 # --- Case 8: nothing is written -------------------------------------------
 
 assert_eq "the checked repository is untouched" "" "$(cd "$CLEAN" && git status --porcelain)"
+
+[[ -s "$UNKNOWN_COMMANDS" ]] && FAILED=$((FAILED + $(wc -l <"$UNKNOWN_COMMANDS")))
 
 echo
 if ((FAILED == 0)); then

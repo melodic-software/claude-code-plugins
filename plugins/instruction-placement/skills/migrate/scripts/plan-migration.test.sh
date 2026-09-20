@@ -41,13 +41,21 @@ assert_not_contains() {
 # A helper this suite never defined used to print "command not found" to stderr
 # and move on, so the run reported every other check passing while silently
 # skipping that one. An unknown command is a failed check.
+#
+# The count goes through a FILE, not the FAILED variable: bash runs this
+# handler wherever the unknown command was, which is often a subshell, and a
+# subshell's increment dies with it. The summary adds the file's lines back in.
+UNKNOWN_COMMANDS="$(mktemp)"
 # shellcheck disable=SC2329 # bash invokes this by name when a command is not found
 command_not_found_handle() {
-  fail "unknown command in the suite: $1" "a helper is missing or misspelled; the check it belonged to did not run"
+  printf '%s\n' "$1" >>"$UNKNOWN_COMMANDS"
+  printf 'FAIL: unknown command in the suite: %s\n' "$1"
+  printf '      a helper is missing or misspelled; the check it belonged to did not run\n'
+  return 127
 }
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
 
 make_repo() {
   unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG
@@ -513,9 +521,13 @@ bash "$SCRIPT" --root "$HAZARD" --home "$TMP/fakehome" >/dev/null
 AFTER=$(cd "$HAZARD" && git status --porcelain)
 assert_eq "the plan leaves the working tree untouched" "$BEFORE" "$AFTER"
 
+[[ -s "$UNKNOWN_COMMANDS" ]] && FAILED=$((FAILED + $(wc -l <"$UNKNOWN_COMMANDS")))
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
 fi
-printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM" >&2
+# Both summaries go to stdout. The failure one went to stderr, so a caller
+# capturing stdout alone saw a run that printed no verdict at all.
+printf '\n%d/%d checks failed.\n' "$FAILED" "$CASE_NUM"
 exit 1

@@ -458,14 +458,25 @@ fi
 # a detector by design; reporting those quotations as detectors would make the
 # file that answers this row also generate it.
 #
-# The match is deliberately NOT a list of existence-test spellings. A list
-# misses `-e`, `Test-Path`, `os.stat`, `File.exist?`, a variable holding the
-# name, and every spelling nobody thought of, and each miss reports a clean
-# tree and clears the condition. So every mention of the name in a CODE file is
-# a row unless it is a known-benign shape, and the acknowledgement list is
-# where a benign one is answered once, by a human, in writing. Over-reporting
-# costs a line in that file; under-reporting clears a cutover that breaks a
-# repository.
+# The match is a WIDE list of existence-ish shapes, not a narrow one, and it
+# is still a list: it reports what it recognizes. Reporting every mention of
+# the name instead was measured at 519 rows here against 54 for this pattern,
+# and an acknowledgement list nobody reads is one that gets rubber-stamped,
+# which fails the same way a miss does. So the bias is wide but bounded, and
+# the residue is stated rather than hidden:
+#
+#   REPORTED: -e/-f/-s/-r/-h/-L tests, `test -e`, `find -name`, Test-Path,
+#     File.Exists, os.path.exists, os.stat, Path(...).exists(), fs.existsSync,
+#     accessSync, statSync, File.exist?, .isFile(), a `x=CLAUDE.md` assignment,
+#     and any exists/stat/access/is-file/locate/find-root idiom within 60
+#     characters of the name.
+#   NOT REPORTED, and known: a name reached only through a variable assigned
+#     far from its use, a shell `ls`/`cat` used as an existence probe, and any
+#     spelling outside the list above. Those land in MENTION, which condition 4
+#     does not grade, so an operator triaging MENTION rows is the backstop.
+#
+# Over-reporting costs a line in the acknowledgement file; under-reporting
+# clears a cutover that breaks a repository.
 #
 # Benign shapes, dropped before reporting:
 #   - a comment line (`#`, `//`, `*`, `--`, `<!--`, `;`)
@@ -485,10 +496,15 @@ BENIGN_COMMENT=':[0-9]+:[[:space:]]*(#|//|\*|--|<!--|;)'
 # reads and English prose in eval files, and an acknowledgement list of 519
 # rows is one nobody reads: it gets rubber-stamped, which fails the same way
 # under-reporting does. A false positive here costs one line in that list.
-PATHDET_PATTERN='(\[\[|\[|\(|^|[[:space:];&|]|!)[[:space:]]*-(e|f|s|r|h|L)[[:space:]][^;&|]{0,60}CLAUDE\.md'
+PATHDET_PATTERN='(\[\[|\[|\(|^|[[:space:];&|]|!)[[:space:]]*-(e|f|s|r|h|L|name)[[:space:]][^;&|]{0,60}CLAUDE\.md'
 PATHDET_PATTERN="$PATHDET_PATTERN"'|([Ee]xists?|EXISTS|[Ii]s_?[Ff]ile|[Ii]sFile|[Ss]tat|[Tt]est-[Pp]ath|[Aa]ccess(Sync)?|existsSync|statSync|[Ff]ile[Ee]xists|[Pp]ath\.[a-z]+|[Ff]ind[A-Za-z]*[Rr]oot|[Ll]ocate)[^;]{0,60}CLAUDE\.md'
+# A bare assignment of the name to a variable: the lookup itself may be lines
+# away, so the assignment is the only place a grep can see it.
 # shellcheck disable=SC2016 # the quote characters are part of the pattern, not a shell expansion
-PATHDET_PATTERN="$PATHDET_PATTERN"'|CLAUDE\.md("|'"'"')?[[:space:]]*\)?[[:space:]]*\.?(exists|is_file|stat|exist\?)'
+PATHDET_PATTERN="$PATHDET_PATTERN"'|[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(=|:=|<-)[[:space:]]*("|'"'"')?CLAUDE\.md'
+# A method called ON the name, postfix, in any of the fleet's languages.
+# shellcheck disable=SC2016 # the quote characters are part of the pattern, not a shell expansion
+PATHDET_PATTERN="$PATHDET_PATTERN"'|CLAUDE\.md("|'"'"')?[[:space:]]*\)?[[:space:]]*\.[[:space:]]*([Ee]xists?|[Ii]s_?[Ff]ile|[Ss]tat|exist\?)'
 
 pathdet_rc=0
 git grep -n -I -E 'CLAUDE\.md' \

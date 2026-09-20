@@ -299,8 +299,10 @@ started there loads that directory's `AGENTS.md` and every ancestor's, measured 
 tools available: running from the directory is itself the trigger, so no Read is needed. It also
 means a line the nested file shares with the root file is answered by the **root** file, so the
 nested surface would pass while loading nothing of its own. The canary line is therefore the longest
-plain line that appears in no other `AGENTS.md` in the repository, and a file with no such line is
-refused **before** anything is removed.
+plain line **contained in** no line of any other `AGENTS.md` that loads beside it, ancestors above
+the repository root included, and a file with no such line is refused **before** anything is
+removed. Containment, not equality: the canary passes on a substring match, so an ancestor line
+carrying the same sentence plus a clause answers the probe exactly as an identical one would.
 
 After removal it runs one canary per de-shimmed directory against that line of
 that directory's own `AGENTS.md`, so **no token is written into a real repository**, and any miss,

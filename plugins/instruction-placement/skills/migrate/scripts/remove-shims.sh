@@ -294,7 +294,7 @@ done <"$PLAN"
 # nested surface would pass its canary while loading nothing of its own.
 AGENTS_LINES="$(mktemp)"
 build_line_index() {
-  local d file
+  local d file up
   : >"$AGENTS_LINES"
   for d in ${AGENTS_DIRS[@]+"${AGENTS_DIRS[@]}"}; do
     if [[ "$d" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$d/AGENTS.md"; fi
@@ -302,10 +302,28 @@ build_line_index() {
     awk -v f="$d" '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print f "\t" $0 }' \
       "$file" >>"$AGENTS_LINES"
   done
+  # An AGENTS.md ABOVE the repository root loads in every session inside it and
+  # is in no DIR row, so a line it shares would go unseen by an index built
+  # from the plan alone.
+  up="$(dirname "$REPO")"
+  while [[ -n "$up" && "$up" != "/" && "$up" != "." && "$up" != "$(dirname "$up")" ]]; do
+    if [[ -f "$up/AGENTS.md" ]]; then
+      awk -v f="$up" '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print f "\t" $0 }' \
+        "$up/AGENTS.md" >>"$AGENTS_LINES"
+    fi
+    up="$(dirname "$up")"
+  done
 }
 
 # The longest line of this directory's AGENTS.md that is plain prose, long
-# enough to be distinctive, and present in NO other AGENTS.md in the repository.
+# enough to be distinctive, and CONTAINED IN no line of any other AGENTS.md
+# that loads beside it.
+#
+# Containment, not equality. The canary passes when the reply contains the
+# line, so an ancestor line that merely CONTAINS this one (the same sentence
+# plus a clause) answers the probe just as well as an identical one would, and
+# the nested surface passes while loading nothing of its own. Equality closed
+# the identical case and left that one open.
 canary_line() { # <dir>
   local file line best="" seen
   if [[ "$1" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$1/AGENTS.md"; fi
@@ -320,8 +338,9 @@ canary_line() { # <dir>
     esac
     ((${#line} >= 45)) || continue
     ((${#line} > ${#best})) || continue
-    seen="$(awk -F'\t' -v want="$line" '$2 == want { n++ } END { print n + 0 }' "$AGENTS_LINES")"
-    ((seen == 1)) || continue
+    seen="$(awk -F'\t' -v want="$line" -v self="$1" '
+      $1 != self && index($2, want) > 0 { n++ } END { print n + 0 }' "$AGENTS_LINES")"
+    ((seen == 0)) || continue
     best="$line"
   done <"$file"
   [[ -n "$best" ]] || return 1
