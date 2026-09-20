@@ -43,14 +43,14 @@
     },
     {
       "id": "agents-md-cutover-check",
-      "title": "Recurring: run /instruction-placement:migrate cutover-check",
+      "title": "Run /instruction-placement:migrate cutover-check",
       "cadence": "monthly",
       "area": [],
       "category": "general",
       "triggers": ["claude-code-release-agents-md"],
       "last_checked": "2026-09-20",
       "next_due": "2026-10-20",
-      "notes": "Run /instruction-placement:migrate cutover-check to test whether the four AGENTS.md-migration cutover conditions (native AGENTS.md reading off the remote feature flag, the CI action pin plus a CI canary, a local canary from two working-directory locations, and root+nested shims removable together) have moved to met. Also run it, independent of cadence, whenever /claude-ops:changelog reports a Claude Code release whose changelog touches AGENTS.md handling or instruction-file loading (the changelog-release trigger above). Record each run's per-condition met/unmet/unreachable output as a comment on #4281; recheck-close only once every condition reports met. #4281 is the open item for this row: it was filed directly rather than through /work-items:track add, so it carries no [Maintenance] title prefix.",
+      "notes": "Run /instruction-placement:migrate cutover-check; the skill defines the graded conditions and prints the evidence for each. Also run it, independent of cadence, whenever /claude-ops:changelog reports a Claude Code release that touches AGENTS.md handling or instruction-file loading. Comment each run's per-condition output on the open [Maintenance] issue (#4281 is the first instance). When every condition reports met, shim removal (remove-shims, per repo, human-confirmed) is unblocked and this row can be retired.",
       "close_previous": true
     }
   ]
