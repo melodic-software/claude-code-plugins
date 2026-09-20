@@ -212,6 +212,33 @@ HOOK_DEDUP_NOTE = (
 )
 #: Shell executables whose repeated appearance in one command line means nested shells.
 SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
+#: Tokens after which the NEXT token is the thing being run rather than an argument value.
+#: Without this test a bare shell-token match convicts `node run.js cmd` and `make sh`, where
+#: `cmd` and `sh` are values and no shell starts. The list is a FLOOR: a shell reached through
+#: a position it does not cover is missed, and the note beside the finding says so.
+COMMAND_POSITION_PREDECESSORS = frozenset({"exec", "-c", "|", "||", "&&", ";"})
+#: The variable that selects which bash Claude Code hands a shell-form command to on Windows.
+GIT_BASH_PATH_ENV = "CLAUDE_CODE_GIT_BASH_PATH"
+#: The only filenames Claude Code accepts in that variable. Any other name is ignored and the
+#: harness auto-detects Git Bash as if the variable were unset.
+ACCEPTED_GIT_BASH_NAMES = frozenset({"bash.exe", "sh.exe", "bash", "sh"})
+
+#: The wrapping shell no command string can show. Stated once so the hook block, the statusline
+#: block and SKILL.md cannot drift apart on what an empty finding list means.
+HARNESS_WRAPPER_NOTE = (
+    "Shell form (no `args`) hands the whole `command` string to a shell before its first word "
+    "runs, and the statusline command runs in a shell the same way, so a shell-form command "
+    "that then spells a shell of its own puts at least two shells in the chain. That is the "
+    "`shell-form-hook-names-a-second-shell` finding. A shell-form command naming no shell is "
+    "still run inside the harness's shell, so an empty finding list is not an unwrapped hook. "
+    "Exec form (`args` present) is spawned directly and has no shell. Which bash Windows "
+    "resolves to is reported in `fan_out.shell_resolution`. This engine reads the configured "
+    "string and never runs it, so it names the documented floor and counts nothing beyond it. "
+    "(https://code.claude.com/docs/en/hooks.md and "
+    "https://code.claude.com/docs/en/statusline.md, verified 2026-09-20; recheck when either "
+    "page's shell-form paragraph changes, or when `args` gains a documented no-shell variant "
+    "for shell form.)"
+)
 
 #: Concurrency and fan-out env vars, with the default the official docs state.
 #: A value of None means the variable is not documented at all, which is itself reportable.
@@ -1527,29 +1554,44 @@ def projected_file_kinds(gate_kinds: set[str]) -> tuple[str, ...]:
     return baseline + tuple(extras) + (PROJECTION_OTHER_KIND,)
 
 
+def shell_basename(token: str) -> str:
+    """A command-line token reduced to what it would match in SHELL_TOKENS.
+
+    Match the BASENAME, never a suffix: a suffix match counts `entrypoint.sh` as a shell
+    because it ends in "sh", which turns every ordinary script invocation into a false
+    nested-shell report.
+    """
+    basename = token.rsplit("/", 1)[-1]
+    return basename[: -len(".exe")] if basename.endswith(".exe") else basename
+
+
 def invocation_shape(entry: dict) -> list[str]:
     """Name the per-spawn overhead a hook's invocation shape carries.
 
     Two shapes cost extra process creations before the hook's own work starts,
-    and on a contended machine each spawn is the dominant cost.
+    and on a contended machine each spawn is the dominant cost. The third names a
+    shell-form command that spells a shell inside the shell the harness has already
+    wrapped the string in, which is at least two shells in the chain.
     """
     findings: list[str] = []
     full = " ".join([str(entry.get("command") or "")] + list(entry.get("args") or []))
     lowered = full.replace("\\", "/").lower()
     if "/git/bin/bash" in lowered or lowered.startswith("git/bin/bash"):
         findings.append("git-bin-bash-wrapper-costs-an-extra-spawn")
-    # Match the BASENAME of each token against the shell list. A suffix match would
-    # count `entrypoint.sh` as a shell because it ends in "sh", which turns every
-    # ordinary script invocation into a false nested-shell report.
-    shell_hits = 0
-    for token in lowered.replace('"', " ").replace("'", " ").split():
-        basename = token.rsplit("/", 1)[-1]
-        if basename.endswith(".exe"):
-            basename = basename[: -len(".exe")]
-        if basename in SHELL_TOKENS:
-            shell_hits += 1
-    if shell_hits >= 2:
+    tokens = lowered.replace('"', " ").replace("'", " ").split()
+    basenames = [shell_basename(t) for t in tokens]
+    if sum(1 for b in basenames if b in SHELL_TOKENS) >= 2:
         findings.append("nested-shell-invocation")
+    # Command position, not any position: token 0, or a token whose predecessor hands it the
+    # command slot. `args` present is exec form, which upstream documents as having no shell
+    # at all, so the harness wraps nothing and there is no second shell to name.
+    in_command_position = any(
+        basename in SHELL_TOKENS
+        and (index == 0 or tokens[index - 1] in COMMAND_POSITION_PREDECESSORS)
+        for index, basename in enumerate(basenames)
+    )
+    if not entry.get("args") and in_command_position:
+        findings.append("shell-form-hook-names-a-second-shell")
     return findings
 
 
@@ -1620,7 +1662,12 @@ def classify_hooks(entries: list[dict]) -> dict:
         "unclassified_rows": projection["unclassified_rows"],
         "if_on_non_tool_event": projection["if_on_non_tool_event"],
         "invocation_shape_findings": shape_findings,
-        "notes": [HOOK_ANCHOR_NOTE, HOOK_DEDUP_NOTE, HOOK_PARALLEL_NOTE],
+        "notes": [
+            HOOK_ANCHOR_NOTE,
+            HOOK_DEDUP_NOTE,
+            HOOK_PARALLEL_NOTE,
+            HARNESS_WRAPPER_NOTE,
+        ],
         "note": HOOK_PARALLEL_NOTE,
     }
 
@@ -1710,6 +1757,11 @@ def statusline_config(root: Path) -> dict:
     if not isinstance(config, dict):
         return {"configured": False}
     command = str(config.get("command") or "")
+    note = (
+        "refreshInterval is in SECONDS with a documented minimum of 1; renders are debounced "
+        "300 ms and an in-flight render is cancelled when a new trigger arrives. Not executed "
+        "by this engine: time it yourself against the spawn baseline in fan_out.spawn_cost. "
+    )
     return {
         "configured": True,
         "type": config.get("type"),
@@ -1717,11 +1769,7 @@ def statusline_config(root: Path) -> dict:
         "refresh_interval_seconds": config.get("refreshInterval"),
         "padding": config.get("padding"),
         "invocation_shape_findings": invocation_shape({"command": command, "args": []}),
-        "note": (
-            "refreshInterval is in SECONDS with a documented minimum of 1; renders are debounced "
-            "300 ms and an in-flight render is cancelled when a new trigger arrives. Not executed "
-            "by this engine: time it yourself against the spawn baseline in fan_out.spawn_cost."
-        ),
+        "note": note + HARNESS_WRAPPER_NOTE,
     }
 
 
@@ -1797,6 +1845,86 @@ def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
     return ceilings
 
 
+def shell_resolution(root: Path, process_env: dict | None = None) -> dict:
+    """Report WHICH bash a shell-form command would be handed to. Never runs either one.
+
+    The wrapping shell is invisible in the command string, so a report that stops at the
+    string cannot say which binary pays that spawn. Resolution here is a read of
+    `settings.json`, a read of the environment, and one stat, which keeps the read-only
+    contract whole. The two-step search the docs describe for an unset variable is REPORTED,
+    never performed: walking the default install locations would assert a landing binary this
+    engine cannot verify without running it.
+    """
+    env = os.environ if process_env is None else process_env
+    settings, error = read_json(root / "settings.json")
+    settings_env = (settings or {}).get("env") or {}
+    if GIT_BASH_PATH_ENV in settings_env:
+        value, source = str(settings_env[GIT_BASH_PATH_ENV]), "settings.json env"
+    elif GIT_BASH_PATH_ENV in env:
+        value, source = str(env[GIT_BASH_PATH_ENV]), "engine process environment"
+    else:
+        value, source = None, None
+    findings: list[str] = []
+    record: dict = {
+        "variable": GIT_BASH_PATH_ENV,
+        "value": value,
+        "source": source,
+        "set": value is not None,
+        "exists": None,
+        "name_accepted": None,
+        "resolves_to": "unset",
+        "applies_to_this_host": sys.platform == "win32",
+        "findings": findings,
+        "observation": (
+            "Git for Windows ships bin/bash.exe as a launcher that re-execs usr/bin/bash.exe. "
+            "That is Git for Windows behavior, not anything Claude Code documents: it was "
+            "observed on one Windows host by a Win32_Process census and is recorded with its "
+            "evidence in reference/known-performance-issues.md. This engine does not measure it."
+        ),
+        "note": (
+            "Resolved from settings.json `env`, then the engine's own environment, then stat. "
+            "This engine never executes either bash.exe, so it reports the resolution and "
+            "leaves per-binary timing to the operator. "
+            "(https://code.claude.com/docs/en/troubleshoot-install, verified 2026-09-20; "
+            "recheck when that section's resolution order or accepted-name list changes.)"
+        ),
+    }
+    if error:
+        record["error"] = error
+    if value is None:
+        findings.append(
+            f"{GIT_BASH_PATH_ENV} is unset, so Claude Code looks for bash.exe in two documented "
+            "steps: first the default install locations (C:\\Program Files\\Git and "
+            "C:\\Program Files (x86)\\Git), then the git on PATH, taking bin\\bash.exe from that "
+            "Git installation. Which step wins on this host is not resolved here."
+        )
+        return record
+    normalized = value.replace("\\", "/")
+    basename = normalized.rsplit("/", 1)[-1].lower()
+    lowered = normalized.lower()
+    record["name_accepted"] = basename in ACCEPTED_GIT_BASH_NAMES
+    record["exists"] = Path(value).is_file()
+    if "/git/bin/bash" in lowered:
+        record["resolves_to"] = "git-bin-launcher"
+    elif "/git/usr/bin/bash" in lowered:
+        record["resolves_to"] = "git-usr-bin"
+    else:
+        record["resolves_to"] = "other"
+    if not record["name_accepted"]:
+        findings.append(
+            f"{GIT_BASH_PATH_ENV} names {basename}, which is not one of the accepted filenames "
+            "(bash.exe, sh.exe, bash, sh). Claude Code ignores the variable and auto-detects "
+            "Git Bash as if it were unset, logging a warning visible with --debug."
+        )
+    if not record["exists"]:
+        findings.append(
+            f"{GIT_BASH_PATH_ENV} points at a path that does not exist here, and a path that "
+            "does not exist gets the same fallback and warning as a rejected filename, so the "
+            "resolves_to above names a binary the harness will not use."
+        )
+    return record
+
+
 def config_liveness(root: Path, records: list[dict]) -> dict:
     """Compare settings mtime against running session start times.
 
@@ -1864,6 +1992,7 @@ def fan_out_layer(
         "statusline": statusline_config(root),
         "config_liveness": config_liveness(root, records),
         "concurrency_ceilings": concurrency_ceilings(root),
+        "shell_resolution": shell_resolution(root),
     }
 
 

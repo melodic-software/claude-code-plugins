@@ -3,6 +3,14 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.0]
+
+### Added
+
+- audit-performance names the shell Claude Code wraps a shell-form hook command in. `invocation_shape` gains `shell-form-hook-names-a-second-shell`, which fires when a hook or statusline command with no `args` spells a shell in command position: upstream documents that the `command` string is passed to a shell before its first word runs, so such a command puts at least two shells in the chain, and the previous `shell_hits >= 2` rule could see only the one the string spelled. Command position is token 0 or a token whose predecessor is `exec`, `-c`, `|`, `||`, `&&`, or `;`, which keeps `node run.js cmd` and `make sh` out of the finding; the rule is a floor and the note beside it says so. The two existing findings keep their names, their meaning, and their place ahead of the new one.
+- `fan_out.shell_resolution` reports which bash a shell-form command would be handed to on Windows: `CLAUDE_CODE_GIT_BASH_PATH`, its source (settings.json `env`, then the engine's own environment), whether the path exists, whether Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to `usr/bin/bash.exe`. A rejected filename and a path that does not exist get the same documented fallback, and both are reported, so a resolution the harness will never use is not presented as one it will. Unset, the block reports the documented two-step search rather than performing it. Read-only throughout: a settings read, an environment read, and one stat, with no new subprocess and neither binary spawned.
+- SKILL.md and reference/known-performance-issues.md state that an empty `invocation_shape_findings` is not a clean bill of health, since every shell-form command runs inside the harness's shell whether or not it names another, and both route the reader to `shell_resolution`. The `Never execute` section names the new block. The Git for Windows launcher re-exec stays a one-host observation carrying its provenance, never a count the engine asserts.
+
 ## [0.56.17]
 
 ### Changed

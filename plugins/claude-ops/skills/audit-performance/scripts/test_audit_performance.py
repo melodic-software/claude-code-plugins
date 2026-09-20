@@ -137,13 +137,66 @@ class TestInvocationShape(unittest.TestCase):
         entry = {"command": "/usr/bin/bash", "args": ["-c", "bash script.sh"]}
         self.assertIn("nested-shell-invocation", engine.invocation_shape(entry))
 
-    def test_a_plain_script_invocation_is_not_a_nested_shell(self):
-        """A token ending in `.sh` is a script, not a shell; a suffix match got this wrong."""
+    def test_a_plain_script_invocation_names_a_second_shell_but_is_not_nested(self):
+        """A token ending in `.sh` is a script, not a shell; a suffix match got this wrong.
+
+        The command still spells a shell of its own inside the shell the harness already
+        wrapped the string in, which is the shape the nested-shell rule cannot see.
+        """
         entry = {
             "command": 'bash "C:/fixture/.claude/statusline/entrypoint.sh"',
             "args": [],
         }
+        findings = engine.invocation_shape(entry)
+        self.assertNotIn("nested-shell-invocation", findings)
+        self.assertIn("shell-form-hook-names-a-second-shell", findings)
+
+    def test_a_shell_form_command_naming_a_shell_names_a_second_shell(self):
+        entry = {"command": 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh"', "args": []}
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_exec_form_names_no_second_shell(self):
+        """`args` present is exec form, which upstream documents as having no shell."""
+        entry = {"command": "bash", "args": ["-c", "echo hi"]}
+        self.assertNotIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_a_shell_form_script_naming_no_shell_reports_nothing(self):
+        entry = {"command": "/opt/hooks/prompt.sh", "args": []}
         self.assertEqual(engine.invocation_shape(entry), [])
+
+    def test_a_shell_token_in_argument_position_is_not_a_second_shell(self):
+        for command in ("node run.js cmd", "make sh"):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    engine.invocation_shape({"command": command, "args": []}), []
+                )
+
+    def test_exec_and_operator_positions_are_command_positions(self):
+        for command in ("exec bash x.sh", "./a.sh && bash b.sh"):
+            with self.subTest(command=command):
+                self.assertIn(
+                    "shell-form-hook-names-a-second-shell",
+                    engine.invocation_shape({"command": command, "args": []}),
+                )
+
+    def test_an_all_in_command_chain_emits_every_shape_finding_in_order(self):
+        """The two legacy names stay first; the new one is appended last."""
+        entry = {
+            "command": '"C:/Program Files/Git/bin/bash.exe" -c "bash x.sh"',
+            "args": [],
+        }
+        self.assertEqual(
+            engine.invocation_shape(entry),
+            [
+                "git-bin-bash-wrapper-costs-an-extra-spawn",
+                "nested-shell-invocation",
+                "shell-form-hook-names-a-second-shell",
+            ],
+        )
 
 
 class TestHookInventoryOverATree(unittest.TestCase):
@@ -174,7 +227,7 @@ class TestHookInventoryOverATree(unittest.TestCase):
                                 "hooks": [
                                     {
                                         "type": "command",
-                                        "command": "/plugin/hooks/stop.sh",
+                                        "command": "bash /plugin/hooks/stop.sh",
                                     }
                                 ]
                             }
@@ -1568,10 +1621,84 @@ class TestKernelObjectCensus(unittest.TestCase):
             self.assertIn("reason", result)
 
 
+class TestShellResolution(unittest.TestCase):
+    """Which bash the harness would pick is configuration the report never carried."""
+
+    def resolve(self, tmp: Path, settings_env: dict, process_env: dict) -> dict:
+        root = tmp / ".claude"
+        write_settings(root, {"env": settings_env})
+        return engine.shell_resolution(root, process_env=process_env)
+
+    def test_an_unset_variable_reports_the_documented_two_step_search(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(Path(tmp), {}, {})
+            self.assertFalse(result["set"])
+            self.assertIsNone(result["source"])
+            self.assertEqual(result["resolves_to"], "unset")
+            self.assertTrue(
+                any("default install locations" in f for f in result["findings"])
+            )
+
+    def test_settings_env_names_the_git_bin_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            launcher = Path(tmp) / "Git" / "bin" / "bash.exe"
+            launcher.parent.mkdir(parents=True)
+            launcher.write_text("", encoding="utf-8")
+            result = self.resolve(
+                Path(tmp), {engine.GIT_BASH_PATH_ENV: str(launcher)}, {}
+            )
+            self.assertEqual(result["source"], "settings.json env")
+            self.assertEqual(result["resolves_to"], "git-bin-launcher")
+            self.assertTrue(result["exists"])
+            self.assertTrue(result["name_accepted"])
+            self.assertEqual(result["findings"], [])
+
+    def test_the_process_environment_is_the_second_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            direct = Path(tmp) / "Git" / "usr" / "bin" / "bash.exe"
+            direct.parent.mkdir(parents=True)
+            direct.write_text("", encoding="utf-8")
+            result = self.resolve(
+                Path(tmp), {}, {engine.GIT_BASH_PATH_ENV: str(direct)}
+            )
+            self.assertEqual(result["source"], "engine process environment")
+            self.assertEqual(result["resolves_to"], "git-usr-bin")
+
+    def test_a_rejected_filename_is_reported_as_ignored_by_the_harness(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(
+                Path(tmp),
+                {engine.GIT_BASH_PATH_ENV: "C:/Program Files/Git/git-bash.exe"},
+                {},
+            )
+            self.assertFalse(result["name_accepted"])
+            self.assertTrue(any("git-bash.exe" in f for f in result["findings"]))
+
+    def test_a_correctly_named_path_that_does_not_exist_gets_the_same_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = str(Path(tmp) / "nowhere" / "bash.exe")
+            result = self.resolve(Path(tmp), {engine.GIT_BASH_PATH_ENV: missing}, {})
+            self.assertTrue(result["name_accepted"])
+            self.assertFalse(result["exists"])
+            self.assertTrue(any("does not exist" in f for f in result["findings"]))
+
+    def test_an_absent_settings_file_still_resolves(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = engine.shell_resolution(Path(tmp) / ".claude", process_env={})
+            self.assertFalse(result["set"])
+            self.assertEqual(result["variable"], engine.GIT_BASH_PATH_ENV)
+
+    def test_the_launcher_re_exec_is_carried_as_a_one_host_observation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(Path(tmp), {}, {})
+            self.assertIn("observed on one", result["observation"])
+            self.assertIn("never executes", result["note"])
+
+
 class TestFanOutIsWiredIntoTheReport(unittest.TestCase):
     """The regression guard: a report without a fan_out section under-reports by a layer."""
 
-    def test_the_fan_out_layer_carries_all_five_probes(self):
+    def test_the_fan_out_layer_carries_all_six_probes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / ".claude"
             write_settings(root, {})
@@ -1584,6 +1711,7 @@ class TestFanOutIsWiredIntoTheReport(unittest.TestCase):
                     "statusline",
                     "config_liveness",
                     "concurrency_ceilings",
+                    "shell_resolution",
                 },
             )
 

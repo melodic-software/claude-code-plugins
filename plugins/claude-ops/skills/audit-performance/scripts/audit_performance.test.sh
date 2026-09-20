@@ -41,7 +41,7 @@ cat >"$WORK/root/settings.json" <<'JSON'
   "env": {"CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "5"},
   "statusLine": {"type": "command", "command": "bash line.sh", "refreshInterval": 2},
   "hooks": {
-    "Stop": [{"hooks": [{"type": "command", "command": "stop.sh"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "bash stop.sh"}]}],
     "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "pre.sh"}]}],
     "PostToolUse": [{"matcher": "Write|Edit", "hooks": [
       {"type": "command", "command": "fmt.sh", "if": "Edit(*.md)"},
@@ -98,9 +98,23 @@ assert "it runs once" in joined, hooks["notes"]
 assert "parallel" in joined, hooks["notes"]
 print("OK: the hook block ships by_matcher, the projection, and unclassified rows")
 
+shapes = [f for row in hooks["invocation_shape_findings"] for f in row["findings"]]
+assert "shell-form-hook-names-a-second-shell" in shapes, hooks["invocation_shape_findings"]
+
 depth = fan_out["concurrency_ceilings"]["variables"]["CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"]
 assert depth["above_documented_default"] is True, depth
 assert fan_out["statusline"]["configured"] is True, fan_out["statusline"]
+assert "shell-form-hook-names-a-second-shell" in (
+    fan_out["statusline"]["invocation_shape_findings"]
+), fan_out["statusline"]
+
+# Key presence only: fan_out_layer resolves the variable from the RUNNER's own
+# environment, so asserting a value, a source, or a resolution would make this
+# contract run machine-dependent.
+resolution = fan_out["shell_resolution"]
+for key in ("variable", "resolves_to", "note", "findings"):
+    assert key in resolution, (key, sorted(resolution))
+print("OK: the shell the harness wraps a shell-form command in is named in the report")
 assert "spawn_cost" in fan_out and "state_label" in fan_out["spawn_cost"], fan_out["spawn_cost"]
 assert "fan_out" in report["timings_seconds"], report["timings_seconds"]
 print("OK: fan-out layer is present in the shipped report")
