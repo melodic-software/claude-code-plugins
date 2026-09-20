@@ -1607,12 +1607,33 @@ run_pwsh "PS hs: a legitimate here-string whose body contains a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "release # 1" "\"@")" 0
 run_pwsh "PS hs: a # inside quotes before a real opener (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output 'x # y' @\"" "git push --force" "\"@")" 0
-# The paired-quote strip runs single-quote-first, so two apostrophes pair across
-# the `#` and this stays a REAL here-string, which is what pwsh reads it as
-# (Generic, Generic, HereStringExpandable, parse clean). Pinned as expected-0 so
-# a later switch to the ordered span walk cannot flip it silently.
+# The `'` in `don't` opens a span that owns everything through the `'` in `it's`,
+# so the `#` sits INSIDE that span and is blanked with it: this stays a REAL
+# here-string, which is what pwsh reads it as (Generic, Generic,
+# HereStringExpandable, parse clean), and `git push --force` is inert body text.
+# Pinned as expected-0 so a later change to the quote blanking cannot flip it
+# silently.
 run_pwsh "PS hs: apostrophes pairing across the # keep a real opener (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Host don't # it's @\"" "git push --force" "\"@")" 0
+# ACCEPTED OVER-BLOCK, the cost of that pairing being the ordered span walk. The
+# walk refuses to pair a DOUBLED-quote escape and emits the line verbatim, so the
+# `#` inside `'a''# b'` survives and refuses the opener after it. PowerShell reads
+# this as the string `a'# b` followed by a live opener, with the git line inert
+# body; the guard refuses it.
+run_pwsh "PS hs: a doubled-quote escape hiding a # refuses the opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output 'a''# b' @\"" "git push --force" "\"@")" 2
+# THE OTHER DIRECTION, and the one a per-style strip gets wrong. An apostrophe
+# INSIDE a double-quoted string is ordinary text to PowerShell, so the `#` these
+# two apostrophes appear to straddle is a real comment start and the `@"` after it
+# is comment TEXT. A single-quote strip run independently of the double-quote one
+# pairs the apostrophe in `"it's"` with the one in `don't`, deletes the `#`
+# between them, and the line reads as a clean opener, so the live `git push
+# --force` below is then dropped as body. Both spellings parse clean in pwsh
+# 7.6.6 with the git line live at top level.
+run_pwsh "PS hs: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git push --force" "\"@\"")" 2
+run_pwsh "PS hs: the minimal apostrophe-straddle spelling of the same erasure (blocked)" \
+  "$(printf '%s\n%s\n%s' "echo \"'\" # ' \" @\"" "git push --force" "\"@\"")" 2
 run_pwsh "PS hs: the canonical verbatim commit form is untouched (allowed)" \
   "$(printf '%s\n%s\n%s' "@'" "fix: thing" "'@ | git commit -F -")" 0
 
@@ -1637,9 +1658,18 @@ run_pwsh "PS hs: the comment-opener token does not waive the visible git push --
 # input, so the shared helper is what keeps the commented line from being taken
 # as that hanging opener and the live `git push --force` from being blanked with
 # it.
+ps_hs_dual="$(printf '%s\n%s\n%s\n%s' "Write-Output x # @\"" "git push --force" "@\"" "more")"
 run_pwsh "PS hs: the unbalanced token does not blank a commented opener's live line" \
-  "$(printf '%s\n%s\n%s\n%s' "Write-Output x # @\"" "git push --force" "@\"" "more")" 2 \
+  "$ps_hs_dual" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced
+# This is the one fixture that raises BOTH flags, so it is the one that
+# discriminates the new trigger's CHAIN PLACEMENT against its predecessor, and an
+# rc of 2 alone cannot tell the two orderings apart. `herestring-unbalanced` is
+# first and must stay first: it is the reading whose allow arm hides the most
+# text, so reporting the comment opener here would hand this shape the narrower
+# token.
+pin_sink_trigger "classify: a commented opener above a real hanging opener still reports unbalanced" \
+  "$ps_hs_dual" "herestring-unbalanced"
 # A STACKED opener tail, in the spelling that actually re-forms: `# @"@'` strips
 # to `# @"`, a commented opener again. The arm substitutes the inert placeholder
 # for the two opener characters rather than stripping them, so the line cannot
@@ -1652,6 +1682,28 @@ pin_sink_trigger "classify: a stacked commented opener tail still reports the co
 run_pwsh "PS hs: a stacked commented opener tail settles in one pass (blocked)" \
   "$ps_hs_comment_stacked" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-opener
+
+# RECORDED RESIDUALS, not endorsements. Both are rc 0 on this change and on its
+# base, at default configuration with no allow token, and both are pinned so
+# neither is re-found as new.
+#
+# A BLOCK COMMENT opened on an EARLIER line. The opener line is a bare `@"` with
+# no `#` on it at all, so the per-line opener test takes it, and the `#>` and the
+# live git line go as body. Carrying block-comment state across lines is a wider
+# decision than this change.
+run_pwsh "PS hs: RECORDED RESIDUAL: an interior-line block comment still opens a phantom here-string (allowed)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "<# note" "@\"" "#>" "git push --force" "\"@ fine\"")" 0
+# A COMMENT truncated by a LONE CR. PowerShell emits a NewLine token for a bare
+# CR, so `git push --force` is live top-level code. Nothing in the guard treats a
+# bare CR as a line break: hook::jq_fields strips it out of the command and
+# ps::_split_lines_to splits on LF alone, so the live line is folded into the
+# comment. Same CR handling as the lone-CR here-string 0.35.1 records; changing
+# it is library-wide and out of this change's scope. The `#\n` twin below is the
+# control proving the fixture discriminates.
+run_pwsh "PS hs: RECORDED RESIDUAL: a lone CR truncating a # comment leaves the rest live (allowed)" \
+  "$(printf '#\rgit push --force')" 0
+run_pwsh "PS hs: control, the LF twin of that comment is refused" \
+  "$(printf '#\ngit push --force')" 2
 
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
