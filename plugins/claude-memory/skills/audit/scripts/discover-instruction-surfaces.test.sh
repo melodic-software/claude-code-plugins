@@ -202,6 +202,77 @@ assert_contains "--scope project still shows the both-tagged rule" "$OUT_HOME_PR
 # The non-overlapping fixture must NOT regress into `both`.
 assert_not_contains "distinct rules dirs never produce a both tag" "$OUT" "$(printf 'both\t')"
 
+# --- a repository whose project instructions live in AGENTS.md ---------------
+# Claude Code reads a root AGENTS.md as the project instructions when no
+# CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md displaces it. Without a row for
+# that file, a repo that has dropped its CLAUDE.md shim has nothing to audit.
+
+AGENTS_PROJ="$TEST_TMPDIR/agents-proj"
+mkdir -p "$AGENTS_PROJ"
+printf '# project instructions\n\nreal content\n' >"$AGENTS_PROJ/AGENTS.md"
+
+OUT_AGENTS="$(run_in "$AGENTS_PROJ" "$EMPTY_CONF")"
+RC_AGENTS=$?
+assert_exit "exits 0 with only an AGENTS.md" 0 "$RC_AGENTS"
+assert_contains "a natively read AGENTS.md is a project surface" "$OUT_AGENTS" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+AGENTS_ROWS="$(printf '%s\n' "$OUT_AGENTS" | grep -c '[^[:space:]]' || true)"
+if [[ "$AGENTS_ROWS" == "1" ]]; then
+  pass "a lone AGENTS.md emits exactly one project surface row"
+else
+  fail "a lone AGENTS.md emits exactly one project surface row" "got $AGENTS_ROWS rows: $OUT_AGENTS"
+fi
+
+# An empty AGENTS.md is emitted, the same as an empty CLAUDE.md: discovery tests
+# existence, and the size checks are the caller's (C1 reports 0 lines).
+EMPTY_AGENTS="$TEST_TMPDIR/agents-empty"
+mkdir -p "$EMPTY_AGENTS"
+: >"$EMPTY_AGENTS/AGENTS.md"
+OUT_AGENTS_EMPTY="$(run_in "$EMPTY_AGENTS" "$EMPTY_CONF")"
+assert_contains "a 0-byte AGENTS.md is still a surface" "$OUT_AGENTS_EMPTY" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+# --- the shim: a CLAUDE.md that imports AGENTS.md ----------------------------
+# The import already carries the AGENTS.md into the CLAUDE.md row, so emitting a
+# second row for it would double-count one file. This fixture must keep emitting
+# exactly what it emitted before the kind existed.
+
+SHIM_PROJ="$TEST_TMPDIR/shim-proj"
+mkdir -p "$SHIM_PROJ"
+printf '@AGENTS.md\n' >"$SHIM_PROJ/CLAUDE.md"
+printf '# project instructions\n\nreal content\n' >"$SHIM_PROJ/AGENTS.md"
+
+OUT_SHIM="$(run_in "$SHIM_PROJ" "$EMPTY_CONF")"
+assert_eq "a shimmed repo emits what it emitted before agents-md existed" "$(printf 'project\tclaude-md\tCLAUDE.md')" "$OUT_SHIM"
+
+# Every displacing name blocks on its own, not just CLAUDE.md.
+LOCAL_PROJ="$TEST_TMPDIR/agents-local"
+mkdir -p "$LOCAL_PROJ"
+printf '# personal overrides\n' >"$LOCAL_PROJ/CLAUDE.local.md"
+printf '# project instructions\n' >"$LOCAL_PROJ/AGENTS.md"
+OUT_LOCAL="$(run_in "$LOCAL_PROJ" "$EMPTY_CONF")"
+assert_not_contains "a CLAUDE.local.md displaces the AGENTS.md" "$OUT_LOCAL" "$(printf 'agents-md\t')"
+
+DOTCLAUDE_PROJ="$TEST_TMPDIR/agents-dotclaude"
+mkdir -p "$DOTCLAUDE_PROJ/.claude"
+printf '# project memory\n' >"$DOTCLAUDE_PROJ/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$DOTCLAUDE_PROJ/AGENTS.md"
+OUT_DOTCLAUDE="$(run_in "$DOTCLAUDE_PROJ" "$EMPTY_CONF")"
+assert_not_contains "a .claude/CLAUDE.md displaces the AGENTS.md" "$OUT_DOTCLAUDE" "$(printf 'agents-md\t')"
+
+# A user-scope CLAUDE.md does not count for that check, so it must not suppress
+# the project row.
+OUT_AGENTS_USER="$(run_in "$AGENTS_PROJ" "$CONF")"
+assert_contains "a user CLAUDE.md does not displace the AGENTS.md" "$OUT_AGENTS_USER" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+# It is a project surface, so it answers the project filter and not the user one.
+OUT_AGENTS_PROJ="$(run_in "$AGENTS_PROJ" "$CONF" --scope project)"
+assert_contains "--scope project emits the agents-md row" "$OUT_AGENTS_PROJ" "$(printf 'project\tagents-md\tAGENTS.md')"
+OUT_AGENTS_USERSCOPE="$(run_in "$AGENTS_PROJ" "$CONF" --scope user)"
+assert_not_contains "--scope user suppresses the agents-md row" "$OUT_AGENTS_USERSCOPE" "$(printf 'agents-md\t')"
+
+# The fixture the rest of this suite uses has a CLAUDE.md, so it never gains one.
+assert_not_contains "no agents-md row without an AGENTS.md" "$OUT" "$(printf 'agents-md\t')"
+
 # --- unknown argument is advisory, not fatal ---------------------------------
 
 run_in "$PROJ" "$CONF" --nonsense >/dev/null 2>&1

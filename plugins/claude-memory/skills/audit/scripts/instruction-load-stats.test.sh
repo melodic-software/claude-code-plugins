@@ -195,4 +195,46 @@ printf '# Root\r\nline\r\n' >"$CRLF/CLAUDE.md"
 OUT=$(cd "$CRLF" && bash "$SCRIPT" --bytes)
 assert_eq "--bytes measures LF-normalized content" "12" "$OUT"
 
+# --- Case: the project instructions live in AGENTS.md, with no CLAUDE.md -----
+# Claude Code reads a root AGENTS.md when no CLAUDE.md, .claude/CLAUDE.md or
+# CLAUDE.local.md displaces it, so those bytes are always-loaded bytes.
+
+AG="$TEST_TMPDIR/agents"
+make_repo "$AG"
+printf '# project instructions\n\nreal content\n' >"$AG/AGENTS.md"
+OUT=$(cd "$AG" && bash "$SCRIPT" --breakdown)
+assert_contains "a natively read AGENTS.md is an always-loaded root" "$OUT" "project	root	2	37	AGENTS.md"
+OUT=$(cd "$AG" && bash "$SCRIPT" --tokens)
+assert_eq "--tokens counts the AGENTS.md bytes (37/4)" "9" "$OUT"
+OUT=$(cd "$AG" && bash "$SCRIPT" --lines)
+assert_eq "--lines defaults to the AGENTS.md when it is what loads" "2" "$OUT"
+
+# Its own @imports expand, the same as a CLAUDE.md's.
+printf '# project instructions\n@docs/more.md\n' >"$AG/AGENTS.md"
+mkdir -p "$AG/docs"
+printf 'more\n' >"$AG/docs/more.md"
+OUT=$(cd "$AG" && bash "$SCRIPT" --breakdown)
+assert_contains "an AGENTS.md import loads too" "$OUT" "import	1	5	docs/more.md"
+
+# --- Case: the shim — a CLAUDE.md importing AGENTS.md is counted once --------
+
+SHIM="$TEST_TMPDIR/shim"
+make_repo "$SHIM"
+printf '@AGENTS.md\n' >"$SHIM/CLAUDE.md"
+printf '# project instructions\n\nreal content\n' >"$SHIM/AGENTS.md"
+OUT=$(cd "$SHIM" && bash "$SCRIPT" --breakdown)
+assert_contains "the shim's AGENTS.md is the CLAUDE.md's import" "$OUT" "project	import	2	37	AGENTS.md"
+assert_eq "the shimmed AGENTS.md is never also a root" "0" "$(printf '%s\n' "$OUT" | grep -c '	root	.*AGENTS.md')"
+OUT=$(cd "$SHIM" && bash "$SCRIPT" --tokens)
+assert_eq "--tokens counts the shimmed pair once (11 + 37 bytes)" "12" "$OUT"
+
+# A displacing file that does NOT import it leaves the AGENTS.md out: Claude Code
+# reads the CLAUDE.md files instead, so those bytes never load.
+BLOCKED="$TEST_TMPDIR/blocked"
+make_repo "$BLOCKED"
+printf 'local pref\n' >"$BLOCKED/CLAUDE.local.md"
+printf '# project instructions\n\nreal content\n' >"$BLOCKED/AGENTS.md"
+OUT=$(cd "$BLOCKED" && bash "$SCRIPT" --breakdown)
+assert_not_contains "a displaced AGENTS.md is not in the always-loaded set" "$OUT" "AGENTS.md"
+
 report_and_exit

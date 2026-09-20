@@ -24,6 +24,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/rule-scope.sh
 source "$SCRIPT_DIR/lib/rule-scope.sh"
+# shellcheck source=lib/agents-md.sh
+source "$SCRIPT_DIR/lib/agents-md.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
@@ -61,6 +63,9 @@ for f in CLAUDE.md .claude/CLAUDE.md; do
     break
   }
 done
+# Same fallback instruction-load-stats.sh applies, so the header's name and its
+# line count are about the same file.
+[[ "$root_file" == "none" ]] && agents_md_loads_natively && root_file="AGENTS.md"
 
 echo "Memory files: $(stat memory-dir-stats.sh --md-count)"
 echo "MEMORY.md loaded lines (200 cap): $(stat memory-dir-stats.sh --memory-lines)"

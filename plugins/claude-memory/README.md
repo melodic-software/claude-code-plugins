@@ -5,7 +5,7 @@ It ships two skills:
 
 | Skill | Question it answers |
 |---|---|
-| `/claude-memory:audit` | Is the instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
+| `/claude-memory:audit` | Is the instruction/memory layer (`CLAUDE.md`, a root `AGENTS.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
 | `/claude-memory:stateless` | Is Claude's auto memory on, where does it live, and how do I turn it off or wipe it? |
 
 The two skills split by axis: `audit` checks the health of the instruction/memory layer; `stateless`

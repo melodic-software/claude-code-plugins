@@ -5,10 +5,10 @@
       "id": 1,
       "name": "audit-happy-path",
       "prompt": "Audit my memory health — is my CLAUDE.md and rules layer in good shape?",
-      "expected_output": "Runs the default audit action over the instruction/memory files (CLAUDE.md, CLAUDE.local.md, .claude/rules/, auto-memory) against the codified checklist, reporting PASS/FAIL/WARN per check. Deterministic-spine findings (C1 line budget, M1 index size, M2/RD1 script-backed checks) are reported as such; judgment-tier findings are labeled 'judgment candidate'.",
+      "expected_output": "Runs the default audit action over the instruction/memory files (CLAUDE.md or a root AGENTS.md the session reads in its place, CLAUDE.local.md, .claude/rules/, auto-memory) against the codified checklist, reporting PASS/FAIL/WARN per check. Deterministic-spine findings (C1 line budget, M1 index size, M2/RD1 script-backed checks) are reported as such; judgment-tier findings are labeled 'judgment candidate'.",
       "files": [],
       "expectations": [
-        "Output audits the instruction/memory files (CLAUDE.md, CLAUDE.local.md, .claude/rules/, auto-memory)",
+        "Output audits the instruction/memory files (CLAUDE.md or a root AGENTS.md read in its place, CLAUDE.local.md, .claude/rules/, auto-memory)",
         "Output reports per-check results using PASS/FAIL/WARN severities from the codified checklist",
         "Judgment-tier findings are labeled as 'judgment candidate' distinct from the deterministic-spine checks"
       ]
@@ -20,7 +20,7 @@
       "expected_output": "Audits only the instruction/memory layer it owns, and routes MCP servers, hooks, agents, and skills to the audit / automation-gaps skills (in the claude-config plugin) rather than auditing them here.",
       "files": [],
       "expectations": [
-        "Output audits only the instruction/memory layer (CLAUDE.md, CLAUDE.local.md, rules, auto-memory)",
+        "Output audits only the instruction/memory layer (CLAUDE.md or a root AGENTS.md read in its place, CLAUDE.local.md, rules, auto-memory)",
         "Output does NOT audit MCP servers, hooks, agents, or skills within this skill",
         "Output routes those out-of-scope entities to audit / automation-gaps"
       ]

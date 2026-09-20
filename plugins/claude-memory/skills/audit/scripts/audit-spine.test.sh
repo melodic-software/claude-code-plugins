@@ -64,4 +64,16 @@ OUT=$(cd "$REPO" && bash "$SCRIPT")
 assert_contains "clean spine reports no findings" "$OUT" "none from the deterministic spine"
 assert_contains "clean N1 count" "$OUT" "Nested AGENTS.md unwired (N1): 0"
 
+# --- Case 5: the project instructions are an AGENTS.md, with no CLAUDE.md ----
+# The header must name the file the session actually loads, or a post-cutover
+# repo reads "Project root file: none" beside a real instruction layer.
+
+AG="$TEST_TMPDIR/agents-repo"
+make_repo "$AG"
+printf '# Root\n\nline a\nline b\n' >"$AG/AGENTS.md"
+(cd "$AG" && git add -A && git commit -q -m fixture)
+OUT=$(cd "$AG" && bash "$SCRIPT" --summary)
+assert_contains "header names the natively read AGENTS.md" "$OUT" "Project root file: AGENTS.md"
+assert_contains "header counts its lines" "$OUT" "Root file loaded lines, @imports expanded (200 target): 3"
+
 report_and_exit
