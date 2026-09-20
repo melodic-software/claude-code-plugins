@@ -418,6 +418,59 @@ assert_eq "an untracked ancestor still blocks a shared line" 1 "$rc"
 assert_contains "and says the ancestor would answer for it" "$OUT" "answered by the ancestor"
 assert_eq "and nothing was removed" "" "$(cd "$UNTRACKED" && git status --porcelain --untracked-files=no)"
 
+# A SYMLINKED AGENTS.md is a file a session loads, so the index has to see it.
+# `-type f` alone skipped it while the above-root walk's `-f` test follows
+# symlinks, so the two halves of the index disagreed. Windows Git Bash needs a
+# privilege for `ln -s`, so the case is guarded the way the sibling suites
+# guard theirs and runs on Linux CI.
+SYMLINKED="$TMP/symlinked"
+build_ready_repo "$SYMLINKED"
+mkdir -p "$SYMLINKED/mid"
+SYM_LINE='The middle tier owns its own migrations and its own rollback windows.'
+printf '# Mid\n\n%s\n' "$SYM_LINE" >"$SYMLINKED/mid/real-agents.md"
+printf '# Service\n\n%s\n' "$SYM_LINE" >"$SYMLINKED/svc/AGENTS.md"
+if ln -s real-agents.md "$SYMLINKED/mid/AGENTS.md" 2>/dev/null && [[ -f "$SYMLINKED/mid/AGENTS.md" ]]; then
+  commit_all "$SYMLINKED" "a symlinked AGENTS.md shares the nested line"
+  rc=0
+  OUT=$(bash "$SCRIPT" --root "$SYMLINKED" --confirm --installed-plugins "$TMP/installed-current.json" \
+    --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+  assert_eq "a symlinked AGENTS.md still blocks a shared line" 1 "$rc"
+  assert_contains "and says the ancestor would answer for it" "$OUT" "answered by the ancestor"
+else
+  printf 'SKIP: symlink creation unavailable on this host (the case runs on Linux CI)\n'
+fi
+
+# A walk that failed and a repository with one AGENTS.md are the same empty
+# output, and on the empty reading every line scores unique.
+FAKEBIN="$TMP/fakefind"
+mkdir -p "$FAKEBIN"
+printf '#!/usr/bin/env bash\nexit 2\n' >"$FAKEBIN/find"
+chmod +x "$FAKEBIN/find"
+FINDFAIL="$TMP/findfail"
+build_ready_repo "$FINDFAIL"
+rc=0
+OUT=$(PATH="$FAKEBIN:$PATH" bash "$SCRIPT" --root "$FINDFAIL" --confirm \
+  --installed-plugins "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met" \
+  "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "a failed walk is a refusal" 1 "$rc"
+assert_contains "and says the walk failed" "$OUT" "the AGENTS.md walk failed"
+assert_eq "and nothing was removed" "" "$(cd "$FINDFAIL" && git status --porcelain)"
+
+# A walk that exits 0 having seen nothing is the same hazard wearing a clean
+# exit code: the directory being judged is not in the index built to judge it.
+printf '#!/usr/bin/env bash\nexit 0\n' >"$FAKEBIN/find"
+chmod +x "$FAKEBIN/find"
+EMPTYIDX="$TMP/emptyindex"
+build_ready_repo "$EMPTYIDX"
+rc=0
+OUT=$(PATH="$FAKEBIN:$PATH" bash "$SCRIPT" --root "$EMPTYIDX" --confirm \
+  --installed-plugins "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met" \
+  "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "an empty index is a refusal, not a clean sweep" 1 "$rc"
+assert_contains "and names the file the index never saw" "$OUT" "is not in the canary index"
+assert_eq "and nothing was removed either" "" "$(cd "$EMPTYIDX" && git status --porcelain)"
+rm -rf "$FAKEBIN"
+
 # A plan with no DIR row at all is discovery that did not run, not a repository
 # with nothing in it.
 NODIR="$TMP/nodir"

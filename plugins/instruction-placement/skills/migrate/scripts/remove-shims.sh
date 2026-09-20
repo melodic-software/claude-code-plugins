@@ -298,8 +298,16 @@ done <"$PLAN"
 # nested file shares with the root file is answered by the root file, and the
 # nested surface would pass its canary while loading nothing of its own.
 AGENTS_LINES="$(mktemp)"
+
+# Pruned from the in-repo walk, and printed with the index so a reader knows
+# what was not looked at. Kept to two: a pruned directory is a place an
+# AGENTS.md cannot be seen, and an unseen one is how a shared line scores
+# unique. `.git` holds no instruction file a session reads, and
+# `node_modules` is a vendored tree nobody edits instructions into.
+INDEX_PRUNED=".git node_modules"
+
 build_line_index() {
-  local file up
+  local file up find_rc=0
   : >"$AGENTS_LINES"
   # Every AGENTS.md ON DISK inside the repository, not the plan's DIR rows.
   # The plan lists tracked files, and Claude Code loads by filesystem: a
@@ -307,11 +315,27 @@ build_line_index() {
   # is invisible to `git ls-files`, so the nested line scored unique and the
   # untracked ancestor answered its probe. The index keys on the file's own
   # path so a directory compares against itself and nothing else.
+  #
+  # `-type f -o -type l` so a SYMLINKED AGENTS.md is indexed: the above-root
+  # walk tests with `-f`, which follows symlinks, and an in-repo file the
+  # walk could not see is a line that scores unique. Directory symlinks are
+  # not followed (no `-L`), so the walk cannot loop.
+  local find_out
+  find_out="$(find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
+    -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null)" || find_rc=$?
+  # A walk that failed and a repository with one AGENTS.md are the same empty
+  # output, and on the empty reading every line scores unique. `find` shadowed
+  # by Windows' own `find.exe`, a partly unreadable tree, or no `find` at all
+  # all land here.
+  ((find_rc == 0)) || {
+    refuse "the AGENTS.md walk failed (find exited $find_rc); without it every canary line scores unique and the check is worthless."
+  }
   while IFS= read -r file; do
-    [[ -n "$file" && -f "$file" ]] || continue
+    [[ -n "$file" ]] || continue
+    [[ -f "$file" ]] || continue
     F="$file" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
       "$file" >>"$AGENTS_LINES"
-  done < <(find "$REPO" -name 'AGENTS.md' -type f 2>/dev/null)
+  done <<<"$find_out"
   # An AGENTS.md ABOVE the repository root loads in every session inside it and
   # is in no DIR row, so a line it shares would go unseen by an index built
   # from the plan alone.
@@ -370,6 +394,20 @@ canary_line() { # <dir>
 }
 
 build_line_index
+echo "  canary index: every AGENTS.md under $REPO and above it, pruning ${INDEX_PRUNED// /, }"
+
+# The walk can exit 0 and still have seen nothing useful. If a directory being
+# de-shimmed is not in the index built to judge it, the judgement is vacuous:
+# its own lines would compete against an empty set and every one would score
+# unique.
+for dir in "${SHIM_DIRS[@]}"; do
+  if [[ "$dir" == "." ]]; then indexed="$REPO/AGENTS.md"; else indexed="$REPO/$dir/AGENTS.md"; fi
+  KEY="$indexed" awk -F'\t' '$1 == ENVIRON["KEY"] { found = 1 }
+    END { exit found ? 0 : 1 }' "$AGENTS_LINES" || {
+    refuse "$dir/AGENTS.md is not in the canary index the check would judge it against; the walk did not see it, so nothing can be shown to be unique."
+  }
+done
+
 declare -A CANARY_LINE
 for dir in "${SHIM_DIRS[@]}"; do
   if ! CANARY_LINE[$dir]="$(canary_line "$dir")"; then
