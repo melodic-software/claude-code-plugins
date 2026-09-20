@@ -23,20 +23,27 @@
 # is the safe direction: a miss clears a cutover that breaks a repository, and
 # a false positive costs one line in this file.
 #
-# This repository is deliberately NOT at [MET]. One row is outstanding:
-# claude-memory's discover-instruction-surfaces.sh project-scope branch. That
-# script has no AGENTS.md handling at all, so after cutover it would emit no
-# project instruction-surface row and the audit would report a repository with
-# instructions as having none. It is a real blocker, it is fixed in
-# claude-memory rather than acknowledged here, and until then this repository
-# honestly reports condition 4 unmet.
+# This repository is deliberately NOT at [MET]. Two claude-memory scripts are
+# outstanding, and both are real blockers fixed in claude-memory rather than
+# acknowledged here:
+#
+#   discover-instruction-surfaces.sh  its project-scope branch tests only
+#     CLAUDE.md names, so after cutover it emits no project instruction-surface
+#     row and the audit reports a repository full of instructions as having
+#     none.
+#   instruction-load-stats.sh  the project always-loaded loop, the user-scope
+#     root and the default target of --lines/--bytes all enumerate CLAUDE.md
+#     names with no AGENTS.md branch, so the always-loaded byte count and the
+#     default single-file target drop the root instructions.
+#
+# Until both are fixed this repository honestly reports condition 4 unmet.
 
 # --- Convention-home resolution, one vendored copy per plugin ---------------
 plugins/architecture/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Resolves which file carries a convention-home region. AGENTS.md is checked first and treated as canonical, and the CLAUDE.md branch already detects a pure shim and skips it, so with no CLAUDE.md the resolution is unchanged.
 plugins/claude-config/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
 plugins/planning/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
 plugins/plugin-quality/lib/resolve-convention-home.sh	if [[ -f "$ROOT/CLAUDE.md" ]]; then	Same vendored copy as the architecture one, same reason.
-plugins/architecture/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Records which file the resolution above chose, inside the branch the shim check already guards. With no CLAUDE.md the branch is not taken.
+plugins/architecture/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	The else of "AGENTS.md carries a region", so it IS taken whenever AGENTS.md has none. With no CLAUDE.md, CLAUDE_STATE is already none, so STATE is none and the script exits 1 with "no convention-home region" exactly as it does today; cutover does not change the outcome.
 plugins/claude-config/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
 plugins/planning/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
 plugins/plugin-quality/lib/resolve-convention-home.sh	CHOSEN="CLAUDE.md"; STATE="$CLAUDE_STATE"; TOKEN="$CLAUDE_TOKEN"	Same vendored copy as the architecture one, same reason.
@@ -45,9 +52,13 @@ plugins/instruction-placement/skills/migrate/scripts/plan-migration.sh	[[ "$dir"
 
 # --- claude-memory audit scripts --------------------------------------------
 plugins/claude-memory/skills/audit/scripts/discover-instruction-surfaces.sh	if [[ -f "$config_root/CLAUDE.md" && "$md_overlap" -eq 0 ]]; then	User scope, and ~/.claude/CLAUDE.md is never removed by this migration; it is the one permanent CLAUDE.md.
-plugins/claude-memory/skills/audit/scripts/instruction-load-stats.sh	[[ -f "$base/CLAUDE.md" ]] && printf '%s\t%s\n' "$scope" "$base/CLAUDE.md"	Counts always-loaded bytes per surface found. A scope with no CLAUDE.md contributes zero bytes, which is the right number whether or not the file ever existed.
-plugins/claude-memory/skills/audit/scripts/instruction-load-stats.sh	for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md; do	The same byte count, iterating the names it knows. An absent name adds nothing; it locates no path for anything else to use.
-plugins/claude-memory/skills/audit/scripts/instruction-load-stats.sh	for f in CLAUDE.md .claude/CLAUDE.md; do	The user-scope arm of the same loop, over files this migration never removes.
+# instruction-load-stats.sh has NO rows here on purpose. Its three sites
+# (the project always-loaded loop, the user-scope root, and the default target
+# of --lines/--bytes) all enumerate CLAUDE.md names and none of them knows
+# about AGENTS.md, so after cutover the always-loaded byte count and the
+# default single-file target silently drop the root instructions. A separate
+# branch is fixing claude-memory and will add these rows back with true
+# reasons. Until then they report UNACKNOWLEDGED, which is correct.
 plugins/claude-memory/skills/audit/scripts/nested-agents-check.sh	[[ -f "$dir/CLAUDE.md" || -f "$dir/.claude/CLAUDE.md" || -f "$dir/CLAUDE.local.md" ]] && return 0	is_blocked(), whose whole job is to see whether a CLAUDE.md on the path stops native reading. Post-cutover it correctly reports unblocked.
 
 # --- Test fixtures: strings written into temporary repositories -------------

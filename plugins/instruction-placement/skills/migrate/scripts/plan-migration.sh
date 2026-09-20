@@ -74,8 +74,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The excluded-tree list is this plugin's, defined once in lib/discover.sh so
 # the plan, the index and the wiring gate cannot disagree about whose files a
 # directory holds.
+# A missing or unreadable lib is not a repository with nothing in it. Without
+# the check the exclusion lists were unset, every discovery loop produced
+# nothing, and the plan printed zero DIR rows and exited 0: a clean bill of
+# health from a script that never ran.
 # shellcheck source=../../../scripts/lib/discover.sh
-source "$SCRIPT_DIR/../../../scripts/lib/discover.sh"
+source "$SCRIPT_DIR/../../../scripts/lib/discover.sh" || {
+  echo "plan-migration: cannot load $SCRIPT_DIR/../../../scripts/lib/discover.sh" >&2
+  exit 2
+}
+[[ -n "${IP_EXCLUDED_TREES:-}" && -n "${IP_FOREIGN_AGENT_TREES:-}" ]] || {
+  echo "plan-migration: lib/discover.sh defined no exclusion lists; refusing to plan" >&2
+  exit 2
+}
 
 # Codex's project-doc budget.
 #

@@ -261,8 +261,10 @@ bash "$PLAN_MIGRATION" --root "$REPO" >"$PLAN" 2>/dev/null ||
 
 SHIM_DIRS=()
 AGENTS_DIRS=()
+DIR_ROWS=""
 while IFS=$'\t' read -r kind dir state cb ab; do
   [[ "$kind" == "DIR" ]] || continue
+  DIR_ROWS="${DIR_ROWS}."
   [[ "$ab" != "0" ]] && AGENTS_DIRS+=("$dir")
   case "$state" in
   shim) SHIM_DIRS+=("$dir") ;;
@@ -275,6 +277,11 @@ while IFS=$'\t' read -r kind dir state cb ab; do
     ;;
   esac
 done <"$PLAN"
+
+# A plan with no DIR row at all is a plan that did not run: a repository always
+# has at least the row for its own root. Reading that as "nothing to remove"
+# turned a broken discovery into a clean exit 0.
+[[ ${#DIR_ROWS} -gt 0 ]] || refuse "the plan carries no DIR row; discovery did not report and this repository was never described."
 
 [[ ${#SHIM_DIRS[@]} -gt 0 ]] || {
   echo "Nothing to remove: no directory in $REPO carries a shim."
@@ -299,18 +306,22 @@ build_line_index() {
   for d in ${AGENTS_DIRS[@]+"${AGENTS_DIRS[@]}"}; do
     if [[ "$d" == "." ]]; then file="$REPO/AGENTS.md"; else file="$REPO/$d/AGENTS.md"; fi
     [[ -f "$file" ]] || continue
-    awk -v f="$d" '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print f "\t" $0 }' \
+    F="$d" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
       "$file" >>"$AGENTS_LINES"
   done
   # An AGENTS.md ABOVE the repository root loads in every session inside it and
   # is in no DIR row, so a line it shares would go unseen by an index built
   # from the plan alone.
+  # The walk includes the root it stops at (`/AGENTS.md`, `D:/AGENTS.md`): a
+  # file there loads in every session below it, and stopping one level short
+  # left the one ancestor nobody would think to look in.
   up="$(dirname "$REPO")"
-  while [[ -n "$up" && "$up" != "/" && "$up" != "." && "$up" != "$(dirname "$up")" ]]; do
+  while :; do
     if [[ -f "$up/AGENTS.md" ]]; then
-      awk -v f="$up" '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print f "\t" $0 }' \
+      F="$up" awk '{ sub(/\r$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); if ($0 != "") print ENVIRON["F"] "\t" $0 }' \
         "$up/AGENTS.md" >>"$AGENTS_LINES"
     fi
+    [[ "$up" == "$(dirname "$up")" ]] && break
     up="$(dirname "$up")"
   done
 }
@@ -338,8 +349,14 @@ canary_line() { # <dir>
     esac
     ((${#line} >= 45)) || continue
     ((${#line} > ${#best})) || continue
-    seen="$(awk -F'\t' -v want="$line" -v self="$1" '
-      $1 != self && index($2, want) > 0 { n++ } END { print n + 0 }' "$AGENTS_LINES")"
+    # The candidate travels through the ENVIRONMENT, never through `awk -v`,
+    # which interprets backslash escapes: a line holding `C:\tools\new\bin`
+    # arrives at awk as one holding a newline and a backspace, matches nothing,
+    # and scores as unique while an identical ancestor line answers its probe.
+    # `index()` is a fixed-string search, so regex metacharacters are literal.
+    seen="$(WANT="$line" SELF="$1" awk -F'\t' '
+      $1 != ENVIRON["SELF"] && index($2, ENVIRON["WANT"]) > 0 { n++ }
+      END { print n + 0 }' "$AGENTS_LINES")"
     ((seen == 0)) || continue
     best="$line"
   done <"$file"
@@ -392,12 +409,18 @@ restore_all() {
 
 for dir in "${SHIM_DIRS[@]}"; do
   target="$REPO/$(shim_path "$dir")"
+  # Listed BEFORE the file is touched, never after. Bash defers a trap until
+  # the foreground command finishes, so a TERM landing during `rm` ran the
+  # exit path with this directory still unlisted: the shim was gone and the
+  # restore did not know about it. Restoring one that was never removed is
+  # harmless, because gate 5 proved every one of these files is exactly the
+  # import line.
+  REMOVED+=("$dir")
   if ! rm -f "$target"; then
     echo "could not remove $target; restoring every shim this run removed:"
     restore_all || :
     refuse "removal failed part way through; the repository is back at the shim shape."
   fi
-  REMOVED+=("$dir")
   echo "  removed $(shim_path "$dir")"
 done
 echo

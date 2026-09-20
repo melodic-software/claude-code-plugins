@@ -379,6 +379,51 @@ assert_contains "and says so in the refusal" "$OUT" "shim(s) could NOT be put ba
 assert_contains "while the shim it could restore is back" "$OUT" "restored CLAUDE.md"
 assert_eq "and that one is byte-exact" "@AGENTS.md" "$(cat "$HALF/CLAUDE.md")"
 
+# A line that an ancestor also carries must be rejected even when it holds
+# backslashes or regex metacharacters: passing it to awk through -v would make
+# awk interpret `\t` and `\n`, so the comparison would look at a different
+# string and score the line unique while the ancestor answers its probe.
+ESCAPED="$TMP/escaped"
+build_ready_repo "$ESCAPED"
+TRICKY='Install to C:\tools\new\bin and run .*+?[x] before the first deploy of the day.'
+printf '# Conventions\n\n%s\n' "$TRICKY" >"$ESCAPED/AGENTS.md"
+printf '# Service\n\n%s\n' "$TRICKY" >"$ESCAPED/svc/AGENTS.md"
+commit_all "$ESCAPED" "root and nested share a line full of escapes"
+
+rc=0
+OUT=$(bash "$SCRIPT" --root "$ESCAPED" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "a shared line carrying backslashes is still rejected" 1 "$rc"
+assert_contains "and says the ancestor would answer for it" "$OUT" "answered by the ancestor"
+assert_eq "and nothing was removed" "" "$(cd "$ESCAPED" && git status --porcelain)"
+
+# A plan with no DIR row at all is discovery that did not run, not a repository
+# with nothing in it.
+NODIR="$TMP/nodir"
+build_ready_repo "$NODIR"
+NODIR_STUB="$TMP/nodir-stub"
+mkdir -p "$NODIR_STUB/scripts" "$NODIR_STUB/reference"
+cp "$SCRIPT" "$NODIR_STUB/scripts/remove-shims.sh"
+cp "$SCRIPT_DIR/cutover-check.sh" "$NODIR_STUB/scripts/cutover-check.sh"
+cp "$REAL_SOURCES" "$NODIR_STUB/reference/sources.md"
+printf '#!/usr/bin/env bash\nprintf "PATHDET\\tNONE\\nACTION\\tNONE\\n"\n' \
+  >"$NODIR_STUB/scripts/plan-migration.sh"
+chmod +x "$NODIR_STUB/scripts/plan-migration.sh"
+rc=0
+OUT=$(bash "$NODIR_STUB/scripts/remove-shims.sh" --root "$NODIR" --confirm \
+  --installed-plugins "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met" \
+  "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "a plan with no DIR row is a refusal, not success" 1 "$rc"
+assert_contains "and says discovery did not report" "$OUT" "carries no DIR row"
+
+# The ordering that D1 fixes (a directory is listed BEFORE its file is
+# touched, so a signal landing inside `rm` cannot leave it unlisted) has no
+# portable test: provoking an `rm -f` failure means making the path a
+# directory, which changes the plan's state for it to `agents-only` and skips
+# the removal entirely. What IS testable is that every listed directory comes
+# back, including the last one processed, which the canary-miss and
+# canary-unreachable cases above both assert.
+
 # A death that is not a clean exit must not strand a de-shimmed, unverified
 # repository. A closed pipe is the case that needs no `kill` to provoke and the
 # one a named INT/TERM trap misses: `remove-shims | head` was enough to strand

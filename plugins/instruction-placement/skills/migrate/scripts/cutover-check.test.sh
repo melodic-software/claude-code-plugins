@@ -97,6 +97,8 @@ cat >"$ENVVARS_LISTED" <<'EOF'
 - Have Claude Code [read `AGENTS.md` files](/docs/en/memory#agents-md) as project instructions.
 
 ## Something else
+
+### First session after an install or upgrade
 EOF
 
 ENVVARS_DELISTED="$TMP/env-vars-delisted.md"
@@ -108,6 +110,19 @@ cat >"$ENVVARS_DELISTED" <<'EOF'
 - Some other flag-gated feature.
 
 ## Something else
+
+### First session after an install or upgrade
+EOF
+
+# The heading arrived, the bullet had not yet. Without a completeness check
+# this reads exactly like a page that dropped the bullet, which is [MET].
+ENVVARS_TRUNCATED="$TMP/env-vars-truncated.md"
+cat >"$ENVVARS_TRUNCATED" <<'EOF'
+# Environment variables
+
+## Features that need feature-flag fetching
+
+- Some other flag-gated feature.
 EOF
 
 ENVVARS_NOHEADING="$TMP/env-vars-noheading.md"
@@ -117,6 +132,8 @@ cat >"$ENVVARS_NOHEADING" <<'EOF'
 ## A page that was restructured
 
 - Nothing here names the feature-flag list.
+
+### First session after an install or upgrade
 EOF
 
 make_bundle "$TMP/bundle-false" '!1'
@@ -263,6 +280,16 @@ OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
 assert_contains "a missing heading reports UNREACH for condition 1" "$OUT" \
   "[UNREACH] neither probe could answer"
 assert_not_contains "and never reports it MET" "$OUT" "no longer carries the AGENTS.md bullet"
+
+# A page cut off after the heading but before the bullet is UNREACH, never
+# MET: "the bullet is gone" and "the download stopped early" are the same
+# observation until the body is known to have arrived whole.
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-false" --env-vars-file "$ENVVARS_TRUNCATED" --skip-canary)
+assert_contains "a truncated page is reported as truncated" "$OUT" "it is truncated or restructured"
+assert_not_contains "and is never read as the bullet being gone" "$OUT" \
+  "no longer carries the AGENTS.md bullet"
+assert_contains "so condition 1 is UNREACH" "$OUT" "[UNREACH] neither probe could answer"
 
 # A bundle with no readable window is UNREACH too, not a default of true.
 printf 'tengu_agents_md_mod appears with no export beside it\n' >"$TMP/bundle-opaque"

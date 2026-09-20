@@ -43,6 +43,10 @@ SOURCES_MD="$SCRIPT_DIR/../reference/sources.md"
 FLAG_NAME="tengu_agents_md_mod"
 ENV_VARS_URL="https://code.claude.com/docs/en/env-vars.md"
 ENV_VARS_HEADING="## Features that need feature-flag fetching"
+# A heading the page carries AFTER the feature-flag list. Its presence is what
+# says the body arrived whole: without it, "the AGENTS.md bullet is gone" and
+# "the download stopped early" are the same observation.
+ENV_VARS_TAIL_MARKER="First session after an install or upgrade"
 
 # Bytes read either side of a flag-string occurrence. The declaration and the
 # export sit within a few hundred bytes of it on the builds seen so far; the
@@ -345,12 +349,27 @@ condition_1() {
     esac
   fi
 
-  local ev="$ENV_VARS_FILE" body="" heading_found=0 bullet_found=0
+  local ev="$ENV_VARS_FILE" body="" heading_found=0 bullet_found=0 fetch_rc=0 complete=1
   if [[ -z "$ev" ]]; then
     ev="$PLAN_OUT/env-vars.md"
-    curl -sL --max-time 60 "$ENV_VARS_URL" -o "$ev" 2>/dev/null || :
+    # `--fail` so an error page is not read as the page, and the exit status is
+    # checked: a truncated body keeps whatever arrived, and a body cut off
+    # after the heading but before the AGENTS.md bullet used to read as the
+    # bullet being gone, which is [MET].
+    curl -sL --fail --max-time 60 "$ENV_VARS_URL" -o "$ev" 2>/dev/null || fetch_rc=$?
+    if ((fetch_rc != 0)); then
+      note "env-vars: fetch failed (curl exited $fetch_rc)"
+      ev=""
+    fi
   fi
-  if [[ -s "$ev" ]]; then
+  # A page that does not reach a section known to sit AFTER the one being read
+  # is a page that may have been cut off mid-list. Absence of the bullet is
+  # only evidence when the whole list arrived.
+  if [[ -n "$ev" && -s "$ev" ]] && ! grep -qF "$ENV_VARS_TAIL_MARKER" "$ev"; then
+    complete=0
+    note "env-vars: the body never reaches '$ENV_VARS_TAIL_MARKER'; it is truncated or restructured"
+  fi
+  if [[ -n "$ev" && -s "$ev" ]] && ((complete == 1)); then
     body="$(awk -v h="$ENV_VARS_HEADING" '$0 == h { f = 1; next } f && /^## / { exit } f' "$ev" | tr -d '\r')"
     [[ -n "$body" ]] && heading_found=1
     case "$body" in
