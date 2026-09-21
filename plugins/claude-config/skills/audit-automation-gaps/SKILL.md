@@ -32,7 +32,7 @@ prove a gap exists before recommending a solution. The default verdict is REJECT
 **The enforcement hierarchy** (strongest first): compiler settings → static analyzers/linters →
 architecture tests → unit/integration tests → git hooks → Claude Code hooks → code review →
 documentation/behavioral rules. A consuming repo that documents its own hierarchy in `CLAUDE.md`, in
-the `AGENTS.md` a session reads natively in its place, or in rules files overrides this default
+any `AGENTS.md` the session reads natively, whether in place of a `CLAUDE.md` or alongside one, or in rules files overrides this default
 ordering, so read and use theirs.
 
 ## Boundary: no machine-readable hook enumerator

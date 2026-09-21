@@ -136,8 +136,10 @@ documented reasons, does not load the file, so the row asserts no residency for 
 not pair it. The mode then decides whether a `CLAUDE.md` beside it displaces it, and two of its four
 values rule the file out whatever the displacement answer is. Treating displacement as the whole
 question would report a conflict against a surface nothing loads. Resolve both, and where a
-condition is merely unresolved rather than known to rule the file out, keep the row's residency and
-let the pair be judged. Both carry their dated records, with the settings scopes and the key the
+condition stays unresolved, **do not assert residency for it**: I15 is a finding lane, so an
+unestablished residency is a leave-alone rather than a pair to judge, exactly as the record's
+finding-lane rule says and as gate 1 already treats every other surface whose residency is not
+established. Both carry their dated records, with the settings scopes and the key the
 mode lives under, in [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 
 **An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
