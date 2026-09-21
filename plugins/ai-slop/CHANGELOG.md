@@ -5,7 +5,7 @@
 ### Fixed
 
 - **`detect.sh`:** a code fence that opens after a list marker is recognized. CommonMark opens a
-  fence on a `1. ` or `- ` line carrying the fence characters, and the parser matched an opener
+  fence on an ordered or bullet list line carrying the fence characters, and the parser matched an opener
   only at the line start. It missed such an opener, read the indented closer as one instead, and
   inverted every fence from there on, so whole stretches of a file were treated as code and never
   scanned. Nothing said so: one measured file carried 24 em dashes through a full fix pass in
@@ -22,8 +22,9 @@
   marker and an `excluded_paths` glob still charge one decline per file to every rule, because the
   unit there is the file.
 - **`detect.sh`:** `rule-emoji-formatting` sees a glyph behind a blockquote prefix. The rule walked
-  a heading or bullet prefix but not `> `, so a callout written as `> ` plus a glyph, or as
-  `> ### ` plus a glyph, passed clean while the same glyph at column zero fired. Up to three spaces
+  a heading or bullet prefix but not a blockquote marker, so a callout written as a `>` marker plus
+  a glyph, or a `>` marker and a `###` heading plus a glyph, passed clean while the same glyph at
+  column zero fired. Up to three spaces
   of indentation and any depth of blockquote marker now precede the optional heading or bullet
   marker. The glyph must still follow the last prefix directly, so an emoji in content position
   stays outside the rule, which the catalog scopes to emoji used as bullets, section markers, or
