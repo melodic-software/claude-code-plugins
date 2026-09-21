@@ -775,9 +775,12 @@ skill bodies.
   the variable and inventories both project locations already; match it. The read spends a turn to
   retrieve text that is already present.
   **The `AGENTS.md` entry carries a fourth qualifier beyond those three, and it is not the
-  displacement test.** Native reading also depends on the CLI version and a remote feature flag, so
-  a session on an older CLI, or one where the flag is off, does not load the file even with no
-  `CLAUDE.md` in sight. There an instruction to read it is the only thing that puts it in context,
+  displacement test.** Native reading also depends on the CLI version, a remote feature flag and the
+  instruction-files mode, so a session on an older CLI, or one where the flag is off, does not load
+  the file even with no `CLAUDE.md` in sight, while one under the user-scope
+  `claude-md-and-agents-md` setting loads it even **with** a `CLAUDE.md` beside it, which makes a
+  read of it redundant where the displacement test alone would have exempted it.
+  There, in the first case, an instruction to read it is the only thing that puts it in context,
   and flagging the read as redundant would propose deleting the load. Resolve the version and flag
   condition from the dated record in the `instruction-placement` plugin's
   `skills/migrate/reference/sources.md` before flagging an `AGENTS.md` read, and where it cannot be
@@ -795,8 +798,9 @@ skill bodies.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded: contributing
   guides, ADRs, CI workflow files, per-ecosystem convention docs, and an `AGENTS.md` that a
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it
-  displaces, **and one that no file displaces but that the session still does not read natively,
-  because the CLI predates the floor or the flag is off**. A repository with no displacing file
+  displaces **under the default instruction-files mode and that mode is in effect**, **and one that
+  no file displaces but that the session still does not read natively, because the CLI predates the
+  floor or the flag is off**. A repository with no displacing file
   loads its `AGENTS.md` at startup like a `CLAUDE.md` (v2.1.277 and later, where support is
   available), so resolve both halves, the displacement and the version-and-flag condition recorded
   in the `instruction-placement` plugin's `skills/migrate/reference/sources.md`, before exempting it

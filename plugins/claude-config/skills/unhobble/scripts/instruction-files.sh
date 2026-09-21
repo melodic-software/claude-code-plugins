@@ -135,7 +135,12 @@ strip)
     fi
     present+=("$n")
     if ! git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
-      refused+=("$n (untracked: back it up through the manifest, git cannot restore it)")
+      # This helper is git-only by construction: git holding the undo is the whole
+      # reason it can remove anything. An untracked instruction file has no undo
+      # here, so it is not this command's to strip at all. It goes through the
+      # SAME backup-to-plugin-state path the manifest already uses for settings
+      # and other non-git-tracked surfaces, which is where its restore lives too.
+      refused+=("$n (untracked: not this helper's to strip; back it up to the manifest and remove it there, as with settings)")
     elif ! git -C "$root" diff --quiet -- "$n" ||
       ! git -C "$root" diff --cached --quiet HEAD -- "$n"; then
       # `git rm` without -f refuses a file whose content differs from the tip of

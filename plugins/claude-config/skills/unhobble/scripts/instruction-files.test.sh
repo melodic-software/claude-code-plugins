@@ -304,6 +304,21 @@ case "$out" in
 esac
 assert_file_is "untracked: AGENTS.md is untouched" "$repo/AGENTS.md" "root instructions"
 assert_file_is "untracked: CLAUDE.md is untouched" "$repo/CLAUDE.md" "@AGENTS.md"
+# The refusal routes rather than dead-ends: an untracked file the plan classified
+# behavioral is stripped through the manifest's backup path, not by this helper,
+# so the message has to say where it goes.
+case "$out" in
+*manifest*) pass "untracked: the message routes it to the manifest path" ;;
+*) fail "untracked: the message routes it to the manifest path" "got [$out]" ;;
+esac
+# The tracked files beside it are strippable once it is out of the named set,
+# so the refusal does not block the rest of the plan.
+out="$("$SCRIPT" strip "$repo" CLAUDE.md AGENTS.md)"
+assert_equals "untracked: the tracked files still strip when not named with it" \
+  "$out" "CLAUDE.md
+AGENTS.md"
+assert_file_is "untracked: and the untracked one is left for the manifest path" \
+  "$repo/CLAUDE.local.md" "local only"
 
 # --- Case 7: a TRACKED file with uncommitted edits. `git rm` without -f refuses
 # it the same way it refuses an untracked one, so the pre-check has to catch it

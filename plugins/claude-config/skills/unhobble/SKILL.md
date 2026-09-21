@@ -127,7 +127,12 @@ Apply the confirmed strip plan:
   present, and `strip <root> <name>…` `git rm`s the ones the plan classified behavioral, printing
   what it moved, after checking every one of them is tracked and clean: `git rm` refuses an
   untracked file and a modified one alike, and either refusal mid-loop would leave the files ahead
-  of it gone and the rest still loading. **Name the files the plan approved.** A repository can hold
+  of it gone and the rest still loading. **An untracked instruction file, the ordinary case for
+  `CLAUDE.local.md`, is not this helper's to strip**, since git holding the undo is what lets it
+  remove anything at all. One the plan classified behavioral takes the same route as the settings
+  entries below: back it up to `backups/`, record the path and its restore in the manifest, and
+  remove it there. The helper names it rather than stripping it, so the bare baseline is still
+  reached, by the path that can actually restore it. **Name the files the plan approved.** A repository can hold
   a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
   chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
   `--all` is there for the case where the plan did approve every one.
