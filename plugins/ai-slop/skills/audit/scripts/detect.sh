@@ -86,7 +86,11 @@ MODEL_PHRASES=("the part most people skip" "(the|my) honest take" "that.s the un
 # rule-emoji-formatting anchors on the prose stream's field-separator tab and
 # then walks the markdown prefixes a formatting glyph can sit behind: up to
 # three spaces of indentation, any depth of blockquote marker, and then one
-# heading or bullet marker. The blockquote branch is what catches a callout
+# heading or bullet marker. A blockquote marker takes at most ONE following
+# space, because that space is part of the marker and every space after it is
+# the quote's own content: `>` and five spaces is an indented code block inside
+# a quote, and a greedy `[ ]*` there would report a glyph in code as
+# formatting. The blockquote branch is what catches a callout
 # written as `> <glyph>` or `> ### <glyph>`; without it the same glyph fired at
 # column zero and passed clean one character further in, which is how six
 # callouts survived a whole fix pass. The glyph must still follow the last
@@ -95,7 +99,7 @@ MODEL_PHRASES=("the part most people skip" "(the|my) honest take" "that.s the un
 # separators, and an emoji inside a sentence is none of those.
 PATTERN_RULES=(
   "rule-em-dash|zero-tolerance|0|0|typography|${EM_DASH}"
-  "rule-emoji-formatting|formatting emoji|0|0|typography|$(printf '\t')[ ]?[ ]?[ ]?(>[ ]*)*(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
+  "rule-emoji-formatting|formatting emoji|0|0|typography|$(printf '\t')[ ]?[ ]?[ ]?(>[ ]?)*(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
   "rule-curly-artifacts|unicode artifact|0|0|typography|${CURLY_ERE}"
   "rule-significance-inflation|phrase match|1|1|wording|(stands as a testament|testament to|pivotal (moment|role)|underscores (its|the) (importance|significance)|reflects broader|enduring legacy|marks a (significant )?shift|evolving landscape|indelible mark|deeply rooted|setting the stage for|rich tapestry|key turning point|(crucial|vital) role)"
   "rule-negative-parallelism|construction match|1|0|wording|(not (just|only|simply|merely) [^.]{0,80}but|isn.t [^.;]{0,60}[;,] it.s)"
@@ -636,14 +640,26 @@ extract_prose() {
       if (substr(s, 1, 3) == "~~~") return "~"
       return ""
     }
+    # An ordered marker carries at most nine digits (CommonMark "Lists"), so a
+    # longer run is a number in prose, not a list. Without the cap a line such
+    # as `1234567890. ` followed by a fence opened one, and every following
+    # line was read as code until a bare closer or end of file.
     function marker_len(s,   n) {
       if (s ~ /^[-*+]/) return 1
       n = 0
-      while (substr(s, n + 1, 1) ~ /^[0-9]$/) n++
+      while (n < 9 && substr(s, n + 1, 1) ~ /^[0-9]$/) n++
       if (n > 0 && (substr(s, n + 1, 1) == "." || substr(s, n + 1, 1) == ")")) return n + 1
       return 0
     }
-    function stripped(s,   t) { t = s; gsub(/`[^`]*`/, "", t); return t }
+    # Inline code spans go, and so does a line ignore marker: the marker and its
+    # reason are control syntax the author did not write as prose, so a rule
+    # must not be charged a decline for a word that appears only there.
+    function stripped(s,   t) {
+      t = s
+      gsub(/`[^`]*`/, "", t)
+      gsub(/<!-- ai-slop-ignore(-file|-start|-end)?(:[^>]*)? -->/, "", t)
+      return t
+    }
     BEGIN { fence = ""; fence_ind = 0; fence_line = 0; ignored = 0; stopped = 0 }
     /^[[:space:]]*<!-- ai-slop-ignore-file(:[^>]*)? -->[[:space:]]*$/ {
       printf "DECLINE\tfile\t%d\t%s\n", NR, stripped($0)

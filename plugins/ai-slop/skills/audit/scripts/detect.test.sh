@@ -301,6 +301,22 @@ EOF
 out="$(bash "$DETECT" "$BQNEG" 2>&1)"
 assert_not_contains "emoji negative: content-position emoji behind a blockquote does not fire" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
 
+# A blockquote marker takes at most ONE following space. The rest is the quote's
+# own content, so four more spaces make an indented code block inside the quote
+# and a glyph there is code, not formatting. A greedy run of spaces after the
+# marker swallowed that indentation and reported the code line.
+BQCODE="$TEST_TMPDIR/bqcode.md"
+cat >"$BQCODE" <<EOF
+# Quoted code
+
+>     ${WARNSIGN} literal code inside a quoted code block
+
+> ${WARNSIGN} a real callout
+EOF
+out="$(bash "$DETECT" "$BQCODE" 2>&1)"
+assert_contains "emoji: the real callout in a quote fires" "$out" "rule=ai-slop/audit/rule-emoji-formatting findings=1"
+assert_not_contains "emoji negative: an indented code line inside a quote does not fire" "$out" "literal code"
+
 # --- Cursor-derived rules ----------------------------------------------------------
 
 out="$(bash "$DETECT" "$CURSOR" 2>&1)"
@@ -815,6 +831,20 @@ rc=$?
 assert_exit "unclosed fence: the run still exits 0" 0 "$rc"
 assert_contains "unclosed fence: the warning names the opening line" "$out" "code fence opened at line 3"
 assert_contains "unclosed fence: the warning names the file" "$out" "unclosed.md"
+
+# An ordered list marker carries at most nine digits, so a longer run is a
+# number in prose. Without that cap a line beginning with a ten-digit number
+# and a fence opened one, and every line after it was read as code.
+LONGNUM="$TEST_TMPDIR/longnum.md"
+cat >"$LONGNUM" <<EOF
+# Long number
+
+1234567890. \`\`\`text
+
+An em dash ${EM} after it must still flag.
+EOF
+out="$(bash "$DETECT" "$LONGNUM" 2>&1)"
+assert_contains "ordered marker: a ten-digit number does not open a fence" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 "
 
 # --- Directory target expansion ---------------------------------------------------
 
@@ -1382,6 +1412,18 @@ EOF
 out="$(bash "$DETECT" "$QUOTEDMARK" 2>&1)"
 assert_contains "per-rule marker: a typography rule is charged the exempted blockquote line" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
 assert_contains "per-rule marker: a wording rule is not charged quoted exempted material" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0"
+
+# The marker and its reason are control syntax, not prose the author wrote, so
+# a word appearing only inside the reason is not a candidate any rule lost.
+# Counting it charged a decline for text the exempted prose never held.
+MARKREASON="$TEST_TMPDIR/markreason.md"
+cat >"$MARKREASON" <<'EOF'
+# Marker reason
+
+Plain prose with no candidate in it. <!-- ai-slop-ignore: delve tapestry pivotal -->
+EOF
+out="$(bash "$DETECT" "$MARKREASON" 2>&1)"
+assert_contains "per-rule marker: words inside the marker reason are not counted" "$out" "rule=ai-slop/audit/rule-ai-vocabulary findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0"
 
 # A file whose every prose line sits inside an ignore block has no scannable
 # words at all, so the density loop never runs. Marker accounting must not sit
