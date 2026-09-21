@@ -181,8 +181,11 @@ rows after real work is a licensed permanent deletion.
    `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
    is given, and only those. **Name the file the ledger defended; never restore the set.** A
    restore that returned every stripped file would hand back the instructions the ledger did not
-   defend, which is the whole result this phase exists to protect. `--all` is for the other case,
-   closing or abandoning the experiment, where the pre-strip state entire is the intent.
+   defend, which is the whole result this phase exists to protect. **`--all` is the abandon path,
+   never the close path.** Closing an experiment normally leaves the undefended surfaces retired,
+   per steps 4 and 5 below; that is the finding, so a close never calls it. It is for walking the
+   whole experiment back to its pre-strip state and discarding the result, and it overwrites what
+   is on disk rather than skipping it.
    For each group that clears the gate, restore the narrowest instruction that addresses the cause,
    a single line or rule file rather than the whole pre-experiment surface, and cite the ledger rows in
    the restoring commit or an adjacent comment.

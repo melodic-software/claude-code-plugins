@@ -14,8 +14,8 @@
 #   instruction-files.sh list <root>                  print the files present under <root>
 #   instruction-files.sh strip <root>                 git rm each present file, printing what went
 #   instruction-files.sh restore <root> <ref> <name>...  git checkout <ref> -- each NAMED file
-#                                                     the worktree lacks
-#   instruction-files.sh restore <root> <ref> --all   the abort path: every name at once
+#   instruction-files.sh restore <root> <ref> --all   ABANDON the experiment: every
+#                                                     name the ref has, overwriting
 #
 # <root> is always an explicit argument. This script never falls back to the
 # working directory: a strip that resolved its own target would run against
@@ -25,9 +25,14 @@
 # RESTORE NAMES WHAT IT RESTORES. Phase 4 re-adds only the instructions the
 # stumble ledger defended, one at a time, so a restore that returned every
 # stripped file would hand back the ones the ledger did not defend and quietly
-# undo the experiment's whole result. `--all` exists for the other case, closing
-# or abandoning an experiment, where returning the pre-strip state entire IS the
-# intent; it is a separate word because those two are opposite decisions.
+# undo the experiment's whole result.
+#
+# `--all` IS THE ABANDON PATH, NOT THE CLOSE PATH. It is for walking the whole
+# experiment back to its pre-strip state, discarding the result. Closing an
+# experiment normally is the opposite: the surfaces the ledger did not defend
+# STAY retired, which is the finding the experiment was run to produce, so a
+# close never calls this. It overwrites rather than skips, since a file the
+# experiment recreated or rewrote is exactly what an abandon discards.
 #
 # `strip` checks every present file is tracked AND clean BEFORE it removes any of
 # them, and exits 2 naming the offenders with the tree untouched. `git rm` refuses
@@ -44,7 +49,8 @@ NAMES=(CLAUDE.md CLAUDE.local.md .claude/CLAUDE.md AGENTS.md .claude/AGENTS.md)
 
 usage() {
   echo "usage: instruction-files.sh list|strip <root>" >&2
-  echo "       instruction-files.sh restore <root> <ref> <name>... | --all" >&2
+  echo "       instruction-files.sh restore <root> <ref> <name>..." >&2
+  echo "       instruction-files.sh restore <root> <ref> --all   (abandon the experiment)" >&2
   echo "names: ${NAMES[*]}" >&2
   exit 2
 }
@@ -93,27 +99,48 @@ restore)
   ref="${3:-}"
   [[ -n "$ref" && $# -ge 4 ]] || usage
   shift 3
+  git -C "$root" rev-parse --verify --quiet "$ref^{commit}" >/dev/null || {
+    echo "instruction-files.sh: not a commit in $root: $ref" >&2
+    exit 2
+  }
   if [[ "$1" == "--all" ]]; then
     [[ $# -eq 1 ]] || usage
-    wanted=("${NAMES[@]}")
-  else
-    wanted=("$@")
-    for n in "${wanted[@]}"; do
-      known=""
-      for k in "${NAMES[@]}"; do [[ "$n" == "$k" ]] && known=1 && break; done
-      [[ -n "$known" ]] || {
-        echo "instruction-files.sh: not an instruction file name: $n" >&2
-        echo "names: ${NAMES[*]}" >&2
-        exit 2
-      }
+    # Abandoning: every name the ref has, checked out over whatever is in the
+    # worktree now. A file the experiment recreated or rewrote is exactly the
+    # content this path exists to discard, so it is overwritten, not skipped.
+    # A name the ref never had is silently absent; there is nothing to return.
+    for n in "${NAMES[@]}"; do
+      if git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
+        git -C "$root" checkout "$ref" -- "$n"
+        printf '%s\n' "$n"
+      fi
     done
+    exit 0
   fi
-  for n in "${wanted[@]}"; do
-    if [[ -f "$root/$n" ]]; then continue; fi
-    if git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
-      git -C "$root" checkout "$ref" -- "$n"
-      printf '%s\n' "$n"
+  # Named: every refusal is resolved BEFORE anything is checked out, and a name
+  # this cannot honour is an error rather than a silent skip. A caller that asked
+  # for a file by name and got exit 0 would record it as restored while it stayed
+  # deleted, which is the ledger lying about what the experiment put back.
+  refused=()
+  for n in "$@"; do
+    known=""
+    for k in "${NAMES[@]}"; do [[ "$n" == "$k" ]] && known=1 && break; done
+    if [[ -z "$known" ]]; then
+      refused+=("$n (not an instruction file name; names: ${NAMES[*]})")
+    elif [[ -f "$root/$n" ]]; then
+      refused+=("$n (already present; remove it first, or use --all to abandon the experiment)")
+    elif ! git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
+      refused+=("$n (not in $ref; nothing to restore it from)")
     fi
+  done
+  if [[ ${#refused[@]} -gt 0 ]]; then
+    echo "instruction-files.sh: nothing was restored:" >&2
+    printf '  %s\n' "${refused[@]}" >&2
+    exit 2
+  fi
+  for n in "$@"; do
+    git -C "$root" checkout "$ref" -- "$n"
+    printf '%s\n' "$n"
   done
   ;;
 *)

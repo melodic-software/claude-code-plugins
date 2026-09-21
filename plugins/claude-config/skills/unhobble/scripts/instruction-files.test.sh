@@ -108,10 +108,12 @@ assert_file_is "shim: the named file is restored byte for byte" \
 assert_absent "shim: an unnamed file stays stripped" "$repo/.claude/AGENTS.md"
 assert_absent "shim: the other unnamed file stays stripped" "$repo/CLAUDE.md"
 
-# --all is the abort path: return the pre-strip state entire.
+# --all abandons the experiment: the pre-strip state entire, including the name
+# already back on disk, which it checks out again rather than skipping.
 out="$("$SCRIPT" restore "$repo" "$base" --all)"
-assert_equals "shim: --all reports the rest of the pre-strip set" \
+assert_equals "shim: --all reports every name the ref has" \
   "$out" "CLAUDE.md
+AGENTS.md
 .claude/AGENTS.md"
 assert_file_is "shim: .claude/AGENTS.md is restored byte for byte" \
   "$repo/.claude/AGENTS.md" "dot-claude instructions"
@@ -125,6 +127,42 @@ case "$out" in
 *notes.md*) pass "shim: the message names the rejected argument" ;;
 *) fail "shim: the message names the rejected argument" "got [$out]" ;;
 esac
+
+# A named restore of a file already on disk is an error, not a silent skip: the
+# caller would otherwise record it as restored from the ref when it was not.
+out="$("$SCRIPT" restore "$repo" "$base" AGENTS.md 2>&1)"
+rc=$?
+assert_equals "shim: restoring a file already present exits 2" "$rc" "2"
+
+# --- Case 5b: a named restore whose source the ref does not have, and a ref
+# that is not a commit. Both are errors. Exit 0 with nothing restored would let
+# the caller's ledger claim a file came back while it stayed deleted.
+repo="$(make_repo nosource 'CLAUDE.md=@AGENTS.md' 'AGENTS.md=root instructions')"
+base="$(git -C "$repo" rev-parse HEAD)"
+"$SCRIPT" strip "$repo" >/dev/null
+git -C "$repo" commit --quiet -m "strip"
+out="$("$SCRIPT" restore "$repo" "$base" .claude/AGENTS.md 2>&1)"
+rc=$?
+assert_equals "nosource: a name absent from the ref exits 2" "$rc" "2"
+case "$out" in
+*.claude/AGENTS.md*) pass "nosource: the message names the file it cannot source" ;;
+*) fail "nosource: the message names the file it cannot source" "got [$out]" ;;
+esac
+assert_absent "nosource: nothing was restored" "$repo/AGENTS.md"
+out="$("$SCRIPT" restore "$repo" no-such-ref AGENTS.md 2>&1)"
+rc=$?
+assert_equals "nosource: an unresolvable ref exits 2" "$rc" "2"
+assert_absent "nosource: an unresolvable ref restored nothing" "$repo/AGENTS.md"
+
+# --- Case 5c: --all overwrites. A file the experiment recreated or rewrote is
+# what abandoning discards, so skipping it would leave experimental content
+# behind and not return the pre-strip state at all.
+printf 'rewritten during the experiment\n' >"$repo/AGENTS.md"
+out="$("$SCRIPT" restore "$repo" "$base" --all)"
+assert_equals "overwrite: --all reports the file it took back" "$out" "CLAUDE.md
+AGENTS.md"
+assert_file_is "overwrite: the rewritten file is returned to its pre-strip content" \
+  "$repo/AGENTS.md" "root instructions"
 
 # --- Case 2: a lone AGENTS.md, already read natively, with no CLAUDE.md at all.
 repo="$(make_repo lone 'AGENTS.md=lone instructions' 'README.md=code')"
