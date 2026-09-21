@@ -26,7 +26,7 @@
 #   ps-unparsable-special-construct
 #   ps-unparsable-herestring-unbalanced
 #   ps-unparsable-herestring-subexpr
-#   ps-unparsable-herestring-opener-unconfirmed
+#   ps-unparsable-herestring-comment-char
 # These narrow the unparsable-PowerShell sink by the trigger that routed there.
 # They are NOT interchangeable with the destructive-form tokens above: an
 # unparsable command cannot prove which forms it carries, so reset-hard (etc.)
@@ -1409,7 +1409,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
     if ! allowed "$sink_allow"; then
       ps::print_unparsable_git_block_message
-      # The trigger rides along in the form token: six distinct shapes reach this
+      # The trigger rides along in the form token: five distinct shapes reach this
       # sink, and one collapsed token cannot show which of them is over-blocking.
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
       exit 2

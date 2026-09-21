@@ -251,50 +251,34 @@ run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, n
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
 
-# A here-string opener the library cannot CONFIRM must not hide the next line.
-# The quoted-span walk emits the rest of a line verbatim when it meets a DOUBLED
-# quote (PowerShell's escape: `'it''s'`), so `Write-Host 'a''b @'` reaches a bare
-# suffix test unchanged and reads as a real opener; the live `git commit
-# --no-verify` under it then goes as here-string body. pwsh 7.6.6 parses the
-# payload with zero errors and line 2 is a live top-level command. An opener is
-# confirmed only when no quote survives the walk, so the line stays in view and
-# this guard refuses the bypass it can now see.
-run_pwsh "PS: --no-verify recovered from behind an unpaired-quote opener tail (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Host 'a''b @'" "git commit --no-verify -m x" "'@ fine'")" 2
-run_pwsh "PS: the doubled double-quote spelling of the same shape (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Host \"a\"\"b @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
-# rc 0 PINS. A properly paired span is DELETED by the walk, so no quote survives
-# and the opener still confirms. The body names a bypass, so an unconfirmed
-# reading would leave it visible and block: these pins discriminate.
-run_pwsh "PS: a paired double-quoted string before a real opener (allowed)" \
-  "$(printf '%s\n%s\n%s' "Write-Host \"x\" @\"" "git commit --no-verify -m x" "\"@")" 0
-run_pwsh "PS: a bare verbatim opener after git commit -m (allowed)" \
-  "$(printf '%s\n%s\n%s' "git commit -m @'" "subject" "'@")" 0
-
-# Keeping the lines in view is not a proof of git-freedom when the opener quote is
-# `"`. PowerShell reads `Write-Output 'a''b' @"` as the string `a'b` followed by a
-# LIVE opener, so the lines under it are an EXPANDABLE body and a `$( … )` in it
-# is a COMMAND POSITION evaluated at construction time. Both bodies below spell
-# their call `& $g`, so NO literal `git` token appears anywhere in the command:
-# the visible-text probe answers no, and a fixture carrying a literal `git` would
-# pass even with the bug present and pin nothing. An unconfirmed `"` opener takes
-# the same unconditional expandable-body refusal a CONFIRMED one takes.
-run_pwsh "PS: an unconfirmed expandable opener over an obfuscated --no-verify commit (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output 'a''b' @\"" "\$(& \$g commit --no-verify -m x)" "\"@")" 2
-run_pwsh "PS: the doubled double-quote spelling over an env-bypass commit (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"a\"\"b\" @\"" "\$(\$env:HUSKY=0; & \$g commit -m x)" "\"@")" 2
-
-# The other cause of an unconfirmed opener: a BACKSLASH before the quote. The
-# quoted-span walk ignores backslashes, so it pairs `"\"` and then `a" @"` and
-# reduces `Write-Output "\"a" @"` to `Write-Output a`, losing the opener suffix
-# entirely; the library's legacy reduction reads `\"` as an escape and confirms an
-# expandable opener there. One reduction sees an opener and the other does not, so
-# the line is unconfirmed and the `"` takes the unconditional expandable refusal.
-# pwsh 7.6.6 parses the payload clean and line 2 is a live top-level command. The
-# body spells its call `& $g`, so no literal `git` token appears; the literal-git
-# twin blocks on both trees and would pin nothing here.
-run_pwsh "PS: a backslash-escaped quote before an opener over an obfuscated --no-verify commit (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "\$(& \$g commit --no-verify -m x)" "\"@\"")" 2
+# The commit-guard twin of the comment-tail here-string opener. PowerShell reads
+# `# @"` as comment text, so the `@"` opens nothing and the `--no-verify` commit
+# under it is a live top-level command; the reduction takes the line as an opener
+# and drops that command as here-string body. Measured on the base through this
+# hook: rc 0, with the bypass never seen. A `#` anywhere on a CONFIRMED opener
+# line, before the two-character suffix, now refuses the shape, on a plain
+# substring test of the raw line with no quote pairing. This guard consults no
+# allow-list, so the refusal here is final.
+run_pwsh "PS: --no-verify recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
+run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git commit --no-verify -m x" "'@ fine'")" 2
+run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
+# The apostrophe-straddle spelling, which two per-style quote strips read as a
+# clean opener because the span they delete swallows the real `#`. The raw test
+# never looks at a quote.
+run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git commit --no-verify -m x" "\"@\"")" 2
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+# The regression fence: the `#` has to be on the opener line before the suffix.
+run_pwsh "PS: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS: the canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
 
 # Obfuscation regressions (independent security review, sink-level fail-closed).
 # A construct that defeats the Bash tokenizer must not let an obfuscated git

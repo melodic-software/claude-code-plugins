@@ -1071,35 +1071,29 @@ run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
   "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
 run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
   "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
-# Nor is a line the quoted-span walk REFUSED to pair. The walk emits the rest of
-# a line verbatim when it meets a DOUBLED quote (PowerShell's escape: `'it''s'`),
-# so `Write-Host 'a''b @'` reaches a bare suffix test unchanged and reads as a
-# real opener; the live Set-Content under it then goes as here-string body. pwsh
-# 7.6.6 parses the payload with zero errors and line 2 is a live top-level
-# command. An opener is confirmed only when no quote survives the walk.
-run_pwsh "PS: Set-Content recovered from behind an unpaired-quote opener tail (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Host 'a''b @'" "Set-Content f.txt x" "'@ fine'")" 2
-run_pwsh "PS: the doubled double-quote spelling of the same shape (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Host \"a\"\"b @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
-# rc 0 PINS. A properly paired span is DELETED by the walk, so no quote survives
-# and the opener still confirms. The body names a write, so an unconfirmed
-# reading would leave it visible and block: these pins discriminate.
-run_pwsh "PS: a paired double-quoted string before a real opener (allowed)" \
-  "$(printf '%s\n%s\n%s' "Write-Host \"x\" @\"" "Set-Content f.txt x" "\"@")" 0
-run_pwsh "PS: a bare verbatim opener after git commit -m (allowed)" \
-  "$(printf '%s\n%s\n%s' "git commit -m @'" "Set-Content f.txt x" "'@")" 0
-# Nor is a line only the WALK reads as an opener. PowerShell reads `<# … #>` as a
-# block comment over the first three lines below, so the `Set-Content` under it is
-# an ordinary statement and it RUNS. The base's ordered two-pass quote strip eats
-# `'s" @'` out of `note "it's" @'` and is left with `note "it`, which ends in no
-# opener, so the base keeps the write line visible and blocks. The span walk pairs
-# `"it's"` properly and reads the clean suffix of `note  @'` as a confirmed opener,
-# which drops the write as body. Better pairing made MORE lines qualify as
-# openers, and dropping body is the only way this classifier hides text from the
-# later scans; an opener is confirmed only when the base's reduction confirms it
-# too, so whatever this change drops the base dropped as well.
-run_pwsh "PS: Set-Content recovered from behind a walk-only opener (blocked)" \
-  "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "Set-Content f.txt x" "'@'")" 2
+# The write twin of the comment-tail here-string opener. PowerShell reads `# @"`
+# as comment text, so the `@"` opens nothing and the Set-Content under it is a
+# live top-level command; the reduction takes the line as an opener and drops
+# that write as here-string body. Measured on the base through this hook: rc 0,
+# with the write never seen. A `#` anywhere on a CONFIRMED opener line, before
+# the two-character suffix, now reports a bypass by shape, on a plain substring
+# test of the raw line with no quote pairing. This guard consults no allow-list,
+# so the refusal here is final.
+run_pwsh "PS: Set-Content recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "Set-Content f.txt x" "'@ fine'")" 2
+run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "Set-Content f.txt x" "\"@\"")" 2
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+# The regression fence: the `#` has to be on the opener line before the suffix.
+run_pwsh "PS: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.

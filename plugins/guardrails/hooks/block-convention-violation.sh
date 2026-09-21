@@ -613,6 +613,16 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
+  # This guard DEFERS on every other sink trigger, so a plain `exit 0` below
+  # would hand the herestring-comment-char shape straight through: a `#` on a
+  # confirmed here-string opener line means the lines the reduction dropped as
+  # body may be live commands, and a commit form among them would never be seen.
+  # Refused here rather than deferred, with no allow-list consulted.
+  if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
+    ps::print_unparsable_block_message
+    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
+    exit 2
+  fi
   ((ps_rc == 0)) || {
     emit_tel "ok" ""
     exit 0
