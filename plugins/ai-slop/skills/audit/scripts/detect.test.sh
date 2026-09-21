@@ -846,6 +846,52 @@ EOF
 out="$(bash "$DETECT" "$LONGNUM" 2>&1)"
 assert_contains "ordered marker: a ten-digit number does not open a fence" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 "
 
+# A fence opened inside a list item ends with its CONTAINER, not only at a
+# closer. A non-blank line indented less than the item's content column closes
+# the item, and lazy continuation does not reach a fenced block, so that line is
+# document-level prose. Without this the opener swallowed the rest of the file
+# and said so only on stderr, which the purge gate discards on a zero exit, so
+# an em dash could reach a purged path through this shape.
+DEDENT="$TEST_TMPDIR/dedent.md"
+cat >"$DEDENT" <<EOF
+- \`\`\`text
+  inside the item ${EM} stays exempt
+after the item ${EM} must flag
+EOF
+out="$(bash "$DETECT" "$DEDENT" 2>&1)"
+assert_contains "list fence dedent: the dedented line is scanned" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 "
+assert_contains "list fence dedent: it is the line below the item" "$out" "line=3"
+assert_not_contains "list fence dedent: the item's own fenced content stays exempt" "$out" "inside the item"
+assert_not_contains "list fence dedent: a container-ended fence is not reported unclosed" "$out" "is never closed"
+
+# A BLANK line does not end a list item, so the fence survives it and only the
+# dedented paragraph below ends the container.
+DEDENTBLANK="$TEST_TMPDIR/dedentblank.md"
+cat >"$DEDENTBLANK" <<EOF
+1. \`\`\`text
+   inside the item ${EM} stays exempt
+
+after the blank line ${EM} must flag
+EOF
+out="$(bash "$DETECT" "$DEDENTBLANK" 2>&1)"
+assert_contains "list fence dedent: a blank line keeps the fence open" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 "
+assert_contains "list fence dedent: the paragraph below the blank line is scanned" "$out" "line=4"
+assert_not_contains "list fence dedent: content before the blank line stays exempt" "$out" "inside the item"
+
+# The mirror shape. A column-zero fence below the item ends the item FIRST and
+# then opens a document-level block of its own, so what follows it is code.
+DEDENTFENCE="$TEST_TMPDIR/dedentfence.md"
+cat >"$DEDENTFENCE" <<EOF
+- \`\`\`text
+  inside the item
+\`\`\`
+after the new opener ${EM} is code
+EOF
+out="$(bash "$DETECT" "$DEDENTFENCE" 2>&1)"
+assert_contains "list fence dedent: a column-zero fence below the item opens a new block" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 "
+assert_not_contains "list fence dedent: the line inside that new block stays exempt" "$out" "after the new opener"
+assert_contains "list fence dedent: the new block running to EOF is reported unclosed" "$out" "code fence opened at line 3 is never closed"
+
 # --- Directory target expansion ---------------------------------------------------
 
 DIRT="$TEST_TMPDIR/dirt"

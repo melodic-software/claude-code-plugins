@@ -670,6 +670,16 @@ extract_prose() {
       ind = 0
       while (substr($0, ind + 1, 1) == " ") ind++
       rest = substr($0, ind + 1)
+      # A fence opened inside a list item ends with its CONTAINER, not only at a
+      # closer. A non-blank line indented less than the content column of that
+      # item ends the item, and lazy continuation reaches a paragraph but never
+      # a fenced block, so such a line belongs to the document. Clear the fence
+      # and fall through, so the line is judged on its own: it may be prose, and
+      # it may itself be an opener. A blank line does NOT end an item, which is
+      # why this tests rest. A document-level fence keeps fence_ind 0, so the
+      # comparison is never true for one and no top-level case moves.
+      # No apostrophes in this block: the awk program is single-quoted.
+      if (fence != "" && fence_ind > 0 && rest != "" && ind < fence_ind) fence = ""
       fc = fence_char(rest)
       fi = 0
       if (fc == "" && ind <= 3) {

@@ -10,8 +10,12 @@
   inverted every fence from there on, so whole stretches of a file were treated as code and never
   scanned. Nothing said so: one measured file carried 24 em dashes through a full fix pass in
   lines the parser believed were code. A closer is now measured against its own fence's container
-  indent, and a fence still open at end of file writes one line to stderr naming the file and the
-  opening line number, so an inverted parse is visible rather than silent.
+  indent, and such a fence also ends with that container: a non-blank line indented less than the
+  content column of the list item ends the item, and lazy continuation reaches a paragraph but
+  never a fenced block, so that line is judged on its own and may be prose or an opener of its
+  own. A blank line does not end an item, so a fence survives one. A fence still open at end of
+  file writes one line to stderr naming the file and the opening line number, so an inverted parse
+  is visible rather than silent.
 - **`detect.sh`:** a marker decline is charged only to the rules whose own expression matches the
   exempted material. Every rule used to be charged the raw count of exempted prose lines, so a run
   reported the same `declined` and `declined_marker` totals on every rule, including rules with no
