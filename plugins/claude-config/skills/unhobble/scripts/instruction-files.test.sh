@@ -85,7 +85,7 @@ assert_equals "shim: list names both AGENTS.md files with the shim" \
 AGENTS.md
 .claude/AGENTS.md"
 
-out="$("$SCRIPT" strip "$repo")"
+out="$("$SCRIPT" strip "$repo" --all)"
 assert_equals "shim: strip reports every instruction file it moved" \
   "$out" "CLAUDE.md
 AGENTS.md
@@ -139,7 +139,7 @@ assert_equals "shim: restoring a file already present exits 2" "$rc" "2"
 # the caller's ledger claim a file came back while it stayed deleted.
 repo="$(make_repo nosource 'CLAUDE.md=@AGENTS.md' 'AGENTS.md=root instructions')"
 base="$(git -C "$repo" rev-parse HEAD)"
-"$SCRIPT" strip "$repo" >/dev/null
+"$SCRIPT" strip "$repo" --all >/dev/null
 git -C "$repo" commit --quiet -m "strip"
 out="$("$SCRIPT" restore "$repo" "$base" .claude/AGENTS.md 2>&1)"
 rc=$?
@@ -164,12 +164,54 @@ AGENTS.md"
 assert_file_is "overwrite: the rewritten file is returned to its pre-strip content" \
   "$repo/AGENTS.md" "root instructions"
 
+# --- Case 5d: --all REMOVES a name the ref never had. The pre-strip state did
+# not have it, so an abandon that left it behind would end with an instruction
+# file loading that the experiment itself introduced.
+printf 'written during the experiment\n' >"$repo/.claude/CLAUDE.md" 2>/dev/null ||
+  { mkdir -p "$repo/.claude" && printf 'written during the experiment\n' >"$repo/.claude/CLAUDE.md"; }
+out="$("$SCRIPT" restore "$repo" "$base" --all)"
+case "$out" in
+*"removed .claude/CLAUDE.md"*) pass "abandon: --all reports the file it removed" ;;
+*) fail "abandon: --all reports the file it removed" "got [$out]" ;;
+esac
+assert_absent "abandon: an untracked file the ref never had is removed" \
+  "$repo/.claude/CLAUDE.md"
+
+# The same holds for one the experiment COMMITTED: it is tracked, so it leaves
+# the index too rather than lingering as a staged deletion the operator misses.
+mkdir -p "$repo/.claude"
+printf 'committed during the experiment\n' >"$repo/.claude/CLAUDE.md"
+git -C "$repo" add .claude/CLAUDE.md
+git -C "$repo" commit --quiet -m "experiment added an instruction file"
+out="$("$SCRIPT" restore "$repo" "$base" --all)"
+case "$out" in
+*"removed .claude/CLAUDE.md"*) pass "abandon: a tracked addition is removed too" ;;
+*) fail "abandon: a tracked addition is removed too" "got [$out]" ;;
+esac
+assert_absent "abandon: the tracked addition is off disk" "$repo/.claude/CLAUDE.md"
+assert_equals "abandon: and out of the index" \
+  "$(git -C "$repo" ls-files .claude/CLAUDE.md)" ""
+
+# --- Case 5e: strip names what it strips. A plan that classifies AGENTS.md as
+# convention and keeps it must not have it deleted by a strip of the CLAUDE.md
+# beside it.
+repo="$(make_repo selective 'CLAUDE.md=behavioral lines' 'AGENTS.md=team conventions')"
+out="$("$SCRIPT" strip "$repo" CLAUDE.md)"
+assert_equals "selective: strip reports only the file it was asked for" "$out" "CLAUDE.md"
+assert_absent "selective: the named file is stripped" "$repo/CLAUDE.md"
+assert_file_is "selective: the file the plan kept is untouched" \
+  "$repo/AGENTS.md" "team conventions"
+out="$("$SCRIPT" strip "$repo" notes.md 2>&1)"
+rc=$?
+assert_equals "selective: a name off the list exits 2" "$rc" "2"
+assert_file_is "selective: and strips nothing" "$repo/AGENTS.md" "team conventions"
+
 # --- Case 2: a lone AGENTS.md, already read natively, with no CLAUDE.md at all.
 repo="$(make_repo lone 'AGENTS.md=lone instructions' 'README.md=code')"
 base="$(git -C "$repo" rev-parse HEAD)"
 assert_equals "lone: list finds the AGENTS.md and nothing else" \
   "$("$SCRIPT" list "$repo")" "AGENTS.md"
-"$SCRIPT" strip "$repo" >/dev/null
+"$SCRIPT" strip "$repo" --all >/dev/null
 assert_absent "lone: AGENTS.md is stripped" "$repo/AGENTS.md"
 git -C "$repo" commit --quiet -m "strip"
 "$SCRIPT" restore "$repo" "$base" AGENTS.md >/dev/null
@@ -179,7 +221,7 @@ assert_file_is "lone: AGENTS.md comes back" "$repo/AGENTS.md" "lone instructions
 # recreate because the strip removed the last file in it.
 repo="$(make_repo dotclaude '.claude/AGENTS.md=dot-claude only')"
 base="$(git -C "$repo" rev-parse HEAD)"
-"$SCRIPT" strip "$repo" >/dev/null
+"$SCRIPT" strip "$repo" --all >/dev/null
 assert_absent "dot-claude: the file is stripped" "$repo/.claude/AGENTS.md"
 git -C "$repo" commit --quiet -m "strip"
 "$SCRIPT" restore "$repo" "$base" .claude/AGENTS.md >/dev/null
@@ -192,7 +234,7 @@ out="$("$SCRIPT" list "$repo")"
 rc=$?
 assert_equals "bare: list prints nothing" "$out" ""
 assert_equals "bare: list exits 0" "$rc" "0"
-"$SCRIPT" strip "$repo" >/dev/null
+"$SCRIPT" strip "$repo" --all >/dev/null
 assert_equals "bare: strip leaves the tree clean" "$(git -C "$repo" status --porcelain)" ""
 
 # --- Case 6: an untracked instruction file stops the whole strip, with the tree
@@ -200,7 +242,7 @@ assert_equals "bare: strip leaves the tree clean" "$(git -C "$repo" status --por
 # loaded.
 repo="$(make_repo untracked 'CLAUDE.md=@AGENTS.md' 'AGENTS.md=root instructions')"
 printf 'local only\n' >"$repo/CLAUDE.local.md"
-out="$("$SCRIPT" strip "$repo" 2>&1)"
+out="$("$SCRIPT" strip "$repo" --all 2>&1)"
 rc=$?
 assert_equals "untracked: strip exits 2" "$rc" "2"
 case "$out" in
@@ -216,7 +258,7 @@ assert_file_is "untracked: CLAUDE.md is untouched" "$repo/CLAUDE.md" "@AGENTS.md
 # unchecked refusal would fire after the earlier names were already removed.
 repo="$(make_repo dirty 'CLAUDE.md=@AGENTS.md' 'AGENTS.md=root instructions')"
 printf 'edited in place\n' >"$repo/AGENTS.md"
-out="$("$SCRIPT" strip "$repo" 2>&1)"
+out="$("$SCRIPT" strip "$repo" --all 2>&1)"
 rc=$?
 assert_equals "dirty: strip exits 2" "$rc" "2"
 case "$out" in
@@ -228,14 +270,14 @@ assert_file_is "dirty: the modified file is left as it was" "$repo/AGENTS.md" "e
 
 # The staged-but-uncommitted form is the same refusal.
 git -C "$repo" add AGENTS.md
-out="$("$SCRIPT" strip "$repo" 2>&1)"
+out="$("$SCRIPT" strip "$repo" --all 2>&1)"
 rc=$?
 assert_equals "staged: strip exits 2" "$rc" "2"
 assert_file_is "staged: the earlier CLAUDE.md is NOT removed" "$repo/CLAUDE.md" "@AGENTS.md"
 
 # Once it is committed, the same strip goes through.
 git -C "$repo" commit --quiet -m "edit"
-out="$("$SCRIPT" strip "$repo")"
+out="$("$SCRIPT" strip "$repo" --all)"
 assert_equals "committed: the strip now covers both files" \
   "$out" "CLAUDE.md
 AGENTS.md"
@@ -244,6 +286,10 @@ AGENTS.md"
 # run against the working directory.
 "$SCRIPT" list >/dev/null 2>&1
 assert_equals "usage: a missing root exits 2" "$?" "2"
+"$SCRIPT" strip "$TEST_TMPDIR" >/dev/null 2>&1
+assert_equals "usage: strip naming nothing exits 2" "$?" "2"
+"$SCRIPT" strip "$TEST_TMPDIR" --all CLAUDE.md >/dev/null 2>&1
+assert_equals "usage: strip --all mixed with a name exits 2" "$?" "2"
 "$SCRIPT" restore "$TEST_TMPDIR" >/dev/null 2>&1
 assert_equals "usage: restore without a ref exits 2" "$?" "2"
 "$SCRIPT" restore "$TEST_TMPDIR" HEAD >/dev/null 2>&1

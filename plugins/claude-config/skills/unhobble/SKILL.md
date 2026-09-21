@@ -120,9 +120,13 @@ Apply the confirmed strip plan:
 - The root instruction files, for a plan that strips them whole, go through
   [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
   `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
-  present, and `strip <root>` `git rm`s each one, printing what it moved, after checking every one
-  of them is tracked and clean: `git rm` refuses an untracked file and a modified one alike, and
-  either refusal mid-loop would leave the files ahead of it gone and the rest still loading.
+  present, and `strip <root> <name>…` `git rm`s the ones the plan classified behavioral, printing
+  what it moved, after checking every one of them is tracked and clean: `git rm` refuses an
+  untracked file and a modified one alike, and either refusal mid-loop would leave the files ahead
+  of it gone and the rest still loading. **Name the files the plan approved.** A repository can hold
+  a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
+  chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
+  `--all` is there for the case where the plan did approve every one.
   **Both `AGENTS.md` names
   go with the `CLAUDE.md` files, whether or not the session reads them natively today.** A session
   reads them as the project instructions only when no `CLAUDE.md` name displaces them, and this
@@ -184,8 +188,9 @@ rows after real work is a licensed permanent deletion.
    defend, which is the whole result this phase exists to protect. **`--all` is the abandon path,
    never the close path.** Closing an experiment normally leaves the undefended surfaces retired,
    per steps 4 and 5 below; that is the finding, so a close never calls it. It is for walking the
-   whole experiment back to its pre-strip state and discarding the result, and it overwrites what
-   is on disk rather than skipping it.
+   whole experiment back to its pre-strip state and discarding the result, which is both halves: it
+   overwrites what is on disk rather than skipping it, and it removes an instruction file the
+   pre-strip state did not have, so an abandoned experiment does not leave one of its own behind.
    For each group that clears the gate, restore the narrowest instruction that addresses the cause,
    a single line or rule file rather than the whole pre-experiment surface, and cite the ledger rows in
    the restoring commit or an adjacent comment.
