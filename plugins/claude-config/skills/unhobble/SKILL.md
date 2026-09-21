@@ -120,7 +120,10 @@ Apply the confirmed strip plan:
 - The root instruction files, for a plan that strips them whole, go through
   [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
   `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
-  present, and `strip <root>` `git rm`s each one, printing what it moved. **Both `AGENTS.md` names
+  present, and `strip <root>` `git rm`s each one, printing what it moved, after checking every one
+  of them is tracked and clean: `git rm` refuses an untracked file and a modified one alike, and
+  either refusal mid-loop would leave the files ahead of it gone and the rest still loading.
+  **Both `AGENTS.md` names
   go with the `CLAUDE.md` files, whether or not the session reads them natively today.** A session
   reads them as the project instructions only when no `CLAUDE.md` name displaces them, and this
   strip removes exactly those names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md`
@@ -175,9 +178,12 @@ rows after real work is a licensed permanent deletion.
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
 2. For a root instruction file being restored whole,
-   `scripts/instruction-files.sh restore <root> <pre-strip-commit>` puts back every name on the
-   strip list that the commit has and the worktree lacks, both `AGENTS.md` names included, and
-   prints what it returned. For each group that clears the gate, restore the narrowest instruction that addresses the cause,
+   `scripts/instruction-files.sh restore <root> <pre-strip-commit> <name>…` puts back the names it
+   is given, and only those. **Name the file the ledger defended; never restore the set.** A
+   restore that returned every stripped file would hand back the instructions the ledger did not
+   defend, which is the whole result this phase exists to protect. `--all` is for the other case,
+   closing or abandoning the experiment, where the pre-strip state entire is the intent.
+   For each group that clears the gate, restore the narrowest instruction that addresses the cause,
    a single line or rule file rather than the whole pre-experiment surface, and cite the ledger rows in
    the restoring commit or an adjacent comment.
 3. For instructions being rewritten rather than restored verbatim, route the text-level judgment to
