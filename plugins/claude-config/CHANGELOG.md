@@ -57,6 +57,22 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   conversion. The rule counts bytes rather than pairing them, so a file with mixed endings comes
   back uniform in whichever style its majority carried. Indentation and the trailing newline still
   come from jq.
+- **`fix-plugin-drift.sh --yes` never reports an edit it did not make.** Staging the replacement
+  beside the target introduced a way to report one. The stage is seeded with a `cp -p` of the
+  original to carry its mode, and the two line-ending normalization arms wrote into it through
+  unchecked redirects, so a write that never landed left a stage holding the ORIGINAL bytes: valid
+  JSON, a valid object, past every check, renamed over the settings file, and reported as
+  "Applied" with exit 0. Two inputs reached it. A settings file the operator had made read-only,
+  because `cp -p` carried that mode onto the stage and the redirect was then denied. And a signal
+  during the apply, because the `INT`/`TERM`/`HUP` trap deleted the temporaries without ending the
+  run, after which `cp -p` recreated the stage from the original and the normalization input was
+  gone. Four changes close it: both normalization arms are checked and fatal; the signal traps
+  clean up and then exit, 130 for `INT` and 143 for `TERM` and `HUP`; the stage is made writable
+  after the `cp -p` and has the read-only mode restored before the rename, so a read-only settings
+  file is applied and comes back read-only; and the settings file is read back after the replace
+  and compared against the backup, so "Applied" rests on evidence rather than on the pipeline's
+  say-so. The remaining command substitutions in the apply path (the clock for the backup name,
+  the line-ending measurement, the plugin-list encoding) are checked too.
 - **`fix-plugin-drift.sh --yes` replaces the settings file with a same-directory rename.** The
   staging temporary moved out of `$TMPDIR` and beside the target: on a host where `/tmp` is a
   separate mount the final `mv` degraded to a copy plus an unlink, where an interruption leaves

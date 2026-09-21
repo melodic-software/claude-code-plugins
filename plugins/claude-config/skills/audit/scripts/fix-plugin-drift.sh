@@ -46,6 +46,10 @@
 #   user settings file. Set CLAUDE_SETTINGS_FILE to write that file on purpose.
 #   An apply is refused when the settings path is a symlink, because the
 #   replacement is a rename and would replace the link itself.
+#   A read-only settings file is still applied, and comes back read-only.
+#   "Applied" is printed only after the settings file is read back and found to
+#   hold the edit. Any failure before that is fatal, and an interrupting signal
+#   ends the run rather than letting it continue with its temporaries deleted.
 
 set -uo pipefail
 
@@ -135,6 +139,24 @@ fi
 # --- Obtain findings ---------------------------------------------------------
 
 TMP_JSON=""
+TMP_SETTINGS=""
+TMP_EOL=""
+
+# One cleanup, installed once, for every temp this run can create. `rm -f ""` is
+# a silent no-op, so an unset path costs nothing.
+#
+# The signal traps EXIT the script; they do not merely delete. A trap that only
+# removed files let an interrupted run CONTINUE with its temps gone, and every
+# step after that worked on a stage still holding the original bytes, so the run
+# printed "Applied" and changed nothing.
+# shellcheck disable=SC2329  # invoked by the traps installed immediately below
+cleanup_temps() {
+  rm -f "${TMP_JSON:-}" "${TMP_SETTINGS:-}" "${TMP_EOL:-}"
+}
+trap cleanup_temps EXIT
+trap 'cleanup_temps; exit 130' INT
+trap 'cleanup_temps; exit 143' TERM HUP
+
 # Set when the internal check completed with no marketplace to compare, so the
 # no-drift branch below can say that instead of claiming a clean audit.
 NOTHING_AUDITED=0
@@ -145,7 +167,6 @@ if [[ -z "$INPUT_JSON" ]]; then
   # template. The .json extension was cosmetic; BSD substitutes trailing Xs
   # only, so the template cannot carry one.
   TMP_JSON=$(mktemp "${TMPDIR:-/tmp}/plugin-drift-json-XXXXXX")
-  trap 'rm -f "$TMP_JSON"' EXIT
   printf '%sRunning check-plugin-drift.sh...%s\n' "$CYAN" "$RESET" >&2
   check_status=0
   SETTINGS_AUDIT_OUTPUT_JSON="$TMP_JSON" CLAUDE_SETTINGS_FILE="$SETTINGS" \
@@ -331,10 +352,6 @@ done
 # Atomic edit: read-modify-write via jq + temp + rename.
 # Same portable mktemp form as TMP_JSON above (#1709).
 TMP_SETTINGS=$(mktemp "${TMPDIR:-/tmp}/settings-json-XXXXXX")
-TMP_EOL=""
-# INT TERM HUP as well as EXIT: one of the temps now lives beside the operator's
-# settings file rather than in $TMPDIR, where nothing sweeps it up for them.
-trap '[[ -n "${TMP_JSON:-}" ]] && rm -f "$TMP_JSON"; rm -f "${TMP_SETTINGS:-}" "${TMP_EOL:-}"' EXIT INT TERM HUP
 
 # No `set -e` here, so a failed mktemp would otherwise carry an empty path into
 # the jq redirect below and report the filter as the failure.
@@ -358,8 +375,12 @@ fi
 # Plugin names come from upstream marketplace JSON — pass them to jq as data
 # (--argjson arrays consumed by reduce), never interpolated into the filter
 # program, so a crafted upstream name cannot inject jq code.
-remove_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_remove")
-add_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_add")
+remove_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_remove") || remove_json=""
+add_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_add") || add_json=""
+if [[ -z "$remove_json" || -z "$add_json" ]]; then
+  echo "ERROR: cannot encode the plugin lists for the edit, settings unchanged" >&2
+  exit 2
+fi
 
 if ! jq --argjson rm "$remove_json" --argjson add "$add_json" '
   reduce $rm[] as $k (.; del(.enabledPlugins[$k])) |
@@ -385,28 +406,55 @@ if ! cp -p "$SETTINGS" "$TMP_EOL"; then
   exit 2
 fi
 
+# That copy also carries a read-only mode, and the normalization below writes to
+# this file. Make the stage writable for the duration and put the restriction
+# back before the replace, so a settings file the operator marked read-only is
+# still applied (as it was before this staging step existed) and comes back
+# read-only. `mv` needs no write bit on the file, only on the directory.
+SETTINGS_WAS_WRITABLE=1
+[[ -w "$SETTINGS" ]] || SETTINGS_WAS_WRITABLE=0
+if ! chmod u+w "$TMP_EOL"; then
+  echo "ERROR: cannot make the staged replacement writable, settings unchanged: $TMP_EOL" >&2
+  exit 2
+fi
+
 # jq emits whatever its build emits: the native Windows build writes CRLF
 # through a text-mode stdout, an MSYS or Linux build writes LF. Either one
 # rewrites every line ending in a file of the other style, so the emitted
 # document is normalized back to the style the original carried. `tr`, not
 # grep, because Git Bash grep never matches a carriage return; arithmetic
 # comparison, never string equality, because BSD `wc -c` pads with spaces.
-cr=$(tr -dc '\r' <"$SETTINGS" | wc -c)
-lf=$(tr -dc '\n' <"$SETTINGS" | wc -c)
+cr=$(tr -dc '\r' <"$SETTINGS" | wc -c) || cr=""
+lf=$(tr -dc '\n' <"$SETTINGS" | wc -c) || lf=""
+if [[ -z "$cr" || -z "$lf" ]]; then
+  echo "ERROR: cannot measure the settings file's line endings, settings unchanged" >&2
+  exit 2
+fi
 
 # Both terms are required. A lone carriage return used as JSON whitespace in an
 # LF file would make a bare `cr -gt 0` rewrite every line ending, and a bare
 # `cr -ge lf` holds for a newline-less minified file and would CRLF-ify it.
 # This counts bytes, it does not pair them: a mixed file goes whichever way its
 # majority points and comes back uniform. That is a style change, never a loss.
+# BOTH arms are checked. An unchecked redirect here is the whole hazard: the
+# stage already holds the `cp -p` copy of the ORIGINAL, so a write that never
+# lands leaves a document that is valid JSON and a valid object, passes every
+# check below, and gets renamed over the settings file while the run reports
+# the edit it did not make.
 if [[ "$cr" -gt 0 && "$cr" -ge "$lf" ]]; then
   # A read loop, not `sed 's/$/\r/'`: BSD sed reads \r as a literal r. The
   # `|| [[ -n "$line" ]]` arm keeps a final line that carries no terminator.
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    printf '%s\r\n' "${line%$'\r'}"
-  done <"$TMP_SETTINGS" >"$TMP_EOL"
-else
-  tr -d '\r' <"$TMP_SETTINGS" >"$TMP_EOL"
+  if ! {
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      printf '%s\r\n' "${line%$'\r'}"
+    done <"$TMP_SETTINGS" >"$TMP_EOL"
+  }; then
+    echo "ERROR: cannot write the staged replacement, settings unchanged: $TMP_EOL" >&2
+    exit 2
+  fi
+elif ! tr -d '\r' <"$TMP_SETTINGS" >"$TMP_EOL"; then
+  echo "ERROR: cannot write the staged replacement, settings unchanged: $TMP_EOL" >&2
+  exit 2
 fi
 
 if ! jq -e 'type == "object"' "$TMP_EOL" >/dev/null 2>&1; then
@@ -414,11 +462,31 @@ if ! jq -e 'type == "object"' "$TMP_EOL" >/dev/null 2>&1; then
   exit 2
 fi
 
+# The last guard on the class, and the one that does not depend on predicting
+# which step failed: at least one removal or addition is pending by now, so a
+# stage identical to the current file means the edit never reached it.
+if cmp -s "$SETTINGS" "$TMP_EOL"; then
+  echo "ERROR: the staged replacement is identical to the current settings file, so the edit did not reach it; settings unchanged" >&2
+  exit 2
+fi
+
+# Put the original's read-only mode back before the replace, so the file the
+# operator gets is the one they had, edited.
+if [[ "$SETTINGS_WAS_WRITABLE" -eq 0 ]] && ! chmod u-w "$TMP_EOL"; then
+  echo "ERROR: cannot restore the read-only mode on the staged replacement, settings unchanged: $TMP_EOL" >&2
+  exit 2
+fi
+
 # The backup is taken last, so a run refused earlier leaves none behind. Once it
 # exists the original is recoverable whatever happens next, so no path here
 # deletes it. Refuse rather than clobber an earlier backup made in the same
 # second.
-BACKUP="$SETTINGS.$(date -u +%Y%m%dT%H%M%SZ).bak"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ) || STAMP=""
+if [[ -z "$STAMP" ]]; then
+  echo "ERROR: cannot read the clock for the backup name, settings unchanged" >&2
+  exit 2
+fi
+BACKUP="$SETTINGS.$STAMP.bak"
 # Created and filled through ONE descriptor, under noclobber and a 0077 umask.
 # noclobber opens with O_EXCL, which refuses an existing file AND a symlink,
 # including a dangling one that `[[ -e ]]` reads as absent and that a bare `cp`
@@ -445,6 +513,15 @@ fi
 
 if ! mv "$TMP_EOL" "$SETTINGS"; then
   echo "ERROR: cannot replace $SETTINGS; it is unchanged and backed up at $BACKUP" >&2
+  exit 2
+fi
+
+# Read the result back rather than trusting the pipeline that produced it. The
+# backup holds the pre-apply bytes, so a settings file still equal to it is a
+# run that reported an edit it did not make. Nothing above may report success
+# on this script's own say-so.
+if ! jq -e 'type == "object"' "$SETTINGS" >/dev/null 2>&1 || cmp -s "$BACKUP" "$SETTINGS"; then
+  echo "ERROR: $SETTINGS does not hold the edited document after the replace; the pre-apply copy is at $BACKUP" >&2
   exit 2
 fi
 

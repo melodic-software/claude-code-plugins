@@ -39,6 +39,13 @@ assert_not_contains() {
   esac
 }
 
+# skip <case> <reason> - report a case the host cannot exercise. Deliberately
+# does NOT call pass: a check that never ran is not a check that passed, and the
+# tail's count is the number actually exercised.
+skip() {
+  printf 'SKIP: %s\n  reason: %s\n' "$1" "$2" >&2
+}
+
 # count_cr / count_lf <file> - carriage returns and line feeds in a file. Git
 # Bash grep never matches a carriage return, so the count goes through tr; the
 # arithmetic expansion strips the leading spaces BSD wc -c pads with.
@@ -519,6 +526,126 @@ assert_exit "case-13: explicit user-file target still applies" 0 "$exit_code"
 assert_contains "case-13: warns that the guard was waived" "$out" "CLAUDE_SETTINGS_FILE points at the user settings file"
 applied=$(jq -e '.enabledPlugins | has("removed@market1") | not' "$case_dir/.claude/settings.json" >/dev/null && echo yes || echo no)
 assert_eq "case-13: the edit landed" "yes" "$applied"
+
+# --- drift fixture shared by cases 14 to 16 --------------------------------------
+
+DRIFT_FINDINGS='[{
+  "key": "market1",
+  "status": "ok",
+  "skip_reason": "",
+  "orphans": [{"name": "removed", "marketplace": "market1", "enabled": false}],
+  "new_upstream": [{"name": "newcomer", "marketplace": "market1"}],
+  "renames": []
+}]'
+SETTINGS_FIXTURE='{
+  "enabledPlugins": {
+    "alpha@market1": true,
+    "removed@market1": false
+  }
+}'
+
+# --- Case 14: a read-only settings file is applied, never falsely reported --------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
+printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
+cp "$case_dir/settings.json" "$case_dir/settings.pre"
+
+# Is a read-only mode enforced here at all? On Windows `chmod 444` sets the
+# read-only attribute and Git Bash does deny the write, but a share or a mount
+# option can make mode bits advisory, and an assertion that cannot fail is
+# worse than an absent one.
+chmod 444 "$case_dir/settings.json"
+if (printf 'x\n' >"$case_dir/settings.json") 2>/dev/null; then
+  chmod 644 "$case_dir/settings.json"
+  cp "$case_dir/settings.pre" "$case_dir/settings.json"
+  skip "case-14: read-only settings file" "this host does not enforce a read-only mode, so the case cannot fail"
+else
+  exit_code=0
+  out=$(run_fix_apply "$case_dir") || exit_code=$?
+
+  # The hazard is a run that reports an edit it did not make. Either outcome is
+  # acceptable on its own; the pairing is what must hold.
+  if [[ "$exit_code" -eq 0 ]]; then
+    applied=$(cmp -s "$case_dir/settings.pre" "$case_dir/settings.json" && echo no || echo yes)
+    assert_eq "case-14: exit 0 means the file really changed" "yes" "$applied"
+    assert_contains "case-14: reports the apply" "$out" "Applied:"
+    landed=$(jq -e '(.enabledPlugins | has("removed@market1") | not)
+      and (.enabledPlugins["newcomer@market1"] == false)' \
+      "$case_dir/settings.json" >/dev/null 2>&1 && echo yes || echo no)
+    assert_eq "case-14: the edit is the one reported" "yes" "$landed"
+  else
+    unchanged=$(cmp -s "$case_dir/settings.pre" "$case_dir/settings.json" && echo yes || echo no)
+    assert_eq "case-14: a refusal leaves the file byte-identical" "yes" "$unchanged"
+    assert_not_contains "case-14: a refusal never reports an apply" "$out" "Applied:"
+  fi
+  chmod 644 "$case_dir/settings.json" 2>/dev/null
+fi
+
+# --- Cases 15 and 16: a signal ends the run, it does not just delete the temps ----
+
+# signal_shim <dir> <signal> - a jq wrapper that signals the script the first
+# time the post-edit validation runs, then execs the real jq. That validation is
+# the first step after the stage exists, which is where an interrupted run used
+# to carry on with its temporaries deleted and a stage still holding the
+# original bytes.
+signal_shim() {
+  local dir="$1" sig="$2" real
+  real=$(command -v jq)
+  mkdir -p "$dir"
+  # shellcheck disable=SC2016  # the shim's own source: these must stay literal
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'case "$*" in\n'
+    printf '  *"type == \\"object\\""*)\n'
+    printf '    if [[ -n "${SHIM_MARKER:-}" && ! -e "$SHIM_MARKER" ]]; then\n'
+    printf '      : >"$SHIM_MARKER"\n'
+    printf '      kill -%s "$PPID" 2>/dev/null\n' "$sig"
+    printf '    fi\n'
+    printf '    ;;\n'
+    printf 'esac\n'
+    printf 'exec %s "$@"\n' "$real"
+  } >"$dir/jq"
+  chmod +x "$dir/jq"
+}
+
+# run_signalled <case-dir> <signal> - an apply interrupted at that point.
+run_signalled() {
+  local case_dir="$1" sig="$2"
+  signal_shim "$case_dir/shim" "$sig"
+  PATH="$case_dir/shim:$PATH" \
+    SHIM_MARKER="$case_dir/fired" \
+    NO_COLOR=1 \
+    CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+    bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1
+}
+
+for sig_case in "15 TERM 143" "16 INT 130"; do
+  # shellcheck disable=SC2086  # three fixed fields, split on purpose
+  set -- $sig_case
+  sig_name="$2"
+  sig_rc="$3"
+
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(make_case)
+  printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
+  printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
+  cp "$case_dir/settings.json" "$case_dir/settings.pre"
+
+  exit_code=0
+  out=$(run_signalled "$case_dir" "$sig_name") || exit_code=$?
+
+  if [[ ! -e "$case_dir/fired" ]]; then
+    skip "case-$1: SIG$sig_name during the apply" "the shim never fired, so the signal was never delivered"
+  else
+    assert_exit "case-$1: SIG$sig_name ends the run" "$sig_rc" "$exit_code"
+    assert_not_contains "case-$1: SIG$sig_name never reports an apply" "$out" "Applied:"
+    unchanged=$(cmp -s "$case_dir/settings.pre" "$case_dir/settings.json" && echo yes || echo no)
+    assert_eq "case-$1: SIG$sig_name leaves the file byte-identical" "yes" "$unchanged"
+    assert_eq "case-$1: SIG$sig_name leaves no backup behind" "0" "$(backup_count "$case_dir")"
+  fi
+done
 
 # --- Final ------------------------------------------------------------------
 
