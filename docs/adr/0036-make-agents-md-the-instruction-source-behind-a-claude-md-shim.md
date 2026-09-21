@@ -5,8 +5,9 @@
 
 ## Context
 
-Ten melodic-software repositories carried their agent instructions in `CLAUDE.md`, a file only
-Claude Code reads, while Codex, Cursor and the rest read `AGENTS.md`. Claude Code can read
+Ten melodic-software repositories carried their agent instructions in `CLAUDE.md`, Claude Code's
+own file, which a few other tools also accept, while `AGENTS.md` is the open standard that Codex,
+Cursor, Copilot and the rest read natively (`docs/specs/agent-doc-surfaces.md`). Claude Code can read
 `AGENTS.md` for itself from a recent CLI version, but only under conditions no repository controls
 (both recorded under "Why" below), so moving the content across without deciding how it loads
 risks instructions that silently stop loading.
@@ -50,7 +51,7 @@ Three alternatives were rejected, each with the fact that would flip it:
 |---|---|---|
 | Native only: delete `CLAUDE.md` now | With the flag off, a lone `AGENTS.md` loads nothing ("The remote flag, and how its code default is read"), and any `CLAUDE.md` above the working directory suppresses the read regardless ("Why the shim stays") | All four graded conditions report `[MET]` |
 | The `claude-md-and-agents-md` both-files setting | A user, `--settings` or managed setting, ignored in project and local settings, so no repository can ship it ("Why the shim stays"); never adopted or run as a convention | The setting becomes readable from project or local settings |
-| A common-ancestor `D:/repos/AGENTS.md` | No repository versions it, and it misses every worktree checked out outside that tree | Claude Code reads a versioned org-level tier above the repository |
+| A common-ancestor `AGENTS.md` in the directory that holds every clone | No repository versions it, and it misses every worktree checked out outside that tree | Claude Code reads a versioned org-level tier above the repository |
 
 ## Consequences
 
@@ -60,9 +61,10 @@ Three alternatives were rejected, each with the fact that would flip it:
 - Code that locates a repository root by the existence of `CLAUDE.md` works today and breaks at
   cutover. Condition 4 grades each such site against a reviewed, per-repository
   `.claude/cutover-pathdet-ack.txt`.
-- Each root-to-directory `AGENTS.md` path stays under Codex's project-doc budget, which truncates
-  with no error. The 32,768-byte default is `project_doc_max_bytes` in `openai/codex`
-  (`codex-rs/config/defaults.toml`).
+- Each root-to-directory `AGENTS.md` path stays under Codex's project-doc budget, which is
+  cumulative across the files it loads and truncates with no error. The number and its dated
+  record live beside `CODEX_PROJECT_DOC_BUDGET` in the migrate skill's `scripts/plan-migration.sh`,
+  and the skill's `BUDGET` row grades each path against it.
 - Shim removal is blocked until the installed `claude-memory` and `instruction-placement` plugins
   carry the corrected doctrine; an older cached build advises a de-shimmed repository straight back
   to the old shape.
