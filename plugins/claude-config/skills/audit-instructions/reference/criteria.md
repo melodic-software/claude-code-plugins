@@ -139,10 +139,11 @@ in name only.
 
 **Surface partition.** Checks I1–I5 are the instruction-memory hygiene layer: they apply on
 non-memory surfaces (skill bodies, agent definitions, hook instruction text, output styles); on
-memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
-findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
-to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 and
-I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in their own rows.
+memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.claude/rules/`,
+`~/.claude/rules/`) their findings route to the `claude-memory` plugin's `audit` skill when it is
+installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
+not. Checks I6–I12 and I15–I28 apply to all surfaces; I13 and I14 name narrower surface sets in
+their own rows.
 
 ## Sources
 

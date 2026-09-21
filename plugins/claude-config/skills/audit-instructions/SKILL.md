@@ -58,8 +58,8 @@ concerns its siblings already cover, so route rather than re-answer:
   re-adding on repeated stumble evidence, is `unhobble` (same plugin): this skill judges instruction
   *text* against doctrine; unhobble measures the *model*.
 
-On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
-user root Phase A resolves),
+On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md,
+`.claude/rules/`, and `rules/` under the user root Phase A resolves),
 this skill runs only the model-era checks I6–I34. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces;
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
@@ -123,7 +123,7 @@ Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may *
 never which surfaces are read. Phase A always inventories the full comparison set, because I15 is a
 relation between two surfaces and a scoped run still needs the counterpart:
 
-- `claude-md`: findings on user + project CLAUDE.md and CLAUDE.local.md
+- `claude-md`: findings on user + project CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md
 - `rules`: findings on `.claude/rules/` and `rules/` under the user root Phase A resolves
 - `skills`: findings on skill bodies and their context/reference files
 - `agents`: findings on agent definition markdown
