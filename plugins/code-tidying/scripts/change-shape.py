@@ -182,16 +182,19 @@ def powershell_leaves(record: dict) -> list[tuple[str, str]]:
     return out
 
 
-# A rename may not change a variable's scope or bind it to an automatic one:
-# both are token-shaped but neither preserves meaning.
-PS_AUTOMATIC = frozenset({"$_", "$psitem", "$args", "$input", "$this"})
+def powershell_rename_defect(mapping: dict[str, str], reserved: set[str]) -> str | None:
+    """A rename may not change a variable's scope or touch a reserved name.
 
-
-def powershell_rename_defect(mapping: dict[str, str]) -> str | None:
+    Both are token-shaped and neither preserves meaning. `reserved` is the set
+    ps-tokens.ps1 read out of a live runspace, so it tracks the language rather
+    than a list maintained here.
+    """
     for old, new in mapping.items():
         for name in (old, new):
-            if name.lower() in PS_AUTOMATIC:
-                return f"rename touches the automatic variable {name}"
+            # `$env:PATH` is rejected by the scope test below, so only the bare
+            # name matters here.
+            if name.lstrip("$@").lower() in reserved:
+                return f"rename touches the reserved variable {name}"
         # `$x` -> `$global:x` and `$x` -> `$env:PATH` are scope changes, so the
         # sigil-to-last-colon prefix has to match on both sides.
         if old.rpartition(":")[0].lower() != new.rpartition(":")[0].lower():
@@ -262,7 +265,17 @@ def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
     return classify_leaves(a, b, a_broken, b_broken)
 
 
-def classify_leaves(a, b, a_broken: bool, b_broken: bool) -> tuple[str, int, dict]:
+def classify_leaves(
+    a, b, a_broken: bool, b_broken: bool, fold=None
+) -> tuple[str, int, dict]:
+    """`fold` canonicalizes an identifier for the name bookkeeping only.
+
+    A language whose names are case-insensitive passes `str.lower` here, so the
+    mapping, the collision check and the stale-name check all agree with the
+    language. The leaves themselves stay verbatim, so a case-only edit is still
+    a visible difference rather than nothing at all.
+    """
+    key = fold or (lambda s: s)
     if a_broken or b_broken:
         side = "before" if a_broken else "after"
         return (
@@ -281,15 +294,24 @@ def classify_leaves(a, b, a_broken: bool, b_broken: bool) -> tuple[str, int, dic
     diffs = [(x, y) for x, y in zip(a, b) if x != y]
     if all(x[0] in IDENTIFIER_KINDS and y[0] in IDENTIFIER_KINDS for x, y in diffs):
         mapping: dict[str, str] = {}
+        folded: dict[str, str] = {}
         reverse: dict[str, str] = {}
         for (_, old), (_, new) in diffs:
-            if mapping.setdefault(old, new) != new:
+            if key(old) == key(new):
+                # The same name respelled. Nothing was renamed, and under a
+                # case-insensitive fold the mapping would be an identity.
+                return (
+                    "CODE-CHANGED",
+                    EXIT_CODE_CHANGED,
+                    {"reason": "one name respelled, not renamed", "at": old},
+                )
+            if folded.setdefault(key(old), key(new)) != key(new):
                 return (
                     "CODE-CHANGED",
                     EXIT_CODE_CHANGED,
                     {"reason": "inconsistent identifier mapping", "at": old},
                 )
-            if reverse.setdefault(new, old) != old:
+            if reverse.setdefault(key(new), key(old)) != key(old):
                 # Two renamed identifiers collapsing onto one name is a merge,
                 # not a rename: the mapping must be injective as well as consistent.
                 return (
@@ -297,15 +319,16 @@ def classify_leaves(a, b, a_broken: bool, b_broken: bool) -> tuple[str, int, dic
                     EXIT_CODE_CHANGED,
                     {"reason": "two identifiers collapse to one name", "at": new},
                 )
+            mapping[old] = new
         # The diff only sees positions that changed. An old name still present
         # at an unchanged position is a rename that missed a reference; a new
         # name already present at one is a rename onto an existing identifier.
         unchanged = {
-            text
+            key(text)
             for (kind, text), y in zip(a, b)
             if kind in IDENTIFIER_KINDS and (kind, text) == y
         }
-        stale = sorted(old for old in mapping if old in unchanged)
+        stale = sorted(old for old in mapping if key(old) in unchanged)
         if stale:
             return (
                 "CODE-CHANGED",
@@ -315,7 +338,7 @@ def classify_leaves(a, b, a_broken: bool, b_broken: bool) -> tuple[str, int, dic
                     "at": stale[0],
                 },
             )
-        collision = sorted(new for new in reverse if new in unchanged)
+        collision = sorted(new for new in mapping.values() if key(new) in unchanged)
         if collision:
             return (
                 "CODE-CHANGED",
@@ -376,9 +399,13 @@ def main(argv: list[str] | None = None) -> int:
             powershell_leaves(records[1]),
             records[0]["errors"] > 0,
             records[1]["errors"] > 0,
+            # PowerShell variable names are case-insensitive, so `$Old` and
+            # `$old` are one name to every check that reasons about names.
+            fold=str.lower,
         )
         if verdict == "RENAME-ONLY":
-            defect = powershell_rename_defect(detail["mapping"])
+            reserved = {n.lower() for n in records[1]["reserved"]}
+            defect = powershell_rename_defect(detail["mapping"], reserved)
             if defect:
                 verdict, code, detail = (
                     "CODE-CHANGED",

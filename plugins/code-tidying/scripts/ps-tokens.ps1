@@ -26,6 +26,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Reserved and automatic variable names, asked of a fresh runspace rather than
+# hand-maintained: a rename whose target is one of these is not a rename, and a
+# list written out here would go stale the next time the language grows one.
+# The supplement covers names that exist only inside a pipeline, a function body
+# or a match, so they are absent from the global scope this reads.
+$script:reserved = @(
+    (Get-Variable -Scope Global).Name
+    '_', 'PSItem', 'args', 'input', 'this', 'null', 'true', 'false', 'Matches', 'Error', 'Host'
+) | Sort-Object -Unique
+
 # Structure English prose cannot produce. A CommandAst is NOT on the list: prose
 # about PowerShell parses as one, whether it names a -Switch (`the one
 # -AllowExitCode judges`) or a cmdlet (`Set-Acl asks the provider to...`), so
@@ -126,6 +136,7 @@ foreach ($p in $Path) {
         }
     }
     Write-Json @{
-        errors = @($errors).Count; tokens = $tk; comments = $cm; nested = $nested
+        errors   = @($errors).Count; tokens = $tk; comments = $cm; nested = $nested
+        reserved = [string[]]$script:reserved
     }
 }

@@ -434,7 +434,39 @@ class PowerShellRenames(unittest.TestCase):
         after = src.replace("$old", "$_")
         code, out, _ = run(src, after, ".ps1", "--json")
         self.assertEqual(code, 20, out)
-        self.assertIn("automatic variable", out)
+        self.assertIn("reserved variable", out)
+
+    def test_case_only_respelling_is_not_a_rename(self):
+        # PowerShell variable names are case-insensitive, so nothing moved.
+        src = "$Old = 1\nWrite-Output $Old\n"
+        after = src.replace("$Old", "$old")
+        code, out, _ = run(src, after, ".ps1", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("respelled", out)
+
+    def test_rename_colliding_case_insensitively_is_code_changed(self):
+        src = "$new = 0\n$old = 1\nWrite-Output $old\n"
+        after = src.replace("$old", "$New")
+        code, out, _ = run(src, after, ".ps1", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("collides", out)
+
+    def test_incomplete_rename_is_caught_across_case(self):
+        src = "$old = 1\nWrite-Output $Old\nWrite-Output $old\n"
+        after = src.replace("$old = 1", "$new = 1").replace(
+            "Write-Output $old", "Write-Output $new"
+        )
+        code, out, _ = run(src, after, ".ps1", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("incomplete rename", out)
+
+    def test_rename_to_a_reserved_variable_is_code_changed(self):
+        for target in ("$null", "$HOME", "$true", "$PID"):
+            with self.subTest(target=target):
+                src = "$old = 1\nWrite-Output $old\n"
+                code, out, _ = run(src, src.replace("$old", target), ".ps1", "--json")
+                self.assertEqual(code, 20, out)
+                self.assertIn("reserved variable", out)
 
     def test_same_scope_rename_is_still_rename_only(self):
         src = "$script:old = 1\nWrite-Output $script:old\n"

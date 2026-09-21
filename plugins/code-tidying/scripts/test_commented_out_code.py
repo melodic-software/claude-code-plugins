@@ -183,6 +183,17 @@ class PowerShell(unittest.TestCase):
         self.assertEqual(lines(rows), {6}, rows)
         self.assertEqual(rows[0]["end"], 7)
 
+    def test_one_line_block_comment_is_flagged(self):
+        code, rows, err = scan("<# $x = Get-Item -Path 'a' #>\n$y = 1\n", ".ps1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(lines(rows), {1}, rows)
+
+    def test_multi_line_block_comment_is_flagged(self):
+        src = "<#\n$x = Get-Item -Path 'a'\n$y = $x.Name\n#>\n$z = 1\n"
+        code, rows, err = scan(src, ".ps1")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(lines(rows), {1}, rows)
+
     def test_comment_based_help_is_not_flagged(self):
         src = (
             "<#\n"

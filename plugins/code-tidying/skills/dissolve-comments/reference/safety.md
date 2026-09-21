@@ -67,8 +67,12 @@ rejected (see [tooling.md](tooling.md)). Consequences worth knowing:
   updates the bare `$x` and misses the one inside the string reads CODE-CHANGED rather than passing
   as clean; a rename that updates both still reads CODE-CHANGED, because the string's own text
   moved. Expect tier-1 renames that touch interpolation to demote to proposals.
-- A rename that changes scope (`$x` to `$global:x`, `$x` to `$env:PATH`) or targets an automatic
-  variable (`$_`, `$PSItem`, `$args`, `$input`, `$this`) is CODE-CHANGED, not a rename.
+- A rename that changes scope (`$x` to `$global:x`, `$x` to `$env:PATH`) or touches a reserved
+  variable (`$_`, `$null`, `$true`, `$HOME`, `$PID` and the rest) is CODE-CHANGED, not a rename.
+  The reserved set is read out of a live runspace per run, not maintained in this repository.
+- Variable names are case-insensitive, so `$Old` and `$old` are one name everywhere the proof
+  reasons about names: respelling one is CODE-CHANGED rather than a rename, a rename onto `$New`
+  collides with an existing `$new`, and a missed `$Old` reference still fails an `$old` rename.
 - The residual caveat is the one the verdict has in every language: string-keyed access the tokens
   cannot see, here `Get-Variable -Name old`, `$PSBoundParameters['old']`, `Set-Variable old`.
 

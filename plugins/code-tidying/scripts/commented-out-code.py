@@ -164,7 +164,11 @@ DIRECTIVE = re.compile(
     r"FUNCTIONALITY|EXTERNALHELP|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE)\b)",
     re.IGNORECASE,
 )
-MARKER = re.compile(r"^\s*(?:///?|#+|/\*+|\*+/?|<!--|-->)\s?")
+MARKER = re.compile(r"^\s*(?:///?|<#|#+|/\*+|\*+/?|<!--|-->)\s?")
+# PowerShell's block-comment close, stripped before the opener so that a `#>`
+# line is emptied rather than left as a stray `>`. Without it a one-line
+# `<# $x = 1 #>` never reaches the parser as code.
+BLOCK_END = re.compile(r"\s*#>\s*$")
 
 PS_SCRIPT = Path(__file__).with_name("ps-tokens.ps1")
 # Comment-based help is documentation, whole. Splitting it into directive-free
@@ -283,7 +287,9 @@ def comment_blocks(src: bytes, lang):
 
 
 def strip_markers(text: str) -> str:
-    return "\n".join(MARKER.sub("", line, count=1) for line in text.split("\n"))
+    return "\n".join(
+        MARKER.sub("", BLOCK_END.sub("", line), count=1) for line in text.split("\n")
+    )
 
 
 def looks_like_code(body: str, lang, lang_name: str) -> bool:
@@ -334,6 +340,10 @@ def scan(path: Path):
     if entry[1] is None:
         try:
             records = run_ps_tokens(str(path))
+            if len(records) != 1:
+                raise PowerShellUnavailable(
+                    f"ps-tokens.ps1 returned {len(records)} records, expected 1"
+                )
             blocks = [
                 b
                 for b in merge_comment_runs(

@@ -33,8 +33,14 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
     both reads CODE-CHANGED; renames touching interpolation demote to proposals.
   - **Scope changes are not renames.** `$x` to `$global:x` and `$x` to `$env:PATH` are rejected: the
     sigil-to-last-colon prefix must match on both sides.
-  - **Automatic variables are not rename targets.** `$_`, `$PSItem`, `$args`, `$input` and `$this`
-    are rejected on either side of a mapping.
+  - **Reserved variables are not rename targets.** `ps-tokens.ps1` reads the names present in a
+    fresh runspace and reports them, so `$null`, `$true`, `$HOME`, `$PID`, `$_` and the rest are
+    rejected on either side of a mapping without a list maintained here going stale.
+  - **Names are compared case-insensitively, as PowerShell compares them.** `classify_leaves` takes
+    a fold for the mapping, collision and stale-name bookkeeping, so `$Old` to `$old` is a
+    respelling rather than a rename, `$old` to `$New` collides with an existing `$new`, and a missed
+    `$Old` reference still fails an `$old` rename. The leaves stay verbatim, so a case-only edit is
+    still a visible difference rather than nothing at all.
 
   The residual caveat is the one the verdict carries in every language: string-keyed access the
   tokens cannot see, here `Get-Variable -Name old` and `$PSBoundParameters['old']`.
@@ -57,6 +63,8 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   `Export-ModuleMember` or a `.psd1` manifest, which the proof does not read, so the exemption
   covers every help block in `.ps1` and `.psm1`. `commented-out-code.py` skips a help block whole
   rather than reparsing its prose, and its `DIRECTIVE` list gains `#Requires` and the help keywords.
+  Its marker stripping also learns `<#` and `#>`, so a one-line `<# $x = 1 #>` and a multi-line block
+  reach the parser as code instead of never being read at all.
 
 - **A `CommandAst` is not commented-out-code evidence in PowerShell.** Prose about PowerShell parses
   as a clean command whether it names a `-Switch` ("the one `-AllowExitCode` judges") or a cmdlet
