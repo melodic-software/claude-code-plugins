@@ -5,7 +5,8 @@ auto-loads, at what moment, and under what size behavior. Write differently for 
 surface (every line is a per-session tax) than for an on-demand one (cost only when the trigger
 fires).
 
-Claude Code rows verified against official docs current at v2.1.233 (2026-08-17). The harness
+Claude Code rows verified against official docs current at v2.1.233 (2026-08-17); a row carrying its
+own version and date supersedes this line for that row. The harness
 releases frequently, so when your write depends on a load-timing detail, re-verify it
 against <https://code.claude.com/docs/en/memory> before relying on it.
 

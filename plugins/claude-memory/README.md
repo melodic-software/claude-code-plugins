@@ -45,7 +45,8 @@ project-scoped criteria skip personal files instead of reporting a repo-scoped f
 
 Inspects and disables Claude Code **auto memory**, the notes Claude writes for itself per repo at
 `~/.claude/projects/<project>/memory/` (relocatable via `autoMemoryDirectory`). Scope is auto-memory
-only: the instruction layer (`CLAUDE.md`, `.claude/rules/`) belongs to `audit`, and transcripts /
+only: the instruction layer (`CLAUDE.md`, a natively read `AGENTS.md`, `.claude/rules/`) belongs to
+`audit`, and transcripts /
 history are out of scope (Claude Code auto-cleans those via `cleanupPeriodDays`).
 
 ```shell

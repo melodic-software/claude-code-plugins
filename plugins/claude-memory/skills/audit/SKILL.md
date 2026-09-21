@@ -6,7 +6,7 @@ disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist
+  summary: Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist
 ---
 
 ## Pre-computed context

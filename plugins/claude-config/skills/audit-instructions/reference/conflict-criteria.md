@@ -270,8 +270,8 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   cannot read is a worse failure than excluding the surface, because it manufactures a
   quotation.
 
-**Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
-`MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, and except via
+**Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, a natively read project
+`AGENTS.md`, unscoped rules, `MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, and except via
 `Explore` / `Plan`.
 **Conditional pairs** involve a skill body, a path-scoped rule, a nested `CLAUDE.md`, or
 context-injected hook output. They are real, but they only bite once that surface loads. Hook output is
