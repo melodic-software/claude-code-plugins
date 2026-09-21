@@ -17,14 +17,20 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - **A natively read `AGENTS.md`**: `./AGENTS.md` and `./.claude/AGENTS.md`, each its own record, and
   every nested `AGENTS.md` in subdirectories of the project tree, on the same on-demand footing as
-  the nested `CLAUDE.md` files above. A file is natively read only where no `CLAUDE.md`,
-  `.claude/CLAUDE.md` or `CLAUDE.local.md` sits **on its own path**, from the working directory or
-  any directory above it down to the directory holding it; test the condition per file, not once at
-  the root. Where one does displace it, Claude Code reads the CLAUDE.md files instead and the
-  `AGENTS.md` reaches context only as an import or a symlink, which the importing record already
-  covers. The root case is the condition `claude-memory`'s `skills/audit/scripts/lib/agents-md.sh`
-  encodes; a surface missing here produces no Phase A record, so no later phase can route or grade
-  it.
+  the nested `CLAUDE.md` files above. **Under the default instruction-files mode** a file is
+  natively read only where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits **on its
+  own path**, from the working directory or any directory above it down to the directory holding
+  it; test the condition per file, not once at the root. Where one does displace it, Claude Code
+  reads the CLAUDE.md files instead and the `AGENTS.md` reaches context only as an import or a
+  symlink, which the importing record already covers. The root case is the condition
+  `claude-memory`'s `skills/audit/scripts/lib/agents-md.sh` encodes.
+  **Displacement is that mode's answer, not the only one.** Under the user-scope
+  `claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
+  `AGENTS.md` after, so a displaced file is read there and needs its own record like any other.
+  Resolve the mode from the user scope this phase already inventories, and **record the file
+  whenever the mode is that one or cannot be resolved**: inventorying is additive and cannot by
+  itself produce a finding, while a surface missing here produces no Phase A record, so no later
+  phase can route or grade it.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in
   `.claude/settings.local.json`**, since local settings are a supported hook-configuration scope and a
   hook configured there gates the session as much as one configured anywhere else, **and declared

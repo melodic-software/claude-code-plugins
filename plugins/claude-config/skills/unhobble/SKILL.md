@@ -44,8 +44,8 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
   operator explicitly opts in per phase-1 prompt, never by default.
 - **Managed settings are never touched.** Org-managed policy is not the operator's to ablate.
 - **Reversible by construction.** Tracked-file changes happen on a dedicated experiment branch;
-  untracked/settings changes are backed up to plugin state before modification and restored from
-  that manifest. Nothing is destroyed: git history and the snapshot manifest are the safety net.
+  untracked/settings changes are backed up to plugin state before modification or removal and
+  restored from that manifest. Nothing is destroyed: git history and the snapshot manifest are the safety net.
 - **Human-gated.** Every mutating step (strip, restore, re-add) presents its exact change set and
   waits for operator confirmation. Bare invocation of a phase never mutates silently.
 - **Security posture is out of scope.** Hooks that enforce policy (secrets gates, PR-body contracts,
@@ -71,7 +71,9 @@ means passing its phase commands from inside the same checkout its manifest name
   target model, phase timestamps.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
   did, what was expected, suspected missing instruction, severity).
-- `backups/`: pre-strip copies of any non-git-tracked file modified (e.g. settings hook entries).
+- `backups/`: pre-strip copies of any non-git-tracked file modified or removed (settings hook
+  entries, and an untracked instruction file the plan classified behavioral, which git cannot
+  restore and so is never stripped through the git helper).
 
 `status` prints the manifest summary: phase, days elapsed, ledger row count, re-add candidates.
 

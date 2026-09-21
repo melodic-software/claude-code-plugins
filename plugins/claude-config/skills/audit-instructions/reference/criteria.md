@@ -781,11 +781,12 @@ skill bodies.
   `claude-md-and-agents-md` setting loads it even **with** a `CLAUDE.md` beside it, which makes a
   read of it redundant where the displacement test alone would have exempted it.
   There, in the first case, an instruction to read it is the only thing that puts it in context,
-  and flagging the read as redundant would propose deleting the load. Resolve the version and flag
-  condition from the dated record in the `instruction-placement` plugin's
-  `skills/migrate/reference/sources.md` before flagging an `AGENTS.md` read, and where it cannot be
-  resolved for the session under audit, leave the read alone, per this check's own residency rule
-  below that an unestablished residency is not a finding.
+  and flagging the read as redundant would propose deleting the load. Resolve the version, flag
+  **and mode** conditions from the dated records, the first two in the `instruction-placement`
+  plugin's `skills/migrate/reference/sources.md` and the mode in that plugin's
+  `scripts/render-index.sh`, before flagging an `AGENTS.md` read, and where **any of the three**
+  cannot be resolved for the session under audit, leave the read alone, per this check's own
+  residency rule below that an unestablished residency is not a finding.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
 - **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
   rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
@@ -851,10 +852,13 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   surface importing it rather than as a separate one.
 - **Excluded from the comparison set:** files that are not Claude Code instruction surfaces here.
   An `AGENTS.md` is excluded only while a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in
-  the working directory or above it displaces it and no import reaches it: then it shapes no
-  behavior here, so a divergence between it and a `CLAUDE.md` is not a conflict this check reports.
-  Where nothing displaces it, Claude Code reads it as the project instructions and it is in the set
-  like any other surface.
+  the working directory or above it displaces it **under the default instruction-files mode** and no
+  import reaches it: then it shapes no behavior here, so a divergence between it and a `CLAUDE.md`
+  is not a conflict this check reports. Where nothing displaces it, Claude Code reads it as the
+  project instructions and it is in the set like any other surface. **So does the
+  `claude-md-and-agents-md` mode**, under which both files load and a displaced `AGENTS.md` shapes
+  behavior anyway, which is the case where excluding it would drop a genuine contradiction between
+  the two files; keep it in the set whenever that mode is in effect or the mode cannot be resolved.
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as
   `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps
