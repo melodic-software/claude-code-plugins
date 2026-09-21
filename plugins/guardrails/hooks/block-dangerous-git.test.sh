@@ -1784,6 +1784,14 @@ run_pwsh "PS hs: the # cause of an unconfirmed expandable opener refuses too (bl
 # discriminates the verbatim path from the expandable one.
 run_pwsh "PS hs: an unconfirmed VERBATIM opener over the same body (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Host 'a''b @'" "\$(& \$g push --force)" "'@ fine'")" 0
+# THE COST, pinned rather than left to be re-found. The refusal is by SHAPE, so
+# an unconfirmed `"` opener blocks whatever its body holds, a git-free body
+# carrying no `$(` at all included. Both are rc 0 on the base and rc 2 here, one
+# per unconfirmed cause.
+run_pwsh "PS hs: an unconfirmed expandable opener over a plain body (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output 'a''b' @\"" "hello" "\"@")" 2
+run_pwsh "PS hs: the # cause over a plain body (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "hello" "\"@ fine\"")" 2
 
 # --- the allow arm must not leave an ORPHAN closer ----------------------------
 # Neutralizing an unconfirmed opener line without its matching column-zero closer

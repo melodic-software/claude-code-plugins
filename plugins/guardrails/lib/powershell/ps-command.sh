@@ -1825,12 +1825,18 @@ ps::classify_git_command() {
     # or a quote survived the quoted-span walk so the line's extent is not
     # decidable. A here-string reading would take the lines below as body; the
     # text alone does not settle which reading is right. Those lines are kept, so
-    # the git probe below runs over them: `Write-Output x # @"` / `git push
-    # --force` is refused on the git it can see, while a git-free one is allowed
-    # through the git-freedom branch. A REAL here-string can coexist with this
-    # trigger and ITS body IS still dropped; the probe survives that because the
-    # PS_HERESTRING_EXPANDABLE refusal below returns 2 before the probe runs, and
-    # a verbatim `@'` body is inert text.
+    # the git probe below can run over them.
+    #
+    # WHETHER IT RUNS AT ALL TURNS ON THE OPENER'S QUOTE. For a `"` opener the
+    # kept lines are an expandable body under the here-string reading, so
+    # PS_HERESTRING_UNCONFIRMED_EXPANDABLE returns 2 below before the probe runs
+    # and the quote is what decides, not the git. For a `'` opener the body is
+    # inert text either way, so the probe is the whole answer: `Write-Host
+    # 'a''b @'` / `git push --force` / `'@ fine'` is refused on the git it can
+    # see, while a git-free one is allowed through the git-freedom branch. A REAL
+    # here-string can coexist with this trigger and ITS body IS still dropped;
+    # the probe survives that because the PS_HERESTRING_EXPANDABLE refusal below
+    # returns 2 before it runs, and a verbatim `@'` body is inert text.
     #
     # LAST in the chain, and its OWN name. Reusing `herestring-unbalanced` would
     # be the closest fit by shape, and it is the one reuse that must not happen:
