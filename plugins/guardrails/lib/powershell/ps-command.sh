@@ -374,27 +374,55 @@ ps::normalize_token_separating_spaces() {
 # characters. Reading the scan is what keeps that from being an unstated premise
 # a later change to the blanking could quietly break.
 #
-# CONFIRMATION, over the same reduced line, takes TWO tests over the remainder in
-# front of the two opener characters. A `#` there means the opener may be comment
+# CONFIRMATION TAKES BOTH REDUCTIONS, and an opener is confirmed only when they
+# AGREE. The walk is one of them; the other is the LEGACY reduction, two ordered
+# `ps::_gsub_to` passes over the raw line (`'[^']*'`, then `"([^"\\]|\\.)*"`),
+# whose result must also end in `@'` or `@"`.
+#
+# WHY A SECOND REDUCTION RATHER THAN A THIRD TEST ON THE FIRST. Dropping body is
+# the ONLY way this function can hide text from every scan that runs after it: a
+# line the guard refuses to read as an opener stays in the reduced command, while
+# a line it accepts takes the lines under it out of view. So the set of lines
+# this function confirms is exactly the set of places it can hide something, and
+# the safe shape is not a better test but a SUBSET: confirm only what the legacy
+# reduction also confirms, and whatever gets dropped here the legacy reduction
+# dropped too. That is a property of the whole shape space rather than a list of
+# refused spellings, and it holds without either reduction being correct.
+#
+# The direction matters. Making the walk BETTER at pairing makes MORE lines look
+# like clean openers, which is the fail-OPEN direction: `note "it's" @'` pairs
+# `"it's"` properly and reduces to `note  @'`, a clean opener that swallows the
+# lines under it, while the legacy passes eat `'s" @'` and are left with
+# `note "it`, no opener at all. The walk's own tests below can only REMOVE
+# openers from the legacy set, which is the fail-closed direction, so the two
+# conditions compose without either weakening the other.
+#
+# THE WALK'S OWN TESTS are two, over the remainder in front of the two opener
+# characters of its reduced line. A `#` there means the opener may be comment
 # TEXT. A surviving QUOTE there means the walk REFUSED to pair (a doubled-quote
 # escape, a backtick in a double-quoted span, or an unterminated opener) and
 # copied the line through verbatim, so the line's extent is not decidable from
-# the text at all. Either way the opener is not confirmed and no here-string is
-# opened, which keeps the following lines in view.
+# the text at all.
 #
-# Running both tests on the REDUCED line is what keeps a `#` or a quote INSIDE a
-# properly paired string from refusing a real opener: the walk deletes that span,
-# so `'x # y' @"` and `Write-Host "x" @"` still open. Both tests are deliberately
-# OVER-inclusive. PowerShell starts a comment only at a token start, so
-# `Write-Output foo#bar @"` is one Generic token and a live opener, and the `#`
-# test refuses it anyway; modelling the token-start rule needs a separator class,
-# and an under-inclusive class leaves `;# @"` and `|# @"` live, which is the
-# fail-OPEN direction. And the quote test refuses `Write-Output 'a''b' @"`, which
-# PowerShell reads as the string `a'b` followed by a live opener. Both
-# over-blocks are the cost taken instead of a fail-open: refusing to open a
-# here-string removes nothing from view, so it can only block more.
+# Any of the three failing leaves the opener UNCONFIRMED: no here-string opens,
+# the following lines stay in view, and the caller routes the command to its sink
+# rather than guessing.
+#
+# Running the walk's two tests on its REDUCED line is what keeps a `#` or a quote
+# INSIDE a properly paired string from refusing a real opener: the walk deletes
+# that span, so `'x # y' @"` and `Write-Host "x" @"` still open. All three tests
+# are deliberately OVER-inclusive. PowerShell starts a comment only at a token
+# start, so `Write-Output foo#bar @"` is one Generic token and a live opener, and
+# the `#` test refuses it anyway; modelling the token-start rule needs a separator
+# class, and an under-inclusive class leaves `;# @"` and `|# @"` live, which is
+# the fail-OPEN direction. The quote test refuses `Write-Output 'a''b' @"`, which
+# PowerShell reads as the string `a'b` followed by a live opener. And the legacy
+# test refuses `note "it's" @'`, which PowerShell reads as a live opener too.
+# Every one of those over-blocks is the cost taken instead of a fail-open:
+# refusing to open a here-string removes nothing from view, so it can only block
+# more.
 ps::_herestring_opener_to() {
-  local __ho_line="$3" __ho_scan __ho_head
+  local __ho_line="$3" __ho_scan __ho_head __ho_legacy
   printf -v "$1" '%s' ''
   printf -v "$2" '%s' ''
   # The walk also writes PS_QUOTED_SPAN_SAW_EXPANDABLE. Its only reader takes it
@@ -403,7 +431,12 @@ ps::_herestring_opener_to() {
   [[ "$__ho_scan" == *"@'" || "$__ho_scan" == *'@"' ]] || return 0
   printf -v "$2" '%s' "${__ho_scan: -1}" # ' or "
   __ho_head="${__ho_scan%??}"
-  if [[ "$__ho_head" == *'#'* || "$__ho_head" == *"'"* || "$__ho_head" == *'"'* ]]; then
+  # The two legacy passes apply IN ORDER, so the double-quote pass still sees the
+  # single-quote-stripped line.
+  ps::_gsub_to __ho_legacy "$__ho_line" "'[^']*'" ''
+  ps::_gsub_to __ho_legacy "$__ho_legacy" '"([^"\\]|\\.)*"' ''
+  if [[ "$__ho_head" == *'#'* || "$__ho_head" == *"'"* || "$__ho_head" == *'"'* ]] ||
+    [[ "$__ho_legacy" != *"@'" && "$__ho_legacy" != *'@"' ]]; then
     printf -v "$1" '%s' unconfirmed
   else
     printf -v "$1" '%s' opener
@@ -480,9 +513,11 @@ ps::blank_herestrings() {
       continue
     fi
     if [[ "$hs_kind" == unconfirmed ]]; then
-      # The opener is not confirmed: either it sits inside a `#` comment, where
-      # PowerShell opens no here-string and the lines below are COMMANDS, or a
-      # quote survived the walk, which means the line's extent is not decidable.
+      # The opener is not confirmed: it sits inside a `#` comment, where
+      # PowerShell opens no here-string and the lines below are COMMANDS; or a
+      # quote survived the walk, which means the line's extent is not decidable;
+      # or the library's two reductions disagree about whether the line even ends
+      # in an opener, which is the case the subset rule refuses on.
       # Emit the line as the ordinary text it is: no `in_hs`, no expandable flag,
       # and the lines under it are not dropped. A REAL opener elsewhere in the
       # command still opens and its body still goes; the flag claims only that an
@@ -2362,10 +2397,12 @@ ps::print_sink_trigger_line() {
   herestring-opener-unconfirmed)
     # What is true of EVERY command that reaches here: a line ends in the two
     # here-string opener characters and the guard cannot confirm they open a
-    # here-string. Two causes, and the advice has to cover both, because the line
-    # is printed without knowing which one fired. "Close the here-string" is the
-    # wrong advice for either, because there is no here-string open to close.
-    echo "Trigger: a here-string opener (@\" or @') the guard cannot confirm is one, either because it sits inside a '#' comment (PowerShell treats those two characters as comment text, so the lines after them are COMMANDS) or because the line's quoting is ambiguous (a doubled-quote escape such as 'a''b', a backtick inside a double-quoted string, or an unterminated one), which leaves the line's extent undecidable. A here-string reading would take the lines below as body; the text alone does not settle which reading is right, so the command is refused instead of guessed. Move the @\" / @' out of the comment, or delete the comment; for the quoting case, move the ambiguous string onto its own line or into a variable, or write it with the other quote style. Otherwise run the command via the Bash tool." >&2
+    # here-string. Three causes, and the advice has to cover all of them, because
+    # the line is printed without knowing which one fired. "Close the here-string"
+    # is the wrong advice for any of them, because there is no here-string open to
+    # close. The third cause has the same remedy as the second: both are settled
+    # by getting the quoting off the opener's line.
+    echo "Trigger: a here-string opener (@\" or @') the guard cannot confirm is one, because it sits inside a '#' comment (PowerShell treats those two characters as comment text, so the lines after them are COMMANDS), or because the line's quoting is ambiguous (a doubled-quote escape such as 'a''b', a backtick inside a double-quoted string, or an unterminated one), or because the quoting in front of the opener is one the guard's two reductions read differently (a quote of one style inside a string of the other, such as \"it's\"), any of which leaves the line's extent undecidable. A here-string reading would take the lines below as body; the text alone does not settle which reading is right, so the command is refused instead of guessed. Move the @\" / @' out of the comment, or delete the comment; for either quoting case, move the quoted string onto its own line or into a variable, or write it with the other quote style. Otherwise run the command via the Bash tool." >&2
     ;;
   *)
     echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2

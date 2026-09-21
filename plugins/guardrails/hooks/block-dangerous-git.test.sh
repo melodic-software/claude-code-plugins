@@ -1823,6 +1823,65 @@ run_pwsh "PS hs: a sibling before the ambiguity still blocks past a neutralized 
   "$(printf '%s\n%s\n%s' "git reset --hard; Write-Host 'a''b @'" "hello" "'@")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
 
+# --- the walk may only ever REMOVE openers from the base's confirmed set -------
+# PowerShell reads `<# … #>` as a block comment over the first three lines below,
+# so the payload under it is an ordinary statement and it RUNS. Neither the base
+# nor this change models block comments, so both read line 2 as a candidate
+# opener; what differs is whether either CONFIRMS it. The base's ordered two-pass
+# quote strip eats `'s" @'` out of `note "it's" @'` and is left with `note "it`,
+# which ends in no opener, so the base keeps every line visible and the payload
+# reaches a sink. The span walk pairs `"it's"` properly, deletes it, and reads the
+# clean suffix of `note  @'` as a confirmed opener, which drops lines 3 and 4 as
+# body and leaves nothing to refuse. Better pairing made MORE lines qualify as
+# openers, and dropping body is the only way this classifier hides text from the
+# later scans. An opener is confirmed only when the base's reduction confirms it
+# too, so whatever this change drops the base dropped as well.
+#
+# EVERY PAYLOAD BELOW SPELLS ITS CALL `& ('g'+'it')`, so no literal `git` token
+# appears in the command. That is load-bearing rather than cosmetic: the
+# literal-`git` spelling of this shape is rc 0 on the base as well, because the
+# reduction it emits hands the Bash tokenizer an unpaired `@'` that pairs across
+# newlines and swallows the git line into one quoted word, so a fixture written
+# that way pins the base at 0 and discriminates nothing. The `( )` grouping is
+# what the base's own special-construct sink refuses.
+ps_hs_block_apos="$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "& ('g'+'it') push --force" "'@'")"
+run_pwsh "PS hs: an opener the walk pairs but the legacy reduction does not (blocked)" \
+  "$ps_hs_block_apos" 2
+# An rc of 2 cannot say WHICH line the guard refused over, and the claim here is
+# that the payload line stays VISIBLE rather than going as body. The trigger the
+# base reports for this command is the pin that says so.
+pin_sink_trigger "classify: the payload under the wrapper is visible, not body" \
+  "$ps_hs_block_apos" "special-construct"
+# A SIBLING after the closer. Under the phantom here-string reading the closer
+# line is where the body ends, so a shape that gives the closer live trailing
+# code is the one that could settle differently.
+run_pwsh "PS hs: a sibling command after the closer of the same shape (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "& ('g'+'it') push --force" "'@'; Write-Output done")" 2
+# The same disagreement without an English apostrophe: any single `'` inside a
+# properly paired double-quoted span puts the two reductions at odds.
+run_pwsh "PS hs: the \"a'b\" spelling of the same disagreement (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"a'b\" @'" "#>" "& ('g'+'it') push --force" "'@'")" 2
+# `hook::jq_fields` strips CR, so the CRLF payload reaches the classifier as its
+# LF twin and has to reach the same verdict.
+run_pwsh "PS hs: CRLF-line-ended copy of the walk-paired opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s\r\n%s\r\n%s' "<#" "note \"it's\" @'" "#>" "& ('g'+'it') push --force" "'@'")" 2
+# The token narrows the sink SHAPE; it never waives the grouping the recovered
+# line carries. This is also the first shape whose unconfirmed opener line the
+# walk reduces CLEANLY, so it is the first to reach the neutralizing arm with no
+# surviving quote before the opener characters.
+run_pwsh "PS hs: the opener-unconfirmed token does not waive the recovered grouping" \
+  "$ps_hs_block_apos" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+# The literal-`git` spelling named above, pinned here rather than left unpinned.
+# It is rc 0 on the base: nothing routes it to a sink, and the base's own parse
+# hands the Bash tokenizer an unpaired `@'` that pairs across newlines and
+# swallows the git line into one quoted word. It is rc 2 here because the
+# unconfirmed opener routes the command to the sink, whose possibly-git gate is a
+# plain token scan that does see the token. A shape this change blocks and its
+# base does not is the fail-closed direction the subset rule leaves open.
+run_pwsh "PS hs: the literal-git spelling of the walk-paired opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "git push --force" "'@'")" 2
+
 # RECORDED RESIDUALS, not endorsements. Both are rc 0 on this change and on its
 # base, at default configuration with no allow token, and both are pinned so
 # neither is re-found as new.
@@ -1833,6 +1892,13 @@ run_pwsh "PS hs: a sibling before the ambiguity still blocks past a neutralized 
 # decision than this change.
 run_pwsh "PS hs: RECORDED RESIDUAL: an interior-line block comment still opens a phantom here-string (allowed)" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "<# note" "@\"" "#>" "git push --force" "\"@ fine\"")" 0
+# The same residual with the opener on the wrapper's OWN second line, which is the
+# shape the apostrophe cases above close. With no apostrophe the two reductions
+# agree that `note @'` is a clean opener, so both trees confirm it and the payload
+# goes as body. The subset invariant holds here and buys nothing: it can only
+# refuse an opener the base already refused, and the base takes this one.
+run_pwsh "PS hs: RECORDED RESIDUAL: a wrapped opener both reductions confirm (allowed)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note @'" "#>" "& ('g'+'it') push --force" "'@'")" 0
 # A COMMENT truncated by a LONE CR. PowerShell emits a NewLine token for a bare
 # CR, so `git push --force` is live top-level code. Nothing in the guard treats a
 # bare CR as a line break: hook::jq_fields strips it out of the command and

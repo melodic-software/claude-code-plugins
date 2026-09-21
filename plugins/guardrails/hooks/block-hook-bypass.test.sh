@@ -1088,6 +1088,18 @@ run_pwsh "PS: a paired double-quoted string before a real opener (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Host \"x\" @\"" "Set-Content f.txt x" "\"@")" 0
 run_pwsh "PS: a bare verbatim opener after git commit -m (allowed)" \
   "$(printf '%s\n%s\n%s' "git commit -m @'" "Set-Content f.txt x" "'@")" 0
+# Nor is a line only the WALK reads as an opener. PowerShell reads `<# … #>` as a
+# block comment over the first three lines below, so the `Set-Content` under it is
+# an ordinary statement and it RUNS. The base's ordered two-pass quote strip eats
+# `'s" @'` out of `note "it's" @'` and is left with `note "it`, which ends in no
+# opener, so the base keeps the write line visible and blocks. The span walk pairs
+# `"it's"` properly and reads the clean suffix of `note  @'` as a confirmed opener,
+# which drops the write as body. Better pairing made MORE lines qualify as
+# openers, and dropping body is the only way this classifier hides text from the
+# later scans; an opener is confirmed only when the base's reduction confirms it
+# too, so whatever this change drops the base dropped as well.
+run_pwsh "PS: Set-Content recovered from behind a walk-only opener (blocked)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "Set-Content f.txt x" "'@'")" 2
 
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.
