@@ -87,6 +87,11 @@ be idempotent. Per-hook attribution is the operator's step, taken deliberately a
 consequences understood. What the engine supplies for it is the no-op spawn baseline every hook
 pays before doing any work of its own.
 
+`fan_out.shell_resolution` resolves WHICH `bash.exe` the harness would hand a shell-form command
+to, and it does so by reading `settings.json` and the environment and stat-ing the path. Neither
+binary is spawned, and the documented search for an unset variable is reported rather than
+walked.
+
 ## Run it
 
 ```bash
@@ -176,28 +181,76 @@ spawns. Read `fan_out` in this order:
    toward one.
 2. **`fan_out.hooks`**. `per_tool_call.count` scales with tool-call volume; `per_turn.count` is
    what makes a long conversation degrade and is the bucket most audits never look at.
-   `invocation_shape_findings` names hooks paying extra process creations before their own work
-   starts. `per_tool_call.count` is the registered-row ceiling, so read `by_matcher` and
+   `invocation_shape_findings` names three shapes: `git-bin-bash-wrapper-costs-an-extra-spawn`
+   and `nested-shell-invocation`, each an extra process creation before the hook's own work
+   starts, and `shell-form-hook-names-a-second-shell`, a shell-form command that spells a shell
+   inside the shell the harness has already wrapped the string in. **An empty list does not mean
+   the hooks run un-nested.** A shell-form command is handed to a shell whatever it names, so a
+   row with no finding still pays one wrapping shell; the list names only the rows that add a
+   second, and its command-position rule is a floor, so a shell reached through a position the
+   rule does not cover is missed rather than reported: a subshell (`$(bash x.sh)` or a
+   backquoted one) and a runner taking arguments of its own first (`timeout 5 bash x.sh`) are
+   examples, not a closed list: `xargs bash x.sh` and `find . -exec sh {} \;` miss for the same
+   reason. It errs the other way too: a shell named in a trailing comment (`./x.sh # ; bash`)
+   is reported, because comments are not parsed, and so is a `<tool> exec <shell>` form
+   (`docker exec bash`, `npm exec sh`), because `exec` grants command position without knowing
+   whose subcommand it is. Confirm a row against its own manifest before acting on it. The
+   command-position rule honours quotes: a quoted executable containing spaces
+   (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is
+   recognised, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read
+   as a delimiter. The two LEGACY findings still flatten quotes and read their own token
+   list, unchanged on every input. A row spelling an explicit `"args": []` is exec form and reports
+   no second shell; a row that omits the key is shell form.
+   Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
+   registered-row ceiling, so read `by_matcher` and
    `projection` beside it for what one tool call of a given shape actually spawns, and
    `unclassified_rows` for the `if` gates the engine could not decide and therefore counted as
    firing. **Never present hook cost as a sum**: hooks on one event run in parallel, so the
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
-   the total several times over.
-3. **`fan_out.config_liveness`** before attributing any cost to configuration. Claude Code reads
+   the total several times over. Claim: shell form passes the `command` string to a shell,
+   `sh -c` on macOS and Linux, Git Bash on Windows, PowerShell when Git Bash is absent, or the
+   shell a hook's own `shell` field names, while exec form, with `args` present, spawns the
+   executable directly with no shell
+   ([hooks](https://code.claude.com/docs/en/hooks.md), verified 2026-09-20; recheck when that
+   page's shell-form paragraph changes, when the `shell` field's accepted-value list changes,
+   or when `args` gains a documented no-shell variant for shell form).
+3. **`fan_out.shell_resolution`**, which names WHICH bash pays that wrapping spawn on Windows:
+   `CLAUDE_CODE_GIT_BASH_PATH`, where the value came from, whether the path exists, whether
+   Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to
+   `usr/bin/bash.exe`. A rejected filename and a path that does not exist get the SAME documented
+   fallback, so a `resolves_to` shown beside either finding names a binary the harness will not
+   use. Unset, Claude Code looks for `bash.exe` in two documented steps, the default install
+   locations first and the `git` on `PATH` second, taking `bash.exe` from that installation's
+   `bin` directory;
+   this block reports that search and never performs it
+   ([troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install), verified
+   2026-09-20; recheck when that section's resolution order or accepted-name list changes). The
+   `bin` launcher's re-exec of `usr/bin/bash.exe` rides in `observation` as a one-host
+   observation with its provenance, never as a count this engine asserts. The block answers
+   only for rows the harness wraps with bash, and only from the install-root `settings.json`:
+   a hook whose own `shell` field is `"powershell"`, or a Windows host with no Git Bash
+   installed, has PowerShell wrap that row and no `bash.exe` resolved for it, and a project or
+   local `.claude/settings.json` `env` that outranks the install root is not read here.
+4. **`fan_out.config_liveness`** before attributing any cost to configuration. Claude Code reads
    plugin enablement at startup, so `sessions_predating_settings` greater than zero means the
    file on disk does not describe what is running: a plugin toggled off an hour ago can still
    have every one of its hooks live. Reporting the disk state as the running state is how a
    confident and wrong diagnosis gets written. The advisory says restart is required; that
    restart is the operator's, not this skill's.
-4. **`fan_out.concurrency_ceilings`**. Spawn depth multiplies against the per-session concurrency
+5. **`fan_out.concurrency_ceilings`**. Spawn depth multiplies against the per-session concurrency
    limit, and every subagent carries the same statusline and hook fan-out as its parent, so two
    individually modest settings can license a very large population. Report effective values
    against documented defaults. **Never advise setting one of these to 0**: they are read through
    a truthiness test on the raw string, the string `"0"` is truthy, and only removing the
    variable disables it.
-5. **`fan_out.statusline`**. Reported, never rendered. `refresh_interval_seconds` is in SECONDS
-   with a documented minimum of 1; reading it as milliseconds inverts the conclusion.
-6. **`processes.orphan_attribution`**. Only a dead-parent process is an orphan. A long-lived
+6. **`fan_out.statusline`**. Reported, never rendered. `refresh_interval_seconds` is in SECONDS
+   with a documented minimum of 1; reading it as milliseconds inverts the conclusion. Its
+   `invocation_shape_findings` reads the same way as item 2: the command runs in a shell, Git
+   Bash on Windows when Git Bash is installed and PowerShell when it is absent, so a command
+   naming a shell puts at least two shells in the chain
+   ([statusline](https://code.claude.com/docs/en/statusline.md), verified 2026-09-20; recheck
+   when either of that page's shell sentences changes).
+7. **`processes.orphan_attribution`**. Only a dead-parent process is an orphan. A long-lived
    process with a live parent is working software and killing it breaks whatever owns it, so
    report `parent_alive` per candidate and treat `unknown` as unknown. `processes.population`
    separates accumulation from churn across two samples; one sample cannot tell them apart, and a

@@ -94,13 +94,30 @@ wall-clock cost was roughly the slowest hook plus contention, which matched the 
 70 s stalls. A naive 8 x 24 s sum predicts about 200 s and is wrong by a factor of three, which
 is worse than useless: it fails to match the symptom and discredits the report.
 
-Two invocation shapes cost extra process creations before the hook's own work begins, and both
-are detected by `invocation_shape`:
+`invocation_shape` detects three shapes. Two cost extra process creations before the hook's own
+work begins:
 
 - `Git/bin/bash.exe -c "bash script.sh"`. The `Git/bin/bash.exe` launcher re-execs
   `Git/usr/bin/bash.exe`, so pointing at `usr/bin/bash.exe` directly removes one spawn per hook.
+  The re-exec is Git for Windows' own launcher behavior, observed on one Windows host by a
+  `Win32_Process` census; Claude Code documents nothing about it and the engine measures nothing.
 - Any command line naming two shells. De-forking the hook chain on the audited machine moved the
   median from 10,850 ms to 2,777 ms, roughly 4x, measured back to back at the same load.
+
+The third names a shell the command string cannot show. Claude Code passes a shell-form
+`command` (one that OMITS `args`; an explicit `"args": []` is exec form) to a shell before its
+first word runs, `sh -c` on macOS and Linux,
+Git Bash on Windows, PowerShell when Git Bash is absent, and it runs the statusline command in a
+shell the same way ([hooks](https://code.claude.com/docs/en/hooks.md) and
+[statusline](https://code.claude.com/docs/en/statusline.md), verified 2026-09-20; recheck when
+hooks.md's shell-form paragraph changes, or when either of that statusline page's shell sentences
+changes). A shell-form command that then spells a shell of its
+own therefore puts at least two shells in the chain, which is
+`shell-form-hook-names-a-second-shell`. Exec form, with `args` present, is spawned directly and
+has no shell. Two consequences for reading the report: an empty finding list means no row named a
+SECOND shell, never that the rows run unwrapped; and the documented floor is a count of shells in
+the chain, not of surviving processes, which the engine does not run anything to measure. Which
+bash the wrapping shell is on Windows is `fan_out.shell_resolution`.
 
 Per-turn hooks (`Stop`, `SubagentStop`, `UserPromptSubmit`, `Notification`) deserve separate
 attention from per-tool-call hooks: 5 of 15 configured hooks were per-turn on the audited
