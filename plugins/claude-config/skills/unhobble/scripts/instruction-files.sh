@@ -339,7 +339,16 @@ restore)
       # The reason is already resolved, so name WHICH of the three it is rather
       # than making the operator work out whether the file is there, a link is,
       # or a parent directory has become something else.
-      refused+=("$n ($blocked; clear it first, or use --all to abandon the experiment)")
+      case "$blocked" in
+      staged-in-index)
+        # This one has NO on-disk manifestation, so "clear it" would send the
+        # operator to look at a filesystem that shows nothing. Name the commands.
+        refused+=("$n (staged-in-index: content exists only in the index; commit or stash it to keep it, or 'git rm --cached -- $n' to discard it, then re-run)")
+        ;;
+      *)
+        refused+=("$n ($blocked; clear it first, or use --all to abandon the experiment)")
+        ;;
+      esac
     elif ! git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
       refused+=("$n (not in $ref; nothing to restore it from)")
     fi

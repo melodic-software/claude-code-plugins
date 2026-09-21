@@ -860,7 +860,14 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   project instructions and it is in the set like any other surface. **So does the
   `claude-md-and-agents-md` mode**, under which both files load and a displaced `AGENTS.md` shapes
   behavior anyway, which is the case where excluding it would drop a genuine contradiction between
-  the two files; keep it in the set whenever that mode is in effect or the mode cannot be resolved.
+  the two files. **The mode is the last gate, not the only one.** This clause's own reason for
+  excluding, that the file "shapes no behavior here", is exactly what a CLI below the v2.1.277 floor
+  or a flag known off produces, under any mode: the file is not read, so a divergence between it and
+  a `CLAUDE.md` is not a conflict either, and keeping it would report one against a surface nothing
+  loads. Exclude on a gate known false; keep the file whenever every gate is satisfied or merely
+  unresolved, which puts the conservative direction where the answer is unknown rather than where it
+  is known to be no. The floor and the flag carry their dated records in the
+  `instruction-placement` plugin's `skills/migrate/reference/sources.md`.
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as
   `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps

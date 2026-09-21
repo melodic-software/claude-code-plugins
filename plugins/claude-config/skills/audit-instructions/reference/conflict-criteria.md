@@ -113,7 +113,7 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 |---|---|---|
 | User `CLAUDE.md` | Every session, in full | memory: "CLAUDE.md files are loaded in full regardless of length" |
 | Project `CLAUDE.md` / `CLAUDE.local.md` | Every session in that tree, concatenated after user scope | memory: "All discovered files are concatenated into context rather than overriding each other" |
-| Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it, **and, under `claude-md-and-agents-md`, even where one does** | Every session in that tree | memory: "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it"; for the both-files mode, "each directory's `CLAUDE.md` files first and its `AGENTS.md` after them" |
+| Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it, **and, under `claude-md-and-agents-md`, even where one does**, in both cases only where the session reads `AGENTS.md` natively at all | Every session in that tree | memory: "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it"; for the both-files mode, "each directory's `CLAUDE.md` files first and its `AGENTS.md` after them" |
 | Nested `CLAUDE.md` in a subdirectory | On demand, when Claude reads a file there | memory: "they are included when Claude reads files in those subdirectories" |
 | `.claude/rules/*` without `paths` | Every session | memory: "loaded at launch with the same priority as `.claude/CLAUDE.md`" |
 | `.claude/rules/*` with `paths` | Only when a matching file is read | memory: "only apply when Claude is working with files matching the specified patterns" |
@@ -129,6 +129,17 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Handler `hookSpecificOutput.additionalContext` on `SubagentStart` / `SubagentStop` | In **that subagent's** context, never the main session's | hooks, `SubagentStart`: "Context added to **the subagent's** context for the duration of the subagent session"; `SubagentStop`: "Context added to **the subagent's** context" |
 | Handler **stdout** on any other event | **Never** | hooks: "For most events, stdout is written to the debug log but not shown in the transcript" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
+
+**The `AGENTS.md` row's residency is conditional on three gates, not on displacement alone.** The
+mode decides whether a `CLAUDE.md` beside it displaces it, and the CLI version floor and the remote
+flag decide whether the session reads an `AGENTS.md` at any path under any mode. A session below
+the floor, or one where the flag is off, does not load the file, so the row does not assert
+residency for it and gate 1 does not pair it; treating displacement as the whole question would
+report a conflict against a surface nothing loads. Resolve all three, and where a gate is merely
+unresolved rather than known false, keep the row's residency and let the pair be judged. The floor
+and the flag carry their dated records in the `instruction-placement` plugin's
+`skills/migrate/reference/sources.md`; the mode is a user, `--settings` or managed setting, so the
+value to resolve is the effective one across those scopes.
 
 **An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
 A non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main

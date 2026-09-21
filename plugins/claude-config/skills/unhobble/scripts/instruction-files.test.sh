@@ -284,6 +284,12 @@ case "$out" in
 esac
 assert_equals "staged-only: the staged blob is still the one in the index" \
   "$(git -C "$repo" show :CLAUDE.md)" "staged work nobody committed"
+# This condition has no on-disk sign, so the message has to name the commands
+# rather than say "clear it first" at a filesystem that shows nothing.
+case "$out" in
+*"git rm --cached"*) pass "staged-only: the refusal names a command, not just a state" ;;
+*) fail "staged-only: the refusal names a command, not just a state" "got [$out]" ;;
+esac
 
 # --- Case 5b: a named restore whose source the ref does not have, and a ref
 # that is not a commit. Both are errors. Exit 0 with nothing restored would let
