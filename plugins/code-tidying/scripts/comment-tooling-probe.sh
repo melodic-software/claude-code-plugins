@@ -46,6 +46,13 @@ else
   add_row attach tree-sitter absent "Knowing what a comment is attached to. Without it the exported-symbol exemption is a text-prefix heuristic instead of a parse fact."
 fi
 
+if have pwsh; then
+  # shellcheck disable=SC2016 # $PSVersionTable is PowerShell's variable, not the shell's.
+  add_row proof-powershell "pwsh($(pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()' 2>/dev/null))" present "-"
+else
+  add_row proof-powershell pwsh absent "The token proof for .ps1 and .psm1, which PowerShell's own parser supplies and no tree-sitter grammar does. Without it every PowerShell deletion and rename is a proposal (exit 2, an unproven edit), and commented-out-code skips those files."
+fi
+
 if have ruff; then
   add_row commented-out ruff present "-"
 else

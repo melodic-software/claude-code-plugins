@@ -137,13 +137,150 @@ class TestInvocationShape(unittest.TestCase):
         entry = {"command": "/usr/bin/bash", "args": ["-c", "bash script.sh"]}
         self.assertIn("nested-shell-invocation", engine.invocation_shape(entry))
 
-    def test_a_plain_script_invocation_is_not_a_nested_shell(self):
-        """A token ending in `.sh` is a script, not a shell; a suffix match got this wrong."""
+    def test_a_plain_script_invocation_names_a_second_shell_but_is_not_nested(self):
+        """A token ending in `.sh` is a script, not a shell; a suffix match got this wrong.
+
+        The command still spells a shell of its own inside the shell the harness already
+        wrapped the string in, which is the shape the nested-shell rule cannot see.
+        """
         entry = {
             "command": 'bash "C:/fixture/.claude/statusline/entrypoint.sh"',
             "args": [],
         }
+        findings = engine.invocation_shape(entry)
+        self.assertNotIn("nested-shell-invocation", findings)
+        self.assertIn("shell-form-hook-names-a-second-shell", findings)
+
+    def test_a_shell_form_command_naming_a_shell_names_a_second_shell(self):
+        entry = {"command": 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh"', "args": []}
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_exec_form_names_no_second_shell(self):
+        """`args` present is exec form, which upstream documents as having no shell."""
+        entry = {"command": "bash", "args": ["-c", "echo hi"]}
+        self.assertNotIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_a_shell_form_script_naming_no_shell_reports_nothing(self):
+        entry = {"command": "/opt/hooks/prompt.sh", "args": []}
         self.assertEqual(engine.invocation_shape(entry), [])
+
+    def test_a_shell_token_in_argument_position_is_not_a_second_shell(self):
+        for command in ("node run.js cmd", "make sh"):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    engine.invocation_shape({"command": command, "args": []}), []
+                )
+
+    def test_exec_and_operator_positions_are_command_positions(self):
+        for command in ("exec bash x.sh", "./a.sh && bash b.sh"):
+            with self.subTest(command=command):
+                self.assertIn(
+                    "shell-form-hook-names-a-second-shell",
+                    engine.invocation_shape({"command": command, "args": []}),
+                )
+
+    def test_an_all_in_command_chain_emits_every_shape_finding_in_order(self):
+        """The two legacy names stay first; the new one is appended last.
+
+        This is the legacy-parity pin. Both legacy findings read their own naive
+        quote-flattened token list, so a change to how the command-position rule
+        tokenizes must leave this exact list untouched.
+        """
+        entry = {
+            "command": '"C:/Program Files/Git/bin/bash.exe" -c "bash x.sh"',
+            "args": [],
+        }
+        self.assertEqual(
+            engine.invocation_shape(entry),
+            [
+                "git-bin-bash-wrapper-costs-an-extra-spawn",
+                "nested-shell-invocation",
+                "shell-form-hook-names-a-second-shell",
+            ],
+        )
+
+    def test_operators_count_without_surrounding_whitespace(self):
+        # Spaces around an operator are the rarer spelling; the common one has none.
+        for command in (
+            "./a.sh; bash b.sh",
+            "./a.sh&&bash b.sh",
+            "./a.sh||bash b.sh",
+            "cat x|sh",
+        ):
+            with self.subTest(command=command):
+                self.assertIn(
+                    "shell-form-hook-names-a-second-shell",
+                    engine.invocation_shape({"command": command, "args": []}),
+                )
+
+    def test_the_legacy_rules_are_blind_to_the_operator_padding(self):
+        # Pinned: the pad is its own token list, so the legacy rules see the old tokens.
+        entry = {"command": 'sh -c "x&&bash y"', "args": []}
+        self.assertEqual(
+            engine.invocation_shape(entry), ["shell-form-hook-names-a-second-shell"]
+        )
+
+    def test_the_c_flag_grants_command_position_only_after_a_shell(self):
+        # `grep -c` counts and `tar -c` creates; neither hands the next token a shell.
+        for command in ("grep -c sh file.txt", "tar -c sh"):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    engine.invocation_shape({"command": command, "args": []}), []
+                )
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell",
+            engine.invocation_shape({"command": 'bash -c "bash x.sh"', "args": []}),
+        )
+
+    def test_a_wrapping_command_hands_the_next_token_the_command_slot(self):
+        for command in ("env bash x.sh", "sudo bash x.sh", "nohup bash x.sh"):
+            with self.subTest(command=command):
+                self.assertIn(
+                    "shell-form-hook-names-a-second-shell",
+                    engine.invocation_shape({"command": command, "args": []}),
+                )
+
+    def test_an_explicit_empty_args_array_is_exec_form(self):
+        """The `args` KEY's presence decides the shape, not the list's truthiness."""
+        entry = {"command": "bash", "args": [], "exec_form": True}
+        self.assertNotIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_without_the_exec_form_key_an_empty_args_list_stays_shell_form(self):
+        """The statusline passes `args: []` and no key, and has no exec form at all."""
+        entry = {"command": "bash x.sh", "args": []}
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_a_quoted_executable_containing_spaces_is_one_token(self):
+        entry = {
+            "command": '"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1',
+            "args": [],
+        }
+        self.assertIn(
+            "shell-form-hook-names-a-second-shell", engine.invocation_shape(entry)
+        )
+
+    def test_an_operator_inside_quotes_is_not_a_delimiter(self):
+        entry = {"command": "grep -e 'a|sh' f", "args": []}
+        self.assertEqual(engine.invocation_shape(entry), [])
+
+    def test_a_quoted_path_with_spaces_that_names_no_shell_reports_nothing(self):
+        entry = {"command": '"C:/Program Files/app/run.exe" x', "args": []}
+        self.assertEqual(engine.invocation_shape(entry), [])
+
+    def test_the_wrapper_note_names_every_shell_that_can_do_the_wrapping(self):
+        # The engine never reads a hook's own `shell` field, so the note must name that
+        # field and the value that changes which shell does the wrapping.
+        note = engine.HARNESS_WRAPPER_NOTE
+        self.assertIn("`shell` field", note)
+        self.assertIn('"powershell"', note)
 
 
 class TestHookInventoryOverATree(unittest.TestCase):
@@ -174,7 +311,7 @@ class TestHookInventoryOverATree(unittest.TestCase):
                                 "hooks": [
                                     {
                                         "type": "command",
-                                        "command": "/plugin/hooks/stop.sh",
+                                        "command": "bash /plugin/hooks/stop.sh",
                                     }
                                 ]
                             }
@@ -241,6 +378,31 @@ class TestHookInventoryOverATree(unittest.TestCase):
             ]
             self.assertIn("git-bin-bash-wrapper-costs-an-extra-spawn", findings)
             self.assertIn("nested-shell-invocation", findings)
+
+    def test_a_manifest_row_spelling_an_empty_args_array_is_exec_form(self):
+        """End to end: `"args": []` in a manifest reaches the shape rule as exec form.
+
+        Its own tree, because `build`'s totals are asserted row for row elsewhere.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / ".claude"
+            write_settings(
+                root,
+                {
+                    "hooks": {
+                        "Stop": [
+                            {
+                                "hooks": [
+                                    {"type": "command", "command": "bash", "args": []}
+                                ]
+                            }
+                        ]
+                    },
+                },
+            )
+            inventory = engine.hook_inventory(root)
+            self.assertEqual(inventory["total"], 1)
+            self.assertEqual(inventory["invocation_shape_findings"], [])
 
     def test_a_plugin_installed_at_two_scopes_is_counted_once(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1358,6 +1520,18 @@ class TestStatuslineIsReportedNeverRendered(unittest.TestCase):
             write_settings(root, {"statusLine": {"command": "x"}})
             self.assertIn("SECONDS", engine.statusline_config(root)["note"])
 
+    def test_the_statusline_names_a_second_shell_because_it_has_no_exec_form(self):
+        """statusline.md documents a command string run in a shell, and nothing else."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / ".claude"
+            write_settings(
+                root, {"statusLine": {"type": "command", "command": "bash line.sh"}}
+            )
+            self.assertIn(
+                "shell-form-hook-names-a-second-shell",
+                engine.statusline_config(root)["invocation_shape_findings"],
+            )
+
     def test_an_absent_statusline_is_reported_as_unconfigured(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / ".claude"
@@ -1568,10 +1742,111 @@ class TestKernelObjectCensus(unittest.TestCase):
             self.assertIn("reason", result)
 
 
+class TestShellResolution(unittest.TestCase):
+    """Which bash the harness would pick is configuration the report never carried."""
+
+    def resolve(self, tmp: Path, settings_env: dict, process_env: dict) -> dict:
+        root = tmp / ".claude"
+        write_settings(root, {"env": settings_env})
+        return engine.shell_resolution(root, process_env=process_env)
+
+    def test_an_unset_variable_reports_the_documented_two_step_search(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(Path(tmp), {}, {})
+            self.assertFalse(result["set"])
+            self.assertIsNone(result["source"])
+            self.assertEqual(result["resolves_to"], "unset")
+            self.assertTrue(
+                any("default install locations" in f for f in result["findings"])
+            )
+
+    def test_settings_env_names_the_git_bin_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            launcher = Path(tmp) / "Git" / "bin" / "bash.exe"
+            launcher.parent.mkdir(parents=True)
+            launcher.write_text("", encoding="utf-8")
+            result = self.resolve(
+                Path(tmp), {engine.GIT_BASH_PATH_ENV: str(launcher)}, {}
+            )
+            self.assertEqual(result["source"], "settings.json env")
+            self.assertEqual(result["resolves_to"], "git-bin-launcher")
+            self.assertTrue(result["exists"])
+            self.assertTrue(result["name_accepted"])
+            self.assertEqual(result["findings"], [])
+
+    def test_the_process_environment_is_the_second_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            direct = Path(tmp) / "Git" / "usr" / "bin" / "bash.exe"
+            direct.parent.mkdir(parents=True)
+            direct.write_text("", encoding="utf-8")
+            result = self.resolve(
+                Path(tmp), {}, {engine.GIT_BASH_PATH_ENV: str(direct)}
+            )
+            self.assertEqual(result["source"], "engine process environment")
+            self.assertEqual(result["resolves_to"], "git-usr-bin")
+
+    def test_a_rejected_filename_is_reported_as_ignored_by_the_harness(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(
+                Path(tmp),
+                {engine.GIT_BASH_PATH_ENV: "C:/Program Files/Git/git-bash.exe"},
+                {},
+            )
+            self.assertFalse(result["name_accepted"])
+            self.assertTrue(any("git-bash.exe" in f for f in result["findings"]))
+
+    def test_a_correctly_named_path_that_does_not_exist_gets_the_same_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = str(Path(tmp) / "nowhere" / "bash.exe")
+            result = self.resolve(Path(tmp), {engine.GIT_BASH_PATH_ENV: missing}, {})
+            self.assertTrue(result["name_accepted"])
+            self.assertFalse(result["exists"])
+            self.assertTrue(any("does not exist" in f for f in result["findings"]))
+
+    def test_an_absent_settings_file_still_resolves(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = engine.shell_resolution(Path(tmp) / ".claude", process_env={})
+            self.assertFalse(result["set"])
+            self.assertEqual(result["variable"], engine.GIT_BASH_PATH_ENV)
+
+    def test_the_launcher_re_exec_is_carried_as_a_one_host_observation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(Path(tmp), {}, {})
+            self.assertIn("observed on one", result["observation"])
+            self.assertIn("never executes", result["note"])
+
+    def test_the_unset_finding_is_qualified_to_windows(self):
+        # fan_out_layer ships this block on every platform, so the finding cannot state
+        # a Windows-only search order flatly.
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.resolve(Path(tmp), {}, {})
+            self.assertTrue(result["findings"][0].startswith("On Windows,"))
+
+    def test_settings_env_outranks_the_process_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            chosen = Path(tmp) / "Git" / "bin" / "bash.exe"
+            chosen.parent.mkdir(parents=True)
+            chosen.write_text("", encoding="utf-8")
+            result = self.resolve(
+                Path(tmp),
+                {engine.GIT_BASH_PATH_ENV: str(chosen)},
+                {engine.GIT_BASH_PATH_ENV: "C:/elsewhere/bash.exe"},
+            )
+            self.assertEqual(result["source"], "settings.json env")
+            self.assertEqual(result["value"], str(chosen))
+
+    def test_the_note_bounds_the_answer_to_what_the_block_actually_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            note = self.resolve(Path(tmp), {}, {})["note"]
+            self.assertIn("settings-reference", note)
+            self.assertIn("install-root", note)
+            self.assertIn('"powershell"', note)
+
+
 class TestFanOutIsWiredIntoTheReport(unittest.TestCase):
     """The regression guard: a report without a fan_out section under-reports by a layer."""
 
-    def test_the_fan_out_layer_carries_all_five_probes(self):
+    def test_the_fan_out_layer_carries_all_six_probes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / ".claude"
             write_settings(root, {})
@@ -1584,6 +1859,7 @@ class TestFanOutIsWiredIntoTheReport(unittest.TestCase):
                     "statusline",
                     "config_liveness",
                     "concurrency_ceilings",
+                    "shell_resolution",
                 },
             )
 
