@@ -74,7 +74,8 @@ their own surface sets and are not run outside them; this partition never widens
 
 I15 (cross-surface conflict) carries its own narrower routing on the same convention, drawn from the
 population `claude-memory:audit`'s C6 actually enumerates via `discover-instruction-surfaces`
-(project **and** user root-level CLAUDE.md / rules) rather than from the name of the layer.
+(project **and** user root-level CLAUDE.md / a natively read AGENTS.md / rules) rather than from the
+name of the layer.
 [reference/conflict-criteria.md](reference/conflict-criteria.md) states that boundary and owns it.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
