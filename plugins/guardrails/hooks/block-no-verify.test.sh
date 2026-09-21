@@ -271,6 +271,19 @@ run_pwsh "PS: a paired double-quoted string before a real opener (allowed)" \
 run_pwsh "PS: a bare verbatim opener after git commit -m (allowed)" \
   "$(printf '%s\n%s\n%s' "git commit -m @'" "subject" "'@")" 0
 
+# Keeping the lines in view is not a proof of git-freedom when the opener quote is
+# `"`. PowerShell reads `Write-Output 'a''b' @"` as the string `a'b` followed by a
+# LIVE opener, so the lines under it are an EXPANDABLE body and a `$( … )` in it
+# is a COMMAND POSITION evaluated at construction time. Both bodies below spell
+# their call `& $g`, so NO literal `git` token appears anywhere in the command:
+# the visible-text probe answers no, and a fixture carrying a literal `git` would
+# pass even with the bug present and pin nothing. An unconfirmed `"` opener takes
+# the same unconditional expandable-body refusal a CONFIRMED one takes.
+run_pwsh "PS: an unconfirmed expandable opener over an obfuscated --no-verify commit (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output 'a''b' @\"" "\$(& \$g commit --no-verify -m x)" "\"@")" 2
+run_pwsh "PS: the doubled double-quote spelling over an env-bypass commit (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"a\"\"b\" @\"" "\$(\$env:HUSKY=0; & \$g commit -m x)" "\"@")" 2
+
 # Obfuscation regressions (independent security review, sink-level fail-closed).
 # A construct that defeats the Bash tokenizer must not let an obfuscated git
 # invocation through — the sink blocks unless the command is provably git-free,

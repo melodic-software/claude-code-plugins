@@ -116,6 +116,30 @@ PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 # alone, and the guard refuses rather than picking one. Read by
 # ps::classify_git_command, last in the trigger chain.
 PS_HERESTRING_OPENER_UNCONFIRMED=0
+# 1 when a line classified `unconfirmed` carried a DOUBLE-quote opener (`@"`).
+#
+# Refusing to open a here-string keeps the following lines in view, but it does
+# not settle which reading is right, and under the here-string reading those
+# lines are an EXPANDABLE body: a `$( … )` in them is a COMMAND POSITION
+# evaluated at construction time. A visible-text probe answers only "is a git
+# token present", so `$(& $g push --force)` passes it while running git. This
+# flag suspends that proof exactly as PS_HERESTRING_EXPANDABLE does for a body
+# that was blanked away, and for the same reason.
+#
+# It is FAIL-CLOSED in BOTH readings. If PowerShell does open the here-string,
+# the body is a command position and must be refused. If it does not, the lines
+# stay visible and refusing is an over-block, the direction this library takes.
+#
+# SEPARATE from PS_HERESTRING_EXPANDABLE rather than an overload of it: that flag
+# means "a properly-delimited expandable body was REMOVED from PS_BLANKED", which
+# is why the unbalanced branch clears it on the grounds that nothing was blanked.
+# Nothing is blanked here either, so the same clear would erase this refusal, and
+# the two facts have to stay tellable apart.
+#
+# A VERBATIM `@'` unconfirmed opener does NOT set this. A verbatim body carries
+# no command position at all (about_Quoting_Rules), so nothing is suspended and
+# the visible-text probe is the whole answer. Read by ps::classify_git_command.
+PS_HERESTRING_UNCONFIRMED_EXPANDABLE=0
 # 1 when the last ps::_walk_quoted_spans_to pass crossed a DOUBLE-quote opener,
 # i.e. the walked text carries an expandable string. Written by the walk and read
 # by its IMMEDIATE caller; any later walk overwrites it.
@@ -413,6 +437,7 @@ ps::blank_herestrings() {
   PS_HERESTRING_EXPANDABLE=0
   PS_HERESTRING_EXPANDABLE_SUBEXPR=0
   PS_HERESTRING_OPENER_UNCONFIRMED=0
+  PS_HERESTRING_UNCONFIRMED_EXPANDABLE=0
 
   ps::_split_lines_to hs_lines "$cmd"
   for line in "${hs_lines[@]}"; do
@@ -465,6 +490,13 @@ ps::blank_herestrings() {
       # sink, where its git-freedom is proved over the lines this branch kept
       # rather than over a body that was removed.
       PS_HERESTRING_OPENER_UNCONFIRMED=1
+      # ...except that keeping the lines in view is not by itself a proof of
+      # git-freedom when the opener quote is `"`. Under the here-string reading
+      # those lines are an EXPANDABLE body, so a `$( … )` in them is a command
+      # position the visible-text probe cannot see through. Suspend the proof as
+      # a blanked expandable body does. A `'` opener needs no such flag: a
+      # verbatim body carries no command position.
+      [[ "$hs_open_quote" == '"' ]] && PS_HERESTRING_UNCONFIRMED_EXPANDABLE=1
     fi
     out+="${line}"$'\n'
   done
@@ -480,6 +512,10 @@ ps::blank_herestrings() {
     # command and every body in it stays in view for the callers' own probes.
     PS_HERESTRING_EXPANDABLE=0
     PS_HERESTRING_EXPANDABLE_SUBEXPR=0
+    # PS_HERESTRING_UNCONFIRMED_EXPANDABLE is NOT cleared here. It does not claim
+    # that text was removed; it claims that an unconfirmed `"` opener leaves a
+    # live expandable-body reading the visible text cannot settle, and a hanging
+    # opener later in the same command does not settle it either.
     return 0
   fi
   PS_BLANKED="${out%$'\n'}"
@@ -1819,6 +1855,15 @@ ps::classify_git_command() {
     # other construct this sink cannot settle. A verbatim `@'` … `'@` body is
     # inert text and is unaffected.
     ((PS_HERESTRING_EXPANDABLE)) && return 2
+    # AN UNCONFIRMED EXPANDABLE OPENER SUSPENDS IT TOO. The lines under
+    # `Write-Output 'a''b' @"` are kept in view rather than dropped, but the
+    # here-string reading stays live, and under it they are an expandable body
+    # whose `$( … )` runs at construction time. ps::might_invoke_git over visible
+    # text answers only "is a git token present", so `$(& $g push --force)`, which
+    # carries no literal `git`, passes it while running git. Refuse by shape, as
+    # for a body that was blanked away. A `'` opener is exempt: a verbatim body is
+    # inert text.
+    ((PS_HERESTRING_UNCONFIRMED_EXPANDABLE)) && return 2
     ps::might_invoke_git "$PS_BLANKED" || return 1
     if [[ "$sink_scope" == "readonly-ok" ]] && ps::git_command_is_readonly "$PS_BLANKED"; then
       return 1
@@ -1861,10 +1906,11 @@ ps::classify_git_command() {
 #   herestring-subexpr: every BALANCED here-string body, which is wider than the
 #     trigger itself: a verbatim `@'` body goes too, because the reduction is
 #     ps::blank_herestrings rather than a region walk of its own
-#   herestring-opener-unconfirmed: the two opener characters on every line whose
-#     opener the guard cannot confirm, replaced by the inert placeholder; every
-#     other line is copied through, and the caller's re-classification settles
-#     what is left
+#   herestring-opener-unconfirmed: the opaque tail of every line whose opener the
+#     guard cannot confirm, plus the two closer characters of the column-zero
+#     line that opener would have paired with, replaced by the inert placeholder;
+#     every other line is copied through, and the caller's re-classification
+#     settles what is left
 #
 # Statement tails stop at top-level `;` / newline / `|` / `&&` / `||` so a
 # pipeline consumer or following statement remains for normal checks.
@@ -2165,7 +2211,8 @@ ps::_blank_unbalanced_herestring_tail() {
 }
 
 # Replace the opaque tail of every line whose here-string opener the guard cannot
-# confirm with PS_HERESTRING_PLACEHOLDER. Writes PS_SAFE_COMMAND.
+# confirm, and the two closer characters of the column-zero line that opener
+# would have paired with, by PS_HERESTRING_PLACEHOLDER. Writes PS_SAFE_COMMAND.
 #
 # THE TAIL, NOT THE LAST TWO CHARACTERS. The reduced command goes on to a Bash
 # tokenizer, which pairs a single-quoted span ACROSS newlines. A line the walk
@@ -2190,25 +2237,53 @@ ps::_blank_unbalanced_herestring_tail() {
 # a line it lands on can never be read as an opener again and one pass settles
 # the command.
 #
-# THE LOOP IS DELIBERATELY STATELESS. It carries no `in_hs`, so it tests every
-# line, the body lines of a real here-string included, and the set it rewrites is
-# a SUPERSET of the lines that raised the trigger. That is safe: an end-of-line
-# substitution can neither create nor destroy a COLUMN-ZERO closer, so the
-# caller's re-classification reads the same here-string extents it read before,
-# and a body line this loop rewrote is blanked away there anyway. Tracking the
-# state instead would mean a second hand-maintained copy of the closer walk in
-# ps::blank_herestrings, which is the drift this file's other SSOT notes warn
-# about.
+# THE MATCHING CLOSER GOES TOO, OR THE ARM FEEDS THE TOKENIZER AN ORPHAN.
+# Neutralizing the opener alone leaves the column-zero `"@` / `'@` line standing
+# with nothing in front of it, and the Bash tokenizer that receives the reduction
+# pairs a quoted span ACROSS newlines: `"@` then `git push --force` reads as ONE
+# unterminated quoted word, so a plainly visible git line is never checked. The
+# token forgives the AMBIGUITY of the opener; it never forgives the git under it.
+# So the arm carries one piece of state, the pending opener quote, and replaces
+# the two closer characters on the first column-zero line that matches it.
+#
+# ONLY AN ORPHAN. A closer line whose quoting the walk PAIRS (`"@ fine"`) is
+# already balanced for the tokenizer and is left exactly as it is, so the pins
+# that depend on text after such a closer staying visible do not move. The test
+# is the same one the opener tail uses: does a quote SURVIVE the walk at the head
+# of the line. Only the two closer characters are replaced, never the line, so
+# live code after the closer (`"@; git push --force`) stays in view.
+#
+# THE REST OF THE LOOP IS STILL STATELESS with respect to here-string BODIES. It
+# tests every line, the body lines of a real here-string included, and the set it
+# rewrites is a SUPERSET of the lines that raised the trigger. That is safe: an
+# end-of-line substitution can neither create nor destroy a COLUMN-ZERO closer,
+# so the caller's re-classification reads the same here-string extents it read
+# before, and a body line this loop rewrote is blanked away there anyway.
+# Tracking body state instead would mean a second hand-maintained copy of the
+# closer walk in ps::blank_herestrings, which is the drift this file's other SSOT
+# notes warn about.
 ps::_blank_unconfirmed_herestring_openers() {
-  # co_quote is the helper's second out-parameter; this arm needs only the kind,
-  # and the region it replaces is located from the walk, not from the quote.
-  # shellcheck disable=SC2034
-  local line out="" co_kind="" co_quote="" co_scan co_tail
+  local line out="" co_kind="" co_quote="" co_scan co_tail co_pending=""
   local -a co_lines=()
   ps::_split_lines_to co_lines "$1"
   for line in "${co_lines[@]}"; do
+    if [[ -n "$co_pending" && "${line:0:2}" == "${co_pending}@" ]]; then
+      # The column-zero closer the neutralized opener would have paired with.
+      ps::blank_quoted_spans_to co_scan "$line"
+      if [[ "${co_scan:0:1}" == "$co_pending" ]]; then
+        out+="${PS_HERESTRING_PLACEHOLDER}${line:2}"$'\n'
+        co_pending=""
+        continue
+      fi
+      # Already paired for the tokenizer: leave it alone, and stop looking.
+      # Under the here-string reading this line is where the body ends.
+      co_pending=""
+    fi
     ps::_herestring_opener_to co_kind co_quote "$line"
     if [[ "$co_kind" == unconfirmed ]]; then
+      # The FIRST unconfirmed opener owns the closer: under the here-string
+      # reading every line after it, a second opener included, is body text.
+      [[ -n "$co_pending" ]] || co_pending="$co_quote"
       ps::blank_quoted_spans_to co_scan "$line"
       # The scan's first surviving quote opens the verbatim tail. Walk the
       # quote-free prefix off one character at a time rather than reaching for an
