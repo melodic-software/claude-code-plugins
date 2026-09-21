@@ -1788,6 +1788,38 @@ ps::classify_git_command() {
 #
 # Statement tails stop at top-level `;` / newline / `|` / `&&` / `||` so a
 # pipeline consumer or following statement remains for normal checks.
+# ps::_blank_comment_char_opener_suffixes_to <varname> <text>
+#
+# TEXT with the two-character here-string opener suffix replaced by
+# PS_HERESTRING_PLACEHOLDER on every line that the opener test CONFIRMS and that
+# carries a `#` before that suffix. EVERY line is kept: this drops nothing, so
+# the result can only show its reader more than the text it was handed.
+#
+# The replacement is character for character what ps::blank_herestrings does to
+# an opener line it accepts (`${line%??}` plus the placeholder), so a confirmed
+# opener's unpaired quote goes exactly as that reduction would have taken it. The
+# confirmation is the same one, for the same reason: on a line whose quotes PAIR,
+# the trailing quote is part of a string, and taking it off would leave an
+# unbalanced string for the Bash tokenizer to swallow a following line into.
+#
+# Called only by the `herestring-comment-char` arm of ps::blank_sink_opaque_regions.
+ps::_blank_comment_char_opener_suffixes_to() {
+  local __bc_out="" __bc_line __bc_scan __bc_i
+  local -a __bc_lines=()
+  ps::_split_lines_to __bc_lines "$2"
+  for ((__bc_i = 0; __bc_i < ${#__bc_lines[@]}; __bc_i++)); do
+    __bc_line="${__bc_lines[__bc_i]}"
+    ps::_gsub_to __bc_scan "$__bc_line" "'[^']*'" ''
+    ps::_gsub_to __bc_scan "$__bc_scan" '"([^"\\]|\\.)*"' ''
+    if [[ "$__bc_scan" == *"@'" || "$__bc_scan" == *'@"' ]] && [[ "${__bc_line%??}" == *"#"* ]]; then
+      __bc_line="${__bc_line%??}${PS_HERESTRING_PLACEHOLDER}"
+    fi
+    ((__bc_i)) && __bc_out+=$'\n'
+    __bc_out+="$__bc_line"
+  done
+  printf -v "$1" '%s' "$__bc_out"
+}
+
 ps::blank_sink_opaque_regions() {
   local cmd="$1" trigger="$2"
   case "$trigger" in
@@ -1804,9 +1836,16 @@ ps::blank_sink_opaque_regions() {
     # exactly the reduced command the refusal interrupted, so every sibling
     # segment is checked again and the token's effect is the pre-refusal behavior
     # and nothing more.
+    #
+    # THE SUFFIX BLANK ON TOP OF IT IS LOAD-BEARING. ps::blank_herestrings is not
+    # idempotent on its own output: a closer line carrying a SECOND opener
+    # (`'@ @'`) is joined onto the first opener's prefix and never rescanned, so
+    # the joined line reads as a FRESH commented opener when the caller
+    # re-classifies, and the live line under it goes as body. Measured:
+    # `x # @'` / `body` / `'@ @'` / `git push --force` / `'@` is rc 2 with no
+    # token on both trees and was rc 0 under this token with the reduction alone.
     ps::blank_herestrings "$cmd"
-    # shellcheck disable=SC2034
-    PS_SAFE_COMMAND="$PS_BLANKED"
+    ps::_blank_comment_char_opener_suffixes_to PS_SAFE_COMMAND "$PS_BLANKED"
     ;;
   herestring-subexpr)
     # The opaque region IS the here-string body, and blanking it is exactly what

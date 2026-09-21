@@ -1648,6 +1648,25 @@ run_pwsh "PS hs: an unrelated sink token does not open the new trigger" \
 run_pwsh "PS hs: the new token does not open the expandable-body sink either" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(& \$g push --force)" "\"@ fine\"")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+# A CLOSER LINE CARRYING A SECOND OPENER is what the arm's suffix blank exists
+# for. `ps::blank_herestrings` joins the closer's trailing text onto the opener's
+# prefix and never rescans that joined line, so `x # __placeholder__ @'` reads as
+# a FRESH commented opener on the caller's re-classification pass and the live
+# `git push --force` under it goes as body. Measured: rc 2 with no token on both
+# trees, and rc 0 under this token with the reduction alone. The arm blanks the
+# opener suffix of any line the reduction leaves in that shape, which drops
+# nothing and cannot re-hide a line.
+run_pwsh "PS hs: a second opener on the closer line is blocked with no token" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "git push --force" "'@")" 2
+run_pwsh "PS hs: and the token does not let that second opener hide the git line" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "git push --force" "'@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+run_pwsh "PS hs: the @\" spelling of the closer-carried second opener (blocked under the token)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x # @\"" "body" "\"@ @\"" "git reset --hard" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+run_pwsh "PS hs: three stacked closer-carried openers settle in one pass (blocked under the token)" \
+  "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "b" "'@ @'" "git push --force" "'@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
 
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
