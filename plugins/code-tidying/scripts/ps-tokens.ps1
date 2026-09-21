@@ -69,17 +69,48 @@ if ($PSCmdlet.ParameterSetName -eq 'Bodies') {
     exit 0
 }
 
+# `"text $x here"` is ONE token whose Text carries the variable, so a rename that
+# updates the bare `$x` and misses the interpolated one is invisible in the flat
+# token list and would read as a clean rename. Emit each nested token as an
+# (index, kind, text) triple against the string token's position, keeping the
+# string token itself so editing the string is still a change. Interpolation
+# nests (`"$($a.b)"`), so this recurses. A side list rather than an inline one:
+# the main loop fills a preallocated array, and a `List.Add` per token there
+# costs 3.9 s on a 97k-token file where an indexed write costs 1.0 s.
+function Add-NestedTokens {
+    param([System.Collections.Generic.List[string]]$Out, [int]$Index, $Token)
+    foreach ($n in $Token.NestedTokens) {
+        if ($null -eq $n) { continue }
+        $Out.Add([string]$Index)
+        if ($n -is [System.Management.Automation.Language.VariableToken]) {
+            # `${x}` and `$x` are one variable. Normalizing to the bare spelling
+            # is what lets the stale-name and collision guards see a reference
+            # the rename missed, whichever spelling it wore.
+            $Out.Add('InterpolatedVariable')
+            $Out.Add('$' + $n.VariablePath.UserPath)
+        }
+        else {
+            $Out.Add($n.Kind.ToString())
+            $Out.Add($n.Text)
+        }
+        if ($n -is [System.Management.Automation.Language.StringExpandableToken]) {
+            Add-NestedTokens $Out $Index $n
+        }
+    }
+}
+
 # One JSON object per line, one line per input path.
 foreach ($p in $Path) {
     $tokens = $null
     $errors = $null
     [System.Management.Automation.Language.Parser]::ParseFile(
         (Resolve-Path -LiteralPath $p).ProviderPath, [ref]$tokens, [ref]$errors) | Out-Null
-    # Kind and Text flattened into one array rather than a list of pairs: on a
+    # Kind and Text flattened into one list rather than a list of pairs: on a
     # 97k-token file the per-token array allocation costs 2.1 s and this costs
     # 0.7 s. The Python side re-pairs them.
     $tk = [string[]]::new($tokens.Count * 2)
     $cm = [System.Collections.Generic.List[object[]]]::new()
+    $nested = [System.Collections.Generic.List[string]]::new()
     $i = 0
     foreach ($t in $tokens) {
         $kind = $t.Kind.ToString()
@@ -90,6 +121,11 @@ foreach ($p in $Path) {
                     $t.Extent.StartLineNumber, $t.Extent.EndLineNumber,
                     $t.Extent.StartColumnNumber, $t.Text))
         }
+        elseif ($t -is [System.Management.Automation.Language.StringExpandableToken]) {
+            Add-NestedTokens $nested (($i - 2) / 2) $t
+        }
     }
-    Write-Json @{ errors = @($errors).Count; tokens = $tk; comments = $cm }
+    Write-Json @{
+        errors = @($errors).Count; tokens = $tk; comments = $cm; nested = $nested
+    }
 }

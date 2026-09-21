@@ -14,13 +14,30 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   PowerShell deletion or rename now carries a tier-0 or tier-1 proof instead of being a proposal by
   default (#4304).
 
-  `#Requires` tokenizes as a Comment token and deleting it leaves the token stream identical, so it
-  is kept as its own leaf exactly as a shebang is: deleting one reads CODE-CHANGED. A here-string is
-  a single token, so a `#` inside one is never a comment. `Variable` and `SplattedVariable` are the
-  only identifier kinds admitted for RENAME-ONLY, not `Identifier`, which is both member names and
-  type names, so `[string]` to `[int]` would otherwise pass as a rename. A variable referenced
-  inside an expandable string is part of that one token, so most PowerShell renames demote to
-  proposals; that is the string-keyed-access caveat made visible.
+  `#Requires` and a line-1 shebang both tokenize as Comment tokens and deleting either leaves the
+  token stream identical, so each is kept as its own leaf and deleting it reads CODE-CHANGED. A
+  newline is kept too, as one leaf per run with the ends trimmed: dropping it outright let
+  `Write-Output $a # c` swallow the line under it as an argument and still read COMMENT-ONLY, while
+  collapsing runs keeps blank lines and reflow invisible. A here-string is a single token, so a `#`
+  inside one is never a comment.
+
+  For RENAME-ONLY the admitted identifier kinds are `Variable` and `SplattedVariable`, not
+  `Identifier`, which is both member names and type names, so `[string]` to `[int]` would otherwise
+  pass as a rename. Three further guards, because a token-shaped edit is not always a rename:
+
+  - **Interpolated references are read out of the string.** `"text $x here"` is one token whose Text
+    carries the variable, so a rename that updated the bare `$x` and missed the interpolated one was
+    invisible and passed as clean. `ps-tokens.ps1` now walks `NestedTokens` and emits each one as an
+    extra leaf, normalizing `${x}` to `$x` so the stale-name and collision guards see the reference
+    whichever spelling it wore. The string token itself is still compared, so a rename that updates
+    both reads CODE-CHANGED; renames touching interpolation demote to proposals.
+  - **Scope changes are not renames.** `$x` to `$global:x` and `$x` to `$env:PATH` are rejected: the
+    sigil-to-last-colon prefix must match on both sides.
+  - **Automatic variables are not rename targets.** `$_`, `$PSItem`, `$args`, `$input` and `$this`
+    are rejected on either side of a mapping.
+
+  The residual caveat is the one the verdict carries in every language: string-keyed access the
+  tokens cannot see, here `Get-Variable -Name old` and `$PSBoundParameters['old']`.
 
   **With no `pwsh` on PATH the verdict is exit 2, an unproven edit, never exit 3.** Exit 3 lets a
   coarser reading layer apply the deletion anyway, which would make a host-less machine looser than

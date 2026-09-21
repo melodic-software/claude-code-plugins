@@ -57,11 +57,22 @@ a file with nothing to fix.
 
 **`.ps1` and `.psm1` prove through PowerShell's own parser, not a grammar.** `change-shape.py`
 spawns `pwsh` once per verdict; the maintained tree-sitter PowerShell grammar was measured and
-rejected (see [tooling.md](tooling.md)). Three consequences: `#Requires` tokenizes as a comment and
-is kept as its own leaf, so deleting one reads CODE-CHANGED; a `#` inside a here-string is never a
-comment, because a here-string is one token; and a variable referenced inside an expandable string
-(`"text $x here"`, also one token) makes a rename read CODE-CHANGED, so expect most tier-1 renames
-in PowerShell to demote to proposals. With no `pwsh` on PATH the answer is exit **2**, an unproven
+rejected (see [tooling.md](tooling.md)). Consequences worth knowing:
+
+- `#Requires` and a line-1 shebang tokenize as comments and are kept as their own leaves, so
+  deleting either reads CODE-CHANGED.
+- A `#` inside a here-string is never a comment, because a here-string is one token.
+- An expandable string (`"text $x here"`, and an expandable here-string) is also one token, but its
+  interpolated variables are read out of it and compared as leaves of their own. A rename that
+  updates the bare `$x` and misses the one inside the string reads CODE-CHANGED rather than passing
+  as clean; a rename that updates both still reads CODE-CHANGED, because the string's own text
+  moved. Expect tier-1 renames that touch interpolation to demote to proposals.
+- A rename that changes scope (`$x` to `$global:x`, `$x` to `$env:PATH`) or targets an automatic
+  variable (`$_`, `$PSItem`, `$args`, `$input`, `$this`) is CODE-CHANGED, not a rename.
+- The residual caveat is the one the verdict has in every language: string-keyed access the tokens
+  cannot see, here `Get-Variable -Name old`, `$PSBoundParameters['old']`, `Set-Variable old`.
+
+With no `pwsh` on PATH the answer is exit **2**, an unproven
 edit, never the exit 3 below, which would let a coarser reading layer apply the deletion anyway.
 
 When tree-sitter is unavailable (exit 3), tier 0 falls back to whatever reading layer the tooling
@@ -111,7 +122,9 @@ open the apply path, because they cannot attest behavior preservation.
   gets the ordinary three-way triage. A name in a module's `__all__` is public whatever its spelling
 - Legal and license headers
 - Machine-read directives: shebangs, lint pragmas (`# noqa`, `// eslint-disable`,
-  `#pragma warning`), region markers, editor folds, encoding cookies
+  `#pragma warning`), region markers, editor folds, encoding cookies. In PowerShell that also covers
+  `#Requires`, a `<#PSScriptInfo ... #>` block, and the `# SIG # Begin signature block` run, whose
+  bytes a signature is computed over
 - **Repo-local machine-read markers**, discovered per run. See the section below. The universal
   pragmas above are the floor, not the list
 - Units, ranges, boundary semantics, sentinel values, ownership and lifetime, thread-safety and

@@ -29,9 +29,10 @@ real file UNPROVABLE. With no `pwsh` on PATH the answer is exit 2, an
 *unproven* edit, never the exit 3 that lets a coarser reading layer apply
 deletions anyway.
 
-Two comments the proof must not ignore: tree-sitter's bash grammar types
-`#!/usr/bin/env bash` as a comment, and PowerShell tokenizes `#Requires` as
-one. Dropping either would let deleting a directive pass as COMMENT-ONLY.
+Two comments the proof must not ignore: a shebang on line 1, which both
+tree-sitter's bash grammar and PowerShell type as a comment, and `#Requires`,
+which PowerShell also does. Dropping either would let deleting a directive pass
+as COMMENT-ONLY.
 
 Usage: change-shape.py [--lang <name>] [--json] BEFORE AFTER
 """
@@ -98,6 +99,8 @@ IDENTIFIER_KINDS = frozenset(
         # is a cross-file call-site contract.
         "Variable",
         "SplattedVariable",
+        # A variable read out of an expandable string, normalized to `$name`.
+        "InterpolatedVariable",
     }
 )
 
@@ -142,16 +145,58 @@ def powershell_records(*args: str) -> list[dict]:
 
 
 def powershell_leaves(record: dict) -> list[tuple[str, str]]:
-    """Tokens minus comments and newlines, with #Requires kept as a leaf."""
+    """Tokens minus comments, with the directive comments kept as leaves."""
     flat = record["tokens"]
+    # Tokens read out of an expandable string, keyed on that string's position.
+    triples = record["nested"]
+    extra: dict[int, list[tuple[str, str]]] = {}
+    for j in range(0, len(triples), 3):
+        extra.setdefault(int(triples[j]), []).append(
+            (triples[j + 1], triples[j + 2])
+        )
+
+    def stream():
+        for i in range(0, len(flat), 2):
+            yield i, flat[i], flat[i + 1]
+            for kind, text in extra.get(i // 2, ()):
+                yield -1, kind, text
+
     out: list[tuple[str, str]] = []
-    for kind, text in zip(flat[::2], flat[1::2]):
+    for i, kind, text in stream():
         if kind == "Comment":
             if PS_REQUIRES.match(text):
                 out.append(("requires", text))
-        elif kind not in ("NewLine", "EndOfInput"):
+            elif i == 0 and text.startswith("#!"):
+                out.append(("shebang", text))
+        elif kind == "NewLine":
+            # A newline separates statements, so dropping it would let
+            # `cmd $a # c` and the line under it merge into one call behind a
+            # comment deletion. A run collapses to one leaf and the ends are
+            # trimmed, which keeps blank lines and reflow invisible.
+            if out and out[-1][0] != "NewLine":
+                out.append(("NewLine", "\n"))
+        elif kind != "EndOfInput":
             out.append((kind, text))
+    while out and out[-1][0] == "NewLine":
+        out.pop()
     return out
+
+
+# A rename may not change a variable's scope or bind it to an automatic one:
+# both are token-shaped but neither preserves meaning.
+PS_AUTOMATIC = frozenset({"$_", "$psitem", "$args", "$input", "$this"})
+
+
+def powershell_rename_defect(mapping: dict[str, str]) -> str | None:
+    for old, new in mapping.items():
+        for name in (old, new):
+            if name.lower() in PS_AUTOMATIC:
+                return f"rename touches the automatic variable {name}"
+        # `$x` -> `$global:x` and `$x` -> `$env:PATH` are scope changes, so the
+        # sigil-to-last-colon prefix has to match on both sides.
+        if old.rpartition(":")[0].lower() != new.rpartition(":")[0].lower():
+            return f"scope prefix changed: {old} -> {new}"
+    return None
 
 
 def language_for(name: str, module: str, attr: str):
@@ -332,6 +377,14 @@ def main(argv: list[str] | None = None) -> int:
             records[0]["errors"] > 0,
             records[1]["errors"] > 0,
         )
+        if verdict == "RENAME-ONLY":
+            defect = powershell_rename_defect(detail["mapping"])
+            if defect:
+                verdict, code, detail = (
+                    "CODE-CHANGED",
+                    EXIT_CODE_CHANGED,
+                    {"reason": defect},
+                )
     else:
         lang, source = language_for(*entry)
         if lang is None:

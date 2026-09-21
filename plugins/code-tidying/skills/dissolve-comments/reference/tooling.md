@@ -55,7 +55,7 @@ lands, or a probe row changes status on a machine where it used to pass.
 | tree-sitter-bash 0.25.1 rejects base-N arithmetic (`N#$var` inside `$(( ))`) | ERROR nodes, one spanning a third of `lib/hook-utils.sh`, so `change-shape.py` returns UNPROVABLE for the file against itself and no deletion or rename in it can carry a proof; 35 `.sh` files in this tree carry the form | 2026-09-08 |
 | tree-sitter-powershell 0.26.4 vs `Parser::ParseFile`, on 27,564 lines of real PowerShell (`Provisioning.psm1` 537 KB, `Provisioning.Tests.ps1` 1.0 MB) | the grammar: 33 ERROR + 1 MISSING and 115 ERROR + 172 MISSING, so both files are UNPROVABLE against themselves; the native parser: **0** parse errors on both, in 97 ms and 225 ms | 2026-09-20 |
 | Deleting every comment token by its extent, then comparing the `(Kind, Text)` sequence minus `Comment`/`NewLine` | identical for 1,069 comments in `Provisioning.psm1` and 2,114 in `Provisioning.Tests.ps1`; deleting only the `#Requires` line also leaves the sequence identical, which is why it is kept as its own leaf | 2026-09-20 |
-| `pwsh` 7.6.6 cold start, `-NoProfile -NonInteractive` | 0.50–0.69 s, plus roughly 1 s per megabyte of source to tokenize and serialize | 2026-09-20 |
+| `pwsh` 7.6.6 cold start, `-NoProfile -NonInteractive` | 0.50–0.69 s, plus roughly 1.5 s per megabyte of source to tokenize and serialize. A `List.Add` per token instead of an indexed write into a preallocated array costs 3.9 s on the 97k-token file where the indexed write costs 1.0 s, which is why nested string tokens are emitted as a side list rather than inline | 2026-09-21 |
 
 ## What no tool covers
 

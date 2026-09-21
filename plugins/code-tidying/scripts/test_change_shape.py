@@ -354,6 +354,94 @@ class PowerShellVerdicts(unittest.TestCase):
         code, out, _ = run(PS_BASE, after, ".psm1")
         self.assertEqual(code, 0, out)
 
+    def test_shebang_deletion_is_not_comment_only(self):
+        before = "#!/usr/bin/env pwsh\n$x = 1\n"
+        code, out, _ = run(before, "$x = 1\n", ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_statements_merging_behind_a_comment_deletion_is_code_changed(self):
+        # Deleting the comment also deletes the newline that separated two
+        # commands, so `Write-Output $a` swallows `$b` as an argument.
+        before = "$a = 1\n$b = 2\nWrite-Output $a # c\n$b\n"
+        after = "$a = 1\n$b = 2\nWrite-Output $a $b\n"
+        code, out, _ = run(before, after, ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_blank_line_change_is_still_comment_only(self):
+        before = "$a = 1\n\n# c\n\n$b = 2\n"
+        after = "$a = 1\n$b = 2\n"
+        code, out, _ = run(before, after, ".ps1")
+        self.assertEqual(code, 0, out)
+
+
+PS_INTERPOLATION = """$old = 1
+Write-Output "$old"
+Write-Output "${old}"
+Write-Output @"
+$old
+"@
+Write-Output $old
+"""
+
+
+@unittest.skipUnless(powershell_available(), "no PowerShell host (pwsh) on PATH")
+class PowerShellRenames(unittest.TestCase):
+    """A variable inside an expandable string is a reference the rename must reach."""
+
+    def bare_only(self, src: str) -> str:
+        """Rename only the occurrences that are not inside a string."""
+        return src.replace("$old = 1", "$new = 1").replace(
+            "Write-Output $old", "Write-Output $new"
+        )
+
+    def test_rename_missing_an_interpolated_reference_is_code_changed(self):
+        code, out, _ = run(PS_INTERPOLATION, self.bare_only(PS_INTERPOLATION), ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_rename_missing_a_braced_reference_is_code_changed(self):
+        src = '$old = 1\nWrite-Output "${old}"\nWrite-Output $old\n'
+        code, out, _ = run(src, self.bare_only(src), ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_rename_missing_a_here_string_reference_is_code_changed(self):
+        src = '$old = 1\nWrite-Output @"\n$old\n"@\nWrite-Output $old\n'
+        code, out, _ = run(src, self.bare_only(src), ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_rename_onto_a_name_only_seen_inside_a_string_is_code_changed(self):
+        # `$new` appears nowhere but inside the string, so the collision is
+        # visible only because interpolated references are read out.
+        src = '$old = 1\nWrite-Output "$new"\nWrite-Output $old\n'
+        code, out, _ = run(src, self.bare_only(src), ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_rename_to_a_scoped_name_is_code_changed(self):
+        src = "$old = 1\nWrite-Output $old\n"
+        after = src.replace("$old", "$global:old")
+        code, out, _ = run(src, after, ".ps1", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("scope prefix", out)
+
+    def test_rename_to_an_environment_variable_is_code_changed(self):
+        src = "$old = 1\nWrite-Output $old\n"
+        after = src.replace("$old", "$env:OLD")
+        code, out, _ = run(src, after, ".ps1", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("scope prefix", out)
+
+    def test_rename_to_an_automatic_variable_is_code_changed(self):
+        src = "$old = 1\nWrite-Output $old\n"
+        after = src.replace("$old", "$_")
+        code, out, _ = run(src, after, ".ps1", "--json")
+        self.assertEqual(code, 20, out)
+        self.assertIn("automatic variable", out)
+
+    def test_same_scope_rename_is_still_rename_only(self):
+        src = "$script:old = 1\nWrite-Output $script:old\n"
+        after = src.replace("$script:old", "$script:new")
+        code, out, _ = run(src, after, ".ps1", "--json")
+        self.assertEqual(code, 10, out)
+
 
 class Degradation(unittest.TestCase):
     """Always runs: proves the unavailable path is loud and distinct."""
