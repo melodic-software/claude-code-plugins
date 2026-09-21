@@ -29,8 +29,8 @@ The context-cost line is a bytes-per-token estimate over the always-loaded set a
 Judgment-tier checks apply fixed criteria with model reading. Reports persist to the plugin's data
 directory. They audit contributor-personal auto-memory, so they never land in the repo.
 
-Scope covers **both** layers that load every session: the project's `CLAUDE.md` / `CLAUDE.local.md` /
-`.claude/rules/`, and the user-global `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and
+Scope covers **both** layers that load every session: the project's `CLAUDE.md` (or the `AGENTS.md`
+and `.claude/AGENTS.md` read in its place) / `CLAUDE.local.md` / `.claude/rules/`, and the user-global `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and
 `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/`. Every discovered file is tagged with its scope, so
 project-scoped criteria skip personal files instead of reporting a repo-scoped finding against one.
 

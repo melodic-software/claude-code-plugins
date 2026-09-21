@@ -106,7 +106,8 @@ skipping the judgment.
 
 After per-file checks, cross-reference every pair of distinct surfaces in the
 discover-instruction-surfaces population for **contradictions** (C6 owns all such pairs). Also
-report **redundancy** where both sides load together in the same session. Concrete passes:
+report **redundancy** where both sides load together in the same session. An `agents-md` row stands
+where a project CLAUDE.md would in every pass below. Concrete passes:
 
 1. Compare each CLAUDE.md (any scope) against every co-resident rule for contradictions
 2. Compare CLAUDE.md against CLAUDE.local.md (same or cross-scope) for contradictions and redundancy
