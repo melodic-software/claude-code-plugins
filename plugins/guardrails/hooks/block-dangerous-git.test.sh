@@ -1697,6 +1697,15 @@ assert_contains "PS hs: the hook names the comment-char trigger when the flag ho
 assert_contains "PS hs: and it says the shape has no allow token rather than naming one" \
   "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
   "This sink shape has NO allow token"
+# The shared token-list line is SUPPRESSED for this trigger. Leaving it in would
+# send an operator to set a value the guard never consults on this path.
+assert_absent "PS hs: the shared allow-token line is suppressed for this trigger" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "allow it via the block_dangerous_git_allow option"
+# And it is still printed for a trigger that does have a token.
+assert_contains "PS hs: the shared allow-token line still prints for a tokened trigger" \
+  "$(pwsh_stderr "$ps_hs_body" || true)" \
+  "allow it via the block_dangerous_git_allow option"
 
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
