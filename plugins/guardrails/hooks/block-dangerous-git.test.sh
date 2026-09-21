@@ -1627,46 +1627,76 @@ pin_sink_trigger "classify: an expandable body carrying \$( keeps herestring-sub
 pin_sink_trigger "classify: an opener line with no # enters no sink" \
   "$(printf '%s\n%s\n%s' "Write-Output x @\"" "hello" "\"@")" ""
 
-# THE ALLOW TOKEN IS EXACTLY A RETURN TO THE BASE BEHAVIOR, bypass included.
-# Its arm hands back the same here-string-blanked command the refusal
-# interrupted, so the guard re-checks everything the base checked and nothing
-# less: the shape itself goes through again (the bypass the operator opted into),
-# while a git command on the opener line and a visible destructive sibling both
-# still block, exactly as they do on the base under the same token.
-run_pwsh "PS hs: the herestring-comment-char token returns the shape to its base behavior" \
-  "$ps_hs_comment" 0 \
+# THIS REFUSAL HAS NO ALLOW TOKEN, and the guard refuses on the FLAG at the top
+# of its sink loop, ahead of the allow-list question, so no value of the allow
+# option can reach it. A token cannot be given: every token-granted round spends
+# the SHARED _ps_sink_attempts budget, and a sixth grantable trigger pushes a
+# command that settles in four rounds past the cap, where the loop exits 0 with a
+# plainly visible destructive sibling never checked.
+#
+# The gate payload that measured it: four sink constructs and a live
+# `git reset --hard` on line 1, a commented opener, and a closer line carrying a
+# second opener. Pinned under no token, under the four other sink tokens, and
+# under EVERY existing token at once (the destructive-form tokens included, which
+# is the stack that waives the visible `git reset --hard` once the sink is
+# through with it).
+PS_HS_BUDGET_CHAIN="$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
+  "Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard" \
+  "x # @\"" "\$(y)" "\"@ @\"" "z" "\"@")"
+PS_SINK_TOKENS_4=ps-unparsable-special-construct,ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-herestring-subexpr
+PS_ALL_EXISTING_TOKENS="push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force,ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr"
+run_pwsh "PS hs: the multi-round budget-chain payload is blocked with no token" \
+  "$PS_HS_BUDGET_CHAIN" 2
+run_pwsh "PS hs: the budget-chain payload is blocked under the four other sink tokens" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_4"
+run_pwsh "PS hs: the budget-chain payload is blocked under EVERY existing token at once" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_ALL_EXISTING_TOKENS"
+# The removed token's literal string is just a string the guard never consults.
+# An operator who copied it from a stale note changes nothing.
+run_pwsh "PS hs: the removed token string does not open the comment-tail shape" \
+  "$ps_hs_comment" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
-run_pwsh "PS hs: the token does not waive a git command on the opener line itself" \
-  "$(printf '%s\n%s\n%s' "git push --force # @\"" "body" "\"@")" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
-run_pwsh "PS hs: the token does not waive a visible destructive sibling" \
-  "$(printf '%s\n%s\n%s' "git reset --hard; Write-Output x # @'" "body" "'@")" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
-run_pwsh "PS hs: an unrelated sink token does not open the new trigger" \
+run_pwsh "PS hs: the removed token string does not open the budget-chain payload" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_ALL_EXISTING_TOKENS,ps-unparsable-herestring-comment-char"
+run_pwsh "PS hs: an unrelated sink token does not open the comment-tail shape either" \
   "$ps_hs_comment" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
-run_pwsh "PS hs: the new token does not open the expandable-body sink either" \
+run_pwsh "PS hs: the removed token string does not open the expandable-body sink" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(& \$g push --force)" "\"@ fine\"")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
-# A CLOSER LINE CARRYING A SECOND OPENER is what the arm's suffix blank exists
-# for. `ps::blank_herestrings` joins the closer's trailing text onto the opener's
-# prefix and never rescans that joined line, so `x # __placeholder__ @'` reads as
-# a FRESH commented opener on the caller's re-classification pass and the live
-# `git push --force` under it goes as body. Measured: rc 2 with no token on both
-# trees, and rc 0 under this token with the reduction alone. The arm blanks the
-# opener suffix of any line the reduction leaves in that shape, which drops
-# nothing and cannot re-hide a line.
+# The refusal is on the FLAG inside the loop, not on PS_SINK_TRIGGER and not
+# before it. A closer line carrying a SECOND opener is joined onto the first
+# opener's prefix by a reduction that never rescans the joined line, so a command
+# whose RAW text has no `#` on any opener line can acquire one on a later round.
+# A check placed before the loop would already be behind that round, and the
+# allow-list question would be asked for a trigger with no arm, whose `*` default
+# empties the command and exits 0.
+run_pwsh "PS hs: a commented opener acquired on a LATER round is still refused" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x @\"" "\$(y)" "\"@ # @\"" "git reset --hard" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+run_pwsh "PS hs: and the removed token string does not open that later round" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x @\"" "\$(y)" "\"@ # @\"" "git reset --hard" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr,ps-unparsable-herestring-comment-char
 run_pwsh "PS hs: a second opener on the closer line is blocked with no token" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "git push --force" "'@")" 2
-run_pwsh "PS hs: and the token does not let that second opener hide the git line" \
-  "$(printf '%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "git push --force" "'@")" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
-run_pwsh "PS hs: the @\" spelling of the closer-carried second opener (blocked under the token)" \
-  "$(printf '%s\n%s\n%s\n%s\n%s' "x # @\"" "body" "\"@ @\"" "git reset --hard" "\"@")" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
-run_pwsh "PS hs: three stacked closer-carried openers settle in one pass (blocked under the token)" \
-  "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "b" "'@ @'" "git push --force" "'@")" 2 \
-  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+run_pwsh "PS hs: a git command on the commented opener line itself is blocked" \
+  "$(printf '%s\n%s\n%s' "git push --force # @\"" "body" "\"@")" 2
+run_pwsh "PS hs: a visible destructive sibling beside a commented opener is blocked" \
+  "$(printf '%s\n%s\n%s' "git reset --hard; Write-Output x # @'" "body" "'@")" 2
+# Refusing on the flag means the HOOK reports herestring-comment-char even when
+# the classifier named an earlier trigger, so the operator reads the advice for
+# the shape that is actually holding the command. The classifier's own
+# attribution is unchanged and is pinned above.
+PS_HS_COMMENT_PLUS_CONSTRUCT="$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")"
+assert_contains "PS hs: the hook names the comment-char trigger when the flag holds the command" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "on a line that also contains a '#'"
+assert_contains "PS hs: and it says the shape has no allow token rather than naming one" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "This sink shape has NO allow token"
 
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,

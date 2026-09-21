@@ -26,13 +26,15 @@
 #   ps-unparsable-special-construct
 #   ps-unparsable-herestring-unbalanced
 #   ps-unparsable-herestring-subexpr
-#   ps-unparsable-herestring-comment-char
 # These narrow the unparsable-PowerShell sink by the trigger that routed there.
 # They are NOT interchangeable with the destructive-form tokens above: an
 # unparsable command cannot prove which forms it carries, so reset-hard (etc.)
 # never opens the sink. Only the matching ps-unparsable-<trigger> token does.
 # Allowing a sink shape blanks that opaque region and continues checking any
 # remaining visible commands — it does not fail-open the whole compound line.
+#
+# The sixth sink trigger, `herestring-comment-char`, is deliberately absent from
+# that list and has no token at all; see the sink loop below.
 #
 # NOT blocked: a push whose lease spellings all pin an immutable <expect> — an
 # object id of the repository's own hash width (a literal one: a substitution is
@@ -1403,6 +1405,30 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   _ps_rc=$?
   _ps_sink_attempts=0
   while ((_ps_rc == 2)); do
+    # A confirmed here-string opener line carrying a `#` is refused HERE, ahead of
+    # the allow-list question and without spending an attempt, because no allow
+    # token for it can be safe. Every token-granted round below spends the SHARED
+    # _ps_sink_attempts budget, so a sixth grantable trigger pushes a command that
+    # settles in four rounds past the cap at the bottom of this loop, which exits 0
+    # with a plainly visible `git reset --hard` never checked. Measured on the
+    # payload `Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard` over a
+    # commented opener and a closer-carried second opener.
+    #
+    # On the FLAG, not on PS_SINK_TRIGGER, and inside the loop rather than before
+    # it. The reduction this loop applies is not idempotent: a closer line carrying
+    # a second opener is joined onto the first opener's prefix, so a command whose
+    # raw text has no `#` on any opener line can acquire one on a later round
+    # (`x @"` / `$(y)` / `"@ # @"` / `git reset --hard` / `"@`). A check placed
+    # before the loop would already be behind that round, and the flag also refuses
+    # on round one when another trigger fired on the same commented-opener command.
+    # PS_SINK_TRIGGER is set here so the trigger line and the telemetry form name
+    # the shape actually being refused.
+    if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+      PS_SINK_TRIGGER="herestring-comment-char"
+      ps::print_unparsable_git_block_message
+      emit_tel "blocked" "powershell-unparsable-herestring-comment-char"
+      exit 2
+    fi
     # The allow token is namespaced separately from the telemetry form token
     # (powershell-unparsable-*) so an operator configuring the allow-list cannot
     # confuse the two namespaces, and so no pre-#2664 allow value gains power.
