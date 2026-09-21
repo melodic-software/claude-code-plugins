@@ -164,11 +164,12 @@ restore)
   }
   if [[ "$1" == "--all" ]]; then
     [[ $# -eq 1 ]] || usage
-    # Abandoning, both halves. A name the ref has is checked out over whatever is
-    # in the worktree now, since a file the experiment recreated or rewrote is the
-    # content this path discards. A name the ref does NOT have but the worktree
-    # does is REMOVED: the pre-strip state did not have it, so leaving it would end
-    # the abandon with an instruction file loading that the experiment introduced.
+    # Abandoning. A name the ref has is checked out over whatever is in the
+    # worktree now, since a file the experiment recreated or rewrote is the content
+    # this path discards. A name the ref does NOT have but git TRACKS is removed,
+    # tracked-and-absent-from-the-ref being git's own evidence the experiment added
+    # it. A name that is neither in the ref nor tracked is the case this cannot
+    # decide: it is named for the operator and LEFT, per the branch below.
     for n in "${NAMES[@]}"; do
       if git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
         git -C "$root" checkout "$ref" -- "$n"

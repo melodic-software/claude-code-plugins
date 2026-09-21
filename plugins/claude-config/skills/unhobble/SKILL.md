@@ -195,9 +195,12 @@ rows after real work is a licensed permanent deletion.
    defend, which is the whole result this phase exists to protect. **`--all` is the abandon path,
    never the close path.** Closing an experiment normally leaves the undefended surfaces retired,
    per steps 4 and 5 below; that is the finding, so a close never calls it. It is for walking the
-   whole experiment back to its pre-strip state and discarding the result, which is both halves: it
-   overwrites what is on disk rather than skipping it, and it removes an instruction file the
-   pre-strip state did not have, so an abandoned experiment does not leave one of its own behind.
+   whole experiment back to its pre-strip state and discarding the result: it overwrites what is on
+   disk rather than skipping it, and it removes an instruction file the pre-strip state did not have
+   **and git tracks**. One that was never tracked it names and leaves, since git cannot tell a file
+   the experiment created from one that predated it and was never committed, and deleting the
+   second is unrecoverable; an abandon can therefore leave an untracked file of the experiment's own
+   behind, named on stderr for the operator to remove.
    For each group that clears the gate, restore the narrowest instruction that addresses the cause,
    a single line or rule file rather than the whole pre-experiment surface, and cite the ledger rows in
    the restoring commit or an adjacent comment.
