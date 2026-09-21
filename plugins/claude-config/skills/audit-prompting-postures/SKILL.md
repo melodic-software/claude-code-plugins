@@ -86,9 +86,14 @@ drift. **Displacement is the default mode's answer, not the only one**: under th
 `AGENTS.md` after, so an `AGENTS.md` beside a `CLAUDE.md` is live there and belongs in the set even
 though the default mode would call it displaced. That option is a user, `--settings` or managed
 setting, so resolve the **effective** value across those scopes rather than one scope's copy, which
-answers the wrong question whichever way the override runs. Inventory the file whenever the
-effective mode is that one or cannot be resolved; only where it is genuinely not read does the file reach context as an import,
-which the importing record already covers.
+answers the wrong question whichever way the override runs.
+**The mode is the last gate, not the only one, and a gate known false excludes regardless of it.**
+Native reading needs the version floor and the flag as well, and neither is a mode question: where
+the CLI is below the floor or the flag is known off, the session cannot read the file under ANY
+mode, and inventorying it would let Phase C propose posture additions to a surface nothing loads.
+Exclude on a gate known false; include on one merely unresolved, so the conservative direction
+applies where the answer is unknown rather than where it is known to be no. Only where the file is
+genuinely not read does it reach context as an import, which the importing record already covers.
 **The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish
 PRESENCE, which can only turn a MISSING into a PRESENT, never add a finding on an excluded surface.

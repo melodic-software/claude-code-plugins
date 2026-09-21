@@ -264,6 +264,27 @@ else
   echo "SKIP: symlinks unavailable on this host; the symlink obstruction cases did not run" >&2
 fi
 
+# --- Case 5a4: content that exists ONLY in the index. The name is recreated,
+# staged, then deleted from the worktree, so every filesystem test reports the
+# path free while the staged blob is real content. `git checkout <ref> -- <path>`
+# writes the index as well as the worktree, so it would discard that blob.
+repo="$(make_repo staged 'CLAUDE.md=committed')"
+base="$(git -C "$repo" rev-parse HEAD)"
+"$SCRIPT" strip "$repo" --all >/dev/null
+git -C "$repo" commit --quiet -m "strip"
+printf 'staged work nobody committed\n' >"$repo/CLAUDE.md"
+git -C "$repo" add CLAUDE.md
+rm -f "$repo/CLAUDE.md"
+out="$("$SCRIPT" restore "$repo" "$base" CLAUDE.md 2>&1)"
+rc=$?
+assert_equals "staged-only: a named restore over staged-only content exits 2" "$rc" "2"
+case "$out" in
+*staged-in-index*) pass "staged-only: the refusal names the index as the occupant" ;;
+*) fail "staged-only: the refusal names the index as the occupant" "got [$out]" ;;
+esac
+assert_equals "staged-only: the staged blob is still the one in the index" \
+  "$(git -C "$repo" show :CLAUDE.md)" "staged work nobody committed"
+
 # --- Case 5b: a named restore whose source the ref does not have, and a ref
 # that is not a commit. Both are errors. Exit 0 with nothing restored would let
 # the caller's ledger claim a file came back while it stayed deleted.

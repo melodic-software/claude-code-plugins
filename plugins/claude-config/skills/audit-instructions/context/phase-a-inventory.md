@@ -31,7 +31,12 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   managed setting, so a user scope that names the default can be overridden by a managed or
   session one and the reverse; reading only the scope this phase happens to inventory answers the
   wrong question in both directions, dropping a live surface or inventorying an unloaded one.
-  **Record the file whenever the effective mode is that one or cannot be resolved**: inventorying is additive and cannot by
+  The mode is the last gate, not the only one: native reading also needs the version floor and the
+  flag, and **a gate known false excludes the file regardless of the mode**, since a session below
+  the floor or with the flag off reads it under no mode at all and a record for it would let a
+  later phase grade a surface nothing loads. **Record the file whenever every gate is either
+  satisfied or unresolved**, which keeps the conservative direction where the answer is unknown
+  rather than where it is known to be no: inventorying is additive and cannot by
   itself produce a finding, while a surface missing here produces no Phase A record, so no later
   phase can route or grade it.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in

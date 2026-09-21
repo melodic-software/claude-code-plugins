@@ -117,6 +117,16 @@ occupied() {
     printf 'occupied'
     return 0
   fi
+  # The INDEX counts as occupancy too, and the filesystem alone cannot see it.
+  # `git checkout <ref> -- <path>` updates the index AND the worktree, so a name
+  # that was recreated, staged, and then deleted from the worktree has content
+  # that exists ONLY in the index, invisible to every test above, which this
+  # would overwrite with the ref's version and lose. A stripped name has no index
+  # entry, so refusing on one costs the ordinary phase-4 restore nothing.
+  if git -C "$root" ls-files --error-unmatch -- "$1" >/dev/null 2>&1; then
+    printf 'staged-in-index'
+    return 0
+  fi
   occupied_ancestor "$1"
 }
 
