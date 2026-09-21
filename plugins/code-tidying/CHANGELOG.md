@@ -3,6 +3,82 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **`dissolve-comments` proves `.ps1` and `.psm1` edits, through PowerShell's own parser.** Both
+  `change-shape.py` and `commented-out-code.py` map the two extensions to a native backend: a new
+  `scripts/ps-tokens.ps1` runs under `pwsh` 7 and returns every token as `(Kind, Text)` plus every
+  comment's extent, and the Python side does the filtering so both backends share one filter. A
+  PowerShell deletion or rename now carries a tier-0 or tier-1 proof instead of being a proposal by
+  default (#4304).
+
+  `#Requires` and a line-1 shebang both tokenize as Comment tokens and deleting either leaves the
+  token stream identical, so each is kept as its own leaf and deleting it reads CODE-CHANGED. A
+  newline is kept too, as one leaf per run with the ends trimmed: dropping it outright let
+  `Write-Output $a # c` swallow the line under it as an argument and still read COMMENT-ONLY, while
+  collapsing runs keeps blank lines and reflow invisible. A here-string is a single token, so a `#`
+  inside one is never a comment.
+
+  For RENAME-ONLY the admitted identifier kinds are `Variable` and `SplattedVariable`, not
+  `Identifier`, which is both member names and type names, so `[string]` to `[int]` would otherwise
+  pass as a rename. Three further guards, because a token-shaped edit is not always a rename:
+
+  - **Interpolated references are read out of the string.** `"text $x here"` is one token whose Text
+    carries the variable, so a rename that updated the bare `$x` and missed the interpolated one was
+    invisible and passed as clean. `ps-tokens.ps1` now walks `NestedTokens` and emits each one as an
+    extra leaf, normalizing `${x}` to `$x` so the stale-name and collision guards see the reference
+    whichever spelling it wore. The string token itself is still compared, so a rename that updates
+    both reads CODE-CHANGED; renames touching interpolation demote to proposals.
+  - **Scope changes are not renames.** `$x` to `$global:x` and `$x` to `$env:PATH` are rejected: the
+    sigil-to-last-colon prefix must match on both sides.
+  - **Reserved variables are not rename targets.** `ps-tokens.ps1` reads the names present in a
+    fresh runspace and reports them, so `$null`, `$true`, `$HOME`, `$PID`, `$_` and the rest are
+    rejected on either side of a mapping without a list maintained here going stale.
+  - **Names are compared case-insensitively, as PowerShell compares them.** `classify_leaves` takes
+    a fold for the mapping, collision and stale-name bookkeeping, so `$Old` to `$old` is a
+    respelling rather than a rename, `$old` to `$New` collides with an existing `$new`, and a missed
+    `$Old` reference still fails an `$old` rename. The leaves stay verbatim, so a case-only edit is
+    still a visible difference rather than nothing at all.
+
+  The residual caveat is the one the verdict carries in every language: string-keyed access the
+  tokens cannot see, here `Get-Variable -Name old` and `$PSBoundParameters['old']`.
+
+  **With no `pwsh` on PATH the verdict is exit 2, an unproven edit, never exit 3.** Exit 3 lets a
+  coarser reading layer apply the deletion anyway, which would make a host-less machine looser than
+  today rather than the same.
+
+  The maintained `tree-sitter-powershell` grammar was measured and rejected rather than added as a
+  fallback: 33 ERROR and 1 MISSING node on a 537 KB module and 115 ERROR and 172 MISSING on a 1 MB
+  test file, where the native parser returns zero parse errors on both. `reference/tooling.md`
+  carries the numbers so the next reader does not re-litigate it.
+
+- **`comment-tooling-probe.sh` reports `proof-powershell` as its own row**, naming the host and its
+  version when present and the lost capability when absent.
+
+### Changed
+
+- **Comment-based help is an exempt surface, public or private.** What a module exports lives in
+  `Export-ModuleMember` or a `.psd1` manifest, which the proof does not read, so the exemption
+  covers every help block in `.ps1` and `.psm1`. `commented-out-code.py` skips a help block whole
+  rather than reparsing its prose, and its `DIRECTIVE` list gains `#Requires` and the help keywords.
+  Its marker stripping also learns `<#` and `#>`, so a one-line `<# $x = 1 #>` and a multi-line block
+  reach the parser as code instead of never being read at all.
+
+- **A `CommandAst` is not commented-out-code evidence in PowerShell.** Prose about PowerShell parses
+  as a clean command whether it names a `-Switch` ("the one `-AllowExitCode` judges") or a cmdlet
+  ("`Set-Acl` asks the provider to persist the descriptor"), so admitting it reported 27 findings on
+  a 537 KB module where the shipped evidence set reports 2. That set is the statement and member
+  forms plus a pipeline of two or more elements; the cost is that a commented-out bare command line
+  is missed.
+
+### Fixed
+
+- **The "no grammar" counts in `safety.md` and `SKILL.md` were off by the two PowerShell
+  extensions.** `change-shape.py` now proves 18 of the 28 extensions `scope-code-files.sh` admits
+  and `commented-out-code.py` 14, leaving 10 that neither backend reads.
+
 ## [0.21.0]
 
 ### Added

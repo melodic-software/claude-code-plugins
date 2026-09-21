@@ -19,11 +19,20 @@ comment-dissolving edit has to make and a test suite can only sample:
 
 Exit codes carry the verdict so a shell gate can branch on them without
 parsing text: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE,
-3 tree-sitter or the grammar for this language is unavailable, 2 usage.
+3 tree-sitter or the grammar for this language is unavailable, 2 usage, an
+unmapped extension, or no PowerShell host for a `.ps1`/`.psm1` file.
 
-The shebang is the one comment the proof must not ignore: tree-sitter's bash
-grammar types `#!/usr/bin/env bash` as a comment, and dropping it would let a
-shebang deletion pass as COMMENT-ONLY.
+`.ps1` and `.psm1` are read by PowerShell's own tokenizer through
+`ps-tokens.ps1` under `pwsh`, not by a tree-sitter grammar: the maintained
+grammar returns ERROR nodes on ordinary PowerShell, which would make every
+real file UNPROVABLE. With no `pwsh` on PATH the answer is exit 2, an
+*unproven* edit, never the exit 3 that lets a coarser reading layer apply
+deletions anyway.
+
+Two comments the proof must not ignore: a shebang on line 1, which both
+tree-sitter's bash grammar and PowerShell type as a comment, and `#Requires`,
+which PowerShell also does. Dropping either would let deleting a directive pass
+as COMMENT-ONLY.
 
 Usage: change-shape.py [--lang <name>] [--json] BEFORE AFTER
 """
@@ -33,6 +42,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -45,7 +57,8 @@ EXIT_NO_TOOLING = 3
 EXIT_USAGE = 2
 
 # Extension -> (grammar language name, per-language wheel module, attribute
-# on that module that returns the language pointer).
+# on that module that returns the language pointer). A None module marks the
+# native PowerShell backend, which loads no grammar.
 EXT_LANG = {
     ".py": ("python", "tree_sitter_python", "language"),
     ".pyi": ("python", "tree_sitter_python", "language"),
@@ -63,6 +76,8 @@ EXT_LANG = {
     ".yml": ("yaml", "tree_sitter_yaml", "language"),
     ".yaml": ("yaml", "tree_sitter_yaml", "language"),
     ".toml": ("toml", "tree_sitter_toml", "language"),
+    ".ps1": ("powershell", None, None),
+    ".psm1": ("powershell", None, None),
 }
 
 # Leaf kinds that count as identifiers for the RENAME-ONLY verdict. Anything
@@ -78,8 +93,113 @@ IDENTIFIER_KINDS = frozenset(
         "shorthand_property_identifier",
         "shorthand_property_identifier_pattern",
         "statement_identifier",
+        # PowerShell. Not `Identifier`, which is both member names and type
+        # names, so `[string]` -> `[int]` would read as a rename; not `Generic`,
+        # which is command names and bare-word arguments; not `Parameter`, which
+        # is a cross-file call-site contract.
+        "Variable",
+        "SplattedVariable",
+        # A variable read out of an expandable string, normalized to `$name`.
+        "InterpolatedVariable",
     }
 )
+
+PS_SCRIPT = Path(__file__).with_name("ps-tokens.ps1")
+# `#requires` is accepted in any case and must survive stripping as the shebang
+# does: deleting it leaves the token stream identical.
+PS_REQUIRES = re.compile(r"^\s*#requires\b", re.IGNORECASE)
+
+
+class PowerShellUnavailable(Exception):
+    """No usable PowerShell host, so no token-level claim can be made."""
+
+
+def powershell_records(*args: str) -> list[dict]:
+    """Run ps-tokens.ps1 under pwsh; one JSON object per output line."""
+    host = shutil.which("pwsh")
+    if host is None:
+        raise PowerShellUnavailable("no PowerShell host: pwsh is not on PATH")
+    cmd = [host, "-NoProfile", "-NonInteractive"]
+    if os.name == "nt":
+        # A Windows client's default policy is Restricted, where -File refuses
+        # to run at all and the failure would read as a tooling absence.
+        cmd += ["-ExecutionPolicy", "Bypass"]
+    # ponytail: one pwsh process per verdict (~0.5 s of startup plus ~1 s per
+    # megabyte of source). Batch N pairs per process if a large run measures
+    # badly; do not build the batch before it does.
+    proc = subprocess.run(
+        [*cmd, "-File", str(PS_SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise PowerShellUnavailable(
+            f"ps-tokens.ps1 exited {proc.returncode}: {proc.stderr.strip()[:300]}"
+        )
+    try:
+        return [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+    except json.JSONDecodeError as exc:
+        raise PowerShellUnavailable(f"ps-tokens.ps1 output is not JSON: {exc}") from exc
+
+
+def powershell_leaves(record: dict) -> list[tuple[str, str]]:
+    """Tokens minus comments, with the directive comments kept as leaves."""
+    flat = record["tokens"]
+    # Tokens read out of an expandable string, keyed on that string's position.
+    triples = record["nested"]
+    extra: dict[int, list[tuple[str, str]]] = {}
+    for j in range(0, len(triples), 3):
+        extra.setdefault(int(triples[j]), []).append(
+            (triples[j + 1], triples[j + 2])
+        )
+
+    def stream():
+        for i in range(0, len(flat), 2):
+            yield i, flat[i], flat[i + 1]
+            for kind, text in extra.get(i // 2, ()):
+                yield -1, kind, text
+
+    out: list[tuple[str, str]] = []
+    for i, kind, text in stream():
+        if kind == "Comment":
+            if PS_REQUIRES.match(text):
+                out.append(("requires", text))
+            elif i == 0 and text.startswith("#!"):
+                out.append(("shebang", text))
+        elif kind == "NewLine":
+            # A newline separates statements, so dropping it would let
+            # `cmd $a # c` and the line under it merge into one call behind a
+            # comment deletion. A run collapses to one leaf and the ends are
+            # trimmed, which keeps blank lines and reflow invisible.
+            if out and out[-1][0] != "NewLine":
+                out.append(("NewLine", "\n"))
+        elif kind != "EndOfInput":
+            out.append((kind, text))
+    while out and out[-1][0] == "NewLine":
+        out.pop()
+    return out
+
+
+def powershell_rename_defect(mapping: dict[str, str], reserved: set[str]) -> str | None:
+    """A rename may not change a variable's scope or touch a reserved name.
+
+    Both are token-shaped and neither preserves meaning. `reserved` is the set
+    ps-tokens.ps1 read out of a live runspace, so it tracks the language rather
+    than a list maintained here.
+    """
+    for old, new in mapping.items():
+        for name in (old, new):
+            # `$env:PATH` is rejected by the scope test below, so only the bare
+            # name matters here.
+            if name.lstrip("$@").lower() in reserved:
+                return f"rename touches the reserved variable {name}"
+        # `$x` -> `$global:x` and `$x` -> `$env:PATH` are scope changes, so the
+        # sigil-to-last-colon prefix has to match on both sides.
+        if old.rpartition(":")[0].lower() != new.rpartition(":")[0].lower():
+            return f"scope prefix changed: {old} -> {new}"
+    return None
 
 
 def language_for(name: str, module: str, attr: str):
@@ -142,6 +262,20 @@ def leaves(src: bytes, lang) -> tuple[list[tuple[str, str]], bool]:
 def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
     a, a_broken = leaves(before, lang)
     b, b_broken = leaves(after, lang)
+    return classify_leaves(a, b, a_broken, b_broken)
+
+
+def classify_leaves(
+    a, b, a_broken: bool, b_broken: bool, fold=None
+) -> tuple[str, int, dict]:
+    """`fold` canonicalizes an identifier for the name bookkeeping only.
+
+    A language whose names are case-insensitive passes `str.lower` here, so the
+    mapping, the collision check and the stale-name check all agree with the
+    language. The leaves themselves stay verbatim, so a case-only edit is still
+    a visible difference rather than nothing at all.
+    """
+    key = fold or (lambda s: s)
     if a_broken or b_broken:
         side = "before" if a_broken else "after"
         return (
@@ -160,15 +294,24 @@ def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
     diffs = [(x, y) for x, y in zip(a, b) if x != y]
     if all(x[0] in IDENTIFIER_KINDS and y[0] in IDENTIFIER_KINDS for x, y in diffs):
         mapping: dict[str, str] = {}
+        folded: dict[str, str] = {}
         reverse: dict[str, str] = {}
         for (_, old), (_, new) in diffs:
-            if mapping.setdefault(old, new) != new:
+            if key(old) == key(new):
+                # The same name respelled. Nothing was renamed, and under a
+                # case-insensitive fold the mapping would be an identity.
+                return (
+                    "CODE-CHANGED",
+                    EXIT_CODE_CHANGED,
+                    {"reason": "one name respelled, not renamed", "at": old},
+                )
+            if folded.setdefault(key(old), key(new)) != key(new):
                 return (
                     "CODE-CHANGED",
                     EXIT_CODE_CHANGED,
                     {"reason": "inconsistent identifier mapping", "at": old},
                 )
-            if reverse.setdefault(new, old) != old:
+            if reverse.setdefault(key(new), key(old)) != key(old):
                 # Two renamed identifiers collapsing onto one name is a merge,
                 # not a rename: the mapping must be injective as well as consistent.
                 return (
@@ -176,15 +319,16 @@ def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
                     EXIT_CODE_CHANGED,
                     {"reason": "two identifiers collapse to one name", "at": new},
                 )
+            mapping[old] = new
         # The diff only sees positions that changed. An old name still present
         # at an unchanged position is a rename that missed a reference; a new
         # name already present at one is a rename onto an existing identifier.
         unchanged = {
-            text
+            key(text)
             for (kind, text), y in zip(a, b)
             if kind in IDENTIFIER_KINDS and (kind, text) == y
         }
-        stale = sorted(old for old in mapping if old in unchanged)
+        stale = sorted(old for old in mapping if key(old) in unchanged)
         if stale:
             return (
                 "CODE-CHANGED",
@@ -194,7 +338,7 @@ def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
                     "at": stale[0],
                 },
             )
-        collision = sorted(new for new in reverse if new in unchanged)
+        collision = sorted(new for new in mapping.values() if key(new) in unchanged)
         if collision:
             return (
                 "CODE-CHANGED",
@@ -239,19 +383,49 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_USAGE
 
-    lang, source = language_for(*entry)
-    if lang is None:
-        print(f"change-shape: UNAVAILABLE: {source}", file=sys.stderr)
-        return EXIT_NO_TOOLING
+    if entry[1] is None:
+        try:
+            records = powershell_records(str(args.before), str(args.after))
+            if len(records) != 2:
+                raise PowerShellUnavailable(
+                    f"ps-tokens.ps1 returned {len(records)} records, expected 2"
+                )
+        except PowerShellUnavailable as exc:
+            print(f"change-shape: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        source = "pwsh"
+        verdict, code, detail = classify_leaves(
+            powershell_leaves(records[0]),
+            powershell_leaves(records[1]),
+            records[0]["errors"] > 0,
+            records[1]["errors"] > 0,
+            # PowerShell variable names are case-insensitive, so `$Old` and
+            # `$old` are one name to every check that reasons about names.
+            fold=str.lower,
+        )
+        if verdict == "RENAME-ONLY":
+            reserved = {n.lower() for n in records[1]["reserved"]}
+            defect = powershell_rename_defect(detail["mapping"], reserved)
+            if defect:
+                verdict, code, detail = (
+                    "CODE-CHANGED",
+                    EXIT_CODE_CHANGED,
+                    {"reason": defect},
+                )
+    else:
+        lang, source = language_for(*entry)
+        if lang is None:
+            print(f"change-shape: UNAVAILABLE: {source}", file=sys.stderr)
+            return EXIT_NO_TOOLING
 
-    try:
-        before = args.before.read_bytes()
-        after = args.after.read_bytes()
-    except OSError as exc:
-        print(f"change-shape: {exc}", file=sys.stderr)
-        return EXIT_USAGE
+        try:
+            before = args.before.read_bytes()
+            after = args.after.read_bytes()
+        except OSError as exc:
+            print(f"change-shape: {exc}", file=sys.stderr)
+            return EXIT_USAGE
 
-    verdict, code, detail = classify(before, after, lang)
+        verdict, code, detail = classify(before, after, lang)
     if args.json:
         print(
             json.dumps(
