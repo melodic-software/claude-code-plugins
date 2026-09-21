@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.9]
+
+### Fixed
+
+- **`write-for-agents`'s surface reference said Claude Code does not read `AGENTS.md` natively.**
+  It does, since v2.1.277, where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in
+  the working directory or above it. The row now matches `docs/specs/agent-doc-surfaces.md`, which
+  that reference is declared to be fed by, and the cross-tool table stops listing Claude Code as
+  the exception. The availability set is remote-flag gated and moves, so the row points at
+  `instruction-placement`'s `skills/migrate/reference/sources.md` for it instead of restating it
+  where it would rot.
+
 ## [0.22.8]
 
 ### Fixed
