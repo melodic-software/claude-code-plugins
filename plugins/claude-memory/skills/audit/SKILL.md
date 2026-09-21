@@ -28,7 +28,7 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Entity | Location | Loaded | Audited here |
 |--------|----------|--------|-------------|
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
-| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Every session, full, both files, when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` displaces them; under a `@AGENTS.md` shim it loads as that file's import instead | Yes, as the project instructions (the C-checks) |
+| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Every session, full, both files, when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the root or any directory above it displaces them (the user root's own `~/.claude/CLAUDE.md` does not count); under a `@AGENTS.md` shim it loads as that file's import instead | Yes, as the project instructions (the C-checks) |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |

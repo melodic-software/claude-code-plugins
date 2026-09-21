@@ -17,11 +17,17 @@ assert_contains() {
 }
 
 # The whole-set modes add the user-scope layer, so the host's real config dir
-# must never leak into these expectations: HOME is pinned to an empty fixture
-# home and CLAUDE_CONFIG_DIR is cleared. The user-scope case below sets its own.
-mkdir -p "$TEST_TMPDIR/home"
-export HOME="$TEST_TMPDIR/home"
-unset CLAUDE_CONFIG_DIR
+# must never leak into these expectations: CLAUDE_CONFIG_DIR is pinned to an empty
+# fixture root, which is what the scripts resolve the user scope from. The
+# user-scope case below sets its own.
+#
+# HOME is deliberately NOT pinned. The displacement walk in lib/agents-md.sh climbs
+# every ancestor, and on Windows the temp tree these fixtures live in sits INSIDE the
+# real profile; with a fake HOME the machine's own `~/.claude/CLAUDE.md` stops being
+# the user root and starts counting as an ancestor displacer, so every AGENTS.md
+# fixture would report displaced on a developer machine and not on CI.
+mkdir -p "$TEST_TMPDIR/conf"
+export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/conf"
 
 # --- Case 1: --help and a bad mode ---
 
@@ -178,10 +184,11 @@ assert_contains "project rows keep the project scope" "$OUT" "project	root	1	10	
 # Bytes: project 10 + user 23 + 11 + 10 = 54 => 13 tokens.
 OUT=$(cd "$USR" && CLAUDE_CONFIG_DIR="$UCFG" bash "$SCRIPT" --tokens)
 assert_eq "--tokens covers both scopes" "13" "$OUT"
-# HOME/.claude is the fallback when CLAUDE_CONFIG_DIR is unset.
+# HOME/.claude is the fallback when CLAUDE_CONFIG_DIR is unset, so this case is the one
+# that clears the suite-wide pin.
 mkdir -p "$TEST_TMPDIR/home2/.claude"
 printf '# Home user\n' >"$TEST_TMPDIR/home2/.claude/CLAUDE.md"
-OUT=$(cd "$USR" && HOME="$TEST_TMPDIR/home2" bash "$SCRIPT" --tokens)
+OUT=$(cd "$USR" && HOME="$TEST_TMPDIR/home2" CLAUDE_CONFIG_DIR='' bash "$SCRIPT" --tokens)
 assert_eq "--tokens falls back to HOME/.claude (10 + 12 bytes)" "5" "$OUT"
 # The single-file modes stay project-only: C1 is a per-file check.
 OUT=$(cd "$USR" && CLAUDE_CONFIG_DIR="$UCFG" bash "$SCRIPT" --lines)

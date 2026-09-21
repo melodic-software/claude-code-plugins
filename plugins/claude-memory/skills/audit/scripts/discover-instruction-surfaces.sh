@@ -69,7 +69,8 @@ Emits one TAB-separated record per file: <scope> <kind> <path>
   kind    claude-md | claude-local-md | agents-md | rule
 
 An AGENTS.md is emitted only where Claude Code reads it as the project instructions: no
-CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md at the root to displace it. Both AGENTS.md
+CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md in the root or any directory above it to
+displace it (the user root's own ~/.claude/CLAUDE.md does not count). Both AGENTS.md
 and .claude/AGENTS.md load at session start, so each existing file gets its own row. Under
 a one-line `@AGENTS.md` shim the CLAUDE.md row already covers that content, so the shim
 emits one row, not two.

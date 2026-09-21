@@ -299,6 +299,57 @@ printf '# project instructions\n' >"$DOTBLOCKED/.claude/AGENTS.md"
 OUT_DOTBLOCKED="$(run_in "$DOTBLOCKED" "$EMPTY_CONF")"
 assert_not_contains "a CLAUDE.md displaces .claude/AGENTS.md too" "$OUT_DOTBLOCKED" "$(printf 'agents-md\t')"
 
+# --- a displacer ABOVE the repository root ------------------------------------
+# "Count, so Claude reads them instead of `AGENTS.md`: a `CLAUDE.md`,
+# `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
+# directory above it" (memory doc). A check that stops at the root reports a
+# surface the session never reads.
+
+ANC="$TEST_TMPDIR/anc"
+mkdir -p "$ANC/proj"
+printf '# ancestor memory\n' >"$ANC/CLAUDE.md"
+printf '# project instructions\n' >"$ANC/proj/AGENTS.md"
+OUT_ANC="$(run_in "$ANC/proj" "$EMPTY_CONF")"
+assert_not_contains "an ancestor CLAUDE.md displaces the AGENTS.md" "$OUT_ANC" "$(printf 'agents-md\t')"
+
+ANCL="$TEST_TMPDIR/anc-local"
+mkdir -p "$ANCL/a/b/proj"
+printf '# ancestor overrides\n' >"$ANCL/a/CLAUDE.local.md"
+printf '# project instructions\n' >"$ANCL/a/b/proj/AGENTS.md"
+OUT_ANCL="$(run_in "$ANCL/a/b/proj" "$EMPTY_CONF")"
+assert_not_contains "a CLAUDE.local.md two levels up displaces it" "$OUT_ANCL" "$(printf 'agents-md\t')"
+
+ANCD="$TEST_TMPDIR/anc-dot"
+mkdir -p "$ANCD/.claude" "$ANCD/proj"
+printf '# ancestor project memory\n' >"$ANCD/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$ANCD/proj/AGENTS.md"
+OUT_ANCD="$(run_in "$ANCD/proj" "$EMPTY_CONF")"
+assert_not_contains "an ancestor .claude/CLAUDE.md displaces it" "$OUT_ANCD" "$(printf 'agents-md\t')"
+
+# The one ancestor `.claude/CLAUDE.md` that does NOT count is the user root:
+# "Don't count, and keep loading alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`".
+# A bare `CLAUDE.md` in that same directory is not the user root file and counts.
+HOMEY="$TEST_TMPDIR/homey"
+mkdir -p "$HOMEY/.claude" "$HOMEY/proj"
+printf '# user memory\n' >"$HOMEY/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$HOMEY/proj/AGENTS.md"
+OUT_HOMEY="$(cd "$HOMEY/proj" && CLAUDE_CONFIG_DIR="$HOMEY/.claude" bash "$SCRIPT")"
+assert_contains "the user root's own CLAUDE.md does not displace it" "$OUT_HOMEY" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+printf '# a bare home CLAUDE.md\n' >"$HOMEY/CLAUDE.md"
+OUT_HOMEY_BARE="$(cd "$HOMEY/proj" && CLAUDE_CONFIG_DIR="$HOMEY/.claude" bash "$SCRIPT")"
+assert_not_contains "a bare CLAUDE.md beside the user root still displaces it" "$OUT_HOMEY_BARE" "$(printf 'agents-md\t')"
+
+# `$HOME/.claude` is the user root whether or not CLAUDE_CONFIG_DIR names it. A suite that
+# pins only CLAUDE_CONFIG_DIR would otherwise read the machine's own `~/.claude/CLAUDE.md`
+# as an ancestor displacer wherever the fixtures sit inside the real profile.
+HOMEONLY="$TEST_TMPDIR/home-only"
+mkdir -p "$HOMEONLY/.claude" "$HOMEONLY/proj"
+printf '# user memory\n' >"$HOMEONLY/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$HOMEONLY/proj/AGENTS.md"
+OUT_HOMEONLY="$(cd "$HOMEONLY/proj" && HOME="$HOMEONLY" CLAUDE_CONFIG_DIR="$EMPTY_CONF" bash "$SCRIPT")"
+assert_contains "HOME/.claude is the user root even when CLAUDE_CONFIG_DIR names another" "$OUT_HOMEONLY" "$(printf 'project\tagents-md\tAGENTS.md')"
+
 # --- unknown argument is advisory, not fatal ---------------------------------
 
 run_in "$PROJ" "$CONF" --nonsense >/dev/null 2>&1
