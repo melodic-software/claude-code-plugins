@@ -36,9 +36,8 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 - **Project scope by default.** The experiment strips the *project's* surfaces: project CLAUDE.md /
   CLAUDE.local.md / `.claude/CLAUDE.md`, the `AGENTS.md` and `.claude/AGENTS.md` a session reads
   natively once those are gone (**that reading is version- and flag-dependent and this body does
-  not restate the condition**; the four-part record is the `instruction-placement` plugin's
-  `skills/migrate/reference/sources.md`, and both names are candidates either way, since removing
-  the `CLAUDE.md` names is what makes the question live),
+  not restate the condition**; the four-part record is this plugin's
+  [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md)),
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
   and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
   operator explicitly opts in per phase-1 prompt, never by default.
@@ -145,9 +144,16 @@ Apply the confirmed strip plan:
   instructions only when no `CLAUDE.md` name displaces them, and this strip removes exactly those
   names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md` shim ends the strip with its
   entire instruction surface still loading, from the file the shim pointed at, unless the plan
-  considered that file at all. The displacement rule carries its dated record in the
-  `instruction-placement` plugin's `skills/migrate/reference/sources.md`; read it there rather than
-  restating the condition here. What the classification then says is binding on an `AGENTS.md`
+  considered that file at all. **Candidacy is not unconditional where the surface cannot become
+  live.** Removing the `CLAUDE.md` names is what makes a session read an `AGENTS.md`, but only where
+  it can read one at all: with the CLI below the version floor or the flag known off, the file stays
+  unread after the strip, so stripping it changes nothing about the baseline being measured and only
+  perturbs the other tools that read it. Where a gate is known false **and** no `CLAUDE.md` imports
+  or symlinks the file, leave it out of the candidate set; where a gate is merely unresolved, or a
+  shim or import reaches the file, it stays a candidate, since that import is itself a live path
+  into context. The three gates carry their dated records in this plugin's
+  [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md); read them there rather
+  than restating the conditions here. What the classification then says is binding on an `AGENTS.md`
   exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
   `strip`, and a mixed or `hybrid` one is split at section granularity, not handed to `strip`,
   which only moves whole files.

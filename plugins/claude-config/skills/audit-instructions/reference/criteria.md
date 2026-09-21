@@ -784,9 +784,8 @@ skill bodies.
   copy.
   There, in the first case, an instruction to read it is the only thing that puts it in context,
   and flagging the read as redundant would propose deleting the load. Resolve the version, flag
-  **and mode** conditions from the dated records, the first two in the `instruction-placement`
-  plugin's `skills/migrate/reference/sources.md` and the mode in that plugin's
-  `scripts/render-index.sh`, before flagging an `AGENTS.md` read, and where **any of the three**
+  **and mode** conditions from the dated records in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before flagging an `AGENTS.md` read, and where **any of the three**
   cannot be resolved for the session under audit, leave the read alone, per this check's own
   residency rule below that an unestablished residency is not a finding.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
@@ -806,7 +805,7 @@ skill bodies.
   floor or the flag is off**. A repository with no displacing file
   loads its `AGENTS.md` at startup like a `CLAUDE.md` (v2.1.277 and later, where support is
   available), so resolve both halves, the displacement and the version-and-flag condition recorded
-  in the `instruction-placement` plugin's `skills/migrate/reference/sources.md`, before exempting it
+  in [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before exempting it
   or flagging it. Unresolved is a leave-alone, per the residency rule above. Those are ordinary progressive disclosure, **but only while no active startup
   import reaches them.** A startup file
   that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
@@ -866,8 +865,8 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   a `CLAUDE.md` is not a conflict either, and keeping it would report one against a surface nothing
   loads. Exclude on a gate known false; keep the file whenever every gate is satisfied or merely
   unresolved, which puts the conservative direction where the answer is unknown rather than where it
-  is known to be no. The floor and the flag carry their dated records in the
-  `instruction-placement` plugin's `skills/migrate/reference/sources.md`.
+  is known to be no. The floor and the flag carry their dated records in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as
   `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps

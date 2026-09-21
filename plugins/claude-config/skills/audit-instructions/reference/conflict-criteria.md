@@ -137,9 +137,8 @@ the floor, or one where the flag is off, does not load the file, so the row does
 residency for it and gate 1 does not pair it; treating displacement as the whole question would
 report a conflict against a surface nothing loads. Resolve all three, and where a gate is merely
 unresolved rather than known false, keep the row's residency and let the pair be judged. The floor
-and the flag carry their dated records in the `instruction-placement` plugin's
-`skills/migrate/reference/sources.md`; the mode is a user, `--settings` or managed setting, so the
-value to resolve is the effective one across those scopes.
+and the flag carry their dated records, with the mode and its settings scopes, in
+[agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 
 **An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
 A non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main

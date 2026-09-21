@@ -78,10 +78,10 @@ context/reference files a skill instructs the model to read), agent definition m
 instruction text of both kinds, output-style markdown, CLAUDE.md / a natively read AGENTS.md or
 `.claude/AGENTS.md` / CLAUDE.local.md, `.claude/rules/`. **Whether an `AGENTS.md` is read natively
 depends on the instruction-files mode, the CLI version and a remote flag, and this body does not
-restate the condition**: the four-part record, which file names displace it under the default mode,
-the version floor and the remote flag with its code default, is the `instruction-placement`
-plugin's `skills/migrate/reference/sources.md`. Resolve it there rather than from a copy that can
-drift. **Displacement is the default mode's answer, not the only one**: under the
+restate the condition**: the four-part record for all three gates, the mode with its settings
+scopes, the version floor and the remote flag, is this plugin's
+[reference/agents-md-liveness.md](../../reference/agents-md-liveness.md). Resolve it there rather
+than from a copy that can drift. **Displacement is the default mode's answer, not the only one**: under the
 `claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
 `AGENTS.md` after, so an `AGENTS.md` beside a `CLAUDE.md` is live there and belongs in the set even
 though the default mode would call it displaced. That option is a user, `--settings` or managed
