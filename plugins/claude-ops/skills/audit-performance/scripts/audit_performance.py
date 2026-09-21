@@ -1639,9 +1639,13 @@ def names_a_shell_in_command_position(lowered: str) -> bool:
     spaces stays one token, and an operator inside a quoted argument (`grep -e 'a|sh' f`) is
     not a delimiter. The two legacy findings still flatten quotes and read their own token
     list, so that difference cannot move either of them. The predecessor test reads the
-    UNRESTORED token, so a quoted lone `"|"` cannot grant command position. The rule still
-    misses in one direction: a subshell and a runner that takes arguments of its own first
-    (`timeout 5 bash x.sh`) never match.
+    UNRESTORED token, so a quoted lone `"|"` cannot grant command position. The rule errs
+    in BOTH directions and is a floor, not a verdict. It misses a subshell, a runner that
+    takes arguments of its own first (`timeout 5 bash x.sh`), and `xargs bash x.sh`. It
+    over-reports a shell named in a trailing comment (`./x.sh # ; bash`), because comments are
+    not parsed, and a `<tool> exec <shell>` form (`docker exec bash`, `npm exec sh`), because
+    `exec` grants command position without knowing whose subcommand it is. Confirm a row
+    against its own manifest before acting on it.
     """
     tokens = tokenize_honouring_quotes(lowered)
     for index, token in enumerate(tokens):

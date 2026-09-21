@@ -191,13 +191,16 @@ spawns. Read `fan_out` in this order:
    rule does not cover is missed rather than reported: a subshell (`$(bash x.sh)` or a
    backquoted one) and a runner taking arguments of its own first (`timeout 5 bash x.sh`) are
    examples, not a closed list: `xargs bash x.sh` and `find . -exec sh {} \;` miss for the same
-   reason, so confirm a row against its own manifest before acting on it. The
+   reason. It errs the other way too: a shell named in a trailing comment (`./x.sh # ; bash`)
+   is reported, because comments are not parsed, and so is a `<tool> exec <shell>` form
+   (`docker exec bash`, `npm exec sh`), because `exec` grants command position without knowing
+   whose subcommand it is. Confirm a row against its own manifest before acting on it. The
    command-position rule honours quotes: a quoted executable containing spaces
    (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is
    recognised, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read
    as a delimiter. The two LEGACY findings still flatten quotes and read their own token
-   list, unchanged on every input. A row spelling an explicit `"args": []` is exec form, the
-   same as one that omits the key, and reports no second shell.
+   list, unchanged on every input. A row spelling an explicit `"args": []` is exec form and reports
+   no second shell; a row that omits the key is shell form.
    Which bash pays the wrapping spawn is item 3. `per_tool_call.count` is the
    registered-row ceiling, so read `by_matcher` and
    `projection` beside it for what one tool call of a given shape actually spawns, and
@@ -243,7 +246,8 @@ spawns. Read `fan_out` in this order:
 6. **`fan_out.statusline`**. Reported, never rendered. `refresh_interval_seconds` is in SECONDS
    with a documented minimum of 1; reading it as milliseconds inverts the conclusion. Its
    `invocation_shape_findings` reads the same way as item 2: the command runs in a shell, Git
-   Bash on Windows, so a command naming a shell puts at least two shells in the chain
+   Bash on Windows when Git Bash is installed and PowerShell when it is absent, so a command
+   naming a shell puts at least two shells in the chain
    ([statusline](https://code.claude.com/docs/en/statusline.md), verified 2026-09-20; recheck
    when either of that page's shell sentences changes).
 7. **`processes.orphan_attribution`**. Only a dead-parent process is an orphan. A long-lived

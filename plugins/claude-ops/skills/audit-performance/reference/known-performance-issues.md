@@ -105,7 +105,8 @@ work begins:
   median from 10,850 ms to 2,777 ms, roughly 4x, measured back to back at the same load.
 
 The third names a shell the command string cannot show. Claude Code passes a shell-form
-`command` (one with no `args`) to a shell before its first word runs, `sh -c` on macOS and Linux,
+`command` (one that OMITS `args`; an explicit `"args": []` is exec form) to a shell before its
+first word runs, `sh -c` on macOS and Linux,
 Git Bash on Windows, PowerShell when Git Bash is absent, and it runs the statusline command in a
 shell the same way ([hooks](https://code.claude.com/docs/en/hooks.md) and
 [statusline](https://code.claude.com/docs/en/statusline.md), verified 2026-09-20; recheck when
