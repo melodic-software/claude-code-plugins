@@ -137,11 +137,12 @@
       "id": 12,
       "name": "agents-md-shim-stripped-with-claude-md",
       "prompt": "/claude-config:unhobble bare — our CLAUDE.md is one line, @AGENTS.md, and all the actual instructions live in AGENTS.md. Strip the CLAUDE.md and let's see how the model does.",
-      "expected_output": "Strips AGENTS.md, both the root one and any copy under the .claude directory, along with the CLAUDE.md shim rather than removing the shim alone. Removing the CLAUDE.md is what makes the session read AGENTS.md as the project instructions, so a strip that stopped at the shim would declare the baseline bare while the repository's whole instruction surface kept loading. Both AGENTS.md names are on the strip list scripts/instruction-files.sh reports, and the restore step puts them back from the pre-strip commit.",
+      "expected_output": "Classifies AGENTS.md, the root one and any copy under the .claude directory, as strip candidates alongside the CLAUDE.md shim rather than passing over them because nothing appears to read them today. Removing the CLAUDE.md is what makes the session read AGENTS.md as the project instructions, so a plan that considered only the shim would declare the baseline bare while the repository's whole instruction surface kept loading. Candidacy is not a verdict: a file classified behavioral is stripped, one classified policy or convention is kept and never named to the strip, and a mixed one is split at section granularity, the same rules that govern a CLAUDE.md. The restore step puts back what the evidence earns, from the pre-strip commit.",
       "files": [],
       "expectations": [
-        "Includes the root AGENTS.md and any copy under the .claude directory in the strip plan alongside the CLAUDE.md shim",
-        "Explains that removing the CLAUDE.md is what makes AGENTS.md load natively, so leaving it would not be a bare baseline",
+        "Treats the root AGENTS.md and any copy under the .claude directory as strip candidates alongside the CLAUDE.md shim",
+        "Explains that removing the CLAUDE.md is what makes AGENTS.md load natively, so leaving it unconsidered would not be a bare baseline",
+        "Applies the same per-file classification to an AGENTS.md as to a CLAUDE.md rather than stripping it automatically",
         "Names the restore path back from the pre-strip commit rather than treating the strip as one-way"
       ]
     }

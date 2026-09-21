@@ -131,16 +131,19 @@ Apply the confirmed strip plan:
   a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
   chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
   `--all` is there for the case where the plan did approve every one.
-  **Both `AGENTS.md` names
-  go with the `CLAUDE.md` files, whether or not the session reads them natively today.** A session
-  reads them as the project instructions only when no `CLAUDE.md` name displaces them, and this
-  strip removes exactly those names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md`
-  shim ends the strip with its entire instruction surface still loading, from the file the shim
-  pointed at, unless the strip takes that file too. The displacement rule carries its dated record
-  in the `instruction-placement` plugin's
-  `skills/migrate/reference/sources.md`; read it there rather than restating the condition here. A
-  mixed `AGENTS.md` is split at section granularity like a mixed `CLAUDE.md`, not handed to
-  `strip`, which only moves whole files.
+  **Both `AGENTS.md` names are strip CANDIDATES whether or not the session reads them natively
+  today, and each is then classified like any other file.** Candidacy and classification are
+  separate questions, and only the first is unconditional. Phase 1 must classify both names rather
+  than passing over them because nothing appears to read them: a session reads them as the project
+  instructions only when no `CLAUDE.md` name displaces them, and this strip removes exactly those
+  names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md` shim ends the strip with its
+  entire instruction surface still loading, from the file the shim pointed at, unless the plan
+  considered that file at all. The displacement rule carries its dated record in the
+  `instruction-placement` plugin's `skills/migrate/reference/sources.md`; read it there rather than
+  restating the condition here. What the classification then says is binding on an `AGENTS.md`
+  exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
+  `strip`, and a mixed or `hybrid` one is split at section granularity, not handed to `strip`,
+  which only moves whole files.
 - Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
   remove the entries, record the exact JSON paths removed in the manifest. An entry classified
   `hybrid` is never removed whole: strip its behavioral surface through the hook's own kill switch

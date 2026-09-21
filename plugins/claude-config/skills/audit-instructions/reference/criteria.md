@@ -763,8 +763,17 @@ skill bodies.
   startup and therefore already carries: the **root** project `CLAUDE.md` in **either** supported
   location (`./CLAUDE.md` **or** `./.claude/CLAUDE.md`), the user `CLAUDE.md` at the **resolved**
   `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, the **root** `AGENTS.md` or
-  `./.claude/AGENTS.md` where no `CLAUDE.md` name displaces it, unconditional
+  `./.claude/AGENTS.md` where the session reads it natively, unconditional
   project rules (no `paths` frontmatter), and managed policy files. Each of the three qualifiers is required.
+  **The `AGENTS.md` entry carries a fourth qualifier, and it is not the displacement test alone.**
+  Native reading also depends on the CLI version and a remote feature flag, so a session on an older
+  CLI, or one where the flag is off, does not load the file even with no `CLAUDE.md` in sight; there
+  an instruction to read it is the only thing that puts it in context, and flagging the read as
+  redundant would propose deleting the load. Resolve the version and flag condition from the dated
+  record in the `instruction-placement` plugin's `skills/migrate/reference/sources.md` before
+  flagging an `AGENTS.md` read, and where it cannot be resolved for the session under audit, leave
+  the read alone: this check's own **Must NOT flag** rule below is that an unestablished residency
+  is not a finding.
   Root-level: the startup guarantee is scoped to the hierarchy discovered from the launch directory,
   not to every file of that name in the tree. Resolved: `CLAUDE_CONFIG_DIR` moves the whole config
   tree, so a hardcoded `~/.claude/CLAUDE.md` both flags a read that is now necessary and misses the
@@ -785,9 +794,12 @@ skill bodies.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded: contributing
   guides, ADRs, CI workflow files, per-ecosystem convention docs, and an `AGENTS.md` that a
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it
-  displaces. A repository with no such file loads its `AGENTS.md` at startup like a `CLAUDE.md`
-  (v2.1.277 and later, where support is available), so resolve which case the repository is in
-  before exempting it. Those are ordinary progressive disclosure, **but only while no active startup
+  displaces, **and one no displacing file suppresses that the session still does not read natively,
+  because the CLI predates the floor or the flag is off**. A repository with no displacing file
+  loads its `AGENTS.md` at startup like a `CLAUDE.md` (v2.1.277 and later, where support is
+  available), so resolve both halves, the displacement and the version-and-flag condition recorded
+  in the `instruction-placement` plugin's `skills/migrate/reference/sources.md`, before exempting
+  it or flagging it; unresolved is a leave-alone, per the residency rule above. Those are ordinary progressive disclosure, **but only while no active startup
   import reaches them.** A startup file
   that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
   `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
