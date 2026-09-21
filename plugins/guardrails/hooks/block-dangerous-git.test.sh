@@ -1842,8 +1842,10 @@ run_pwsh "PS hs: a sibling before the ambiguity still blocks past a neutralized 
 # literal-`git` spelling of this shape is rc 0 on the base as well, because the
 # reduction it emits hands the Bash tokenizer an unpaired `@'` that pairs across
 # newlines and swallows the git line into one quoted word, so a fixture written
-# that way pins the base at 0 and discriminates nothing. The `( )` grouping is
-# what the base's own special-construct sink refuses.
+# that way cannot pin PARITY with the base: it pins the base at 0. It still
+# discriminates this change, and it is pinned on its own below. The `( )`
+# grouping is what the base's own special-construct sink refuses, and it is what
+# makes these rows 2 on both trees.
 ps_hs_block_apos="$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "& ('g'+'it') push --force" "'@'")"
 run_pwsh "PS hs: an opener the walk pairs but the legacy reduction does not (blocked)" \
   "$ps_hs_block_apos" 2
@@ -1881,6 +1883,20 @@ run_pwsh "PS hs: the opener-unconfirmed token does not waive the recovered group
 # base does not is the fail-closed direction the subset rule leaves open.
 run_pwsh "PS hs: the literal-git spelling of the walk-paired opener (blocked)" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "git push --force" "'@'")" 2
+# The EXPANDABLE spelling of the same disagreement, which is the one that reaches
+# PS_HERESTRING_UNCONFIRMED_EXPANDABLE through this cause. `note "a'b" 'c' @"`
+# walks clean (both spans pair and are deleted), while the base's single-quote
+# pass spans `'b" '` and its double-quote pass then eats what is left, so the base
+# sees no opener. The body names no literal `git`, so the refusal comes from the
+# unconditional expandable-body path rather than from a visible-text hit: under
+# the here-string reading those lines are an expandable body and the `$( … )` in
+# them is a command position. rc 0 on the base, rc 2 here.
+run_pwsh "PS hs: the expandable spelling of the reduction disagreement (blocked)" \
+  "$(printf '%s\n%s\n%s' "note \"a'b\" 'c' @\"" "\$(& \$g push --force)" "\"@")" 2
+# THE COST of that shape, pinned rather than left to be re-found: the refusal is
+# by SHAPE, so a git-free body carrying no `$(` at all blocks too.
+run_pwsh "PS hs: the expandable disagreement over a plain body (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "note \"a'b\" 'c' @\"" "hello" "\"@")" 2
 
 # RECORDED RESIDUALS, not endorsements. Both are rc 0 on this change and on its
 # base, at default configuration with no allow token, and both are pinned so
