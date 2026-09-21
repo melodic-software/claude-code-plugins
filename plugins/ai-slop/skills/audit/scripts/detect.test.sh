@@ -91,6 +91,7 @@ assert_eq() {
 
 EM=$'\xe2\x80\x94'
 CHECKMARK=$'\xe2\x9c\x85'
+WARNSIGN=$'\xe2\x9a\xa0'
 LQUO=$'\xe2\x80\x9c'
 RQUO=$'\xe2\x80\x9d'
 
@@ -273,6 +274,32 @@ assert_not_contains "roster: rule-of-three is rubric-demoted, no finding" "$out"
 
 out="$(bash "$DETECT" "$MIDEMOJI" 2>&1)"
 assert_not_contains "emoji negative: content-position emoji does not fire the formatting rule" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
+
+# A blockquote prefix is a marker position like a heading or a bullet: the same
+# glyph fired at column zero and passed behind `> `, so a callout was the one
+# shape of decorative emoji the rule could not see. The catalog scope is
+# unchanged: a blockquote callout is a section marker.
+BQEMOJI="$TEST_TMPDIR/bqemoji.md"
+cat >"$BQEMOJI" <<EOF
+# Blockquote emoji
+
+> ${WARNSIGN} note
+> ### ${WARNSIGN} note
+  - ${WARNSIGN} note
+EOF
+out="$(bash "$DETECT" "$BQEMOJI" 2>&1)"
+assert_contains "emoji: blockquote, blockquote-heading, and indented-bullet markers all fire" "$out" "rule=ai-slop/audit/rule-emoji-formatting findings=3"
+
+# The glyph must still follow the last prefix directly, so an emoji sitting in
+# CONTENT position behind a blockquote stays quiet.
+BQNEG="$TEST_TMPDIR/bqneg.md"
+cat >"$BQNEG" <<EOF
+# Blockquote content
+
+> The reaction was ${CHECKMARK} from the team.
+EOF
+out="$(bash "$DETECT" "$BQNEG" 2>&1)"
+assert_not_contains "emoji negative: content-position emoji behind a blockquote does not fire" "$out" "Finding: rule=ai-slop/audit/rule-emoji-formatting"
 
 # --- Cursor-derived rules ----------------------------------------------------------
 
@@ -737,6 +764,57 @@ EOF
 out="$(bash "$DETECT" "$FENCY" 2>&1)"
 assert_contains "fences: prose after close still flags" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 "
 assert_not_contains "fences: indented fence content exempt, tilde does not close backtick fence" "$out" "delve"
+
+# --- Fences opened behind a list marker (CommonMark container blocks) -------------
+# A fence may open after a list marker, and its closer is measured against the
+# fence's OWN container indent rather than column zero. Without both halves the
+# opener line was ordinary prose (its em dash fired and its content was scanned)
+# and the indented CLOSER opened a fence of its own, swallowing every line after
+# it. Both fixtures below reproduced exactly that against the old parser.
+
+LISTFENCE="$TEST_TMPDIR/listfence.md"
+cat >"$LISTFENCE" <<EOF
+# Ordered list fence
+
+1. \`\`\`text
+   Inside a fence ${EM} cromulentia stays exempt.
+   \`\`\`
+
+An em dash ${EM} after the closer must flag.
+EOF
+out="$(bash "$DETECT" "$LISTFENCE" 2>&1)"
+assert_contains "ordered-marker fence: prose after the closer still flags" "$out" "line=7"
+assert_not_contains "ordered-marker fence: fenced content stays exempt" "$out" "cromulentia"
+
+BULLETFENCE="$TEST_TMPDIR/bulletfence.md"
+cat >"$BULLETFENCE" <<EOF
+# Bullet list fence
+
+- \`\`\`text
+  Inside a bullet fence ${EM} zephyrantic stays exempt.
+  \`\`\`
+
+An em dash ${EM} after the bullet closer must flag.
+EOF
+out="$(bash "$DETECT" "$BULLETFENCE" 2>&1)"
+assert_contains "bullet-marker fence: prose after the closer still flags" "$out" "line=7"
+assert_not_contains "bullet-marker fence: fenced content stays exempt" "$out" "zephyrantic"
+
+# An opener with no closer reads the whole rest of the file as code. That is the
+# correct parse, but silently scanning nothing is the failure mode this warning
+# exists to make visible; the audit itself still succeeds.
+UNCLOSED="$TEST_TMPDIR/unclosed.md"
+cat >"$UNCLOSED" <<EOF
+# Unclosed fence
+
+\`\`\`text
+An em dash ${EM} inside a fence that never closes.
+EOF
+out="$(bash "$DETECT" "$UNCLOSED" 2>&1)"
+rc=$?
+assert_exit "unclosed fence: the run still exits 0" 0 "$rc"
+assert_contains "unclosed fence: the warning names the opening line" "$out" "code fence opened at line 3"
+assert_contains "unclosed fence: the warning names the file" "$out" "unclosed.md"
 
 # --- Directory target expansion ---------------------------------------------------
 
@@ -1272,6 +1350,60 @@ out="$(bash "$DETECT" "$QUOTED" 2>&1)"
 assert_contains "split declined: quote-exempt hits count under quote" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2 declined_marker=0 declined_quote=2 declined_config=0"
 out="$(CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" 2>&1)"
 assert_contains "split declined: a rule_allowed_paths exemption counts under config" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1 declined_marker=0 declined_quote=0 declined_config=1"
+
+# --- Marker declines are charged per rule ------------------------------------------
+# Every rule used to be charged the raw count of exempted prose lines, so a rule
+# whose expression cannot match the exempted text still reported a decline it
+# never had a candidate for. A rule is now charged only what its own expression
+# matches: a pattern rule counts exempted LINES, the unit it emits findings in,
+# and a density rule counts OCCURRENCES, the unit its quote accounting already
+# uses.
+
+ATTRIB="$TEST_TMPDIR/attrib.md"
+cat >"$ATTRIB" <<EOF
+# Marker attribution
+
+An em dash ${EM} on a marked line. <!-- ai-slop-ignore: attribution case -->
+EOF
+out="$(bash "$DETECT" "$ATTRIB" 2>&1)"
+assert_contains "per-rule marker: the rule the exempted line matches is charged" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
+assert_contains "per-rule marker: a rule the exempted line cannot match is charged nothing" "$out" "rule=ai-slop/audit/rule-utm-params findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0"
+
+# A wording rule never scans quoted material, so an exempted BLOCKQUOTE line is
+# not a candidate it lost and is not charged to it. The line below is exempt
+# twice over (blockquote and marker); the typography rule on the same line still
+# counts, because typography rules scan quoted material.
+QUOTEDMARK="$TEST_TMPDIR/quotedmark.md"
+cat >"$QUOTEDMARK" <<EOF
+# Quoted marker
+
+> A quote written in order to ship ${EM} here. <!-- ai-slop-ignore: quoted -->
+EOF
+out="$(bash "$DETECT" "$QUOTEDMARK" 2>&1)"
+assert_contains "per-rule marker: a typography rule is charged the exempted blockquote line" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
+assert_contains "per-rule marker: a wording rule is not charged quoted exempted material" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0"
+
+# A file whose every prose line sits inside an ignore block has no scannable
+# words at all, so the density loop never runs. Marker accounting must not sit
+# behind that guard, or the rule reports zero for material the markers
+# demonstrably suppressed. Two exempted lines, eleven vocabulary occurrences:
+# the counts differ, so the occurrence unit is what the assertion pins.
+ALLBLOCK="$TEST_TMPDIR/allblock.md"
+cat >"$ALLBLOCK" <<'EOF'
+<!-- ai-slop-ignore-start: vocabulary sample -->
+Delve tapestry pivotal crucial meticulous vibrant.
+Intricate renowned enduring interplay groundbreaking.
+<!-- ai-slop-ignore-end: end of sample -->
+EOF
+out="$(bash "$DETECT" "$ALLBLOCK" 2>&1)"
+assert_contains "per-rule marker: a density rule counts exempted occurrences with no scannable words left" "$out" "rule=ai-slop/audit/rule-ai-vocabulary findings=0 declined=11 declined_marker=11 declined_quote=0 declined_config=0"
+assert_contains "per-rule marker: a pattern rule the block cannot match stays at zero" "$out" "rule=ai-slop/audit/rule-utm-params findings=0 declined=0 declined_marker=0 declined_quote=0 declined_config=0"
+
+# The whole-file marker is unchanged: its unit is the FILE, not a line, so every
+# rule is charged exactly one decline whether or not the prose would match it.
+out="$(bash "$DETECT" "$FILEMARK" 2>&1)"
+assert_contains "whole-file marker: a rule the prose matches is charged one file decline" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
+assert_contains "whole-file marker: a rule the prose does not match is charged one file decline too" "$out" "rule=ai-slop/audit/rule-utm-params findings=0 declined=1 declined_marker=1 declined_quote=0 declined_config=0"
 
 # --- emit: chunked detector output is summed ---------------------------------------
 # A repo-scale run emits one Summary block per chunk. The old emitter kept the
