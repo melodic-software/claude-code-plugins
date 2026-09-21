@@ -1819,16 +1819,22 @@ run_pwsh "PS hs: a lone backslash-escaped quote before the opener (blocked)" \
 # LF twin and has to reach the same verdict.
 run_pwsh "PS hs: CRLF-line-ended copy of the backslash-escaped opener (blocked)" \
   "$(printf '%s\r\n%s\r\n%s' "Write-Output \"\\\"a\" @\"" "\$(& \$g push --force)" "\"@\"")" 2
-# THE COST of that refusal being by SHAPE, pinned rather than left to be re-found:
-# the same opener blocks over a body that holds no command position at all, over
-# one whose call sits outside any `$( )`, and over a lone-CR-terminated spelling
-# that `hook::jq_fields` folds into a single line. All three are rc 0 on the base.
-run_pwsh "PS hs: the backslash-escaped opener over a plain body (blocked, accepted over-block)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "hello" "\"@\"")" 2
-run_pwsh "PS hs: the backslash-escaped opener over a body with no subexpression (blocked)" \
-  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "& \$g push --force" "\"@\"")" 2
+# A LONE CR is a live line break to PowerShell, which emits a NewLine token for
+# it, so this payload is the shape above with the obfuscated call running as line
+# 2. The guard never splits on a bare CR: `hook::jq_fields` strips it and
+# `ps::_split_lines_to` splits on LF alone, so the three lines arrive folded into
+# one. That fold still ends in the opener characters for the base reduction and
+# not for the walk, so the quadrant rule refuses it. rc 0 on the base is a BYPASS
+# this closes, not an over-block.
 run_pwsh "PS hs: the lone-CR-terminated spelling of the backslash-escaped opener (blocked)" \
   "$(printf '%s\r%s\r%s' "Write-Output \"\\\"a\" @\"" "\$(& \$g push --force)" "\"@\"")" 2
+# THE COST of that refusal being by SHAPE, pinned rather than left to be re-found:
+# the same opener blocks over a body that holds no command position at all, and
+# over one whose call sits outside any `$( )`. Both are rc 0 on the base.
+run_pwsh "PS hs: the backslash-escaped opener over a plain body (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "hello" "\"@\"")" 2
+run_pwsh "PS hs: the backslash-escaped opener over a body with no subexpression (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "& \$g push --force" "\"@\"")" 2
 # THE OTHER DIRECTION of the same disagreement, and it is PRE-EXISTING on this
 # branch rather than new with the quadrant rule: a prefix string ending in a
 # BACKSLASH. `"([^"\\]|\\.)*"` runs the escape through to end of line and leaves
@@ -1960,6 +1966,13 @@ run_pwsh "PS hs: RECORDED RESIDUAL: an interior-line block comment still opens a
 # and they agree here, so both trees drop the payload.
 run_pwsh "PS hs: RECORDED RESIDUAL: a wrapped opener both reductions confirm (allowed)" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note @'" "#>" "& ('g'+'it') push --force" "'@'")" 0
+# THE WIDER BLINDNESS the here-string rows sit beside. An obfuscated call written
+# on its own, with no here-string anywhere, routes to no sink at all, and the
+# git probe reads TEXT: `& $g` carries no literal token for it to find. Closing
+# this means deciding what a subexpression may RESOLVE to, which is a different
+# change from what an opener line means.
+run_pwsh "PS hs: RECORDED RESIDUAL: a bare obfuscated subexpression with no here-string (allowed)" \
+  "\$(& \$g push --force)" 0
 # A COMMENT truncated by a LONE CR. PowerShell emits a NewLine token for a bare
 # CR, so `git push --force` is live top-level code. Nothing in the guard treats a
 # bare CR as a line break: hook::jq_fields strips it out of the command and
