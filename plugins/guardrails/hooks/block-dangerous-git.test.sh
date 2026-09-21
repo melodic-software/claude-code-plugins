@@ -1793,6 +1793,51 @@ run_pwsh "PS hs: an unconfirmed expandable opener over a plain body (blocked, ac
 run_pwsh "PS hs: the # cause over a plain body (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "hello" "\"@ fine\"")" 2
 
+# --- a backslash before the quote: the walk pairs where the LEGACY one escapes --
+# `Write-Output "\"a" @"` is a Generic, the string `"a`, and a LIVE `@"` opener;
+# pwsh 7.6.6 parses it clean and the line under it executes. The walk ignores
+# backslashes, so it pairs `"\"` and then `a" @"`, reducing the line to
+# `Write-Output a` with no opener suffix at all. The LEGACY reduction reads `\"`
+# as an escape inside `"([^"\\]|\\.)*"`, reduces to `Write-Output  @"`, and
+# CONFIRMS an expandable opener. One reduction sees an opener and the other does
+# not, so the line is UNCONFIRMED and takes the unconditional expandable refusal
+# the base reaches by confirming and dropping the body.
+#
+# EVERY BODY BELOW SPELLS ITS CALL `& $g`, so no literal `git` token appears
+# anywhere in the command. The literal-git twin of the first row is rc 2 on BOTH
+# trees, pinned directly beneath it, so a fixture that spelled `git` out could not
+# pin this class at all: it passes with the defect present.
+run_pwsh "PS hs: a backslash-escaped quote before an opener the walk loses (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "\$(& \$g push --force)" "\"@\"")" 2
+run_pwsh "PS hs: the literal-git twin of that shape (blocked on both trees)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "\$(git push --force)" "\"@\"")" 2
+run_pwsh "PS hs: the no-space spelling of the backslash-escaped quote (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output a\"\\\"a\"@\"" "\$(& \$g push --force)" "\"@\"")" 2
+run_pwsh "PS hs: a lone backslash-escaped quote before the opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\" \"@\"" "\$(& \$g push --force)" "\"@\"")" 2
+# `hook::jq_fields` strips CR, so the CRLF payload reaches the classifier as its
+# LF twin and has to reach the same verdict.
+run_pwsh "PS hs: CRLF-line-ended copy of the backslash-escaped opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output \"\\\"a\" @\"" "\$(& \$g push --force)" "\"@\"")" 2
+# THE COST of that refusal being by SHAPE, pinned rather than left to be re-found:
+# the same opener blocks over a body that holds no command position at all, over
+# one whose call sits outside any `$( )`, and over a lone-CR-terminated spelling
+# that `hook::jq_fields` folds into a single line. All three are rc 0 on the base.
+run_pwsh "PS hs: the backslash-escaped opener over a plain body (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "hello" "\"@\"")" 2
+run_pwsh "PS hs: the backslash-escaped opener over a body with no subexpression (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "& \$g push --force" "\"@\"")" 2
+run_pwsh "PS hs: the lone-CR-terminated spelling of the backslash-escaped opener (blocked)" \
+  "$(printf '%s\r%s\r%s' "Write-Output \"\\\"a\" @\"" "\$(& \$g push --force)" "\"@\"")" 2
+# THE OTHER DIRECTION of the same disagreement, and it is PRE-EXISTING on this
+# branch rather than new with the quadrant rule: a prefix string ending in a
+# BACKSLASH. `"([^"\\]|\\.)*"` runs the escape through to end of line and leaves
+# the base no opener at all, while the walk pairs `"C:\p\"` and reads the `@"`
+# after it, so this benign parse-clean here-string is base-no / walk-yes and is
+# refused as unconfirmed. rc 0 on the base, rc 2 here.
+run_pwsh "PS hs: a real here-string after a path ending in a backslash (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"C:\\p\\\" @\"" "hello" "\"@")" 2
+
 # --- the allow arm must not leave an ORPHAN closer ----------------------------
 # Neutralizing an unconfirmed opener line without its matching column-zero closer
 # leaves that closer standing, and the downstream Bash tokenizer reads
@@ -1880,7 +1925,7 @@ run_pwsh "PS hs: the opener-unconfirmed token does not waive the recovered group
 # swallows the git line into one quoted word. It is rc 2 here because the
 # unconfirmed opener routes the command to the sink, whose possibly-git gate is a
 # plain token scan that does see the token. A shape this change blocks and its
-# base does not is the fail-closed direction the subset rule leaves open.
+# base does not is the fail-closed direction the quadrant rule leaves open.
 run_pwsh "PS hs: the literal-git spelling of the walk-paired opener (blocked)" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note \"it's\" @'" "#>" "git push --force" "'@'")" 2
 # The EXPANDABLE spelling of the same disagreement, which is the one that reaches
@@ -1911,8 +1956,8 @@ run_pwsh "PS hs: RECORDED RESIDUAL: an interior-line block comment still opens a
 # The same residual with the opener on the wrapper's OWN second line, which is the
 # shape the apostrophe cases above close. With no apostrophe the two reductions
 # agree that `note @'` is a clean opener, so both trees confirm it and the payload
-# goes as body. The subset invariant holds here and buys nothing: it can only
-# refuse an opener the base already refused, and the base takes this one.
+# goes as body. The quadrant rule moves nothing where the two reductions AGREE,
+# and they agree here, so both trees drop the payload.
 run_pwsh "PS hs: RECORDED RESIDUAL: a wrapped opener both reductions confirm (allowed)" \
   "$(printf '%s\n%s\n%s\n%s\n%s' "<#" "note @'" "#>" "& ('g'+'it') push --force" "'@'")" 0
 # A COMMENT truncated by a LONE CR. PowerShell emits a NewLine token for a bare

@@ -284,6 +284,18 @@ run_pwsh "PS: an unconfirmed expandable opener over an obfuscated --no-verify co
 run_pwsh "PS: the doubled double-quote spelling over an env-bypass commit (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output \"a\"\"b\" @\"" "\$(\$env:HUSKY=0; & \$g commit -m x)" "\"@")" 2
 
+# The other cause of an unconfirmed opener: a BACKSLASH before the quote. The
+# quoted-span walk ignores backslashes, so it pairs `"\"` and then `a" @"` and
+# reduces `Write-Output "\"a" @"` to `Write-Output a`, losing the opener suffix
+# entirely; the library's legacy reduction reads `\"` as an escape and confirms an
+# expandable opener there. One reduction sees an opener and the other does not, so
+# the line is unconfirmed and the `"` takes the unconditional expandable refusal.
+# pwsh 7.6.6 parses the payload clean and line 2 is a live top-level command. The
+# body spells its call `& $g`, so no literal `git` token appears; the literal-git
+# twin blocks on both trees and would pin nothing here.
+run_pwsh "PS: a backslash-escaped quote before an opener over an obfuscated --no-verify commit (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"\\\"a\" @\"" "\$(& \$g commit --no-verify -m x)" "\"@\"")" 2
+
 # Obfuscation regressions (independent security review, sink-level fail-closed).
 # A construct that defeats the Bash tokenizer must not let an obfuscated git
 # invocation through — the sink blocks unless the command is provably git-free,

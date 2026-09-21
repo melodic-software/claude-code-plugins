@@ -366,36 +366,50 @@ ps::normalize_token_separating_spaces() {
 # unterminated opener emits the rest of its line verbatim rather than swallowing
 # it, which is what leaves a real `@"` standing to be recognized.
 #
-# The QUOTE out-parameter is read from the WALKED line, not the raw one, so the
-# decision and the quote it reports come from the same text and cannot disagree.
-# They would in fact agree either way: in `blank` mode a quote character reaches
-# the output only through the unterminated-tail verbatim copy, which runs to end
-# of line, so whenever the suffix test passes the raw line ends in those same two
-# characters. Reading the scan is what keeps that from being an unstated premise
-# a later change to the blanking could quietly break.
+# TWO REDUCTIONS DECIDE, AND THEY DISAGREE IN BOTH DIRECTIONS. The walk is one.
+# The other is the LEGACY reduction, two ordered `ps::_gsub_to` passes over the
+# raw line (`'[^']*'`, then `"([^"\\]|\\.)*"`), which is the whole of the opener
+# test the rest of this guard's lineage runs. Neither contains the other:
+# `note "it's" @'` pairs properly in the walk and reduces to `note  @'`, while the
+# legacy passes eat `'s" @'` and are left with `note "it`; `Write-Output "\"a" @"`
+# goes the other way, because `"([^"\\]|\\.)*"` reads `\"` as an escape and the
+# walk does not, so the legacy reduction keeps the `@"` the walk pairs away.
 #
-# CONFIRMATION TAKES BOTH REDUCTIONS, and an opener is confirmed only when they
-# AGREE. The walk is one of them; the other is the LEGACY reduction, two ordered
-# `ps::_gsub_to` passes over the raw line (`'[^']*'`, then `"([^"\\]|\\.)*"`),
-# whose result must also end in `@'` or `@"`.
+# EITHER reduction ending in `@'` or `@"` raises the line; only their AGREEMENT,
+# plus the walk's own two tests below, confirms it. The four quadrants and why
+# each one lands where the LEGACY reduction alone would:
 #
-# WHY A SECOND REDUCTION RATHER THAN A THIRD TEST ON THE FIRST. Dropping body is
-# the ONLY way this function can hide text from every scan that runs after it: a
-# line the guard refuses to read as an opener stays in the reduced command, while
-# a line it accepts takes the lines under it out of view. So the set of lines
-# this function confirms is exactly the set of places it can hide something, and
-# the safe shape is not a better test but a SUBSET: confirm only what the legacy
-# reduction also confirms, and whatever gets dropped here the legacy reduction
-# dropped too. That is a property of the whole shape space rather than a list of
-# refused spellings, and it holds without either reduction being correct.
+#   LEGACY  WALK  KIND          parity
+#   yes     yes   opener        both read an opener, so the body this drops is
+#                               exactly the body the legacy reduction drops.
+#   yes     no    unconfirmed   the legacy reduction confirms here and DROPS, and
+#                               for a `"` opener that drop is also what sets
+#                               PS_HERESTRING_EXPANDABLE and refuses the command
+#                               unconditionally. Keeping the lines in view instead
+#                               hides nothing, but it must not lose that refusal,
+#                               so the unconfirmed flags carry it: the QUOTE comes
+#                               from the raw line's last character, which is the
+#                               character the legacy reduction would have opened on.
+#   no      yes   unconfirmed   the legacy reduction reads no opener and drops
+#                               nothing, so keeping the lines in view can only add
+#                               to what the later scans check.
+#   no      no    empty         neither reads an opener: no body is dropped and no
+#                               flag is raised on either side.
 #
-# The direction matters. Making the walk BETTER at pairing makes MORE lines look
-# like clean openers, which is the fail-OPEN direction: `note "it's" @'` pairs
-# `"it's"` properly and reduces to `note  @'`, a clean opener that swallows the
-# lines under it, while the legacy passes eat `'s" @'` and are left with
-# `note "it`, no opener at all. The walk's own tests below can only REMOVE
-# openers from the legacy set, which is the fail-closed direction, so the two
-# conditions compose without either weakening the other.
+# HIDING TEXT IS NOT THE ONLY THING CONFIRMING DOES, which is why the table is
+# spelled out rather than summarized as "confirm a subset of what the legacy
+# reduction confirms". The subset property is true, and it settles only HIDING: a
+# line this function declines to read as an opener stays in the reduced command,
+# so declining can never take text out of a scan that the legacy reduction left in
+# one. But confirming also SETS the flags, and for `@"` those flags are the whole
+# of the refusal. So declining to drop can remove a block while hiding nothing,
+# which is exactly row two, and the remedy there is to raise the unconfirmed flags
+# rather than to confirm and drop.
+#
+# THE QUOTE for the two confirmed-by-the-walk rows is read from the WALKED line,
+# so the decision and the quote it reports come from the same text; for row two
+# the walk has no opener to read a quote from, and the raw line's last character
+# is what the legacy reduction itself uses.
 #
 # THE WALK'S OWN TESTS are two, over the remainder in front of the two opener
 # characters of its reduced line. A `#` there means the opener may be comment
@@ -404,9 +418,9 @@ ps::normalize_token_separating_spaces() {
 # copied the line through verbatim, so the line's extent is not decidable from
 # the text at all.
 #
-# Any of the three failing leaves the opener UNCONFIRMED: no here-string opens,
-# the following lines stay in view, and the caller routes the command to its sink
-# rather than guessing.
+# Either of those failing, like a line only one of the two reductions raised,
+# leaves the opener UNCONFIRMED: no here-string opens, the following lines stay in
+# view, and the caller routes the command to its sink rather than guessing.
 #
 # Running the walk's two tests on its REDUCED line is what keeps a `#` or a quote
 # INSIDE a properly paired string from refusing a real opener: the walk deletes
@@ -422,24 +436,31 @@ ps::normalize_token_separating_spaces() {
 # refusing to open a here-string removes nothing from view, so it can only block
 # more.
 ps::_herestring_opener_to() {
-  local __ho_line="$3" __ho_scan __ho_head __ho_legacy
+  local __ho_line="$3" __ho_scan __ho_head __ho_legacy __ho_walk_ok=0 __ho_legacy_ok=0
   printf -v "$1" '%s' ''
   printf -v "$2" '%s' ''
   # The walk also writes PS_QUOTED_SPAN_SAW_EXPANDABLE. Its only reader takes it
   # immediately after a walk of its own, so clobbering it here is not observable.
   ps::blank_quoted_spans_to __ho_scan "$__ho_line"
-  [[ "$__ho_scan" == *"@'" || "$__ho_scan" == *'@"' ]] || return 0
-  printf -v "$2" '%s' "${__ho_scan: -1}" # ' or "
-  __ho_head="${__ho_scan%??}"
+  [[ "$__ho_scan" == *"@'" || "$__ho_scan" == *'@"' ]] && __ho_walk_ok=1
   # The two legacy passes apply IN ORDER, so the double-quote pass still sees the
-  # single-quote-stripped line.
+  # single-quote-stripped line. Run on EVERY line, not only on one the walk
+  # already raised: a line the walk loses and this reduction keeps is row two of
+  # the table above, and returning early would leave it kind-empty.
   ps::_gsub_to __ho_legacy "$__ho_line" "'[^']*'" ''
   ps::_gsub_to __ho_legacy "$__ho_legacy" '"([^"\\]|\\.)*"' ''
-  if [[ "$__ho_head" == *'#'* || "$__ho_head" == *"'"* || "$__ho_head" == *'"'* ]] ||
-    [[ "$__ho_legacy" != *"@'" && "$__ho_legacy" != *'@"' ]]; then
-    printf -v "$1" '%s' unconfirmed
+  [[ "$__ho_legacy" == *"@'" || "$__ho_legacy" == *'@"' ]] && __ho_legacy_ok=1
+  ((__ho_walk_ok || __ho_legacy_ok)) || return 0
+  if ((__ho_walk_ok)); then
+    printf -v "$2" '%s' "${__ho_scan: -1}" # ' or "
   else
-    printf -v "$1" '%s' opener
+    printf -v "$2" '%s' "${__ho_line: -1}" # ' or "
+  fi
+  printf -v "$1" '%s' unconfirmed
+  if ((__ho_walk_ok && __ho_legacy_ok)); then
+    __ho_head="${__ho_scan%??}"
+    [[ "$__ho_head" == *'#'* || "$__ho_head" == *"'"* || "$__ho_head" == *'"'* ]] ||
+      printf -v "$1" '%s' opener
   fi
 }
 
@@ -517,7 +538,7 @@ ps::blank_herestrings() {
       # PowerShell opens no here-string and the lines below are COMMANDS; or a
       # quote survived the walk, which means the line's extent is not decidable;
       # or the library's two reductions disagree about whether the line even ends
-      # in an opener, which is the case the subset rule refuses on.
+      # in an opener, either of the two mixed rows of the helper's table.
       # Emit the line as the ordinary text it is: no `in_hs`, no expandable flag,
       # and the lines under it are not dropped. A REAL opener elsewhere in the
       # command still opens and its body still goes; the flag claims only that an
