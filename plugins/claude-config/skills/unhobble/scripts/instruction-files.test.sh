@@ -164,33 +164,38 @@ AGENTS.md"
 assert_file_is "overwrite: the rewritten file is returned to its pre-strip content" \
   "$repo/AGENTS.md" "root instructions"
 
-# --- Case 5d: --all REMOVES a name the ref never had. The pre-strip state did
-# not have it, so an abandon that left it behind would end with an instruction
-# file loading that the experiment itself introduced.
-printf 'written during the experiment\n' >"$repo/.claude/CLAUDE.md" 2>/dev/null ||
-  { mkdir -p "$repo/.claude" && printf 'written during the experiment\n' >"$repo/.claude/CLAUDE.md"; }
-out="$("$SCRIPT" restore "$repo" "$base" --all)"
-case "$out" in
-*"removed .claude/CLAUDE.md"*) pass "abandon: --all reports the file it removed" ;;
-*) fail "abandon: --all reports the file it removed" "got [$out]" ;;
-esac
-assert_absent "abandon: an untracked file the ref never had is removed" \
-  "$repo/.claude/CLAUDE.md"
-
-# The same holds for one the experiment COMMITTED: it is tracked, so it leaves
-# the index too rather than lingering as a staged deletion the operator misses.
+# --- Case 5d: --all removes a TRACKED name the ref never had. Tracked and absent
+# from the ref is git's own evidence the experiment added it, so removing it is
+# provably a return to the pre-strip state.
 mkdir -p "$repo/.claude"
 printf 'committed during the experiment\n' >"$repo/.claude/CLAUDE.md"
 git -C "$repo" add .claude/CLAUDE.md
 git -C "$repo" commit --quiet -m "experiment added an instruction file"
 out="$("$SCRIPT" restore "$repo" "$base" --all)"
 case "$out" in
-*"removed .claude/CLAUDE.md"*) pass "abandon: a tracked addition is removed too" ;;
-*) fail "abandon: a tracked addition is removed too" "got [$out]" ;;
+*"removed .claude/CLAUDE.md"*) pass "abandon: a tracked addition is removed" ;;
+*) fail "abandon: a tracked addition is removed" "got [$out]" ;;
 esac
 assert_absent "abandon: the tracked addition is off disk" "$repo/.claude/CLAUDE.md"
 assert_equals "abandon: and out of the index" \
   "$(git -C "$repo" ls-files .claude/CLAUDE.md)" ""
+
+# An UNTRACKED name the ref never had is the case git cannot decide: a file that
+# was never tracked is absent from every commit, so one the experiment wrote and
+# one that predated it (an intentionally untracked CLAUDE.local.md, or a file the
+# plan classified convention and kept) look identical. Deleting it would be
+# unrecoverable, so it is named and left.
+printf 'predates the experiment, never tracked\n' >"$repo/CLAUDE.local.md"
+out="$("$SCRIPT" restore "$repo" "$base" --all 2>&1)"
+rc=$?
+assert_equals "abandon: an undecidable untracked file does not fail the run" "$rc" "0"
+assert_file_is "abandon: a pre-existing untracked file is NOT deleted" \
+  "$repo/CLAUDE.local.md" "predates the experiment, never tracked"
+case "$out" in
+*"left in place, untracked"*CLAUDE.local.md*) pass "abandon: it is named for the operator" ;;
+*) fail "abandon: it is named for the operator" "got [$out]" ;;
+esac
+rm -f "$repo/CLAUDE.local.md"
 
 # --- Case 5e: strip names what it strips. A plan that classifies AGENTS.md as
 # convention and keeps it must not have it deleted by a strip of the CLAUDE.md

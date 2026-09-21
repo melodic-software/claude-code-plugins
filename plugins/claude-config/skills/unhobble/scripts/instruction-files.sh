@@ -40,9 +40,12 @@
 # close never calls it. Reaching the pre-strip state means both halves: a name the
 # ref has is checked out over whatever is on disk, since a file the experiment
 # recreated or rewrote is exactly what an abandon discards, and a name the ref
-# does NOT have is removed, since the pre-strip state did not have it either and
-# leaving it behind would end the abandon with an instruction file loading that
-# the experiment itself introduced.
+# does NOT have but git TRACKS is removed, since being tracked and absent from
+# the ref is git's own evidence the experiment added it. A name the ref does not
+# have and git does not track is the one case this cannot decide: a file that was
+# never tracked is absent from every commit, so a `CLAUDE.local.md` that predated
+# the experiment looks exactly like one the experiment wrote. It is named for the
+# operator and left in place; an unrecoverable delete is the worse error.
 #
 # `strip` checks every present file is tracked AND clean BEFORE it removes any of
 # them, and exits 2 naming the offenders with the tree untouched. `git rm` refuses
@@ -171,16 +174,26 @@ restore)
         git -C "$root" checkout "$ref" -- "$n"
         printf '%s\n' "$n"
       elif git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
-        # Tracked but not in the ref: the experiment added it. `git rm -f` clears
-        # the index entry whether or not the worktree copy is still there, which
-        # the worktree test alone would miss: a staged addition whose file was
-        # deleted by hand stays indexed, and the next commit would carry the
-        # experiment's own instruction file into the abandoned state.
+        # TRACKED and not in the ref: git itself is the evidence the experiment
+        # added it, so removing it is provably a return to the pre-strip state.
+        # `git rm -f` clears the index entry whether or not the worktree copy is
+        # still there, which a worktree test alone would miss: a staged addition
+        # whose file was deleted by hand stays indexed, and the next commit would
+        # carry the experiment's own instruction file into the abandoned state.
         git -C "$root" rm -q -f --ignore-unmatch -- "$n"
         printf 'removed %s\n' "$n"
       elif [[ -f "$root/$n" ]]; then
-        rm -f -- "$root/$n"
-        printf 'removed %s\n' "$n"
+        # UNTRACKED and not in the ref: git holds no evidence either way. It may
+        # be a file the experiment created, or a file that predated it and was
+        # never tracked at all, which is the ordinary case for CLAUDE.local.md and
+        # for anything the strip plan classified `policy` or `convention` and kept.
+        # The ref cannot tell them apart, because a file that was never tracked is
+        # absent from every commit. Deleting it would be unrecoverable, and this
+        # script refuses to delete an untracked instruction file anywhere else for
+        # the same reason, so it is named for the operator and left alone.
+        echo "instruction-files.sh: left in place, untracked and not in $ref: $n" >&2
+        echo "  git cannot tell an experiment-created file from one that predated it;" >&2
+        echo "  delete it by hand if the experiment created it." >&2
       fi
     done
     exit 0

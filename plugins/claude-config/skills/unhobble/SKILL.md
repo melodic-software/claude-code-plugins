@@ -37,7 +37,7 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
   CLAUDE.local.md / `.claude/CLAUDE.md`, the `AGENTS.md` and `.claude/AGENTS.md` a session reads
   natively once those are gone (**that reading is version- and flag-dependent and this body does
   not restate the condition**; the four-part record is the `instruction-placement` plugin's
-  `skills/migrate/reference/sources.md`, and the strip covers both names either way, since removing
+  `skills/migrate/reference/sources.md`, and both names are candidates either way, since removing
   the `CLAUDE.md` names is what makes the question live),
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
   and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
