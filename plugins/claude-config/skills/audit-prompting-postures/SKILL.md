@@ -76,7 +76,13 @@ what it shares with `audit-instructions` Phase A is the *resolution* procedure, 
 upstream-ownership exclusions. The set, one entry per scope token above: skill bodies (and the
 context/reference files a skill instructs the model to read), agent definition markdown, hook
 instruction text of both kinds, output-style markdown, CLAUDE.md / a natively read AGENTS.md or
-`.claude/AGENTS.md` / CLAUDE.local.md, `.claude/rules/`.
+`.claude/AGENTS.md` / CLAUDE.local.md, `.claude/rules/`. **Whether an `AGENTS.md` is read natively
+is version- and flag-dependent, and this body does not restate the condition**: the four-part
+record, which file names displace it, the version floor and the remote flag with its code default,
+is the `instruction-placement` plugin's
+`skills/migrate/reference/sources.md`. Resolve it there rather than from a copy that can drift;
+where the answer is no, the file reaches context only as an import and the importing record
+already covers it.
 **The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish
 PRESENCE, which can only turn a MISSING into a PRESENT, never add a finding on an excluded surface.

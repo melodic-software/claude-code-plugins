@@ -35,7 +35,11 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 
 - **Project scope by default.** The experiment strips the *project's* surfaces: project CLAUDE.md /
   CLAUDE.local.md / `.claude/CLAUDE.md`, the `AGENTS.md` and `.claude/AGENTS.md` a session reads
-  natively once those are gone, `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
+  natively once those are gone (**that reading is version- and flag-dependent and this body does
+  not restate the condition**; the four-part record is the `instruction-placement` plugin's
+  `skills/migrate/reference/sources.md`, and the strip covers both names either way, since removing
+  the `CLAUDE.md` names is what makes the question live),
+  `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
   and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
   operator explicitly opts in per phase-1 prompt, never by default.
 - **Managed settings are never touched.** Org-managed policy is not the operator's to ablate.

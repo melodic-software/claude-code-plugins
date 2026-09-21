@@ -206,6 +206,54 @@ rc=$?
 assert_equals "selective: a name off the list exits 2" "$rc" "2"
 assert_file_is "selective: and strips nothing" "$repo/AGENTS.md" "team conventions"
 
+# An approved name that is not on disk is a stale plan, not a no-op. Exit 0 here
+# would let the manifest record a bare baseline while the named surface still
+# loads from wherever it actually moved to.
+out="$("$SCRIPT" strip "$repo" .claude/CLAUDE.md 2>&1)"
+rc=$?
+assert_equals "stale: an approved name that is absent exits 2" "$rc" "2"
+case "$out" in
+*".claude/CLAUDE.md"*) pass "stale: the message names the absent file" ;;
+*) fail "stale: the message names the absent file" "got [$out]" ;;
+esac
+assert_file_is "stale: and strips nothing" "$repo/AGENTS.md" "team conventions"
+
+# --all keeps the opposite reading: the set is every name PRESENT, so an absent
+# one is simply not in it and is not an error.
+out="$("$SCRIPT" strip "$repo" --all)"
+assert_equals "selective: --all strips what is there without faulting the rest" \
+  "$out" "AGENTS.md"
+
+# --- Case 5f: a repeated name is acted on once. Two `git rm`s on one file means
+# the second fails after the first already mutated the tree, which is the
+# reports-failure-having-done-half-the-work state refused everywhere else here.
+repo="$(make_repo dupe 'CLAUDE.md=behavioral lines' 'AGENTS.md=more lines')"
+out="$("$SCRIPT" strip "$repo" CLAUDE.md CLAUDE.md 2>&1)"
+rc=$?
+assert_equals "dupe: a repeated name exits 0" "$rc" "0"
+assert_equals "dupe: and is reported once" "$out" "CLAUDE.md"
+assert_absent "dupe: the file is stripped" "$repo/CLAUDE.md"
+assert_file_is "dupe: the other file is untouched" "$repo/AGENTS.md" "more lines"
+
+# --- Case 5g: an addition that exists only in the INDEX. The worktree test alone
+# misses it, and the next commit would carry the experiment's own instruction
+# file into the state the abandon was supposed to restore.
+repo="$(make_repo indexonly 'CLAUDE.md=original')"
+base="$(git -C "$repo" rev-parse HEAD)"
+"$SCRIPT" strip "$repo" --all >/dev/null
+git -C "$repo" commit --quiet -m "strip"
+printf 'staged during the experiment\n' >"$repo/AGENTS.md"
+git -C "$repo" add AGENTS.md
+rm -f "$repo/AGENTS.md"
+out="$("$SCRIPT" restore "$repo" "$base" --all)"
+case "$out" in
+*"removed AGENTS.md"*) pass "index-only: --all reports removing the staged addition" ;;
+*) fail "index-only: --all reports removing the staged addition" "got [$out]" ;;
+esac
+assert_equals "index-only: the staged addition leaves the index" \
+  "$(git -C "$repo" ls-files AGENTS.md)" ""
+assert_file_is "index-only: and the pre-strip file is back" "$repo/CLAUDE.md" "original"
+
 # --- Case 2: a lone AGENTS.md, already read natively, with no CLAUDE.md at all.
 repo="$(make_repo lone 'AGENTS.md=lone instructions' 'README.md=code')"
 base="$(git -C "$repo" rev-parse HEAD)"

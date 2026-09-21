@@ -79,7 +79,7 @@ resolve_names() {
     RESOLVED=("${NAMES[@]}")
     return 0
   fi
-  local n k known
+  local n k known seen
   for n in "$@"; do
     known=""
     for k in "${NAMES[@]}"; do [[ "$n" == "$k" ]] && known=1 && break; done
@@ -88,7 +88,13 @@ resolve_names() {
       echo "names: ${NAMES[*]}" >&2
       exit 2
     }
-    RESOLVED+=("$n")
+    # A repeat is dropped, not carried. Acting on one twice means a second
+    # `git rm` on a file the first already removed, which fails under `set -e`
+    # with the tree ALREADY mutated: a command that reports failure after doing
+    # half its work is the state this script refuses everywhere else.
+    seen=""
+    for k in ${RESOLVED[@]+"${RESOLVED[@]}"}; do [[ "$n" == "$k" ]] && seen=1 && break; done
+    [[ -n "$seen" ]] || RESOLVED+=("$n")
   done
 }
 
@@ -113,7 +119,17 @@ strip)
   refused=()
   present=()
   for n in "${RESOLVED[@]}"; do
-    [[ -f "$root/$n" ]] || continue
+    if [[ ! -f "$root/$n" ]]; then
+      # Under `--all` the set means "every name present", so an absent one is
+      # simply not in it. A name the CALLER approved is the opposite: exiting 0
+      # having stripped nothing lets the manifest record a bare baseline while
+      # the file the plan named still loads, which is this script's whole
+      # subject reached through a stale plan instead of a mid-loop abort. The
+      # usual cause is exactly that: the plan named `CLAUDE.md` and the surface
+      # moved to `.claude/CLAUDE.md` before the strip ran.
+      [[ "$1" == "--all" ]] || refused+=("$n (not present under $root; re-run list and re-classify)")
+      continue
+    fi
     present+=("$n")
     if ! git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
       refused+=("$n (untracked: back it up through the manifest, git cannot restore it)")
@@ -154,12 +170,16 @@ restore)
       if git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
         git -C "$root" checkout "$ref" -- "$n"
         printf '%s\n' "$n"
+      elif git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
+        # Tracked but not in the ref: the experiment added it. `git rm -f` clears
+        # the index entry whether or not the worktree copy is still there, which
+        # the worktree test alone would miss: a staged addition whose file was
+        # deleted by hand stays indexed, and the next commit would carry the
+        # experiment's own instruction file into the abandoned state.
+        git -C "$root" rm -q -f --ignore-unmatch -- "$n"
+        printf 'removed %s\n' "$n"
       elif [[ -f "$root/$n" ]]; then
-        if git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
-          git -C "$root" rm -q -f -- "$n"
-        else
-          rm -f -- "$root/$n"
-        fi
+        rm -f -- "$root/$n"
         printf 'removed %s\n' "$n"
       fi
     done
