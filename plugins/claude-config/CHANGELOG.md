@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.14]
+
+### Fixed
+
+- `unhobble`: the strip and restore steps cover a root `AGENTS.md` and `.claude/AGENTS.md`. A session reads those as the project instructions only when no `CLAUDE.md` name displaces them, and the strip removes exactly those names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md` shim used to finish the strip with its entire instruction surface still loading while the skill declared the baseline bare. New `skills/unhobble/scripts/instruction-files.sh` (`list` / `strip` / `restore`) is the one list of root instruction files both steps read, takes its root as an explicit argument rather than resolving the working directory, and fails loudly on a file git does not track instead of deleting it beyond recovery. `instruction-files.test.sh` covers the shim repository, a lone `AGENTS.md`, a lone `.claude/AGENTS.md` whose directory the restore has to recreate, a repository with no instruction files, and the two usage errors. `.claude/CLAUDE.md` joined the list with them: it is a project instruction file on the same footing, and a list holding `.claude/AGENTS.md` without it would strip the one and leave the other.
+
+### Changed
+
+- The skills that enumerate the instruction layer name a natively read `AGENTS.md` beside `CLAUDE.md`, the way `audit-instructions`'s body has since 0.46.13: the routing glosses in `audit`, `audit-permission-grants` and `audit-permission-state`, the surface set and description of `audit-prompting-postures`, the enforcement-hierarchy and behavioral-rule lines in `audit-automation-gaps`, the `unhobble` description and scope rails, and the README's skill table, `audit-instructions` section and consumer-conventions note. `audit-instructions`'s own description, summary, Phase A counterpart list and routing bullet are in the sweep too: 0.46.13 changed the body's surface enumerations and left the frontmatter, which is what decides whether the skill is offered for an `AGENTS.md` question at all. The consumer-conventions passages, which tell a skill where to read a repository's own policy, were the ones that silently read nothing in a repository that has migrated its instructions out of `CLAUDE.md`.
+
 ## [0.46.13]
 
 ### Changed

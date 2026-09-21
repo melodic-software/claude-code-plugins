@@ -1,12 +1,12 @@
 ---
-description: "Audit locally-owned Claude Code instruction surfaces, including CLAUDE.md, .claude/rules, skill bodies, agent definitions, hook instruction text and output styles, for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'audit instructions' or 'instruction audit', including after a model upgrade ('are my instructions holding the model back', 'too prescriptive'); a harness claim looks stale ('stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md'); or two surfaces disagree ('conflicting instructions', 'which instruction wins'). Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces, including CLAUDE.md, a natively read AGENTS.md, .claude/rules, skill bodies, agent definitions, hook instruction text and output styles, for instructions current models no longer need (prior-model workarounds, over-prescriptive scaffolding, stale examples), instructions that misstate Claude Code's own behavior or cite files in forms that never load, and cross-surface conflicts where two surfaces contradict each other. Report-only: proposed diffs gated to the human, never auto-applied. Use when: 'audit instructions' or 'instruction audit', including after a model upgrade ('are my instructions holding the model back', 'too prescriptive'); a harness claim looks stale ('stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md'); or two surfaces disagree ('conflicting instructions', 'which instruction wins'). Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--no-stopping-condition] [--persist-findings]; scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Find instructions current models no longer need across CLAUDE.md, rules, and skill bodies
+  summary: Find instructions current models no longer need across CLAUDE.md, AGENTS.md, rules, and skill bodies
 ---
 
 ## Purpose
@@ -382,7 +382,7 @@ plainly that nothing has been applied.
   proposed diffs the human applies.
 - Not a token-brevity pass (`docs-hygiene:compress`) and not structural skill lint
   (`skill-quality:check`).
-- Not memory-layer hygiene: checks I1–I5 on CLAUDE.md/rules route to `claude-memory`'s `audit`
+- Not memory-layer hygiene: checks I1–I5 on CLAUDE.md, a natively read AGENTS.md, and rules route to `claude-memory`'s `audit`
   skill when installed, and upstream-owned plugin-cache or managed materializations route to the
   owning repository rather than being edited here.
 - Does not grade a contradiction whose two halves both sit in the

@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# Self-contained tests for instruction-files.sh (skill-script shape, per
+# docs/conventions/shell-test-helpers/README.md: per-plugin assertion
+# primitives are duplicated on purpose, never shared across plugins).
+#
+# Every fixture is a throwaway git repository built under mktemp and torn down
+# on exit. Nothing here reads or writes a real repository, and the script under
+# test takes its root as an explicit argument, so a run from any directory
+# touches only the fixtures.
+set -uo pipefail
+
+# Isolate the fixture repositories from any ambient git environment: `git -C`
+# changes directory but does not override discovery, so an exported GIT_DIR
+# would land these throwaway identities in the CALLER's .git/config.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$SCRIPT_DIR/instruction-files.sh"
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+
+FAILED=0
+CASE_NUM=0
+
+pass() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'PASS: %s\n' "$1"
+}
+fail() {
+  CASE_NUM=$((CASE_NUM + 1))
+  FAILED=$((FAILED + 1))
+  printf 'FAIL: %s\n  detail: %s\n' "$1" "$2" >&2
+}
+assert_equals() {
+  if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$3], got [$2]"; fi
+}
+assert_absent() {
+  if [[ -e "$2" ]]; then fail "$1" "still present: $2"; else pass "$1"; fi
+}
+assert_file_is() {
+  local got
+  got="$(cat "$2" 2>/dev/null)"
+  if [[ "$got" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$3], got [$got]"; fi
+}
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "SKIP: git not installed" >&2
+  exit 0
+fi
+
+# Build a fixture repo holding one file per "<relative path>=<content>" pair,
+# committed, and print its path.
+make_repo() {
+  local name="$1" dir pair rel
+  shift
+  dir="$TEST_TMPDIR/$name"
+  mkdir -p "$dir"
+  git -C "$dir" init --quiet
+  git -C "$dir" config user.email "fixture@example.invalid"
+  git -C "$dir" config user.name "Fixture"
+  git -C "$dir" config commit.gpgsign false
+  git -C "$dir" config core.autocrlf false
+  for pair in "$@"; do
+    rel="${pair%%=*}"
+    mkdir -p "$dir/$(dirname "$rel")"
+    printf '%s\n' "${pair#*=}" >"$dir/$rel"
+  done
+  git -C "$dir" add -A
+  git -C "$dir" commit --quiet -m "fixture"
+  printf '%s' "$dir"
+}
+
+# --- Case 1: the shim pattern -- CLAUDE.md is a pointer, AGENTS.md is the
+# instructions. Both AGENTS.md names must go with it, or the "bare" baseline
+# still loads the repository's whole instruction surface.
+repo="$(make_repo shim \
+  'CLAUDE.md=@AGENTS.md' \
+  'AGENTS.md=root instructions' \
+  '.claude/AGENTS.md=dot-claude instructions')"
+base="$(git -C "$repo" rev-parse HEAD)"
+
+out="$("$SCRIPT" list "$repo")"
+assert_equals "shim: list names both AGENTS.md files with the shim" \
+  "$out" "CLAUDE.md
+AGENTS.md
+.claude/AGENTS.md"
+
+out="$("$SCRIPT" strip "$repo")"
+assert_equals "shim: strip reports every instruction file it moved" \
+  "$out" "CLAUDE.md
+AGENTS.md
+.claude/AGENTS.md"
+assert_absent "shim: root AGENTS.md is gone after the strip" "$repo/AGENTS.md"
+assert_absent "shim: .claude/AGENTS.md is gone after the strip" "$repo/.claude/AGENTS.md"
+assert_absent "shim: CLAUDE.md is gone after the strip" "$repo/CLAUDE.md"
+assert_equals "shim: nothing is left for list to find" "$("$SCRIPT" list "$repo")" ""
+
+git -C "$repo" commit --quiet -m "strip"
+out="$("$SCRIPT" restore "$repo" "$base")"
+assert_equals "shim: restore reports every file it put back" \
+  "$out" "CLAUDE.md
+AGENTS.md
+.claude/AGENTS.md"
+assert_file_is "shim: root AGENTS.md is restored byte for byte" \
+  "$repo/AGENTS.md" "root instructions"
+assert_file_is "shim: .claude/AGENTS.md is restored byte for byte" \
+  "$repo/.claude/AGENTS.md" "dot-claude instructions"
+assert_file_is "shim: CLAUDE.md is restored byte for byte" \
+  "$repo/CLAUDE.md" "@AGENTS.md"
+
+# --- Case 2: a lone AGENTS.md, already read natively, with no CLAUDE.md at all.
+repo="$(make_repo lone 'AGENTS.md=lone instructions' 'README.md=code')"
+base="$(git -C "$repo" rev-parse HEAD)"
+assert_equals "lone: list finds the AGENTS.md and nothing else" \
+  "$("$SCRIPT" list "$repo")" "AGENTS.md"
+"$SCRIPT" strip "$repo" >/dev/null
+assert_absent "lone: AGENTS.md is stripped" "$repo/AGENTS.md"
+git -C "$repo" commit --quiet -m "strip"
+"$SCRIPT" restore "$repo" "$base" >/dev/null
+assert_file_is "lone: AGENTS.md comes back" "$repo/AGENTS.md" "lone instructions"
+
+# --- Case 3: only .claude/AGENTS.md, whose parent directory the restore has to
+# recreate because the strip removed the last file in it.
+repo="$(make_repo dotclaude '.claude/AGENTS.md=dot-claude only')"
+base="$(git -C "$repo" rev-parse HEAD)"
+"$SCRIPT" strip "$repo" >/dev/null
+assert_absent "dot-claude: the file is stripped" "$repo/.claude/AGENTS.md"
+git -C "$repo" commit --quiet -m "strip"
+"$SCRIPT" restore "$repo" "$base" >/dev/null
+assert_file_is "dot-claude: the file comes back with its directory" \
+  "$repo/.claude/AGENTS.md" "dot-claude only"
+
+# --- Case 4: a repository with no instruction files reports nothing and exits 0.
+repo="$(make_repo bare 'README.md=code')"
+out="$("$SCRIPT" list "$repo")"
+rc=$?
+assert_equals "bare: list prints nothing" "$out" ""
+assert_equals "bare: list exits 0" "$rc" "0"
+"$SCRIPT" strip "$repo" >/dev/null
+assert_equals "bare: strip leaves the tree clean" "$(git -C "$repo" status --porcelain)" ""
+
+# --- Case 6: an untracked instruction file stops the whole strip, with the tree
+# untouched, rather than removing the files ahead of it and leaving the rest
+# loaded.
+repo="$(make_repo untracked 'CLAUDE.md=@AGENTS.md' 'AGENTS.md=root instructions')"
+printf 'local only\n' >"$repo/CLAUDE.local.md"
+out="$("$SCRIPT" strip "$repo" 2>&1)"
+rc=$?
+assert_equals "untracked: strip exits 2" "$rc" "2"
+case "$out" in
+*CLAUDE.local.md*) pass "untracked: the message names the untracked file" ;;
+*) fail "untracked: the message names the untracked file" "got [$out]" ;;
+esac
+assert_file_is "untracked: AGENTS.md is untouched" "$repo/AGENTS.md" "root instructions"
+assert_file_is "untracked: CLAUDE.md is untouched" "$repo/CLAUDE.md" "@AGENTS.md"
+
+# --- Case 5: the root is never inferred. A missing root is a usage error, not a
+# run against the working directory.
+"$SCRIPT" list >/dev/null 2>&1
+assert_equals "usage: a missing root exits 2" "$?" "2"
+"$SCRIPT" restore "$TEST_TMPDIR" >/dev/null 2>&1
+assert_equals "usage: restore without a ref exits 2" "$?" "2"
+
+printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
+[[ "$FAILED" -eq 0 ]]

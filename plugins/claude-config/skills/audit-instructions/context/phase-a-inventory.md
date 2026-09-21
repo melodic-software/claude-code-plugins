@@ -167,6 +167,6 @@ involving one still carries the no-change representation and its routing recomme
   routes to the owning repository's tracker and proposes no in-place edit.
 - **Every I15 counterpart outside the requested scope.** A scope argument narrows which surfaces may
   *produce* findings, not which are read: a conflict is a relation between two surfaces, so a run
-  scoped to `skills` still inventories `CLAUDE.md`, rules, agents, hooks, and output styles as
+  scoped to `skills` still inventories `CLAUDE.md`, a natively read `AGENTS.md`, rules, agents, hooks, and output styles as
   comparison counterparts. Findings still name both sides; the filter decides which side the run is
   auditing, never that the counterpart goes unread.

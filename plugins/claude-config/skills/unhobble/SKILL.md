@@ -1,5 +1,5 @@
 ---
-description: "Empirical bare-baseline experiment on a repo's standing instructions: reversibly strip project CLAUDE.md/rules/behavioral hooks/skills on a dedicated branch, work normally against the bare model logging observed stumbles to a ledger, then re-add ONLY instructions with repeated same-cause evidence, each restore citing its ledger rows. Measures the model where sibling audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated mutations; resumable state."
+description: "Empirical bare-baseline experiment on a repo's standing instructions: reversibly strip project CLAUDE.md and a natively read AGENTS.md/rules/behavioral hooks/skills on a dedicated branch, work normally against the bare model logging observed stumbles to a ledger, then re-add ONLY instructions with repeated same-cause evidence, each restore citing its ledger rows. Measures the model where sibling audit-instructions judges the text. Use when: 'unhobble', 'run the bare experiment', 'delete my CLAUDE.md and see', 'does the model still need these instructions', 'new model dropped, re-baseline', 'instruction ablation experiment'. Human-gated mutations; resumable state."
 argument-hint: "[phase]: snapshot|bare|observe|readd|status (default: guided full flow)"
 user-invocable: true
 disable-model-invocation: false
@@ -34,7 +34,8 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 ## Scope and safety rails
 
 - **Project scope by default.** The experiment strips the *project's* surfaces: project CLAUDE.md /
-  CLAUDE.local.md, `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
+  CLAUDE.local.md / `.claude/CLAUDE.md`, the `AGENTS.md` and `.claude/AGENTS.md` a session reads
+  natively once those are gone, `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
   and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
   operator explicitly opts in per phase-1 prompt, never by default.
 - **Managed settings are never touched.** Org-managed policy is not the operator's to ablate.
@@ -78,7 +79,8 @@ means passing its phase commands from inside the same checkout its manifest name
    `audit-instructions` Phase A, lighter: what actually loads in a session here, not what is merely
    on disk). Record line counts per surface.
 3. Classify **every surface the strip plan will touch**: hooks, rules, instruction files
-   (CLAUDE.md / CLAUDE.local.md, `.claude/skills/`, `.claude/agents/`), and project-enabled
+   (CLAUDE.md / CLAUDE.local.md / `.claude/CLAUDE.md`, `AGENTS.md` / `.claude/AGENTS.md`,
+   `.claude/skills/`, `.claude/agents/`), and project-enabled
    plugins alike: `policy` (enforces team/safety policy regardless of model, so kept), `behavioral`
    (corrects or scaffolds model behavior, so stripped), `hybrid` (one unit carrying both, with the
    split named, trimmed and never removed whole), or `convention` (team conventions in git, the
@@ -91,8 +93,8 @@ means passing its phase commands from inside the same checkout its manifest name
    skills, agents, plugins) classify by the class definitions above; `hybrid` applies to any unit
    whose behavioral and policy surfaces can be split in place. Classification is per unit that
    Phase 2 acts on: a hook entry, a rule file, a skill, an agent, a plugin. A **mixed** instruction
-   file, where a CLAUDE.md carrying both convention sections and behavioral lines is the common case,
-   is not classified whole: split it in the strip plan, naming which sections are stripped and
+   file, where a CLAUDE.md or an AGENTS.md carrying both convention sections and behavioral lines is
+   the common case, is not classified whole: split it in the strip plan, naming which sections are stripped and
    which are preserved (extracted to a retained file or left in place), so the convention
    carve-out holds at section granularity rather than being deleted wholesale with the file. A
    **hybrid hook entry** gets the same treatment at its own granularity: the strip plan names the
@@ -115,6 +117,19 @@ Apply the confirmed strip plan:
   behavioral sections and keeping the policy residue in place or extracted. The classes differ in what
   the residue is (policy vs convention), not in the mechanics. One commit, message
   `experiment: strip instruction surfaces for unhobble baseline`.
+- The root instruction files, for a plan that strips them whole, go through
+  [scripts/instruction-files.sh](scripts/instruction-files.sh): `list <root>` reports which of
+  `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `AGENTS.md` and `.claude/AGENTS.md` are
+  present, and `strip <root>` `git rm`s each one, printing what it moved. **Both `AGENTS.md` names
+  go with the `CLAUDE.md` files, whether or not the session reads them natively today.** A session
+  reads them as the project instructions only when no `CLAUDE.md` name displaces them, and this
+  strip removes exactly those names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md`
+  shim ends the strip with its entire instruction surface still loading, from the file the shim
+  pointed at, unless the strip takes that file too. The displacement rule carries its dated record
+  in the `instruction-placement` plugin's
+  `skills/migrate/reference/sources.md`; read it there rather than restating the condition here. A
+  mixed `AGENTS.md` is split at section granularity like a mixed `CLAUDE.md`, not handed to
+  `strip`, which only moves whole files.
 - Project-settings hook entries classified `behavioral`: back up the settings file to `backups/`,
   remove the entries, record the exact JSON paths removed in the manifest. An entry classified
   `hybrid` is never removed whole: strip its behavioral surface through the hook's own kill switch
@@ -159,7 +174,10 @@ rows after real work is a licensed permanent deletion.
 
 1. Group ledger rows by suspected missing instruction. The gate: **at least two rows, same
    underlying cause.** One-off failures do not reopen a standing line; retry the task first.
-2. For each group that clears the gate, restore the narrowest instruction that addresses the cause,
+2. For a root instruction file being restored whole,
+   `scripts/instruction-files.sh restore <root> <pre-strip-commit>` puts back every name on the
+   strip list that the commit has and the worktree lacks, both `AGENTS.md` names included, and
+   prints what it returned. For each group that clears the gate, restore the narrowest instruction that addresses the cause,
    a single line or rule file rather than the whole pre-experiment surface, and cite the ledger rows in
    the restoring commit or an adjacent comment.
 3. For instructions being rewritten rather than restored verbatim, route the text-level judgment to
