@@ -112,6 +112,7 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 |---|---|---|
 | User `CLAUDE.md` | Every session, in full | memory: "CLAUDE.md files are loaded in full regardless of length" |
 | Project `CLAUDE.md` / `CLAUDE.local.md` | Every session in that tree, concatenated after user scope | memory: "All discovered files are concatenated into context rather than overriding each other" |
+| Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it | Every session in that tree | memory: "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it" |
 | Nested `CLAUDE.md` in a subdirectory | On demand, when Claude reads a file there | memory: "they are included when Claude reads files in those subdirectories" |
 | `.claude/rules/*` without `paths` | Every session | memory: "loaded at launch with the same priority as `.claude/CLAUDE.md`" |
 | `.claude/rules/*` with `paths` | Only when a matching file is read | memory: "only apply when Claude is working with files matching the specified patterns" |
