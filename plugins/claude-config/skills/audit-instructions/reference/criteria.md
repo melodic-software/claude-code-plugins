@@ -168,7 +168,8 @@ their own rows.
   corroborates rather than defines, so the rows citing it keep the `ANTHROPIC-DOCS` Authority of
   their primary documentation sources and the closed four-value Authority set above is unchanged):
   <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
-- Memory (CLAUDE.md, rules, auto memory): <https://code.claude.com/docs/en/memory>
+- Memory (CLAUDE.md, a natively read AGENTS.md, rules, auto memory):
+  <https://code.claude.com/docs/en/memory>
 - The `.claude` directory: <https://code.claude.com/docs/en/claude-directory>
 - Skills (what loads when, how supporting files are referenced, the listing budget,
   invocation-control fields): <https://code.claude.com/docs/en/skills>
@@ -249,8 +250,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** only-sometimes-relevant content (a workflow, domain knowledge, one subsystem's
   quirks) living in a surface that loads **more broadly than the content is relevant**. Two cases,
   because the surfaces this check runs on are not all always-loaded:
-  - an always-loaded surface: the selected output style, an unscoped rule, root `CLAUDE.md` where
-    the partition allows it;
+  - an always-loaded surface: the selected output style, an unscoped rule, root `CLAUDE.md` or a
+    natively read root `AGENTS.md` where the partition allows it;
   - a surface loaded in full on every use of a component whose own scope is broader than the
     content's: a skill body or an agent definition covering several concerns, where the content
     matters to one of them and is in context for all of the others. Establish that breadth before
@@ -262,7 +263,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   while changing the load profile not at all. **State the move cost with the recommendation:** a
   `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file is
   read again, so content that must survive compaction stays unscoped or in the project-root
-  `CLAUDE.md`. **A *new* skill is not a free destination:** its body defers, but the listing entry it
+  `CLAUDE.md` (or the `AGENTS.md` read natively in its place). **A *new* skill is not a free destination:** its body defers, but the listing entry it
   adds, `name` plus the combined `description` and `when_to_use` truncated at 1,536 characters, is
   always in context, so the saving is the body minus that entry rather than the whole body. Moving
   content into a skill that **already exists** adds no listing entry and does not carry this cost.
@@ -761,7 +762,8 @@ skill bodies.
 - **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
   startup and therefore already carries: the **root** project `CLAUDE.md` in **either** supported
   location (`./CLAUDE.md` **or** `./.claude/CLAUDE.md`), the user `CLAUDE.md` at the **resolved**
-  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, the **root** `AGENTS.md` or
+  `./.claude/AGENTS.md` where no `CLAUDE.md` name displaces it, unconditional
   project rules (no `paths` frontmatter), and managed policy files. Each of the three qualifiers is required.
   Root-level: the startup guarantee is scoped to the hierarchy discovered from the launch directory,
   not to every file of that name in the tree. Resolved: `CLAUDE_CONFIG_DIR` moves the whole config

@@ -46,7 +46,8 @@ does not cite, needs no recheck, because the partition itself is never restated 
 Every precedence claim below is quoted from a page fetched when this file was written. A claim these
 pages do not make is recorded as unresolved and given no winner.
 
-- Memory, covering CLAUDE.md, `.claude/rules/`, and auto memory: <https://code.claude.com/docs/en/memory>
+- Memory, covering CLAUDE.md, a natively read `AGENTS.md`, `.claude/rules/`, and auto memory:
+  <https://code.claude.com/docs/en/memory>
 - Skills: <https://code.claude.com/docs/en/skills>
 - Subagents, covering what loads into a subagent at startup: <https://code.claude.com/docs/en/sub-agents>
 - Output styles, covering how a style reaches the system prompt: <https://code.claude.com/docs/en/output-styles>
