@@ -225,6 +225,32 @@ if ln -s target.md "$symlink_repo/AGENTS.md" 2>/dev/null && [[ -L "$symlink_repo
   esac
   assert_file_is "symlink: the link's target is untouched" \
     "$symlink_repo/target.md" "link target"
+
+  # A SYMLINKED ANCESTOR. `-d` follows the link, so a `.claude` pointing at a
+  # real directory reads as an ordinary one; writing `.claude/AGENTS.md` through
+  # it replaces the link with a real directory and the link is lost.
+  ancestor_repo="$(make_repo symlink_ancestor '.claude/AGENTS.md=dot instructions' 'README.md=code')"
+  abase="$(git -C "$ancestor_repo" rev-parse HEAD)"
+  "$SCRIPT" strip "$ancestor_repo" --all >/dev/null
+  git -C "$ancestor_repo" commit --quiet -m "strip"
+  rm -rf "$ancestor_repo/.claude"
+  mkdir -p "$ancestor_repo/elsewhere"
+  ln -s elsewhere "$ancestor_repo/.claude"
+  out="$("$SCRIPT" restore "$ancestor_repo" "$abase" .claude/AGENTS.md 2>&1)"
+  rc=$?
+  assert_equals "symlink-ancestor: a named restore through a linked ancestor exits 2" "$rc" "2"
+  assert_equals "symlink-ancestor: the link survives" \
+    "$(readlink "$ancestor_repo/.claude")" "elsewhere"
+
+  # And a DANGLING ancestor link, which fails -e and would pass a test that only
+  # asked whether the path is a non-directory.
+  rm -f "$ancestor_repo/.claude"
+  ln -s nowhere-at-all "$ancestor_repo/.claude"
+  out="$("$SCRIPT" restore "$ancestor_repo" "$abase" .claude/AGENTS.md 2>&1)"
+  rc=$?
+  assert_equals "symlink-ancestor: a dangling linked ancestor also exits 2" "$rc" "2"
+  assert_equals "symlink-ancestor: the dangling link survives" \
+    "$(readlink "$ancestor_repo/.claude")" "nowhere-at-all"
 else
   echo "SKIP: symlinks unavailable on this host; the symlink obstruction cases did not run" >&2
 fi

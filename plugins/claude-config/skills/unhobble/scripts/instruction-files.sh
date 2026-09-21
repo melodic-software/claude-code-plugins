@@ -145,6 +145,15 @@ occupied_ancestor() {
   local p="$1"
   while [[ "$p" == */* ]]; do
     p="${p%/*}"
+    # `-L` first, and on its own. `-d` FOLLOWS a symlink, so a `.claude` that is
+    # a link to a directory would read as an ordinary directory and pass; git
+    # writing a path through it replaces the link with a real directory, losing
+    # the link. A DANGLING link fails `-e` and would pass this test the other
+    # way, while still blocking the write.
+    if [[ -L "$root/$p" ]]; then
+      printf 'symlinked-ancestor'
+      return 0
+    fi
     if [[ -e "$root/$p" && ! -d "$root/$p" ]]; then
       printf 'blocked-ancestor'
       return 0
