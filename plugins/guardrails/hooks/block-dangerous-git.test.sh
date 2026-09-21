@@ -1874,6 +1874,43 @@ run_pwsh "PS hs: a sibling before the ambiguity still blocks past a neutralized 
   "$(printf '%s\n%s\n%s' "git reset --hard; Write-Host 'a''b @'" "hello" "'@")" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
 
+# THE CLOSER IS NEUTRALIZED BY POSITION, never by re-pairing the suffix's quotes.
+# A quote in the live code after the closer pairs with the closer's OWN quote, so
+# a walk of the whole line finds nothing surviving at its head; deciding from
+# that walk leaves the closer standing, and the Bash tokenizer the reduction is
+# handed to then swallows the git line below it into one unterminated quoted
+# word. rc 2 on the base.
+run_pwsh "PS hs: a quoted suffix after the closer does not spare the closer" \
+  "$(printf '%s\n%s\n%s\n%s' "Write-Output 'a''b' @\"" "hello" "\"@; Write-Host \"x\"" "git push --force")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+# The verbatim spelling. A suffix quote pairs with the closer character only in
+# the opener's OWN style, so `'x'` under a `'@` closer is what discriminates
+# here; the `"x"` spelling would leave the closer's quote surviving and pass
+# either way. rc 0 on the base, which reads the opener as a real here-string.
+run_pwsh "PS hs: the verbatim spelling of the quoted-suffix closer" \
+  "$(printf '%s\n%s\n%s\n%s' "Write-Host 'a''b @'" "hello" "'@; Write-Host 'x'" "git push --force")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+# Two quoted strings in the suffix: the same defeat one hop further along.
+run_pwsh "PS hs: two quoted strings after the closer do not spare it either" \
+  "$(printf '%s\n%s\n%s\n%s' "Write-Output 'a''b' @\"" "hello" "\"@; Write-Host \"x\" \"y\"" "git push --force")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+# AN ODD QUOTE IN THE SUFFIX ITSELF, which is what taking the two closer
+# characters off and copying the rest verbatim would leave standing: the same
+# swallow in a new place. The suffix therefore takes the opaque-tail treatment
+# the opener line's own tail takes, and the code in front of that quote stays in
+# view.
+run_pwsh "PS hs: an unterminated quote in the suffix keeps the git line visible" \
+  "$(printf '%s\n%s\n%s\n%s' "Write-Output 'a''b' @\"" "hello" "\"@; Write-Host \"x" "git push --force")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+run_pwsh "PS hs: a closer line whose own quoting pairs still blocks the git line under it" \
+  "$(printf '%s\n%s\n%s\n%s' "Write-Output 'a''b' @\"" "hello" "\"@ fine\"" "git push --force")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+# The rc 0 twin of those pins: neutralizing the closer by position is not a
+# blanket block, and a git-free suffix is still ordinary allowed text.
+run_pwsh "PS hs: a git-free quoted suffix after the closer is still allowed" \
+  "$(printf '%s\n%s\n%s' "Write-Output 'a''b' @\"" "hello" "\"@; Write-Host \"x\"")" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-opener-unconfirmed
+
 # --- the walk may only ever REMOVE openers from the base's confirmed set -------
 # PowerShell reads `<# … #>` as a block comment over the first three lines below,
 # so the payload under it is an ordinary statement and it RUNS. Neither the base

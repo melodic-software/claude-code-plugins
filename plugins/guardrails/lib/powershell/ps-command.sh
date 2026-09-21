@@ -2308,12 +2308,26 @@ ps::_blank_unbalanced_herestring_tail() {
 # So the arm carries one piece of state, the pending opener quote, and replaces
 # the two closer characters on the first column-zero line that matches it.
 #
-# ONLY AN ORPHAN. A closer line whose quoting the walk PAIRS (`"@ fine"`) is
-# already balanced for the tokenizer and is left exactly as it is, so the pins
-# that depend on text after such a closer staying visible do not move. The test
-# is the same one the opener tail uses: does a quote SURVIVE the walk at the head
-# of the line. Only the two closer characters are replaced, never the line, so
-# live code after the closer (`"@; git push --force`) stays in view.
+# BY POSITION, NEVER BY RE-PAIRING THE SUFFIX. The closer is the two characters
+# standing at COLUMN ZERO, and nothing else decides that. Asking instead whether
+# the closer's own quote SURVIVES a walk of the whole line hands the decision to
+# the code after it: `"@; Write-Host "x"` pairs that quote with the one in front
+# of `x`, so nothing survives at the head, the closer is left standing, and the
+# tokenizer swallows the `git push --force` on the next line into one quoted
+# word. That is the fail-open this arm exists to prevent, under the operator's
+# own token.
+#
+# THE SUFFIX STAYS, UP TO ITS OWN OPAQUE TAIL. Everything after the two closer
+# characters is ordinary code the later scans must still see, so it is copied
+# through and `"@; git reset --hard` still reaches the caller's checks. A quote
+# the walk cannot pair inside that suffix (`"@ fine"`) would be left standing the
+# moment the closer in front of it goes, which is the same swallow in a new
+# place, so the suffix takes the treatment the opener line's tail takes: from its
+# first surviving quote to the end of the line, replaced by the placeholder. The
+# walk is run over the SUFFIX ALONE, so the closer character is not among the
+# quotes it pairs, and the prefix in front of that surviving quote is a literal
+# prefix of the suffix, which keeps live code standing before the ambiguity in
+# view.
 #
 # THE REST OF THE LOOP IS STILL STATELESS with respect to here-string BODIES. It
 # tests every line, the body lines of a real here-string included, and the set it
@@ -2325,21 +2339,30 @@ ps::_blank_unbalanced_herestring_tail() {
 # closer walk in ps::blank_herestrings, which is the drift this file's other SSOT
 # notes warn about.
 ps::_blank_unconfirmed_herestring_openers() {
-  local line out="" co_kind="" co_quote="" co_scan co_tail co_pending=""
+  local line out="" co_kind="" co_quote="" co_scan co_tail co_suffix co_pending=""
   local -a co_lines=()
   ps::_split_lines_to co_lines "$1"
   for line in "${co_lines[@]}"; do
     if [[ -n "$co_pending" && "${line:0:2}" == "${co_pending}@" ]]; then
       # The column-zero closer the neutralized opener would have paired with.
-      ps::blank_quoted_spans_to co_scan "$line"
-      if [[ "${co_scan:0:1}" == "$co_pending" ]]; then
-        out+="${PS_HERESTRING_PLACEHOLDER}${line:2}"$'\n'
-        co_pending=""
-        continue
+      # Under the here-string reading this line is where the body ends, so stop
+      # looking once it is taken.
+      co_suffix="${line:2}"
+      ps::blank_quoted_spans_to co_scan "$co_suffix"
+      co_tail="$co_scan"
+      while [[ -n "$co_tail" && "$co_tail" != [\'\"]* ]]; do co_tail="${co_tail:1}"; done
+      if [[ -z "$co_tail" ]]; then
+        out+="${PS_HERESTRING_PLACEHOLDER}${co_suffix}"$'\n'
+      elif [[ "$co_suffix" == *"$co_tail" ]]; then
+        out+="${PS_HERESTRING_PLACEHOLDER}${co_suffix%"$co_tail"}${PS_HERESTRING_PLACEHOLDER}"$'\n'
+      else
+        # A tail that is not a suffix of the raw one would mean the walk changed
+        # the text after the ambiguity, which it does not; drop the whole suffix
+        # rather than emit a reduction built on a false premise.
+        out+="${PS_HERESTRING_PLACEHOLDER}"$'\n'
       fi
-      # Already paired for the tokenizer: leave it alone, and stop looking.
-      # Under the here-string reading this line is where the body ends.
       co_pending=""
+      continue
     fi
     ps::_herestring_opener_to co_kind co_quote "$line"
     if [[ "$co_kind" == unconfirmed ]]; then
