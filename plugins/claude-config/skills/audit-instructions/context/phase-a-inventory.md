@@ -24,13 +24,16 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   reads the CLAUDE.md files instead and the `AGENTS.md` reaches context only as an import or a
   symlink, which the importing record already covers. The root case is the condition
   `claude-memory`'s `skills/audit/scripts/lib/agents-md.sh` encodes.
-  **Displacement is that mode's answer, not the only one.** Under the
-  `claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
-  `AGENTS.md` after, so a displaced file is read there and needs its own record like any other.
-  **Resolve the EFFECTIVE mode, not one scope's copy.** The option is a user, `--settings` or
-  managed setting, so a user scope that names the default can be overridden by a managed or
-  session one and the reverse; reading only the scope this phase happens to inventory answers the
-  wrong question in both directions, dropping a live surface or inventorying an unloaded one.
+  **Displacement is that mode's answer, not the only one, and this bullet does not restate the
+  mode's values, its load order, or the scopes that honour it**: the four-part record for all of
+  them, and for whether the session reads an `AGENTS.md` at all, is this plugin's
+  [reference/agents-md-liveness.md](../../../reference/agents-md-liveness.md). Resolve them there,
+  so this phase and the checks downstream of it read one record that carries its own recheck
+  trigger. Two things follow that this phase acts on. Under a mode that loads both files a displaced
+  file is read and needs its own record like any other. And **the value to resolve is the EFFECTIVE
+  one across the scopes the record names**, since a user scope naming the default can be overridden
+  by a managed one and the reverse; reading only the scope this phase happens to inventory answers
+  the wrong question in both directions, dropping a live surface or inventorying an unloaded one.
   The mode is the second question, not the only one: `AGENTS.md` support has to be available in the
   session at all, and **a condition known to rule the file out excludes it regardless of the mode**,
   since such a session reads it under no mode and a record for it would let a later phase grade a

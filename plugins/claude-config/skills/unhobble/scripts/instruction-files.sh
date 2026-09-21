@@ -7,9 +7,10 @@
 # them, and the strip removes exactly those CLAUDE.md names, so a file that is
 # merely imported by a one-line shim today is read natively the moment the shim
 # goes. A baseline that left it in place would declare itself bare while the
-# repository's whole instruction surface was still loading. The displacement
-# rule and its dated record live in
-# plugins/instruction-placement/skills/migrate/reference/sources.md.
+# repository's whole instruction surface was still loading. Whether a session
+# reads one at all, and which files the instruction-files mode loads, carry their
+# dated records in this plugin's reference/agents-md-liveness.md. The caller
+# decides candidacy from those; this script only moves the names it is given.
 #
 #   instruction-files.sh list <root>                     print the files present under <root>
 #   instruction-files.sh strip <root> <name>...          git rm each NAMED file

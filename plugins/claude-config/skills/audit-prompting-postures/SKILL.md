@@ -93,10 +93,15 @@ feature flags, the first session after an upgrade, or one where `disableAllHooks
 `allowManagedHooksOnly` or a disabled built-in `agents-md` plugin applies, reads no `AGENTS.md`
 under ANY mode, and inventorying one would let Phase C propose posture additions to a surface
 nothing loads. Two of the mode's four values, `claude-md` and `managed-only`, rule it out the same
-way. Exclude on a condition known to rule it out; include on one merely unresolved, so the
-conservative direction applies where the answer is unknown rather than where it is known to be no.
-Several of those conditions are readable, two of them from the very settings this skill inventories,
-so resolve before falling back. Only where the file is
+way. Exclude on a condition known to rule it out. Several of those conditions are readable, two of
+them from the very settings this skill inventories, so resolve before falling back.
+**Where a condition stays unresolved, inventory the file but carry the doubt into the finding.**
+Inventorying is not free here the way it is in a pure comparison set: this skill's Phase C judges
+every inventoried component and emits a `MISSING` posture for it, so silently including a surface
+whose residency is unknown proposes work on a file the session may not load. Any posture finding
+anchored on such an `AGENTS.md` is reported conditional, naming the unresolved condition and what
+would settle it, in the same shape the model-conditional postures use below. That keeps the surface
+visible without asserting a gap the reader cannot act on. Only where the file is
 genuinely not read does it reach context as an import, which the importing record already covers.
 **The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish
