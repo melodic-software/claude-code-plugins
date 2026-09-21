@@ -101,6 +101,39 @@ resolve_names() {
   done
 }
 
+# True when a checkout of this name would have to destroy something first: the
+# target occupied by ANY object, or an ancestor inside the root that is not a
+# directory. A plain `-f` test misses a directory, a symlink to nowhere, and a
+# `.claude` that has become a regular file, and `git checkout` resolves each of
+# those by REMOVING it, a nonempty directory included, before writing the
+# committed path. Nothing here is recoverable from the ref, so an occupied target
+# is treated as already present rather than as free space.
+# These PRINT a reason rather than returning a status, so callers read them
+# through a command substitution instead of an `if`. A predicate function called
+# in a condition suppresses `set -e` for its whole body, which the repo's lint
+# configuration flags (SC2310, the check-set-e-suppressed option).
+occupied() {
+  if [[ -e "$root/$1" || -L "$root/$1" ]]; then
+    printf 'occupied'
+    return 0
+  fi
+  occupied_ancestor "$1"
+}
+
+# Prints a reason when a directory component of the name exists as something
+# other than a directory, so the path cannot be written without destroying it.
+occupied_ancestor() {
+  local p="$1"
+  while [[ "$p" == */* ]]; do
+    p="${p%/*}"
+    if [[ -e "$root/$p" && ! -d "$root/$p" ]]; then
+      printf 'blocked-ancestor'
+      return 0
+    fi
+  done
+  return 0
+}
+
 cmd="${1:-}"
 root="${2:-}"
 [[ -n "$cmd" && -n "$root" ]] || usage
@@ -176,7 +209,18 @@ restore)
     # it. A name that is neither in the ref nor tracked is the case this cannot
     # decide: it is named for the operator and LEFT, per the branch below.
     for n in "${NAMES[@]}"; do
+      # Resolved outside the conditions below, per SC2310 as in the named path.
+      blocked_ancestor="$(occupied_ancestor "$n")"
       if git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
+        # Overwriting the file that belongs at this path is the point. Destroying
+        # a DIFFERENT kind of object sitting on it is not: a directory or a
+        # symlink there is debris the ref cannot describe, and `git checkout`
+        # would delete it, contents and all, without saying so.
+        if [[ -e "$root/$n" && ! -f "$root/$n" ]] || [[ -n "$blocked_ancestor" ]]; then
+          echo "instruction-files.sh: left in place, $ref's $n is blocked by another object: $root/$n" >&2
+          echo "  git checkout would delete it to write the file; clear it by hand first." >&2
+          continue
+        fi
         git -C "$root" checkout "$ref" -- "$n"
         printf '%s\n' "$n"
       elif git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
@@ -212,10 +256,13 @@ restore)
   for n in "$@"; do
     known=""
     for k in "${NAMES[@]}"; do [[ "$n" == "$k" ]] && known=1 && break; done
+    # Resolved outside the condition below: a function called inside one
+    # suppresses `set -e` for its body (SC2310).
+    blocked="$(occupied "$n")"
     if [[ -z "$known" ]]; then
       refused+=("$n (not an instruction file name; names: ${NAMES[*]})")
-    elif [[ -f "$root/$n" ]]; then
-      refused+=("$n (already present; remove it first, or use --all to abandon the experiment)")
+    elif [[ -n "$blocked" ]]; then
+      refused+=("$n (already present, or its path is blocked by a file or directory; clear it first, or use --all to abandon the experiment)")
     elif ! git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
       refused+=("$n (not in $ref; nothing to restore it from)")
     fi

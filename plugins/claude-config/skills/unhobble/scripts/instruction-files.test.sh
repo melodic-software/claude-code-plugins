@@ -134,6 +134,48 @@ out="$("$SCRIPT" restore "$repo" "$base" AGENTS.md 2>&1)"
 rc=$?
 assert_equals "shim: restoring a file already present exits 2" "$rc" "2"
 
+# --- Case 5a2: the target path is occupied by something that is not the file.
+# `-f` is false for a directory and for a symlink to nowhere, and git checkout
+# resolves the collision by DELETING the object, a nonempty directory included,
+# so an emptier test than this one loses data the ref cannot restore.
+repo="$(make_repo collide 'CLAUDE.md=original' '.claude/AGENTS.md=original dot')"
+base="$(git -C "$repo" rev-parse HEAD)"
+"$SCRIPT" strip "$repo" --all >/dev/null
+git -C "$repo" commit --quiet -m "strip"
+
+out="$("$SCRIPT" restore "$repo" "$base" CLAUDE.md 2>&1)"
+assert_equals "collide: an unblocked name restores normally" "$out" "CLAUDE.md"
+
+# A directory standing where the file goes.
+rm -f "$repo/CLAUDE.md"
+mkdir -p "$repo/CLAUDE.md"
+printf 'keep me\n' >"$repo/CLAUDE.md/inner.txt"
+out="$("$SCRIPT" restore "$repo" "$base" CLAUDE.md 2>&1)"
+rc=$?
+assert_equals "collide: a directory on the target exits 2" "$rc" "2"
+assert_file_is "collide: the directory's contents survive" \
+  "$repo/CLAUDE.md/inner.txt" "keep me"
+rm -rf "$repo/CLAUDE.md"
+
+# An ancestor that has become a regular file blocks .claude/AGENTS.md.
+rm -rf "$repo/.claude"
+printf 'a file where the directory goes\n' >"$repo/.claude"
+out="$("$SCRIPT" restore "$repo" "$base" .claude/AGENTS.md 2>&1)"
+rc=$?
+assert_equals "collide: a non-directory ancestor exits 2" "$rc" "2"
+assert_file_is "collide: the blocking ancestor survives" \
+  "$repo/.claude" "a file where the directory goes"
+
+# --all does not clobber it either: it reports and steps over.
+out="$("$SCRIPT" restore "$repo" "$base" --all 2>&1)"
+assert_file_is "collide: --all leaves the blocking ancestor alone" \
+  "$repo/.claude" "a file where the directory goes"
+case "$out" in
+*"blocked by another object"*) pass "collide: --all reports what it stepped over" ;;
+*) fail "collide: --all reports what it stepped over" "got [$out]" ;;
+esac
+rm -f "$repo/.claude"
+
 # --- Case 5b: a named restore whose source the ref does not have, and a ref
 # that is not a commit. Both are errors. Exit 0 with nothing restored would let
 # the caller's ledger claim a file came back while it stayed deleted.
