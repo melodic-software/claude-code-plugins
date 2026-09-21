@@ -305,26 +305,26 @@ assert_not_contains "a CLAUDE.md displaces .claude/AGENTS.md too" "$OUT_DOTBLOCK
 # directory above it" (memory doc). A check that stops at the root reports a
 # surface the session never reads.
 
-ANC="$TEST_TMPDIR/anc"
-mkdir -p "$ANC/proj"
-printf '# ancestor memory\n' >"$ANC/CLAUDE.md"
-printf '# project instructions\n' >"$ANC/proj/AGENTS.md"
-OUT_ANC="$(run_in "$ANC/proj" "$EMPTY_CONF")"
-assert_not_contains "an ancestor CLAUDE.md displaces the AGENTS.md" "$OUT_ANC" "$(printf 'agents-md\t')"
+ABOVE="$TEST_TMPDIR/anc"
+mkdir -p "$ABOVE/proj"
+printf '# ancestor memory\n' >"$ABOVE/CLAUDE.md"
+printf '# project instructions\n' >"$ABOVE/proj/AGENTS.md"
+OUT_ABOVE="$(run_in "$ABOVE/proj" "$EMPTY_CONF")"
+assert_not_contains "an ancestor CLAUDE.md displaces the AGENTS.md" "$OUT_ABOVE" "$(printf 'agents-md\t')"
 
 ANCL="$TEST_TMPDIR/anc-local"
 mkdir -p "$ANCL/a/b/proj"
 printf '# ancestor overrides\n' >"$ANCL/a/CLAUDE.local.md"
 printf '# project instructions\n' >"$ANCL/a/b/proj/AGENTS.md"
-OUT_ANCL="$(run_in "$ANCL/a/b/proj" "$EMPTY_CONF")"
-assert_not_contains "a CLAUDE.local.md two levels up displaces it" "$OUT_ANCL" "$(printf 'agents-md\t')"
+OUT_ABOVEL="$(run_in "$ANCL/a/b/proj" "$EMPTY_CONF")"
+assert_not_contains "a CLAUDE.local.md two levels up displaces it" "$OUT_ABOVEL" "$(printf 'agents-md\t')"
 
-ANCD="$TEST_TMPDIR/anc-dot"
-mkdir -p "$ANCD/.claude" "$ANCD/proj"
-printf '# ancestor project memory\n' >"$ANCD/.claude/CLAUDE.md"
-printf '# project instructions\n' >"$ANCD/proj/AGENTS.md"
-OUT_ANCD="$(run_in "$ANCD/proj" "$EMPTY_CONF")"
-assert_not_contains "an ancestor .claude/CLAUDE.md displaces it" "$OUT_ANCD" "$(printf 'agents-md\t')"
+ABOVE_DOT="$TEST_TMPDIR/anc-dot"
+mkdir -p "$ABOVE_DOT/.claude" "$ABOVE_DOT/proj"
+printf '# ancestor project memory\n' >"$ABOVE_DOT/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$ABOVE_DOT/proj/AGENTS.md"
+OUT_ABOVE_DOT="$(run_in "$ABOVE_DOT/proj" "$EMPTY_CONF")"
+assert_not_contains "an ancestor .claude/CLAUDE.md displaces it" "$OUT_ABOVE_DOT" "$(printf 'agents-md\t')"
 
 # The one ancestor `.claude/CLAUDE.md` that does NOT count is the user root:
 # "Don't count, and keep loading alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`".
