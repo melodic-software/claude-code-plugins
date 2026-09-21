@@ -3,6 +3,84 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.12]
+
+### Fixed
+
+- **`fix-plugin-drift.sh` stops instead of reporting "No drift detected" when its own check dies.**
+  The internal `check-plugin-drift.sh` call ran under `|| true`. A check that exits 2 (a settings
+  file that is missing or not valid JSON, a missing jq) writes no findings document, and `mktemp`
+  had already created the target as a zero-byte file. `jq empty` accepts an empty document, every
+  count came out 0, and the script printed "No drift detected, nothing to do" and exited 0, so a
+  fatal check read as a clean bill of health. The status is now captured: above 1 is fatal, since
+  1 is the check's own "drift detected". An empty document paired with status 1 is fatal too,
+  because it can only mean a truncated write. Status 0 with no document stays a pass, because the
+  check exits 0 without writing when the settings file declares no `extraKnownMarketplaces`. That
+  case names itself on stderr, since the check's own explanation goes to the `/dev/null` this
+  script redirects, and on stdout it now reads "No marketplace was audited" rather than borrowing
+  the clean-audit wording for a run that compared nothing.
+- **`fix-plugin-drift.sh --yes` backs the settings file up before it replaces it.** The only file
+  operations were two `rm -f` on temporaries and a bare `mv` over the target, so an operator had
+  no copy of what the script overwrote. A successful apply now copies the file to
+  `<settings>.<UTC stamp>.bak` first and aborts if that copy fails, so nothing is replaced without
+  a copy of what it replaced. The backup is created and filled through ONE descriptor, under
+  `set -C` and a 0077 umask: the `O_EXCL` open refuses an existing path and a symlink alike,
+  including a dangling one that `[[ -e ]]` reads as absent and a bare `cp` would follow, and
+  writing through that same descriptor leaves no window in which the predictable backup path could
+  be unlinked and replaced with a symlink between an exclusive create and a later reopen. The
+  umask stops a verbatim
+  copy of a file that can hold tokens and permission rules inheriting a world-readable mode. The
+  umask is a no-op on MSYS, where mode bits are emulated, so the 0600 result holds on Linux and
+  macOS and not on Git Bash. Backups are never pruned, so a project that tracks `.claude/` may
+  want `.claude/*.bak` ignored. The backup path is named in the summary line.
+- **`fix-plugin-drift.sh --yes` refuses to write the user settings file it reached by inference.**
+  With no `CLAUDE_SETTINGS_FILE`, the project-root ladder falls through to `$PWD` when the working
+  directory is not a repository, so a session started in a home directory resolved the target to
+  `~/.claude/settings.json` and rewrote the live user file as if it were project scope. The apply
+  path now compares the resolved target against the user config dir's own `settings.json`, and
+  against `$HOME/.claude/settings.json` for a relocated `CLAUDE_CONFIG_DIR`, and exits 2 when they
+  are the same file. Only the inferred path is refused: an explicit `CLAUDE_SETTINGS_FILE` is a
+  deliberate target and still applies, now with a warning naming the waived guard, because a
+  settings file's own `env` block can export that variable and the file under audit is the one
+  that drifted. A dry run still reads and reports either way.
+- **`fix-plugin-drift.sh --yes` refuses a settings path that is a symlink.** The replacement is a
+  rename, which replaces the link rather than the file it names, so a linked `settings.json` was
+  destroyed, the real file went unfixed, and the run still printed "Applied". Resolving the link
+  portably needs a `realpath` and `readlink -f` dance this script does not otherwise carry, so the
+  case is refused with a message naming the path instead of being mishandled quietly.
+- **`fix-plugin-drift.sh --yes` preserves the settings file's line endings.** The edit is a jq
+  read-modify-write, and jq emits whatever its build emits: the native Windows build writes CRLF
+  through a text-mode stdout, an MSYS or Linux build writes LF. Either one rewrites every line
+  ending in a file of the other style while reporting a handful of key changes. The emitted
+  document is now normalized to the line-ending style the original file carried, measured with
+  `tr` because Git Bash grep never matches a carriage return, and revalidated as JSON after the
+  conversion. The rule counts bytes rather than pairing them, so a file with mixed endings comes
+  back uniform in whichever style its majority carried. Indentation and the trailing newline still
+  come from jq.
+- **`fix-plugin-drift.sh --yes` never reports an edit it did not make.** Staging the replacement
+  beside the target introduced a way to report one. The stage is seeded with a `cp -p` of the
+  original to carry its mode, and the two line-ending normalization arms wrote into it through
+  unchecked redirects, so a write that never landed left a stage holding the ORIGINAL bytes: valid
+  JSON, a valid object, past every check, renamed over the settings file, and reported as
+  "Applied" with exit 0. Two inputs reached it. A settings file the operator had made read-only,
+  because `cp -p` carried that mode onto the stage and the redirect was then denied. And a signal
+  during the apply, because the `INT`/`TERM`/`HUP` trap deleted the temporaries without ending the
+  run, after which `cp -p` recreated the stage from the original and the normalization input was
+  gone. Four changes close it: both normalization arms are checked and fatal; the signal traps
+  clean up and then exit, 130 for `INT` and 143 for `TERM` and `HUP`; the stage is made writable
+  after the `cp -p` and has the read-only mode restored before the rename, so a read-only settings
+  file is applied and comes back read-only; and the settings file is read back after the replace
+  and compared against the backup, so "Applied" rests on evidence rather than on the pipeline's
+  say-so. The remaining command substitutions in the apply path (the clock for the backup name,
+  the line-ending measurement, the plugin-list encoding) are checked too.
+- **`fix-plugin-drift.sh --yes` replaces the settings file with a same-directory rename.** The
+  staging temporary moved out of `$TMPDIR` and beside the target: on a host where `/tmp` is a
+  separate mount the final `mv` degraded to a copy plus an unlink, where an interruption leaves
+  the settings file truncated. The `EXIT` trap now also catches `INT`, `TERM` and `HUP`, because
+  that temporary sits in the operator's own config directory where nothing else sweeps it up, and
+  both post-edit validations moved from `jq empty`, which exits 0 on a zero-byte file, to
+  `jq -e 'type == "object"'`.
+
 ## [0.46.11]
 
 ### Changed
