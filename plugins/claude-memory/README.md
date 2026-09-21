@@ -5,7 +5,7 @@ It ships two skills:
 
 | Skill | Question it answers |
 |---|---|
-| `/claude-memory:audit` | Is the instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
+| `/claude-memory:audit` | Is the instruction/memory layer (`CLAUDE.md`, a root `AGENTS.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) healthy against official-doc criteria? |
 | `/claude-memory:stateless` | Is Claude's auto memory on, where does it live, and how do I turn it off or wipe it? |
 
 The two skills split by axis: `audit` checks the health of the instruction/memory layer; `stateless`
@@ -29,8 +29,8 @@ The context-cost line is a bytes-per-token estimate over the always-loaded set a
 Judgment-tier checks apply fixed criteria with model reading. Reports persist to the plugin's data
 directory. They audit contributor-personal auto-memory, so they never land in the repo.
 
-Scope covers **both** layers that load every session: the project's `CLAUDE.md` / `CLAUDE.local.md` /
-`.claude/rules/`, and the user-global `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and
+Scope covers **both** layers that load every session: the project's `CLAUDE.md` (or the `AGENTS.md`
+and `.claude/AGENTS.md` read in its place) / `CLAUDE.local.md` / `.claude/rules/`, and the user-global `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` and
 `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/`. Every discovered file is tagged with its scope, so
 project-scoped criteria skip personal files instead of reporting a repo-scoped finding against one.
 
@@ -45,7 +45,8 @@ project-scoped criteria skip personal files instead of reporting a repo-scoped f
 
 Inspects and disables Claude Code **auto memory**, the notes Claude writes for itself per repo at
 `~/.claude/projects/<project>/memory/` (relocatable via `autoMemoryDirectory`). Scope is auto-memory
-only: the instruction layer (`CLAUDE.md`, `.claude/rules/`) belongs to `audit`, and transcripts /
+only: the instruction layer (`CLAUDE.md`, a natively read `AGENTS.md`, `.claude/rules/`) belongs to
+`audit`, and transcripts /
 history are out of scope (Claude Code auto-cleans those via `cleanupPeriodDays`).
 
 ```shell

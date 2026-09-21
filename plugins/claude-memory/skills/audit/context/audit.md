@@ -8,14 +8,15 @@ instruction/memory files.
 Find files in scope:
 
 ```bash
-# CLAUDE.md and rules files, PROJECT and USER scope, each tagged with its scope.
+# CLAUDE.md, AGENTS.md and rules files, PROJECT and USER scope, each tagged with its scope.
 # The bundled script resolves ${CLAUDE_CONFIG_DIR:-$HOME/.claude} the same way the
 # memory-dir resolver does. A bare `find .` sees project scope only and misses
 # ~/.claude/CLAUDE.md and ~/.claude/rules/*.md, which load in every session.
 # C6 owns instruction-content conflicts across this population (including user
 # and project pairs); I15 owns pairs with an anchor outside it.
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover-instruction-surfaces.sh"
-# Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`
+# Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`, kind is
+# claude-md | claude-local-md | agents-md | rule
 
 # Auto-memory — CURRENT repo only. A bare `~/.claude/projects/*/memory/` glob
 # matches every project on a multi-project machine and resolves alphabetical-first
@@ -34,6 +35,10 @@ Read [../reference/criteria.md](../reference/criteria.md), then execute every ap
 each discovered file. Apply by entity type:
 
 - **C1-C9**: CLAUDE.md and CLAUDE.local.md, at either scope
+- **An `agents-md` row is the project instructions file**, emitted only where the session reads it
+  rather than a CLAUDE.md, so it takes every C-check a project `claude-md` row takes, C9 included.
+  Report it under its own path; never relabel it as a CLAUDE.md finding. A repo under a one-line
+  `@AGENTS.md` shim emits no such row, because the CLAUDE.md row already covers that content
 - **C9 is project-scoped: skip it for CLAUDE.local.md AND for every `user`-scope file.** The criteria
   file says so directly: C9 applies to project CLAUDE.md only, and `~/.claude/CLAUDE.md` is "not
   repo-scoped". This is the reason Step 1 emits a scope tag. A user-scope `CLAUDE.md` carrying no build
@@ -101,7 +106,8 @@ skipping the judgment.
 
 After per-file checks, cross-reference every pair of distinct surfaces in the
 discover-instruction-surfaces population for **contradictions** (C6 owns all such pairs). Also
-report **redundancy** where both sides load together in the same session. Concrete passes:
+report **redundancy** where both sides load together in the same session. An `agents-md` row stands
+where a project CLAUDE.md would in every pass below. Concrete passes:
 
 1. Compare each CLAUDE.md (any scope) against every co-resident rule for contradictions
 2. Compare CLAUDE.md against CLAUDE.local.md (same or cross-scope) for contradictions and redundancy

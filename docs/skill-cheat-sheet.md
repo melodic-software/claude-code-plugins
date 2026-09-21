@@ -163,7 +163,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/claude-config:audit-prompting-postures`](../plugins/claude-config/skills/audit-prompting-postures/SKILL.md) | `claude-config` | Find posture guidance the prompting guide says a component needs but does not carry |
 | [`/claude-config:draft-auto-mode-rules`](../plugins/claude-config/skills/draft-auto-mode-rules/SKILL.md) | `claude-config` | Interview and draft a paste-ready autoMode block, never writing settings |
 | [`/claude-config:unhobble`](../plugins/claude-config/skills/unhobble/SKILL.md) | `claude-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
-| [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist |
+| [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist |
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
 | [`/claude-ops:changelog`](../plugins/claude-ops/skills/changelog/SKILL.md) | `claude-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
 | [`/claude-ops:known-issues`](../plugins/claude-ops/skills/known-issues/SKILL.md) | `claude-ops` | Look up and track known Claude product issues, health, and workarounds |

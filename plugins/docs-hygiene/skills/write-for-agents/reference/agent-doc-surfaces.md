@@ -5,7 +5,8 @@ auto-loads, at what moment, and under what size behavior. Write differently for 
 surface (every line is a per-session tax) than for an on-demand one (cost only when the trigger
 fires).
 
-Claude Code rows verified against official docs current at v2.1.233 (2026-08-17). The harness
+Claude Code rows verified against official docs current at v2.1.233 (2026-08-17); a row carrying its
+own version and date supersedes this line for that row. The harness
 releases frequently, so when your write depends on a load-timing detail, re-verify it
 against <https://code.claude.com/docs/en/memory> before relying on it.
 
@@ -23,7 +24,7 @@ against <https://code.claude.com/docs/en/memory> before relying on it.
 | User rules | `~/.claude/rules/*.md` | Session start, before project rules (lower priority) |
 | `--add-dir` CLAUDE.md/rules | `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, `CLAUDE.local.md` in each added directory | Session start, ONLY when `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; off by default, and otherwise these files do not load at all |
 | `@` imports | `@path` inside CLAUDE.md/rules; max 4 hops; skipped in code spans/fences | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
-| AGENTS.md | not read natively | Only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
+| AGENTS.md | `./AGENTS.md`, `./.claude/AGENTS.md`, the same names in ancestor dirs; nested on a Read there | Session start, native since v2.1.277, but ONLY where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in cwd or above it, and only where support is available: the availability set is remote-flag gated and moves, so read it from the sources record in `instruction-placement`'s `skills/migrate/reference/sources.md` rather than from here. Where either condition fails: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
 | Auto-memory index | `~/.claude/projects/<project>/memory/MEMORY.md` | Session start: first 200 lines or 25KB, whichever first |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, plugin `skills/` | Listing metadata (description) in context every turn; body on invocation or model trigger |
@@ -54,7 +55,7 @@ verify a vendor's current behavior before relying on details.
 
 | Convention | File(s) | Auto-read |
 |---|---|---|
-| AGENTS.md open standard | `AGENTS.md` root + nested (nearest wins) | Native in Codex, Cursor, Copilot agent, Gemini CLI (config), Windsurf, Zed, Roo, but not Claude Code |
+| AGENTS.md open standard | `AGENTS.md` root + nested (nearest wins) | Native in Codex, Cursor, Copilot agent, Gemini CLI (config), Windsurf, Zed, Roo, and in Claude Code under the conditions the Claude Code table above gives |
 | Agent Skills standard (agentskills.io) | `<name>/SKILL.md` folders | Metadata-first progressive disclosure; discovery dirs per agent, where `.agents/skills/` + `~/.agents/skills/` is the shared cross-tool convention (Codex CLI, Cursor, Gemini CLI, VS Code Copilot, Zed); Claude Code uses its own `.claude/skills/` paths |
 | Cursor rules | `.cursor/rules/*.mdc`; legacy `.cursorrules` | Per-rule types: Always / Auto Attached (globs) / Agent Requested / Manual |
 | GitHub Copilot | `.github/copilot-instructions.md`; `.github/instructions/**.instructions.md` (`applyTo:` globs) | Auto-added to matching requests |

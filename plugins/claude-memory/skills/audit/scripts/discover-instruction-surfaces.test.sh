@@ -202,6 +202,154 @@ assert_contains "--scope project still shows the both-tagged rule" "$OUT_HOME_PR
 # The non-overlapping fixture must NOT regress into `both`.
 assert_not_contains "distinct rules dirs never produce a both tag" "$OUT" "$(printf 'both\t')"
 
+# --- a repository whose project instructions live in AGENTS.md ---------------
+# Claude Code reads a root AGENTS.md as the project instructions when no
+# CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md displaces it. Without a row for
+# that file, a repo that has dropped its CLAUDE.md shim has nothing to audit.
+
+AGENTS_PROJ="$TEST_TMPDIR/agents-proj"
+mkdir -p "$AGENTS_PROJ"
+printf '# project instructions\n\nreal content\n' >"$AGENTS_PROJ/AGENTS.md"
+
+OUT_AGENTS="$(run_in "$AGENTS_PROJ" "$EMPTY_CONF")"
+RC_AGENTS=$?
+assert_exit "exits 0 with only an AGENTS.md" 0 "$RC_AGENTS"
+assert_contains "a natively read AGENTS.md is a project surface" "$OUT_AGENTS" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+AGENTS_ROWS="$(printf '%s\n' "$OUT_AGENTS" | grep -c '[^[:space:]]' || true)"
+if [[ "$AGENTS_ROWS" == "1" ]]; then
+  pass "a lone AGENTS.md emits exactly one project surface row"
+else
+  fail "a lone AGENTS.md emits exactly one project surface row" "got $AGENTS_ROWS rows: $OUT_AGENTS"
+fi
+
+# An empty AGENTS.md is emitted, the same as an empty CLAUDE.md: discovery tests
+# existence, and the size checks are the caller's (C1 reports 0 lines).
+EMPTY_AGENTS="$TEST_TMPDIR/agents-empty"
+mkdir -p "$EMPTY_AGENTS"
+: >"$EMPTY_AGENTS/AGENTS.md"
+OUT_AGENTS_EMPTY="$(run_in "$EMPTY_AGENTS" "$EMPTY_CONF")"
+assert_contains "a 0-byte AGENTS.md is still a surface" "$OUT_AGENTS_EMPTY" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+# --- the shim: a CLAUDE.md that imports AGENTS.md ----------------------------
+# The import already carries the AGENTS.md into the CLAUDE.md row, so emitting a
+# second row for it would double-count one file. This fixture must keep emitting
+# exactly what it emitted before the kind existed.
+
+SHIM_PROJ="$TEST_TMPDIR/shim-proj"
+mkdir -p "$SHIM_PROJ"
+printf '@AGENTS.md\n' >"$SHIM_PROJ/CLAUDE.md"
+printf '# project instructions\n\nreal content\n' >"$SHIM_PROJ/AGENTS.md"
+
+OUT_SHIM="$(run_in "$SHIM_PROJ" "$EMPTY_CONF")"
+assert_eq "a shimmed repo emits what it emitted before agents-md existed" "$(printf 'project\tclaude-md\tCLAUDE.md')" "$OUT_SHIM"
+
+# Every displacing name blocks on its own, not just CLAUDE.md.
+LOCAL_PROJ="$TEST_TMPDIR/agents-local"
+mkdir -p "$LOCAL_PROJ"
+printf '# personal overrides\n' >"$LOCAL_PROJ/CLAUDE.local.md"
+printf '# project instructions\n' >"$LOCAL_PROJ/AGENTS.md"
+OUT_LOCAL="$(run_in "$LOCAL_PROJ" "$EMPTY_CONF")"
+assert_not_contains "a CLAUDE.local.md displaces the AGENTS.md" "$OUT_LOCAL" "$(printf 'agents-md\t')"
+
+DOTCLAUDE_PROJ="$TEST_TMPDIR/agents-dotclaude"
+mkdir -p "$DOTCLAUDE_PROJ/.claude"
+printf '# project memory\n' >"$DOTCLAUDE_PROJ/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$DOTCLAUDE_PROJ/AGENTS.md"
+OUT_DOTCLAUDE="$(run_in "$DOTCLAUDE_PROJ" "$EMPTY_CONF")"
+assert_not_contains "a .claude/CLAUDE.md displaces the AGENTS.md" "$OUT_DOTCLAUDE" "$(printf 'agents-md\t')"
+
+# A user-scope CLAUDE.md does not count for that check, so it must not suppress
+# the project row.
+OUT_AGENTS_USER="$(run_in "$AGENTS_PROJ" "$CONF")"
+assert_contains "a user CLAUDE.md does not displace the AGENTS.md" "$OUT_AGENTS_USER" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+# It is a project surface, so it answers the project filter and not the user one.
+OUT_AGENTS_PROJ="$(run_in "$AGENTS_PROJ" "$CONF" --scope project)"
+assert_contains "--scope project emits the agents-md row" "$OUT_AGENTS_PROJ" "$(printf 'project\tagents-md\tAGENTS.md')"
+OUT_AGENTS_USERSCOPE="$(run_in "$AGENTS_PROJ" "$CONF" --scope user)"
+assert_not_contains "--scope user suppresses the agents-md row" "$OUT_AGENTS_USERSCOPE" "$(printf 'agents-md\t')"
+
+# The fixture the rest of this suite uses has a CLAUDE.md, so it never gains one.
+assert_not_contains "no agents-md row without an AGENTS.md" "$OUT" "$(printf 'agents-md\t')"
+
+# --- .claude/AGENTS.md loads at session start too -----------------------------
+# "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working
+# directory and the directories above it" (memory doc). The doc states no
+# precedence between the two names, so each file that exists gets its own row.
+
+DOTAGENTS="$TEST_TMPDIR/agents-dot"
+mkdir -p "$DOTAGENTS/.claude"
+printf '# project instructions\n' >"$DOTAGENTS/.claude/AGENTS.md"
+OUT_DOTAGENTS="$(run_in "$DOTAGENTS" "$EMPTY_CONF")"
+assert_eq "a lone .claude/AGENTS.md is a project surface" "$(printf 'project\tagents-md\t.claude/AGENTS.md')" "$OUT_DOTAGENTS"
+
+BOTHAGENTS="$TEST_TMPDIR/agents-both"
+mkdir -p "$BOTHAGENTS/.claude"
+printf '# project instructions\n' >"$BOTHAGENTS/AGENTS.md"
+printf '# more project instructions\n' >"$BOTHAGENTS/.claude/AGENTS.md"
+OUT_BOTHAGENTS="$(run_in "$BOTHAGENTS" "$EMPTY_CONF")"
+assert_eq "both AGENTS.md names are emitted, root first" "$(printf 'project\tagents-md\tAGENTS.md\nproject\tagents-md\t.claude/AGENTS.md')" "$OUT_BOTHAGENTS"
+
+# The displacement rule is the same for both names.
+DOTBLOCKED="$TEST_TMPDIR/agents-dot-blocked"
+mkdir -p "$DOTBLOCKED/.claude"
+printf '# project memory\n' >"$DOTBLOCKED/CLAUDE.md"
+printf '# project instructions\n' >"$DOTBLOCKED/.claude/AGENTS.md"
+OUT_DOTBLOCKED="$(run_in "$DOTBLOCKED" "$EMPTY_CONF")"
+assert_not_contains "a CLAUDE.md displaces .claude/AGENTS.md too" "$OUT_DOTBLOCKED" "$(printf 'agents-md\t')"
+
+# --- a displacer ABOVE the repository root ------------------------------------
+# "Count, so Claude reads them instead of `AGENTS.md`: a `CLAUDE.md`,
+# `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
+# directory above it" (memory doc). A check that stops at the root reports a
+# surface the session never reads.
+
+ABOVE="$TEST_TMPDIR/anc"
+mkdir -p "$ABOVE/proj"
+printf '# ancestor memory\n' >"$ABOVE/CLAUDE.md"
+printf '# project instructions\n' >"$ABOVE/proj/AGENTS.md"
+OUT_ABOVE="$(run_in "$ABOVE/proj" "$EMPTY_CONF")"
+assert_not_contains "an ancestor CLAUDE.md displaces the AGENTS.md" "$OUT_ABOVE" "$(printf 'agents-md\t')"
+
+ANCL="$TEST_TMPDIR/anc-local"
+mkdir -p "$ANCL/a/b/proj"
+printf '# ancestor overrides\n' >"$ANCL/a/CLAUDE.local.md"
+printf '# project instructions\n' >"$ANCL/a/b/proj/AGENTS.md"
+OUT_ABOVEL="$(run_in "$ANCL/a/b/proj" "$EMPTY_CONF")"
+assert_not_contains "a CLAUDE.local.md two levels up displaces it" "$OUT_ABOVEL" "$(printf 'agents-md\t')"
+
+ABOVE_DOT="$TEST_TMPDIR/anc-dot"
+mkdir -p "$ABOVE_DOT/.claude" "$ABOVE_DOT/proj"
+printf '# ancestor project memory\n' >"$ABOVE_DOT/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$ABOVE_DOT/proj/AGENTS.md"
+OUT_ABOVE_DOT="$(run_in "$ABOVE_DOT/proj" "$EMPTY_CONF")"
+assert_not_contains "an ancestor .claude/CLAUDE.md displaces it" "$OUT_ABOVE_DOT" "$(printf 'agents-md\t')"
+
+# The one ancestor `.claude/CLAUDE.md` that does NOT count is the user root:
+# "Don't count, and keep loading alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`".
+# A bare `CLAUDE.md` in that same directory is not the user root file and counts.
+HOMEY="$TEST_TMPDIR/homey"
+mkdir -p "$HOMEY/.claude" "$HOMEY/proj"
+printf '# user memory\n' >"$HOMEY/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$HOMEY/proj/AGENTS.md"
+OUT_HOMEY="$(cd "$HOMEY/proj" && CLAUDE_CONFIG_DIR="$HOMEY/.claude" bash "$SCRIPT")"
+assert_contains "the user root's own CLAUDE.md does not displace it" "$OUT_HOMEY" "$(printf 'project\tagents-md\tAGENTS.md')"
+
+printf '# a bare home CLAUDE.md\n' >"$HOMEY/CLAUDE.md"
+OUT_HOMEY_BARE="$(cd "$HOMEY/proj" && CLAUDE_CONFIG_DIR="$HOMEY/.claude" bash "$SCRIPT")"
+assert_not_contains "a bare CLAUDE.md beside the user root still displaces it" "$OUT_HOMEY_BARE" "$(printf 'agents-md\t')"
+
+# `$HOME/.claude` is the user root whether or not CLAUDE_CONFIG_DIR names it. A suite that
+# pins only CLAUDE_CONFIG_DIR would otherwise read the machine's own `~/.claude/CLAUDE.md`
+# as an ancestor displacer wherever the fixtures sit inside the real profile.
+HOMEONLY="$TEST_TMPDIR/home-only"
+mkdir -p "$HOMEONLY/.claude" "$HOMEONLY/proj"
+printf '# user memory\n' >"$HOMEONLY/.claude/CLAUDE.md"
+printf '# project instructions\n' >"$HOMEONLY/proj/AGENTS.md"
+OUT_HOMEONLY="$(cd "$HOMEONLY/proj" && HOME="$HOMEONLY" CLAUDE_CONFIG_DIR="$EMPTY_CONF" bash "$SCRIPT")"
+assert_contains "HOME/.claude is the user root even when CLAUDE_CONFIG_DIR names another" "$OUT_HOMEONLY" "$(printf 'project\tagents-md\tAGENTS.md')"
+
 # --- unknown argument is advisory, not fatal ---------------------------------
 
 run_in "$PROJ" "$CONF" --nonsense >/dev/null 2>&1

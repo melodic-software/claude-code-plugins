@@ -15,6 +15,16 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   `CLAUDE.md` / `CLAUDE.local.md` in subdirectories of the project tree (Claude loads these on
   demand when it reads files in those directories, so walk the tree and do not stop at the root);
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
+- **A natively read `AGENTS.md`**: `./AGENTS.md` and `./.claude/AGENTS.md`, each its own record, and
+  every nested `AGENTS.md` in subdirectories of the project tree, on the same on-demand footing as
+  the nested `CLAUDE.md` files above. A file is natively read only where no `CLAUDE.md`,
+  `.claude/CLAUDE.md` or `CLAUDE.local.md` sits **on its own path**, from the working directory or
+  any directory above it down to the directory holding it; test the condition per file, not once at
+  the root. Where one does displace it, Claude Code reads the CLAUDE.md files instead and the
+  `AGENTS.md` reaches context only as an import or a symlink, which the importing record already
+  covers. The root case is the condition `claude-memory`'s `skills/audit/scripts/lib/agents-md.sh`
+  encodes; a surface missing here produces no Phase A record, so no later phase can route or grade
+  it.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in
   `.claude/settings.local.json`**, since local settings are a supported hook-configuration scope and a
   hook configured there gates the session as much as one configured anywhere else, **and declared

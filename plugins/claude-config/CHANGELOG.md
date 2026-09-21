@@ -3,6 +3,13 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.13]
+
+### Changed
+
+- `audit-instructions`: the I15 routing table, the I15 routing clause and the SKILL.md boundary clause name a natively read `AGENTS.md` and `.claude/AGENTS.md` as members of the `discover-instruction-surfaces` population, which `claude-memory` 0.13.0 emits as `agents-md` rows. A contradiction whose two halves are an `AGENTS.md` and a project `CLAUDE.md` now routes to `claude-memory`'s C6, the same owner a `claude-md`-anchored pair routes to, instead of falling through to I15 on a literal reading of a list that predated the kind. The C6 paraphrase in `reference/conflict-criteria.md` defers to that discovery rather than restating a file list that can drift from it.
+- `audit-instructions`: the memory-layer surface partition names a natively read `AGENTS.md`, so the I1-I5 hygiene checks route it to `claude-memory:audit` instead of grading it here and double-reporting what that skill's C-checks already cover. The SKILL.md partition clause, the `claude-md` scope filter, the `reference/criteria.md` partition row and the eval that grades the routing all name it, so the skill, its criteria and its eval agree. Phase A inventories `./AGENTS.md`, `./.claude/AGENTS.md` and every nested `AGENTS.md` as their own records, on the same on-demand footing as the nested `CLAUDE.md` files beside them, with displacement tested per file along its own path from the working directory or any directory above it down to the directory holding it rather than once at the root, since a surface with no Phase A record is one no later phase can route or grade, and the I15 co-residency table gives it the residency row gate 1 resolves against, with the guaranteed-pairs set naming it so a pair anchored on it in an AGENTS.md-canonical repo does not resolve as merely conditional.
+
 ## [0.46.12]
 
 ### Fixed

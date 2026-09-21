@@ -1,12 +1,12 @@
 ---
-description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
+description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'audit AGENTS.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
 argument-hint: "[audit|fix|update|report]. Default: audit"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Audit CLAUDE.md, rules, and auto-memory against the official-docs checklist
+  summary: Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist
 ---
 
 ## Pre-computed context
@@ -28,6 +28,7 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Entity | Location | Loaded | Audited here |
 |--------|----------|--------|-------------|
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
+| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Every session, full, both files, when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the root or any directory above it displaces them (the user root's own `~/.claude/CLAUDE.md` does not count); under a `@AGENTS.md` shim it loads as that file's import instead | Yes, as the project instructions (the C-checks) |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |

@@ -58,8 +58,8 @@ concerns its siblings already cover, so route rather than re-answer:
   re-adding on repeated stumble evidence, is `unhobble` (same plugin): this skill judges instruction
   *text* against doctrine; unhobble measures the *model*.
 
-On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, and `rules/` under the
-user root Phase A resolves),
+On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md,
+`.claude/rules/`, and `rules/` under the user root Phase A resolves),
 this skill runs only the model-era checks I6–I34. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces;
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
@@ -74,7 +74,8 @@ their own surface sets and are not run outside them; this partition never widens
 
 I15 (cross-surface conflict) carries its own narrower routing on the same convention, drawn from the
 population `claude-memory:audit`'s C6 actually enumerates via `discover-instruction-surfaces`
-(project **and** user root-level CLAUDE.md / rules) rather than from the name of the layer.
+(project **and** user root-level CLAUDE.md / a natively read AGENTS.md / rules) rather than from the
+name of the layer.
 [reference/conflict-criteria.md](reference/conflict-criteria.md) states that boundary and owns it.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
@@ -122,7 +123,7 @@ Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may *
 never which surfaces are read. Phase A always inventories the full comparison set, because I15 is a
 relation between two surfaces and a scoped run still needs the counterpart:
 
-- `claude-md`: findings on user + project CLAUDE.md and CLAUDE.local.md
+- `claude-md`: findings on user + project CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md
 - `rules`: findings on `.claude/rules/` and `rules/` under the user root Phase A resolves
 - `skills`: findings on skill bodies and their context/reference files
 - `agents`: findings on agent definition markdown
@@ -386,7 +387,8 @@ plainly that nothing has been applied.
   owning repository rather than being edited here.
 - Does not grade a contradiction whose two halves both sit in the
   **discover-instruction-surfaces** population, namely root-level project **or user** `CLAUDE.md` /
-  `CLAUDE.local.md` / rules, including **user↔project** pairs. That is `claude-memory:audit`'s C6.
+  `CLAUDE.local.md` / a natively read `AGENTS.md` or `.claude/AGENTS.md` / rules, including
+  **user↔project** pairs. That is `claude-memory:audit`'s C6.
   A **nested** `CLAUDE.md` / `CLAUDE.local.md` side, an auto-memory side, or any surface outside that
   population keeps the pair here;
   [reference/conflict-criteria.md](reference/conflict-criteria.md) owns the routing table and its

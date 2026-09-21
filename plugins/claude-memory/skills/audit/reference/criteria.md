@@ -7,8 +7,8 @@
 - [Checks for auto-memory (MEMORY.md + topic files)](#checks-for-auto-memory-memorymd--topic-files)
 - [Audit output format](#audit-output-format)
 
-Version: 1.6.0
-Last updated: 2026-08-19
+Version: 1.7.0
+Last updated: 2026-09-20
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
@@ -19,6 +19,16 @@ To refresh this file against current official guidance, run the skill's `update`
 ---
 
 ## Checks for CLAUDE.md and CLAUDE.local.md
+
+Every C-check here applies equally to each project root `AGENTS.md` that discovery emits as an
+`agents-md` surface (`AGENTS.md` and `.claude/AGENTS.md`, both of which load at session start and
+between which the doc states no precedence): that file IS the project instructions for the
+session, so the same budget, content and currency criteria govern it. Discovery emits it only where Claude Code reads it, which
+is why a repo under a one-line `@AGENTS.md` shim has no such row (the import already counts inside
+the CLAUDE.md's expanded figure) and a displaced `AGENTS.md` has none either. Cite the finding
+against `AGENTS.md`, not against a CLAUDE.md that is not there. Basis:
+code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md", fetched 2026-09-20; the
+condition and its recheck trigger are recorded in `scripts/lib/agents-md.sh`.
 
 ### C1: Line Budget [FAIL]
 
@@ -199,9 +209,9 @@ instead)."
 
 ### C6: Consistency [FAIL]
 
-**What**: Do any instructions contradict each other across CLAUDE.md, CLAUDE.local.md, and rules
-files, including across **user and project** scope when both sides are in the
-`discover-instruction-surfaces` population?
+**What**: Do any instructions contradict each other across CLAUDE.md, a root AGENTS.md read in a
+CLAUDE.md's place, CLAUDE.local.md, and rules files, including across **user and project** scope
+when both sides are in the `discover-instruction-surfaces` population?
 
 **How to check**:
 
