@@ -35,9 +35,9 @@ repeatedly stumbles on the same thing, and the re-added line cites the evidence.
 
 - **Project scope by default.** The experiment strips the *project's* surfaces: project CLAUDE.md /
   CLAUDE.local.md / `.claude/CLAUDE.md`, the `AGENTS.md` and `.claude/AGENTS.md` a session reads
-  natively once those are gone (**that reading is version- and flag-dependent and this body does
-  not restate the condition**; the four-part record is this plugin's
-  [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md)),
+  natively once those are gone (**whether a session reads one at all depends on availability and the
+  instruction-files mode, and this body does not restate either**; the four-part record is this
+  plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md)),
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, project-settings hooks,
   and project-enabled plugins. User-global surfaces (`~/.claude/**`) are included only when the
   operator explicitly opts in per phase-1 prompt, never by default.
@@ -137,23 +137,25 @@ Apply the confirmed strip plan:
   a behavioral `CLAUDE.md` beside an `AGENTS.md` the plan classified `policy` or `convention` and
   chose to keep, and a strip of the whole list would delete the surface the plan said to retain;
   `--all` is there for the case where the plan did approve every one.
-  **Both `AGENTS.md` names are strip CANDIDATES whether or not the session reads them natively
-  today, and each is then classified like any other file.** Candidacy and classification are
-  separate questions, and only the first is unconditional. Phase 1 must classify both names rather
-  than passing over them because nothing appears to read them: a session reads them as the project
-  instructions only when no `CLAUDE.md` name displaces them, and this strip removes exactly those
+  **Both `AGENTS.md` names are strip CANDIDATES wherever the strip could make them live, and each
+  is then classified like any other file.** Candidacy and classification are separate questions:
+  candidacy asks whether removing the `CLAUDE.md` names would put this file in context, and
+  classification asks what the file is. Neither is answered by "nothing appears to read it today",
+  which is why Phase 1 must consider both names rather than passing over them: a session reads them
+  as the project instructions only when no `CLAUDE.md` name displaces them, and this strip removes exactly those
   names, so a repository whose `CLAUDE.md` is a one-line `@AGENTS.md` shim ends the strip with its
   entire instruction surface still loading, from the file the shim pointed at, unless the plan
-  considered that file at all. **Candidacy is not unconditional where the surface cannot become
-  live.** Removing the `CLAUDE.md` names is what makes a session read an `AGENTS.md`, but only where
-  it can read one at all: with the CLI below the version floor or the flag known off, the file stays
-  unread after the strip, so stripping it changes nothing about the baseline being measured and only
-  perturbs the other tools that read it. Where a gate is known false **and** no `CLAUDE.md` imports
-  or symlinks the file, leave it out of the candidate set; where a gate is merely unresolved, or a
-  shim or import reaches the file, it stays a candidate, since that import is itself a live path
-  into context. The three gates carry their dated records in this plugin's
-  [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md); read them there rather
-  than restating the conditions here. What the classification then says is binding on an `AGENTS.md`
+  considered that file at all. **What candidacy is conditional on is whether the strip could make the
+  file live at all.** Removing the `CLAUDE.md` names is what makes a session read an `AGENTS.md`,
+  but only in a session where `AGENTS.md` support is available and the instruction-files mode reads
+  one: where availability is known unavailable, or the mode is `claude-md` or `managed-only`, the
+  file stays unread after the strip, so stripping it changes nothing about the baseline being
+  measured and only perturbs the other tools that read it. Leave it out of the candidate set only
+  when a condition is known to rule it out **and** no `CLAUDE.md` imports or symlinks it; a merely
+  unresolved condition keeps it, and so does a shim or import, since that import is itself a live
+  path into context regardless of native support. The conditions carry their dated records in this
+  plugin's [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md); read them there
+  rather than restating them here. What the classification then says is binding on an `AGENTS.md`
   exactly as on a `CLAUDE.md`: one classified `policy` or `convention` is kept and never named to
   `strip`, and a mixed or `hybrid` one is split at section granularity, not handed to `strip`,
   which only moves whole files.

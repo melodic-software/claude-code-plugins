@@ -775,8 +775,9 @@ skill bodies.
   the variable and inventories both project locations already; match it. The read spends a turn to
   retrieve text that is already present.
   **The `AGENTS.md` entry carries a fourth qualifier beyond those three, and it is not the
-  displacement test.** Native reading also depends on the CLI version, a remote feature flag and the
-  instruction-files mode, so a session on an older CLI, or one where the flag is off, does not load
+  displacement test.** Native reading also depends on whether `AGENTS.md` support is available in the
+  session and on the instruction-files mode, so a session where support is unavailable, for any of
+  the four documented reasons, does not load
   the file even with no `CLAUDE.md` in sight, while one under the `claude-md-and-agents-md` setting
   loads it even **with** a `CLAUDE.md` beside it, which makes a read of it redundant where the
   displacement test alone would have exempted it. That setting is a user, `--settings` or managed
@@ -801,12 +802,12 @@ skill bodies.
   guides, ADRs, CI workflow files, per-ecosystem convention docs, and an `AGENTS.md` that a
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it
   displaces **under the default instruction-files mode and that mode is in effect**, **and one that
-  no file displaces but that the session still does not read natively, because the CLI predates the
-  floor or the flag is off**. A repository with no displacing file
-  loads its `AGENTS.md` at startup like a `CLAUDE.md` (v2.1.277 and later, where support is
-  available), so resolve both halves, the displacement and the version-and-flag condition recorded
-  in [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before exempting it
-  or flagging it. Unresolved is a leave-alone, per the residency rule above. Those are ordinary progressive disclosure, **but only while no active startup
+  no file displaces but that the session still does not read natively, because `AGENTS.md` support is
+  unavailable there or the mode is one of the two that read no `AGENTS.md`**. A repository with no
+  displacing file loads its `AGENTS.md` at startup like a `CLAUDE.md` (v2.1.277 and later, where
+  support is available), so resolve both halves, the displacement and the availability-and-mode
+  condition recorded in [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before
+  exempting it or flagging it. Unresolved is a leave-alone, per the residency rule above. Those are ordinary progressive disclosure, **but only while no active startup
   import reaches them.** A startup file
   that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
   `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
@@ -859,13 +860,15 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   project instructions and it is in the set like any other surface. **So does the
   `claude-md-and-agents-md` mode**, under which both files load and a displaced `AGENTS.md` shapes
   behavior anyway, which is the case where excluding it would drop a genuine contradiction between
-  the two files. **The mode is the last gate, not the only one.** This clause's own reason for
-  excluding, that the file "shapes no behavior here", is exactly what a CLI below the v2.1.277 floor
-  or a flag known off produces, under any mode: the file is not read, so a divergence between it and
+  the two files. **The mode is the second question, not the only one.** This clause's own reason for
+  excluding, that the file "shapes no behavior here", is exactly what an unavailable-support session
+  produces, under any mode, and what the `claude-md` and `managed-only` values produce under any
+  displacement answer: the file is not read, so a divergence between it and
   a `CLAUDE.md` is not a conflict either, and keeping it would report one against a surface nothing
-  loads. Exclude on a gate known false; keep the file whenever every gate is satisfied or merely
+  loads. Exclude on a condition known to rule the file out; keep it whenever every condition is
+  satisfied or merely
   unresolved, which puts the conservative direction where the answer is unknown rather than where it
-  is known to be no. The floor and the flag carry their dated records in
+  is known to be no. Both carry their dated records in
   [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as

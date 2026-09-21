@@ -130,15 +130,15 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Handler **stdout** on any other event | **Never** | hooks: "For most events, stdout is written to the debug log but not shown in the transcript" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
 
-**The `AGENTS.md` row's residency is conditional on three gates, not on displacement alone.** The
-mode decides whether a `CLAUDE.md` beside it displaces it, and the CLI version floor and the remote
-flag decide whether the session reads an `AGENTS.md` at any path under any mode. A session below
-the floor, or one where the flag is off, does not load the file, so the row does not assert
-residency for it and gate 1 does not pair it; treating displacement as the whole question would
-report a conflict against a surface nothing loads. Resolve all three, and where a gate is merely
-unresolved rather than known false, keep the row's residency and let the pair be judged. The floor
-and the flag carry their dated records, with the mode and its settings scopes, in
-[agents-md-liveness.md](../../../reference/agents-md-liveness.md).
+**The `AGENTS.md` row's residency is conditional on availability and the mode, not on displacement
+alone.** Availability comes first: a session that reads no `AGENTS.md` at all, for any of the four
+documented reasons, does not load the file, so the row asserts no residency for it and gate 1 does
+not pair it. The mode then decides whether a `CLAUDE.md` beside it displaces it, and two of its four
+values rule the file out whatever the displacement answer is. Treating displacement as the whole
+question would report a conflict against a surface nothing loads. Resolve both, and where a
+condition is merely unresolved rather than known to rule the file out, keep the row's residency and
+let the pair be judged. Both carry their dated records, with the settings scopes and the key the
+mode lives under, in [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 
 **An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
 A non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main

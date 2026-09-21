@@ -77,9 +77,9 @@ upstream-ownership exclusions. The set, one entry per scope token above: skill b
 context/reference files a skill instructs the model to read), agent definition markdown, hook
 instruction text of both kinds, output-style markdown, CLAUDE.md / a natively read AGENTS.md or
 `.claude/AGENTS.md` / CLAUDE.local.md, `.claude/rules/`. **Whether an `AGENTS.md` is read natively
-depends on the instruction-files mode, the CLI version and a remote flag, and this body does not
-restate the condition**: the four-part record for all three gates, the mode with its settings
-scopes, the version floor and the remote flag, is this plugin's
+depends on whether `AGENTS.md` support is available in the session and on the instruction-files mode, and this body does not
+restate the condition**: the four-part record for both questions, whether `AGENTS.md` support is
+available in the session at all and which files the instruction-files mode loads, is this plugin's
 [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md). Resolve it there rather
 than from a copy that can drift. **Displacement is the default mode's answer, not the only one**: under the
 `claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
@@ -87,12 +87,16 @@ than from a copy that can drift. **Displacement is the default mode's answer, no
 though the default mode would call it displaced. That option is a user, `--settings` or managed
 setting, so resolve the **effective** value across those scopes rather than one scope's copy, which
 answers the wrong question whichever way the override runs.
-**The mode is the last gate, not the only one, and a gate known false excludes regardless of it.**
-Native reading needs the version floor and the flag as well, and neither is a mode question: where
-the CLI is below the floor or the flag is known off, the session cannot read the file under ANY
-mode, and inventorying it would let Phase C propose posture additions to a surface nothing loads.
-Exclude on a gate known false; include on one merely unresolved, so the conservative direction
-applies where the answer is unknown rather than where it is known to be no. Only where the file is
+**The mode is the second question, not the only one, and either can rule the file out.** Availability
+comes first and is not a mode question: a session on a CLI below v2.1.277, one that does not fetch
+feature flags, the first session after an upgrade, or one where `disableAllHooks`,
+`allowManagedHooksOnly` or a disabled built-in `agents-md` plugin applies, reads no `AGENTS.md`
+under ANY mode, and inventorying one would let Phase C propose posture additions to a surface
+nothing loads. Two of the mode's four values, `claude-md` and `managed-only`, rule it out the same
+way. Exclude on a condition known to rule it out; include on one merely unresolved, so the
+conservative direction applies where the answer is unknown rather than where it is known to be no.
+Several of those conditions are readable, two of them from the very settings this skill inventories,
+so resolve before falling back. Only where the file is
 genuinely not read does it reach context as an import, which the importing record already covers.
 **The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish
