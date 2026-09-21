@@ -120,6 +120,25 @@ occupied() {
   occupied_ancestor "$1"
 }
 
+# The `--all` form of the same question. It differs from `occupied` in one place:
+# a PLAIN FILE at the target is not an obstruction there, because overwriting or
+# removing the file that belongs at the path is what abandoning does. Anything
+# else is, and `-L` is tested BEFORE `-f` because `-f` follows a symlink and
+# would call a link to a regular file an ordinary file. The docs recommend an
+# `AGENTS.md`-to-`CLAUDE.md` symlink ("Share one file with other coding tools"),
+# so a link at one of these paths is a shape a real repository has.
+obstruction() {
+  if [[ -L "$root/$1" ]]; then
+    printf 'symlink'
+    return 0
+  fi
+  if [[ -e "$root/$1" && ! -f "$root/$1" ]]; then
+    printf 'not-a-regular-file'
+    return 0
+  fi
+  occupied_ancestor "$1"
+}
+
 # Prints a reason when a directory component of the name exists as something
 # other than a directory, so the path cannot be written without destroying it.
 occupied_ancestor() {
@@ -209,18 +228,28 @@ restore)
     # it. A name that is neither in the ref nor tracked is the case this cannot
     # decide: it is named for the operator and LEFT, per the branch below.
     for n in "${NAMES[@]}"; do
-      # Resolved outside the conditions below, per SC2310 as in the named path.
-      blocked_ancestor="$(occupied_ancestor "$n")"
-      if git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
-        # Overwriting the file that belongs at this path is the point. Destroying
-        # a DIFFERENT kind of object sitting on it is not: a directory or a
-        # symlink there is debris the ref cannot describe, and `git checkout`
-        # would delete it, contents and all, without saying so.
-        if [[ -e "$root/$n" && ! -f "$root/$n" ]] || [[ -n "$blocked_ancestor" ]]; then
-          echo "instruction-files.sh: left in place, $ref's $n is blocked by another object: $root/$n" >&2
-          echo "  git checkout would delete it to write the file; clear it by hand first." >&2
-          continue
+      # ONE guard, ahead of every branch, resolved outside the conditions per
+      # SC2310. Each branch below runs a command that assumes a plain file or
+      # nothing: `git checkout` DELETES a directory or symlink in its way, and
+      # `git rm` ABORTS on a non-empty directory, which under `set -e` would end
+      # the run part-way with earlier names already restored, the index entry
+      # still present and a raw `fatal:` in place of this script's own message.
+      # A half-applied abandon is the state this script refuses everywhere else.
+      obstructed="$(obstruction "$n")"
+      if [[ -n "$obstructed" ]]; then
+        echo "instruction-files.sh: left in place, $n is blocked by another object ($obstructed): $root/$n" >&2
+        echo "  git would have to destroy it to reach the path; clear it by hand, then re-run." >&2
+        # The INDEX half is still safe to finish for a tracked name the ref lacks:
+        # `--cached` drops the entry the experiment added without touching the
+        # object in the way, so the next commit does not carry it.
+        if ! git -C "$root" cat-file -e "$ref:$n" 2>/dev/null &&
+          git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
+          git -C "$root" rm -q --cached --ignore-unmatch -- "$n"
+          echo "  its index entry was dropped; only the worktree object remains." >&2
         fi
+        continue
+      fi
+      if git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
         git -C "$root" checkout "$ref" -- "$n"
         printf '%s\n' "$n"
       elif git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then

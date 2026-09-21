@@ -176,6 +176,59 @@ case "$out" in
 esac
 rm -f "$repo/.claude"
 
+# --- Case 5a3: the REMOVAL branch's obstruction. A tracked name the ref lacks,
+# whose worktree object is a directory, used to reach `git rm`, which aborts on a
+# non-empty directory and under `set -e` ended the run part-way: earlier names
+# already restored, the index entry still there, a raw git `fatal:` instead of
+# this script's message. A half-applied abandon is what it refuses elsewhere.
+repo="$(make_repo abort 'CLAUDE.md=original')"
+base="$(git -C "$repo" rev-parse HEAD)"
+"$SCRIPT" strip "$repo" --all >/dev/null
+git -C "$repo" commit --quiet -m "strip"
+# The experiment commits AGENTS.md as a FILE, so the index carries that name and
+# the base ref does not; then the worktree copy becomes a DIRECTORY. `git rm` on
+# that name is the call that aborts.
+printf 'added by the experiment\n' >"$repo/AGENTS.md"
+git -C "$repo" add AGENTS.md
+git -C "$repo" commit --quiet -m "experiment added an instruction file"
+rm -f "$repo/AGENTS.md"
+mkdir -p "$repo/AGENTS.md"
+printf 'not an instruction file\n' >"$repo/AGENTS.md/inner.txt"
+out="$("$SCRIPT" restore "$repo" "$base" --all 2>&1)"
+rc=$?
+assert_equals "abort: --all completes rather than dying on the obstruction" "$rc" "0"
+assert_file_is "abort: the earlier name is still restored" "$repo/CLAUDE.md" "original"
+assert_file_is "abort: the obstructing directory survives" \
+  "$repo/AGENTS.md/inner.txt" "not an instruction file"
+case "$out" in
+*fatal:*) fail "abort: no raw git fatal reaches the operator" "got [$out]" ;;
+*) pass "abort: no raw git fatal reaches the operator" ;;
+esac
+# The index half is still finished, so the next commit does not carry the name
+# the experiment added even though its worktree object had to be left.
+assert_equals "abort: the index entry is dropped even though the object stays" \
+  "$(git -C "$repo" ls-files AGENTS.md)" ""
+
+# Symlinks: `-f` follows them, so a link to a regular file would look like an
+# ordinary file and be silently replaced. Real symlinks are unavailable on some
+# hosts (Windows without privilege), so this case announces a skip rather than
+# passing vacuously; CI's Linux legs do exercise it.
+symlink_repo="$(make_repo symlink 'CLAUDE.md=original' 'target.md=link target')"
+if ln -s target.md "$symlink_repo/AGENTS.md" 2>/dev/null && [[ -L "$symlink_repo/AGENTS.md" ]]; then
+  sbase="$(git -C "$symlink_repo" rev-parse HEAD)"
+  out="$("$SCRIPT" restore "$symlink_repo" "$sbase" --all 2>&1)"
+  assert_equals "symlink: --all leaves a symlink at a name alone" \
+    "$(readlink "$symlink_repo/AGENTS.md")" "target.md"
+  case "$out" in
+  *"blocked by another object"*) pass "symlink: --all reports the link it stepped over" ;;
+  *) fail "symlink: --all reports the link it stepped over" "got [$out]" ;;
+  esac
+  assert_file_is "symlink: the link's target is untouched" \
+    "$symlink_repo/target.md" "link target"
+else
+  echo "SKIP: symlinks unavailable on this host; the symlink obstruction cases did not run" >&2
+fi
+
 # --- Case 5b: a named restore whose source the ref does not have, and a ref
 # that is not a commit. Both are errors. Exit 0 with nothing restored would let
 # the caller's ledger claim a file came back while it stayed deleted.
