@@ -99,9 +99,10 @@ them from the very settings this skill inventories, so resolve before falling ba
 Inventorying is not free here the way it is in a pure comparison set: this skill's Phase C judges
 every inventoried component and emits a `MISSING` posture for it, so silently including a surface
 whose residency is unknown proposes work on a file the session may not load. Any posture finding
-anchored on such an `AGENTS.md` is reported conditional, naming the unresolved condition and what
-would settle it, in the same shape the model-conditional postures use below. That keeps the surface
-visible without asserting a gap the reader cannot act on. Only where the file is
+anchored on such an `AGENTS.md` is emitted `NOT-APPLICABLE` with the unresolved condition as its
+failed predicate, which is the verdict the closed token set below already reserves for a predicate
+that did not hold. That keeps the surface in the report without asserting a gap the reader cannot
+act on. Only where the file is
 genuinely not read does it reach context as an import, which the importing record already covers.
 **The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish

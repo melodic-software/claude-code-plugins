@@ -22,7 +22,8 @@ its own record of the same upstream fact, that is a parallel record, not this on
   under any mode:
   1. "You're on a Claude Code version before v2.1.277";
   2. "Your session doesn't fetch feature flags from Anthropic, for example because you use Amazon
-     Bedrock or another third-party provider, or you disabled telemetry";
+     Bedrock or another third-party provider, or you disabled telemetry. The linked section has the
+     full list";
   3. "It's your first session after you install or upgrade to a version with `AGENTS.md` support.
      Claude reads `AGENTS.md` from your next session on";
   4. "You or your organization set `disableAllHooks` or `allowManagedHooksOnly`, or you disabled the
@@ -82,9 +83,12 @@ Resolve first, then fall back. A condition known false settles the question chea
 knowable. Where one genuinely cannot be resolved for the session under audit, each lane errs in the
 direction that cannot invent work:
 
-- **Inventory lanes** (`audit-instructions` Phase A, `audit-prompting-postures`' surface set)
-  record the file when every condition is satisfied **or unresolved**. Inventorying is additive: it
-  bounds what may produce a finding and cannot by itself produce one.
+- **Inventory lanes** (`audit-instructions` Phase A) record the file when every condition is
+  satisfied **or unresolved**. Inventorying is additive there: it bounds what may produce a finding
+  and cannot by itself produce one.
+- **`audit-prompting-postures`' surface set** also records it, but inventorying is not additive in
+  that skill, because its Phase C emits a verdict for every inventoried component. It records the
+  file and emits `NOT-APPLICABLE` with the unresolved condition as the failed predicate.
 - **Finding lanes** (I14's redundant-read check, I15's comparison set and its co-residency row)
   leave the surface alone when a condition is unresolved. Flagging a read proposes deleting the only
   thing that loads the file, and pairing a non-resident surface reports a conflict against something
