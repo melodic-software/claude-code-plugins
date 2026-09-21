@@ -19,11 +19,19 @@ comment-dissolving edit has to make and a test suite can only sample:
 
 Exit codes carry the verdict so a shell gate can branch on them without
 parsing text: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE,
-3 tree-sitter or the grammar for this language is unavailable, 2 usage.
+3 tree-sitter or the grammar for this language is unavailable, 2 usage, an
+unmapped extension, or no PowerShell host for a `.ps1`/`.psm1` file.
 
-The shebang is the one comment the proof must not ignore: tree-sitter's bash
-grammar types `#!/usr/bin/env bash` as a comment, and dropping it would let a
-shebang deletion pass as COMMENT-ONLY.
+`.ps1` and `.psm1` are read by PowerShell's own tokenizer through
+`ps-tokens.ps1` under `pwsh`, not by a tree-sitter grammar: the maintained
+grammar returns ERROR nodes on ordinary PowerShell, which would make every
+real file UNPROVABLE. With no `pwsh` on PATH the answer is exit 2, an
+*unproven* edit, never the exit 3 that lets a coarser reading layer apply
+deletions anyway.
+
+Two comments the proof must not ignore: tree-sitter's bash grammar types
+`#!/usr/bin/env bash` as a comment, and PowerShell tokenizes `#Requires` as
+one. Dropping either would let deleting a directive pass as COMMENT-ONLY.
 
 Usage: change-shape.py [--lang <name>] [--json] BEFORE AFTER
 """
@@ -33,6 +41,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -45,7 +56,8 @@ EXIT_NO_TOOLING = 3
 EXIT_USAGE = 2
 
 # Extension -> (grammar language name, per-language wheel module, attribute
-# on that module that returns the language pointer).
+# on that module that returns the language pointer). A None module marks the
+# native PowerShell backend, which loads no grammar.
 EXT_LANG = {
     ".py": ("python", "tree_sitter_python", "language"),
     ".pyi": ("python", "tree_sitter_python", "language"),
@@ -63,6 +75,8 @@ EXT_LANG = {
     ".yml": ("yaml", "tree_sitter_yaml", "language"),
     ".yaml": ("yaml", "tree_sitter_yaml", "language"),
     ".toml": ("toml", "tree_sitter_toml", "language"),
+    ".ps1": ("powershell", None, None),
+    ".psm1": ("powershell", None, None),
 }
 
 # Leaf kinds that count as identifiers for the RENAME-ONLY verdict. Anything
@@ -78,8 +92,66 @@ IDENTIFIER_KINDS = frozenset(
         "shorthand_property_identifier",
         "shorthand_property_identifier_pattern",
         "statement_identifier",
+        # PowerShell. Not `Identifier`, which is both member names and type
+        # names, so `[string]` -> `[int]` would read as a rename; not `Generic`,
+        # which is command names and bare-word arguments; not `Parameter`, which
+        # is a cross-file call-site contract.
+        "Variable",
+        "SplattedVariable",
     }
 )
+
+PS_SCRIPT = Path(__file__).with_name("ps-tokens.ps1")
+# `#requires` is accepted in any case and must survive stripping as the shebang
+# does: deleting it leaves the token stream identical.
+PS_REQUIRES = re.compile(r"^\s*#requires\b", re.IGNORECASE)
+
+
+class PowerShellUnavailable(Exception):
+    """No usable PowerShell host, so no token-level claim can be made."""
+
+
+def powershell_records(*args: str) -> list[dict]:
+    """Run ps-tokens.ps1 under pwsh; one JSON object per output line."""
+    host = shutil.which("pwsh")
+    if host is None:
+        raise PowerShellUnavailable("no PowerShell host: pwsh is not on PATH")
+    cmd = [host, "-NoProfile", "-NonInteractive"]
+    if os.name == "nt":
+        # A Windows client's default policy is Restricted, where -File refuses
+        # to run at all and the failure would read as a tooling absence.
+        cmd += ["-ExecutionPolicy", "Bypass"]
+    # ponytail: one pwsh process per verdict (~0.5 s of startup plus ~1 s per
+    # megabyte of source). Batch N pairs per process if a large run measures
+    # badly; do not build the batch before it does.
+    proc = subprocess.run(
+        [*cmd, "-File", str(PS_SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise PowerShellUnavailable(
+            f"ps-tokens.ps1 exited {proc.returncode}: {proc.stderr.strip()[:300]}"
+        )
+    try:
+        return [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+    except json.JSONDecodeError as exc:
+        raise PowerShellUnavailable(f"ps-tokens.ps1 output is not JSON: {exc}") from exc
+
+
+def powershell_leaves(record: dict) -> list[tuple[str, str]]:
+    """Tokens minus comments and newlines, with #Requires kept as a leaf."""
+    flat = record["tokens"]
+    out: list[tuple[str, str]] = []
+    for kind, text in zip(flat[::2], flat[1::2]):
+        if kind == "Comment":
+            if PS_REQUIRES.match(text):
+                out.append(("requires", text))
+        elif kind not in ("NewLine", "EndOfInput"):
+            out.append((kind, text))
+    return out
 
 
 def language_for(name: str, module: str, attr: str):
@@ -142,6 +214,10 @@ def leaves(src: bytes, lang) -> tuple[list[tuple[str, str]], bool]:
 def classify(before: bytes, after: bytes, lang) -> tuple[str, int, dict]:
     a, a_broken = leaves(before, lang)
     b, b_broken = leaves(after, lang)
+    return classify_leaves(a, b, a_broken, b_broken)
+
+
+def classify_leaves(a, b, a_broken: bool, b_broken: bool) -> tuple[str, int, dict]:
     if a_broken or b_broken:
         side = "before" if a_broken else "after"
         return (
@@ -239,19 +315,37 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_USAGE
 
-    lang, source = language_for(*entry)
-    if lang is None:
-        print(f"change-shape: UNAVAILABLE: {source}", file=sys.stderr)
-        return EXIT_NO_TOOLING
+    if entry[1] is None:
+        try:
+            records = powershell_records(str(args.before), str(args.after))
+            if len(records) != 2:
+                raise PowerShellUnavailable(
+                    f"ps-tokens.ps1 returned {len(records)} records, expected 2"
+                )
+        except PowerShellUnavailable as exc:
+            print(f"change-shape: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        source = "pwsh"
+        verdict, code, detail = classify_leaves(
+            powershell_leaves(records[0]),
+            powershell_leaves(records[1]),
+            records[0]["errors"] > 0,
+            records[1]["errors"] > 0,
+        )
+    else:
+        lang, source = language_for(*entry)
+        if lang is None:
+            print(f"change-shape: UNAVAILABLE: {source}", file=sys.stderr)
+            return EXIT_NO_TOOLING
 
-    try:
-        before = args.before.read_bytes()
-        after = args.after.read_bytes()
-    except OSError as exc:
-        print(f"change-shape: {exc}", file=sys.stderr)
-        return EXIT_USAGE
+        try:
+            before = args.before.read_bytes()
+            after = args.after.read_bytes()
+        except OSError as exc:
+            print(f"change-shape: {exc}", file=sys.stderr)
+            return EXIT_USAGE
 
-    verdict, code, detail = classify(before, after, lang)
+        verdict, code, detail = classify(before, after, lang)
     if args.json:
         print(
             json.dumps(

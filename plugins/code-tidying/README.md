@@ -23,8 +23,8 @@ Six skills, one capability:
   rewrites no code. `--notes <path>` writes the staged block to an untracked
   file as well. No dial loosens a gate. Ships a comment census with a token estimate and a
   cross-language commented-out-code detector, and probes its reading layers
-  (`scc`, `pygments`, `tree-sitter`, `ruff`, `ast-grep`) at run time, naming
-  what each absent one costs.
+  (`scc`, `pygments`, `tree-sitter`, `pwsh`, `ruff`, `ast-grep`) at run time,
+  naming what each absent one costs.
 - **`/code-tidying:audit-comment-residue`**. Read-only classifier for
   out-of-context comment residue (history narration, plan/session references,
   conversational antecedents, ticket/PR back-references); flags Tier 1/Tier 2

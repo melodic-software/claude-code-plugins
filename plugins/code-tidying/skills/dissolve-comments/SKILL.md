@@ -241,8 +241,9 @@ from them.
 3. **Re-run `comment-tooling-probe.sh`** here and state the layer it reports; the pre-computed line
    is a preview taken before the scope was known. The layer sets the ceiling: at grep precision a
    language with heredocs or block comments gets no applied edits, with tree-sitter absent no
-   deletion or rename carries a proof, and the 12 extensions no grammar covers stay proposals even
-   when it is present ([reference/safety.md](reference/safety.md)). Name each absent layer's lost
+   deletion or rename carries a proof, with `pwsh` absent no `.ps1`/`.psm1` edit does, and the 10
+   extensions neither backend reads stay proposals even
+   when both are present ([reference/safety.md](reference/safety.md)). Name each absent layer's lost
    capability as the probe phrases it. Done when it is in the report.
 4. **Self-parse, then baseline the census.** First run `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh <file> <file>` on each
    scoped file. A file that cannot prove itself unchanged against itself (exit 21, UNPROVABLE) has a

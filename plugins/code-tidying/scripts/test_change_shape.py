@@ -39,6 +39,13 @@ def grammar_available(ext: str) -> bool:
     return code != 3
 
 
+def powershell_available() -> bool:
+    # Not `!= 3`: a missing PowerShell host is exit 2, the same code a mapped
+    # extension never returns when the backend works.
+    code, _, _ = run("$x = 1\n", "$x = 1\n", ".ps1")
+    return code == 0
+
+
 TS_BASE = """// leading comment
 export function helper(x: number): number {
   // increment x
@@ -260,6 +267,94 @@ class YamlVerdicts(unittest.TestCase):
         self.assertEqual(code, 20, out)
 
 
+PS_BASE = '''#Requires -Version 7.4
+<#
+.SYNOPSIS
+    Emits a banner.
+#>
+# leading comment
+function Get-Thing {
+    param([string]$oldName)
+    <# block comment #>
+    $banner = @"
+# not a comment
+"@
+    Write-Output $oldName  # trailing comment
+    Write-Output $banner
+}
+'''
+
+
+@unittest.skipUnless(powershell_available(), "no PowerShell host (pwsh) on PATH")
+class PowerShellVerdicts(unittest.TestCase):
+    def test_full_line_comment_deletion_is_comment_only(self):
+        after = PS_BASE.replace("# leading comment\n", "")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out.startswith("COMMENT-ONLY"), out)
+
+    def test_end_of_line_comment_deletion_is_comment_only(self):
+        after = PS_BASE.replace("  # trailing comment", "")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 0, out)
+
+    def test_block_comment_deletion_is_comment_only(self):
+        after = PS_BASE.replace("    <# block comment #>\n", "")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 0, out)
+
+    def test_help_block_deletion_is_comment_only(self):
+        # The proof is honest: comment-based help is an ordinary comment token.
+        # Protecting it is the skill's exempt-surfaces job, not the proof's.
+        after = PS_BASE.replace("<#\n.SYNOPSIS\n    Emits a banner.\n#>\n", "")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 0, out)
+
+    def test_here_string_hash_line_survives_a_comment_deletion(self):
+        after = PS_BASE.replace("# leading comment\n", "")
+        self.assertIn("# not a comment", after)
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 0, out)
+
+    def test_here_string_hash_line_deletion_is_code_changed(self):
+        after = PS_BASE.replace('@"\n# not a comment\n"@', '@"\n"@')
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_requires_deletion_is_code_changed(self):
+        after = PS_BASE.replace("#Requires -Version 7.4\n", "")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_consistent_variable_rename_is_rename_only(self):
+        after = PS_BASE.replace("$oldName", "$newName")
+        code, out, _ = run(PS_BASE, after, ".ps1", "--json")
+        self.assertEqual(code, 10, out)
+        self.assertIn('"$oldName": "$newName"', out)
+
+    def test_incomplete_variable_rename_is_code_changed(self):
+        after = PS_BASE.replace("param([string]$oldName)", "param([string]$newName)")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_function_rename_is_code_changed(self):
+        # A command name is `Generic`, a cross-file contract, never a rename.
+        after = PS_BASE.replace("Get-Thing", "Get-Other")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 20, out)
+
+    def test_unbalanced_brace_is_unprovable(self):
+        after = PS_BASE.replace("    Write-Output $banner\n}\n", "    Write-Output $banner\n")
+        code, out, _ = run(PS_BASE, after, ".ps1")
+        self.assertEqual(code, 21, out)
+        self.assertTrue(out.startswith("UNPROVABLE"), out)
+
+    def test_psm1_uses_the_same_backend(self):
+        after = PS_BASE.replace("# leading comment\n", "")
+        code, out, _ = run(PS_BASE, after, ".psm1")
+        self.assertEqual(code, 0, out)
+
+
 class Degradation(unittest.TestCase):
     """Always runs: proves the unavailable path is loud and distinct."""
 
@@ -285,6 +380,25 @@ class Degradation(unittest.TestCase):
         code, _, err = run("x", "x", ".unknownext")
         self.assertEqual(code, 2, err)
         self.assertIn("--lang", err)
+
+    def test_missing_powershell_host_is_exit_2_not_a_tacit_pass(self):
+        # Exit 2, the "unproven edit" code, never exit 3: exit 3 lets a coarser
+        # reading layer apply the deletion anyway.
+        with tempfile.TemporaryDirectory() as tmp:
+            b = Path(tmp, "a.ps1")
+            a = Path(tmp, "b.ps1")
+            b.write_text("$x = 1\n")
+            a.write_text("$x = 1\n")
+            proc = subprocess.run(
+                [sys.executable, str(SCRIPT), str(b), str(a)],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=tmp,
+                env={**os.environ, "PATH": ""},
+            )
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        self.assertIn("pwsh", proc.stderr)
 
 
 if __name__ == "__main__":

@@ -39,7 +39,8 @@ or excluded path, or delete text without a landing place (staging rule below).
 `${CLAUDE_PLUGIN_ROOT}` token is substituted in `SKILL.md` but **not** in a reference file, which
 arrives through the Read tool with the placeholder intact) and carries its verdict in
 the exit code: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
-unavailable, **2 no grammar mapping for the file's extension** (or a usage error). Run it against
+unavailable, **2 no grammar mapping for the file's extension, or no PowerShell host for a
+`.ps1`/`.psm1` file** (or a usage error). Run it against
 the file's content before and after each edit, and before the comment is deleted. Any verdict other
 than the tier's required one reverts the edit and demotes the item to a proposal that quotes the
 verdict, including which token kinds differed. UNPROVABLE (a parse error on either side) is a
@@ -47,12 +48,21 @@ revert, never a pass, and so is exit 2: an unmapped extension is an *unproven* e
 tacit pass.
 
 **Exit 2 is the common case on a mixed-language repository, not an edge case.** `CODE_EXT` in
-`scope-code-files.sh` admits 28 extensions; `change-shape.py` maps 16 of them and
-`commented-out-code.py` 12, and their union is 16. The 12 with no grammar in either,
-`.c .cpp .go .h .hpp .java .lua .ps1 .psm1 .rb .rs .sql`, reach triage normally and then
+`scope-code-files.sh` admits 28 extensions; `change-shape.py` proves 18 of them and
+`commented-out-code.py` 14, and their union is 18. The 10 neither backend reads,
+`.c .cpp .go .h .hpp .java .lua .rb .rs .sql`, reach triage normally and then
 have **no** applicable tier-0 or tier-1 proof, so every deletion and rename in them is a proposal.
 Say so in the report rather than reporting those files as clean: a file nothing could prove is not
 a file with nothing to fix.
+
+**`.ps1` and `.psm1` prove through PowerShell's own parser, not a grammar.** `change-shape.py`
+spawns `pwsh` once per verdict; the maintained tree-sitter PowerShell grammar was measured and
+rejected (see [tooling.md](tooling.md)). Three consequences: `#Requires` tokenizes as a comment and
+is kept as its own leaf, so deleting one reads CODE-CHANGED; a `#` inside a here-string is never a
+comment, because a here-string is one token; and a variable referenced inside an expandable string
+(`"text $x here"`, also one token) makes a rename read CODE-CHANGED, so expect most tier-1 renames
+in PowerShell to demote to proposals. With no `pwsh` on PATH the answer is exit **2**, an unproven
+edit, never the exit 3 below, which would let a coarser reading layer apply the deletion anyway.
 
 When tree-sitter is unavailable (exit 3), tier 0 falls back to whatever reading layer the tooling
 probe reported: a pygments-level read may still apply deletions; a grep-level read applies nothing
@@ -87,7 +97,12 @@ open the apply path, because they cannot attest behavior preservation.
 ## Exempt surfaces (never touched, any mode)
 
 - Public-API doc comments, in the language's structured doc-comment form: docstrings, C# XML docs,
-  JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. A language with no doc-comment form,
+  JSDoc/TSDoc, GoDoc sentences, on exported/public surfaces. PowerShell comment-based help (a
+  `<# ... #>` or `#` run carrying `.SYNOPSIS`, `.DESCRIPTION`, `.PARAMETER`, `.EXAMPLE` and the rest
+  of the keyword set) is exempt whether or not the function is exported: what a module exports lives
+  in `Export-ModuleMember` or a `.psd1` manifest, which the proof does not read, and the token proof
+  reports deleting a help block as COMMENT-ONLY honestly. The exemption is this list's job, not the
+  proof's. A language with no doc-comment form,
   shell and make among them, has no exempt surface here: a header block there is an ordinary comment
   and takes the ordinary triage. Python
   has no export keyword, so the rule there is the leading underscore: a module docstring, and the

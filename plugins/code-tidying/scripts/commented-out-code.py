@@ -12,8 +12,12 @@ Findings are advisory: rows are printed and the exit code is 0 either way, so
 the caller decides. Consecutive single-line comments are grouped into one
 block before reparsing, since commented-out code usually spans lines.
 
-Directive comments (shellcheck, noqa, type:, pragma, eslint, region markers)
-are skipped before reparsing: they are machine input, not candidates.
+Directive comments (shellcheck, noqa, type:, pragma, eslint, region markers,
+`#Requires`, PowerShell comment-based-help keywords) are skipped before
+reparsing: they are machine input, not candidates.
+
+`.ps1` and `.psm1` are read by PowerShell's own parser through `ps-tokens.ps1`
+under `pwsh`; those files are skipped when no host resolves.
 
 Usage: commented-out-code.py [--json] FILE ...
 Exit: 0 ran (findings or none); 3 tree-sitter or the grammar unavailable; 2 usage.
@@ -23,14 +27,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from importlib import import_module
 from pathlib import Path
 
 EXIT_NO_TOOLING = 3
 EXIT_USAGE = 2
 
+# A None module marks the native PowerShell backend, which loads no grammar.
 EXT_LANG = {
     ".py": ("python", "tree_sitter_python", "language"),
     ".ts": ("typescript", "tree_sitter_typescript", "language_typescript"),
@@ -44,6 +53,8 @@ EXT_LANG = {
     ".yml": ("yaml", "tree_sitter_yaml", "language"),
     ".yaml": ("yaml", "tree_sitter_yaml", "language"),
     ".toml": ("toml", "tree_sitter_toml", "language"),
+    ".ps1": ("powershell", None, None),
+    ".psm1": ("powershell", None, None),
 }
 
 # Node kinds that prose cannot produce. A reparse must contain at least one.
@@ -147,10 +158,68 @@ EVIDENCE["tsx"] = EVIDENCE["typescript"]
 
 DIRECTIVE = re.compile(
     r"^\s*(?:#!|shellcheck\b|noqa\b|type:|pragma\b|eslint|prettier|ruff:|pylint:|fmt:|nolint\b|"
-    r"region\b|endregion\b|yaml-language-server|mypy:|pyright:|@ts-|TODO\b|FIXME\b|XXX\b)",
+    r"region\b|endregion\b|yaml-language-server|mypy:|pyright:|@ts-|TODO\b|FIXME\b|XXX\b|"
+    r"requires\b|"
+    r"\.(?:SYNOPSIS|DESCRIPTION|PARAMETER|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|COMPONENT|ROLE|"
+    r"FUNCTIONALITY|EXTERNALHELP|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|REMOTEHELPRUNSPACE)\b)",
     re.IGNORECASE,
 )
 MARKER = re.compile(r"^\s*(?:///?|#+|/\*+|\*+/?|<!--|-->)\s?")
+
+PS_SCRIPT = Path(__file__).with_name("ps-tokens.ps1")
+# Comment-based help is documentation, whole. Splitting it into directive-free
+# runs would reparse its prose, and prose that names a `-Switch` reads as a
+# command with a parameter. A keyword standing alone on its line marks the block.
+PS_HELP = re.compile(
+    r"^[ \t]*#?[ \t]*\.(?:SYNOPSIS|DESCRIPTION|PARAMETER|EXAMPLE|INPUTS|OUTPUTS|NOTES|LINK|"
+    r"COMPONENT|ROLE|FUNCTIONALITY|EXTERNALHELP|FORWARDHELPTARGETNAME|FORWARDHELPCATEGORY|"
+    r"REMOTEHELPRUNSPACE)(?:[ \t]+\S+)?[ \t]*\r?$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+class PowerShellUnavailable(Exception):
+    """No usable PowerShell host, so `.ps1`/`.psm1` cannot be read."""
+
+
+def run_ps_tokens(*args: str) -> list[dict]:
+    """Run ps-tokens.ps1 under pwsh; one JSON object per output line."""
+    host = shutil.which("pwsh")
+    if host is None:
+        raise PowerShellUnavailable("no PowerShell host: pwsh is not on PATH")
+    cmd = [host, "-NoProfile", "-NonInteractive"]
+    if os.name == "nt":
+        # A Windows client's default policy is Restricted, where -File refuses
+        # to run at all and the failure would read as a tooling absence.
+        cmd += ["-ExecutionPolicy", "Bypass"]
+    proc = subprocess.run(
+        [*cmd, "-File", str(PS_SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise PowerShellUnavailable(
+            f"ps-tokens.ps1 exited {proc.returncode}: {proc.stderr.strip()[:300]}"
+        )
+    try:
+        return [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+    except json.JSONDecodeError as exc:
+        raise PowerShellUnavailable(f"ps-tokens.ps1 output is not JSON: {exc}") from exc
+
+
+def powershell_code_like(bodies: list[str]) -> list[bool]:
+    """Reparse every candidate body in one pwsh process."""
+    if not bodies:
+        return []
+    with tempfile.TemporaryDirectory() as tmp:
+        listing = Path(tmp, "bodies.json")
+        listing.write_text(json.dumps(bodies), encoding="utf-8")
+        records = run_ps_tokens("-Bodies", str(listing))
+    if len(records) != 1:
+        raise PowerShellUnavailable("ps-tokens.ps1 -Bodies returned no result")
+    return records[0]["results"]
 
 
 def load_language(entry):
@@ -163,6 +232,30 @@ def load_language(entry):
         return Language(getattr(import_module(module), attr)()), module
     except (ImportError, AttributeError):
         return None, f"no grammar for {name} (pip install {module})"
+
+
+def merge_comment_runs(comments):
+    """(start_row, end_row, start_col, text), 0-based -> merged 1-based blocks."""
+    blocks: list[list] = []
+    for row, end_row, col, text in comments:
+        # Runs of single-line comments merge without a length cap; a block
+        # comment (/* */, <# #>) never joins a run, on either side of it. The
+        # test is on the incoming comment and the previous one, never on the
+        # merged text, which contains a newline as soon as two lines have joined.
+        single_line = "\n" not in text
+        if (
+            blocks
+            and blocks[-1][1] == row - 1
+            and blocks[-1][3] == col
+            and blocks[-1][4]
+            and single_line
+        ):
+            blocks[-1][1] = end_row
+            blocks[-1][2] += "\n" + text
+        else:
+            blocks.append([row, end_row, text, col, single_line])
+    for start, end, text, _, _ in blocks:
+        yield start + 1, end + 1, text
 
 
 def comment_blocks(src: bytes, lang):
@@ -178,28 +271,15 @@ def comment_blocks(src: bytes, lang):
         else:
             stack.extend(reversed(n.children))
     nodes.sort(key=lambda n: n.start_byte)
-    blocks: list[list] = []
-    for n in nodes:
-        text = src[n.start_byte : n.end_byte].decode(errors="replace")
-        row, col = n.start_point
-        # Runs of single-line comments merge without a length cap; a block
-        # comment (/* */) never joins a run, on either side of it. The test is
-        # on the incoming node and the previous node, never on the merged text,
-        # which contains a newline as soon as two lines have joined.
-        single_line = "\n" not in text
-        if (
-            blocks
-            and blocks[-1][1] == row - 1
-            and blocks[-1][3] == col
-            and blocks[-1][4]
-            and single_line
-        ):
-            blocks[-1][1] = n.end_point[0]
-            blocks[-1][2] += "\n" + text
-        else:
-            blocks.append([row, n.end_point[0], text, col, single_line])
-    for start, end, text, _, _ in blocks:
-        yield start + 1, end + 1, text
+    return merge_comment_runs(
+        (
+            n.start_point[0],
+            n.end_point[0],
+            n.start_point[1],
+            src[n.start_byte : n.end_byte].decode(errors="replace"),
+        )
+        for n in nodes
+    )
 
 
 def strip_markers(text: str) -> str:
@@ -251,12 +331,43 @@ def scan(path: Path):
     entry = EXT_LANG.get(path.suffix.lower())
     if entry is None:
         return None, f"no grammar mapping for {path.suffix!r}"
+    if entry[1] is None:
+        try:
+            records = run_ps_tokens(str(path))
+            blocks = [
+                b
+                for b in merge_comment_runs(
+                    (s - 1, e - 1, c - 1, text)
+                    for s, e, c, text in records[0]["comments"]
+                )
+                if not PS_HELP.search(b[2])
+            ]
+            # First pass answers "not code" to everything, which collects the
+            # superset of bodies the real pass can ask about; one process then
+            # classifies them all.
+            bodies: list[str] = []
+
+            def collect(body: str) -> bool:
+                bodies.append(body)
+                return False
+
+            findings_for(path, blocks, collect)
+            table = dict(zip(bodies, powershell_code_like(bodies)))
+        except PowerShellUnavailable as exc:
+            return None, str(exc)
+        return findings_for(path, blocks, table.__getitem__), "pwsh"
     lang, source = load_language(entry)
     if lang is None:
         return None, source
-    src = path.read_bytes()
+    blocks = comment_blocks(path.read_bytes(), lang)
+    return findings_for(
+        path, blocks, lambda body: looks_like_code(body, lang, entry[0])
+    ), source
+
+
+def findings_for(path: Path, blocks, is_code):
     findings = []
-    for start, end, text in comment_blocks(src, lang):
+    for start, end, text in blocks:
         stripped_lines = strip_markers(text).split("\n")
         raw_lines = text.split("\n")
         # A directive line is never code and splits the block into runs. Each
@@ -264,14 +375,10 @@ def scan(path: Path):
         # parse, so fall back to each line and merge adjacent hits into ranges.
         hits: list[int] = []
         for run in directive_free_runs(stripped_lines):
-            if looks_like_code(
-                "\n".join(stripped_lines[i] for i in run), lang, entry[0]
-            ):
+            if is_code("\n".join(stripped_lines[i] for i in run)):
                 hits.extend(run)
             else:
-                hits.extend(
-                    i for i in run if looks_like_code(stripped_lines[i], lang, entry[0])
-                )
+                hits.extend(i for i in run if is_code(stripped_lines[i]))
         run_start = None
         for idx, i in enumerate(hits):
             if run_start is None:
@@ -287,7 +394,7 @@ def scan(path: Path):
                     }
                 )
                 run_start = None
-    return findings, source
+    return findings
 
 
 def main(argv: list[str] | None = None) -> int:
