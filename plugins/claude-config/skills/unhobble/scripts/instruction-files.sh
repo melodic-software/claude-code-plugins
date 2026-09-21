@@ -300,7 +300,10 @@ restore)
     if [[ -z "$known" ]]; then
       refused+=("$n (not an instruction file name; names: ${NAMES[*]})")
     elif [[ -n "$blocked" ]]; then
-      refused+=("$n (already present, or its path is blocked by a file or directory; clear it first, or use --all to abandon the experiment)")
+      # The reason is already resolved, so name WHICH of the three it is rather
+      # than making the operator work out whether the file is there, a link is,
+      # or a parent directory has become something else.
+      refused+=("$n ($blocked; clear it first, or use --all to abandon the experiment)")
     elif ! git -C "$root" cat-file -e "$ref:$n" 2>/dev/null; then
       refused+=("$n (not in $ref; nothing to restore it from)")
     fi

@@ -155,6 +155,11 @@ rc=$?
 assert_equals "collide: a directory on the target exits 2" "$rc" "2"
 assert_file_is "collide: the directory's contents survive" \
   "$repo/CLAUDE.md/inner.txt" "keep me"
+# The message names WHICH obstruction it hit, not a conflated "present or blocked".
+case "$out" in
+*occupied*) pass "collide: the refusal names the reason it resolved" ;;
+*) fail "collide: the refusal names the reason it resolved" "got [$out]" ;;
+esac
 rm -rf "$repo/CLAUDE.md"
 
 # An ancestor that has become a regular file blocks .claude/AGENTS.md.
@@ -165,6 +170,10 @@ rc=$?
 assert_equals "collide: a non-directory ancestor exits 2" "$rc" "2"
 assert_file_is "collide: the blocking ancestor survives" \
   "$repo/.claude" "a file where the directory goes"
+case "$out" in
+*blocked-ancestor*) pass "collide: an ancestor block is named as such, not as 'present'" ;;
+*) fail "collide: an ancestor block is named as such, not as 'present'" "got [$out]" ;;
+esac
 
 # --all does not clobber it either: it reports and steps over.
 out="$("$SCRIPT" restore "$repo" "$base" --all 2>&1)"
