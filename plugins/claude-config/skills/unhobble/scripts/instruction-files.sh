@@ -120,6 +120,21 @@ occupied() {
   occupied_ancestor "$1"
 }
 
+# Prints a reason when the index carries a bit that makes git stop comparing the
+# worktree copy, so a "clean" answer from `git diff` cannot be trusted for it.
+# `ls-files -v` marks these: a LOWERCASE status letter means assume-unchanged,
+# and `S` means skip-worktree.
+index_flag_hidden() {
+  local v
+  v="$(git -C "$root" ls-files -v -- "$1" 2>/dev/null | head -n 1)"
+  [[ -n "$v" ]] || return 0
+  case "${v:0:1}" in
+  [a-z] | S) printf 'index-flag' ;;
+  *) ;;
+  esac
+  return 0
+}
+
 # The `--all` form of the same question. It differs from `occupied` in one place:
 # a PLAIN FILE at the target is not an obstruction there, because overwriting or
 # removing the file that belongs at the path is what abandoning does. Anything
@@ -195,6 +210,8 @@ strip)
       continue
     fi
     present+=("$n")
+    # Resolved outside the conditions below, per SC2310 as elsewhere here.
+    hidden="$(index_flag_hidden "$n")"
     if ! git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
       # This helper is git-only by construction: git holding the undo is the whole
       # reason it can remove anything. An untracked instruction file has no undo
@@ -208,6 +225,15 @@ strip)
       # the branch, in the worktree or staged, exactly as it refuses an untracked
       # one. Catching it here keeps the refusal from landing mid-loop.
       refused+=("$n (modified: commit or stash it before stripping)")
+    elif [[ -n "$hidden" ]]; then
+      # `assume-unchanged` and `skip-worktree` tell git to STOP COMPARING the
+      # worktree copy, so the two `diff --quiet` checks above both report clean
+      # on a file that has been edited, and `git rm` then deletes the edit with
+      # no refusal and nothing in the ref to recover. Measured on git 2.55: with
+      # `--assume-unchanged` set and the file edited, `ls-files -v` prints `h`,
+      # both diffs exit 0, and `git rm` succeeds. The flag is the only signal
+      # that the clean answer is not trustworthy, so it is a refusal of its own.
+      refused+=("$n (assume-unchanged or skip-worktree is set, so git cannot see local edits; clear the bit with git update-index --no-assume-unchanged / --no-skip-worktree, then re-check)")
     fi
   done
   if [[ ${#refused[@]} -gt 0 ]]; then

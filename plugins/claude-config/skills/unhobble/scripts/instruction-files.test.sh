@@ -450,6 +450,35 @@ AGENTS.md"
 assert_file_is "untracked: and the untracked one is left for the manifest path" \
   "$repo/CLAUDE.local.md" "local only"
 
+# --- Case 6b: assume-unchanged hides the edit from both diff checks. Measured:
+# `ls-files -v` prints `h`, both `git diff --quiet` calls exit 0, and `git rm`
+# then deletes the uncommitted contents with nothing in the ref to recover. The
+# index bit is the only signal the clean answer is not trustworthy.
+repo="$(make_repo assume 'CLAUDE.md=committed content' 'AGENTS.md=other')"
+git -C "$repo" update-index --assume-unchanged CLAUDE.md
+printf 'edited after the bit was set\n' >"$repo/CLAUDE.md"
+out="$("$SCRIPT" strip "$repo" --all 2>&1)"
+rc=$?
+assert_equals "assume-unchanged: strip exits 2 rather than destroying the edit" "$rc" "2"
+assert_file_is "assume-unchanged: the local edit survives" \
+  "$repo/CLAUDE.md" "edited after the bit was set"
+case "$out" in
+*assume-unchanged*) pass "assume-unchanged: the message names the bit and how to clear it" ;;
+*) fail "assume-unchanged: the message names the bit and how to clear it" "got [$out]" ;;
+esac
+assert_file_is "assume-unchanged: the file beside it is untouched too" \
+  "$repo/AGENTS.md" "other"
+# Clearing the bit restores the ordinary answer: now the edit is visible and the
+# refusal is the plain modified one.
+git -C "$repo" update-index --no-assume-unchanged CLAUDE.md
+out="$("$SCRIPT" strip "$repo" --all 2>&1)"
+rc=$?
+assert_equals "assume-unchanged: with the bit cleared it is a plain modified refusal" "$rc" "2"
+case "$out" in
+*modified*) pass "assume-unchanged: and the reason changes to modified" ;;
+*) fail "assume-unchanged: and the reason changes to modified" "got [$out]" ;;
+esac
+
 # --- Case 7: a TRACKED file with uncommitted edits. `git rm` without -f refuses
 # it the same way it refuses an untracked one, so the pre-check has to catch it
 # too. The dirty file is deliberately LAST in the name order, which is where an

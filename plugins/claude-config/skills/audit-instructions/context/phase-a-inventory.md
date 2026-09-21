@@ -27,8 +27,11 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   **Displacement is that mode's answer, not the only one.** Under the user-scope
   `claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
   `AGENTS.md` after, so a displaced file is read there and needs its own record like any other.
-  Resolve the mode from the user scope this phase already inventories, and **record the file
-  whenever the mode is that one or cannot be resolved**: inventorying is additive and cannot by
+  **Resolve the EFFECTIVE mode, not one scope's copy.** The option is a user, `--settings` or
+  managed setting, so a user scope that names the default can be overridden by a managed or
+  session one and the reverse; reading only the scope this phase happens to inventory answers the
+  wrong question in both directions, dropping a live surface or inventorying an unloaded one.
+  **Record the file whenever the effective mode is that one or cannot be resolved**: inventorying is additive and cannot by
   itself produce a finding, while a surface missing here produces no Phase A record, so no later
   phase can route or grade it.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in

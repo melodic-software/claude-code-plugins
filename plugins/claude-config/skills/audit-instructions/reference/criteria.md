@@ -777,9 +777,11 @@ skill bodies.
   **The `AGENTS.md` entry carries a fourth qualifier beyond those three, and it is not the
   displacement test.** Native reading also depends on the CLI version, a remote feature flag and the
   instruction-files mode, so a session on an older CLI, or one where the flag is off, does not load
-  the file even with no `CLAUDE.md` in sight, while one under the user-scope
-  `claude-md-and-agents-md` setting loads it even **with** a `CLAUDE.md` beside it, which makes a
-  read of it redundant where the displacement test alone would have exempted it.
+  the file even with no `CLAUDE.md` in sight, while one under the `claude-md-and-agents-md` setting
+  loads it even **with** a `CLAUDE.md` beside it, which makes a read of it redundant where the
+  displacement test alone would have exempted it. That setting is a user, `--settings` or managed
+  one, so the value to resolve is the **effective** one across those scopes, never a single scope's
+  copy.
   There, in the first case, an instruction to read it is the only thing that puts it in context,
   and flagging the read as redundant would propose deleting the load. Resolve the version, flag
   **and mode** conditions from the dated records, the first two in the `instruction-placement`

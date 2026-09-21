@@ -81,11 +81,13 @@ depends on the instruction-files mode, the CLI version and a remote flag, and th
 restate the condition**: the four-part record, which file names displace it under the default mode,
 the version floor and the remote flag with its code default, is the `instruction-placement`
 plugin's `skills/migrate/reference/sources.md`. Resolve it there rather than from a copy that can
-drift. **Displacement is the default mode's answer, not the only one**: under the user-scope
+drift. **Displacement is the default mode's answer, not the only one**: under the
 `claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
 `AGENTS.md` after, so an `AGENTS.md` beside a `CLAUDE.md` is live there and belongs in the set even
-though the default mode would call it displaced. Inventory it whenever the mode is that one or
-cannot be resolved; only where it is genuinely not read does the file reach context as an import,
+though the default mode would call it displaced. That option is a user, `--settings` or managed
+setting, so resolve the **effective** value across those scopes rather than one scope's copy, which
+answers the wrong question whichever way the override runs. Inventory the file whenever the
+effective mode is that one or cannot be resolved; only where it is genuinely not read does the file reach context as an import,
 which the importing record already covers.
 **The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish
