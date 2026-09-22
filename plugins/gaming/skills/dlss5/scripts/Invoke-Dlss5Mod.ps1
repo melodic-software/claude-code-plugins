@@ -141,6 +141,11 @@ function Find-AntiCheat($root) {
     @($items | Where-Object { IsAntiCheatName $_.Name } | ForEach-Object FullName | Sort-Object -Unique)
 }
 
+# Numeric parts, not the FileVersion string: NVIDIA's runtime reports "310,8,0,0" there.
+function FileVer($path) {
+    $v = (Get-Item -LiteralPath $path).VersionInfo
+    if ($v.FileMajorPart -or $v.FileMinorPart) { [version]::new($v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart) }
+}
 # Known hash passes. An unknown hash passes only with a valid NVIDIA signature at or above the
 # minimum version AND -AllowUnknownRuntime.
 function Test-Runtime($path) {
@@ -148,7 +153,7 @@ function Test-Runtime($path) {
     $h = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
     if ($h -eq $script:ModelHash) { return @{ Ok = $true; Hash = $h; Known = $true } }
     $sig = Get-AuthenticodeSignature -LiteralPath $path
-    $ver = if ((Get-Item -LiteralPath $path).VersionInfo.FileVersion -match '^\d+(\.\d+){1,3}') { [version]$Matches[0] }
+    $ver = FileVer $path
     if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'CN=NVIDIA Corporation' -or -not $ver -or $ver -lt $MinRuntimeVersion) {
         return @{ Ok = $false; Hash = $h; Reason = "unknown hash $h without a valid NVIDIA signature at $MinRuntimeVersion or later" }
     }
@@ -456,14 +461,15 @@ function Do-ProvisionRuntime {
     if ($rt.Ok) { return "runtime ok: $($script:RuntimeDll)" }
     if ($script:RuntimeDllConfigured) { throw "configured runtime_dll refused: $($rt.Reason). Fix or unset runtime_dll." }
     $notes = @()
-    $cands = @(Get-ScanRoots | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Filter 'nvngx_dlssnr.dll' -File -Force -ErrorAction SilentlyContinue })
+    # A missing drive has no FileSystem provider, where Get-ChildItem -File does not exist.
+    $cands = @(Get-ScanRoots | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Filter 'nvngx_dlssnr.dll' -File -Force -ErrorAction SilentlyContinue })
     $ok = @()
     foreach ($c in $cands) {
         $t = Test-Runtime $c.FullName
-        if ($t.Ok) { $ok += [pscustomobject]@{ Path = $c.FullName; Known = $t.Known; Version = $c.VersionInfo.FileVersion } }
+        if ($t.Ok) { $ok += [pscustomobject]@{ Path = $c.FullName; Known = $t.Known; Version = (FileVer $c.FullName) ?? [version]'0.0' } }
         else { $notes += "scan candidate refused: $($c.FullName): $($t.Reason)" }
     }
-    $best = $ok | Sort-Object @{ e = { -not $_.Known } }, @{ e = { if ($_.Version -match '^\d+(\.\d+){1,3}') { [version]$Matches[0] } else { [version]'0.0' } }; Descending = $true } | Select-Object -First 1
+    $best = $ok | Sort-Object @{ e = { -not $_.Known } }, @{ e = { $_.Version }; Descending = $true } | Select-Object -First 1
     if ($best) { return Place-Runtime $best.Path 'local scan' $best.Path }
     $src = Resolve-Source $script:RuntimeSource
     if ($src) {

@@ -44,6 +44,25 @@ Append-only. Types: plan-confirmed, discovery, deviation, human-decision.
   `provision` runs on 2026-09-22 against a scratch data dir produced exactly the allow-list for
   `dagherbou` (whose zip uses backslash entry names) and `wilsjo2` (forward slashes); a second run
   was a no-op. A real Steam scan placed the known-hash runtime from an installed title.
+- **discovery (Phase 5): NVIDIA's runtime reports `FileVersion` as `310,8,0,0`.** The Phase 2/3
+  version regex never matched a real DLL, so the signed-unknown-hash path and the candidate ranking
+  were dead. Fixed: `FileVer` reads the numeric `FileMajorPart`..`FilePrivatePart` fields. Evidence:
+  real DLL reads `310.8.0.0` through `FileVer`, `310,8,0,0` through `FileVersion`.
+- **discovery (Phase 3 smoke): a scan root on a missing drive crashed the scan** (`-File` exists only
+  on the FileSystem provider). Fixed: roots are filtered through `Test-Path -PathType Container`.
+  Evidence: `provision -Runtime -ScanRoots 'Z:\none' -RuntimeSource <blob URL>` placed the runtime.
+- **deviation (Phase 5): `setup check` does not test `data_dir` writability.** Plan said: exists and
+  writable. Found: a writability test is a write, and `check` is read-only. Chose: `apply`'s directory
+  creation is the test. Revisit: never.
+- **deviation (Phase 5): the changed-`data_dir` probe is heuristic, and `apply` provisions both
+  builds.** Nothing records the `data_dir` a previous run used, so `check` infers a change from a
+  mod copy no manifest names or a `state\` left at the default root. `apply` provisions `dagherbou`
+  and `wilsjo2`, because `Do-Apply`'s missing-build error sends any `-Build` to `setup apply`.
+  Revisit: record the data_dir in a user-level marker if the heuristic misfires.
+- **plan-confirmed (2026-09-22): `runtime_source` over Azure works end to end.** User-approved
+  `rg-artifacts-prod` / `stmeloartifacts001` (ZRS, Hot, shared key off, versioning, soft delete 30/7)
+  holds `dlss/nvngx_dlssnr-310.8.0.0.dll`; `provision -Runtime -RuntimeSource <blob URL>` fetched it
+  through `az --auth-mode login` and the hash matched.
 - **discovery (Phase 2): red was not observed per case.** The selftest cases were written together
   with the port and passed on first run, so no case was seen failing first. A fresh-context
   verifier reviews the phase instead. Outcome: see the Phase 2 verifier result.
