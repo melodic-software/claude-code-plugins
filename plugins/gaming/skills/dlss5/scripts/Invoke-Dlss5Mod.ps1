@@ -119,7 +119,7 @@ function IsByproduct($rel) {
 
 function IsAntiCheatName($name) {
     $b = [IO.Path]::GetFileNameWithoutExtension($name)
-    foreach ($t in $AntiCheatTokens) { if ($b -eq $t -or $b -like "${t}_*") { return $true } }
+    foreach ($t in $AntiCheatTokens) { if ($b -eq $t -or $b -like "${t}_*" -or $b -like "${t}-*") { return $true } }
     $false
 }
 # Scans from the game root, not the exe dir: EasyAntiCheat\ sits beside the root while the exe is

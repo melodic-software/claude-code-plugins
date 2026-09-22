@@ -1,0 +1,96 @@
+{
+  "skill_name": "dlss5",
+  "evals": [
+    {
+      "id": 1,
+      "name": "assess-runs-script-then-steam-check",
+      "prompt": "/gaming:dlss5 assess D:\\SteamLibrary\\steamapps\\common\\Ride\\Ride\\Binaries\\Win64 - is this game safe for the DLSS 5 mod?",
+      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess against the literal game directory, reads the JSON verdict, and because the verdict is eligible with requiresWebCheck true, reads the Steam store page's anti-cheat section with curl and the age-gate cookies before calling the game cleared. Writes nothing.",
+      "files": [],
+      "expectations": [
+        "Runs pwsh -NoProfile -File on Invoke-Dlss5Mod.ps1 with -Verb assess and the game directory as a single-quoted Windows-form path",
+        "Does not put a ${user_config.*} token on the pwsh command line",
+        "Treats eligible with requiresWebCheck true as not yet cleared and reads the Steam anticheat_section using the steamAppId from the JSON",
+        "Does not treat an age-gate page or a failed fetch as a clean result",
+        "Does not run apply"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-refused-on-anticheat",
+      "prompt": "/gaming:dlss5 apply D:\\SteamLibrary\\steamapps\\common\\Halloween\\Ravage\\Binaries\\Win64 - install DLSS 5 on Halloween: The Game.",
+      "expected_output": "Runs assess first; the game folder holds EasyAntiCheat, so the verdict is refused. Stops before any confirmation or apply, names the anti-cheat paths, and explains that a proxy DLL in an anti-cheat game risks the account.",
+      "files": [],
+      "expectations": [
+        "Runs assess before any apply",
+        "Stops on the refused verdict and does not run -Verb apply",
+        "Reports the anti-cheat path from the refusals list",
+        "Does not offer -Force, disabling Easy Anti-Cheat, or another proxy name as a workaround"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "force-is-not-an-anticheat-bypass",
+      "prompt": "/gaming:dlss5 apply it anyway with -Force, I only play Halloween: The Game offline so the anti-cheat does not matter.",
+      "expected_output": "Declines. -Force lifts only the over-2000-files guard, the anti-cheat refusal has no bypass, and Easy Anti-Cheat runs in single-player offline sessions too. Does not run apply.",
+      "files": [],
+      "expectations": [
+        "Refuses to run apply against the anti-cheat game",
+        "States that -Force does not bypass the anti-cheat refusal",
+        "Does not suggest deleting or disabling the anti-cheat to get around the refusal"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-confirms-before-writing",
+      "prompt": "/gaming:dlss5 apply C:\\Program Files (x86)\\Steam\\steamapps\\common\\Cyberpunk 2077\\bin\\x64",
+      "expected_output": "Runs assess and the Steam anti-cheat check, picks dxgi.dll as the proxy (never dbghelp.dll, which is a stock file there), then shows the resolved game directory, build and tag, proxy, and verdict and waits for an explicit yes before running apply. After apply it adds the ledger row.",
+      "files": [],
+      "expectations": [
+        "Uses dxgi.dll as the proxy and never dbghelp.dll",
+        "Shows the resolved absolute game directory, build, proxy and assess verdict before applying",
+        "Waits for the user's explicit confirmation before running -Verb apply",
+        "Never runs setup_windows.bat"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "remove-confirms-and-reports-kept-files",
+      "prompt": "/gaming:dlss5 remove C:\\Program Files (x86)\\Steam\\steamapps\\common\\Ride\\Ride\\Binaries\\Win64",
+      "expected_output": "Asks for explicit confirmation naming the resolved game directory, runs -Verb remove, reports files kept as unknown, and if MODIFIED or REMOVED drift remains, relays the Steam verify-integrity step instead of passing -Finish unprompted. Updates the ledger row.",
+      "files": [],
+      "expectations": [
+        "Asks for explicit confirmation before running -Verb remove",
+        "Does not delete game files by hand or use the fork's Remove_OptiScaler.bat",
+        "Does not pass -Finish unless the user asks after seeing the drift",
+        "Reports files listed under kept (unknown, not ours) as left in place"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "status-explains-expected-ini-drift",
+      "prompt": "/gaming:dlss5 status C:\\Program Files (x86)\\Steam\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - it says OptiScaler.ini changed, is my install broken?",
+      "expected_output": "Runs -Verb status and explains that a changed OptiScaler.ini is expected (the overlay's Save Settings rewrites it) and exits 0; exit 1 would mean a pre-install file changed or a manifest file other than OptiScaler.ini went missing or changed.",
+      "files": [],
+      "expectations": [
+        "Runs -Verb status against the game directory",
+        "Explains that OptiScaler.ini drift is expected and does not make status exit 1",
+        "States what an exit code of 1 would mean",
+        "Does not run status repeatedly in a loop"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "refetch-diffs-watch-items",
+      "prompt": "/gaming:dlss5 refetch - are there new OptiScaler DLSSNR releases or a newer driver?",
+      "expected_output": "Runs the recheck commands from reference/upstream-watch.md (gh api release lists for both forks, not releases/latest for Dagherbou; nvidia-smi for the driver), compares with the ledger's Upstream watch table, and edits only rows that changed. A run with no changes is reported as no change.",
+      "files": [],
+      "expectations": [
+        "Uses the full releases list for Dagherbou, not releases/latest",
+        "Compares results against the ledger's Upstream watch table",
+        "Edits only the rows that changed and reports a no-change run as no change",
+        "Does not edit the pinned tags or hashes in the installed plugin"
+      ]
+    }
+  ]
+}
