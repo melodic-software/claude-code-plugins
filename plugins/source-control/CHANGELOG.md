@@ -10,6 +10,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - `worktree-create.sh --session-id` writes `session <id> since` into the worktree lock reason, the token `worktree-claim.sh check-enter` already treats as this session's claim. Omitting the flag still writes a host-and-time reason that matches no session. The create procedure passes the session id resolved in `SKILL.md`, because a context file would carry the token literally and the helper rejects that as a usage error.
 - The WorktreeCreate gate passes the payload `session_id` through to that flag. An empty id is omitted. An id outside `^[A-Za-z0-9._:-]{1,128}$` is refused before the helper runs, so a bad id is not reported as a bad worktree name. The field is read after the empty-name refusal, so a payload with no name keeps that path's spawn budget.
 
+## [0.55.90]
+
+### Changed
+
+- The orchestrated worktree provisioning paragraph tells a worker outside the repository to add `--repo-dir <repo-toplevel>` to the interactive path's flags, including the root handoff and `--base-ref head` when that setting is effective. `--repo-dir` alone is not a complete command.
+
 ## [0.55.89]
 
 ### Changed
