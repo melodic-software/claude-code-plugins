@@ -193,9 +193,12 @@ expect_both 'substitution nested 40 deep is refused' 2 --command "$rdt_deep"
 # against a 60 s hook timeout, and a hook the harness cancels on that timeout is
 # cancelled WITHOUT a block: the slow path failed OPEN. A MAX_COMMAND_LEN budget
 # over the SUBSTITUTION BODIES, spent before the top-level parse, is what bounds
-# it. `timeout 10` is the backstop, and it is the only timing assertion here: a
+# it. `timeout 20` is the backstop, and it is the only timing assertion here: a
 # hang reads as rc 124 rather than as a pass, while a wall-clock threshold on a
-# shared CI shard measures the shard rather than the guard.
+# shared CI shard measures the shard rather than the guard. The bound is set
+# against a HANG, not against the refusal's own cost, which is about 5 s here;
+# 20 keeps room for a loaded shard while still catching the fail-open shape
+# this pin exists for.
 rdt_pad=""
 while ((${#rdt_pad} < 15900)); do rdt_pad+="rm -rf ./x; "; done
 rdt_big=""
@@ -211,7 +214,7 @@ for rdt_via in direct dispatched; do
     rdt_argv=(bash "$GUARD_DISPATCH" "$HOOK")
   fi
   rdt_rc=0
-  rdt_err="$(timeout 10 "${rdt_argv[@]}" <<<"$rdt_payload" 2>&1 >/dev/null)" || rdt_rc=$?
+  rdt_err="$(timeout 20 "${rdt_argv[@]}" <<<"$rdt_payload" 2>&1 >/dev/null)" || rdt_rc=$?
   assert_exit "a 16 KB 32-deep payload is refused ($rdt_via)" 2 "$rdt_rc"
   assert_contains "the refusal names the tokenizing budget ($rdt_via)" \
     "$rdt_err" "substitution bodies exceed MAX_COMMAND_LEN in total"
