@@ -48,7 +48,7 @@ the scrutiny method, and a paraphrase of either document inside a proposal is a 
 it is presented.** Say so in the run's opening line, then hold it literally:
 
 - **One finding, one acceptance.** Accepting finding A authorizes A's remediation and nothing
-  else, not its neighbours, not the rest of its layer, not the obvious next one.
+  else, not its neighbors, not the rest of its layer, not the obvious next one.
 - **Blanket approval is not the gate.** "Approve everything", "do whatever the audit says", and a
   standing authorization from earlier in the session are all declined, out loud, with an offer to
   walk the queue instead. A gate that a sentence can switch off was never a gate.

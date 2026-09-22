@@ -29,7 +29,7 @@ Convert a context-gathering step to `!` injection when **all** hold:
   every invocation, including auto-invocation the author never sees.
 - **Needed up front, every time.** The skill always wants this context before it reasons.
   One-off or branch-dependent lookups belong in the body as instructions, not injection.
-- **Independent of Claude's judgement.** The command doesn't depend on a decision Claude makes
+- **Independent of Claude's judgment.** The command doesn't depend on a decision Claude makes
   first. Injection is a single pass. Output is not re-scanned, so one placeholder cannot feed
   another (see the docs); anything requiring a computed argument stays a normal tool call.
 - **Cheap and bounded.** It returns fast and small. Every injected command runs under the Bash

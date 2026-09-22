@@ -40,7 +40,7 @@ mean. There is no pass or fail here, and no bar to argue with.
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run" table
 (lane, collector, status, reason), then the reference with its provenance and layer, then one row
-per file, least typed first, and one row per lane labelled `lane-total`. Keep the `--json`
+per file, least typed first, and one row per lane labeled `lane-total`. Keep the `--json`
 document when the numbers feed a comparison:
 `/verification:measure metrics` consumes it when the `verification` plugin is installed (treat a
 report whose `status` is `empty` on either side as INCONCLUSIVE); otherwise keep the JSON beside
@@ -69,7 +69,7 @@ your notes and compare by hand.
   gets no row and is counted in the run row's reason; when the lane counted nothing, no file row
   is emitted.
 - mypy exits 1 on any type error and still writes its report; the rows are kept, the lane row is
-  labelled `mypy-reported-errors`, and the run row's reason counts the errors and, among them,
+  labeled `mypy-reported-errors`, and the run row's reason counts the errors and, among them,
   the missing stubs (`import-untyped`, `import-not-found`), which says how much of the `Any`
   count is unstubbed imports rather than local typing. A type error is not a missing measurement.
   mypy exits 2 when a blocking error (a duplicate module name, a usage or config error) stops it

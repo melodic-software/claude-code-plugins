@@ -185,12 +185,12 @@ function first_iso(s) {
 # ordinary English modal? "w" is the lowered window and "worig" the same span of
 # the original line. Either signal alone is enough: a digit beside it, which
 # every date form carries ("may 2026", "may 17", "17 may") and the modal does
-# not; or a capital M on the original line, since edited prose capitalises the
+# not; or a capital M on the original line, since edited prose capitalizes the
 # month and not the modal, and the lowered copy this scan works from throws that
 # signal away. The capital is what keeps a digitless "Verified this May" in this
 # inventory. check-stamps.sh carries the same two tests, and uses them at both
 # of its sites; its copy records the corpus measurements and the two known
-# costs, a capitalised sentence-initial modal and an ALL-CAPS date.
+# costs, a capitalized sentence-initial modal and an ALL-CAPS date.
 #
 # The two signals share one RSTART, which is_stamp() reads against wlen, so both
 # are evaluated and the LEFTMOST wins. Returning on whichever branch is tested

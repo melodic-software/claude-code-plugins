@@ -123,7 +123,7 @@ only when its own entry reads `"action": "resolved"`.
 
 Each of these leaves the thread **unresolved**, and the fail-closed fallback is identical in every
 case: **leave the thread unresolved, do not merge, and report the PR with the
-addressed-but-unresolvable thread named.** An unreachable or refused authorization is never a licence
+addressed-but-unresolvable thread named.** An unreachable or refused authorization is never a license
 to self-resolve, and never a reason to reach past the wrapper to raw `resolveReviewThread`.
 
 - **Security/P1 threads.** `--independent-resolver` retains the severity bright line

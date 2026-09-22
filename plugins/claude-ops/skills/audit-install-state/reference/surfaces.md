@@ -62,7 +62,7 @@ wrong one:
 
 - **`file-history/`** retains the **100 most recent checkpoints**. Snapshots no retained checkpoint
   references are deleted, *except each file's first snapshot, which is kept regardless of age.*
-  Old mtimes here are the documented behaviour.
+  Old mtimes here are the documented behavior.
 - **`projects/<session>/subagents/` and `tool-results/`** are removed *with their parent transcript*.
   A contained file's own mtime is not the unit.
 - **`session-env/`, `tasks/`, `debug/`** are per-session. The session directory ages out, not each
@@ -70,7 +70,7 @@ wrong one:
 
 For every other swept path the granularity is simply not documented per-file. The engine therefore
 emits `age-exceeds-window` with `evidence: inferred` and the sweep unit inline, never a verdict that
-reads as a deletion authorisation.
+reads as a deletion authorization.
 
 Absence is evidence too: `todos/`, `statsig/`, `logs/`, `image-cache/` and `feedback-bundles/` not
 existing is positive proof the sweep completed, including its remove-the-empty-directory step.
@@ -88,7 +88,7 @@ Not covered by automatic cleanup; persist indefinitely.
 | `policy-limits.json` | Cached feature policy settings |
 
 Upstream adds: "Other small cache and lock files appear depending on which features you use and are
-safe to delete." That sentence is not a licence to delete anything a table does not name. See
+safe to delete." That sentence is not a license to delete anything a table does not name. See
 "unclassified" below.
 
 ## Session-scoped, explicitly not age-swept
@@ -98,7 +98,7 @@ crashes. Claude Code removes each file when its session exits and clears crash l
 launch. **Hand-deleting these confuses concurrent-session detection.**
 
 They also churn during an audit. A file present in one listing and gone in the next is the
-documented behaviour, not a discrepancy, and it means any orphan count keyed on sessions carries a
+documented behavior, not a discrepancy, and it means any orphan count keyed on sessions carries a
 margin of error, because a session whose record vanished mid-run is *unknown*, not *dead*.
 
 ## Never delete

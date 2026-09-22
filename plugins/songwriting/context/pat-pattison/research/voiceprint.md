@@ -61,7 +61,7 @@ Same word, two reference objects; keep them apart.
 
 ## The failure this file exists to prevent
 
-*One writer's judgements, from the Sofía sessions (2026-08-12), recorded as evidence
+*One writer's judgments, from the Sofía sessions (2026-08-12), recorded as evidence
 that a voiceprint is needed, NOT as this plugin's target register.*
 
 | Candidate | Writer's verdict | The lesson the AI drew | Why that lesson was wrong |
@@ -157,7 +157,7 @@ songs, and each copy drifts from the others.
 band on purpose, with a character singing in a register that is not the writer's, the
 departure is a recorded craft decision, so it goes where this corpus already records
 craft decisions: the song's `decisions/` folder, alongside the title lock (see
-[idea-to-title.md](idea-to-title.md)). The judgement then runs against
+[idea-to-title.md](idea-to-title.md)). The judgment then runs against
 baseline-plus-named-departure. An unnamed departure is judged against the baseline and
 fails, which is the correct outcome. An accidental departure is a defect.
 
@@ -195,7 +195,7 @@ lives in the co-write skill's input gate rather than in a post-hoc checklist.
 - [point-of-view.md](point-of-view.md): who speaks in the song; a different axis
 - [line-edit-rubric.md](line-edit-rubric.md): pass 11 is the per-candidate
   voiceprint match; pass 8 is the section's register, a different reference object
-- [worksheets.md](worksheets.md): the three-stage build this one is modelled on
+- [worksheets.md](worksheets.md): the three-stage build this one is modeled on
 - [object-writing.md](object-writing.md): "Cataloging the good stuff"; the
   quote-don't-summarize evidence rule
 - [artifact-persistence.md](artifact-persistence.md): the `shared/` layout row

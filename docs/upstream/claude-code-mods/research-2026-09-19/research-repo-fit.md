@@ -110,7 +110,7 @@ fires. `OBSERVED` · HIGH.
 
 The decisive fact: *"Claude Code runs matching hooks in parallel, so the wall is
 the max of the set under spawn contention, **not the sum**."* Every per-surface
-figure in the doc is labelled *slowest hook*.
+figure in the doc is labeled *slowest hook*.
 
 **A "mods are cheaper per call" claim is a per-hook claim. Against a max-shaped
 aggregate, removing cost from every hook except the slowest moves the budgeted
@@ -131,7 +131,7 @@ Three further binding facts:
 2. **Rule 2 forecloses the escape:** *"The budget never relaxes to absorb an
    overage… that overage is per-plugin remediation work, not grounds to move the
    ceiling."* "We are over anyway" is not a justification.
-3. **Rule 3 is the one rule that favours mods:** *"Interpreter choice is a budget
+3. **Rule 3 is the one rule that favors mods:** *"Interpreter choice is a budget
    decision. Every always-on hook pays its interpreter's startup on every fire."*
    An in-process runtime is precisely an interpreter-startup elimination. Rule 1
    then obliges any plugin adding or widening an always-on hook to state its
@@ -141,7 +141,7 @@ Three further binding facts:
 **Measure, do not cite.** The published reference figures (2026-09-02) predate a
 69% growth in wired entries (16 events / 55 entries then; 31 / 93 now, almost
 entirely `claude-ops`'s default-off logging pipeline), and seven unpulled
-`perf(...)` commits on `origin/main` already optimised the exact plugins a mod
+`perf(...)` commits on `origin/main` already optimized the exact plugins a mod
 would replace — one titled *"run the guard chain in-process"* (#4185). Pull
 `origin/main` first and state that any comparison is post-perf-work.
 `OBSERVED` · HIGH.
@@ -177,7 +177,7 @@ the stated reason does not.
 
 `OBSERVED` · HIGH (`plugins-reference`, verified 2026-09-11, recorded in
 `plugins/miro/server/build.mjs`'s header). `plugins/miro`'s Node project lives at
-`server/`, not the plugin root, **specifically** to avoid materialising its
+`server/`, not the plugin root, **specifically** to avoid materializing its
 devDependencies in every consumer's cache.
 
 **Rule for a mod pilot: never put `package.json` + `package-lock.json` at
@@ -239,7 +239,7 @@ pin.
   machine state **only, never configuration**. `OBSERVED` · HIGH
 
 A mod therefore **cannot take per-repository configuration through the options
-mechanism at all**. A consuming project that wants different behaviour in
+mechanism at all**. A consuming project that wants different behavior in
 different repositories has no seam-1 path; it must fall back to env vars or
 file-based config, which is seam 3 — and seam 3 carries its own open question:
 *"Hook scripts do not see `CLAUDE.md`; they read env vars and file-based config

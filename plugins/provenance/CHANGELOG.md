@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.14] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.5.13]
 
 ### Changed
@@ -235,7 +243,7 @@
 
   1. The first version matched the tier exactly at the top level. An adversarial probe defeated it
      four ways: a padded `"  not-found  "`, an array-valued `["not-found"]`, an object-valued
-     `{"name":"llm-suspected"}`, and a capitalised `"Tier"` key.
+     `{"name":"llm-suspected"}`, and a capitalized `"Tier"` key.
   2. Widening it to any key named `tier` at any depth closed those and **silently dropped
      relay-eligible findings**: a `fingerprint-confirmed` copy carrying an unrelated nested tier,
      `"review":{"tier":"one agent argued llm-suspected and was vetoed"}`, a note `SKILL.md` invites,
@@ -250,7 +258,7 @@
      `"verdict":{"prior":"llm-suspected"}` was withheld again, and one shape refused the whole
      sidecar. The same round trimmed invisible characters by enumerating two code points, leaving
      six other `Cf` characters to walk a verdict onto a relay row; an unhandled one at the end even
-     neutralised a handled one at the start.
+     neutralized a handled one at the start.
   5. The declared `tier` now wins whenever the record has one, falling back to the `verdict` only
      when it does not, and the fallback turns on the slot **naming** a known tier rather than the
      key merely being present, which is what `{"tier":null}`, `{"tier":[]}` and `{"tier":"pending"}`
@@ -278,7 +286,7 @@
       its own `tier` field names no tier this reader knows.
 
   **Every one of these passed review before it was probed.** Across the rounds a bot reviewer, five
-  security passes and three code-review passes read this file; all of them characterised the
+  security passes and three code-review passes read this file; all of them characterized the
   failure direction as over-withholding and therefore safe. Over-withholding was destroying
   relay-eligible findings, and the boundary was leaking in two separate rounds. Reading a diff and
   attacking an invariant are different activities, and only the second found any of this. The suite
@@ -568,7 +576,7 @@
   reproduce.
 
   `may` counts as a date when a digit sits beside it, since every date form has one and the modal
-  does not, **or** when the original line capitalises it. The other eleven months still match bare,
+  does not, **or** when the original line capitalizes it. The other eleven months still match bare,
   because over-reporting into a bucket a human reads is the safe direction and this fix must not
   trade it for under-reporting.
 
@@ -586,10 +594,10 @@
 
   **The case signal was measured on this corpus, not assumed.** At `3c538bcc`, over 1,352 files:
   1,458 lines carry a lowercase `may`, overwhelmingly the modal; 24 carry a capital `May`, of which
-  **14 are month dates and 10 are capitalised modals** in table cells, bullets and sentence
+  **14 are month dates and 10 are capitalized modals** in table cells, bullets and sentence
   openings; and 34 carry an ALL-CAPS `MAY`, of which **none is a date**. They are permission
   modals. So two costs are accepted knowingly.
-  A capitalised modal opening a sentence or a cell now reads as a month when a stamp keyword sits
+  A capitalized modal opening a sentence or a cell now reads as a month when a stamp keyword sits
   in its window, which over-reports into a bucket a human adjudicates. And ALL-CAPS defeats case, so
   a digitless `MAY` date stays invisible; buying it back would mean reading `MAY` as a month, which
   on this corpus means 34 false candidates for a form nobody writes. Both are pinned by tests,
@@ -887,7 +895,7 @@
 - **Rubric version 2: an inverted polarity in C3 and C4, caught by blind adjudication.** The
   verdict rule says a finding STANDS only if all four criteria PASS, and it says so three times.
   But C3 and C4 were phrased as questions whose intuitive "yes" is exculpatory, namely "is the
-  attribution adequate" and "does the text transform", and their worked examples labelled that
+  attribution adequate" and "does the text transform", and their worked examples labeled that
   exculpatory answer PASS. Read literally, the two halves of the file contradicted each other and
   **no finding could ever stand**.
 

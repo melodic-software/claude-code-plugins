@@ -327,7 +327,7 @@ Hard gates that override any classification:
   ratified it returns to the frontier autonomous-eligible and dispatches on a later cycle, the
   ratification travels with the item, so it is never re-queued.
 
-  Queueing an unratified C3 has write mechanics of its own, and getting their order wrong leaves
+  Queuing an unratified C3 has write mechanics of its own, and getting their order wrong leaves
   the item unreachable by every later cycle and every operator view. Read
   [reference/c3-ratification-queue.md](reference/c3-ratification-queue.md) before writing either
   the comment or the labels: it owns the comment-before-labels ordering, the at-most-one

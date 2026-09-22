@@ -317,7 +317,7 @@ condition_1() {
       # from the first `isOnByDefault` in the window. Those are the same symbol
       # on the builds seen so far, and nothing in a minified bundle guarantees
       # it: a window holding two plugins would otherwise resolve this flag's
-      # default from a neighbour's variable. The export is still required, and
+      # default from a neighbor's variable. The export is still required, and
       # required to name the SAME identifier, so a window where the two cannot
       # be tied together answers nothing.
       id="$(printf '%s' "$window" |

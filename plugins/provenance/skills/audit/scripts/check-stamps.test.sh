@@ -259,11 +259,11 @@ assert_eq "no May line becomes a finding" \
 #
 # The discriminator is the capital letter, tested on the ORIGINAL line rather
 # than the lowered copy the rest of the scan works from. In edited prose the
-# month is capitalised and the modal is not. A digit beside "may" still counts on
+# month is capitalized and the modal is not. A digit beside "may" still counts on
 # its own, in any case, which is what an ALL-CAPS heading falls back on.
 #
 # Two consequences are pinned below rather than left to be rediscovered:
-# a capitalised modal opening a sentence or a table cell ("May the build stay
+# a capitalized modal opening a sentence or a table cell ("May the build stay
 # green") reads as a month and over-reports into the visible bucket, which is the
 # safe direction; and an ALL-CAPS "MAY" is unreadable by case, so a digitless
 # ALL-CAPS May date stays invisible. Both were measured over the 1,352-file
@@ -301,7 +301,7 @@ assert_eq "a digit rescues an ALL-CAPS May date" \
   "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 8)] | length')" "1"
 assert_eq "\"Maybe\" is not a May date" \
   "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 9)] | length')" "0"
-assert_eq "a capitalised modal opening a sentence over-reports, by design" \
+assert_eq "a capitalized modal opening a sentence over-reports, by design" \
   "$(echo "$OUT" | jq -r '[.declined[].examples[] | select(.line == 10)] | length')" "1"
 assert_eq "five lines in the digitless fixture are candidates" \
   "$(echo "$OUT" | jq -r '.counts.candidates')" "5"

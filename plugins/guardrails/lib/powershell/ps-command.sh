@@ -97,7 +97,7 @@ PS_HERESTRING_EXPANDABLE=0
 # a backtick before `$` makes the `$` literal. Gating on the two characters `$(`
 # therefore OVER-approximates (it also matches the backtick-escaped spelling),
 # which is the fail-closed direction and the one this library takes rather than
-# modelling escapes inside text it has already decided it cannot parse. Read by
+# modeling escapes inside text it has already decided it cannot parse. Read by
 # ps::classify_git_command, where it is the trigger of last resort.
 PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 # 1 when a line this library CONFIRMED as a here-string opener also carries a `#`

@@ -295,7 +295,7 @@ for dispatch_arg in "$@"; do
     # or repo root above, never at the cwd, so a relative root handed straight
     # to a child would have the parent walk one tree and the child check
     # another. `cd && pwd` also drops a trailing slash (which would otherwise
-    # defeat the /plugins/<x>/skills$ match) and normalises a Git Bash
+    # defeat the /plugins/<x>/skills$ match) and normalizes a Git Bash
     # backslash path. CDPATH is cleared because `cd` consults it BEFORE `.` and
     # echoes the directory it landed in, which would both resolve a different
     # tree and capture two lines into the root string; `--` guards a leading
@@ -1652,7 +1652,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       fe_line_ambig = (fe_icode || fe_bt_ambig || fe_esc_ambig)
       # Classify each directive on the line independently, bounded at its own
       # `-->`. Testing the whole line let a valid directive elsewhere on it lend
-      # its class and reason to a malformed neighbour, so an unknown-class
+      # its class and reason to a malformed neighbor, so an unknown-class
       # suppression could hide beside a well-formed one and never FAIL.
       dir_rest = line
       # The directive name needs a terminator after it, or a prefix-only match

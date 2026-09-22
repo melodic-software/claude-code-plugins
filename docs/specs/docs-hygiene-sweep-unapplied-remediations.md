@@ -459,7 +459,7 @@ it, which is a skill publishing an anchor as an interface. ADR 0018 declines to 
 
 ### Not remediated and not counted
 
-57 intra-plugin citations would benefit from normalising to the anchored form. That is tidy-up, not a
+57 intra-plugin citations would benefit from normalizing to the anchored form. That is tidy-up, not a
 defect, and it is not part of this set. Eight of them are in group 2 because they are also broken.
 
 ## L5 noise: 10 findings
@@ -647,7 +647,7 @@ proposed the cut is the same skill that reverts it. Nothing in the sweep's scope
 
 The second gate was the independent one. `ai-slop`'s `rule-stacked-hedging` detector was run
 directly against the file and returned zero findings across all fourteen of its rules. So "quite
-possibly" is not a hedge this repo's own prose standard recognises, and the finding has no
+possibly" is not a hedge this repo's own prose standard recognizes, and the finding has no
 justification outside `compress` either.
 
 Applying it anyway would have meant a one-word commit that the proposing skill's ship gate rejects,
@@ -1007,7 +1007,7 @@ the content rather than the question the content answers.** `## Requirements and
 is 81 lines of design-and-incident history, and `## Plugin-acceptance security review` is 103 lines
 named for the review that was conducted rather than the posture the reader wants.
 
-`I1` is the most delicate finding in the lane: a licence correction notice at
+`I1` is the most delicate finding in the lane: a license correction notice at
 `plugins/songwriting/README.md:79` (`This wording changed in 0.8.6 because the previous version was
 inaccurate`) inside `## License`. Its remediation moves three sentences **into** an already-released
 changelog entry, which `scripts/check-changelog-parity.sh` gates on the correcting PR naming each

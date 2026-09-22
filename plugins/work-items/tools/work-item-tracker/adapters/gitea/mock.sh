@@ -28,7 +28,7 @@ gitea_fixture_init() {
   cat >"$GITEA_MOCK/curl" <<'MOCK'
 #!/usr/bin/env bash
 # Mock curl. Reads the -K stdin config to recover the request URL (that is where the
-# real adapter puts it, so this also proves the URL never travelled in argv), records
+# real adapter puts it, so this also proves the URL never traveled in argv), records
 # the request, and replies from the seeded route table.
 fix="$(cd "$(dirname "$0")/.." && pwd)"
 url="$(sed -n 's/^url = "\(.*\)"$/\1/p')"
@@ -37,7 +37,7 @@ dumpfile=""
 prev=""
 for a in "$@"; do
   if [[ "$prev" == "-X" ]]; then method="$a"; fi
-  # The adapter passes -D <file> to capture response headers; honour it so the
+  # The adapter passes -D <file> to capture response headers; honor it so the
   # X-Total-Count path is exercised rather than silently falling back.
   if [[ "$prev" == "-D" ]]; then dumpfile="$a"; fi
   prev="$a"

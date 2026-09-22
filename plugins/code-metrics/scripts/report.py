@@ -308,7 +308,7 @@ def _coverage_rank(row: dict[str, Any]) -> tuple:
     """Order within a coverage document, ahead of the primary rank.
 
     Function rows carrying a CRAP number come first, highest first, so the row
-    cap never drops the most complex untested function in favour of an
+    cap never drops the most complex untested function in favor of an
     alphabetically earlier file; function rows with a null CRAP follow them;
     file rows come after, least covered first with a null percentage last. A
     row that carries neither `crap` nor `coverage_pct` ranks as a constant, so

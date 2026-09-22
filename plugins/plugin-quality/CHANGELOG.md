@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.22] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.7.21]
 
 ### Changed
@@ -421,7 +429,7 @@ in review, so this work ships as `0.6.4` and that entry is kept below unchanged.
   rule, and `argument-hint` were all singular. A request like "audit the plugins we used" resolves
   to several components, the run reasonably allocates one conforming packet per component, and the
   re-derived slug then matches **no directory at all**, so a post-compaction resume concludes the
-  findings are missing from a run that produced six packets. Fan-out is now documented behaviour
+  findings are missing from a run that produced six packets. Fan-out is now documented behavior
   rather than an undocumented improvisation: the argument resolves to a LIST of targets, each gets
   its own packet under a slug derived from the **resolved component identity** (capped at 64
   characters, which also retires the Windows 260-character path hazard), and resume

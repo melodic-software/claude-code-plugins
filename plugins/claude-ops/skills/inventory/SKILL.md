@@ -19,8 +19,8 @@ commands were merged into skills, so the only complete source for the built-in s
 shipped executable. Plugin components, by contrast, are on disk and enumerable directly. This skill
 reads both and keeps them clearly separated, because they are evidence of different quality.
 
-The report is an inventory, not a judgement. Nothing here says a component is stale, misconfigured,
-or wrong; the neighbours below own those verdicts.
+The report is an inventory, not a judgment. Nothing here says a component is stale, misconfigured,
+or wrong; the neighbors below own those verdicts.
 
 ## Scope boundary
 

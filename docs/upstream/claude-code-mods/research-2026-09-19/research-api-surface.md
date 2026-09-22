@@ -114,7 +114,7 @@ does"* note. A mod built on `Client` reaches terminal and Desktop only today.
 A session may draw on **several surfaces at once**; clients attach
 (`session.attach`) and detach mid-session, so a render hook must read `e.surface`
 per ask and must not branch once at `session.start`. `$.session.surface()` is
-deprecated in favour of `surfaces()`. `SOURCE` · HIGH.
+deprecated in favor of `surfaces()`. `SOURCE` · HIGH.
 
 Interaction events, and what `next(e)` resolves to: `SOURCE` · HIGH ·
 `repo-primary/RESEARCH-tooling.md`
@@ -168,7 +168,7 @@ Six rules, each load-bearing: `SOURCE` · HIGH ·
    tell "unset" from "set to the default".
 
 `PluginOptions` also carries **undeclared** keys, which is how `agents-md`
-honours a renamed option from stored settings (`COMPAT_BREAK(<id>)` comment
+honors a renamed option from stored settings (`COMPAT_BREAK(<id>)` comment
 convention, legacy-key fallback, one `$.ui.log` line). `SOURCE` · HIGH.
 
 ## The static source scan

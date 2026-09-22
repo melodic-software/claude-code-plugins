@@ -321,7 +321,7 @@ assert_contains "an unreadable bundle reports UNREACH" "$OUT" "no window ties"
 
 # The identifier comes from the registration, not from the first isOnByDefault
 # in the window: a window holding two plugins would otherwise resolve this
-# flag's default from a neighbour's variable.
+# flag's default from a neighbor's variable.
 {
   printf 'Cs(A,{isOnByDefault:()=>Q});var Q=!0;'
   printf 'Cs(ne,{isOnByDefault:()=>W});var W=!1;var B=()=>Gl("tengu_agents_md_mod",W);'
@@ -329,7 +329,7 @@ assert_contains "an unreadable bundle reports UNREACH" "$OUT" "no window ties"
 OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-neighbour" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "the default is read from the registered identifier" "$OUT" "var W=!1"
-assert_contains "and the neighbouring plugin's true default is not borrowed" "$OUT" \
+assert_contains "and the neighboring plugin's true default is not borrowed" "$OUT" \
   "[UNMET]   code default false"
 
 # A registration with no export tying to the same identifier answers nothing.

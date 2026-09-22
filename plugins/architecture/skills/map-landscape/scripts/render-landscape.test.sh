@@ -55,7 +55,7 @@ render() {
 #
 # Two checked-out repositories under one owner, an edge to a third repository
 # under the same owner that is NOT checked out, and two external targets whose
-# reference counts differ. Hyphens and dots in names exercise alias sanitising.
+# reference counts differ. Hyphens and dots in names exercise alias sanitizing.
 cat >"$TEST_TMPDIR/record.json" <<'JSON'
 {
   "schema_version": 1,
@@ -83,7 +83,7 @@ md="$(cat "$TEST_TMPDIR/mermaid/landscape.md")"
 assert_contains "mermaid: the diagram is a focal-system-free C4Context" "$md" 'C4Context'
 assert_contains "mermaid: with the landscape title" "$md" 'title System Landscape'
 assert_contains "mermaid: the owner becomes an enterprise boundary" "$md" 'Enterprise_Boundary(b0, "acme")'
-assert_contains "mermaid: a dotted name is sanitised into a valid alias" "$md" 'System(acme_billing_api, "billing.api"'
+assert_contains "mermaid: a dotted name is sanitized into a valid alias" "$md" 'System(acme_billing_api, "billing.api"'
 assert_contains "mermaid: a hyphenated one too" "$md" 'System(acme_web_ui, "web-ui"'
 assert_contains "mermaid: the node label is the primary runtime plus the framework" "$md" '"dotnet, net9.0"'
 assert_contains "mermaid: a single runtime with a framework reads the same way" "$md" '"node, >=22"'
@@ -196,7 +196,7 @@ render solo --record "$TEST_TMPDIR/empty.json"
 assert_equals "empty: an edgeless record still renders" "$?" "0"
 solo="$(cat "$TEST_TMPDIR/solo/landscape.md")"
 assert_contains "empty: the one system is drawn" "$solo" 'System(solo, "solo"'
-# An enterprise boundary is captioned with an organisation, so the absence of
+# An enterprise boundary is captioned with an organization, so the absence of
 # one is drawn as no boundary rather than as a boundary named "unknown".
 assert_not_contains "empty: an unknown owner does not become a boundary caption" "$solo" 'Enterprise_Boundary'
 assert_contains "empty: the ownerless system is drawn at the top level instead" "$solo" 'System(solo, "solo"'
@@ -252,7 +252,7 @@ JSON
 render hostile --record "$TEST_TMPDIR/hostile.json"
 hostile="$(cat "$TEST_TMPDIR/hostile/landscape.md")"
 assert_not_contains "injection: the payload cannot close the mermaid literal" "$hostile" '"pwn'
-assert_contains "injection: the system is still drawn, with the value neutralised" \
+assert_contains "injection: the system is still drawn, with the value neutralized" \
   "$hostile" 'System(acme_payments, "payments", "dotnet, net9.0'"'"' } click n1'
 quote_count="$(printf '%s\n' "$hostile" | grep -c '^    System(acme_payments, "payments", "[^"]*")$')"
 assert_equals "injection: the mermaid call has exactly its own four quotes" "$quote_count" "1"

@@ -183,7 +183,7 @@ or the archived GSA repository is removed or unarchived and edited.
 Claim: Write shorter sentences; use active voice and second person; put
 conditions before instructions; numbered lists for sequences and bulleted lists
 for everything else; avoid placeholder phrases such as "please note" and "at
-this time"; avoid exclamation points, buzzwords, jargon, idiom and humour. The
+this time"; avoid exclamation points, buzzwords, jargon, idiom and humor. The
 guide publishes no numeric sentence limit.
 
 Basis: https://developers.google.com/style/highlights
@@ -309,7 +309,7 @@ Claim: A meta-analysis of 33 studies found reading from screens worse for
 performance than paper (g = -0.25), limited to expository texts, and reported
 "No reliable differences were found for reading time (g = 0.08)". The 1997
 premise that screen reading is 25% slower therefore has no current support,
-while the comprehension result still favours shorter, better-structured
+while the comprehension result still favors shorter, better-structured
 expository text.
 
 Basis: https://api.ies.ed.gov/eric/?search=title%3A%22Reading%20from%20Paper%20Compared%20to%20Screens%22&format=json

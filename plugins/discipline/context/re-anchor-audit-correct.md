@@ -45,7 +45,7 @@ Run these in order. Skip a step only when its input is genuinely absent
 3. **Correct forward now.** For each finding, do the missing work THIS
    turn rather than merely noting it: edit the file, fix the config,
    re-derive the choice, in the working tree, now. Where your own
-   judgement is the suspected source of the drift, re-derive it in a
+   judgment is the suspected source of the drift, re-derive it in a
    fresh-context subagent (blind to the reasoning that produced the drift)
    instead of self-checking in the context that produced it. A self-check
    in the same context is weak by construction. Prefer a cross-vendor

@@ -3,7 +3,7 @@
 #
 # The load-bearing assertions are the two-mode ones. `inline` and `leading`
 # differ on exactly one input -- a line carrying a non-leading `#` -- and both
-# behaviours are required by real files in this repo, so each mode is asserted
+# behaviors are required by real files in this repo, so each mode is asserted
 # against that input AND against the other mode's answer. A test that only
 # checked one mode would pass just as happily against a library that had quietly
 # collapsed the two (#3161).

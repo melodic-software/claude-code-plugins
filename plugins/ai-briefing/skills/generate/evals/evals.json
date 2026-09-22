@@ -23,7 +23,7 @@
       "files": ["evals/fixtures/archive-sample.md"],
       "expectations": [
         "Routes to the search action — full-text search over archived briefings, no collection run and no new briefing emitted",
-        "Returns the matching item(s) that actually contain the query text in the fixture (the Northwind Cloud Agents GA item), grouped or labelled by meeting number",
+        "Returns the matching item(s) that actually contain the query text in the fixture (the Northwind Cloud Agents GA item), grouped or labeled by meeting number",
         "Reports match context such as tier (HIGH/MED/LOW) and/or cross-meeting recurrence count",
         "Does not fabricate items absent from the archive — only real matches from the fixture are returned"
       ]

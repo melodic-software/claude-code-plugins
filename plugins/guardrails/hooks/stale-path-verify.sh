@@ -192,7 +192,7 @@ root_basename_is_ambiguous() {
   local base="$1"
   local -a matches=()
   case "$base" in
-  README.md | README | package.json | package-lock.json | LICENSE | LICENCE | CHANGELOG.md | Makefile | GNUmakefile | .gitignore | .gitattributes | .editorconfig) return 0 ;;
+  README.md | README | package.json | package-lock.json | LICENSE | LICENCE | CHANGELOG.md | Makefile | GNUmakefile | .gitignore | .gitattributes | .editorconfig) return 0 ;; # both license-file spellings are matched on purpose # spellchecker:disable-line
   *) ;;
   esac
   tracked_basename_matches "$base" || return 1

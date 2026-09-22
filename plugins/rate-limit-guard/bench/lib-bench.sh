@@ -66,7 +66,7 @@ median() { # median of the integers on stdin
 
 # The window's process-creation floor. Everything measured here is dominated by
 # it on MSYS, so a run whose floor moved is a run whose numbers are not
-# comparable to its neighbour.
+# comparable to its neighbor.
 spawn_floor() {
   local i t0 t1
   for ((i = 0; i < BENCH_FLOOR_N; i++)); do

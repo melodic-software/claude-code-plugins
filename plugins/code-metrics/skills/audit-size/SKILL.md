@@ -27,7 +27,7 @@ Two collectors, tried in order:
 | Collector | Values per file | When |
 |---|---|---|
 | `scc` | `lines_total`, `lines_blank`, `lines_comment`, `lines_code`, `lines_non_blank` | `scc` resolves on `PATH` |
-| bundled counter | `lines_total`, `lines_blank`, `lines_non_blank`, labelled `comment-agnostic` | always |
+| bundled counter | `lines_total`, `lines_blank`, `lines_non_blank`, labeled `comment-agnostic` | always |
 
 `scc` is used for line counting only; its complexity figure is never read, because it is a
 substring count rather than cyclomatic complexity.

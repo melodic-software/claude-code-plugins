@@ -5,7 +5,7 @@
 - [Fan-Out Gate: `needs_worker`](#fan-out-gate-needs_worker)
 - [Concurrency Cap](#concurrency-cap)
 - [Concurrency Guard](#concurrency-guard)
-- [Cross-PR Dependency Signalling](#cross-pr-dependency-signalling)
+- [Cross-PR Dependency Signaling](#cross-pr-dependency-signaling)
 - [Main Agent Responsibilities](#main-agent-responsibilities)
 - [Fix-Round Cap](#fix-round-cap)
 - [Merge Conflict Resolution](#merge-conflict-resolution)
@@ -329,7 +329,7 @@ python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/manage_babysit_lease.py
   prevent. If the harness has no way to message an existing agent, wait for that worker's
   completion notification rather than dispatching again.
 
-## Cross-PR Dependency Signalling
+## Cross-PR Dependency Signaling
 
 A worker is scoped 1:1 to its own PR and never reaches across PRs. When it discovers, mid-fix,
 that its PR is coupled to another open PR, that discovery travels back to the main agent, which
@@ -340,7 +340,7 @@ reverse of the main→worker messaging in the Concurrency Guard above and uses t
 (in Claude Code, the `SendMessage` tool, here targeting the main agent's id). Signal live when the
 coupling blocks the current PR's progress; otherwise carry it in the worker's normal return
 (Worker Contract below). Either way the coupling is a material finding. A worker that acts on the
-other PR itself, rather than signalling, breaks the 1:1 scope and the Concurrency Guard's
+other PR itself, rather than signaling, breaks the 1:1 scope and the Concurrency Guard's
 same-worktree protections.
 
 ## Main Agent Responsibilities

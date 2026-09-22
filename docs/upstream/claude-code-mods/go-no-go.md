@@ -34,7 +34,7 @@ Five of five fail. The verdict is no-go, and it is no-go on the first criterion 
 **No `--help` check and no documentation grep is an availability check.** `claude plugin test` is a
 working but hidden, gate-registered command, absent from `claude plugin --help` whether or not the
 variable is set, and the documentation has never named the feature. Both return **false negatives**.
-Every criterion below probes behaviour, except 2 and 5, which are first-mention detectors and say so.
+Every criterion below probes behavior, except 2 and 5, which are first-mention detectors and say so.
 
 Preconditions: Claude Code on `PATH` (record `claude --version`; every baseline is pinned to
 **2.1.278**); `gh` authenticated; `curl` and Git Bash. The environment variable must be genuinely
@@ -228,7 +228,7 @@ met-bar excludes by name. See Risks before reading any of them.
 
 State on 2026-09-19 is three things and must be recorded as three:
 
-- **Observed behaviour is fail-open, twice over.** A hook that throws with no `.catch` is skipped and
+- **Observed behavior is fail-open, twice over.** A hook that throws with no `.catch` is skipped and
   the chain beneath answers, indistinguishable from a chain in which nothing failed. A hook that
   overruns the 10 s `HookBudget` is cut — measured live at 10,249.9 ms — and `next(e)` runs on its
   behalf, so core runs and the tool executes. The only witness either time is an `[ERROR]` line in
@@ -296,7 +296,7 @@ Any pull request bumping the `@anthropic-ai/claude-code` pin in `package.json` r
 only**. About a minute. Owned by whoever bumps the pin.
 
 1. Record the version three ways, because every baseline is pinned to a build and a minor bump can
-   change behaviour:
+   change behavior:
 
    ```sh
    claude --version

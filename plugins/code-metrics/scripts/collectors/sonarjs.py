@@ -30,7 +30,7 @@ threshold for it, which is why the bundled reference is `null`.
 
 The capture in fixtures/tool-output/sonarjs.json is written to ESLint's
 documented JSON shape with the rule's documented message text; the sandbox
-had no `eslint-plugin-sonarjs`, so the file is labelled unverified.
+had no `eslint-plugin-sonarjs`, so the file is labeled unverified.
 """
 
 from __future__ import annotations

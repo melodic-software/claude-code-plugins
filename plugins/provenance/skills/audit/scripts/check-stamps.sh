@@ -300,7 +300,7 @@ function reset(name) {
 #   "17 may") and the modal does not. Case-blind, so it is what an ALL-CAPS
 #   heading falls back on.
 #
-#   A capital M on the original line. In edited prose the month is capitalised
+#   A capital M on the original line. In edited prose the month is capitalized
 #   and the modal is not, and the rest of the scan works from a lowered copy
 #   that throws that signal away. This is what admits a digitless month date,
 #   "Verified this May", which the digit rule alone silently dropped: it was a
@@ -313,9 +313,9 @@ function reset(name) {
 # Two consequences, both measured over the 1,352-file corpus at 2026-08-28
 # rather than assumed:
 #
-#   A capitalised modal opening a sentence or a markdown table cell ("May the
+#   A capitalized modal opening a sentence or a markdown table cell ("May the
 #   build stay green", "| May fail on usage limits") reads as a month. Ten of the
-#   24 capitalised "May" lines are that shape and 14 are month dates, counted by
+#   24 capitalized "May" lines are that shape and 14 are month dates, counted by
 #   reading all 24 at commit 3c538bcc. It over-reports into a bucket a human
 #   reads, which is the safe direction.
 #

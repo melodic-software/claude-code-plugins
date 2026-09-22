@@ -16,7 +16,7 @@ which is why Bash has no CRAP in this version (design T7, and the ladder's
 `bash function_lines none` rung).
 
 `lizard` does not parse shell, so this is the Bash lane's first rung;
-`multimetric` is the fallback and is labelled an approximation because it
+`multimetric` is the fallback and is labeled an approximation because it
 under-counts (its Python cyclomatic read 1 where radon read 3 for the same
 function, probed 2026-09-05).
 

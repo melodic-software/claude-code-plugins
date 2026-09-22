@@ -3,11 +3,25 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.3] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.57.2]
+
+### Fixed
+
+- The session-event-log guard no longer drops a line when many hooks heal one fresh `.gitignore` together. `slog_guard_ok` creates the guard with an exclusive noclobber open, so one writer cannot truncate a sibling's file. A sample that sees no line and then finds the file non-empty reads it again; those bytes are `*`. An operator comment or any other non-`*` line is still refused. An empty file gets `*\n` appended. The parallel test writes its payload to a temp file and redirects that file to the hook, so the hook's idle stdin read no longer races the pipe.
+
 ## [0.57.0]
 
 ### Added
 
-- audit-performance names the shell Claude Code wraps a shell-form hook command in. `invocation_shape` gains `shell-form-hook-names-a-second-shell`, which fires when a hook or statusline command with no `args` spells a shell in command position: upstream documents that the `command` string is passed to a shell before its first word runs, so such a command puts at least two shells in the chain, and the previous `shell_hits >= 2` rule could see only the one the string spelled. Command position is token 0, a token whose predecessor is `exec`, `env`, `sudo`, `nohup`, `command`, `|`, `||`, `&&`, or `;`, or a token after `-c` whose own predecessor is a shell, which keeps `node run.js cmd`, `make sh`, `grep -c sh file.txt` and `tar -c sh` out of the finding. The operators count whether or not whitespace surrounds them, since the command-position test tokenizes its own copy of the string with operator runs padded apart; the two legacy findings read the unpadded token list and are unchanged on every input. The rule is a floor and the note beside it says so: a shell reached through a subshell (`$(bash x.sh)` or a backquoted one) or through a runner taking arguments of its own first (`timeout 5 bash x.sh`) is a known miss. The command-position rule honours quotes, so a quoted executable containing spaces (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is recognised, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read as a delimiter. It walks the string once tracking the active quote character and maps a space, `;`, `|` and `&` inside a quoted run to sentinel characters, then pads the operator runs and splits as before; the predecessor test reads the unrestored token, so a quoted lone `"|"` cannot grant command position either. The two existing findings keep their names, their meaning, their place ahead of the new one, and their own naive quote-flattened token list, so they are byte-identical on every input.
+- audit-performance names the shell Claude Code wraps a shell-form hook command in. `invocation_shape` gains `shell-form-hook-names-a-second-shell`, which fires when a hook or statusline command with no `args` spells a shell in command position: upstream documents that the `command` string is passed to a shell before its first word runs, so such a command puts at least two shells in the chain, and the previous `shell_hits >= 2` rule could see only the one the string spelled. Command position is token 0, a token whose predecessor is `exec`, `env`, `sudo`, `nohup`, `command`, `|`, `||`, `&&`, or `;`, or a token after `-c` whose own predecessor is a shell, which keeps `node run.js cmd`, `make sh`, `grep -c sh file.txt` and `tar -c sh` out of the finding. The operators count whether or not whitespace surrounds them, since the command-position test tokenizes its own copy of the string with operator runs padded apart; the two legacy findings read the unpadded token list and are unchanged on every input. The rule is a floor and the note beside it says so: a shell reached through a subshell (`$(bash x.sh)` or a backquoted one) or through a runner taking arguments of its own first (`timeout 5 bash x.sh`) is a known miss. The command-position rule honors quotes, so a quoted executable containing spaces (`"C:/Program Files/PowerShell/7/pwsh.exe" -File hook.ps1`) stays one token and is recognized, and a shell operator inside a quoted argument (`grep -e 'a|sh' f`) is not read as a delimiter. It walks the string once tracking the active quote character and maps a space, `;`, `|` and `&` inside a quoted run to sentinel characters, then pads the operator runs and splits as before; the predecessor test reads the unrestored token, so a quoted lone `"|"` cannot grant command position either. The two existing findings keep their names, their meaning, their place ahead of the new one, and their own naive quote-flattened token list, so they are byte-identical on every input.
 - A hook row that spells an explicit `"args": []` is exec form, not shell form. `flatten_hook_block` now records the `args` KEY's presence as `exec_form` beside the normalized list, and `invocation_shape` reads that field when it is there, falling back to the list's truthiness when it is not. The previous rule tested the normalized list, which cannot tell an absent `args` from an explicit empty one, and reported a wrapping shell that upstream says is not there; `scripts/check-hook-exec-form.test.sh` has always held that an empty args array is still exec form. The statusline passes no such field on purpose: statusline.md documents a command string run in a shell and no exec form at all, so `bash line.sh` in `statusLine` still reports the finding.
 - `fan_out.shell_resolution` reports which bash a shell-form command would be handed to on Windows: `CLAUDE_CODE_GIT_BASH_PATH`, its source (settings.json `env`, then the engine's own environment), whether the path exists, whether Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to `usr/bin/bash.exe`. A rejected filename and a path that does not exist get the same documented fallback, and both are reported, so a resolution the harness will never use is not presented as one it will. Unset, the block reports the documented two-step search rather than performing it, and says so as a Windows statement, because `fan_out` ships the block on every platform. Its note cites the settings reference for why `env` outranks the process environment, says that only the install-root `settings.json` is read so a project or local `env` that outranks it is unseen, and bounds the answer to rows the harness wraps with bash: a hook whose own `shell` field is `"powershell"`, or a Windows host with no Git Bash, has PowerShell wrap that row instead. Read-only throughout: a settings read, an environment read, and one stat, with no new subprocess and neither binary spawned.
 - SKILL.md and reference/known-performance-issues.md state that an empty `invocation_shape_findings` is not a clean bill of health, since every shell-form command runs inside the harness's shell whether or not it names another, and both route the reader to `shell_resolution`. The `Never execute` section names the new block. The Git for Windows launcher re-exec stays a one-host observation carrying its provenance, never a count the engine asserts.
@@ -182,7 +196,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `converge`'s destructive-tier autonomy abort and `fleet-state.sh`'s `$OSTYPE` path-form
   detection named as the two things that invariant does not cover. The hub's Report section is now
   a pointer to the render plus the one model-owned reload line, and the eval suite gains a case
-  whose expected behaviour is that the model pastes the render and restates none of its numbers.
+  whose expected behavior is that the model pastes the render and restates none of its numbers.
 
 ## [0.55.0]
 
@@ -311,7 +325,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   Reachability section tables misconfigured skills with their cause and states each cause's
   remedy once; the Listing budget section, whenever a row overflows, tables the ten longest
   competing descriptions ranked by source length beside the capped charge the listing counts,
-  labelled as length and never as a starvation ranking, so it renders the same in an unscored
+  labeled as length and never as a starvation ranking, so it renders the same in an unscored
   run; and a closing Next actions section names only the fixes the run's findings support,
   pointing at the budget control the run's provenance says is effective (the env override, a
   managed-policy file, or the settings file that set the fraction) rather than always at the
@@ -457,7 +471,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Added
 
-- **audit-install-state: a cloud-session tree is labelled, never graded as the operator's
+- **audit-install-state: a cloud-session tree is labeled, never graded as the operator's
   machine.** The report opens with an `environment` block: `tree_verdict` (`remote` / `local` /
   `indeterminate`) rests on tree signals (`launcher-settings.json`, `environment-manager/`,
   `plugins/synced/`, root-level hook scripts as corroboration), while the documented
@@ -1188,7 +1202,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   because the cache is keyed by version. The record then claims the new commit while the directory
   still holds the older build, and every check the skill had passed in that state. On the reporting
   machine six plugins were in it at once, twelve stale files in the worst case, including a reviewed
-  dispatcher and two `hooks.json` files. Any measurement or behaviour test against those caches was
+  dispatcher and two `hooks.json` files. Any measurement or behavior test against those caches was
   a test of a different build. The new `cache-content-check.sh` byte-compares every file in a cache
   directory against the recorded commit in the marketplace clone, in both directions: a changed
   file, a file the commit has and the cache lacks, and a file deleted at the commit but still
@@ -1376,10 +1390,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   throwaway plugin loaded from a local marketplace, `${CLAUDE_PLUGIN_ROOT}` substituted in
   the rendered skill body while both a set and an unset `userConfig` token stayed literal,
   so the positive control failed and the result cannot distinguish the documented
-  behaviour from substitution not reaching skill content on that path. The remaining
+  behavior from substitution not reaching skill content on that path. The remaining
   discriminator would require writing real user settings, which the probe was not
   permitted to do. Mid-session update path resolution, the `/reload-plugins` warning
-  behaviour, and the install-summary activation line need an interactive session and were
+  behavior, and the install-summary activation line need an interactive session and were
   not re-run; their documentation was re-fetched and is unchanged. The `claude plugin
   prune` v2.1.121 gate and the `/reload-plugins --force` v2.1.163 gate were not
   re-verified because the current docs state neither version. All of these keep their
@@ -2015,7 +2029,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   usage-informed. On this machine that ranked `adhd:clarify` (1 use) as first to
   lose its description and `work-items:triage` (99 uses) as among the safest.
   Scores are now computed before the listing is built.
-- **Truncation is modelled as the greedy first-fit walk the product runs, not a
+- **Truncation is modeled as the greedy first-fit walk the product runs, not a
   score-ordered prefix.** The product's grant loop has no early exit, so it walks
   every competing entry with a running description budget and a cheap low-scored
   description can be granted after an expensive higher-scored one was refused.
@@ -2338,8 +2352,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   clear every suspect it knew about while the real cause went unreported. A new `fan_out` report
   section carries five probes:
   - **`spawn_cost`**: a trivial no-op spawn timed repeatedly and reduced to min, median, and max,
-    each reading labelled with the concurrent-process load at sample time. The floor moves with
-    load, so an unlabelled single number invites the wrong conclusion; a wide spread whose slow
+    each reading labeled with the concurrent-process load at sample time. The floor moves with
+    load, so an unlabeled single number invites the wrong conclusion; a wide spread whose slow
     mode is itself slow is reported as the contention signature rather than as noise.
   - **`hooks`**: every hook that will fire, resolved across `settings.json`, an optional
     project-scope settings file, and each enabled plugin's `hooks.json`, bucketed into
@@ -2495,7 +2509,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 ## [0.36.0]
 
 Remediates the `claude-ops:plugins` post-use audit of the `sync` action (#3112). Every claim about
-CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
+CLI behavior added or changed below was verified on **Claude Code 2.1.240**.
 
 ### Added
 
@@ -2837,7 +2851,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
   The listing-overflow figure is computed from documented settings alone (budget = fraction ×
   context window × bytes-per-token, against summed description lengths), so it needs no undocumented
-  constant; which particular skills lose descriptions is a labelled likelihood band. Skills with
+  constant; which particular skills lose descriptions is a labeled likelihood band. Skills with
   `disable-model-invocation`, bundled prompt skills, and `name-only` overrides spend no description
   budget and are excluded from both the sum and the ranking.
 
@@ -2898,7 +2912,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   0.32.5 (below, unreleased) split the message two ways and treated `exitCode` 126 or 127 as
   launch-failure evidence on its own. Review found that predicate wrong: a registered shell hook
   launches successfully and still exits 126 or 127 whenever a command *inside* it is missing or not
-  executable, so labelling that a launch failure hands the operator the restart-the-session remedy
+  executable, so labeling that a launch failure hands the operator the restart-the-session remedy
   for a defect restarting cannot touch. That is the exact misdiagnosis #2849 exists to fix, in a narrower
   shape. Classification is now three-way:
   - `launch failure`: the record's stderr carries an exec-failure signature (`execvpe`,
@@ -2934,7 +2948,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   classified, and the diagnosis and remedy follow the classification: the launch-failure wording
   and the restart remedy are kept verbatim where they are correct and are simply not asserted about
   a hook that ran. Classes are counted per record, so one registration that failed several ways in
-  the same unwarned batch is labelled with each class's own count and gets each class's sentence,
+  the same unwarned batch is labeled with each class's own count and gets each class's sentence,
   rather than being relabelled by whichever record happened to come last; the per-class message
   flags are computed from those per-record counts, never from the collapsed group value. The class
   names and the discriminator that assigns them were refined under 0.32.6 above before either
@@ -3278,7 +3292,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 
   Every run carries an integrity verdict (`ok` / `degraded` / `broken`) because the failure that
   matters is not a crash but a clean-looking short list. Canary commands, a minimum resolved-to-
-  registration-token ratio, a sweep for unrecognised registrar-shaped exports, and the
+  registration-token ratio, a sweep for unrecognized registrar-shaped exports, and the
   resolved-versus-seen gap on bundled skills each convert a quiet shortfall into a stated one; a
   `degraded` run reports counts as floors rather than totals. `--self-check` prints one verdict
   line and exits 0/1/2 for use as a CI gate or scheduled drift check, with `/claude-ops:changelog`
@@ -3324,7 +3338,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, with one
   visible skip notice per session and then exit 0, which is the correct posture for every hook in this plugin,
-  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  so **nothing in this plugin's behavior changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
@@ -3368,7 +3382,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   `verdict_for()` therefore classifies the naming scheme first and calls the probe only when the
   number is a PID; a spy-probe test asserts it is never invoked for `ide/<n>.lock` (TCP port),
   `rate-limit-guard/*.tmp.<n>` (MSYS2 `$$`), `shell-snapshots/…` (epoch ms), `paste-cache/<hex>`
-  (content hash), or any unrecognised numeric name. Unknown schemes fail closed, and a probe that
+  (content hash), or any unrecognized numeric name. Unknown schemes fail closed, and a probe that
   cannot run reports `unverified`, never `dead`.
 
 - **Evidence tags and sampled ranges are schema properties, not conventions.** Every emitted claim
@@ -3427,7 +3441,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **The recent-writer cutoff is compared at the precision it is stored.** `FileRow.mtime` carries
   second precision while the cutoff carried microseconds; `.` (0x2E) sorts after `+` (0x2B), so a
   file written inside the window but during the cutoff second compared *lower* than the cutoff and
-  was silently dropped from the behavioural-activity evidence. Same fix, and the same reason, as
+  was silently dropped from the behavioral-activity evidence. Same fix, and the same reason, as
   the rollup cutoff already applied.
 
 ### Changed
@@ -3442,7 +3456,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.28.5]
@@ -3486,7 +3500,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
   flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
-  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  new global, so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.28.2]
 
@@ -3852,7 +3866,7 @@ CLI behaviour added or changed below was verified on **Claude Code 2.1.240**.
   F4).** `PROJECT_ROOT` fell through to bare `$PWD` whenever `CLAUDE_PROJECT_DIR` was unset and cwd
   was not a git tree, so the "project" settings read became whatever `.claude/settings.json` sat
   under cwd, which in `$HOME` is the user settings file itself, and an install record whose `projectPath`
-  equalled that directory would be promoted to `currentProject: true`. Project context now resolves
+  equaled that directory would be promoted to `currentProject: true`. Project context now resolves
   from `CLAUDE_PROJECT_DIR`, a real git toplevel, or, because Claude Code does not require a
   repo, a non-git cwd corroborated by its own `.claude` directory, with `$HOME` always excluded
   (its `.claude` is user scope); an uncorroborated cwd stays an empty root, and the downstream
@@ -4648,7 +4662,7 @@ Six review findings raised on #1720 forty-six seconds *after* it merged, so they
   `claude plugin marketplace update` before discovering the target was unknown.
   The `TARGET_LANES` existence check now runs up front in `main`, ahead of the
   refresh step, so a misspelled target fails fast (exit 3) with no repo/plugin
-  mutation, matching `stop`'s fail-first behaviour. (#639)
+  mutation, matching `stop`'s fail-first behavior. (#639)
 
 ## [0.15.0]
 

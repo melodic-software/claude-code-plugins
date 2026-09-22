@@ -54,9 +54,9 @@ assert_contains "posted to the issues endpoint" "$(gitea_requests)" \
 gitea_reset_routes
 gitea_seed "/labels" 200 "$(jq -cn '[{id:3,name:"type: fix"},{id:9,name:"priority: high"}]')"
 gitea_seed "/dependencies" 200 '[]'
-gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'labelled')"
-rc="$(gitea_run "$S" --title "labelled" --labels "type: fix,priority: high")"
-assert_eq "labelled create → exit 0" "0" "$rc"
+gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'labeled')"
+rc="$(gitea_run "$S" --title "labeled" --labels "type: fix,priority: high")"
+assert_eq "labeled create → exit 0" "0" "$rc"
 assert_contains "the label set was fetched" "$(gitea_requests)" "/labels"
 
 # An unknown label name is refused, not dropped: a work item filed without its priority
@@ -161,7 +161,7 @@ rc="$(gitea_run "$S" --title "t" --labels "priority: high")"
 assert_eq "an org-wide label resolves → exit 0" "0" "$rc"
 assert_contains "the org label endpoint was consulted" "$(gitea_requests)" "/orgs/acme/labels"
 
-# The same run also settles the org walk's end-of-list signal: it must honour
+# The same run also settles the org walk's end-of-list signal: it must honor
 # X-Total-Count like the repo walk above it, not a largest-page-seen heuristic. Two
 # things that heuristic got wrong, both asserted here: it always spent one extra request
 # (the page that sets the baseline can never be shorter than it), and because this mock

@@ -1240,7 +1240,7 @@ fi
 # documented substitution applies. The environment is still honored for callers that genuinely have
 # it (hooks, MCP stdio servers, a direct shell).
 #
-# The ${...} guard below is defence in depth, not the primary path: when Claude Code does not
+# The ${...} guard below is defense in depth, not the primary path: when Claude Code does not
 # substitute the placeholder, the literal reaches the shell, which expands the unset variable to an
 # empty string before this script is entered -- so the ordinary miss arrives as empty and is handled
 # by the emptiness checks. The guard catches only a literal that survives shell expansion (a
@@ -1351,7 +1351,7 @@ fi
 
 should_skip_dir_name() {
   local name="$1" skip
-  # This arm is defence in depth, not a live guard: no input reaching the sole caller
+  # This arm is defense in depth, not a live guard: no input reaching the sole caller
   # (discover_repositories' child loop) can match it. `.` and `..` can never BE a child basename —
   # the loop's globs are "$dir"/* (no dotfiles), "$dir"/.[!.]* and "$dir"/..?*, none of which can
   # yield `.` or `..`. And for `.git`, the nested-repository early return fires first on the
@@ -1820,7 +1820,7 @@ discover_repositories() {
     # Configurable skip list (--skip / fleet.skip): names come from SKIP_NAMES (defaults, or an
     # explicit replace list). See usage() for replace semantics. should_skip_dir_name also carries
     # an unconditional . / .. / .git arm, but no child basename reaching here can match it — see
-    # the note on that arm. It is defence in depth, not what keeps discovery out of .git internals;
+    # the note on that arm. It is defense in depth, not what keeps discovery out of .git internals;
     # the nested-repository early return above does that.
     if should_skip_dir_name "$name"; then
       continue

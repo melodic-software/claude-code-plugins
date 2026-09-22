@@ -108,7 +108,7 @@ check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no
 for eco in "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   [[ -f "$eco" ]] || continue
   if err="$("${PY[@]}" "$SCRIPTS/yaml_subset.py" "$eco" 2>&1 >/dev/null)"; then
-    row PASS "ecosystem ${eco##*/}" "parses; its globs and enabled key are honoured for lane detection"
+    row PASS "ecosystem ${eco##*/}" "parses; its globs and enabled key are honored for lane detection"
   else
     row FAIL "ecosystem ${eco##*/}" "outside the YAML subset: ${err#*: }"
   fi

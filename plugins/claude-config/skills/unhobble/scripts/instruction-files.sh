@@ -324,7 +324,7 @@ restore)
     exit 0
   fi
   # Named: every refusal is resolved BEFORE anything is checked out, and a name
-  # this cannot honour is an error rather than a silent skip. A caller that asked
+  # this cannot honor is an error rather than a silent skip. A caller that asked
   # for a file by name and got exit 0 would record it as restored while it stayed
   # deleted, which is the ledger lying about what the experiment put back.
   refused=()

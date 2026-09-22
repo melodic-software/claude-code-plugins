@@ -169,7 +169,7 @@ out="$(run "$TMP/dmi-root" 2>&1)"
 if grep -q 'over 2 listing-eligible skill(s)' <<<"$out" && grep -q 'aggregate: 10 chars' <<<"$out"; then
   pass "disable-model-invocation: true skills are excluded; false is still counted"
 else
-  fail "expected 2 eligible skills totalling 10 chars (the dmi:true skill excluded): $out"
+  fail "expected 2 eligible skills totaling 10 chars (the dmi:true skill excluded): $out"
 fi
 
 # 9b. The invocation-control flag is NORMALIZED before comparison. A bare
@@ -238,19 +238,19 @@ else
   fail "decimal overrides should reconstruct the budget and exit 0 (rc=$rc): $out"
 fi
 
-# 12. A supplied CHECK_SKILL_LISTING_BUDGET_CHARS is labelled an override, not
+# 12. A supplied CHECK_SKILL_LISTING_BUDGET_CHARS is labeled an override, not
 #     the "documented default" — the provenance the report promises to state.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=4000 bash "$SUT" "$ROOT_A" 2>&1)"
 if grep -q 'budget:.*4000 chars (override (CHECK_SKILL_LISTING_BUDGET_CHARS))' <<<"$out"; then
-  pass "a supplied fixed budget is labelled an override, not the documented default"
+  pass "a supplied fixed budget is labeled an override, not the documented default"
 else
-  fail "an overridden budget should not be labelled the documented default: $out"
+  fail "an overridden budget should not be labeled the documented default: $out"
 fi
 
-# 12b. With no override, the default IS labelled the documented default.
+# 12b. With no override, the default IS labeled the documented default.
 out="$(run "$ROOT_A" 2>&1)"
 if grep -q 'budget:.*8000 chars (documented default' <<<"$out"; then
-  pass "the unoverridden budget is labelled the documented default"
+  pass "the unoverridden budget is labeled the documented default"
 else
   fail "the default budget should carry the documented-default label: $out"
 fi

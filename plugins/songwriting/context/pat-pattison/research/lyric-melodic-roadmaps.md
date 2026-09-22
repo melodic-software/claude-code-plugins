@@ -63,7 +63,7 @@ listener hears two competing structures and the meaning blurs.
 
 The diagnostic is whether the lyric's phrase boundaries align with the
 melody's phrase boundaries. The fixes set out below are **Pat's own numbered
-options** from that article, not this file's organisation of the problem.
+options** from that article, not this file's organization of the problem.
 
 ## What a roadmap is
 
@@ -229,7 +229,7 @@ share a root cause with a roadmap mismatch: the lyric's stresses disagree with
 the melody's.
 
 <!-- Verified against the two 1991 Ch 3 figures behind the dangling colons.
-     image_rsrc2ZC ("too hot") puts the strong italicised words deep / hold /
+     image_rsrc2ZC ("too hot") puts the strong italicized words deep / hold /
      heart / born / haunts / God into unstressed slots. image_rsrc2ZD ("too
      cold") puts the function words just / now / place / Won't / get / out into
      the important slots. So too-cold really is a word-choice failure, not a

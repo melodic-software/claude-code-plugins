@@ -40,7 +40,7 @@ example, which all have the same shape:
 `return dangerous ? { deny: reason } : next(e)` (`.d.ts:L7250`; PDF Listings 1
 and 6; `mods/sec-default/hooks/register.ts`).
 
-One behaviour change is on record: a community member measured `{deny:""}` not
+One behavior change is on record: a community member measured `{deny:""}` not
 blocking on **2.1.260** and blocking on **2.1.261** and **2.1.263**. The early
 "deny does not block" reading plausibly originates there. It does not hold on
 2.1.278. `COMMUNITY` · HIGH.
@@ -125,7 +125,7 @@ is constructible today and is the right framing: *the engine default is
 undecided; a guard that wants fail-closed must construct it itself rather than
 rely on an engine default.* `STAFF` · HIGH ·
 `community-falsification/VERIFICATION.md` row 2e (which corrected an earlier
-over-strong "rests on an undecided behaviour").
+over-strong "rests on an undecided behavior").
 
 ## `sec-default` and managed tiers
 

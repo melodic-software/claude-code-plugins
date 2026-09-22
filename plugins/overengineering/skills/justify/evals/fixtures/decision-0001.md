@@ -7,7 +7,7 @@ Deciders: platform team
 ## Context
 
 Three services each opened their own SMTP connection to the provider. Two of them retried on
-failure and one did not, so a provider outage produced three different behaviours and no single
+failure and one did not, so a provider outage produced three different behaviors and no single
 place to see what had been sent.
 
 ## Decision

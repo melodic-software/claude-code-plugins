@@ -235,7 +235,7 @@ jq '.file_names.sweep_exclude_sites = ["README.md:forge URL"]' \
 mv "$root3/.claude/t.json" "$root3/.claude/docs-hygiene.json"
 excl="$(bash "$SUT" --root "$root3" --pairs "$TEST_TMPDIR/pairs.tsv" | view)"
 assert_contains "a per-site exclusion is reported as skipped" "$excl" "README.md:github-url:current:skip"
-assert_contains "its neighbours on other lines are unaffected" "$excl" "README.md:md-link:current:edit"
+assert_contains "its neighbors on other lines are unaffected" "$excl" "README.md:md-link:current:edit"
 
 # --- tier reporting and totals -----------------------------------------------
 

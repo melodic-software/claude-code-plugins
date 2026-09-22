@@ -237,7 +237,7 @@ rows after real work is a licensed permanent deletion.
    "no stumble was observed" is the weakest evidence available against it, and the register exists
    because that inference is the one this phase would otherwise make. Restoring a protected rule
    this way is not a failed deletion, so do not count it as a retained surface in the ledger's
-   defence tally; record it as a register hold with its class.
+   defense tally; record it as a register hold with its class.
 5. Close the experiment: final manifest update (`phase: closed`, surfaces restored vs retired
    counts, register holds listed separately), and merge or fold the experiment branch per the
    repo's normal PR flow.

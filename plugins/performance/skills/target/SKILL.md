@@ -37,7 +37,7 @@ how compelling the mechanism sounds.
 
 | Tier | Means | Example |
 |---|---|---|
-| **E1, attributed measurement** | A measurement that isolates this component's cost from its neighbours' | A spawn census showing this hook costs 4 of the 7 spawns per tool call |
+| **E1, attributed measurement** | A measurement that isolates this component's cost from its neighbors' | A spawn census showing this hook costs 4 of the 7 spawns per tool call |
 | **E2, aggregate measurement** | A real measurement that includes this component but does not isolate it | "The whole pre-tool path takes 1.2 s" |
 | **E3, structural inference** | No measurement; a documented cost model predicts expense | "This is a 125-line shell wrapper that runs per tool call" |
 | **E4, suspicion** | A plausible mechanism and nothing else | "WDAC is probably slowing spawns" |

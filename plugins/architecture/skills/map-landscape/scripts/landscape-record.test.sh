@@ -248,7 +248,7 @@ assert_equals "schema: an unreadable record exits 1" "$?" "1"
 # --- Case group 10: the subject owner is recorded ---------------------------
 #
 # Whether a checkout is internal turns on who owns it, not on someone having it
-# on disk, so the record has to name the organisation it was drawn from.
+# on disk, so the record has to name the organization it was drawn from.
 out="$(bash "$SCRIPT" "$repo")"
 assert_contains "subject: the origin owner is recorded" "$out" '"subject_owner": "fixture-owner"'
 out="$(bash "$SCRIPT" "$repo" --owner other-org)"

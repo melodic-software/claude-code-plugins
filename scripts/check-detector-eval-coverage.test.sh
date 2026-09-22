@@ -861,7 +861,7 @@ rm -rf "$root"
 # opening scan, and the delimiter class excluding `<` so the third `<` cannot
 # start a word -- so no SINGLE mutation of either falsifies this case. An audit
 # flagged it as a guard naming a path it does not exercise, and the label is
-# corrected rather than the redundancy removed: defence in depth here is worth
+# corrected rather than the redundancy removed: defense in depth here is worth
 # more than a case that fails on one mutation, and the belt-and-braces is now
 # stated instead of being mistaken for coverage it does not provide.
 p3b_case 'a here-string (`<<<`) opens no body, by either mechanism' 'grep x <<<"$v"'

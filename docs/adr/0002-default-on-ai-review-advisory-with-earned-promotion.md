@@ -369,7 +369,7 @@ repository-wide code-review group, where several pull requests contend for one s
 which is what `queue: max` is there for. The code-review group is also
 deliberately distinct from the reusable workflow's own inner group, which is keyed
 per pull request and head SHA, because a caller group sharing that name would deadlock the call
-against itself. Anthropic's documented behaviour for its own review product is the same: a second
+against itself. Anthropic's documented behavior for its own review product is the same: a second
 request while one runs is queued until the in-progress review completes
 (<https://code.claude.com/docs/en/code-review>).
 
