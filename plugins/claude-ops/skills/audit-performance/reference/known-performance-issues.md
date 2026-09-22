@@ -322,9 +322,11 @@ The shape, not the numbers, is the transferable part:
   `node.exe` at 0.3 (n=100), `python3.exe` and `cmd.exe` at about 0 (n=100, n=300). A 1-per-minute
   sampler tracked it live: 3 to 7/s during the bursts, about 0 when the host was idle. So the
   `cmd` result was a null on a non-minting binary,
-  not evidence of a continuous minter, and the consequence for a Claude Code host is that the leak
-  is proportional to how many shell processes its hooks and tools spawn. Every spawn-reduction
-  measure in this reference also reduces the leak rate.
+  not evidence of a continuous minter. On a host whose leak follows spawn count, as the reference
+  host's did, the leak is proportional to how many shell processes its hooks and tools spawn, and
+  every spawn-reduction measure in this reference also reduces the leak rate there. That is one
+  host's shape, not every host's: the Claude Desktop host in anthropics/claude-code#91265
+  stop-tested process-creation churn with no change in its leak rate.
 - **The per-package pwsh ordering is NOT established, and swapping PowerShell packages is not a
   recommendation.** A later background-corrected A/B on the same host (150 spawns per arm, two
   rounds, other sessions active, background 1.5 to 7.1/s) put the portable-zip pwsh at 7.1 per
