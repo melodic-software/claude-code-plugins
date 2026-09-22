@@ -16,10 +16,3 @@
 .work/**/INTENT.md
 .work/**/INTENT-*.md
 .work/**/*-checklist.md
-# Verifier and adversarial-review records ride along with the research they
-# check. Fresh-context verification, devil's advocate, and blindspot notes
-# are reserved memory-tier names, so a new worktree keeps what was found wrong.
-.work/**/VERIFICATION.md
-.work/**/VERIFICATION-*.md
-.work/**/DEVILS-ADVOCATE.md
-.work/**/BLINDSPOTS.md
