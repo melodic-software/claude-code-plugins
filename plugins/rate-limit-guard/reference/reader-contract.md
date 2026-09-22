@@ -203,8 +203,8 @@ Records with `detected_at` newer than the baseline are live signal; older ones a
 never justify a new pause on their own. The baseline is per-consumer and in-memory; nothing
 persists it, and a fresh consumer deliberately ignores prior sessions' records.
 
-The contract directory holds six more shapes, none of which readers consume, listed so tooling
-sweeping the directory expects them:
+The contract directory holds the further shapes below, none of which readers consume, listed so
+tooling sweeping the directory expects them:
 
 - `stop-events.jsonl.lock`: the advisory-lock sibling the hook's serialized append and rotation use
   (present wherever `flock` exists).

@@ -37,8 +37,10 @@ operator's, and naming what re-invalidates it. Silence would not be the conformi
 unwritable surface; a printed edit is.
 
 What obliges an `apply` is not configuration at all. The machine files under
-`~/.claude/rate-limit-guard/` that the tee, the hook, and the shim's own resolved-tee cache write
-remain runtime-owned plugin data, not an operator-editable surface,
+`~/.claude/rate-limit-guard/` that the tee and the hook write remain runtime-owned plugin data, not
+an operator-editable surface, and so does the shim's own resolved-tee cache, which follows the
+effective config dir rather than `$HOME` and so sits elsewhere under a relocated
+`CLAUDE_CONFIG_DIR`,
 but the **statusline shim** `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is an owned
 writable artifact this plugin must place, because it is the durable path the operator's own wiring
 names. `apply` writes that one file and nothing else.

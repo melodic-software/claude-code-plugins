@@ -367,6 +367,9 @@ MISS_TRACE="$WORK/trace-miss.txt"
 HIT_TRACE="$WORK/trace-hit.txt"
 trace_run "$H11" "$MISS_TRACE" bash "$H11/render.sh"
 trace_run "$H11" "$HIT_TRACE" bash "$H11/render.sh"
+# Positive control first: without it, a bash that ever traced the loop
+# differently would make the hit assertion below pass while the loop ran.
+assert_contains "$(<"$MISS_TRACE")" "for cand in" "the probe can see the glob loop at all"
 assert_not_contains "$(<"$HIT_TRACE")" "for cand in" "a cache hit never enters the glob loop"
 MISS_LINES="$(wc -l <"$MISS_TRACE" | tr -d ' ')"
 HIT_LINES="$(wc -l <"$HIT_TRACE" | tr -d ' ')"
@@ -498,13 +501,86 @@ MSYS=winsymlinks:sys ln -s "${DEVSRC%/scripts/statusline-tee.sh}" "$DEVLINKDIR"
 make_wrapped "$H18/render.sh" 0
 run "$H18" bash "$H18/render.sh"
 assert_contains "$ERR" "TEE:devco" "a symlinked development checkout still resolves"
-assert_eq "$DEVLINKDIR/scripts/statusline-tee.sh" "$(cache_line "$C18")" \
-  "the symlinked resolution is cached, and rejected on read rather than on write"
+# Not merely rejected on read: never written. Recording it would make every
+# later render fail the hit test, re-elect the same symlink and rewrite the
+# file, which is strictly more work than the pre-cache walk.
+assert_eq "" "$(cache_line "$C18")" "a symlinked resolution is never cached"
 SYMREAL="$(plant_tee "$H18" "mkt" "rate-limit-guard" "0.2.0" "symreal")"
 touch -t 203001010000 "$SYMREAL"
 run "$H18" bash "$H18/render.sh"
 assert_contains "$ERR" "TEE:symreal" "a symlinked cached version directory is rejected and re-globs"
 assert_not_contains "$ERR" "TEE:devco" "the symlinked development checkout is not pinned"
+
+# --- 27. a cached path carrying dot segments is rejected --------------------
+# Without `dotglob` the resolving glob's `*` never matches a leading dot, so a
+# cached `.` or `..` segment names a path the glob could not have produced. A
+# pair of `..` segments reaches ABOVE the cache root entirely, and `..` also
+# disarms the symlink guard structurally, because a version directory spelled
+# `<something>/..` is never itself a link. The escape target is a REAL runnable
+# tee, so this case fails if the path is accepted rather than passing merely
+# because the file was missing.
+H19="$WORK/h19"
+C19="$(cache_path "$H19/.claude" "rate-limit-guard")"
+DOTREAL="$(plant_tee "$H19" "mkt" "rate-limit-guard" "0.1.0" "dotreal")"
+CACHEROOT="$H19/.claude/plugins/cache"
+# Both escape targets have to be genuinely REACHABLE, or the case passes
+# because a component was missing rather than because the dot test rejected
+# it. `..` only traverses through directories that exist, so the intermediate
+# <plugins>/rate-limit-guard is planted too.
+ESCAPED="$H19/.claude/plugins/scripts"
+mkdir -p "$ESCAPED" "$H19/.claude/plugins/rate-limit-guard" "$CACHEROOT/rate-limit-guard/scripts"
+sed 's/TEE:dotreal/TEE:escaped/' "$DOTREAL" >"$ESCAPED/statusline-tee.sh"
+sed 's/TEE:dotreal/TEE:escaped/' "$DOTREAL" >"$CACHEROOT/rate-limit-guard/scripts/statusline-tee.sh"
+make_wrapped "$H19/render.sh" 0
+# One ordinary render first, so the shim creates its own directory. Writing the
+# fixture cache before it exists would fail silently (the suite sets no -e) and
+# the case would then pass for the wrong reason.
+run "$H19" bash "$H19/render.sh"
+assert_eq "$DOTREAL" "$(cache_line "$C19")" "the dot-segment fixture starts from a real cached resolution"
+printf '%s\n' "$CACHEROOT/../rate-limit-guard/../scripts/statusline-tee.sh" >"$C19"
+run "$H19" bash "$H19/render.sh"
+assert_not_contains "$ERR" "TEE:escaped" "a cached path with .. segments never escapes the cache root"
+assert_contains "$ERR" "TEE:dotreal" "the rejected .. path re-globs to the real tee"
+printf '%s\n' "$CACHEROOT/./rate-limit-guard/./scripts/statusline-tee.sh" >"$C19"
+run "$H19" bash "$H19/render.sh"
+assert_not_contains "$ERR" "TEE:escaped" "a cached path with . segments does not reach the planted decoy"
+assert_contains "$ERR" "TEE:dotreal" "a cached path with . segments is rejected and re-globs"
+
+# --- 28. every other malformed cache shape falls back to the glob -----------
+# The header's broadest safety claim is that an empty, truncated, stale or
+# hand-edited cache file costs one walk and never a wrong exec. Cases 20, 21,
+# 23 and 26 each exercise a SHAPE-VALID path failing a filesystem test; these
+# are the shape failures themselves. The decoy outside the cache root is a real
+# runnable tee, so an accepted path runs it and the case fails loudly.
+H20="$WORK/h20"
+C20="$(cache_path "$H20/.claude" "rate-limit-guard")"
+SHAPEREAL="$(plant_tee "$H20" "mkt" "rate-limit-guard" "0.1.0" "shapereal")"
+DECOY="$H20/decoy-tee.sh"
+sed 's/TEE:shapereal/TEE:decoy/' "$SHAPEREAL" >"$DECOY"
+make_wrapped "$H20/render.sh" 0
+run "$H20" bash "$H20/render.sh"
+# Written flat rather than in a loop: the suite reconciles PASS+FAIL against a
+# COLUMN-ANCHORED count of assert_ calls, and a loop body would indent these
+# out of that count.
+printf '\n' >"$C20"
+run "$H20" bash "$H20/render.sh"
+assert_contains "$ERR" "TEE:shapereal" "an empty cache line re-globs"
+printf '%s\n' "$DECOY" >"$C20"
+run "$H20" bash "$H20/render.sh"
+assert_not_contains "$ERR" "TEE:decoy" "a cache line naming a tee outside the cache root is never exec'd"
+assert_contains "$ERR" "TEE:shapereal" "the outside-the-cache line re-globs"
+printf '%s\n' "${SHAPEREAL%/statusline-tee.sh}" >"$C20"
+run "$H20" bash "$H20/render.sh"
+assert_contains "$ERR" "TEE:shapereal" "a cache line missing the tee filename re-globs"
+printf '%s\n' "$H20/.claude/plugins/cache/mkt/rate-limit-guard/0.1.0/extra/scripts/statusline-tee.sh" >"$C20"
+run "$H20" bash "$H20/render.sh"
+assert_contains "$ERR" "TEE:shapereal" "a cache line one directory too deep re-globs"
+printf '%s\n' "  $SHAPEREAL" >"$C20"
+run "$H20" bash "$H20/render.sh"
+assert_contains "$ERR" "TEE:shapereal" "a cache line with leading whitespace re-globs"
+printf '%s\r\n' "$SHAPEREAL" >"$C20"
+run "$H20" bash "$H20/render.sh"
+assert_contains "$ERR" "TEE:shapereal" "a cache line with a trailing carriage return re-globs"
 
 echo
 echo "passed: $PASS  failed: $FAIL"
