@@ -223,7 +223,12 @@ Work items:
 And `jq -e '.plugins[]|select(.name=="gaming" and .category=="personal" and .defaultEnabled==false)' .claude-plugin/marketplace.json`
 exits 0, which pins the three marketplace fields a `grep -c` on the category alone cannot.
 
-### Phase 2: Port the script with data-dir and DLL parameterization [TODO]
+### Phase 2: Port the script with data-dir and DLL parameterization [DONE]
+
+Sanity Check run 2026-09-22: selftest `SELFTEST OK`, exit 0; `KyleSexton` grep exit 1; no
+`PSScriptRoot` line names `state` or `runtime`; no directory created under `scripts/`. A
+fresh-context verifier passed all 14 criteria on dbbf46624; its MEDIUM rollback finding is fixed
+in the Phase 3 commit. Deviations: `DEVIATIONS.md`.
 
 TDD: every assertion below is added to `Do-Selftest` and seen to fail before the change that
 makes it pass.

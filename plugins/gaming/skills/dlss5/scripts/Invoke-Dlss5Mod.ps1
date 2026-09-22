@@ -2,13 +2,15 @@
 # Install/remove the OptiScaler DLSS-NR mod in a game exe dir, with a pre-install snapshot and a
 # file manifest so removal leaves the folder byte-identical. All state lives under -DataDir.
 param(
-    [Parameter(Mandatory)][ValidateSet('apply', 'status', 'remove', 'selftest')][string]$Verb,
+    [Parameter(Mandatory)][ValidateSet('assess', 'provision', 'apply', 'status', 'remove', 'selftest')][string]$Verb,
     [Parameter(Position = 0)][string]$GameDir,
     [string]$Build = 'dagherbou',
     [string]$Proxy = 'dxgi.dll',
     [string]$DataDir,
     [string]$RuntimeDll,
     [string]$RuntimeSource,
+    [string[]]$ScanRoots,
+    [switch]$Runtime,
     [switch]$RestoreComputeSignature,
     [switch]$AllowUnknownRuntime,
     [switch]$Finish,
@@ -22,6 +24,21 @@ $BuildFiles = @{
     dagherbou = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses', 'nvngx.dll_dlssnr.dll')
     wilsjo2   = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses')
 }
+# Pinned release assets. The dagherbou hash is a local-copy attestation (the release publishes no
+# checksum); the wilsjo2 hash matches the release's own .sha256 sidecar.
+$BuildPins = @{
+    dagherbou = @{
+        Tag = 'v0.2.0-patch1'; Asset = 'OptiScaler-DLSSNR-v0.2.0-onimusha-fix.zip'
+        Url = 'https://github.com/Dagherbou/OptiScaler_DLSSNR/releases/download/v0.2.0-patch1/OptiScaler-DLSSNR-v0.2.0-onimusha-fix.zip'
+        Sha256 = '5DB547216FA8A7DBD8AB0A193DA1E3BCE0EA4BD71F91189AFA4ED2EDE8BB9561'
+    }
+    wilsjo2   = @{
+        Tag = 'v0.8.3'; Asset = 'OptiScaler-NR-v0.8.3.zip'
+        Url = 'https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases/download/v0.8.3/OptiScaler-NR-v0.8.3.zip'
+        Sha256 = '3F2D26FB136D964A394BF50896D082156173153A2A55B88E1995277B4DABE3C8'
+    }
+}
+$ProxyNames = @('dxgi.dll', 'dbghelp.dll', 'winmm.dll', 'version.dll')
 # Mirrors reference/anticheat-posture.md; change both together.
 $AntiCheatTokens = @('EasyAntiCheat', 'EasyAntiCheat_EOS', 'BattlEye', 'BEService', 'ACE')
 $ModDirs = @('OptiScaler', 'Licenses', 'dlssnr-capture', 'OptiScalerProfiles')
@@ -49,6 +66,7 @@ function Resolve-Source([string]$v) {
 }
 function Init-Paths {
     $script:DataDir = Resolve-DataDir $DataDir
+    $script:RuntimeDllConfigured = [bool](Resolve-PathOpt $RuntimeDll)
     $script:RuntimeDll = (Resolve-PathOpt $RuntimeDll) ?? (Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll')
     $script:RuntimeSource = Resolve-Source $RuntimeSource
 }
@@ -233,8 +251,8 @@ function Do-Apply($root) {
             if ($script:FaultAfter -and $copied.Count -ge $script:FaultAfter) { throw 'injected copy fault' }
             $d = Join-Path $root $e.To
             New-Item -ItemType Directory -Force -Path (Split-Path $d -Parent) | Out-Null
+            [void]$copied.Add($d)   # before the copy: a partial file must roll back too; the collision gate proved it was absent
             Copy-Item -LiteralPath $e.From -Destination $d
-            [void]$copied.Add($d)
         }
         $edits = @(
             @{ Section = 'DlssNr'; Key = 'Enabled'; Value = 'true' }
@@ -248,7 +266,8 @@ function Do-Apply($root) {
     catch {
         $copied | ForEach-Object { Remove-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue }
         Remove-EmptyModDirs $root @((Load-Snapshot $root).files.Path)
-        Remove-Item -LiteralPath $pp -Force
+        # Keep pending.json while anything it names survives, so remove can still find it.
+        if (-not ($copied | Where-Object { Test-Path -LiteralPath $_ })) { Remove-Item -LiteralPath $pp -Force }
         throw
     }
 
@@ -332,6 +351,146 @@ function Do-Remove($root) {
     }
 }
 
+# Read-only eligibility probe. On-disk facts only; the Steam store page's anti-cheat section is the
+# skill's job, so a clean scan is 'eligible' with requiresWebCheck set, never a final yes.
+function Do-Assess($root) {
+    $gameRoot = if ($root -match '^(.*\\steamapps\\common\\[^\\]+)') { $Matches[1] } else { $root }
+    $ac = Find-AntiCheat $root
+    $hasExe = [bool](Get-ChildItem -LiteralPath $root -Filter *.exe -File)
+    $collisions = @($ProxyNames | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) })
+    $free = @($ProxyNames | Where-Object { $_ -notin $collisions })
+    $dlss = @(Get-ChildItem -LiteralPath $gameRoot -Recurse -Filter 'nvngx_dlss*.dll' -File -Force -ErrorAction SilentlyContinue |
+            ForEach-Object { [pscustomobject]@{ file = $_.FullName.Substring($gameRoot.Length).TrimStart('\'); version = $_.VersionInfo.FileVersion } })
+    $appId = $null
+    if ($root -match '^(.*\\steamapps)\\common\\([^\\]+)') {
+        $dir = $Matches[2]
+        foreach ($acf in Get-ChildItem -LiteralPath $Matches[1] -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
+            $t = Get-Content -LiteralPath $acf.FullName -Raw
+            if ($t -match '"installdir"\s+"([^"]+)"' -and $Matches[1] -eq $dir -and $t -match '"appid"\s+"(\d+)"') { $appId = $Matches[1]; break }
+        }
+    }
+    $refusals = @($ac | ForEach-Object { "anti-cheat on disk: $_" })
+    if (-not $hasExe) { $refusals += "no *.exe in $root; pass the directory that holds the game executable" }
+    $verdict = if ($ac) { 'refused' } elseif ($hasExe -and $free) { 'eligible' } else { 'unknown' }
+    [pscustomobject]@{
+        gameDir = $root; gameRoot = $gameRoot; gameKey = (GameKey $root)
+        verdict = $verdict; requiresWebCheck = ($verdict -eq 'eligible')
+        refusals = $refusals; dlss = $dlss
+        dx12 = [bool](Get-ChildItem -LiteralPath $root -Filter 'd3d12*.dll' -File) -or ($root -match '\\Binaries\\Win64$')
+        proxyCollisions = $collisions; freeProxies = $free; steamAppId = $appId
+    } | ConvertTo-Json -Depth 4
+}
+
+# Verifies a downloaded fork zip against its pin, then extracts ONLY the build's allow-list into
+# <DataDir>\builds\<build>\. setup_windows.bat and the rest never reach disk.
+function Install-Build($build, $zip, $pin) {
+    $h = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+    if ($h -ne $pin.Sha256) { throw "hash mismatch for $($pin.Asset): got $h, expected $($pin.Sha256); nothing extracted" }
+    $allow = $BuildFiles[$build]
+    $dest = Join-Path $script:DataDir "builds\$build"
+    $stage = "$dest.staging"
+    Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $a = [IO.Compression.ZipFile]::OpenRead($zip)
+    try {
+        foreach ($e in $a.Entries) {
+            $rel = $e.FullName -replace '/', '\'
+            if (-not $e.Name -or ($rel -split '\\')[0] -notin $allow) { continue }   # dirs, and anything off the allow-list
+            $to = [IO.Path]::GetFullPath((Join-Path $stage $rel))
+            if (-not $to.StartsWith("$stage\")) { throw "zip entry escapes the build dir: $($e.FullName)" }
+            New-Item -ItemType Directory -Force -Path (Split-Path $to -Parent) | Out-Null
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $to)
+        }
+    }
+    finally { $a.Dispose() }
+    $missing = @($allow | Where-Object { -not (Test-Path -LiteralPath (Join-Path $stage $_)) })
+    if ($missing) { Remove-Item -LiteralPath $stage -Recurse -Force; throw "zip lacks allow-listed entries: $($missing -join ', ')" }
+    [pscustomobject]@{ tag = $pin.Tag; asset = $pin.Asset; url = $pin.Url; sha256 = $h; provisioned = (Get-Date).ToString('o') } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage '.provisioned.json') -Encoding utf8
+    Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction SilentlyContinue
+    Move-Item -LiteralPath $stage -Destination $dest
+    "provisioned $build ($($pin.Tag)) -> $dest"
+}
+function Do-ProvisionBuild($build) {
+    $pin = $BuildPins[$build]
+    if (-not $pin) { throw "unknown build '$build' (have: $($BuildPins.Keys -join ', '))" }
+    $marker = LoadJson (Join-Path $script:DataDir "builds\$build\.provisioned.json")
+    if ($marker -and $marker.sha256 -eq $pin.Sha256) { return "already provisioned: $build ($($pin.Tag))" }
+    $zip = Join-Path ([IO.Path]::GetTempPath()) ("dlss5-" + [guid]::NewGuid().ToString('N') + '.zip')
+    try {
+        Invoke-WebRequest -Uri $pin.Url -OutFile $zip
+        Install-Build $build $zip $pin
+    }
+    finally { Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue }
+}
+
+# Steam library roots from libraryfolders.vdf (text VDF). ponytail: Steam only; add Epic/Xbox
+# discovery when a user reports a DLSS 5 title installed there.
+function Get-ScanRoots {
+    if ($null -ne $script:ScanRoots) { return @($script:ScanRoots) }
+    $steam = (Get-ItemProperty -Path 'HKCU:\Software\Valve\Steam' -Name SteamPath -ErrorAction SilentlyContinue).SteamPath
+    if (-not $steam) { return @() }
+    $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
+    $libs = @($steam)
+    if (Test-Path -LiteralPath $vdf) {
+        $libs += [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' }
+    }
+    @($libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps\common' } | Where-Object { Test-Path -LiteralPath $_ } | Sort-Object -Unique)
+}
+function Place-Runtime($file, $kind, $from) {
+    $dest = Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll'
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
+    Copy-Item -LiteralPath $file -Destination $dest -Force
+    $rt = Test-Runtime $dest
+    [pscustomobject]@{ source = $kind; from = $from; sha256 = $rt.Hash; known = $rt.Known; provisioned = (Get-Date).ToString('o') } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:DataDir 'runtime\.provisioned.json') -Encoding utf8
+    "runtime placed from $kind ($from) -> $dest"
+}
+# First source that passes the runtime gate wins: configured path, local scan, runtime_source.
+function Do-ProvisionRuntime {
+    $rt = Test-Runtime $script:RuntimeDll
+    if ($rt.Ok) { return "runtime ok: $($script:RuntimeDll)" }
+    if ($script:RuntimeDllConfigured) { throw "configured runtime_dll refused: $($rt.Reason). Fix or unset runtime_dll." }
+    $notes = @()
+    $cands = @(Get-ScanRoots | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Filter 'nvngx_dlssnr.dll' -File -Force -ErrorAction SilentlyContinue })
+    $ok = @()
+    foreach ($c in $cands) {
+        $t = Test-Runtime $c.FullName
+        if ($t.Ok) { $ok += [pscustomobject]@{ Path = $c.FullName; Known = $t.Known; Version = $c.VersionInfo.FileVersion } }
+        else { $notes += "scan candidate refused: $($c.FullName): $($t.Reason)" }
+    }
+    $best = $ok | Sort-Object @{ e = { -not $_.Known } }, @{ e = { if ($_.Version -match '^\d+(\.\d+){1,3}') { [version]$Matches[0] } else { [version]'0.0' } }; Descending = $true } | Select-Object -First 1
+    if ($best) { return Place-Runtime $best.Path 'local scan' $best.Path }
+    if ($script:RuntimeSource) {
+        $src = $script:RuntimeSource
+        if ($src -notmatch '^https://') {
+            $t = Test-Runtime $src
+            if ($t.Ok) { return Place-Runtime $src 'runtime_source' $src }
+            $notes += "runtime_source refused: $($t.Reason)"
+        }
+        else {
+            $tmp = Join-Path ([IO.Path]::GetTempPath()) ("dlss5-" + [guid]::NewGuid().ToString('N') + '.dll')
+            $shown = ($src -split '\?')[0]
+            try {
+                if (([uri]$src).Host -like '*.blob.core.windows.net' -and (Get-Command az -ErrorAction SilentlyContinue)) {
+                    & az storage blob download --blob-url $src --auth-mode login --file $tmp --only-show-errors | Out-Null
+                    if ($LASTEXITCODE) { throw "az storage blob download failed ($LASTEXITCODE) for $shown; is az logged in with Storage Blob Data Reader?" }
+                }
+                else { Invoke-WebRequest -Uri $src -OutFile $tmp }
+                $t = Test-Runtime $tmp
+                if ($t.Ok) { return Place-Runtime $tmp 'runtime_source' $shown }
+                $notes += "runtime_source refused: $($t.Reason)"
+            }
+            finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+        }
+    }
+    $msg = @('no DLSS 5 runtime found. Remedies:'
+        '  1. set runtime_dll to your own nvngx_dlssnr.dll'
+        '  2. install a DLSS 5 title (it ships data\streamline\nvngx_dlssnr.dll or similar), then rerun'
+        '  3. set runtime_source to a copy you control (https:// URL or path)') + $notes
+    throw ($msg -join "`n")
+}
+
 function Assert($name, $cond) { if ($cond) { "PASS  $name" } else { $script:fails++; "FAIL  $name" } }
 function Throws($block, $like) { try { & $block | Out-Null; $false } catch { $_.Exception.Message -like $like } }
 function IniVal($path, $section, $key) {
@@ -379,7 +538,9 @@ function Do-Selftest {
         $BuildFiles['selftest'] = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses')
         $script:Build = 'selftest'; $script:Proxy = 'dxgi.dll'; $script:RestoreComputeSignature = $true
 
-        $g = "$tmp\g\Win64"
+        # Fixtures sit three levels deep so the non-Steam ancestor scan never leaves $tmp.
+        $w = "$tmp\w\x\y"
+        $g = "$w\g\Win64"
         Put "$g\game.exe" 'exe'; Put "$g\data\pak.bin" 'pak'; Put "$g\dbghelp.dll" 'stock'
         Do-Apply $g | Out-Null
         $sd = StateDir $g
@@ -427,7 +588,7 @@ function Do-Selftest {
         Assert 'mod dirs removed' (-not (Test-Path -LiteralPath "$g\OptiScaler") -and -not (Test-Path -LiteralPath "$g\dlssnr-capture"))
         Assert 'manifest deleted, snapshot kept' (-not (Test-Path -LiteralPath "$sd\manifest.json") -and (Test-Path -LiteralPath "$sd\snapshot.json"))
 
-        $c = "$tmp\c\Win64"; Put "$c\game.exe" 'exe'; Put "$c\dxgi.dll" 'game-own-dxgi'
+        $c = "$w\c\Win64"; Put "$c\game.exe" 'exe'; Put "$c\dxgi.dll" 'game-own-dxgi'
         Assert 'collision fails before copying' (Throws { Do-Apply $c } '*collision*')
         Assert 'collision dir untouched, no state' (@(Get-ChildItem -LiteralPath $c -Recurse -File).Count -eq 2 -and -not (Test-Path -LiteralPath (StateDir $c)))
 
@@ -436,10 +597,10 @@ function Do-Selftest {
         Assert 'EasyAntiCheat three levels above the exe dir refuses' (Throws { Do-Apply $a } '*anti-cheat*')
         Assert 'anti-cheat refusal copies nothing' (@(Get-ChildItem -LiteralPath $a -Recurse -File).Count -eq 1 -and -not (Test-Path -LiteralPath (StateDir $a)))
 
-        $x = "$tmp\noexe"; Put "$x\readme.txt" 'r'
+        $x = "$w\noexe"; Put "$x\readme.txt" 'r'
         Assert 'directory with no *.exe refuses' (Throws { Do-Apply $x } '*no `*.exe*')
 
-        $f = "$tmp\f\Win64"; Put "$f\game.exe" 'exe'
+        $f = "$w\f\Win64"; Put "$f\game.exe" 'exe'
         $before = Tree $f
         $script:FaultAfter = 3
         Assert 'copy fault midway rethrows' (Throws { Do-Apply $f } '*injected*')
@@ -449,6 +610,46 @@ function Do-Selftest {
 
         $script:RuntimeDll = "$tmp\other.dll"; Put $script:RuntimeDll 'unknown-runtime'
         Assert 'unknown-hash runtime refused' (Throws { Do-Apply $f } '*runtime DLL refused*')
+
+        # assess: read-only verdicts
+        Assert 'assess refuses anti-cheat fixture' (((Do-Assess $a) | ConvertFrom-Json).verdict -eq 'refused')
+        $ca = (Do-Assess $c) | ConvertFrom-Json
+        Assert 'assess lists dxgi.dll collision, not as a free proxy' ('dxgi.dll' -in $ca.proxyCollisions -and 'dxgi.dll' -notin $ca.freeProxies)
+        $k = "$w\clean\Win64"; Put "$k\game.exe" 'exe'
+        $ka = (Do-Assess $k) | ConvertFrom-Json
+        Assert 'assess clean fixture is eligible with requiresWebCheck' ($ka.verdict -eq 'eligible' -and $ka.requiresWebCheck)
+        Assert 'assess creates no state dir' (-not (Test-Path -LiteralPath (StateDir $k)))
+
+        # provision: verify-and-extract over a local zip, no network
+        $zs = "$tmp\zipsrc"
+        Put "$zs\OptiScaler.dll" 'p'; Put "$zs\OptiScaler.ini" 'i'; Put "$zs\OptiScaler\x.dll" 'x'; Put "$zs\Licenses\L.txt" 'l'
+        Put "$zs\setup_windows.bat" 'pause'; Put "$zs\README.md" 'r'; Put "$zs\docs\a.md" 'd'
+        Compress-Archive -Path "$zs\*" -DestinationPath "$tmp\fx.zip"
+        $pin = @{ Tag = 't1'; Asset = 'fx.zip'; Url = 'local'; Sha256 = (Get-FileHash -LiteralPath "$tmp\fx.zip" -Algorithm SHA256).Hash }
+        Install-Build 'selftest' "$tmp\fx.zip" $pin | Out-Null
+        $bd = "$tmp\data\builds\selftest"
+        Assert 'provision extracts the allow-list' ((Test-Path -LiteralPath "$bd\OptiScaler\x.dll") -and (Test-Path -LiteralPath "$bd\Licenses\L.txt") -and (Test-Path -LiteralPath "$bd\OptiScaler.dll"))
+        Assert 'provision skips setup_windows.bat' (-not (Test-Path -LiteralPath "$bd\setup_windows.bat") -and -not (Test-Path -LiteralPath "$bd\README.md") -and -not (Test-Path -LiteralPath "$bd\docs"))
+        Assert 'provision marker names the verified hash' ((LoadJson "$bd\.provisioned.json").sha256 -eq $pin.Sha256)
+        $BuildFiles['selftest2'] = $BuildFiles['selftest']
+        Assert 'provision wrong hash throws' (Throws { Install-Build 'selftest2' "$tmp\fx.zip" @{ Asset = 'fx.zip'; Sha256 = '00' } } '*hash mismatch*')
+        Assert 'provision wrong hash extracts nothing' (-not (Test-Path -LiteralPath "$tmp\data\builds\selftest2") -and -not (Test-Path -LiteralPath "$tmp\data\builds\selftest2.staging"))
+
+        # provision -Runtime: scan fixture, no registry read, no network
+        $script:RuntimeDll = "$tmp\data\runtime\nvngx_dlssnr.dll"; $script:RuntimeDllConfigured = $false; $script:RuntimeSource = $null
+        $lib = "$tmp\lib\steamapps\common"; $script:ScanRoots = @($lib)
+        Put "$lib\X\data\streamline\nvngx_dlssnr.dll" 'unsigned'
+        Assert 'runtime scan refuses unsigned candidate' (Throws { Do-ProvisionRuntime } '*scan candidate refused*X\data\streamline*')
+        Assert 'refused candidate places nothing' (-not (Test-Path -LiteralPath $script:RuntimeDll))
+        Put "$lib\Y\nvngx_dlssnr.dll" 'fakemodel'
+        Do-ProvisionRuntime | Out-Null
+        Assert 'runtime scan places a known-hash candidate' ((Test-Runtime $script:RuntimeDll).Known -and (LoadJson "$tmp\data\runtime\.provisioned.json").source -eq 'local scan')
+        Remove-Item -LiteralPath "$tmp\data\runtime" -Recurse -Force
+        $script:ScanRoots = @()
+        Assert 'no scan roots and no source prints all three remedies' (Throws { Do-ProvisionRuntime } '*runtime_dll*install a DLSS 5 title*runtime_source*')
+        Put "$tmp\src\nvngx_dlssnr.dll" 'fakemodel'; $script:RuntimeSource = "$tmp\src\nvngx_dlssnr.dll"
+        Do-ProvisionRuntime | Out-Null
+        Assert 'runtime_source path is placed' ((LoadJson "$tmp\data\runtime\.provisioned.json").source -eq 'runtime_source')
     }
     finally {
         Pop-Location
@@ -459,6 +660,8 @@ function Do-Selftest {
 
 Init-Paths
 switch ($Verb) {
+    'assess' { Do-Assess (Root $GameDir) }
+    'provision' { if ($Runtime) { Do-ProvisionRuntime } else { Do-ProvisionBuild $Build } }
     'apply' { Do-Apply (Root $GameDir) }
     'status' {
         $s = Get-Stat (Root $GameDir); Show-Stat $s

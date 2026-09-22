@@ -25,6 +25,11 @@ Append-only. Types: plan-confirmed, discovery, deviation, human-decision.
   documents them, and assigned no script work item. Chose: `Get-Stat` computes `Bad` per the
   Decisions row (manifest-listed `OptiScaler.ini` drift is expected). Evidence: selftests
   `OptiScaler.ini drift is expected, not bad` and `changed manifest file is bad`.
+- **deviation (Phase 2): `remove -Finish` overrides snapshot drift.** Plan said: `-Finish` drops a
+  manifest whose only survivors are unknown leftovers. Found: the ported `remove` already drops the
+  manifest when only unknown leftovers remain, so that reading made `-Finish` a no-op. Chose:
+  `-Finish` drops the manifest even when MODIFIED or REMOVED drift remains, after printing it.
+  Revisit: if a user needs the stricter behavior. Evidence: `Do-Remove`; Phase 2 verifier report.
 - **discovery (Phase 2): red was not observed per case.** The selftest cases were written together
   with the port and passed on first run, so no case was seen failing first. A fresh-context
   verifier reviews the phase instead. Outcome: see the Phase 2 verifier result.
