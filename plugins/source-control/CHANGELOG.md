@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- The orchestrated worktree provisioning paragraph names `--repo-dir <repo-toplevel>` on the direct `worktree-create.sh` invocation, so a worker that starts outside the repository does not inherit the current directory as the source repo.
+- The orchestrated worktree provisioning paragraph tells a worker outside the repository to add `--repo-dir <repo-toplevel>` to the interactive path's flags, including the root handoff and `--base-ref head` when that setting is effective. `--repo-dir` alone is not a complete command.
 
 ## [0.55.89]
 
