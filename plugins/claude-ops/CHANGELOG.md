@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.2]
+
+### Fixed
+
+- The session-event-log guard no longer drops a line when many hooks heal one fresh `.gitignore` together. `slog_guard_ok` creates the guard with an exclusive noclobber open, so one writer cannot truncate a sibling's file. A sample that sees no line and then finds the file non-empty reads it again; those bytes are `*`. An operator comment or any other non-`*` line is still refused. An empty file gets `*\n` appended. The parallel test writes its payload to a temp file and redirects that file to the hook, so the hook's idle stdin read no longer races the pipe.
+
 ## [0.57.0]
 
 ### Added
