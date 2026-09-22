@@ -150,7 +150,7 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   against its three siblings.
 - **An unresolved import was directed into `Routed-to`**, a field the contract scopes to a routing
   that actually happened. An import pointing at nothing was handed to no one, so it is recorded in
-  the row's prose instead, and a consumer reading `Routed-to` no longer looks for a neighbour skill
+  the row's prose instead, and a consumer reading `Routed-to` no longer looks for a neighbor skill
   that was never named.
 - **The placement binding still described three consumers and one producer.** Its detached-checkout
   consequence named `audit`, `realign` and `delta` while asserting four skills read it, so a reader
@@ -213,7 +213,7 @@ All notable changes to the `overengineering` plugin are documented here. Format 
   a run drops the other's rows with no closure record, since a closure row is written only for a
   layer the run walked and the two producers walk disjoint layers.
 - **The contract's obligations table carries a column per skill**, including the second producer, so
-  the schema refusal, the branch refusal, the missing-artifact behaviour and the evidence-availability
+  the schema refusal, the branch refusal, the missing-artifact behavior and the evidence-availability
   duty are stated for it rather than inferred.
 - **`realign` presents a `justify`-producer row, judges it, and never remediates it here**, naming
   the owner from the lane's boundary and offering no rung, because its rollback ladder is

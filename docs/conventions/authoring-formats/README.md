@@ -1,7 +1,7 @@
 # Authoring formats: acceptance-criteria format and diagram dialect
 
 Owner doc for two **team-shared authoring format choices** a consuming team may declare once and
-have every planning-to-verification skill honour: the format acceptance criteria are written in,
+have every planning-to-verification skill honor: the format acceptance criteria are written in,
 and the source dialect a design artifact is emitted in, split by artifact kind.
 
 This directory is the source of truth for the concern: `README.md` (the contract),
@@ -48,7 +48,7 @@ diagram_dialect:
 | `diagram_dialect.system` | `likec4`, `c4-plantuml` | **none, deliberately unset** |
 
 `acceptance_criteria_format: ears` selects the five EARS patterns (ubiquitous, event-driven,
-state-driven, unwanted-behaviour, optional-feature) as the shape emitted criteria are tagged with.
+state-driven, unwanted-behavior, optional-feature) as the shape emitted criteria are tagged with.
 `free-text` emits prose criteria, which is what every skill does today.
 
 `diagram_dialect` is split by artifact kind because the two kinds have disjoint dialect sets and
@@ -69,7 +69,7 @@ exactly as it does today.** Declaring the key is the opt-in, and it is the only 
 who wants the view names a dialect; a consumer who says nothing gets what they already had.
 
 The `data` key can carry a default precisely because it cannot cause this: `mermaid` is what data
-artifacts are already emitted in, so the default preserves current behaviour rather than adding
+artifacts are already emitted in, so the default preserves current behavior rather than adding
 output.
 
 ### Why mermaid is not offered for the system key
@@ -150,7 +150,7 @@ dedicated file:
 ## Resolution ladder
 
 This is the text a consuming skill **restates in its own body**. It is written to be copied
-verbatim, with only the key name and the emitting behaviour substituted:
+verbatim, with only the key name and the emitting behavior substituted:
 
 ```markdown
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
@@ -214,7 +214,7 @@ updates its row in the same change.
 
 ## Zero config, including here
 
-A consumer with no convention doc sees today's behaviour unchanged: free-text acceptance criteria,
+A consumer with no convention doc sees today's behavior unchanged: free-text acceptance criteria,
 mermaid data diagrams, and no C4 container view. That is the whole point of the defaults above and
 of the system key's absent default.
 

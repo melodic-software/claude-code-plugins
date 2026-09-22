@@ -252,7 +252,7 @@ diffing, sorting, transforming, matching, sweeping, arithmetic), write and
 run a script, read its real output, and reason only afterward over that
 output. The tier boundary re-anchors the consuming org's enforceability-tiers
 convention. Deterministic work gets scripted, detect-then-judge gets only
-its detect half scripted while the verdict stays judgement, and
+its detect half scripted while the verdict stays judgment, and
 reasoning-only is never scripted. The in-task "script it now" application has
 no standards doc yet, so the skill flags that gap. The discipline runs in
 both directions: analysis reasons over a script's output, and generation

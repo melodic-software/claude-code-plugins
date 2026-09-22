@@ -196,7 +196,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`quality-gate`:** close-out mode's acceptance-criteria rollup gains a requirement-pattern
   column when any of the container's retrieved criteria opens with a bracketed EARS tag. The cell
   carries one of exactly five names, `ubiquitous`, `event-driven`, `state-driven`,
-  `unwanted-behaviour`, `optional-feature`, matching what the planning surfaces emit; a bracket
+  `unwanted-behavior`, `optional-feature`, matching what the planning surfaces emit; a bracket
   holding anything else leaves the cell empty rather than echoing raw text. Detection is a leading
   bracket holding one of those names, so a checklist marker (`- [ ]`) is not read as a tag and no
   flag, lever, or convention key is read at all. Every criterion still gets a
@@ -535,7 +535,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   extra `state=="OPEN"` query plus an open-PR search against the container before rendering,
   reports whatever it finds as **in-flight, not in the basis**, and treats any open PR
   carrying container work as a precondition of the close rather than a footnote. Surfaced by
-  running the mode over container #2933, where six behaviour-changing fixes sat in an open PR
+  running the mode over container #2933, where six behavior-changing fixes sat in an open PR
   and the derived basis showed none of them.
 
 ## [0.25.0]
@@ -1178,7 +1178,7 @@ All notable changes to the `review` plugin are documented here. Format follows
   commands instead execute fixed logic directly", with `/doctor` cited as having been
   "a built-in command rather than a bundled skill" before v2.1.205. The two labels are
   mutually exclusive. `/code-review` **is** a bundled skill; only the "built-in"
-  modifier was wrong, so the fix drops it rather than re-labelling the surface. The
+  modifier was wrong, so the fix drops it rather than re-labeling the surface. The
   heading and opening sentence now read "bundled skill" and link
   <https://code.claude.com/docs/en/skills#bundled-skills>. The plugin's other
   `/code-review` references (`README.md`, `fanout/SKILL.md`,
@@ -1592,8 +1592,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Added
 
-- **Judgement-call labeling in reviewer output formats.** `code-reviewer` and
-  `architecture-guardian` now label design-smell and convention findings as judgement calls,
+- **Judgment-call labeling in reviewer output formats.** `code-reviewer` and
+  `architecture-guardian` now label design-smell and convention findings as judgment calls,
   advisory and reviewer-tier, never as hard violations. Hard-violation framing is reserved for
   findings backed by a documented project rule, a failing check, or a demonstrable defect
   (`architecture-guardian` admits a finding into its Violations bucket only with that backing).

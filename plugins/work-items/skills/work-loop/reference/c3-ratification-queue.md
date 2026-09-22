@@ -1,4 +1,4 @@
-# Queueing an unratified C3 for ratification
+# Queuing an unratified C3 for ratification
 
 The write mechanics behind the first-drain C3 ratification rung of the admission gate in
 [`../SKILL.md`](../SKILL.md). The gate itself, and the decision of whether an item dispatches,

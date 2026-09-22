@@ -90,7 +90,7 @@ class TestFailLoudZeroParse(GateHarness):
 
     def test_zero_claims_is_failure_not_pass(self):
         proc = self.run_gate(
-            "## Key claims (verbatim)\n\nNo labelled claims here.\n", 1
+            "## Key claims (verbatim)\n\nNo labeled claims here.\n", 1
         )
         self.assertIn(b"parsed ZERO claims", proc.stderr)
         self.assertNotIn(b"PASS", proc.stdout)
@@ -140,12 +140,12 @@ this was never in the source
         proc = self.run_gate(text, 1)
         self.assertIn(b"not an exact contiguous substring", proc.stderr)
 
-    def test_unlabelled_fence_is_unparsed_surface(self):
+    def test_unlabelled_fence_is_unparsed_surface(self):  # identifier, not prose # spellchecker:disable-line
         text = CLEAN.replace(
             "## Prompt snippets", "```\nIntro line.\n```\n\n## Prompt snippets"
         )
         proc = self.run_gate(text, 1)
-        self.assertIn(b"unlabelled fence", proc.stderr)
+        self.assertIn(b"unlabeled fence", proc.stderr)
 
     def test_duplicate_label(self):
         text = f"""## Key claims (verbatim)

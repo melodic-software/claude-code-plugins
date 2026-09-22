@@ -192,7 +192,7 @@ mapfile -t rows < <(
     function classify(file, lineno, ent, prewindow, postwindow, window,   pol, exc, key) {
       # Every test here reads `window`, which the caller builds from the
       # sentence-bounded halves plus the mention itself. Nothing classifies an
-      # entity from a neighbouring sentence: a gate, a polarity token or an
+      # entity from a neighboring sentence: a gate, a polarity token or an
       # exception clause governs the entity only if it shares a sentence with it.
       #
       # An opt-in gate arbitrates the pair away, but only when it reads as a

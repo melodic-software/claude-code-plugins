@@ -565,7 +565,7 @@ fi
 
 # --- alias traversal's per-analysis FORK cost, pinned by SPAWN COUNT ----------
 # HOOK_ALIAS_WORK_MAX bounds the COUNT of analyses, not the cost of each one. The
-# hook names its own cost centre outright, in persisted_alias's docblock — the
+# hook names its own cost center outright, in persisted_alias's docblock — the
 # lookup "forks a `git config`, by far the costliest step on the re-expansion" —
 # so a regression that stays inside the budget while forking MORE `git config`
 # per analysis passes every exit-code assertion above unnoticed. That is the hole
@@ -896,7 +896,7 @@ if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
   ((rc == 124)) || assert_exit "env -u swallows -C, so the wrapper option is not git's -C" 2 "$rc"
 
   # git's OWN -C must keep working — the fix narrows the slice, it does not
-  # stop honouring a relocation git really performs.
+  # stop honoring a relocation git really performs.
   git -C "$WRAP/outer/git/child" config alias.q $'commit --allow-empty -m "bypass\nb"'
   MSYS_NO_PATHCONV=1 jq -n --arg c "git -C git -c alias.a='!git -C child q' a" --arg d "$WRAP/outer" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |

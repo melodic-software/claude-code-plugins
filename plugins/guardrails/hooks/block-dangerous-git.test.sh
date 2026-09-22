@@ -220,7 +220,7 @@ run_split "$REPO_SHA256" "$REPO_SHA256" "a segment after a relocating '!' alias 
 
 # A RELATIVE locating option now resolves against the directory the tool call runs
 # in rather than the hook process's. That is the correct origin, and it is the one
-# behaviour change a reviewer could mistake for a regression.
+# behavior change a reviewer could mistake for a regression.
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "relative git -C <basename> with both directories agreeing (unchanged, blocked)" "git -C repo-sha256 push --force-with-lease=main:$SHA1_OID origin main" 2
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative git -C <basename> resolves against the payload cwd, not the hook process's (object id there, allowed)" "git -C repo-sha1 push --force-with-lease=main:$SHA1_OID origin main" 0
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative --git-dir rebases onto the payload cwd the same way (object id there, allowed)" "git --git-dir=repo-sha1/.git push --force-with-lease=main:$SHA1_OID origin main" 0
@@ -1478,7 +1478,7 @@ run_pwsh "PS hs: read-only git subexpression in the body (blocked)" \
 # ACCEPTED OVER-BLOCKS, pinned so a later narrowing flips a case instead of
 # passing silently. No git token appears in either command: the first carries a
 # command position whose output the guard cannot read, and the second is a
-# backtick escape that PowerShell treats as literal text. Modelling backtick
+# backtick escape that PowerShell treats as literal text. Modeling backtick
 # escapes inside a dropped body is the parsing this library declines to do.
 run_pwsh "PS hs: body whose only subexpression is non-git (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
@@ -1734,7 +1734,7 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # dangerous in it. The guard refuses rather than matching because the text it can
 # read is not dependably the text that would run — stripping SPLICES the bytes
 # either side of the NUL into a token the payload never carried contiguously —
-# and which executor behaviour applies has not been traced.
+# and which executor behavior applies has not been traced.
 #
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL

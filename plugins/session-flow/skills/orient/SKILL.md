@@ -10,7 +10,7 @@ metadata:
 ## Context. Gather first
 
 Take `session-id`, `branch`, `status`, and `recent-commits` at **`-8`**, a deeper log than the
-save-point skills need, because this one synthesises a situation report. Probe commands, the
+save-point skills need, because this one synthesizes a situation report. Probe commands, the
 one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale for
 gathering at run time rather than pre-computing:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).

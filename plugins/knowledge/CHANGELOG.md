@@ -325,7 +325,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   divergence needs an embedded newline.
 - **`check_linkmap.py`: `ground` is now `rungs_by_url`.** The old name needed a
   comment to say what it held; the new one says it. Mechanical rename, five call
-  sites, no behaviour change.
+  sites, no behavior change.
 - **`check_inventory.py`: `rows_clean` was write-only.** It was incremented and
   never read, so it is removed. The rest of the file's diff is `ruff format`
   output, not hand edits: the pinned formatter reflowed 147 of 148 lines when the
@@ -661,7 +661,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `MISSING` for yt-dlp, ffmpeg, or ImageMagick. On a correctly provisioned machine the context now
   shows `MISSING`, so the skill refuses to run against a toolchain that is installed and working.
   0.13.23 turned a gate that failed open into one that spuriously fails closed. The direction is
-  safer, the behaviour is still wrong.
+  safer, the behavior is still wrong.
 
   The five probes are not equally exposed, and the difference matters for diagnosis. Whether the
   token fires is a race between the tool still writing its banner and `head -1` closing the pipe,
@@ -1401,7 +1401,7 @@ Neither skill declares `allowed-tools`, so no grant changed.
   **same-workload mention**, carry an identical adjudication from two independent verification
   arms. The third, **harness-internal recognition or support** (a harness doc naming the subject in
   describing the harness's own behavior toward it, with no user-reachable path), is new: it rests on
-  one attested instance, and the amendment is labelled as the campaign's own choice rather than an
+  one attested instance, and the amendment is labeled as the campaign's own choice rather than an
   inherited adjudication, because nothing in the corpus ever defined the term. Every such hit is
   still disclosed as a near-miss under 0.10.16's rule, which this appends to rather than replaces.
   Without the definition, an `api-only` tag turned on whether the reader read "harness surface" as
@@ -1433,7 +1433,7 @@ Neither skill declares `allowed-tools`, so no grant changed.
   24 on its own, and the rule had been re-derived per unit rather than written down.
 - **Anthropic profile: the two reproducible `claude.com/blog` extraction artifacts are recorded**
   (H1 word-spacing collapse; reading-time value and unit split across lines) with reconstruction
-  from the canonical URL slug, labelled reconstructed because a slug recovers word boundaries only.
+  from the canonical URL slug, labeled reconstructed because a slug recovers word boundaries only.
   Both reproduced exactly across two blog runs, which is what the earlier deferral was waiting for.
 
 Two classes of item are deliberately **not** applied here, for two different reasons.

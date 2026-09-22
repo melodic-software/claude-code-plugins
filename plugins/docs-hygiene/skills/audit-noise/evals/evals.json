@@ -177,7 +177,7 @@
       "id": 14,
       "name": "origin-notes-are-citations",
       "prompt": "Declutter this file: read evals/fixtures/origin-notes.md relative to the skill directory and audit it for noise.",
-      "expected_output": "Flags exactly five lines as citation at Tier 1 with the relocate-or-strip treatment: the parenthesised 'ported from the melodic-software dotfiles profile', 'Merged 2026-07-24 from dot_bashrc', 'Added 2026-08-10 while wiring permission/hook telemetry', 'Copied from the provisioning repo and adapted for Windows', and 'Backported 2026-09-01 from main'. Nothing else in the file is a finding.",
+      "expected_output": "Flags exactly five lines as citation at Tier 1 with the relocate-or-strip treatment: the parenthesized 'ported from the melodic-software dotfiles profile', 'Merged 2026-07-24 from dot_bashrc', 'Added 2026-08-10 while wiring permission/hook telemetry', 'Copied from the provisioning repo and adapted for Windows', and 'Backported 2026-09-01 from main'. Nothing else in the file is a finding.",
       "files": ["evals/fixtures/origin-notes.md"],
       "expectations": [
         "All five origin-note sentences are flagged as citation at Tier 1 with a relocate-or-strip treatment",

@@ -659,7 +659,7 @@ def build_multi_session_output(
     # A backward `previous_handoff` walk terminates at the first session that
     # wrote no handoff file, and a walk that stopped early is indistinguishable
     # in this output from a genuinely short chain — the reported failure was a
-    # 10-session chain retro authored from 2 sessions with nothing signalling
+    # 10-session chain retro authored from 2 sessions with nothing signaling
     # the gap. `available` counts the transcripts sitting in the same base
     # directory, which IS the per-project transcript directory, so the ratio
     # answers "did we look at most of this project's sessions?" without

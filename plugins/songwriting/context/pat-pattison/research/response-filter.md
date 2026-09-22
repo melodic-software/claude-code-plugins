@@ -60,7 +60,7 @@ The filter sections are organized by WHAT the AI is about to output:
 | Line rewrite / new line / variation | §2 Line-writing filter |
 | Candidate lyric line about to be SHOWN to the writer | §2, cycled inside [line-edit-rubric.md](line-edit-rubric.md) |
 | Critique / diagnosis of an existing lyric | §3 Critique filter |
-| Scansion verdict, stability call, phrasing judgement | §3 Critique filter |
+| Scansion verdict, stability call, phrasing judgment | §3 Critique filter |
 | Coaching / step-by-step guidance | §4 Coaching posture filter |
 | Title generation / hook placement | §5 Title + hook filter |
 | Form / song-shape recommendation | §6 Form filter |
@@ -326,7 +326,7 @@ the risk live.
 **Triggers:** writer asks for "review", "diagnose", "what's wrong with this",
 "honest feedback", "Pat would say what", "scan this line", "is this section
 stable", or AI is about to deliver findings on a draft, including a
-scansion verdict, a stability call, a phrasing judgement, a motion diagnosis,
+scansion verdict, a stability call, a phrasing judgment, a motion diagnosis,
 or a closure call.
 
 **Reference:** [demo-review.md](demo-review.md),

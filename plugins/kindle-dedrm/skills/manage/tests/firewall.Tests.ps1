@@ -145,7 +145,7 @@ Describe 'firewall.ps1' {
             [bool](& $disable.Guard) | Should -BeTrue
         }
 
-        # Deliberately weaker than its siblings, and labelled so no reader
+        # Deliberately weaker than its siblings, and labeled so no reader
         # mistakes it for a regression pin. With a [bool] on the LEFT, PowerShell
         # converts the RIGHT operand to [bool], and every non-empty string
         # converts to $true -- so 'True', 'False', and any other literal behave

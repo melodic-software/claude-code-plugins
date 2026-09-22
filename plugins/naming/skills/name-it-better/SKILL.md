@@ -47,7 +47,7 @@ its own context, never from a baked-in path:
       type, module) already supplies.
    3. **Comprehensibility.** Prefer full, intention-revealing words over
       abbreviations, bounded: established idioms and conventionally short
-      names (loop `i`, a receiver) are not penalised.
+      names (loop `i`, a receiver) are not penalized.
    4. **Trigger / evocative utility.** How well the name cues recall at the
       moment of use. That is a genuine tiebreaker, but the lowest-priority one.
 
@@ -59,7 +59,7 @@ its own context, never from a baked-in path:
 
 Naming criteria split in two. The **semantic layer** covers accuracy, scope
 fit, no collisions, and noun-for-a-thing / verb-for-an-action. It carries across
-every modality, and is what the generators and judges optimise. The
+every modality, and is what the generators and judges optimize. The
 **syntactic layer** covers casing, length budgets, and separator and affix
 conventions. It is modality- and vendor-specific; apply it as a final
 shaping pass over the semantic winners, never as a scoring axis that
@@ -79,7 +79,7 @@ pre-scoring filters could not match.
   [`context/sources.md`](context/sources.md).
 - **Claude Code skills are the sharp special case.** For a skill, the
   DESCRIPTION, not the name, is what drives model-side discovery. So
-  optimise the name for human semantic accuracy, and put the trigger
+  optimize the name for human semantic accuracy, and put the trigger
   phrases and example requests in the description, not the name. A skill
   loadable as primed context at conversation start must also be
   **temporally neutral**: the name has to read valid before any work
@@ -202,7 +202,7 @@ disqualified).
 **Settle the scoring criteria before the generators return, and write them
 down.** The criteria are still resolved from the consuming project's own
 declared standards, not chosen here. *Which* of them decide this name,
-and how they rank, is a judgement, and it must be made while the pool is
+and how they rank, is a judgment, and it must be made while the pool is
 still unknown. A rubric fixed after the candidates land gets shaped by
 them, and one that already fits the pool cannot eliminate anything: the
 independent judges then score against a standard the pool itself authored.
@@ -219,8 +219,8 @@ established standard.
 
 - **The target is a domain concept.** Naming a domain term well depends on
   first settling what the concept IS, not just its label. Route that to a
-  domain-modelling capability, then name the settled concept once it
-  returns. Pointer only. This skill does not do the domain modelling.
+  domain-modeling capability, then name the settled concept once it
+  returns. Pointer only. This skill does not do the domain modeling.
 - **A rename is already decided.** Sweeping references after the fact →
   a rename-references capability. This skill picks the name; that one
   propagates it.

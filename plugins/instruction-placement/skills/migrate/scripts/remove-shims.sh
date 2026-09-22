@@ -397,7 +397,7 @@ build_line_index
 echo "  canary index: every AGENTS.md under $REPO and above it, pruning ${INDEX_PRUNED// /, }"
 
 # The walk can exit 0 and still have seen nothing useful. If a directory being
-# de-shimmed is not in the index built to judge it, the judgement is vacuous:
+# de-shimmed is not in the index built to judge it, the judgment is vacuous:
 # its own lines would compete against an empty set and every one would score
 # unique.
 for dir in "${SHIM_DIRS[@]}"; do

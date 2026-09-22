@@ -37,7 +37,7 @@ place it matters most, the exact defect the gate rejects everywhere else.
 
 What the gate guarantees is therefore PER SPAN, not per sentence: every
 qualifier appears somewhere inside each declared span. A span should bound ONE
-restatement. Widening a span to swallow neighbouring prose weakens the check on
+restatement. Widening a span to swallow neighboring prose weakens the check on
 that prose, because the original restatement's qualifiers now clear it — the
 #1633 false negative re-admitted at smaller scale. Tag tightly.
 

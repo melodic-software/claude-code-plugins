@@ -113,7 +113,7 @@ class SccAdapterTests(unittest.TestCase):
     def test_a_file_scc_omits_gets_a_comment_agnostic_row(self) -> None:
         # scc lists only the languages it knows; a file it says nothing about
         # (a lockfile the capture never mentions) is counted by the adapter
-        # itself and labelled, rather than dropped from a lane that then
+        # itself and labeled, rather than dropped from a lane that then
         # reads as measured.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))

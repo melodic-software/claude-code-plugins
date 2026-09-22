@@ -149,7 +149,7 @@ time <tool-command> 2>&1 | tail -5
 
 Judge that measurement against the **consuming repository's own documented hook budget** where one
 exists, and say which source the threshold came from. No upstream latency budget exists, so any
-fixed number this skill supplies is a house rule and is labelled as one in the verdict. Note that
+fixed number this skill supplies is a house rule and is labeled as one in the verdict. Note that
 `PostToolUse` cannot block a tool call, so its cost is turn latency rather than a blocked call.
 Budget-resolution ladder, per-event costs, the documented levers, and the dated upstream-fact
 records: read [context/hook-timing.md](context/hook-timing.md).

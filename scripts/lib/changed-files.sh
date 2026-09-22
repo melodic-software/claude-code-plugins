@@ -49,7 +49,7 @@
 # it passes `--diff-filter=d`, dropping paths the commit deleted; that is right
 # for a scanner, which needs a file on disk to open, and wrong for a classifier,
 # which must still see that a non-docs file was deleted. Making it an explicit
-# argument is the point of the extraction: the two behaviours stay different on
+# argument is the point of the extraction: the two behaviors stay different on
 # purpose and each call site says which it wants.
 #
 # `--no-renames` IS EQUALLY PER-CALLER. Under git's default rename detection a

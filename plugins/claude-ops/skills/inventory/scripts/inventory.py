@@ -407,7 +407,7 @@ def build_brace_map(s: str) -> BraceMap:
     """Match braces while skipping strings, templates, regex literals, comments.
 
     Minified JS packs object literals against each other, so a fixed-width
-    window around a match routinely spans two neighbouring objects and mixes
+    window around a match routinely spans two neighboring objects and mixes
     their fields. Tracking real brace depth is what keeps each command's fields
     attributed to that command.
     """
@@ -999,7 +999,7 @@ def check_integrity(
     unknown = sorted(registrar_like - KNOWN_REGISTRAR_EXPORTS)
     if unknown:
         bundled["advisories"].append(
-            "unrecognised registrar-shaped exports: "
+            "unrecognized registrar-shaped exports: "
             + ", ".join(unknown)
             + " - a new registration path may exist and this run may under-report"
         )
@@ -1027,7 +1027,7 @@ def check_integrity(
     if runs_below_floor > 0:
         # A registration literal in a run under the floor was never read by
         # any lane. It is attributed to the bundled-skill lane, where the
-        # small runs sit, so the roster is labelled a floor rather than a
+        # small runs sit, so the roster is labeled a floor rather than a
         # total; the literal is generic, so the command lane may be short too.
         bundled["advisories"].append(
             f"{runs_below_floor} registration literal(s) sit in printable runs shorter "

@@ -80,14 +80,14 @@ divergence's blast radius.
 
 ## Scope, the unlintable "approach" level
 
-This skill owns consistency of **how work is done** where judgement, not a
+This skill owns consistency of **how work is done** where judgment, not a
 tool, decides it: code idioms and shapes, module and file structure, naming
 shapes, error-handling and logging approaches, API and interface conventions,
 documentation formats, and process or workflow choices.
 
 **Mechanical style is out of scope**. Indentation, quote style, import
 order, line length, and everything a formatter or linter settles
-deterministically belong to those tools, not to a judgement corrector. This
+deterministically belong to those tools, not to a judgment corrector. This
 skill fires at the level a linter cannot reach: the *approach*, not the
 whitespace.
 

@@ -7,7 +7,7 @@ disable-model-invocation: false
 
 ## Mandatory pre-flight. Response Filter
 
-Before emitting a scansion verdict, stability call, phrasing judgement, or any rewrite, run
+Before emitting a scansion verdict, stability call, phrasing judgment, or any rewrite, run
 **§3 Critique filter** of [response-filter](../../context/pat-pattison/research/response-filter.md)
 (add **§2 Line-writing** when producing lines). NAME each box's pass / fail / skip-with-reason
 (aloud or in reasoning); correct before emission. Skips are valid; silent skips are not.
@@ -80,7 +80,7 @@ fix a bad scan.
 | --- | --- |
 | A rewritten line that scans better | `/songwriting:co-write` line-brainstorm |
 | A replacement word chosen for its stress pattern and rhyme | `/songwriting:rhyme` |
-| A judgement that a section is the wrong length or shape | `/songwriting:song-form` |
+| A judgment that a section is the wrong length or shape | `/songwriting:song-form` |
 
 **Measure in stressed syllables, never raw syllables.** Line length in this method is the count of
 stressed syllables; a raw-syllable count is a different measurement that answers a different

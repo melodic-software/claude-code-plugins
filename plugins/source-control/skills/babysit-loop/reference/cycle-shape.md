@@ -25,7 +25,7 @@ is.
    provider's own computed close-linkage, `gh api graphql`, `closingIssuesReferences`) and read
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
-   from a surface whose write authority the provider enforces: labelling takes triage or write
+   from a surface whose write authority the provider enforces: labeling takes triage or write
    permission on the base repository, the same permission surface the C5 trust test below keys on,
    while a body is editable by its own author, who need hold none. A trailer supplying the class
    would make the item self-certifying, against the governing rule that "no repo-local

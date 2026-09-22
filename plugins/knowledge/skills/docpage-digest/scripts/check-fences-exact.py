@@ -7,7 +7,7 @@ NOT stripped — a per-line ``.strip()`` is how indented-fence corruption and a
 load-bearing trailing space earned a clean quote-gate result.
 
 A clean run prints exactly what it exercised. Zero parsed claims is a failure,
-never PASS. Unrecognised input is exit 2.
+never PASS. Unrecognized input is exit 2.
 
 Exit codes:
   0  all checks passed
@@ -127,9 +127,9 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
     for fence in section_fences:
         if fence.start_line not in claimed_starts:
             failures.add(
-                f"{path}: unlabelled fence at line {fence.start_line} under "
-                f"Key claims; this gate only attests **CN.**-labelled "
-                f"fences, so an unlabelled one is unparsed surface."
+                f"{path}: unlabeled fence at line {fence.start_line} under "
+                f"Key claims; this gate only attests **CN.**-labeled "
+                f"fences, so an unlabeled one is unparsed surface."
             )
 
     return exercised
@@ -160,8 +160,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         f"{len(args.digests)} digest(s), {exercised} **CN.** fence "
         f"payload(s) compared as exact contiguous source substrings with "
         f"NO per-line strip (trailing spaces and indent preserved). "
-        f"Checked: Key claims heading present, ≥1 labelled claim, column-0 "
-        f"fence per label, no unlabelled fences, no blockquote/inline-code "
+        f"Checked: Key claims heading present, ≥1 labeled claim, column-0 "
+        f"fence per label, no unlabeled fences, no blockquote/inline-code "
         f"substitutes. Nothing outside Key claims / **CN.** / fence "
         f"payloads was checked."
     )

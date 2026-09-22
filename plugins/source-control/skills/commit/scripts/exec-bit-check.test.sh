@@ -552,7 +552,7 @@ assert_eq "a rename that preserved the exec bit is NOT reported" \
 # asserted identical across the two runs.
 #
 # #2141 weighed three policies — keep the gate, drop it for renames too, or make
-# the `A` branch skip a rename-as-add — and KEPT the gate with no behaviour
+# the `A` branch skip a rename-as-add — and KEPT the gate with no behavior
 # change, because THIS fixture is a real false positive and not a hypothetical:
 # a deliberately non-executable sourced library or template must not be flipped
 # to `100755` because someone moved it. Dropping the gate would buy

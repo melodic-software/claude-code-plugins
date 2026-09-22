@@ -238,7 +238,7 @@ def classify_stuck_checks(
     satisfied, a non-required commit status not passing": so every pending
     check reaching here is non-required by construction, and the merge-state
     gate supplies the required/non-required split without any per-check flag.
-    All three classes are `pending`-category (a QUEUED CheckRun categorises as
+    All three classes are `pending`-category (a QUEUED CheckRun categorizes as
     pending); a *settled* failing check is deliberately excluded -- it is a
     completed failure, not a never-settling one.
 

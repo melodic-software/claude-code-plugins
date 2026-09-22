@@ -13,7 +13,7 @@ metadata:
 
 Answers four questions about a Claude Code installation, and refuses to answer a fifth.
 
-- **What is actually here?** Every entry labelled as an authored surface or a bulk tree, so a
+- **What is actually here?** Every entry labeled as an authored surface or a bulk tree, so a
   ~100k-file tree does not drown a ~150-file answer. Per-file rows live in the CSV.
 - **What does the product already manage?** Recommending a manual prune of a path the retention
   sweep owns generates churn, not space.
@@ -156,7 +156,7 @@ its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attri
 sample grouped by name shape with a per-directory histogram. Everything that is not `pid` reads
 `not_applicable` **by construction**, not because a lookup missed: `ide/<n>.lock` is a TCP port,
 `rate-limit-guard/*.tmp.<n>` a shell `$$`, snapshot and backup numbers are epoch milliseconds, and
-an unrecognised scheme fails closed as `unknown`. A `pid_typed` group marked `self_held` belongs to
+an unrecognized scheme fails closed as `unknown`. A `pid_typed` group marked `self_held` belongs to
 the session running the audit: evidence about the auditor, not the tree; `self_pids_walk:
 parent-only` means that ancestry could not be walked, so an `alive` group may still be this session.
 `alive` measures *a* process with that id; "therefore in use" is an inference. A probe that could
@@ -190,7 +190,7 @@ Consumes a genuinely unmanaged leftover this report surfaced; the audit itself n
 - **A number in a filename is not a PID until proven otherwise.** The most expensive error in this
   problem space, and the reason the liveness gate is code rather than advice.
 - **`enabledPlugins: false` does not mean disabled.** Enablement spans several scopes and is read at
-  session start; `recent_writers` is behavioural evidence, `/claude-ops:plugins audit` the verdict.
+  session start; `recent_writers` is behavioral evidence, `/claude-ops:plugins audit` the verdict.
 - **An empty directory may be deliberate**, and **a cloud-session tree is the common experimental
   state.** Phases 0 and 1 exist so neither is graded as decay.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence

@@ -103,7 +103,7 @@ Minified object literals sit flush against one another:
 ...,IWp=N7b});var $7b,DWp;var MWp=E(()=>{QH();$7b={type:"local-jsx",name:"artifacts",...
 ```
 
-A fixed window around `type:"local-jsx"` spans the neighbouring command and mixes its `description`
+A fixed window around `type:"local-jsx"` spans the neighboring command and mixes its `description`
 in. `build_brace_map` tokenizes the whole joined source once, tracking string, template, regex, and
 comment states so a `{` inside a string is not counted, and records every matched pair. Each
 command's and each registration's fields are then read from its own literal. A regex-only pass over
@@ -178,7 +178,7 @@ check failed, and each maps to one edit:
 | `bundled_skills` broken: registrar lookup failed | All three routes missed | Read the export shape around `registerBundledSkill` and add a fourth route |
 | `plugin_backed` broken: canary absent | The `pluginName` field moved | Re-derive `extract_plugin_backed` from `security-review` |
 | broken: joined region under 1 MB | Packer layout changed | Add the new marker to `BUNDLE_MARKERS`, or lower the floor after measuring it |
-| `bundled_skills` degraded: unrecognised registrar export | A new registration path may exist | Inspect it; add to `KNOWN_REGISTRAR_EXPORTS` if it funnels into the known registrar, otherwise extract it |
+| `bundled_skills` degraded: unrecognized registrar export | A new registration path may exist | Inspect it; add to `KNOWN_REGISTRAR_EXPORTS` if it funnels into the known registrar, otherwise extract it |
 | `bundled_skills` degraded: computed names unresolved | A binding shape the locality rule does not see | Report as a floor; extend `_KEBAB_BINDING_RE` only if the count grows |
 | `bundled_skills` degraded: dynamic roster | A family registered in a loop or template | Acceptable; the names are enumerable only by running the binary |
 

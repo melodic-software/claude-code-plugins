@@ -207,7 +207,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and colour tests. No behavior change.
+- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and color tests. No behavior change.
 
 ## [0.46.2]
 
@@ -379,7 +379,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 ### Fixed
 
 - **`audit-permission-grants`**: the tilde-user finding is emitted under `P2b`, the id its own
-  criteria section and the severity table already gave it. It was labelled `P2`, so a reader could
+  criteria section and the severity table already gave it. It was labeled `P2`, so a reader could
   not tell which of the two documented checks had fired and a search for `P2b` in a report found
   nothing.
 - **`audit-permission-grants`**: the P2 and P2b remedy no longer offers `${CLAUDE_SKILL_DIR}` in
@@ -887,7 +887,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   evidence available against it. Phase 4 now restores a rule matching a protected class in the
   marketplace's instruction exception register whether or not the ledger logged against it. The
   strip itself stays permitted. It is reversible and branch-local, which is why the experiment may
-  run over a protected rail at all. Register holds are recorded separately from the defence tally,
+  run over a protected rail at all. Register holds are recorded separately from the defense tally,
   so restoring one is not counted as a deletion the ledger defeated.
 - **`audit-instructions`: I1, I4 and I5 gain a hold verdict for protected instruction classes.**
   All three deletion-class criteria remediated to `delete` with no stated exception, which left the
@@ -2870,7 +2870,7 @@ offered as a mechanical `--fix`.
     manufactures the initiative rather than replacing it. A `PreToolUse` deny is the contrast that
     fixes the line.
   - Fenced against a measured-signal mechanism, a user-invoked continuation skill (including a router
-    falling back to its own judgement when no instrument is available), a routing condition that
+    falling back to its own judgment when no instrument is available), a routing condition that
     sizes an artifact rather than abandoning the work, a budget rendered to the operator, and a
     document about the pattern. A playbook stating the counter-steer is exempt on **polarity** rather
     than audience: it instructs the opposite of Detect, so it never satisfies Detect at all.
@@ -3085,7 +3085,7 @@ offered as a mechanical `--fix`.
   > In code: default to writing no comments. Never write multi-paragraph docstrings or multi-line comment blocks — one short line max.
   <!-- ai-slop-ignore-end -->
 
-  Its stated obsolescence ("newer models have better judgement and can handle these decisions well
+  Its stated obsolescence ("newer models have better judgment and can handle these decisions well
   without explicit rules") is the model-delta ground, and its replacement, "Write code that reads
   like the surrounding code: match its comment density, naming, and idiom", is an instance of the
   row's positive-reframing remediation, shipped by upstream.
@@ -3386,7 +3386,7 @@ offered as a mechanical `--fix`.
 - **`audit-instructions`: `SKILL.md` records why `I8-e` is not seeded** into the deterministic
   pre-scan. It sits with `I8`'s base row and `I8-d` in the lane-only list, but on a narrower ground:
   its skeleton is patternable, and it waits only on an attested instance to calibrate the interval
-  forms against, not on the "phrasings too varied" reason its neighbours carry.
+  forms against, not on the "phrasings too varied" reason its neighbors carry.
 
 - **`audit-instructions`: the model migration guide joins the catalog's Sources.** `I17-c`'s API arm
   cites it for the model range over which manual extended thinking is rejected. Per the catalog's own
@@ -4015,7 +4015,7 @@ offered as a mechanical `--fix`.
   suppressor off would delete the only bound on two trimming checks.
 - **`OPINION`-tier enablement policy in the catalog.** Emitting rules default off, `info`-capped,
   never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
-  follows its host's enablement and is labelled inline. Every run reports how many `OPINION` checks
+  follows its host's enablement and is labeled inline. Every run reports how many `OPINION` checks
   were available, how many did not run, and the argument that enables them.
 - **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.2.0) and `last-updated`,
   replacing the body-prose version line. A contract surface with three parse paths now stamps its
@@ -4042,7 +4042,7 @@ offered as a mechanical `--fix`.
   cost on the recommendation, never as a budget threshold.
 - **`audit-instructions` I9 remediation names the interface destination.** Where an example block
   exists to enumerate what a caller may pass, the finding names an argument enumeration, a
-  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
+  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labeled as such in the
   finding, never fix-applied; the detection is unchanged and stays officially backed.
 - **`Authority` gloss no longer asserts that every row is `ANTHROPIC-DOCS`.** The two
   `OPINION`-tier rules this release adds are the first that are not; the axis stays a closed

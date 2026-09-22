@@ -83,7 +83,7 @@ Merge the validators' verdicts. Independence means one dissent is signal: any CH
 
 ### Step 5. Human confirmation
 
-Present the triaged result: the collapsed CONFIRMED block, the real questions, and the untouched USER-RESERVED carry-forward list. The human answers only the questions. **Persistence happens here and only here:** once the human confirms, the provisional accepted answers plus the human's answers are written back to the interview's persisted artifact(s), the Brief or the general summary, and the ledger when the interview kept one, exactly as an interview round would, leaving USER-RESERVED deferrals in place. Nothing reaches the contract on a bare invocation, ahead of this confirmation. This gate is mandatory. A CONFIRMED collapse is a summary to skim, never a licence to skip the human. Then hand back to the interview's stop/handoff path.
+Present the triaged result: the collapsed CONFIRMED block, the real questions, and the untouched USER-RESERVED carry-forward list. The human answers only the questions. **Persistence happens here and only here:** once the human confirms, the provisional accepted answers plus the human's answers are written back to the interview's persisted artifact(s), the Brief or the general summary, and the ledger when the interview kept one, exactly as an interview round would, leaving USER-RESERVED deferrals in place. Nothing reaches the contract on a bare invocation, ahead of this confirmation. This gate is mandatory. A CONFIRMED collapse is a summary to skim, never a license to skip the human. Then hand back to the interview's stop/handoff path.
 
 ## What this skill does NOT do
 

@@ -241,7 +241,7 @@ hook::begin --repo-root resolve_repo_root_to --pre-jq opt_in_decided_without_jq 
 # Is $1's directory $2, or below it? Both sides go through `cd … && pwd -P`, so
 # a link, a `..`, or a differing spelling on either side cannot make a
 # containment answer disagree with the filesystem. Fails CLOSED — an
-# undecidable containment answer is not a licence to write.
+# undecidable containment answer is not a license to write.
 physically_inside() {
   local file_dir root _d
   hook::dirname_to _d "$1"

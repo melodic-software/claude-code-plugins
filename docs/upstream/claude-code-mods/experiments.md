@@ -5,7 +5,7 @@ that day's result as the baseline, followed by the probes that stayed open. This
 half of [go-no-go.md](go-no-go.md); the verdict is decided there, by the five criteria, not here.
 
 Two dependencies run the other way: criterion 3 cannot pass without E2, and E5 is the standing reason
-a third-party mod is a security decision rather than only a behaviour one.
+a third-party mod is a security decision rather than only a behavior one.
 
 Every setup below assumes `$P`, the temp directory built in
 [go-no-go.md](go-no-go.md#build-the-test-mod), and the two path rules recorded there. `<P>` in a
@@ -146,7 +146,7 @@ Two arms, identical but for `--plugin-dir`, each to its **own** debug file:
 
 ```sh
 WT=$(mktemp -d "$TEMP/e2-wtroot-XXXXXX")
-PROMPT="Spawn exactly one subagent with the Agent tool using isolation set to worktree, whose whole task is to run the bash command: git rev-parse --show-toplevel  and report its output verbatim. Then run that same command yourself in this session and print both results, labelled SUBAGENT= and PARENT=."
+PROMPT="Spawn exactly one subagent with the Agent tool using isolation set to worktree, whose whole task is to run the bash command: git rev-parse --show-toplevel  and report its output verbatim. Then run that same command yourself in this session and print both results, labeled SUBAGENT= and PARENT=."
 
 # ARM 1 — with the mod
 env -C "$D" CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --debug \
@@ -214,7 +214,7 @@ them contradicts the corpus:
    "copies each enabled plugin's contract to `.claude/types/claude-code-plugins/<plugin>.d.ts` and
    indexes them". That is the opposite of the `mods/README.md` sentence saying the include goes away
    only *once* the engine writes those contracts. **Unresolved.** Either the README is stale, or the
-   string documents the `types` manifest key's intent rather than shipped behaviour.
+   string documents the `types` manifest key's intent rather than shipped behavior.
 
 Rerun, requiring a human at a terminal:
 
@@ -379,7 +379,7 @@ Read the method before the numbers.
   latency and the tool's own execution.
 - `hooks module X tool.call settled in Nms` is **not** comparable to `chainWindowMs`. It is stamped
   after `[Stall] tool_dispatch_end` and after the classic `PostToolUse` chain, so it wraps the
-  pre-chain, the permission decision, the tool and the post-chain. Arm (c) is analysed by decomposing
+  pre-chain, the permission decision, the tool and the post-chain. Arm (c) is analyzed by decomposing
   `settled` into independently measured components and asking what is left over.
 
 Arms: (a) a classic `PreToolUse` command hook running `node` on a file whose whole body is one
@@ -565,7 +565,7 @@ lever was used, delete the temp directory.
 ### Team and Enterprise rollout state
 
 No Team or Enterprise account was available, so the rollout-switch question is unanswered: whether an
-organisation can turn `tengu_plugin_hooks_modules` on for its members, and whether managed settings
+organization can turn `tengu_plugin_hooks_modules` on for its members, and whether managed settings
 expose it. Related and equally unexercised: `prependPlugins`, the managed-settings key that changes
 seating, which is implemented in 2.1.278 but has zero issue-tracker hits and is undocumented. Revisit
 if such an account becomes available.

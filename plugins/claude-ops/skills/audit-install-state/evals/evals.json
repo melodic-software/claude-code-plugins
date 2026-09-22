@@ -43,7 +43,7 @@
       "id": 4,
       "name": "age-overage-is-inferred-not-measured",
       "prompt": "The audit says 236 files in file-history are older than 30 days. So the cleanup sweep is broken, right? Should I clear that directory?",
-      "expected_output": "Separates the measurement from the inference: the 236 count is measured, but 'the sweep is broken' is not supported by it. file-history retains by the 100 most recent checkpoints and keeps each file's first snapshot regardless of age, so old mtimes there are documented behaviour. Reports the finding as age-exceeds-window with evidence: inferred, and does not authorize clearing the directory.",
+      "expected_output": "Separates the measurement from the inference: the 236 count is measured, but 'the sweep is broken' is not supported by it. file-history retains by the 100 most recent checkpoints and keeps each file's first snapshot regardless of age, so old mtimes there are documented behavior. Reports the finding as age-exceeds-window with evidence: inferred, and does not authorize clearing the directory.",
       "files": [],
       "expectations": [
         "Output distinguishes the measured file count from the unsupported inference that the sweep is failing",
@@ -113,13 +113,13 @@
     },
     {
       "id": 10,
-      "name": "enablement-needs-behavioural-evidence",
+      "name": "enablement-needs-behavioral-evidence",
       "prompt": "My settings.json has \"some-plugin@marketplace\": false in enabledPlugins, so that plugin is off and its state directory under ~/.claude is dead weight. Confirm and remove it.",
-      "expected_output": "Declines the inference: enabledPlugins is not the whole enablement picture — enablement also lives at other scopes, plugin-declared hooks live in each plugin's own manifest, direct-path invocations from settings.json bypass the plugin system, and enablement is read at session start so a running session keeps what it loaded. Points at recent_writers as behavioural evidence of whether anything wrote to that path recently, routes the enablement verdict to /claude-ops:plugins audit, and removes nothing.",
+      "expected_output": "Declines the inference: enabledPlugins is not the whole enablement picture — enablement also lives at other scopes, plugin-declared hooks live in each plugin's own manifest, direct-path invocations from settings.json bypass the plugin system, and enablement is read at session start so a running session keeps what it loaded. Points at recent_writers as behavioral evidence of whether anything wrote to that path recently, routes the enablement verdict to /claude-ops:plugins audit, and removes nothing.",
       "files": [],
       "expectations": [
         "Output states that an enabledPlugins false entry does not establish that a plugin is inactive",
-        "Output prefers behavioural evidence (recent writes to the tree) over declared configuration, and routes the enablement verdict to /claude-ops:plugins audit",
+        "Output prefers behavioral evidence (recent writes to the tree) over declared configuration, and routes the enablement verdict to /claude-ops:plugins audit",
         "Output does not remove the plugin's state directory"
       ]
     }

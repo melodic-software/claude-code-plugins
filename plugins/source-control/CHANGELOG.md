@@ -304,7 +304,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Dead field `baseRefOid` removed.** It rode in the snapshot engine's `VIEW_FIELDS` only to be
   written into a `base_sha` snapshot field that nothing ever read. The freshness check has
   deliberately compared against the base ref NAME since the cached OID was found to lag the live
-  base tip (`reference/freshness.md`), so the field had no reader left. Behaviour-neutral.
+  base tip (`reference/freshness.md`), so the field had no reader left. Behavior-neutral.
 - **Queue discovery re-sources over REST too, so the lane reaches its own hydration.** Discovery
   runs before any of the above, and two of its three `gh` commands are GraphQL: `gh repo list`
   (`query RepositoryList`) and `gh pr list --json` (`query PullRequestList`) both draw the same
@@ -668,7 +668,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   disabled gate's ~5.3 ms on the reference host. The predicate is inlined with
   the same semantics as `hook::is_enabled`, and the new fleet gate
   `scripts/check-killswitch-hoist.sh` pins the two to each other and fails a
-  gate that reverses the order. Behaviour of an ENABLED gate is unchanged.
+  gate that reverses the order. Behavior of an ENABLED gate is unchanged.
   (#3719)
 
 ### Added
@@ -2469,7 +2469,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN: one visible
   skip notice per session, then exit 0. That is the correct posture for every hook in this plugin,
-  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  so **nothing in this plugin's behavior changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
@@ -2486,7 +2486,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   trade is now recorded where the gate is (#2141).** `git mv` of a `100644` shebang file reads as
   `D`+`A` under `diff.renames=false` and IS reported through the `A` branch; the same index and the
   same HEAD read as `R100` under the default `diff.renames=true` and are NOT. Only the config
-  differs. **No behaviour change.** The `R*` arm keeps its `100755`-source gate. #2141 weighed
+  differs. **No behavior change.** The `R*` arm keeps its `100755`-source gate. #2141 weighed
   dropping the gate for renames and making the `A` branch skip a rename-as-add, and kept the gate:
   the false positive it prevents is real and pinned by `repo19` in `exec-bit-check.test.sh`: a
   deliberately non-executable sourced library or template must not be flipped to `100755` because
@@ -2524,7 +2524,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   over-report and hold a PR for a human, where last-wins can under-report and release one. This
   one could lose a blocker outright: a trailing rule with `required_approving_review_count: 0`
   erased an earlier ruleset's requirement and dropped the "needs N approving review(s)" hold. Not
-  observed, as one such rule governs the branch today. The count fold is a behaviour change; the
+  observed, as one such rule governs the branch today. The count fold is a behavior change; the
   boolean is report-only, never consumed as a blocker. The count also distinguishes an ABSENT
   `required_approving_review_count` (the rule requires no reviews, zero) from one present but
   unreadable (`null`, `""`, `0.0`, `[]`, `{}`, where a requirement is stated and its size is unknown, so
@@ -2593,7 +2593,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `CLAUDE_PLUGIN_OPTION_<KEY>` only for **declared** options, so the variable was never set, the
   hook's `:-true` fallback always won, and the gate ran unconditionally. Setting the option
   produced no effect and no error. The failure was silent in both directions. The declaration is
-  now present with `default: true`, so behaviour is unchanged for anyone who does not set it, and
+  now present with `default: true`, so behavior is unchanged for anyone who does not set it, and
   the documented routes for setting it now work.
 
 ## [0.51.6]
@@ -2631,7 +2631,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
   flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
-  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  new global, so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.51.4]
 
@@ -3003,7 +3003,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   contain a newline. An ambiguous base ref and a criss-cross history with several merge bases both
   yield `?` rather than a silently chosen one. `comm`'s exit status, the numstat reducer's result,
   and `git status`'s exit status are each checked, because a failure in any of them produces the
-  same output shape as the favourable answer.
+  same output shape as the favorable answer.
 
 - **The two-dot fallback hands its paths back to git instead of matching two diffs' text.** Two diff
   invocations only agree on how a path is spelled when they agree on every escaping rule, and they
@@ -3065,7 +3065,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (stranded first, because it can abort the removal outright), the override is
   `--acknowledge-stranded` per worktree rather than a bare `--force` answering a different
   question, and every path offers `git -C <path> push -u origin HEAD` first as the resolution that
-  needs no judgement about whether the work matters. The escalation guard's unpushed probe moves
+  needs no judgment about whether the work matters. The escalation guard's unpushed probe moves
   from `--branches` to `HEAD`.
 
 ### Fixed
@@ -3589,7 +3589,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **Never defer a finding this change introduced, judged by base-branch behavior.** The
   discriminator is whether the defect reproduced before the change, never which file it surfaced
   in, so a contract this change altered that breaks an *unchanged* caller is still introduced
-  here, and the untouched caller file is evidence about provenance rather than a licence to defer.
+  here, and the untouched caller file is evidence about provenance rather than a license to defer.
   `VALID (defer)` is available only for a defect that already reproduced on the base. Provenance
   decides, never severity: a self-introduced regression wearing a low-severity badge is still a
   regression the change is shipping, so it is `VALID (fix now)`. Fix it or revert the cause.
@@ -3599,7 +3599,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   A (c) finding is fixed like any in-scope defect and is never deferrable, but it is counted: a
   second consecutive round of nothing but (c) means incremental patching is injecting defects
   about as fast as it removes them. The response is a change of METHOD: rewrite the contested
-  section whole in one commit, or report for a human decision. It is never a licence to ship a known
+  section whole in one commit, or report for a human decision. It is never a license to ship a known
   defect. This is a signal, not a counter; the `babysit_advisory_fix_round_cap` backstop is
   unchanged and a low round cap was rejected.
 
@@ -4691,7 +4691,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   §5.5 verbatim verdict quote above.
   The earlier draft only reported settings surfaces as INFO, and instructed enumerating the scopes
   the classifier reads, for which no executable path exists, since the managed scopes are not
-  ordinary readable settings files. That clause is dropped in favour of `claude auto-mode config`,
+  ordinary readable settings files. That clause is dropped in favor of `claude auto-mode config`,
   which prints the effective merged configuration across the scopes it can see; it stays INFO,
   because settings cannot prove what a per-call classifier decides. Because `--settings` is a
   launch-time global flag rather than a subcommand input, a bare probe spawned from a session
@@ -5963,7 +5963,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   force the tight `active` cadence, since the degraded cross-check leaves every per-PR
   classification and the persisted state intact.
 - **`babysit-prs` formalizes the worker→main cross-PR dependency channel.** `orchestration.md`
-  documents a worker signalling a discovered cross-PR coupling back to the main agent (which owns
+  documents a worker signaling a discovered cross-PR coupling back to the main agent (which owns
   cross-PR ordering) over the same messaging mechanism used for main→worker, rather than reaching
   across PRs itself.
 - **`babysit-prs` records the self-blocking-CI-check bootstrap gotcha.** A newly required check

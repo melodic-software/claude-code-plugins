@@ -147,7 +147,7 @@ assert_contains "bare-substring Edit hunk → containing citation recovered" "$O
 
 # Diff-scope is preserved: a PRE-EXISTING unrelated stale citation must NOT fire
 # just because reconstruction read from disk.
-assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
+assert_absent "reconstruction does NOT report an untouched neighbor" "$OUT" \
   "legacy-emit"
 
 # Diff-scope again, against the harder shape: the hunk is unrelated prose that

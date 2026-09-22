@@ -49,7 +49,7 @@ extraction waits for the third (Rule of Three).
   slug recovers word boundaries only, never punctuation or casing
   (`claude-models-explained-choosing-the-best-model-for-your-use-case` cannot yield the colon in
   "Claude models explained: choosing the best model for your use case"), so a title recovered that
-  way is labelled reconstructed. When the run also retained the rendered HTML, that file's
+  way is labeled reconstructed. When the run also retained the rendered HTML, that file's
   `<title>`/`<h1>` carries the exact form, but nothing in the pipeline contracts such a file, so
   it is a bonus, not the method. (b) The reading-time widget splits its value and its unit onto
   separate physical lines, so neither line reads as a duration on its own.

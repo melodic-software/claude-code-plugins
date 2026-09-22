@@ -374,7 +374,7 @@ OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --interval-minutes 20 2>&1)"
 RC=$?
 assert_eq "print-schedule exits 0" "0" "$RC"
 assert_contains "print-schedule emits a schtasks create" "$OUT" "schtasks /Create /TN \"ClaudeOps Lane Restart Consumer\""
-assert_contains "print-schedule honours --interval-minutes" "$OUT" "/SC MINUTE /MO 20"
+assert_contains "print-schedule honors --interval-minutes" "$OUT" "/SC MINUTE /MO 20"
 assert_contains "print-schedule avoids elevation and stored passwords" "$OUT" "/IT /RL LIMITED"
 assert_contains "print-schedule emits the removal command" "$OUT" "schtasks /Delete"
 assert_contains "print-schedule covers cold start after reboot" "$OUT" "/SC ONLOGON"
@@ -486,7 +486,7 @@ printf '1799990000\n' >"$LOCK_STALE/acquired-at"
 OUT="$(bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" --data-dir "$TMP/data-lock-stale" \
   --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
   --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" 2>&1)"
-assert_contains "an abandoned lock is reclaimed, not honoured forever" "$OUT" "reclaiming a lock held since epoch"
+assert_contains "an abandoned lock is reclaimed, not honored forever" "$OUT" "reclaiming a lock held since epoch"
 assert_contains "the reclaiming run then does its work" "$OUT" "| work | failed |"
 
 # A lock with no stamp yet is NOT stolen — the holder may have won the mkdir

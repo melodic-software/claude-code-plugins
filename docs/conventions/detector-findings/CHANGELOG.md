@@ -109,11 +109,11 @@ conformance, which this version makes, and a transitional reading of it does not
   otherwise; it is also not buildable in the conformance gate's shape, because a producer's
   assertions live in its own tree rather than in what it emits.
 - **Two recheck triggers added, event-named like their siblings, and the first has not fired.** A
-  producer labelling the scope on both sides, then a producer declaring where its assertion set
+  producer labeling the scope on both sides, then a producer declaring where its assertion set
   lives. Every tabled producer keys its emit sites on a rule id alone and matches remedies by
   substring where it matches them, so no side carries a scope and the pairing check is not writable
   against any producer yet; claiming it was writable "per producer today" would have asserted of the
-  fleet what no row in it supports. Scope labelling makes the check writable against one producer's
+  fleet what no row in it supports. Scope labeling makes the check writable against one producer's
   layout; a declared assertion location is what lets one gate reach every producer.
 - **A third trigger closes the grandfather clause:** a grandfathered producer's next change to a
   rule's remedy set, adding a rule or editing an emitted remedy's wording or scope. The clause ends
@@ -346,7 +346,7 @@ Both passages are corrected to say what the consumer already does.
   the section directly above it, and the Declared-dispositions table, both turn on the fact that
   `fix-pass-mode.md` "Step 4" states that fence under its **correctness-class** heading and a
   cleanup-class row never passes through it. Read literally the sentence contradicted its own
-  neighbours. It is now scoped to the correctness class, with the consequence this contract owns
+  neighbors. It is now scoped to the correctness class, with the consequence this contract owns
   (settle it once per rule, in the crosswalk) marked as the class-independent half. **This wording
   predates the 2.4.0 release**: it entered with the crosswalk in #2737 on 2026-08-15, and 2.4.0 only
   put a second passage beside it that made the tension legible.
@@ -553,7 +553,7 @@ non-conforming under 2.0.0 and were each conforming under 1.1.0.
   `scripts/check-detector-findings-crosswalk.sh --check` runs in CI behind its own discriminating
   self-test, failing an empty or prose-free test cell, an unqualified or duplicated rule id, a row an
   unescaped pipe has shifted, and a restatement of the findings-file table. It locates the table by
-  its exact header, so a neighbouring table can neither satisfy it nor be dragged into it, and it
+  its exact header, so a neighboring table can neither satisfy it nor be dragged into it, and it
   accepts a **correctly escaped** `\|` inside a cell. This table is prose about rules, which is
   exactly the content that carries pipes, so a gate that rejected the escape the shape requires
   would dead-end an author who did the right thing. Each self-test asserts the failure MESSAGE as

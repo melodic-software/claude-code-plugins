@@ -19,7 +19,7 @@
       "id": 2,
       "name": "per-item-gate-only-the-accepted-item-proceeds",
       "prompt": "/overengineering:realign — I read the findings. There are three of them; item 2 looks right, do that one.",
-      "expected_output": "Presents the findings one at a time and treats the acceptance as scoped to item 2 alone. Only item 2 moves: its status becomes ACCEPTED and remediation proceeds for it. Items 1 and 3 are left exactly as the audit wrote them — still OPEN, unremediated, and unjudged — because acceptance of one finding is not acceptance of its neighbours, and an unanswered finding is not a rejected one either. Nothing outside item 2's own artifact is edited, and the run reports which items moved and which did not.",
+      "expected_output": "Presents the findings one at a time and treats the acceptance as scoped to item 2 alone. Only item 2 moves: its status becomes ACCEPTED and remediation proceeds for it. Items 1 and 3 are left exactly as the audit wrote them — still OPEN, unremediated, and unjudged — because acceptance of one finding is not acceptance of its neighbors, and an unanswered finding is not a rejected one either. Nothing outside item 2's own artifact is edited, and the run reports which items moved and which did not.",
       "files": [],
       "expectations": [
         "Executes remediation for item 2 only",

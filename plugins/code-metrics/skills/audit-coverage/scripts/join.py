@@ -362,7 +362,7 @@ def _fold_function(
     starts: lcov reports the `FN:` declaration line while Cobertura and the
     coverage.py JSON report take the first body line, so the same function
     carries two different starts across two artifacts, and one function's
-    declaration line can equal a neighbour's first body line. Folding on the
+    declaration line can equal a neighbor's first body line. Folding on the
     start line therefore merges two different functions, and refusing to fold
     when the starts differ splits one function in two. `claimed` is what keeps
     two `render` methods in one file apart instead: an artifact lists each

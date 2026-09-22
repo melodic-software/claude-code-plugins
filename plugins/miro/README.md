@@ -78,7 +78,7 @@ The whole Node project (`package.json`, the lockfile, `src/`, `dist/`, and the t
 configs) lives under `server/` rather than at the plugin root. Claude Code runs
 `npm ci --ignore-scripts` inside a consumer's plugin cache whenever the plugin root
 holds both a `package.json` and a supported lockfile, and that install cannot be turned
-off; it would materialise this project's devDependencies (the TypeScript, biome, esbuild
+off; it would materialize this project's devDependencies (the TypeScript, biome, esbuild
 and vitest toolchain) on every install even though the bundle needs none of them at
 runtime. Keeping the project one level down leaves the plugin root without a lockfile,
 so nothing is installed, while CI and Dependabot still pin and rebuild from the same

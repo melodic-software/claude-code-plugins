@@ -30,7 +30,7 @@
       "id": 3,
       "name": "assistant-does-what-it-can-first",
       "prompt": "hold my hand through this migration. Some of it needs my admin console, but do whatever you can yourself.",
-      "expected_output": "Performs the steps it can perform before presenting anything, then presents only the residue the user must do: elevation, another machine, a vendor console, credentials, or an approval that is theirs. Every presented step is labelled with its performer.",
+      "expected_output": "Performs the steps it can perform before presenting anything, then presents only the residue the user must do: elevation, another machine, a vendor console, credentials, or an approval that is theirs. Every presented step is labeled with its performer.",
       "files": [],
       "expectations": [
         "Runs the steps it can perform itself before presenting the phase",

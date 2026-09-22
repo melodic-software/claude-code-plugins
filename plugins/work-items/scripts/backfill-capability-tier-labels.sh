@@ -89,7 +89,7 @@ list_open_items_without_label_json() {
 }
 
 # collect_candidates — one candidate issue/PR number per line: open items that
-# lack the capability-tier label (the jq select above already excludes labelled
+# lack the capability-tier label (the jq select above already excludes labeled
 # ones) and whose body still carries a legacy frontier-tier stamp.
 collect_candidates() {
   local items item body number

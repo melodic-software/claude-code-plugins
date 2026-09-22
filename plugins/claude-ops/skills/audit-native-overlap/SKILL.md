@@ -172,7 +172,7 @@ Five values, no blanket preference rule:
 
 <!-- fresh-eyes-exempt: external-input -- recommendations are judgments about components and native surfaces this context did not produce; the binding verdict is the human reviewer's, recorded in the store, never this run's -->
 A run may **recommend** a verdict with its reasoning; it never records one. The recommendation goes
-into the report labelled as a recommendation, and a human writes the store row. No component file
+into the report labeled as a recommendation, and a human writes the store row. No component file
 is touched before a verdict exists in the store.
 
 Session-provided (cloud) surfaces are observation-only: they are absent from any binary extraction,
