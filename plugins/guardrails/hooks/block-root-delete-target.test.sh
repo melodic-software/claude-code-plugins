@@ -102,11 +102,16 @@ expect_both 'subshell blocks' 2 --command '(rm -rf /)'
 expect_both 'spaced subshell blocks' 2 --command '( rm -rf / )'
 expect_both 'case arm blocks' 2 --command 'case x in x) rm -rf / ;; esac'
 expect_both 'time rm -rf / blocks' 2 --command 'time rm -rf /'
-# `coproc [NAME] command` puts an optional NAME between the keyword and the
-# verb, so the NAME is stepped over only when a command still follows it.
+# `coproc [NAME] command`, and bash takes the NAME only ahead of a COMPOUND
+# command. Ahead of a SIMPLE one the first word IS the command, so stepping over
+# any identifier that merely had a word after it swallowed the real command
+# word and let a child shell through.
 expect_both 'coproc blocks' 2 --command 'coproc rm -rf --no-preserve-root /'
-expect_both 'coproc NAME blocks' 2 --command 'coproc shredder rm -rf /'
 expect_both 'coproc brace group blocks' 2 --command 'coproc { rm -rf /; }'
+expect_both 'coproc NAME brace group blocks' 2 --command 'coproc shredder { rm -rf /; }'
+expect_both 'coproc bash -c blocks' 2 --command "coproc bash -c 'rm -rf /'"
+expect_both 'coproc eval blocks' 2 --command 'coproc eval "rm -rf /"'
+expect_both 'coproc su -c blocks' 2 --command "coproc su -c 'rm -rf /'"
 
 # Any operand may be the root, not only the first.
 expect_both 'rm -rf ./ok / blocks on the second operand' 2 --command 'rm -rf ./ok /'
@@ -146,6 +151,11 @@ expect_both 'env --chdir /tmp rm -rf / blocks' 2 --command 'env --chdir /tmp rm 
 expect_both 'nice --adjustment 5 rm -rf / blocks' 2 --command 'nice --adjustment 5 rm -rf /'
 expect_both 'ionice --class 2 rm -rf / blocks' 2 --command 'ionice --class 2 rm -rf /'
 expect_both 'stdbuf --output L rm -rf / blocks' 2 --command 'stdbuf --output L rm -rf /'
+# GNU env's `-S` is not an option argument to step over: env SPLITS the operand
+# and RUNS it, so it is re-parsed as the command it is.
+expect_both 'env -S rm -rf / blocks' 2 --command "env -S 'rm -rf /'"
+expect_both 'env --split-string rm -rf / blocks' 2 --command "env --split-string 'rm -rf /'"
+expect_both 'env --split-string= rm -rf / blocks' 2 --command "env --split-string='rm -rf /'"
 
 # A command substitution RUNS before the word it builds is used, so the shell
 # executes the inner command whatever the outer one is. The tokenizer keeps a
@@ -175,6 +185,41 @@ for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="\$($rdt_deep"; done
 rdt_deep="${rdt_deep}echo rm"
 for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="$rdt_deep)"; done
 expect_both 'substitution nested 40 deep is refused' 2 --command "$rdt_deep"
+
+# The depth cap bounds the NESTING, not the WORK. The tokenizer splits on
+# unquoted `(`, `)` and `;`, so a payload at the command ceiling nested to just
+# under the depth cap yields as many segments as a flat one AND a body to
+# re-tokenize per level. It ran for 40 s alone and 48 s under the dispatcher,
+# against a 60 s hook timeout, and a hook the harness cancels on that timeout is
+# cancelled WITHOUT a block: the slow path failed OPEN. One MAX_COMMAND_LEN
+# tokenizing budget, charged from the command's own length and spent before the
+# top-level parse, is what bounds it. `timeout 10` is the backstop: a hang here
+# reads as rc 124, not as a pass.
+rdt_pad=""
+while ((${#rdt_pad} < 15900)); do rdt_pad+="rm -rf ./x; "; done
+rdt_big=""
+for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="\$($rdt_big"; done
+rdt_big="${rdt_big}${rdt_pad}"
+for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="$rdt_big)"; done
+rdt_payload="$(command_json "$rdt_big")"
+
+for rdt_via in direct dispatched; do
+  if [[ "$rdt_via" == direct ]]; then
+    rdt_argv=(bash "$HOOK")
+  else
+    rdt_argv=(bash "$GUARD_DISPATCH" "$HOOK")
+  fi
+  rdt_t0=$SECONDS
+  rdt_rc=0
+  rdt_err="$(timeout 10 "${rdt_argv[@]}" <<<"$rdt_payload" 2>&1 >/dev/null)" || rdt_rc=$?
+  rdt_elapsed=$((SECONDS - rdt_t0))
+  assert_exit "a 16 KB 32-deep payload is refused ($rdt_via)" 2 "$rdt_rc"
+  assert_contains "the refusal names the tokenizing budget ($rdt_via)" \
+    "$rdt_err" "substitution bodies exceed MAX_COMMAND_LEN in total"
+  rdt_speed=slow
+  ((rdt_elapsed <= 2)) && rdt_speed=fast
+  assert_eq "the 16 KB 32-deep payload is refused inside 2 s ($rdt_via)" fast "$rdt_speed"
+done
 expect_both 'substitution nested 3 deep is still parsed' 2 \
   --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
 
@@ -307,8 +352,13 @@ expect_both 'escaped backtick allowed' 0 --command 'echo "\`rm -rf /\`"'
 # A live substitution nested three deep whose innermost command is harmless is
 # parsed all the way down and still allowed, so the depth cap is not a blanket.
 expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'
-# The coproc NAME step-over must not widen the guard either.
+# `coproc NAME <simple command>` is not the NAME form at all: bash runs a
+# command named `shredder` and hands it the rest, so this names no `rm`.
+expect_both 'coproc NAME ahead of a simple command allowed' 0 --command 'coproc shredder rm -rf /'
 expect_both 'coproc NAME with an ordinary delete allowed' 0 --command 'coproc shredder rm -rf ./build'
+# GNU env's -S operand is a COMMAND, split and run, not an opaque argument.
+expect_both 'env -S with an ordinary command allowed' 0 --command "env -S 'ls /'"
+expect_both 'env -S with an ordinary delete allowed' 0 --command "env -S 'rm -rf ./build'"
 expect_both 'sudo --user root ls / allowed' 0 --command 'sudo --user root ls /'
 # A substitution whose inner delete is ordinary stays allowed.
 expect_both 'substitution with an ordinary delete allowed' 0 --command 'echo "$(rm -rf ./build)"'

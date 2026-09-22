@@ -76,9 +76,15 @@
 #     `cd / && rm -rf *` is allowed, because `*` names nothing on its own and
 #     the guard deliberately does not track cwd.
 #   * A child shell this guard does not recognize as one. `bash -c`, `sh -c`,
-#     their siblings, and `su`'s `-c` / `--command` / `--session-command`
-#     operand ARE unwrapped and re-parsed; an interpreter that is not a shell
-#     (`python -c`, `perl -e`) is not.
+#     their siblings, `su`'s `-c` / `--command` / `--session-command` operand,
+#     and GNU `env`'s `-S` / `--split-string` operand ARE unwrapped and
+#     re-parsed; an interpreter that is not a shell (`python -c`, `perl -e`)
+#     is not.
+#   * A LAUNCHER that is not in the table below. `runuser -c '…'` and
+#     `taskset <mask> rm -rf /` move the command word exactly as `sudo` and
+#     `nice` do, and are not resolved: the table is an allow-list of names, so
+#     an unlisted launcher ends the walk and its own name is read as the
+#     command word. Queued as follow-up item 20260922-070000.
 #   * A command word split across quoting so the RAW text never spells it.
 #     `\rm` and `RM` are caught, because the cheap substring prefilter below
 #     folds case and the raw text still reads `rm`; `r\m`, `r''m` and `"r"m`
@@ -207,6 +213,12 @@ rdt_block() {
       'Past that depth the scanner stops descending, so a recursive delete inside it cannot be ruled out, and an allow here would be an allow on exactly the input built to exhaust it.' \
       'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
     ;;
+  bodies-too-long)
+    printf '%s\n' \
+      'BLOCKED: substitution bodies exceed MAX_COMMAND_LEN in total.' \
+      'Nesting multiplies the text to tokenize, and a hook the harness cancels on its timeout is cancelled WITHOUT a block, so running past the budget would fail open on exactly the input built to reach it.' \
+      'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
+    ;;
   *)
     # Single-quoted on purpose: the Fix line must show a literal $HOME to the
     # agent rather than expanding it in the hook process.
@@ -324,7 +336,7 @@ rdt_is_root() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 rdt_check_segment() {
   local -a words=("$@")
-  local n=$# i=0 j w base cn optarg consume_bare
+  local n=$# i=0 j w base sval optarg consume_bare
 
   # Command word: step over leading NAME=value assignments and over a launcher
   # that takes the real command as its argument. A launcher's own options are
@@ -356,15 +368,18 @@ rdt_check_segment() {
       continue
       ;;
     coproc)
-      # `coproc [NAME] command`. The NAME is optional, so it is stepped over
-      # only when a command still follows it and the NAME is not itself the
-      # verb: that keeps `coproc rm -rf /` reading `rm` while
-      # `coproc shredder rm -rf /` reads past the name to the same place.
+      # `coproc [NAME] command`. Bash accepts the NAME only ahead of a COMPOUND
+      # command; ahead of a SIMPLE one the first word IS the command, so
+      # `coproc shredder rm -rf /` runs a command named `shredder` and
+      # `coproc bash -c '…'` runs bash. Stepping over any identifier followed
+      # by a word therefore swallowed the real command word. The NAME is now
+      # stepped over only when a compound opener follows it.
       i=$((i + 1))
       if ((i + 1 < n)) && [[ "${words[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-        cn="${words[i],,}"
-        cn="${cn%.exe}"
-        [[ "$cn" != "rm" ]] && i=$((i + 1))
+        case "${words[i + 1]}" in
+        '{' | if | while | until | for | case | select | '[[') i=$((i + 1)) ;;
+        *) ;;
+        esac
       fi
       continue
       ;;
@@ -387,7 +402,9 @@ rdt_check_segment() {
     consume_bare=0
     case "$base" in
     sudo | doas) optarg=" -u --user -g --group -p --prompt -C --close-from -D --chdir -r --role -t --type -T --command-timeout -U --other-user -h --host " ;;
-    env) optarg=" -u --unset -C --chdir -S --split-string " ;;
+    # `-S` / `--split-string` is absent on purpose: it is not an opaque option
+    # argument but a COMMAND, and the arm below re-parses it.
+    env) optarg=" -u --unset -C --chdir " ;;
     timeout)
       optarg=" -s --signal -k --kill-after "
       consume_bare=1
@@ -410,6 +427,38 @@ rdt_check_segment() {
         break
         ;;
       -*)
+        # GNU env's `-S` SPLITS its operand and RUNS the result, so the operand
+        # is a command and not an option argument to step over. The split words
+        # are spliced back in ahead of whatever followed, exactly as
+        # block-no-verify's git resolver does, and the segment is judged again.
+        # Bounded: the splice replaces the `-S` word AND its operand with the
+        # operand's own words, so the argv's byte count strictly decreases.
+        if [[ "$base" == "env" ]]; then
+          case "$w" in
+          -S | --split-string)
+            sval=""
+            ((i + 1 < n)) && sval="${words[i + 1]}"
+            hook::env_s_split "$sval"
+            # Cleared because the provenance array belongs to the OUTER parse
+            # and its indices do not describe these words; a stale 1 here would
+            # read an empty word as a dropped backslash.
+            HOOK_SEG_WORD_QUOTED=()
+            rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+              ${words[@]+"${words[@]:i+2}"}
+            return 0
+            ;;
+          -S* | --split-string=*)
+            sval="${w#-S}"
+            sval="${sval#--split-string=}"
+            hook::env_s_split "$sval"
+            HOOK_SEG_WORD_QUOTED=()
+            rdt_check_segment ${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} \
+              ${words[@]+"${words[@]:i+1}"}
+            return 0
+            ;;
+          *) ;;
+          esac
+        fi
         if [[ -n "$optarg" && "$optarg" == *" $w "* ]]; then
           i=$((i + 2))
         else
@@ -594,9 +643,40 @@ rdt_check_segment() {
 # The stack depth is capped, and past the cap the guard REFUSES; see
 # MAX_SUBST_DEPTH. An unterminated substitution is parsed to end of text rather
 # than dropped, so a payload that never closes still fails closed.
+
+# rdt_scan_body <body>: tokenize one substitution body, under two budgets.
+#
+# A body whose TEXT does not contain `rm` cannot carry the one verb the matcher
+# recognizes, so it is not tokenized at all: the same reasoning as the prefilter
+# in front of the whole guard.
+#
+# The rest are charged against ONE MAX_COMMAND_LEN budget, because the depth cap
+# bounds the nesting and not the WORK. Nesting multiplies the text to tokenize,
+# so a command at the 16 KB ceiling nested 32 deep is half a megabyte of
+# tokenizing, and a hook the harness cancels on its own timeout is cancelled
+# WITHOUT a block. Running past the budget would therefore fail OPEN on exactly
+# the input built to reach it, so the budget REFUSES instead.
+#
+# The budget starts at the COMMAND's own length, because the top-level parse
+# already spent that much of it. One MAX_COMMAND_LEN is therefore the total
+# text this guard will ever tokenize for one tool call, so a nested payload
+# costs no more than a flat one of the same length.
+rdt_scanned=${#COMMAND}
+rdt_scan_body() {
+  local b="$1"
+  [[ -n "$b" ]] || return 0
+  case "${b,,}" in
+  *rm*) ;;
+  *) return 0 ;;
+  esac
+  rdt_scanned=$((rdt_scanned + ${#b}))
+  ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "bodies-too-long"
+  hook::bash_parse_segments "$b" rdt_check_segment
+}
+
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 rdt_scan_substitutions() {
-  local s="$1" q="" c nx body
+  local s="$1" q="" c nx
   # Each open paren rides the stack with its KIND: 0 an ordinary paren that
   # only balances, 1 a `$( )` substitution, 2 a backtick one. Only 1 and 2
   # carry a body to parse, and only they count toward the depth cap.
@@ -678,8 +758,7 @@ rdt_scan_substitutions() {
         if ((st_kind[pd] == 1)); then
           sd=$((sd - 1))
           st=${st_start[pd]}
-          body="${s:st:i - st}"
-          [[ -n "$body" ]] && hook::bash_parse_segments "$body" rdt_check_segment
+          rdt_scan_body "${s:st:i - st}"
         fi
       fi
       ;;
@@ -691,8 +770,7 @@ rdt_scan_substitutions() {
         q="${st_q[pd]}"
         sd=$((sd - 1))
         st=${st_start[pd]}
-        body="${s:st:i - st}"
-        [[ -n "$body" ]] && hook::bash_parse_segments "$body" rdt_check_segment
+        rdt_scan_body "${s:st:i - st}"
       else
         sd=$((sd + 1))
         ((sd > MAX_SUBST_DEPTH)) && rdt_block "nesting-too-deep"
@@ -713,13 +791,18 @@ rdt_scan_substitutions() {
   for ((k = 0; k < pd; k++)); do
     ((st_kind[k] == 0)) && continue
     st=${st_start[k]}
-    body="${s:st}"
-    [[ -n "$body" ]] && hook::bash_parse_segments "$body" rdt_check_segment
+    rdt_scan_body "${s:st}"
   done
 }
 
-hook::bash_parse_segments "$COMMAND" rdt_check_segment
+# The substitution scan runs FIRST, and the order is load-bearing rather than
+# arbitrary. The tokenizer splits on unquoted `(`, `)` and `;`, so a deeply
+# nested payload yields as many segments as a flat one of the same length and
+# the top-level parse pays for every one of them. Scanning first lets the
+# tokenizing budget refuse such a payload after the cheap character walk alone,
+# instead of after the parse it was built to make expensive.
 rdt_scan_substitutions "$COMMAND"
+hook::bash_parse_segments "$COMMAND" rdt_check_segment
 
 rdt_emit_tel "ok" ""
 exit 0
