@@ -191,10 +191,11 @@ expect_both 'substitution nested 40 deep is refused' 2 --command "$rdt_deep"
 # under the depth cap yields as many segments as a flat one AND a body to
 # re-tokenize per level. It ran for 40 s alone and 48 s under the dispatcher,
 # against a 60 s hook timeout, and a hook the harness cancels on that timeout is
-# cancelled WITHOUT a block: the slow path failed OPEN. One MAX_COMMAND_LEN
-# tokenizing budget, charged from the command's own length and spent before the
-# top-level parse, is what bounds it. `timeout 10` is the backstop: a hang here
-# reads as rc 124, not as a pass.
+# cancelled WITHOUT a block: the slow path failed OPEN. A MAX_COMMAND_LEN budget
+# over the SUBSTITUTION BODIES, spent before the top-level parse, is what bounds
+# it. `timeout 10` is the backstop, and it is the only timing assertion here: a
+# hang reads as rc 124 rather than as a pass, while a wall-clock threshold on a
+# shared CI shard measures the shard rather than the guard.
 rdt_pad=""
 while ((${#rdt_pad} < 15900)); do rdt_pad+="rm -rf ./x; "; done
 rdt_big=""
@@ -209,17 +210,39 @@ for rdt_via in direct dispatched; do
   else
     rdt_argv=(bash "$GUARD_DISPATCH" "$HOOK")
   fi
-  rdt_t0=$SECONDS
   rdt_rc=0
   rdt_err="$(timeout 10 "${rdt_argv[@]}" <<<"$rdt_payload" 2>&1 >/dev/null)" || rdt_rc=$?
-  rdt_elapsed=$((SECONDS - rdt_t0))
   assert_exit "a 16 KB 32-deep payload is refused ($rdt_via)" 2 "$rdt_rc"
   assert_contains "the refusal names the tokenizing budget ($rdt_via)" \
     "$rdt_err" "substitution bodies exceed MAX_COMMAND_LEN in total"
-  rdt_speed=slow
-  ((rdt_elapsed <= 2)) && rdt_speed=fast
-  assert_eq "the 16 KB 32-deep payload is refused inside 2 s ($rdt_via)" fast "$rdt_speed"
 done
+# The budget counts SUBSTITUTION BODIES ONLY. Charging the command's own length
+# against it too refused any command past about half the ceiling that carried
+# one ordinary substitution, while leaving a flat command just under the ceiling
+# alone, which is a size limit on the wrong thing.
+rdt_ok=""
+while ((${#rdt_ok} < 8180)); do rdt_ok+="echo ok; "; done
+expect_both 'a long benign command with one rm-bearing body is allowed' 0 \
+  --command "${rdt_ok}\$(echo rm)"
+
+# SIBLING bodies cannot exhaust this budget by construction: each one's text
+# sits in the command, and the command has its own ceiling. 900 of them total
+# 13,500 characters of body text and are allowed. 1,300 total 19,500, which no
+# command under MAX_COMMAND_LEN can hold, so that payload is refused by the
+# COMMAND ceiling instead, and the message is pinned to keep the difference
+# visible. One arm each: the budget is internal to the guard, so the dispatcher
+# cannot decide it differently, and both payloads are slow to build.
+rdt_sib() {
+  local n="$1" s="echo " k
+  for ((k = 0; k < n; k++)); do s+="\$(echo rm 1234567)"; done
+  printf '%s' "$s"
+}
+expect '900 sibling rm-bearing bodies are allowed' 0 --command "$(rdt_sib 900)"
+guard_invoke --command "$(rdt_sib 1300)"
+assert_exit "1300 sibling rm-bearing bodies are refused" 2 "$GUARD_RC"
+assert_contains "1300 siblings are refused by the COMMAND ceiling, not the body budget" \
+  "$GUARD_ERR" "the command is too long to parse"
+
 expect_both 'substitution nested 3 deep is still parsed' 2 \
   --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
 

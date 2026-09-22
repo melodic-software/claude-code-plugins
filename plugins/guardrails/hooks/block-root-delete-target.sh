@@ -657,11 +657,15 @@ rdt_check_segment() {
 # WITHOUT a block. Running past the budget would therefore fail OPEN on exactly
 # the input built to reach it, so the budget REFUSES instead.
 #
-# The budget starts at the COMMAND's own length, because the top-level parse
-# already spent that much of it. One MAX_COMMAND_LEN is therefore the total
-# text this guard will ever tokenize for one tool call, so a nested payload
-# costs no more than a flat one of the same length.
-rdt_scanned=${#COMMAND}
+# The budget counts SUBSTITUTION BODIES ONLY, and starts at zero. Charging the
+# command's own length against it as well refused any command past about half
+# the ceiling that carried one ordinary substitution, while leaving a flat
+# command just under the ceiling alone: a size limit on the wrong thing.
+# SIBLING bodies cannot exhaust this budget, because each one's text sits in
+# the command and the command has its own ceiling. NESTING can, because a
+# nested body's text is charged once per level enclosing it, and nesting is the
+# shape that made the scan slow enough to reach the harness timeout.
+rdt_scanned=0
 rdt_scan_body() {
   local b="$1"
   [[ -n "$b" ]] || return 0
