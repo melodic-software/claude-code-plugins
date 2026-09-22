@@ -1,5 +1,5 @@
 {
-  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses and commit conventions on Bash and PowerShell; and verifies CLI flags, skill references and cited paths after a write.",
+  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses, commit conventions and recursive deletes aimed at a filesystem root on Bash and PowerShell; and verifies CLI flags, skill references and cited paths after a write.",
   "hooks": {
     "PreToolUse": [
       {
@@ -29,9 +29,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh block-root-delete-target.sh",
             "timeout": 60,
-            "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, and Windows path guards..."
+            "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, and root-delete guards..."
           }
         ]
       },

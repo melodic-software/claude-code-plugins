@@ -536,7 +536,7 @@ done
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
   block-hook-bypass flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
-  cli-flag-verify skill-reference-verify stale-path-verify; do
+  block-root-delete-target cli-flag-verify skill-reference-verify stale-path-verify; do
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | .command | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOK_DIR/hooks.json")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi

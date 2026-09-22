@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "description": "Fourteen safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, Windows drive-root /tmp writes (POSIX /tmp, C:\\tmp, \\tmp), an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL that unconverts a later path argument on Windows, multi-line `git commit -m` messages (an actual-newline `-m` mangles across shells; single-line `-m` passes), commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory, opt-in) un-throttled Workflow fan-out that risks burst 529s, and (advisory, opt-in) direct gh pr create calls bypassing this marketplace's own pull-request skill. Each guard is independently toggleable.",
+  "description": "Fifteen safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, Windows drive-root /tmp writes (POSIX /tmp, C:\\tmp, \\tmp), an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL that unconverts a later path argument on Windows, a Bash recursive `rm` whose target normalizes to a filesystem root (`/`, the MSYS-translated bare backslash, `~`, `$HOME`, a drive root such as `C:\\` or `/c`, a WSL or cygdrive mount root) or that carries `--no-preserve-root`, multi-line `git commit -m` messages (an actual-newline `-m` mangles across shells; single-line `-m` passes), commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) markdown citing a repo path the repo's own history shows was removed, (advisory, opt-in) un-throttled Workflow fan-out that risks burst 529s, and (advisory, opt-in) direct gh pr create calls bypassing this marketplace's own pull-request skill. Each guard is independently toggleable.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -59,6 +59,12 @@
       "type": "boolean",
       "title": "block-exported-msys-pathconv guard",
       "description": "Block a leaking MSYS path-conversion suppressor on Windows: an EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, or a prefix on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). Either switches off conversion for later commands, letting an unconverted /d/... reach git as <current-drive>:\\d\\...; a prefix on a non-shell command word and a bare assignment are not matched",
+      "default": true
+    },
+    "block_root_delete_target_enabled": {
+      "type": "boolean",
+      "title": "block-root-delete-target guard",
+      "description": "Block a Bash recursive `rm` whose target normalizes to a filesystem root: `/` and `/*`, the MSYS-translated bare backslash (`rm -rf \"\\\\\"`, the shape that cost a whole volume in anthropics/claude-code#92593), `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\\`, `c:/`, `C:`), and an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`). A recursive `rm` carrying `--no-preserve-root` is refused whatever it targets. Quoted prose that merely names such a command is not matched, because the command word of that segment is not `rm`. PowerShell `Remove-Item -Recurse` is not covered",
       "default": true
     },
     "block_noncanonical_commit_enabled": {
@@ -147,5 +153,5 @@
       "min": 1
     }
   },
-  "version": "0.35.3"
+  "version": "0.36.0"
 }
