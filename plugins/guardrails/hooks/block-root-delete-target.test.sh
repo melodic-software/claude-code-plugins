@@ -84,6 +84,64 @@ expect_both 'rm -rf ./ok / blocks on the second operand' 2 --command 'rm -rf ./o
 # defeat the one protection coreutils ships for this mistake.
 expect_both 'rm -rf --no-preserve-root ./x blocks' 2 --command 'rm -rf --no-preserve-root ./x'
 
+# A trailing segment that carries no NAME leaves the operand rooted where it
+# started, so every one of these still names a root. Stripping one glob suffix
+# was not enough: `/*/` keeps a trailing slash, `/./*` keeps a dot segment, and
+# `/.[!.]*` is the ordinary dotfile idiom.
+expect_both 'rm -rf /*/ blocks' 2 --command 'rm -rf /*/'
+expect_both 'rm -rf /./* blocks' 2 --command 'rm -rf /./*'
+expect_both 'rm -rf /.[!.]* blocks (dotfile idiom)' 2 --command 'rm -rf /.[!.]*'
+expect_both 'rm -rf ~/./* blocks' 2 --command 'rm -rf ~/./*'
+expect_both 'rm -rf /c/*/ blocks' 2 --command 'rm -rf /c/*/'
+expect_both 'rm -rf /. blocks' 2 --command 'rm -rf /.'
+expect_both 'rm -rf /.. blocks' 2 --command 'rm -rf /..'
+
+# A launcher option that takes its own operand must not swallow the command
+# word. `sudo -u bob rm` puts `bob` where a naive skip reads the command.
+expect_both 'sudo -u bob rm -rf / blocks' 2 --command 'sudo -u bob rm -rf /'
+expect_both 'env -u FOO rm -rf / blocks' 2 --command 'env -u FOO rm -rf /'
+expect_both 'timeout 60 rm -rf / blocks' 2 --command 'timeout 60 rm -rf /'
+expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
+expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
+
+# A child shell runs its operand as a full command, so the operand is re-parsed
+# with the same tokenizer, exactly as block-no-verify does for `git`.
+expect_both 'bash -c rm -rf / blocks' 2 --command 'bash -c "rm -rf /"'
+expect_both 'sh -c rm -rf / blocks' 2 --command "sh -c 'rm -rf /'"
+expect_both 'bash -lc rm -rf / blocks' 2 --command 'bash -lc "rm -rf /"'
+expect_both 'sudo bash -c rm -rf / blocks' 2 --command 'sudo bash -c "rm -rf /"'
+
+# The command word is compared case-insensitively, so the substring prefilter
+# in front of the parse must be too. On the Windows host this guard was written
+# for, the filesystem and PATH lookup are case-insensitive and `RM` runs rm.
+expect_both 'RM -rf / blocks (upper case)' 2 --command 'RM -rf /'
+expect_both 'Rm.exe -rf C:\ blocks (mixed case)' 2 --command 'Rm.exe -rf C:\'
+expect_both 'busybox rm -rf / blocks' 2 --command 'busybox rm -rf /'
+
+# A DANGLING trailing backslash is the incident string minus its quotes. Bash
+# passes a literal `\` when one ends the input, and MSYS resolves it to the
+# current drive root. The tokenizer has no character left to emit, so the
+# operand arrives empty and only its quoting provenance separates it from
+# `rm -rf ""`.
+expect_both 'rm -rf \ blocks (dangling backslash)' 2 --command 'rm -rf \'
+expect_both 'rm -rf $(quoted backslash) blocks' 2 --command "rm -rf '\\'"
+
+# coreutils accepts any unambiguous long-option prefix.
+expect_both 'rm --r -f / blocks (abbreviated --recursive)' 2 --command 'rm --r -f /'
+expect_both 'rm --rec -f / blocks' 2 --command 'rm --rec -f /'
+expect_both 'rm -rf --no-p ./x blocks (abbreviated --no-preserve-root)' 2 --command 'rm -rf --no-p ./x'
+
+# A UNC share root is the same class of loss as a drive root.
+expect_both 'rm -rf //server/share blocks' 2 --command 'rm -rf //server/share'
+# Single-quoted, because an UNQUOTED backslash-backslash-server form is not a
+# UNC path to bash at all: the escapes collapse it to `\servershare`, and that
+# is what rm would receive. The quoted spelling is the one that reaches the
+# share, and both verdicts are pinned so the difference stays deliberate.
+# portability-ok: a literal backslash pair inside a UNC path, not a grep -E escape
+expect_both 'quoted UNC share root blocks' 2 --command "rm -rf '\\\\server\\share'"
+# portability-ok: a literal backslash pair inside a UNC path, not a grep -E escape
+expect_both 'unquoted UNC-looking path allowed (its escapes collapse)' 0 --command 'rm -rf \\server\share'
+
 # --- 2. MUST NOT FIRE --------------------------------------------------------
 # Quoted prose keeps `rm` INSIDE one word, so the command word is `git` or
 # `echo` and the guard never reaches its flag parse. That falls out of command
@@ -111,6 +169,26 @@ expect_both 'rm / allowed (no recursion)' 0 --command 'rm /'
 # with no operand at all has nothing to match.
 expect_both 'rm -rf "" allowed' 0 --command 'rm -rf ""'
 expect_both 'rm -rf allowed (no operand)' 0 --command 'rm -rf'
+
+# A trailing segment that carries a NAME stops the reduction, so these stay
+# ordinary relative or nested deletes rather than roots.
+expect_both 'rm -rf /tmp* allowed' 0 --command 'rm -rf /tmp*'
+expect_both 'rm -rf ~/proj* allowed' 0 --command 'rm -rf ~/proj*'
+expect_both 'rm -rf /c/dev/* allowed' 0 --command 'rm -rf /c/dev/*'
+expect_both 'rm -rf /_ allowed (a directory named _)' 0 --command 'rm -rf /_'
+expect_both 'rm -rf * allowed (cwd-relative, a declared gap)' 0 --command 'rm -rf *'
+# A glob glued to a NAME is an ordinary prefix match, not the root it sits in.
+expect_both 'rm -rf /c* allowed' 0 --command 'rm -rf /c*'
+expect_both 'rm -rf ~* allowed' 0 --command 'rm -rf ~*'
+# A child shell whose operand is an ordinary delete stays allowed.
+expect_both 'bash -c rm -rf ./build allowed' 0 --command 'bash -c "rm -rf ./build"'
+# A launcher whose real command is not rm stays allowed.
+expect_both 'sudo -u bob ls / allowed' 0 --command 'sudo -u bob ls /'
+# A path UNDER a UNC share is not the share root.
+expect_both 'rm -rf //server/share/dir allowed' 0 --command 'rm -rf //server/share/dir'
+# A long option that is not a prefix of either recognized name.
+expect_both 'rm --force / allowed (no recursion)' 0 --command 'rm --force /'
+expect_both 'rm --dir / allowed (no recursion)' 0 --command 'rm --dir /'
 
 # A command word that merely ENDS in rm, or takes rm as a subcommand, is not rm.
 expect_both 'perm -rf / allowed' 0 --command 'perm -rf /'

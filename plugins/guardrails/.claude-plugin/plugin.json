@@ -64,7 +64,7 @@
     "block_root_delete_target_enabled": {
       "type": "boolean",
       "title": "block-root-delete-target guard",
-      "description": "Block a Bash recursive `rm` whose target normalizes to a filesystem root: `/` and `/*`, the MSYS-translated bare backslash (`rm -rf \"\\\\\"`, the shape that cost a whole volume in anthropics/claude-code#92593), `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\\`, `c:/`, `C:`), and an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`). A recursive `rm` carrying `--no-preserve-root` is refused whatever it targets. Quoted prose that merely names such a command is not matched, because the command word of that segment is not `rm`. PowerShell `Remove-Item -Recurse` is not covered",
+      "description": "Block a Bash recursive `rm` whose target normalizes to a filesystem root: `/` and `/*`, the MSYS-translated bare backslash (`rm -rf \"\\\\\"` and a dangling `rm -rf \\`, the shape that cost a whole volume in anthropics/claude-code#92593), `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). A recursive `rm` carrying `--no-preserve-root` is refused whatever it targets, and long options are matched on any unambiguous prefix as coreutils reads them. The command word is resolved through a launcher and its operand-taking options (`sudo -u bob rm`), and a child shell's operand is re-parsed (`bash -c '...'`). Quoted prose that merely names such a command is not matched, because the command word of that segment is not `rm`. PowerShell `Remove-Item -Recurse` is not covered",
       "default": true
     },
     "block_noncanonical_commit_enabled": {

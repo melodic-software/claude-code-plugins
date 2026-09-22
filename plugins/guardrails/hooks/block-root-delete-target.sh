@@ -2,7 +2,7 @@
 # PreToolUse hook: block a recursive delete whose TARGET is a filesystem root.
 # Triggered on Bash tool calls (a command string).
 #
-# THE GAP THIS CLOSES. Until now no guard in this plugin inspected the target of
+# THE GAP THIS CLOSES. Before 0.36.0 no guard in this plugin inspected the target of
 # a delete at all: `rm -rf` appeared only in the suites, as fixture cleanup, and
 # `rm -rf "\\"` passed all eight guards of the Bash dispatcher at rc 0. The
 # motivating incident is anthropics/claude-code #92593, where a subagent ran
@@ -58,7 +58,19 @@
 #     breadth this guard's narrow trigger exists to avoid.
 #   * A home directory named for another user (`rm -rf ~bob`). Only bare `~` is
 #     matched.
-#   * Nesting inside a child shell beyond what the shared tokenizer unwraps.
+#   * A root reached by MOVING the working directory rather than by naming it:
+#     `cd / && rm -rf *` is allowed, because `*` names nothing on its own and
+#     the guard deliberately does not track cwd.
+#   * A child shell this guard does not recognize as one. `bash -c`, `sh -c` and
+#     their siblings ARE unwrapped and re-parsed; an interpreter that is not a
+#     shell (`python -c`, `perl -e`) is not.
+#   * A command word split across quoting so the RAW text never spells it.
+#     `\rm` and `RM` are caught, because the cheap substring prefilter below
+#     folds case and the raw text still reads `rm`; `r\m`, `r''m` and `"r"m`
+#     are not, because the prefilter exits allow before the tokenizer rejoins
+#     them. That is the price of not tokenizing every Bash call, and it is the
+#     right trade here: this guard's threat model is an agent making the
+#     mistake #92593 records, not one deliberately obfuscating a command word.
 #
 # BLOCKING: exits 2 on a recursive delete of a root.
 
@@ -188,7 +200,14 @@ fi
 # Cheap prefilter ahead of the character walk. This guard is on the per-Bash-call
 # path, and a command with no `rm` token anywhere cannot carry the one verb the
 # matcher recognizes, so it must not pay for the parse.
-case "$COMMAND" in
+#
+# Folded to lower case, and that is load-bearing rather than tidy. The command
+# word is compared case-insensitively below, and on the Windows host this guard
+# was written for both the filesystem and the PATH lookup are case-insensitive,
+# so `RM -rf /` runs rm. A case-SENSITIVE prefilter here would have exited
+# allow before the matcher ever saw it, which is a bypass of the whole guard
+# rather than a missed spelling.
+case "${COMMAND,,}" in
 *rm*) ;;
 *) exit 0 ;;
 esac
@@ -204,21 +223,40 @@ rdt_normalize_to() {
   local __rdt_dest="$1" __rdt_s="$2"
   __rdt_s="${__rdt_s//\\//}"
   __rdt_s="${__rdt_s,,}"
+  # A leading EXACTLY-two-slash prefix is preserved through the collapse,
+  # because on Windows it introduces a UNC path and `//server/share` is a share
+  # root, the same class of unrecoverable loss as a drive root. Every other run
+  # of slashes collapses, so `\\` still reduces to `/` and is still refused.
+  local __rdt_lead=""
+  if [[ "$__rdt_s" == //* && "$__rdt_s" != ///* ]]; then
+    __rdt_lead="/"
+    __rdt_s="${__rdt_s#/}"
+  fi
   while [[ "$__rdt_s" == *//* ]]; do
     __rdt_s="${__rdt_s//\/\//\/}"
   done
-  if [[ "$__rdt_s" == *'/.*' ]]; then
-    __rdt_s="${__rdt_s%'.*'}"
-  elif [[ "$__rdt_s" == *'*' ]]; then
-    __rdt_s="${__rdt_s%'*'}"
-  fi
-  if [[ "$__rdt_s" == "/" ]]; then
-    :
-  else
-    while [[ "$__rdt_s" == */ ]]; do
-      __rdt_s="${__rdt_s%/}"
-    done
-  fi
+  __rdt_s="$__rdt_lead$__rdt_s"
+  # Drop trailing path segments that carry no NAME. A segment holding no
+  # alphanumeric and no underscore names nothing on its own: it is a glob, a
+  # `.`, a `..`, or the empty segment a trailing slash leaves behind, so the
+  # operand is still rooted where it started. Stripping ONE glob suffix was not
+  # enough, because the residue can be another nameless segment: `/*/` keeps a
+  # trailing slash, `/./*` keeps a dot, and `/.[!.]*`, the ordinary dotfile
+  # idiom, keeps both. The loop reduces each of those to `/`.
+  #
+  # The name test is what bounds it. `/tmp*`, `~/proj*` and `/c/dev/*` stop at
+  # their first named segment and stay ordinary deletes, and a directory
+  # literally named `_` (`/_`) is named, so it is not a root.
+  local __rdt_last
+  while [[ "$__rdt_s" == */* ]]; do
+    __rdt_last="${__rdt_s##*/}"
+    [[ "$__rdt_last" == *[[:alnum:]_]* ]] && break
+    __rdt_s="${__rdt_s%/*}"
+    if [[ -z "$__rdt_s" ]]; then
+      __rdt_s="/"
+      break
+    fi
+  done
   printf -v "$__rdt_dest" '%s' "$__rdt_s"
 }
 
@@ -238,6 +276,11 @@ rdt_is_root() {
   '/' | '~' | '$home' | '${home}') return 0 ;;
   *) ;;
   esac
+  # Every remaining slash run reduced to one, so a string of slashes alone is
+  # the POSIX root however it was spelled (`/`, `\`, `\\`, `///`).
+  [[ "$s" =~ ^/+$ ]] && return 0
+  # A UNC share root: exactly two leading slashes, a host, a share, nothing more.
+  [[ "$s" =~ ^//[^/]+/[^/]+$ ]] && return 0
   [[ "$s" =~ ^[a-z]:$ ]] && return 0
   [[ "$s" =~ ^/[a-z]$ ]] && return 0
   [[ "$s" =~ ^/cygdrive/[a-z]$ ]] && return 0
@@ -251,11 +294,13 @@ rdt_is_root() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 rdt_check_segment() {
   local -a words=("$@")
-  local n=$# i=0 w base
+  local n=$# i=0 w base optarg consume_bare
 
   # Command word: step over leading NAME=value assignments and over a launcher
-  # that takes the real command as its argument, together with that launcher's
-  # own option words.
+  # that takes the real command as its argument. A launcher's own options are
+  # skipped, and the ones that CONSUME AN OPERAND are skipped with it: without
+  # that, `sudo -u bob rm -rf /` reads `bob` as the command word and the whole
+  # segment is waved through.
   while ((i < n)); do
     w="${words[i]}"
     if [[ "$w" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
@@ -265,19 +310,59 @@ rdt_check_segment() {
     base="${w##*/}"
     base="${base%.exe}"
     base="${base,,}"
+    # optarg lists the launcher's operand-taking options, space-delimited on
+    # both sides so a prefix cannot match. consume_bare marks a launcher whose
+    # first bare word is its own argument rather than the command (`timeout`
+    # takes a duration).
+    consume_bare=0
     case "$base" in
-    sudo | env | command | exec | time | nohup)
-      i=$((i + 1))
-      while ((i < n)) && [[ "${words[i]}" == -* ]]; do
-        i=$((i + 1))
-      done
-      continue
+    sudo | doas) optarg=" -u -g -p -C -D -r -t -T -U -h " ;;
+    env) optarg=" -u -C -S " ;;
+    timeout)
+      optarg=" -s --signal -k --kill-after "
+      consume_bare=1
       ;;
-    *) ;;
+    nice | ionice) optarg=" -n --adjustment -c -p " ;;
+    # busybox is a multi-call binary: `busybox rm -rf /` runs its own rm.
+    command | exec | time | nohup | stdbuf | setsid | busybox) optarg="" ;;
+    *) break ;;
     esac
-    break
+    i=$((i + 1))
+    while ((i < n)); do
+      w="${words[i]}"
+      case "$w" in
+      --)
+        i=$((i + 1))
+        break
+        ;;
+      -*)
+        if [[ -n "$optarg" && "$optarg" == *" $w "* ]]; then
+          i=$((i + 2))
+        else
+          i=$((i + 1))
+        fi
+        ;;
+      *)
+        ((consume_bare)) || break
+        consume_bare=0
+        i=$((i + 1))
+        ;;
+      esac
+    done
   done
   ((i < n)) || return 0
+
+  # A child shell runs its operand as a full command, so one process is every
+  # command inside it. Re-parse that operand with the same tokenizer, which is
+  # what block-no-verify.sh does for `git`. Asked AFTER the launcher walk, from
+  # the resolved command word on, so `sudo bash -c '...'` is unwrapped too.
+  # Re-entering the parser from its own callback is safe: its state is
+  # dynamically scoped locals plus HOOK_SEG_* globals it rebuilds before every
+  # call, and the only one this guard reads is rebuilt with them.
+  if hook::shell_c_operand "${words[@]:i}"; then
+    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" rdt_check_segment
+    return 0
+  fi
 
   base="${words[i]##*/}"
   base="${base%.exe}"
@@ -285,8 +370,10 @@ rdt_check_segment() {
   [[ "$base" == "rm" ]] || return 0
 
   # Flags and operands. `--` ends option parsing, exactly as rm reads it.
-  local recursive=0 no_preserve=0 end_of_opts=0 j
-  local -a operands=()
+  # Operands are kept as INDICES, not values, because the decision below needs
+  # each one's quoting provenance as well as its text.
+  local recursive=0 no_preserve=0 end_of_opts=0 j long
+  local -a operand_idx=()
   for ((j = i + 1; j < n; j++)); do
     w="${words[j]}"
     if ((end_of_opts == 0)); then
@@ -295,15 +382,19 @@ rdt_check_segment() {
         end_of_opts=1
         continue
         ;;
-      --no-preserve-root)
-        no_preserve=1
-        continue
-        ;;
-      --recursive)
-        recursive=1
-        continue
-        ;;
-      --*)
+      --?*)
+        # coreutils parses long options with getopt_long, which accepts any
+        # UNAMBIGUOUS prefix, so `rm --r -f /` and `rm --no-p /` are the real
+        # options spelled short. Of rm's long options only `--recursive` starts
+        # with `r` and only `--no-preserve-root` starts with `n`, so every
+        # non-empty prefix of either name is unambiguous and is treated as that
+        # option. Matching the exact spelling alone left both a bypass.
+        long="${w#--}"
+        if [[ "recursive" == "$long"* ]]; then
+          recursive=1
+        elif [[ "no-preserve-root" == "$long"* ]]; then
+          no_preserve=1
+        fi
         continue
         ;;
       -?*)
@@ -316,7 +407,7 @@ rdt_check_segment() {
       *) ;;
       esac
     fi
-    operands+=("$w")
+    operand_idx+=("$j")
   done
 
   # Every arm below needs recursion. A non-recursive `rm /` is refused by rm
@@ -324,9 +415,20 @@ rdt_check_segment() {
   ((recursive)) || return 0
   ((no_preserve)) && rdt_block "no-preserve-root"
 
-  local op norm
-  for op in ${operands[@]+"${operands[@]}"}; do
-    rdt_normalize_to norm "$op"
+  local norm
+  for j in ${operand_idx[@]+"${operand_idx[@]}"}; do
+    w="${words[j]}"
+    # An EMPTY operand that a BACKSLASH ESCAPE produced is a dropped trailing
+    # backslash: bash passes a literal `\` when one ends the input, and MSYS
+    # resolves that to the current drive root, which is the #92593 incident
+    # minus its quotes. The tokenizer cannot represent it (it has no character
+    # left to emit), so provenance is what separates it from `rm -rf ""`, whose
+    # empty operand comes wholly from a quoted span (provenance 2) and is
+    # correctly allowed.
+    if [[ -z "$w" ]] && ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)); then
+      rdt_block "root-operand" "/"
+    fi
+    rdt_normalize_to norm "$w"
     if rdt_is_root "$norm"; then
       rdt_block "root-operand" "$norm"
     fi
