@@ -158,8 +158,11 @@ expect_both 'rm -rf /tmp/x allowed' 0 --command 'rm -rf /tmp/x'
 expect_both 'rm -rf "$TMPDIR/x" allowed' 0 --command 'rm -rf "$TMPDIR/x"'
 expect_both 'rm -rf ~/.cache/foo allowed' 0 --command 'rm -rf ~/.cache/foo'
 expect_both 'rm -rf $HOME/x allowed' 0 --command 'rm -rf $HOME/x'
-expect_both 'rm -rf C:/dev/x allowed' 0 --command 'rm -rf C:/dev/x'
-expect_both 'rm -rf /c/dev/x allowed' 0 --command 'rm -rf /c/dev/x'
+# The path segments here are deliberately generic: the repo's machine-specific
+# paths gate reads a drive letter followed by a well-known machine root as a
+# leaked local path, and the assertion is about depth, not about the name.
+expect_both 'rm -rf C:/build/x allowed' 0 --command 'rm -rf C:/build/x'
+expect_both 'rm -rf /c/build/x allowed' 0 --command 'rm -rf /c/build/x'
 
 # No recursion flag: the fire conditions never open.
 expect_both 'rm -f /file allowed' 0 --command 'rm -f /file'
