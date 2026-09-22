@@ -14,7 +14,12 @@
 # alone, and with no wrapped command the shim prints one diagnostic line and
 # exits 0 rather than exec'ing an empty argv; (d) CHAINING — two shims in
 # series each locate their own tee and the innermost command still owns
-# stdout, which is how rate-limit-guard and context-guard compose.
+# stdout, which is how rate-limit-guard and context-guard compose; (e) CACHING:
+# the resolved path is remembered in one file under the EFFECTIVE config dir,
+# keyed by plugin name, so a hit skips the glob entirely and rewrites nothing,
+# while a cache that is deleted, names a temp_* marketplace, or whose version
+# directory is orphaned, pruned or a symlink is rejected and re-globbed.
+# Finding no tee caches nothing at all.
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
@@ -92,6 +97,27 @@ orphan_tee() {
   printf '1785448003467' >"${tee%/scripts/statusline-tee.sh}/.orphaned_at"
 }
 
+# The shim's resolution cache file, spelled the way the shim spells it: keyed by
+# plugin name under the EFFECTIVE config dir, so the chaining case can name both
+# links' caches. No fixture ever creates this directory — the shim's miss path
+# has to, and case 25 is what proves it does not create it when there is nothing
+# to cache.
+#   $1 = the effective config dir, $2 = the plugin name
+cache_path() {
+  printf '%s' "$1/$2/.statusline-tee-path"
+}
+
+# The one line a cache file holds, or the empty string when there is no cache
+# file. Guarded the way the shim guards its own read, so an absent file is not
+# an error on this side either.
+cache_line() {
+  local line=""
+  if [[ -f "$1" ]]; then
+    IFS= read -r line <"$1" || line=""
+  fi
+  printf '%s' "$line"
+}
+
 # Wrapped statusline stand-in: echoes the stdin it received, prints a fixed
 # line, and exits with a chosen code.
 make_wrapped() {
@@ -134,6 +160,19 @@ run_cfg() {
   local home="$1" cfg="$2"
   shift 2
   run_env "HOME=$home" "CLAUDE_CONFIG_DIR=$cfg" bash "$SHIM" "$@"
+}
+
+# Capture an xtrace of ONE render into a file, the shape bench/trace-probe.sh
+# uses: BASH_XTRACEFD names a descriptor the caller opens, so the trace never
+# mixes into the shim's stdout or stderr. Only the shim itself is traced, since
+# the tee it execs is a fresh bash without -x.
+#   $1 = HOME root, $2 = the trace file, remaining args are the wrapped command
+trace_run() {
+  local home="$1" trace="$2"
+  shift 2
+  printf '%s' "$INPUT" |
+    env -u CLAUDE_CONFIG_DIR "HOME=$home" BASH_XTRACEFD=9 bash -x "$SHIM" "$@" \
+      >/dev/null 2>&1 9>"$trace"
 }
 
 # --- 1. single installed tee: resolved, and the chain stays transparent -----
@@ -284,6 +323,188 @@ make_wrapped "$H9/render.sh" 0
 run "$H9" bash "$H9/render.sh"
 assert_contains "$ERR" "TEE:installed" "orphaned version directory skipped even when newest by mtime"
 assert_not_contains "$ERR" "TEE:orphaned" "the orphaned tee does not also run"
+
+# --- 17. the cache is authoritative, and a hit rewrites nothing -------------
+# The first render resolves by glob and remembers the answer. A v2 installed
+# afterwards with a NEWER mtime and no orphan marker does not take over: that
+# is the behavior the cache buys, and case 3 already established that mtime
+# order is observable, so this observation discriminates. The mtime sentinel is
+# the no-churn half: a hit that rewrote the file would bump it past the
+# sentinel planted just after it.
+H10="$WORK/h10"
+C10="$(cache_path "$H10/.claude" "rate-limit-guard")"
+PIN1="$(plant_tee "$H10" "mkt" "rate-limit-guard" "0.1.0" "pin1")"
+make_wrapped "$H10/render.sh" 0
+run "$H10" bash "$H10/render.sh"
+assert_contains "$ERR" "TEE:pin1" "the first render resolves by glob"
+assert_eq "$PIN1" "$(cache_line "$C10")" "a miss remembers the resolved tee path"
+touch -t 202001010000 "$C10"
+touch -t 202001020000 "$H10/sentinel"
+PIN2="$(plant_tee "$H10" "mkt" "rate-limit-guard" "0.2.0" "pin2")"
+touch -t 203001010000 "$PIN2"
+run "$H10" bash "$H10/render.sh"
+assert_contains "$ERR" "TEE:pin1" "the cached tee wins over a newer unmarked version"
+assert_not_contains "$ERR" "TEE:pin2" "the newer unmarked version does not also run"
+UNTOUCHED="no"
+[[ "$H10/sentinel" -nt "$C10" ]] && UNTOUCHED="yes"
+assert_eq "yes" "$UNTOUCHED" "a cache hit rewrites nothing"
+
+# --- 18. a hit skips the glob entirely, proven by xtrace --------------------
+# Case 17 alone cannot show this: a shim that globbed first and then preferred a
+# valid cached path would resolve the same tee at exactly today's cost, and the
+# cost is the whole point. The first assertion names the shim's own loop
+# variable deliberately — it is a WHITE-BOX cost assertion, and the trace is the
+# only place the absence of a walk is observable through a transparent shim.
+# Several candidates are planted because the miss trace grows with them while
+# the hit trace does not, which is what makes the length comparison meaningful.
+H11="$WORK/h11"
+plant_tee "$H11" "mkt-a" "rate-limit-guard" "0.1.0" "t1" >/dev/null
+plant_tee "$H11" "mkt-b" "rate-limit-guard" "0.2.0" "t2" >/dev/null
+plant_tee "$H11" "temp_git_1784663154120_zzzzzz" "rate-limit-guard" "0.3.0" "t3" >/dev/null
+plant_tee "$H11" "mkt-c" "rate-limit-guard" "0.4.0" "t4" >/dev/null
+make_wrapped "$H11/render.sh" 0
+MISS_TRACE="$WORK/trace-miss.txt"
+HIT_TRACE="$WORK/trace-hit.txt"
+trace_run "$H11" "$MISS_TRACE" bash "$H11/render.sh"
+trace_run "$H11" "$HIT_TRACE" bash "$H11/render.sh"
+assert_not_contains "$(<"$HIT_TRACE")" "for cand in" "a cache hit never enters the glob loop"
+MISS_LINES="$(wc -l <"$MISS_TRACE" | tr -d ' ')"
+HIT_LINES="$(wc -l <"$HIT_TRACE" | tr -d ' ')"
+SHORTER="no"
+((HIT_LINES < MISS_LINES)) && SHORTER="yes"
+assert_eq "yes" "$SHORTER" "the hit trace is strictly shorter than the miss trace ($HIT_LINES vs $MISS_LINES)"
+
+# --- 19. deleting the cache file makes the next render re-glob --------------
+rm -f "$C10"
+run "$H10" bash "$H10/render.sh"
+assert_contains "$ERR" "TEE:pin2" "a deleted cache file re-globs and picks the newer version"
+assert_eq "$PIN2" "$(cache_line "$C10")" "the re-glob remembers the new answer"
+
+# --- 20. an orphan-marked cached version directory is rejected --------------
+# The update path, and the reason the marker is the PRIMARY cache invalidator:
+# without it the cached v1 would keep winning forever.
+H12="$WORK/h12"
+C12="$(cache_path "$H12/.claude" "rate-limit-guard")"
+ORPH1="$(plant_tee "$H12" "mkt" "rate-limit-guard" "0.1.0" "orph1")"
+make_wrapped "$H12/render.sh" 0
+run "$H12" bash "$H12/render.sh"
+ORPH2="$(plant_tee "$H12" "mkt" "rate-limit-guard" "0.2.0" "orph2")"
+orphan_tee "$ORPH1"
+run "$H12" bash "$H12/render.sh"
+assert_contains "$ERR" "TEE:orph2" "an orphan-marked cached version directory re-globs"
+assert_eq "$ORPH2" "$(cache_line "$C12")" "the re-glob replaces the orphaned cache entry"
+
+# --- 21. a cached tee that no longer exists is rejected ---------------------
+# The end of the ~14-day grace period: the version directory is finally pruned.
+H13="$WORK/h13"
+C13="$(cache_path "$H13/.claude" "rate-limit-guard")"
+PRUNE1="$(plant_tee "$H13" "mkt" "rate-limit-guard" "0.1.0" "prune1")"
+make_wrapped "$H13/render.sh" 0
+run "$H13" bash "$H13/render.sh"
+PRUNE2="$(plant_tee "$H13" "mkt" "rate-limit-guard" "0.2.0" "prune2")"
+rm -rf "${PRUNE1%/scripts/statusline-tee.sh}"
+run "$H13" bash "$H13/render.sh"
+assert_contains "$ERR" "TEE:prune2" "a pruned cached version directory re-globs"
+assert_eq "$PRUNE2" "$(cache_line "$C13")" "the re-glob replaces the pruned cache entry"
+
+# --- 22. each effective config dir keeps its own cache file -----------------
+# A relocated CLAUDE_CONFIG_DIR and the $HOME default must never answer for one
+# another, which is why the cache is anchored on the effective config dir and
+# not on $HOME the way the tee's own files are.
+H14="$WORK/h14"
+CFG2="$WORK/cfg-two"
+plant_tee "$WORK/reloc2" "some-marketplace" "rate-limit-guard" "0.1.0" "cfgtee" >/dev/null
+mv "$WORK/reloc2/.claude" "$CFG2"
+CFGTEE="$CFG2/plugins/cache/some-marketplace/rate-limit-guard/0.1.0/scripts/statusline-tee.sh"
+HOMETEE="$(plant_tee "$H14" "some-marketplace" "rate-limit-guard" "0.1.0" "hometee")"
+make_wrapped "$WORK/render-two.sh" 0
+run_cfg "$H14" "$CFG2" bash "$WORK/render-two.sh"
+assert_contains "$ERR" "TEE:cfgtee" "a relocated config dir resolves its own tee"
+assert_eq "$CFGTEE" "$(cache_line "$(cache_path "$CFG2" "rate-limit-guard")")" \
+  "the relocated config dir's cache lives under that config dir"
+run "$H14" bash "$WORK/render-two.sh"
+assert_contains "$ERR" "TEE:hometee" "the HOME default resolves its own tee, not the relocated one"
+assert_eq "$HOMETEE" "$(cache_line "$(cache_path "$H14/.claude" "rate-limit-guard")")" \
+  "the HOME default keeps a cache file of its own"
+
+# --- 23. a temp_* marketplace is never the cached answer --------------------
+# Both directions: the glob never records one, and a cache file naming one is
+# rejected on read rather than exec'd.
+H15="$WORK/h15"
+C15="$(cache_path "$H15/.claude" "rate-limit-guard")"
+TREAL="$(plant_tee "$H15" "melodic-software" "rate-limit-guard" "0.1.0" "treal")"
+TTEMP="$(plant_tee "$H15" "temp_git_1784663154120_oirbvy" "rate-limit-guard" "0.1.0" "ttemp")"
+touch -t 202001010000 "$TREAL"
+touch -t 203001010000 "$TTEMP" # newer, and must still lose
+make_wrapped "$H15/render.sh" 0
+run "$H15" bash "$H15/render.sh"
+assert_eq "$TREAL" "$(cache_line "$C15")" "a temp_* clone is never the cached answer"
+printf '%s\n' "$TTEMP" >"$C15"
+run "$H15" bash "$H15/render.sh"
+assert_not_contains "$ERR" "TEE:ttemp" "a cache file naming a temp_* clone is rejected"
+assert_contains "$ERR" "TEE:treal" "the rejected cache re-globs to the real marketplace"
+
+# --- 24. chained shims keep separate cache files ----------------------------
+# The sibling shim differs from this one only in PLUGIN_NAME, so a cache path
+# not derived from it would make both links resolve the same tee.
+H16="$WORK/h16"
+CRLG="$(plant_tee "$H16" "melodic-software" "rate-limit-guard" "0.1.0" "crlg")"
+CCG="$(plant_tee "$H16" "melodic-software" "context-guard" "0.1.0" "ccg")"
+make_wrapped "$H16/render.sh" 0
+run "$H16" bash "$SIB" bash "$H16/render.sh"
+assert_eq "$CRLG" "$(cache_line "$(cache_path "$H16/.claude" "rate-limit-guard")")" \
+  "chain: this shim caches under its own plugin name"
+assert_eq "$CCG" "$(cache_line "$(cache_path "$H16/.claude" "context-guard")")" \
+  "chain: the sibling shim caches under a different plugin name"
+run "$H16" bash "$SIB" bash "$H16/render.sh"
+assert_contains "$ERR" "TEE:crlg" "chain: this plugin's tee still runs from its cache"
+assert_contains "$ERR" "TEE:ccg" "chain: the sibling's tee still runs from its own cache"
+
+# --- 25. no tee found writes nothing ----------------------------------------
+# Never negatively cached: not even the directory is created, so installing the
+# plugin takes effect on the very next render instead of after a sentinel ages
+# out. This case asserts an absence, so it also holds for a shim with no cache
+# at all; PLAN criterion 8 requires it anyway, as the guard against a sentinel
+# being added later.
+H17="$WORK/h17"
+C17="$(cache_path "$H17/.claude" "rate-limit-guard")"
+plant_tee "$H17" "mkt" "context-guard" "0.1.0" "notmine" >/dev/null
+make_wrapped "$H17/render.sh" 0
+run "$H17" bash "$H17/render.sh"
+MADE_DIR="no"
+[[ -d "${C17%/*}" ]] && MADE_DIR="yes"
+assert_eq "no" "$MADE_DIR" "no tee found creates no directory"
+assert_eq "" "$(cache_line "$C17")" "no tee found writes no cache file"
+
+# --- 26. a symlinked version directory is never pinned ----------------------
+# A development checkout symlinked into the cache is never marked orphaned and
+# never pruned, so neither the orphan test nor the existence test could ever
+# release it: caching one would pin the dev checkout permanently and installing
+# the real marketplace copy would never take effect. Rejecting it puts that
+# operator back on exactly the glob behavior at exactly the pre-cache cost.
+# `ln -s` under Git Bash writes a COPY unless MSYS picks a symlink strategy.
+# winsymlinks:sys is the one that needs no elevation (nativestrict fails with
+# "Operation not permitted" without the privilege, and a junction is a
+# different object), and MSYS is inert on Linux and macOS, where ln -s already
+# links. On a host that can plant no symlink at all this case fails loudly
+# rather than skipping, which is the suite's only channel and matches the rest
+# of it.
+H18="$WORK/h18"
+C18="$(cache_path "$H18/.claude" "rate-limit-guard")"
+DEVSRC="$(plant_tee "$WORK/devsrc" "mkt" "rate-limit-guard" "9.9.9" "devco")"
+DEVLINKDIR="$H18/.claude/plugins/cache/mkt/rate-limit-guard/9.9.9"
+mkdir -p "${DEVLINKDIR%/*}"
+MSYS=winsymlinks:sys ln -s "${DEVSRC%/scripts/statusline-tee.sh}" "$DEVLINKDIR"
+make_wrapped "$H18/render.sh" 0
+run "$H18" bash "$H18/render.sh"
+assert_contains "$ERR" "TEE:devco" "a symlinked development checkout still resolves"
+assert_eq "$DEVLINKDIR/scripts/statusline-tee.sh" "$(cache_line "$C18")" \
+  "the symlinked resolution is cached, and rejected on read rather than on write"
+SYMREAL="$(plant_tee "$H18" "mkt" "rate-limit-guard" "0.2.0" "symreal")"
+touch -t 203001010000 "$SYMREAL"
+run "$H18" bash "$H18/render.sh"
+assert_contains "$ERR" "TEE:symreal" "a symlinked cached version directory is rejected and re-globs"
+assert_not_contains "$ERR" "TEE:devco" "the symlinked development checkout is not pinned"
 
 echo
 echo "passed: $PASS  failed: $FAIL"
