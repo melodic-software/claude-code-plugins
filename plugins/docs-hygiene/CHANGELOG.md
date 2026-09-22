@@ -5,6 +5,7 @@
 ### Fixed
 
 - **The case-collision pass compares one nul-delimited listing.** `git ls-files` without `-z` C-quotes a path that contains a non-ASCII byte, a tab, or a newline, so that quoted text never matched the raw path from the `-z` listing and the collision was missed. Both `scripts/check-docs-naming.sh` and the emitted gate template now read `git ls-files -z` once and fold those same bytes.
+- The emitted-gate suite no longer treats a ShellCheck that rejects `--rcfile` as a dirty emission. That flag is how this repo's `.shellcheckrc` is applied; without it the case is skipped, and a build that accepts the flag still fails the suite when the emitted pair is not clean.
 
 ## [0.22.9]
 
