@@ -312,18 +312,144 @@ The shape, not the numbers, is the transferable part:
   released. The type's default paged-pool charge is 88 bytes, but a live token carries its groups,
   privileges, and SIDs, and at a realistic 2 to 3 KB each 3.8M of them account for the 10 GB.
   Paged-pool pressure is what every creation then pays.
-- **The minter is continuous, not per spawn.** Twenty back-to-back `cmd /c exit` spawns did not
-  raise the rate above background, so it is impersonation-shaped: an RPC/ALPC or driver IOCTL
-  path that takes a token reference per call. The host runs three raw-I/O drivers (`AsIO3.sys`,
-  `IOMap64.sys`, `MsIo64.sys`) polled continuously by Armoury Crate and lighting services, which
-  is the profile that fits. That is a hypothesis, not a measurement.
+- **The minter is process creation, and only for some binaries.** Twenty back-to-back
+  `cmd /c exit` spawns did not raise the rate above background, which reads as a continuous minter
+  until the same test is run against other binaries. A census-burst-census probe on the reference
+  host on 2026-09-14 (the engine's `kernel_objects` count before and after N spawns through
+  `subprocess.run`, quiet host, background near 0/s) found the leak tracks process creation, per
+  binary, in leaked Token objects per spawn: `pwsh.exe` (PowerShell 7.6, Microsoft Store package)
+  at 10.2 (n=60), Git Bash's `usr/bin/bash.exe` at 1.5 (n=200), Windows PowerShell 5 at 0.5 (n=60),
+  `node.exe` at 0.3 (n=100), `python3.exe` and `cmd.exe` at about 0 (n=100, n=300). A 1-per-minute
+  sampler tracked it live: 3 to 7/s during the bursts, about 0 when the host was idle. So the
+  `cmd` result was a null on a non-minting binary,
+  not evidence of a continuous minter. On a host whose leak follows spawn count, as the reference
+  host's did, the leak is proportional to how many shell processes its hooks and tools spawn, and
+  every spawn-reduction measure in this reference also reduces the leak rate there. That is one
+  host's shape, not every host's: the Claude Desktop host in anthropics/claude-code#91265
+  stop-tested process-creation churn with no change in its leak rate.
+- **The per-package pwsh ordering is NOT established, and swapping PowerShell packages is not a
+  recommendation.** A later background-corrected A/B on the same host (150 spawns per arm, two
+  rounds, other sessions active, background 1.5 to 7.1/s) put the portable-zip pwsh at 7.1 per
+  spawn and the Store-package pwsh at 0.84, the reverse of the quiet-window ordering above. At
+  that noise level the per-package figure is not separable from background, so the 10.2-per-spawn
+  pwsh number above is an ordering the second run contradicts. What both runs agree on is the coarse
+  split: creating bash or pwsh processes mints leaked tokens, creating cmd or python processes
+  does not. Do not act on the per-package difference.
 - **Reboot restores the floor; the leak re-arms immediately.** The table's sample is the
   calibration basis (25,623 live Token objects at 1 h 57 min, 3.65 per uptime second). Four
   minutes later, at 2 h 01 min, the count was 37,144, 11,500 more, and the ratio 5.1/s; at 2 h
   10 min it was 70,380 at 8.9/s. A 60 s window in the same span read 15/s and a 3 s window read
   0/s: minting is bursty, so a short window under-reads it. At those ratios the count re-crosses
   the engine's 250,000 threshold in well under a day and the two-day level returns in days, not
-  weeks. A reboot buys time; only attribution ends it.
+  weeks. A reboot buys time; only attribution ends it. Note one gap this bullet and the per-binary
+  result above do not close between them: these post-reboot samples do not record what the host
+  was doing, so whether the 15/s window was spawn-driven or genuinely bursty at rest is unknown,
+  and the two explanations are not reconciled here.
+
+### Who has attributed this, and on what evidence
+
+Three public attributions for this signature exist and none of them is settled. They are recorded
+with their provenance rather than adopted, because the reader's host may match any of them or
+none.
+
+- **Host NTFS, stated by a Microsoft maintainer, on a WSL2 host.** On
+  [microsoft/WSL#40804](https://github.com/microsoft/WSL/issues/40804), an `ntfs.sys` `NtFC`
+  non-paged pool leak reported at about 21 GB/hr under WSL2 on Windows 11 26200.x, `benhillis`
+  (author association MEMBER) wrote on 2026-06-17 that "This is definitively a host-NTFS kernel
+  bug, not a WSL issue", and closed the issue as `not_planned` after routing it to the NTFS owner.
+  Note the tag: that thread measures `NtFC`, not `Toke`. It is evidence about the same family of
+  retention bug, not a statement about Token objects.
+- **A filter above NTFS, contested in that thread by a non-maintainer.** On 2026-09-02 `Silex`
+  (author association NONE) argued in the same thread that `wcifs.sys` sits above NTFS at altitude
+  189900, so a minifilter holding a stream context prevents NTFS freeing the FCB and the `NtFC`
+  growth is a consequence rather than a failure in the NTFS free path. No maintainer has replied
+  to that contest. The supporting numbers are on
+  [anthropics/claude-code#91265](https://github.com/anthropics/claude-code/issues/91265), whose
+  reporter runs Claude Desktop v1.40609.0.0 and measured `Toke` at 2,719,886 live objects and
+  4,975 MB beside `File` at 6,644,575 and `SeAt` at 10,855,380. `Silex` posted the supporting
+  table there: at 7 minutes of cold-boot uptime `WCsc` and `WCfc` at 0.0% freed, `WCse` and
+  `WCss` at 3.2%, while
+  `WCfn` was 100.0% freed and `WCce` and `WCrb` 99.8%. A cold-boot A/B on the Cowork VM service
+  put it at roughly an 8x amplifier rather than the cause: 6,822 leaked `WCsc` contexts in the
+  first four minutes with the service on Automatic against 874 with it Disabled.
+- **A win32k foreground-launch check, traced on one machine.** On 2026-09-08 `bentoner` wrote on
+  [openai/codex#30926](https://github.com/openai/codex/issues/30926#issuecomment-5588760289) that
+  "`win32kfull!CForegroundLaunch::_CheckAllowForeground` references the parent's primary token and
+  never releases it, so each process that creates a process leaves a `Toke` object behind", from
+  "kernel object reference tracing on one box" on build 26200.9106. The write-up at
+  [bentoner/windows-token-leak](https://github.com/bentoner/windows-token-leak) says on its face
+  "Everything here was measured on one machine", reports "1,644 tokens over 3,542 iterations" in
+  two MSYS loops against a delta of 7 in two native `cmd` loops, and names the precondition: the
+  check reaches the token only while the foreground lock is armed, which is while input arrived
+  within the last `ForegroundLockTimeout` ms (Windows default 200000). Its reported workaround is
+  `ForegroundLockTimeout` = 0, per-user, no elevation, with the documented side effect that any
+  application may take the foreground. Its author's association on that comment is NONE, the same
+  as `Silex`'s; neither is a maintainer of the repository they posted in.
+
+  This is the only one of the three that is per-spawn at all, which is the shape the reference
+  host measured. Do not read that as a match. The same write-up says native creators such as
+  `cmd.exe` also leak while the lock is armed, and that at a timeout of 2147483647 or with input
+  arriving, every creator it tested leaks at about one token each; the reference host's own top
+  minter was `pwsh.exe`, which is not MSYS. It also says plainly that `Toke` growth driven by
+  `wcifs.sys` file contexts under WSL2 is **a different leak**, not a rival explanation of this
+  one. So these are two candidate leaks that can both be present, and the runbook samples for
+  each rather than choosing between them.
+
+**What the reference host measured against those.** The per-binary spawn numbers above are one
+host's, dated, unreplicated. A livekd `!poolused 2` dump there on 2026-09-14 at 2 d 20 h uptime
+and 1.54M live Token objects put `Toke` at 2,850 MB paged, `SeAt` 592 MB, `SeTd` 221 MB, `SeTl`
+197 MB nonpaged at the same 1,535,735 allocation count as `Toke`, `FMfn` (fltmgr name cache)
+1,286 MB, Defender `MPsc` and `MPhc` 318 MB, and **every `WC*` (wcifs) tag under 1 KB**. So the
+wcifs attribution does not hold on that host, although it runs WSL2 and loads the same filter.
+Separately, on the host of the 2026-09-18 attribution runs, `SPI_GETFOREGROUNDLOCKTIMEOUT` read
+2,147,483,647 ms live while `HKCU\Control Panel\Desktop\ForegroundLockTimeout` held the 200,000
+default, which is the always-armed precondition the foreground-lock write-up names. What set it is
+unknown, and the A/B that would confirm the mechanism there is written and has not been run.
+
+**Four service arms came back NO CANDIDATE.** On 2026-09-18 the elevated runbook below was run
+four times over the NVIDIA display container, Razer Game Manager, THX spatial audio and Wispr
+Flow, covering them singly and in combination. Every arm read 16.8 to 18.7 tokens/s and 0.46 to
+0.49 Token objects per shell spawn at flat driver-only load. A bare `bash -c true` loop with no
+Claude Code activity leaked at that rate and an idle host leaked nothing. No candidate dropped the
+rate, so the elevated sweep is not where the cheap answer lives. Worth noting against the public
+reports: `bentoner`'s reference run works out to 0.464 leaked tokens per creator, which lands
+inside that 0.46 to 0.49 band on a different machine. That is a cross-host agreement on the
+per-spawn constant, not a confirmation of the mechanism.
+
+**The ASUS raw-I/O drivers are cleared on the reference host by falsification, not by stopping a
+service.** Three raw-I/O drivers polled continuously by Armoury Crate and lighting services
+(`AsIO3.sys`, `IOMap64.sys`, `MsIo64.sys`) fit the profile of a continuous minter and are the
+obvious suspects on an ASUS workstation. Nobody stopped them. What clears them is the spawn census
+above: an idle host leaks about nothing and the rate follows spawn count, which is not the shape a
+continuously polled driver produces. The list is recorded so nobody re-derives it.
+
+**Drift record.** *Claim:* three public attributions exist for this signature and none is settled:
+a Microsoft MEMBER's host-NTFS statement on `microsoft/WSL#40804` (measuring `NtFC`), a
+non-maintainer's `wcifs.sys` contest in that same thread with supporting `WC*` freed-rate numbers
+on `anthropics/claude-code#91265` (a Claude Desktop host), and `bentoner`'s
+`win32kfull!CForegroundLaunch::_CheckAllowForeground` trace on one machine at build 26200.9106.
+*Basis:* read through the GitHub REST API on 2026-09-22, untruncated: full issue bodies and
+complete comment lists for `microsoft/WSL#40804` and `anthropics/claude-code#91265`, the single
+cited comment (id 5588760289) for `openai/codex#30926` rather than that whole thread, plus the
+`bentoner/windows-token-leak` README. Quoted spans are verbatim from those bodies except where a
+quotation is visibly clipped to its first clause. *As of:* 2026-09-22. *Recheck
+trigger:* `microsoft/WSL#40804` reopens or a maintainer answers the `wcifs.sys` contest (it is
+closed `not_planned` and both threads were last active 2026-09-02); `anthropics/claude-code#91265`
+gains a maintainer verdict; a second machine reproduces or refutes the foreground-lock trace; or a
+Windows build later than 26200.9106 changes the per-spawn rate.
+
+**Drift record.** *Claim:* on the reference host the leak is minted per process creation and only
+by some binaries (bash and pwsh mint, cmd and python do not), and every `WC*` tag there sits under
+1 KB; on the host of the 2026-09-18 runs four service arms came back NO CANDIDATE and the live
+foreground-lock timeout read 2,147,483,647 ms. *Basis:* the engine's `kernel_objects` census taken
+before and after N `subprocess.run` spawns per binary plus a 1-per-minute sampler (2026-09-14), a
+livekd `!poolused 2` dump at 2 d 20 h uptime (2026-09-14), and four elevated stop-and-resample
+runs plus one `SPI_GETFOREGROUNDLOCKTIMEOUT` read (2026-09-18). One host each, unreplicated, and
+the two dates are not established to be the same machine. The two per-spawn rates are also not
+reconciled: bash read 1.5 per spawn on 2026-09-14 and 0.46 to 0.49 on 2026-09-18, and nothing here
+explains the gap. *As of:* 2026-09-18. *Recheck trigger:* a second host runs the same per-binary
+census, or the foreground-lock A/B named in step 2 of the runbook is run on either host. Either
+replaces a one-host number with a comparison.
 
 The engine reports this as `kernel_objects`: live and high-water counts per type, paged and
 nonpaged pool, system handle/process/thread totals, `token.objects_per_uptime_second`,
@@ -334,23 +460,110 @@ started with, so it overstates the rate early in a boot and the projection errs 
 cannot see tokens created and destroyed in between; it is reported anyway because it needs no
 sleep and, per the bullet above, any in-run delta short enough for an engine pass under-reads.
 Its error shrinks as uptime grows, and the 60 s sample in the runbook below is the mint-rate
-measurement. The two findings are not one verdict: `token-objects-leaked` alone carries
+measurement, which the runbook takes under a fixed spawn load rather than at rest. The two findings are not one verdict: `token-objects-leaked` alone carries
 `state_label: token-leak`, while `paged-pool-high` alone labels `paged-pool-high`, because
 `GetPerformanceInfo` reports aggregate pool with no attribution and only `poolmon` can say what
 charged it. Both thresholds are calibrated on this one host's two states, ten times its
 clean-boot count and a fifteenth of its leaking count. A second host's readings, healthy or
 leaking, are the recheck trigger for them.
 
-**Attribution runbook (elevated shell; the engine never does this).** Sample the Token count over
-60 s, then stop one candidate service at a time and re-sample; the one that drops the rate to
-about zero is the minter, and every stopped service is restarted afterwards. Candidates on the
-audited host, in order: `ArmouryCrateService`, `LightingService` (Aura), `ROG Live Service`,
-`AsusFanControlService`, `AsusUpdateCheck`, `asComSvc`, then the Razer Chroma SDK services,
-NVIDIA's `NvContainerLocalSystem`, and Wispr Flow. Growth that persists with all of them stopped
-points at a Windows component; on an Entra-joined account the CloudAP token path is the next
-suspect. Before any reboot of a leaking host, capture the pool tag (`poolmon -b`, or Process
-Explorer's kernel-memory view; expect `Toke` to dominate paged pool). It is the one measurement a
-reboot destroys, and it was missed on this host.
+### Attribution runbook (the engine never does this)
+
+The capture a reboot destroys comes first; after that the order is by cost, not by likelihood.
+
+1. **Before any reboot of a leaking host, capture the pool tag.** It is the one measurement a
+   reboot destroys, and it was missed on this host. `poolmon` runs elevated and its switches are
+   slash-prefixed; no dash-prefixed form is documented, so `poolmon -b` is not an invocation.
+   Start it with the tag table, so each allocation carries an owner:
+
+   ```
+   poolmon /g "<path to pooltag.txt>"
+   ```
+
+   The tag table ships with the Windows SDK debuggers, under `Debuggers/x64/triage/pooltag.txt` in
+   the Windows Kits install; `/g` with no argument takes the default.
+   `/g [PoolTagFile]` "Adds a column to the display (Mapped_Driver) listing Windows components and
+   commonly used drivers that assign each tag". While it runs, `p` "Toggles
+   the display through nonpaged allocations, paged allocations, and both" and `b` "Sorts by bytes
+   used"; `/b` does the same sort from the command line. `/i` "Displays only the allocations with
+   the specified pool tag", with no space between the `i` and the tag and wildcards allowed, so
+   `poolmon /iWC*` and `poolmon /iToke` narrow the capture. **Sample the `WC*` tags alongside
+   `Toke` first**: the wcifs retention and the foreground-launch leak are two different leaks that
+   a host can carry at once, and only that pairing tells you which one you have. It is what the
+   reference host's dump did to rule wcifs out there. Snapshot, repeat every 30 minutes,
+   and diff. A tag whose allocation count climbs while its free count does not is the leak; expect
+   `Toke` to dominate paged pool. Process Explorer's kernel-memory view is the fallback when
+   poolmon is unavailable, but it carries no `Mapped_Driver` column.
+2. **Unelevated: the foreground-lock check.** Minutes, no elevation, no service stopped. Read the
+   live timeout with `SystemParametersInfo(SPI_GETFOREGROUNDLOCKTIMEOUT)` rather than the
+   registry: the two disagreed on the 2026-09-18 host, where the live value was 2,147,483,647 ms
+   against a registry holding the 200,000 default, and only the live value says whether the lock
+   is armed. Then run a spawn loop of an MSYS `bash` with a Token census before and after, once at
+   the current value and once at 0, restoring the original afterwards. A rate that collapses at 0
+   is the signature the published trace predicts.
+
+   Two preconditions from the same write-up, and skipping either makes the arm unreadable. First,
+   **the set call is refused while the lock is armed**: win32k returns Win32 error 87
+   (`ERROR_INVALID_PARAMETER`) unless the caller may force the foreground, so the write-up says to
+   run it on an idle box, from an existing console, and not within 200 s of any input. A host
+   reading a live timeout of 2,147,483,647 ms stays armed about 24.9 days after any input, which
+   is very likely why the A/B on the 2026-09-18 host is written and has never been run. Second,
+   **take a settled delta**: wait about 60 s after the burst for the kernel's deferred reclaim and
+   subtract an idle baseline, or the before/after census over-reads.
+
+   **This is one machine's trace pending a second host**: `bentoner`'s write-up states its own
+   single-machine scope. Ranked above the service arms because it is cheap, not because it is the
+   likeliest answer.
+3. **Elevated: the service arms.** Sample the Token count over 60 s, and sample it **under a fixed
+   spawn load, never idle**. The per-binary result above says an idle host leaks about nothing, so
+   an idle 60 s window reads near zero with nothing stopped and discriminates nothing; an arm run
+   that way clears every candidate for free. Drive a steady loop of MSYS `bash -c true` spawns for
+   the whole window, then stop one candidate service at a time and re-sample the same loop at the
+   same spawn count; the arm that drops the rate toward zero is the minter, and every stopped
+   service is restarted afterwards. That loaded 60 s window is the manual mint-rate measurement
+   the engine's `kernel_objects` basis string points at. Candidates on the audited host, in order:
+   `ArmouryCrateService`, `LightingService` (Aura), `ROG Live Service`, `AsusFanControlService`,
+   `AsusUpdateCheck`, `asComSvc`, then the Razer Chroma SDK services, NVIDIA's
+   `NvContainerLocalSystem`, and Wispr Flow. The four arms named above came back NO CANDIDATE, but
+   only two of them, `NvContainerLocalSystem` and Wispr Flow, are on this list: Razer Game Manager
+   is not the Chroma SDK services, and THX spatial audio does not appear here at all. Budget
+   accordingly.
+
+   Then add whatever loads `wcifs.sys` on **this** host, since that filter is what the public
+   reports implicate. Do not assume the list: `fltmc filters` (elevated) reports whether `wcifs`
+   is loaded at all, and if it is absent the whole wcifs branch is already cleared here, as it was
+   on the reference host. When it is loaded, the components worth suspecting are the container and
+   VM stacks: Claude Desktop's Cowork VM, WSL2, Docker Desktop and Windows Sandbox. Growth that
+   persists with all of them stopped points at a Windows component; on an Entra-joined account the
+   CloudAP token path is the next suspect.
+
+   **Drift record.** *Claim:* `wcifs.sys` is loaded on the hosts in the public reports, and the
+   components plausibly responsible for loading it are container and VM stacks. *Basis:* measured,
+   not assumed, per host: `fltmc filters` is the lookup this step defers to rather than restating a
+   loader list. What is sourced is narrower than the suspect list: `anthropics/claude-code#91265`
+   names Claude Desktop's Cowork VM as running `wcifs`/`bindflt` minifilters and WSL2
+   infrastructure, and the `microsoft/WSL#40804` commenter reports `wcifs.sys` 10.0.26100.8972
+   present while the Windows "Containers" optional feature is Disabled; both read 2026-09-22.
+   **Docker Desktop and Windows Sandbox are suspects by product class, not verified loaders**, and
+   the `fltmc` check is what settles either on a given host. *As of:* 2026-09-22. *Recheck trigger:*
+   a run of `fltmc filters` on a host carrying one of these products contradicts its place on the
+   suspect list, or a vendor documents its filter stack well enough to replace the per-host check
+   with a citation.
+
+**Drift record.** *Claim:* every documented `poolmon` switch is slash-prefixed and none is
+dash-prefixed; `/g [PoolTagFile]` adds the `Mapped_Driver` column, `/i` filters to a tag with no
+intervening space, and `/b` sorts tags by bytes used; at run time `p` toggles pool type and `b`
+sorts by bytes used. *Basis:* Microsoft Learn
+[PoolMon Startup Command](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/poolmon-startup-command)
+for the syntax line and the `/g`, `/i` and `/b` rows,
+[PoolMon Run-time Commands](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/poolmon-run-time-commands)
+for `p` and `b`, and
+[PoolMon Examples](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/poolmon-examples)
+for the wildcard form (`poolmon /iAfd*` there); all three fetched live on 2026-09-22, each
+arriving whole with its own first heading checked, and the quoted spans copied from them. *As of:* 2026-09-22. *Recheck trigger:* either
+page adds or removes a switch or run-time key this step names, or a dash-prefixed form appears in
+the documented syntax. Only the `devtest` pages are cited: Learn also carries a condensed poolmon
+key table under `debugger/` that was not read for this record, so nothing here rests on it.
 
 Also cleared on that host, recorded so nobody re-derives them: session churn (suspending the four
 busiest orphaned shells moved the floor 15%, so they were victims, not cause); an unrelated
