@@ -3,6 +3,71 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.14]
+
+### Fixed
+
+- **`unhobble`'s strip and restore cover a root `AGENTS.md`, `.claude/AGENTS.md` and
+  `.claude/CLAUDE.md`.** Under the default instruction-files mode a session reads the `AGENTS.md`
+  names as the project instructions only when no `CLAUDE.md` name displaces them, and the strip
+  removes exactly those names, so a repository
+  whose `CLAUDE.md` is a one-line `@AGENTS.md` shim finished the strip with its whole instruction
+  surface still loading while the skill declared the baseline bare.
+- **New `skills/unhobble/scripts/instruction-files.sh` (`list` / `strip` / `restore`) is the one list
+  of root instruction files both steps read**, and takes its root as an explicit argument rather than
+  resolving the working directory.
+- **`strip` refuses the whole strip, naming the offenders, unless every named file is tracked, clean
+  and comparable.** `git rm` refuses an untracked file and a modified one alike, and a refusal
+  landing mid-loop would leave the files ahead of it gone while the rest kept loading. An
+  `assume-unchanged` or `skip-worktree` bit is its own refusal, naming the `git update-index`
+  invocation that clears it: git stops comparing the worktree copy, so `git diff --quiet` reports
+  clean on an edited file and `git rm` then deletes the edit.
+- **An untracked instruction file, the ordinary case for `CLAUDE.local.md`, is not the helper's to
+  strip.** It is routed to the manifest backup path the experiment already uses for settings, which
+  is where its restore lives, so the bare baseline is reached by the path that can restore it.
+- **Both verbs act only on the names they are given, and `--all` is a separate word.** A plan can
+  classify a `CLAUDE.md` behavioral and an `AGENTS.md` `policy`, and phase 4 re-adds only what the
+  stumble ledger defended. A name the caller approved but the tree does not have exits non-zero
+  rather than recording a bare baseline for a file that still loads, and a repeat is acted on once.
+- **A named `restore` resolves every refusal before it checks anything out**: an unknown name, a ref
+  that is not a commit, a name the ref does not have, or an occupied target exits non-zero with
+  nothing restored. Occupancy is any object rather than a regular file, covers an ancestor that is
+  not a directory, and counts an index entry the filesystem cannot see, which
+  `git checkout <ref> -- <path>` would overwrite.
+- **`restore --all` is the abandon path, not the close path.** It checks out a name the ref has over
+  whatever is on disk, and removes from the worktree and the index a name the ref lacks but git
+  tracks. A name blocked by a symlink, a directory or a non-directory ancestor is reported and
+  stepped over with its index entry still dropped, and one untracked and absent from the ref is left
+  in place and named, git being unable to tell a file the experiment wrote from one that predated it.
+- **New `reference/agents-md-liveness.md` records whether a session reads an `AGENTS.md` at all**,
+  availability then the instruction-files mode, as four-part records cited to the official memory
+  page that the edited bodies point at rather than restate. Three of the four documented
+  unavailability conditions are resolvable, two of them from settings this plugin already reads, and
+  two of the mode's four values read no `AGENTS.md` at all, which makes displacement a condition of
+  the default value alone.
+- **The sites that gated an `AGENTS.md` on displacement alone now gate on availability and the
+  effective mode**: `audit-prompting-postures`'s surface set, `audit-instructions`'s Phase A, I14's
+  Detect set, and I15's exclusion clause and co-residency row. The mode is resolved across the user,
+  `--settings` and managed scopes rather than from one scope's copy, and under
+  `claude-md-and-agents-md` both files load, so an `AGENTS.md` beside a `CLAUDE.md` is live. An
+  unresolved condition keeps the surface in the inventory lanes and leaves it alone in the finding
+  lanes, with `audit-prompting-postures` inventorying it and emitting `NOT-APPLICABLE`, the
+  unresolved condition as the failed predicate, because its Phase C judges every inventoried
+  component.
+- **Phase 1 treats both `AGENTS.md` names as strip candidates wherever the strip could make them
+  live**, rather than passing over them because nothing appears to read the file today. A gate known
+  false with no `CLAUDE.md` importing or symlinking the file excludes it, an unresolved gate or a
+  shim keeps it, and classification then decides: one classified `policy` or `convention` is kept and
+  never named to `strip`.
+- **New `instruction-files.test.sh`** covers the shim repository, a lone `AGENTS.md`, a lone
+  `.claude/AGENTS.md` whose directory the restore has to recreate, an untracked file, a tracked file
+  modified in the worktree and then staged, the `assume-unchanged` bit, the occupancy and obstruction
+  cases, a repository with no instruction files, and the usage errors.
+
+### Changed
+
+- The skills that enumerate the instruction layer name a natively read `AGENTS.md` beside `CLAUDE.md`, the way `audit-instructions`'s body has since 0.46.13: the routing glosses in `audit`, `audit-permission-grants` and `audit-permission-state`, the surface set and description of `audit-prompting-postures`, the enforcement-hierarchy and behavioral-rule lines in `audit-automation-gaps`, the `unhobble` description and scope rails, and the README's skill table, `audit-instructions` section and consumer-conventions note. `audit-instructions`'s own description, summary, Phase A counterpart list and routing bullet are in the sweep too: 0.46.13 changed the body's surface enumerations and left the frontmatter, which is what decides whether the skill is offered for an `AGENTS.md` question at all. The consumer-conventions passages, which tell a skill where to read a repository's own policy, were the ones that silently read nothing in a repository that has migrated its instructions out of `CLAUDE.md`. The two `audit-instructions` reference files are finished too: the redundant-read check's Detect set lists the natively read `AGENTS.md` names, which its own must-not-flag paragraph already exempted conditionally, so an auditor reading Detect literally no longer misses a skill body sending an agent to re-read the startup instructions in an AGENTS.md-canonical repository; I3's always-loaded surface list and its survives-compaction remediation name it; and the two memory-doc source glosses match the page they cite.
+
 ## [0.46.13]
 
 ### Changed

@@ -168,7 +168,8 @@ their own rows.
   corroborates rather than defines, so the rows citing it keep the `ANTHROPIC-DOCS` Authority of
   their primary documentation sources and the closed four-value Authority set above is unchanged):
   <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>
-- Memory (CLAUDE.md, rules, auto memory): <https://code.claude.com/docs/en/memory>
+- Memory (CLAUDE.md, a natively read AGENTS.md, rules, auto memory):
+  <https://code.claude.com/docs/en/memory>
 - The `.claude` directory: <https://code.claude.com/docs/en/claude-directory>
 - Skills (what loads when, how supporting files are referenced, the listing budget,
   invocation-control fields): <https://code.claude.com/docs/en/skills>
@@ -249,8 +250,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** only-sometimes-relevant content (a workflow, domain knowledge, one subsystem's
   quirks) living in a surface that loads **more broadly than the content is relevant**. Two cases,
   because the surfaces this check runs on are not all always-loaded:
-  - an always-loaded surface: the selected output style, an unscoped rule, root `CLAUDE.md` where
-    the partition allows it;
+  - an always-loaded surface: the selected output style, an unscoped rule, root `CLAUDE.md` or a
+    natively read root `AGENTS.md` where the partition allows it;
   - a surface loaded in full on every use of a component whose own scope is broader than the
     content's: a skill body or an agent definition covering several concerns, where the content
     matters to one of them and is in context for all of the others. Establish that breadth before
@@ -262,7 +263,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   while changing the load profile not at all. **State the move cost with the recommendation:** a
   `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file is
   read again, so content that must survive compaction stays unscoped or in the project-root
-  `CLAUDE.md`. **A *new* skill is not a free destination:** its body defers, but the listing entry it
+  `CLAUDE.md` (or the `AGENTS.md` read natively, whether in place of a `CLAUDE.md` or alongside
+  one). **A *new* skill is not a free destination:** its body defers, but the listing entry it
   adds, `name` plus the combined `description` and `when_to_use` truncated at 1,536 characters, is
   always in context, so the saving is the body minus that entry rather than the whole body. Moving
   content into a skill that **already exists** adds no listing entry and does not carry this cost.
@@ -761,8 +763,10 @@ skill bodies.
 - **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
   startup and therefore already carries: the **root** project `CLAUDE.md` in **either** supported
   location (`./CLAUDE.md` **or** `./.claude/CLAUDE.md`), the user `CLAUDE.md` at the **resolved**
-  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
-  project rules (no `paths` frontmatter), and managed policy files. Each of the three qualifiers is required.
+  `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, the **root** `AGENTS.md` or
+  `./.claude/AGENTS.md` where the session reads it natively, unconditional
+  project rules (no `paths` frontmatter), and managed policy files. Each of the three qualifiers is
+  required.
   Root-level: the startup guarantee is scoped to the hierarchy discovered from the launch directory,
   not to every file of that name in the tree. Resolved: `CLAUDE_CONFIG_DIR` moves the whole config
   tree, so a hardcoded `~/.claude/CLAUDE.md` both flags a read that is now necessary and misses the
@@ -771,6 +775,21 @@ skill bodies.
   bare path lets the redundant read of the active file escape this check entirely. Phase A resolves
   the variable and inventories both project locations already; match it. The read spends a turn to
   retrieve text that is already present.
+  **The `AGENTS.md` entry carries a fourth qualifier beyond those three, and it is not the
+  displacement test.** Native reading also depends on whether `AGENTS.md` support is available in the
+  session and on the instruction-files mode, so a session where support is unavailable, for any of
+  the four documented reasons, does not load
+  the file even with no `CLAUDE.md` in sight, while one under the `claude-md-and-agents-md` setting
+  loads it even **with** a `CLAUDE.md` beside it, which makes a read of it redundant where the
+  displacement test alone would have exempted it. That setting is a user, `--settings` or managed
+  one, so the value to resolve is the **effective** one across those scopes, never a single scope's
+  copy.
+  There, in the first case, an instruction to read it is the only thing that puts it in context,
+  and flagging the read as redundant would propose deleting the load. Resolve the version, flag
+  **and mode** conditions from the dated records in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before flagging an `AGENTS.md` read, and where **any of the three**
+  cannot be resolved for the session under audit, leave the read alone, per this check's own
+  residency rule below that an unestablished residency is not a finding.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
 - **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
   rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
@@ -783,9 +802,13 @@ skill bodies.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded: contributing
   guides, ADRs, CI workflow files, per-ecosystem convention docs, and an `AGENTS.md` that a
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it
-  displaces. A repository with no such file loads its `AGENTS.md` at startup like a `CLAUDE.md`
-  (v2.1.277 and later, where support is available), so resolve which case the repository is in
-  before exempting it. Those are ordinary progressive disclosure, **but only while no active startup
+  displaces **under the default instruction-files mode and that mode is in effect**, **and one that
+  no file displaces but that the session still does not read natively, because `AGENTS.md` support is
+  unavailable there or the mode is one of the two that read no `AGENTS.md`**. A repository with no
+  displacing file loads its `AGENTS.md` at startup like a `CLAUDE.md` (v2.1.277 and later, where
+  support is available), so resolve both halves, the displacement and the availability-and-mode
+  condition recorded in [agents-md-liveness.md](../../../reference/agents-md-liveness.md), before
+  exempting it or flagging it. Unresolved is a leave-alone, per the residency rule above. Those are ordinary progressive disclosure, **but only while no active startup
   import reaches them.** A startup file
   that carries `@docs/CONTRIBUTING.md`, or the `@AGENTS.md` the docs themselves recommend for an
   `AGENTS.md` repo, has that file expanded into context at launch, so the document is resident and
@@ -832,10 +855,22 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   surface importing it rather than as a separate one.
 - **Excluded from the comparison set:** files that are not Claude Code instruction surfaces here.
   An `AGENTS.md` is excluded only while a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in
-  the working directory or above it displaces it and no import reaches it: then it shapes no
-  behavior here, so a divergence between it and a `CLAUDE.md` is not a conflict this check reports.
-  Where nothing displaces it, Claude Code reads it as the project instructions and it is in the set
-  like any other surface.
+  the working directory or above it displaces it **under the default instruction-files mode** and no
+  import reaches it: then it shapes no behavior here, so a divergence between it and a `CLAUDE.md`
+  is not a conflict this check reports. Where nothing displaces it, Claude Code reads it as the
+  project instructions and it is in the set like any other surface. **So does the
+  `claude-md-and-agents-md` mode**, under which both files load and a displaced `AGENTS.md` shapes
+  behavior anyway, which is the case where excluding it would drop a genuine contradiction between
+  the two files. **The mode is the second question, not the only one.** This clause's own reason for
+  excluding, that the file "shapes no behavior here", is exactly what an unavailable-support session
+  produces, under any mode, and what the `claude-md` and `managed-only` values produce under any
+  displacement answer: the file is not read, so a divergence between it and
+  a `CLAUDE.md` is not a conflict either, and keeping it would report one against a surface nothing
+  loads. Exclude on a condition known to rule the file out, and pair it only when every condition is
+  satisfied. I15 is a finding lane, so **an unresolved residency is a leave-alone rather than a pair
+  to judge**, which is what gate 1 already does with every other surface whose residency is not
+  established. Both carry their dated records in
+  [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as
   `unresolved` with both anchors quoted and let the operator choose. Where the same conflict keeps

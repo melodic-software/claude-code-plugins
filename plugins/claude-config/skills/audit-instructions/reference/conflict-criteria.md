@@ -46,7 +46,8 @@ does not cite, needs no recheck, because the partition itself is never restated 
 Every precedence claim below is quoted from a page fetched when this file was written. A claim these
 pages do not make is recorded as unresolved and given no winner.
 
-- Memory, covering CLAUDE.md, `.claude/rules/`, and auto memory: <https://code.claude.com/docs/en/memory>
+- Memory, covering CLAUDE.md, a natively read `AGENTS.md`, `.claude/rules/`, and auto memory:
+  <https://code.claude.com/docs/en/memory>
 - Skills: <https://code.claude.com/docs/en/skills>
 - Subagents, covering what loads into a subagent at startup: <https://code.claude.com/docs/en/sub-agents>
 - Output styles, covering how a style reaches the system prompt: <https://code.claude.com/docs/en/output-styles>
@@ -112,7 +113,7 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 |---|---|---|
 | User `CLAUDE.md` | Every session, in full | memory: "CLAUDE.md files are loaded in full regardless of length" |
 | Project `CLAUDE.md` / `CLAUDE.local.md` | Every session in that tree, concatenated after user scope | memory: "All discovered files are concatenated into context rather than overriding each other" |
-| Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it | Every session in that tree | memory: "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it" |
+| Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it, **and, under `claude-md-and-agents-md`, even where one does**, in both cases only where the session reads `AGENTS.md` natively at all | Every session in that tree | memory: "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it"; for the both-files mode, "each directory's `CLAUDE.md` files first and its `AGENTS.md` after them" |
 | Nested `CLAUDE.md` in a subdirectory | On demand, when Claude reads a file there | memory: "they are included when Claude reads files in those subdirectories" |
 | `.claude/rules/*` without `paths` | Every session | memory: "loaded at launch with the same priority as `.claude/CLAUDE.md`" |
 | `.claude/rules/*` with `paths` | Only when a matching file is read | memory: "only apply when Claude is working with files matching the specified patterns" |
@@ -128,6 +129,18 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Handler `hookSpecificOutput.additionalContext` on `SubagentStart` / `SubagentStop` | In **that subagent's** context, never the main session's | hooks, `SubagentStart`: "Context added to **the subagent's** context for the duration of the subagent session"; `SubagentStop`: "Context added to **the subagent's** context" |
 | Handler **stdout** on any other event | **Never** | hooks: "For most events, stdout is written to the debug log but not shown in the transcript" |
 | Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
+
+**The `AGENTS.md` row's residency is conditional on availability and the mode, not on displacement
+alone.** Availability comes first: a session that reads no `AGENTS.md` at all, for any of the four
+documented reasons, does not load the file, so the row asserts no residency for it and gate 1 does
+not pair it. The mode then decides whether a `CLAUDE.md` beside it displaces it, and two of its four
+values rule the file out whatever the displacement answer is. Treating displacement as the whole
+question would report a conflict against a surface nothing loads. Resolve both, and where a
+condition stays unresolved, **do not assert residency for it**: I15 is a finding lane, so an
+unestablished residency is a leave-alone rather than a pair to judge, exactly as the record's
+finding-lane rule says and as gate 1 already treats every other surface whose residency is not
+established. Both carry their dated records, with the settings scopes and the key the
+mode lives under, in [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 
 **An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
 A non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main

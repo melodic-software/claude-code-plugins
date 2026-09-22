@@ -28,7 +28,7 @@ This skill owns grant portability + auto-mode durability + who adds the operativ
 own config-file correctness. Baseline deny/ask presence, overly broad patterns, and live plugin
 drift belong to the sibling `audit` skill. When a request is about
 those, route it there rather than answering here. The `audit` skill in the `claude-memory` plugin
-owns the instruction layer (CLAUDE.md / rules / auto-memory).
+owns the instruction layer (CLAUDE.md / a natively read AGENTS.md / rules / auto-memory).
 
 ## Arguments
 
@@ -154,7 +154,8 @@ the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Repo
 
 ## Consumer conventions
 
-A consuming repo may declare, in its own `CLAUDE.md` / `.claude/rules/`, additional interpreter tokens
+A consuming repo may declare, in its own `CLAUDE.md` (or the `AGENTS.md` a session reads natively,
+whether in place of a `CLAUDE.md` or alongside one) / `.claude/rules/`, additional interpreter tokens
 or path shapes it treats as fragile, or a documented exemption (e.g. a deliberately broad grant behind
 a PreToolUse hook). Read those when present; this skill does not assume them.
 
