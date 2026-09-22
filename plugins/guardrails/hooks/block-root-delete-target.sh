@@ -56,9 +56,12 @@
 #     PowerShell classifier and its sink attempt budget. Tracked separately.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
-#   * Expansion-built targets. Detection never evaluates a shell expansion, so
-#     `rm -rf "$UNSET/"` is invisible here. `$HOME` and `${HOME}` are matched as
-#     the literal text they are written as, not as what they expand to.
+#   * Expansion-built targets AND an expansion-built command word. Detection
+#     never evaluates a shell expansion, so `rm -rf "$UNSET/"` is invisible
+#     here, and so is `$(printf 'r%s' 'm') -rf /`, whose substitution body is
+#     parsed (its command word is `printf`) but whose RESULT is not. `$HOME`
+#     and `${HOME}` are matched as the literal text they are written as, not as
+#     what they expand to.
 #   * A target resolving ABOVE the session working directory. Out of scope: it
 #     needs cwd resolution, and refusing `rm -rf ../build` is exactly the
 #     breadth this guard's narrow trigger exists to avoid.
@@ -377,6 +380,16 @@ rdt_check_segment() {
   base="${words[i]##*/}"
   base="${base%.exe}"
   base="${base,,}"
+
+  # `eval` runs its arguments as a command in THIS shell, so the child-shell
+  # unwrap above never applies to it: there is no `-c` and no new process. Its
+  # arguments are joined with a space, exactly as eval joins them, and parsed.
+  # Bounded because each level drops at least the `eval` word itself.
+  if [[ "$base" == "eval" ]] && ((i + 1 < n)); then
+    hook::bash_parse_segments "${words[*]:i+1}" rdt_check_segment
+    return 0
+  fi
+
   [[ "$base" == "rm" ]] || return 0
 
   # Flags and operands. `--` ends option parsing, exactly as rm reads it.

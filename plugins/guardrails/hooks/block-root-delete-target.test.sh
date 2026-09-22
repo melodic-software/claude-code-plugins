@@ -118,6 +118,13 @@ expect_both 'substitution with --no-preserve-root blocks' 2 \
   --command 'echo "$(rm -rf --no-preserve-root /)"'
 expect_both 'substitution in an assignment blocks' 2 --command 'x="$(rm -rf ~)"'
 
+# `eval` runs its arguments in THIS shell, so the child-shell unwrap never
+# applies to it: there is no -c and no new process.
+expect_both 'eval "rm -rf /" blocks' 2 --command 'eval "rm -rf /"'
+expect_both 'eval rm -rf / blocks (unquoted)' 2 --command 'eval rm -rf /'
+expect_both 'nested eval blocks' 2 --command 'eval "eval \"rm -rf /\""'
+expect_both 'eval with an ordinary delete allowed' 0 --command 'eval "rm -rf ./build"'
+
 # A child shell runs its operand as a full command, so the operand is re-parsed
 # with the same tokenizer, exactly as block-no-verify does for `git`.
 expect_both 'bash -c rm -rf / blocks' 2 --command 'bash -c "rm -rf /"'
