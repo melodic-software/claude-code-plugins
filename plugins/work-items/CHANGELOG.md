@@ -7,7 +7,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
-- Filing applies the bare `needs-triage` floor and no priority when a priority is not given.
+- Filing applies the bare `needs-triage` floor and no priority when a priority is not given. An `--agent-ready` filing does not take the floor.
 
 ## [0.40.22]
 
