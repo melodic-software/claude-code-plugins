@@ -260,7 +260,7 @@ explicit_git_dir_to() {
 #     enters, which is the same defect wearing the opposite bias.
 #
 # So the launch directory too is derived from git's own answers — `rev-parse
-# --show-toplevel` and `--show-prefix` — never from modelled containment:
+# --show-toplevel` and `--show-prefix` — never from modeled containment:
 #
 #   - prefix NONEMPTY: git computed a cd-up path, i.e. it chdirs the body to
 #     the top level. Return the top level, which also canonicalizes for free —
@@ -404,7 +404,7 @@ alias_launch_dir() {
 #
 # EVERY occurrence is collected in command-line order rather than the first match,
 # for the same reason the sibling does it: git applies last-wins itself, so handing
-# it the whole sequence lets git decide precedence instead of this guard modelling
+# it the whole sequence lets git decide precedence instead of this guard modeling
 # it. Taking the first match would replay the wrong repository for
 # `git --git-dir=<a> --git-dir=<b> …` — a wrong identity can wrongly collapse the
 # shell-alias cycle key and skip an analysis, so this is a correctness question, not
@@ -926,6 +926,16 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
+  # This guard DEFERS on every other sink trigger, so a plain `exit 0` below
+  # would hand the herestring-comment-char shape straight through: a `#` on a
+  # confirmed here-string opener line means the lines the reduction dropped as
+  # body may be live commands, and a commit form among them would never be seen.
+  # Refused here rather than deferred, with no allow-list consulted.
+  if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
+    ps::print_unparsable_block_message
+    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
+    exit 2
+  fi
   ((ps_rc == 0)) || {
     emit_tel "ok" "powershell-deferred"
     exit 0

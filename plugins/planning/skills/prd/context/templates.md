@@ -10,7 +10,7 @@ All three tiers cover the same seven required sections. Tier governs verbosity, 
 
 Use when: small feature, single team owns it, low ambiguity, fast lock. ~½ page.
 
-Sections collapse to one line each. The point is to write down what would otherwise stay in someone's head, not produce a polished artefact.
+Sections collapse to one line each. The point is to write down what would otherwise stay in someone's head, not produce a polished artifact.
 
 ```markdown
 ---

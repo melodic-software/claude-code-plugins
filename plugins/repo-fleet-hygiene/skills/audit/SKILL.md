@@ -176,7 +176,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
 
 Every emitted finding kind, both confidence axes, and the merge-strategy and
 `gc.worktreePruneExpire` dependencies the tiers rest on:
-[reference/confidence-model.md](reference/confidence-model.md). The official Git/GitHub behaviours
+[reference/confidence-model.md](reference/confidence-model.md). The official Git/GitHub behaviors
 this collector relies on: [reference/official-sources.md](reference/official-sources.md). The
 read-only enforcement model and its threat assumptions:
 [reference/security-review.md](reference/security-review.md).

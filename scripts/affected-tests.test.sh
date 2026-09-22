@@ -1147,7 +1147,7 @@ fi
 # empty stdout is direct evidence that no unrelated suite was borrowed.
 run_sel "$repo3" --allow-unmapped plugins/alpha/hooks/get.sh
 if [[ "$RC" -eq 0 && -z "$OUT" ]]; then
-  ok "the borrowed suites are gone, not merely re-labelled"
+  ok "the borrowed suites are gone, not merely re-labeled"
 else
   fail "get.sh still selects unrelated suites (rc=$RC): $OUT"
 fi

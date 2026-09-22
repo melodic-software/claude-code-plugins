@@ -565,7 +565,7 @@ fi
 
 # --- alias traversal's per-analysis FORK cost, pinned by SPAWN COUNT ----------
 # HOOK_ALIAS_WORK_MAX bounds the COUNT of analyses, not the cost of each one. The
-# hook names its own cost centre outright, in persisted_alias's docblock — the
+# hook names its own cost center outright, in persisted_alias's docblock — the
 # lookup "forks a `git config`, by far the costliest step on the re-expansion" —
 # so a regression that stays inside the budget while forking MORE `git config`
 # per analysis passes every exit-code assertion above unnoticed. That is the hole
@@ -896,7 +896,7 @@ if [[ -d "$WRAP/outer/child/.git" && -d "$WRAP/outer/git/child/.git" ]]; then
   ((rc == 124)) || assert_exit "env -u swallows -C, so the wrapper option is not git's -C" 2 "$rc"
 
   # git's OWN -C must keep working — the fix narrows the slice, it does not
-  # stop honouring a relocation git really performs.
+  # stop honoring a relocation git really performs.
   git -C "$WRAP/outer/git/child" config alias.q $'commit --allow-empty -m "bypass\nb"'
   MSYS_NO_PATHCONV=1 jq -n --arg c "git -C git -c alias.a='!git -C child q' a" --arg d "$WRAP/outer" \
     '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
@@ -1341,6 +1341,24 @@ run_pwsh "PS: unbalanced here-string hiding a -m commit (deferred — classifier
   "$PS_UNPARSABLE_HERESTRING" 0
 run_pwsh "PS: expandable here-string -m value carrying a subexpression (deferred: classifier rc 2)" \
   "$PS_UNPARSABLE_EXPANDABLE_HERESTRING" 0
+
+# The ONE sink trigger this guard does not defer. PowerShell reads `# @"` as
+# comment text, so the `@"` opens nothing and the lines under it are live
+# commands; the reduction takes the line as an opener and drops them as
+# here-string body. Deferring would hand the shape straight through, because
+# the sibling that would catch a commit form is looking at the same reduced
+# text. The refusal is unconditional and consults no allow-list.
+run_pwsh "PS: a commented here-string opener is refused here, not deferred (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit -m x" "\"@ fine\"")" 2
+run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git commit -m x" "'@ fine'")" 2
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+# The regression fence: the `#` has to be on the opener line before the suffix.
+run_pwsh "PS: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS: a trailing comment on an ordinary commit (allowed)" "git commit -m x # ok" 0
 
 # Asserting the exit code alone would stay green if a sibling started blocking
 # these for an UNRELATED reason, silently breaking the coupling the deferral

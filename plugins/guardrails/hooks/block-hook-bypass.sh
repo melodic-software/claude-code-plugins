@@ -235,7 +235,7 @@ SEG_TGT_SET=() # 1 when segment i redirects stdout to a file at all
 # RELATIVE redirect target resolves against. Only the scratch-root axis reads it,
 # and only to REFUSE a relative target it can no longer place (see
 # _scratch_abs_target) — so an over-eager match costs an exemption, never a
-# missed block, and the failure direction is the guard's shipped behaviour.
+# missed block, and the failure direction is the guard's shipped behavior.
 #
 # The cd TARGET is deliberately not evaluated: resolving it would mean evaluating
 # arbitrary shell word expansion, which this guard does not do (see
@@ -848,7 +848,7 @@ scratch_target_exempt() {
   # Place the target absolutely before normalizing. Until #3719 this axis refused
   # every relative target outright; it now resolves one against the payload cwd
   # when — and only when — that cwd is the directory the redirect demonstrably
-  # runs in. _scratch_abs_target owns that judgement and still refuses everything
+  # runs in. _scratch_abs_target owns that judgment and still refuses everything
   # it cannot place, so the fail-closed set only ever shrinks by targets proven
   # placeable.
   abs=$(_scratch_abs_target "$target") || return 1

@@ -94,7 +94,7 @@ value and its unset fallback.
   same-named branch on base instead of updating the fork head; **stop (read-only) instead**. Known
   limitation: this validates the push URLs resolvable at guard time; git's own push-time URL rewrites
   (`url.<base>.pushInsteadOf` and similar) are outside the static guard's threat model, as they do not
-  arise from the documented `gh pr checkout` flow. Because `HEAD` equalled the PR head and you only added
+  arise from the documented `gh pr checkout` flow. Because `HEAD` equaled the PR head and you only added
   commits on top, this push is a fast-forward; never `--force` or `--force-with-lease`. A rejected
   non-fast-forward push means the assertion no longer holds. Re-fetch and stop, never force past it.
   (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
@@ -210,7 +210,7 @@ loop's own escalation contract is not outside it.
     tripwire **fails closed** on it: a current all-(c) round following an UNKNOWN round arms, and
     the escalation says so rather than silently resetting the count. Armed means change METHOD
     rather than stopping: rewrite the contested section whole in one commit, or report it for a
-    human decision. It is never a licence to ship a known defect.
+    human decision. It is never a license to ship a known defect.
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
   all-(c) advisory round, or a finding that is structurally impossible to resolve (the check
   itself is external or non-deterministic). If every unresolved thread is (b) or (c) and each is

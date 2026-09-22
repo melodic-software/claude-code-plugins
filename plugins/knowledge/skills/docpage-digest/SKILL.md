@@ -212,7 +212,7 @@ gate. Phrase-greps miss fluent-prose instances entirely.
 - **Quote gate** (campaign `check-quotes.py`, per-line `.strip()`): indented-fence corruption and
   trailing-space loss pass; Prompt snippets are unparsed.
 - **`check-fences-exact.py`:** only `**CN.**` + the following column-0 fence under Key claims.
-  Blind to Prompt snippets, prose quotes, unlabelled fences, tag correctness, join-convention
+  Blind to Prompt snippets, prose quotes, unlabeled fences, tag correctness, join-convention
   honesty.
 - **`check-snippets.py`:** only fences under Prompt snippets. Blind to Key claims, unfenced
   restatements, omitted real prompts, a lying none-marker.

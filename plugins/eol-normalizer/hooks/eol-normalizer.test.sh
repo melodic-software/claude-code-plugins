@@ -363,7 +363,7 @@ trace_execs() {
 
 # Unlike the cases above, this one SETS CLAUDE_PROJECT_DIR and clears the
 # telemetry sink, because it is measuring the shape of a real edit rather than
-# isolating normalization behaviour. Claude Code always sets CLAUDE_PROJECT_DIR,
+# isolating normalization behavior. Claude Code always sets CLAUDE_PROJECT_DIR,
 # and with it unset the shared path resolver takes its git-membership branch and
 # spawns a `dirname` of its own that has nothing to do with this hook. The sink
 # is cleared because an inherited one makes the telemetry envelope, not the

@@ -6,7 +6,7 @@ Basis labels: `OBSERVED` / `SOURCE` / `BINARY` / `STAFF` / `COMMUNITY` /
 
 ## Definition
 
-> A mod is a Claude Code plugin whose behaviour lives in a hooks module: one
+> A mod is a Claude Code plugin whose behavior lives in a hooks module: one
 > `register(on, options)` entry that hooks the engine's events as functions
 > `($, e, next)`. These four ship inside Claude Code; this folder is their
 > source, published as it is built into the binary.
@@ -145,7 +145,7 @@ A plugin a person installs lands in the `user` tier (`--plugin-dir` likewise).
   events, and any noun another loaded plugin declares. `SOURCE`
 - Call `next(e)`, return `{ deny }` / `{ value }` / `{ result }`, or answer
   itself. `SOURCE` `OBSERVED`
-- Wrap every `builtin` and `core` behaviour, including the four shipped mods.
+- Wrap every `builtin` and `core` behavior, including the four shipped mods.
   `SOURCE`
 - Add a noun to `$` at `engine.create` for other plugins to call. `SOURCE`
 - Restyle or remove an element for **every other plugin** by hooking

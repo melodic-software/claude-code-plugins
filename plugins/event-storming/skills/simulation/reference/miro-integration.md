@@ -215,7 +215,7 @@ Next Event       x=1600    row: Domain Events
 - Legend stickies inside: stack vertically with 200px spacing, starting at the frame's top y + 100px offset
 - **Visual check required:** After placing legend stickies, verify via screenshot that all stickies are visible within the frame bounds. Frame overflow = stickies hidden behind the white frame background
 - **Place legend stickies at absolute coordinates, not with `parent_id`.** Setting `parent_id`
-  switches x and y from board-centre-relative to frame-top-left-relative, so any coordinate computed
+  switches x and y from board-center-relative to frame-top-left-relative, so any coordinate computed
   against the y-coordinate tables above lands in the wrong place. Keeping the legend stickies
   parentless also means they survive deletion of the legend frame
 
@@ -261,7 +261,7 @@ The `miro` plugin's server supports bulk creation (up to 20 items per batch) via
   reasoning: once an arrow is drawn, the brain avoids moving stickies to preserve it. Use proximity
   and temporal order instead
 - **Overlap detection is available.** `miro_detect_overlaps` returns every pair of stickies whose
-  centres are closer than a pixel threshold, which is the mechanical form of the density check the
+  centers are closer than a pixel threshold, which is the mechanical form of the density check the
   quality gate would otherwise do by eye. Its 195px default is tuned for square stickies; raise it
   on rectangle-heavy boards
 - **Bulk limit**: max 20 items per bulk operation

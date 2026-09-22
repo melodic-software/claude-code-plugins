@@ -5,7 +5,7 @@
       "id": 1,
       "name": "reports-the-change-with-provenance-and-no-verdict",
       "prompt": "/code-metrics:audit-size",
-      "expected_output": "Runs the bundled audit-size.sh against the change (merge-base diff plus uncommitted files), presents the markdown report with its Coverage of this run table and the 1000-line reference labelled as the plugin's own number rather than ISO-backed, and renders no pass/fail verdict.",
+      "expected_output": "Runs the bundled audit-size.sh against the change (merge-base diff plus uncommitted files), presents the markdown report with its Coverage of this run table and the 1000-line reference labeled as the plugin's own number rather than ISO-backed, and renders no pass/fail verdict.",
       "files": [],
       "expectations": [
         "Invokes the skill's scripts/audit-size.sh rather than counting lines by hand",

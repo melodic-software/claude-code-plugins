@@ -253,13 +253,13 @@ assert_contains "bare-word Edit hunk → containing reference recovered" "$OUT" 
   "UNRESOLVED_SKILL: /alpha:ghost-partial"
 
 # Diff-scope is preserved: a PRE-EXISTING unrelated broken reference on a
-# neighbouring line must NOT fire just because reconstruction read from disk.
+# neighboring line must NOT fire just because reconstruction read from disk.
 PARTIAL2="$REPO/partial2.md"
 printf 'Stale `/alpha:untouched-ghost` here.\nRun `/alpha:ghost-two` to begin.\n' >"$PARTIAL2"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'ghost-two')" 2>&1)
 assert_contains "reconstruction reports the edited reference" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-two"
-assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
+assert_absent "reconstruction does NOT report an untouched neighbor" "$OUT" \
   "untouched-ghost"
 
 # Diff-scope again, against the harder shape from #1453: the hunk is unrelated
@@ -412,7 +412,7 @@ assert_absent "reflowed line → the untouched reference is still suppressed" \
 # The abstain rule. When the witness recognizes NO occurrence — a formatter that
 # rewrote more than spacing — Gate 3 must fall back to the unfiltered set rather
 # than mute the advisory entirely. Both references come back, which is exactly the
-# pre-gate behaviour and the direction this guard accepts.
+# pre-gate behavior and the direction this guard accepts.
 STALE="$REPO/replall-stale.md"
 printf -- '- Run `/alpha:ghost` now (moved).\nLegacy `/alpha:ghost-old` stays.\n' >"$STALE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$STALE")" 2>&1)

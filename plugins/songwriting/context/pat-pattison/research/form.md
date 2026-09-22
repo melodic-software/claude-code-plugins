@@ -929,7 +929,7 @@ Weak is a SLOW HEALING HEART
 ```
 
 The section labels, the indentation of the chorus and the attribution line are
-all Pat's, as printed in the figure. Note the title is capitalised as a hook
+all Pat's, as printed in the figure. Note the title is capitalized as a hook
 everywhere it appears, including mid-phrase in "Weak is a SLOW HEALING HEART"
 and "Than A SLOW HEALING HEART". That is Pat marking the hook, not a typo.
 
@@ -948,7 +948,7 @@ For verse-only songs where every section contains the central idea, plain
 
 Chapter 5's five-point account of what a bridge *is* ("1. It is a DEVELOPMENTAL
 section… thus, 5. It is frequently the lyric's most unbalanced section.") is
-held verbatim in [bridge](bridge.md). Summarised here only so the section reads:
+held verbatim in [bridge](bridge.md). Summarized here only so the section reads:
 a bridge develops a new perspective or contrasting idea, moves away from
 established structures, creates structural tension, and is resolved by a return
 to previously established structures.
@@ -1458,7 +1458,7 @@ Two corrections to what this section used to say:
   usually came at the beginning of the Verse. Recently it comes more often at
   the end."
 - It carried a blockquote reading `"Refrain is part of the verse." — Pat`,
-  labelled a paraphrase. That is not a sentence Pat writes. His numbered point
+  labeled a paraphrase. That is not a sentence Pat writes. His numbered point
   is "2. It is part of the Verse", and it is restored verbatim above.
 
 ## Transitional bridge: distinct from typical bridge

@@ -161,6 +161,7 @@ into one profile.
   to line start and compare labels against the five strings `gh label list`
   actually returned. Substitute them into `VALID` below:
 
+  <!-- spellchecker:off --><!-- `labelled` is this jq program's own function name -->
   ```bash
   gh label list --limit 200 | grep -i work-class
   # Substitute the five strings the command above actually returned.
@@ -176,6 +177,7 @@ into one profile.
          classified: [.[] | select(labelled)] | length,
          body_only: [.[] | select(trailered and (labelled | not))] | length}'
   ```
+  <!-- spellchecker:on -->
 
   `classified` is the merge-eligible population the rung decision reads;
   `body_only` is the label-migration backlog, never added to it.
@@ -984,7 +986,7 @@ with the operator's signature on them.
 > candidate whatever else it carries, so the resolved human-gated role, not
 > the decision-pending label, is the only marker that actually parks
 > anything. Apply it in the same operation that exposes the item, never
-> role-less first and labelled after, and in that same edit remove the
+> role-less first and labeled after, and in that same edit remove the
 > resolved autonomous-eligible role if the item carries it. Closing an item
 > never cleared its labels, so a carrier closed while autonomous-eligible
 > comes back still wearing that role, and an item wearing both canonical

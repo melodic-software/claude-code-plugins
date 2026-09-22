@@ -35,7 +35,7 @@ set -uo pipefail
 # frontmatter both spell it `"${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh`.
 # Strip the trailing component with parameter expansion in that case and keep
 # the fork for the relative spelling (a test harness, or a hand `./` run), which
-# is the only one that needs normalising.
+# is the only one that needs normalizing.
 _SOURCE_DIR="${BASH_SOURCE[0]%/*}"
 if [[ "$_SOURCE_DIR" == "${BASH_SOURCE[0]}" ]]; then
   _SOURCE_DIR="."

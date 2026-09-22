@@ -17,14 +17,35 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - **A natively read `AGENTS.md`**: `./AGENTS.md` and `./.claude/AGENTS.md`, each its own record, and
   every nested `AGENTS.md` in subdirectories of the project tree, on the same on-demand footing as
-  the nested `CLAUDE.md` files above. A file is natively read only where no `CLAUDE.md`,
-  `.claude/CLAUDE.md` or `CLAUDE.local.md` sits **on its own path**, from the working directory or
-  any directory above it down to the directory holding it; test the condition per file, not once at
-  the root. Where one does displace it, Claude Code reads the CLAUDE.md files instead and the
-  `AGENTS.md` reaches context only as an import or a symlink, which the importing record already
-  covers. The root case is the condition `claude-memory`'s `skills/audit/scripts/lib/agents-md.sh`
-  encodes; a surface missing here produces no Phase A record, so no later phase can route or grade
-  it.
+  the nested `CLAUDE.md` files above. **Under the default instruction-files mode** a file is
+  natively read only where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits **on its
+  own path**, from the working directory or any directory above it down to the directory holding
+  it; test the condition per file, not once at the root. Where one does displace it, Claude Code
+  reads the CLAUDE.md files instead and the `AGENTS.md` reaches context only as an import or a
+  symlink, which the importing record already covers. The root case is the condition
+  `claude-memory`'s `skills/audit/scripts/lib/agents-md.sh` encodes.
+  **Displacement is that mode's answer, not the only one, and this bullet does not restate the
+  mode's values, its load order, or the scopes that honor it**: the four-part record for all of
+  them, and for whether the session reads an `AGENTS.md` at all, is this plugin's
+  [reference/agents-md-liveness.md](../../../reference/agents-md-liveness.md). Resolve them there,
+  so this phase and the checks downstream of it read one record that carries its own recheck
+  trigger. Two things follow that this phase acts on. Under a mode that loads both files a displaced
+  file is read and needs its own record like any other. And **the value to resolve is the EFFECTIVE
+  one across the scopes the record names**, since a user scope naming the default can be overridden
+  by a managed one and the reverse; reading only the scope this phase happens to inventory answers
+  the wrong question in both directions, dropping a live surface or inventorying an unloaded one.
+  The mode is the second question, not the only one: `AGENTS.md` support has to be available in the
+  session at all, and **a condition known to rule the file out excludes it regardless of the mode**,
+  since such a session reads it under no mode and a record for it would let a later phase grade a
+  surface nothing loads. Two of the mode's own four values rule it out the same way. **Record the
+  file whenever every condition is either satisfied or unresolved**, which keeps the conservative
+  direction where the answer is unknown rather than where it is known to be no: a surface missing
+  here produces no Phase A record, so no later phase can route or grade it. **Carry an unresolved
+  condition into the record**, naming which one is unresolved. Inventorying is not free on its own:
+  Phase B runs a lane per record, so a record that asserted residency it cannot establish would let
+  that lane propose a removal or a rewrite against a surface the session may never load. A lane
+  holding such a record reports its findings as conditional on the named condition rather than as
+  findings, the same shape `audit-prompting-postures` uses for an unresolved residency.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in
   `.claude/settings.local.json`**, since local settings are a supported hook-configuration scope and a
   hook configured there gates the session as much as one configured anywhere else, **and declared
@@ -167,6 +188,6 @@ involving one still carries the no-change representation and its routing recomme
   routes to the owning repository's tracker and proposes no in-place edit.
 - **Every I15 counterpart outside the requested scope.** A scope argument narrows which surfaces may
   *produce* findings, not which are read: a conflict is a relation between two surfaces, so a run
-  scoped to `skills` still inventories `CLAUDE.md`, rules, agents, hooks, and output styles as
+  scoped to `skills` still inventories `CLAUDE.md`, a natively read `AGENTS.md`, rules, agents, hooks, and output styles as
   comparison counterparts. Findings still name both sides; the filter decides which side the run is
   auditing, never that the counterpart goes unread.

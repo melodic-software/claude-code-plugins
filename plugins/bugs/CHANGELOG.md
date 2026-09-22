@@ -3,11 +3,19 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.4]
+## [0.10.5] - 2026-09-22
 
 ### Changed
 
 - `scan` applies the bare `needs-triage` floor when it files an issue.
+
+## [0.10.4] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
 
 ## [0.10.3]
 

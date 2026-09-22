@@ -129,7 +129,7 @@ assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
 # The number is interpolated into the dependencies request path, into an unquoted JSON
 # number literal in COUNTS, and is the join key of the final envelope pass, so a row
 # whose `number` is not a canonical JSON integer is refused before any of those: exit 1,
-# no envelope, and no request carrying the bad value. This is a behaviour change from the
+# no envelope, and no request carrying the bad value. This is a behavior change from the
 # per-item accumulator, which walked the same row and emitted an envelope whose id read
 # `gitea:acme/webapp#null` with exit 0.
 gitea_reset_routes

@@ -125,12 +125,25 @@
       "id": 11,
       "name": "mixed-claude-md-split-not-deleted-whole",
       "prompt": "/claude-config:unhobble bare — our CLAUDE.md has a checked-in team branching-and-PR conventions section plus a pile of behavioral do-this-do-that lines. Strip it.",
-      "expected_output": "Does not git rm the file whole: a mixed instruction file is split at section granularity in the strip plan — the behavioral lines are removed, the convention sections are preserved in place or extracted to a retained file — because team conventions in git are the officially carved-out durable tier. The strip plan names which sections go and which stay before anything is applied.",
+      "expected_output": "Does not git rm the file whole: a mixed instruction file, a CLAUDE.md or an AGENTS.md alike, is split at section granularity in the strip plan — the behavioral lines are removed, the convention sections are preserved in place or extracted to a retained file — because team conventions in git are the officially carved-out durable tier. The strip plan names which sections go and which stay before anything is applied.",
       "files": [],
       "expectations": [
         "Refuses whole-file deletion for a mixed instruction file",
         "Strips behavioral sections while preserving convention sections (in place or extracted)",
         "Presents the per-section split in the strip plan before applying it"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "agents-md-shim-stripped-with-claude-md",
+      "prompt": "/claude-config:unhobble bare — our CLAUDE.md is one line, @AGENTS.md, and all the actual instructions live in AGENTS.md. Strip the CLAUDE.md and let's see how the model does.",
+      "expected_output": "Classifies AGENTS.md, the root one and any copy under the .claude directory, as strip candidates alongside the CLAUDE.md shim rather than passing over them because nothing appears to read them today. Removing the CLAUDE.md is what makes the session read AGENTS.md as the project instructions, so a plan that considered only the shim would declare the baseline bare while the repository's whole instruction surface kept loading. Candidacy is not a verdict: a file classified behavioral is stripped, one classified policy or convention is kept and never named to the strip, and a mixed one is split at section granularity, the same rules that govern a CLAUDE.md. The restore step puts back what the evidence earns, from the pre-strip commit.",
+      "files": [],
+      "expectations": [
+        "Treats the root AGENTS.md and any copy under the .claude directory as strip candidates alongside the CLAUDE.md shim",
+        "Explains that removing the CLAUDE.md is what makes AGENTS.md load natively, so leaving it unconsidered would not be a bare baseline",
+        "Applies the same per-file classification to an AGENTS.md as to a CLAUDE.md rather than stripping it automatically",
+        "Names the restore path back from the pre-strip commit rather than treating the strip as one-way"
       ]
     }
   ]

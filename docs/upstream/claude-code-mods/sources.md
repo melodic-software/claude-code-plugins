@@ -13,7 +13,7 @@ Asked "what about mods?", do this in order:
 4. The frozen report is in [research-2026-09-19/](research-2026-09-19/). Treat it as dated evidence,
    never as current state: the feature changed within 24 hours of the research run.
 5. Standing rule for every check: `claude plugin --help` and a documentation grep return **false
-   negatives**. Probe behaviour, not help text.
+   negatives**. Probe behavior, not help text.
 
 ## How to read the table
 
@@ -187,7 +187,7 @@ first-party source disagreed, the first-party source won.
 | <https://claudefa.st/blog/tools/hooks/function-hooks> | A third-party write-up stating no version floor. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://www.aitmpl.com/mods/> | A mods component library; claims a `>= 2.1.259` floor, uncorroborated. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://github.com/davila7/claude-code-templates> | The same library's repository, with an `npx` installer: evidence that distribution is happening outside any marketplace. | 2026-09-19 | `research-enablement-and-distribution.md` |
-| <https://github.com/kunchenguid/firstmate> | A third-party adopter shipping a hooks module with tests; its `hooks.json` documents the deliberate "activates only when the variable is exactly 1" defence, as does the same author's `compact-adviser`. | 2026-09-19 | `research-enablement-and-distribution.md` |
+| <https://github.com/kunchenguid/firstmate> | A third-party adopter shipping a hooks module with tests; its `hooks.json` documents the deliberate "activates only when the variable is exactly 1" defense, as does the same author's `compact-adviser`. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://github.com/halluton/Mindful-Claude> | A third-party mod; the only source naming the install path (`claude plugin marketplace add` / `claude plugin install`) and a "2.1.269 or later" floor. Neither is corroborated by staff. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://github.com/pleaseai/honmoon> | A third-party mod repository, counted in the adopter census. | 2026-09-19 | `research-enablement-and-distribution.md` |
 | <https://github.com/sezaakgun/cc-arcade> | The Tetris-in-Claude mod bcherny's post points at. | not recorded (quoted from comment 5666255143) | `research-roadmap-and-staff-statements.md` |

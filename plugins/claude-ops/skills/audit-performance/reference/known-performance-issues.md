@@ -194,7 +194,7 @@ assembled from three pages.
 
 Two things the projection cannot model, both over-counts rather than hidden spawns. An `if` rule
 matches only under its anchor, so an edit to a file outside the project directory never matches
-one and every gated row there is counted as firing when none of them is. And dedup is modelled
+one and every gated row there is counted as firing when none of them is. And dedup is modeled
 nowhere: "If you define the same handler in more than one settings file, it runs once. A plugin's
 or skill's copy of the same handler stays separate" (hooks), so rows that collapse upstream are
 counted twice here.
@@ -275,7 +275,7 @@ vanished process classifies as user-space too.
 **Drift record.** *Claim:* `PF_KTHREAD` is `0x00200000` and is exposed unmasked as field 9 of
 `/proc/<pid>/stat`; `/proc/<pid>/status` carries a derived `Kthread:` line on kernels that publish
 one. *Basis:* [proc_pid_stat(5)](https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html) for
-the flags field and the parenthesised `comm` hazard,
+the flags field and the parenthesized `comm` hazard,
 [Documentation/filesystems/proc.rst](https://www.kernel.org/doc/html/latest/filesystems/proc.html)
 for the `Kthread:` line, `include/linux/sched.h` for the bit value, and `kernel/umh.c`
 (`call_usermodehelper_exec_work`) for the `CLONE_PARENT` reparenting that refutes the ppid test.

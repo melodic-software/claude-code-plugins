@@ -3,15 +3,35 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.3] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.35.2] - 2026-09-20
+
+### Fixed
+
+- **A PowerShell here-string opener sitting behind a `#` on its own line no longer blanks the live commands under it.** PowerShell tokenizes `Write-Output x # @"` as `Generic, Identifier, Comment`, so the `@"` is comment TEXT and opens nothing: the next line is a live top-level command. Verified against pwsh 7.6.6 with `[System.Management.Automation.Language.Parser]::ParseInput` rather than assumed. `ps::blank_herestrings` accepted any line ending in `@'` or `@"` as an opener and never considered the `#`, so it opened a phantom here-string, dropped the following line as body, and let a column-zero closer close it, leaving a balanced reduction with no sink trigger at all. `Write-Output x # @"` / `git push --force` / `"@ fine"` was therefore ALLOWED (rc 0) through block-dangerous-git at default configuration with no allow token, as were its `@'` / `'@ fine'` spelling, a CRLF-line-ended copy, the `git reset --hard` form, the `git commit --no-verify -m x` form through block-no-verify and the `Set-Content f.txt x` form through block-hook-bypass. The fix is ONE additive refusal: where the library's own logic CONFIRMS an opener, a `#` anywhere in the RAW line before the two-character opener suffix refuses the command outright. It is a plain substring test. It decides nothing about whether the `#` is a comment, sits inside a string, or is glued to a token, and it pairs no quotes anywhere. That is what closes the apostrophe-straddle spellings too, `Write-Host "it's" # don't "x @"` / `git push --force` / `"@"` and the minimal `echo "'" # ' " @"`, which defeat a per-style quote strip by deleting the span that holds the real `#`: the raw test never looks at a quote, so there is nothing to defeat.
+- **A broader approach was tried on this branch first and withdrawn.** It rewrote the library's quote pairing (a left-to-right walk, an unconfirmed opener state, a four-quadrant rule over two reductions), and across six review rounds it kept producing shapes that the base BLOCKS and it would have ALLOWED, each one behind a green suite, so it was reverted to the base in full and replaced by the single refusal above.
+- **The new trigger is `herestring-comment-char`, and it has NO allow token.** This refusal is refusal-only in every guard that acts on it, block-dangerous-git, block-no-verify, block-hook-bypass, block-noncanonical-commit and block-convention-violation: no value of `block_dangerous_git_allow`, and no value of any other allow option, reaches it. A token for it cannot be made safe, because block-dangerous-git's sink loop spends ONE SHARED `_ps_sink_attempts` budget across every token-granted round, and the arm at the bottom of that loop exits 0 once the budget is past four. A sixth grantable trigger therefore adds a fifth round to a command that settled in four, and the command exits 0 with a plainly visible destructive sibling never checked. Measured on `Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard` over a commented opener and a closer-carried second opener: with five sink tokens set, the base blocks (rc 2) and an earlier draft of this branch that carried the token allowed (rc 0); with the four existing sink tokens, both block; with ALL twelve existing tokens at once the base allows it (rc 0, the visible `git reset --hard` waived by `reset-hard`) and this branch blocks it. Removing the token makes the superset property hold by construction rather than by sampling. The refusal lives on the FLAG, not on the trigger name, at the TOP of the sink loop ahead of the allow-list question, so the shape never enters a token-granted round and never spends an attempt. Inside the loop rather than before it, because the loop's own reduction is not idempotent: a closer line carrying a second opener (`'@ @'`) is joined onto the first opener's prefix and never rescanned, so a command whose raw text has no `#` on any opener line can acquire one on a later round (`x @"` / `$(y)` / `"@ # @"` / `git reset --hard` / `"@`). A check placed before the loop would already be behind that round. In the classifier the trigger still sits AFTER the whole existing chain, so a command that already routed to the sink reports the construct it always reported; with no token in play, that ordering decides the remediation text only, never whether the command is refused. Refusing on the flag does move the HOOK's reported trigger for a command that carries a commented opener AND an earlier sink construct: the hook names `herestring-comment-char`, which is the shape actually holding the command, while the classifier's own attribution is unchanged. An operator whose command is refused rewrites it: drop the comment, or move the here-string opener to a line of its own with no `#` on it, or run the command via the Bash tool. The stderr remediation says exactly that instead of naming a token.
+- **The two commit-shape guards refuse this trigger instead of deferring on it.** block-noncanonical-commit and block-convention-violation exit 0 on any nonzero classifier rc, which is sound for the other five triggers because a sibling guard still fail-closes on the same input. It is not sound for this one: the lines the reduction dropped may be live commands, and the sibling is looking at the same reduced text. Measured, a commented opener over `git commit -m` was rc 0 in both of those guards on the base. Each now refuses this trigger by name, ahead of its deferral arm, with no allow-list consulted.
+- **What this over-blocks, plainly.** Any command whose CONFIRMED here-string opener line carries a `#` before the opener suffix, whatever that `#` means to PowerShell. `Write-Output "#1" @"` and `a#b @"` both open a real here-string in PowerShell and carry no comment at all, and both are refused. Modeling where a comment actually starts needs a token-start rule and a separator class, and an under-inclusive class leaves `;# @"` and `|# @"` live, which is the fail-OPEN direction; the over-block is the cost taken instead. The quoted-`#` shape is pinned in all five guard suites and the glued-bareword shape in block-dangerous-git's, so a later narrowing flips a case rather than passing silently. Nothing else moves: a here-string body containing a `#`, the canonical `@'` commit here-string, and a trailing comment on an ordinary command are all unchanged, and an enumeration of 162,336 generated opener lines shows the reduction, the unbalanced flag, the opener quote and both expandable flags byte-identical to the base on every one.
+- **What this does NOT close: one named pre-existing residual inside the guard itself.** block-dangerous-git's sink loop still exits 0 when `_ps_sink_attempts` passes four (the `if ((_ps_sink_attempts > 4))` arm, `hooks/block-dangerous-git.sh:1425` on the base and `:1452` here), so a token-granted reduction that makes no progress ends in an allow with whatever the loop had left unchecked. That arm is untouched here and is the reason this refusal takes no token. It is REACHABLE, and a command reaches it identically on the base and on this branch: `x @"` / `$(y)` / `"@ @"` / `$(w)` / `"@ # @"` / `git push --force` / `"@` under `ps-unparsable-special-construct` runs five rounds with the command text unchanged on every one, trips `_ps_sink_attempts > 4` and exits 0 with the visible `git push --force` never checked (traced with `bash -x` on both trees; rc 0 on each). The new refusal does not reach that shape on any round, so it neither closes it nor feeds it. Narrowing the arm means giving the loop a progress test rather than an attempt count, which is a change to an existing decision path and not this one.
+- **What this does NOT close, in the library.** Nine shapes stay exactly as they are on the base, allowed there and allowed here, measured through the real hooks at default configuration with no allow token: a doubled-quote opener line (`Write-Host 'a''b @'` / `& $g push --force` / `'@ fine'`); a backslash-escaped quote before an opener (`Write-Output "\"a" @"` / `& $g push --force` / `"@"`); an orphan closer swallowing the line after it (`Write-Output x` / `hello` / `'@` / `git push --force`); closer-suffix re-pairing (`Write-Output x @"` / `hello` / `"@; Write-Host "y"` / `& $g push --force`); a block comment opened on an earlier line (`<# x` / `@'` / `& $g push --force` / `'@`); a here-string written with lone-CR line terminators; the looser opener copy in `hooks/block-convention-violation.sh`, which feeds that guard's own subject extraction rather than this library's reduction; a bare `$(& $g push --force)` with no here-string anywhere; and, new with this change's ordering, a `#` opener line that ALSO carries another sink construct over a VERBATIM body (`Write-Host {x} # @'` / `git push --force` / `'@`), where the earlier trigger settles the command with a git-freedom proof taken over text the body was already removed from. Closing the last one means teaching the sink's proof that a body was dropped, which is a change to an existing decision path and not this one.
+
 ## [0.35.1]
 
 ### Fixed
 
-- **A PowerShell EXPANDABLE here-string body carrying a `$( … )` subexpression no longer reaches the git guards with that body silently removed.** `ps::blank_herestrings` replaces every properly-delimited here-string body with an inert placeholder before `ps::classify_git_command` tests for a sink trigger. For a VERBATIM `@'` … `'@` body that is sound, because the body is inert text. An EXPANDABLE `@"` … `"@` body is evaluated where it is written, so a `$( … )` in it is a COMMAND POSITION, and dropping it removed the very text a trigger would have fired on. `Write-Output @"` / `$(git push --force)` / `"@` therefore tripped none of the four triggers, never reached the expandable-here-string refusal 0.35.0 added inside the `[[ -n "$PS_SINK_TRIGGER" ]]` block, and was ALLOWED (rc 0) through the full guard. So were `$x = @"` … `"@`, a body whose `$(` and git token sit on different lines, a body followed by a pipeline after the closer, a subexpression written inside inner single quotes (which PowerShell still expands), and a CRLF-line-ended copy of any of them, since `hook::jq_fields` strips CR from the command before the line scan runs. 0.35.0 closed only the OPERAND spelling (`-eq @"` … `"@`), where the surrounding `{ }` group supplies a trigger of its own; the bare form had none. A FIFTH trigger, `herestring-subexpr`, now fires when a DROPPED expandable body line carried the literal two characters `$(`. Those two characters are the whole gate because they are the only construct that reaches a command position inside such a body: `${name}` is a variable reference, `@( … )` is not expanded inside a string, a method call or property access on an interpolated variable is not evaluated, and a backtick before `$` makes the `$` literal, each checked against PowerShell 7 rather than assumed. The gate therefore OVER-approximates by one shape, the backtick-escaped `` `$( ``, which is the fail-closed direction and cheaper than modelling escapes inside text the library has already decided it cannot parse. The trigger is LAST in the chain, so every command that already carried a construct keeps reporting the construct it carries and no existing telemetry or allow-token attribution moves.
+- **A PowerShell EXPANDABLE here-string body carrying a `$( … )` subexpression no longer reaches the git guards with that body silently removed.** `ps::blank_herestrings` replaces every properly-delimited here-string body with an inert placeholder before `ps::classify_git_command` tests for a sink trigger. For a VERBATIM `@'` … `'@` body that is sound, because the body is inert text. An EXPANDABLE `@"` … `"@` body is evaluated where it is written, so a `$( … )` in it is a COMMAND POSITION, and dropping it removed the very text a trigger would have fired on. `Write-Output @"` / `$(git push --force)` / `"@` therefore tripped none of the four triggers, never reached the expandable-here-string refusal 0.35.0 added inside the `[[ -n "$PS_SINK_TRIGGER" ]]` block, and was ALLOWED (rc 0) through the full guard. So were `$x = @"` … `"@`, a body whose `$(` and git token sit on different lines, a body followed by a pipeline after the closer, a subexpression written inside inner single quotes (which PowerShell still expands), and a CRLF-line-ended copy of any of them, since `hook::jq_fields` strips CR from the command before the line scan runs. 0.35.0 closed only the OPERAND spelling (`-eq @"` … `"@`), where the surrounding `{ }` group supplies a trigger of its own; the bare form had none. A FIFTH trigger, `herestring-subexpr`, now fires when a DROPPED expandable body line carried the literal two characters `$(`. Those two characters are the whole gate because they are the only construct that reaches a command position inside such a body: `${name}` is a variable reference, `@( … )` is not expanded inside a string, a method call or property access on an interpolated variable is not evaluated, and a backtick before `$` makes the `$` literal, each checked against PowerShell 7 rather than assumed. The gate therefore OVER-approximates by one shape, the backtick-escaped `` `$( ``, which is the fail-closed direction and cheaper than modeling escapes inside text the library has already decided it cannot parse. The trigger is LAST in the chain, so every command that already carried a construct keeps reporting the construct it carries and no existing telemetry or allow-token attribution moves.
 - **The new trigger carries its OWN allow token, `ps-unparsable-herestring-subexpr`.** Reusing `special-construct` would have been a smaller diff and was the first choice; it was reversed because the allow token is derived from the trigger name, so an operator holding `block_dangerous_git_allow=ps-unparsable-special-construct` (the only relief there is for `{ }` grouping and `--%` tails, and therefore a plausible standing setting for reasons unrelated to here-strings) would have silently allowlisted this class too, making the whole refusal a no-op for exactly the operators most likely to meet it. Measured on a patched tree driven through the real hook: under that token every bypass shape above returned rc 0 again. With its own token the two opt-ins stay separate, and the remediation line names the construct actually present instead of pointing at a `{}` group the operator does not have.
 - **The allow path blanks the here-string itself, so an allowlisted sink shape still cannot fail-open a visible sibling.** `ps::blank_sink_opaque_regions` gains a `herestring-subexpr` arm that runs `ps::blank_herestrings` and hands back the reduced command. The existing `special-construct` arm cannot stand in for it: `ps::_skip_double_quote_to` pairs the `"` of an `@"` opener with the `"` of its `"@` closer, so `ps::_blank_special_construct_regions` is the IDENTITY on any command containing a here-string. Without the new arm, `Write-Output @"` / `$(hi)` / `"@; git reset --hard` under the matching token made no progress through block-dangerous-git's bounded re-classification loop, exhausted its four attempts and exited 0 with the visible `git reset --hard` never checked, which is the exact invariant #2667 pinned.
-- **What this does NOT close, stated so the class is not read as settled.** The fix is scoped to the HERE-STRING spelling, because that is the one whose body the guard removes before it looks. The same "an expandable string is a command position" hole keeps two simpler spellings, both allowed before this change and both allowed after it, at default config with no allow token: an ordinary double-quoted `"$( … )"` argument, whose `(` `ps::blank_quoted_spans_to` erases before `ps::has_special_constructs` is ever handed the text, and a here-string written with lone-CR line terminators, which PowerShell accepts as line breaks while `ps::_split_lines_to` splits on LF alone, so no opener is recognised and the command falls to that same quoted-span blank. Closing them means raising the trigger on the CONSTRUCT rather than on the here-string drop, and normalising CR to LF at intake. Both are wider decisions than this fix and neither is taken here. Separately, the no-progress loop the bullet above describes stays reachable through the `special-construct` token for a here-string the opener scan does not recognise as one, an opener with trailing whitespace or a second opener sitting on a closer line the scan never rescans. Those shapes refuse at default config and fail open only under that token; making the path safe needs the caller's exhaustion branch turned from `exit 0` into `exit 2`, which is a decision about every allowlisted sink shape rather than about this one.
-- **What this now over-blocks, plainly.** Any PowerShell command carrying an expandable here-string whose body contains `$(`, whether or not it names git. String interpolation is what an expandable here-string is FOR, so this is the mainstream use of the construct rather than an edge case: a markdown table row built with `$($Column -join ' | ')`, a PR body built from `$(git log --oneline -5)` and passed to `gh pr create --body`, and `@"` / `$(git status)` / `"@` are all refused. The way out is in the message the guard prints: a verbatim `@'` … `'@` body, or computing the value into a variable before the here-string. Relief is NOT symmetric across the guards. block-dangerous-git honours the new allow token; block-no-verify consults no allow-list at all and the expandable short-circuit runs before its `readonly-ok` narrowing, so the only lever there is the guard's own kill switch. block-noncanonical-commit and block-convention-violation DEFER on a classifier rc 2, so for a `-m` or subject value of this shape their own gates stop evaluating and the refusal moves to the two blocking guards; that is the deferral those files already document, pinned now in both suites alongside the sibling assertions that keep it sound. Named as a configuration rather than left implied: with `ps-unparsable-herestring-subexpr` allowed AND `block_no_verify_enabled` off, a multi-line `git commit -m @"` ... `$( … )` ... `"@` reaches git, where before this change `block-noncanonical-commit` refused it. At DEFAULT configuration that same command stays refused, by `block-dangerous-git` and by `block-no-verify`. This therefore WIDENS the residual those suites already pin, and the residual loop was extended to cover the new shape rather than left covering only the old two.
+- **What this does NOT close, stated so the class is not read as settled.** The fix is scoped to the HERE-STRING spelling, because that is the one whose body the guard removes before it looks. The same "an expandable string is a command position" hole keeps two simpler spellings, both allowed before this change and both allowed after it, at default config with no allow token: an ordinary double-quoted `"$( … )"` argument, whose `(` `ps::blank_quoted_spans_to` erases before `ps::has_special_constructs` is ever handed the text, and a here-string written with lone-CR line terminators, which PowerShell accepts as line breaks while `ps::_split_lines_to` splits on LF alone, so no opener is recognized and the command falls to that same quoted-span blank. Closing them means raising the trigger on the CONSTRUCT rather than on the here-string drop, and normalizing CR to LF at intake. Both are wider decisions than this fix and neither is taken here. Separately, the no-progress loop the bullet above describes stays reachable through the `special-construct` token for a here-string the opener scan does not recognize as one, an opener with trailing whitespace or a second opener sitting on a closer line the scan never rescans. Those shapes refuse at default config and fail open only under that token; making the path safe needs the caller's exhaustion branch turned from `exit 0` into `exit 2`, which is a decision about every allowlisted sink shape rather than about this one.
+- **What this now over-blocks, plainly.** Any PowerShell command carrying an expandable here-string whose body contains `$(`, whether or not it names git. String interpolation is what an expandable here-string is FOR, so this is the mainstream use of the construct rather than an edge case: a markdown table row built with `$($Column -join ' | ')`, a PR body built from `$(git log --oneline -5)` and passed to `gh pr create --body`, and `@"` / `$(git status)` / `"@` are all refused. The way out is in the message the guard prints: a verbatim `@'` … `'@` body, or computing the value into a variable before the here-string. Relief is NOT symmetric across the guards. block-dangerous-git honors the new allow token; block-no-verify consults no allow-list at all and the expandable short-circuit runs before its `readonly-ok` narrowing, so the only lever there is the guard's own kill switch. block-noncanonical-commit and block-convention-violation DEFER on a classifier rc 2, so for a `-m` or subject value of this shape their own gates stop evaluating and the refusal moves to the two blocking guards; that is the deferral those files already document, pinned now in both suites alongside the sibling assertions that keep it sound. Named as a configuration rather than left implied: with `ps-unparsable-herestring-subexpr` allowed AND `block_no_verify_enabled` off, a multi-line `git commit -m @"` ... `$( … )` ... `"@` reaches git, where before this change `block-noncanonical-commit` refused it. At DEFAULT configuration that same command stays refused, by `block-dangerous-git` and by `block-no-verify`. This therefore WIDENS the residual those suites already pin, and the residual loop was extended to cover the new shape rather than left covering only the old two.
 
 ## [0.35.0]
 
@@ -123,7 +143,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   instead of carrying a hand-maintained union of every guard's filters. The
   dispatcher had been reading the tool name out of the primed values by
   position, so inserting a filter ahead of it would have made the dispatcher
-  read a neighbouring value. It is now read by name. The guards also share one
+  read a neighboring value. It is now read by name. The guards also share one
   spelling of the plugin root and one route to the classifier, which removes a
   redundant re-source of a large file the dispatcher had already loaded.
 - **`block-hook-bypass` no longer carries its own command tokenizer.** It is
@@ -564,7 +584,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **The Bash dispatcher and the always-on git/commit guards parse
   `ps-command.sh` only on a PowerShell payload.** `ps::classify_git_command`
   returns 0 immediately on Bash after setting `PS_SAFE_COMMAND`, so a
-  file-scope `source` of that ~41 KB classifier was parse tax with no behaviour.
+  file-scope `source` of that ~41 KB classifier was parse tax with no behavior.
   The dispatcher still accepts `--lib` on the command line (the include guard
   still makes a later `source` a no-op) but defers the parse until `.tool_name`
   is known, and skips it when that name is `Bash`. Each guard that still has to
@@ -906,7 +926,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   helpers already sitting in the same file.** `block-dangerous-git.test.sh`'s
   `run_in` is now a call to `run_split` with the fixture directory passed as both
   the payload cwd and the process cwd, the case `run_split` was written to
-  generalise. `block-windows-drive-tmp.test.sh`'s `run_win` and `run_posix_host`
+  generalize. `block-windows-drive-tmp.test.sh`'s `run_win` and `run_posix_host`
   become one-line calls to `run_win_payload` and `run_posix_host_payload`. The
   bodies they drop were re-spellings of those helpers, down to the two message
   assertions `run_win` made whenever the expected exit was 2.
@@ -1020,7 +1040,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   identical exit codes in every case. The suite's ability to fail was proven
   under two mutation classes, one injecting a failing assertion and one
   weakening the gate itself; both turn it red.
-- **`require-jq-notice-isolation.test.sh` drops a dead pre-initialisation** that
+- **`require-jq-notice-isolation.test.sh` drops a dead pre-initialization** that
   a `grep -c` capture unconditionally overwrites eleven lines later, with no
   read in between and no path on which the capture is skipped.
 
@@ -1236,7 +1256,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `Set-Content -Path:/c/tmp/x` keeps blocking exactly as its space-bound twin
   does. Excluding `:` outright, which a first attempt did, would have dropped
   that whole class. The narrowing was then swept exhaustively against the
-  shipped matcher: every ASCII printable as the immediate left neighbour,
+  shipped matcher: every ASCII printable as the immediate left neighbor,
   every two-character context ending in a colon, nine drive letters in eight
   surrounding contexts, and the colon-bearing shapes a sweep alone does not
   reach, 1,702 probes. **All 266 changed verdicts are the drive-spec
@@ -2460,7 +2480,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   literal string `inline python3 -c only`, so it kept passing while the claim went stale. It now
   pins the family, the stdin form **and** the no-dash residual, so the note cannot drift from the
   detector without a failure. Found by the automated reviewer on the 0.28.0 PR, after that PR had
-  already merged. No detector behaviour changes: 0 granted → refused, 0 refused → granted.
+  already merged. No detector behavior changes: 0 granted → refused, 0 refused → granted.
 
 ## [0.28.0]
 
@@ -2526,7 +2546,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `echo` is one of its *arguments*, so the redirect's producer is another program and this guard is
   producer-scoped by design. The newline previously split it into a bogus `echo x > f` segment. The
   single-line spelling `foo "a" echo x > f` was already allowed, so this makes the multi-line form
-  agree with shipped behaviour; both are asserted, as is the mirror case (`echo "a<newline>" x > f`,
+  agree with shipped behavior; both are asserted, as is the mirror case (`echo "a<newline>" x > f`,
   where the command word really is the producer) which moves the other way.
 
   It is one row and not a class, verified rather than reasoned: every command PREFIX the file already
@@ -2558,7 +2578,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - **Eight prose references still named 0.26.0 as the release that made `block-hook-bypass`'s
-  exemptions operand-keyed. It is 0.27.0.** No behaviour changes, no assertions moved. The #2226 work
+  exemptions operand-keyed. It is 0.27.0.** No behavior changes, no assertions moved. The #2226 work
   was written against 0.26.0 and renumbered when `main` took that version for the
   `block-dangerous-git` / `block-no-verify` `jq` fail-closed change (#2146) while the branch was
   open. The renumber reached the CHANGELOG heading, the manifest version and the entry's own
@@ -2603,7 +2623,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
   Nothing named `/dev/null` is the destination in any of them. Reaching a *chosen* file this way
   needs a directory whose name ends in the whitespace-bearing fragment to already exist, so this is
-  correctness and defence-in-depth rather than a demonstrated escape. But it is the exact assumption
+  correctness and defense-in-depth rather than a demonstrated escape. But it is the exact assumption
   every target-based exemption rests on, and this guard now has two.
 
   `strip_literals` marks a kept operand's literal content with two sentinels. `\x03` **OPAQUE**
@@ -2697,7 +2717,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   pre-check was considered and rejected for manufacturing a false sense of coverage. The kill switch
   still bypasses the guard on a `jq`-less machine, since `hook::check_enabled` runs before the gate.
 - **Every other guardrails hook is unchanged and still fails OPEN.** Membership in the fail-closed
-  class is mechanical, not a taste judgement about severity: a hook qualifies iff it *already* fails
+  class is mechanical, not a taste judgment about severity: a hook qualifies iff it *already* fails
   closed on another unparsable-input condition (today, a `MAX_COMMAND_LEN` ceiling). Exactly two do.
   `block-hook-bypass` and `block-noncanonical-commit` were considered and deliberately left
   fail-open. They guard a reversible file write or a message shape, and neither holds the internal
@@ -2810,7 +2830,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   launch directory (git starts a `!` body at the work tree's top level). For this guard's two
   consumers the two agree: `config --get` and `rev-parse --absolute-git-dir` answer identically from
   anywhere inside one repository. They diverge only when a separate repository is nested below the
-  composed path, which is deliberately not modelled here.
+  composed path, which is deliberately not modeled here.
 
 ## [0.25.1]
 
@@ -2822,7 +2842,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 > 0.26.0 above for what replaced it. Everything else in this entry is unchanged.
 
 - **`block-hook-bypass`'s scope note now names `tee` and other inline-interpreter
-  write families it does not model (#2218).** No behaviour changes: lane-specific
+  write families it does not model (#2218).** No behavior changes: lane-specific
   `_BYPASS_SCOPE_NOTE_BASH` / `_BYPASS_SCOPE_NOTE_PWSH`, two `SCOPE (documented
   residual)` blocks, the README residuals section, and five accepted-floor tests
   now move together so a reader does not credit the guard with POSIX `tee` or
@@ -2831,7 +2851,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   and its alias are modeled.
 
 - **0.25.0 described the scratch-root exemption's fail-close inaccurately on every surface, twice
-  over. Corrected, and pinned (#2236; root cause #2226).** No behaviour changes: four documents
+  over. Corrected, and pinned (#2236; root cause #2226).** No behavior changes: four documents
   become accurate and four regression tests now pin the boundaries they describe.
 
   0.25.0 said the exemption fails closed on "a quoted or escaped **operand**", "after the first
@@ -2877,7 +2897,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Added
 
 > **Erratum:** the fail-close scope described in this entry is inaccurate in two ways. See 0.25.1
-> above for the corrected mechanism. The behaviour described elsewhere in this entry is unchanged.
+> above for the corrected mechanism. The behavior described elsewhere in this entry is unchanged.
 
 - **`block-hook-bypass` gains an opt-in scratch-root exemption, and with it its first
   target-scoped axis (#2210).** A read-only investigation that writes a throwaway probe file
@@ -2895,7 +2915,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   write into an exempt root still blocks, and a test pins that.
 
   The new `block_hook_bypass_scratch_roots` option takes a comma-separated list of absolute
-  directories and **defaults to empty, so no shipped behaviour changes**. Two tests assert exactly
+  directories and **defaults to empty, so no shipped behavior changes**. Two tests assert exactly
   that: a temp write still blocks with the option unset, and again with it set empty. The reported
   friction therefore persists until an operator names their own roots. That is deliberate, because the
   last target-based exemption of this shape (`/dev/null`) shipped a one-token bypass of the whole
@@ -2957,7 +2977,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.24.2]
@@ -3081,7 +3101,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **A RELATIVE `--git-dir` / `--work-tree` / `--namespace` / `-C` in a guarded command now resolves
   against the directory the TOOL CALL runs in, not the hook process's.** This falls out of the
   leading-`-C` base above and is the correct origin, since a relative path written in a tool call
-  means relative to where that call runs, but it is a behaviour change and is called out here so it is
+  means relative to where that call runs, but it is a behavior change and is called out here so it is
   not read as a regression. An ABSOLUTE one is unaffected.
 - `repo_oid_width`'s known-gap docblock is restated at its real width. It described the residual as
   needing "a SHA-256 repository, a lease pinned to a full-width hex word that is also a ref name
@@ -3134,7 +3154,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `stale-path-verify` (3 → 1 each), `block-hook-bypass`, `flag-commit-pr-skill-bypass`,
   `cli-flag-verify`, `workflow-resilience-check` (2 → 1 each). Measured on Windows Git Bash with the
   arms interleaved in one loop and compared as paired deltas. Every sample is recorded in the PR.
-  Conservative headline, the least-favourable quartile (p75) of the paired deltas: **-404 ms** per
+  Conservative headline, the least-favorable quartile (p75) of the paired deltas: **-404 ms** per
   invocation for a 3-field hook and **-194 ms** for a 2-field hook, which agrees independently with
   the least-contended floor across 100 iterations (-394 ms / -192 ms). Medians run higher because
   this host was running several agents concurrently (-1033 / -991 ms for 3 fields, -274 ms for
@@ -3193,10 +3213,10 @@ release, even though the locale pin itself is a fix and the rest of the entry is
 
 ### Changed
 
-- **The reconstruction cost curve in `skill-reference-verify` is now labelled with the locale it
+- **The reconstruction cost curve in `skill-reference-verify` is now labeled with the locale it
   was measured in.** The published figures (0.07 s at 32 KiB … 3.94 s at 256 KiB) match the
   C-locale column, but the hook did not then run in the C locale, so the table described a locale
-  the code never used. The pin above makes C the actual locale, so the figures are re-labelled
+  the code never used. The pin above makes C the actual locale, so the figures are re-labeled
   rather than re-measured; a re-check on a second host of the same shape read 0.054 s / 0.221 s /
   0.880 s / 3.410 s at 32 / 64 / 128 / 256 KiB.
 
@@ -3293,7 +3313,7 @@ not that.)
   `hook::git_resolve_index` already records the relocation in `HOOK_GIT_RESOLVED_WRAPPER_DIRS`, and
   it is the only parser that can tell a real `env -C <dir>` from the `-C` in `env -u -C git`, which
   moves nothing. The probe now replays it as leading `-C` words, ahead of git's own, so the two
-  compose in execution order under git's rules rather than being modelled. Covered for `env -C`,
+  compose in execution order under git's rules rather than being modeled. Covered for `env -C`,
   `env --chdir=`, `sudo -D`, the composition with git's own `-C`, and the `env -u -C` non-chdir.
   **Acceptance behavior changes** (hence a minor bump): a wrapped push whose lease is a movable name
   where git runs is refused where it was allowed, and one whose lease is a real object id there is
@@ -3350,7 +3370,7 @@ not that.)
   at a directory holding `SKILL.md` ([Plugins
   reference](https://code.claude.com/docs/en/plugins-reference), "Path behavior rules"). A skill
   loaded from a declared location now resolves, as does the documented single-skill layout (a root
-  `SKILL.md` with no `skills/` subdirectory and no `skills` key). That layout is honoured under its
+  `SKILL.md` with no `skills/` subdirectory and no `skills` key). That layout is honored under its
   stated conditions only: a root `SKILL.md` beside a populated `skills/` is not loaded by Claude
   Code, so accepting it would suppress the advisory for a command that does not exist.
 
@@ -3801,7 +3821,7 @@ not that.)
   interpreter code (`python -c` IS scanned, so the blind spot claims only an invoked script file
   or a program's own opaque code), and that a redirect produced by another program is not seen.
 
-  No hook logic changes. The behaviour the note describes is now pinned by tests beside the
+  No hook logic changes. The behavior the note describes is now pinned by tests beside the
   message-content assertions, so the two move together.
 
 - **The `README` residuals section names the same scope**, next to the existing quoted-span residual
@@ -3844,7 +3864,7 @@ not that.)
   the invocation rather than parse git's options.
 
   The regression cases were verified to **fail against the unfixed hook** and pass against the fix,
-  and git's own `-C` is covered alongside them so the narrower slice cannot silently stop honouring a
+  and git's own `-C` is covered alongside them so the narrower slice cannot silently stop honoring a
   relocation git really performs.
 
 - **A wrapper's chdir moved git but no longer moved the guard.** Excluding wrapper argv from
@@ -4097,7 +4117,7 @@ self-overlapping anchor described above, red against the `grep -o` counter
     no persisted lookup and no shell-alias seen-set.
   - **The guard no longer MODELS git's path semantics; it asks git**
     (`block-noncanonical-commit`; two review findings on the fix above, one root
-    cause). Modelling resolution in shell text produced a bypass every time it was
+    cause). Modeling resolution in shell text produced a bypass every time it was
     attempted, in both directions:
     - **Lexical `x/..` cancellation is wrong when `x` is a symlink.** With
       `base/link -> target/child`, `git -C link/.. …` enters `target` on a POSIX
@@ -4218,7 +4238,7 @@ self-overlapping anchor described above, red against the `grep -o` counter
     shell relocation, so a `!` body that moves the process (`!cd child && git …`)
     is analyzed against the invoking repository rather than the destination. Real
     git resolves the destination's aliases, so an alias defined only there is not
-    seen. Modelling this means evaluating arbitrary shell word expansion, which
+    seen. Modeling this means evaluating arbitrary shell word expansion, which
     this guard deliberately does not do; asking git cannot help either, because
     git is never told about the `cd`. Tracked in
     [#1486](https://github.com/melodic-software/claude-code-plugins/issues/1486),

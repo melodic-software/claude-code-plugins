@@ -82,9 +82,24 @@ MODEL_PHRASES=("the part most people skip" "(the|my) honest take" "that.s the un
 # from its input and counted as declined. A typography rule targets artifacts
 # that are defects wherever they appear (byte residue, tracking params, citation
 # tokens), so it scans quoted material too.
+#
+# rule-emoji-formatting anchors on the prose stream's field-separator tab and
+# then walks the markdown prefixes a formatting glyph can sit behind: up to
+# three spaces of indentation, any depth of blockquote marker, and then one
+# heading or bullet marker. A blockquote marker takes at most ONE following
+# space, because that space is part of the marker and every space after it is
+# the quote's own content: `>` and five spaces is an indented code block inside
+# a quote, and a greedy `[ ]*` there would report a glyph in code as
+# formatting. The blockquote branch is what catches a callout
+# written as `> <glyph>` or `> ### <glyph>`; without it the same glyph fired at
+# column zero and passed clean one character further in, which is how six
+# callouts survived a whole fix pass. The glyph must still follow the last
+# prefix DIRECTLY, so an emoji in content position stays clean: the catalog
+# scopes this rule to emoji used as bullets, section markers, or visual
+# separators, and an emoji inside a sentence is none of those.
 PATTERN_RULES=(
   "rule-em-dash|zero-tolerance|0|0|typography|${EM_DASH}"
-  "rule-emoji-formatting|formatting emoji|0|0|typography|$(printf '\t')(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
+  "rule-emoji-formatting|formatting emoji|0|0|typography|$(printf '\t')[ ]?[ ]?[ ]?(>[ ]?)*(#+[[:space:]]+|[-*+][[:space:]]+)?${EMOJI_ERE}"
   "rule-curly-artifacts|unicode artifact|0|0|typography|${CURLY_ERE}"
   "rule-significance-inflation|phrase match|1|1|wording|(stands as a testament|testament to|pivotal (moment|role)|underscores (its|the) (importance|significance)|reflects broader|enduring legacy|marks a (significant )?shift|evolving landscape|indelible mark|deeply rooted|setting the stage for|rich tapestry|key turning point|(crucial|vital) role)"
   "rule-negative-parallelism|construction match|1|0|wording|(not (just|only|simply|merely) [^.]{0,80}but|isn.t [^.;]{0,60}[;,] it.s)"
@@ -580,7 +595,17 @@ matches_glob() {
 
 # --- Prose extraction ------------------------------------------------------------
 # Emits "lineno<TAB>text" for prose lines; strips fenced code blocks, inline code
-# spans, and honors the ignore markers. DECLINE rows record exempted candidates.
+# spans, and honors the ignore markers. A DECLINE row carries the same trailing
+# fields as a prose row, "DECLINE<TAB>kind<TAB>lineno<TAB>text", so a caller can
+# cut them back to the prose shape and ask which rule the exempted line would
+# have matched instead of charging every rule for it.
+#
+# A fence opener may follow a list marker (`- ` or `1. ` plus one to four
+# spaces), because CommonMark puts a fence inside a list item; its closer is
+# then measured against that item's content column rather than column zero. A
+# fence still open at end of file is reported on stderr: that is the correct
+# parse, but it reads the rest of the file as code, and scanning nothing is a
+# failure that must not be silent.
 #
 # Markers must be WELL-FORMED comment markers, not prose mentions (the
 # audit-noise precedent): the file/start/end forms must stand alone on their
@@ -605,31 +630,143 @@ matches_glob() {
 # marker back inside the excerpt — the same failure this parser exists to avoid,
 # in a new shape. Covered by the mixed-marker case in detect.test.sh.
 extract_prose() {
-  # Fences per CommonMark: openers may be indented up to three spaces (matched
-  # with [ ]? repetition — mawk has no {n,m} intervals), and a fence closes
+  # Fences per CommonMark: openers may be indented up to three spaces past their
+  # container (counted by hand, because mawk has no {n,m} intervals), and a fence closes
   # only on its OWN character, so ~~~ inside a backtick fence stays content.
+  # `stopped` guards the END rule, because awk runs END even after `exit`.
   awk '
-    BEGIN { fence = ""; ignored = 0 }
-    /^[[:space:]]*<!-- ai-slop-ignore-file(:[^>]*)? -->[[:space:]]*$/ { print "DECLINE\tfile"; exit }
-    /^[ ]?[ ]?[ ]?```/ {
-      if (fence == "") { fence = "`"; next }
-      if (fence == "`") { fence = ""; next }
+    function fence_char(s) {
+      if (substr(s, 1, 3) == "```") return "`"
+      if (substr(s, 1, 3) == "~~~") return "~"
+      return ""
     }
-    /^[ ]?[ ]?[ ]?~~~/ {
-      if (fence == "") { fence = "~"; next }
-      if (fence == "~") { fence = ""; next }
+    # An ordered marker carries at most nine digits (CommonMark "Lists"), so a
+    # longer run is a number in prose, not a list. Without the cap a line such
+    # as `1234567890. ` followed by a fence opened one, and every following
+    # line was read as code until a bare closer or end of file.
+    function marker_len(s,   n) {
+      if (s ~ /^[-*+]/) return 1
+      n = 0
+      while (n < 9 && substr(s, n + 1, 1) ~ /^[0-9]$/) n++
+      if (n > 0 && (substr(s, n + 1, 1) == "." || substr(s, n + 1, 1) == ")")) return n + 1
+      return 0
     }
-    fence != "" { next }
+    # Inline code spans go, and so does a line ignore marker: the marker and its
+    # reason are control syntax the author did not write as prose, so a rule
+    # must not be charged a decline for a word that appears only there.
+    function stripped(s,   t) {
+      t = s
+      gsub(/`[^`]*`/, "", t)
+      gsub(/<!-- ai-slop-ignore(-file|-start|-end)?(:[^>]*)? -->/, "", t)
+      return t
+    }
+    BEGIN { fence = ""; fence_ind = 0; fence_line = 0; ignored = 0; stopped = 0 }
+    /^[[:space:]]*<!-- ai-slop-ignore-file(:[^>]*)? -->[[:space:]]*$/ {
+      printf "DECLINE\tfile\t%d\t%s\n", NR, stripped($0)
+      stopped = 1
+      exit
+    }
+    {
+      ind = 0
+      while (substr($0, ind + 1, 1) == " ") ind++
+      rest = substr($0, ind + 1)
+      # A fence opened inside a list item ends with its CONTAINER, not only at a
+      # closer. A non-blank line indented less than the content column of that
+      # item ends the item, and lazy continuation reaches a paragraph but never
+      # a fenced block, so such a line belongs to the document. Clear the fence
+      # and fall through, so the line is judged on its own: it may be prose, and
+      # it may itself be an opener. A blank line does NOT end an item, which is
+      # why this tests rest. A document-level fence keeps fence_ind 0, so the
+      # comparison is never true for one and no top-level case moves.
+      # No apostrophes in this block: the awk program is single-quoted.
+      if (fence != "" && fence_ind > 0 && rest != "" && ind < fence_ind) fence = ""
+      fc = fence_char(rest)
+      fi = 0
+      if (fc == "" && ind <= 3) {
+        ml = marker_len(rest)
+        if (ml > 0) {
+          sp = 0
+          while (substr(rest, ml + sp + 1, 1) == " ") sp++
+          if (sp >= 1 && sp <= 4) {
+            fc = fence_char(substr(rest, ml + sp + 1))
+            if (fc != "") fi = ind + ml + sp
+          }
+        }
+      }
+      if (fence == "") {
+        if (fc != "" && ind <= 3) { fence = fc; fence_ind = fi; fence_line = NR; next }
+      } else {
+        if (fence_char(rest) == fence && ind <= fence_ind + 3) { fence = ""; next }
+        next
+      }
+    }
     /^[[:space:]]*<!-- ai-slop-ignore-start(:[^>]*)? -->[[:space:]]*$/ { ignored = 1; next }
     /^[[:space:]]*<!-- ai-slop-ignore-end(:[^>]*)? -->[[:space:]]*$/ { ignored = 0; next }
-    ignored { print "DECLINE\tblock"; next }
-    /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore(:[^>]*)? -->/ { print "DECLINE\tline"; next }
-    {
-      line = $0
-      gsub(/`[^`]*`/, "", line)   # inline code spans
-      printf "%d\t%s\n", NR, line
+    ignored { printf "DECLINE\tblock\t%d\t%s\n", NR, stripped($0); next }
+    /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore(:[^>]*)? -->/ {
+      printf "DECLINE\tline\t%d\t%s\n", NR, stripped($0)
+      next
+    }
+    { printf "%d\t%s\n", NR, stripped($0) }
+    END {
+      if (fence != "" && !stopped) {
+        printf "detect.sh: %s: code fence opened at line %d is never closed; the rest of the file was read as code\n", FILENAME, fence_line > "/dev/stderr"
+      }
     }
   ' "$1"
+}
+
+# strip_quoted: reads a "lineno<TAB>text" stream on stdin and writes the same
+# stream with quoted material removed: blockquote lines dropped, double-quoted
+# spans cut. Both the scanned prose and the declined rows go through it, so the
+# quote policy has exactly one implementation.
+#
+# A quoted span may WRAP: markdown prose soft-wraps at a column, so the
+# closing quote of a span often sits on the next line. The stripper carries
+# an open-span state across lines: a line with an unmatched opening quote is
+# cut from that quote to its end and the next line is cut from its start
+# through the closing quote. Without the carry, the quote pairing on the
+# continuation line is off by one and the exemption inverts, keeping the
+# quoted text and stripping the prose between quotes. The state resets at a
+# paragraph boundary (a blank line) and at the start of a new block element
+# (heading, list item, table row), so a stray unmatched quote can blank out
+# at most the rest of its own paragraph.
+strip_quoted() {
+  awk '
+    BEGIN { open = 0 }
+    {
+      tab = index($0, "\t")
+      if (tab == 0) next
+      lineno = substr($0, 1, tab - 1)
+      text = substr($0, tab + 1)
+      if (text ~ /^[ ]?[ ]?[ ]?>/) next
+      if (text ~ /^[[:space:]]*$/ || text ~ /^[[:space:]]*(#|[-*+] |[0-9]+\. |\|)/) open = 0
+      if (open) {
+        q = index(text, "\"")
+        if (q == 0) { printf "%s\t\n", lineno; next }
+        text = substr(text, q + 1)
+        open = 0
+      }
+      gsub(/"[^"]*"/, "", text)
+      q = index(text, "\"")
+      if (q > 0) {
+        # A lone quote opens a span only when it sits where an opening quote
+        # sits: after the line start, whitespace, or an opening bracket, and
+        # directly before a non-space character. An inch or second mark
+        # (6", 30") or a stray closing quote fails that test, so it is
+        # dropped and the prose on both sides stays scanned instead of
+        # blanking the rest of the paragraph.
+        before = (q > 1) ? substr(text, q - 1, 1) : " "
+        after = substr(text, q + 1, 1)
+        if (before ~ /[[:space:](\[{]/ && after ~ /[^[:space:]]/) {
+          text = substr(text, 1, q - 1)
+          open = 1
+        } else {
+          text = substr(text, 1, q - 1) substr(text, q + 1)
+        }
+      }
+      printf "%s\t%s\n", lineno, text
+    }'
 }
 
 # Truncate an excerpt to at most 80 BYTES without splitting a multi-byte UTF-8
@@ -665,11 +802,13 @@ ALL_RULES=()
 for entry in "${PATTERN_RULES[@]}" "${DENSITY_RULES[@]}"; do ALL_RULES+=("${entry%%|*}"); done
 
 # Declined counts are kept per rule AND per cause, because one total tells a
-# reader nothing about what was exempted: `marker` is in-file ignore markers
-# (line, block, and whole-file), `quote` is the quotation exemption (blockquote
-# lines and double-quoted spans a wording rule would have matched), and
-# `config` is an excluded_paths glob or a rule_allowed_paths entry. Fenced code
-# is not a decline at all: it is never prose, so nothing is counted for it.
+# reader nothing about what was exempted: `marker` is the in-file ignore
+# markers, counting the exempted lines, or occurrences, THAT RULE would have matched,
+# plus one whole-file charge to every rule when a file-level marker declines
+# the file; `quote` is the quotation exemption (blockquote lines and
+# double-quoted spans a wording rule would have matched); and `config` is an
+# excluded_paths glob or a rule_allowed_paths entry. Fenced code is not a
+# decline at all: it is never prose, so nothing is counted for it.
 declare -A FINDINGS DECLINED DECL_MARKER DECL_QUOTE DECL_CONFIG
 for slug in "${ALL_RULES[@]}"; do
   FINDINGS[$slug]=0
@@ -736,60 +875,32 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
     continue
   fi
 
-  declines="$(printf '%s\n' "$prose" | LC_ALL=C grep -c '^DECLINE' || true)"
+  # Marker-exempt lines are kept in a stream shaped exactly like the prose
+  # stream (`lineno<TAB>text`), so each rule can be asked what IT would have
+  # matched instead of every rule being charged the raw exempted-line count.
+  # The shape matters beyond tidiness: rule-emoji-formatting anchors its
+  # expression on that field separator, so a bare-text stream could never
+  # match it.
+  declined_prose=""
+  declined_wording=""
+  if printf '%s\n' "$prose" | LC_ALL=C grep -q '^DECLINE'; then
+    declined_prose="$(printf '%s\n' "$prose" | LC_ALL=C grep '^DECLINE' | cut -f3- || true)"
+    declined_wording="$(printf '%s\n' "$declined_prose" | strip_quoted)"
+  fi
   prose="$(printf '%s\n' "$prose" | LC_ALL=C grep -v '^DECLINE' || true)"
-  [[ "$declines" -gt 0 ]] && decline_all_rules "$declines" marker
 
   # Quotation exemption: wording rules never scan quoted material. Blockquote
   # lines are dropped and double-quoted spans stripped; every quote-exempt
   # candidate a wording rule WOULD have matched is counted as declined for that
   # rule below, never silently dropped. Typography rules keep the full stream.
   #
-  # A quoted span may WRAP: markdown prose soft-wraps at a column, so the
-  # closing quote of a span often sits on the next line. The stripper carries
-  # an open-span state across lines: a line with an unmatched opening quote is
-  # cut from that quote to its end and the next line is cut from its start
-  # through the closing quote. Without the carry, the quote pairing on the
-  # continuation line is off by one and the exemption inverts, keeping the
-  # quoted text and stripping the prose between quotes. The state resets at a
-  # paragraph boundary (a blank line) and at the start of a new block element
-  # (heading, list item, table row), so a stray unmatched quote can blank out
-  # at most the rest of its own paragraph.
-  prose_wording="$(printf '%s\n' "$prose" | awk '
-    BEGIN { open = 0 }
-    {
-      tab = index($0, "\t")
-      if (tab == 0) next
-      lineno = substr($0, 1, tab - 1)
-      text = substr($0, tab + 1)
-      if (text ~ /^[ ]?[ ]?[ ]?>/) next
-      if (text ~ /^[[:space:]]*$/ || text ~ /^[[:space:]]*(#|[-*+] |[0-9]+\. |\|)/) open = 0
-      if (open) {
-        q = index(text, "\"")
-        if (q == 0) { printf "%s\t\n", lineno; next }
-        text = substr(text, q + 1)
-        open = 0
-      }
-      gsub(/"[^"]*"/, "", text)
-      q = index(text, "\"")
-      if (q > 0) {
-        # A lone quote opens a span only when it sits where an opening quote
-        # sits: after the line start, whitespace, or an opening bracket, and
-        # directly before a non-space character. An inch or second mark
-        # (6", 30") or a stray closing quote fails that test, so it is
-        # dropped and the prose on both sides stays scanned instead of
-        # blanking the rest of the paragraph.
-        before = (q > 1) ? substr(text, q - 1, 1) : " "
-        after = substr(text, q + 1, 1)
-        if (before ~ /[[:space:](\[{]/ && after ~ /[^[:space:]]/) {
-          text = substr(text, 1, q - 1)
-          open = 1
-        } else {
-          text = substr(text, 1, q - 1) substr(text, q + 1)
-        }
-      }
-      printf "%s\t%s\n", lineno, text
-    }')"
+  # The same split applies to the marker accounting above: a wording rule is
+  # charged against `declined_wording`, a typography rule against
+  # `declined_prose`. A marker-exempt line a wording rule would only have
+  # matched inside quoted material is charged to no rule at all. It was exempt
+  # twice over, and the marker count is the count of lines the rule would
+  # actually have raised a finding on.
+  prose_wording="$(printf '%s\n' "$prose" | strip_quoted)"
 
   # Pattern rules: one finding per matching prose line.
   for entry in "${PATTERN_RULES[@]}"; do
@@ -810,11 +921,17 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
     [[ "$ci" == "1" ]] && flags+=(-i)
     [[ "$word" == "1" ]] && flags+=(-w)
     stream="$prose"
+    declined_stream="$declined_prose"
     if [[ "$class" == "wording" ]]; then
       stream="$prose_wording"
+      declined_stream="$declined_wording"
       full_hits="$(printf '%s\n' "$prose" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
       kept_hits="$(printf '%s\n' "$stream" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
       [[ "$full_hits" -gt "$kept_hits" ]] && decline_rule "$slug" $((full_hits - kept_hits)) quote
+    fi
+    if [[ -n "$declined_prose" ]]; then
+      marker_hits="$(printf '%s\n' "$declined_stream" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
+      [[ "$marker_hits" -gt 0 ]] && decline_rule "$slug" "$marker_hits" marker
     fi
     while IFS=$'\t' read -r lineno text; do
       [[ -z "$lineno" ]] && continue
@@ -822,6 +939,21 @@ for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
       emit_finding "$slug" "$rel" "$lineno" "$label" "$excerpt"
     done < <(printf '%s\n' "$stream" | LC_ALL=C grep "${flags[@]}" -- "$ere" || true)
   done
+
+  # Marker declines for the density rules are counted OUTSIDE the word-count
+  # guard below. A file whose every prose line sits inside an ignore block has
+  # no scannable words left, so the guarded loop never runs, and a rule would
+  # report zero declines for material the markers demonstrably suppressed.
+  if [[ -n "$declined_prose" ]]; then
+    for entry in "${DENSITY_RULES[@]}"; do
+      IFS='|' read -r slug key default ere <<<"$entry"
+      rule_disabled "$slug" && continue
+      rule_allowed "$slug" "$file" && continue
+      [[ "$ere" == "__VOCAB__" ]] && ere="$VOCAB_ERE"
+      marker_hits="$(printf '%s\n' "$declined_wording" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
+      [[ "$marker_hits" -gt 0 ]] && decline_rule "$slug" "$marker_hits" marker
+    done
+  fi
 
   # Density rules: one finding per file when density reaches the threshold.
   # All density rules are wording-class, so both the hit count and the word

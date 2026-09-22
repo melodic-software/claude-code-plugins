@@ -141,7 +141,7 @@ sibling divergences it owns.
 - **Dismissal grounds the judgment pass may use** (recurring, sanctioned; the scanner cannot see them): a fictional slug instantiated by a worked example (nothing can dangle), a vendored-verbatim upstream baseline that is never hand-edited by policy, a delete/prune instruction whose target is the path being removed (a record, not a followable reference), and a shape-definition or output-schema example matching its own pattern.
 - **Negation carve-outs are evidence-gated, so an unresolved candidate is EMITTED.** Three
   conditions suppress a `negation` candidate, and each requires its evidence present on the
-  sentence: a **paired positive** (`instead`, `rather than`, `prefer`, `in place of`, `in favour
+  sentence: a **paired positive** (`instead`, `rather than`, `prefer`, `in place of`, `in favor
   of`, or a bare imperative after a separator such as an em dash, semicolon, or colon, looking through a
   leading adverb such as `just` / `simply`), a **hard guardrail** whose constraint a positive form cannot carry (`secret`, `credential`,
   `token`, `password`, `api key`, `force-push`, `--force`, `rm -rf`, `destructive`, `irreversible`,

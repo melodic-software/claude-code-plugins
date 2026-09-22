@@ -330,7 +330,7 @@ withheld; three of five initial answers revised on evidence).
   is the empty set under this repo's squash-merge default; the integration-branch execution shape
   has no per-item PRs at all; a container-scoped basis conflicts with `quality-gate`'s singular
   review-diff-base contract) and it was judged structurally larger than a mode addition.
-  **That last judgement was wrong, and #3027 is closed.** It landed 2026-08-19 (PR #3043) as
+  **That last judgment was wrong, and #3027 is closed.** It landed 2026-08-19 (PR #3043) as
   exactly what it was said to be too large for — a tenth `quality-gate` lens,
   `plugins/review/skills/quality-gate/context/close-out.md`, routed from `SKILL.md` with
   `close-out [--container <id>] [--dry-run]` in the argument hint. All four broken mechanisms were
@@ -467,7 +467,7 @@ nor past its own first page. So what ships is **verified against the provider's 
 mocked-transport suite, never against a live server** — materially stronger than "unverified", and
 still short of what the criterion asked. Four resolver-level questions stay open and are named on
 the issue: whether `assigneeId: null` semantically unassigns, Linear's default comment ordering,
-whether `Team.labels` really excludes workspace labels, and behaviour under real rate limits and
+whether `Team.labels` really excludes workspace labels, and behavior under real rate limits and
 concurrent claims.
 
 **A claim in an earlier draft of this very section was wrong and is corrected here**, which is

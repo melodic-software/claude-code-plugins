@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Render the landscape artifacts from the committed record.
 #
-# WHY. Table rows, dependency truncation, diagram alias sanitising, boundary
+# WHY. Table rows, dependency truncation, diagram alias sanitizing, boundary
 # grouping and node labels are all mechanical, and rendering them by hand makes
 # two runs on identical facts produce different files. Everything this script
 # does is decided by the record: nothing here weighs, judges, or describes. Prose
@@ -135,7 +135,7 @@ esac
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$record" ||
   die "not a schema_version 1 record: $record" 1
 
-# Which organisation the landscape is drawn from. A checkout is internal because
+# Which organization the landscape is drawn from. A checkout is internal because
 # its owner matches this one, not because someone happened to have it on disk.
 # A record that names no subject owner cannot make that call, so every checkout
 # in it stays internal and the drawing is the same as it was.
@@ -214,7 +214,7 @@ function field(line, want,   keys, vals, n, i) {
 # The record is JSON, so a quote or a backslash inside a value arrives escaped.
 # Stripping the delimiters without undoing the escapes hands the next stage a
 # stray backslash and a quote it will read as its own, so the value is decoded
-# here and neutralised for the target grammar where it is written out.
+# here and neutralized for the target grammar where it is written out.
 function unquote(v,   out, i, c, last) {
   if (substr(v, 1, 1) != "\"") return v
   v = substr(v, 2, length(v) - 2)
@@ -451,7 +451,7 @@ if [[ "$dialect" == "mermaid" ]]; then
     printf 'Generated on %s from %s. Remote facts: %s.\n\n' \
       "$gen_on" "$disco" "$remote_state"
     printf 'Every fact traces to the file the probe named. Every edge is typed by the\n'
-    printf 'syntax that carries it and labelled with how many references support it.\n'
+    printf 'syntax that carries it and labeled with how many references support it.\n'
     printf 'A system with no probed runtime is one this checkout names but does not\n'
     printf 'contain.\n\n'
     printf '```mermaid\nC4Context\n  title System Landscape\n'
@@ -462,7 +462,7 @@ if [[ "$dialect" == "mermaid" ]]; then
         b = 0
         for (i = 1; i <= n; i++) {
           split(io[i], f, "\t")
-          # An enterprise boundary is captioned with an organisation. "unknown"
+          # An enterprise boundary is captioned with an organization. "unknown"
           # is the absence of one, so a repository with no resolvable owner is
           # drawn at the top level rather than inside a boundary naming nothing.
           if (f[7] == "unknown") {
@@ -501,7 +501,7 @@ else
       END {
         for (i = 1; i <= n; i++) {
           split(io[i], f, "\t")
-          # A group is captioned with an organisation. "unknown" is the absence
+          # A group is captioned with an organization. "unknown" is the absence
           # of one, so an ownerless repository sits outside every group.
           if (f[7] == "unknown") {
             if (cur != "") { print "    }"; cur = "" }

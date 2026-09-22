@@ -256,7 +256,7 @@ applies. Detaching only stops the render waiting.
 MSYS has no native `fork()`, so forking a bash subshell holding the payload costs 75–200 ms on
 Windows, against ~24 ms to exec a small binary. Detaching does not make the work cheaper; it buys
 back the render's critical path by paying a fork more expensive than the execs it steps around,
-and it lets successive refreshes overlap instead of serialise. Measured on Windows, 24 cores,
+and it lets successive refreshes overlap instead of serialize. Measured on Windows, 24 cores,
 status line + tee:
 
 | | sync (default) | async |

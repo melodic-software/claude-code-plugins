@@ -3,6 +3,14 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.55] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.3.54]
 
 ### Changed
@@ -573,7 +581,7 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN: one visible
   skip notice per session, then exit 0. That is the correct posture for every hook in this plugin,
-  so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  so **nothing in this plugin's behavior changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
@@ -589,7 +597,7 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.3.3]
@@ -606,7 +614,7 @@ All notable changes to the `go-format` plugin are documented here. Format follow
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
   flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
-  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  new global, so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.3.2]
 

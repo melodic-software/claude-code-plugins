@@ -115,7 +115,7 @@ the test runner. `BINARY` · MEDIUM · `surfaces-desktop/VERIFICATION.md`.
 
 `claude --plugin-dir mods/diff`. `SOURCE` · HIGH. Long-established and
 well-covered in the CHANGELOG (12 entries, none about hooks modules). Relevant
-behaviours: accepts a **folder of plugins** (children added or removed while
+behaviors: accepts a **folder of plugins** (children added or removed while
 running are picked up); accepts `.zip`; a local dev copy overrides an installed
 marketplace plugin of the same name unless force-enabled by managed settings; one
 path per flag. `SOURCE` · HIGH.
@@ -172,7 +172,7 @@ test's first call on `$`, so a test registers its hooks before it.
 
 1. **`$.tool.call` does not dispatch `classic.PreToolUse` inside the kit.** The
    classic chain is driven by core, which the kit replaces. Test classic
-   behaviour live instead. `OBSERVED` · HIGH ·
+   behavior live instead. `OBSERVED` · HIGH ·
    `architecture-pdf/DENY-AND-ERROR-SEMANTICS.md` (d).
 2. **The 10 s hook budget is not observed inside the kit.** A probe spinning 13 s
    returned its own value and `.catch` never fired; the two failures were the

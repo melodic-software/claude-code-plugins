@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests for inventory.sh (self-contained, ships with the plugin).
 #
-# The behaviour under test is the one the previous revision got wrong: a location
+# The behavior under test is the one the previous revision got wrong: a location
 # the script could not read must report WHY, never 0. A silent zero is
 # indistinguishable from a real absence, which is what made the old output
 # misleading rather than merely incomplete.
@@ -82,14 +82,14 @@ assert_contains "--help documents the never-zero contract" "$help_out" "It never
 #
 # Every argument but -h/--help used to be discarded, so `inventory.sh
 # --plugin-data /x` ran a full audit and exited 0 as though the flag had been
-# honoured. An unrecognised argument is a usage error.
+# honored. An unrecognized argument is a usage error.
 
 rc=0
 bad_out="$(cd "$WORK" && bash "$INVENTORY" --plugin-data /x 2>/dev/null)" || rc=$?
 assert_exit "an unknown argument is a usage error" 2 "$rc"
 assert_eq "an unknown argument prints no inventory" "" "$bad_out"
 bad_err="$(cd "$WORK" && bash "$INVENTORY" --plugin-data /x 2>&1 >/dev/null)"
-assert_contains "the usage error names the argument" "$bad_err" "unrecognised argument: --plugin-data"
+assert_contains "the usage error names the argument" "$bad_err" "unrecognized argument: --plugin-data"
 
 rc=0
 (cd "$WORK" && bash "$INVENTORY" extra-positional >/dev/null 2>&1) || rc=$?

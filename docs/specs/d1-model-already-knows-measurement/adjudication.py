@@ -108,7 +108,7 @@ def main(sample_path, out_path, instructions_path):
     print()
     print("false-positive rate, two readings of the contested bucket")
     print(
-        f"  most favourable to proxy (contested = true positive):"
+        f"  most favorable to proxy (contested = true positive):"
         f" {fp_strict}/{n} = {100.0 * fp_strict / n:.1f}%"
     )
     print(

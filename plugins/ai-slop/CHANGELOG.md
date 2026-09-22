@@ -1,5 +1,62 @@
 # Changelog
 
+## [0.6.5] - 2026-09-22
+
+### Fixed
+
+- **`detect.test.sh`:** the suite reconciles its executed case total against a declared expected
+  total. The tally was its own only witness: a run that lost cases still printed `All N cases
+  passed` and exited 0, because nothing said how many cases N should have been. Measured on this
+  Windows host: a run lost three unconditional cases, which produced no `PASS`, `FAIL` or `SKIP`
+  line at all, and the run still reported green, so the line proved less than it claimed. A run
+  that aborts mid-file is a different shape and was already loud, since it exits nonzero and prints
+  no summary. The Result block now sums `PASS + FAIL + SKIP` and compares it to `EXPECTED_CASES`. A
+  total that disagrees writes a report to stderr naming both numbers and the breakdown, never prints
+  the green line, and exits nonzero even with zero failures; a failing run that also miscounted
+  prints both reports. The green line and the failure line are byte-identical to before.
+
+## [0.6.4] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.6.3]
+
+### Fixed
+
+- **`detect.sh`:** a code fence that opens after a list marker is recognized. CommonMark opens a
+  fence on an ordered or bullet list line carrying the fence characters, and the parser matched an opener
+  only at the line start. It missed such an opener, read the indented closer as one instead, and
+  inverted every fence from there on, so whole stretches of a file were treated as code and never
+  scanned. Nothing said so: one measured file carried 24 em dashes through a full fix pass in
+  lines the parser believed were code. A closer is now measured against its own fence's container
+  indent, and such a fence also ends with that container: a non-blank line indented less than the
+  content column of the list item ends the item, and lazy continuation reaches a paragraph but
+  never a fenced block, so that line is judged on its own and may be prose or an opener of its
+  own. A blank line does not end an item, so a fence survives one. A fence still open at end of
+  file writes one line to stderr naming the file and the opening line number, so an inverted parse
+  is visible rather than silent.
+- **`detect.sh`:** a marker decline is charged only to the rules whose own expression matches the
+  exempted material. Every rule used to be charged the raw count of exempted prose lines, so a run
+  reported the same `declined` and `declined_marker` totals on every rule, including rules with no
+  candidate anywhere in the corpus, and the counts the audit tells the operator to report said
+  nothing about what the markers suppressed. A pattern rule now counts the exempted lines it would
+  have matched and a density rule the exempted occurrences, each against the stream that rule
+  actually scans, so quoted material a wording rule never reads is not charged to it. A whole-file
+  marker and an `excluded_paths` glob still charge one decline per file to every rule, because the
+  unit there is the file.
+- **`detect.sh`:** `rule-emoji-formatting` sees a glyph behind a blockquote prefix. The rule walked
+  a heading or bullet prefix but not a blockquote marker, so a callout written as a `>` marker plus
+  a glyph, or a `>` marker and a `###` heading plus a glyph, passed clean while the same glyph at
+  column zero fired. Up to three spaces
+  of indentation and any depth of blockquote marker now precede the optional heading or bullet
+  marker. The glyph must still follow the last prefix directly, so an emoji in content position
+  stays outside the rule, which the catalog scopes to emoji used as bullets, section markers, or
+  visual separators.
+
 ## [0.6.2]
 
 ### Changed
@@ -200,7 +257,7 @@
   time, so `head` closes the pipe mid-run every time and the script dies of SIGPIPE. Measured here:
   `PIPESTATUS` is `141 0`. The probe rendered the full, correct eight-line config and then appended
   `detector unavailable` under it. This was not latent and not a corner case: it was the observed
-  behaviour of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
+  behavior of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
   empty value, it asserts a failure that did not happen.
 
   Reproduced and fixed by execution in three states, each with and without `pipefail`. Skill

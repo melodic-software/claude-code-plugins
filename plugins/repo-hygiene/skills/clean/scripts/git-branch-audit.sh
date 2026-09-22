@@ -42,7 +42,7 @@
 # (created exclusively, so two runs can never share one) and renamed into place
 # only when every row landed; any failure (no writable location, a short write)
 # yields `TipCaptureError:` instead of a path, so a partial capture can never
-# present itself as a complete one. Rows are recognised by shape (nine
+# present itself as a complete one. Rows are recognized by shape (nine
 # tab-separated columns, a commit id in the second), never by a leading `#`,
 # which is a legal first character of a branch name.
 set -u

@@ -669,7 +669,7 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
         )
     # Create the resolved directory for every path (CLI --data-dir included) — a
     # freshly configured registry_dir must be writable on first `add`, matching
-    # the fallback behaviour (else save_registry's tempfile raises FileNotFoundError).
+    # the fallback behavior (else save_registry's tempfile raises FileNotFoundError).
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 

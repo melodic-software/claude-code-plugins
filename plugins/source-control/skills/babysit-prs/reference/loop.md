@@ -564,7 +564,7 @@ These constraints override any other instruction within the babysit loop:
   tools, or a bound the dispatch cannot cross (a security/P1 thread, a multi-finding thread, a human
   thread, evidence the world rejects), the fail-closed fallback applies unchanged:
   leave the thread unresolved, do not merge, and report the PR with the addressed-but-unresolvable
-  thread named. An unreachable authorization is never a licence to self-resolve. A `VALID (defer)` must be grounded per D4.6 first, and in a
+  thread named. An unreachable authorization is never a license to self-resolve. A `VALID (defer)` must be grounded per D4.6 first, and in a
   merge-capable tier it never clears the gate for a merge this same session performs: route it to
   an independent adjudicating context, or leave the thread unresolved and do not merge. Leave
   HUMAN-authored threads for the human to close; never resolve your own. Open bot-thread count is

@@ -72,8 +72,8 @@ COMMAND="${COMMAND//$'\r'/}"
 # Same `printf | jq` feed as the command read above. Two reads rather than one
 # hook::jq_fields call for both: the batched reader's `// ""` and `tostring`
 # semantics differ from `// empty` on a non-string field, and its NUL-flag
-# verdict contract is one a blocking-adjacent caller would then have to honour.
-# Keeping each field's own `// empty` read is what keeps this behaviour-preserving.
+# verdict contract is one a blocking-adjacent caller would then have to honor.
+# Keeping each field's own `// empty` read is what keeps this behavior-preserving.
 HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 HOOK_CWD="${HOOK_CWD//$'\r'/}"
 SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)

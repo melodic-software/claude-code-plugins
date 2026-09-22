@@ -148,6 +148,25 @@ run "PS: violating gh pr create --title blocked" "$r" \
 PS_BAD_EXPANDABLE=$'@"\njunk subject $(node -p \'x\')\n"@ | git commit -F - --cleanup=verbatim'
 run "PS: violating expandable here-string subject deferred (classifier rc 2)" "$r" \
   "$PS_BAD_EXPANDABLE" 0 PowerShell
+# The ONE sink trigger this guard does not defer. PowerShell reads `# @"` as
+# comment text, so the `@"` opens nothing and the lines under it are live
+# commands; the reduction takes the line as an opener and drops them as
+# here-string body. Deferring would hand the shape straight through, because the
+# sibling that would catch a commit form is looking at the same reduced text.
+# The refusal is unconditional and consults no allow-list.
+run "PS: a commented here-string opener is refused here, not deferred (blocked)" "$r" \
+  $'Write-Output x # @"\ngit commit -m x\n"@ fine"' 2 PowerShell
+run "PS: the @\047 spelling of the commented opener (blocked)" "$r" \
+  $'Write-Output x # @\'\ngit commit -m x\n\'@ fine\'' 2 PowerShell
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" "$r" \
+  $'Write-Output "#1" @"\nhello\n"@' 2 PowerShell
+# The regression fence: the `#` has to be on the opener line before the suffix,
+# and the canonical conforming form is untouched.
+run "PS: a here-string body containing a # (allowed)" "$r" \
+  $'Write-Output @\'\nrelease # 1\n\'@' 0 PowerShell
+run "PS: conforming here-string subject with a trailing comment (allowed)" "$r" \
+  "$PS_GOOD # ok" 0 PowerShell
 
 # --- review round 1: raw subject, env-prefixed gh, alias-expanded commit ------
 r="$(newrepo "$TICKET")"

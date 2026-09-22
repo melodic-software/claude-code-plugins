@@ -3,6 +3,79 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.15] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
+## [0.46.14]
+
+### Fixed
+
+- **`unhobble`'s strip and restore cover a root `AGENTS.md`, `.claude/AGENTS.md` and
+  `.claude/CLAUDE.md`.** Under the default instruction-files mode a session reads the `AGENTS.md`
+  names as the project instructions only when no `CLAUDE.md` name displaces them, and the strip
+  removes exactly those names, so a repository
+  whose `CLAUDE.md` is a one-line `@AGENTS.md` shim finished the strip with its whole instruction
+  surface still loading while the skill declared the baseline bare.
+- **New `skills/unhobble/scripts/instruction-files.sh` (`list` / `strip` / `restore`) is the one list
+  of root instruction files both steps read**, and takes its root as an explicit argument rather than
+  resolving the working directory.
+- **`strip` refuses the whole strip, naming the offenders, unless every named file is tracked, clean
+  and comparable.** `git rm` refuses an untracked file and a modified one alike, and a refusal
+  landing mid-loop would leave the files ahead of it gone while the rest kept loading. An
+  `assume-unchanged` or `skip-worktree` bit is its own refusal, naming the `git update-index`
+  invocation that clears it: git stops comparing the worktree copy, so `git diff --quiet` reports
+  clean on an edited file and `git rm` then deletes the edit.
+- **An untracked instruction file, the ordinary case for `CLAUDE.local.md`, is not the helper's to
+  strip.** It is routed to the manifest backup path the experiment already uses for settings, which
+  is where its restore lives, so the bare baseline is reached by the path that can restore it.
+- **Both verbs act only on the names they are given, and `--all` is a separate word.** A plan can
+  classify a `CLAUDE.md` behavioral and an `AGENTS.md` `policy`, and phase 4 re-adds only what the
+  stumble ledger defended. A name the caller approved but the tree does not have exits non-zero
+  rather than recording a bare baseline for a file that still loads, and a repeat is acted on once.
+- **A named `restore` resolves every refusal before it checks anything out**: an unknown name, a ref
+  that is not a commit, a name the ref does not have, or an occupied target exits non-zero with
+  nothing restored. Occupancy is any object rather than a regular file, covers an ancestor that is
+  not a directory, and counts an index entry the filesystem cannot see, which
+  `git checkout <ref> -- <path>` would overwrite.
+- **`restore --all` is the abandon path, not the close path.** It checks out a name the ref has over
+  whatever is on disk, and removes from the worktree and the index a name the ref lacks but git
+  tracks. A name blocked by a symlink, a directory or a non-directory ancestor is reported and
+  stepped over with its index entry still dropped, and one untracked and absent from the ref is left
+  in place and named, git being unable to tell a file the experiment wrote from one that predated it.
+- **New `reference/agents-md-liveness.md` records whether a session reads an `AGENTS.md` at all**,
+  availability then the instruction-files mode, as four-part records cited to the official memory
+  page that the edited bodies point at rather than restate. Three of the four documented
+  unavailability conditions are resolvable, two of them from settings this plugin already reads, and
+  two of the mode's four values read no `AGENTS.md` at all, which makes displacement a condition of
+  the default value alone.
+- **The sites that gated an `AGENTS.md` on displacement alone now gate on availability and the
+  effective mode**: `audit-prompting-postures`'s surface set, `audit-instructions`'s Phase A, I14's
+  Detect set, and I15's exclusion clause and co-residency row. The mode is resolved across the user,
+  `--settings` and managed scopes rather than from one scope's copy, and under
+  `claude-md-and-agents-md` both files load, so an `AGENTS.md` beside a `CLAUDE.md` is live. An
+  unresolved condition keeps the surface in the inventory lanes and leaves it alone in the finding
+  lanes, with `audit-prompting-postures` inventorying it and emitting `NOT-APPLICABLE`, the
+  unresolved condition as the failed predicate, because its Phase C judges every inventoried
+  component.
+- **Phase 1 treats both `AGENTS.md` names as strip candidates wherever the strip could make them
+  live**, rather than passing over them because nothing appears to read the file today. A gate known
+  false with no `CLAUDE.md` importing or symlinking the file excludes it, an unresolved gate or a
+  shim keeps it, and classification then decides: one classified `policy` or `convention` is kept and
+  never named to `strip`.
+- **New `instruction-files.test.sh`** covers the shim repository, a lone `AGENTS.md`, a lone
+  `.claude/AGENTS.md` whose directory the restore has to recreate, an untracked file, a tracked file
+  modified in the worktree and then staged, the `assume-unchanged` bit, the occupancy and obstruction
+  cases, a repository with no instruction files, and the usage errors.
+
+### Changed
+
+- The skills that enumerate the instruction layer name a natively read `AGENTS.md` beside `CLAUDE.md`, the way `audit-instructions`'s body has since 0.46.13: the routing glosses in `audit`, `audit-permission-grants` and `audit-permission-state`, the surface set and description of `audit-prompting-postures`, the enforcement-hierarchy and behavioral-rule lines in `audit-automation-gaps`, the `unhobble` description and scope rails, and the README's skill table, `audit-instructions` section and consumer-conventions note. `audit-instructions`'s own description, summary, Phase A counterpart list and routing bullet are in the sweep too: 0.46.13 changed the body's surface enumerations and left the frontmatter, which is what decides whether the skill is offered for an `AGENTS.md` question at all. The consumer-conventions passages, which tell a skill where to read a repository's own policy, were the ones that silently read nothing in a repository that has migrated its instructions out of `CLAUDE.md`. The two `audit-instructions` reference files are finished too: the redundant-read check's Detect set lists the natively read `AGENTS.md` names, which its own must-not-flag paragraph already exempted conditionally, so an auditor reading Detect literally no longer misses a skill body sending an agent to re-read the startup instructions in an AGENTS.md-canonical repository; I3's always-loaded surface list and its survives-compaction remediation name it; and the two memory-doc source glosses match the page they cite.
+
 ## [0.46.13]
 
 ### Changed
@@ -142,7 +215,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
-- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and colour tests. No behavior change.
+- audit skill: audit-engine.sh reuses the hook and matcher it already derived per coverage-manifest entry, sorts the MCP server lists once for both comm passes, drops an unused resolver parameter and a dead exit initializer; check-doc-citations.sh flattens its curl gate; check-plugin-drift.sh and fix-plugin-drift.sh merge their similar-name guards and color tests. No behavior change.
 
 ## [0.46.2]
 
@@ -314,7 +387,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 ### Fixed
 
 - **`audit-permission-grants`**: the tilde-user finding is emitted under `P2b`, the id its own
-  criteria section and the severity table already gave it. It was labelled `P2`, so a reader could
+  criteria section and the severity table already gave it. It was labeled `P2`, so a reader could
   not tell which of the two documented checks had fired and a search for `P2b` in a report found
   nothing.
 - **`audit-permission-grants`**: the P2 and P2b remedy no longer offers `${CLAUDE_SKILL_DIR}` in
@@ -822,7 +895,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   evidence available against it. Phase 4 now restores a rule matching a protected class in the
   marketplace's instruction exception register whether or not the ledger logged against it. The
   strip itself stays permitted. It is reversible and branch-local, which is why the experiment may
-  run over a protected rail at all. Register holds are recorded separately from the defence tally,
+  run over a protected rail at all. Register holds are recorded separately from the defense tally,
   so restoring one is not counted as a deletion the ledger defeated.
 - **`audit-instructions`: I1, I4 and I5 gain a hold verdict for protected instruction classes.**
   All three deletion-class criteria remediated to `delete` with no stated exception, which left the
@@ -2805,7 +2878,7 @@ offered as a mechanical `--fix`.
     manufactures the initiative rather than replacing it. A `PreToolUse` deny is the contrast that
     fixes the line.
   - Fenced against a measured-signal mechanism, a user-invoked continuation skill (including a router
-    falling back to its own judgement when no instrument is available), a routing condition that
+    falling back to its own judgment when no instrument is available), a routing condition that
     sizes an artifact rather than abandoning the work, a budget rendered to the operator, and a
     document about the pattern. A playbook stating the counter-steer is exempt on **polarity** rather
     than audience: it instructs the opposite of Detect, so it never satisfies Detect at all.
@@ -3020,7 +3093,7 @@ offered as a mechanical `--fix`.
   > In code: default to writing no comments. Never write multi-paragraph docstrings or multi-line comment blocks — one short line max.
   <!-- ai-slop-ignore-end -->
 
-  Its stated obsolescence ("newer models have better judgement and can handle these decisions well
+  Its stated obsolescence ("newer models have better judgment and can handle these decisions well
   without explicit rules") is the model-delta ground, and its replacement, "Write code that reads
   like the surrounding code: match its comment density, naming, and idiom", is an instance of the
   row's positive-reframing remediation, shipped by upstream.
@@ -3321,7 +3394,7 @@ offered as a mechanical `--fix`.
 - **`audit-instructions`: `SKILL.md` records why `I8-e` is not seeded** into the deterministic
   pre-scan. It sits with `I8`'s base row and `I8-d` in the lane-only list, but on a narrower ground:
   its skeleton is patternable, and it waits only on an attested instance to calibrate the interval
-  forms against, not on the "phrasings too varied" reason its neighbours carry.
+  forms against, not on the "phrasings too varied" reason its neighbors carry.
 
 - **`audit-instructions`: the model migration guide joins the catalog's Sources.** `I17-c`'s API arm
   cites it for the model range over which manual extended thinking is rejected. Per the catalog's own
@@ -3950,7 +4023,7 @@ offered as a mechanical `--fix`.
   suppressor off would delete the only bound on two trimming checks.
 - **`OPINION`-tier enablement policy in the catalog.** Emitting rules default off, `info`-capped,
   never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
-  follows its host's enablement and is labelled inline. Every run reports how many `OPINION` checks
+  follows its host's enablement and is labeled inline. Every run reports how many `OPINION` checks
   were available, how many did not run, and the argument that enables them.
 - **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.2.0) and `last-updated`,
   replacing the body-prose version line. A contract surface with three parse paths now stamps its
@@ -3977,7 +4050,7 @@ offered as a mechanical `--fix`.
   cost on the recommendation, never as a budget threshold.
 - **`audit-instructions` I9 remediation names the interface destination.** Where an example block
   exists to enumerate what a caller may pass, the finding names an argument enumeration, a
-  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
+  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labeled as such in the
   finding, never fix-applied; the detection is unchanged and stays officially backed.
 - **`Authority` gloss no longer asserts that every row is `ANTHROPIC-DOCS`.** The two
   `OPINION`-tier rules this release adds are the first that are not; the axis stays a closed

@@ -46,8 +46,8 @@ assert_contains "the issue is created" "$(lin_requests)" "issueCreate"
 # Linear's IssueCreateInput takes `labelIds`, not names. Passing names would be
 # accepted-looking and simply not apply.
 seed_create
-rc="$(lin_run "$S" --title "labelled" --labels "type: fix,priority: high")"
-assert_eq "labelled create → exit 0" "0" "$rc"
+rc="$(lin_run "$S" --title "labeled" --labels "type: fix,priority: high")"
+assert_eq "labeled create → exit 0" "0" "$rc"
 assert_contains "label ids are sent, not names" "$(lin_bodies)" '"labelIds":["uuid-label-fix","uuid-label-hi"]'
 
 # An unknown label is REFUSED, not dropped: an item filed without its type or priority

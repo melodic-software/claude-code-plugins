@@ -1071,6 +1071,29 @@ run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
   "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
 run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
   "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
+# The write twin of the comment-tail here-string opener. PowerShell reads `# @"`
+# as comment text, so the `@"` opens nothing and the Set-Content under it is a
+# live top-level command; the reduction takes the line as an opener and drops
+# that write as here-string body. Measured on the base through this hook: rc 0,
+# with the write never seen. A `#` anywhere on a CONFIRMED opener line, before
+# the two-character suffix, now reports a bypass by shape, on a plain substring
+# test of the raw line with no quote pairing. This guard consults no allow-list,
+# so the refusal here is final.
+run_pwsh "PS: Set-Content recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "Set-Content f.txt x" "'@ fine'")" 2
+run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "Set-Content f.txt x" "\"@\"")" 2
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+# The regression fence: the `#` has to be on the opener line before the suffix.
+run_pwsh "PS: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.
@@ -1326,7 +1349,7 @@ assert_contains "PS write block tells operator to re-enable kill switch" "$psout
 # --- Enforcement-scope disclosure -------------------------------------------
 # The message asserted "use Write or Edit instead" with no scope, so it read as
 # "shell file writes are blocked" when the guard is deliberately producer-scoped
-# over one command string. Both lanes must carry the scope, and the behaviour
+# over one command string. Both lanes must carry the scope, and the behavior
 # the scope describes is pinned below it so message and reality move together.
 scopeout=$(bash "$HOOK" <<<"$(command_json "printf 'x' > out.log")" 2>&1)
 assert_contains "bash block names kill switch" "$scopeout" "block_hook_bypass_enabled"
@@ -1374,7 +1397,7 @@ assert_contains "powershell block names Tee-Object coverage" "$psscope" "Tee-Obj
 assert_contains "powershell block names the interpreter family it covers" "$psscope" \
   "python/python3/py/pypy with -c"
 
-# The behaviour the scope note describes. A write inside an invoked script is
+# The behavior the scope note describes. A write inside an invoked script is
 # not inspected, and a redirect whose producer is another program is allowed by
 # the producer-scoped design — so the note must not promise either is blocked.
 run "invoked script is not inspected (allowed)" "bash execute.sh" 0
@@ -1461,7 +1484,7 @@ run "scratch: tilde target (blocked)" \
   "echo hello > ~/scratch/data.json" 2 "$SCRATCH_ENV=/tmp/scratch,~"
 run "scratch: glob target (blocked)" \
   "echo hello > /tmp/scratch/*.json" 2 "$SCRATCH_ENV=/tmp/scratch"
-# A root that fails the same normalization is skipped, not honoured loosely.
+# A root that fails the same normalization is skipped, not honored loosely.
 run "scratch: relative configured root exempts nothing (blocked)" \
   "echo hello > /tmp/scratch/f" 2 "$SCRATCH_ENV=scratch"
 run "scratch: root of / exempts nothing (blocked)" \
@@ -1650,7 +1673,7 @@ run_cwd "default: temp write blocks when the project IS the temp root" \
   "echo hello > /tmp/f" /tmp 2 "$PROJ_ENV=/tmp"
 # With no project root the guard cannot establish either default, so both fail
 # closed. This is also what keeps the option-unset assertions above measuring
-# the shipped behaviour they were written for.
+# the shipped behavior they were written for.
 run_cwd "default: temp write blocks with no project root" \
   "echo hello > /tmp/probe.json" "$PROJ" 2 "$PROJ_ENV="
 run_cwd "default: memory tier blocks with no project root" \

@@ -3,6 +3,14 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.46] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.10.45]
 
 ### Changed
@@ -111,7 +119,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   row count matches; any failure prints `TipCaptureError:` and no path, so a partial capture can
   never pass for a complete one. `--capture-file PATH` overrides the location. The `.part` is
   created exclusively (`noclobber`), so a stamp-pid collision or an interrupted run is refused
-  rather than interleaved into one file, and rows are recognised by shape (nine columns, a commit
+  rather than interleaved into one file, and rows are recognized by shape (nine columns, a commit
   id second), so a branch whose name begins with `#` is a row, never a miscounted comment that
   fails the seal.
 - `clean`: `git-branch-delete.sh`, the only sanctioned branch-deletion path for the git tier. It
@@ -170,7 +178,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   closes no live bypass. It removes a grant nobody chose: written as "anything that is not
   PowerShell", the dispatch would hand the Bash prefix to a third shell tool added later, before
   anyone decided that tool should have an unblock. The block reason for such a tool now says
-  there is no acknowledgement path instead of naming a spelling the tool cannot honour.
+  there is no acknowledgement path instead of naming a spelling the tool cannot honor.
 - The `clean` skill's documented PowerShell stash drop quotes the `stash@{n}` selector. Bare, pwsh
   reads `@{…}` as splatting syntax and git receives a mangled argument, reporting
   ``unknown switch `e'`` and dropping nothing, so the documented example did not do what it said.

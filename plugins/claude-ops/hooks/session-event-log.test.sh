@@ -47,10 +47,17 @@ project() {
 }
 
 # run <project> <payload> [env...]: runs the hook with CLAUDE_PROJECT_DIR set.
+# The body is written to a file before the hook starts, then read back on
+# stdin. The parallel case fans the hook out 33 ways, and a pipe can let one
+# idle read (CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2s) return
+# before printf delivers the body: the hook exits, printf hits a broken pipe,
+# and that fire adds no line. A file has no writer left to race.
 run() {
-  local proj="$1" body="$2"
+  local proj="$1" body="$2" payload_file
   shift 2
-  printf '%s' "$body" | env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" 2>&1
+  payload_file="$(mktemp "$TEST_TMPDIR/payload.XXXXXX")"
+  printf '%s' "$body" >"$payload_file"
+  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$proj" "$@" bash "$HOOK" <"$payload_file" 2>&1
 }
 
 # --- default OFF: nothing is read or written --------------------------------

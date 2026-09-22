@@ -308,7 +308,7 @@ is the *zero-part* one. It therefore stays named-not-built on its own build trig
 is not evidence that mechanization covers this class.
 
 The zero-part shape has no deterministic check available. Deciding whether a sentence restates an
-upstream-owned specific, as against an in-repo fact, a description of the surface's own behaviour,
+upstream-owned specific, as against an in-repo fact, a description of the surface's own behavior,
 or ordinary prose, is a judgment about meaning, which is **reasoning-only** under the tiers doc. A
 grep for harness vocabulary (`PostToolUse`, `${CLAUDE_*}`, `settings.json`, and so on) fires on
 every correct citation and every in-repo mention alike, and a gate whose false-positive rate forces

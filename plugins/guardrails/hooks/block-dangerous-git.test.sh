@@ -220,7 +220,7 @@ run_split "$REPO_SHA256" "$REPO_SHA256" "a segment after a relocating '!' alias 
 
 # A RELATIVE locating option now resolves against the directory the tool call runs
 # in rather than the hook process's. That is the correct origin, and it is the one
-# behaviour change a reviewer could mistake for a regression.
+# behavior change a reviewer could mistake for a regression.
 run_split "$TEST_TMPDIR" "$TEST_TMPDIR" "relative git -C <basename> with both directories agreeing (unchanged, blocked)" "git -C repo-sha256 push --force-with-lease=main:$SHA1_OID origin main" 2
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative git -C <basename> resolves against the payload cwd, not the hook process's (object id there, allowed)" "git -C repo-sha1 push --force-with-lease=main:$SHA1_OID origin main" 0
 run_split "$TEST_TMPDIR" "$REPO_SHA1" "relative --git-dir rebases onto the payload cwd the same way (object id there, allowed)" "git --git-dir=repo-sha1/.git push --force-with-lease=main:$SHA1_OID origin main" 0
@@ -1478,7 +1478,7 @@ run_pwsh "PS hs: read-only git subexpression in the body (blocked)" \
 # ACCEPTED OVER-BLOCKS, pinned so a later narrowing flips a case instead of
 # passing silently. No git token appears in either command: the first carries a
 # command position whose output the guard cannot read, and the second is a
-# backtick escape that PowerShell treats as literal text. Modelling backtick
+# backtick escape that PowerShell treats as literal text. Modeling backtick
 # escapes inside a dropped body is the parsing this library declines to do.
 run_pwsh "PS hs: body whose only subexpression is non-git (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
@@ -1547,6 +1547,166 @@ run_pwsh "PS hs: a launcher token does not carry over to the here-string body (b
 run_pwsh "PS hs: commit body built with a subexpression (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "@\"" "fix: bump to \$(node -p 'x')" "\"@ | git commit -F -")" 2
 
+# A `#` on a line this library CONFIRMS as a here-string opener.
+#
+# PowerShell's tokenizer reads a `#` outside a quoted string as the start of a
+# line comment, so the `@"` of `Write-Output x # @"` is comment TEXT and opens
+# nothing: the line under it is a live top-level command. The reduction reads the
+# same line as an opener and DROPS that line as body, so the git command is gone
+# from every scan that follows. Measured on the base through this hook: rc 0,
+# with `git push --force` never seen. Verified against pwsh 7.6.6.
+#
+# The rule is a plain substring test on the RAW opener line: a `#` anywhere
+# before the two-character opener suffix refuses the shape. It decides nothing
+# about whether the `#` is a comment, sits inside a string, or is glued to a
+# token, and it pairs no quotes at all. Pairing is what this defect class keeps
+# defeating, and a pairing walk wrong in one direction ALLOWS a command.
+ps_hs_comment="$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git push --force" "\"@ fine\"")"
+run_pwsh "PS hs: an opener in a # comment tail leaves the next line live (blocked)" \
+  "$ps_hs_comment" 2
+run_pwsh "PS hs: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git push --force" "'@ fine'")" 2
+run_pwsh "PS hs: reset --hard recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git reset --hard" "\"@ fine\"")" 2
+run_pwsh "PS hs: the @' spelling over reset --hard (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git reset --hard" "'@ fine'")" 2
+# `hook::jq_fields` strips CR, so the CRLF payload reaches the classifier as
+# LF-only text and has to reach the same verdict as its LF twin.
+run_pwsh "PS hs: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git push --force" "\"@ fine\"")" 2
+run_pwsh "PS hs: CRLF copy of the @' spelling over reset --hard (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @'" "git reset --hard" "'@ fine'")" 2
+# No literal `git` token anywhere in the command, so the visible-text probe
+# answers no and a fixture carrying a literal `git` would pass with the defect
+# present and pin nothing. The opener is VERBATIM, so the expandable-body
+# refusal and the herestring-subexpr trigger both stay out of it and the new
+# rule is the only thing that can block this.
+run_pwsh "PS hs: a no-literal-git body behind a verbatim commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "\$(& \$g push --force)" "'@ fine'")" 2
+# The apostrophe-straddle spellings. Two independent per-style quote strips
+# delete the span running from the apostrophe in one double-quoted string to the
+# apostrophe in the next, taking the real `#` with it, which is how these read as
+# clean openers. The raw test never looks at a quote, so it refuses both with no
+# pairing whatsoever. Both parse clean in pwsh 7.6.6 with the git line live at
+# top level.
+run_pwsh "PS hs: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git push --force" "\"@\"")" 2
+run_pwsh "PS hs: the minimal apostrophe-straddle spelling of the same erasure (blocked)" \
+  "$(printf '%s\n%s\n%s' "echo \"'\" # ' \" @\"" "git push --force" "\"@\"")" 2
+# ACCEPTED OVER-BLOCKS. Both open a real here-string in PowerShell and carry no
+# comment at all; refusing by shape is the price of taking no position on where
+# the `#` sits. Pinned so a later narrowing flips a case instead of passing
+# silently.
+run_pwsh "PS hs: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+run_pwsh "PS hs: a # glued into a bareword before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "a#b @\"" "hello" "\"@")" 2
+
+# The regression fence. The `#` has to be on the OPENER line, before the suffix,
+# for anything to move.
+run_pwsh "PS hs: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @\"" "release # 1" "\"@")" 0
+run_pwsh "PS hs: the verbatim spelling of a body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS hs: the canonical verbatim commit here-string (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: subject" "'@ | git commit -F -")" 0
+run_pwsh "PS hs: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
+run_pwsh "PS hs: a trailing comment on a non-git command (allowed)" "Write-Output hi # done" 0
+
+# Trigger ATTRIBUTION. The new arm sits AFTER the whole trigger chain, so a
+# command that already routes to the sink keeps the trigger it had and no
+# existing telemetry, remediation line or allow-token attribution moves. The
+# subexpr pin is the measured one: with this arm at the FRONT of the chain, the
+# `$(` body below lost its herestring-subexpr refusal to this trigger's token.
+pin_sink_trigger "classify: a # on a confirmed opener line enters the herestring-comment-char sink" \
+  "$ps_hs_comment" "herestring-comment-char"
+pin_sink_trigger "classify: a construct already in the command keeps its own trigger" \
+  "$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")" "special-construct"
+pin_sink_trigger "classify: an expandable body carrying \$( keeps herestring-subexpr" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(& \$g push --force)" "\"@ fine\"")" "herestring-subexpr"
+pin_sink_trigger "classify: an opener line with no # enters no sink" \
+  "$(printf '%s\n%s\n%s' "Write-Output x @\"" "hello" "\"@")" ""
+
+# THIS REFUSAL HAS NO ALLOW TOKEN, and the guard refuses on the FLAG at the top
+# of its sink loop, ahead of the allow-list question, so no value of the allow
+# option can reach it. A token cannot be given: every token-granted round spends
+# the SHARED _ps_sink_attempts budget, and a sixth grantable trigger pushes a
+# command that settles in four rounds past the cap, where the loop exits 0 with a
+# plainly visible destructive sibling never checked.
+#
+# The gate payload that measured it: four sink constructs and a live
+# `git reset --hard` on line 1, a commented opener, and a closer line carrying a
+# second opener. Pinned under no token, under the four other sink tokens, and
+# under EVERY existing token at once (the destructive-form tokens included, which
+# is the stack that waives the visible `git reset --hard` once the sink is
+# through with it).
+PS_HS_BUDGET_CHAIN="$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
+  "Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard" \
+  "x # @\"" "\$(y)" "\"@ @\"" "z" "\"@")"
+PS_SINK_TOKENS_4=ps-unparsable-special-construct,ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-herestring-subexpr
+PS_ALL_EXISTING_TOKENS="push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force,ps-unparsable-dynamic-invocation,ps-unparsable-launcher,ps-unparsable-special-construct,ps-unparsable-herestring-unbalanced,ps-unparsable-herestring-subexpr"
+run_pwsh "PS hs: the multi-round budget-chain payload is blocked with no token" \
+  "$PS_HS_BUDGET_CHAIN" 2
+run_pwsh "PS hs: the budget-chain payload is blocked under the four other sink tokens" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_4"
+run_pwsh "PS hs: the budget-chain payload is blocked under EVERY existing token at once" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_ALL_EXISTING_TOKENS"
+# The removed token's literal string is just a string the guard never consults.
+# An operator who copied it from a stale note changes nothing.
+run_pwsh "PS hs: the removed token string does not open the comment-tail shape" \
+  "$ps_hs_comment" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+run_pwsh "PS hs: the removed token string does not open the budget-chain payload" \
+  "$PS_HS_BUDGET_CHAIN" 2 \
+  "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_ALL_EXISTING_TOKENS,ps-unparsable-herestring-comment-char"
+run_pwsh "PS hs: an unrelated sink token does not open the comment-tail shape either" \
+  "$ps_hs_comment" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
+run_pwsh "PS hs: the removed token string does not open the expandable-body sink" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "\$(& \$g push --force)" "\"@ fine\"")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-comment-char
+# The refusal is on the FLAG inside the loop, not on PS_SINK_TRIGGER and not
+# before it. A closer line carrying a SECOND opener is joined onto the first
+# opener's prefix by a reduction that never rescans the joined line, so a command
+# whose RAW text has no `#` on any opener line can acquire one on a later round.
+# A check placed before the loop would already be behind that round, and the
+# allow-list question would be asked for a trigger with no arm, whose `*` default
+# empties the command and exits 0.
+run_pwsh "PS hs: a commented opener acquired on a LATER round is still refused" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x @\"" "\$(y)" "\"@ # @\"" "git reset --hard" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr
+run_pwsh "PS hs: and the removed token string does not open that later round" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x @\"" "\$(y)" "\"@ # @\"" "git reset --hard" "\"@")" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-subexpr,ps-unparsable-herestring-comment-char
+run_pwsh "PS hs: a second opener on the closer line is blocked with no token" \
+  "$(printf '%s\n%s\n%s\n%s\n%s' "x # @'" "body" "'@ @'" "git push --force" "'@")" 2
+run_pwsh "PS hs: a git command on the commented opener line itself is blocked" \
+  "$(printf '%s\n%s\n%s' "git push --force # @\"" "body" "\"@")" 2
+run_pwsh "PS hs: a visible destructive sibling beside a commented opener is blocked" \
+  "$(printf '%s\n%s\n%s' "git reset --hard; Write-Output x # @'" "body" "'@")" 2
+# Refusing on the flag means the HOOK reports herestring-comment-char even when
+# the classifier named an earlier trigger, so the operator reads the advice for
+# the shape that is actually holding the command. The classifier's own
+# attribution is unchanged and is pinned above.
+PS_HS_COMMENT_PLUS_CONSTRUCT="$(printf '%s\n%s\n%s' "Write-Output (x) # @\"" "git push --force" "\"@ fine\"")"
+assert_contains "PS hs: the hook names the comment-char trigger when the flag holds the command" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "on a line that also contains a '#'"
+assert_contains "PS hs: and it says the shape has no allow token rather than naming one" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "This sink shape has NO allow token"
+# The shared token-list line is SUPPRESSED for this trigger. Leaving it in would
+# send an operator to set a value the guard never consults on this path.
+assert_absent "PS hs: the shared allow-token line is suppressed for this trigger" \
+  "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
+  "allow it via the block_dangerous_git_allow option"
+# And it is still printed for a trigger that does have a token.
+assert_contains "PS hs: the shared allow-token line still prints for a tokened trigger" \
+  "$(pwsh_stderr "$ps_hs_body" || true)" \
+  "allow it via the block_dangerous_git_allow option"
+
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
 # so the read-only allowlist admits it and these stay allowed. Pinned so a later
@@ -1574,7 +1734,7 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # dangerous in it. The guard refuses rather than matching because the text it can
 # read is not dependably the text that would run — stripping SPLICES the bytes
 # either side of the NUL into a token the payload never carried contiguously —
-# and which executor behaviour applies has not been traced.
+# and which executor behavior applies has not been traced.
 #
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL

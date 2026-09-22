@@ -66,7 +66,7 @@
 # let a declared path pass without being judged: rule-em-dash's entry in
 # disabled_rules, em_dash_allowed_paths, and rule_allowed_paths["rule-em-dash"].
 # A path on the allowlist is a claim that the surface is purged; a per-rule
-# exemption on the same path is the opposite claim, and honouring it would let
+# exemption on the same path is the opposite claim, and honoring it would let
 # the gate report the surface clean while no finding on it was ever possible,
 # because such a file is still opened and still counted as scanned.
 # excluded_paths is the one exclusion left standing, because its files are

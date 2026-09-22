@@ -1,5 +1,5 @@
 ---
-description: "Audit locally-owned instruction components (skill bodies, agent definitions, hook instruction text, output styles, CLAUDE.md and rules) for MISSING posture guidance the official prompting guide says their purpose needs: delegation criteria and caps, minimal-scope and anti-test-gaming guardrails, investigate-before-answering and progress-claim grounding, autonomy vs checkpoint posture, destructive-action confirmation, context-budget reassurance, multi-window state guidance, parallel-tool-call steering. The additive complement to audit-instructions (which finds text that is present and wrong; this finds text that is absent and needed). Report-only: proposed additions sourced from a live fetch of the guide, gated to the human, never auto-applied. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', 'missing delegation criteria', 'should this component confirm destructive actions', 'align my components with the prompting guide', after authoring a new skill or agent, or as the additive lane of a prompting-guide alignment pass. Not for removing or rewriting existing instructions (audit-instructions), structural skill lint (skill-quality:check), or brevity (docs-hygiene:compress)."
+description: "Audit locally-owned instruction components (skill bodies, agent definitions, hook instruction text, output styles, CLAUDE.md, a natively read AGENTS.md, and rules) for MISSING posture guidance the official prompting guide says their purpose needs: delegation criteria and caps, minimal-scope and anti-test-gaming guardrails, investigate-before-answering and progress-claim grounding, autonomy vs checkpoint posture, destructive-action confirmation, context-budget reassurance, multi-window state guidance, parallel-tool-call steering. The additive complement to audit-instructions (which finds text that is present and wrong; this finds text that is absent and needed). Report-only: proposed additions sourced from a live fetch of the guide, gated to the human, never auto-applied. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', 'missing delegation criteria', 'should this component confirm destructive actions', 'align my components with the prompting guide', after authoring a new skill or agent, or as the additive lane of a prompting-guide alignment pass. Not for removing or rewriting existing instructions (audit-instructions), structural skill lint (skill-quality:check), or brevity (docs-hygiene:compress)."
 argument-hint: "[scope]: skills|agents|hooks|output-styles|claude-md|rules|all (default: all)"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
@@ -75,7 +75,35 @@ what it shares with `audit-instructions` Phase A is the *resolution* procedure, 
 `${CLAUDE_CONFIG_DIR:-~/.claude}` and project `.claude/`, and apply the same liveness and
 upstream-ownership exclusions. The set, one entry per scope token above: skill bodies (and the
 context/reference files a skill instructs the model to read), agent definition markdown, hook
-instruction text of both kinds, output-style markdown, CLAUDE.md / CLAUDE.local.md, `.claude/rules/`.
+instruction text of both kinds, output-style markdown, CLAUDE.md / a natively read AGENTS.md or
+`.claude/AGENTS.md` / CLAUDE.local.md, `.claude/rules/`. **Whether an `AGENTS.md` is read natively
+depends on whether `AGENTS.md` support is available in the session and on the instruction-files mode, and this body does not
+restate the condition**: the four-part record for both questions, whether `AGENTS.md` support is
+available in the session at all and which files the instruction-files mode loads, is this plugin's
+[reference/agents-md-liveness.md](../../reference/agents-md-liveness.md). Resolve it there rather
+than from a copy that can drift. **Displacement is the default mode's answer, not the only one**: under the
+`claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
+`AGENTS.md` after, so an `AGENTS.md` beside a `CLAUDE.md` is live there and belongs in the set even
+though the default mode would call it displaced. That option is a user, `--settings` or managed
+setting, so resolve the **effective** value across those scopes rather than one scope's copy, which
+answers the wrong question whichever way the override runs.
+**The mode is the second question, not the only one, and either can rule the file out.** Availability
+comes first and is not a mode question: a session on a CLI below v2.1.277, one that does not fetch
+feature flags, the first session after an upgrade, or one where `disableAllHooks`,
+`allowManagedHooksOnly` or a disabled built-in `agents-md` plugin applies, reads no `AGENTS.md`
+under ANY mode, and inventorying one would let Phase C propose posture additions to a surface
+nothing loads. Two of the mode's four values, `claude-md` and `managed-only`, rule it out the same
+way. Exclude on a condition known to rule it out. Several of those conditions are readable, two of
+them from the very settings this skill inventories, so resolve before falling back.
+**Where a condition stays unresolved, inventory the file but carry the doubt into the finding.**
+Inventorying is not free here the way it is in a pure comparison set: this skill's Phase C judges
+every inventoried component and emits a `MISSING` posture for it, so silently including a surface
+whose residency is unknown proposes work on a file the session may not load. Any posture finding
+anchored on such an `AGENTS.md` is emitted `NOT-APPLICABLE` with the unresolved condition as its
+failed predicate, which is the verdict the closed token set below already reserves for a predicate
+that did not hold. That keeps the surface in the report without asserting a gap the reader cannot
+act on. Only where the file is
+genuinely not read does it reach context as an import, which the importing record already covers.
 **The inventory bounds what may produce
 a finding, not what counts as evidence.** Phase C's mechanical-gate rule reads outside it to establish
 PRESENCE, which can only turn a MISSING into a PRESENT, never add a finding on an excluded surface.

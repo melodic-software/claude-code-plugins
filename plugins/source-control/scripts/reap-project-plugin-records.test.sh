@@ -187,7 +187,7 @@ assert_contains "always passes --keep-data" "$(cat "$LOG")" "--keep-data"
 # --- path normalization ---------------------------------------------------------
 # The record is written by Claude Code in native form; a case- or
 # separator-variant of the same directory must still match. An early probe of
-# this behaviour read as a null purely because two spellings of one path were
+# this behavior read as a null purely because two spellings of one path were
 # compared raw.
 if [[ "$UNAME_S" == MINGW* || "$UNAME_S" == MSYS* || "$UNAME_S" == CYGWIN* ]]; then
   variant="$(printf '%s' "$WT_NATIVE" | tr '/' "\134" | tr '[:lower:]' '[:upper:]')"
@@ -224,7 +224,7 @@ assert_not_contains "--dry-run issues no uninstall" "$(cat "$LOG")" "uninstall"
 
 seed_state '[]'
 reset_log
-# Enumeration is stubbed to report a record the uninstall path will not honour.
+# Enumeration is stubbed to report a record the uninstall path will not honor.
 cat >"$STUB_DIR/claude" <<'STUB2'
 #!/usr/bin/env bash
 set -uo pipefail

@@ -138,7 +138,7 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 # terminator line makes a truncated write read as a miss.
 #
 # RESIDUAL, deliberately not solved here: the resolver's well-known-path rung
-# only honours `docs/conventions/source-control/commit-convention.yml` when git
+# only honors `docs/conventions/source-control/commit-convention.yml` when git
 # reports it TRACKED, and tracked status can change with no mtime change on any
 # file below. Such a change is picked up when any dependency is next written,
 # not at the moment of `git add`. Probing it would cost the `git ls-files` spawn
@@ -518,7 +518,7 @@ check_segment() {
   # `rev-parse --absolute-git-dir` answer identically from any directory inside
   # one repository. They diverge only when a SEPARATE repository is nested below
   # the composed path, the narrower case the sibling's extra probe exists for and
-  # which is deliberately not modelled here.
+  # which is deliberately not modeled here.
   local seg_dir=""
 
   # Alias-expanded commits must be content-gated too (`git -c alias.c=commit c
@@ -613,6 +613,16 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
+  # This guard DEFERS on every other sink trigger, so a plain `exit 0` below
+  # would hand the herestring-comment-char shape straight through: a `#` on a
+  # confirmed here-string opener line means the lines the reduction dropped as
+  # body may be live commands, and a commit form among them would never be seen.
+  # Refused here rather than deferred, with no allow-list consulted.
+  if [[ "$PS_SINK_TRIGGER" == "herestring-comment-char" ]]; then
+    ps::print_unparsable_block_message
+    emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
+    exit 2
+  fi
   ((ps_rc == 0)) || {
     emit_tel "ok" ""
     exit 0

@@ -46,7 +46,7 @@ Six skills, one capability:
   commits. Use it when you forgot to run `/simplify` after each task, or to
   sweep a repository that never had one.
 - **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
-  nothing reaches any more, across four labelled lanes of deliberately unequal
+  nothing reaches any more, across four labeled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
   symbols, and a portable grep lane for shell and other symbol languages). Every
   candidate is adjudicated against the dynamic-usage evidence static analyzers

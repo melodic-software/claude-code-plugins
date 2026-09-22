@@ -2,7 +2,7 @@
 # Contract smoke test for the bench harness: lib-bench.sh helpers, plus one
 # tiny-parameter run of each lane — bench-idle.sh, bench-load.sh, and
 # trace-probe.sh — against the repo's own statusline-tee.sh under an isolated
-# HOME. Asserts behaviour and output shape, never timing: the benchmarks
+# HOME. Asserts behavior and output shape, never timing: the benchmarks
 # themselves are not CI material (wall-clock numbers on shared runners are
 # noise), but the harness must keep RUNNING from a clean checkout, because an
 # unrunnable harness is exactly the defect that let #2521's measurements go
