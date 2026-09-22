@@ -3,6 +3,37 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.5] - 2026-09-22
+
+### Fixed
+
+- `audit-performance`'s known-performance-issues reference, section "The host-level floor: a
+  kernel Token-object leak", no longer tells the operator to capture the pool tag with
+  `poolmon -b`. Every documented poolmon switch is slash-prefixed; the step now names
+  `/g [PoolTagFile]` for the `Mapped_Driver` column, `/i` for tag filtering, and the `p` and `b`
+  run-time keys, and makes "sample the `WC*` tags alongside `Toke`" the first attribution move.
+
+### Changed
+
+- The same section no longer asserts a continuous, impersonation-shaped minter, and no longer
+  offers the ASUS raw-I/O drivers as the fitting profile. A per-binary spawn census on the
+  reference host found the leak tracks process creation (bash and pwsh mint, cmd and python do
+  not) and that an idle host leaks about nothing, which is what clears those drivers; they are
+  kept only as cleared by falsification. The per-package pwsh ordering is stated as NOT
+  established, and swapping PowerShell packages is explicitly not a recommendation.
+- The three public attributions for the signature are now presented with their provenance rather
+  than as fact: a Microsoft maintainer's host-NTFS statement on `microsoft/WSL#40804` (which
+  measures `NtFC`), a non-maintainer's `wcifs.sys` contest in that thread with supporting numbers
+  on `anthropics/claude-code#91265` (a Claude Desktop host), and `bentoner`'s
+  `win32kfull!CForegroundLaunch::_CheckAllowForeground` trace on one machine. Each carries a
+  four-part verification record with an observable recheck trigger.
+- The attribution runbook is ordered by cost. An unelevated foreground-lock check (read the live
+  timeout via `SPI_GETFOREGROUNDLOCKTIMEOUT`, spawn loop with a census before and after at the
+  current value and at 0, original restored) is ranked before the elevated service arms and
+  labelled as one machine's trace pending a second host. Four service arms run on 2026-09-18 are
+  recorded as NO CANDIDATE, and WSL2, Docker Desktop and Windows Sandbox join the candidate list
+  because they load `wcifs.sys`.
+
 ## [0.57.4] - 2026-09-22
 
 ### Changed
