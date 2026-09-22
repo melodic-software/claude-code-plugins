@@ -7,7 +7,9 @@ resume on their own after the reset. Four parts:
 - **Statusline shim** (`scripts/statusline-shim.sh`), the durable wiring target. Installed once to
   `~/.claude/rate-limit-guard/bin/`, it resolves whichever tee version is installed at run time, so
   a plugin update never requires re-wiring and an uninstall degrades to your statusline running
-  alone. Pure Bash builtins: it adds no measurable time to a refresh.
+  alone. It resolves once and caches the resolved path, so a steady refresh revalidates one path
+  with Bash builtins alone and adds no measurable time; it re-resolves only when that path stops
+  being valid.
 - **Statusline tee** (`scripts/statusline-tee.sh`), a transparent wrapper around your statusline
   command. It atomically writes the session's `rate_limits` (both the 5-hour and 7-day windows),
   a `captured_at` timestamp, and the session-distinguishing fields to the fixed machine-scope
