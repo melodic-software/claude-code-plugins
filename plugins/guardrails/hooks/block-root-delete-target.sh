@@ -573,7 +573,7 @@ rdt_check_segment() {
 # root and then echoes nothing. The shared tokenizer keeps a substitution INSIDE
 # the enclosing argv word, which is correct for its own purpose and means the
 # segment callback only ever sees `echo`. So each body is lifted out here and
-# parsed on its own, and recursion covers a body that holds another.
+# parsed on its own, and the stack below covers a body that holds another.
 #
 # QUOTING IS HONORED, because the shell honors it. A `$(` inside a SINGLE-quoted
 # span is inert (`echo '$(rm -rf /)'` prints the text and runs nothing), and so
