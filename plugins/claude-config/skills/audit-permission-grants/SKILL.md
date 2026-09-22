@@ -154,8 +154,8 @@ the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Repo
 
 ## Consumer conventions
 
-A consuming repo may declare, in its own `CLAUDE.md` (or the `AGENTS.md` a session reads natively in
-its place) / `.claude/rules/`, additional interpreter tokens
+A consuming repo may declare, in its own `CLAUDE.md` (or the `AGENTS.md` a session reads natively,
+whether in place of a `CLAUDE.md` or alongside one) / `.claude/rules/`, additional interpreter tokens
 or path shapes it treats as fragile, or a documented exemption (e.g. a deliberately broad grant behind
 a PreToolUse hook). Read those when present; this skill does not assume them.
 

@@ -26,7 +26,8 @@ issue-tracking skill or a hook plugin's coverage manifest, treat it as optional:
 provides it, use it; otherwise follow the inline guidance here, which stands on its own.
 Project-specific conventions (required permission patterns beyond the baseline, documented reasons for
 disabled servers, launcher-script wrappers) come from the consuming repo's own `CLAUDE.md` (or the
-`AGENTS.md` a session reads natively in its place) and `.claude/rules/`. Read them when present;
+`AGENTS.md` a session reads natively, whether in place of a `CLAUDE.md` or alongside one) and
+`.claude/rules/`. Read them when present;
 this skill does not assume them.
 
 Two adjacent skills cover neighboring questions: the sibling `audit-automation-gaps` skill asks whether the

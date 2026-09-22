@@ -263,7 +263,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   while changing the load profile not at all. **State the move cost with the recommendation:** a
   `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file is
   read again, so content that must survive compaction stays unscoped or in the project-root
-  `CLAUDE.md` (or the `AGENTS.md` read natively in its place). **A *new* skill is not a free destination:** its body defers, but the listing entry it
+  `CLAUDE.md` (or the `AGENTS.md` read natively, whether in place of a `CLAUDE.md` or alongside
+  one). **A *new* skill is not a free destination:** its body defers, but the listing entry it
   adds, `name` plus the combined `description` and `when_to_use` truncated at 1,536 characters, is
   always in context, so the saving is the body minus that entry rather than the whole body. Moving
   content into a skill that **already exists** adds no listing entry and does not carry this cost.

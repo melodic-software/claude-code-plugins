@@ -8,8 +8,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 ### Fixed
 
 - **`unhobble`'s strip and restore cover a root `AGENTS.md`, `.claude/AGENTS.md` and
-  `.claude/CLAUDE.md`.** A session reads the `AGENTS.md` names as the project instructions only when
-  no `CLAUDE.md` name displaces them, and the strip removes exactly those names, so a repository
+  `.claude/CLAUDE.md`.** Under the default instruction-files mode a session reads the `AGENTS.md`
+  names as the project instructions only when no `CLAUDE.md` name displaces them, and the strip
+  removes exactly those names, so a repository
   whose `CLAUDE.md` is a one-line `@AGENTS.md` shim finished the strip with its whole instruction
   surface still loading while the skill declared the baseline bare.
 - **New `skills/unhobble/scripts/instruction-files.sh` (`list` / `strip` / `restore`) is the one list
@@ -50,7 +51,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `--settings` and managed scopes rather than from one scope's copy, and under
   `claude-md-and-agents-md` both files load, so an `AGENTS.md` beside a `CLAUDE.md` is live. An
   unresolved condition keeps the surface in the inventory lanes and leaves it alone in the finding
-  lanes, `audit-prompting-postures` reporting its findings conditional instead.
+  lanes, with `audit-prompting-postures` inventorying it and emitting `NOT-APPLICABLE`, the
+  unresolved condition as the failed predicate, because its Phase C judges every inventoried
+  component.
 - **Phase 1 treats both `AGENTS.md` names as strip candidates wherever the strip could make them
   live**, rather than passing over them because nothing appears to read the file today. A gate known
   false with no `CLAUDE.md` importing or symlinking the file excludes it, an unresolved gate or a
