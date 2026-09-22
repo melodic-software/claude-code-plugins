@@ -191,7 +191,10 @@ off, and the exclusions. Phase B cannot run against a record set built any other
 
 Run one **fresh read-only subagent per surface**, each sharing
 [reference/criteria.md](reference/criteria.md) and applying the per-surface check partition from
-the Scope boundary. Seed each lane's candidate set with the deterministic pre-scan over that
+the Scope boundary. **A record whose residency Phase A could not establish carries that state into
+its lane**: the lane still runs, and reports its findings as conditional on the named unresolved
+condition rather than as findings, since a removal or a rewrite proposed against a surface the
+session may never load is work the reader cannot act on. Seed each lane's candidate set with the deterministic pre-scan over that
 surface's files (the seeded checks span both evidence tiers; the scan itself is only ever
 deterministic pattern-marking):
 

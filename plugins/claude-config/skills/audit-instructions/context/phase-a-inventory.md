@@ -39,9 +39,13 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   since such a session reads it under no mode and a record for it would let a later phase grade a
   surface nothing loads. Two of the mode's own four values rule it out the same way. **Record the
   file whenever every condition is either satisfied or unresolved**, which keeps the conservative
-  direction where the answer is unknown rather than where it is known to be no: inventorying is additive and cannot by
-  itself produce a finding, while a surface missing here produces no Phase A record, so no later
-  phase can route or grade it.
+  direction where the answer is unknown rather than where it is known to be no: a surface missing
+  here produces no Phase A record, so no later phase can route or grade it. **Carry an unresolved
+  condition into the record**, naming which one is unresolved. Inventorying is not free on its own:
+  Phase B runs a lane per record, so a record that asserted residency it cannot establish would let
+  that lane propose a removal or a rewrite against a surface the session may never load. A lane
+  holding such a record reports its findings as conditional on the named condition rather than as
+  findings, the same shape `audit-prompting-postures` uses for an unresolved residency.
 - **Hook instruction text** configured in the project or user `settings.json`, **and in
   `.claude/settings.local.json`**, since local settings are a supported hook-configuration scope and a
   hook configured there gates the session as much as one configured anywhere else, **and declared

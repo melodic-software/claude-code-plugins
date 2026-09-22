@@ -866,10 +866,10 @@ a **pair**, so this row is answered by Phase B2 rather than by a per-surface lan
   produces, under any mode, and what the `claude-md` and `managed-only` values produce under any
   displacement answer: the file is not read, so a divergence between it and
   a `CLAUDE.md` is not a conflict either, and keeping it would report one against a surface nothing
-  loads. Exclude on a condition known to rule the file out; keep it whenever every condition is
-  satisfied or merely
-  unresolved, which puts the conservative direction where the answer is unknown rather than where it
-  is known to be no. Both carry their dated records in
+  loads. Exclude on a condition known to rule the file out, and pair it only when every condition is
+  satisfied. I15 is a finding lane, so **an unresolved residency is a leave-alone rather than a pair
+  to judge**, which is what gate 1 already does with every other surface whose residency is not
+  established. Both carry their dated records in
   [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 - **Remediate by scope**, never by picking a winner the docs do not name. Where the precedence table
   cites a documented order, name the winner and its source. Where it does not, report the pair as

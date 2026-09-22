@@ -79,7 +79,13 @@ means passing its phase commands from inside the same checkout its manifest name
 ## Phase 1: snapshot
 
 1. Verify a clean working tree; refuse to start on a dirty tree or on the default branch. Create or
-   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`).
+   confirm a dedicated branch (suggest `experiment/unhobble-<model-version>`). **Clean here means no
+   tracked modification and no unrelated untracked file.** An untracked instruction file from the
+   `instruction-files.sh` list is admitted, and only that: it is the ordinary shape of a
+   `CLAUDE.local.md`, it is what step 3 is about to classify, and a gate that read it as dirt would
+   refuse every repository the manifest backup route at Phase 2 exists for. Admitting it is not
+   waiving it: an untracked file the plan classifies behavioral goes through that route, never
+   through the git helper, and one the plan keeps is left in place like any other kept surface.
 2. Inventory the live project instruction surfaces (the same liveness discipline as
    `audit-instructions` Phase A, lighter: what actually loads in a session here, not what is merely
    on disk). Record line counts per surface.
