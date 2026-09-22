@@ -14,6 +14,11 @@
 #   chain <from> <line> <target>
 #   summary files=N pointers=N unresolved=N orphans=N chains=N
 #
+# A pointer is a markdown link to a *.md file, or a backtick-quoted
+# repo-relative *.md path (a slash, path characters only). A command, a flag,
+# or a short token inside backticks is not a pointer. Both forms resolve the
+# same way: the target exists as a file in the linking file's directory.
+#
 # Tier classification is a path/frontmatter heuristic; files it cannot place
 # are tier=unknown and left to the in-session judgment layer. A repo with no
 # Claude Code configuration degrades gracefully: everything not matching an
@@ -71,8 +76,10 @@ for arg in "$@"; do
     # while `packages/api/CLAUDE.md` keeps its nesting (subtree tier). Using
     # dirname here would collapse every file arg to its basename and
     # misclassify a directly-targeted nested CLAUDE.md as always-loaded.
-    # An absolute file arg carries no cwd anchor and classifies by its full
-    # path (nested form); the judgment layer owns that ambiguity.
+    # An absolute path is not nested merely for being absolute: a
+    # repository-root CLAUDE.md/AGENTS.md stays always-loaded (see
+    # at_repo_root). An absolute path that is not the repository root still
+    # classifies by its full path (nested form).
     TARGETS+=("$arg")
     TROOTS+=(".")
   elif [[ -d "$arg" ]]; then
@@ -111,13 +118,17 @@ frontmatter() {
 # heuristic; the judgment layer owns ambiguous cases). $2 is the path relative
 # to its scan root: a root-level CLAUDE.md/AGENTS.md is always-loaded, but the
 # same basename nested deeper is a SUBTREE file — loaded when Claude reads
-# that directory, i.e. invocation tier (per context/tier-model.md).
+# that directory, i.e. invocation tier (per context/tier-model.md). An absolute
+# path to the repository-root file does not equal the bare basename; at_repo_root
+# still classifies that file always-loaded. A nested file keeps invocation.
 classify_tier() {
   local path="$1" rel="$2" base fm
   base="$(basename "$path")"
   case "$base" in
   CLAUDE.md | CLAUDE.local.md | AGENTS.md | MEMORY.md)
     if [[ "$rel" == "$base" ]]; then
+      printf 'always'
+    elif [[ "$(at_repo_root "$path")" == yes ]]; then
       printf 'always'
     else
       printf 'invocation'
@@ -152,6 +163,23 @@ classify_tier() {
   *) ;;
   esac
   printf 'unknown'
+}
+
+# yes when the file's own directory is a git repository root: a .git directory
+# or a worktree gitfile sits beside the file. Absolute and lexically indirect
+# paths (foo/../AGENTS.md) still name that root. A nested copy's directory has
+# no .git entry, so the basename alone does not make it always-loaded.
+at_repo_root() {
+  local dir
+  dir="$(dirname "$1")"
+  if [[ "$dir" == "." ]]; then
+    dir="$PWD"
+  fi
+  if [[ -e "$dir/.git" ]]; then
+    printf 'yes'
+  else
+    printf 'no'
+  fi
 }
 
 # TOC heuristic: >=3 in-page anchor LINKS (grep -o counts occurrences, so a
@@ -191,6 +219,37 @@ md_links() {
     done
 }
 
+# Backtick-quoted repo-relative markdown paths, same "line<TAB>target<TAB>ctx"
+# shape as md_links. A span counts when the stripped text contains a slash and
+# ends in .md (a #anchor is removed first). A command (`git status`), a flag
+# (`--force`), or a short token (`SKILL.md`) is not a path. Callers resolve
+# the target the same way they resolve a markdown link.
+backtick_paths() {
+  local hit ln span target ctx
+  # shellcheck disable=SC2016  # literal backticks are the matched delimiters
+  { grep -n -oE '`[^`[:space:]]+`' "$1" 2>/dev/null || true; } |
+    while IFS= read -r hit; do
+      ln="${hit%%:*}"
+      span="${hit#*:}"
+      span="${span//\`/}"
+      case "$span" in
+      http://* | https://* | mailto:*) continue ;;
+      *) ;;
+      esac
+      target="${span%%#*}"
+      case "$target" in
+      */*.md) ;;
+      *) continue ;;
+      esac
+      case "$target" in
+      /* | *[!A-Za-z0-9._+/-]*) continue ;;
+      *) ;;
+      esac
+      ctx="$(sed -n "${ln}p" "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | cut -c1-160)"
+      printf '%s\t%s\t%s\n' "$ln" "$target" "$ctx"
+    done
+}
+
 # --- per-file facts + pointer inventory --------------------------------------
 
 FILE_RECORDS="$(mktemp)"
@@ -198,7 +257,8 @@ POINTER_RECORDS="$(mktemp)"
 CHAIN_RECORDS="$(mktemp)"
 ORPHAN_RECORDS="$(mktemp)"
 SEEN_FILES="$(mktemp)"
-trap 'rm -f "$FILE_RECORDS" "$POINTER_RECORDS" "$CHAIN_RECORDS" "$ORPHAN_RECORDS" "$SEEN_FILES"' EXIT
+SEEN_PTR="$(mktemp)"
+trap 'rm -f "$FILE_RECORDS" "$POINTER_RECORDS" "$CHAIN_RECORDS" "$ORPHAN_RECORDS" "$SEEN_FILES" "$SEEN_PTR"' EXIT
 
 pointers=0
 unresolved=0
@@ -221,8 +281,15 @@ for i in "${!TARGETS[@]}"; do
     "$f" "$lines" "$words" "${h2:-0}" "$tier" "$toc" >>"$FILE_RECORDS"
 
   dir="$(dirname "$f")"
+  : >"$SEEN_PTR"
+  # Markdown links and backtick paths are one inventory. The same target on
+  # the same line (a code-span label around a markdown link) is one pointer.
   while IFS=$'\t' read -r ln target ctx; do
     [[ -z "${target:-}" ]] && continue
+    if grep -Fxq "${ln}"$'\t'"${target}" "$SEEN_PTR"; then
+      continue
+    fi
+    printf '%s\t%s\n' "$ln" "$target" >>"$SEEN_PTR"
     pointers=$((pointers + 1))
     if [[ -f "$dir/$target" ]]; then
       resolved='yes'
@@ -232,7 +299,10 @@ for i in "${!TARGETS[@]}"; do
     fi
     printf 'pointer\t%s\t%s\t%s\tresolved=%s\tctx=%s\n' \
       "$f" "$ln" "$target" "$resolved" "$ctx" >>"$POINTER_RECORDS"
-  done < <(md_links "$f")
+  done < <(
+    md_links "$f"
+    backtick_paths "$f"
+  )
 done
 
 # --- hub-root analysis: orphan spokes + spoke-to-spoke chains ----------------

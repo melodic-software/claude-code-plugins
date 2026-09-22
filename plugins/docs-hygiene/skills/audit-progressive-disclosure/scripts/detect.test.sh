@@ -254,6 +254,77 @@ out="$(bash "$SCRIPT" "$d5/evals/fixtures/sample-skill" 2>&1)"
 assert_contains "explicit fixture-dir descent scans it" "$out" "file	$d5/evals/fixtures/sample-skill/SKILL.md"
 assert_contains "explicit fixture-dir descent runs hub analysis" "$out" "pointer	$d5/evals/fixtures/sample-skill/SKILL.md"
 
+# --- root AGENTS.md tier -----------------------------------------------------
+#
+# A repository-root AGENTS.md is always-loaded, including when the path is
+# absolute (that form used to compare unequal to the bare basename and land
+# in the invocation tier). A nested AGENTS.md stays invocation: the basename
+# alone does not promote it. The .git entry is what marks the repository root.
+# A root CLAUDE.md that imports @AGENTS.md is the same always-loaded tier.
+
+droot="$(fixture_dir)"
+mkdir -p "$droot/.git" "$droot/pkg"
+printf '# Root\n\n- fact\n' >"$droot/AGENTS.md"
+printf '@AGENTS.md\n' >"$droot/CLAUDE.md"
+printf '# Nested\n\n- local\n' >"$droot/pkg/AGENTS.md"
+
+out="$(cd /tmp && bash "$SCRIPT" "$droot/AGENTS.md" "$droot/CLAUDE.md" "$droot/pkg/AGENTS.md")"
+assert_contains "absolute root AGENTS.md is always-loaded" \
+  "$(printf '%s\n' "$out" | grep "$droot/AGENTS.md")" "tier=always"
+assert_contains "absolute root CLAUDE.md importing AGENTS.md is always-loaded" \
+  "$(printf '%s\n' "$out" | grep "$droot/CLAUDE.md")" "tier=always"
+nested="$(printf '%s\n' "$out" | grep "$droot/pkg/AGENTS.md")"
+assert_contains "absolute nested AGENTS.md stays invocation" "$nested" "tier=invocation"
+assert_not_contains "absolute nested AGENTS.md is not always-loaded" "$nested" "tier=always"
+
+out="$(cd /tmp && bash "$SCRIPT" "$droot")"
+assert_contains "directory scan root AGENTS.md is always-loaded" \
+  "$(printf '%s\n' "$out" | grep "$droot/AGENTS.md")" "tier=always"
+nested="$(printf '%s\n' "$out" | grep "$droot/pkg/AGENTS.md")"
+assert_contains "directory scan nested AGENTS.md stays invocation" "$nested" "tier=invocation"
+assert_not_contains "directory scan nested AGENTS.md is not always-loaded" "$nested" "tier=always"
+
+out="$(cd "$droot" && bash "$SCRIPT" AGENTS.md)"
+assert_contains "bare root AGENTS.md is always-loaded" \
+  "$(printf '%s\n' "$out" | grep '^file')" "tier=always"
+
+# --- backtick path pointers --------------------------------------------------
+#
+# A backticked repo-relative path is a pointer and resolves like a markdown
+# link (exists beside the linking file, anchor stripped). A command, a flag,
+# and a short token are not pointers.
+
+dptr="$(fixture_dir)"
+mkdir -p "$dptr/docs"
+printf '# Testing\n\nRun the suite.\n' >"$dptr/docs/testing.md"
+# shellcheck disable=SC2016  # literal backticks are the pointer form under test
+cat >"$dptr/AGENTS.md" <<'EOF'
+# Instructions
+
+Read `docs/testing.md` before running the suite.
+The suite section is `docs/testing.md#run`.
+See `docs/missing.md` when the path is gone.
+Also [gone](gone.md) for the link form.
+Run `git status` first.
+Pass `--force` to rebuild.
+The token `SKILL.md` is not a path.
+EOF
+
+out="$(cd /tmp && bash "$SCRIPT" "$dptr/AGENTS.md")"
+assert_contains "backtick path to an existing file resolves" "$out" \
+  $'pointer\t'"$dptr/AGENTS.md"$'\t3\tdocs/testing.md\tresolved=yes'
+assert_contains "backtick path anchor resolves like a markdown link" "$out" \
+  $'pointer\t'"$dptr/AGENTS.md"$'\t4\tdocs/testing.md\tresolved=yes'
+assert_contains "backtick path to a missing file is unresolved" "$out" \
+  $'pointer\t'"$dptr/AGENTS.md"$'\t5\tdocs/missing.md\tresolved=no'
+assert_contains "broken markdown link is unresolved the same way" "$out" \
+  $'pointer\t'"$dptr/AGENTS.md"$'\t6\tgone.md\tresolved=no'
+assert_contains "backtick and link pointers are both counted" "$out" \
+  $'pointers=4\tunresolved=2'
+assert_not_contains "command backtick is not a pointer" "$out" "git status"
+assert_not_contains "flag backtick is not a pointer" "$out" "--force"
+assert_not_contains "short-token backtick is not a pointer" "$out" "SKILL.md"
+
 # --- summary -----------------------------------------------------------------
 
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
