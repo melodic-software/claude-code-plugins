@@ -526,10 +526,27 @@ The capture a reboot destroys comes first; after that the order is by cost, not 
    only two of them, `NvContainerLocalSystem` and Wispr Flow, are on this list: Razer Game Manager
    is not the Chroma SDK services, and THX spatial audio does not appear here at all. Budget
    accordingly.
-   Add the components that load `wcifs.sys`, since that filter is what the
-   public reports implicate: **WSL2, Docker Desktop and Windows Sandbox**, alongside Claude
-   Desktop's Cowork VM. Growth that persists with all of them stopped points at a Windows
-   component; on an Entra-joined account the CloudAP token path is the next suspect.
+
+   Then add whatever loads `wcifs.sys` on **this** host, since that filter is what the public
+   reports implicate. Do not assume the list: `fltmc filters` (elevated) reports whether `wcifs`
+   is loaded at all, and if it is absent the whole wcifs branch is already cleared here, as it was
+   on the reference host. When it is loaded, the components worth suspecting are the container and
+   VM stacks: Claude Desktop's Cowork VM, WSL2, Docker Desktop and Windows Sandbox. Growth that
+   persists with all of them stopped points at a Windows component; on an Entra-joined account the
+   CloudAP token path is the next suspect.
+
+   **Drift record.** *Claim:* `wcifs.sys` is loaded on the hosts in the public reports, and the
+   components plausibly responsible for loading it are container and VM stacks. *Basis:* measured,
+   not assumed, per host: `fltmc filters` is the lookup this step defers to rather than restating a
+   loader list. What is sourced is narrower than the suspect list: `anthropics/claude-code#91265`
+   names Claude Desktop's Cowork VM as running `wcifs`/`bindflt` minifilters and WSL2
+   infrastructure, and the `microsoft/WSL#40804` commenter reports `wcifs.sys` 10.0.26100.8972
+   present while the Windows "Containers" optional feature is Disabled; both read 2026-09-22.
+   **Docker Desktop and Windows Sandbox are suspects by product class, not verified loaders**, and
+   the `fltmc` check is what settles either on a given host. *As of:* 2026-09-22. *Recheck trigger:*
+   a run of `fltmc filters` on a host carrying one of these products contradicts its place on the
+   suspect list, or a vendor documents its filter stack well enough to replace the per-host check
+   with a citation.
 
 **Drift record.** *Claim:* every documented `poolmon` switch is slash-prefixed and none is
 dash-prefixed; `/g [PoolTagFile]` adds the `Mapped_Driver` column, `/i` filters to a tag with no
