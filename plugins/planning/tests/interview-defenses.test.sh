@@ -498,7 +498,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "0487d5eef535d2f84b1d68da7a4f9a19c3f7c6c6f2a8dd3bfd30a82de7a89544"
+  "c7237c317c82adeb84f181f498d88d40ec6b72ca613c9ad6b898021dd44f1158"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -522,7 +522,7 @@ pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arb
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \
   "## Brief" \
-  "fd06bb2b071bace64804b166fbbc67db42585f4fdf76689369bf642caff93d6a"
+  "efa803aa7bbeba33e8721614c3f13b3f53ca558888c8fd70375d30c1fb37af12"
 
 pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as governing the two rules below)" \
   "$SKILL" \
@@ -557,12 +557,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "eb12bd525027fa585546e9bb95f020ed169d2a867d7e7dc5f934ad8597d6ea7f"
+  "0ec0dbeb055639ed4c8dd6e3a9d8a0208db23f0734ac26325a521afc8cd86a06"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "19c77079938f6298c38af59b1139a0cebaffbd4a63cca246684305af1853e145"
+  "70a31635b8c538f3f3838b56d7f731c9a73f61f452c43a9f9d8d3815ab772b83"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \

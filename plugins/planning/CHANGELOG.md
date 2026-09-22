@@ -10,6 +10,14 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - American spellings throughout this plugin's prose, ahead of the `en-us` locale the
   shared typos config adopts. Wording only: no behavior, option, default, or identifier
   changes. Released sections were corrected in place on the same terms.
+- **The EARS tag is now `unwanted-behavior`** at every site in `interview` and `prd`, the
+  British spelling having been the one the locale corrects. Both skills previously cited
+  the American spelling as an example of a WRONG spelling; each now cites
+  `unwanted_behavior` instead, so the contrast still reads. Nothing matches the tag
+  literal in code, and the other four names are unchanged.
+- Four section digests in `tests/interview-defenses.test.sh` were re-pinned. Each fired
+  on a spelling-only edit inside its region; both defenses each region houses were
+  re-read and neither is weakened.
 
 ## [0.39.11]
 
