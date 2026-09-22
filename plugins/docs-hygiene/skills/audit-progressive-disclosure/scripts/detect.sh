@@ -122,13 +122,14 @@ frontmatter() {
 # path to the repository-root file does not equal the bare basename; at_repo_root
 # still classifies that file always-loaded. A nested file keeps invocation.
 classify_tier() {
-  local path="$1" rel="$2" base fm
+  local path="$1" rel="$2" base fm repo_root
   base="$(basename "$path")"
   case "$base" in
   CLAUDE.md | CLAUDE.local.md | AGENTS.md | MEMORY.md)
-    if [[ "$rel" == "$base" ]]; then
-      printf 'always'
-    elif [[ "$(at_repo_root "$path")" == yes ]]; then
+    # Call at_repo_root outside the if. Inside the condition, set -e is
+    # suppressed for that function (SC2310).
+    repo_root="$(at_repo_root "$path")"
+    if [[ "$rel" == "$base" || "$repo_root" == yes ]]; then
       printf 'always'
     else
       printf 'invocation'
