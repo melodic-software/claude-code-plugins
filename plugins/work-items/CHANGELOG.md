@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.24] - 2026-09-22
+
+### Changed
+
+- Filing applies the bare `needs-triage` floor and no priority when a priority is not given. An `--agent-ready` filing does not take the floor.
+
 ## [0.40.23] - 2026-09-21
 
 ### Changed

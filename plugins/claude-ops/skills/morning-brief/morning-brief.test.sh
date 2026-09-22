@@ -54,7 +54,7 @@ NOW="2026-07-20T08:00Z"
 FIXTURE_REPO="example/test-repo"
 
 cat >"$TMP/counts.json" <<'EOF'
-{"priority: needs-triage": 28, "status: ready": 44, "status: needs-decision": 3, "needs-human": 7}
+{"needs-triage": 28, "status: ready": 44, "status: needs-decision": 3, "needs-human": 7}
 EOF
 
 # One clean non-draft (#10, kept), one draft-but-clean (#11, excluded), one
@@ -255,7 +255,7 @@ RC=$?
 assert_exit "renders successfully" 0 "$RC"
 
 # Queues
-assert_contains "queue: needs-triage count" "$OUT" "priority: needs-triage"
+assert_contains "queue: needs-triage count" "$OUT" "needs-triage"
 assert_contains "queue: ready count 44" "$OUT" "44"
 
 # Merge-ready — only clean non-drafts, sorted; excludes draft + blocked
@@ -337,8 +337,8 @@ OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "no matching queue labels degrades gracefully" "$OUT_NO_QL" "no queue labels found in this repo"
 assert_contains "degradation names the defaults" "$OUT_NO_QL" "pass --queue-labels to customize"
 QUEUE_ONLY="$(printf '%s\n' "$OUT_NO_QL" | awk '/^== Queues/,/^== /{if (!/^== / || /^== Queues/) print}')"
-assert_not_contains "absent defaults are not rendered as 0 count rows" "$QUEUE_ONLY" $'priority: needs-triage          0'
-assert_not_contains "absent defaults are not rendered as ? count rows" "$QUEUE_ONLY" $'priority: needs-triage          ?'
+assert_not_contains "absent defaults are not rendered as 0 count rows" "$QUEUE_ONLY" $'needs-triage          0'
+assert_not_contains "absent defaults are not rendered as ? count rows" "$QUEUE_ONLY" $'needs-triage          ?'
 
 OUT_PARTIAL_QL="$(bash "$BRIEF" --now "$NOW" \
   --repo-labels-json "$TMP/repo-labels-partial.json" \
@@ -349,7 +349,7 @@ OUT_PARTIAL_QL="$(bash "$BRIEF" --now "$NOW" \
   --merged-json "$TMP/merged-clean.json" 2>&1)"
 assert_contains "partial taxonomy shows only labels that exist" "$OUT_PARTIAL_QL" "status: ready"
 assert_contains "partial taxonomy keeps another existing label" "$OUT_PARTIAL_QL" "needs-human"
-assert_not_contains "partial taxonomy drops absent default labels" "$OUT_PARTIAL_QL" "priority: needs-triage"
+assert_not_contains "partial taxonomy drops absent default labels" "$OUT_PARTIAL_QL" "needs-triage"
 
 OUT_CUSTOM_QL="$(bash "$BRIEF" --now "$NOW" \
   --repo "$FIXTURE_REPO" \
@@ -759,7 +759,7 @@ assert_exit "rest: renders with the stranded section unreadable (exit 0)" 0 "$RC
 assert_contains "rest: the header names the transport" "$OUT_REST" "transport: REST"
 assert_contains "rest: queue count excludes pull requests" "$(section "$OUT_REST" "== Queues")" "status: ready            2"
 assert_contains "rest: queue count for the second label" "$(section "$OUT_REST" "== Queues")" "needs-human              1"
-assert_not_contains "rest: absent default labels are not rendered" "$(section "$OUT_REST" "== Queues")" "priority: needs-triage"
+assert_not_contains "rest: absent default labels are not rendered" "$(section "$OUT_REST" "== Queues")" "needs-triage"
 assert_contains "rest: merge-ready keeps the clean non-draft" "$OUT_REST" "#7 clean one"
 assert_not_contains "rest: merge-ready drops the draft" "$OUT_REST" "#8 draft one"
 assert_not_contains "rest: merge-ready drops the blocked" "$OUT_REST" "#9 blocked one"

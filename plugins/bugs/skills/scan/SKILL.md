@@ -302,10 +302,7 @@ into another plugin's files:
 3. **File** through `track add`, which owns the body template and the argv-safe write. The body
    carries the five fields, and a provenance line, `Filed by /bugs:scan (lane: <name>)`, which
    is what rung 1 of the cursor ladder later recognizes.
-4. **Mark `needs-triage` on the right axis, resolved from the live label set.** Priority axis: pass
-   `--priority needs-triage` on the `track add` call, replacing the filing floor (never two
-   `priority:` labels). Status axis: apply the status marker as a separate label after creation.
-   **Create no labels.** If the marker does not exist in the live set, say so and file without it.
+4. **Mark `needs-triage` from the live label set.** Apply that exact name when it exists. **Create no labels.** If it does not exist, say so and file without it.
    The filer does not self-triage.
 
 **Degrade:** if `work-items` is absent, or no tracker binding resolves, do not improvise a filing path.
