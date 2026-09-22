@@ -66,7 +66,21 @@
 # directories named temp_* are skipped: the cache holds transient
 # temp_git_*/temp_local_* clones during marketplace operations. Documented
 # limitation: if two DIFFERENT marketplaces both ship a plugin named
-# rate-limit-guard, the most recently installed one wins. Finding NO tee writes
+# rate-limit-guard, the most recently installed one wins.
+#
+# The CACHE sharpens that limitation, and this is the one thing it makes worse.
+# Installing from marketplace B while an un-orphaned copy from marketplace A is
+# already cached leaves A resolved: the two installs carry different
+# marketplace identities, so nothing orphans A, and a hit never runs the mtime
+# comparison that used to hand the render to B. B takes over once A is orphaned
+# or pruned, or once the cache file is deleted, which reference/
+# reader-contract.md already states a cleanup tool may do freely. Accepted
+# deliberately: re-globbing often enough to notice a second marketplace is the
+# entire cost this cache exists to avoid, and no cheap invalidator
+# distinguishes the case. The cache root's own mtime is not one, since it
+# changes whenever ANY plugin is installed and whenever a temp_* clone appears.
+#
+# Finding NO tee writes
 # nothing and creates nothing: the absence is never cached, so installing the
 # plugin takes effect on the very next render.
 #
