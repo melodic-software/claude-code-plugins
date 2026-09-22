@@ -28,6 +28,12 @@
 # is one argv word of a `git` or `echo` command, and the command word is never
 # `rm`. That is a consequence of parsing argv, not a special case for prose.
 #
+# A COMMAND SUBSTITUTION is the one place that reasoning does not reach, and it
+# is handled separately. `echo "$(rm -rf /)"` runs the delete before `echo` is
+# ever invoked, while the tokenizer correctly keeps the substitution inside the
+# enclosing word, so the segment callback only sees `echo`. Every `$( … )` and
+# backtick body is therefore lifted out and parsed on its own.
+#
 # NOT HOST GATED, deliberately, and this differs from block-windows-drive-tmp.sh
 # next to it. That guard exits at once on a non-Windows host because a POSIX
 # /tmp is the real temp directory there and it can have no opinion. Here `/`,
@@ -323,8 +329,12 @@ rdt_check_segment() {
       consume_bare=1
       ;;
     nice | ionice) optarg=" -n --adjustment -c -p " ;;
+    stdbuf) optarg=" -i -o -e --input --output --error " ;;
+    # /usr/bin/time, not the bash keyword, takes a format and an output file.
+    time) optarg=" -f --format -o --output " ;;
+    exec) optarg=" -a " ;;
     # busybox is a multi-call binary: `busybox rm -rf /` runs its own rm.
-    command | exec | time | nohup | stdbuf | setsid | busybox) optarg="" ;;
+    command | nohup | setsid | busybox) optarg="" ;;
     *) break ;;
     esac
     i=$((i + 1))
@@ -436,7 +446,63 @@ rdt_check_segment() {
   return 0
 }
 
+# rdt_scan_substitutions <text>: check the body of every command substitution.
+#
+# A substitution RUNS before the word it builds is used, so the shell executes
+# the inner command whatever the outer one is: `echo "$(rm -rf /)"` deletes the
+# root and then echoes nothing. The shared tokenizer keeps a substitution INSIDE
+# the enclosing argv word, which is correct for its own purpose and means the
+# segment callback only ever sees `echo`. So each body is lifted out here and
+# parsed on its own, and recursion covers a body that holds another.
+#
+# `$((` is arithmetic, not a command, and is skipped. A body is strictly shorter
+# than the text holding it, so the recursion is bounded.
+rdt_scan_substitutions() {
+  local s="$1" i=0 c body start
+  local -i len=${#s} depth
+  while ((i < len)); do
+    c="${s:i:1}"
+    if [[ "$c" == '$' && "${s:i+1:1}" == '(' ]]; then
+      if [[ "${s:i+2:1}" == '(' ]]; then
+        i=$((i + 3))
+        continue
+      fi
+      depth=1
+      start=$((i + 2))
+      i=$((i + 2))
+      while ((i < len && depth > 0)); do
+        c="${s:i:1}"
+        [[ "$c" == '(' ]] && depth=$((depth + 1))
+        [[ "$c" == ')' ]] && depth=$((depth - 1))
+        i=$((i + 1))
+      done
+      body="${s:start:i - start - 1}"
+      if [[ -n "$body" ]]; then
+        hook::bash_parse_segments "$body" rdt_check_segment
+        rdt_scan_substitutions "$body"
+      fi
+      continue
+    fi
+    if [[ "$c" == '`' ]]; then
+      start=$((i + 1))
+      i=$((i + 1))
+      while ((i < len)) && [[ "${s:i:1}" != '`' ]]; do
+        i=$((i + 1))
+      done
+      body="${s:start:i - start}"
+      i=$((i + 1))
+      if [[ -n "$body" ]]; then
+        hook::bash_parse_segments "$body" rdt_check_segment
+        rdt_scan_substitutions "$body"
+      fi
+      continue
+    fi
+    i=$((i + 1))
+  done
+}
+
 hook::bash_parse_segments "$COMMAND" rdt_check_segment
+rdt_scan_substitutions "$COMMAND"
 
 rdt_emit_tel "ok" ""
 exit 0

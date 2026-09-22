@@ -103,6 +103,20 @@ expect_both 'env -u FOO rm -rf / blocks' 2 --command 'env -u FOO rm -rf /'
 expect_both 'timeout 60 rm -rf / blocks' 2 --command 'timeout 60 rm -rf /'
 expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
 expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
+expect_both 'stdbuf -o L rm -rf / blocks' 2 --command 'stdbuf -o L rm -rf /'
+expect_both 'time -f FMT rm -rf / blocks' 2 --command '/usr/bin/time -f FMT rm -rf /'
+expect_both 'exec -a foo rm -rf / blocks' 2 --command 'exec -a foo rm -rf /'
+
+# A command substitution RUNS before the word it builds is used, so the shell
+# executes the inner command whatever the outer one is. The tokenizer keeps a
+# substitution inside the enclosing word, so its body is scanned separately.
+expect_both 'echo "$(rm -rf /)" blocks' 2 --command 'echo "$(rm -rf /)"'
+expect_both 'echo $(rm -rf /) blocks' 2 --command 'echo $(rm -rf /)'
+expect_both 'backtick substitution blocks' 2 --command 'echo `rm -rf /`'
+expect_both 'nested substitution blocks' 2 --command 'echo "$(echo "$(rm -rf /)")"'
+expect_both 'substitution with --no-preserve-root blocks' 2 \
+  --command 'echo "$(rm -rf --no-preserve-root /)"'
+expect_both 'substitution in an assignment blocks' 2 --command 'x="$(rm -rf ~)"'
 
 # A child shell runs its operand as a full command, so the operand is re-parsed
 # with the same tokenizer, exactly as block-no-verify does for `git`.
@@ -189,6 +203,10 @@ expect_both 'bash -c rm -rf ./build allowed' 0 --command 'bash -c "rm -rf ./buil
 expect_both 'sudo -u bob ls / allowed' 0 --command 'sudo -u bob ls /'
 # A path UNDER a UNC share is not the share root.
 expect_both 'rm -rf //server/share/dir allowed' 0 --command 'rm -rf //server/share/dir'
+# An arithmetic expansion is not a command substitution and carries no command.
+expect_both 'arithmetic expansion allowed' 0 --command 'echo "$((1 + 2))"'
+# A substitution whose inner delete is ordinary stays allowed.
+expect_both 'substitution with an ordinary delete allowed' 0 --command 'echo "$(rm -rf ./build)"'
 # A long option that is not a prefix of either recognized name.
 expect_both 'rm --force / allowed (no recursion)' 0 --command 'rm --force /'
 expect_both 'rm --dir / allowed (no recursion)' 0 --command 'rm --dir /'
