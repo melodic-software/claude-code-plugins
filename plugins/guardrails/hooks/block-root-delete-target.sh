@@ -32,7 +32,10 @@
 # is handled separately. `echo "$(rm -rf /)"` runs the delete before `echo` is
 # ever invoked, while the tokenizer correctly keeps the substitution inside the
 # enclosing word, so the segment callback only sees `echo`. Every `$( … )` and
-# backtick body is therefore lifted out and parsed on its own.
+# backtick body is therefore lifted out and parsed on its own. That scan HONORS
+# QUOTING, both to find a substitution and to find where it ends: `'$(rm -rf /)'`
+# is inert text, `"\$(…)"` is escaped, and a `)` inside a quoted span is not the
+# terminator. Nesting is capped at MAX_SUBST_DEPTH and the cap REFUSES.
 #
 # NOT HOST GATED, deliberately, and this differs from block-windows-drive-tmp.sh
 # next to it. That guard exits at once on a non-Windows host because a POSIX
@@ -163,6 +166,13 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 # require-jq-posture.test.sh classes this guard with them.
 MAX_COMMAND_LEN=16384
 
+# Command substitutions may nest, and the scanner descends one level per `$(`.
+# A payload well under MAX_COMMAND_LEN can spell thousands of levels, so the
+# descent is capped and the cap REFUSES rather than allows: the guard's abort
+# boundary is fail-OPEN, so a scanner that ran out of room would hand back an
+# allow on exactly the input built to exhaust it.
+MAX_SUBST_DEPTH=32
+
 rdt_emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
@@ -190,6 +200,12 @@ rdt_block() {
     printf '%s\n' \
       'BLOCKED: the command is too long to parse, so a recursive delete inside it cannot be ruled out.' \
       'Fix: split it into shorter commands, or write it to a script and run that.' >&2
+    ;;
+  nesting-too-deep)
+    printf '%s\n' \
+      "BLOCKED: substitution nesting deeper than $MAX_SUBST_DEPTH." \
+      'Past that depth the scanner stops descending, so a recursive delete inside it cannot be ruled out, and an allow here would be an allow on exactly the input built to exhaust it.' \
+      'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
     ;;
   *)
     # Single-quoted on purpose: the Fix line must show a literal $HOME to the
@@ -308,7 +324,7 @@ rdt_is_root() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 rdt_check_segment() {
   local -a words=("$@")
-  local n=$# i=0 j w base optarg consume_bare
+  local n=$# i=0 j w base cn optarg consume_bare
 
   # Command word: step over leading NAME=value assignments and over a launcher
   # that takes the real command as its argument. A launcher's own options are
@@ -339,6 +355,19 @@ rdt_check_segment() {
       i=$((i + 2))
       continue
       ;;
+    coproc)
+      # `coproc [NAME] command`. The NAME is optional, so it is stepped over
+      # only when a command still follows it and the NAME is not itself the
+      # verb: that keeps `coproc rm -rf /` reading `rm` while
+      # `coproc shredder rm -rf /` reads past the name to the same place.
+      i=$((i + 1))
+      if ((i + 1 < n)) && [[ "${words[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+        cn="${words[i],,}"
+        cn="${cn%.exe}"
+        [[ "$cn" != "rm" ]] && i=$((i + 1))
+      fi
+      continue
+      ;;
     *) ;;
     esac
     base="${w##*/}"
@@ -348,18 +377,22 @@ rdt_check_segment() {
     base="${base,,}"
     base="${base%.exe}"
     # optarg lists the launcher's operand-taking options, space-delimited on
-    # both sides so a prefix cannot match. consume_bare marks a launcher whose
-    # first bare word is its own argument rather than the command (`timeout`
-    # takes a duration).
+    # both sides so a prefix cannot match. Every short form carries its LONG
+    # alias beside it: the separate-operand spelling is the one that moves the
+    # command word, and listing `-u` alone read `sudo --user root rm -rf /` as a
+    # command named `root`. The `--opt=value` spelling is deliberately absent,
+    # because it carries its own operand and consumes no following word.
+    # consume_bare marks a launcher whose first bare word is its own argument
+    # rather than the command (`timeout` takes a duration).
     consume_bare=0
     case "$base" in
-    sudo | doas) optarg=" -u -g -p -C -D -r -t -T -U -h " ;;
-    env) optarg=" -u -C -S " ;;
+    sudo | doas) optarg=" -u --user -g --group -p --prompt -C --close-from -D --chdir -r --role -t --type -T --command-timeout -U --other-user -h --host " ;;
+    env) optarg=" -u --unset -C --chdir -S --split-string " ;;
     timeout)
       optarg=" -s --signal -k --kill-after "
       consume_bare=1
       ;;
-    nice | ionice) optarg=" -n --adjustment -c -p " ;;
+    nice | ionice) optarg=" -n --adjustment -c --class --classdata -p --pid " ;;
     stdbuf) optarg=" -i -o -e --input --output --error " ;;
     # /usr/bin/time, not the bash keyword, takes a format and an output file.
     time) optarg=" -f --format -o --output " ;;
@@ -542,49 +575,146 @@ rdt_check_segment() {
 # segment callback only ever sees `echo`. So each body is lifted out here and
 # parsed on its own, and recursion covers a body that holds another.
 #
-# `$((` is arithmetic, not a command, and is skipped. A body is strictly shorter
-# than the text holding it, so the recursion is bounded.
+# QUOTING IS HONORED, because the shell honors it. A `$(` inside a SINGLE-quoted
+# span is inert (`echo '$(rm -rf /)'` prints the text and runs nothing), and so
+# is a `\$(` inside a double-quoted one; reading the raw characters called both
+# a substitution and refused a command that deletes nothing. The same machine
+# locates the CLOSE: a `)` inside a quoted span is not the terminator, so
+# `echo "$(printf '%s\n' ')'; rm -rf /)"` ends where bash ends it rather than at
+# the quoted paren, which had been cutting the body off before the delete.
+#
+# ONE LINEAR PASS, not a descent. Parens are tracked on a stack, and a body is
+# parsed when its own `)` pops it, so a substitution inside another is reached
+# by the same walk that reached the outer one. Each entry remembers the quoting
+# state it interrupted, because a substitution body starts a FRESH quoting
+# context (`"$(echo "x")"` has two independent double-quoted spans). `$((` is
+# arithmetic: its `$` is stepped over and its two parens ride the stack as
+# ordinary ones, so its `))` balances them instead of closing a substitution.
+#
+# The stack depth is capped, and past the cap the guard REFUSES; see
+# MAX_SUBST_DEPTH. An unterminated substitution is parsed to end of text rather
+# than dropped, so a payload that never closes still fails closed.
+# shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 rdt_scan_substitutions() {
-  local s="$1" i=0 c body start
-  local -i len=${#s} depth
+  local s="$1" q="" c nx body
+  # Each open paren rides the stack with its KIND: 0 an ordinary paren that
+  # only balances, 1 a `$( )` substitution, 2 a backtick one. Only 1 and 2
+  # carry a body to parse, and only they count toward the depth cap.
+  local -i len=${#s} i=0 pd=0 sd=0 k st ansi=0
+  local -a st_start=() st_q=() st_kind=()
   while ((i < len)); do
     c="${s:i:1}"
-    if [[ "$c" == '$' && "${s:i+1:1}" == '(' ]]; then
-      if [[ "${s:i+2:1}" == '(' ]]; then
-        i=$((i + 3))
+    # A single-quoted span performs no expansion at all; only its own closing
+    # quote ends it. `$'…'` is the one spelling where a backslash still escapes.
+    if [[ "$q" == "'" ]]; then
+      if ((ansi)) && [[ "$c" == '\' ]]; then
+        i=$((i + 2))
         continue
       fi
-      depth=1
-      start=$((i + 2))
-      i=$((i + 2))
-      while ((i < len && depth > 0)); do
-        c="${s:i:1}"
-        [[ "$c" == '(' ]] && depth=$((depth + 1))
-        [[ "$c" == ')' ]] && depth=$((depth - 1))
-        i=$((i + 1))
-      done
-      body="${s:start:i - start - 1}"
-      if [[ -n "$body" ]]; then
-        hook::bash_parse_segments "$body" rdt_check_segment
-        rdt_scan_substitutions "$body"
+      if [[ "$c" == "'" ]]; then
+        q=""
+        ansi=0
+      fi
+      i=$((i + 1))
+      continue
+    fi
+    # Unquoted, a backslash escapes whatever follows. Inside double quotes it
+    # escapes only the four characters bash lets it, and is literal otherwise.
+    if [[ "$c" == '\' ]]; then
+      if [[ "$q" == '"' ]]; then
+        nx="${s:i+1:1}"
+        case "$nx" in
+        '"' | '$' | '`' | '\') i=$((i + 2)) ;;
+        *) i=$((i + 1)) ;;
+        esac
+      else
+        i=$((i + 2))
       fi
       continue
     fi
-    if [[ "$c" == '`' ]]; then
-      start=$((i + 1))
-      i=$((i + 1))
-      while ((i < len)) && [[ "${s:i:1}" != '`' ]]; do
-        i=$((i + 1))
-      done
-      body="${s:start:i - start}"
-      i=$((i + 1))
-      if [[ -n "$body" ]]; then
-        hook::bash_parse_segments "$body" rdt_check_segment
-        rdt_scan_substitutions "$body"
+    case "$c" in
+    '"')
+      if [[ "$q" == '"' ]]; then q=""; else q='"'; fi
+      ;;
+    "'")
+      # Literal inside double quotes; an opener outside them.
+      if [[ "$q" != '"' ]]; then
+        q="'"
+        ((i > 0)) && [[ "${s:i-1:1}" == '$' ]] && ansi=1
       fi
-      continue
-    fi
+      ;;
+    '$')
+      if [[ "${s:i+1:1}" == '(' ]]; then
+        if [[ "${s:i+2:1}" == '(' ]]; then
+          i=$((i + 1))
+          continue
+        fi
+        sd=$((sd + 1))
+        ((sd > MAX_SUBST_DEPTH)) && rdt_block "nesting-too-deep"
+        st_kind[pd]=1
+        st_start[pd]=$((i + 2))
+        st_q[pd]="$q"
+        pd=$((pd + 1))
+        q=""
+        i=$((i + 2))
+        continue
+      fi
+      ;;
+    '(')
+      # An ordinary paren (a subshell, one half of an arithmetic pair) only
+      # balances, so its `)` cannot be mistaken for a substitution's.
+      if [[ "$q" != '"' ]]; then
+        st_kind[pd]=0
+        st_start[pd]=-1
+        st_q[pd]="$q"
+        pd=$((pd + 1))
+      fi
+      ;;
+    ')')
+      # Inside a backtick body a stray `)` closes nothing, so it is left alone.
+      if [[ "$q" != '"' ]] && ((pd > 0)) && ((st_kind[pd - 1] != 2)); then
+        pd=$((pd - 1))
+        q="${st_q[pd]}"
+        if ((st_kind[pd] == 1)); then
+          sd=$((sd - 1))
+          st=${st_start[pd]}
+          body="${s:st:i - st}"
+          [[ -n "$body" ]] && hook::bash_parse_segments "$body" rdt_check_segment
+        fi
+      fi
+      ;;
+    '`')
+      # Backticks do not nest, so the top of the stack is either this one's
+      # opener or something it encloses.
+      if ((pd > 0)) && ((st_kind[pd - 1] == 2)); then
+        pd=$((pd - 1))
+        q="${st_q[pd]}"
+        sd=$((sd - 1))
+        st=${st_start[pd]}
+        body="${s:st:i - st}"
+        [[ -n "$body" ]] && hook::bash_parse_segments "$body" rdt_check_segment
+      else
+        sd=$((sd + 1))
+        ((sd > MAX_SUBST_DEPTH)) && rdt_block "nesting-too-deep"
+        st_kind[pd]=2
+        st_start[pd]=$((i + 1))
+        st_q[pd]="$q"
+        pd=$((pd + 1))
+        q=""
+      fi
+      ;;
+    *) ;;
+    esac
     i=$((i + 1))
+  done
+  # A substitution that never closed is parsed to the end of the text: the
+  # command would not run as written, but a guard that silently dropped it
+  # would be answering a different question than the one it was asked.
+  for ((k = 0; k < pd; k++)); do
+    ((st_kind[k] == 0)) && continue
+    st=${st_start[k]}
+    body="${s:st}"
+    [[ -n "$body" ]] && hook::bash_parse_segments "$body" rdt_check_segment
   done
 }
 

@@ -102,6 +102,11 @@ expect_both 'subshell blocks' 2 --command '(rm -rf /)'
 expect_both 'spaced subshell blocks' 2 --command '( rm -rf / )'
 expect_both 'case arm blocks' 2 --command 'case x in x) rm -rf / ;; esac'
 expect_both 'time rm -rf / blocks' 2 --command 'time rm -rf /'
+# `coproc [NAME] command` puts an optional NAME between the keyword and the
+# verb, so the NAME is stepped over only when a command still follows it.
+expect_both 'coproc blocks' 2 --command 'coproc rm -rf --no-preserve-root /'
+expect_both 'coproc NAME blocks' 2 --command 'coproc shredder rm -rf /'
+expect_both 'coproc brace group blocks' 2 --command 'coproc { rm -rf /; }'
 
 # Any operand may be the root, not only the first.
 expect_both 'rm -rf ./ok / blocks on the second operand' 2 --command 'rm -rf ./ok /'
@@ -132,6 +137,15 @@ expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
 expect_both 'stdbuf -o L rm -rf / blocks' 2 --command 'stdbuf -o L rm -rf /'
 expect_both 'time -f FMT rm -rf / blocks' 2 --command '/usr/bin/time -f FMT rm -rf /'
 expect_both 'exec -a foo rm -rf / blocks' 2 --command 'exec -a foo rm -rf /'
+# The LONG spelling of an operand-taking option moves the command word exactly
+# as the short one does, so every short form listed carries its long alias.
+# `--opt=value` carries its own operand and consumes no following word.
+expect_both 'sudo --user root rm -rf / blocks' 2 --command 'sudo --user root rm -rf /'
+expect_both 'sudo --user=root rm -rf / blocks' 2 --command 'sudo --user=root rm -rf /'
+expect_both 'env --chdir /tmp rm -rf / blocks' 2 --command 'env --chdir /tmp rm -rf /'
+expect_both 'nice --adjustment 5 rm -rf / blocks' 2 --command 'nice --adjustment 5 rm -rf /'
+expect_both 'ionice --class 2 rm -rf / blocks' 2 --command 'ionice --class 2 rm -rf /'
+expect_both 'stdbuf --output L rm -rf / blocks' 2 --command 'stdbuf --output L rm -rf /'
 
 # A command substitution RUNS before the word it builds is used, so the shell
 # executes the inner command whatever the outer one is. The tokenizer keeps a
@@ -143,6 +157,26 @@ expect_both 'nested substitution blocks' 2 --command 'echo "$(echo "$(rm -rf /)"
 expect_both 'substitution with --no-preserve-root blocks' 2 \
   --command 'echo "$(rm -rf --no-preserve-root /)"'
 expect_both 'substitution in an assignment blocks' 2 --command 'x="$(rm -rf ~)"'
+
+# The scan honors QUOTING when it looks for the END of a body too, so a `)`
+# sitting inside a quoted span is not the terminator. Reading raw characters cut
+# the body off at that paren and lost the delete standing behind it.
+expect_both 'quoted paren inside a substitution body blocks' 2 \
+  --command "echo \"\$(printf '%s\n' ')'; rm -rf --no-preserve-root /)\""
+expect_both 'quoted paren then a root operand blocks' 2 \
+  --command "echo \"\$(printf ')'; rm -rf /)\""
+
+# Nesting is capped, and the cap REFUSES rather than allows: the abort boundary
+# is fail-OPEN, so a scanner that ran out of room would answer allow on exactly
+# the payload built to exhaust it. The innermost command here is harmless, so
+# the cap is the only thing that can refuse this one.
+rdt_deep=""
+for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="\$($rdt_deep"; done
+rdt_deep="${rdt_deep}echo rm"
+for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="$rdt_deep)"; done
+expect_both 'substitution nested 40 deep is refused' 2 --command "$rdt_deep"
+expect_both 'substitution nested 3 deep is still parsed' 2 \
+  --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
 
 # `eval` runs its arguments in THIS shell, so the child-shell unwrap never
 # applies to it: there is no -c and no new process.
@@ -261,6 +295,21 @@ expect_both 'sudo -u bob ls / allowed' 0 --command 'sudo -u bob ls /'
 expect_both 'rm -rf //server/share/dir allowed' 0 --command 'rm -rf //server/share/dir'
 # An arithmetic expansion is not a command substitution and carries no command.
 expect_both 'arithmetic expansion allowed' 0 --command 'echo "$((1 + 2))"'
+expect_both 'arithmetic inside a substitution allowed' 0 --command 'echo "$(echo $((1 + 2)))"'
+# A SINGLE-quoted span performs no expansion at all, and inside a double-quoted
+# one a backslash escapes the `$` and the backtick, so none of these four is a
+# substitution: the text is printed and nothing runs. Reading raw characters
+# called all four a substitution and refused a command that deletes nothing.
+expect_both "single-quoted substitution text allowed" 0 --command "echo '\$(rm -rf /)'"
+expect_both 'escaped dollar-paren allowed' 0 --command 'echo "\$(rm -rf /)"'
+expect_both "single-quoted backtick text allowed" 0 --command "echo '\`rm -rf /\`'"
+expect_both 'escaped backtick allowed' 0 --command 'echo "\`rm -rf /\`"'
+# A live substitution nested three deep whose innermost command is harmless is
+# parsed all the way down and still allowed, so the depth cap is not a blanket.
+expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'
+# The coproc NAME step-over must not widen the guard either.
+expect_both 'coproc NAME with an ordinary delete allowed' 0 --command 'coproc shredder rm -rf ./build'
+expect_both 'sudo --user root ls / allowed' 0 --command 'sudo --user root ls /'
 # A substitution whose inner delete is ordinary stays allowed.
 expect_both 'substitution with an ordinary delete allowed' 0 --command 'echo "$(rm -rf ./build)"'
 # A long option that is not a prefix of either recognized name.
