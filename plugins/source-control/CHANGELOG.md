@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.90]
+
+### Changed
+
+- The orchestrated worktree provisioning paragraph names `--repo-dir <repo-toplevel>` on the direct `worktree-create.sh` invocation, so a worker that starts outside the repository does not inherit the current directory as the source repo.
+
 ## [0.55.89]
 
 ### Changed
