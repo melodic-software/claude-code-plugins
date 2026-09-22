@@ -133,7 +133,11 @@ behavior it asserts exists.
 
 ## Plan
 
-### Phase 1: Scaffold and register the plugin [TODO]
+### Phase 1: Scaffold and register the plugin [DONE]
+
+Sanity Check run 2026-09-22: all eleven commands exit 0 and the `jq` marketplace probe exits 0.
+`generate-catalog.mjs` was run once to write the new catalog line (generator output, not a hand
+edit).
 
 Work items:
 

@@ -37,6 +37,7 @@ export const SUMMARY_MAX_CODEPOINTS = 100;
 // orphaned entries, and excluded-but-mapped conflicts.
 export const EXCLUDED_PLUGINS = new Map([
   ["ai-briefing", "personal-domain plugin"],
+  ["gaming", "personal-domain plugin"],
   ["kindle-dedrm", "personal-domain plugin"],
   ["knowledge", "personal-domain plugin"],
   ["machine-health", "personal-domain plugin"],

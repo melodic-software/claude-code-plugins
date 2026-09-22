@@ -406,6 +406,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "gaming",
+      "source": "./plugins/gaming",
+      "category": "personal",
+      "tags": ["gaming", "dlss", "dlss5", "nvidia", "optiscaler", "mod", "windows", "skill"],
+      "defaultEnabled": false
+    },
+    {
       "name": "codebase-health",
       "source": "./plugins/codebase-health",
       "category": "quality",
