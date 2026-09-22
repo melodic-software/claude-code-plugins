@@ -34,8 +34,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   error-87 precondition and its settled-delta protocol stated) is ranked before the elevated
   service arms and labeled as one machine's trace pending a second host. Four service arms run on
   2026-09-18 are recorded as NO CANDIDATE, with the note that only two of them appear in the
-  candidate list. WSL2, Docker Desktop and Windows Sandbox join that list because they load
-  `wcifs.sys`. The elevated arm samples under a fixed spawn load rather than at rest, because the
+  candidate list. The wcifs branch defers to a per-host `fltmc filters` lookup instead of
+  restating a loader list, naming Cowork's VM, WSL2, Docker Desktop and Windows Sandbox as
+  suspects to check rather than as verified loaders, and an absent filter clears that branch
+  outright. The elevated arm samples under a fixed spawn load rather than at rest, because the
   section's own result is that an idle host leaks about nothing.
 
 ## [0.57.4] - 2026-09-22
