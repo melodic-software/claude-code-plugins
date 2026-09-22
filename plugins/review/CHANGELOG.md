@@ -11,6 +11,14 @@ All notable changes to the `review` plugin are documented here. Format follows
   shared typos config adopts. Wording only: no behavior, option, default, or identifier
   changes. Released sections were corrected in place on the same terms.
 
+### Fixed
+
+- **The close-out acceptance-criteria rollup still classifies the retired EARS tag spelling.**
+  The `planning` vocabulary moves to `unwanted-behavior` in the same change set, so a Brief or
+  PRD written before it carries the British spelling. The exact-name list would have read that
+  as "anything else" and left the pattern cell empty, silently dropping the classification from
+  every older artifact. The retired spelling is now detected and rendered under the current name.
+
 ## [0.29.1]
 
 ### Changed

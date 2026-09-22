@@ -382,9 +382,13 @@ plus, above it:
   alone cannot show. The pattern cell carries one of exactly five names, `ubiquitous`,
   `event-driven`, `state-driven`, `unwanted-behavior`, `optional-feature`, or nothing at all; a
   bracket holding anything else is an untagged criterion that looks tagged, so the cell stays empty
-  rather than echoing the raw text. Detection is a leading bracket holding one of those five names
-  in the criteria as retrieved, nothing else: a checklist marker (`- [ ]`) is a bracket and not a
-  tag, and no flag, no lever, and no convention key is read here. **Every criterion
+  rather than echoing the raw text. The one exception is the retired British spelling of the fourth
+  name: a Brief or PRD written before the vocabulary moved to `unwanted-behavior` carries
+  <!-- spellchecker:off -->`[unwanted-behaviour]`<!-- spellchecker:on -->, and that spelling is still detected and rendered under the current name,
+  so an older artifact keeps its classification instead of silently losing it. Detection is
+  otherwise a leading bracket holding one of those five names in the criteria as retrieved, nothing
+  else: a checklist marker (`- [ ]`) is a bracket and not a tag, and no flag, no lever, and no
+  convention key is read here. **Every criterion
   still gets a row.** A partially tagged set leaves the untagged rows' pattern cell empty rather
   than dropping them, which is the invisibility this rollup exists to remove; a set carrying no tag
   at all renders exactly as it does today, with no pattern column. The column names the pattern and
