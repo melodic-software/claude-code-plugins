@@ -27,12 +27,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   on `anthropics/claude-code#91265` (a Claude Desktop host), and `bentoner`'s
   `win32kfull!CForegroundLaunch::_CheckAllowForeground` trace on one machine. Each carries a
   four-part verification record with an observable recheck trigger.
-- The attribution runbook is ordered by cost. An unelevated foreground-lock check (read the live
-  timeout via `SPI_GETFOREGROUNDLOCKTIMEOUT`, spawn loop with a census before and after at the
-  current value and at 0, original restored) is ranked before the elevated service arms and
-  labelled as one machine's trace pending a second host. Four service arms run on 2026-09-18 are
-  recorded as NO CANDIDATE, and WSL2, Docker Desktop and Windows Sandbox join the candidate list
-  because they load `wcifs.sys`.
+- The attribution runbook now leads with the capture a reboot destroys (the poolmon pool-tag
+  snapshot, sampling the `WC*` tags alongside `Toke`), then orders the rest by cost. An unelevated
+  foreground-lock check (read the live timeout via `SPI_GETFOREGROUNDLOCKTIMEOUT`, spawn loop with
+  a census before and after at the current value and at 0, original restored, with the write-up's
+  error-87 precondition and its settled-delta protocol stated) is ranked before the elevated
+  service arms and labelled as one machine's trace pending a second host. Four service arms run on
+  2026-09-18 are recorded as NO CANDIDATE, with the note that only two of them appear in the
+  candidate list. WSL2, Docker Desktop and Windows Sandbox join that list because they load
+  `wcifs.sys`. The elevated arm samples under a fixed spawn load rather than at rest, because the
+  section's own result is that an idle host leaks about nothing.
 
 ## [0.57.4] - 2026-09-22
 
