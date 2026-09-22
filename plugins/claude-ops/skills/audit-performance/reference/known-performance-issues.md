@@ -317,9 +317,10 @@ The shape, not the numbers, is the transferable part:
   until the same test is run against other binaries. A census-burst-census probe on the reference
   host on 2026-09-14 (the engine's `kernel_objects` count before and after N spawns through
   `subprocess.run`, quiet host, background near 0/s) found the leak tracks process creation, per
-  binary: `pwsh.exe` 7.6 at 10.2 leaked Token objects per spawn (n=60), Git `usr\bin\bash.exe` at
-  1.5 (n=200), Windows PowerShell 5 at 0.5 (n=60), `node.exe` at 0.3 (n=100), `python3.exe` and
-  `cmd.exe` at about 0 (n=100, n=300). A 1-per-minute sampler tracked it live: 3 to 7/s during the
+  binary, in leaked Token objects per spawn: `pwsh.exe` (PowerShell 7.6, Microsoft Store package)
+  at 10.2 (n=60), Git `usr\bin\bash.exe` at 1.5 (n=200), Windows PowerShell 5 at 0.5 (n=60),
+  `node.exe` at 0.3 (n=100), `python3.exe` and `cmd.exe` at about 0 (n=100, n=300). A
+  1-per-minute sampler tracked it live: 3 to 7/s during the
   bursts, about 0 when the host was idle. So the `cmd` result was a null on a non-minting binary,
   not evidence of a continuous minter, and the consequence for a Claude Code host is that the leak
   is proportional to how many shell processes its hooks and tools spawn. Every spawn-reduction
@@ -458,9 +459,14 @@ The cheap step is first, and the order is by cost, not by likelihood.
    host**: `bentoner`'s write-up states its own single-machine scope, and the A/B on the host that
    reported the precondition is written and has not been run. Ranked first because it is cheap,
    not because it is the likeliest answer.
-2. **Elevated: the service arms.** Sample the Token count over 60 s, then stop one candidate
-   service at a time and re-sample; the one that drops the rate to about zero is the minter, and
-   every stopped service is restarted afterwards. Candidates on the audited host, in order:
+2. **Elevated: the service arms.** Sample the Token count over 60 s, and sample it **under a fixed
+   spawn load, never idle**. The per-binary result above says an idle host leaks about nothing, so
+   an idle 60 s window reads near zero with nothing stopped and discriminates nothing; an arm run
+   that way clears every candidate for free. Drive a steady loop of MSYS `bash -c true` spawns for
+   the whole window, then stop one candidate service at a time and re-sample the same loop at the
+   same spawn count; the arm that drops the rate toward zero is the minter, and every stopped
+   service is restarted afterwards. That loaded 60 s window is the manual mint-rate measurement
+   the engine's `kernel_objects` basis string points at. Candidates on the audited host, in order:
    `ArmouryCrateService`, `LightingService` (Aura), `ROG Live Service`, `AsusFanControlService`,
    `AsusUpdateCheck`, `asComSvc`, then the Razer Chroma SDK services, NVIDIA's
    `NvContainerLocalSystem`, and Wispr Flow. Four of those were already run to NO CANDIDATE above,
