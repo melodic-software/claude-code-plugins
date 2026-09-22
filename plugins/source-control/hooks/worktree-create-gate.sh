@@ -189,6 +189,7 @@ json_field_to() {
 
 json_field_to name name
 json_field_to repo_dir cwd
+json_field_to session_id session_id
 
 if [[ -z "$name" ]]; then
   gate::refuse \
@@ -225,7 +226,20 @@ if [[ ! -f "$helper" ]]; then
     "expected the helper at $helper"
 fi
 
+# The payload's session_id is what check-enter later proves ownership with.
+# An empty id stays omitted: the helper then writes a host-and-time reason that
+# matches no session. An id outside the helper's grammar is refused here, before
+# the helper's exit 2, because that exit is reported as a bad worktree name.
+if [[ -n "$session_id" && ! "$session_id" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]; then
+  gate::refuse \
+    'the WorktreeCreate payload session_id must match ^[A-Za-z0-9._:-]{1,128}$; refusing rather than creating a worktree whose lock no session can claim' \
+    "session_id was: $session_id"
+fi
+
 args=(--name "$name" --repo-dir "$repo_dir")
+if [[ -n "$session_id" ]]; then
+  args+=(--session-id "$session_id")
+fi
 if [[ -n "$root" ]]; then
   args+=(--fallback-root "$root")
 fi
