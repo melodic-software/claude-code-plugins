@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [0.20.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.20.0]
 
 ### Added

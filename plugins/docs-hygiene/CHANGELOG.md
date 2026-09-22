@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.10] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.22.9]
 
 ### Fixed
