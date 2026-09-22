@@ -97,6 +97,33 @@ run_case "docs/a/foo... fails" 1 docs/a/foo...
 #    conventional name on its own.
 run_case "docs/Foo.md beside docs/foo.md fails" 1 docs/Foo.md docs/foo.md
 
+# 8b. A case collision on a path git would quote. The shared non-ASCII byte
+#     (UTF-8 C3 A9) makes `git ls-files` without -z C-quote the name, and the
+#     ASCII C/c is what `tr` folds. docs/topics/ is exempt from the basename
+#     rule, so a failure here is the collision pass comparing the raw path.
+repo=""
+if mk_repo repo && [[ -n "$repo" ]]; then
+  lower="docs/topics/caf"$'\303\251'".md"
+  upper="docs/topics/Caf"$'\303\251'".md"
+  mkdir -p "$repo/docs/topics"
+  printf 'seed\n' >"$repo/$lower"
+  printf 'seed\n' >"$repo/$upper"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm case >/dev/null
+  quoted="$(git_test_config "$repo" -c core.quotePath=true ls-files -- "$lower")"
+  out="$(bash "$repo/scripts/check-docs-naming.sh" --check 2>&1)"
+  rc=$?
+  if [[ "$quoted" == "$lower" ]]; then
+    fail "quoted-path collision: git did not quote $lower (got $quoted)"
+  elif [[ $rc -eq 1 ]] && grep -qF "$lower" <<<"$out" && grep -qF "$upper" <<<"$out" && grep -qF "differs only by case" <<<"$out"; then
+    ok "non-ASCII path git would quote fails on a case collision"
+  else
+    fail "quoted-path collision: expected rc=1 naming both raw paths as a case collision (rc=$rc): $out"
+  fi
+else
+  fail "quoted-path collision: fixture build failed"
+fi
+
 # 9. Discover mode (no flag) lists offenders and still exits 1 on any.
 # A failed fixture build leaves $repo empty, and `git -C ""` would then act on
 # THIS checkout, so the build is checked before any git command runs.

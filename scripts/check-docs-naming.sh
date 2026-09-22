@@ -64,9 +64,17 @@ fi
 NAME_RE='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$'
 offenders=()
 
+# Tracked paths under docs/, read once. NUL-delimited, so a path git would
+# otherwise C-quote (a non-ASCII byte, a tab, or a newline) arrives as the raw
+# bytes. The basename pass and the case-collision pass both walk this array.
+paths=()
+while IFS= read -r -d '' path; do
+  paths+=("$path")
+done < <(git ls-files -z -- docs/)
+
 # One pass for the basename rule. Exemptions are checked in the order the
 # header lists them; the regex only sees what nothing exempted.
-while IFS= read -r -d '' path; do
+for path in ${paths+"${paths[@]}"}; do
   [[ "$path" == docs/topics/* ]] && continue
   base="${path##*/}"
   [[ "$base" == README.md || "$base" == CHANGELOG.md || "$base" == INDEX.md ]] && continue
@@ -78,7 +86,7 @@ while IFS= read -r -d '' path; do
   if [[ ! "$base" =~ $NAME_RE ]]; then
     offenders+=("$path: basename is not lower-kebab-case (rule: $NAME_RE)")
   fi
-done < <(git ls-files -z -- docs/)
+done
 
 # One pass for case collisions, over EVERY tracked path under docs/ (exempt
 # names included: `docs/README.md` beside `docs/readme.md` still collides).
@@ -86,14 +94,44 @@ done < <(git ls-files -z -- docs/)
 # member of a colliding group is reported against the group's folded form.
 # The fold goes through `tr`, never `${path,,}`: that expansion is Bash 4+,
 # and the checkouts this rule protects include stock macOS Bash 3.2.
-while IFS= read -r folded; do
-  [[ -n "$folded" ]] || continue
-  while IFS= read -r -d '' path; do
-    if [[ "$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')" == "$folded" ]]; then
-      offenders+=("$path: differs only by case from another tracked path ($folded)")
+#
+# The duplicate folds come from this same array. A second `git ls-files`
+# without `-z` would C-quote the bytes above, and that quoted text would never
+# equal the raw path, so the collision would be missed. `sort` and `uniq -d`
+# see one `printf %q` record per folded path: a single line, so an embedded
+# newline stays inside its record, and the bytes compared are the folded path.
+# `sort -z` is not used: BSD sort, which macOS ships, has no `-z`.
+folded=()
+for path in ${paths+"${paths[@]}"}; do
+  # The trailing x keeps a path that ends in a newline intact. A command
+  # substitution strips trailing newlines, so the sentinel sits after them
+  # and is removed once the folded bytes are captured.
+  one="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]' && printf x)"
+  folded+=("${one%x}")
+done
+
+dups=""
+if ((${#folded[@]} > 0)); then
+  dups="$(
+    for one in ${folded+"${folded[@]}"}; do
+      printf '%q\n' "$one"
+    done | sort | uniq -d
+  )"
+fi
+
+if [[ -n "$dups" ]]; then
+  i=0
+  while ((i < ${#paths[@]})); do
+    one="${folded[$i]}"
+    if [[ -n "$one" ]]; then
+      printf -v key '%q' "$one"
+      if [[ $'\n'"$dups"$'\n' == *$'\n'"$key"$'\n'* ]]; then
+        offenders+=("${paths[$i]}: differs only by case from another tracked path ($one)")
+      fi
     fi
-  done < <(git ls-files -z -- docs/)
-done < <(git ls-files -- docs/ | tr '[:upper:]' '[:lower:]' | sort | uniq -d)
+    i=$((i + 1))
+  done
+fi
 
 if ((${#offenders[@]} == 0)); then
   printf 'check-docs-naming: every tracked file under docs/ is lower-kebab-case.\n'
