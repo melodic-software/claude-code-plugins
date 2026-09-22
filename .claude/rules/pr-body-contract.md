@@ -1,3 +1,7 @@
+---
+description: "The body contract every pull request is expected to meet"
+---
+
 # PR body contract
 
 `ci-status` is the single required check on every pull request. It fails on a
