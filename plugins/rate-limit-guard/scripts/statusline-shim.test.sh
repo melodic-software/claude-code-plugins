@@ -99,7 +99,7 @@ orphan_tee() {
 
 # The shim's resolution cache file, spelled the way the shim spells it: keyed by
 # plugin name under the EFFECTIVE config dir, so the chaining case can name both
-# links' caches. No fixture ever creates this directory — the shim's miss path
+# links' caches. No fixture ever creates this directory: the shim's miss path
 # has to, and case 25 is what proves it does not create it when there is nothing
 # to cache.
 #   $1 = the effective config dir, $2 = the plugin name
@@ -353,7 +353,7 @@ assert_eq "yes" "$UNTOUCHED" "a cache hit rewrites nothing"
 # Case 17 alone cannot show this: a shim that globbed first and then preferred a
 # valid cached path would resolve the same tee at exactly today's cost, and the
 # cost is the whole point. The first assertion names the shim's own loop
-# variable deliberately — it is a WHITE-BOX cost assertion, and the trace is the
+# variable deliberately: it is a WHITE-BOX cost assertion, and the trace is the
 # only place the absence of a walk is observable through a transparent shim.
 # Several candidates are planted because the miss trace grows with them while
 # the hit trace does not, which is what makes the length comparison meaningful.
