@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.11]
+
+### Fixed
+
+- **The case-collision pass compares one nul-delimited listing.** `git ls-files` without `-z` C-quotes a path that contains a non-ASCII byte, a tab, or a newline, so that quoted text never matched the raw path from the `-z` listing and the collision was missed. Both `scripts/check-docs-naming.sh` and the emitted gate template now read `git ls-files -z` once and fold those same bytes.
+
 ## [0.22.9]
 
 ### Fixed
