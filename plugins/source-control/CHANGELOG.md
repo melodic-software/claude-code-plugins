@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.91]
+
+### Fixed
+
+- `worktree-create.sh --session-id` writes `session <id> since` into the worktree lock reason, the token `worktree-claim.sh check-enter` already treats as this session's claim. Omitting the flag still writes a host-and-time reason that matches no session. The create procedure passes the session id resolved in `SKILL.md`, because a context file would carry the token literally and the helper rejects that as a usage error.
+
 ## [0.55.89]
 
 ### Changed
