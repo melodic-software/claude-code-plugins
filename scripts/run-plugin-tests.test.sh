@@ -227,7 +227,7 @@ else
 fi
 
 rm -f "$probe_dir"/overlap.* "$probe_dir"/running.*
-PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 0 "--jobs 1 still honours the allowlist" --root "$r"
+PLUGIN_TEST_SERIAL_LIST="$serial_list" run_runner 0 "--jobs 1 still honors the allowlist" --root "$r"
 for name in p1 p2 p3 s1 s2; do
   [[ -s "$probe_dir/overlap.$name.test.sh" ]] && fail "suite $name overlapped under --jobs 1"
 done

@@ -744,7 +744,7 @@ out="$(PATH="$CRLF_BIN:$PATH" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-repo" bash 
 assert_contains "malformed layer: refused under a CRLF-emitting jq too" "$out" "threshold_ai_vocabulary=3.0 (rule"
 
 # Pin the fixture's premise: a well-formed layer carrying the same value is still
-# honoured, so the two cases above are discriminating on the malformation and not
+# honored, so the two cases above are discriminating on the malformation and not
 # on the key going unread for some unrelated reason.
 okdir="$TEST_TMPDIR/trunc-ok-repo/.claude"
 mkdir -p "$okdir"

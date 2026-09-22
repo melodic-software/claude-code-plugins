@@ -376,7 +376,7 @@ measurements below carry the conditions they were taken under.
   wherever `python3` resolved to a real interpreter, the conversion was held to argv equivalence: the
   vector `destructive_guard.py` receives is byte-identical before and after, asserted against roots
   containing spaces and backslashes; only argv[0] changes, from an interpreter name to the launcher
-  path. What this does **not** change is the guard's no-interpreter behaviour, the launcher still
+  path. What this does **not** change is the guard's no-interpreter behavior, the launcher still
   exits 0 silently in guard mode when nothing on the ladder resolves. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)

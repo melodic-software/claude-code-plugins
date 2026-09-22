@@ -75,7 +75,7 @@ their TTL", or "the compiler rejects every caller that was not updated". Ask it 
 a fact exists, verifying that one thing collapses most of the scary cases at once.
 
 **Then enumerate the risks anyway.** The single fact is a probe, never the report's structure. A
-change with three independent risks organised around its most legible one leaves the other two not
+change with three independent risks organized around its most legible one leaves the other two not
 merely unmentioned but structurally invisible, since the report has no slot for them. Annotate which risks
 collapsed into a shared fact; never let that annotation become the outline.
 
@@ -83,8 +83,8 @@ collapsed into a shared fact; never let that annotation become the outline.
 
 The reachable surfaces a symbol search misses, in rough order of how often they bite:
 
-- **Library behaviour**: read the dependency's own source for the call you changed, and check its
-  pinned version and any local patch. Documented behaviour and shipped behaviour diverge.
+- **Library behavior**: read the dependency's own source for the call you changed, and check its
+  pinned version and any local patch. Documented behavior and shipped behavior diverge.
 - **Serialization boundaries**: JSON an API returns, a persisted column, a cache key shape, a wire
   format, a file another tool parses. A field rename is invisible to a compiler and fatal to a reader.
 - **Timing and lifecycle**: teardown order, microtask versus macrotask, cancellation, retry, whether

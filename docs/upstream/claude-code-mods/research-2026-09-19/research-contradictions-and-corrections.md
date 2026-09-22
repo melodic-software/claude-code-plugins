@@ -5,7 +5,7 @@ asserting anything that "sounds obvious" — most entries below sounded obvious
 when they were written.
 
 Pin: 2026-09-19, Claude Code 2.1.278. Precedence when lanes disagreed:
-**locally observed behaviour on 2.1.278 > source tree / `.d.ts` > binary readable
+**locally observed behavior on 2.1.278 > source tree / `.d.ts` > binary readable
 string > staff statement > minified-code inference > community.** Where a lane's
 prose and its own `VERIFICATION.md` disagreed, `VERIFICATION.md` won.
 
@@ -142,9 +142,9 @@ pool.
 | The flag governs whether the machinery exists at all | **WRONG** — see A3 / M1 |
 | A version-floor conflict exists (davila7 vs claudefa.st) | **WRONG** — no conflict. Exactly one floor claim exists (davila7, `>= 2.1.259`, third-party, uncorroborated); claudefa.st asserts none |
 | Coexistence sourced to `mods/README.md` | **CONFIRMED but re-sourced** — all four built-in mods ship `modules` only. Re-sourced to a local `claude plugin validate` probe (accepts both; rejects a malformed classic block) and `pleaseai/honmoon` in the wild |
-| `node:vm` non-containment attributed to staff | **CONFIRMED as labelled**, attribution corrected — staff asserted a boundary and never conceded non-containment; the support is Node's own docs. This is the corpus's inference |
+| `node:vm` non-containment attributed to staff | **CONFIRMED as labeled**, attribution corrected — staff asserted a boundary and never conceded non-containment; the support is Node's own docs. This is the corpus's inference |
 | The `CONTRIBUTOR` badge is evidence against MEMBER | **Corrected** — the badge is **neutral**: org membership on that account is not public, so an outsider cannot distinguish the two. The real signal is self-merge access |
-| Three maintainer positions on throw behaviour; "any guard rests on an undecided behaviour" | **OVERSTATED** — **four** positions, and the fourth describes an author-side construction the maintainer says cannot be skipped. Rewrite: *the engine's default is undecided; a guard that wants fail-closed must construct it itself* |
+| Three maintainer positions on throw behavior; "any guard rests on an undecided behavior" | **OVERSTATED** — **four** positions, and the fourth describes an author-side construction the maintainer says cannot be skipped. Rewrite: *the engine's default is undecided; a guard that wants fail-closed must construct it itself* |
 | HN: one story | **OVERSTATED trivially** — a second, unrelated 2026-07-05 story exists. Conclusion (attention ≈ nil) stands. Also: poteat posted **30** comments in #91870, not "~20" |
 
 ### `surfaces-desktop/` (9 CONFIRMED, 2 OVERSTATED, 1 WRONG, 1 UNVERIFIABLE)
@@ -153,10 +153,10 @@ pool.
 |---|---|
 | Tiers, `prependPlugins`, `next.to`, `e.provider.tier` appear **only** in `sec-default/README.md` | **WRONG** — all are declared in `mods/types/claude-code.d.ts`. The true narrower claim: **no official docs page and no CHANGELOG entry** mentions them |
 | The env var is how function hooks get enabled | **OVERSTATED** — see A3 |
-| #91870 "names terminal and the desktop app as hosts" | **OVERSTATED** — those are **demo-video captions**; the issue makes no statement about where the gate is honoured |
+| #91870 "names terminal and the desktop app as hosts" | **OVERSTATED** — those are **demo-video captions**; the issue makes no statement about where the gate is honored |
 | "Claude Code stays a separate mode after the merge" | **UNVERIFIABLE first-party** — the announcement never names Claude Code. Of three secondary outlets re-fetched, only 9to5Mac carries it; **TechCrunch, cited by the lane for exactly this, does not** |
 | Docs silence MEDIUM (`llms.txt` is curated) | **Upgraded to HIGH** — the **full** corpus `llms-full.txt` was grepped |
-| `.mcpb` characterisation MEDIUM | **Upgraded to HIGH** — the MCPB manifest spec has **no** fields for skills, agents, hooks or commands |
+| `.mcpb` characterization MEDIUM | **Upgraded to HIGH** — the MCPB manifest spec has **no** fields for skills, agents, hooks or commands |
 | `prependPlugins` "appears only in the mods source" (gap G7) | **Closed** — 12 occurrences with live UX strings in the 2.1.278 binary, including the seating function |
 | "No CLI coordinator equivalent" argued from absence | **Upgraded** to a direct first-party statement in the `claude-projects` docs |
 

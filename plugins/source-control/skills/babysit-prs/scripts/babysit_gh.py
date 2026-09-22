@@ -635,7 +635,7 @@ def rest_check_rollup(repo: str, head_sha: str) -> list[dict[str, Any]]:
     it so that two workflows exposing the same job name cannot hide each other's
     result. It is recovered best-effort from the commit's workflow runs, keyed by
     check-suite id; when that lookup is unavailable (Actions disabled, a
-    permission gap) the name is left empty, which is the pre-existing behaviour
+    permission gap) the name is left empty, which is the pre-existing behavior
     for any rollup entry GitHub reports without one.
     """
     workflow_names: dict[int, str] = {}

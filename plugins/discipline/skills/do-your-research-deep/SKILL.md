@@ -1,5 +1,5 @@
 ---
-description: "Escalate research discipline to a heavy verification fan-out over a TYPED FULL INVENTORY of the session's claims, assumptions, asserted facts, concrete specifics (paths, defaults, flags, signatures), and load-bearing premises, verifying each against a primary source at a configurable depth (tiered by default, or full), then report a per-item ledger with verdict, source, source tier, consensus count, and recency. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or when the session's own judgement is the suspected bias across many claims. For a single or small inline fact-check ('fact-check that'), use the sibling do-your-research."
+description: "Escalate research discipline to a heavy verification fan-out over a TYPED FULL INVENTORY of the session's claims, assumptions, asserted facts, concrete specifics (paths, defaults, flags, signatures), and load-bearing premises, verifying each against a primary source at a configurable depth (tiered by default, or full), then report a per-item ledger with verdict, source, source tier, consensus count, and recency. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'fact-check everything', 'go make sure those are all right', 'we've made a lot of load-bearing claims', or when the session's own judgment is the suspected bias across many claims. For a single or small inline fact-check ('fact-check that'), use the sibling do-your-research."
 argument-hint: "[tiered|full]"
 user-invocable: true
 disable-model-invocation: false
@@ -28,7 +28,7 @@ only the fan-out delta. There is no separate copy of the discipline here; update
 Reserve the fan-out for when the accumulated claims are load-bearing enough to
 justify the subagent cost: a long session with many concrete specifics the
 rest of the work now rests on, a "fact-check everything" request that wants
-provable coverage, or where your own judgement is the suspected source of bias
+provable coverage, or where your own judgment is the suspected source of bias
 across many claims, a self-check in the context that produced the claims is
 weak by construction. For a single unbacked claim or a short session, the
 inline audit in the sibling is the right tool; this tier is overkill.

@@ -25,7 +25,7 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   symlink, which the importing record already covers. The root case is the condition
   `claude-memory`'s `skills/audit/scripts/lib/agents-md.sh` encodes.
   **Displacement is that mode's answer, not the only one, and this bullet does not restate the
-  mode's values, its load order, or the scopes that honour it**: the four-part record for all of
+  mode's values, its load order, or the scopes that honor it**: the four-part record for all of
   them, and for whether the session reads an `AGENTS.md` at all, is this plugin's
   [reference/agents-md-liveness.md](../../../reference/agents-md-liveness.md). Resolve them there,
   so this phase and the checks downstream of it read one record that carries its own recheck

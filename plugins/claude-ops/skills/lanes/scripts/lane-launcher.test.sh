@@ -243,7 +243,7 @@ for mistyped_field in name model effort prompt; do
   assert_contains "a boolean .$mistyped_field is named in the message" "$out" ".$mistyped_field is boolean"
 done
 
-# Defence-in-depth: a failed validation jq query must reject the config, not
+# Defense-in-depth: a failed validation jq query must reject the config, not
 # pass vacuously on empty output when jq errors (#2088). Each resolve_config
 # validation query gets its own stub match so copy-pasted guards cannot regress
 # independently.
@@ -592,7 +592,7 @@ out="$(STUB_CLAUDE_AGENTS_JSON='[]' run_launcher start --repo "$REPO" --config "
 assert_contains "live empty session list → lanes launch" "$out" "claude --bg -n work"
 
 # --dry-run mutates nothing, so a failed live list is tolerated (preview, exit 0)
-# — preserving the documented offline-dry-run behaviour.
+# — preserving the documented offline-dry-run behavior.
 out="$(STUB_CLAUDE_AGENTS_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --dry-run 2>&1)"
 rc=$?
 assert_eq "dry-run tolerates a failed live list (exit 0)" 0 "$rc"
@@ -646,7 +646,7 @@ assert_contains "restart refresh bypass previews the lane relaunch" "$out" "clau
 
 # ============================================================================
 # An unknown restart target is rejected BEFORE the refresh mutates anything
-# (matches stop's fail-first behaviour): the log shows no git pull and no
+# (matches stop's fail-first behavior): the log shows no git pull and no
 # marketplace update. Regression guard against the old order that pulled +
 # updated only to reject the misspelled target afterward.
 # ============================================================================

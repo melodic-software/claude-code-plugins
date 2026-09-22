@@ -54,7 +54,7 @@
     },
     {
       "id": 5,
-      "name": "behavioural-signal-lands-at-inferred",
+      "name": "behavioral-signal-lands-at-inferred",
       "prompt": "Why do our payment module and our audit-log module always seem to change together? Git shows they have been co-edited in 40 of the last 45 commits touching either one.",
       "expected_output": "The skill treats the change-coupling data as admissible evidence but grades any intent claim built on it at Inferred rather than Direct, because coupling locates a relationship without explaining the decision behind it.",
       "files": [],

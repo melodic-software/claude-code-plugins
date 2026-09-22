@@ -13,7 +13,7 @@
 # stripped (the doc says they are removed before injection; comments inside a
 # fenced code block are kept, since a fence is code). Lines are non-blank lines
 # after that strip; bytes are of the LF-normalized stripped content; tokens are
-# bytes / 4, which is an ESTIMATE and is labelled as one wherever it is printed.
+# bytes / 4, which is an ESTIMATE and is labeled as one wherever it is printed.
 # A measured figure is the `context-budget` plugin's job when it is installed.
 #
 # The always-loaded set for --tokens and --breakdown is every root memory file

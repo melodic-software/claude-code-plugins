@@ -1159,7 +1159,7 @@ class HygieneTests(unittest.TestCase):
             self.assertTrue(snapshot["root_children_mode"])
             self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
 
-    def test_root_children_scan_honours_quiet_without_losing_the_snapshot(
+    def test_root_children_scan_honours_quiet_without_losing_the_snapshot(  # identifier, not prose # spellchecker:disable-line
         self,
     ) -> None:
         """Root-children mode emits its own scan-complete, so quiet must reach it.
@@ -5160,7 +5160,7 @@ class GuardTests(unittest.TestCase):
 
     # --- the local decision record (#3862) ---------------------------------
     #
-    # These pin the observable behaviour an operator relies on after the fact:
+    # These pin the observable behavior an operator relies on after the fact:
     # a decision leaves evidence explaining itself, a defer costs nothing, and
     # no failure of the record can move a verdict.
 
@@ -6320,7 +6320,7 @@ class GuardTests(unittest.TestCase):
                     )
 
     def test_carries_marker_verdict_does_not_depend_on_the_host_platform(self) -> None:
-        """`Path().name` is platform-flavoured; this predicate must not be.
+        """`Path().name` is platform-flavored; this predicate must not be.
 
         `PureWindowsPath("/x/hygiene.py\\").name` is `hygiene.py` while
         `PurePosixPath(...)` keeps the backslash, so a `Path`-based basename
@@ -6435,7 +6435,7 @@ class GuardTests(unittest.TestCase):
         where that spelling names the same file. Forcing backslashes
         unconditionally fabricated a path that cannot exist on POSIX, and the
         case passed there only because the basename predicate was
-        `Path()`-flavoured and did not see the marker in it — a Linux fail-open
+        `Path()`-flavored and did not see the marker in it — a Linux fail-open
         wearing a green test, which is round 2 of this chain exactly. With the
         predicate platform-independent, that fabricated word is an
         unresolvable marker-carrying path after an interpreter, and failing
@@ -7356,7 +7356,7 @@ class GuardTests(unittest.TestCase):
         Mirrors Claude Code 2.1.258: the command is split into statements and
         pipeline elements, assignment statements are dropped (the real evaluator
         walks the AST and does not treat ``$script = '...'`` as a command node),
-        each remaining element's text is whitespace-normalised, and each glob is
+        each remaining element's text is whitespace-normalized, and each glob is
         tried against each element; any match runs the hook.
         """
         parts = []
@@ -8261,7 +8261,7 @@ class GuardTests(unittest.TestCase):
                     resolved = guard._watchdog_seconds()
                 self.assertEqual(guard._WATCHDOG_MAX_SECONDS, resolved)
                 self.assertLess(resolved, guard._DECLARED_HOOK_TIMEOUT_SECONDS)
-        # An override under the ceiling is still honoured verbatim.
+        # An override under the ceiling is still honored verbatim.
         with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: "30"}):
             self.assertEqual(30.0, guard._watchdog_seconds())
 

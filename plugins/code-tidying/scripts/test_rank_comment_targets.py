@@ -258,7 +258,7 @@ class Ranking(unittest.TestCase):
     def test_no_layer_relays_the_census_install_hint(self):
         """Exit 3 must say why. It used to exit with stdout AND stderr empty.
 
-        The census names the missing analyser and the install command on stderr;
+        The census names the missing analyzer and the install command on stderr;
         the no-layer branch here dropped it, leaving a caller unable to tell a
         missing layer from a tree with nothing to rank.
         """
@@ -283,7 +283,7 @@ class Ranking(unittest.TestCase):
         self.assertIn("pygments", p.stderr)
 
 
-class RankNormalisation(unittest.TestCase):
+class RankNormalisation(unittest.TestCase):  # identifier, not prose # spellchecker:disable-line
     """Ties share one rank, so path spelling never moves a score."""
 
     @staticmethod

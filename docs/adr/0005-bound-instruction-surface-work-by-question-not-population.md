@@ -254,7 +254,7 @@ marker and an `info` ceiling describe enablement and impact, and neither can sta
 
 **A criterion with no identifiable source at all therefore gets no tag, because it does not enter the
 catalog.** Every row owes "one decisive source line" (`reference/criteria.md:6-9`); a candidate that
-cannot name one fails that contract rather than being labelled `OPINION` to get past it. That is what
+cannot name one fails that contract rather than being labeled `OPINION` to get past it. That is what
 keeps the three-value axis honest: it stays closed because nothing sourceless is admitted, not
 because the sourceless case was folded into a value that misdescribes it.
 

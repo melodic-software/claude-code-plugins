@@ -143,7 +143,7 @@ unchanged and bind every member.
    (communication) → `tighten-your-output` dead last, so it never tightens
    text a later corrector rewrites. Correcting on the main thread does not
    suppress the shared method's fresh-context escalation: where a finding's
-   suspected drift source is this context's own judgement, re-derive it in a
+   suspected drift source is this context's own judgment, re-derive it in a
    fresh-context (non-fork) subagent blind to that reasoning, per the method
    doc's Non-negotiable, the batch orchestrates the correction here, it does
    not waive that escalation. (The fork *audit* inherits context on purpose:

@@ -114,7 +114,7 @@
       "id": 8,
       "name": "structurizr-dialect-from-topic-doc",
       "prompt": "/architecture:map-landscape --repos /srv/code/platform/billing,/srv/code/platform/web\n\nThe convention home resolves and its architecture topic doc is the structurizr fixture below.",
-      "expected_output": "Passes --dialect structurizr to the render script, which emits landscape.dsl (not landscape.md) into the declared architecture directory: a workspace with a model of softwareSystem elements grouped by owner, -> relationships labelled by edge type and count, and views { systemLandscape \"landscape\" { include * autoLayout } }.",
+      "expected_output": "Passes --dialect structurizr to the render script, which emits landscape.dsl (not landscape.md) into the declared architecture directory: a workspace with a model of softwareSystem elements grouped by owner, -> relationships labeled by edge type and count, and views { systemLandscape \"landscape\" { include * autoLayout } }.",
       "files": ["evals/fixtures/topic-doc-structurizr.md"],
       "expectations": [
         "Emits `landscape.dsl`, NOT `landscape.md`, because the topic doc declares landscape_dialect: structurizr",
@@ -180,7 +180,7 @@
         "billing keeps runtime dotnet and last_touched 2026-01-01 from the local probe: a local checkout always wins for a fact both sources carry",
         "Does NOT silently replace last_touched with pushed_at for a repository that is checked out here",
         "Any fact that DID come from the remote names the API call or `gh` command in its evidence entry, not a bare 'remote'",
-        "A remote-sourced last_touched is labelled as pushed_at rather than local HEAD, so the two are never conflated",
+        "A remote-sourced last_touched is labeled as pushed_at rather than local HEAD, so the two are never conflated",
         "The record and the closing report both say remote was used, so a later local-only run can explain a moving date"
       ]
     }

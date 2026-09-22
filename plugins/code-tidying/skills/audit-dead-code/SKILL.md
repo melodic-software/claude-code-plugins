@@ -1,12 +1,12 @@
 ---
-description: "Hunt dead code across a whole repository through four labelled lanes of unequal confidence. Knip (TS/JS unused files, exports, types, enum members), vulture (Python symbols), gopls (Go unexported symbols), and a portable grep lane (shell and other symbol languages), then adjudicate every candidate against the dynamic-usage evidence static analyzers are blind to, emitting Tier 1 (dead) and Tier 2 (uncertain) findings plus paste-ready native suppressions; read-only, no edits applied. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep', or when long-untouched code needs a deliberate hunt a rotated tidying lane never reaches, not for applying the deletion or Beck's Dead Code tidying (use /code-tidying:tidy), diff-scoped simplification of recently changed files (use /code-tidying:batch-simplify), comment residue (use /code-tidying:audit-comment-residue), or unused dependencies, assets, and coverage-based runtime detection, which are out of scope."
+description: "Hunt dead code across a whole repository through four labeled lanes of unequal confidence. Knip (TS/JS unused files, exports, types, enum members), vulture (Python symbols), gopls (Go unexported symbols), and a portable grep lane (shell and other symbol languages), then adjudicate every candidate against the dynamic-usage evidence static analyzers are blind to, emitting Tier 1 (dead) and Tier 2 (uncertain) findings plus paste-ready native suppressions; read-only, no edits applied. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep', or when long-untouched code needs a deliberate hunt a rotated tidying lane never reaches, not for applying the deletion or Beck's Dead Code tidying (use /code-tidying:tidy), diff-scoped simplification of recently changed files (use /code-tidying:batch-simplify), comment residue (use /code-tidying:audit-comment-residue), or unused dependencies, assets, and coverage-based runtime detection, which are out of scope."
 argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh:*)", "Bash(git grep:*)", "Bash(git log:*)", "Bash(grep:*)"]
 metadata:
   workflow-stage: anytime
-  summary: Whole-repo dead-code hunt across four labelled lanes with adjudicated candidates
+  summary: Whole-repo dead-code hunt across four labeled lanes with adjudicated candidates
 ---
 
 ## Purpose
@@ -17,7 +17,7 @@ no longer reachable, and how confident are we?* Every candidate is adjudicated a
 dynamic-usage patterns static analyzers are blind to, so the report is a list of decisions a human
 can act on rather than an analyzer dump the reader must re-verify.
 
-The headline is **four lanes of unequal strength, each labelled**, not four peer detectors. A
+The headline is **four lanes of unequal strength, each labeled**, not four peer detectors. A
 report that presents them as equals is wrong even when every finding in it is right.
 
 ## The four lanes are not peers

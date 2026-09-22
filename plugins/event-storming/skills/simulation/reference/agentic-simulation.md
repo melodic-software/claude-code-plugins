@@ -501,7 +501,7 @@ The simulation produces:
 
 When the `miro` plugin is enabled (see SKILL.md "Miro availability & graceful degradation"),
 simulated agents can place stickies directly on a Miro board. See `@./reference/miro-integration.md`
-for the tool namespace, colour mapping, spacing values, and board setup.
+for the tool namespace, color mapping, spacing values, and board setup.
 
 ### Round-Based Orchestration: Following Brandolini's Incremental Phases
 
@@ -540,7 +540,7 @@ disagreements.
       three lists rather than judging them by eye: content over 5 words, content containing emoji
       codepoints, and content starting with a type prefix such as `COMMAND:`, `EVENT:` or `POLICY:`.
       Repair every hit via `miro_update_sticky_note`: split or simplify the long ones, strip the
-      emoji, drop the prefix (the colour is the type indicator)
+      emoji, drop the prefix (the color is the type indicator)
    c. **Overlap check:** call `miro_detect_overlaps` and reposition every reported pair. Raise the
       threshold above its 195px default on rectangle-heavy boards
    d. **Phase name check:** scan for nouns/gerund phrases without past-tense verbs and flag as `[PHASE? Decompose this]`
@@ -1010,7 +1010,7 @@ These modes are variations on the core Big Picture simulation. Each modifies the
 
 **How it differs from `--simulate`:**
 
-- **Persona hierarchy inverted:** The New Hire is the PRIMARY narrator. They model first, using guesses and assumptions. Senior personas REACT to correct errors: "Let's start modelling what you think is happening in this organization!" (Ch. 10)
+- **Persona hierarchy inverted:** The New Hire is the PRIMARY narrator. They model first, using guesses and assumptions. Senior personas REACT to correct errors: "Let's start modeling what you think is happening in this organization!" (Ch. 10)
 - **Facilitator behavior:** Actively protect the New Hire from being steamrolled by expert corrections. "Let them finish their guess before you correct."
 - **Chaotic Exploration:** New Hire goes FIRST (solo agent, 8-10 guessed events). Then spawn expert agents to read the New Hire's events and react: "What did they get right? What did they get wrong? What critical steps did they miss?"
 - **Walk-through:** New Hire narrates the ENTIRE flow. Experts interrupt only when the story goes seriously wrong. Wrong guesses that provoke expert explanations are the primary output

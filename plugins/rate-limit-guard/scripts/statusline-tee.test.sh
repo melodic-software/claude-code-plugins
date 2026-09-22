@@ -957,7 +957,7 @@ fi
 # environment must fall back to its default on anything that is not a plain
 # integer, and run nothing. Three assertions per knob, because any one alone can
 # pass by accident: the file the hostile value would create must be absent, the
-# default behaviour must hold (a fix that merely broke the comparison would not
+# default behavior must hold (a fix that merely broke the comparison would not
 # give that), and the wrapped statusline must still pass through (the tee runs
 # under `set -u`, so a shape that merely aborted the shell would leave every
 # file untouched and look like a pass). The shape used here subscripts an array

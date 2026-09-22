@@ -89,7 +89,7 @@ inventory.sh - per-scope automation counts for the audit-automation-gaps skill.
 Usage:
   inventory.sh [--help]
 
-It takes no other argument. An unrecognised argument is a usage error rather
+It takes no other argument. An unrecognized argument is a usage error rather
 than a silently ignored one, because a run that ignored its arguments would
 report a full audit under a scope nobody asked for.
 
@@ -127,7 +127,7 @@ EOF
 }
 
 usage_error() {
-  printf 'inventory.sh: unrecognised argument: %s\n' "$1" >&2
+  printf 'inventory.sh: unrecognized argument: %s\n' "$1" >&2
   usage >&2
   exit 2
 }

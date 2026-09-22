@@ -559,7 +559,7 @@ fi
 # --- Case 23: whitespace and bare CR before a forbidden marker ---------------
 #
 # A reader downstream may split on a bare CR and may tolerate leading space, so
-# a check modelling only LF-terminated column-0 markers would pass a stub such a
+# a check modeling only LF-terminated column-0 markers would pass a stub such a
 # reader still sees as declaring one.
 OUT22="$TEST_TMPDIR/out22"
 printf '1\tstyle\tjudgment\teditorconfig-severity\t branch: evil\n' >"$TEST_TMPDIR/classes-ws.tsv"

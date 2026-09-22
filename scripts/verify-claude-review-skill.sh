@@ -148,7 +148,7 @@ main() {
       ;;
     ok) ;;
     *)
-      echo "ERROR: classify_silent_degrade returned an unrecognised verdict: ${verdict}" >&2
+      echo "ERROR: classify_silent_degrade returned an unrecognized verdict: ${verdict}" >&2
       exit 1
       ;;
     esac

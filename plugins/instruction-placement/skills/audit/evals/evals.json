@@ -23,7 +23,7 @@
       "expectations": [
         "Classifies the content as a hard-deny safety class and reports it as held back",
         "Assigns it no destination and no glob",
-        "Explains the asymmetric-consequence reasoning rather than just labelling it",
+        "Explains the asymmetric-consequence reasoning rather than just labeling it",
         "Offers compression in place as the alternative remedy"
       ]
     },

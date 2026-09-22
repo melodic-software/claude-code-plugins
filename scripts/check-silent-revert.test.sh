@@ -374,7 +374,7 @@ strip_pin() {
 # is attributed to whoever last touched it, and relocating a large file a
 # recent commit added FIRES. This repo restructures skills and docs constantly,
 # so that is a live false-positive class. t_rename_is_not_a_removal covers the
-# behaviour; this covers the pin that survives a hostile caller.
+# behavior; this covers the pin that survives a hostile caller.
 t_rename_pin_is_load_bearing() {
   local repo culprit cfg intact_rc stripped_rc
   mk_repo repo
@@ -895,7 +895,7 @@ t_textconv_pin_is_load_bearing() {
 #   It does not matter that the grafted signature is not valid. git runs the
 #   verification either way and prints its verdict ahead of the message, which
 #   is the whole failure: an unverifiable signature prints MORE noise, not
-#   less. The case asserts on the detector's BEHAVIOUR rather than on the
+#   less. The case asserts on the detector's BEHAVIOR rather than on the
 #   wording of that verdict, which varies by git version and signature format.
 #
 #   The declared form must be SUBJECT-derived (`revert:` here). The body forms

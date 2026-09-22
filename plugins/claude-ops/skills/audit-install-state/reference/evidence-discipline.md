@@ -63,7 +63,7 @@ reproducible across samplers; `CreationTime == LastWriteTime` is not.
 
 ## 4. The "safe" tier is the one that most needs an independent check
 
-An operation labelled mechanically provable, no judgment required, is where the check gets skipped.
+An operation labeled mechanically provable, no judgment required, is where the check gets skipped.
 A case-insensitive comparer collapses deny rules that differ only by case into one, and the
 "provable" dedupe then drops protections.
 
@@ -99,6 +99,6 @@ under time pressure.
 ## 6. Doc-derived claims are graded too
 
 A summarizing web fetch returns a small model's answer *about* a page, not the page. **Absence from a
-paraphrase is not evidence of absence.** Any claim about upstream behaviour must come from the raw
+paraphrase is not evidence of absence.** Any claim about upstream behavior must come from the raw
 `.md` endpoint (`curl` the page to a file, then read the file), and a destructive conclusion may
 never rest on a summarized read. The sanctioned channel is `code.claude.com`.

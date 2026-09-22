@@ -60,7 +60,7 @@
       "prompt": "/instruction-placement:migrate cutover-check — are we clear to drop the CLAUDE.md shims yet? Short answer is fine.",
       "expected_output": "Runs cutover-check.sh against the named repositories and reports each graded condition with the evidence the verdict rests on, not a bare yes or no: the flag's code default as read out of the installed bundle at run time, the env-vars feature-flag list, each claude-code-action pin and the CLI it installs against the floor, the recorded CI canary run, the local canary result per cwd, and every path-detection row with its acknowledgement or its absence. It never reports a condition met on a probe that could not measure: an unreadable bundle, a restructured docs page, a pin outside the release map or a canary that neither loaded nor cleanly refused is UNREACH, which is not a pass. It removes nothing, and it names which conditions are outstanding.",
       "expectations": [
-        "Prints a verdict per graded condition with its supporting evidence, not a summary judgement",
+        "Prints a verdict per graded condition with its supporting evidence, not a summary judgment",
         "Treats UNREACH as not-a-pass rather than rounding it up to met",
         "Deletes no CLAUDE.md and writes nothing",
         "Names the conditions that are outstanding"

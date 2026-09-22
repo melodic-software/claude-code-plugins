@@ -54,7 +54,7 @@ FILE_ATTRIBUTE_SYSTEM = 0x4
 # "The bytes are not here." Each of these marks a name whose content lives in a
 # provider's cloud rather than on this disk, so its st_size is a REMOTE byte
 # count while local occupancy is roughly zero — and deleting it propagates the
-# delete to the cloud copy, which for an organisation's sync root is the only
+# delete to the cloud copy, which for an organization's sync root is the only
 # copy. FILE_ATTRIBUTE_OFFLINE is the long-standing HSM/remote-storage bit that
 # iCloud and Dropbox eviction reuse; FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS is
 # what the Windows Cloud Files API sets on a dehydrated placeholder.
@@ -577,7 +577,7 @@ def hard_protection(
         if cloud_placeholder and (current != target or path == target):
             # Its bytes live in the provider's cloud, so deleting it here
             # propagates the delete THERE — for a tenant sync root, to the
-            # organisation's only copy. Nothing local is reclaimed either way.
+            # organization's only copy. Nothing local is reclaimed either way.
             #
             # The target's own iteration is exempted for every OTHER entry, on
             # the same reasoning as target-is-mount-point below: a target that

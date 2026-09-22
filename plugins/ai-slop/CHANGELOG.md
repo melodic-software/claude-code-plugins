@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.4] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.6.3]
 
 ### Fixed
@@ -234,7 +242,7 @@
   time, so `head` closes the pipe mid-run every time and the script dies of SIGPIPE. Measured here:
   `PIPESTATUS` is `141 0`. The probe rendered the full, correct eight-line config and then appended
   `detector unavailable` under it. This was not latent and not a corner case: it was the observed
-  behaviour of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
+  behavior of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
   empty value, it asserts a failure that did not happen.
 
   Reproduced and fixed by execution in three states, each with and without `pipefail`. Skill

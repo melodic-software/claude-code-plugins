@@ -97,7 +97,7 @@ Each of those states its outcome as exactly one of five:
 |---|---|---|
 | carries the claim | the claim came from this rung | the fetch |
 | **does not exist** for this claim class | the normal result for rung 1 | the full first-party surface sweep criterion 9 specifies, never one clean surface |
-| **unresolved** | the sweep fell short, so absence is unproven | this is the **DEFAULT** whenever the sweep was not completed. A Gap row naming surfaces checked and unchecked, and never a licence to source from below the rung |
+| **unresolved** | the sweep fell short, so absence is unproven | this is the **DEFAULT** whenever the sweep was not completed. A Gap row naming surfaces checked and unchecked, and never a license to source from below the rung |
 | fetched and searched, does not carry the claim | settled only by the fetch | the artifact itself retrieved and searched, never a title, index entry, or snippet standing in for it |
 | unreachable after escalation | also a Gap row | the escalation ladder in `discipline.md` walked and failed |
 

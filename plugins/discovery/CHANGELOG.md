@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [0.20.1] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.20.0]
 
 ### Added
@@ -512,10 +520,10 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   (*Competing hypotheses*) and so read as licensing the very rung the scale forbids for code shape;
   it now says plainly that this is code shape, leaves the scale, and is recorded as a gap.
 - **A grading criterion that was not derivable from the skill as written.** The ceiling on
-  *version-control behaviour*, meaning change coupling, churn, and hotspots, said "reaches `Inferred` and
+  *version-control behavior*, meaning change coupling, churn, and hotspots, said "reaches `Inferred` and
   never `Direct`" while the eval graded "never `Direct` or `Supported`". The body now names both
-  rungs. This is not a third code-shape route: the same section says plainly that behavioural signal
-  is **not** code shape and is admissible. It is the neighbouring rule, and the gap was between the
+  rungs. This is not a third code-shape route: the same section says plainly that behavioral signal
+  is **not** code shape and is admissible. It is the neighboring rule, and the gap was between the
   body and its own eval rather than in the exclusion.
 - **An eval that could not distinguish the behavior it targets from correct behavior.** The
   anticipatory-skip case told the model not to bother checking the tracker but never stipulated
@@ -649,7 +657,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
 - **Acceptance gates fail closed when they cannot run (#2616).** A denied or
   uninvocable research gate is a FAIL. It is not a reason to take the inline escape
-  hatch to dodge a post-dispatch check, and not a licence to mark criterion 11
+  hatch to dodge a post-dispatch check, and not a license to mark criterion 11
   PASS by reading the coverage ledger. `reference/parent-contract.md` requires a
   `--help` pre-flight for scripts the **chosen** route owes: the dispatch artifact
   checker before dispatching (explore or research), and the coverage checker for
@@ -744,7 +752,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   parenthetical.** `skills/research/context/dispatch.md`'s parent-obligation table had five rows and
   no **Memory root**, while `agents/researcher.md` requires it "as its own field, not left to be
   derived" and `skills/research-deep/SKILL.md` already ships it as a literal prompt line. The
-  envelope is now one labelled template, reproduced from `research-deep`'s existing block so the two
+  envelope is now one labeled template, reproduced from `research-deep`'s existing block so the two
   cannot drift, and the table carries the missing row. Memory root is recorded as the one
   **degradable** field: the agent derives, flags in `open_questions`, and continues, which is the
   behavior actually observed and is proportionate to a recoverable, visible wrong guess.
@@ -823,7 +831,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   discard-instead-of-resume (4 before), the envelope table carries its Memory root row,
   `explorer maxTurns >= researcher maxTurns`, and `research/SKILL.md` stays smaller than
   `context/discipline.md`. **24 assertions; 22 fail at the merge-base and all 24 pass at the tip.**
-  The two that hold on both sides are the deliberate no-grant guards, and they are labelled as such.
+  The two that hold on both sides are the deliberate no-grant guards, and they are labeled as such.
   An earlier revision of this file asserted that each agent "points at" the write boundary, which
   passed *before* the change too because both agents already linked that file for an unrelated
   reason. That assertion now keys on the restatements being gone, because a check that cannot fail is
@@ -1053,7 +1061,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   no legal slot for it in the log, write does-not-exist as the nearest legal value, and pass.
 
   The vocabulary is five-valued now, `unresolved` among them and marked as the DEFAULT whenever the
-  sweep was not completed, explicitly not a licence to source from a rung below. The probe-settles-
+  sweep was not completed, explicitly not a license to source from a rung below. The probe-settles-
   nonexistence phrasing is struck. Criterion 9's own "exactly one of three outcomes" is corrected to
   four for the same reason. This wording predates the fix, but the fix is what made it operative:
   before, `unresolved` was a corner case, and after, it is the common outcome.
@@ -1414,7 +1422,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   - `README.md`: the `/discovery:research-deep` row.
   - `skills/research-deep/SKILL.md`: the frontmatter `description` and the Purpose paragraph.
 
-- **Tier 2 was labelled a fork, which it is not.** `/research-deep`'s fallback tier spawns an
+- **Tier 2 was labeled a fork, which it is not.** `/research-deep`'s fallback tier spawns an
   ordinary isolated `general-purpose` subagent; nothing about it forks the conversation. Calling it
   "forked" collided with the genuine fork distinction the fix above turns on, that a *fork* holds
   `Workflow` and a non-fork subagent does not, so the same word carried two meanings, one of them
@@ -1629,7 +1637,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `current`, `invalidated`, or `unresolved`. Criterion 9 reads the first half and criterion 6 the
   second, so neither stands in for the other; recording the rung as fetched without its verdict was
   the same recollection hole one level down. Criterion 6 is graded off this log, so a run could file
-  the required row and still derive the currency judgement from memory. Entries are keyed by claim
+  the required row and still derive the currency judgment from memory. Entries are keyed by claim
   because
   criterion 9 is evaluated per claim and one artifact routinely carries claim A while lacking claim B. Without it criterion 9 could only be
   answered from recollection, which the gate's own preamble says does not bite, and a fresh session

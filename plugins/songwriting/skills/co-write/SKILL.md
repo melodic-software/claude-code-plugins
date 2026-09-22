@@ -128,7 +128,7 @@ how much support a line gets is the writer's craft call, and "There are no rules
 (*Writing Better Lyrics* (2009), Chapter 18, quoted in
 [response-filter](../../context/pat-pattison/research/response-filter.md)) is why. The skeptic row
 is in that class deliberately: a refutation pass costs a subagent dispatch, and whether one is
-worth spending on a given batch is a judgement, not a rule the writer laid down. Skip it by name
+worth spending on a given batch is a judgment, not a rule the writer laid down. Skip it by name
 and reason, and expect to be asked why, because self-attestation is what failed.
 
 **The rubric row alone does not carry that clause**, because it is not offered to the writer at all.
@@ -160,7 +160,7 @@ This is a hard boundary, not a default, the same blind-dispatch mechanic that ma
 `/songwriting:object-writing generate`'s fleet work. Its kill rules rank singability and verbosity
 ABOVE cleverness: a clever line that cannot be sung in the slot's length is refuted, not merely
 ranked lower. The pass runs before the writer sees the batch and settles nothing, the writer's
-sing-check is still the last word. Any general subagent honours this today; no agent in this plugin
+sing-check is still the last word. Any general subagent honors this today; no agent in this plugin
 is a skeptic, and a preloaded-skill skeptic agent is deliberately not shipped here.
 
 ### Section mode binds before the line, not after

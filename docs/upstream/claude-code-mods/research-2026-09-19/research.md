@@ -19,14 +19,14 @@ implementers) and the human maintainer reads this as ground truth.
 `SOURCE` (the `mods/` tree or the `.d.ts`) · `BINARY` (readable string or
 export-map-anchored minified code in the shipped binary) · `STAFF` · `COMMUNITY`
 · `INFERRED`. When lanes disagreed, the precedence applied was: **locally
-observed behaviour on 2.1.278 > source tree / `.d.ts` > binary readable string >
+observed behavior on 2.1.278 > source tree / `.d.ts` > binary readable string >
 staff statement > minified-code inference > community**. Where a lane's prose and
 its own `VERIFICATION.md` disagreed, `VERIFICATION.md` won. No confidence a
 verifier lowered has been raised here.
 
 ## What mods are, what is supported now, what is planned
 
-1. A **mod** is an ordinary Claude Code plugin whose behaviour lives in one
+1. A **mod** is an ordinary Claude Code plugin whose behavior lives in one
    *hooks module*: a `register(on, options)` export registering hooks
    `($, e, next)` against engine events. `SOURCE`
 2. Hooks nest as Express/Koa middleware over five tiers, outermost first:
@@ -116,7 +116,7 @@ Every sidecar sits beside this file. Read the hub, then one sidecar.
 - The identity of the two remaining minified predicates in
   `canLoadBuiltinHooksModules` (`kS`, `mg`), and therefore exactly what turns a
   **built-in** mod off. The `/plugin` toggle is the one settled off-switch.
-- Whether any surface other than the terminal honours the gate. The gate itself
+- Whether any surface other than the terminal honors the gate. The gate itself
   reads no surface, host, or client type, but that is not an answer.
 - Whether both layers of a `hooks.json` carrying `hooks` **and** `modules`
   reliably fire (issue #92675, OPEN, 0 comments).

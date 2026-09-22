@@ -7,7 +7,7 @@ contention, and one Windows host was measured at min 180.5 ms / median 1107.7 ms
 a host is not so much wrong as meaningless in isolation.
 
 So this module reduces repeated no-op spawns to a spread plus a set of findings,
-and every reading it emits is labelled with the process count observed at sample
+and every reading it emits is labeled with the process count observed at sample
 time. A reader cannot mistake a storm-state number for a baseline.
 
 `bimodal-spawn-latency` is the contention signature, and it is a TWO-PART
@@ -52,7 +52,7 @@ def summarize_spawn_samples(
 
     A single spawn number is misleading because the floor itself moves with
     machine load: the same no-op that costs ~120 ms on a drained box costs
-    ~1,100 ms under contention. Every reading here is labelled with the process
+    ~1,100 ms under contention. Every reading here is labeled with the process
     count observed at sample time so a reader cannot mistake a storm-state
     number for a baseline.
     """

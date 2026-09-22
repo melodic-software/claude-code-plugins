@@ -70,10 +70,10 @@ is resolvable first, because a condition known TRUE settles it with no further w
   the `agents-md@builtin` key.
 - **Basis**: the same section, its settings paragraph and JSON example.
 - **As of**: 2026-09-21.
-- **Recheck trigger**: the option key or plugin id changes, the honoured scope set changes, or the
+- **Recheck trigger**: the option key or plugin id changes, the honored scope set changes, or the
   setting becomes readable from project or local settings.
 
-Because the honoured scopes are user, `--settings` and managed, resolve the **effective** value
+Because the honored scopes are user, `--settings` and managed, resolve the **effective** value
 across them. Reading one scope answers the wrong question in both directions: a user scope naming
 the default can be overridden by a managed one, and the reverse.
 

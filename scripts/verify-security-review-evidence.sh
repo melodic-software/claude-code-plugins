@@ -152,14 +152,14 @@ main() {
     # A command substitution, so `set -e` stays live for the helper and a
     # genuine fault inside it still aborts the guard, while the verdict
     # travels on stdout where it cannot be confused with one. An
-    # unrecognised verdict is a fault, never a pass.
+    # unrecognized verdict is a fault, never a pass.
     local absent_verdict
     absent_verdict="$(classify_absent_verdict)"
     case "$absent_verdict" in
     retired) exit 0 ;;
     blind) exit 1 ;;
     *)
-      echo "ERROR: the absent-verdict classifier returned an unrecognised verdict: ${absent_verdict}" >&2
+      echo "ERROR: the absent-verdict classifier returned an unrecognized verdict: ${absent_verdict}" >&2
       exit 1
       ;;
     esac

@@ -52,7 +52,7 @@ run_driver --shim-dir "$SHIM" --tool sed \
   --before "bash '$WORK/stable.sh' 3" --after "bash '$WORK/stable.sh' 1"
 assert_eq "a stable before/after pair exits 0" "0" "$RUN_RC"
 assert_contains "the counter delta is reported" "delta=-2" "$RUN_OUT"
-assert_contains "the cold run is labelled separately" "cold  spawns=" "$RUN_OUT"
+assert_contains "the cold run is labeled separately" "cold  spawns=" "$RUN_OUT"
 assert_contains "stability is stated, not assumed" "both arms agreed" "$RUN_OUT"
 
 # --- 2. a subject whose WARM runs disagree is a hard failure ---

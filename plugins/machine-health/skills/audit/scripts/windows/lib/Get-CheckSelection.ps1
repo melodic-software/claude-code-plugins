@@ -7,7 +7,7 @@ monthly cadence defers, using each check's last-run from the history tail.
 
 .DESCRIPTION
 Cadence lives on the merged catalog entry (`cadence`: weekly | monthly; absent =
-weekly). Only the `weekly` RunMode honours a monthly demotion -- `on-demand` and
+weekly). Only the `weekly` RunMode honors a monthly demotion -- `on-demand` and
 `first-run` always run every enabled check (the user asked explicitly, or there
 is no baseline yet). A monthly check runs on a weekly run only when it has not
 run within the monthly interval; a check with no recorded last run (never ran,

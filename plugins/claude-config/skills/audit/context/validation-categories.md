@@ -25,7 +25,7 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
   already blocks that family on the tool surface the pattern defends (that third case is `info` with
   the residual named, not `error`). Read the three preconditions there before downgrading: installed
   and enabled is not enough, a `Bash` hook does not cover a `Read`-pattern family, and coverage of one
-  command family says nothing about a neighbouring one. Where no hook inventory was taken, state the
+  command family says nothing about a neighboring one. Where no hook inventory was taken, state the
   finding as conditional rather than as an assertion
 - **The liveness reading is Category D's, and Category D runs after this one.** A–I is presentation
   order, not a dependency ban: pull Category D's hook-suppression lever reading forward before taking

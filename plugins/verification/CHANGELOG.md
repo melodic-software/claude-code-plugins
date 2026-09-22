@@ -273,7 +273,7 @@ All notable changes to the `verification` plugin are documented here. Format fol
   defines.** The step-6 line advertised a "severity vocabulary" that file never had. It defines only
   the binary `CONFIRMED` / `NEEDS WORK` verdict, so a model chasing the pointer either invented a
   severity scale or dropped severity silently. It now points at the verdict criteria.
-- **The Stage-1 subagent trigger names a size, not a judgement call.** "The mechanical pass is
+- **The Stage-1 subagent trigger names a size, not a judgment call.** "The mechanical pass is
   non-trivial" became "spans more than a handful of commands"; the multi-ecosystem trigger is
   unchanged.
 - **Shout-emphasis dropped where the surrounding text already carries the weight.** The refactor
