@@ -35,6 +35,12 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 FAILED=0
 CASE_NUM=0
 SKIPPED=0
+# The total this suite registers when every case runs: PASS + FAIL + SKIP. It is
+# host-independent because every host-conditional branch calls skip() once per
+# assertion it replaces, so a host that cannot build a fixture moves cases
+# between the two counters without changing their sum. Adding or removing a case
+# updates this number, and the Result block names both totals when they disagree.
+EXPECTED_CASES=247
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -1527,11 +1533,24 @@ assert_contains "emit chunked: the finding row from the first chunk is present" 
 
 # --- Result ---------------------------------------------------------------------
 
+# The tally is this suite's only witness, so it is reconciled against the
+# declared total before it may report green: the liveness-assertion convention's
+# "Gate / classifier" row, docs/conventions/liveness-assertion/README.md
+# ("never green when findings were miscounted"). Both conditions are evaluated
+# and both reports printed, so a failing run that also lost cases says so twice.
 echo
-if [[ "$FAILED" -eq 0 ]]; then
-  echo "All $CASE_NUM cases passed, $SKIPPED host skip(s)"
-  exit 0
-else
-  echo "$FAILED of $CASE_NUM cases FAILED, $SKIPPED host skip(s)"
-  exit 1
+TOTAL=$((CASE_NUM + SKIPPED))
+RC=0
+if [[ "$TOTAL" -ne "$EXPECTED_CASES" ]]; then
+  RC=1
+  printf 'CASE COUNT MISMATCH: ran %d cases (%d pass/fail + %d host skip), expected %d.\n' \
+    "$TOTAL" "$CASE_NUM" "$SKIPPED" "$EXPECTED_CASES" >&2
+  printf 'Either a case did not run, so this tally cannot be trusted, or a case was added or removed and EXPECTED_CASES needs updating.\n' >&2
 fi
+if [[ "$FAILED" -ne 0 ]]; then
+  RC=1
+  echo "$FAILED of $CASE_NUM cases FAILED, $SKIPPED host skip(s)"
+elif [[ "$RC" -eq 0 ]]; then
+  echo "All $CASE_NUM cases passed, $SKIPPED host skip(s)"
+fi
+exit "$RC"
