@@ -335,7 +335,12 @@ Work items:
 `grep -rn 'PSScriptRoot' plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1` returns no line containing `state` or `runtime`;
 `git status --porcelain plugins/gaming/skills/dlss5/scripts` shows no `state/` or `runtime/` directory created by the selftest run.
 
-### Phase 3: The `assess` and `provision` verbs [TODO]
+### Phase 3: The `assess` and `provision` verbs [DONE]
+
+Sanity Check run 2026-09-22: selftest exit 0 with the three named PASS lines; the fixture `assess`
+returns `refused`. A fresh-context verifier passed all 8 criteria on 8c4c0e97d; its MEDIUM finding
+(a bad `runtime_source` blocked every verb) and three LOW findings are fixed in the follow-up
+commit. Deviations: `DEVIATIONS.md`.
 
 Both are new verbs on the file Phase 2 just created, both read the pinned literals table above,
 and both are main-session work, so they share a phase rather than splitting the same file across

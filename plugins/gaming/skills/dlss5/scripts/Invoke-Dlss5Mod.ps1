@@ -68,7 +68,7 @@ function Init-Paths {
     $script:DataDir = Resolve-DataDir $DataDir
     $script:RuntimeDllConfigured = [bool](Resolve-PathOpt $RuntimeDll)
     $script:RuntimeDll = (Resolve-PathOpt $RuntimeDll) ?? (Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll')
-    $script:RuntimeSource = Resolve-Source $RuntimeSource
+    # runtime_source is resolved only by provision -Runtime, so a bad value never blocks status or remove.
 }
 
 function Root($d) {
@@ -393,6 +393,7 @@ function Install-Build($build, $zip, $pin) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $a = [IO.Compression.ZipFile]::OpenRead($zip)
     try {
+        try {
         foreach ($e in $a.Entries) {
             $rel = $e.FullName -replace '/', '\'
             if (-not $e.Name -or ($rel -split '\\')[0] -notin $allow) { continue }   # dirs, and anything off the allow-list
@@ -401,13 +402,16 @@ function Install-Build($build, $zip, $pin) {
             New-Item -ItemType Directory -Force -Path (Split-Path $to -Parent) | Out-Null
             [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $to)
         }
+        }
+        catch { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue; throw }
     }
     finally { $a.Dispose() }
     $missing = @($allow | Where-Object { -not (Test-Path -LiteralPath (Join-Path $stage $_)) })
     if ($missing) { Remove-Item -LiteralPath $stage -Recurse -Force; throw "zip lacks allow-listed entries: $($missing -join ', ')" }
     [pscustomobject]@{ tag = $pin.Tag; asset = $pin.Asset; url = $pin.Url; sha256 = $h; provisioned = (Get-Date).ToString('o') } |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage '.provisioned.json') -Encoding utf8
-    Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction SilentlyContinue
+    # Stop on a failed delete: Move-Item into a surviving $dest would nest the new build inside the old.
+    if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction Stop }
     Move-Item -LiteralPath $stage -Destination $dest
     "provisioned $build ($($pin.Tag)) -> $dest"
 }
@@ -461,8 +465,8 @@ function Do-ProvisionRuntime {
     }
     $best = $ok | Sort-Object @{ e = { -not $_.Known } }, @{ e = { if ($_.Version -match '^\d+(\.\d+){1,3}') { [version]$Matches[0] } else { [version]'0.0' } }; Descending = $true } | Select-Object -First 1
     if ($best) { return Place-Runtime $best.Path 'local scan' $best.Path }
-    if ($script:RuntimeSource) {
-        $src = $script:RuntimeSource
+    $src = Resolve-Source $script:RuntimeSource
+    if ($src) {
         if ($src -notmatch '^https://') {
             $t = Test-Runtime $src
             if ($t.Ok) { return Place-Runtime $src 'runtime_source' $src }
@@ -481,6 +485,7 @@ function Do-ProvisionRuntime {
                 if ($t.Ok) { return Place-Runtime $tmp 'runtime_source' $shown }
                 $notes += "runtime_source refused: $($t.Reason)"
             }
+            catch { $notes += "runtime_source download failed ($shown): $($_.Exception.Message)" }
             finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
         }
     }
@@ -647,6 +652,8 @@ function Do-Selftest {
         Remove-Item -LiteralPath "$tmp\data\runtime" -Recurse -Force
         $script:ScanRoots = @()
         Assert 'no scan roots and no source prints all three remedies' (Throws { Do-ProvisionRuntime } '*runtime_dll*install a DLSS 5 title*runtime_source*')
+        $script:RuntimeSource = 'https://a.blob.core.windows.net/c/b?sv=1&sig=x'
+        Assert 'provision -Runtime refuses a SAS source before any fetch' (Throws { Do-ProvisionRuntime } '*SAS*')
         Put "$tmp\src\nvngx_dlssnr.dll" 'fakemodel'; $script:RuntimeSource = "$tmp\src\nvngx_dlssnr.dll"
         Do-ProvisionRuntime | Out-Null
         Assert 'runtime_source path is placed' ((LoadJson "$tmp\data\runtime\.provisioned.json").source -eq 'runtime_source')

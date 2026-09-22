@@ -30,6 +30,20 @@ Append-only. Types: plan-confirmed, discovery, deviation, human-decision.
   manifest when only unknown leftovers remain, so that reading made `-Finish` a no-op. Chose:
   `-Finish` drops the manifest even when MODIFIED or REMOVED drift remains, after printing it.
   Revisit: if a user needs the stricter behavior. Evidence: `Do-Remove`; Phase 2 verifier report.
+- **deviation (Phase 3): a configured `runtime_dll` that fails the gate stops `provision -Runtime`.**
+  Plan said: stop at the first source that passes. Found: `apply` keeps using a configured
+  `runtime_dll`, so placing a scanned copy at the default path would fix nothing. Chose: throw
+  "configured runtime_dll refused ... Fix or unset runtime_dll." Revisit: never. Evidence:
+  `Do-ProvisionRuntime`; Phase 3 verifier rated it the right call.
+- **deviation (Phase 3): `assess` adds `freeProxies`; off-Steam `gameRoot` is the exe dir.** Plan
+  said: the design-resolution shape, with `gameRoot` the nearest of up to four ancestors. Chose:
+  report `freeProxies` so the skill can pick a proxy, and report the exe dir as `gameRoot` off Steam,
+  because the Phase 2 scan shape (exe dir recursive plus ancestors' direct children) has no single
+  root. Revisit: if the skill needs the ancestor that matched. Evidence: `Do-Assess`.
+- **plan-confirmed (Phase 3): both pinned fork zips download, verify and extract as planned.** Real
+  `provision` runs on 2026-09-22 against a scratch data dir produced exactly the allow-list for
+  `dagherbou` (whose zip uses backslash entry names) and `wilsjo2` (forward slashes); a second run
+  was a no-op. A real Steam scan placed the known-hash runtime from an installed title.
 - **discovery (Phase 2): red was not observed per case.** The selftest cases were written together
   with the port and passed on first run, so no case was seen failing first. A fresh-context
   verifier reviews the phase instead. Outcome: see the Phase 2 verifier result.
