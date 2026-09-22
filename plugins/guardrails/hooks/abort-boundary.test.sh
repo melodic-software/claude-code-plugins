@@ -134,7 +134,7 @@ done < <(jq -r '.hooks | to_entries[] | .key as $ev | .value[] | .hooks[] | "\($
 set +f
 
 # A parse that quietly found nothing would make the whole suite pass on an
-# empty loop. The set is fourteen guards plus the dispatcher today; the floor
+# empty loop. The set is fifteen guards plus the dispatcher today; the floor
 # is loose on purpose so removing a guard is not a failure here.
 if ((${#REGISTERED[@]} >= 10)); then
   ok "hooks.json yields a registered set of ${#REGISTERED[@]} scripts"
