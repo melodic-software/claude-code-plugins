@@ -1071,6 +1071,29 @@ run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
   "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
 run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
   "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
+# The write twin of the comment-tail here-string opener. PowerShell reads `# @"`
+# as comment text, so the `@"` opens nothing and the Set-Content under it is a
+# live top-level command; the reduction takes the line as an opener and drops
+# that write as here-string body. Measured on the base through this hook: rc 0,
+# with the write never seen. A `#` anywhere on a CONFIRMED opener line, before
+# the two-character suffix, now reports a bypass by shape, on a plain substring
+# test of the raw line with no quote pairing. This guard consults no allow-list,
+# so the refusal here is final.
+run_pwsh "PS: Set-Content recovered from behind a commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Output x # @'" "Set-Content f.txt x" "'@ fine'")" 2
+run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
+  "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "Set-Content f.txt x" "\"@ fine\"")" 2
+run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
+  "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "Set-Content f.txt x" "\"@\"")" 2
+# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
+run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
+  "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
+# The regression fence: the `#` has to be on the opener line before the suffix.
+run_pwsh "PS: a here-string body containing a # (allowed)" \
+  "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
+run_pwsh "PS: a trailing comment on an ordinary command (allowed)" "git status # ok" 0
 
 # Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
 # script blocks are unwrapped like parenthesized producers.
