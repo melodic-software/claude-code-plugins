@@ -45,9 +45,11 @@
 # NARROW TRIGGER, ON PURPOSE. block-exported-msys-pathconv.sh records that a
 # guard keyed on PATH SHAPE across every Bash command fired on 45.7% of 14,234
 # real commands and was rejected on that measurement. This guard does not
-# inherit that objection: it reads a cheap substring first, and a command with
-# no `rm` token never reaches the parse at all. The path question is asked only
-# once a recursive `rm` is already established.
+# inherit that objection: it reads a cheap substring first, so a command whose
+# text does not contain `rm` never reaches the parse at all. The prefilter is a
+# SUBSTRING match, not a token one, so `npm run format` does reach the
+# tokenizer and is allowed there on its command word. The path question is
+# asked only once a recursive `rm` is already established.
 #
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
 #   * PowerShell. `Remove-Item -Recurse -Force C:\` and `rd /s` are the same
@@ -70,9 +72,10 @@
 #   * A root reached by MOVING the working directory rather than by naming it:
 #     `cd / && rm -rf *` is allowed, because `*` names nothing on its own and
 #     the guard deliberately does not track cwd.
-#   * A child shell this guard does not recognize as one. `bash -c`, `sh -c` and
-#     their siblings ARE unwrapped and re-parsed; an interpreter that is not a
-#     shell (`python -c`, `perl -e`) is not.
+#   * A child shell this guard does not recognize as one. `bash -c`, `sh -c`,
+#     their siblings, and `su`'s `-c` / `--command` / `--session-command`
+#     operand ARE unwrapped and re-parsed; an interpreter that is not a shell
+#     (`python -c`, `perl -e`) is not.
 #   * A command word split across quoting so the RAW text never spells it.
 #     `\rm` and `RM` are caught, because the cheap substring prefilter below
 #     folds case and the raw text still reads `rm`; `r\m`, `r''m` and `"r"m`
@@ -207,8 +210,10 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
 fi
 
 # Cheap prefilter ahead of the character walk. This guard is on the per-Bash-call
-# path, and a command with no `rm` token anywhere cannot carry the one verb the
-# matcher recognizes, so it must not pay for the parse.
+# path, and a command whose TEXT does not contain `rm` cannot carry the one verb
+# the matcher recognizes, so it must not pay for the parse. A substring is all
+# this can be: `npm run format` contains `rm` and goes on to the tokenizer,
+# which allows it on its command word.
 #
 # Folded to lower case, and that is load-bearing rather than tidy. The command
 # word is compared case-insensitively below, and on the Windows host this guard
@@ -303,7 +308,7 @@ rdt_is_root() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 rdt_check_segment() {
   local -a words=("$@")
-  local n=$# i=0 w base optarg consume_bare
+  local n=$# i=0 j w base optarg consume_bare
 
   # Command word: step over leading NAME=value assignments and over a launcher
   # that takes the real command as its argument. A launcher's own options are
@@ -316,9 +321,32 @@ rdt_check_segment() {
       i=$((i + 1))
       continue
     fi
+    # A RESERVED WORD ahead of the command is not the command. The tokenizer
+    # splits on `;`, `&`, `|`, `(` and `)`, so a compound command hands over
+    # segments that OPEN with one of these: `{ rm -rf /; }` arrives as `{ rm
+    # -rf /`, `if true; then rm -rf /; fi` as `then rm -rf /`, and every loop
+    # body as `do rm -rf /`. Without this arm the reserved word IS read as the
+    # command word and the whole segment is waved through. `function` also
+    # names the definition that follows, so its name word is stepped over with
+    # it; a `name()` opener needs no arm, because `(` is a segment separator
+    # and the name has already closed its own segment by then.
+    case "$w" in
+    '{' | '}' | '!' | then | do | else | elif | if | while | until)
+      i=$((i + 1))
+      continue
+      ;;
+    function)
+      i=$((i + 2))
+      continue
+      ;;
+    *) ;;
+    esac
     base="${w##*/}"
-    base="${base%.exe}"
+    # Lowercased BEFORE the suffix strip: `.exe` is spelled in any case on a
+    # case-insensitive filesystem, and stripping first left `rm.EXE` reading as
+    # `rm.exe` rather than `rm`.
     base="${base,,}"
+    base="${base%.exe}"
     # optarg lists the launcher's operand-taking options, space-delimited on
     # both sides so a prefix cannot match. consume_bare marks a launcher whose
     # first bare word is its own argument rather than the command (`timeout`
@@ -378,15 +406,61 @@ rdt_check_segment() {
   fi
 
   base="${words[i]##*/}"
-  base="${base%.exe}"
+  # Lowercased before the suffix strip, for the reason given at the walk above.
   base="${base,,}"
+  base="${base%.exe}"
+
+  # `su` runs its `-c` operand through the target user's shell, so one process
+  # is every command inside it, exactly as `bash -c` is. Resolved here rather
+  # than in the shared hook::shell_c_operand because su's grammar differs: the
+  # operand follows the FLAG, and a user name may sit ahead of it
+  # (`su bob -c '…'`), where a shell takes its first bare word.
+  if [[ "$base" == "su" ]]; then
+    local k
+    for ((k = i + 1; k < n; k++)); do
+      case "${words[k]}" in
+      --command=* | --session-command=*)
+        hook::bash_parse_segments "${words[k]#*=}" rdt_check_segment
+        return 0
+        ;;
+      --command | --session-command)
+        ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+        return 0
+        ;;
+      -*)
+        if [[ "${words[k]}" =~ ^-[A-Za-z]+$ && "${words[k]}" == *c* ]]; then
+          ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+          return 0
+        fi
+        ;;
+      *) ;;
+      esac
+    done
+    return 0
+  fi
 
   # `eval` runs its arguments as a command in THIS shell, so the child-shell
   # unwrap above never applies to it: there is no `-c` and no new process. Its
   # arguments are joined with a space, exactly as eval joins them, and parsed.
   # Bounded because each level drops at least the `eval` word itself.
+  #
+  # An operand a trailing backslash produced arrives EMPTY (the tokenizer has
+  # no character left to emit), so a join by text would hand the re-parse
+  # `rm -rf ` with no operand at all and `eval rm -rf \` would pass. The
+  # literal `\` is restored first, by the same provenance test the operand loop
+  # below uses, and `HOOK_SEG_WORD_QUOTED` is read HERE because the re-parse
+  # rebuilds it.
   if [[ "$base" == "eval" ]] && ((i + 1 < n)); then
-    hook::bash_parse_segments "${words[*]:i+1}" rdt_check_segment
+    local -a ev=()
+    for ((j = i + 1; j < n; j++)); do
+      if [[ -z "${words[j]}" ]] && ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)); then
+        # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
+        ev+=('\')
+      else
+        ev+=("${words[j]}")
+      fi
+    done
+    hook::bash_parse_segments "${ev[*]}" rdt_check_segment
     return 0
   fi
 
@@ -395,7 +469,7 @@ rdt_check_segment() {
   # Flags and operands. `--` ends option parsing, exactly as rm reads it.
   # Operands are kept as INDICES, not values, because the decision below needs
   # each one's quoting provenance as well as its text.
-  local recursive=0 no_preserve=0 end_of_opts=0 j long
+  local recursive=0 no_preserve=0 end_of_opts=0 long
   local -a operand_idx=()
   for ((j = i + 1; j < n; j++)); do
     w="${words[j]}"

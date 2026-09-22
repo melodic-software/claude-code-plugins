@@ -77,6 +77,32 @@ expect_both '\rm -rf / blocks (quote-escaped name)' 2 --command '\rm -rf /'
 # A later segment of a compound command is inspected on its own.
 expect_both 'cd foo && rm -rf / blocks' 2 --command 'cd foo && rm -rf /'
 
+# A RESERVED WORD ahead of `rm` is not the command word. The tokenizer splits on
+# `;`, `&`, `|`, `(` and `)`, so a compound command hands the callback a segment
+# that OPENS with one: `{ rm -rf /`, `then rm -rf /`, and every loop body as
+# `do rm -rf /`. Read as a command word, each of those waved the segment through.
+expect_both 'brace group blocks' 2 --command '{ rm -rf /; }'
+expect_both 'if/then blocks' 2 --command 'if true; then rm -rf /; fi'
+expect_both 'if/else blocks' 2 --command 'if false; then :; else rm -rf /; fi'
+expect_both 'if/elif blocks' 2 --command 'if false; then :; elif rm -rf /; then :; fi'
+expect_both 'while/do blocks' 2 --command 'while :; do rm -rf /; done'
+expect_both 'until blocks' 2 --command 'until rm -rf /; do :; done'
+expect_both 'for/do blocks' 2 --command 'for d in a b; do rm -rf /; done'
+expect_both 'negation blocks' 2 --command '! rm -rf /'
+# `f()` needs no arm of its own: `(` is a segment separator, so the name has
+# already closed its own segment and `{` is what opens the body. `function`
+# does, because it and the name it introduces are both argv words of the body's
+# segment.
+expect_both 'function definition blocks' 2 --command 'f() { rm -rf /; }; f'
+expect_both 'function keyword definition blocks' 2 --command 'function f { rm -rf /; }; f'
+# These three already blocked before the reserved-word walk existed, because
+# `(` and `)` are segment separators and `time` is a launcher. Pinned so they
+# stay that way.
+expect_both 'subshell blocks' 2 --command '(rm -rf /)'
+expect_both 'spaced subshell blocks' 2 --command '( rm -rf / )'
+expect_both 'case arm blocks' 2 --command 'case x in x) rm -rf / ;; esac'
+expect_both 'time rm -rf / blocks' 2 --command 'time rm -rf /'
+
 # Any operand may be the root, not only the first.
 expect_both 'rm -rf ./ok / blocks on the second operand' 2 --command 'rm -rf ./ok /'
 
@@ -124,6 +150,14 @@ expect_both 'eval "rm -rf /" blocks' 2 --command 'eval "rm -rf /"'
 expect_both 'eval rm -rf / blocks (unquoted)' 2 --command 'eval rm -rf /'
 expect_both 'nested eval blocks' 2 --command 'eval "eval \"rm -rf /\""'
 expect_both 'eval with an ordinary delete allowed' 0 --command 'eval "rm -rf ./build"'
+# eval's arguments are joined by TEXT, and an operand a trailing backslash
+# produced arrives EMPTY, so the join must restore the literal `\` from that
+# word's quoting provenance or the operand vanishes on the way into the
+# re-parse and `eval rm -rf \` passes.
+expect_both 'eval rm -rf \ blocks (dangling backslash through eval)' 2 --command 'eval rm -rf \'
+expect_both 'eval "rm -rf" \ blocks' 2 --command 'eval "rm -rf" \'
+expect_both 'eval rm -rf "\\" blocks' 2 --command 'eval rm -rf "\\"'
+expect_both "eval 'rm -rf \\' blocks" 2 --command "eval 'rm -rf \\'"
 
 # A child shell runs its operand as a full command, so the operand is re-parsed
 # with the same tokenizer, exactly as block-no-verify does for `git`.
@@ -132,12 +166,27 @@ expect_both 'sh -c rm -rf / blocks' 2 --command "sh -c 'rm -rf /'"
 expect_both 'bash -lc rm -rf / blocks' 2 --command 'bash -lc "rm -rf /"'
 expect_both 'sudo bash -c rm -rf / blocks' 2 --command 'sudo bash -c "rm -rf /"'
 
+# `su` runs its operand through the target user's shell, so one process is every
+# command inside it too. Its grammar is not a shell's: the operand follows the
+# FLAG, and a user name may sit ahead of it.
+expect_both 'su -c rm -rf / blocks' 2 --command "su -c 'rm -rf /'"
+expect_both 'su bob -c rm -rf / blocks' 2 --command "su bob -c 'rm -rf /'"
+expect_both 'su - bob -c rm -rf / blocks' 2 --command "su - bob -c 'rm -rf /'"
+expect_both 'su -lc rm -rf / blocks (short cluster)' 2 --command "su -lc 'rm -rf /'"
+expect_both 'su --command= rm -rf / blocks' 2 --command "su --command='rm -rf /'"
+expect_both 'su --session-command rm -rf / blocks' 2 --command "su --session-command 'rm -rf /'"
+
 # The command word is compared case-insensitively, so the substring prefilter
 # in front of the parse must be too. On the Windows host this guard was written
 # for, the filesystem and PATH lookup are case-insensitive and `RM` runs rm.
 expect_both 'RM -rf / blocks (upper case)' 2 --command 'RM -rf /'
 expect_both 'Rm.exe -rf C:\ blocks (mixed case)' 2 --command 'Rm.exe -rf C:\'
 expect_both 'busybox rm -rf / blocks' 2 --command 'busybox rm -rf /'
+# The `.exe` suffix is spelled in any case on that filesystem too, so the strip
+# runs AFTER the fold. Stripping first left `rm.EXE` reading as `rm.exe`.
+expect_both 'rm.EXE -rf / blocks' 2 --command 'rm.EXE -rf /'
+expect_both 'RM.exe -rf / blocks' 2 --command 'RM.exe -rf /'
+expect_both '/bin/RM.EXE -rf / blocks' 2 --command '/bin/RM.EXE -rf /'
 
 # A DANGLING trailing backslash is the incident string minus its quotes. Bash
 # passes a literal `\` when one ends the input, and MSYS resolves it to the
@@ -225,6 +274,18 @@ expect_both 'git rm -rf src allowed (command word is git)' 0 --command 'git rm -
 
 # A recursive READ of the root is not a delete.
 expect_both 'ls -R / allowed' 0 --command 'ls -R /'
+
+# The command-word arms must not widen the guard. A reserved word ahead of an
+# ORDINARY delete, a `su` whose operand is ordinary or absent, and a case-folded
+# `rm.EXE` under the working tree all stay allowed.
+expect_both 'brace group with an ordinary delete allowed' 0 --command '{ rm -rf ./build; }'
+expect_both 'if/then with an ordinary delete allowed' 0 --command 'if true; then rm -rf ./build; fi'
+expect_both 'su -c with an ordinary delete allowed' 0 --command "su -c 'rm -rf ./build'"
+expect_both 'su with no -c allowed' 0 --command 'su bob ls /'
+expect_both 'rm.EXE under the tree allowed' 0 --command 'rm.EXE -rf ./build'
+# An empty operand from a QUOTED span is not a dropped backslash, through eval
+# as anywhere else, so the restore must key on provenance rather than emptiness.
+expect_both 'eval rm -rf "" allowed' 0 --command 'eval rm -rf ""'
 
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
