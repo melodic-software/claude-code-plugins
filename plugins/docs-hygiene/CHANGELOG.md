@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.22.12]
+
+### Fixed
+
+- **`detect.sh` classifies a repository-root `AGENTS.md` as always-loaded.** `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, and `MEMORY.md` are `tier=always` when the file's directory contains `.git`, including an absolute path to that root file. The same basename nested under another directory stays `invocation`. A backtick span is a pointer when, after a `#anchor` is stripped, it contains a slash, ends in `.md`, and uses only path characters; it resolves beside the linking file the way a markdown link does. A command, a flag, or a short token such as `SKILL.md` is not a pointer. The same target on the same line is counted once.
+
 ## [0.22.9]
 
 ### Fixed
