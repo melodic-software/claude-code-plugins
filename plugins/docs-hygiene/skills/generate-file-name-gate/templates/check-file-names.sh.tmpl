@@ -120,8 +120,8 @@ done
 folded=()
 for path in ${paths+"${paths[@]}"}; do
   # The trailing x keeps a path that ends in a newline intact. A command
-  # substitution strips trailing newlines, so the sentinel sits after them
-  # and is removed once the folded bytes are captured.
+  # substitution strips trailing newlines, so x sits after them and is
+  # removed once the folded bytes are captured.
   one="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]' && printf x)"
   folded+=("${one%x}")
 done
