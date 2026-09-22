@@ -203,7 +203,7 @@ Records with `detected_at` newer than the baseline are live signal; older ones a
 never justify a new pause on their own. The baseline is per-consumer and in-memory; nothing
 persists it, and a fresh consumer deliberately ignores prior sessions' records.
 
-The contract directory holds two more shapes, neither of which readers consume, listed so tooling
+The contract directory holds six more shapes, none of which readers consume, listed so tooling
 sweeping the directory expects them:
 
 - `stop-events.jsonl.lock`: the advisory-lock sibling the hook's serialized append and rotation use
@@ -225,6 +225,14 @@ sweeping the directory expects them:
   for the last real snapshot write and the second for the last spool sweep. They bound how often the
   writer repeats work that changed nothing. Readers must ignore both: neither carries session data,
   and staleness is still decided by `captured_at` alone, never by a stamp or by a file's mtime.
+- `.statusline-tee-path`: the statusline shim's resolved-tee cache, one line holding the path it
+  last resolved. Written only when the shim has to resolve from scratch, never on a reuse. It is the
+  one entry here that is NOT anchored on `$HOME`: the shim anchors it on the effective configuration
+  directory, `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, because the path it caches lives under that
+  directory's own plugin cache. An operator running a relocated `CLAUDE_CONFIG_DIR` therefore has
+  this file beside their relocated cache and not in the contract directory at all. Readers ignore it
+  and a cleanup tool may delete it freely; the shim revalidates it on every use and re-resolves when
+  it is empty, malformed, stale, or names a path that is gone.
 - `.rate-limits.json.tmp.<pid>.<random>`: the tee's atomic-write staging file. Normally it exists
   for well under a second between write and rename. It can outlive its writer: Claude Code
   [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new

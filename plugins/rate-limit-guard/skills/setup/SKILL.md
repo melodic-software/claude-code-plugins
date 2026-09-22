@@ -36,8 +36,9 @@ exact statusline edit for the operator to apply by hand**, fully resolved, marke
 operator's, and naming what re-invalidates it. Silence would not be the conforming response on an
 unwritable surface; a printed edit is.
 
-What obliges an `apply` is not configuration at all. The tee's and the hook's machine files under
-`~/.claude/rate-limit-guard/` remain runtime-owned plugin data, not an operator-editable surface,
+What obliges an `apply` is not configuration at all. The machine files under
+`~/.claude/rate-limit-guard/` that the tee, the hook, and the shim's own resolved-tee cache write
+remain runtime-owned plugin data, not an operator-editable surface,
 but the **statusline shim** `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is an owned
 writable artifact this plugin must place, because it is the durable path the operator's own wiring
 names. `apply` writes that one file and nothing else.
@@ -266,6 +267,7 @@ fallback lives in the file that was just deleted.
   the printed edit is the operator's to apply.
 - Install `jq` or any system package.
 - Write to the contract files. The wrapper and the hook own `rate-limits.json` and
-  `stop-events.jsonl`; `apply` owns only `bin/statusline-shim.sh`.
+  `stop-events.jsonl`, and the shim owns its own `.statusline-tee-path` cache at run time; `apply`
+  owns only `bin/statusline-shim.sh`.
 - Write anywhere outside `~/.claude/rate-limit-guard/`, including the sibling `context-guard`
   directory, whose own setup skill installs that plugin's shim.

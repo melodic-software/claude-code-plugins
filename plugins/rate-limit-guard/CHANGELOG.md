@@ -3,6 +3,14 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.22] - 2026-09-22
+
+### Changed
+
+- `statusline-shim.sh` resolves the tee once and caches the resolved path in `.statusline-tee-path` under the plugin's operator-home directory, anchored on the effective configuration directory. Every later render revalidates that one path with builtins (shape, existence, version directory not a symlink, no `.orphaned_at`) instead of globbing `plugins/cache/*/rate-limit-guard/*/scripts/statusline-tee.sh`, whose first segment expands over every marketplace directory in the cache. Measured on a fixture cache with 12 marketplaces and 159 orphan `temp_*` clones, Git Bash on Windows, 200 iterations, two runs: the glob cost 41.08 / 44.24 ms per resolve when the clones held no copy of this plugin and 179.23 / 211.98 ms when they did, against 4.78 / 4.71 ms for a clean cache and 0.73 / 2.58 ms for revalidating a cached path. Nothing is written on a reuse, and nothing is written at all when no tee resolves, so an uninstalled plugin still costs what it did before. An empty, torn, or stale cache file re-resolves rather than misdirecting the exec.
+- `statusline-shim.sh` skips a cached path whose version directory is a symlink. A symlinked development checkout is never marked orphaned and never pruned (plugins reference, "Plugin caching and file resolution"), so no other invalidator could ever clear it and the cache would pin the checkout permanently. Those operators keep exactly the previous resolution behavior and cost.
+- **Operators should re-run `/rate-limit-guard:setup apply`.** The installed copy at `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is byte-identical to the shipped source by contract, so `setup check` reports it as drifted until it is refreshed. The stale copy keeps working; it just keeps globbing. The shim revision marker moves 3 to 4, and the `>= 3` capability ladder `setup check` reads is unchanged, because this revision adds cost savings rather than behavior.
+
 ## [0.8.21] - 2026-09-21
 
 ### Changed
