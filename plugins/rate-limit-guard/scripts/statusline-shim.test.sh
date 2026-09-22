@@ -510,6 +510,14 @@ touch -t 203001010000 "$SYMREAL"
 run "$H18" bash "$H18/render.sh"
 assert_contains "$ERR" "TEE:symreal" "a symlinked cached version directory is rejected and re-globs"
 assert_not_contains "$ERR" "TEE:devco" "the symlinked development checkout is not pinned"
+# The READ-side guard needs its own fixture. The write-side guard keeps this
+# cache file empty, so nothing above ever reaches the read test, and deleting
+# `! -L "$cdir"` from the hit path breaks nothing. Plant the symlinked path by
+# hand, which is the state an older revision of the shim would have left.
+printf '%s\n' "$DEVLINKDIR/scripts/statusline-tee.sh" >"$C18"
+run "$H18" bash "$H18/render.sh"
+assert_not_contains "$ERR" "TEE:devco" "a hand-planted symlinked cache entry is rejected on read"
+assert_contains "$ERR" "TEE:symreal" "the rejected symlink entry re-globs to the installed version"
 
 # --- 27. a cached path carrying dot segments is rejected --------------------
 # Without `dotglob` the resolving glob's `*` never matches a leading dot, so a
@@ -557,6 +565,19 @@ C20="$(cache_path "$H20/.claude" "rate-limit-guard")"
 SHAPEREAL="$(plant_tee "$H20" "mkt" "rate-limit-guard" "0.1.0" "shapereal")"
 DECOY="$H20/decoy-tee.sh"
 sed 's/TEE:shapereal/TEE:decoy/' "$SHAPEREAL" >"$DECOY"
+# Every decoy below is a REAL runnable tee at the exact path its cache line
+# names. Without that, a shape case passes because -f found nothing rather than
+# because the shape test rejected it, which is the trap case 27 already names.
+DEEPDIR="$H20/.claude/plugins/cache/mkt/rate-limit-guard/0.1.0/extra/scripts"
+mkdir -p "$DEEPDIR"
+sed 's/TEE:shapereal/TEE:deepdecoy/' "$SHAPEREAL" >"$DEEPDIR/statusline-tee.sh"
+# The cache-root anchor is only reachable with a RELATIVE cache line: an
+# absolute path outside the cache leaves the prefix strip a no-op and is
+# rejected by the empty-marketplace test instead, so it never consults the
+# anchor. This one decomposes perfectly and resolves against the process cwd.
+RELDIR="$WORK/relmkt/rate-limit-guard/0.1.0/scripts"
+mkdir -p "$RELDIR"
+sed 's/TEE:shapereal/TEE:reldecoy/' "$SHAPEREAL" >"$RELDIR/statusline-tee.sh"
 make_wrapped "$H20/render.sh" 0
 run "$H20" bash "$H20/render.sh"
 # Written flat rather than in a loop: the suite reconciles PASS+FAIL against a
@@ -572,8 +593,9 @@ assert_contains "$ERR" "TEE:shapereal" "the outside-the-cache line re-globs"
 printf '%s\n' "${SHAPEREAL%/statusline-tee.sh}" >"$C20"
 run "$H20" bash "$H20/render.sh"
 assert_contains "$ERR" "TEE:shapereal" "a cache line missing the tee filename re-globs"
-printf '%s\n' "$H20/.claude/plugins/cache/mkt/rate-limit-guard/0.1.0/extra/scripts/statusline-tee.sh" >"$C20"
+printf '%s\n' "$DEEPDIR/statusline-tee.sh" >"$C20"
 run "$H20" bash "$H20/render.sh"
+assert_not_contains "$ERR" "TEE:deepdecoy" "a cache line one directory too deep is never exec'd"
 assert_contains "$ERR" "TEE:shapereal" "a cache line one directory too deep re-globs"
 printf '%s\n' "  $SHAPEREAL" >"$C20"
 run "$H20" bash "$H20/render.sh"
@@ -581,6 +603,15 @@ assert_contains "$ERR" "TEE:shapereal" "a cache line with leading whitespace re-
 printf '%s\r\n' "$SHAPEREAL" >"$C20"
 run "$H20" bash "$H20/render.sh"
 assert_contains "$ERR" "TEE:shapereal" "a cache line with a trailing carriage return re-globs"
+# Relative line: run from $WORK so the decoy is reachable from the cwd the
+# shim inherits, which is the only way the cache-root anchor is load-bearing.
+printf '%s\n' "relmkt/rate-limit-guard/0.1.0/scripts/statusline-tee.sh" >"$C20"
+CWD_BEFORE="$PWD"
+cd "$WORK" || exit 1
+run "$H20" bash "$H20/render.sh"
+cd "$CWD_BEFORE" || exit 1
+assert_not_contains "$ERR" "TEE:reldecoy" "a relative cache line is never resolved against the cwd"
+assert_contains "$ERR" "TEE:shapereal" "a relative cache line re-globs"
 
 echo
 echo "passed: $PASS  failed: $FAIL"

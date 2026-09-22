@@ -254,7 +254,10 @@ Report both together, in this order, when asked how to back this out:
 
 1. **Unwrap the `statusLine` command first**, restoring the operator's own renderer (or removing
    the field entirely if the shim was the whole statusline).
-2. **Then remove `~/.claude/rate-limit-guard/`.**
+2. **Then remove `~/.claude/rate-limit-guard/`.** Under a relocated `CLAUDE_CONFIG_DIR`, also remove
+   `<that config dir>/rate-limit-guard/`: the shim's resolved-tee cache follows the effective config
+   dir rather than `$HOME`, so it is the one file this step would otherwise leave behind. Harmless if
+   missed, since nothing reads it once the plugin is gone.
 
 Deleting the directory while the wiring still names the shim leaves `settings.json` invoking a
 missing file: `bash <missing-path>` exits 127 and takes the whole statusline down, the exact
