@@ -194,8 +194,8 @@ subject. Human-gated at every mutation; state persists under `${CLAUDE_PLUGIN_DA
 
 ## Consumer conventions
 
-The skills read the consuming repo's own `CLAUDE.md` (or the `AGENTS.md` a session reads natively in
-its place) / `.claude/rules/` for project-specific policy:
+The skills read the consuming repo's own `CLAUDE.md` (or the `AGENTS.md` a session reads natively,
+whether in place of a `CLAUDE.md` or alongside one) / `.claude/rules/` for project-specific policy:
 additional required permission patterns, documented reasons for disabled MCP servers, and a custom
 enforcement hierarchy. Nothing project-specific is baked into the plugin.
 
