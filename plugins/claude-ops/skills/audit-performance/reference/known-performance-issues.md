@@ -318,7 +318,7 @@ The shape, not the numbers, is the transferable part:
   host on 2026-09-14 (the engine's `kernel_objects` count before and after N spawns through
   `subprocess.run`, quiet host, background near 0/s) found the leak tracks process creation, per
   binary, in leaked Token objects per spawn: `pwsh.exe` (PowerShell 7.6, Microsoft Store package)
-  at 10.2 (n=60), Git `usr\bin\bash.exe` at 1.5 (n=200), Windows PowerShell 5 at 0.5 (n=60),
+  at 10.2 (n=60), Git Bash's `usr/bin/bash.exe` at 1.5 (n=200), Windows PowerShell 5 at 0.5 (n=60),
   `node.exe` at 0.3 (n=100), `python3.exe` and `cmd.exe` at about 0 (n=100, n=300). A 1-per-minute
   sampler tracked it live: 3 to 7/s during the bursts, about 0 when the host was idle. So the
   `cmd` result was a null on a non-minting binary,
@@ -475,9 +475,11 @@ The capture a reboot destroys comes first; after that the order is by cost, not 
    Start it with the tag table, so each allocation carries an owner:
 
    ```
-   poolmon /g "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\triage\pooltag.txt"
+   poolmon /g "<path to pooltag.txt>"
    ```
 
+   The tag table ships with the Windows SDK debuggers, under `Debuggers/x64/triage/pooltag.txt` in
+   the Windows Kits install; `/g` with no argument takes the default.
    `/g [PoolTagFile]` "Adds a column to the display (Mapped_Driver) listing Windows components and
    commonly used drivers that assign each tag". While it runs, `p` "Toggles
    the display through nonpaged allocations, paged allocations, and both" and `b` "Sorts by bytes
