@@ -5,6 +5,14 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.67] - 2026-09-23
+
+### Changed
+
+- The reader contract's auto-compaction exceptions match the current model-config page: Opus 4.8
+  and later compact at 200K only on a 200K window, and native-1M models (Sonnet 5, Fable, Opus 4.7
+  and later on the Anthropic API) compact at about 967K. Re-verified 2026-09-23.
+
 ## [0.7.66] - 2026-09-21
 
 ### Changed

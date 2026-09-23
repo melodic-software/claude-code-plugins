@@ -72,4 +72,4 @@ One gate covers every repository and every operation in the plan.
 1. Operator runs `/repo-fleet-hygiene:audit … --plan-file <path>` (or takes the path from the report).
 2. Review the plan: `${CLAUDE_SKILL_DIR}/scripts/apply-plan.sh --plan-file <path>`
 3. Apply once: add `--apply` (interactive) or `--apply --yes` (headless).
-4. Report applied / skipped / failed counts; skips name the fail-closed reason (OID drift, etc.).
+4. Report failed and skipped targets first, each with its reason (a skip names the fail-closed reason: OID drift, etc.), then the applied count.

@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.0] - 2026-09-23
+
+### Changed
+
+- **`pull-request`:** the prep review presents only findings that would block the merge, each
+  with file:line, why it is wrong, and how to show it fails. PR body sections are written in plain
+  language. A failed-gate report leads with any action that needs the user.
+- **`babysit-prs`:** the report lists PRs waiting on the user first.
+- **`commit` evals:** the trailer-mismatch scenario names current models.
+
 ## [0.55.92]
 
 ### Fixed

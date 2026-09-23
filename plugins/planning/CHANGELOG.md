@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0] - 2026-09-23
+
+### Changed
+
+- **`plan`:** the full and abbreviated plan templates carry a `Done when` finish-line field.
+- **`devils-advocate`:** the evidence round marks each assumption it could not confirm and says
+  where it looked.
+
 ## [0.39.12] - 2026-09-21
 
 ### Changed

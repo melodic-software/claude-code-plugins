@@ -3,6 +3,13 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.25] - 2026-09-23
+
+### Changed
+
+- `work-loop` drain reports lead with the items escalated to a human, then the items closed and
+  PR'd.
+
 ## [0.40.24] - 2026-09-22
 
 ### Changed

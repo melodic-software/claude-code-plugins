@@ -61,7 +61,8 @@ quoting and write `\'` for each apostrophe
 
 The turn runs under the TARGET's account, config, plugins and usage limits. That is the point: the
 work happens where its files and credentials already are, and it draws down that machine's window
-rather than this one's.
+rather than this one's. Nobody answers a question the remote turn asks, so give `<prompt>` the whole
+task: what done looks like, and what should make it stop and report instead of acting.
 
 ## Multi-turn
 

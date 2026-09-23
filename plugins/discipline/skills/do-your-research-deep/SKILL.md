@@ -98,7 +98,7 @@ Run this in place of the base skill's inline audit and correct-forward steps:
    - **verdict**. Verified / corrected / unverifiable;
    - **source**. What resolved it: a fetched primary source, the live
      environment, or "internal. Re-derived / needs user confirm" for an item
-     with no external referent;
+     with no external referent; for an unverifiable item, where you looked;
    - **source tier**. How authoritative that source is, per the consuming
      project's own research discipline. Resolve its source of truth by the
      shared method's ladder, the project's `CLAUDE.md` / `.claude/rules/`

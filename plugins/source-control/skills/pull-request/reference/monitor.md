@@ -417,7 +417,7 @@ When all readiness gates pass:
 
 **After presenting the readiness report, self-terminate the Monitor watch** (same protocol as 3.0.5). Continued watching after readiness-pass adds no value. If a new push occurs after readiness-pass, the next `/source-control:pull-request monitor` invocation re-arms via 3.0.1.
 
-**If any gate fails**, present which gates failed and what action is needed. Never suggest merge with open gates, even in `full` mode.
+**If any gate fails**, present which gates failed and what action is needed, leading with any action that needs the user (a decision, an approval, a human reviewer's thread). Never suggest merge with open gates, even in `full` mode.
 
 ## 3.5 Monitor integration
 

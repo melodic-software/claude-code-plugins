@@ -32,7 +32,7 @@ For each finding:
 
 **Drop INCORRECT findings entirely.** Flag UNCERTAIN with a note.
 
-Present verified findings in a structured table. Pause for user review and fixes.
+Present only the verified findings you would block the merge for, in a structured table: file:line, why it is wrong, and how to show it fails (a failing test, command, or input). Pause for user review and fixes.
 
 ## 1.4 Simplify, review, and verify
 

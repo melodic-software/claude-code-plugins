@@ -94,7 +94,7 @@ Extract every assumption in the plan. Explicit and implicit. Present as a table:
 
 ### Round 2: Evidence Check
 
-For each assumption, verify against evidence. This is the research-heavy round.
+For each assumption, verify against evidence; mark one you could not confirm as unconfirmed and say where you looked. This is the research-heavy round.
 
 **Research depth. Match to risk:**
 

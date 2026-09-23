@@ -92,8 +92,9 @@ itself the thing this skill removes.
 5. **Reconcile the main thread.** Restate where the primary task
    actually stood, grounded in a fresh read of any plan / checklist /
    task artifact backing it, not a prior turn's claim, and continue it.
-6. **Report.** One list: recovered, restarted, still-running, and lost /
-   unrecoverable.
+6. **Report.** Lead with anything waiting on the user (a gated kill or
+   re-fire, a goal question), then one list: recovered, restarted,
+   still-running, and lost / unrecoverable.
 
 ## Zone input (presence-gated, conservative)
 
@@ -131,7 +132,10 @@ For any "is it stuck / check the monitor / poke it":
 
 - **Auto-resume** safe, idempotent, read-only, or clearly incomplete
   work without asking. Recovery should not stall on confirmation for work
-  that cannot double-fire.
+  that cannot double-fire. Keep going when a step needs no input, with
+  status notes in the same message as the next action; never end on an
+  offer to continue, a summary naming the next step without taking it, or
+  a list of options that block nothing.
 - **GATE** before RE-FIRING anything with external side effects, a push,
   a PR comment, a sent message, a deploy, a mutation, **and** before
   KILLING or RESTARTING off-thread work whose death you cannot prove from

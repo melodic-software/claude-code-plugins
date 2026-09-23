@@ -130,7 +130,8 @@ Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`
 (dry-run) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
 `skipped` (skip-list, or vanished after the dry-run) / `blocked` (non-git input) /
 `failed` (a child `rm` failed). A closing `Summary:` totals the batch and exits
-non-zero when any repo failed.
+non-zero when any repo failed. After apply, report the `failed`, `blocked`, and
+`skipped` repos with their reasons before the totals: those need the user.
 
 ## Gates
 
