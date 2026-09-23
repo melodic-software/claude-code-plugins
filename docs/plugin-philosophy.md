@@ -693,6 +693,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/conventions/retired-conventions/`](conventions/retired-conventions/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/conventions/authoring-formats/`](conventions/authoring-formats/README.md) |
+
 ## Cross-platform contract
 
 Windows, macOS, and Linux are supported unless a plugin explicitly declares a narrower, inherent
