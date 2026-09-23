@@ -151,7 +151,8 @@ curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'http
    goes in `ini`, with its condition in `why`. An in-game setting goes in `manual`. A claim with
    conflicting reports stays out, or goes in `manual` as "try either" with both sources.
 4. Write `presets\<key>.json` in the data directory in the format of `reference/presets.md`, with <!-- portability-ok: Windows path, not a shell regex -->
-   a `match` on the `steamAppId`, each source's URL and today's date, and a `recheck`. Rerun
+   a `match` on the `steamAppId` when `assess` reported one, else on the game's `*.exe` name in
+   the exe directory (`match.exe`), each source's URL and today's date, and a `recheck`. Rerun
    `assess` and confirm it reports the preset with no `presetError`.
 5. Note in the ledger row that the preset is local and was researched today.
 6. When the preset would help other users, suggest an issue on this plugin's repository carrying

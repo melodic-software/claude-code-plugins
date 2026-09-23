@@ -86,5 +86,5 @@ A preset ships only when every claim in it has a trusted source. Challenged clai
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| Allow-listed keys and sections | `gh api` contents of `OptiScaler.ini` at Dagherbou `v0.2.0-patch1` and wilsjo2 `v0.8.3` | 2026-09-23 | A new pin |
+| Allow-listed keys and sections | `gh api "repos/Dagherbou/OptiScaler_DLSSNR/contents/OptiScaler.ini?ref=v0.2.0-patch1"` ([file](https://github.com/Dagherbou/OptiScaler_DLSSNR/blob/v0.2.0-patch1/OptiScaler.ini)) and `gh api "repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/contents/OptiScaler.ini?ref=v0.8.3"` ([file](https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/blob/v0.8.3/OptiScaler.ini)) | 2026-09-23 | A new pin |
 | Shipped preset contents | Each file's `sources`, re-read on the date given there | 2026-09-23 | Each file's `recheck` |
