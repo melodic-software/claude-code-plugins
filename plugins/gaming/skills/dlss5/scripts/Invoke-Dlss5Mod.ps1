@@ -279,7 +279,9 @@ function Find-SteamGames {
     $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
     $libs = @($steam)
     if (Test-Path -LiteralPath $vdf) {
-        $libs += [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' }
+        $libs += @(Record "Steam: $vdf (only the main library is scanned)" {
+                [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' }
+            })
     }
     foreach ($lib in @($libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps' } | Sort-Object -Unique)) {
         foreach ($acf in Get-ChildItem -LiteralPath $lib -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
@@ -855,8 +857,9 @@ function Do-Discover {
     [pscustomobject]@{
         games = @($games | Sort-Object launcher, name); unchecked = $unchecked
         runtimeCandidates = @(Find-RuntimeCandidates | ForEach-Object {
-                $t = Test-Runtime $_.FullName
-                [pscustomobject]@{ path = $_.FullName; version = "$(FileVer $_.FullName)"; sha256 = $t.Hash; passes = $t.Ok; known = [bool]$t.Known; reason = $t.Reason
+                # A candidate that cannot be read is reported as failing, and the rest still are.
+                $t = try { Test-Runtime $_.FullName; $v = "$(FileVer $_.FullName)" } catch { @{ Ok = $false; Reason = "unreadable: $($_.Exception.Message)" }; $v = $null }
+                [pscustomobject]@{ path = $_.FullName; version = $v; sha256 = $t.Hash; passes = [bool]$t.Ok; known = [bool]$t.Known; reason = $t.Reason
                     besideOptiScalerIni = (Test-Path -LiteralPath (Join-Path $_.DirectoryName 'OptiScaler.ini')) }
             })
     } | ConvertTo-Json -Depth 5
@@ -879,7 +882,7 @@ function Do-ProvisionRuntime {
     $cands = Find-RuntimeCandidates
     $ok = @()
     foreach ($c in $cands) {
-        $t = Test-Runtime $c.FullName
+        $t = try { Test-Runtime $c.FullName } catch { @{ Ok = $false; Reason = "unreadable: $($_.Exception.Message)" } }
         if ($t.Ok) { $ok += [pscustomobject]@{ Path = $c.FullName; Known = $t.Known; Version = (FileVer $c.FullName) ?? [version]'0.0' } }
         else { $notes += "scan candidate refused: $($c.FullName): $($t.Reason)" }
     }
@@ -1226,6 +1229,14 @@ function Do-Selftest {
         Assert 'discover Xbox: ModifiableWindowsApps; an ms-resource name falls back to the folder' (& $has 'Xbox app' 'Gears' "$($d1)Program Files\ModifiableWindowsApps\Gears")
         Assert 'discover Xbox: malformed .GamingRoot falls back to XboxGames and says so' ((& $has 'Xbox app' 'Halo Fixture' "$($d2)XboxGames\Halo") -and @($script:Unchecked | Where-Object { $_ -like '*d2\.GamingRoot unreadable*fell back*' }).Count -eq 1)
         Assert 'discover names what it cannot read (EA install list, Battle.net product.db)' (@($script:Unchecked | Where-Object { $_ -like 'EA app:*not read*' -or $_ -like 'Battle.net:*product.db*' }).Count -eq 2)
+        Put "$sp\steamapps\appmanifest_777.acf" (& $acf 777 'Main Lib Game' 'MainLib')
+        $vlock = [IO.File]::Open("$sp\steamapps\libraryfolders.vdf", 'Open', 'Read', 'None')
+        try { $vf = Find-Games } finally { $vlock.Dispose() }
+        Assert 'discover: a locked libraryfolders.vdf is reported and the main library still scans' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*libraryfolders.vdf*unreadable*' }).Count -eq 1 -and @($vf | Where-Object name -eq 'Main Lib Game').Count -eq 1 -and -not @($vf | Where-Object name -eq 'Clean Game').Count)
+        Put "$tmp\rc\a\nvngx_dlssnr.dll" 'held'; Put "$tmp\rc\b\nvngx_dlssnr.dll" 'fakemodel'
+        $dlock = [IO.File]::Open("$tmp\rc\a\nvngx_dlssnr.dll", 'Open', 'Read', 'None')
+        try { $script:ScanRoots = @("$tmp\rc"); $rc = (Do-Discover) | ConvertFrom-Json } finally { $dlock.Dispose(); $script:ScanRoots = $null }
+        Assert 'discover: an unreadable runtime candidate fails alone and the next is still reported' (@($rc.runtimeCandidates | Where-Object { -not $_.passes -and $_.reason -like 'unreadable*' }).Count -eq 1 -and @($rc.runtimeCandidates | Where-Object passes).Count -eq 1)
         $dj = (Do-Discover) | ConvertFrom-Json
         Assert 'discover verb prints every launcher' (@($dj.games.launcher | Sort-Object -Unique).Count -eq 8)
 
