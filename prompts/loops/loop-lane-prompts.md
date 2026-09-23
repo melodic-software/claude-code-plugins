@@ -517,7 +517,9 @@ No shared state, no contention, and the sharding problem disappears.
 > lines: a verdict token and an identifier or path. Everything else goes
 > to a file in your worktree or a comment on the item. Do not summarize
 > your work back to me. Speak to me only when fully blocked and unable to
-> escalate through the tracker.
+> escalate through the tracker. Never end a turn on a status summary or an
+> offer to continue: status goes in the same message as the next action.
+> Your cycle report leads with escalated items.
 >
 > **One exception: a skill that defines its own return shape wins.** Where a
 > skill's contract specifies what its subagents return, that contract governs
@@ -644,7 +646,10 @@ wakeup ceiling for days rather than finishing.
 > model, and a run that cannot resolve the frontier alias escalates instead.
 >
 > **Return contract.** Subagents return at most two lines: verdict plus
-> identifier. Speak to me only when fully blocked. **A skill that defines its
+> identifier. Speak to me only when fully blocked. Never end a turn on a
+> status summary or an offer to continue: status goes in the same message as
+> the next action. Your cycle report leads with escalated items and PRs
+> waiting on me. **A skill that defines its
 > own return shape wins over this rule.** `/discipline:sweep-all`'s audit
 > forks owe a full findings ledger and may write nothing, so truncating them
 > to two lines would discard exactly what the parent acts on.

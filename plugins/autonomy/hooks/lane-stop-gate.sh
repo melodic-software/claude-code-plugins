@@ -694,7 +694,7 @@ if [[ "$STOP_ACTIVE" == "true" ]]; then
   [[ -n "$BRANCH" ]] && LANE="$LANE ($BRANCH)"
   [[ -n "$LANE" ]] || LANE="unknown"
   lane::notify "Autonomy lane stopped" \
-    "Lane $LANE stopped without signaling completion — it may be down or stuck. Check it."
+    "Lane $LANE stopped without signaling completion — it may be down, stuck, or waiting on you. Check it."
   emit_tel "ok" "stopped-after-nudge" "none"
   exit 0
 fi
