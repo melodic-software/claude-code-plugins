@@ -77,9 +77,9 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+# Kill switch before any source. The hooks.json row runs the same switch in
+# shell form, so a disabled hook never starts this script; a direct invocation
+# reads this line. scripts/check-killswitch-hoist.sh pins it to hook::is_enabled.
 [[ "${CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
 
 # shellcheck source=hook-utils.sh
