@@ -745,7 +745,12 @@ Two of the gates above live under `plugins/skill-quality/scripts/`, NOT under `s
 `scripts/check-evals-quality.sh` and `scripts/check-listing-budget.sh` do not exist; `ci.yml:1245`
 and `ci.yml:1261` invoke them from the plugin path. Running the wrong path is a silent skip.
 
-### Phase 8: Commit and open the draft PR [TODO]
+### Phase 8: Commit and open the draft PR [DONE]
+
+2026-09-22: rebased onto origin/main, staged-set binary and `.work/` guard empty, every subject
+matches the Conventional Commits ERE, pushed, draft PR #4334 opened (`isDraft: true`). Commits
+follow phase boundaries rather than the five suggested groupings, because review findings landed
+as separate `fix` commits.
 
 Work items:
 
