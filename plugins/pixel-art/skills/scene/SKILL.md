@@ -52,7 +52,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <out-dir>
 ## 3. Review loop
 
 With a browser automation tool present (a Playwright CLI or MCP, the built-in browser tools),
-open the file, capture screenshots at several timeline points, read them, and critique: silhouettes
+serve the output directory (`python3 -m http.server <port> --bind 127.0.0.1 --directory <out-dir>`,
+run in the background) and open the scene over `http://127.0.0.1:<port>/`, capture screenshots at several timeline points, read them, and critique: silhouettes
 against the background, palette contrast, beat timing, text legibility, stray non-integer or
 smoothed pixels. Fix, rebuild, re-capture; typically 2 to 4 rounds. Without one, say that the scene
 is unreviewed visually, check the script parses (`node --check` on the extracted script when Node
@@ -60,8 +61,9 @@ is present), and ask the user to open it and describe what they see.
 
 ## 4. Deliver
 
-Report the HTML path and the gallery `index.html`, converted to a host path when the session runs
-in WSL (`wslpath -w`). A GIF export of a scene is not produced here: GIF carries no audio and the
+Report the HTML path and the gallery `index.html` as full, clickable links: the localhost URL while
+the server runs, and the file path, converted to a host path when the session runs in WSL
+(`wslpath -w`). A GIF export of a scene is not produced here: GIF carries no audio and the
 scene is code; offer screen recording in the browser when the user needs a video.
 
 ## Next
@@ -69,6 +71,10 @@ scene is code; offer screen recording in the browser when the user needs a video
 /pixel-art:animate to add or fix a cycle a scene character needs.
 
 ## Gotchas
+
+- Browser automation tools may refuse `file:` URLs (the Playwright CLI blocks the protocol), which is
+  why review goes through a localhost server. A Linux browser also needs its system libraries; a
+  launch error naming a missing `.so` means those are not installed, not that the scene is broken.
 
 - `image-rendering: pixelated` plus `imageSmoothingEnabled = false` both matter; either alone
   smooths somewhere.
