@@ -5,9 +5,17 @@ The [monitoring page](https://code.claude.com/docs/en/monitoring-usage) owns eve
 attribute, value set, and configuration variable of the export; this file restates only what a
 binding depends on.
 
-The events ride the logs signal. A binding that needs them sets `OTEL_LOGS_EXPORTER` as well as
-`CLAUDE_CODE_ENABLE_TELEMETRY`: the metrics carry only an aggregate count of decisions for the
-code-editing tools, with no record per call.
+## Signal the evidence rides
+
+*Claim:* the export's events ride the logs signal, so a binding that needs them sets
+`OTEL_LOGS_EXPORTER` as well as `CLAUDE_CODE_ENABLE_TELEMETRY`. The metrics carry only an
+aggregate count of decisions for the code-editing tools, with no record per call. *Basis:* the
+page's [Quick start](https://code.claude.com/docs/en/monitoring-usage#quick-start),
+[Code edit tool decision counter](https://code.claude.com/docs/en/monitoring-usage#code-edit-tool-decision-counter),
+and [Events](https://code.claude.com/docs/en/monitoring-usage#events) sections, read as raw
+markdown. *Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog entry touching the
+logs exporter or the code edit decision counter, or a read-time fetch of those sections that no
+longer matches this record.
 
 ## Evidence that a guardrail fired
 
