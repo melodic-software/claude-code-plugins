@@ -7,12 +7,14 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Added
 
-- The telemetry contract gains a "Claude Code's native export" section. It names the
-  `tool_decision` event's `source` attribute as the evidence that a guardrail fired, with its
-  limits in headless sessions, and notes the events need the logs exporter. It records that
-  headless sessions honor inbound trace context, and that the GenAI conventions have no release or
-  schema URL, so no `gen_ai.*` name is pinned. It names the auto memory startup load as a DEFERRED
-  observability gap with a trigger. Each record is verified 2026-09-23.
+- The telemetry contract gains a "Native agent-surface evidence" section. A binding that must show
+  a guardrail fired reads the agent surface's native permission-decision record and its recorded
+  limits. A dated record says the GenAI conventions have no release or schema URL, so no `gen_ai.*`
+  name is pinned. Agent memory observability is a DEFERRED gap with a trigger.
+- The setup skill's agent-session wiring gains `context/agent-session-telemetry.md`, the dated
+  Claude Code records behind that section: the `tool_decision` event's `source` attribute and its
+  limits in headless sessions, the logs exporter it needs, and the auto memory startup-load gap.
+  Each record is verified 2026-09-23.
 
 ## [0.23.17] - 2026-09-23
 
