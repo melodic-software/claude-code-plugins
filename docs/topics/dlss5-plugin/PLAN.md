@@ -447,7 +447,12 @@ Set-Content (Join-Path $g 'game.exe') 'x'
 & 'plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1' -Verb assess $g
 ```
 
-### Phase 4: The `dlss5` SKILL.md, reference docs, and evals [TODO]
+### Phase 4: The `dlss5` SKILL.md, reference docs, and evals [DONE]
+
+Sanity Check run 2026-09-22: all commands pass except the `setup_windows.bat` grep, which flags
+only the Phase 3 selftest fixture and its required PASS line (recorded plan-check conflict). A
+fresh-context verifier passed all 10 Phase 4+5 criteria on ad00005ce; its findings are fixed in the
+Phase 7 gate pass and the script follow-up.
 
 Work items:
 
@@ -539,7 +544,9 @@ which is the mechanical form of "every mention forbids it" and needs no reader j
 `${user_config.*}` token sits on a shell command line;
 `python3 -c "import json; json.load(open('plugins/gaming/skills/dlss5/evals/evals.json'))"` exits 0.
 
-### Phase 5: The `setup` skill [TODO]
+### Phase 5: The `setup` skill [DONE]
+
+Sanity Check run 2026-09-22: all five commands pass; covered by the same fresh-context verifier.
 
 Work items:
 

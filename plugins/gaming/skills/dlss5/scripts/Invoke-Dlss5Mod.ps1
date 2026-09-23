@@ -184,7 +184,10 @@ function Edit-Ini($path, $edits) {
         }
     }
     foreach ($e in $edits) {
-        if (-not $seen["$($e.Section)/$($e.Key)"]) { Write-Warning "ini key not found, not set: [$($e.Section)] $($e.Key)=$($e.Value)" }
+        if ($seen["$($e.Section)/$($e.Key)"]) { continue }
+        # AutoCapture left on dumps frames into the game folder, so its absence aborts the apply.
+        if ($e.Key -eq 'AutoCapture') { throw "ini key not found: [$($e.Section)] AutoCapture; refusing to leave frame capture on" }
+        Write-Warning "ini key not found, not set: [$($e.Section)] $($e.Key)=$($e.Value)"
     }
     [IO.File]::WriteAllText($path, ($lines -join "`n"), [Text.UTF8Encoding]::new($hadBom))
 }
@@ -220,7 +223,7 @@ function Do-Apply($root) {
     $opts = [IO.EnumerationOptions]@{ RecurseSubdirectories = $true; IgnoreInaccessible = $true; AttributesToSkip = 0 }
     $n = @([IO.Directory]::EnumerateFiles($root, '*', $opts) | Select-Object -First 2001).Count
     # 2000 is judgment, not measured: it catches a library or game root passed by mistake.
-    if ($n -gt 2000 -and -not $Force) { throw "over 2000 files under $root; is this a game or library root rather than the exe directory? Pass -Force if it is right" }
+    if ($n -gt 2000 -and -not $Force) { throw "over 2000 files under $root; is this a game or library root rather than the exe directory? Pass -Force only after the user confirms it is the exe directory" }
     $ac = Find-AntiCheat $root
     if ($ac) { throw "anti-cheat on disk, refusing: $($ac -join ', ')" }
 
@@ -708,6 +711,15 @@ function Do-Selftest {
         Put "$tmp\src\nvngx_dlssnr.dll" 'fakemodel'; $script:RuntimeSource = "$tmp\src\nvngx_dlssnr.dll"
         Do-ProvisionRuntime | Out-Null
         Assert 'runtime_source path is placed' ((LoadJson "$tmp\data\runtime\.provisioned.json").source -eq 'runtime_source')
+
+        # A build whose ini lacks [DlssNr] AutoCapture rolls back instead of leaving capture on
+        $BuildFiles['noac'] = @('OptiScaler.dll', 'OptiScaler.ini')
+        Put "$tmp\data\builds\noac\OptiScaler.dll" 'p'; Put "$tmp\data\builds\noac\OptiScaler.ini" "[DlssNr]`nEnabled=auto`n"
+        $script:Build = 'noac'
+        $n = "$w\noac\Win64"; Put "$n\game.exe" 'exe'
+        $before = Tree $n
+        Assert 'missing AutoCapture key aborts apply' (Throws { Do-Apply $n } '*AutoCapture*')
+        Assert 'aborted apply leaves the tree byte-identical' ((SameTree (Tree $n) $before) -and -not (Test-Path -LiteralPath "$(StateDir $n)\manifest.json"))
 
         # refetch: no gh or nvidia-smi available, and the cache merges rather than overwrites
         $script:Gh = 'gh-missing-selftest'; $script:Smi = 'nvidia-smi-missing-selftest'
