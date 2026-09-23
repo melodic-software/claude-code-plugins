@@ -273,6 +273,14 @@ function Game($launcher, $name, $dir, $source) {
 }
 # One bad record is reported and skipped; the rest of that launcher's records still load.
 function Record($label, [scriptblock]$body) { try { & $body } catch { $script:Unchecked += "${label} unreadable: $($_.Exception.Message)" } }
+# Lists a folder; an absent one is silent, one that cannot be listed is reported.
+# Probed directly: Get-ChildItem with -Filter drops an access-denied error silently.
+function ListDir($label, $path, [hashtable]$opts = @{}) {
+    if (-not (Test-Path -LiteralPath $path -PathType Container)) { return }
+    try { $null = [IO.Directory]::EnumerateFileSystemEntries($path).GetEnumerator().MoveNext() }
+    catch { $script:Unchecked += "${label}: $path unreadable: $($_.Exception.InnerException.Message ?? $_.Exception.Message)"; return }
+    Get-ChildItem -LiteralPath $path @opts -Force -ErrorAction SilentlyContinue
+}
 function Find-SteamGames {
     $steam = (RegProps 'HKCU:\Software\Valve\Steam').SteamPath
     if (-not $steam) { $script:Unchecked += 'Steam: no SteamPath under HKCU\Software\Valve\Steam'; return }
@@ -284,7 +292,7 @@ function Find-SteamGames {
             })
     }
     foreach ($lib in @($libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps' } | Sort-Object -Unique)) {
-        foreach ($acf in Get-ChildItem -LiteralPath $lib -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
+        foreach ($acf in ListDir 'Steam' $lib @{ Filter = 'appmanifest_*.acf'; File = $true }) {
             Record "Steam: $($acf.FullName)" {
                 $t = Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8
                 if ($i = Acf $t 'installdir') { Game 'Steam' (Acf $t 'name') (Join-Path $lib "common\$i") $acf.Name }
@@ -295,7 +303,7 @@ function Find-SteamGames {
 function Find-EpicGames {
     $dir = (RegProps 'HKCU:\Software\Epic Games\EOS').ModSdkMetadataDir
     if (-not $dir) { $dir = Join-Path $script:ProgramData 'Epic\EpicGamesLauncher\Data\Manifests' }
-    foreach ($f in Get-ChildItem -LiteralPath $dir -Filter '*.item' -File -ErrorAction SilentlyContinue) {
+    foreach ($f in ListDir 'Epic Games Launcher' $dir @{ Filter = '*.item'; File = $true }) {
         try { $j = LoadJson $f.FullName; Game 'Epic Games Launcher' ($j.DisplayName ?? $j.AppName) $j.InstallLocation $f.Name }
         catch { $script:Unchecked += "Epic Games Launcher: $($f.FullName) unreadable: $($_.Exception.Message)" }
     }
@@ -307,11 +315,11 @@ function Find-EpicGames {
 function Find-EaGames {
     $script:Unchecked += "EA app: the encrypted install list is not read; scanned $(@($script:EaRoots) -join ', ') for __Installer\installerdata.xml. An EA game elsewhere is recognized when assess is pointed at it"
     foreach ($r in @($script:EaRoots)) {
-        foreach ($d in Get-ChildItem -LiteralPath $r -Directory -ErrorAction SilentlyContinue) {
+        foreach ($d in ListDir 'EA app' $r @{ Directory = $true }) {
             if (Test-Path -LiteralPath (Join-Path $d.FullName '__Installer\installerdata.xml')) { Game 'EA app' $d.Name $d.FullName '__Installer\installerdata.xml' }
         }
     }
-    foreach ($f in Get-ChildItem -LiteralPath (Join-Path $script:ProgramData 'Origin\LocalContent') -Recurse -Filter '*.mfst' -File -ErrorAction SilentlyContinue) {
+    foreach ($f in ListDir 'Origin' (Join-Path $script:ProgramData 'Origin\LocalContent') @{ Recurse = $true; Filter = '*.mfst'; File = $true }) {
         Record "Origin: $($f.FullName)" {
             $q = [Web.HttpUtility]::ParseQueryString((Get-Content -LiteralPath $f.FullName -Raw).Trim().TrimStart('?'))
             if ($p = $q['dipInstallPath']) { Game 'Origin' (Split-Path $p.TrimEnd('\') -Leaf) $p $f.Name }
@@ -366,7 +374,7 @@ function Find-XboxGames {
         if (-not $parsed) { $roots += Join-Path $d 'XboxGames' }
         $roots += Join-Path $d 'Program Files\ModifiableWindowsApps'
         foreach ($r in $roots) {
-            foreach ($g in Get-ChildItem -LiteralPath $r -Directory -ErrorAction SilentlyContinue) {
+            foreach ($g in ListDir 'Xbox app' $r @{ Directory = $true }) {
                 $m = @((Join-Path $g.FullName 'appxmanifest.xml'), (Join-Path $g.FullName 'Content\appxmanifest.xml')) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
                 if (-not $m) { continue }
                 $n = try { "$(([xml](Get-Content -LiteralPath $m -Raw)).Package.Properties.DisplayName)" } catch { '' }
@@ -1233,6 +1241,11 @@ function Do-Selftest {
         $vlock = [IO.File]::Open("$sp\steamapps\libraryfolders.vdf", 'Open', 'Read', 'None')
         try { $vf = Find-Games } finally { $vlock.Dispose() }
         Assert 'discover: a locked libraryfolders.vdf is reported and the main library still scans' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*libraryfolders.vdf*unreadable*' }).Count -eq 1 -and @($vf | Where-Object name -eq 'Main Lib Game').Count -eq 1 -and -not @($vf | Where-Object name -eq 'Clean Game').Count)
+        # A library folder that cannot be listed is reported, not read as empty
+        $deny = [Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User, 'ListDirectory', 'Deny')
+        $acl = Get-Acl -LiteralPath "$l2\steamapps"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
+        try { $null = Find-Games } finally { $acl = Get-Acl -LiteralPath "$l2\steamapps"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl }
+        Assert 'discover: a library that cannot be listed is reported' (@($script:Unchecked | Where-Object { $_ -like "Steam: *lib2\steamapps unreadable*" }).Count -eq 1)
         Put "$tmp\rc\a\nvngx_dlssnr.dll" 'held'; Put "$tmp\rc\b\nvngx_dlssnr.dll" 'fakemodel'
         $dlock = [IO.File]::Open("$tmp\rc\a\nvngx_dlssnr.dll", 'Open', 'Read', 'None')
         try { $script:ScanRoots = @("$tmp\rc"); $rc = (Do-Discover) | ConvertFrom-Json } finally { $dlock.Dispose(); $script:ScanRoots = $null }
