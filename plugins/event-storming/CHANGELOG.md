@@ -3,6 +3,18 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.14] - 2026-09-23
+
+### Fixed
+
+- **The Miro availability gates in `methodology` and `simulation` detect a directly configured
+  Miro server.** They match the Miro-specific tool names (`…__miro_list_boards`,
+  `…__miro_create_board`) under either the plugin-provided `mcp__plugin_miro_<server>__` prefix or
+  a user- or project-scope `mcp__<server>__` prefix, so the miro README's opt-in `vault-exec`
+  override no longer reads as Miro absent
+  ([#4380](https://github.com/melodic-software/claude-code-plugins/issues/4380)). One eval per
+  skill covers the user-scope prefix.
+
 ## [0.6.13] - 2026-09-23
 
 ### Changed
