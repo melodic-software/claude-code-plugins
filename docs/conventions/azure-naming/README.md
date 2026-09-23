@@ -21,7 +21,7 @@ Placeholders used throughout:
 | Resource group | `rg-<workload>-<env>` | Subscription | 1-90 | Letters, digits, underscore, hyphen, period, parentheses; cannot end with a period |
 | Key vault | `kv-<org>-<consumer>-<env>` | Global | 3-24 | Alphanumerics and hyphens; starts with a letter; ends with a letter or digit; no consecutive hyphens |
 | Log Analytics workspace | `log-<workload>-<env>` | Resource group | Not carried here | Not carried here |
-| Storage account | `st<org><workload><nnn>` | Global | 3-24 | Lowercase letters and digits only |
+| Storage account | `st<org><workload>` or `st<org><workload><nnn>` | Global | 3-24 | Lowercase letters and digits only |
 | Blob container | `<workload>` or `<workload>-<nnn>` | Storage account | 3-63 | Lowercase letters, digits, hyphens; starts with a lowercase letter or digit; no consecutive hyphens |
 
 Sources for that table:
@@ -72,10 +72,16 @@ Applying that exception rather than forcing consistency is judgment.
 While the estate is single-region, no name carries a region token. When a second region arrives,
 take short names from the Azure Naming Tool's `resourcelocations.json`, the only Microsoft-hosted
 machine-readable set located: Central US is `usc` and East US 2 is `use2`
-(<https://github.com/Azure/AzureNamingTool>). The common community family, which writes the same
-two regions `cus` and `eus2`, is rejected. Microsoft publishes no official region abbreviation
-list, so both families look obviously correct to different readers and the only defense is picking
-one in advance and writing down which. Judgment.
+(<https://github.com/Azure/AzureNamingTool/blob/main/src/repository/resourcelocations.json>,
+verified 2026-09-23; recheck when a commit touches that file). The common community family, which
+writes the same two regions `cus` and `eus2`, is rejected. Microsoft publishes no official region
+abbreviation list, so both families look obviously correct to different readers and the only
+defense is picking one in advance and writing down which. Judgment.
+
+In a multi-region estate, a resource created in a second region appends `-<region>` after `<env>`
+(for example `rg-<workload>-<env>-<region>`), and only on types that permit a hyphen. Existing
+names stay as they are, since most of these types cannot be renamed (see name permanence below),
+and the `region` tag stays the authoritative record of where every resource lives. Judgment.
 
 ### Instance suffixes
 
@@ -88,7 +94,8 @@ Put in the name only what will never change about the resource, and put everythi
 Microsoft's rule: "include only information that remains constant in the name, use tags to capture
 other details"
 (<https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-naming>).
-This is the affirmative reason a region lives in the `region` tag rather than in the name, and it
+This is the affirmative reason a single-region estate keeps the region in the `region` tag rather
+than in the name, and it
 matters because most of these types cannot be renamed at all: resource groups, key vaults, storage
 accounts and blob containers are all immutable once created, and only a subscription display name
 can be changed in place
@@ -145,12 +152,15 @@ about that host.
 
 ## Tags
 
-Seven tags, on every resource group and every resource:
+Seven tags, on every resource group and every resource that supports tags. Blob containers do not
+support Azure Resource Manager tags (container metadata is a separate facility), so a container is
+covered by its storage account's tags
+(<https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/tag-support>).
 
 | Tag | Value |
 |---|---|
 | `workload` | the workload token from the name |
-| `env` | `prod`, `dev` or `test` |
+| `env` | `prod`, `dev` or `test`; `shared` on a resource that serves more than one environment |
 | `region` | the full region name the resource is deployed to |
 | `owner` | a role string, never a person and never a person's address |
 | `purpose` | one phrase saying what the resource is for |
@@ -168,5 +178,15 @@ Sources and judgment calls:
   confidential information in resource names (for example, table name, database name) and resource
   tags. Data you enter in these fields isn't considered customer data." (same source). That the ban
   overrides the practice is judgment, not a sourced claim.
+- `env` = `shared` keeps an environment-neutral resource from being tagged with an environment it
+  does not belong to, the same reason the environment token appears only where the environment is
+  real. Judgment.
 - No mandatory tag list is published, so this set is a floor chosen here rather than a standard.
   Judgment.
+
+## Adoption and versioning
+
+A consumer adopts this convention by linking to it from its own naming decision record and stating
+any deviation there. Changes land here by pull request; a change applies to resources created
+after it and never obliges renaming an existing resource, since most of these types cannot be
+renamed.
