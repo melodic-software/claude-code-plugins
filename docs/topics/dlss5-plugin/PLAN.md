@@ -660,7 +660,18 @@ New-Item -ItemType Directory -Force $d | Out-Null
 Get-Content (Join-Path $d 'cache\upstream.json') -Raw | ConvertFrom-Json | Out-Null
 ```
 
-### Phase 7: Repo gates, skill quality, catalog regeneration, installed-path proof [TODO]
+### Phase 7: Repo gates, skill quality, catalog regeneration, installed-path proof [DONE]
+
+Sanity Check run 2026-09-22: every gate exits 0 (`run-plugin-tests.sh` scoped to this plugin's
+suite); `skill-quality:check` PASS for both skills. Installed-path proof, run with the user's go:
+the worktree's marketplace is named `melodic-software`, the same as the user's registered remote
+one, so a throwaway local-scope marketplace `gaming-test` served the HEAD tree instead.
+`claude plugin install gaming@gaming-test --scope local` exited 0; the selftest from
+`~/.claude/plugins/cache/gaming-test/gaming/0.1.0/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1` printed
+`SELFTEST OK`; `claude plugin uninstall` exited 0 and a marker in `Documents\Gaming` plus the
+runtime DLL survived. Cleanup: marketplace removed, cache copy and marker deleted, user
+`settings.json`, `installed_plugins.json` and `known_marketplaces.json` byte-identical to pre-test
+backups.
 
 This phase also closes acceptance criteria 1 and 3, which no earlier phase reached: criterion 1
 says the selftest runs from a MARKETPLACE-INSTALLED path, not from the worktree, and criterion 3
