@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.1] - 2026-09-23
+
+### Fixed
+
+- **`secret-pattern-detection` scans writes outside a project root that is home, an ancestor of home, or not a git work tree.** It honored any set `CLAUDE_PROJECT_DIR` as its scope, and Claude Code sets that variable to the directory a session starts in, so a session started in home or in a non-repository folder skipped nearly every write. Such a root is now treated as unset. A root that is a repository keeps its scope.
+- **The root check rejects relative, unnormalized and aliased roots and bare `.git` entries.** A relative root, or one carrying `//` (a trailing `//` included), `/./`, `/../`, a trailing `/.` or `/..`, or `~`, is cleared. So is a root that is the same directory as `HOME` or `USERPROFILE` (through a link or another spelling), or a parent of either as spelled, and any root when neither variable is set. A linked `HOME` is walked as spelled, so a root that is the parent of the link's target keeps its scope, as on 0.36.0. A `.git` entry counts only when it holds `HEAD` or is a file whose first line is `gitdir:`.
+- **Telemetry `data.file` anchors on the root the guard honored.** When the root is cleared, the path is relative to the file's own checkout, as when no root is set. The envelope's project directory still records the raw `CLAUDE_PROJECT_DIR`.
+
 ## [0.36.0] - 2026-09-21
 
 ### Added

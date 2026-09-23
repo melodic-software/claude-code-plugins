@@ -14,9 +14,11 @@
 # Cross-platform: uses grep -E (POSIX ERE) only — no grep -P (macOS lacks it).
 #
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
-# repo's concern); a generic allowlist exempts dependency caches, .env
-# examples, test fixtures, and machine-local CC state. Disable entirely with
-# the secret_pattern_detection_enabled userConfig option set to false.
+# repo's concern) only when that root is a git work tree that is not home or an
+# ancestor of home; any other root scans every write, as if unset. A generic
+# allowlist exempts dependency caches, .env examples, test fixtures, and
+# machine-local CC state. Disable entirely with the
+# secret_pattern_detection_enabled userConfig option set to false.
 
 set -uo pipefail
 
@@ -290,12 +292,71 @@ ALLOW_FILE="${FILE//\\//}"
 
 # --- Scope guard: police only files inside THIS project ---
 # A PreToolUse Write|Edit hook fires on every file write regardless of which
-# repo the target lives in. A file outside the project root is not ours to scan
-# — that repo owns its own secret policy. Fail CLOSED: when the root cannot be
+# repo the target lives in. A file outside the project root is not ours to scan:
+# that repo owns its own secret policy. Fail CLOSED: when the root cannot be
 # resolved (CLAUDE_PROJECT_DIR unset), fall through and scan rather than skip.
+#
+# A SET root is honored only when it names a project; otherwise it is cleared
+# and treated as unset, which only scans more. Claude Code sets the variable to
+# the session's start directory, which may be home or any folder. Cleared:
+#   - a relative root, or one spelled with `//`, `/./`, `/../`, a trailing `/.`
+#     or `/..`, or `~` (an 8.3 name such as PROGRA~1): such a root cannot be
+#     compared with the file path as a string.
+#   - a root that is not a git work tree: its .git holds HEAD, or is a file
+#     whose first line is `gitdir:` (a linked worktree or submodule).
+#   - a root when neither HOME nor USERPROFILE is set: home is unknown.
+#   - home, or an ancestor of home, as a string or as the same directory under
+#     another path (a link, a case or drive spelling): it contains every other
+#     checkout on the machine. The ancestors walked are those of home as
+#     spelled, not of a symlinked home's resolved target.
+# Every test is a builtin, so the check stays fork-free.
+spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
+spd_scope_root="${spd_scope_root//\\//}"
 PROJECT_DIR=""
-hook::normalize_path_to PROJECT_DIR "${CLAUDE_PROJECT_DIR:-}"
-PROJECT_DIR="${PROJECT_DIR%/}"
+if [[ -n "$spd_scope_root" ]]; then
+  spd_keep=1
+  case "$spd_scope_root" in
+  *//* | */./* | */../* | */. | */.. | *~*) spd_keep=0 ;;
+  /* | [A-Za-z]:/*) ;;
+  *) spd_keep=0 ;;
+  esac
+  spd_scope_root="${spd_scope_root%/}"
+  if ((spd_keep)); then
+    spd_keep=0
+    if [[ -e "$spd_scope_root/.git/HEAD" ]]; then
+      spd_keep=1
+    elif [[ -f "$spd_scope_root/.git" ]]; then
+      spd_gitline=""
+      { IFS= read -r spd_gitline <"$spd_scope_root/.git"; } 2>/dev/null || :
+      [[ "$spd_gitline" == gitdir:* ]] && spd_keep=1
+    fi
+  fi
+  hook::normalize_path_to PROJECT_DIR "$spd_scope_root"
+  spd_home=""
+  hook::normalize_path_to spd_home "${HOME:-${USERPROFILE:-}}"
+  [[ -z "$spd_home" || "$spd_home/" == "$PROJECT_DIR"/* ]] && spd_keep=0
+  # Each home candidate and each of its parents, compared as a directory. The
+  # walk drops one path component per step, so it ends within the path's depth.
+  spd_prev=""
+  for spd_h in "${HOME:-}" "${USERPROFILE:-}"; do
+    ((spd_keep)) || break
+    [[ -n "$spd_h" && "$spd_h" != "$spd_prev" ]] || continue
+    spd_prev="$spd_h"
+    spd_h="${spd_h//\\//}"
+    spd_h="${spd_h%/}"
+    while [[ "$spd_h" == */* ]]; do
+      if [[ "$spd_scope_root" -ef "$spd_h" ]]; then
+        spd_keep=0
+        break
+      fi
+      spd_h="${spd_h%/*}"
+    done
+  done
+  if ((spd_keep == 0)); then
+    spd_scope_root=""
+    PROJECT_DIR=""
+  fi
+fi
 if [[ -n "$PROJECT_DIR" ]]; then
   case "$NORM_FILE" in
   "$PROJECT_DIR"/*) ;; # inside the project — proceed
@@ -333,12 +394,14 @@ emit_tel() {
   # The helper carries the redaction: a path it could not make repo-relative
   # comes back as the basename, never an absolute path (which would embed the
   # developer's username) and never a UNC share (which would name an internal
-  # host). CLAUDE_PROJECT_DIR is the anchor the envelope itself carries, so
-  # data.file is expressed against that same root when it is set. This hook
-  # deliberately scans on WITHOUT one (the scope guard above falls through
-  # rather than skipping), and an unanchored path can only degrade to a bare
-  # basename, so resolve the file's own checkout for that case.
-  local file_rel root="${CLAUDE_PROJECT_DIR:-}"
+  # host). data.file is anchored on the root the scope guard validated, so it
+  # is repo-relative to the project when that root was honored. When the root
+  # was unset or cleared as untrustworthy, the hook scans on without one, and
+  # an unanchored path can only degrade to a bare basename, so resolve the
+  # file's own checkout for that case. The envelope's project-dir argument
+  # stays the raw CLAUDE_PROJECT_DIR: it records what the harness set, not
+  # what this guard decided to honor.
+  local file_rel root="$spd_scope_root"
   # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
   # is a fork per call on Windows Git Bash and this guard runs on every write.
   # Same answers as `dirname`: no slash -> `.`, and a root-level `/x` -> `/`
@@ -347,11 +410,8 @@ emit_tel() {
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -n "$root" ]] || hook::repo_root_to root "$file_dir"
-  # The helper strips "$root/", so a root that already ends in a separator
-  # makes the prefix "/repo//" and matches nothing: every in-project file
-  # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and
-  # a trailing slash is a supported spelling, so trim it here. The copy this
-  # replaced did the same, and hook::repo_root never returns one.
+  # hook::repo_root_to returns the hint unchanged when git finds no repo, and
+  # the hint ends in "/" for a root-level file; the helper strips "$root/".
   root="${root%/}"
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$root"

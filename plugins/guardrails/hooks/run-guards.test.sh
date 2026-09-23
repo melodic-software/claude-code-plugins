@@ -807,4 +807,18 @@ guard_invoke --via dispatched --hook "$HOOK_DIR/block-dangerous-git.sh" \
   --tool PowerShell --command 'git push --force origin main'
 assert_exit "a dispatched row with no --lib still reaches the declared library" 2 "$GUARD_RC"
 
+# --- a project root that is not a repository does not scope the secret scan --
+# The secret guard honors CLAUDE_PROJECT_DIR as a scope only when the root is a
+# git work tree. Under the dispatcher, a non-repo root with a secret written
+# outside it must still block. The token is assembled from parts so the joined
+# literal never appears in this file.
+SPD_NONREPO="$TEST_TMPDIR/spd-nonrepo"
+mkdir -p "$SPD_NONREPO"
+SPD_TOKEN="AKIA""IOSFODNN7EXAMPLE"
+guard_invoke --via dispatched --hook "$HOOK_DIR/secret-pattern-detection.sh" \
+  --payload "$(write_json "$TEST_TMPDIR/spd-elsewhere/config.env" "config = '$SPD_TOKEN'")" \
+  -- "CLAUDE_PROJECT_DIR=$SPD_NONREPO"
+assert_exit "dispatched secret guard: non-repo root, outside write blocks" 2 "$GUARD_RC"
+assert_contains "dispatched secret guard: names the pattern" "$GUARD_ERR" "AWS Access Key"
+
 report
