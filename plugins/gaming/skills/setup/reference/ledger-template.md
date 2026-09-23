@@ -8,13 +8,14 @@ Columns: **Game** title. **Exe dir** the directory the mod is injected into (the
 argument). **Anti-cheat** the status (`signals`, `unknown` or `none-disclosed`, never "none") and each
 signal; when the user acknowledged the risk, the date, the name they typed, the research summary
 and its source URLs.
-**Build** which OptiScaler DLSS-NR fork is installed (`dagherbou` or `wilsjo2`) and its tag.
+**Build** which OptiScaler DLSS-NR fork is installed (`dagherbou` or `wilsjo2`) and its tag, both
+from the manifest (`build`, `tag`).
 **Proxy** the DLL name `OptiScaler.dll` is renamed to. **ini deltas** the `OptiScaler.ini` keys
 changed from stock. **Driver** GeForce driver version at apply time. **DLL** `nvngx_dlssnr.dll`
 runtime version. **Applied** date applied. **FPS before / after** same scene, same settings,
 measured. **Visual verdict** subjective quality call. **Crashes** count and where. **Notes**
 anything a future apply or remove needs to know, including the launcher, the preset key, each key's source
-(`shipped` or `local`) and the sources' as-of date.
+(`shipped-base`, `shipped`, `local-base` or `local`), the sources' as-of date, and any `capture`.
 
 | Game | Exe dir | Anti-cheat | Build | Proxy | ini deltas | Driver | DLL | Applied | FPS before | FPS after | Visual verdict | Crashes | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|

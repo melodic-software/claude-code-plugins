@@ -4,8 +4,8 @@ A Claude Code plugin that applies the community DLSS 5 Neural Rendering mod to P
 what it changed, and removes it again byte for byte. The mod is an OptiScaler fork that loads
 NVIDIA's DLSS 5 runtime (`nvngx_dlssnr.dll`) into games that do not ship it natively.
 
-Invoke it with `/gaming:dlss5` and an action: `assess`, `apply`, `remove`, `status`, `tune`, or
-`refetch`. Run `/gaming:setup` first.
+Invoke it with `/gaming:dlss5` and an action: `assess`, `apply`, `remove`, `status`, `tune`,
+`capture`, or `refetch`. Run `/gaming:setup` first.
 
 ## Windows only
 
@@ -52,8 +52,11 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
   leaves the game folder as it was.
 - The forks' `setup_windows.bat` is interactive and never run; the plugin renames the proxy DLL
   itself.
-- A per-game preset sets only three allow-listed `OptiScaler.ini` keys and never `AutoCapture`.
-  Shipped presets are reviewed by pull request; local overrides in the data directory win.
+- Presets set only allow-listed `OptiScaler.ini` keys (compatibility fixes, hotkeys, and picture
+  controls) and never `AutoCapture`. A base preset applies to every game; the shipped one binds no
+  hotkey. Shipped presets are reviewed by pull request, local ones in the data directory win, and
+  the plugin never downloads a preset. `capture` saves overlay tuning as a local preset without
+  writing to the game folder.
 
 ## Configuration
 
