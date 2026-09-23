@@ -119,7 +119,10 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    a fresh root and joins query-side via the resource attribute (verified empirically). And
    interactive sessions deliberately ignore inbound trace context. Traces stay beta behind
    `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as optional and never
-   depends on beta span shapes.
+   depends on beta span shapes. Read
+   [`context/agent-session-telemetry.md`](context/agent-session-telemetry.md) when a binding
+   needs evidence that a guardrail fired or asks what memory activity is observable: it holds the
+   dated records for the permission-decision event, its limits, and the memory gap.
 4. **Record the binding**. Sink class, endpoint or artifact path, and the semconv pin land
    as the `telemetry` section of the schema-versioned binding.
 5. **Conformance**. Run

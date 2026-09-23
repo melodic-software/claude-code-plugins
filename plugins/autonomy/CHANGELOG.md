@@ -3,6 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.18] - 2026-09-23
+
+### Added
+
+- The telemetry contract gains a "Native agent-surface evidence" section. A binding that must show
+  a guardrail fired reads the agent surface's native permission-decision record and its recorded
+  limits. A dated record says the GenAI conventions have no release or schema URL, so no `gen_ai.*`
+  name is pinned. Agent memory observability is a DEFERRED gap with a trigger.
+- The setup skill's agent-session wiring gains `context/agent-session-telemetry.md`, the dated
+  Claude Code records behind that section: the `tool_decision` event's `source` attribute and its
+  limits in headless sessions, the logs exporter it needs, and the auto memory startup-load gap.
+  Each record is verified 2026-09-23.
+
 ## [0.23.17] - 2026-09-23
 
 ### Changed
