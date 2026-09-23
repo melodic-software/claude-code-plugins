@@ -3,6 +3,18 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.9] - 2026-09-23
+
+### Added
+
+- **README section "Using vault-exec (opt-in)"** documenting a `vault-exec`-wrapped user-scope
+  stdio server as an alternative to storing `miro_api_token` in Claude Code's secure credential
+  storage: enter a non-secret placeholder to satisfy the required option, wrap the plugin's
+  cached server launch with `vault-exec`, and disable the plugin's own server per project with
+  `/mcp` since the wrapped command differs from the plugin's and is not deduplicated by endpoint
+  ([#4342](https://github.com/melodic-software/claude-code-plugins/issues/4342)). No manifest or
+  code change; `miro_api_token` stays `required: true` for consumers who do not opt in.
+
 ## [0.4.8] - 2026-09-21
 
 ### Changed
