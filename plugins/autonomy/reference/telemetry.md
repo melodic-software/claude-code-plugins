@@ -131,9 +131,9 @@ schema URL.
 
 ### Agent memory observability: DEFERRED, with a trigger
 
-**The gap:** the agent surface the setup skill wires documents no signal for the startup load of
-its persistent memory index, so a binding has nothing to show which memory an unattended run began
-with. The dated absence record, and the neighboring memory reads that are observable, live with
+**The gap:** on the pages its dated absence record searched, the agent surface the setup skill
+wires documents no signal for the startup load of its persistent memory index, so a binding has
+nothing to show which memory an unattended run began with. The dated absence record, and the neighboring memory reads that are observable, live with
 the setup skill's agent-session wiring.
 
 **Why deferred:** a contract-authored memory signal would be a new custom attribute, which Pillar

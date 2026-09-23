@@ -6,7 +6,8 @@ attribute, value set, and configuration variable of the export; this file restat
 binding depends on.
 
 The events ride the logs signal. A binding that needs them sets `OTEL_LOGS_EXPORTER` as well as
-`CLAUDE_CODE_ENABLE_TELEMETRY`, because metrics alone carry none of this evidence.
+`CLAUDE_CODE_ENABLE_TELEMETRY`: the metrics carry only an aggregate count of decisions for the
+code-editing tools, with no record per call.
 
 ## Evidence that a guardrail fired
 
@@ -64,6 +65,7 @@ covered:
 *Basis:* raw-markdown reads of the monitoring page (174,316 bytes) and the hooks page (331,285
 bytes). The monitoring page has zero case-insensitive matches for the stem of "memory". The hooks
 page has zero matches for `auto memory` or `MEMORY.md`, and its matches for the stem are unrelated
-(an MCP memory server, in-memory state, links to the memory page). *Verified:* 2026-09-23.
+(an MCP memory server, in-memory state, links to the memory page, and the `InstructionsLoaded`
+input's instruction-file scope field). *Verified:* 2026-09-23.
 *Recheck trigger:* the monitoring page documents a memory event or attribute, or the hooks page
 documents a hook event covering auto memory.
