@@ -48,8 +48,8 @@ vocabulary):
 Both layers sit behind the catalog's policy-level **quotation exemption**: no rule scans fenced
 code or inline code spans, wording rules also skip blockquotes and double-quoted spans, and
 typography rules (em dashes, emoji and other byte residue) still scan blockquotes and
-double-quoted spans. A document that quotes a wording tell to document it, and a changelog that backticks the
-phrase a fix removed, stay marker-free by construction.
+double-quoted spans. A document that quotes a wording tell to document it, and a changelog that
+backticks the phrase a fix removed, stay marker-free by construction.
 
 ## Action router
 
@@ -179,8 +179,8 @@ carries the reason.
 - **Does not put rubric findings in the findings file.** No crosswalk row, no relay: judgment
   verdicts reach the human report only (V1 boundary, revisit with field history).
 - **Does not scan code comments** (`code-tidying:audit-comment-residue` owns them), commit
-  messages, PR bodies, or text outside markdown files; structural markdown (heading hierarchy, multiple H1,
-  title case) belongs to the markdown linter lane. Reshaping those commit messages, PR bodies
+  messages, PR bodies, or text outside markdown files; structural markdown (heading
+  hierarchy, multiple H1, title case) belongs to the markdown linter lane. Reshaping those commit messages, PR bodies
   and other text so they lead with the point and carry fewer words is `/writing:be-concise`,
   which owns that doctrine when the `writing` plugin is installed; without it, say the text
   sits outside this skill's regime rather than auditing it anyway.
