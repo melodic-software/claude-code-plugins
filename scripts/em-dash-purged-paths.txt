@@ -274,6 +274,10 @@ plugins/fleet/CHANGELOG.md
 plugins/fleet/README.md
 plugins/fleet/skills/*/SKILL.md
 plugins/fleet/skills/*/reference/*.md
+plugins/gaming/README.md
+plugins/gaming/CHANGELOG.md
+plugins/gaming/skills/dlss5/SKILL.md
+plugins/gaming/skills/setup/SKILL.md
 plugins/github/README.md
 plugins/github/skills/*/SKILL.md
 plugins/go-format/README.md

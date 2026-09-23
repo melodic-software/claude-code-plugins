@@ -1,0 +1,44 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-is-read-only-and-reports-scan-candidate",
+      "prompt": "/gaming:setup check (runtime_dll and runtime_source are unset, <data-dir>\\runtime\\nvngx_dlssnr.dll does not exist, and an installed Steam title holds data\\streamline\\nvngx_dlssnr.dll with the known-good hash)",
+      "expected_output": "Resolves data_dir model-side to a literal path, runs the read-only probes, and reports a PASS/FAIL/INFO table. The runtime row is FAIL because the DLL is missing, and its remediation names the Steam candidate by path with its gate result (known-good hash, passes) and says apply would copy it. It does not call provision in any form, and nothing is copied into <data-dir>\\runtime or anywhere else.",
+      "files": [],
+      "expectations": [
+        "Reports the missing runtime DLL as FAIL",
+        "Names the scan candidate's path and its gate result",
+        "Does not run provision -Runtime or provision, and copies or writes no file",
+        "Composes no command line carrying a ${user_config.*} token"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "missing-dll-no-candidate-no-source-is-fail",
+      "prompt": "/gaming:setup check (runtime_dll and runtime_source are unset, <data-dir>\\runtime\\nvngx_dlssnr.dll does not exist, and no Steam library holds any nvngx_dlssnr.dll)",
+      "expected_output": "The runtime row is FAIL. The remediation states the scan found no candidate and runtime_source is unset, then names the three remedies in provision -Runtime's order: set runtime_dll to a copy the user already has, install a DLSS 5 title on this machine, set runtime_source to a copy the user controls. It states the plugin names no source of its own and does not suggest any download site for the DLL.",
+      "files": [],
+      "expectations": [
+        "Reports the runtime DLL as FAIL, not INFO",
+        "Lists the three remedies in the order runtime_dll, installed DLSS 5 title, runtime_source",
+        "States the plugin names no source for the runtime DLL and names none",
+        "Writes nothing"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-is-idempotent",
+      "prompt": "/gaming:setup apply (a previous apply already created the data directory, seeded LEDGER.md with the user's own rows, placed a known-good runtime DLL, and provisioned both fork builds)",
+      "expected_output": "Runs check, then the apply steps through the script's verbs. The directory creation is a no-op, LEDGER.md is left untouched because it exists, provision -Runtime prints runtime ok and copies nothing, and provision prints already provisioned for dagherbou and wilsjo2. It passes -RuntimeDll and -RuntimeSource only when those options are set, never runs setup_windows.bat, then re-runs check and reports its actual table.",
+      "files": [],
+      "expectations": [
+        "Calls the script's provision verbs rather than downloading or extracting by hand",
+        "Leaves the existing LEDGER.md unmodified",
+        "Reports runtime ok and already provisioned, with no new download or copy",
+        "Never runs setup_windows.bat and re-runs check at the end"
+      ]
+    }
+  ]
+}
