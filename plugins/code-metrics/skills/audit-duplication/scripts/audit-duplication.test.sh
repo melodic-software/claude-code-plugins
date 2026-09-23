@@ -112,6 +112,21 @@ assert_contains "the unavailable row carries the install hint" "$out" "npm insta
 PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$CLUSTER" --registry /nonexistent-registry.txt >/dev/null 2>&1
 assert_eq "a missing --registry exits 2" 2 "$?"
 
+# 5b. A non-integer rollup_depth is a usage error, not a silent default.
+printf '%s\n' '{"duplication":{"rollup_depth":"two"}}' >"$WORK/bad-depth.json"
+err="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --config "$WORK/bad-depth.json" --json --all "$CLUSTER" 2>&1 >/dev/null)"
+assert_eq "a non-integer rollup_depth exits 2" 2 "$?"
+assert_contains "the refusal names the key" "$err" "duplication.rollup_depth"
+assert_contains "the refusal names the value" "$err" "two"
+printf '%s\n' '{"duplication":{"rollup_depth":2.0}}' >"$WORK/float-depth.json"
+err="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --config "$WORK/float-depth.json" --json --all "$CLUSTER" 2>&1 >/dev/null)"
+assert_eq "a float rollup_depth exits 2" 2 "$?"
+assert_contains "a float is named in the refusal" "$err" "2.0"
+printf '%s\n' '{"duplication":{"rollup_depth":"2"}}' >"$WORK/quoted-depth.json"
+err="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --config "$WORK/quoted-depth.json" --json --all "$CLUSTER" 2>&1 >/dev/null)"
+assert_eq "a quoted rollup_depth exits 2" 2 "$?"
+assert_contains "a quoted integer is named in the refusal" "$err" "'2'"
+
 # 6. The configured tunables reach the collector's command line.
 "$PY" "$PLUGIN_ROOT/scripts/resolve-config.py" --ladder "$PLUGIN_ROOT/scripts/collector-ladder.tsv" --home "$WORK" >"$WORK/base.json" 2>/dev/null
 "$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); d["duplication"]["min_tokens"] = 77; d["duplication"]["min_lines"] = 9; d["duplication"]["ignore"] = ["**/vendor/**"]; d["duplication"]["max_size"] = "8kb"; d["duplication"]["max_lines"] = 0; print(json.dumps(d))' "$WORK/base.json" >"$WORK/tuned.json"
