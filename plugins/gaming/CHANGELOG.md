@@ -3,6 +3,50 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-09-23
+
+### Added
+
+- Base presets. `presets/_base.json` in the skill and `presets/_base.json` in the data directory
+  apply to every game, with or without `-Preset`. Precedence, lowest first: shipped base, shipped
+  per-game, local base, local per-game. Every ini key carries its source (`shipped-base`,
+  `shipped`, `local-base`, `local`) in `assess`, the `apply` output and the manifest. The shipped
+  base sets no key and binds no hotkey.
+- Hotkeys in presets: `[Menu] ShortcutKey`, `FpsShortcutKey`, `FpsCycleShortcutKey`,
+  `FGShortcutKey` and `[DlssNr] ToggleKey`, validated as a VK code `0x01` to `0xFE`, `-1` or
+  `auto`. A merged preset that binds one code to two actions, counting each unset hotkey's
+  default, is refused. `reference/presets.md` recommends F13 to F24 for the local base.
+<!-- spellchecker:off -->
+- Picture keys in presets, from `[DlssNr]`: `Enabled`, `TransferStrength`, `ColourStrength`,
+  `WhitePointScale`, `MaxRatio`, `Intensity`, `LocalStructure`, `LocalTone`, `SkinStructure`,
+  `AutoMask`, `Preset` and `Style`, each validated as a bool, number or whole number. `WorkingScale`,
+  `ScalingDownscaler`, `DebugView` and `AutoCapture` stay off the list.
+<!-- spellchecker:on -->
+- `capture` verb: diffs the game's `OptiScaler.ini` against what `apply` wrote (the build's stock
+  ini with the manifest's `iniEdits` over it), comparing values so Save Settings' `0x7c` and
+  `1.000000` spellings are not changes. It merges changed allow-listed keys into the game's local
+  per-game preset and lists every other changed key, `AutoCapture` with a reminder to set it back
+  to `false`. It refuses when the build was re-provisioned since the apply (another tag or asset
+  hash), and it never writes into the game folder.
+- Community presets: shipped per-game presets are the community channel, contributed by issue or
+  pull request with evidence. The plugin never fetches presets at runtime. The router suggests
+  upstreaming a captured preset.
+
+### Changed
+
+- `assess` JSON: `preset` is present whenever a base preset exists, with `preset.key` null when no
+  per-game preset matches. Apply with `-Preset` only when `preset.key` is set.
+- The manifest records `tag` and `buildSha256`, the build's pinned release tag and asset hash,
+  read from its `.provisioned.json`.
+  The ledger's Build column is filled from it.
+
+### Fixed
+
+- `apply` left the manifest's build tag empty.
+- The 0.4.0 entry omitted two `assess` JSON fields: `discoveryGaps` (what launcher discovery could
+  not read, apart from the anti-cheat `unchecked` list) and `antiCheat.reviewId` (the id
+  `-AntiCheatReviewId` must repeat).
+
 ## [0.4.0] - 2026-09-23
 
 ### Added

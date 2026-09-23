@@ -1,6 +1,6 @@
 ---
-description: "Apply, track, tune, and remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in a PC game on Windows. Action router: assess (eligibility, launcher, anti-cheat signals), apply (snapshot, then install; anti-cheat risk only with a typed acknowledgement), remove (byte-exact uninstall from the manifest), status (drift against the manifest), tune (in-game overlay guidance), refetch (fork, driver and runtime release watch). Use when: 'apply DLSS 5 to this game', 'is this game safe for the DLSS 5 mod', 'remove the DLSS 5 mod', 'check for new OptiScaler DLSSNR releases', or DLSS 5, DLSSNR, or OptiScaler is mentioned with a game folder."
-argument-hint: "[assess|apply|remove|status|tune|refetch] [<game-dir>]"
+description: "Apply, track, tune, and remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in a PC game on Windows. Action router: assess (eligibility, launcher, anti-cheat signals), apply (snapshot, then install; anti-cheat risk only with a typed acknowledgement), remove (byte-exact uninstall from the manifest), status (drift against the manifest), tune (in-game overlay guidance), capture (save overlay tuning as a local preset), refetch (fork, driver and runtime release watch). Use when: 'apply DLSS 5 to this game', 'is this game safe for the DLSS 5 mod', 'remove the DLSS 5 mod', 'check for new OptiScaler DLSSNR releases', or DLSS 5, DLSSNR, or OptiScaler is mentioned with a game folder."
+argument-hint: "[assess|apply|remove|status|tune|capture|refetch] [<game-dir>]"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -50,7 +50,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 |---|---|---|
 | `-Build` | apply | `dagherbou` (default) or `wilsjo2`; see `reference/fork-comparison.md` |
 | `-Proxy` | apply | Filename the fork's `OptiScaler.dll` is installed as. Default `dxgi.dll`; pick from `assess`'s `freeProxies` |
-| `-Preset` | apply | A preset key from `assess`'s `preset.key`. Writes the preset's allow-listed ini keys and records them in the manifest; `reference/presets.md` |
+| `-Preset` | apply, capture | A per-game preset key: `assess`'s `preset.key` for apply, or the key a new capture is saved under. The base presets apply without it; `reference/presets.md` |
 | `-RestoreComputeSignature` | apply | Also sets `[Hotfix] RestoreComputeSignature=true` for a game with no preset; `reference/tuning-guide.md` names the titles that need it |
 | `-AllowUnknownRuntime` | apply | Accepts an NVIDIA-signed runtime whose hash is not the known one. Only on the user's explicit request |
 | `-Finish` | remove | Drops the manifest even when drift remains. Only after the user has seen the drift and asked |
@@ -76,6 +76,7 @@ Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
 | `status` | What changed since apply? | Run `status` and explain its exit code |
 | `tune` | Picture or performance | Start from the game's preset, then guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
+| `capture` | Keep the overlay tuning | Run `capture` after the user's Save Settings; it writes the game's local preset. Writes nothing in the game folder |
 | `refetch` | Are forks, driver, runtime current? | Run `refetch`, read the page-backed items, update only the ledger's Upstream watch rows that changed |
 
 When the request is ambiguous, recommend an action and wait. Never commit to `apply` or `remove`
@@ -93,9 +94,11 @@ without the user's confirmation.
      store page read); plus `acknowledgementRequired`;
    - `upscalers` (each upscaler DLL found, with `family` DLSS, FSR or XeSS, and its version; the
      mod's own copies do not count), `dx12`, `proxyCollisions`, `freeProxies`, `steamAppId`;
-   - `preset`: the matching preset with each ini key's `source` (`shipped` or `local`), or null.
-     `presetError` names a preset file that failed validation; report it, and apply without that
-     preset until the file is fixed.
+   - `preset`: the effective preset, with each ini key's `source` (`shipped-base`, `shipped`,
+     `local-base` or `local`). `preset.key` is the matching per-game preset, or null when only the
+     bases apply. `presetError` names a preset file that failed validation; report it. A broken
+     base makes every `apply` refuse, and a broken per-game file cannot be passed as `-Preset`,
+     until the file is fixed.
 2. `refused`: the directory is under `WindowsApps`. Stop and say why
    (`reference/launchers.md`). Nothing clears this.
 3. `not-a-candidate`: the game ships no DLSS, FSR 2+ or XeSS, so the mod has nothing to hook. Tell
@@ -153,19 +156,20 @@ it.
 2. Pick the proxy: the preset's `proxy` when `freeProxies` lists it, else `freeProxies` with
    `dxgi.dll` first; for an Xbox app game, `winmm.dll` first (`reference/launchers.md`). Cyberpunk
    2077 uses `dxgi.dll`, never `dbghelp.dll`: its `bin\x64\dbghelp.dll` is a stock game file.
-3. No `preset` in the assess JSON: offer the research step below before applying stock. The user
-   may decline; stock is a valid apply.
+3. `preset.key` null in the assess JSON (no per-game preset): offer the research step below before
+   applying with the bases alone. The user may decline; that is a valid apply.
 4. Confirm. Show the resolved absolute game directory (`gameDir` from the assess JSON), the
    launcher, the build and its tag, the proxy name, the `assess` verdict, the anti-cheat status
-   (and, when acknowledged, the typed name), and the preset: its key, and each ini key as
-   `[Section] Key=Value` with its source (`shipped` or `local`) and its `why`. Then ask for an
-   explicit yes. The typed game name is the risk acknowledgement, not this confirmation; ask for
-   both. One confirmation covers one game; never batch several games under one yes.
-5. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`, plus `-Preset <key>` when the
-   confirmation showed one, plus the four acknowledgement parameters when the review ran. The
+   (and, when acknowledged, the typed name), and the preset: its key (or "bases only"), and each
+   ini key as `[Section] Key=Value` with its source and its `why`. Then ask for an explicit yes.
+   The typed game name is the risk acknowledgement, not this confirmation; ask for both. One
+   confirmation covers one game; never batch several games under one yes.
+5. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`, plus `-Preset <key>` when
+   `preset.key` is not null, plus the four acknowledgement parameters when the review ran. The
    script rereads every anti-cheat source and refuses before any write on: an existing manifest
    (`remove` first), no `*.exe`, a `WindowsApps` path, over 2000 files, no upscaler DLL (not a
-   candidate), a preset key off the allow-list or `AutoCapture` in a preset, a destination
+   candidate), a preset key off the allow-list, `AutoCapture` in a preset, a value of the wrong
+   type, one hotkey bound to two actions, a destination
    collision, a missing build file (run `/gaming:setup apply`), a refused runtime DLL, an
    anti-cheat status other than `none-disclosed` without a matching acknowledgement, or a folder
    its write probe cannot write. Report a refusal as is; never route around it.
@@ -174,8 +178,10 @@ it.
    baseline in `reference/tuning-guide.md`.
 7. Add the game's row to `LEDGER.md` in the data directory (see Ledger below).
 8. Tell the user how to confirm it runs: launch the game on DX12, enable Neural Rendering in the
-   overlay (Insert) after the game has loaded, then look for `DLSS-NR cost` lines in
-   `<game-dir>\OptiScaler.log`.
+   overlay after the game has loaded, then look for `DLSS-NR cost` lines in
+   `<game-dir>\OptiScaler.log`. The overlay key is Insert unless the preset sets
+   `[Menu] ShortcutKey`; then name that key, here and wherever a preset's `manual` line says
+   Insert. Name the Neural Rendering toggle key too when `[DlssNr] ToggleKey` is set.
 
 ### Research a preset (no preset matched)
 
@@ -195,7 +201,8 @@ it.
    `assess` and confirm it reports the preset with no `presetError`.
 5. Note in the ledger row that the preset is local and was researched today.
 6. When the preset would help other users, suggest an issue on this plugin's repository carrying
-   the file and its sources, so it can ship after review.
+   the file and its sources, so it can ship after review (`reference/presets.md`, Community
+   presets).
 
 ## Action: remove
 
@@ -231,10 +238,28 @@ The fork's in-game overlay (Insert) is the tuning surface, and its Save Settings
 `OptiScaler.ini`, which `status` already treats as expected. Start from the game's preset: read
 `preset` from `manifest.json` in the game's state folder (or from `assess` before an apply), and
 print its `manual` lines as the setup guide. Then walk the user through
-`reference/tuning-guide.md`: the baseline first, then one change at a time. A setting that works
-and has a trusted source belongs in the local preset; offer to add it there. If the user wants an
-ini edit instead, make it with the game closed. `[DlssNr] AutoCapture` stays `false`. Record what
-changed in the ledger row's ini deltas and visual verdict columns.
+`reference/tuning-guide.md`: the baseline first, then one change at a time. When the user is happy
+and has pressed Save Settings, offer `capture` to keep the result. A hotkey or picture default the
+user wants in every game belongs in the local base, `presets\_base.json` in the data directory; <!-- portability-ok: Windows path, not a shell regex -->
+offer to write it there (hotkeys: `reference/presets.md`). If the user wants an ini edit instead,
+make it with the game closed. `[DlssNr] AutoCapture` stays `false`. Record what changed in the
+ledger row's ini deltas and visual verdict columns.
+
+## Action: capture
+
+1. Tell the user to press Save Settings in the overlay first; `capture` reads what it wrote.
+2. Run `-Verb capture '<game-dir>'`. The game's preset key comes from its manifest or its
+   `match`. With neither, `capture` refuses and asks for `-Preset <key>`: propose a key from the
+   game name (lowercase letters, digits, hyphens) and rerun with it.
+3. Report the captured keys and the file. Report every `not captured` line: keys off the
+   allow-list stay in the game's ini only, and an `AutoCapture=true` line means the user turned
+   frame capture on; tell them to set it back to `false`.
+4. The next `apply` of this game writes the captured values. `capture` never writes into the game
+   folder, so `remove` stays byte-exact.
+5. Note the capture in the ledger row. Suggest upstreaming the preset as a community preset,
+   with the game, build, driver and what the user saw (`reference/presets.md`, Community presets).
+   A captured `why` is not a source, so the issue must carry the evidence.
+6. Done when the user has the captured keys, the preset file path, and every not-captured line.
 
 ## Action: refetch
 
@@ -278,8 +303,8 @@ changed in the ledger row's ini deltas and visual verdict columns.
   byproduct list does not name.** Never delete game files by hand to help either one along.
 - **Cyberpunk 2077's proxy is `dxgi.dll`, never `dbghelp.dll`.**
 - **`[DlssNr] AutoCapture` stays `false`.** Its default writes raw frame captures into the game
-  folder on every launch. No preset can set it, and a preset sets only the allow-listed keys in
-  `reference/presets.md`. Never widen that list to fit a preset.
+  folder on every launch. No preset can set it, `capture` never captures it, and a preset sets
+  only the allow-listed keys in `reference/presets.md`. Never widen that list to fit a preset.
 - **The NVIDIA runtime DLL is never committed, bundled, or placed under the plugin root, and this
   skill names no source for it.** It comes only from the three sources `/gaming:setup` documents,
   each hash- or signature-checked.
@@ -291,10 +316,10 @@ changed in the ledger row's ini deltas and visual verdict columns.
 writes the machine-readable half to `state\<GameKey>\manifest.json`; this skill writes the rows with <!-- portability-ok: Windows path, not a shell regex -->
 Edit. After `apply`, fill: game, exe dir, anti-cheat (the status and every signal; when
 acknowledged, `acknowledged <date> as '<typed name>'`, the research summary in one line, and its
-source URLs), build and tag, proxy, ini deltas (`Enabled=true AutoCapture=false LogToFile=true LogLevel=2`, plus
+source URLs), build and tag (the manifest's `build` and `tag`), proxy, ini deltas (`Enabled=true AutoCapture=false LogToFile=true LogLevel=2`, plus
 `RestoreComputeSignature=true` when passed, plus each preset key), driver (the manifest's
-`driver`), DLL version, applied date. Notes gets `launcher <launcher>`. With a preset, Notes also gets `preset <key>` with each key's
-source (`shipped` or `local`) and the newest `asOf` among its sources. FPS, visual verdict and crashes stay blank until the user reports them. If `LEDGER.md` is
+`driver`), DLL version, applied date. Notes gets `launcher <launcher>`. With preset keys, Notes also gets `preset <key>` (or `bases only`) with each key's
+source (`shipped-base`, `shipped`, `local-base` or `local`) and the newest `asOf` among its sources. FPS, visual verdict and crashes stay blank until the user reports them. If `LEDGER.md` is
 absent, recommend `/gaming:setup apply` rather than inventing a format.
 
 ## Reference index
@@ -306,7 +331,7 @@ absent, recommend `/gaming:setup apply` rather than inventing a format.
 | `reference/candidate-selection.md` | Explaining `not-a-candidate`, which games the mod can help, engine notes, or which per-game config sources to trust |
 | `reference/reversal-matrix.md` | Explaining what `remove` deletes, keeps, or reports |
 | `reference/fork-comparison.md` | Choosing or switching `-Build` |
-| `reference/presets.md` | Preset format, the ini allow-list, the shipped-versus-local merge, or writing a local preset |
+| `reference/presets.md` | Preset format, the four layers and their precedence, the ini allow-list, hotkeys, `capture`, writing a local preset, or contributing one |
 | `reference/tuning-guide.md` | The `tune` action, or picking `-RestoreComputeSignature` |
 | `reference/upstream-watch.md` | The `refetch` action |
 

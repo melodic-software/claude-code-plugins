@@ -1,8 +1,9 @@
 # Tuning guide
 
-Tuning happens in the fork's in-game overlay, opened with Insert. Its Save Settings rewrites
-`OptiScaler.ini` in the game folder, and `status` treats that change as expected. Change one thing
-at a time and record it in the ledger row.
+Tuning happens in the fork's in-game overlay, opened with Insert unless a preset rebinds
+`[Menu] ShortcutKey`. Its Save Settings rewrites `OptiScaler.ini` in the game folder, and `status`
+treats that change as expected; `capture` then keeps the allow-listed changes as the game's local
+preset. Change one thing at a time and record it in the ledger row.
 
 ## Proof it runs
 
@@ -26,7 +27,7 @@ any title.
 | `[DlssNr] AutoCapture` | `false`, always | Its default writes uncompressed frame captures into the game folder. `apply` sets it; keep it |
 | Reversible proxy | Hybrid proxy + composed | The fork author's stated recommendation; the default is Off |
 | White point source | Paper white, set by eye | The exposure scan is opt-in, off by default, and fails on some titles |
-| Neural Rendering toggle key | Bind one under Keybinds | Unbound by default; it lets the user A/B without the menu |
+| Neural Rendering toggle key | Bind one under Keybinds, or set `ToggleKey` in the local base preset for every game | Unbound by default; it lets the user A/B without the menu. `reference/presets.md` recommends F13 to F24 |
 | When to enable NR | After the game has loaded | Enabling it during a load crashed RE Engine titles (fork issues #22, #7); in-game enabling did not |
 
 ## Per title
