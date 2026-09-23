@@ -53,8 +53,18 @@ function Resolve-PathOpt([string]$v) {
     $full = [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($v), (Get-Location).ProviderPath)
     if ($full.Length -gt 3) { $full.TrimEnd('\') } else { $full }
 }
-function Resolve-DataDir([string]$v) {
-    (Resolve-PathOpt $v) ?? (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming')
+function Resolve-DataDir([string]$v, [string]$docs = [Environment]::GetFolderPath('MyDocuments')) {
+    (Resolve-PathOpt $v) ?? (Join-Path $docs 'Gaming\dlss5')
+}
+# Documents\Gaming is the legacy default. Its manifests are the only way to undo the mod, so refuse
+# rather than start an empty state tree beside them; moving them is the user's call. "Empty" rather
+# than "absent", because setup apply creates <data-dir>\state before it calls this script.
+function HasEntries($p) { [bool](Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue | Select-Object -First 1) }
+function Assert-NoLegacyState([string]$docs) {
+    $old = Join-Path $docs 'Gaming'; $new = Resolve-DataDir '' $docs
+    if ((HasEntries "$old\state") -and -not (HasEntries "$new\state")) {
+        throw "legacy data directory $old holds state\, but the default data_dir is now $new. Move runtime\, state\, builds\, cache\ and LEDGER.md from $old into $new, then rerun. Nothing was changed."
+    }
 }
 function Resolve-Source([string]$v) {
     $v = Resolve-Opt $v
@@ -66,7 +76,10 @@ function Resolve-Source([string]$v) {
     Resolve-PathOpt $v
 }
 function Init-Paths {
+    $docs = [Environment]::GetFolderPath('MyDocuments')
     $script:DataDir = Resolve-DataDir $DataDir
+    # Keyed on the resolved path, so a caller that passes the default explicitly is gated too.
+    if ($Verb -notin 'selftest', 'refetch' -and $script:DataDir -eq (Resolve-DataDir '' $docs)) { Assert-NoLegacyState $docs }
     $script:RuntimeDllConfigured = [bool](Resolve-PathOpt $RuntimeDll)
     $script:RuntimeDll = (Resolve-PathOpt $RuntimeDll) ?? (Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll')
     # runtime_source is resolved only by provision -Runtime, so a bad value never blocks status or remove.
@@ -587,9 +600,20 @@ function Do-Selftest {
     $tmp = (Get-Item -LiteralPath $tmp).FullName.TrimEnd('\')
     Push-Location $tmp
     try {
-        $docs = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming'
+        $docs = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\dlss5'
         Assert 'empty DataDir uses the default' ((Resolve-DataDir '') -eq $docs)
         Assert 'literal ${user_config.data_dir} uses the default' ((Resolve-DataDir '${user_config.data_dir}') -eq $docs)
+        Assert 'no legacy state passes' (-not (Throws { Assert-NoLegacyState "$tmp\docs" } '*'))
+        New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\state" | Out-Null
+        Assert 'empty legacy state passes' (-not (Throws { Assert-NoLegacyState "$tmp\docs" } '*'))
+        $move = "*Move runtime\, state\, builds\, cache\ and LEDGER.md from $tmp\docs\Gaming into $tmp\docs\Gaming\dlss5*"
+        New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\state\g_1" | Out-Null
+        Assert 'legacy state with no new state refuses and names the move' (Throws { Assert-NoLegacyState "$tmp\docs" } $move)
+        Assert 'legacy refusal creates nothing' (-not (Test-Path -LiteralPath "$tmp\docs\Gaming\dlss5"))
+        New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\dlss5\state" | Out-Null
+        Assert 'legacy state beside an empty new state still refuses' (Throws { Assert-NoLegacyState "$tmp\docs" } $move)
+        New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\dlss5\state\g_1" | Out-Null
+        Assert 'state at the new default passes' (-not (Throws { Assert-NoLegacyState "$tmp\docs" } '*'))
         Assert 'relative DataDir resolves to absolute' ((Resolve-DataDir 'rel') -eq "$tmp\rel")
         Assert 'trailing backslash trimmed' ((Resolve-DataDir "$tmp\x\") -eq "$tmp\x")
         Assert 'runtime_source with a query string refused' (Throws { Resolve-Source 'https://example.com/nvngx_dlssnr.dll?token=x' } '*query string*')

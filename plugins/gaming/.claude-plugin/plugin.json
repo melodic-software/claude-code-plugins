@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "gaming",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Apply, track, tune, and cleanly remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in PC games on Windows. Anti-cheat refusal, pre-install snapshots and manifests for byte-exact removal, a per-game ledger, and an upstream watch for fork and driver releases. Ships no NVIDIA binary: the runtime DLL comes from a path, an installed DLSS 5 title, or a source the user configures.",
   "author": {
     "name": "Melodic Software",
@@ -23,7 +23,7 @@
     "data_dir": {
       "type": "directory",
       "title": "Data directory",
-      "description": "Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Leave unset to use the default: Documents\\Gaming under your user profile. It survives plugin uninstall. Changing it after applying the mod to a game is a move of the directory, not a reconfiguration: move the old directory's contents to the new path."
+      "description": "Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Leave unset to use the default: Documents\\Gaming\\dlss5 under your user profile. It survives plugin uninstall. Changing it after applying the mod to a game is a move of the directory, not a reconfiguration: move the old directory's contents to the new path."
     },
     "runtime_dll": {
       "type": "file",
