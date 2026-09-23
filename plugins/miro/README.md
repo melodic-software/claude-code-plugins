@@ -97,6 +97,12 @@ Tool names move from `mcp__plugin_miro_miro__<tool>` (plugin-provided) to `mcp__
 old prefix. Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Plugin MCP
 tool names" and "Server deduplication," verified 2026-09-23.
 
+**Incompatible with `event-storming` as shipped.** That plugin's Miro availability gates probe only
+the plugin-provided prefix (`mcp__plugin_miro_miro__miro_list_boards` in
+`skills/methodology/SKILL.md` and `skills/simulation/SKILL.md`), so once this override is active
+those gates read Miro as absent and fall back to markdown even though `mcp__miro__*` is connected.
+Skip this recipe if you use `event-storming` against Miro.
+
 ## Tools
 
 The server registers Miro operations grouped by concern: boards, sticky notes, frames,
