@@ -892,9 +892,12 @@ function Do-Capture($root) {
     }
     if (-not $took) { 'nothing captured: no allow-listed key differs from what apply wrote' }
     else {
-        $j = $old ?? [pscustomobject]@{
-            title = (Get-Launcher $root).name
-            match = if ($app = SteamAppId $root) { @{ steamAppId = $app } } else { @{ exe = @(Get-ChildItem -LiteralPath $root -Filter *.exe -File | ForEach-Object Name) } }
+        # A new file beside a shipped preset of the same key inherits its title and match.
+        $j = if ($old) { $old } elseif (@($layers | Where-Object source -eq 'shipped').Count) { [pscustomobject]@{} } else {
+            [pscustomobject]@{
+                title = (Get-Launcher $root).name
+                match = if ($app = SteamAppId $root) { @{ steamAppId = $app } } else { @{ exe = @(Get-ChildItem -LiteralPath $root -Filter *.exe -File | ForEach-Object Name) } }
+            }
         }
         $j | Add-Member -Force -NotePropertyName ini -NotePropertyValue @($ini.Values)
         $lf = Join-Path $script:DataDir "presets\$key.json"
