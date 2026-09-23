@@ -884,9 +884,11 @@ function Do-Capture($root) {
     $ini = [ordered]@{}; foreach ($e in @($old.ini)) { if ($e) { $ini["$($e.key)"] = $e } }
     $took = @(); $left = @()
     foreach ($k in $now.Keys | Sort-Object) {
-        if ((NormVal $now[$k]) -ceq (NormVal $want[$k])) { continue }
         $sec, $name = $k -split '/', 2
         $v = $now[$k]
+        # A respelling counts as unchanged only when it is valid for the key: 124 for 0x7C is reported.
+        $allowed = $name -cin $PresetKeys.Keys -and $PresetKeys[$name].Section -ceq $sec
+        if ($v -ceq $want[$k] -or ((NormVal $v) -ceq (NormVal $want[$k]) -and -not ($allowed -and (Test-PresetValue $name $v)))) { continue }
         $err = if ($name -eq 'AutoCapture') { 'never captured. Set it back to false: it writes frame captures into the game folder' }
         elseif ($PresetKeys[$name].Section -cne $sec) { 'not on the preset allow-list' }
         else { Test-PresetValue $name $v }
@@ -1272,7 +1274,7 @@ function Do-Selftest {
         Assert 'the shipped base binds no key and sets nothing' (-not @((Get-Preset $null).ini).Count)
         $script:PresetDir = "$tmp\presets"
         # One key per adjacent pair of layers: shipped base < shipped < local base < local.
-        Put "$tmp\presets\_base.json" '{"ini":[{"key":"ToggleKey","value":"0x7C"},{"key":"TransferStrength","value":"0.9"}]}'
+        Put "$tmp\presets\_base.json" '{"ini":[{"key":"ToggleKey","value":"0x7C"},{"key":"FpsCycleShortcutKey","value":"0x7E"},{"key":"TransferStrength","value":"0.9"}]}'
         Put "$tmp\presets\fx.json" '{"title":"Fx","match":{"exe":["fxgame.exe"]},"ini":[{"key":"RestoreGraphicSignature","value":"true"},{"key":"Dx11Upscaler","value":"fsr22"},{"key":"TransferStrength","value":"0.7"},{"key":"LocalTone","value":"0.6"}],"manual":["DLSS Quality"],"sources":[{"url":"https://example.com","asOf":"2026-09-23"}],"recheck":"x"}'
         Put "$tmp\data\presets\_base.json" '{"ini":[{"key":"LocalTone","value":"0.5"},{"key":"Intensity","value":"1.2"}]}'
         Put "$tmp\data\presets\fx.json" '{"ini":[{"key":"Dx11Upscaler","value":"dlss_12"},{"key":"Intensity","value":"1.1"}]}'
@@ -1299,15 +1301,15 @@ function Do-Selftest {
 
         # capture: the overlay's Save Settings respells every value and changes some
         Put "$tmp\data\presets\_base.json" '{"ini":[{"key":"LocalTone","value":"0.5"},{"key":"Intensity","value":"1.2"},{"key":"WhitePointScale","value":"1.3"}]}'
-        $saved = (Get-Content -LiteralPath $pgi -Raw) -replace 'ToggleKey=0x7C', 'ToggleKey=0x7c' -replace 'TransferStrength=0\.7', 'TransferStrength=0.700000' -replace 'LocalTone=0\.5', 'LocalTone=0.300000' -replace 'FpsShortcutKey=auto', 'FpsShortcutKey=0x7d' -replace 'LogLevel=2', 'LogLevel=4' -replace 'AutoCapture=false', 'AutoCapture=true' -replace 'FGShortcutKey=auto', 'FGShortcutKey=0'
+        $saved = (Get-Content -LiteralPath $pgi -Raw) -replace 'ToggleKey=0x7C', 'ToggleKey=124' -replace 'FpsCycleShortcutKey=0x7E', 'FpsCycleShortcutKey=0x7e' -replace 'TransferStrength=0\.7', 'TransferStrength=0.700000' -replace 'LocalTone=0\.5', 'LocalTone=0.300000' -replace 'FpsShortcutKey=auto', 'FpsShortcutKey=0x7d' -replace 'LogLevel=2', 'LogLevel=4' -replace 'AutoCapture=false', 'AutoCapture=true' -replace 'FGShortcutKey=auto', 'FGShortcutKey=0'
         Set-Content -LiteralPath $pgi -Value $saved -NoNewline
         $pre = Tree $pg
         $cap = @(Do-Capture $pg)
         $cj = LoadJson "$tmp\data\presets\fx.json"; $cv = @{}; foreach ($e in $cj.ini) { $cv[$e.key] = $e.value }
         Assert 'capture writes changed allow-listed keys into the local preset and keeps its earlier keys' ($cv.LocalTone -eq '0.300000' -and $cv.FpsShortcutKey -eq '0x7d' -and $cv.Dx11Upscaler -eq 'dlss_12' -and $cv.Intensity -eq '1.1')
-        Assert 'capture skips a value Save Settings only respelled' (-not $cv.ContainsKey('ToggleKey') -and -not $cv.ContainsKey('TransferStrength'))
+        Assert 'capture skips a value Save Settings only respelled' (-not $cv.ContainsKey('FpsCycleShortcutKey') -and -not $cv.ContainsKey('TransferStrength'))
         Assert 'capture ignores a base edited after apply' (-not $cv.ContainsKey('WhitePointScale'))
-        Assert 'capture lists unknown keys, AutoCapture with its warning, and invalid values, without capturing them' (-not $cv.ContainsKey('LogLevel') -and -not $cv.ContainsKey('AutoCapture') -and -not $cv.ContainsKey('FGShortcutKey') -and @($cap | Where-Object { $_ -like '*LogLevel=4 (not on the preset allow-list)' -or $_ -like '*AutoCapture=true (never captured. Set it back to false*' -or $_ -like '*FGShortcutKey=0 (value for FGShortcutKey must be a virtual-key code*' }).Count -eq 3)
+        Assert 'capture lists unknown keys, AutoCapture with its warning, and invalid values, without capturing them' (-not $cv.ContainsKey('LogLevel') -and -not $cv.ContainsKey('AutoCapture') -and -not $cv.ContainsKey('FGShortcutKey') -and -not $cv.ContainsKey('ToggleKey') -and @($cap | Where-Object { $_ -like '*LogLevel=4 (not on the preset allow-list)' -or $_ -like '*AutoCapture=true (never captured. Set it back to false*' -or $_ -like '*FGShortcutKey=0 (value for FGShortcutKey must be a virtual-key code*' -or $_ -like '*ToggleKey=124 (value for ToggleKey must be a virtual-key code*' }).Count -eq 4)
         Assert 'capture never writes the game folder' (SameTree (Tree $pg) $pre)
         Put "$bs\.provisioned.json" '{"tag":"vnext"}'
         Assert 'capture refuses when the build was re-provisioned since the apply' (Throws { Do-Capture $pg } "*now 'vnext'*applied from 'vtest'*")
