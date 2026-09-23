@@ -117,8 +117,9 @@ is outside a repository, the whole run follows these rules:
 - Pass targets to the detector as absolute paths, and use the `file=` path it reports as the
   path everywhere else in the run. It may be relative (to `CLAUDE_PROJECT_DIR`, else the git
   toplevel or cwd) when the target sits under that directory.
-- A directory target expands to every `*.md` beneath it, untracked and vendored files included,
-  and the detector prints a "could not confirm a work tree" line on stderr. Both are expected.
+- A directory target expands to every `*.md` beneath it, untracked and vendored files included.
+  The detector usually prints a "could not confirm a work tree" line on stderr; a target inside
+  a `.git` directory is walked with no message. Both are expected.
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
   inclusion. The detector sorts its own target list by path, so apply this order to the report
   and the rubric batches, not to the detector's output.
@@ -126,9 +127,22 @@ is outside a repository, the whole run follows these rules:
   the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
   applies only when it matches the path as the detector sees it.
 - No findings file: none is written, and the fix flow's closing re-emit is skipped.
-- A `fix` run has no git history to undo an edit. Copy each file to the session scratchpad
-  before editing it and name the copy in the per-file report. Restore from it only the hunks
-  verification flags; an edit that passes stays.
+- A `fix` run has no git history to undo an edit, so back up each file before editing it:
+  - Create one new directory per run, `<scratchpad>/ai-slop-fix-<TS>/` (`TS` as in
+    [`context/persist-findings.md`](context/persist-findings.md)). The backup path mirrors the
+    file's full absolute path under it, with a drive letter as a directory. Never name a
+    backup by basename alone: a target holds many files named `SKILL.md`.
+  - If the backup path already exists, do not edit the file. Stop and report it.
+  - Next to each backup, write `<backup>.source` holding the file's absolute path.
+  - Verification takes the backup as the "before" file. Before restoring any hunk, read
+    `<backup>.source` and confirm it equals the file being restored; on a mismatch restore
+    nothing and report it. Restore only the hunks verification flags; an edit that passes
+    stays. Name the backup path in the per-file report.
+
+  Example, run directory `R`: `C:/Users/me/.claude/skills/a/SKILL.md` backs up to
+  `R/C/Users/me/.claude/skills/a/SKILL.md`, and `C:/Users/me/.claude/skills/b/SKILL.md` to
+  `R/C/Users/me/.claude/skills/b/SKILL.md`. The two never collide, and each `.source` file
+  names its own original, so a restore meant for `a` can never write `b`'s content.
 - Rubric batch lists and result files go under the session scratchpad, else the system temp
   directory, per [`context/rubric-fanout.md`](context/rubric-fanout.md).
 - `rule-style-shift` is not evaluable, because there is no history to compare against. Report

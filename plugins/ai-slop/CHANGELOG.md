@@ -9,8 +9,9 @@
   --is-inside-work-tree`, stops and asks for a path when an empty target has no repository, and
   for such a run passes absolute paths, orders by modification time, writes no findings file,
   keeps rubric batch files in the session scratchpad, and reports `rule-style-shift` as not
-  evaluable. A `fix` run copies each file to the scratchpad before editing, since no git
-  history can undo the edit. The skill also says config comes from the session, not the
+  evaluable. A `fix` run backs each file up first, since no git history can undo the edit: the
+  backup path mirrors the file's absolute path under a per-run scratchpad directory, an
+  existing backup stops the edit, and a restore checks the backup's recorded source path. The skill also says config comes from the session, not the
   target, and "does not scan" now names text outside markdown files instead of non-repo text.
 - **`catalog.md` "Known limitation"** said a double-quoted span wrapped across a line escaped
   the exemption. The detector carries an open span across lines; the limit is a blank line or
