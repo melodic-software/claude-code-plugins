@@ -167,7 +167,9 @@ After tuning a game in the overlay and pressing Save Settings, `capture` saves t
 game's local per-game preset:
 
 1. It reads the manifest, so the mod must be applied. What apply wrote is the build's stock
-   `OptiScaler.ini` (from `builds\<build>`) with the manifest's `iniEdits` over it. <!-- portability-ok: Windows path, not a shell regex -->
+   `OptiScaler.ini` (from `builds\<build>`) with the manifest's `iniEdits` over it. When the <!-- portability-ok: Windows path, not a shell regex -->
+   build's `.provisioned.json` tag no longer matches the manifest's `tag`, `capture` refuses: the
+   new stock defaults would read as tuning.
 2. It compares each key in the game's `OptiScaler.ini` to that, by value: `0x7c` equals `0x7C`,
    and `0.700000` equals `0.7`.
 3. A changed key on the allow-list, with a valid value, goes into the local preset, with a `why` of

@@ -26,7 +26,8 @@ All notable changes to the `gaming` plugin are documented here. Format follows
   ini with the manifest's `iniEdits` over it), comparing values so Save Settings' `0x7c` and
   `1.000000` spellings are not changes. It merges changed allow-listed keys into the game's local
   per-game preset and lists every other changed key, `AutoCapture` with a reminder to set it back
-  to `false`. It never writes into the game folder.
+  to `false`. It refuses when the build was re-provisioned under another tag since the apply, and
+  it never writes into the game folder.
 - Community presets: shipped per-game presets are the community channel, contributed by issue or
   pull request with evidence. The plugin never fetches presets at runtime. The router suggests
   upstreaming a captured preset.

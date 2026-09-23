@@ -873,6 +873,10 @@ function Do-Capture($root) {
     if (-not $own -and @($layers | Where-Object source -in 'shipped', 'local').Count) { throw "preset '$key' exists and does not match this game; pick another key. Nothing was written" }
     $stock = Join-Path $script:DataDir "builds\$($mj.build)\OptiScaler.ini"
     if (-not (Test-Path -LiteralPath $stock -PathType Leaf)) { throw "missing stock ini $stock (run /gaming:setup apply). Nothing was written" }
+    # A re-provisioned build's new stock defaults would read as overlay tuning.
+    $tagNow = (LoadJson (Join-Path $script:DataDir "builds\$($mj.build)\.provisioned.json")).tag
+    if ($mj.tag -and $tagNow -ne $mj.tag) { throw "the $($mj.build) build is now '$tagNow', but this game was applied from '$($mj.tag)', so its stock ini no longer matches. Nothing was written" }
+    if (-not $mj.tag) { "note: this manifest predates recorded build tags; the diff assumes $($mj.build) is unchanged since the apply" }
     $want = Read-Ini $stock
     foreach ($e in @($mj.iniEdits)) { if ($e) { $want["$($e.section)/$($e.key)"] = $e.value } }
     $now = Read-Ini (Join-Path $root 'OptiScaler.ini')
@@ -1302,6 +1306,9 @@ function Do-Selftest {
         Assert 'capture ignores a base edited after apply' (-not $cv.ContainsKey('WhitePointScale'))
         Assert 'capture lists unknown keys, AutoCapture with its warning, and invalid values, without capturing them' (-not $cv.ContainsKey('LogLevel') -and -not $cv.ContainsKey('AutoCapture') -and -not $cv.ContainsKey('FGShortcutKey') -and @($cap | Where-Object { $_ -like '*LogLevel=4 (not on the preset allow-list)' -or $_ -like '*AutoCapture=true (never captured. Set it back to false*' -or $_ -like '*FGShortcutKey=0 (value for FGShortcutKey must be a virtual-key code*' }).Count -eq 3)
         Assert 'capture never writes the game folder' (SameTree (Tree $pg) $pre)
+        Put "$bs\.provisioned.json" '{"tag":"vnext"}'
+        Assert 'capture refuses when the build was re-provisioned since the apply' (Throws { Do-Capture $pg } "*now 'vnext'*applied from 'vtest'*")
+        Put "$bs\.provisioned.json" '{"tag":"vtest"}'
         $script:Preset = 'other'
         Assert 'capture refuses a key other than the game''s own preset' (Throws { Do-Capture $pg } "*preset is 'fx'*")
         $script:Preset = 'fx'
