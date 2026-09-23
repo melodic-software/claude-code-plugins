@@ -399,9 +399,14 @@ function Find-XboxGames {
 }
 function Find-Games {
     $script:Unchecked = @()
-    @(foreach ($f in 'Find-SteamGames', 'Find-EpicGames', 'Find-EaGames', 'Find-BattleNetGames', 'Find-GogGames', 'Find-UbisoftGames', 'Find-XboxGames') {
+    $all = @(foreach ($f in 'Find-SteamGames', 'Find-EpicGames', 'Find-EaGames', 'Find-BattleNetGames', 'Find-GogGames', 'Find-UbisoftGames', 'Find-XboxGames') {
             try { & $f } catch { $script:Unchecked += "$($f -replace '^Find-|Games$'): $($_.Exception.Message)" }
         })
+    # A record left behind by an uninstall names a folder that is gone: reported, not listed.
+    foreach ($g in $all) {
+        if (Test-Path -LiteralPath $g.installDir -PathType Container) { $g }
+        else { $script:Unchecked += "$($g.launcher): $($g.name) is recorded at $($g.installDir), which does not exist" }
+    }
 }
 # The launcher a game directory came from: the deepest discovered install that contains it, then an
 # on-disk marker in the directory or an ancestor. Neither is 'unknown'.
@@ -803,6 +808,7 @@ function Do-Assess($root) {
     $refusals = @()
     if (-not $hasExe) { $refusals += "no *.exe in $root; pass the directory that holds the game executable" }
     elseif (-not $ups) { $refusals += $NoUpscaler }
+    elseif (-not $free) { $refusals += "no free proxy name: $($ProxyNames -join ', ') all exist in $root" }
     $verdict = if (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
     [pscustomobject]@{
         gameDir = $root; gameRoot = $gameRoot; gameKey = (GameKey $root)
@@ -1241,6 +1247,11 @@ function Do-Selftest {
         Put "$($d1)Program Files\ModifiableWindowsApps\Gears\appxmanifest.xml" (& $appx 'ms-resource:AppName')
         Put "$($d2).GamingRoot" 'garbage'
         Put "$($d2)XboxGames\Halo\appxmanifest.xml" (& $appx 'Halo Fixture')
+        foreach ($p in "$l2\steamapps\common\Ack Game", "$l2\steamapps\common\Clean Game", "$l2\steamapps\common\Listed", "$sp\steamapps\common\MainLib",
+            "$tmp\epic\EpicGame", "$tmp\epic\Two", "$tmp\origin\Old Game", "$tmp\bnet\Overwatch", "$tmp\bnet\Quoted", "$tmp\bnet\Nameless Game", "$tmp\gog\Witcher 3", "$tmp\ubi\Siege") {
+            New-Item -ItemType Directory -Force -Path $p | Out-Null
+        }
+        $script:Reg["$un\Gone"] = @{ DisplayName = 'Gone Game'; InstallLocation = "$tmp\bnet\Gone"; UninstallString = 'Battle.net.exe --uid=g' }
         # A manifest another process holds open sorts first; the manifests after it still load
         Put "$l2\steamapps\appmanifest_000.acf" 'locked'
         $lock = [IO.File]::Open("$l2\steamapps\appmanifest_000.acf", 'Open', 'Read', 'None')
@@ -1253,6 +1264,7 @@ function Do-Selftest {
         Assert 'discover EA app: installerdata.xml under an EA root' (& $has 'EA app' 'EA SPORTS FC 26' "$tmp\ea\EA SPORTS FC 26")
         Assert 'discover Origin: .mfst dipInstallPath' (& $has 'Origin' 'Old Game' "$tmp\origin\Old Game")
         Assert 'discover Battle.net: Uninstall entries with --uid only' ((& $has 'Battle.net' 'Overwatch' "$tmp\bnet\Overwatch") -and -not @($found | Where-Object name -eq 'Other').Count)
+        Assert 'discover: a record whose folder is gone is reported, not listed' (-not @($found | Where-Object name -eq 'Gone Game').Count -and @($script:Unchecked | Where-Object { $_ -like 'Battle.net: Gone Game is recorded at*does not exist' }).Count -eq 1)
         Assert 'discover: a record with no display name is named after its folder' (& $has 'Battle.net' 'Nameless Game' "$tmp\bnet\Nameless Game")
         Assert 'discover: a quoted folder is unquoted; a drive-relative one is skipped' ((& $has 'Battle.net' 'Quoted' "$tmp\bnet\Quoted") -and -not @($found | Where-Object name -eq 'Relative').Count)
         Assert 'discover: a stale Ubisoft key does not stop the rest' (-not @($script:Unchecked | Where-Object { $_ -like 'Ubisoft*' }).Count)
@@ -1391,6 +1403,9 @@ function Do-Selftest {
         Assert 'assess reports on-disk anti-cheat as a signal needing acknowledgement' ($aa.antiCheat.status -eq 'signals' -and $aa.acknowledgementRequired -and @($aa.antiCheat.signals | Where-Object { $_ -like 'on disk:*EasyAntiCheat' }).Count -eq 1)
         $ca = (Do-Assess $c) | ConvertFrom-Json
         Assert 'assess lists dxgi.dll collision, not as a free proxy' ('dxgi.dll' -in $ca.proxyCollisions -and 'dxgi.dll' -notin $ca.freeProxies)
+        $np = "$w\noproxy\Win64"; Put "$np\game.exe" 'exe'; Put "$np\nvngx_dlss.dll" 'dlss'; foreach ($x in $ProxyNames) { Put "$np\$x" 'own' }
+        $npa = (Do-Assess $np) | ConvertFrom-Json
+        Assert 'assess: every proxy name taken is unknown with a reason' ($npa.verdict -eq 'unknown' -and @($npa.refusals | Where-Object { $_ -like 'no free proxy name*' }).Count -eq 1)
         $k = "$w\clean\Win64"; Put "$k\game.exe" 'exe'; Put "$k\nvngx_dlss.dll" 'dlss'
         $ka = (Do-Assess $k) | ConvertFrom-Json
         Assert 'assess: clean fixture from no known launcher is eligible, anti-cheat unknown' ($ka.verdict -eq 'eligible' -and $ka.launcher -eq 'unknown' -and $ka.gameName -eq 'clean' -and $ka.antiCheat.status -eq 'unknown' -and $ka.acknowledgementRequired)

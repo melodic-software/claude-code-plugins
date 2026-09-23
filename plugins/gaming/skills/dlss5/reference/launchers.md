@@ -17,8 +17,8 @@ game; `assess` prints `launcher`, `launcherSource` and `gameName`.
 | Ubisoft Connect | `HKLM\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\<id>` and the 64-bit view, `InstallDir` (forward slashes) | <!-- portability-ok: Windows registry path, not a shell regex --> |
 | Xbox app / Game Pass | Each fixed drive's `.GamingRoot` (magic `0x58424752`, a folder count, UTF-16 folder names), then each folder's subfolders holding `appxmanifest.xml` at their root or under `Content`; plus `<drive>\Program Files\ModifiableWindowsApps` | `.GamingRoot` is undocumented by Microsoft. When it is missing, malformed, or lists 255 or more folders, the script falls back to `<drive>\XboxGames` and says so |
 
-Everything discovery could not read is listed in `unchecked` by `discover` and in
-`discoveryGaps` by `assess`. A gap there can explain a launcher of `unknown`, such as a Battle.net
+Everything discovery could not read, and every record whose folder no longer exists, is listed in
+`unchecked` by `discover` and in `discoveryGaps` by `assess`. A gap there can explain a launcher of `unknown`, such as a Battle.net
 game with no Uninstall entry. It does not change the anti-cheat status, whose own `unchecked` list
 names the anti-cheat sources that could not be read.
 
