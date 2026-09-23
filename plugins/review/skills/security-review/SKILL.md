@@ -90,7 +90,9 @@ that reasoning. If you find no security issues, say so plainly.
 ## High-signal bar
 
 Exclude pre-existing issues, linter-catchable noise, and generic security advice
-without a concrete exploitable path in this diff. Committable suggestion fences
+without a concrete exploitable path in this diff. Each finding gives the file and
+line, why it is wrong, and that exploit path: the input or request that shows it
+failing. Committable suggestion fences
 (GitHub `suggestion` code blocks) only when the suggestion alone fully fixes the
 anchored finding.
 

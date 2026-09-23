@@ -221,7 +221,7 @@ Report the final verification results as a summary table.
 
 ### Phase 8: Summary report
 
-Present a final report. Scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + resolved-in-run and remaining-deferrals sections. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
+Present a final report. It opens with the remaining deferrals, the items waiting on the user; then scope + files-scanned + a per-group results table (`# | Group | Files | Changes | Deferred | Verification`) + final cross-ecosystem verdict + the resolved-in-run section. Full template in [context/reference.md](context/reference.md) "Summary report template (Phase 8)".
 
 When any HARD path was lifted, add a `## Lifted HARD exclusions` section naming each path and the channel that lifted it (`override` flag, overrides file, or `hard_exclusions=advisory`). Omit the section when nothing was lifted; never print it empty.
 

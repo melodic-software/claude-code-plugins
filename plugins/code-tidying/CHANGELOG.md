@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-09-23
+
+### Changed
+
+- `batch-simplify`'s summary report opens with the remaining deferrals, the items waiting on the
+  user, before the per-group results.
+
 ## [0.22.1] - 2026-09-21
 
 ### Changed

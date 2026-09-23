@@ -3,6 +3,13 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-23
+
+### Changed
+
+- `audit` checks each Phase 2 subagent's evidence before accepting its verdicts and consolidates
+  them into the one Phase 3 report.
+
 ## [0.3.6]
 
 ### Changed

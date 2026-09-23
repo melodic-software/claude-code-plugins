@@ -108,7 +108,7 @@ Read the pre-computed facts (the pre-flight gate above has already screened out 
 
 ## Step 2: Normalize
 
-Run the 5-stage pipeline in [context/findings-normalization.md](context/findings-normalization.md) over every surface's raw output.
+Run the 5-stage pipeline in [context/findings-normalization.md](context/findings-normalization.md) over every surface's raw output. Before a CRITICAL finding enters the report, read its cited `file:line` in the diff; a finding the code does not bear out drops to `low` confidence with that note, never silently removed.
 
 ## Step 3: Persist findings
 
