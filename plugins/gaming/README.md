@@ -23,7 +23,7 @@ directory from one of three places, all yours:
 3. a `runtime_source` you configure: a local or network path, or a plain `https://` URL.
 
 Every copy is checked against the known-good SHA-256 or a valid NVIDIA Authenticode signature
-before use. The licence terms of whatever source you configure are your responsibility. The fork
+before use. The license terms of whatever source you configure are your responsibility. The fork
 builds are downloaded from their public GitHub releases by pinned URL and pinned SHA-256.
 
 ## Safety

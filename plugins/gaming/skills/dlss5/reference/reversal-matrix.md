@@ -19,7 +19,7 @@ snapshot. A clean diff deletes the manifest and keeps the snapshot.
 | `<proxy>` (default `dxgi.dll`) | The fork's `OptiScaler.dll`, installed under the proxy name |
 | `OptiScaler.ini` | Fork config, edited on install: `[DlssNr] Enabled=true`, `AutoCapture=false`; `[Log] LogToFile=true`, `LogLevel=2`; `RestoreComputeSignature=true` when requested |
 | `OptiScaler\*` | The fork's support tree |
-| `Licenses\*` | The fork's licence files |
+| `Licenses\*` | The fork's license files |
 | `nvngx.dll_dlssnr.dll` | Dagherbou build only: the forwarder the runtime's caller gate requires |
 | `nvngx_dlssnr.dll` | A copy of the NVIDIA runtime DLL, one per game folder |
 

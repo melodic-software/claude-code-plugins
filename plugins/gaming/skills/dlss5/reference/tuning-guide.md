@@ -21,7 +21,7 @@ any title.
 |---|---|---|
 | Output resolution | Native (3840x2160 there) | NR cost follows output resolution |
 | In-game DLSS mode | **Quality, not Auto** | Auto picked Performance (1080p internal at 4K). The overlay's `Target Res: 5760x3240 (3.00)` line was Output Scaling's disabled preview, and `3.00` was the tell; the fix was DLSS Quality, not a resolution change |
-| Model controls | Defaults: Detail 1.0, Colour 1.0 | The fork's README: 1.0 is the model's picture, and above 1 is exaggeration |
+| Model controls | Defaults: Detail 1.0, Color 1.0 | The fork's README: 1.0 is the model's picture, and above 1 is exaggeration |
 | Model resolution (`WorkingScale`) | 100% (1.0) | Above 1.0 supersamples, and cost grows with area |
 | `[DlssNr] AutoCapture` | `false`, always | Its default writes uncompressed frame captures into the game folder. `apply` sets it; keep it |
 | Reversible proxy | Hybrid proxy + composed | The fork author's stated recommendation; the default is Off |
