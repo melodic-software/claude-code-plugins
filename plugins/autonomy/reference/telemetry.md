@@ -164,9 +164,9 @@ monitoring or hooks page, so a binding has nothing to show which memory an unatt
 with. Two neighbors are partly covered. Topic files are read on demand with the standard file
 tools, per the [memory page](https://code.claude.com/docs/en/memory), so those reads surface as
 ordinary tool events; the event names no path by default, so a read is identifiable as a memory
-read only from a tool hook's input or with the page's tool-detail flag, which also exports argument
-content. That page does not say how memory writes are made. Instruction files are
-reported by the [`InstructionsLoaded` hook](https://code.claude.com/docs/en/hooks#instructionsloaded)
+read only from a tool hook's input or with the monitoring page's `OTEL_LOG_TOOL_DETAILS`, which
+also exports argument content. The memory page does not say how memory writes are made.
+Instruction files are reported by the [`InstructionsLoaded` hook](https://code.claude.com/docs/en/hooks#instructionsloaded)
 with path and load reason, except an `AGENTS.md` read directly through the Project instructions
 setting, and a binding that needs that evidence wraps the hook.
 
