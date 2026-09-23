@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Spawn budget for pr-body-linkage-gate.sh and pr-linkage-mcp-gate.sh (#3509).
+# Spawn budget for the four PR gates on the Bash and GitHub MCP surfaces: the
+# PR-body linkage pair pr-body-linkage-gate.sh and pr-linkage-mcp-gate.sh, and
+# the ready-for-review evidence pair pr-ready-evidence-gate.sh and
+# pr-ready-evidence-mcp-gate.sh.
 #
 # WHY A SEPARATE SUITE — the two gates' own contract suites
 # (pr-body-linkage-gate.test.sh, pr-linkage-mcp-gate.test.sh) assert what the
@@ -47,6 +50,8 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASH_GATE="$HOOK_DIR/pr-body-linkage-gate.sh"
 MCP_GATE="$HOOK_DIR/pr-linkage-mcp-gate.sh"
+READY_GATE="$HOOK_DIR/pr-ready-evidence-gate.sh"
+READY_MCP_GATE="$HOOK_DIR/pr-ready-evidence-mcp-gate.sh"
 
 PASS=0
 FAIL=0
@@ -279,6 +284,123 @@ if grep -q 'printf -v "\$__plv_dest" %s "\$(printf' "$MUT/pr-linkage-validator.s
   fi
 else
   fail "could not build mutant C -- the validator fork check is vacuous"
+fi
+
+# --- 3. The ready-for-review evidence pair ------------------------------------
+# Same method, a different shape of budget. These two gates are advisory and
+# exit 0 whatever they find, so an exit code proves nothing about whether they
+# DECIDED anything; the non-vacuity check here is that the in-scope path emits
+# `additionalContext` and the out-of-scope path emits nothing at all.
+#
+# The number that matters most is the OUT-OF-SCOPE one. Both gates sit behind a
+# filter that fires on far more calls than they judge, so the cost a consumer
+# pays on an ordinary `gh` call is the library floor and nothing else: the
+# repository resolution, the base refs, the ledger read and skill-evidence.sh
+# all sit BELOW the segment match. A change that hoists any of them above it is
+# exactly what the out-of-scope ceilings here refuse.
+EVREPO="$WORK/evrepo"
+mkdir -p "$EVREPO/.claude/observability"
+git -C "$EVREPO" init -q 2>/dev/null
+git -C "$EVREPO" config user.email budget@example.invalid
+git -C "$EVREPO" config user.name "Budget Fixture"
+git -C "$EVREPO" remote add origin https://github.com/melodic-software/claude-code-plugins.git 2>/dev/null
+printf 'echo base\n' >"$EVREPO/a.sh"
+{
+  printf '# source-control config\n\n## pr_skill_evidence\n\n'
+  # shellcheck disable=SC2016  # the pattern field is a literal markdown code span
+  printf -- '- code | `**/*.sh` | verification:confirm! simplify\n'
+} >"$EVREPO/.claude/source-control.md"
+git -C "$EVREPO" add -A
+git -C "$EVREPO" commit -qm base
+git -C "$EVREPO" branch -q -M main
+git -C "$EVREPO" update-ref refs/remotes/origin/main HEAD
+git -C "$EVREPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+git -C "$EVREPO" checkout -qb work
+printf 'echo work\n' >>"$EVREPO/a.sh"
+git -C "$EVREPO" commit -qam work
+# The number the create step records: a numbered flip is matched against it
+# before the ledger is read, one `git config` spawn on the in-scope paths.
+git -C "$EVREPO" config branch.work.pr-number 1
+EV_HEAD="$(git -C "$EVREPO" rev-parse HEAD)"
+: >"$EVREPO/.claude/observability/skill-usage.jsonl"
+
+ev_bash_payload() {
+  jq -n --arg cwd "$EVREPO" --arg c "$1" \
+    '{session_id:"budget",cwd:$cwd,tool_name:"Bash",tool_input:{command:$c}}'
+}
+ev_mcp_payload() {
+  jq -n --arg cwd "$EVREPO" --arg t "$1" \
+    '{session_id:"budget",cwd:$cwd,tool_name:$t,tool_input:{owner:"melodic-software",repo:"claude-code-plugins",pullNumber:1,draft:false}}'
+}
+ev_bash_payload 'gh issue view 3' >"$WORK/p-ev-out.json"
+ev_bash_payload 'gh pr ready 1' >"$WORK/p-ev-in.json"
+ev_mcp_payload Read >"$WORK/p-ev-mcp-out.json"
+ev_mcp_payload mcp__github__update_pull_request >"$WORK/p-ev-mcp-in.json"
+
+# Ceilings are the measured steady-state counts on a Bash 5 host, with a small
+# and deliberate allowance: hook-utils.sh answers a plain field read without jq
+# only on Bash 4 or newer, so a Bash 3.2 host pays the library's jq fallback on
+# top of these paths. The allowance covers that fallback and nothing else.
+#
+# The in-scope numbers are dominated by scripts/skill-evidence.sh, which is a
+# separate process that runs its own git and jq work; they are the cost of one
+# ready flip per pull request, not a per-tool-call cost.
+budget "ready gate / gh call that is not a flip" "$READY_GATE" "$WORK/p-ev-out.json" 7 2
+# The two flip ceilings carry one `git config` read each: the pull request the
+# call names is matched to this branch's recorded number before the ledger is
+# read, so a flip of another pull request is never judged by this branch.
+budget "ready gate / a ready flip" "$READY_GATE" "$WORK/p-ev-in.json" 43 46
+budget "ready mcp gate / unrelated tool" "$READY_MCP_GATE" "$WORK/p-ev-mcp-out.json" 8 3
+budget "ready mcp gate / a ready flip" "$READY_MCP_GATE" "$WORK/p-ev-mcp-in.json" 47 48
+
+# emits/says_nothing <label> <hook> <payload>: the verdict half, since these
+# gates never signal through their exit status.
+emits() {
+  local label="$1" out
+  out=$(bash "$2" <"$3" 2>/dev/null)
+  if [[ "$out" == *additionalContext* ]]; then
+    ok "$label"
+  else
+    fail "$label: no additionalContext -- the budget above is measuring a no-op"
+  fi
+}
+says_nothing() {
+  local label="$1" out
+  out=$(bash "$2" <"$3" 2>/dev/null)
+  if [[ -z "$out" ]]; then
+    ok "$label"
+  else
+    fail "$label: expected silence, got: $out"
+  fi
+}
+emits "ready gate still NUDGES a flip with no evidence" "$READY_GATE" "$WORK/p-ev-in.json"
+says_nothing "ready gate still ignores a non-flip" "$READY_GATE" "$WORK/p-ev-out.json"
+emits "ready mcp gate still NUDGES draft:false with no evidence" "$READY_MCP_GATE" "$WORK/p-ev-mcp-in.json"
+says_nothing "ready mcp gate still ignores another tool" "$READY_MCP_GATE" "$WORK/p-ev-mcp-out.json"
+
+# Mutant D: the repository resolution hoisted ABOVE the segment match, which is
+# the defect the out-of-scope ceiling exists to catch: every `gh` call would then
+# pay a git process to answer a question the gate does not ask.
+awk -v head="$EV_HEAD" '
+  /^hook::bash_parse_segments "\$COMMAND" check_segment$/ {
+    print "hook::repo_root_to REPO_ROOT_EARLY \"${HOOK_CWD:-.}\" || :"
+    print $0
+    next
+  }
+  { print }
+' "$READY_GATE" >"$MUT/pr-ready-evidence-gate.sh"
+if grep -q 'REPO_ROOT_EARLY' "$MUT/pr-ready-evidence-gate.sh"; then
+  ok "mutant D built (repo resolution hoisted above the segment match)"
+  run_hook "$MUT/pr-ready-evidence-gate.sh" "$WORK/p-ev-out.json"
+  MUT_D=$CLONES
+  run_hook "$READY_GATE" "$WORK/p-ev-out.json"
+  if ((MUT_D > CLONES)); then
+    ok "mutant D raises clones $CLONES -> $MUT_D (the out-of-scope budget is live)"
+  else
+    fail "mutant D did not raise the clone count ($CLONES -> $MUT_D) -- the out-of-scope budget is vacuous"
+  fi
+else
+  fail "could not build mutant D -- the deferred-resolution check is vacuous"
 fi
 
 echo

@@ -1,5 +1,5 @@
 {
-  "description": "Gates pull-request and worktree operations: a PR body against the repo's PR-contract linkage gate on both the CLI and the GitHub MCP path, and a `git worktree add` target against the nesting invariant.",
+  "description": "Gates pull-request and worktree operations: a PR body against the repo's PR-contract linkage gate on both the CLI and the GitHub MCP path, a ready-for-review flip against the mandatory pre-PR skill evidence on both of those paths, and a `git worktree add` target against the nesting invariant.",
   "hooks": {
     "PreToolUse": [
       {
@@ -14,10 +14,28 @@
           },
           {
             "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-ready-evidence-gate.sh",
+            "if": "Bash(*gh *)",
+            "timeout": 15,
+            "statusMessage": "Checking the ready-for-review flip against the mandatory pre-PR skill evidence..."
+          },
+          {
+            "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-containment-gate.sh",
             "if": "Bash(*worktree*)",
             "timeout": 15,
             "statusMessage": "Checking git worktree add target against the nesting invariant..."
+          }
+        ]
+      },
+      {
+        "matcher": "^mcp__github__update_pull_request$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-ready-evidence-mcp-gate.sh",
+            "timeout": 15,
+            "statusMessage": "Checking the ready-for-review flip against the mandatory pre-PR skill evidence..."
           }
         ]
       },

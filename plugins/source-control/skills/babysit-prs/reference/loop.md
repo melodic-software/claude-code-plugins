@@ -66,7 +66,8 @@ attention as any other, but dependency-authored PRs are never merged autonomousl
 **Draft policy:** drafts stay in the discovery list in
 every tier. In the safe tier a draft is evaluated for terminal state, CI, and unaddressed findings,
 then reported, never fixed, never marked ready. Worker/autopilot draft handling (zero-blocker
-drafts route through a worker; `gh pr ready` only in autopilot) is defined in SKILL.md.
+drafts route through a worker; the `/source-control:pull-request ready` flip only in autopilot) is
+defined in SKILL.md.
 
 **Zero-PR fast path:** if discovery returns an empty list, report `No open PRs need
 attention.` and call `ScheduleWakeup(delaySeconds=1200, reason="no open PRs",

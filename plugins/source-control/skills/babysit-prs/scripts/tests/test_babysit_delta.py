@@ -960,6 +960,156 @@ class GraphQLProvenanceTests(unittest.TestCase):
         self.assertTrue(classify(make_pr(), None)["graphql_available"])
 
 
+class SkillEvidenceGapTests(unittest.TestCase):
+    """`skill_evidence_gap` routes a worker at the PR's mandatory-skill gap.
+
+    Every case below runs on a clean, non-draft, zero-blocker PR, which is the
+    one the direct merge gate would otherwise take without a worker -- and the
+    merge gate can neither run a skill nor render the block, so this arm is
+    unsuppressible. `PREV` names a check-in at another head so the suppressible
+    arms stay suppressed and the reason under test is the only one left.
+    """
+
+    PREV = {"last_worker_checkin_head_sha": OLD}
+
+    def _classify(self, **over: object) -> dict[str, object]:
+        return classify(make_pr(**over), make_prev(**self.PREV))
+
+    def test_a_gate_record_reporting_a_gap_dispatches_a_worker(self) -> None:
+        result = self._classify(skillEvidence={"present": True, "gap": True})
+
+        self.assertTrue(result["needs_worker"])
+        self.assertTrue(result["skill_evidence_gap"])
+        self.assertEqual(result["needs_worker_reasons"], ["skill_evidence_gap"])
+
+    def test_an_absent_block_dispatches_a_worker(self) -> None:
+        # The parsed record `view_pr` attaches carries no freshness verdict,
+        # only whether the block is there at all.
+        result = self._classify(skillEvidence={"present": False, "rows": []})
+
+        self.assertTrue(result["needs_worker"])
+        self.assertIn("skill_evidence_gap", result["needs_worker_reasons"])
+
+    def test_a_raw_body_with_no_block_is_read_the_same_way(self) -> None:
+        result = self._classify(body="## Verification\n\nnothing here\n")
+
+        self.assertTrue(result["skill_evidence_gap"])
+
+    def test_a_raw_body_carrying_a_block_reports_no_gap(self) -> None:
+        body = (
+            "## Verification\n\n```skill-evidence\n"
+            f"verification:confirm {HEAD} 2026-07-10T00:00:00Z\n```\n"
+        )
+        result = self._classify(body=body)
+
+        self.assertFalse(result["skill_evidence_gap"])
+        self.assertFalse(result["needs_worker"])
+
+    def test_a_clean_record_dispatches_nothing(self) -> None:
+        result = self._classify(skillEvidence={"present": True, "gap": False})
+
+        self.assertFalse(result["skill_evidence_gap"])
+        self.assertFalse(result["needs_worker"])
+
+    def test_a_parsed_record_with_a_row_at_the_head_reports_no_gap(self) -> None:
+        # The shape `view_pr` attaches: no `gap` verdict, only what the body
+        # claims. A row at the live head is the terminal seal.
+        result = self._classify(
+            skillEvidence={
+                "present": True,
+                "parsed": True,
+                "rows": [
+                    {"skill": "verification:confirm", "sha": HEAD, "timestamp": OBS}
+                ],
+                "blocks": 1,
+            }
+        )
+
+        self.assertFalse(result["skill_evidence_gap"])
+        self.assertFalse(result["needs_worker"])
+
+    def test_a_parsed_record_whose_rows_predate_the_head_is_a_gap(self) -> None:
+        # The block was rendered for an earlier head: stale by construction,
+        # and the worker is the only thing that can re-render it.
+        result = self._classify(
+            skillEvidence={
+                "present": True,
+                "parsed": True,
+                "rows": [
+                    {"skill": "verification:confirm", "sha": OLD, "timestamp": OBS}
+                ],
+                "blocks": 1,
+            }
+        )
+
+        self.assertTrue(result["skill_evidence_gap"])
+        self.assertEqual(result["needs_worker_reasons"], ["skill_evidence_gap"])
+
+    def test_a_present_block_that_does_not_parse_is_a_gap(self) -> None:
+        result = self._classify(
+            skillEvidence={"present": True, "parsed": False, "rows": [], "blocks": 1}
+        )
+
+        self.assertTrue(result["skill_evidence_gap"])
+
+    def test_a_raw_body_whose_block_predates_the_head_is_a_gap(self) -> None:
+        body = (
+            "## Verification\n\n```skill-evidence\n"
+            f"verification:confirm {OLD} 2026-07-10T00:00:00Z\n```\n"
+        )
+        result = self._classify(body=body)
+
+        self.assertTrue(result["skill_evidence_gap"])
+
+    def test_a_pr_with_neither_field_reports_no_gap(self) -> None:
+        # A snapshot written before the block existed proves nothing about it.
+        result = self._classify()
+
+        self.assertFalse(result["skill_evidence_gap"])
+        self.assertFalse(result["needs_worker"])
+
+    def test_a_draft_is_out_of_scope(self) -> None:
+        result = classify(
+            make_pr(isDraft=True, skillEvidence={"present": False}),
+            make_prev(is_draft=True, **self.PREV),
+        )
+
+        self.assertFalse(result["skill_evidence_gap"])
+        self.assertNotIn("skill_evidence_gap", result["needs_worker_reasons"])
+
+    def test_a_worker_that_checked_in_at_this_head_is_not_re_dispatched(self) -> None:
+        # The gap it could not close must not re-dispatch every cycle; a new
+        # head re-arms the arm on its own.
+        result = classify(
+            make_pr(skillEvidence={"present": False}),
+            make_prev(last_worker_checkin_head_sha=HEAD),
+        )
+
+        self.assertFalse(result["skill_evidence_gap"])
+        self.assertFalse(result["needs_worker"])
+
+    def test_an_external_fork_reports_the_gap_and_dispatches_nothing(self) -> None:
+        # Closing the gap is a commit to the head branch and a body edit, and
+        # this session may do neither on a fork outside the configured owners.
+        # The record still states the gap; only the routing stands down.
+        result = self._classify(
+            skillEvidence={"present": False},
+            isCrossRepository=True,
+            headRepository={"nameWithOwner": "fork/repo"},
+            headRepositoryOwner={"login": "fork"},
+        )
+
+        self.assertFalse(result["mutation_policy"]["branch_write_allowed"])
+        self.assertTrue(result["skill_evidence_gap"])
+        self.assertNotIn("skill_evidence_gap", result["needs_worker_reasons"])
+
+    def test_the_gap_raises_no_blocker(self) -> None:
+        # Advisory: it routes a worker, it never holds the merge.
+        result = self._classify(skillEvidence={"present": False})
+
+        self.assertEqual(result["blockers"], [])
+
+
 class RecommendCadenceTests(unittest.TestCase):
     def test_cadence_precedence(self) -> None:
         self.assertEqual(delta.recommend_cadence([]), "idle")
