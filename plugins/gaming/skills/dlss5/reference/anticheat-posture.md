@@ -143,8 +143,9 @@ token followed by `_` or `-`. Matching is case-insensitive. So `EasyAntiCheat\`,
   not scanned recursively, so a sibling game's anti-cheat in a shared library folder does not flag
   this one.
 
-Anti-cheat installed deeper than that, or delivered by a launcher or a server, leaves nothing the
-scan sees. That is why the web sources above are read too.
+A folder in the scanned game tree that cannot be listed is reported under `unchecked`, so the
+status is at best `unknown`. Anti-cheat installed deeper than that, or delivered by a launcher or
+a server, leaves nothing the scan sees. That is why the web sources above are read too.
 
 ## Per-title records
 

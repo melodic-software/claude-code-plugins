@@ -177,12 +177,14 @@ function IsAntiCheatName($name) {
 # Scans from the game root, not the exe dir: EasyAntiCheat\ sits beside the root while the exe is
 # two or three levels down. ponytail: name match with capped depth; server-side or
 # launcher-delivered anti-cheat leaves nothing on disk, which Get-AntiCheat's web sources cover.
+# A game-tree folder the scan cannot list lands in $script:AcScanGaps, which makes the status unknown.
 function Find-AntiCheat($root) {
+    $err = $null
     $items = if ($root -match '^(.*\\steamapps\\common\\[^\\]+)') {
-        Get-ChildItem -LiteralPath $Matches[1] -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $Matches[1] -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue -ErrorVariable err
     }
     else {
-        Get-ChildItem -LiteralPath $root -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -LiteralPath $root -Recurse -Depth 4 -Force -ErrorAction SilentlyContinue -ErrorVariable err
         $p = $root
         for ($i = 0; $i -lt 4; $i++) {
             $p = Split-Path $p -Parent
@@ -190,6 +192,7 @@ function Find-AntiCheat($root) {
             Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue
         }
     }
+    $script:AcScanGaps = @($err | ForEach-Object { "on-disk scan: $($_.TargetObject) unreadable: $($_.Exception.Message)" })
     @($items | Where-Object { IsAntiCheatName $_.Name } | ForEach-Object FullName | Sort-Object -Unique)
 }
 
@@ -269,17 +272,20 @@ function Game($launcher, $name, $dir, $source) {
     if (-not $dir -or $dir.Contains([char]0) -or -not [IO.Path]::IsPathFullyQualified($dir)) { return }
     $d = [IO.Path]::GetFullPath($dir)
     if ($d.Length -gt 3) { $d = $d.TrimEnd('\') }
-    [pscustomobject]@{ launcher = $launcher; name = "$name".Trim(); installDir = $d; source = $source }
+    # A record with no display name is named after its folder, so the user can still type it.
+    $n = "$name".Trim(); if (-not $n) { $n = Split-Path $d -Leaf }
+    [pscustomobject]@{ launcher = $launcher; name = $n; installDir = $d; source = $source }
 }
 # One bad record is reported and skipped; the rest of that launcher's records still load.
 function Record($label, [scriptblock]$body) { try { & $body } catch { $script:Unchecked += "${label} unreadable: $($_.Exception.Message)" } }
 # Lists a folder; an absent one is silent, one that cannot be listed is reported.
-# Probed directly: Get-ChildItem with -Filter drops an access-denied error silently.
+# The name filter is applied afterwards: Get-ChildItem -Filter drops an access-denied folder, at
+# any depth, without recording an error.
 function ListDir($label, $path, [hashtable]$opts = @{}) {
-    if (-not (Test-Path -LiteralPath $path -PathType Container)) { return }
-    try { $null = [IO.Directory]::EnumerateFileSystemEntries($path).GetEnumerator().MoveNext() }
-    catch { $script:Unchecked += "${label}: $path unreadable: $($_.Exception.InnerException.Message ?? $_.Exception.Message)"; return }
-    Get-ChildItem -LiteralPath $path @opts -Force -ErrorAction SilentlyContinue
+    $pattern = $opts.Filter ?? '*'; $o = @{} + $opts; $o.Remove('Filter')
+    $err = $null
+    Get-ChildItem -LiteralPath $path @o -Force -ErrorAction SilentlyContinue -ErrorVariable err | Where-Object Name -like $pattern
+    foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { $script:Unchecked += "${label}: $($x.TargetObject) unreadable: $($x.Exception.Message)" } }
 }
 function Find-SteamGames {
     $steam = (RegProps 'HKCU:\Software\Valve\Steam').SteamPath
@@ -425,7 +431,7 @@ function Get-Launcher($root) {
 function NormName($s) { "$s".ToLowerInvariant() -replace '[^\p{L}\p{N}]', '' }
 function Get-AntiCheat($root, $launch, $appId) {
     $signals = @(Find-AntiCheat $root | ForEach-Object { "on disk: $_" })
-    $unchecked = @()
+    $unchecked = @($script:AcScanGaps)
     if ($launch.launcher -eq 'Battle.net') {
         $signals += 'Battle.net title: Blizzard EULA sections 1.C.i and 1.C.ii bar modifying the Platform and unauthorized software that changes its functionality (full text in reference/anticheat-posture.md)'
     }
@@ -1222,7 +1228,8 @@ function Do-Selftest {
         $un = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
         $script:Reg["$un\Overwatch"] = @{ DisplayName = 'Overwatch'; InstallLocation = "$tmp\bnet\Overwatch"; UninstallString = '"C:\Program Files (x86)\Battle.net\Battle.net.exe" --uid=prometheus' }
         $script:Reg["$un\Quoted"] = @{ DisplayName = 'Quoted'; InstallLocation = "`"$tmp\bnet\Quoted`""; UninstallString = 'Battle.net.exe --uid=q' }
-        $script:Reg["$un\Relative"] = @{ DisplayName = 'Relative'; InstallLocation = 'C:'; UninstallString = 'Battle.net.exe --uid=r' }
+        $script:Reg["$un\Nameless"] = @{ InstallLocation = "$tmp\bnet\Nameless Game"; UninstallString = 'Battle.net.exe --uid=n' }
+        $script:Reg["$un\Relative"] =@{ DisplayName = 'Relative'; InstallLocation = 'C:'; UninstallString = 'Battle.net.exe --uid=r' }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\999'] = @{}
         $script:Reg["$un\Other"] =@{ DisplayName = 'Other'; InstallLocation = "$tmp\other"; UninstallString = '"C:\Other\unins000.exe"' }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\1207658924'] =@{ gameName = 'The Witcher 3'; path = "$tmp\gog\Witcher 3" }
@@ -1246,6 +1253,7 @@ function Do-Selftest {
         Assert 'discover EA app: installerdata.xml under an EA root' (& $has 'EA app' 'EA SPORTS FC 26' "$tmp\ea\EA SPORTS FC 26")
         Assert 'discover Origin: .mfst dipInstallPath' (& $has 'Origin' 'Old Game' "$tmp\origin\Old Game")
         Assert 'discover Battle.net: Uninstall entries with --uid only' ((& $has 'Battle.net' 'Overwatch' "$tmp\bnet\Overwatch") -and -not @($found | Where-Object name -eq 'Other').Count)
+        Assert 'discover: a record with no display name is named after its folder' (& $has 'Battle.net' 'Nameless Game' "$tmp\bnet\Nameless Game")
         Assert 'discover: a quoted folder is unquoted; a drive-relative one is skipped' ((& $has 'Battle.net' 'Quoted' "$tmp\bnet\Quoted") -and -not @($found | Where-Object name -eq 'Relative').Count)
         Assert 'discover: a stale Ubisoft key does not stop the rest' (-not @($script:Unchecked | Where-Object { $_ -like 'Ubisoft*' }).Count)
         Assert 'discover GOG: GOG.com\Games registry' (& $has 'GOG Galaxy' 'The Witcher 3' "$tmp\gog\Witcher 3")
@@ -1262,8 +1270,15 @@ function Do-Selftest {
         # A library folder that cannot be listed is reported, not read as empty
         $deny = [Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User, 'ListDirectory', 'Deny')
         $acl = Get-Acl -LiteralPath "$l2\steamapps"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
-        try { $null = Find-Games } finally { $acl = Get-Acl -LiteralPath "$l2\steamapps"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl }
+        $od = "$tmp\pd\Origin\LocalContent\Denied"; Put "$od\x.mfst" '?id=x'
+        $acl2 = Get-Acl -LiteralPath $od; $acl2.AddAccessRule($deny); Set-Acl -LiteralPath $od -AclObject $acl2
+        try { $null = Find-Games }
+        finally {
+            $acl = Get-Acl -LiteralPath "$l2\steamapps"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
+            $acl2 = Get-Acl -LiteralPath $od; [void]$acl2.RemoveAccessRule($deny); Set-Acl -LiteralPath $od -AclObject $acl2
+        }
         Assert 'discover: a library that cannot be listed is reported' (@($script:Unchecked | Where-Object { $_ -like "Steam: *lib2\steamapps unreadable*" }).Count -eq 1)
+        Assert 'discover: a nested folder that cannot be listed is reported, and the rest still loads' (@($script:Unchecked | Where-Object { $_ -like 'Origin: *LocalContent\Denied unreadable*' }).Count -eq 1)
         Put "$tmp\rc\a\nvngx_dlssnr.dll" 'held'; Put "$tmp\rc\b\nvngx_dlssnr.dll" 'fakemodel'; Put "$tmp\rc\c\x.txt" 'x'
         $dlock = [IO.File]::Open("$tmp\rc\a\nvngx_dlssnr.dll", 'Open', 'Read', 'None')
         $acl = Get-Acl -LiteralPath "$tmp\rc\c"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$tmp\rc\c" -AclObject $acl
@@ -1321,6 +1336,10 @@ function Do-Selftest {
         $cg = "$l2\steamapps\common\Clean Game"; Put "$cg\clean.exe" 'exe'; Put "$cg\nvngx_dlss.dll" 'dlss'
         $cga = (Do-Assess $cg) | ConvertFrom-Json
         Assert 'Steam with nothing disclosed anywhere: none-disclosed, no acknowledgement, caveat stated' ($cga.antiCheat.status -eq 'none-disclosed' -and -not $cga.acknowledgementRequired -and $cga.antiCheat.note -like '*not proof of no anti-cheat*')
+        New-Item -ItemType Directory -Force -Path "$cg\locked" | Out-Null
+        $acl = Get-Acl -LiteralPath "$cg\locked"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$cg\locked" -AclObject $acl
+        try { $cgl = (Do-Assess $cg) | ConvertFrom-Json } finally { $acl = Get-Acl -LiteralPath "$cg\locked"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$cg\locked" -AclObject $acl; Remove-Item -LiteralPath "$cg\locked" -Force }
+        Assert 'a game folder the on-disk scan cannot list makes the status unknown' ($cgl.antiCheat.status -eq 'unknown' -and @($cgl.antiCheat.unchecked | Where-Object { $_ -like 'on-disk scan:*locked*unreadable*' }).Count -eq 1)
         $script:SteamPages['444'] = '<div class="apphub_AppName">Unlisted Game</div>'
         Put "$l2\steamapps\appmanifest_444.acf" (& $acf 444 'Unlisted Game' 'Unlisted')
         $ul = "$l2\steamapps\common\Unlisted"; Put "$ul\u.exe" 'exe'
