@@ -454,11 +454,13 @@ DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
 # All three flags come from ONE jq process over the same document rather than
 # three: a jq spawn is ~140 ms of fork() emulation on Windows Git Bash. `read`
 # assigns every name it is given even when the stream is short, so all three
-# stay defined under `set -u`.
+# stay defined under `set -u`. A Windows jq build ends the line with CRLF, and
+# the carriage return lands on the last name.
 read -r HAS_LAUNCH HAS_AMBIGUOUS HAS_COMPLETED < <(jq -rn --argjson new "$NEW" '
   [([$new[] | .launchCount > 0]    | any),
    ([$new[] | .ambiguousCount > 0] | any),
    ([$new[] | .completedCount > 0] | any)] | @tsv')
+HAS_COMPLETED="${HAS_COMPLETED%$'\r'}"
 
 # The diagnosis and the remedy are per-class, so several sentences can appear
 # when one warning batches records of different classes; the per-registration

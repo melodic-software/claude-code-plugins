@@ -16,6 +16,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   the cold scan; a partial final line is scanned but not counted; a line-count cursor from an
   earlier version reads as malformed and takes the cold scan once, without re-warning.
 
+### Fixed
+
+- **`hook-failure-audit` no longer drops the completed-non-zero sentence under a CRLF jq.** A
+  Windows jq build ends its `@tsv` line with a carriage return, which made the last class flag read
+  `true\r` and skipped the sentence for a hook that ran and exited non-zero.
+
 ## [0.59.2] - 2026-09-23
 
 ### Changed
