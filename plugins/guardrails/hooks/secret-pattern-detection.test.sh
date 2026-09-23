@@ -95,16 +95,77 @@ RC=$?
 assert_exit "secret AFTER a NUL byte in content → exit 2" 2 "$RC"
 assert_contains "secret after NUL → NUL refusal message" "$OUT" "NUL byte"
 
+# A project root is honored as a scope only when it is a git work tree, so the
+# scoped cases run against a real `git init`'d root. The file paths are read as
+# strings; only the root's `.git` has to exist.
+SCOPE_REPO="$TEST_TMPDIR/scoperepo"
+mkdir -p "$SCOPE_REPO"
+git -C "$SCOPE_REPO" init -q
+
 # In-project secret still blocks when CLAUDE_PROJECT_DIR is set (file under root).
-OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "in-project secret with PROJECT_DIR set → exit 2" 2 "$RC"
 assert_contains "in-project secret → message" "$OUT" "AWS Access Key"
 
 # Trailing slash on CLAUDE_PROJECT_DIR must not skip in-project scans.
-OUT=$(CLAUDE_PROJECT_DIR="/repo/" bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO/" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "trailing-slash PROJECT_DIR still scans in-project file → exit 2" 2 "$RC"
+
+# A backslash spelling of a real repo root is the same root.
+OUT=$(CLAUDE_PROJECT_DIR="${SCOPE_REPO//\//\\}" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "backslash-spelled repo root still scans in-project file → exit 2" 2 "$RC"
+
+# --- A set root that is not a trustworthy scope is treated as unset ----------
+# Claude Code sets CLAUDE_PROJECT_DIR to the launch directory, which can be the
+# home directory or any directory that is not a repository. Honoring such a
+# root would skip every write outside it, so each of these must scan.
+OUTSIDE_FILE="$TEST_TMPDIR/elsewhere/src/config.env"
+NONREPO="$TEST_TMPDIR/nonrepo"
+mkdir -p "$NONREPO"
+OUT=$(CLAUDE_PROJECT_DIR="$NONREPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "non-repo root: outside write still scanned → exit 2" 2 "$RC"
+assert_contains "non-repo root: outside write names the pattern" "$OUT" "AWS Access Key"
+
+# The root carries .git, so only the home comparison can clear it.
+HOME_REPO="$TEST_TMPDIR/homerepo"
+mkdir -p "$HOME_REPO/user"
+git -C "$HOME_REPO" init -q
+OUT=$(env HOME="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is a repo AND home: outside write scanned → exit 2" 2 "$RC"
+OUT=$(env HOME="$HOME_REPO/" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is home with a trailing slash on HOME → exit 2" 2 "$RC"
+OUT=$(env HOME="$HOME_REPO/user" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is a repo that is an ancestor of home → exit 2" 2 "$RC"
+OUT=$(env -u HOME USERPROFILE="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "HOME unset, USERPROFILE is the repo root → exit 2" 2 "$RC"
+
+# A real repo root that is not home keeps its scope: an outside write is skipped.
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "real repo root: outside write → exit 0" 0 "$RC"
+assert_silent "real repo root: outside write → no stderr" "$OUT"
+
+# Windows spellings of the same directory: the root in mixed form (C:/...), HOME
+# in MSYS form (/c/...) with its case folded. Only a real msys/cygwin host with
+# cygpath can build both spellings of one existing directory.
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
+  HOME_REPO_M=$(cygpath -m "$HOME_REPO")
+  HOME_REPO_U="/${HOME_REPO_M:0:1}${HOME_REPO_M:2}"
+  OUT=$(env HOME="${HOME_REPO_U,,}" CLAUDE_PROJECT_DIR="$HOME_REPO_M" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "msys: C:/ root vs lower-cased /c/ HOME is home → exit 2" 2 "$RC"
+  OUT=$(env HOME="${HOME_REPO_U^^}/" CLAUDE_PROJECT_DIR="$HOME_REPO_M/" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "msys: upper-cased /C/ HOME and trailing slashes still match → exit 2" 2 "$RC"
+fi
 
 # ============================ ALLOW (exit 0) ================================
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'just some normal code here')" 2>&1)
@@ -143,7 +204,7 @@ RC=$?
 assert_exit "CLAUDE.local.md allowlist (case-sensitive) → exit 0" 0 "$RC"
 
 # Secret in a file OUTSIDE the project root → exit 0, silent.
-OUT=$(CLAUDE_PROJECT_DIR="/repo" bash "$HOOK" <<<"$(write_json "/other-repo/fixtures/bad/leak.env" "x='$AWS_TOKEN'")" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "/other-repo/fixtures/bad/leak.env" "x='$AWS_TOKEN'")" 2>&1)
 RC=$?
 assert_exit "file outside project root → exit 0" 0 "$RC"
 assert_silent "outside project root → no stderr" "$OUT"
@@ -184,8 +245,8 @@ assert_exit ".venv-backup impostor → exit 2 (scanned)" 2 "$RC"
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
-env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="/repo" \
-  bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$SCOPE_REPO" \
+  bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
 if wait_for_sink "$TEL"; then
   assert_contains "telemetry: hook id" "$(jq -r '.hook' "$TEL")" "secret-pattern-detection"
   assert_contains "telemetry: status blocked" "$(jq -r '.status' "$TEL")" "blocked"
@@ -332,6 +393,21 @@ if wait_for_sink "$TELTS"; then
     "src/config.env" "$(jq -r '.data.file' "$TELTS")"
 else
   bad "trailing-slash project dir: no envelope written"
+fi
+
+# --- Cleared root: data.file anchors on the file's own checkout -------------
+# A set root that is not a repository is treated as unset for scanning, so the
+# telemetry path must be expressed the same way the unset case expresses it:
+# relative to the checkout the file lives in, not to the rejected root.
+TELNR="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINKNR="$(make_sink "cat >\"$TELNR\"")"
+env HOOK_TELEMETRY_SINK="$SINKNR" CLAUDE_PROJECT_DIR="$NONREPO" bash "$HOOK" \
+  <<<"$(write_json "$PATHREPO_TL/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
+if wait_for_sink "$TELNR"; then
+  assert_eq "non-repo root: data.file is relative to the file's own checkout" \
+    "src/config.env" "$(jq -r '.data.file' "$TELNR")"
+else
+  bad "non-repo root: no envelope written"
 fi
 
 # ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================

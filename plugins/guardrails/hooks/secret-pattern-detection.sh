@@ -14,7 +14,9 @@
 # Cross-platform: uses grep -E (POSIX ERE) only — no grep -P (macOS lacks it).
 #
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
-# repo's concern); a generic allowlist exempts dependency caches, .env
+# repo's concern) only when that root is a git work tree that is not home or an
+# ancestor of home; any other root scans every write, as if unset. A generic
+# allowlist exempts dependency caches, .env
 # examples, test fixtures, and machine-local CC state. Disable entirely with
 # the secret_pattern_detection_enabled userConfig option set to false.
 
@@ -290,12 +292,39 @@ ALLOW_FILE="${FILE//\\//}"
 
 # --- Scope guard: police only files inside THIS project ---
 # A PreToolUse Write|Edit hook fires on every file write regardless of which
-# repo the target lives in. A file outside the project root is not ours to scan
-# — that repo owns its own secret policy. Fail CLOSED: when the root cannot be
+# repo the target lives in. A file outside the project root is not ours to scan:
+# that repo owns its own secret policy. Fail CLOSED: when the root cannot be
 # resolved (CLAUDE_PROJECT_DIR unset), fall through and scan rather than skip.
+#
+# A root that is SET but is not a project is treated exactly like an unset one.
+# Claude Code sets CLAUDE_PROJECT_DIR to the directory the session started in,
+# and that can be the home directory or any directory that is not a repository.
+# Honoring such a root would skip every write outside it, which is nearly every
+# write the session makes. The root is cleared, and the write scanned, when:
+#   - it has no .git entry: it is not a git work tree, so no repository owns
+#     the writes outside it. A subdirectory of a repo is also cleared, which
+#     only scans more. `-e` rather than a git process keeps this fork-free, and
+#     it matches a worktree's .git file as well as a .git directory.
+#   - it equals home: a home that is itself a repository (dotfiles) contains
+#     every other checkout on the machine, so it scopes nothing.
+#   - it is an ancestor of home: the same containment, one level up.
+# Home is ${HOME:-${USERPROFILE:-}}, both sides normalized and trailing-slash
+# trimmed so C:\Users\u, C:/Users/u and /c/users/u compare equal on Windows.
+spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
+spd_scope_root="${spd_scope_root//\\//}"
+spd_scope_root="${spd_scope_root%/}"
 PROJECT_DIR=""
-hook::normalize_path_to PROJECT_DIR "${CLAUDE_PROJECT_DIR:-}"
-PROJECT_DIR="${PROJECT_DIR%/}"
+if [[ -n "$spd_scope_root" ]]; then
+  hook::normalize_path_to PROJECT_DIR "$spd_scope_root"
+  PROJECT_DIR="${PROJECT_DIR%/}"
+  spd_home=""
+  hook::normalize_path_to spd_home "${HOME:-${USERPROFILE:-}}"
+  spd_home="${spd_home%/}"
+  if [[ ! -e "$spd_scope_root/.git" || "$PROJECT_DIR" == "$spd_home" || "$spd_home" == "$PROJECT_DIR"/* ]]; then
+    spd_scope_root=""
+    PROJECT_DIR=""
+  fi
+fi
 if [[ -n "$PROJECT_DIR" ]]; then
   case "$NORM_FILE" in
   "$PROJECT_DIR"/*) ;; # inside the project — proceed
@@ -333,12 +362,14 @@ emit_tel() {
   # The helper carries the redaction: a path it could not make repo-relative
   # comes back as the basename, never an absolute path (which would embed the
   # developer's username) and never a UNC share (which would name an internal
-  # host). CLAUDE_PROJECT_DIR is the anchor the envelope itself carries, so
-  # data.file is expressed against that same root when it is set. This hook
-  # deliberately scans on WITHOUT one (the scope guard above falls through
-  # rather than skipping), and an unanchored path can only degrade to a bare
-  # basename, so resolve the file's own checkout for that case.
-  local file_rel root="${CLAUDE_PROJECT_DIR:-}"
+  # host). data.file is anchored on the root the scope guard validated, so it
+  # is repo-relative to the project when that root was honored. When the root
+  # was unset or cleared as untrustworthy, the hook scans on without one, and
+  # an unanchored path can only degrade to a bare basename, so resolve the
+  # file's own checkout for that case. The envelope's project-dir argument
+  # stays the raw CLAUDE_PROJECT_DIR: it records what the harness set, not
+  # what this guard decided to honor.
+  local file_rel root="$spd_scope_root"
   # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
   # is a fork per call on Windows Git Bash and this guard runs on every write.
   # Same answers as `dirname`: no slash -> `.`, and a root-level `/x` -> `/`
@@ -347,11 +378,9 @@ emit_tel() {
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -n "$root" ]] || hook::repo_root_to root "$file_dir"
-  # The helper strips "$root/", so a root that already ends in a separator
-  # makes the prefix "/repo//" and matches nothing: every in-project file
-  # would collapse to its basename. CLAUDE_PROJECT_DIR is caller-supplied and
-  # a trailing slash is a supported spelling, so trim it here. The copy this
-  # replaced did the same, and hook::repo_root never returns one.
+  # The helper strips "$root/", so a root that ends in a separator would make
+  # the prefix "/repo//" and match nothing: every in-project file would
+  # collapse to its basename. Trim it whichever way the root was resolved.
   root="${root%/}"
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$root"
