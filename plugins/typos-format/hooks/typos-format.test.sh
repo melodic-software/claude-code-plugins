@@ -1087,6 +1087,25 @@ for v in "${ROW_VALUES[@]}"; do
   fi
 done
 
+# An inherited nounset (exported SHELLOPTS, or a BASH_ENV that runs `set -u`)
+# must not turn an unset option into a failed row: unset means on.
+printf 'set -u\n' >"$ROWGATE/nounset.env"
+for how in SHELLOPTS BASH_ENV; do
+  case_dir="$ROWGATE/nounset-$how"
+  mkdir -p "$case_dir"
+  if [[ "$how" == SHELLOPTS ]]; then
+    run_opt "$case_dir" __unset__ env SHELLOPTS=nounset bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+  else
+    run_opt "$case_dir" __unset__ env BASH_ENV="$ROWGATE/nounset.env" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+  fi
+  row_rc=$?
+  if [[ -e "$case_dir/started" && $row_rc -eq 7 ]]; then
+    ok "row-gate/nounset-$how: an unset option still starts the script"
+  else
+    fail "row-gate/nounset-$how: want the script started and rc 7 (started=$([[ -e "$case_dir/started" ]] && echo yes || echo no) rc=$row_rc)"
+  fi
+done
+
 # Same stub, same file, two payload shapes: a NotebookEdit carrying only
 # notebook_path must produce the byte-identical disclosure a Write carrying
 # file_path does.
