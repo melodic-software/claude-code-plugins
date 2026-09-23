@@ -3,6 +3,12 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.56] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows (MSYS, Cygwin) hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded.
+
 ## [0.3.55] - 2026-09-21
 
 ### Changed

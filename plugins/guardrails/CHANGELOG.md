@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.2] - 2026-09-23
+
+### Fixed
+
+- **`block-hook-bypass`'s shipped temp-tree default grants on a Windows host.** It never did: the redirect target reached `hook::under_temp_root` in the Git Bash `/c/...` spelling while the temp candidates normalized to `C:/...`, so no drive path matched. The target is now normalized the same way on Windows (MSYS, Cygwin) hosts, and a bare, forward-slash, long-name target under `TEMP` is allowed when the project root is known and outside the temp tree, a home-directory project root included. A project root that is itself under a drive-spelled temp tree now stands the default down, as intended. Still refused: an 8.3 short-name target (such as a `KYLESE~1` spelling), because the guard refuses any operand carrying `~`; a quoted target; a backslash target. POSIX hosts are unchanged.
+
 ## [0.36.1] - 2026-09-23
 
 ### Fixed

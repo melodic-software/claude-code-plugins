@@ -1813,6 +1813,55 @@ fi
 run_cwd "symlink: a wholly nonexistent temp path is still exempt" \
   "echo hello > /tmp/bhb-nonexistent/deeper/probe.txt" "$PROJ" 0 "$PROJ_ENV=$PROJ"
 
+# --- the temp default on a Windows drive path --------------------------------
+# The guard folds a `C:/...` operand to `/c/...` while the temp candidates
+# normalize to `C:/...`, so the drive-spelled temp tree never matched. Host-gated:
+# the drive-letter TEMP exists only on a Windows host. The project root is a
+# non-temp, non-repo spelling nothing on disk has to back.
+# shellcheck disable=SC2031 # reads the host's real OSTYPE
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]] &&
+  command -v cygpath >/dev/null 2>&1 && [[ -d "${TEMP:-}" ]]; then
+  WIN_LONG=$(cygpath -l -m "$TEMP")
+  WIN_SHORT=$(cygpath -s -m "$TEMP")
+  WIN_PROJ=C:/srv-bhb-proj
+  WIN_TARGET="$WIN_LONG/claude/bhb-probe/scratchpad/probe.txt"
+  # A session rooted at the home directory keeps the exemption: home is not
+  # under a temp tree.
+  run_cwd "windows temp: long-name target allowed with the project root at home" \
+    "echo hello > $WIN_TARGET" "$HOME" 0 "$PROJ_ENV=$HOME"
+  run_cwd "windows temp: long-name target allowed with a non-temp project root" \
+    "echo hello > $WIN_TARGET" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
+  run_cwd "windows temp: /c/ spelling of the target allowed" \
+    "echo hello > $(cygpath -u "$WIN_TARGET")" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
+  run_cwd "windows temp: no project root keeps the block" \
+    "echo hello > $WIN_TARGET" "$WIN_PROJ" 2
+  run_cwd "windows temp: a TempEvil sibling still blocks" \
+    "echo hello > ${WIN_LONG}Evil/f" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  # Enough `..` to climb from the temp root back to the drive root, then into
+  # the project.
+  WIN_UP=""
+  WIN_REST="${WIN_LONG#?:}"
+  while [[ "$WIN_REST" == */* ]]; do
+    WIN_REST="${WIN_REST#*/}"
+    WIN_UP="$WIN_UP/.."
+  done
+  run_cwd "windows temp: a .. climb out of temp into the project still blocks" \
+    "echo hello > $WIN_LONG$WIN_UP/srv-bhb-proj/src/main.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  run_cwd "windows temp: a repo file still blocks" \
+    "echo hello > src/main.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
+    # Documented residual: an 8.3-spelled target is refused by _norm_path's
+    # fail-closed rule for any operand carrying `~`, before the temp compare
+    # runs, so the harness's own 8.3 scratchpad spelling stays blocked.
+    run_cwd "windows temp: an 8.3 short-name target is still refused" \
+      "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  else
+    printf 'SKIP: 8.3 temp target not asserted (TEMP has no short-name spelling on this volume; no coverage here, not a pass)\n'
+  fi
+else
+  printf 'SKIP: Windows drive-path temp default not asserted (POSIX host, no drive-letter temp root; no coverage here, not a pass)\n'
+fi
+
 # --- the defaults compose with the option, they do not replace it ------------
 run_cwd "default: configured root still exempts alongside the defaults" \
   "echo hello > /var/jobtmp/f" "$PROJ" 0 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"

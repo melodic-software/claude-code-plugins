@@ -718,10 +718,20 @@ hook::_temp_root_candidates() {
 # candidate into the cache with one batched realpath before calling here, so
 # on that path the shortcut skips a lookup, not a process; the batch is what
 # saves the processes. A direct caller without the batch saves the resolver.
+#
+# On a Windows host the target goes through hook::normalize_path_to like the
+# candidates, so its `/c/...` and `C:/...` spellings both compare. A POSIX host
+# leaves it untouched: `\` is a filename byte there, and folding it could make a
+# root-level `tmp\x` compare as under `/tmp`. The target must already be
+# normalized (no `..` segment), as every caller passes it.
 #   hook::under_temp_root "$norm_path" && ...
 _HOOK_UTR_TARGET_PHYSICAL=0
 hook::under_temp_root() {
   local target="$1" cand norm phys
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) hook::normalize_path_to target "$target" ;;
+  *) ;; # POSIX hosts: compare the target as given
+  esac
   hook::_temp_root_candidates
   for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
     if ((_HOOK_UTR_TARGET_PHYSICAL)); then
