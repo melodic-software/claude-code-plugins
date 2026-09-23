@@ -133,7 +133,7 @@
       ]
     },
     {
-      "id": 8,
+      "id": 11,
       "name": "capture-saves-overlay-tuning-as-local-preset",
       "prompt": "/gaming:dlss5 capture D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - I tuned it in the overlay and hit Save Settings, keep these settings.",
       "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb capture against the literal game directory. Reports the captured keys and the local preset file under the data directory's presets folder, and every not-captured line; an AutoCapture=true line gets a clear instruction to set it back to false. Suggests upstreaming the preset through an issue or pull request with the game, build, driver and what the user saw. Writes nothing in the game folder by hand.",
