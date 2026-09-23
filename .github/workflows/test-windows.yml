@@ -106,7 +106,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/change-detection@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3 # v0.24.0
+        uses: melodic-software/ci-workflows/.github/actions/change-detection@ac062650c46005edb4787aff378347746bf63804 # v0.27.0
         with:
           filters: |
             shell:
