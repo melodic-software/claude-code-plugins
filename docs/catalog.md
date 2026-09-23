@@ -124,6 +124,10 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 - [`education`](../plugins/education): Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, a picture explainer that answers the same question as a diagram-led HTML artifact for someone who knows nothing about the topic, and a post-work comprehension check that quizzes the human on a completed change.
 
+## Visual Arts
+
+- [`pixel-art`](../plugins/pixel-art): Creates pixel art with no external tools: static sprites, animation cycles laid out as engine-ready sprite sheets (RPG Maker MZ, Godot, Aseprite JSON, plain strips) with GIF previews, and animated scenes and cutscenes as one self-contained HTML file. The model authors palette-locked specs or procedural generators, a bundled Python standard-library renderer writes PNG, GIF and frame data, and a render-review loop iterates on what it sees. Craft rules and engine layouts are sourced reference files. Optional backends such as the Aseprite CLI or hosted pixel-art generators plug in behind the same artifact contract when present.
+
 ## Music
 
 - [`songwriting`](../plugins/songwriting): Songwriting craft companion: nine concern-scoped lyric-craft skills (workflow router, rhyme, object-writing, metaphor, meter-prosody, song-form, co-write, diagnose, practice) applying Pat Pattison's methods, with an object-writing agent that performs the sensory exercise itself and per-skill emission boundaries that route generation to the skill that owns it, plus Suno v5.5 prompt engineering (style prompts, tagged lyrics, genre templates, troubleshooting).

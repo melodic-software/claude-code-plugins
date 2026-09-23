@@ -85,6 +85,9 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/instruction-placement:migrate`](../plugins/instruction-placement/skills/migrate/SKILL.md) | `instruction-placement` | Move a repository's instruction content to AGENTS.md behind an operator gate |
 | [`/instruction-placement:realign`](../plugins/instruction-placement/skills/realign/SKILL.md) | `instruction-placement` | Apply accepted placement findings behind a per-item human gate |
 | [`/overengineering:realign`](../plugins/overengineering/skills/realign/SKILL.md) | `overengineering` | Execute accepted audit findings down the rollback ladder behind a per-item human gate |
+| [`/pixel-art:animate`](../plugins/pixel-art/skills/animate/SKILL.md) | `pixel-art` | Author, render, and review pixel-art animation cycles and sprite sheets |
+| [`/pixel-art:scene`](../plugins/pixel-art/skills/scene/SKILL.md) | `pixel-art` | Author, render, and review a self-contained HTML pixel-art scene |
+| [`/pixel-art:sprite`](../plugins/pixel-art/skills/sprite/SKILL.md) | `pixel-art` | Author, render, and review a static pixel-art sprite |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 
 ## 5. Test
