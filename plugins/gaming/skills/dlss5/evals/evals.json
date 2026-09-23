@@ -37,7 +37,7 @@
       "files": [],
       "expectations": [
         "Passes the user's typed text as -AcceptAntiCheatRisk, not a name it chose",
-        "Passes -AntiCheatResearch and -AntiCheatSources from the research it ran",
+        "Passes -AntiCheatResearch and -AntiCheatSources from the research it ran, and -AntiCheatReviewId from the reviewed assess",
         "Still asks for the explicit apply confirmation",
         "Records the acknowledgement, signals and research sources in the ledger row"
       ]

@@ -58,6 +58,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | `-AcceptAntiCheatRisk` | apply | The game name exactly as the user typed it, after the anti-cheat review below. Never filled in by you |
 | `-AntiCheatResearch` | apply | The research summary shown to the user, one paragraph |
 | `-AntiCheatSources` | apply | The research's `https://` URLs, comma-separated |
+| `-AntiCheatReviewId` | apply | `antiCheat.reviewId` from the `assess` the user reviewed. `apply` refuses when its own reread gives another id |
 
 A game name with an apostrophe breaks a single-quoted Bash argument: write `'Tom Clancy'\''s
 Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
@@ -137,9 +138,11 @@ it.
 3. **Ask.** Say that installing is at the user's own risk and can cost the account, and ask them
    to type the game's name, as `gameName` shows it, to go ahead. Anything else is a no. Never type
    it for them or infer it from an earlier message.
-4. Pass what they typed as `-AcceptAntiCheatRisk`, the summary as `-AntiCheatResearch`, and the
-   URLs as `-AntiCheatSources`. The script refuses a name that does not match `gameName`, and an
-   acknowledgement without research or `https://` sources.
+4. Pass what they typed as `-AcceptAntiCheatRisk`, the summary as `-AntiCheatResearch`, the URLs
+   as `-AntiCheatSources`, and the reviewed `antiCheat.reviewId` as `-AntiCheatReviewId`. The
+   script refuses a name that does not match `gameName`, an acknowledgement without research or
+   `https://` sources, and a review id that no longer matches: a signal that appeared after the
+   review was never shown to the user. On that refusal, run `assess` and this review again.
 
 ## Action: apply
 
@@ -159,7 +162,7 @@ it.
    explicit yes. The typed game name is the risk acknowledgement, not this confirmation; ask for
    both. One confirmation covers one game; never batch several games under one yes.
 5. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`, plus `-Preset <key>` when the
-   confirmation showed one, plus the three acknowledgement parameters when the review ran. The
+   confirmation showed one, plus the four acknowledgement parameters when the review ran. The
    script rereads every anti-cheat source and refuses before any write on: an existing manifest
    (`remove` first), no `*.exe`, a `WindowsApps` path, over 2000 files, no upscaler DLL (not a
    candidate), a preset key off the allow-list or `AutoCapture` in a preset, a destination

@@ -13,6 +13,7 @@ param(
     [string]$Preset,
     [string]$AcceptAntiCheatRisk,
     [string]$AntiCheatResearch,
+    [string]$AntiCheatReviewId,
     [string[]]$AntiCheatSources,
     [switch]$Runtime,
     [switch]$RestoreComputeSignature,
@@ -269,6 +270,8 @@ function Game($launcher, $name, $dir, $source) {
     if ($d.Length -gt 3) { $d = $d.TrimEnd('\') }
     [pscustomobject]@{ launcher = $launcher; name = "$name".Trim(); installDir = $d; source = $source }
 }
+# One bad record is reported and skipped; the rest of that launcher's records still load.
+function Record($label, [scriptblock]$body) { try { & $body } catch { $script:Unchecked += "${label} unreadable: $($_.Exception.Message)" } }
 function Find-SteamGames {
     $steam = (RegProps 'HKCU:\Software\Valve\Steam').SteamPath
     if (-not $steam) { $script:Unchecked += 'Steam: no SteamPath under HKCU\Software\Valve\Steam'; return }
@@ -279,8 +282,10 @@ function Find-SteamGames {
     }
     foreach ($lib in @($libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps' } | Sort-Object -Unique)) {
         foreach ($acf in Get-ChildItem -LiteralPath $lib -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
-            $t = Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8
-            if ($i = Acf $t 'installdir') { Game 'Steam' (Acf $t 'name') (Join-Path $lib "common\$i") $acf.Name }
+            Record "Steam: $($acf.FullName)" {
+                $t = Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8
+                if ($i = Acf $t 'installdir') { Game 'Steam' (Acf $t 'name') (Join-Path $lib "common\$i") $acf.Name }
+            }
         }
     }
 }
@@ -304,28 +309,33 @@ function Find-EaGames {
         }
     }
     foreach ($f in Get-ChildItem -LiteralPath (Join-Path $script:ProgramData 'Origin\LocalContent') -Recurse -Filter '*.mfst' -File -ErrorAction SilentlyContinue) {
-        $q = [Web.HttpUtility]::ParseQueryString((Get-Content -LiteralPath $f.FullName -Raw).Trim().TrimStart('?'))
-        if ($p = $q['dipInstallPath']) { Game 'Origin' (Split-Path $p.TrimEnd('\') -Leaf) $p $f.Name }
+        Record "Origin: $($f.FullName)" {
+            $q = [Web.HttpUtility]::ParseQueryString((Get-Content -LiteralPath $f.FullName -Raw).Trim().TrimStart('?'))
+            if ($p = $q['dipInstallPath']) { Game 'Origin' (Split-Path $p.TrimEnd('\') -Leaf) $p $f.Name }
+        }
     }
 }
 function Find-BattleNetGames {
     $script:Unchecked += 'Battle.net: Uninstall registry entries only; product.db is not parsed, and the client writes no entry for some games'
     foreach ($u in 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall', 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall') {
         foreach ($k in RegKids $u) {
-            $p = RegProps $k
-            if ("$($p.UninstallString)" -match 'Battle\.net.*--uid=') { Game 'Battle.net' $p.DisplayName $p.InstallLocation 'Uninstall registry' }
+            Record "Battle.net: $k" {
+                $p = RegProps $k
+                if ("$($p.UninstallString)" -match 'Battle\.net.*--uid=') { Game 'Battle.net' $p.DisplayName $p.InstallLocation 'Uninstall registry' }
+            }
         }
     }
 }
 function Find-GogGames {
-    foreach ($k in RegKids 'HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games') { $p = RegProps $k; Game 'GOG Galaxy' $p.gameName $p.path 'GOG.com\Games registry' }
+    foreach ($k in RegKids 'HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games') { Record "GOG Galaxy: $k" { $p = RegProps $k; Game 'GOG Galaxy' $p.gameName $p.path 'GOG.com\Games registry' } }
 }
 function Find-UbisoftGames {
     foreach ($u in 'HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs', 'HKLM:\SOFTWARE\ubisoft\Launcher\Installs') {
         foreach ($k in RegKids $u) {
-            $d = "$((RegProps $k).InstallDir)" -replace '/', '\'
-            if (-not $d.Trim()) { continue }
-            Game 'Ubisoft Connect' (Split-Path $d.TrimEnd('\') -Leaf) $d 'ubisoft\Launcher\Installs registry'
+            Record "Ubisoft Connect: $k" {
+                $d = "$((RegProps $k).InstallDir)" -replace '/', '\'
+                if ($d.Trim()) { Game 'Ubisoft Connect' (Split-Path $d.TrimEnd('\') -Leaf) $d 'ubisoft\Launcher\Installs registry' }
+            }
         }
     }
 }
@@ -435,8 +445,12 @@ function Get-AntiCheat($root, $launch, $appId) {
     elseif ($launch.launcher -eq 'Steam') { $unchecked += 'Steam: no appmanifest names this folder, so the store page was not read' }
     else { $unchecked += "$($launch.launcher): no first-party per-game anti-cheat disclosure exists for this launcher" }
     $status = if ($signals) { 'signals' } elseif ($unchecked) { 'unknown' } else { 'none-disclosed' }
+    # The acknowledgement is bound to this id, so a signal that appears after the review refuses.
+    # A newer AreWeAntiCheatYet commit alone does not change it.
+    $fp = (@($status) + @($signals | ForEach-Object { $_ -replace ' \(commit [0-9a-f]{7}\)' } | Sort-Object)) -join "`n"
     [pscustomobject]@{
         status = $status; signals = $signals; unchecked = $unchecked
+        reviewId = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($fp))).Substring(0, 12).ToLowerInvariant()
         note = if ($status -eq 'none-disclosed') { 'Steam requires disclosure of kernel-mode anti-cheat only; user-mode and server-side anti-cheat need not be disclosed. AreWeAntiCheatYet has an entry for the title listing no anti-cheat, and nothing matched on disk. This is not proof of no anti-cheat.' }
         awacy = [pscustomobject]$aw; steam = if ($st) { [pscustomobject]$st }
     }
@@ -448,12 +462,13 @@ function Assert-Acknowledged($acr, $name) {
     $found = "anti-cheat status '$($acr.status)'. Signals: $(if ($acr.signals) { $acr.signals -join '; ' } else { 'none' }). Not checked: $(if ($acr.unchecked) { $acr.unchecked -join '; ' } else { 'none' })"
     if (-not $AcceptAntiCheatRisk) { throw "refusing: $found. Installing anyway is at the user's own risk and needs -AcceptAntiCheatRisk '$name' with -AntiCheatResearch and -AntiCheatSources; nothing was changed" }
     if (-not (NormName $name) -or (NormName $AcceptAntiCheatRisk) -ne (NormName $name)) { throw "refusing: acknowledgement '$AcceptAntiCheatRisk' does not match the game name '$name'; nothing was changed" }
+    if ($AntiCheatReviewId -ne $acr.reviewId) { throw "refusing: the anti-cheat result changed since the review (reviewed '$AntiCheatReviewId', now '$($acr.reviewId)'). $found. Rerun assess and the review; nothing was changed" }
     # pwsh -File hands a list over as one comma-separated string.
     $src = @($AntiCheatSources -split ',\s*(?=https?://)' | ForEach-Object Trim | Where-Object { $_ })
     if (-not "$AntiCheatResearch".Trim() -or -not $src -or @($src | Where-Object { $_ -notmatch '^https://\S+$' }).Count) {
         throw 'refusing: an acknowledgement needs -AntiCheatResearch (the ban and block research summary) and -AntiCheatSources with one or more https:// URLs; nothing was changed'
     }
-    [pscustomobject]@{ typed = $AcceptAntiCheatRisk; gameName = $name; date = (Get-Date).ToString('o'); research = $AntiCheatResearch.Trim(); sources = $src }
+    [pscustomobject]@{ typed = $AcceptAntiCheatRisk; gameName = $name; reviewId = $acr.reviewId; date = (Get-Date).ToString('o'); research = $AntiCheatResearch.Trim(); sources = $src }
 }
 
 # Presets: shipped under skills\dlss5\presets, local overrides under <DataDir>\presets, both
@@ -979,7 +994,11 @@ function Do-Selftest {
         throw "offline fixture: $url"
     }
     # A fixture's acknowledgement: its own game name, a research summary and one source.
-    function Ack($d) { $script:AcceptAntiCheatRisk = (Get-Launcher $d).name; $script:AntiCheatResearch = 'fixture research'; $script:AntiCheatSources = @('https://example.com/r') }
+    function Ack($d) {
+        $a = (Do-Assess $d) | ConvertFrom-Json
+        $script:AcceptAntiCheatRisk = $a.gameName; $script:AntiCheatReviewId = $a.antiCheat.reviewId
+        $script:AntiCheatResearch = 'fixture research'; $script:AntiCheatSources = @('https://example.com/r')
+    }
     try {
         $docs =Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\dlss5'
         Assert 'empty DataDir uses the default' ((Resolve-DataDir '') -eq $docs)
@@ -1174,7 +1193,7 @@ function Do-Selftest {
         $script:Reg["$un\Relative"] = @{ DisplayName = 'Relative'; InstallLocation = 'C:'; UninstallString = 'Battle.net.exe --uid=r' }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\999'] = @{}
         $script:Reg["$un\Other"] =@{ DisplayName = 'Other'; InstallLocation = "$tmp\other"; UninstallString = '"C:\Other\unins000.exe"' }
-        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\1207658924'] = @{ gameName = 'The Witcher 3'; path = "$tmp\gog\Witcher 3" }
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\1207658924'] =@{ gameName = 'The Witcher 3'; path = "$tmp\gog\Witcher 3" }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\635'] = @{ InstallDir = ("$tmp\ubi\Siege\" -replace '\\', '/') }
         $d1 = "$tmp\d1\"; $d2 = "$tmp\d2\"; $script:Drives = @($d1, $d2)
         $appx = { param($n) "<Package xmlns=`"http://schemas.microsoft.com/appx/manifest/foundation/windows10`"><Properties><DisplayName>$n</DisplayName></Properties></Package>" }
@@ -1183,8 +1202,11 @@ function Do-Selftest {
         Put "$($d1)Program Files\ModifiableWindowsApps\Gears\appxmanifest.xml" (& $appx 'ms-resource:AppName')
         Put "$($d2).GamingRoot" 'garbage'
         Put "$($d2)XboxGames\Halo\appxmanifest.xml" (& $appx 'Halo Fixture')
-        $found = Find-Games
-        $has = { param($l, $nm, $d) [bool]@($found | Where-Object { $_.launcher -eq $l -and $_.name -eq $nm -and $_.installDir -eq $d }).Count }
+        # A manifest another process holds open sorts first; the manifests after it still load
+        Put "$l2\steamapps\appmanifest_000.acf" 'locked'
+        $lock = [IO.File]::Open("$l2\steamapps\appmanifest_000.acf", 'Open', 'Read', 'None')
+        try { $found = Find-Games } finally { $lock.Dispose() }
+        $has ={ param($l, $nm, $d) [bool]@($found | Where-Object { $_.launcher -eq $l -and $_.name -eq $nm -and $_.installDir -eq $d }).Count }
         Assert 'discover Steam: registry, libraryfolders.vdf, appmanifest' (& $has 'Steam' "Tom Clancy`u{2019}s Ack Game" "$l2\steamapps\common\Ack Game")
         Assert 'discover Epic: .item manifest' (& $has 'Epic Games Launcher' 'Epic Game' "$tmp\epic\EpicGame")
         Assert 'discover Epic: LauncherInstalled.dat' (& $has 'Epic Games Launcher' 'EpicTwo' "$tmp\epic\Two")
@@ -1194,6 +1216,7 @@ function Do-Selftest {
         Assert 'discover: a quoted folder is unquoted; a drive-relative one is skipped' ((& $has 'Battle.net' 'Quoted' "$tmp\bnet\Quoted") -and -not @($found | Where-Object name -eq 'Relative').Count)
         Assert 'discover: a stale Ubisoft key does not stop the rest' (-not @($script:Unchecked | Where-Object { $_ -like 'Ubisoft*' }).Count)
         Assert 'discover GOG: GOG.com\Games registry' (& $has 'GOG Galaxy' 'The Witcher 3' "$tmp\gog\Witcher 3")
+        Assert 'discover: one unreadable record is reported and the next still loads' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*appmanifest_000.acf unreadable*' }).Count -eq 1)
         Assert 'discover Ubisoft: InstallDir with forward slashes' (& $has 'Ubisoft Connect' 'Siege' "$tmp\ubi\Siege")
         Assert 'discover Xbox: .GamingRoot folder, manifest under Content' (& $has 'Xbox app' 'Forza Fixture' "$($d1)Games\Forza\Content")
         Assert 'discover Xbox: ModifiableWindowsApps; an ms-resource name falls back to the folder' (& $has 'Xbox app' 'Gears' "$($d1)Program Files\ModifiableWindowsApps\Gears")
@@ -1226,8 +1249,11 @@ function Do-Selftest {
         $before = Tree $ag
         $script:AcceptAntiCheatRisk = $null
         Assert 'ack required: a signal refuses without an acknowledgement' (Throws { Do-Apply $ag } "*anti-cheat status 'signals'*-AcceptAntiCheatRisk*")
-        $script:AcceptAntiCheatRisk = 'Ack Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r')
+        $script:AcceptAntiCheatRisk = 'Ack Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $aa.antiCheat.reviewId
         Assert 'ack mismatched: another name refuses' (Throws { Do-Apply $ag } '*does not match the game name*')
+        $script:AcceptAntiCheatRisk = "tom clancy's ack game"; $script:AntiCheatReviewId = 'stale'
+        Assert 'ack with a stale review id refuses' (Throws { Do-Apply $ag } '*changed since the review*')
+        $script:AntiCheatReviewId = $aa.antiCheat.reviewId
         $script:AcceptAntiCheatRisk = "tom clancy's ack game"; $script:AntiCheatResearch = ' '
         Assert 'ack without research refuses' (Throws { Do-Apply $ag } '*-AntiCheatResearch*')
         $script:AntiCheatResearch = 'No ban reports found'; $script:AntiCheatSources = @('http://insecure.example')
@@ -1259,6 +1285,12 @@ function Do-Selftest {
         $script:AcceptAntiCheatRisk = $null
         Assert 'AWACY fetch failure: apply refuses without an acknowledgement' (Throws { Do-Apply $cg } "*anti-cheat status 'unknown'*AreWeAntiCheatYet*")
         $script:HttpGet = $ok
+        # Reviewed while unknown; by apply time the store page names an anti-cheat
+        $script:AcceptAntiCheatRisk = 'Clean Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $ua.antiCheat.reviewId
+        $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div><div class="anticheat_section"><div class="anticheat_name">BattlEye</div></div>'
+        $before = Tree $cg
+        Assert 'ack bound to the review: a signal found after it refuses and writes nothing' ((Throws { Do-Apply $cg } '*changed since the review*BattlEye*') -and (SameTree (Tree $cg) $before) -and -not (Test-Path -LiteralPath (StateDir $cg)))
+        $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div>'
 
         # Xbox: WindowsApps refused before any write; an XboxGames install applies and the write probe leaves nothing
         $wx = "$tmp\WindowsApps\Pkg_1.0_x64\Game"; Put "$wx\g.exe" 'exe'; Put "$wx\nvngx_dlss.dll" 'dlss'

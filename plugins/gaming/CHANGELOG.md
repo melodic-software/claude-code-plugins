@@ -25,7 +25,9 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 
 - Anti-cheat is now a refusal by default with a typed at-own-risk acknowledgement, replacing the
   absolute refusal. `apply` refuses on any signal or an `unknown` status unless
-  `-AcceptAntiCheatRisk` matches the game name, with `-AntiCheatResearch` and `-AntiCheatSources`.
+  `-AcceptAntiCheatRisk` matches the game name, with `-AntiCheatResearch`, `-AntiCheatSources`,
+  and `-AntiCheatReviewId`, which binds the acknowledgement to the status and signals the user
+  reviewed; a signal that appears after the review refuses.
   The router shows every signal and unchecked source and runs live ban and block research before
   it asks. The manifest records the acknowledgement, the signals, the research and its sources,
   and the AreWeAntiCheatYet commit; the ledger row repeats them. The plugin never disables,

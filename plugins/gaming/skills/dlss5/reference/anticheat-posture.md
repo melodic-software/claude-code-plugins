@@ -51,8 +51,10 @@ disclosed and no community record lists one. Every launcher other than Steam top
 `apply -AcceptAntiCheatRisk '<game name>'` must match the `gameName` that `assess` printed. The
 comparison ignores case, spaces, punctuation and the ™, ® and ’ glyphs, so a user can type the
 name on a plain keyboard. `apply` also requires `-AntiCheatResearch` (the research summary) and at
-least one `https://` URL in `-AntiCheatSources`. A missing or mismatched acknowledgement, or one
-without research, refuses before any write.
+least one `https://` URL in `-AntiCheatSources`. The acknowledgement is bound to what the user
+reviewed: `-AntiCheatReviewId` carries `antiCheat.reviewId` from that `assess`, a hash of the
+status and the signals, and `apply` refuses when its own reread of the sources gives another id. A
+missing, mismatched or stale acknowledgement, or one without research, refuses before any write.
 
 The manifest records the typed name, the date, the research summary and its sources, the status,
 every signal and unchecked source, the AreWeAntiCheatYet commit SHA, and the Steam store read. The
