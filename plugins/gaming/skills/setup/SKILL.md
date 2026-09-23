@@ -1,5 +1,5 @@
 ---
-description: "Verify and provision the gaming plugin's DLSS 5 mod prerequisites on Windows. check (read-only): pwsh, NVIDIA GPU and driver, data directory, runtime DLL, provisioned fork builds, orphaned state. apply: create the data directory, seed the ledger, place the runtime DLL from a configured path, an installed DLSS 5 title, or the configured runtime source, and download the pinned fork builds. Use when: 'set up the gaming plugin', 'set up DLSS 5', 'is my DLSS 5 setup ready', 'provision the DLSS 5 mod'. Re-runnable and safe."
+description: "Verify and provision the gaming plugin's DLSS 5 mod prerequisites on Windows. check (read-only): pwsh, NVIDIA GPU and driver, data directory, runtime DLL, installed games per launcher (Steam, Epic, EA app, Battle.net, GOG, Ubisoft Connect, Xbox app), provisioned fork builds, orphaned state. apply: create the data directory, seed the ledger, place the runtime DLL from a configured path, an installed DLSS 5 title, or the configured runtime source, and download the pinned fork builds. Use when: 'set up the gaming plugin', 'set up DLSS 5', 'is my DLSS 5 setup ready', 'provision the DLSS 5 mod'. Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -35,10 +35,10 @@ does not:
 pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\dlss5'"
 ```
 
-Pass Windows-form paths in single quotes (`'D:\Gaming'`), never a Git Bash `/d/...` path. Run the
-multi-line probes in steps 5 and 7 through the PowerShell tool: they contain single quotes, so a
-single-quoted Bash argument cannot carry them, and a double-quoted one lets Bash expand `$` before
-pwsh starts. A one-line probe with no single quote in it (step 1) runs from Bash in single quotes.
+`<script>` is `${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1`. Pass Windows-form
+paths in single quotes (`'D:\Gaming'`), never a Git Bash `/d/...` path. Run the multi-line probe
+in step 5 through the PowerShell tool: it contains single quotes, so a single-quoted Bash argument
+cannot carry it, and a double-quoted one lets Bash expand `$` before pwsh starts. A one-line probe with no single quote in it (step 1) runs from Bash in single quotes.
 
 ## `check` (read-only)
 
@@ -70,29 +70,26 @@ download nothing, and never call `provision` in any form.
    the user's explicit call and never a default. A missing or refused file is FAIL. When
    `runtime_dll` is set, the remediation is to fix or unset it: `provision -Runtime` refuses a
    configured file without looking further. When it is unset, report what `apply` would do:
-   run the scan in step 7 and name each candidate with its gate result, and say whether
+   use the step 7 scan and name each candidate with its gate result, and say whether
    `<runtime-source>` is set. The remediation then names the three remedies in the order
    `provision -Runtime` tries them: set `runtime_dll` to a copy you already have; install a DLSS 5
    title on this machine; set `runtime_source` to a copy you control. The plugin names no source
    of its own for this file.
 6. **Runtime source.** INFO: set or not. A URL with a query string, or a URL scheme other than
    `https://`, is FAIL: the script refuses it.
-7. **Steam library scan.** Read-only; it lists candidates and copies nothing:
-
-   ```powershell
-   $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -Name SteamPath -ErrorAction SilentlyContinue).SteamPath # portability-ok: Windows registry path, PowerShell only
-   if ($steam) {
-     $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
-     $libs = @($steam) + @(if (Test-Path -LiteralPath $vdf) { [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' } }) # portability-ok: .NET regex in PowerShell, not grep or sed
-     $libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps\common' } | Where-Object { Test-Path -LiteralPath $_ } | Sort-Object -Unique |
-       ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Filter nvngx_dlssnr.dll -File -Force -ErrorAction SilentlyContinue } |
-       ForEach-Object { $v = $_.VersionInfo; $sig = Get-AuthenticodeSignature -LiteralPath $_.FullName; [pscustomobject]@{ Path = $_.FullName; Sha256 = (Get-FileHash -LiteralPath $_.FullName).Hash; Version = '{0}.{1}.{2}.{3}' -f $v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart; Signature = $sig.Status; Signer = $sig.SignerCertificate.Subject } } | Format-List
-   }
-   ```
-
-   A candidate passes the gate on the known-good hash, or on a `Valid` signature whose signer
-   subject contains `CN=NVIDIA Corporation`, at 310.8.0.0 or later, plus `-AllowUnknownRuntime`. A candidate beside an `OptiScaler.ini` is a copy the mod
-   placed in a game, not a native title; step 9 uses it.
+7. **Game library scan.** Read-only; it lists games and runtime candidates and copies nothing:
+   `pwsh -NoProfile -File "<script>" -Verb discover`. It prints JSON:
+   - `games`: every installed game found, each with `launcher` (Steam, Epic Games Launcher, EA
+     app, Origin, Battle.net, GOG Galaxy, Ubisoft Connect, Xbox app), `name`, `installDir` and the
+     `source` record it came from. Report the count per launcher as INFO; the locations are in
+     `skills/dlss5/reference/launchers.md`.
+   - `unchecked`: what it could not read, such as the EA app's encrypted install list, Battle.net's
+     `product.db`, or a malformed `.GamingRoot`. Report each as INFO.
+   - `runtimeCandidates`: every `nvngx_dlssnr.dll` under a discovered install folder, with
+     `version`, `sha256`, `passes`, `known`, `reason` and `besideOptiScalerIni`. `passes` is the
+     script's own gate: the known-good hash, or a `Valid` signature whose signer subject contains
+     `CN=NVIDIA Corporation` at 310.8.0.0 or later plus `-AllowUnknownRuntime`. A candidate beside
+     an `OptiScaler.ini` is a copy the mod placed in a game, not a native title; step 9 uses it.
 8. **Fork builds.** For `dagherbou` and `wilsjo2`, read `<data-dir>\builds\<build>\.provisioned.json`: <!-- portability-ok: Windows path, not a shell regex -->
    - no marker, directory absent or empty: INFO, never provisioned (`apply` provisions it);
    - marker present and every allow-list entry present (dagherbou: `OptiScaler.dll`,

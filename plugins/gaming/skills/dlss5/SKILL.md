@@ -1,5 +1,5 @@
 ---
-description: "Apply, track, tune, and remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in a PC game on Windows. Action router: assess (on-disk eligibility plus the Steam anti-cheat check), apply (snapshot, then install), remove (byte-exact uninstall from the manifest), status (drift against the manifest), tune (in-game overlay guidance), refetch (fork, driver and runtime release watch). Use when: 'apply DLSS 5 to this game', 'is this game safe for the DLSS 5 mod', 'remove the DLSS 5 mod', 'check for new OptiScaler DLSSNR releases', or DLSS 5, DLSSNR, or OptiScaler is mentioned with a game folder."
+description: "Apply, track, tune, and remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in a PC game on Windows. Action router: assess (eligibility, launcher, anti-cheat signals), apply (snapshot, then install; anti-cheat risk only with a typed acknowledgement), remove (byte-exact uninstall from the manifest), status (drift against the manifest), tune (in-game overlay guidance), refetch (fork, driver and runtime release watch). Use when: 'apply DLSS 5 to this game', 'is this game safe for the DLSS 5 mod', 'remove the DLSS 5 mod', 'check for new OptiScaler DLSSNR releases', or DLSS 5, DLSSNR, or OptiScaler is mentioned with a game folder."
 argument-hint: "[assess|apply|remove|status|tune|refetch] [<game-dir>]"
 user-invocable: true
 disable-model-invocation: false
@@ -8,8 +8,9 @@ disable-model-invocation: false
 ## Purpose
 
 Route a DLSS 5 mod request to one action. `scripts/Invoke-Dlss5Mod.ps1` does the on-disk work:
-eligibility probes, snapshot, install, drift report, byte-exact removal. This skill does what the
-script cannot: the Steam anti-cheat check, the user's confirmation, the ledger rows, and tuning.
+eligibility probes, launcher discovery, the anti-cheat sources, snapshot, install, drift report,
+byte-exact removal. This skill does what the script cannot: the ban and block research, the user's
+confirmation and acknowledgement, the ledger rows, and tuning.
 
 Windows only, PowerShell 7. Run `/gaming:setup` first: `apply` needs a provisioned fork build and
 a runtime DLL under the data directory, and this skill never acquires either.
@@ -53,7 +54,13 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | `-RestoreComputeSignature` | apply | Also sets `[Hotfix] RestoreComputeSignature=true` for a game with no preset; `reference/tuning-guide.md` names the titles that need it |
 | `-AllowUnknownRuntime` | apply | Accepts an NVIDIA-signed runtime whose hash is not the known one. Only on the user's explicit request |
 | `-Finish` | remove | Drops the manifest even when drift remains. Only after the user has seen the drift and asked |
-| `-Force` | apply | Lifts only the over-2000-files guard. Only when the user confirms the directory is the exe directory. It does not bypass the anti-cheat refusal |
+| `-Force` | apply | Lifts only the over-2000-files guard. Only when the user confirms the directory is the exe directory. It has no effect on the anti-cheat gate |
+| `-AcceptAntiCheatRisk` | apply | The game name exactly as the user typed it, after the anti-cheat review below. Never filled in by you |
+| `-AntiCheatResearch` | apply | The research summary shown to the user, one paragraph |
+| `-AntiCheatSources` | apply | The research's `https://` URLs, comma-separated |
+
+A game name with an apostrophe breaks a single-quoted Bash argument: write `'Tom Clancy'\''s
+Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
 
 `provision` and its `-Runtime`, `-RuntimeSource`, `-ScanRoots` parameters belong to
 `/gaming:setup`.
@@ -63,8 +70,8 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | Action | When | What it does |
 |---|---|---|
 | (empty) | No action given | With a game dir: run `status`. "no snapshot" means never applied here, so recommend `assess`; otherwise report the status and recommend. Without a game dir: ask for one. Never runs `apply` or `remove` |
-| `assess` | Is this game eligible? | Run `assess`, then the Steam anti-cheat check. Report the verdict. Writes nothing |
-| `apply` | Install the mod | `assess` and the Steam check first; stop on `refused`, `not-a-candidate`, `unknown`, or an uncleared `requiresWebCheck`. Confirm with the user, run `apply`, add the ledger row |
+| `assess` | Is this game eligible? | Run `assess`. Report the launcher, the verdict and the anti-cheat status. Writes nothing |
+| `apply` | Install the mod | `assess` first; stop on `refused`, `not-a-candidate` or `unknown`. Any anti-cheat status but `none-disclosed` runs the anti-cheat review. Confirm with the user, run `apply`, add the ledger row |
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
 | `status` | What changed since apply? | Run `status` and explain its exit code |
 | `tune` | Picture or performance | Start from the game's preset, then guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
@@ -75,61 +82,86 @@ without the user's confirmation.
 
 ## Action: assess
 
-1. Run `-Verb assess '<game-dir>'`. It prints JSON: `verdict` (`refused`, `not-a-candidate`,
-   `eligible`, `unknown`), `requiresWebCheck`, `refusals`, `upscalers` (each upscaler DLL found,
-   with `family` DLSS, FSR or XeSS, and its version; the mod's own copies do not count), `dx12`,
-   `proxyCollisions`, `freeProxies`, `steamAppId`, and `preset`: the matching preset with each ini
-   key's `source` (`shipped` or `local`), or null. `presetError` names a preset file that failed
-   validation; report it, and apply without that preset until the file is fixed.
-2. `refused`: stop and report the anti-cheat paths. Nothing clears this.
+1. Run `-Verb assess '<game-dir>'`. It prints JSON:
+   - `launcher` (Steam, Epic Games Launcher, EA app, Origin, Battle.net, GOG Galaxy, Ubisoft
+     Connect, Xbox app, or `unknown`), `launcherSource`, and `gameName`;
+   - `verdict` (`refused`, `not-a-candidate`, `eligible`, `unknown`) and `refusals`;
+   - `antiCheat`: `status` (`signals`, `unknown`, `none-disclosed`), `signals`, `unchecked`,
+     `note`, `awacy` (the AreWeAntiCheatYet commit read and its matching entries) and `steam` (the
+     store page read); plus `acknowledgementRequired`;
+   - `upscalers` (each upscaler DLL found, with `family` DLSS, FSR or XeSS, and its version; the
+     mod's own copies do not count), `dx12`, `proxyCollisions`, `freeProxies`, `steamAppId`;
+   - `preset`: the matching preset with each ini key's `source` (`shipped` or `local`), or null.
+     `presetError` names a preset file that failed validation; report it, and apply without that
+     preset until the file is fixed.
+2. `refused`: the directory is under `WindowsApps`. Stop and say why
+   (`reference/launchers.md`). Nothing clears this.
 3. `not-a-candidate`: the game ships no DLSS, FSR 2+ or XeSS, so the mod has nothing to hook. Tell
    the user plainly: "This game has no upscaler for the mod to hook, so it will not help." A 2D or
-   pixel-art game such as Stardew Valley is the typical case. Stop. The only way forward is the
-   user's: a wiki-listed upscaler mod, then `assess` again (`reference/candidate-selection.md`).
-   There is no flag that skips this verdict.
+   pixel-art game such as Stardew Valley is the typical case. Stop, before any anti-cheat review.
+   The only way forward is the user's: a wiki-listed upscaler mod, then `assess` again
+   (`reference/candidate-selection.md`). There is no flag that skips this verdict.
 4. `unknown`: report why (no `*.exe`, or no free proxy name) and stop.
-5. `eligible` with `requiresWebCheck: true`: run the Steam check below. On-disk absence is not
-   absence: server-side and launcher-delivered anti-cheat leave nothing in the install tree. For an
-   online or co-op game, tell the user to play modded only solo or offline.
-6. Done when the user has one final verdict: refused, not-a-candidate, unknown, or eligible with
-   the Steam check cleared or not cleared.
+5. `eligible`: report the launcher, the game name and the anti-cheat status with every signal and
+   every `unchecked` line. `none-disclosed` carries its `note`: say it means no kernel anti-cheat
+   was disclosed, not that the game has none. For an online or co-op game, tell the user to play
+   modded only solo or offline.
+6. Done when the user has the launcher, one verdict, and the anti-cheat status with its signals
+   and unchecked sources.
 
-### Steam anti-cheat check
+### Anti-cheat review (before an acknowledgement)
 
-Steam's store page carries a publisher-filed anti-cheat section. Read it with curl and Steam's
-age-gate cookies. WebFetch receives the age gate on many titles, and an age gate has no anti-cheat
-section, so a WebFetch read of it looks clean when it is not.
+Run this when `apply` is requested and `acknowledgementRequired` is true. The default is still to
+refuse; this review is how the user makes an informed call. Never disable, bypass, delete or tamper
+with an anti-cheat, and never suggest doing so, a different proxy name, or `-Force` as a way past
+it.
 
-```bash
-curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'https://store.steampowered.com/app/<steamAppId>/?l=english' | grep -o -i -E 'apphub_AppName">[^<]*|agecheck|anticheat_section' | sort -u # portability-ok: -E ERE; the P is in AppName, not a -P flag
-```
+1. **Show what was found.** Every `signals` line and every `unchecked` line, verbatim. For a
+   Battle.net title, show Blizzard EULA 1.C.i and 1.C.ii in full from
+   `reference/anticheat-posture.md`. Link the title's PCGamingWiki page for the user to read.
+2. **Research reported bans and blocks** for this title and each named anti-cheat, live:
+   - the fork issue trackers: `gh search issues '<title>' --repo Dagherbou/OptiScaler_DLSSNR`,
+     the same for `wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass` and `optiscaler/OptiScaler`, each
+     also with the anti-cheat's name;
+   - the OptiScaler wiki: the title's page and its row in the compatibility list;
+   - a targeted web search: `"<title>" OptiScaler ban`, `"<title>" <anti-cheat> dll ban`, and
+     `"<title>" dxgi.dll anti-cheat`.
 
-| Result | Outcome |
-|---|---|
-| `anticheat_section` present | Treat as `refused`. Show the user the section's text (the lines after `anticheat_section` on the same page, tags stripped) and stop |
-| `apphub_AppName` names the game, no `agecheck`, no `anticheat_section` | Cleared |
-| Anything else: fetch failed, `agecheck` present, wrong game, or `steamAppId` is null | Not cleared. Ask the user for the game's Steam store URL and rerun with its app id. With no Steam page, `apply` cannot proceed; say why |
+   Summarize in one paragraph: whether users report a block (the game will not start with the DLL)
+   or a ban (the account was flagged), how recent, and on which build. Keep block and ban apart
+   (`reference/anticheat-posture.md`). Say plainly when nothing was found; that is not safety. List
+   every source URL.
+3. **Ask.** Say that installing is at the user's own risk and can cost the account, and ask them
+   to type the game's name, as `gameName` shows it, to go ahead. Anything else is a no. Never type
+   it for them or infer it from an earlier message.
+4. Pass what they typed as `-AcceptAntiCheatRisk`, the summary as `-AntiCheatResearch`, and the
+   URLs as `-AntiCheatSources`. The script refuses a name that does not match `gameName`, and an
+   acknowledgement without research or `https://` sources.
 
 ## Action: apply
 
-1. Run the whole `assess` action. Stop on `refused`, `not-a-candidate`, `unknown`, or an uncleared
-   check.
+1. Run the whole `assess` action. Stop on `refused`, `not-a-candidate` or `unknown`. When
+   `acknowledgementRequired` is true, run the anti-cheat review above; stop unless the user typed
+   the name.
 2. Pick the proxy: the preset's `proxy` when `freeProxies` lists it, else `freeProxies` with
-   `dxgi.dll` first. Cyberpunk 2077 uses `dxgi.dll`, never `dbghelp.dll`: its
-   `bin\x64\dbghelp.dll` is a stock game file.
+   `dxgi.dll` first; for an Xbox app game, `winmm.dll` first (`reference/launchers.md`). Cyberpunk
+   2077 uses `dxgi.dll`, never `dbghelp.dll`: its `bin\x64\dbghelp.dll` is a stock game file.
 3. No `preset` in the assess JSON: offer the research step below before applying stock. The user
    may decline; stock is a valid apply.
-4. Confirm. Show the resolved absolute game directory (`gameDir` from the assess JSON), the build
-   and its tag, the proxy name, the `assess` verdict, the Steam check result, and the preset: its
-   key, and each ini key as `[Section] Key=Value` with its source (`shipped` or `local`) and its
-   `why`. Then ask for an explicit yes. One confirmation covers one game; never batch several
-   games under one yes.
+4. Confirm. Show the resolved absolute game directory (`gameDir` from the assess JSON), the
+   launcher, the build and its tag, the proxy name, the `assess` verdict, the anti-cheat status
+   (and, when acknowledged, the typed name), and the preset: its key, and each ini key as
+   `[Section] Key=Value` with its source (`shipped` or `local`) and its `why`. Then ask for an
+   explicit yes. The typed game name is the risk acknowledgement, not this confirmation; ask for
+   both. One confirmation covers one game; never batch several games under one yes.
 5. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`, plus `-Preset <key>` when the
-   confirmation showed one. The script refuses before any write on: an existing manifest
-   (`remove` first), no `*.exe`, over 2000 files, anti-cheat on disk, no upscaler DLL (not a
+   confirmation showed one, plus the three acknowledgement parameters when the review ran. The
+   script rereads every anti-cheat source and refuses before any write on: an existing manifest
+   (`remove` first), no `*.exe`, a `WindowsApps` path, over 2000 files, no upscaler DLL (not a
    candidate), a preset key off the allow-list or `AutoCapture` in a preset, a destination
-   collision, a missing build file (run `/gaming:setup apply`), or a refused runtime DLL. Report a
-   refusal as is; never route around it.
+   collision, a missing build file (run `/gaming:setup apply`), a refused runtime DLL, an
+   anti-cheat status other than `none-disclosed` without a matching acknowledgement, or a folder
+   its write probe cannot write. Report a refusal as is; never route around it.
 6. Print the setup guide: the preset's `manual` lines from the apply output, numbered, under the
    game's title. These are the settings the script cannot write. With no preset, point to the
    baseline in `reference/tuning-guide.md`.
@@ -206,14 +238,16 @@ changed in the ledger row's ini deltas and visual verdict columns.
    only tool it needs that setup does not.
 2. Read the page-backed items `refetch` cannot: NVIDIA's GeForce news for new native DLSS 5 titles
    and drivers, and whether upstream OptiScaler merged the Neural Rendering pull requests (the
-   commands are in `reference/upstream-watch.md`). For each game row in the ledger, rerun the Steam
-   anti-cheat check from the assess action, because a publisher can add anti-cheat after an apply,
-   and check the row's preset `recheck` trigger against what changed.
+   commands are in `reference/upstream-watch.md`). For each game row in the ledger, rerun `assess`
+   on its exe dir, because a publisher can add anti-cheat after an apply, and compare the
+   anti-cheat status and signals with the row. Check the row's preset `recheck` trigger against
+   what changed.
 3. Diff everything against the ledger's Upstream watch table. Edit only the rows that changed and
    their Checked dates. A run where nothing changed is reported as a no-change run.
 4. For each change, say what it means using the "What a change means" table in
    `reference/upstream-watch.md`. A new pin is a plugin release, never an edit to the installed
-   script. A game that now shows an anti-cheat section: recommend `remove`. A preset whose
+   script. A game with an anti-cheat signal its ledger row does not record: show it and
+   recommend `remove`. A preset whose
    `recheck` trigger fired: re-read its sources, then update the local preset, or suggest an issue
    for a shipped one.
 5. Done when every changed row carries today's Checked date and each change has its meaning
@@ -221,9 +255,16 @@ changed in the ledger row's ini deltas and visual verdict columns.
 
 ## Hard safety rules
 
-- **Never install into a game with anti-cheat on disk or on its Steam page.** There is no bypass.
-  Never suggest `-Force` for it, disabling or deleting the anti-cheat, or a different proxy name to
-  get past it. A proxy DLL in an anti-cheat game risks the user's account.
+- **Anti-cheat: refuse by default; install only on the user's typed acknowledgement.** Any
+  anti-cheat signal, or an `unknown` status, refuses `apply` unless the user typed the game's name
+  after the anti-cheat review: every signal and unchecked source shown, live ban and block research
+  summarized with sources. A proxy DLL in an anti-cheat game can get the game blocked or the
+  account banned, and the user carries that risk. Never pass `-AcceptAntiCheatRisk` with a name the
+  user did not type in this conversation for this game.
+- **Never disable, bypass, delete or tamper with any anti-cheat, and never suggest it.** Nor
+  `-Force` or a different proxy name as a way past the gate. The mod goes in beside the anti-cheat,
+  unchanged.
+- **`not-a-candidate` and a `WindowsApps` path have no override.**
 - **Never run the forks' `setup_windows.bat`.** It is interactive and hangs a non-interactive shell;
   the script installs the proxy itself, and `provision` never extracts that file.
 - **`apply` never overwrites a game file, and `remove` never deletes a file the manifest or the
@@ -241,10 +282,11 @@ changed in the ledger row's ini deltas and visual verdict columns.
 
 `LEDGER.md` in the data directory holds one row per game; `/gaming:setup apply` seeds it. The script
 writes the machine-readable half to `state\<GameKey>\manifest.json`; this skill writes the rows with <!-- portability-ok: Windows path, not a shell regex -->
-Edit. After `apply`, fill: game, exe dir, anti-cheat (the on-disk result and the Steam check),
-build and tag, proxy, ini deltas (`Enabled=true AutoCapture=false LogToFile=true LogLevel=2`, plus
+Edit. After `apply`, fill: game, exe dir, anti-cheat (the status and every signal; when
+acknowledged, `acknowledged <date> as '<typed name>'`, the research summary in one line, and its
+source URLs), build and tag, proxy, ini deltas (`Enabled=true AutoCapture=false LogToFile=true LogLevel=2`, plus
 `RestoreComputeSignature=true` when passed, plus each preset key), driver (the manifest's
-`driver`), DLL version, applied date. With a preset, Notes gets `preset <key>` with each key's
+`driver`), DLL version, applied date. Notes gets `launcher <launcher>`. With a preset, Notes also gets `preset <key>` with each key's
 source (`shipped` or `local`) and the newest `asOf` among its sources. FPS, visual verdict and crashes stay blank until the user reports them. If `LEDGER.md` is
 absent, recommend `/gaming:setup apply` rather than inventing a format.
 
@@ -252,7 +294,8 @@ absent, recommend `/gaming:setup apply` rather than inventing a format.
 
 | Reference | Load when |
 |---|---|
-| `reference/anticheat-posture.md` | Explaining a refusal, or the user asks why a game is refused |
+| `reference/anticheat-posture.md` | The anti-cheat review, explaining a status or a refusal, or quoting the Blizzard EULA |
+| `reference/launchers.md` | Which launcher a game came from, what `discover` reads, or an Xbox app game |
 | `reference/candidate-selection.md` | Explaining `not-a-candidate`, which games the mod can help, engine notes, or which per-game config sources to trust |
 | `reference/reversal-matrix.md` | Explaining what `remove` deletes, keeps, or reports |
 | `reference/fork-comparison.md` | Choosing or switching `-Build` |
@@ -269,6 +312,9 @@ These are true as of the date in each row. `refetch` exists to recheck them.
 | Known-good runtime: `nvngx_dlssnr.dll` 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E` | `$ModelHash` in the script; NVIDIA-signed copy hashed locally | 2026-09-22 | A DLSS 5 title ships a newer runtime, or `apply` refuses a signed runtime as unknown |
 | Default build Dagherbou `v0.2.0-patch1` (prerelease); fallback wilsjo2 `v0.8.3` (newest non-prerelease) | `gh api repos/<owner>/<repo>/releases` | 2026-09-22 | `refetch` shows a new tag, or a pinned asset stops resolving |
 | GeForce driver 616.92 WHQL, the driver the mod was verified live on | `nvidia-smi` on the proving-ground machine | 2026-09-22 | A new Game Ready driver |
+| Steam requires the store-page anti-cheat field only for client-side kernel-mode anti-cheat; for anything else it is optional | Steamworks announcement 4547038620960934857, read through the Steam event API | 2026-09-23 | Valve changes the anti-cheat disclosure rule |
+| AreWeAntiCheatYet `games.json` fields `name`, `anticheats`, `status` (Linux and Proton support), `storeIds` (`steam`, `epic`); 1167 entries at commit `e31a7e6` | `https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/<sha>/games.json`, parsed live; `components/Legend.tsx` for the status meaning | 2026-09-23 | `assess` reports an AreWeAntiCheatYet fetch failure that persists, or the file's fields change |
+| Blizzard EULA revised March 21, 2024; section 1.C.i and 1.C.ii text as quoted in `reference/anticheat-posture.md` | The EULA page, fetched | 2026-09-23 | The page shows a newer revision date |
 
 ## Next
 
@@ -291,3 +337,9 @@ These are true as of the date in each row. `refetch` exists to recheck them.
   names and this gap.
 - **The on-disk anti-cheat match is by name.** `reference/anticheat-posture.md` records the tokens,
   the match rule, and its known gap.
+- **`assess` and `apply` read the network.** Each fetches AreWeAntiCheatYet (its commit SHA through
+  the unauthenticated, rate-limited GitHub API) and, for Steam, the store page. Offline, the
+  status is `unknown`, never `none-disclosed`.
+- **The EA app's own install list is not read.** `discover` finds EA games only under
+  `%ProgramFiles%\EA Games`; a game in another EA library folder is still named `EA app` when
+  `assess` is pointed at it, by its `__Installer` marker.

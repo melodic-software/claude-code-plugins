@@ -3,6 +3,40 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-23
+
+### Added
+
+- Launcher discovery for Steam, Epic Games Launcher, EA app and legacy Origin, Battle.net, GOG
+  Galaxy, Ubisoft Connect, and the Xbox app and Game Pass. A new read-only `discover` verb lists
+  installed games per launcher, what it could not read, and runtime DLL candidates; `setup check`
+  step 7 runs it. `assess` prints `launcher`, `launcherSource` and `gameName`. Locations are in
+  the new `reference/launchers.md`.
+- `assess` and `apply` read the anti-cheat sources themselves: the on-disk scan, AreWeAntiCheatYet
+  `games.json` fetched live and pinned to the commit SHA it read (matched by Steam app id or by
+  name with the ™, ® and ’ glyphs normalized; only a non-empty `anticheats` list counts), and for
+  Steam the store page's anti-cheat section, read with the age-gate cookies. Battle.net titles are
+  a signal on Blizzard EULA 1.C.i and 1.C.ii, quoted in full in `reference/anticheat-posture.md`.
+  `assess` reports `antiCheat.status`: `signals`, `unknown`, or `none-disclosed` (Steam only).
+- Xbox app: `apply` refuses a `WindowsApps` path before any write, and every `apply` runs a write
+  probe before the snapshot.
+
+### Changed
+
+- Anti-cheat is now a refusal by default with a typed at-own-risk acknowledgement, replacing the
+  absolute refusal. `apply` refuses on any signal or an `unknown` status unless
+  `-AcceptAntiCheatRisk` matches the game name, with `-AntiCheatResearch` and `-AntiCheatSources`.
+  The router shows every signal and unchecked source and runs live ban and block research before
+  it asks. The manifest records the acknowledgement, the signals, the research and its sources,
+  and the AreWeAntiCheatYet commit; the ledger row repeats them. The plugin never disables,
+  bypasses or tampers with an anti-cheat.
+- A missing Steam anti-cheat section no longer clears a game by itself. It means only that no
+  kernel anti-cheat was disclosed; with nothing on disk and no AreWeAntiCheatYet entry naming one,
+  the status is `none-disclosed`. An AreWeAntiCheatYet fetch failure is `unknown`.
+- `assess` JSON: `requiresWebCheck` is replaced by `antiCheat` and `acknowledgementRequired`.
+  `verdict` `refused` now means only a `WindowsApps` path.
+- `provision -Runtime` scans every discovered game's install folder, not only Steam libraries.
+
 ## [0.3.0] - 2026-09-23
 
 ### Added

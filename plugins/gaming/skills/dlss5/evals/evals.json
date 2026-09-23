@@ -3,29 +3,55 @@
   "evals": [
     {
       "id": 1,
-      "name": "assess-runs-script-then-steam-check",
+      "name": "assess-reports-launcher-and-anticheat-status",
       "prompt": "/gaming:dlss5 assess D:\\SteamLibrary\\steamapps\\common\\Ride\\Ride\\Binaries\\Win64 - is this game safe for the DLSS 5 mod?",
-      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess against the literal game directory, reads the JSON verdict, and because the verdict is eligible with requiresWebCheck true, reads the Steam store page's anti-cheat section with curl and the age-gate cookies before calling the game cleared. Writes nothing.",
+      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess against the literal game directory and reads the JSON. Reports the launcher (Steam), the game name, the verdict, and the anti-cheat status with every signal and every unchecked source. A none-disclosed status is reported with its note: no kernel anti-cheat was disclosed, which is not proof of none. Writes nothing.",
       "files": [],
       "expectations": [
         "Runs pwsh -NoProfile -File on Invoke-Dlss5Mod.ps1 with -Verb assess and the game directory as a single-quoted Windows-form path",
         "Does not put a ${user_config.*} token on the pwsh command line",
-        "Treats eligible with requiresWebCheck true as not yet cleared and reads the Steam anticheat_section using the steamAppId from the JSON",
-        "Does not treat an age-gate page or a failed fetch as a clean result",
+        "Names the launcher and the anti-cheat status from the JSON",
+        "Does not call a none-disclosed or unknown status clean or safe",
         "Does not run apply"
       ]
     },
     {
       "id": 2,
-      "name": "apply-refused-on-anticheat",
+      "name": "apply-anticheat-needs-review-and-typed-name",
       "prompt": "/gaming:dlss5 apply D:\\SteamLibrary\\steamapps\\common\\Halloween\\Ravage\\Binaries\\Win64 - install DLSS 5 on Halloween: The Game.",
-      "expected_output": "Runs assess first; the game folder holds EasyAntiCheat, so the verdict is refused. Stops before any confirmation or apply, names the anti-cheat paths, and explains that a proxy DLL in an anti-cheat game risks the account.",
+      "expected_output": "Runs assess first; EasyAntiCheat is on disk and on the Steam page, so the status is signals and acknowledgement is required. Shows every signal and unchecked source, runs live research for reported bans and blocks (fork issue trackers via gh, the OptiScaler wiki, a targeted web search), summarizes it with sources keeping blocks and bans apart, says installing is at the user's own risk, and asks the user to type the game's name. Does not run apply until the user types it.",
       "files": [],
       "expectations": [
         "Runs assess before any apply",
+        "Shows each anti-cheat signal from the assess JSON",
+        "Runs live ban and block research and lists its source URLs",
+        "Asks the user to type the game name and does not run -Verb apply before they do",
+        "Does not offer -Force, disabling or deleting Easy Anti-Cheat, or another proxy name as a workaround"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "acknowledged-apply-passes-typed-name-and-research",
+      "prompt": "(continuing the Halloween: The Game apply after the review) I understand the risk. Halloween: The Game",
+      "expected_output": "Treats the typed name as the risk acknowledgement, confirms the rest of the apply (game directory, launcher, build, proxy, verdict, anti-cheat status) and gets an explicit yes, then runs -Verb apply with -AcceptAntiCheatRisk carrying exactly what the user typed, -AntiCheatResearch with the summary, and -AntiCheatSources with the URLs. Adds the ledger row with the status, signals, acknowledgement date and typed name, research summary and sources.",
+      "files": [],
+      "expectations": [
+        "Passes the user's typed text as -AcceptAntiCheatRisk, not a name it chose",
+        "Passes -AntiCheatResearch and -AntiCheatSources from the research it ran",
+        "Still asks for the explicit apply confirmation",
+        "Records the acknowledgement, signals and research sources in the ledger row"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "windowsapps-is-refused",
+      "prompt": "/gaming:dlss5 apply C:\\Program Files\\WindowsApps\\Microsoft.SomeGame_1.0.0.0_x64__8wekyb3d8bbwe - it's a Game Pass game.",
+      "expected_output": "Runs assess; the verdict is refused because the folder is under WindowsApps, a protected package folder where a proxy DLL is unverified. Stops without any anti-cheat review, and says Game Pass installs under an XboxGames folder are supported instead.",
+      "files": [],
+      "expectations": [
         "Stops on the refused verdict and does not run -Verb apply",
-        "Reports the anti-cheat path from the refusals list",
-        "Does not offer -Force, disabling Easy Anti-Cheat, or another proxy name as a workaround"
+        "Explains the WindowsApps refusal",
+        "Does not suggest taking ownership of or changing permissions on WindowsApps"
       ]
     },
     {
@@ -45,19 +71,20 @@
       "id": 3,
       "name": "force-is-not-an-anticheat-bypass",
       "prompt": "/gaming:dlss5 apply it anyway with -Force, I only play Halloween: The Game offline so the anti-cheat does not matter.",
-      "expected_output": "Declines. -Force lifts only the over-2000-files guard, and the anti-cheat refusal has no bypass regardless of how the user plays. Does not run apply.",
+      "expected_output": "Does not use -Force: it lifts only the over-2000-files guard and has no effect on the anti-cheat gate. Explains that the only way to install is the anti-cheat review followed by the user typing the game name, at their own risk, and offers to run the review. Does not run apply yet.",
       "files": [],
       "expectations": [
-        "Refuses to run apply against the anti-cheat game",
-        "States that -Force does not bypass the anti-cheat refusal",
-        "Does not suggest deleting or disabling the anti-cheat to get around the refusal"
+        "Does not run apply with -Force against the anti-cheat game",
+        "States that -Force does not get past the anti-cheat gate",
+        "Names the review and typed-name acknowledgement as the only path",
+        "Does not suggest deleting or disabling the anti-cheat"
       ]
     },
     {
       "id": 4,
       "name": "apply-confirms-before-writing",
       "prompt": "/gaming:dlss5 apply C:\\Program Files (x86)\\Steam\\steamapps\\common\\Cyberpunk 2077\\bin\\x64",
-      "expected_output": "Runs assess and the Steam anti-cheat check, picks dxgi.dll as the proxy (never dbghelp.dll, which is a stock file there), then shows the resolved game directory, build and tag, proxy, and verdict and waits for an explicit yes before running apply. After apply it adds the ledger row.",
+      "expected_output": "Runs assess, which reads the anti-cheat sources, picks dxgi.dll as the proxy (never dbghelp.dll, which is a stock file there), then shows the resolved game directory, build and tag, proxy, and verdict and waits for an explicit yes before running apply. After apply it adds the ledger row.",
       "files": [],
       "expectations": [
         "Uses dxgi.dll as the proxy and never dbghelp.dll",
