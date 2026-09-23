@@ -122,7 +122,7 @@ evidence is read. `config` does not say which settings source or rule matched, a
 permission prompt request that failed. `hook` carries no hook identity; the hook execution event
 in the page's
 [security-question map](https://code.claude.com/docs/en/monitoring-usage#map-security-questions-to-events)
-adds the hook name and a count of blocking results, but it joins a decision by prompt, not by tool
+adds the hook event and matcher and a count of blocking results, but it joins a decision by prompt, not by tool
 call. In a non-interactive `-p` or Agent SDK session, rule matches do not all report `config`: a
 deny rule in the user's personal settings reports `user_reject`, and later matches of a grant
 made at a permission prompt report `user_permanent` or `user_temporary`. The similarly named
@@ -131,14 +131,14 @@ it carries no rejection evidence. *Basis:* the page's
 [Tool decision event](https://code.claude.com/docs/en/monitoring-usage#tool-decision-event) and
 [Tool result event](https://code.claude.com/docs/en/monitoring-usage#tool-result-event) sections,
 read as raw markdown. *Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog entry
-touching `tool_decision` or its `source` values, or a read-time fetch of those sections that no
+touching `claude_code.tool_decision` or its `source` values, or a read-time fetch of those sections that no
 longer matches this record.
 
 **Inbound trace context, dated record.** *Claim:* Pillar 3's migration trigger has data. In `-p`
 and Agent SDK sessions the export reads an inbound `TRACEPARENT`, parents its interaction span on
 the caller's span, and stamps its event records with the caller's trace even when no traces
-exporter is set; interactive sessions ignore it. The page records earlier behavior for versions
-before 2.1.214, so a binding relying on the stamping states a version floor. Relying on it remains
+exporter is set; interactive sessions ignore it. The page records different stamping before
+v2.1.214, so a binding relying on it requires v2.1.214 or later. Relying on it remains
 Pillar 3's reviewed migration and is not made here. *Basis:* the page's
 [Traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta) section, read as raw
 markdown. *Verified:* 2026-09-23. *Recheck trigger:* the Pillar 3 migration is taken up, or a
@@ -161,9 +161,11 @@ release, or its README publishing a schema URL.
 
 **The gap:** the startup load of auto memory's `MEMORY.md` index has no signal documented on the
 monitoring or hooks page, so a binding has nothing to show which memory an unattended run began
-with. Two neighbors are covered. Topic files are read on demand with the standard file tools, per
-the [memory page](https://code.claude.com/docs/en/memory), so those reads surface as ordinary tool
-events and tool hooks; that page does not say how memory writes are made. Instruction files are
+with. Two neighbors are partly covered. Topic files are read on demand with the standard file
+tools, per the [memory page](https://code.claude.com/docs/en/memory), so those reads surface as
+ordinary tool events; the event names no path by default, so a read is identifiable as a memory
+read only from a tool hook's input or with the page's tool-detail flag, which also exports argument
+content. That page does not say how memory writes are made. Instruction files are
 reported by the [`InstructionsLoaded` hook](https://code.claude.com/docs/en/hooks#instructionsloaded)
 with path and load reason, except an `AGENTS.md` read directly through the Project instructions
 setting, and a binding that needs that evidence wraps the hook.
@@ -177,8 +179,9 @@ the stem are unrelated (an MCP memory server, in-memory state, links to the memo
 *Verified:* 2026-09-23. *Recheck trigger:* the monitoring page documents a memory event or
 attribute, or the hooks page documents a hook event covering auto memory.
 
-**Why deferred:** only the harness knows what it loaded at startup; a contract-authored signal
-could only guess it from other evidence, which the native-surface principle forbids.
+**Why deferred:** a contract-authored memory signal would be a new custom attribute, which Pillar
+2's namespace governance admits only through a reviewed contract change, and a wrapper that read
+`MEMORY.md` itself would restate the harness's load limits, which the memory page owns.
 
 **Trigger to reconsider:** the absence record's recheck trigger fires.
 
