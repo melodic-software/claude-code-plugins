@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.1] - 2026-09-23
+
+### Fixed
+
+- **`audit-skill-visibility --installed` no longer counts never-enabled plugins as enabled.** An installed plugin that no `enabledPlugins` scope names now resolves to the new reachability value `not-enabled` (cause `plugin-never-enabled`, remedy `claude plugin enable <plugin>@<marketplace>`, with the real id filled in only when it is a plain `name@marketplace`), its skills are exempt from the listing contest, and the Markdown counts them on their own line without recommending a fix, naming any settings scope other than the flag scope that could not be read and might enable them. `defaultEnabled` no longer decides an absent key: a fixture probe of `claude plugin list --json` on Claude Code 2.1.280 reported every such plugin disabled, including ones whose marketplace entry or `plugin.json` set `defaultEnabled: true`, although the settings and plugins references state the opposite. The `default`, `default: marketplace entry defaultEnabled`, and `default: plugin.json defaultEnabled` evidence labels are gone, a plugin set `false` still reads `hidden` with its scope file as evidence, and a skill whose plugin does not load is classified by that before its frontmatter. JSON `schema_version` is 1.3.0.
+
 ## [0.59.0]
 
 ### Added
