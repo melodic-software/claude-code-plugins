@@ -73,6 +73,13 @@ name is not a way past it either: the gate does not look at the proxy.
 | Battle.net launcher | Every Battle.net title is a signal, on the EULA text below | Nothing per title: the signal is the publisher's terms, not a detected anti-cheat |
 | Epic, EA app, Origin, GOG Galaxy, Ubisoft Connect, Xbox app | No first-party per-game anti-cheat disclosure exists, so these titles are at best `unknown` | |
 
+| Claim | Basis | As of | Recheck trigger |
+|---|---|---|---|
+| Epic exposes no per-game anti-cheat field | `curl https://store-content-ipv4.ak.epicgames.com/api/en-US/content/products/fortnite` (an Easy Anti-Cheat title): HTTP 200 and no `anti-cheat` or `kernel` key. Checked on one title only | 2026-09-23 | Epic adds an anti-cheat field to its store pages or API |
+| EA app, Origin, GOG Galaxy, Ubisoft Connect and Xbox app expose no per-game anti-cheat field | Absence of evidence: the launcher research on this date found none in their client data or store pages. EA publishes a count of Javelin titles (https://www.ea.com/news/ea-javelin-anticheat-2026-update), not a per-game field | 2026-09-23 | Any of them publishes a per-game anti-cheat disclosure |
+
+Either row being wrong only makes the plugin stricter than it needs to be: a launcher with no source reads `unknown`, which asks for an acknowledgement.
+
 EA's kernel-level EA Javelin Anticheat reaches the status through AreWeAntiCheatYet's `EA
 anticheat` entries. EA publishes a count of protected titles, not a list, so the plugin keeps no
 hard-coded Javelin list.
