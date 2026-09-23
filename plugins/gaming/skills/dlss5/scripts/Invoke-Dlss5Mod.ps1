@@ -242,7 +242,8 @@ function SteamAcf($root) {
     if ($root -notmatch '^(.*\\steamapps)\\common\\([^\\]+)') { return }
     $dir = $Matches[2]
     foreach ($acf in Get-ChildItem -LiteralPath $Matches[1] -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
-        $t = Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8
+        # Another game's unreadable manifest must not hide this one's.
+        $t = try { Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8 } catch { continue }
         if ((Acf $t 'installdir') -eq $dir -and (Acf $t 'appid') -match '^\d+$') { return @{ appid = (Acf $t 'appid'); name = (Acf $t 'name') } }
     }
 }
@@ -1247,6 +1248,8 @@ function Do-Selftest {
         # Acknowledgement: required, mismatched, missing research, accepted and recorded
         $script:SteamPages['111'] = '<div class="apphub_AppName">Tom Clancy&#8217;s Ack Game</div><div class="anticheat_section DRM_notice"><div class="anticheat_name">Easy Anti-Cheat</div></div>'
         $ag = "$l2\steamapps\common\Ack Game\bin"; Put "$ag\ack.exe" 'exe'; Put "$ag\nvngx_dlss.dll" 'dlss'
+        $lock = [IO.File]::Open("$l2\steamapps\appmanifest_000.acf", 'Open', 'Read', 'None')
+        try { Assert 'Steam app id lookup skips another game''s locked manifest' ((SteamAppId $ag) -eq '111') } finally { $lock.Dispose() }
         $aa = (Do-Assess $ag) | ConvertFrom-Json
         Assert 'Steam store anti-cheat section is a signal' ($aa.launcher -eq 'Steam' -and $aa.steamAppId -eq '111' -and $aa.antiCheat.steam.storeName -eq "Tom Clancy`u{2019}s Ack Game" -and @($aa.antiCheat.signals | Where-Object { $_ -eq 'Steam store page discloses anti-cheat: Easy Anti-Cheat' }).Count -eq 1)
         $before = Tree $ag
