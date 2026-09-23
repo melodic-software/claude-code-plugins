@@ -20,9 +20,9 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 **Visibility is Claude Code's own term** for this; the settings page documents
 `skillOverrides` under "Override skill visibility". This skill audits every way a
 plugin skill loses it, and `skillOverrides` is not one of those ways: plugin skills
-are governed by `enabledPlugins`, and a plugin resolved to `false` hides every skill
-it ships. `skillOverrides` governs non-plugin skills, which this audit does not
-enumerate, so it is never cited here as a cause. Verified 2026-09-11 against
+are governed by `enabledPlugins`, and a plugin it does not set to `true` loads none
+of the skills it ships. `skillOverrides` governs non-plugin skills, which this
+audit does not enumerate, so it is never cited here as a cause. Verified 2026-09-11 against
 <https://code.claude.com/docs/en/skills> ("Plugin skills are not affected by
 `skillOverrides`") and Claude Code 2.1.263, whose listing resolver returns `on`
 for every plugin-sourced skill before it reads the override map; recheck when
@@ -147,15 +147,25 @@ same settings scopes the listing budget reads, merged per `plugin@marketplace`
 key with the product's precedence: user < project < local < the `--settings`
 flag (unread from outside the session) < managed policy. A key set to `false`
 makes every skill of that plugin `hidden`, with the scope file that supplied
-the `false` as evidence. A key absent from every scope falls back to
-`defaultEnabled`, which the plugins reference names as the fallback when
-nothing else has decided the plugin's state: first the marketplace entry's
-value, read from the marketplace's own `.claude-plugin/marketplace.json`
-(evidence `default: marketplace entry defaultEnabled`), then the plugin's
-own `.claude-plugin/plugin.json` field (evidence `default: plugin.json
-defaultEnabled`), and only with neither present the product's default,
-enabled (evidence `default`). A non-Boolean `defaultEnabled` is skipped and
-named in the evidence. A scope file that exists but cannot be read or parsed could
+the `false` as evidence. A key absent from every scope makes every skill of
+that plugin `not-enabled` (cause `plugin-never-enabled`, remedy
+`claude plugin enable <plugin>@<marketplace>`), with evidence naming any scope
+that could not be read at all.
+
+Verification record for that rule. Claim: an installed plugin loads only when
+an `enabledPlugins` scope sets it `true`; `defaultEnabled` does not decide an
+absent key at runtime. Basis: a fixture probe of `claude plugin list --json` on
+Claude Code 2.1.280 reported disabled every installed plugin no scope named,
+including one whose marketplace entry and one whose `plugin.json` set
+`defaultEnabled: true`. The settings reference
+(<https://code.claude.com/docs/en/settings#enabledplugins>) and the plugins
+reference (<https://code.claude.com/docs/en/plugins-reference#default-enablement>)
+state the opposite, so the engine follows the product and each such row's
+`provenance` says so. As of 2026-09-23. Recheck trigger: a Claude Code release
+that changes `claude plugin list`'s `enabled` answer for an absent key, or
+either doc section changing.
+
+A scope file that exists but cannot be read or parsed could
 have set any key at its own precedence, so plugins whose answer would come
 from below it read `unknown`, with that file named in the remedy. Only
 `--installed` assesses this: a checkout is not an install, so a
@@ -249,14 +259,16 @@ questions that demand different actions.
 better, and it is never a synonym for unused.
 
 `reachability` values: `model-reachable` · `user-only` · `hidden` ·
-`misconfigured` · `unknown` · `not-assessed`. Only `model-reachable` with no
-observation is a starvation candidate. `user-only` means you type it by design,
-`hidden` means the owning plugin resolves to disabled, through an
-`enabledPlugins` entry or through `defaultEnabled` when no scope names it, and
-`misconfigured` is a fix. `unknown` is reserved for a settings file the reader
-could not parse, and `not-assessed` is the checkout-mode answer, where there is
-no install to read enablement from. Each carries its causes, evidence, and a
-remedy.
+`not-enabled` · `misconfigured` · `unknown` · `not-assessed`. Only
+`model-reachable` with no observation is a starvation candidate. `user-only`
+means you type it by design, `hidden` means an `enabledPlugins` entry sets the
+owning plugin to `false`, `not-enabled` means the plugin is installed but no
+scope names it, so it never loads, and `misconfigured` is a fix. A skill whose
+plugin settles to not loading is `hidden` or `not-enabled` whatever its
+frontmatter says, since it has no listing entry to misconfigure. `unknown` is
+reserved for a settings file the reader could not parse, and `not-assessed` is
+the checkout-mode answer, where there is no install to read enablement from.
+Each carries its causes, evidence, and a remedy.
 
 **The reachability causes are not an official list.** No such list is published;
 this catalogue is assembled from scattered documentation plus strings in the
@@ -276,15 +288,20 @@ per-skill claim, never one per skill.
 `not-assessable` marks the rows that never enter the contest, with
 `starvation.eligibility` naming why: `exempt-bundled` (a bundled skill keeps
 its description unconditionally), `exempt-user-only` (`disable-model-invocation`
-keeps it out of context), and `exempt-hidden` (the owning plugin resolves to
-disabled, so the product never loads the skill). Exempt rows contribute no
-`demand_chars`, so a fleet whose only excess sits in disabled plugins reports
-`listing-fits`. Only a settled disabled plugin exempts: a `not-assessed`
-checkout row or an `unknown` one keeps competing, because unknown is not hidden.
+keeps it out of context), and `exempt-hidden` (the owning plugin is `hidden` or
+`not-enabled`, so the product never loads the skill). Exempt rows contribute no
+`demand_chars`, so a fleet whose only excess sits in plugins that do not load
+reports `listing-fits`. `exempt-hidden` covers both not-loading answers, and
+only a settled not-loading answer (`hidden` or `not-enabled`) exempts: a
+`not-assessed` checkout row or an `unknown` one keeps competing, because
+unknown is not hidden.
 
 The Markdown names what these fields hold rather than only counting it. Under
 Reachability, hidden plugins are tabled with the scope file that disabled them,
-and misconfigured skills with their cause and one remedy per cause. Under
+never-enabled plugins get one count line (leaving an installed plugin off is
+intentional, so it gets no fix; the line names any scope other than the flag
+scope that could not be read and might enable them), and misconfigured skills
+are tabled with their cause and one remedy per cause. Under
 Listing budget, when any row overflows, the ten longest competing descriptions
 are tabled by source length beside the capped charge the listing counts
 (`description_chars` and `demand_chars` in the JSON): trimming lowers the

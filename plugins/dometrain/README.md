@@ -68,6 +68,68 @@ entry, resetting every option in the Options reference table below to its manife
 default. The verified-version record lives in the
 [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
+## Using vault-exec (opt-in)
+
+If your machine resolves vendor API keys from a secret store at launch time instead of typing
+them into app UIs (see
+[melodic-software/dotfiles ADR 0005](https://github.com/melodic-software/dotfiles/blob/main/docs/adr/0005-adopt-vault-exec-as-the-secret-resolver.md)),
+you can keep `dometrain_api_key` out of Claude Code's secure credential storage and let
+`vault-exec` mint the `Authorization` header at connect time instead. This is entirely opt-in.
+Skip it and the plugin behaves exactly as described above.
+
+`dometrain_api_key` is `required: true`, so the plugin still needs *some* value to enable it.
+Enter a non-secret placeholder (for example, `vault-exec-managed`) at the enable-time prompt; it
+is never sent, because the recipe below replaces the plugin's server with one at the identical
+URL.
+
+1. Enable the plugin with the placeholder, as above.
+2. Add a **user-scope** HTTP MCP server at the *same URL* this plugin uses
+   (`https://mcp.dometrain.com/mcp`) with a `headersHelper` that resolves the key through
+   `vault-exec` and prints the `Authorization` header as JSON:
+
+   ```shell
+   claude mcp add-json dometrain \
+     '{"type":"http","url":"https://mcp.dometrain.com/mcp","headersHelper":"/path/to/dometrain-headers.sh"}' \
+     --scope user
+   ```
+
+   where `/path/to/dometrain-headers.sh` is an executable script you keep in your own dotfiles:
+
+   ```bash
+   #!/usr/bin/env bash
+   vault-exec --env DOMETRAIN_API_KEY=<your-secret-name> -- \
+     sh -c 'printf "{\"Authorization\":\"Bearer %s\"}" "$DOMETRAIN_API_KEY"'
+   ```
+
+   Replace `<your-secret-name>` with whatever name your vault stores the key under; this plugin
+   never sees or manages that name. `vault-exec` places the resolved key only in the child
+   environment, never on an argument list, and this script reads it back through a shell variable
+   expansion so the key never appears on a command line. The `vault-exec.ps1` PowerShell wrapper
+   resolves the same way on Windows, but the shell a plugin-independent `headersHelper` runs on
+   Windows is unverified. Confirm it before relying on it.
+
+3. Claude Code deduplicates a plugin-provided server against one configured at local, project, or
+   user scope by **endpoint**. Because your user-scope server names the identical URL, it outranks
+   and replaces the plugin's own server; no `/mcp` disable step is needed here, unlike `miro`'s
+   wrapped-command recipe, where the launch command itself differs.
+
+Notes:
+
+- Claude Code gives the helper a 10-second budget with no caching; it reruns on every reconnect
+  and once more on a `401`/`403`. Time your own `vault-exec` call once. A cold vault lookup can
+  come close to that budget.
+- Whatever the helper prints to stdout is the bearer token. Never add logging or `-x` tracing to
+  the script above.
+- The folder-trust gate that can hold a `headersHelper` back until you accept a trust dialog
+  applies to a server declared in a project `.mcp.json` or at local scope. A user-scope server,
+  like the one above, is not gated by it.
+- Tool names move from `mcp__plugin_dometrain_dometrain__<tool>` (plugin-provided) to
+  `mcp__dometrain__<tool>` (directly configured) once the override is active. Update any
+  permission rule written against the old prefix.
+
+Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Headers helper," "Plugin
+MCP tool names," and "Server deduplication," verified 2026-09-23.
+
 ## Tools
 
 | Tool | What it does |
