@@ -999,6 +999,11 @@ fi
 # sentinel stands in for typos-format.sh and records whether it started. The
 # expected verdict for each value comes from the script's own kill-switch line,
 # run under the same environment, so the row and the script cannot disagree.
+if jq -e '[.hooks[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
+  ok "row-gate: hooks.json registers exactly one hook command"
+else
+  fail "row-gate: hooks.json registers $(jq '[.hooks[][].hooks[]] | length' "$HOOKS_JSON" 2>&1) hook commands, want 1"
+fi
 ROW_JSON=$(jq -c '.hooks.PostToolUse[0].hooks[0]' "$HOOKS_JSON")
 ROW_CMD=$(jq -r '.command' <<<"$ROW_JSON")
 ROW_SHELL=$(jq -r '.shell // empty' <<<"$ROW_JSON")
@@ -1007,6 +1012,7 @@ if [[ "$ROW_SHELL" == "bash" ]]; then
 else
   fail "row-gate: the hooks.json row shell is '$ROW_SHELL', want 'bash'"
 fi
+# `if` would narrow the scan-everything set (#3411); `async` would detach the disclosure from the tool call.
 if jq -e 'has("if") or has("async")' <<<"$ROW_JSON" >/dev/null; then
   fail "row-gate: the hooks.json row carries an if or async field: $ROW_JSON"
 else
@@ -1029,7 +1035,7 @@ printf '%s\n' '#!/usr/bin/env bash' ': >"$ROWGATE_OUT/started"' 'cat >"$ROWGATE_
 chmod +x "$ROWGATE/root/hooks/typos-format.sh"
 printf '{"session_id":"row-1","tool_input":{"file_path":"x.txt"},"tool_name":"Write"}\n' >"$ROWGATE/payload"
 # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
-ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/$ROWGATE/root}
+ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/"$ROWGATE/root"}
 
 # run_opt <case-dir> <value|__unset__> <command...> -> run <command> with the
 # option set to <value> (or unset) and ROWGATE_OUT pointing at <case-dir>.

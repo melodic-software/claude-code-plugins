@@ -274,7 +274,7 @@ change, not a saving.
 
 **A disabled hook costs one shell.** The `hooks/hooks.json` row reads
 `typos_format_enabled` itself and exits before the script starts, so the harness's
-shell is the only process a disabled hook creates. Measured on this Windows Git Bash
+shell is the only process a disabled hook creates. Measured on a Windows Git Bash
 host, 15 interleaved trials with the switch off: the old row took 96.1 ms (median)
 and the new row 23.7 ms, against a 24.0 ms `bash -c :` floor. The enabled path is
 unchanged, because the row `exec`s the script in place of its own shell.
