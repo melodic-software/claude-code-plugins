@@ -1011,9 +1011,22 @@ done < <(
 # CHECK_SKILL_SKIP_MARKDOWNLINT=1 is a test seam: fixture SKILL.md files may
 # live outside a repo with markdownlint config, so the tool applies defaults
 # (MD041/MD013) that real skills intentionally violate.
+#
+# Check 6 runs from the repo top level (below), which hides a workspace-local
+# install (e.g. packages/foo/node_modules) from npx, so the nearest install
+# above the skill is taken first and npx is the fallback when there is none.
+ML_CMD=(npx --no-install markdownlint-cli2)
+ml_d="$(CDPATH='' cd -- "$SKILL_DIR" && pwd)"
+while [[ -n "$ml_d" ]]; do
+  if [[ -x "$ml_d/node_modules/.bin/markdownlint-cli2" ]]; then
+    ML_CMD=("$ml_d/node_modules/.bin/markdownlint-cli2")
+    break
+  fi
+  ml_d="${ml_d%/*}"
+done
 if [[ "${CHECK_SKILL_SKIP_MARKDOWNLINT:-}" == "1" ]]; then
   note "markdownlint check skipped (CHECK_SKILL_SKIP_MARKDOWNLINT=1)"
-elif command -v npx >/dev/null 2>&1; then
+elif [[ "${ML_CMD[0]}" != npx ]] || command -v npx >/dev/null 2>&1; then
   # --no-install: never trigger a remote fetch. A genuine lint failure emits
   # file:line findings; a non-zero exit WITHOUT such findings means the package
   # is unavailable (not installed / offline), which downgrades to a WARN-skip
@@ -1030,18 +1043,6 @@ elif command -v npx >/dev/null 2>&1; then
   else
     ML_CWD=.
   fi
-  # Leaving the skill's directory hides a workspace-local install (e.g.
-  # packages/foo/node_modules) from npx, so take the nearest install above the
-  # skill first and fall back to npx only when there is none.
-  ML_CMD=(npx --no-install markdownlint-cli2)
-  ml_d="$(CDPATH='' cd -- "$SKILL_DIR" && pwd)"
-  while [[ -n "$ml_d" ]]; do
-    if [[ -x "$ml_d/node_modules/.bin/markdownlint-cli2" ]]; then
-      ML_CMD=("$ml_d/node_modules/.bin/markdownlint-cli2")
-      break
-    fi
-    ml_d="${ml_d%/*}"
-  done
   if ML_OUT="$(cd -- "$ML_CWD" && "${ML_CMD[@]}" "$ML_FILE" 2>&1)"; then
     note "markdownlint clean"
   elif grep -qE '^[^[:space:]]+:[0-9]+' <<<"$ML_OUT"; then
