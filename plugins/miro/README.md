@@ -55,6 +55,54 @@ resetting every option in the Options reference table below to its manifest defa
 The verified-version record lives in the
 [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
+## Using vault-exec (opt-in)
+
+If your machine resolves vendor API keys from a secret store at launch time instead of typing
+them into app UIs (see
+[melodic-software/dotfiles ADR 0005](https://github.com/melodic-software/dotfiles/blob/main/docs/adr/0005-adopt-vault-exec-as-the-secret-resolver.md)),
+you can keep `miro_api_token` out of Claude Code's secure credential storage and let `vault-exec`
+hand the token to the server at launch instead. This is entirely opt-in. Skip it and the plugin
+behaves exactly as described above.
+
+`miro_api_token` is `required: true`, so the plugin still needs *some* value to enable it. Enter a
+non-secret placeholder (for example, `vault-exec-managed`) at the enable-time prompt; it is never
+read, because the recipe below launches a different server process entirely.
+
+1. Enable the plugin with the placeholder, as above.
+2. Locate this plugin's cached server bundle. Claude Code copies an installed plugin into a
+   version-keyed cache directory,
+   `~/.claude/plugins/cache/<marketplace>/miro/<resolved-version>/server/dist/index.min.js`. The
+   exact path changes on every `miro` update, so re-check it after one.
+3. Add a **user-scope** stdio MCP server whose command wraps that path with `vault-exec`:
+
+   ```shell
+   claude mcp add --transport stdio --scope user miro \
+     -- vault-exec --env MIRO_API_TOKEN=<your-secret-name> \
+     -- node /path/to/cache/miro/<resolved-version>/server/dist/index.min.js
+   ```
+
+   The `vault-exec.ps1` PowerShell wrapper resolves the same secret on Windows, but the shell a
+   wrapped stdio command like this launches through on Windows is unverified. Confirm it starts
+   before relying on it.
+
+4. Because that command differs from the plugin's own `node ${CLAUDE_PLUGIN_ROOT}/...` entry,
+   Claude Code's endpoint-based deduplication does not collapse the two servers the way it does
+   for an HTTP server at an identical URL (see the `dometrain` plugin's README for that case).
+   Disable the plugin's own `miro` server with `/mcp` so only the wrapped one runs. `/mcp`'s
+   disabled-server choice is stored per project, so repeat this once in every project where you
+   use `miro`.
+
+Tool names move from `mcp__plugin_miro_miro__<tool>` (plugin-provided) to `mcp__miro__<tool>`
+(directly configured) once the override is active. Update any permission rule written against the
+old prefix. Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Plugin MCP
+tool names" and "Server deduplication," verified 2026-09-23.
+
+**Incompatible with `event-storming` as shipped.** That plugin's Miro availability gates probe only
+the plugin-provided prefix (`mcp__plugin_miro_miro__miro_list_boards` in
+`skills/methodology/SKILL.md` and `skills/simulation/SKILL.md`), so once this override is active
+those gates read Miro as absent and fall back to markdown even though `mcp__miro__*` is connected.
+Skip this recipe if you use `event-storming` against Miro.
+
 ## Tools
 
 The server registers Miro operations grouped by concern: boards, sticky notes, frames,

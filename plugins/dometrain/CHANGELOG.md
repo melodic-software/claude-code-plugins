@@ -3,6 +3,18 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-09-23
+
+### Added
+
+- **README section "Using vault-exec (opt-in)"** documenting a `vault-exec`-driven `headersHelper`
+  on a user-scope HTTP server at the same URL as an alternative to storing `dometrain_api_key` in
+  Claude Code's secure credential storage: enter a non-secret placeholder to satisfy the required
+  option, and Claude Code's endpoint-based deduplication replaces the plugin's server with the
+  user-scope one, no `/mcp` disable step needed
+  ([#4342](https://github.com/melodic-software/claude-code-plugins/issues/4342)). No manifest or
+  code change; `dometrain_api_key` stays `required: true` for consumers who do not opt in.
+
 ## [0.3.0] - 2026-09-23
 
 ### Changed
