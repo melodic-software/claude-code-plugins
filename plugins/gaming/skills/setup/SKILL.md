@@ -26,7 +26,7 @@ Bash then fails with `bad substitution` before pwsh starts.
 |---|---|---|
 | **`<data-dir>`** | `${user_config.data_dir}` when non-empty and not still showing the unexpanded token; otherwise the output of the default command below. Changing it after an apply is a MOVE of the directory, not a reconfiguration: every manifest stays at the old root | `-DataDir '<data-dir>'` on every call |
 | **`<runtime-dll>`** | `${user_config.runtime_dll}` when set; otherwise `<data-dir>\runtime\nvngx_dlssnr.dll` | `-RuntimeDll` ONLY when the option is set. Passing the default path marks it configured, and `provision -Runtime` then refuses a failing file without scanning |
-| **`<runtime-source>`** | `${user_config.runtime_source}` when set; otherwise none | `-RuntimeSource` ONLY when set. The value is stored in plain text in `settings.json`, so a SAS URL (one carrying `sig=`) is refused: use the plain blob URL and `az login` |
+| **`<runtime-source>`** | `${user_config.runtime_source}` when set; otherwise none | `-RuntimeSource` ONLY when set. A path or a plain `https://` URL. The value is stored in plain text in `settings.json`, so a URL with a query string (where signed-URL credentials live) is refused. A private store is synced to a path by the user's own tooling |
 
 The default `data_dir` follows OneDrive Known Folder Move, which `$env:USERPROFILE\Documents`
 does not:
@@ -73,8 +73,8 @@ download nothing, and never call `provision` in any form.
    `provision -Runtime` tries them: set `runtime_dll` to a copy you already have; install a DLSS 5
    title on this machine; set `runtime_source` to a copy you control. The plugin names no source
    of its own for this file.
-6. **Runtime source.** INFO: set or not, shown with any query string stripped. A value carrying
-   `sig=`, or a URL scheme other than `https://`, is FAIL: the script refuses it.
+6. **Runtime source.** INFO: set or not. A URL with a query string, or a URL scheme other than
+   `https://`, is FAIL: the script refuses it.
 7. **Steam library scan.** Read-only; it lists candidates and copies nothing:
 
    ```powershell

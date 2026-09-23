@@ -20,7 +20,7 @@ directory from one of three places, all yours:
 
 1. a path you configure (`runtime_dll`);
 2. a DLSS 5 title installed on your own machine, which `setup apply` scans for and copies from;
-3. a `runtime_source` you configure: your own file share, blob container, or URL.
+3. a `runtime_source` you configure: a local or network path, or a plain `https://` URL.
 
 Every copy is checked against the known-good SHA-256 or a valid NVIDIA Authenticode signature
 before use. The licence terms of whatever source you configure are your responsibility. The fork
@@ -49,8 +49,10 @@ game is a move of the directory, not a reconfiguration: move the old directory's
 new path, or `status` and `remove` lose track of the modded games.
 
 `runtime_source` is stored in plain text in `settings.json`, so it must not carry a credential.
-A URL with a SAS token (`sig=`) is refused. For an Azure blob, use the plain blob URL and sign in
-with `az login`; the plugin reads it with `az storage blob download --auth-mode login`.
+A URL with a query string is refused, because signed-URL credentials live there. The plugin reads
+a path or a plain `https://` URL and nothing else, so it assumes no storage provider. To use a
+private store, sync the file to a local or network path with your own tooling and point
+`runtime_source` (or `runtime_dll`) at it.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -64,7 +66,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `data_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_DATA_DIR` | Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Leave unset to use the default: Documents\Gaming under your user profile. It survives plugin uninstall. Changing it after applying the mod to a game is a move of the directory, not a reconfiguration: move the old directory's contents to the new path. |
 | `runtime_dll` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_DLL` | Path to your own legitimately obtained nvngx_dlssnr.dll (known good: version 310.8.0.0, SHA-256 E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E). Leave unset to use runtime\nvngx_dlssnr.dll under the data directory, which setup fills from an installed DLSS 5 title or from the runtime source. The plugin names no source for this file. |
-| `runtime_source` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_SOURCE` | Optional https:// URL or local/UNC path to a copy of nvngx_dlssnr.dll that you control. Azure blob URLs are read with az and your az login. The value is stored in plain text in settings.json, so it must not carry a credential: a URL with a SAS token (sig=) is refused. Every copy is hash- or signature-checked before use. |
+| `runtime_source` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_SOURCE` | Optional local/UNC path or plain https:// URL to a copy of nvngx_dlssnr.dll that you control. The value is stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. For a private store, sync the file to a local path and point this at it. Every copy is hash- or signature-checked before use. |
 
 ### How to set these
 

@@ -59,7 +59,8 @@ function Resolve-DataDir([string]$v) {
 function Resolve-Source([string]$v) {
     $v = Resolve-Opt $v
     if (-not $v) { return $null }
-    if ($v -match '[?&]sig=') { throw 'runtime_source carries a SAS token (sig=); use the plain URL and az login instead' }
+    # Signed-URL credentials ride in the query string, and this value sits in plain-text settings.
+    if ($v -match '\?') { throw 'runtime_source must not carry a query string (signed-URL credentials live there); use a path or a plain https:// URL' }
     if ($v -match '^https://') { return $v }
     if ($v -match '^[A-Za-z][A-Za-z0-9+.-]*://') { throw "runtime_source must be an https:// URL or a path: $v" }
     Resolve-PathOpt $v
@@ -480,13 +481,9 @@ function Do-ProvisionRuntime {
         }
         else {
             $tmp = Join-Path ([IO.Path]::GetTempPath()) ("dlss5-" + [guid]::NewGuid().ToString('N') + '.dll')
-            $shown = ($src -split '\?')[0]
+            $shown = $src
             try {
-                if (([uri]$src).Host -like '*.blob.core.windows.net' -and (Get-Command az -ErrorAction SilentlyContinue)) {
-                    & az storage blob download --blob-url $src --auth-mode login --file $tmp --only-show-errors | Out-Null
-                    if ($LASTEXITCODE) { throw "az storage blob download failed ($LASTEXITCODE) for $shown; is az logged in with Storage Blob Data Reader?" }
-                }
-                else { Invoke-WebRequest -Uri $src -OutFile $tmp }
+                Invoke-WebRequest -Uri $src -OutFile $tmp
                 $t = Test-Runtime $tmp
                 if ($t.Ok) { return Place-Runtime $tmp 'runtime_source' $shown }
                 $notes += "runtime_source refused: $($t.Reason)"
@@ -535,7 +532,8 @@ function Do-Selftest {
         Assert 'literal ${user_config.data_dir} uses the default' ((Resolve-DataDir '${user_config.data_dir}') -eq $docs)
         Assert 'relative DataDir resolves to absolute' ((Resolve-DataDir 'rel') -eq "$tmp\rel")
         Assert 'trailing backslash trimmed' ((Resolve-DataDir "$tmp\x\") -eq "$tmp\x")
-        Assert 'runtime_source with SAS token refused' (Throws { Resolve-Source 'https://a.blob.core.windows.net/c/b?sv=1&sig=x' } '*SAS*')
+        Assert 'runtime_source with a query string refused' (Throws { Resolve-Source 'https://example.com/nvngx_dlssnr.dll?token=x' } '*query string*')
+        Assert 'runtime_source rejects a non-https URL' (Throws { Resolve-Source 'http://example.com/nvngx_dlssnr.dll' } '*https*')
         Assert 'Win64 twins get distinct GameKeys' ((GameKey "$tmp\a\Win64") -ne (GameKey "$tmp\b\Win64"))
 
         $script:DataDir = "$tmp\data"
@@ -658,8 +656,8 @@ function Do-Selftest {
         Remove-Item -LiteralPath "$tmp\data\runtime" -Recurse -Force
         $script:ScanRoots = @()
         Assert 'no scan roots and no source prints all three remedies' (Throws { Do-ProvisionRuntime } '*runtime_dll*install a DLSS 5 title*runtime_source*')
-        $script:RuntimeSource = 'https://a.blob.core.windows.net/c/b?sv=1&sig=x'
-        Assert 'provision -Runtime refuses a SAS source before any fetch' (Throws { Do-ProvisionRuntime } '*SAS*')
+        $script:RuntimeSource = 'https://example.com/nvngx_dlssnr.dll?token=x'
+        Assert 'provision -Runtime refuses a query-string source before any fetch' (Throws { Do-ProvisionRuntime } '*query string*')
         Put "$tmp\src\nvngx_dlssnr.dll" 'fakemodel'; $script:RuntimeSource = "$tmp\src\nvngx_dlssnr.dll"
         Do-ProvisionRuntime | Out-Null
         Assert 'runtime_source path is placed' ((LoadJson "$tmp\data\runtime\.provisioned.json").source -eq 'runtime_source')

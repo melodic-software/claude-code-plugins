@@ -33,7 +33,7 @@
     "runtime_source": {
       "type": "string",
       "title": "DLSS 5 runtime source",
-      "description": "Optional https:// URL or local/UNC path to a copy of nvngx_dlssnr.dll that you control. Azure blob URLs are read with az and your az login. The value is stored in plain text in settings.json, so it must not carry a credential: a URL with a SAS token (sig=) is refused. Every copy is hash- or signature-checked before use."
+      "description": "Optional local/UNC path or plain https:// URL to a copy of nvngx_dlssnr.dll that you control. The value is stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. For a private store, sync the file to a local path and point this at it. Every copy is hash- or signature-checked before use."
     }
   }
 }

@@ -63,6 +63,17 @@ Append-only. Types: plan-confirmed, discovery, deviation, human-decision.
   `rg-artifacts-prod` / `stmeloartifacts001` (ZRS, Hot, shared key off, versioning, soft delete 30/7)
   holds `dlss/nvngx_dlssnr-310.8.0.0.dll`; `provision -Runtime -RuntimeSource <blob URL>` fetched it
   through `az --auth-mode login` and the hash matched.
+- **human-decision (2026-09-22, resolved): `runtime_source` is provider-neutral.** Plan said: an
+  `https://` URL on an Azure blob host is fetched through `az --auth-mode login`. User ruled the
+  plugin must assume no storage provider. Chose: path or plain `https://` URL only; any URL with a
+  query string is refused; the `az` branch and all Azure wording are removed. Our own Azure copy is
+  synced to a path by our dotfiles/provisioning (follow-up outside this PR). Supersedes the
+  plan-confirmed entry above on the Azure fetch. Evidence: selftests
+  `runtime_source with a query string refused`, `runtime_source rejects a non-https URL`.
+- **plan-check conflict (Phase 4):** Phase 4's `setup_windows.bat` grep (mentions must be
+  prohibitions) flags the Phase 3 selftest fixture and the required
+  `PASS  provision skips setup_windows.bat` line in the script. Both are correct as written; the
+  Phase 4 grep does not account for the Phase 3 requirement. No change.
 - **discovery (Phase 2): red was not observed per case.** The selftest cases were written together
   with the port and passed on first run, so no case was seen failing first. A fresh-context
   verifier reviews the phase instead. Outcome: see the Phase 2 verifier result.

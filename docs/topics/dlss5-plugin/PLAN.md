@@ -153,7 +153,8 @@ Work items:
       Also declare `userConfig.runtime_source` (type `string`, title "DLSS 5 runtime source"): an
       `https://` URL or a local/UNC path to a copy the user controls. Its description states that
       the value is stored in plain text in `settings.json`, so it must not carry a credential (no
-      SAS token); authenticate with `az login` for an Azure blob URL instead. None of the three is
+      query string); a private store is synced to a path by the user's own tooling. The plugin
+      assumes no storage provider (amended 2026-09-22, user decision). None of the three is
       `required: true`, and none is `sensitive`: a sensitive option is unreachable from a skill
       (`docs/extensibility-contract-smoke-tests.md`, "A **sensitive** value is unreachable from a
       skill entirely").
@@ -254,8 +255,8 @@ Work items:
       `-RuntimeDll`. `$ModelHash` stays a script constant.
 - [ ] Add `-RuntimeSource`, read through the same unset rule (empty or a literal
       `${user_config.` prefix means unset) but not path-resolved when it starts with `https://`.
-      Refuse a value whose query string carries `sig=`: that is a SAS token, and a credential in
-      plain-text settings and on a command line the transcript records. Nothing in Phase 2 uses
+      Refuse a URL with any query string: signed-URL credentials live there, and the value sits
+      in plain-text settings and on a command line the transcript records. Nothing in Phase 2 uses
       the value; Phase 3's `provision -Runtime` does.
 - [ ] Widen `GameKey` to `<existing prefix>_<first 8 hex of the SHA-256 of the lowercased full
       path>`, KEEPING the existing prefix rule at `game-mod.ps1:37` (the segment after
@@ -406,20 +407,18 @@ Work items:
          `-ScanRoots` so the selftest injects a fixture instead of reading the registry. Epic and
          Xbox library discovery is judgment-level scope: add it when a user reports a DLSS 5 title
          installed there.
-      3. `-RuntimeSource`. A local or UNC path is copied. An `https://` URL on a
-         `*.blob.core.windows.net` host is fetched with `az storage blob download --blob-url <url>
-         --auth-mode login --file <tmp>` when `az` is on PATH (flags confirmed against
-         `az storage blob download --help` on az 2.90.0); any other URL, or no `az`, uses
-         `Invoke-WebRequest`. The download goes to a temp file, is gated, and is deleted on
+      3. `-RuntimeSource`. A local or UNC path is copied. A plain `https://` URL is fetched with
+         `Invoke-WebRequest`. No provider-specific client (amended 2026-09-22: an earlier draft
+         special-cased Azure blob hosts through `az`; the user ruled that coupling out). The download goes to a temp file, is gated, and is deleted on
          refusal. The download step is factored separately, as for fork zips, so the selftest
          drives gate-and-place over a local file.
       4. Nothing passes: exit non-zero and print the three remedies (set `runtime_dll`, install a
          DLSS 5 title, set `runtime_source`), naming each candidate found and why it was refused.
       `provision -Runtime` writes `<DataDir>\runtime\.provisioned.json` recording which source won,
-      the source path or the URL with its query string stripped, the hash, and the timestamp.
+      the source path or URL, the hash, and the timestamp.
 - [ ] New selftest cases for `provision -Runtime`: a text file at a fixture
       `steamapps\common\X\data\streamline\nvngx_dlssnr.dll` is FOUND by the scan and REFUSED by the
-      gate, and nothing lands in `runtime\`; a `-RuntimeSource` carrying `sig=` is refused before
+      gate, and nothing lands in `runtime\`; a `-RuntimeSource` URL with a query string is refused before
       any fetch; empty scan roots with no source exits non-zero and prints all three remedies. No
       network call and no registry read in the selftest.
 - [ ] New selftest cases for `assess`: a fixture with `EasyAntiCheat\` returns `refused`; a fixture
@@ -1032,7 +1031,7 @@ The other agent continues.
 | [EXEC-SHAPE] The default `data_dir` is `[Environment]::GetFolderPath('MyDocuments')` joined with `Gaming`, while the README's prose default stays "Documents\Gaming under your user profile" | Phase 1's manifest description and Phase 2's resolver | `$env:USERPROFILE\Documents` is wrong on any machine where OneDrive Known Folder Move has redirected Documents, which is the default on a Microsoft-account Windows 11 install. The .NET call follows the redirect; the prose default stays readable because a user does not need the API name |
 | [EXEC-SHAPE] `Do-Apply` refuses a directory with no `*.exe`, and refuses above 2000 files unless `-Force`; both gates run before the auto-snapshot | Phase 2 work item and two selftest cases | Passing a game root or a library root instead of the exe directory is the easy mistake, and a wrong-directory apply scatters DLLs where `remove` will never look. The 2000 figure is judgment, not measured, which is why it is a `-Force`-overridable warning rather than a hard wall |
 | [EXEC-SHAPE] The runtime-DLL gate keeps the known-good hash and adds an Authenticode check; an unknown hash with a valid NVIDIA signature is refused unless `-AllowUnknownRuntime`, and the observed hash is then recorded in the manifest | Phase 2 work item plus a selftest case for the unknown-hash refusal | A single pinned hash binds the plugin to one driver generation. Every user on a newer `nvngx_dlssnr.dll` is either blocked or, more likely, edits the constant, which is the outcome the gate exists to prevent. Signature plus explicit opt-in keeps the default strict while leaving a path that does not involve editing the script |
-| [EXEC-SHAPE] The runtime DLL is acquired by `provision -Runtime` in the order configured path, local scan of installed games, `runtime_source`; `runtime_source` is optional, non-sensitive, and refuses SAS URLs | Phase 1 adds the third userConfig option; Phase 2 adds `-RuntimeSource`; Phase 3 adds the verb and three selftest cases; Phase 5's `check` reports what `apply` would find and `apply` calls the verb. Constraint 1 is reworded (approved 2026-09-22) | The goal amendment of 2026-09-21 ("it's gotta be generic, apply to any machine, user, organization") rules out a runtime reachable only by a hand-set path. The scan is zero-config wherever a native DLSS 5 title is installed, which is how this machine's copy was obtained (NBA 2K27, `data\streamline\`). `.work/azure-artifact-store/RESEARCH.md:148-150` sets the URL half: "takes a `runtime_source` URL and uses `az ... --auth-mode login` when present, else plain HTTPS. Nothing in the plugin names this org's account." `docs/extensibility-contract-smoke-tests.md:88` makes a sensitive option unreachable from a skill, so the value lands in plain `settings.json`, and a SAS token there is a stored credential |
+| [EXEC-SHAPE] The runtime DLL is acquired by `provision -Runtime` in the order configured path, local scan of installed games, `runtime_source`; `runtime_source` is optional, non-sensitive, provider-neutral (a path or a plain `https://` URL), and refuses any URL with a query string | Phase 1 adds the third userConfig option; Phase 2 adds `-RuntimeSource`; Phase 3 adds the verb and three selftest cases; Phase 5's `check` reports what `apply` would find and `apply` calls the verb. Constraint 1 is reworded (approved 2026-09-22) | The goal amendment of 2026-09-21 ("it's gotta be generic, apply to any machine, user, organization") rules out a runtime reachable only by a hand-set path. The scan is zero-config wherever a native DLSS 5 title is installed, which is how this machine's copy was obtained (NBA 2K27, `data\streamline\`). `.work/azure-artifact-store/RESEARCH.md:148-150` proposed an `az` branch for Azure blob URLs; the user overruled it on 2026-09-22 ("I don't want the plugin to ship with a preconceived opinionated notion that it involves azure storage"), so private stores are synced to a path by the user's own tooling. `docs/extensibility-contract-smoke-tests.md:88` makes a sensitive option unreachable from a skill, so the value lands in plain `settings.json`, and a signed-URL query string there is a stored credential |
 | [EXEC-SHAPE] The router puts an explicit confirmation gate on `apply` and `remove`, and the empty-argument auto-detect row may only recommend or run `status` | Phase 4's router table and a confirmation step before each of the two writing actions | `plugins/kindle-dedrm/skills/manage/SKILL.md:35` ("Never commit to setup/sync/cleanup without user confirmation when ambiguous") and `:43` ("Never recommend `--no-confirm` flags or batch-confirm cleanup") set the precedent for a router whose actions mutate state the user cares about. These two write into game folders the plugin did not create |
 | [EXEC-SHAPE] `refetch` merges into the cache rather than overwriting it: an unresolved item keeps its prior `found` value and prior `Checked` timestamp and carries the new `error` beside them | Phase 6 work item and its selftest case | A wholesale overwrite means one run on a machine without `gh` erases every known version the ledger is diffed against, and the next successful run then reports every watch item as changed |
 | [EXEC-SHAPE] `status` exits 0 for manifest-listed expected drift and 1 only for a removed manifest file, a modified manifest file, or a changed non-manifest file | Phase 4 documents the codes; the script implements them | The fork's overlay rewrites `OptiScaler.ini` on Save Settings, which the plan already records as expected. If that alone exits 1, every tuned game reports failure permanently and the exit code stops carrying information |
