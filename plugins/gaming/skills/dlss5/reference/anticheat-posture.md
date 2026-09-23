@@ -51,8 +51,8 @@ token followed by `_` or `-`. Matching is case-insensitive. So `EasyAntiCheat\`,
 
 `assess` and `apply` share one scan.
 
-- Steam install (the path contains `steamapps\common\<Game>`): every item under
-  `steamapps\common\<Game>`, recursively, to depth 4.
+- Steam install (the path contains `steamapps\common\<Game>`): every item under <!-- portability-ok: Windows path, not a shell regex -->
+  `steamapps\common\<Game>`, recursively, to depth 4. <!-- portability-ok: Windows path, not a shell regex -->
 - Anywhere else: every item under the exe directory, recursively, to depth 4, plus the direct
   children of each of up to four parent directories, stopping above the drive root. The parents are
   not scanned recursively, so a sibling game's anti-cheat in a shared library folder does not refuse

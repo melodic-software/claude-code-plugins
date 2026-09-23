@@ -36,7 +36,7 @@ native side: `pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath(
 pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1" -Verb assess '<game-dir>' -DataDir '<data-dir>' -RuntimeDll '<runtime-dll>'
 ```
 
-- `<game-dir>` is the directory holding the game's executable (`bin\x64`, `Binaries\Win64`,
+- `<game-dir>` is the directory holding the game's executable (`bin\x64`, `Binaries\Win64`, <!-- portability-ok: Windows paths, not a shell regex -->
   `Retail`), not the game root. A directory with no `*.exe` is refused.
 - Pass Windows-form paths (`C:\...` or `C:/...`) in single quotes, with no trailing backslash.
   Never hand pwsh a Git Bash `/c/...` path; convert one with `cygpath -m` first.
@@ -49,7 +49,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | `-RestoreComputeSignature` | apply | Also sets `RestoreComputeSignature=true`; `reference/tuning-guide.md` names the titles that need it |
 | `-AllowUnknownRuntime` | apply | Accepts an NVIDIA-signed runtime whose hash is not the known one. Only on the user's explicit request |
 | `-Finish` | remove | Drops the manifest even when drift remains. Only after the user has seen the drift and asked |
-| `-Force` | apply | Lifts only the over-2000-files guard. It does not bypass the anti-cheat refusal |
+| `-Force` | apply | Lifts only the over-2000-files guard. Only when the user confirms the directory is the exe directory. It does not bypass the anti-cheat refusal |
 
 `provision` and its `-Runtime`, `-RuntimeSource`, `-ScanRoots` parameters belong to
 `/gaming:setup`.
@@ -80,9 +80,8 @@ without the user's confirmation.
    absence: server-side and launcher-delivered anti-cheat leave nothing in the install tree.
 5. No entry in `dlss` means the game ships no DLSS for the mod to intercept; say so, since the mod
    then does nothing.
-
-Done when the user has one final verdict: refused, unknown, or eligible with the Steam check
-cleared or not cleared.
+6. Done when the user has one final verdict: refused, unknown, or eligible with the Steam check
+   cleared or not cleared.
 
 ### Steam anti-cheat check
 
@@ -120,7 +119,9 @@ curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'http
 ## Action: remove
 
 1. Confirm. Show the resolved absolute game directory and the manifest's build and proxy, then ask
-   for an explicit yes. Each game is its own confirmation.
+   for an explicit yes. Each game is its own confirmation. Read the build and proxy from
+   `manifest.json` in the data directory's `state` folder, in the subfolder named by the `gameKey`
+   that `assess` prints for this game directory; never guess them.
 2. Run `-Verb remove '<game-dir>'`. It deletes every manifest file and every known byproduct
    (`reference/reversal-matrix.md`), removes emptied mod directories, and keeps the snapshot.
 3. Read the output back to the user:
@@ -167,6 +168,8 @@ changed in the ledger row's ini deltas and visual verdict columns.
 4. For each change, say what it means using the "What a change means" table in
    `reference/upstream-watch.md`. A new pin is a plugin release, never an edit to the installed
    script. A game that now shows an anti-cheat section: recommend `remove`.
+5. Done when every changed row carries today's Checked date and each change has its meaning
+   stated, or the run is reported as a no-change run.
 
 ## Hard safety rules
 
@@ -188,7 +191,7 @@ changed in the ledger row's ini deltas and visual verdict columns.
 ## Ledger
 
 `LEDGER.md` in the data directory holds one row per game; `/gaming:setup apply` seeds it. The script
-writes the machine-readable half to `state\<GameKey>\manifest.json`; this skill writes the rows with
+writes the machine-readable half to `state\<GameKey>\manifest.json`; this skill writes the rows with <!-- portability-ok: Windows path, not a shell regex -->
 Edit. After `apply`, fill: game, exe dir, anti-cheat (the on-disk result and the Steam check),
 build and tag, proxy, ini deltas (`Enabled=true AutoCapture=false LogToFile=true LogLevel=2`, plus
 `RestoreComputeSignature=true` when passed), driver (the manifest's `driver`), DLL version, applied
@@ -222,8 +225,9 @@ These are true as of the date in each row. `refetch` exists to recheck them.
 
 ## Gotchas
 
-- **`status` and `remove` rehash every file under the game dir.** On a large install they take
-  minutes, so `status` is not a command to run in a loop. Incremental hashing by size and write time
+- **`apply`, `status` and `remove` hash every file under the game dir.** `apply` snapshots the
+  whole tree, and `status` and `remove` rehash it. On a large install each takes minutes, so
+  `status` is not a command to run in a loop. Incremental hashing by size and write time
   is the upgrade path if it bites.
 - **`apply` refuses while a manifest exists.** To switch builds or proxies, `remove` first.
 - **Each exe directory is its own state.** The state key hashes the full path, so a game with two

@@ -56,8 +56,8 @@ Against it: almost every tag is a prerelease with self-declared limits ("no new 
 validation ... is claimed"). Profiles (from v0.8.5) add a new runtime write,
 `OptiScalerProfiles\`, which `remove` handles as a byproduct.
 
-To switch a game: `remove`, then provision the other build with
-`-Verb provision -Build wilsjo2` (same `-DataDir`), then `apply -Build wilsjo2`.
+To switch a game: `remove`, then `/gaming:setup apply` (it provisions both pinned builds and
+leaves an already-provisioned one as is), then `apply -Build wilsjo2`.
 
 ## Packages not to use
 

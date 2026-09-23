@@ -36,8 +36,9 @@ pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')
 ```
 
 Pass Windows-form paths in single quotes (`'D:\Gaming'`), never a Git Bash `/d/...` path. Run the
-PowerShell probes below through the PowerShell tool, or from Bash with single-quoted outer
-arguments, so Bash expands no `$` before pwsh starts.
+multi-line probes in steps 5 and 7 through the PowerShell tool: they contain single quotes, so a
+single-quoted Bash argument cannot carry them, and a double-quoted one lets Bash expand `$` before
+pwsh starts. A one-line probe with no single quote in it (step 1) runs from Bash in single quotes.
 
 ## `check` (read-only)
 
@@ -59,11 +60,12 @@ download nothing, and never call `provision` in any form.
    if (Test-Path -LiteralPath $dll) {
      (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash
      $s = Get-AuthenticodeSignature -LiteralPath $dll; "$($s.Status) $($s.SignerCertificate.Subject)"
-     (Get-Item -LiteralPath $dll).VersionInfo.FileVersion
+     $v = (Get-Item -LiteralPath $dll).VersionInfo; '{0}.{1}.{2}.{3}' -f $v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart
    }
    ```
 
-   PASS when the hash is the known-good value. An NVIDIA-signed file at 310.8.0.0 or later with a
+   PASS when the hash is the known-good value. An NVIDIA-signed file (status `Valid`, signer
+   subject containing `CN=NVIDIA Corporation`) at 310.8.0.0 or later with a
    different hash is FAIL: the gate refuses it unless `-AllowUnknownRuntime` is passed, which is
    the user's explicit call and never a default. A missing or refused file is FAIL. When
    `runtime_dll` is set, the remediation is to fix or unset it: `provision -Runtime` refuses a
@@ -78,30 +80,30 @@ download nothing, and never call `provision` in any form.
 7. **Steam library scan.** Read-only; it lists candidates and copies nothing:
 
    ```powershell
-   $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -Name SteamPath -ErrorAction SilentlyContinue).SteamPath
+   $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -Name SteamPath -ErrorAction SilentlyContinue).SteamPath # portability-ok: Windows registry path, PowerShell only
    if ($steam) {
      $vdf = Join-Path $steam 'steamapps\libraryfolders.vdf'
-     $libs = @($steam) + @(if (Test-Path -LiteralPath $vdf) { [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' } })
+     $libs = @($steam) + @(if (Test-Path -LiteralPath $vdf) { [regex]::Matches((Get-Content -LiteralPath $vdf -Raw), '"path"\s+"([^"]+)"') | ForEach-Object { $_.Groups[1].Value -replace '\\\\', '\' } }) # portability-ok: .NET regex in PowerShell, not grep or sed
      $libs | ForEach-Object { Join-Path ($_ -replace '/', '\') 'steamapps\common' } | Where-Object { Test-Path -LiteralPath $_ } | Sort-Object -Unique |
        ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Filter nvngx_dlssnr.dll -File -Force -ErrorAction SilentlyContinue } |
-       ForEach-Object { [pscustomobject]@{ Path = $_.FullName; Sha256 = (Get-FileHash -LiteralPath $_.FullName).Hash; Version = $_.VersionInfo.FileVersion; Signature = (Get-AuthenticodeSignature -LiteralPath $_.FullName).Status } } | Format-List
+       ForEach-Object { $v = $_.VersionInfo; $sig = Get-AuthenticodeSignature -LiteralPath $_.FullName; [pscustomobject]@{ Path = $_.FullName; Sha256 = (Get-FileHash -LiteralPath $_.FullName).Hash; Version = '{0}.{1}.{2}.{3}' -f $v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart; Signature = $sig.Status; Signer = $sig.SignerCertificate.Subject } } | Format-List
    }
    ```
 
-   A candidate passes the gate on the known-good hash, or on a valid NVIDIA signature at 310.8.0.0
-   or later plus `-AllowUnknownRuntime`. A candidate beside an `OptiScaler.ini` is a copy the mod
+   A candidate passes the gate on the known-good hash, or on a `Valid` signature whose signer
+   subject contains `CN=NVIDIA Corporation`, at 310.8.0.0 or later, plus `-AllowUnknownRuntime`. A candidate beside an `OptiScaler.ini` is a copy the mod
    placed in a game, not a native title; step 9 uses it.
-8. **Fork builds.** For `dagherbou` and `wilsjo2`, read `<data-dir>\builds\<build>\.provisioned.json`:
+8. **Fork builds.** For `dagherbou` and `wilsjo2`, read `<data-dir>\builds\<build>\.provisioned.json`: <!-- portability-ok: Windows path, not a shell regex -->
    - no marker, directory absent or empty: INFO, never provisioned (`apply` provisions it);
    - marker present and every allow-list entry present (dagherbou: `OptiScaler.dll`,
      `OptiScaler.ini`, `OptiScaler\`, `Licenses\`, `nvngx.dll_dlssnr.dll`; wilsjo2: the first
      four), marker `sha256` equal to the pin below: PASS;
    - marker present, an allow-list entry missing: FAIL, provisioned then emptied. `provision` treats
-     a matching marker as done, so the remediation is to delete `<data-dir>\builds\<build>\`, then
+     a matching marker as done, so the remediation is to delete `<data-dir>\builds\<build>\`, then <!-- portability-ok: Windows path, not a shell regex -->
      run `apply`;
    - marker `sha256` differing from the pin: FAIL, provisioned from an unexpected asset. `apply`
      re-provisions it.
-9. **Orphaned state.** Read `gameDir` from each `<data-dir>\state\*\snapshot.json`,
+9. **Orphaned state.** Read `gameDir` from each `<data-dir>\state\*\snapshot.json`, <!-- portability-ok: Windows path, not a shell regex -->
    `manifest.json` and `pending.json`. A `pending.json` is FAIL (an interrupted apply; run
    `/gaming:dlss5 remove <gameDir>`). A `manifest.json` whose `gameDir` no longer exists is FAIL
    (the game moved or was uninstalled; move it back and run `remove`, or delete that state
@@ -121,7 +123,7 @@ Run `check`, then these steps in order. `<script>` is
 `${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1`.
 
 1. Create the tree:
-   `pwsh -NoProfile -Command "New-Item -ItemType Directory -Force -Path '<data-dir>\state','<data-dir>\runtime','<data-dir>\builds','<data-dir>\cache' | Out-Null"`.
+   `pwsh -NoProfile -Command "New-Item -ItemType Directory -Force -Path '<data-dir>\state','<data-dir>\runtime','<data-dir>\builds','<data-dir>\cache' | Out-Null"`. <!-- portability-ok: Windows paths inside a pwsh argument, not a shell regex -->
 2. Seed the ledger only when `<data-dir>\LEDGER.md` is absent: copy `reference/ledger-template.md`
    there, replacing `<data-dir>` with the resolved path. Never overwrite an existing ledger.
 3. Place the runtime DLL, adding `-RuntimeDll` and `-RuntimeSource` only per the resolution table:
@@ -146,7 +148,7 @@ anywhere but the three sources `provision -Runtime` tries.
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| Known-good runtime: `nvngx_dlssnr.dll` 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E` | `$ModelHash` in the script, hashed from a working install | 2026-09-21 | `/gaming:dlss5 refetch` reports a different runtime `FileVersion`, or an NVIDIA-signed runtime fails the hash |
+| Known-good runtime: `nvngx_dlssnr.dll` 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E` | `$ModelHash` in the script, hashed from a working install | 2026-09-22 | `/gaming:dlss5 refetch` reports a different runtime version, or an NVIDIA-signed runtime fails the hash |
 | Primary fork pin: `Dagherbou/OptiScaler_DLSSNR` tag `v0.2.0-patch1` (a prerelease), asset `OptiScaler-DLSSNR-v0.2.0-onimusha-fix.zip`, SHA-256 `5DB547216FA8A7DBD8AB0A193DA1E3BCE0EA4BD71F91189AFA4ED2EDE8BB9561` | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases`; the release publishes no checksum, so the hash is a local-copy attestation | 2026-09-21 | a new release on that repo, or `refetch` reports a tag change |
 | Fallback fork pin: `wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass` tag `v0.8.3`, asset `OptiScaler-NR-v0.8.3.zip`, SHA-256 `3F2D26FB136D964A394BF50896D082156173153A2A55B88E1995277B4DABE3C8` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases`; the hash matches the release's own `.sha256` sidecar | 2026-09-21 | a new non-prerelease on that repo, or `refetch` reports a tag change |
 | DLSS 5 officially supports RTX 50-series GPUs only | https://www.nvidia.com/en-us/geforce/news/dlss-5-3d-guided-neural-rendering/ | 2026-09-20 | NVIDIA ships DLSS 5 support for another GPU series |
@@ -154,6 +156,14 @@ anywhere but the three sources `provision -Runtime` tries.
 ## Next
 
 /gaming:dlss5 assess <game-dir>
+
+## Gotchas
+
+- **`VersionInfo.FileVersion` misreads the runtime DLL.** NVIDIA's `nvngx_dlssnr.dll` reports
+  `310,8,0,0` there. Read the numeric `FileMajorPart` to `FilePrivatePart` fields, as steps 5 and 7
+  do; `refetch` reports the same numeric form.
+- **A probe containing single quotes cannot run from Bash in single quotes.** Run it through the
+  PowerShell tool instead of switching to double quotes, which let Bash expand every `$`.
 
 ## What this skill does NOT do
 

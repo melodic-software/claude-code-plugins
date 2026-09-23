@@ -41,7 +41,8 @@ nvidia-smi --query-gpu=driver_version --format=csv,noheader
 
 ```powershell
 # Runtime DLL version: the data directory's copy, and any installed DLSS 5 title's copy
-(Get-Item '<data-dir>\runtime\nvngx_dlssnr.dll').VersionInfo.FileVersion
+# Numeric fields: FileVersion reads "310,8,0,0" on this DLL
+$v = (Get-Item -LiteralPath '<data-dir>\runtime\nvngx_dlssnr.dll').VersionInfo; '{0}.{1}.{2}.{3}' -f $v.FileMajorPart, $v.FileMinorPart, $v.FileBuildPart, $v.FilePrivatePart
 ```
 
 Native DLSS 5 titles: read NVIDIA's GeForce news, `https://www.nvidia.com/en-us/geforce/news/`,
