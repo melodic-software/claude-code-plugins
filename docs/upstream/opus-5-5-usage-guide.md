@@ -45,6 +45,11 @@ basis it was derived against, the as-of date, and a recheck trigger. Shared basi
 below: the guide as read 2026-09-23. Shared recheck trigger: a revised Opus 5.5 guide, or the next
 Opus release.
 
+The guide's "Try this first" items and closing checklist restate the sections below, so they carry
+no rows of their own: handing over the whole task maps to G1.1 and G2.1, deleting think-carefully
+lines to G1.2, and reading what it needs from you first to G3.1. Each checklist line maps to G1.1,
+G1.2, G1.4, G4.1, G2.1 to G2.3, G3.1 to G3.3, or the fallback row.
+
 ## How to ask
 
 | Guide item | Ours | Verdict |
@@ -58,15 +63,15 @@ Opus release.
 
 | Guide item | Ours | Verdict |
 |---|---|---|
-| G2.1 Tell it which stops you want | Root `AGENTS.md` rule (keep going with status in the same message; stop before destructive or outside-this-checkout actions; keep permission prompts on); postures P6; fable-5 `communication.md`; adhd:shape; knowledge:docpage-digest; implementation:implement-dispatch autonomous mode; autonomy `lane-stop-gate`; session-flow orchestrate, keep-going, reconcile, clean-stop; the worker and merge lane launch prompts in `prompts/loops/loop-lane-prompts.md`. No existing confirmation gate was weakened. Left by decision: babysit-loop and work-loop (the loop-lane convention keeps those clauses in the launch prompts), continue-in-background (its resume wording is pinned by `save_point.py`) | ADOPT |
-| G2.2 Split big work across subagents and check each result | postures P1; review:fanout, mcp-tools:audit, ai-slop rubric fan-out, docs-hygiene:audit-encapsulation, course-digest, discipline fan-out now check each worker's evidence before accepting it. Already present in bugs:scan, codebase-health, provenance, plugin-quality, map-corpus, architecture:improve, verification:confirm | ADOPT / COVERED |
+| G2.1 Tell it which stops you want | Root `AGENTS.md` rule (keep going with status in the same message; stop before destructive or outside-this-checkout actions; keep permission prompts on); postures P6; fable-5 `communication.md`; adhd:shape; knowledge:docpage-digest; implementation:implement-dispatch autonomous mode; autonomy `lane-stop-gate`; session-flow orchestrate and keep-going; the worker and merge lane launch prompts in `prompts/loops/loop-lane-prompts.md`. No existing confirmation gate was weakened. Left by decision: babysit-loop and work-loop (the loop-lane convention keeps those clauses in the launch prompts), continue-in-background (its resume wording is pinned by `save_point.py`) | ADOPT |
+| G2.2 Split big work across subagents and check each result | postures P1; review:fanout, mcp-tools:audit, ai-slop rubric fan-out, docs-hygiene:audit-encapsulation, course-digest, discipline fan-out now check each worker's evidence before accepting it. Already present in bugs:scan, codebase-health, plugin-quality, map-corpus, architecture:improve, verification:confirm | ADOPT / COVERED |
 | G2.3 Keep the task list in a file | Root `AGENTS.md`; postures P9 (an existing ledger counts). Already present in batch-simplify, coupling, docpage-digest, map-corpus, discovery, disk-hygiene, machine-health, unhobble, audit-pass | ADOPT / COVERED |
 
 ## Checking the result
 
 | Guide item | Ours | Verdict |
 |---|---|---|
-| G3.1 Read what it needs from you first | Root `AGENTS.md` ("Blocked on me, Changed, Found"); postures P11; reports in bugs, codebase-health, mutation-testing, discovery, architecture, machine-health, batch-simplify, coupling, ai-briefing, claude-config:audit-pass now lead with what waits on the user | ADOPT |
+| G3.1 Read what it needs from you first | Root `AGENTS.md` ("Blocked on me, Changed, Found"); postures P11; reports in bugs, codebase-health, mutation-testing, discovery, architecture, machine-health, batch-simplify, coupling, ai-briefing, claude-config:audit-pass, session-flow (keep-going, reconcile, clean-stop), source-control (babysit-prs, pull-request monitor and readiness), repo-hygiene batch runs, repo-fleet-hygiene apply, work-items drain mode, and the loop-lane launch prompts now lead with what waits on the user. A skill's own report template keeps its headings (for example "Needs you") | ADOPT |
 | G3.2 Ask it to review the code | review:code-review and security-review findings carry file and line, why it is wrong, and how to show it fails; quality-gate PR mode leads with merge-blocking findings; claude-config:audit-automation-gaps. The CI lane keeps its "block or flag" bar by decision | ADOPT |
 | G3.3 Mark what it couldn't confirm | dometrain grounding added. Already present in discovery research and trace-intent, github:audit, ai-briefing, postures P4 and P5 | ADOPT / COVERED |
 

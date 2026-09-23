@@ -385,10 +385,11 @@ resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fab
   tier's meaning, "the model the `fable` alias resolves to where Fable is available to you,
   otherwise the same model as `opus`", so a frontier dispatch self-heals where Fable is unavailable (it requires organization access
   and Claude Code v2.1.170+, and can bill to usage credits) instead of failing or silently running
-  a stale pin. Two Fable 5 caveats ride along as **known gaps**: its safety classifiers can trigger
+  a stale pin. Two Fable caveats ride along as **known gaps**: its safety classifiers can trigger
   automatic model fallback "most often in cybersecurity and biology domains", and frontier is the
-  tier every security-surface work class routes to, and no lane detects that fallback today; and in
-  non-interactive mode a Fable 5 request that would bill usage credits bills them without a consent
+  tier every security-surface work class routes to, and no lane detects that fallback today (Opus
+  5.5 carries the same classifiers, so the strong tier shares this gap); and in
+  non-interactive mode a Fable request that would bill usage credits bills them without a consent
   prompt, which is the shape every unattended lane runs in.
 - **strong binds `opus`.** The docs' own starting recommendation, "start with Claude Opus 5.5 for
   most workloads". Opus 5.5 and Fable 5.1 share a June 2026 reliable knowledge cutoff, so cutoff

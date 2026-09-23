@@ -8,7 +8,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Changed
 
 - **`implement-dispatch`: a phase boundary is not a stopping point in autonomous mode.** The
-  status summary and resume prompt are followed by the next dispatch in the same turn; the run
+  status summary and resume prompt are followed by the next dispatch in the same turn unless a
+  resident-vs-clear condition calls for a clear; otherwise the run
   stops only on Major divergence, when blocked on the human, or before a destructive,
   hard-to-undo, or outward action the plan does not cover.
 

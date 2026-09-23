@@ -7,8 +7,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`pull-request`:** the prep review presents only findings that would block the merge, each
-  with file:line, why it is wrong, and how to show it fails. PR body sections are written in plain
+- **`pull-request`:** the prep review leads with the findings that would block the merge, each
+  with file:line, why it is wrong, and how to show it fails; the remaining verified and uncertain
+  findings follow. PR body sections are written in plain
   language. A failed-gate report leads with any action that needs the user.
 - **`babysit-prs`:** the report lists PRs waiting on the user first.
 - **`commit` evals:** the trailer-mismatch scenario names current models.

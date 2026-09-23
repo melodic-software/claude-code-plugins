@@ -13,7 +13,7 @@ destructive or outside this checkout: deleting data, force-pushing, pushing, mer
 a PR or issue, touching another worktree or repo, a fleet host, or user-scope config. A task or
 loop prompt that explicitly authorizes one of those covers it. Keep permission prompts on while you
 keep going. On a long run, keep the task list in a file and tick it as you go, and end with
-three headings: Blocked on me, Changed, Found.
+three headings: Blocked on me, Changed, Found, unless a skill defines its own report shape.
 
 <!-- BEGIN GENERATED: instruction-placement rules index -->
 
