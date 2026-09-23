@@ -111,12 +111,12 @@ download nothing, and never call `provision` in any form.
    Two probes for a `data_dir` changed after an apply, since nothing on disk records the previous
    root: a step 7 candidate beside an `OptiScaler.ini` whose directory no manifest under
    `<data-dir>` names as `gameDir` is FAIL (a modded game this data directory does not track); and
-   another directory still holding `state\` is FAIL: the default (`Gaming\dlss5` under Documents)
-   when `<data-dir>` is not the default, or the legacy default (`Gaming` under Documents) when
-   `<data-dir>\state\` is absent. The remediation for both is to MOVE the old directory's contents <!-- portability-ok: Windows path, not a shell regex -->
-   (`runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`) to `<data-dir>`; without its
-   manifest, `remove` cannot undo the mod. With `data_dir` unset, the script refuses every verb
-   but `refetch` and `selftest` on the legacy case.
+   another directory whose `state\` has entries is FAIL: the default (`Gaming\dlss5` under
+   Documents) when `<data-dir>` is not the default, or the legacy default (`Gaming` under
+   Documents) when `<data-dir>\state\` is absent or empty. The remediation for both is to MOVE the <!-- portability-ok: Windows path, not a shell regex -->
+   old directory's contents (`runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`) to
+   `<data-dir>`; without its manifest, `remove` cannot undo the mod. When `<data-dir>` is the
+   default, the script refuses every verb but `refetch` and `selftest` on the legacy case.
 10. **`gh`.** INFO only: `gh --version`. `refetch` needs it; setup and apply do not, because
     `provision` downloads by direct release URL.
 

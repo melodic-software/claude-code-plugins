@@ -29,9 +29,9 @@ token, and Bash rejects it as a bad substitution before the script starts.
 
 When the ledger path is needed and the data directory option is unset, get the default from the
 native side: `pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) Gaming\dlss5"`.
-With the option unset, the script refuses every verb but `refetch` and `selftest` while the legacy default
-`Documents\Gaming` holds `state\` and the new default does not. Relay the move it names verbatim;
-never move the files yourself.
+When the data directory is the default, the script refuses every verb but `refetch` and
+`selftest` while the legacy `Documents\Gaming\state\` has entries and the new default's `state\`
+has none. Relay the move it names verbatim; never move the files yourself.
 
 ## Running the script
 

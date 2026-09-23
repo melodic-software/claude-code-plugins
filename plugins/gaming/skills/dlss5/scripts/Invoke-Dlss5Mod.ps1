@@ -57,10 +57,12 @@ function Resolve-DataDir([string]$v, [string]$docs = [Environment]::GetFolderPat
     (Resolve-PathOpt $v) ?? (Join-Path $docs 'Gaming\dlss5')
 }
 # Documents\Gaming is the legacy default. Its manifests are the only way to undo the mod, so refuse
-# rather than start an empty state tree beside them; moving them is the user's call.
+# rather than start an empty state tree beside them; moving them is the user's call. "Empty" rather
+# than "absent", because setup apply creates <data-dir>\state before it calls this script.
+function HasEntries($p) { [bool](Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue | Select-Object -First 1) }
 function Assert-NoLegacyState([string]$docs) {
     $old = Join-Path $docs 'Gaming'; $new = Resolve-DataDir '' $docs
-    if ((Test-Path -LiteralPath "$old\state") -and -not (Test-Path -LiteralPath "$new\state")) {
+    if ((HasEntries "$old\state") -and -not (HasEntries "$new\state")) {
         throw "legacy data directory $old holds state\, but the default data_dir is now $new. Move runtime\, state\, builds\, cache\ and LEDGER.md from $old into $new, then rerun. Nothing was changed."
     }
 }
@@ -74,8 +76,10 @@ function Resolve-Source([string]$v) {
     Resolve-PathOpt $v
 }
 function Init-Paths {
-    if (-not (Resolve-PathOpt $DataDir) -and $Verb -notin 'selftest', 'refetch') { Assert-NoLegacyState ([Environment]::GetFolderPath('MyDocuments')) }
+    $docs = [Environment]::GetFolderPath('MyDocuments')
     $script:DataDir = Resolve-DataDir $DataDir
+    # Keyed on the resolved path, so a caller that passes the default explicitly is gated too.
+    if ($Verb -notin 'selftest', 'refetch' -and $script:DataDir -eq (Resolve-DataDir '' $docs)) { Assert-NoLegacyState $docs }
     $script:RuntimeDllConfigured = [bool](Resolve-PathOpt $RuntimeDll)
     $script:RuntimeDll = (Resolve-PathOpt $RuntimeDll) ?? (Join-Path $script:DataDir 'runtime\nvngx_dlssnr.dll')
     # runtime_source is resolved only by provision -Runtime, so a bad value never blocks status or remove.
@@ -600,10 +604,15 @@ function Do-Selftest {
         Assert 'empty DataDir uses the default' ((Resolve-DataDir '') -eq $docs)
         Assert 'literal ${user_config.data_dir} uses the default' ((Resolve-DataDir '${user_config.data_dir}') -eq $docs)
         Assert 'no legacy state passes' (-not (Throws { Assert-NoLegacyState "$tmp\docs" } '*'))
+        New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\state" | Out-Null
+        Assert 'empty legacy state passes' (-not (Throws { Assert-NoLegacyState "$tmp\docs" } '*'))
+        $move = "*Move runtime\, state\, builds\, cache\ and LEDGER.md from $tmp\docs\Gaming into $tmp\docs\Gaming\dlss5*"
         New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\state\g_1" | Out-Null
-        Assert 'legacy state with no new state refuses and names the move' (Throws { Assert-NoLegacyState "$tmp\docs" } "*Move runtime\, state\, builds\, cache\ and LEDGER.md from $tmp\docs\Gaming into $tmp\docs\Gaming\dlss5*")
+        Assert 'legacy state with no new state refuses and names the move' (Throws { Assert-NoLegacyState "$tmp\docs" } $move)
         Assert 'legacy refusal creates nothing' (-not (Test-Path -LiteralPath "$tmp\docs\Gaming\dlss5"))
         New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\dlss5\state" | Out-Null
+        Assert 'legacy state beside an empty new state still refuses' (Throws { Assert-NoLegacyState "$tmp\docs" } $move)
+        New-Item -ItemType Directory -Force -Path "$tmp\docs\Gaming\dlss5\state\g_1" | Out-Null
         Assert 'state at the new default passes' (-not (Throws { Assert-NoLegacyState "$tmp\docs" } '*'))
         Assert 'relative DataDir resolves to absolute' ((Resolve-DataDir 'rel') -eq "$tmp\rel")
         Assert 'trailing backslash trimmed' ((Resolve-DataDir "$tmp\x\") -eq "$tmp\x")

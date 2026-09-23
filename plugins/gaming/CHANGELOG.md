@@ -8,9 +8,9 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 ### Changed
 
 - The default `data_dir` is now `Documents\Gaming\dlss5`, so dlss5 state no longer claims the
-  whole `Documents\Gaming` folder. With `data_dir` unset, the script refuses every verb but
-  `refetch` and `selftest` while the legacy `Documents\Gaming\state\` exists and the new default
-  holds no `state\`, and `setup check` step 9 reports it as FAIL. Move `runtime\`, `state\`,
+  whole `Documents\Gaming` folder. When `data_dir` resolves to the default, the script refuses
+  every verb but `refetch` and `selftest` while the legacy `Documents\Gaming\state\` has entries
+  and the new default's `state\` has none, and `setup check` step 9 reports it as FAIL. Move `runtime\`, `state\`,
   `builds\`, `cache\` and `LEDGER.md` into `Documents\Gaming\dlss5`.
 
 ## [0.1.0] - 2026-09-22

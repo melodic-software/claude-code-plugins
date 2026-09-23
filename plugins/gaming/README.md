@@ -47,8 +47,8 @@ a copy you host. All are optional.
 `data_dir` survives `claude plugin uninstall`. Changing `data_dir` after applying the mod to a
 game is a move of the directory, not a reconfiguration: move the old directory's contents to the
 new path, or `status` and `remove` lose track of the modded games. Before 0.1.1 the default was
-`Documents\Gaming`; while that folder holds `state\` and `Documents\Gaming\dlss5` does not, the
-script refuses to run until you move `runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`
+`Documents\Gaming`; while its `state\` has entries and `Documents\Gaming\dlss5\state\` has none,
+the script refuses to run until you move `runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`
 into `Documents\Gaming\dlss5`.
 
 `runtime_source` is stored in plain text in `settings.json`, so it must not carry a credential.
