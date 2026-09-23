@@ -7,7 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/typos-format.sh",
+            "command": "[ \"$CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED\" = true ] || [ -z \"$CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED\" ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/typos-format.sh",
+            "shell": "bash",
             "timeout": 15,
             "statusMessage": "Checking spelling..."
           }
