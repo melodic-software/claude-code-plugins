@@ -84,7 +84,8 @@ without the user's confirmation.
 
 1. Run `-Verb assess '<game-dir>'`. It prints JSON:
    - `launcher` (Steam, Epic Games Launcher, EA app, Origin, Battle.net, GOG Galaxy, Ubisoft
-     Connect, Xbox app, or `unknown`), `launcherSource`, and `gameName`;
+     Connect, Xbox app, or `unknown`), `launcherSource`, `gameName`, and `discoveryGaps` (what
+     launcher discovery could not read);
    - `verdict` (`refused`, `not-a-candidate`, `eligible`, `unknown`) and `refusals`;
    - `antiCheat`: `status` (`signals`, `unknown`, `none-disclosed`), `signals`, `unchecked`,
      `note`, `awacy` (the AreWeAntiCheatYet commit read and its matching entries) and `steam` (the
@@ -116,7 +117,9 @@ refuse; this review is how the user makes an informed call. Never disable, bypas
 with an anti-cheat, and never suggest doing so, a different proxy name, or `-Force` as a way past
 it.
 
-1. **Show what was found.** Every `signals` line and every `unchecked` line, verbatim. For a
+1. **Show what was found.** Every `signals` line and every `unchecked` line, verbatim. With
+   launcher `unknown`, also show `discoveryGaps` and ask where the game came from: a Battle.net
+   game with no Uninstall entry reads as `unknown`, and its EULA applies all the same. For a
    Battle.net title, show Blizzard EULA 1.C.i and 1.C.ii in full from
    `reference/anticheat-posture.md`. Link the title's PCGamingWiki page for the user to read.
 2. **Research reported bans and blocks** for this title and each named anti-cheat, live:

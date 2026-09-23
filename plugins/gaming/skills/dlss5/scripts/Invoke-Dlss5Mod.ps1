@@ -749,7 +749,9 @@ function Do-Assess($root) {
     $free = @($ProxyNames | Where-Object { $_ -notin $collisions })
     $ups = @(Find-Upscalers $root)
     $appId = SteamAppId $root
+    $script:Unchecked = @()
     $launch = Get-Launcher $root
+    $gaps = $script:Unchecked   # what discovery could not read; a launcher it missed reads as unknown
     $acr = Get-AntiCheat $root $launch $appId
     # A broken preset file must not hide the verdict, so its error rides in the JSON instead.
     $pr = $null; $prErr = $null
@@ -760,7 +762,7 @@ function Do-Assess($root) {
     $verdict = if (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
     [pscustomobject]@{
         gameDir = $root; gameRoot = $gameRoot; gameKey = (GameKey $root)
-        launcher = $launch.launcher; launcherSource = $launch.source; gameName = $launch.name
+        launcher = $launch.launcher; launcherSource = $launch.source; gameName = $launch.name; discoveryGaps = $gaps
         verdict = $verdict; antiCheat = $acr; acknowledgementRequired = ($acr.status -ne 'none-disclosed')
         refusals = $refusals; upscalers = $ups
         dx12 = [bool](Get-ChildItem -LiteralPath $root -Filter 'd3d12*.dll' -File) -or ($root -match '\\Binaries\\Win64$')
@@ -1203,6 +1205,7 @@ function Do-Selftest {
         $wg = "$tmp\gog\Witcher 3\bin\x64"; Put "$wg\witcher3.exe" 'exe'; Put "$wg\nvngx_dlss.dll" 'dlss'
         $wa = (Do-Assess $wg) | ConvertFrom-Json
         Assert 'assess names the launcher and game from the GOG record; best case unknown' ($wa.launcher -eq 'GOG Galaxy' -and $wa.gameName -eq 'The Witcher 3' -and $wa.antiCheat.status -eq 'unknown' -and $wa.acknowledgementRequired)
+        Assert 'assess reports discovery gaps (Battle.net product.db) apart from the anti-cheat block' (@($wa.discoveryGaps | Where-Object { $_ -like 'Battle.net:*product.db*' }).Count -eq 1 -and -not @($wa.antiCheat.unchecked | Where-Object { $_ -like 'Battle.net:*' }).Count)
         $eg = "$tmp\m\EgsGame\Binaries"; Put "$tmp\m\EgsGame\.egstore\x.manifest" 'm'; Put "$eg\g.exe" 'exe'
         Assert 'assess names Epic from the .egstore marker' (((Do-Assess $eg) | ConvertFrom-Json).launcher -eq 'Epic Games Launcher')
         $bg = "$tmp\bnet\Overwatch\_retail_"; Put "$bg\Overwatch.exe" 'exe'
