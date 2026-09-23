@@ -29,7 +29,7 @@
         "Names the section as stable or unstable AND says whether that serves the section's job",
         "Frames stability as a tool, not a verdict — the writer chooses",
         "Any 'longer'/'shorter'/'balanced' claim about the lines is backed by a marked stress count",
-        "Does NOT declare the chorus the wrong length or shape — that judgement routes to `/songwriting:song-form`",
+        "Does NOT declare the chorus the wrong length or shape — that judgment routes to `/songwriting:song-form`",
         "Names the Critique-filter boxes' pass / fail / skip-with-reason before emitting the finding"
       ]
     },
@@ -56,7 +56,7 @@
       "files": [],
       "expectations": [
         "Routes to `align-melody` and pairs it with the prosody material",
-        "Emits a positional template with three labelled rows: the syllabified line, the stress marks, and numbered syllables with stressed slots bracketed",
+        "Emits a positional template with three labeled rows: the syllabified line, the stress marks, and numbered syllables with stressed slots bracketed",
         "Instructs transcribing from the recording, not the lyric sheet",
         "States that a candidate with the right stress COUNT in the wrong POSITIONS does not sit on the melody",
         "States that a slot the singer pushes is a strong slot whatever the scan says — the ear outranks the inferred grid",

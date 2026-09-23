@@ -802,7 +802,7 @@ class Observer:
             # Carry the cross-session continuity pointers when the arming context
             # resolved them (the in-session `arm` entry applies retro's Phase 1.0
             # continuity gate). A detached/headless observer cannot make that
-            # judgement safely -- blindly linking the newest handoff could splice
+            # judgment safely -- blindly linking the newest handoff could splice
             # an unrelated session -- so the hook path leaves them empty and a
             # later in-session checkpoint reconciles continuity.
             fm = [f"session_id: {self.session_id}", "observer: autonomous"]

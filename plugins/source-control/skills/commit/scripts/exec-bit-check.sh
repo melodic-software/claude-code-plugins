@@ -242,7 +242,7 @@ fi
 #
 #        That residual is decided, not overlooked. #2141 weighed three policies
 #        -- keep the gate, drop it for renames too, or make the `A` branch skip
-#        a rename-as-add -- and settled on KEEPING it, with no behaviour change.
+#        a rename-as-add -- and settled on KEEPING it, with no behavior change.
 #        The false positive the gate prevents is real and is pinned by `repo19`
 #        in exec-bit-check.test.sh: a deliberately non-executable sourced
 #        library or template must not be flipped to `100755` because someone

@@ -5,7 +5,7 @@
 
 ## Context
 
-A **mod** is an ordinary Claude Code plugin whose behaviour lives in one *hooks module*: a
+A **mod** is an ordinary Claude Code plugin whose behavior lives in one *hooks module*: a
 `register(on, options)` export that hooks engine events as functions `($, e, next)`, nested
 Express-style over five tiers (`prepend`, `user`, `append`, `builtin`, `core`), with every
 capability reached through `$` because the module gets no ambients. Four such mods ship inside the
@@ -48,7 +48,7 @@ consequence either way — that gate selects hook objects satisfying both
 `has("command")` and `has("args")`, and a hook entry naming a TypeScript module carries neither, so a
 mod-shaped `hooks.json` passes it vacuously.
 
-**A throwaway spike is authorised, and stays under `.work/`.** It runs on Claude Code 2.1.278 with
+**A throwaway spike is authorized, and stays under `.work/`.** It runs on Claude Code 2.1.278 with
 the version recorded per observation, closes six locally answerable unknowns (whether a `hooks.json`
 carrying both `hooks` and `modules` fires both layers, #92533 against this repository's own worktree
 flow, `/plugin-types` end to end, `claude plugin validate` on a mod-shaped manifest, whether a
@@ -92,7 +92,7 @@ and whose documentation never names the mechanism.
 No calendar date is set. A standing rule governs both runs: a readiness check based on
 `claude plugin --help` or on a documentation grep returns a **false negative**. `claude plugin test`
 is a working but hidden, gate-registered command, and the documentation has never named the feature.
-Probe behaviour, not help text.
+Probe behavior, not help text.
 
 ## Consequences
 
@@ -119,7 +119,7 @@ Probe behaviour, not help text.
   otherwise identical control that ran the same command (`OBSERVED`). The parent session's cwd did
   not move, so the report's `EnterWorktree` recovery path stays untested. Commands:
   [experiments.md](../upstream/claude-code-mods/experiments.md), experiment E2.
-- **A third-party mod is a data-exposure surface, not only a behaviour one.** Same date and version:
+- **A third-party mod is a data-exposure surface, not only a behavior one.** Same date and version:
   one `prompt.context` hook received the full text of every instruction file, including the user's
   private global `CLAUDE.md`, plus the account email block, on the first prompt of the session and
   before the model was called (`OBSERVED`). Any review posture for a mod written elsewhere starts

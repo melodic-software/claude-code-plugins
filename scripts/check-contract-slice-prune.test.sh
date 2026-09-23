@@ -186,7 +186,7 @@ commit_work "$repo"
 if run_diff "$repo" >/dev/null; then ok "a relocated contract_dir moves the gate's scope"; else fail "docs/topics must not stay policed once contract_dir moves"; fi
 rm -rf "$repo"
 
-# --- a root-equivalent contract_dir is refused, not silently honoured --------
+# --- a root-equivalent contract_dir is refused, not silently honored --------
 mk_repo repo
 mkdir -p "$repo/.claude"
 printf 'contract_dir: .\n' >"$repo/.claude/topic-docs.yaml"
@@ -271,7 +271,7 @@ rc=$?
 if ((rc == 2)) && [[ "$out" == *"escapes the repo root"* ]]; then ok "an escaping contract_dir exits 2"; else fail "an escaping contract_dir must exit 2, got rc=$rc"; fi
 rm -rf "$repo"
 
-# --- a Windows-dialect absolute contract_dir is refused, not silently honoured
+# --- a Windows-dialect absolute contract_dir is refused, not silently honored
 # Git names repo-relative diff paths with '/' and never with a drive qualifier
 # or a raw backslash, so accepting one as repo-relative leaves the gate matching
 # nothing at all while reporting success -- policing an empty set.

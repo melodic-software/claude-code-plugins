@@ -86,7 +86,7 @@ mkdir -p "$STUB_BIN"
 export STUB_BIN
 
 # gh stub. Records every invocation's argv and, for a write, its stdin, so a case
-# can prove a secret value travelled over stdin and never over the command line.
+# can prove a secret value traveled over stdin and never over the command line.
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_CAPTURE/argv"

@@ -37,7 +37,7 @@ weight, and both properties are already in scope):
   The harness lane's enterprise posture: ZDR is scoped to qualified accounts on Claude for
   Enterprise, which is the commitment a consuming setup needs stated rather than inferred
 
-Agent SDK (one page; SDK docs are canonically harness docs, but queueing the rest of that doc set
+Agent SDK (one page; SDK docs are canonically harness docs, but queuing the rest of that doc set
 is a separate scope decision nobody has taken):
 
 - <https://code.claude.com/docs/en/agent-sdk/agent-loop>

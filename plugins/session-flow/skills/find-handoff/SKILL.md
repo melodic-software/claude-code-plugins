@@ -129,7 +129,7 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    recovering none.
 
    **UNRESOLVED candidates are presented, not suppressed.** A candidate whose directive named a file
-   that could not be located is surfaced alongside the resolved ones and labelled `UNRESOLVED`,
+   that could not be located is surfaced alongside the resolved ones and labeled `UNRESOLVED`,
    carrying the directive verbatim, the filename, and any `Handoff origin:` line. Name the reason
    precisely rather than reporting "the file is missing"; those are different failures, and
    reporting absence for either of them is what makes this expensive to diagnose:

@@ -25,7 +25,7 @@ kept in sync by a gate is one authored file, however many times it is
 instantiated. Both totals are printed because they answer different
 questions (authoring effort versus what an agent pays to read).
 
-Tokens are estimated as bytes / 4 and labelled as an estimate throughout.
+Tokens are estimated as bytes / 4 and labeled as an estimate throughout.
 
 Usage: comment-census.py [PATH ...] [--top N] [--json] [--baseline FILE]
                          [--layer auto|scc|pygments]
@@ -156,7 +156,7 @@ def pygments_available() -> bool:
 
     `pygments_counts` answers this only as a side effect of reading a file, so a
     scope with no readable files cannot distinguish "nothing to read" from "no
-    analyser installed" without asking separately.
+    analyzer installed" without asking separately.
     """
     try:
         import pygments  # noqa: F401
@@ -275,13 +275,13 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
                 unread=True,
             )
         records.append(rec)
-    # An empty scope and a missing analyser both yield zero records, and reporting
+    # An empty scope and a missing analyzer both yield zero records, and reporting
     # the second as a clean zero is the worse error: every later count reads as an
     # improvement against a baseline that was never measured. Probe each layer for
     # INSTALLED-ness directly. Neither `sources["lines"]` nor the `scc` result can
     # answer that here: the first stays None when there was simply nothing to read,
     # and `scc_counts` returns None on an empty file list even when the binary is
-    # present, so using either as the proxy reports an installed analyser as
+    # present, so using either as the proxy reports an installed analyzer as
     # missing and turns an empty scope into a false hard stop.
     have_layer = (use_scc and scc_available()) or (
         use_pygments and pygments_available()
@@ -315,7 +315,7 @@ def totals(records: list[dict], dedupe: bool) -> dict:
         "comment_ratio": round(cl / lines, 4) if lines else 0.0,
         "comment_bytes": cb,
         "approx_tokens": cb // 4,
-        # Files no analyser could read count 0 comments and 0 lines, which is
+        # Files no analyzer could read count 0 comments and 0 lines, which is
         # indistinguishable from a genuinely comment-free file in every total
         # above. Carry the count so the report can say the coverage is partial.
         "unread_files": sum(1 for r in chosen if r.get("unread")),
@@ -368,7 +368,7 @@ def render(report: dict, top: int) -> str:
     unread = report["deduped"].get("unread_files", 0)
     if unread:
         out.append(
-            f"NOTE: {unread} file(s) no analyser could read are counted as 0 comments — "
+            f"NOTE: {unread} file(s) no analyzer could read are counted as 0 comments — "
             "the totals above are a floor, not a measurement, for those files"
         )
     out.append("")

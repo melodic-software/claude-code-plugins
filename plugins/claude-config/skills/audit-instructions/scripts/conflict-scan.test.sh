@@ -242,7 +242,7 @@ EOF
 assert_contains "a dot inside a token does not truncate the window" \
   "$(bash "$SCRIPT" "$WEBMANDATE" "$DOTTED")" "|WebFetch|"
 
-# --- Case 26: an opt-in gate in a neighbouring sentence must not suppress ---
+# --- Case 26: an opt-in gate in a neighboring sentence must not suppress ---
 # Both token classes appearing in the raw span is not arbitration; the gate has
 # to govern the entity, which means sharing its sentence.
 FARGATE="$TEST_TMPDIR/far-gate.md"
@@ -252,7 +252,7 @@ EOF
 assert_eq "an opt-in gate in the next sentence does not suppress" "1" \
   "$(bash "$SCRIPT" --count "$OPTMANDATE" "$FARGATE")"
 
-# --- Case 27 (MUST NOT FLAG): a mandate in a neighbouring sentence ----------
+# --- Case 27 (MUST NOT FLAG): a mandate in a neighboring sentence ----------
 # A neutral mention beside an unrelated mandate is not a directive about the
 # entity, and pairing it inflates the review queue.
 FARMANDATE="$TEST_TMPDIR/far-mandate.md"

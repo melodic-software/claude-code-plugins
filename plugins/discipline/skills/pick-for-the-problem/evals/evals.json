@@ -17,7 +17,7 @@
       "id": 2,
       "name": "prices-the-coupling-and-routes-to-research",
       "prompt": "pick for the problem — this third-party library looks perfect, let's add it as a dependency.",
-      "expected_output": "Treats the dependency as a coupling point and prices it at adoption time — abandonment, pricing pivot, license change, security posture, exit cost — and, because the maintenance/security/license judgement is load-bearing and drifts, routes to a research capability (/discovery:research, or -deep for a large surface) rather than issuing a verdict from recall, degrading to an explicit cited research pass when that capability is not installed.",
+      "expected_output": "Treats the dependency as a coupling point and prices it at adoption time — abandonment, pricing pivot, license change, security posture, exit cost — and, because the maintenance/security/license judgment is load-bearing and drifts, routes to a research capability (/discovery:research, or -deep for a large surface) rather than issuing a verdict from recall, degrading to an explicit cited research pass when that capability is not installed.",
       "files": [],
       "expectations": [
         "Weighs the dependency as a coupling point (abandonment, pricing, license, security, exit cost) at adoption time",

@@ -887,7 +887,7 @@ rm -rf "$repo"
 
 # RELABELLED PREDECESSOR: the same bad resolution renames 0.51.8's heading to
 # 0.51.9 instead of adding one. That IS a deletion of 0.51.8, and the failure
-# message must say so, so the author recognises what their resolve did.
+# message must say so, so the author recognizes what their resolve did.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.8 yes

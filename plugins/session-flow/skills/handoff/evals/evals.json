@@ -166,7 +166,7 @@
         "The rails resume prompt is actually emitted in the response — the handoff file existing on disk does not satisfy it",
         "The rails block is the FINAL text of the response, after the ticked checklist; nothing follows it except below-the-rails /loop re-arm notes when a loop is active",
         "The response does not end on the post-write checklist, on 'EXECUTION STOPS HERE', or on any summary that displaces the prompt",
-        "The reasoning treats STOP as ending the underlying refactor, not as licence to end the response once the file is written",
+        "The reasoning treats STOP as ending the underlying refactor, not as license to end the response once the file is written",
         "The heavy context / zone warning is not treated as a reason to shorten or skip the prompt — it is the condition the save-point exists for",
         "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section — heavy context is not a reason to retype the block from memory"
       ]
@@ -180,7 +180,7 @@
       "expectations": [
         "A 'You are here' position panel is emitted, and it leads the response — before the ticked enforcement checklist",
         "The rail is vertical with exactly one phase per line, NOT a horizontal arrow-chained row that wraps",
-        "The current phase is marked in the gutter and labelled as the current position; earlier phases read as complete and later ones as pending",
+        "The current phase is marked in the gutter and labeled as the current position; earlier phases read as complete and later ones as pending",
         "The panel carries a completeness read (how many of the five phases are done) and the three one-line blocks: what was done this session, where we are, what is next",
         "The rail's phases come from the plan artifact read this turn — the panel restates established state rather than discovering new state, and runs no durable-state sweep of its own",
         "The rails resume prompt is still the FINAL text of the response — the panel is emitted in addition to it, never instead of or after it",
@@ -191,7 +191,7 @@
       "id": 14,
       "name": "position-panel-elides-long-unit-list",
       "prompt": "/session-flow:handoff — we're working the sub-issue chain under epic #400, which has 14 sub-issues. #400.1 through #400.6 are closed, #400.7 is in progress, the rest are open. Pausing here.",
-      "expected_output": "The panel's rail elides rather than printing all fourteen sub-issues: the first couple, the current one with a neighbour either side, the last one, and a '… N more' line standing in for each dropped run. The unit kind (sub-issues of #400) is named so the operator knows what the rail is counting.",
+      "expected_output": "The panel's rail elides rather than printing all fourteen sub-issues: the first couple, the current one with a neighbor either side, the last one, and a '… N more' line standing in for each dropped run. The unit kind (sub-issues of #400) is named so the operator knows what the rail is counting.",
       "files": [],
       "expectations": [
         "The rail does NOT print all fourteen sub-issues as fourteen lines — the middle is elided",

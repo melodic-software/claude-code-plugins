@@ -118,7 +118,7 @@ fi
 
 # Bare exec-form `command` names admitted despite carrying no path separator.
 #
-# Admission criterion is mechanical, not a judgement call about "real
+# Admission criterion is mechanical, not a judgment call about "real
 # executables": a name qualifies only when NO Windows shim, relay, or App
 # Execution Alias stub shadows it on PATH ahead of the real interpreter.
 #   * `bash`, `sh`            -> shadowed by the WSL relay System32\bash.exe

@@ -712,7 +712,7 @@ Moral) and, in the nursery-rhyme reading below, **rhyming early**. An earlier
 revision of this file expanded that into an eight-item list adding "a delayed
 rhyme", "a pattern break", "a repeated fragment" and "a sudden change in
 syntax"; none of those are Chapter 7's. The test the chapter does give is the
-generalisation above: any special effect you create with structure.
+generalization above: any special effect you create with structure.
 
 When using a surprise, place a meaningful idea there. A surprise that carries
 filler wastes focus.

@@ -21,7 +21,7 @@ Failure modes this skill is specifically built to avoid, and what breaks if the 
 bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This file is the
 "here's what goes wrong" companion, not a restatement.
 
-Every claim here about Claude Code's or the `claude` CLI's own behaviour names the version it was
+Every claim here about Claude Code's or the `claude` CLI's own behavior names the version it was
 observed on. Where a section carries no version of its own, it was last checked against **Claude
 Code 2.1.240**. **Recheck trigger:** any minor-version bump touching the plugin CLI, plugin
 loading/caching, or `userConfig` substitution. A date, on its own, is not a trigger.
@@ -202,7 +202,7 @@ remaining step, including every later `fleet-state.sh` call, executes the **pre-
 while the report describes a version the user now has installed but is not running. Per
 `code.claude.com/docs/en/plugins-reference` (re-fetched 2026-09-05, wording unchanged): "When a plugin updates
 mid-session, hook commands, monitors, MCP servers, and LSP servers keep using the previous
-version's path." The behaviour is **not re-run on 2.1.261**: observing it requires a live
+version's path." The behavior is **not re-run on 2.1.261**: observing it requires a live
 interactive session in which a plugin updates mid-run, which a non-interactive probe pass cannot
 stage. It was observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved the `claude-ops`
 install record to 0.35.3, while the session went on rendering the 0.33.2 skill it had loaded at
@@ -274,7 +274,7 @@ marketplace from its last remaining scope also uninstalls any plugins you instal
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference) for `uninstall --keep-data`;
 and `claude plugin marketplace remove --help`, which lists `--scope` and nothing else. *As of*
 2026-09-07 on **Claude Code 2.1.263** (win32), with the same bundle strings present in 2.1.260 and
-2.1.261, so the behaviour is not version-gated. ***Recheck trigger:*** any release note or
+2.1.261, so the behavior is not version-gated. ***Recheck trigger:*** any release note or
 `plugin-marketplaces` / `plugins-reference` change touching marketplace removal, `--keep-data`, the
 persistent data directory, or the settings cleanup cascade; or a keep-data flag appearing on
 `claude plugin marketplace remove --help`.
@@ -390,16 +390,16 @@ rather than 6s. Until the revert drains, use `--bare` for unrelated shell work t
 
 *Basis:* the absence of a bulk verb is `claude plugin uninstall --help`, whose complete option list
 is `-h/--help`, `--json`, `--keep-data`, `--prune`, `-s/--scope` and nothing that takes more than
-one `<plugin>`; the spawn-and-load behaviour and the `--bare` mitigation are direct observation
+one `<plugin>`; the spawn-and-load behavior and the `--bare` mitigation are direct observation
 during the 2026-09-14 revert on this fleet: the host's node/bun process count climbed on every
 plain uninstall and stayed flat at 73 across six consecutive `--bare` uninstalls; the ~6s and ~15s
 figures are wall-clock from that same run and are machine- and plugin-count-dependent, so treat
-them as orders of magnitude rather than constants. Neither the spawn behaviour nor `--bare` is
+them as orders of magnitude rather than constants. Neither the spawn behavior nor `--bare` is
 documented on
 [plugins-reference](https://code.claude.com/docs/en/plugins-reference) or
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), which is why this
 record exists. *As of* 2026-09-15 on **Claude Code 2.1.272** (win32); the revert itself ran on
-2.1.263–2.1.272 with no observed change in the behaviour. ***Recheck trigger:*** a bulk or
+2.1.263–2.1.272 with no observed change in the behavior. ***Recheck trigger:*** a bulk or
 glob-accepting form appearing on `claude plugin uninstall --help`; any release note or
 `plugins-reference` change touching what a non-interactive `plugin` subcommand loads at startup, or
 documenting `--bare`; or an observed uninstall that does not spawn a plugin-loading session.

@@ -4,7 +4,7 @@
 # (`priority:p2-medium`), qualified with a space (`priority: p2-medium`), or
 # bare, as the `--priority` flag documentation listed it (`p2-medium`). That
 # scheme exists in no governed repository — the live fleet-wide `priority:` set
-# is critical/high/medium/low/needs-triage — so an autonomous pass that follows
+# is critical/high/medium/low — so an autonomous pass that follows
 # a `pN-*` routing instruction literally fails applying a nonexistent label
 # (label-taxonomy.md "Universal axes": priority members are discovered live,
 # never snapshotted in skill text).

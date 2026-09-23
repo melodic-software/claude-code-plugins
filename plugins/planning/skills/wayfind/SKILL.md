@@ -97,7 +97,7 @@ session. Do not fabricate a map.
    taxonomy (the container label, `wayfind: *`, `needs-human`) is present. An unknown `--label` fails the
    create. Honor the consuming repository's declared label ownership. If it names a label-as-code
    source of truth, STOP and report the exact missing set to that owner; otherwise report the set and
-   ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labelled with the bare container label
+   ask the user how labels are provisioned. Never create labels ad hoc from this skill. Then create one issue labeled with the bare container label
    (+ any repo program labels). Body carries the five sections. **Destination** (where this is going once the
    fog clears) / **Notes** (durable pointers only. PRs, committed docs, prior items, external links;
    memory-tier `<memory_dir>/` artifacts are checkout-local, so distill their relevant content inline

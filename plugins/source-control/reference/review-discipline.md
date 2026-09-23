@@ -326,7 +326,7 @@ that is the one deterministic "addressed" signal it can check. Otherwise the act
 script's own words, "signing its own permission slip" on the merge gate's zero-unresolved-threads
 predicate. Prose fixes frequently satisfy a finding by rewriting elsewhere, leaving the anchored
 lines untouched and the thread current, so a genuinely addressed finding is routinely
-non-outdated. That is not a licence to widen the guard: **worker-side self-resolution stays
+non-outdated. That is not a license to widen the guard: **worker-side self-resolution stays
 outdated-only, exactly as the script enforces.** A current bot thread whose finding is addressed
 goes to the independent resolution dispatch, which verifies the D7.5 disposition, whether fix pushed and
 cited, deferral grounded per D4.6, or `INCORRECT` with counter-evidence, and resolves it through
@@ -334,7 +334,7 @@ the wrapper. The merging worker never resolves it, and neither does the orchestr
 the resolver. The orchestrator holds the merge decision. Where no independent dispatch is reachable, the same
 limit as above, the identical fail-closed fallback applies: leave the thread unresolved, do not
 merge, and report the PR with the addressed-but-unresolvable thread named. An unreachable authorization
-is never a licence to self-resolve. Never reach past the wrapper to raw
+is never a license to self-resolve. Never reach past the wrapper to raw
 `resolveReviewThread` to get around this; that bypasses every guard the wrapper exists to apply,
 and bulk loops over it are refused by design.
 

@@ -50,7 +50,7 @@ The PRD is **never an implementation plan**. Boundaries: problem, users, success
 
 Invoke `/planning:prd` when ALL of these are true:
 
-- The work has a **user-facing surface**. New feature, new screen, new flow, new public API, new external behaviour
+- The work has a **user-facing surface**. New feature, new screen, new flow, new public API, new external behavior
 - The change is **business- or product-driven**. Solves a user problem, opens a market, hits a metric. Not engineering-internal cleanup
 - **Alignment matters**. Multiple stakeholders, cross-team work, or you want a written reference to point the future agent at
 
@@ -58,10 +58,10 @@ Invoke `/planning:prd` when ALL of these are true:
 
 If ANY of these hold, do NOT write a PRD. Tell the user explicitly: *"This is engineering-internal. No PRD. Recommend `/planning:interview` (if intent is fuzzy) or `/planning:plan` (if it's clear)."*
 
-- **Refactors** (no behaviour change)
+- **Refactors** (no behavior change)
 - **Infrastructure** (build, CI, hooks, config, dependency bumps, lockfiles)
 - **Conventions** (rules files, doc updates, lint rules, analyzers)
-- **Bug fixes** (a bug already implies the desired behaviour. Fix the gap, no PRD)
+- **Bug fixes** (a bug already implies the desired behavior. Fix the gap, no PRD)
 - **Single-team engineering work** with no user-visible surface
 - **Tooling**, scripts, internal automation
 - **Documentation-only** changes
@@ -182,7 +182,7 @@ Required sections (every tier. Verbosity varies):
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
-**Durability over precision.** PRD content describes interfaces, types, and behavioural contracts. Never file paths or line numbers, which go stale before the PRD does. Do not write as if the current implementation structure will persist; the PRD should still read true after a refactor.
+**Durability over precision.** PRD content describes interfaces, types, and behavioral contracts. Never file paths or line numbers, which go stale before the PRD does. Do not write as if the current implementation structure will persist; the PRD should still read true after a refactor.
 
 **Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
 
@@ -207,14 +207,14 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Acceptance-criteria capture
 
-Two behaviours ride on the moment this PRD turns product intent into verifiable statements, the
+Two behaviors ride on the moment this PRD turns product intent into verifiable statements, the
 Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down. The
 first is always on; the second fires only when the consuming team's convention selects it.
 
 ### Coverage prompt. Always on, asked once
 
 While capturing those verifiable statements, ask ONE question: are they missing an
-**unwanted-behaviour** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
+**unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
 case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
 interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
 whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
@@ -226,7 +226,7 @@ this is the one question that asks what must NOT happen.
 The **`synthesize` action skips it**, along with any run that has nobody to answer: a dispatched
 worker, a forked subagent, a headless invocation, or any caller that declared the run unattended. In
 every one of those the ask is SKIPPED rather than blocking, and the returned summary states that
-**unwanted-behaviour and state-driven coverage went unexamined**. Record the same line in the PRD's
+**unwanted-behavior and state-driven coverage went unexamined**. Record the same line in the PRD's
 **Open questions** section so it outlives the summary. A prompt nobody can answer must not stall the
 run and must not silently vanish.
 
@@ -246,17 +246,17 @@ bracketed pattern prefix on a plain bullet:
 | `[ubiquitous]` | an always-true requirement, no trigger and no state |
 | `[event-driven]` | `WHEN <trigger>, <response>` |
 | `[state-driven]` | `WHILE <state>, <response>` |
-| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[unwanted-behavior]` | `IF <trigger>, THEN <response>` |
 | `[optional-feature]` | `WHERE <feature is included>, <response>` |
 
 ```text
 - [event-driven] WHEN the upload completes, the manifest is rewritten
-- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 ```
 
-The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, and
+The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
 `optional-feature`. A downstream reader matches the literal name, so a variant spelling,
-`unwanted-behavior`, `unwanted`, `event`, is not a near miss; it is an untagged criterion that looks
+`unwanted_behavior`, `unwanted`, `event`, is not a near miss; it is an untagged criterion that looks
 tagged, and it fails silently.
 
 **Scope, stated plainly.** The seven required sections carry no acceptance-criteria list of their

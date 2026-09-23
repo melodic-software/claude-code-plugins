@@ -247,7 +247,7 @@ names; load [context/sync.md](context/sync.md) when a question is about why a st
 way it did.
 
 (A plugin updated mid-session keeps resolving to the previous version's path, which is what the
-self-update note reports. `plugins-reference`, re-fetched 2026-09-05 and unchanged; behaviour
+self-update note reports. `plugins-reference`, re-fetched 2026-09-05 and unchanged; behavior
 observed on Claude Code 2.1.240 and not re-run on 2.1.261, because it needs an interactive session.
 See [context/gotchas.md](context/gotchas.md).)
 

@@ -106,7 +106,7 @@ duplication percentage is only comparable against another run with the same floo
 **Exclusion is not suppression.** A clone whose every instance sits at a path listed in a declared
 sanctioned-replication registry is dropped from the debt total and listed under `excluded[]` with
 the registry line that sanctioned it. That is a fact about the target repository, derived from a
-file the repository maintains. Suppression, by contrast, is an operator judgement recorded against a
+file the repository maintains. Suppression, by contrast, is an operator judgment recorded against a
 finding, and this plugin emits no findings, so it has no suppression surface.
 
 ## Coverage, per file and per function
@@ -160,11 +160,11 @@ comparable to a ratio. No standard and no CWE anchors any of this; see [threshol
   per-function nor a graph measure, so the plugin uses `scc` for line counting only and never
   surfaces its complexity number.
 - **Halstead from `multimetric` is per file.** It emits volume, difficulty, effort, time, and bugs
-  for a file rather than a function, so those rows carry `function: null` and are labelled
+  for a file rather than a function, so those rows carry `function: null` and are labeled
   file-level. Python is the exception: `radon hal -j` reports the suite per function.
 - **`gocyclo` output is a text scrape.** It has no JSON mode; its only format is
   `<complexity> <package> <function> <file:line:column>` plus a template flag. The adapter parses
-  that text and the row is labelled with the tool's name.
+  that text and the row is labeled with the tool's name.
 - **`shellmetrics` values vary by the shell that runs it**, which its own documentation states. Two
   machines can print different Bash complexity for the same script.
 - **ESLint-based collectors report violations, not distributions.** The core `complexity` rule and

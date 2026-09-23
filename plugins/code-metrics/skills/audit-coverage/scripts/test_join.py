@@ -239,7 +239,7 @@ class ArtifactMergeTests(unittest.TestCase):
         self.assertEqual(by_start[1]["values"]["coverage_pct"], 100.0)
         self.assertEqual(by_start[10]["values"]["coverage_pct"], 0.0)
 
-    def test_one_functions_start_is_not_a_neighbours_start(self) -> None:
+    def test_one_functions_start_is_not_a_neighbours_start(self) -> None:  # identifier, not prose # spellchecker:disable-line
         # The two formats mean different things by "start": lcov reports the
         # `FN:` declaration line while the coverage.py JSON report gives the
         # first body line. In `cm_sample.py` that makes lcov's start for
@@ -875,7 +875,7 @@ class PathNormalizationTests(unittest.TestCase):
         self,
     ) -> None:
         # The parameter is optional, and any caller that omits it gets the
-        # behaviour the fallback had before the guard existed.
+        # behavior the fallback had before the guard existed.
         self.assertEqual(
             join.resolve("example.com/mod/sample.go", ["pkg/sample.go"], "", []),
             "pkg/sample.go",

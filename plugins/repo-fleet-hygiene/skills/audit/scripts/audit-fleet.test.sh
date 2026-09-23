@@ -33,7 +33,7 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
 # cases go red, in two variants. Drop it together with .git from BOTH the unconditional arm and the
 # default list: the three replace-semantics cases go red, the default-list case still passes.
 # Drop it with .git removed from the arm ONLY: those three plus the default-list case go red, since
-# the shipped default (node_modules vendor .venv) carries no .git of its own. That is what defence
+# the shipped default (node_modules vendor .venv) carries no .git of its own. That is what defense
 # in depth buys.
 # bare-live: core.bare=true with checkout debris (and a linked worktree). Not a work tree, but an
 # administrative anomaly the collector must classify rather than reject (#2602 / #2656).

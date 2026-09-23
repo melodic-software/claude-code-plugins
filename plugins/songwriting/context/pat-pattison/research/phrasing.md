@@ -520,7 +520,7 @@ on English Grammar has more than enough to say about phrases, clauses, and
 sentences. It is enough here to look at a few examples. For convenience, call
 them all 'phrases.'"
 
-Italics are Pat's, and they carry the teaching: in each sentence he italicises
+Italics are Pat's, and they carry the teaching: in each sentence he italicizes
 the span that *is* the phrase.
 
 **Prepositional phrases:**

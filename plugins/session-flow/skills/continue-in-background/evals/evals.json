@@ -97,7 +97,7 @@
       "files": [],
       "expectations": [
         "The skill does NOT launch merely because git rev-parse reported 'not a git repository' — it checks whether a WorktreeCreate hook is configured before taking that branch",
-        "It recognises that a configured WorktreeCreate hook means the launched session works in an isolated workspace, so uncommitted local changes would not carry into it",
+        "It recognizes that a configured WorktreeCreate hook means the launched session works in an isolated workspace, so uncommitted local changes would not carry into it",
         "It does NOT launch the background agent, and falls back to the standard /clear-then-paste instruction with the reason reported",
         "An inability to establish the hook's absence is treated the same way — unknown, not clean, no launch"
       ]

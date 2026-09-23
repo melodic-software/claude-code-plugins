@@ -76,7 +76,7 @@ checks get named as passed rather than run, and a chorus draft ships with zero r
 against a mandatory eight, zero mosaic against a mandatory three, and no object writing behind it.
 Naming a filter box is not running it.
 
-Two section-type rules bind before any line-level judgement here, both from
+Two section-type rules bind before any line-level judgment here, both from
 [repetition](../../context/pat-pattison/research/repetition.md):
 
 - **Verses show; the chorus tells.** Verses carry specific situation, image, and action; the chorus

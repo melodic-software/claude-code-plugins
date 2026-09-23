@@ -32,7 +32,7 @@ messages from other rules appear in the same document and are ignored here.
 The capture in fixtures/tool-output/eslint.json is the reference shape: the
 envelope and the message text come from a live ESLint 10.1.0 run, on a
 JavaScript equivalent of the TypeScript fixture because the sandbox has no
-TypeScript parser for ESLint, so the file is labelled unverified.
+TypeScript parser for ESLint, so the file is labeled unverified.
 """
 
 from __future__ import annotations

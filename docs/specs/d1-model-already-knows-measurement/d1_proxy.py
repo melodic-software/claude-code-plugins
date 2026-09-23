@@ -288,7 +288,7 @@ VERSION = re.compile(r"\bv?\d+\.\d+(\.\d+)?\b")
 DIGIT = re.compile(r"\d")
 ENVVAR = re.compile(r"\$\{?[A-Z_][A-Z0-9_]*\}?")
 
-# words that are capitalised for emphasis / sentence-start, not proper nouns
+# words that are capitalized for emphasis / sentence-start, not proper nouns
 NOT_PROPER = {
     "A",
     "An",

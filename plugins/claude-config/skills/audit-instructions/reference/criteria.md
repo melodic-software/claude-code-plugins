@@ -130,7 +130,7 @@ rule does:
   opt-out. Defaulting a suppressor off would not make the audit more conservative. It would delete
   the only bound on the checks it moderates.
 - `OPINION`-derived *advice* inside a backed check's Remediate line follows that check's enablement
-  and severity, because the detection is the host's and is backed. It is labelled inline as
+  and severity, because the detection is the host's and is backed. It is labeled inline as
   `OPINION`-derived and is never fix-applied.
 
 Every run reports one line naming how many `OPINION`-tier checks were available, how many did not
@@ -345,9 +345,9 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Bounded by:** the **Stopping condition** below, which is enabled by default.
 - **Source:** prompting best-practices, "Tell Claude what to do instead of what not to do."
   Corroborated from the model-delta side at the context-engineering blog, under "Then and now" in
-  the paired "Then: Give Claude rules" / "Now: Let Claude use judgement" headings. The bare
+  the paired "Then: Give Claude rules" / "Now: Let Claude use judgment" headings. The bare
   prohibition quoted below was a guardrail for older models, since "newer models have better
-  judgement and can handle these decisions well without explicit rules", and its shipped
+  judgment and can handle these decisions well without explicit rules", and its shipped
   replacement is an instance of this row's remediation shape: "Write code that reads like the
   surrounding code: match its comment density, naming, and idiom."
 
@@ -633,7 +633,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   to enumerate what a caller may pass, such as modes, options, or permitted values, name the interface
   destination that carries it instead: an argument enumeration, a frontmatter field, a typed
   `argument-hint`. That destination clause is **`OPINION`-derived**, since no official page states
-  it, so it rides this check's enablement and severity per the `OPINION` policy above, is labelled
+  it, so it rides this check's enablement and severity per the `OPINION` policy above, is labeled
   as `OPINION` in the finding, and is never fix-applied.
 - **Source:** prompting best-practices, "Use examples effectively": examples are "one of the most
   reliable ways to steer Claude's output format, tone, and structure"; keep them diverse enough
@@ -1515,7 +1515,7 @@ confident removals.
 - **Must NOT flag: a user-invoked skill whose purpose is the continuation itself**: a handoff
   writer, a continuation router, a compaction helper. The skill existing is not an instruction to
   watch the budget; a skill body that additionally tells the model to invoke it off a self-estimated
-  window is. **A router falling back to its own judgement when no measured signal is available is
+  window is. **A router falling back to its own judgment when no measured signal is available is
   also not a finding.** It prefers the instrument and degrades only in its absence, which is the
   opposite of the shape this row detects.
 - **Must NOT flag: a routing condition that selects between two forms of one deliverable.** "Use the

@@ -110,7 +110,7 @@ established naming standard. It borrows two documented, unrelated things:
 - Elimination brackets (single/double elimination): [elim-bracket].
   SECONDARY (generic, not naming).
 - Pairwise social-choice aggregation (Condorcet / Copeland / Minimax) for
-  turning head-to-head judgements into a ranking: [condorcet]. This is the
+  turning head-to-head judgments into a ranking: [condorcet]. This is the
   rigorous basis if judges score candidates pairwise.
 
 ## Modality layer: semantic vs syntactic

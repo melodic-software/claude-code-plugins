@@ -916,7 +916,7 @@ Pat's own examples, verbatim:
 That last sentence is elliptical as printed; do not smooth it. The 2009 parallel
 spells the same two songs out: "Sting's 'Stolen Car' is told from the
 perspective of a car thief, and his 'Tomorrow We'll See' is from the perspective
-of a male prostitute." Neither is autobiography, and Pat's licence for that is
+of a male prostitute." Neither is autobiography, and Pat's license for that is
 explicit: "Try using the character's senses, even if the character is you. And
 remember, your song doesn't have to be an accurate autobiography. Never let
 reality get in the way of truth."

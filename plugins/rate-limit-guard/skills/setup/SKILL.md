@@ -36,8 +36,11 @@ exact statusline edit for the operator to apply by hand**, fully resolved, marke
 operator's, and naming what re-invalidates it. Silence would not be the conforming response on an
 unwritable surface; a printed edit is.
 
-What obliges an `apply` is not configuration at all. The tee's and the hook's machine files under
-`~/.claude/rate-limit-guard/` remain runtime-owned plugin data, not an operator-editable surface,
+What obliges an `apply` is not configuration at all. The machine files under
+`~/.claude/rate-limit-guard/` that the tee and the hook write remain runtime-owned plugin data, not
+an operator-editable surface, and so does the shim's own resolved-tee cache, which follows the
+effective config dir rather than `$HOME` and so sits elsewhere under a relocated
+`CLAUDE_CONFIG_DIR`,
 but the **statusline shim** `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is an owned
 writable artifact this plugin must place, because it is the durable path the operator's own wiring
 names. `apply` writes that one file and nothing else.
@@ -251,7 +254,10 @@ Report both together, in this order, when asked how to back this out:
 
 1. **Unwrap the `statusLine` command first**, restoring the operator's own renderer (or removing
    the field entirely if the shim was the whole statusline).
-2. **Then remove `~/.claude/rate-limit-guard/`.**
+2. **Then remove `~/.claude/rate-limit-guard/`.** Under a relocated `CLAUDE_CONFIG_DIR`, also remove
+   `<that config dir>/rate-limit-guard/`: the shim's resolved-tee cache follows the effective config
+   dir rather than `$HOME`, so it is the one file this step would otherwise leave behind. Harmless if
+   missed, since nothing reads it once the plugin is gone.
 
 Deleting the directory while the wiring still names the shim leaves `settings.json` invoking a
 missing file: `bash <missing-path>` exits 127 and takes the whole statusline down, the exact
@@ -266,6 +272,7 @@ fallback lives in the file that was just deleted.
   the printed edit is the operator's to apply.
 - Install `jq` or any system package.
 - Write to the contract files. The wrapper and the hook own `rate-limits.json` and
-  `stop-events.jsonl`; `apply` owns only `bin/statusline-shim.sh`.
+  `stop-events.jsonl`, and the shim owns its own `.statusline-tee-path` cache at run time; `apply`
+  owns only `bin/statusline-shim.sh`.
 - Write anywhere outside `~/.claude/rate-limit-guard/`, including the sibling `context-guard`
   directory, whose own setup skill installs that plugin's shim.

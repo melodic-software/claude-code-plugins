@@ -134,7 +134,7 @@ done < <(jq -r '.hooks | to_entries[] | .key as $ev | .value[] | .hooks[] | "\($
 set +f
 
 # A parse that quietly found nothing would make the whole suite pass on an
-# empty loop. The set is fourteen guards plus the dispatcher today; the floor
+# empty loop. The set is fifteen guards plus the dispatcher today; the floor
 # is loose on purpose so removing a guard is not a failure here.
 if ((${#REGISTERED[@]} >= 10)); then
   ok "hooks.json yields a registered set of ${#REGISTERED[@]} scripts"
@@ -240,7 +240,7 @@ assert_no_exit_trap "trap on INT only" "$TRAP_FIXTURE/other-signal.sh"
 
 # The dispatcher names the event by looking `.hook_event_name` up in its
 # primed filters, so the filter has to be there. (A positional index once put
-# the neighbouring field into every notice when a filter was added ahead of
+# the neighboring field into every notice when a filter was added ahead of
 # it; the rg-shift case below covers that shape.)
 if awk '/^PRIME_FILTERS=\(/,/^\)/' "$HOOK_DIR/run-guards.sh" | grep -Fq "'.hook_event_name'"; then
   ok "run-guards.sh primes .hook_event_name"
@@ -366,7 +366,7 @@ assert_eq "dispatcher abort after priming names the event from the payload" PreT
 
 # A prime filter added AHEAD of `.hook_event_name` shifts every later slot. The
 # dispatcher resolves the event by name, so the notice still names it. The
-# positional index this replaced read the neighbouring slot instead (empty for
+# positional index this replaced read the neighboring slot instead (empty for
 # this payload) and the notice lost its hookSpecificOutput block.
 RG_SHIFT="$TEST_TMPDIR/rg-shift"
 cp -R "$PLUGIN_DIR" "$RG_SHIFT"

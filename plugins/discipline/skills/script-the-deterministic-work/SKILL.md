@@ -21,7 +21,7 @@ Read it; this file adds only what is specific to scripting deterministic work.
 ## The discipline this re-anchors
 
 When a sub-task is purely deterministic. Its answer follows mechanically
-from its input with no judgement in the middle. Write a script (or invoke a
+from its input with no judgment in the middle. Write a script (or invoke a
 tool) that produces the answer, run it, read the output, and reason only
 **after**, over that output. Counting, diffing, sorting, transforming,
 matching, sweeping across files, and arithmetic are the recurring shapes. The
@@ -40,15 +40,15 @@ first, then that standards convention, then the portable baseline below. And
 re-anchor the distinction rather than restating the doc's criteria:
 
 - **Deterministic**, the answer is pass/fail, exact, or countable with no
-  judgement. **Script it, run it, reason over the output.** This is the core
+  judgment. **Script it, run it, reason over the output.** This is the core
   of the discipline.
 - **Detect-then-judge**, a mechanical pass narrows the candidates, but the
   verdict needs meaning or context. **Script only the detect half**; the
-  judgement stays with the model. A script's flag is a candidate, never the
+  judgment stays with the model. A script's flag is a candidate, never the
   ruling.
 - **Reasoning-only**. Meaning, intent, fit, abstraction quality. **Never
   script it.** A script here manufactures false confidence. It dresses a
-  judgement call as a computed fact.
+  judgment call as a computed fact.
 
 When the consuming project declares no such convention, re-anchor that same
 three-tier shape as the portable baseline: script the deterministic, script
@@ -95,9 +95,9 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
   boilerplate. Hand-typed frame and all, where a script or a native template
   would emit the structure and leave only the judgment slots to fill;
 - **the reverse over-reach**, an existing script or tool that *decides a
-  judgement call*: a detect-then-judge script's flag consumed as the verdict,
+  judgment call*: a detect-then-judge script's flag consumed as the verdict,
   or reasoning-only work (meaning, intent, fit, abstraction quality) handed to
-  a script, so a judgement is dressed as a computed fact. This is the same
+  a script, so a judgment is dressed as a computed fact. This is the same
   boundary crossed in the other direction; the audit hunts both ways, not just
   hand-work that should have been scripted.
 
@@ -106,7 +106,7 @@ output, and re-derive the conclusion from that output. Do not keep the
 hand-computed figure alongside it. Where the sub-work is detect-then-judge,
 script the detection and keep the verdict; where it is reasoning-only, leave
 it un-scripted and say why. Where an **existing** script already over-reaches
-into judgement, correct in the other direction. **de-script it**: demote a
+into judgment, correct in the other direction. **de-script it**: demote a
 detect-then-judge flag back to a candidate the model rules on, and return
 reasoning-only work to reasoning rather than letting the script's output stand
 as the answer.
@@ -128,10 +128,10 @@ this turn.
 
 ## What this skill does NOT do
 
-- **Does not script a judgement call.** Scripting reasoning-only work, or
+- **Does not script a judgment call.** Scripting reasoning-only work, or
   treating a detect-then-judge script's flag as the verdict, is
-  over-application. It converts a judgement into a false computed fact. The
-  tiers set the boundary; honour it in both directions.
+  over-application. It converts a judgment into a false computed fact. The
+  tiers set the boundary; honor it in both directions.
 - **Does not demand a permanent tool for a one-off.** A short throwaway
   script that runs and returns real output satisfies the discipline; building
   standing automation is the other capability's job.
@@ -147,8 +147,8 @@ this turn.
   interrogating inherited content. Same word, unrelated axis.
 - The subtle miss is the detect-then-judge trap: a script that flags
   candidates is doing the deterministic half correctly, but its output is a
-  shortlist for judgement, not the answer. Reading the flag as the ruling
-  re-hides the judgement the tier split exists to protect.
+  shortlist for judgment, not the answer. Reading the flag as the ruling
+  re-hides the judgment the tier split exists to protect.
 - A script that was never actually run is worse than hand-work: it looks
   rigorous while its output is imagined. The discipline is script **and run**
 Reason over real output, not over what the script would presumably print.

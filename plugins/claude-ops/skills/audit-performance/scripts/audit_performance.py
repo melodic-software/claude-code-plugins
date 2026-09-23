@@ -144,7 +144,7 @@ CLAUDE_ON_PATH_NAMES = ("claude", "claude.exe", "claude.cmd")
 #: Every CLI-probe finding routes to the first-party install-diagnostics command; this engine
 #: observes which binary it measured and never adjudicates an install.
 DOCTOR_ROUTE = "run `claude doctor`"
-#: Only the native installer has a documented binary path, so an unrecognised path is an
+#: Only the native installer has a documented binary path, so an unrecognized path is an
 #: unclassified layout rather than evidence of an irregular install.
 UNCLASSIFIED_LAYOUT_NOTE = (
     "official docs publish a binary path only for the native installer; Homebrew, WinGet, "
@@ -206,7 +206,7 @@ HOOK_ANCHOR_NOTE = (
     "there."
 )
 HOOK_DEDUP_NOTE = (
-    'Cross-settings-file dedup is not modelled. Upstream: "If you define the same handler in '
+    'Cross-settings-file dedup is not modeled. Upstream: "If you define the same handler in '
     "more than one settings file, it runs once. A plugin's or skill's copy of the same handler "
     'stays separate." Rows that dedup upstream are counted twice here.'
 )
@@ -224,7 +224,7 @@ COMMAND_POSITION_PREDECESSORS = frozenset(
 #: `-c` is deliberately NOT in that set: it means "count" to grep and "create" to tar, so it
 #: hands the next token the command slot only when the token before it is itself a shell.
 SHELL_COMMAND_FLAG = "-c"
-#: A run of shell operators, padded apart from its neighbours before the command-position
+#: A run of shell operators, padded apart from its neighbors before the command-position
 #: test tokenizes: `a&&bash b` and `a && bash b` are the same command line, and only the
 #: spaced spelling survives a plain split. Applied to that test's own token list only.
 OPERATOR_RUN = re.compile(r"([;|&]+)")
@@ -1594,7 +1594,7 @@ def shell_basename(token: str) -> str:
     return basename[: -len(".exe")] if basename.endswith(".exe") else basename
 
 
-def tokenize_honouring_quotes(lowered: str) -> list[str]:
+def tokenize_honouring_quotes(lowered: str) -> list[str]:  # identifier, not prose # spellchecker:disable-line
     """Split a command line into tokens with quoted runs kept whole.
 
     One walk of the string tracking the active quote character. Inside a quoted run a space
@@ -1635,7 +1635,7 @@ def names_a_shell_in_command_position(lowered: str) -> bool:
     token after `-c` whose own predecessor is a shell. The token list is padded around shell
     operators so `a&&bash b` reads the same as `a && bash b`, and it is deliberately SEPARATE
     from the list the two legacy findings read, so widening what counts as a delimiter here
-    cannot move either of them. Quotes ARE honoured here: a quoted executable containing
+    cannot move either of them. Quotes ARE honored here: a quoted executable containing
     spaces stays one token, and an operator inside a quoted argument (`grep -e 'a|sh' f`) is
     not a delimiter. The two legacy findings still flatten quotes and read their own token
     list, so that difference cannot move either of them. The predecessor test reads the
@@ -1647,7 +1647,7 @@ def names_a_shell_in_command_position(lowered: str) -> bool:
     `exec` grants command position without knowing whose subcommand it is. Confirm a row
     against its own manifest before acting on it.
     """
-    tokens = tokenize_honouring_quotes(lowered)
+    tokens = tokenize_honouring_quotes(lowered)  # identifier, not prose # spellchecker:disable-line
     for index, token in enumerate(tokens):
         if shell_basename(restore_sentinels(token)) not in SHELL_TOKENS:
             continue

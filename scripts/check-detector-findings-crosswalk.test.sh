@@ -122,7 +122,7 @@ write_doc "$tmp/stray-table.md" \
   '|---|---|---|' \
   '| something | someone | somewhere |' \
   "" "$header" "$separator" "$good_row"
-expect "an unrelated neighbouring table is ignored" 0 "$tmp/stray-table.md"
+expect "an unrelated neighboring table is ignored" 0 "$tmp/stray-table.md"
 
 expect "an absent document fails" 1 "$tmp/does-not-exist.md" "does not exist"
 
