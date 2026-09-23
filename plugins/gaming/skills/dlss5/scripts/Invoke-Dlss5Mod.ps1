@@ -261,9 +261,11 @@ function RegKids($key) {
     if ($null -ne $script:Reg) { return @($script:Reg.Keys | Where-Object { $_.StartsWith("$key\") -and $_.Substring($key.Length + 1) -notmatch '\\' } | Sort-Object) }
     @(Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue | ForEach-Object { "$key\$($_.PSChildName)" })
 }
+# A record whose folder is empty, quoted, relative or malformed is skipped, never resolved against the cwd.
 function Game($launcher, $name, $dir, $source) {
-    if (-not "$dir".Trim()) { return }
-    $d = [IO.Path]::GetFullPath(("$dir".Trim() -replace '/', '\'))
+    $dir = "$dir".Trim().Trim('"') -replace '/', '\'
+    if (-not $dir -or $dir.Contains([char]0) -or -not [IO.Path]::IsPathFullyQualified($dir)) { return }
+    $d = [IO.Path]::GetFullPath($dir)
     if ($d.Length -gt 3) { $d = $d.TrimEnd('\') }
     [pscustomobject]@{ launcher = $launcher; name = "$name".Trim(); installDir = $d; source = $source }
 }
@@ -322,6 +324,7 @@ function Find-UbisoftGames {
     foreach ($u in 'HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs', 'HKLM:\SOFTWARE\ubisoft\Launcher\Installs') {
         foreach ($k in RegKids $u) {
             $d = "$((RegProps $k).InstallDir)" -replace '/', '\'
+            if (-not $d.Trim()) { continue }
             Game 'Ubisoft Connect' (Split-Path $d.TrimEnd('\') -Leaf) $d 'ubisoft\Launcher\Installs registry'
         }
     }
@@ -444,7 +447,7 @@ function Assert-Acknowledged($acr, $name) {
     if (-not $AcceptAntiCheatRisk) { throw "refusing: $found. Installing anyway is at the user's own risk and needs -AcceptAntiCheatRisk '$name' with -AntiCheatResearch and -AntiCheatSources; nothing was changed" }
     if (-not (NormName $name) -or (NormName $AcceptAntiCheatRisk) -ne (NormName $name)) { throw "refusing: acknowledgement '$AcceptAntiCheatRisk' does not match the game name '$name'; nothing was changed" }
     # pwsh -File hands a list over as one comma-separated string.
-    $src = @($AntiCheatSources -split ',' | ForEach-Object Trim | Where-Object { $_ })
+    $src = @($AntiCheatSources -split ',\s*(?=https?://)' | ForEach-Object Trim | Where-Object { $_ })
     if (-not "$AntiCheatResearch".Trim() -or -not $src -or @($src | Where-Object { $_ -notmatch '^https://\S+$' }).Count) {
         throw 'refusing: an acknowledgement needs -AntiCheatResearch (the ban and block research summary) and -AntiCheatSources with one or more https:// URLs; nothing was changed'
     }
@@ -556,8 +559,8 @@ function Do-Apply($root) {
     if ($Proxy -notin $ProxyNames) { throw "unknown proxy '$Proxy' (have: $($ProxyNames -join ', '))" }
 
     # Refusal gates. All run before any write, the state directory included.
-    if (-not (Get-ChildItem -LiteralPath $root -Filter *.exe -File)) { throw "no *.exe in $root; pass the directory that holds the game executable" }
     if ($root -match '\\WindowsApps(\\|$)') { throw $WindowsApps }
+    if (-not (Get-ChildItem -LiteralPath $root -Filter *.exe -File)) { throw "no *.exe in $root; pass the directory that holds the game executable" }
     $opts = [IO.EnumerationOptions]@{ RecurseSubdirectories = $true; IgnoreInaccessible = $true; AttributesToSkip = 0 }
     $n = @([IO.Directory]::EnumerateFiles($root, '*', $opts) | Select-Object -First 2001).Count
     # 2000 is judgment, not measured: it catches a library or game root passed by mistake.
@@ -595,6 +598,7 @@ function Do-Apply($root) {
     try { [IO.File]::WriteAllBytes($probe, [byte[]]@()) }
     catch { throw "$root is not writable ($($_.Exception.Message)); nothing was changed" }
     finally { Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $probe) { throw "write probe $probe could not be removed; nothing was installed. Delete it, then rerun" }
 
     # Always a fresh snapshot: with no manifest the tree is pre-install, and an old snapshot may
     # predate a game update.
@@ -733,6 +737,10 @@ function Do-Remove($root) {
 # Read-only eligibility probe: on-disk facts, the launcher, and the anti-cheat sources (on disk,
 # AreWeAntiCheatYet, the Steam store page). Writes nothing.
 function Do-Assess($root) {
+    # A WindowsApps folder is usually unreadable, so nothing past the refusal is probed.
+    if ($root -match '\\WindowsApps(\\|$)') {
+        return [pscustomobject]@{ gameDir = $root; launcher = 'Xbox app'; launcherSource = 'WindowsApps path'; gameName = (Split-Path $root -Leaf); verdict = 'refused'; refusals = @($WindowsApps) } | ConvertTo-Json
+    }
     $gameRoot = Get-GameRoot $root
     $hasExe = [bool](Get-ChildItem -LiteralPath $root -Filter *.exe -File)
     $collisions = @($ProxyNames | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) })
@@ -745,11 +753,9 @@ function Do-Assess($root) {
     $pr = $null; $prErr = $null
     try { if ($k = Find-Preset $root) { $pr = Get-Preset $k } } catch { $prErr = $_.Exception.Message }
     $refusals = @()
-    $winApps = $root -match '\\WindowsApps(\\|$)'
-    if ($winApps) { $refusals += $WindowsApps }
     if (-not $hasExe) { $refusals += "no *.exe in $root; pass the directory that holds the game executable" }
     elseif (-not $ups) { $refusals += $NoUpscaler }
-    $verdict = if ($winApps) { 'refused' } elseif (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
+    $verdict = if (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
     [pscustomobject]@{
         gameDir = $root; gameRoot = $gameRoot; gameKey = (GameKey $root)
         launcher = $launch.launcher; launcherSource = $launch.source; gameName = $launch.name
@@ -1160,7 +1166,10 @@ function Do-Selftest {
         Put "$tmp\pd\Origin\LocalContent\Old\OFB-1.mfst" ('?id=OFB-1&dipInstallPath=' + [uri]::EscapeDataString("$tmp\origin\Old Game\"))
         $un = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
         $script:Reg["$un\Overwatch"] = @{ DisplayName = 'Overwatch'; InstallLocation = "$tmp\bnet\Overwatch"; UninstallString = '"C:\Program Files (x86)\Battle.net\Battle.net.exe" --uid=prometheus' }
-        $script:Reg["$un\Other"] = @{ DisplayName = 'Other'; InstallLocation = "$tmp\other"; UninstallString = '"C:\Other\unins000.exe"' }
+        $script:Reg["$un\Quoted"] = @{ DisplayName = 'Quoted'; InstallLocation = "`"$tmp\bnet\Quoted`""; UninstallString = 'Battle.net.exe --uid=q' }
+        $script:Reg["$un\Relative"] = @{ DisplayName = 'Relative'; InstallLocation = 'C:'; UninstallString = 'Battle.net.exe --uid=r' }
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\999'] = @{}
+        $script:Reg["$un\Other"] =@{ DisplayName = 'Other'; InstallLocation = "$tmp\other"; UninstallString = '"C:\Other\unins000.exe"' }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\1207658924'] = @{ gameName = 'The Witcher 3'; path = "$tmp\gog\Witcher 3" }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\635'] = @{ InstallDir = ("$tmp\ubi\Siege\" -replace '\\', '/') }
         $d1 = "$tmp\d1\"; $d2 = "$tmp\d2\"; $script:Drives = @($d1, $d2)
@@ -1178,6 +1187,8 @@ function Do-Selftest {
         Assert 'discover EA app: installerdata.xml under an EA root' (& $has 'EA app' 'EA SPORTS FC 26' "$tmp\ea\EA SPORTS FC 26")
         Assert 'discover Origin: .mfst dipInstallPath' (& $has 'Origin' 'Old Game' "$tmp\origin\Old Game")
         Assert 'discover Battle.net: Uninstall entries with --uid only' ((& $has 'Battle.net' 'Overwatch' "$tmp\bnet\Overwatch") -and -not @($found | Where-Object name -eq 'Other').Count)
+        Assert 'discover: a quoted folder is unquoted; a drive-relative one is skipped' ((& $has 'Battle.net' 'Quoted' "$tmp\bnet\Quoted") -and -not @($found | Where-Object name -eq 'Relative').Count)
+        Assert 'discover: a stale Ubisoft key does not stop the rest' (-not @($script:Unchecked | Where-Object { $_ -like 'Ubisoft*' }).Count)
         Assert 'discover GOG: GOG.com\Games registry' (& $has 'GOG Galaxy' 'The Witcher 3' "$tmp\gog\Witcher 3")
         Assert 'discover Ubisoft: InstallDir with forward slashes' (& $has 'Ubisoft Connect' 'Siege' "$tmp\ubi\Siege")
         Assert 'discover Xbox: .GamingRoot folder, manifest under Content' (& $has 'Xbox app' 'Forza Fixture' "$($d1)Games\Forza\Content")

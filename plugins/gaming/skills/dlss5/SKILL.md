@@ -71,7 +71,7 @@ Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
 |---|---|---|
 | (empty) | No action given | With a game dir: run `status`. "no snapshot" means never applied here, so recommend `assess`; otherwise report the status and recommend. Without a game dir: ask for one. Never runs `apply` or `remove` |
 | `assess` | Is this game eligible? | Run `assess`. Report the launcher, the verdict and the anti-cheat status. Writes nothing |
-| `apply` | Install the mod | `assess` first; stop on `refused`, `not-a-candidate` or `unknown`. Any anti-cheat status but `none-disclosed` runs the anti-cheat review. Confirm with the user, run `apply`, add the ledger row |
+| `apply` | Install the mod | `assess` first; stop on verdict `refused`, `not-a-candidate` or `unknown`. Any anti-cheat status but `none-disclosed` runs the anti-cheat review. Confirm with the user, run `apply`, add the ledger row |
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
 | `status` | What changed since apply? | Run `status` and explain its exit code |
 | `tune` | Picture or performance | Start from the game's preset, then guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
@@ -140,7 +140,8 @@ it.
 
 ## Action: apply
 
-1. Run the whole `assess` action. Stop on `refused`, `not-a-candidate` or `unknown`. When
+1. Run the whole `assess` action. Stop on verdict `refused`, `not-a-candidate` or `unknown` (an
+   anti-cheat status of `unknown` is not a stop; it runs the review). When
    `acknowledgementRequired` is true, run the anti-cheat review above; stop unless the user typed
    the name.
 2. Pick the proxy: the preset's `proxy` when `freeProxies` lists it, else `freeProxies` with
