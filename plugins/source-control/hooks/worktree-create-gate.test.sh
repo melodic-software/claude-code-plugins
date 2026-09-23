@@ -76,6 +76,18 @@ assert_contains "git registered the worktree at the printed path" \
   "$(git -C "$REPO" worktree list)" "external-root"
 assert_not_contains "nothing landed in the in-repo default" \
   "$(git -C "$REPO" worktree list)" ".claude/worktrees"
+assert_contains "the gate stamps the payload session id on the lock" \
+  "$(git -C "$REPO" worktree list --porcelain)" "session s1 since"
+
+REPO_BADSID="$(mkrepo)"
+OUT="$(printf '{"session_id":"bad id","transcript_path":"t","cwd":"%s","hook_event_name":"WorktreeCreate","name":"feat/bad-sid"}' "$REPO_BADSID" |
+  CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>"$TEST_TMPDIR/badsid.err")"
+STATUS=$?
+assert_exit "a session id outside the helper grammar refuses" 1 "$STATUS"
+assert_silent "a bad session id prints no path" "$OUT"
+assert_contains "the refusal names the session id" "$(cat "$TEST_TMPDIR/badsid.err")" "session_id"
+assert_eq "a bad session id creates nothing" "1" \
+  "$(git -C "$REPO_BADSID" worktree list | grep -c .)"
 
 # --------------------------------------------------------------------------
 # Unconfigured root falls back to plugin data, which is still outside the repo

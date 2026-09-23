@@ -99,7 +99,8 @@ Two steps: the helper creates and places the worktree; `EnterWorktree(path:)` en
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" \
      --name "<validated-name>" --fallback-root-file "<root_dir>/worktree-root" \
-     --data-root-file "<root_dir>/data-root"
+     --data-root-file "<root_dir>/data-root" \
+     --session-id "<resolved session id carried from SKILL.md>"
    status=$?
    rm -rf "<root_dir>"
    exit "$status"

@@ -149,8 +149,11 @@ valid_session_id() {
 
 # New lock reason for a non-helper worktree. Session id is required so two
 # concurrent sessions on one host produce different reasons. The helper's
-# reason string is a different prefix (`worktree-create.sh:`) and is never
-# written here — existing helper-created trees keep theirs (#2882 AC4).
+# reason string uses a different prefix (`worktree-create.sh:`) and is never
+# written here. Existing helper-created trees keep their reason (#2882 AC4).
+# Ownership is the `session <sid> since` token, not the prefix: a helper
+# reason that carries this session's token is ours, and a helper reason
+# with no session token is foreign to every session.
 claim_reason() {
   local sid="$1"
   local host="${HOSTNAME:-}"
