@@ -33,7 +33,7 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
   files on disk, the community AreWeAntiCheatYet list (fetched live, its commit recorded), and for
   Steam the store page's anti-cheat section. Battle.net titles count as a signal on Blizzard's
   EULA. Only a Steam game with nothing on disk, no store-page disclosure, and an AreWeAntiCheatYet
-  entry listing no anti-cheat installs without an acknowledgement;
+  entry under its app id listing no anti-cheat installs without an acknowledgement;
   every other launcher has no first-party anti-cheat disclosure, so its best case is `unknown`.
 - On any anti-cheat signal, or an `unknown` status, `apply` refuses by default. The skill shows
   every signal and every source it could not check, researches reported bans and blocks for the

@@ -41,7 +41,7 @@ anti-cheat software and cause bans!"
 |---|---|---|
 | `signals` | At least one source names anti-cheat | Refuses unless acknowledged |
 | `unknown` | No source named one, but a source could not be read, or the launcher has no first-party disclosure | Refuses unless acknowledged |
-| `none-disclosed` | Steam only: nothing on disk, an AreWeAntiCheatYet entry for the title whose `anticheats` list is empty, and a confirmed store page with no anti-cheat section | Proceeds with the normal per-game confirmation |
+| `none-disclosed` | Steam only: nothing on disk, an AreWeAntiCheatYet entry under the game's Steam app id whose `anticheats` list is empty, and a confirmed store page with no anti-cheat section | Proceeds with the normal per-game confirmation |
 
 None of the three means "no anti-cheat". `none-disclosed` means no kernel-mode anti-cheat was
 disclosed and no community record lists one. Every launcher other than Steam tops out at `unknown`.
@@ -69,7 +69,7 @@ name is not a way past it either: the gate does not look at the proxy.
 |---|---|---|
 | On-disk tokens (below) | A known anti-cheat file or folder sits in or near the game | Anything about server-side or launcher-delivered anti-cheat, which leave nothing to find |
 | Steam store page, `anticheat_section` | The publisher disclosed anti-cheat. The script reads the page with Steam's age-gate cookies and records the `anticheat_name` entries | Valve requires the field only for client-side kernel-mode anti-cheat; for anything else it is optional. A missing section means no kernel anti-cheat was disclosed. An age gate, a failed fetch, or a page without the app name is `unknown` |
-| AreWeAntiCheatYet `games.json` | A community record (MIT, contributions need "a reputable source") lists the title's anti-cheat in `anticheats`. Fetched live at every `assess` and `apply`, pinned to the commit SHA it read, matched by Steam app id or by normalized name | No entry is not a clean result. The `status` field describes Linux and Proton support, not whether a game has anti-cheat, so it is ignored. A fetch failure is `unknown`, never clean |
+| AreWeAntiCheatYet `games.json` | A community record (MIT, contributions need "a reputable source") lists the title's anti-cheat in `anticheats`. Fetched live at every `assess` and `apply`, pinned to the commit SHA it read, matched by Steam app id or by normalized name | No entry is not a clean result. A name match can raise a signal, but a Steam game counts as recorded only under its own app id. The `status` field describes Linux and Proton support, not whether a game has anti-cheat, so it is ignored. A fetch failure is `unknown`, never clean |
 | Battle.net launcher | Every Battle.net title is a signal, on the EULA text below | Nothing per title: the signal is the publisher's terms, not a detected anti-cheat |
 | Epic, EA app, Origin, GOG Galaxy, Ubisoft Connect, Xbox app | No first-party per-game anti-cheat disclosure exists, so these titles are at best `unknown` | |
 

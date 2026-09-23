@@ -421,9 +421,12 @@ function Get-AntiCheat($root, $launch, $appId) {
         $n = NormName $launch.name
         # AWACY's status field is Linux support, not presence; only a non-empty anticheats list counts.
         $aw.entries = @($all | Where-Object { ($appId -and "$($_.storeIds.steam)" -eq $appId) -or ($n -and (NormName $_.name) -eq $n) } |
-                ForEach-Object { [pscustomobject]@{ name = $_.name; anticheats = @($_.anticheats | Where-Object { $_ }) } })
-        # No entry means nobody recorded the title, not that it has no anti-cheat.
-        if (-not $aw.entries) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for this title, so this source is unknown" }
+                ForEach-Object { [pscustomobject]@{ name = $_.name; steam = "$($_.storeIds.steam)"; anticheats = @($_.anticheats | Where-Object { $_ }) } })
+        # No entry means nobody recorded the title, not that it has no anti-cheat. A name match
+        # can raise a signal, but a Steam game counts as recorded only under its own app id, so a
+        # same-named re-release never stands in for it.
+        if ($appId -and -not @($aw.entries | Where-Object steam -eq $appId)) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for Steam app id $appId, so this source is unknown" }
+        elseif (-not $aw.entries) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for this title, so this source is unknown" }
         foreach ($e in $aw.entries) { if ($e.anticheats) { $signals += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))) lists $($e.name): $($e.anticheats -join ', ')" } }
     }
     catch { $aw.error = $_.Exception.Message; $unchecked += "AreWeAntiCheatYet: fetch failed ($($aw.error)), so this source is unknown" }
@@ -1274,7 +1277,10 @@ function Do-Selftest {
         Put "$l2\steamapps\appmanifest_444.acf" (& $acf 444 'Unlisted Game' 'Unlisted')
         $ul = "$l2\steamapps\common\Unlisted"; Put "$ul\u.exe" 'exe'
         $ula = (Do-Assess $ul) | ConvertFrom-Json
-        Assert 'Steam with a clean page but no AWACY entry is unknown, not none-disclosed' ($ula.antiCheat.status -eq 'unknown' -and @($ula.antiCheat.unchecked | Where-Object { $_ -like '*no entry for this title*' }).Count -eq 1)
+        Assert 'Steam with a clean page but no AWACY entry is unknown, not none-disclosed' ($ula.antiCheat.status -eq 'unknown' -and @($ula.antiCheat.unchecked | Where-Object { $_ -like '*no entry for Steam app id 444*' }).Count -eq 1)
+        # An AWACY entry with the same name under another Steam id does not count as this game's record
+        $script:AwacyGames = $script:AwacyGames.TrimEnd(']') + ',{"name":"Unlisted Game","anticheats":[],"storeIds":{"steam":"999"}}]'
+        Assert 'a same-named AWACY entry under another app id leaves a Steam game unknown' (((Do-Assess $ul) | ConvertFrom-Json).antiCheat.status -eq 'unknown')
         $script:SteamPages['222'] = '<div id="agecheck">'
         Assert 'Steam age gate is unknown, not none-disclosed' (((Do-Assess $cg) | ConvertFrom-Json).antiCheat.status -eq 'unknown')
         $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div>'
