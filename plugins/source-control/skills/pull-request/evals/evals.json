@@ -253,6 +253,33 @@
         "`none` wins the per-key override as a resolved value exactly like a list would, with the same precedence semantics as trailer_policy and pr_body_attribution",
         "Absence and `none` are distinguished: had the team layer omitted the key, the user-global list would have won instead"
       ]
+    },
+    {
+      "id": 21,
+      "name": "ready-flip-merges-base-and-renders-evidence",
+      "prompt": "/pull-request ready. PR 512 is an open draft on this branch, main has moved ahead of it, and the last verification:confirm ran two commits ago. Flip it to ready for review.",
+      "expected_output": "The skill routes to Phase 2.5. It refreshes the base by MERGING it (gh pr update-branch or git merge origin/main) and never by rewriting the branch's history, because every evidence row is keyed to a commit SHA. It then runs skill-evidence.sh check for the new HEAD, runs each missing or stale skill in the pre-PR order it cites rather than restates, commits what a mutating skill changed, and runs the terminal skill (verification:confirm) last so its row lands on the final HEAD. It re-renders the skill-evidence block into the PR body's Verification section, replacing any earlier block rather than appending a second, and only then flips with gh pr ready (the GitHub MCP update_pull_request call with draft: false in a cloud session).",
+      "files": [],
+      "expectations": [
+        "The base is refreshed with a merge and never with a rebase or any other history rewrite, with the SHA-keyed evidence rows given as the reason",
+        "skill-evidence.sh check runs against the post-merge HEAD, and the skills it reports missing or stale are the ones that run",
+        "The terminal skill (verification:confirm) runs last, after the edits of any mutating skill have been committed, so its row lands on the head that ships",
+        "The evidence block is re-rendered into the body's Verification section, replacing an earlier block instead of adding a second one",
+        "The flip happens only after the evidence is rendered, via gh pr ready locally or the MCP update_pull_request call with draft: false in a cloud session"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "docs-only-branch-owes-the-markdown-class",
+      "prompt": "/pull-request prep. This branch only edits two README files, nothing else.",
+      "expected_output": "skill-evidence.sh classes reports the markdown class alone, so the branch is not exempt: it owes ai-slop:audit and docs-hygiene:audit-noise over the changed .md files (or the stated inline fallback when those plugins are absent, which leaves the row missing and is reported as such). With no code class the review, simplify, and verification steps of 1.2 to 1.4 are skipped and the verify gate reduces to lint. The skill does not invent a review requirement the map does not carry, and it does not treat a docs-only diff as owing nothing.",
+      "files": [],
+      "expectations": [
+        "The diff is classified through skill-evidence.sh classes, and the markdown class is the only one reported",
+        "The markdown class's audits (ai-slop:audit and docs-hygiene:audit-noise) run over the changed markdown files, presence-gated with an inline fallback",
+        "A docs-only branch is NOT treated as owing nothing, and the code class's review, simplify, and verification steps are skipped because no code class was detected",
+        "An inline fallback used in place of an absent plugin is reported as a gap rather than claimed as an evidence row"
+      ]
     }
   ]
 }

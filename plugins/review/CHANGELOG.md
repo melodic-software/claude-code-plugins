@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.1]
+
+### Changed
+
+- **The two CI lane commands name their lane rather than a workflow file.** `/review:code-review`
+  and `/review:security-review` carry summaries describing what each lane reviews, and the
+  code-review body keys its security scoping on whether a separate security lane runs rather than
+  on a named workflow file being present in the consumer. Where no security lane runs, the
+  code-review lane reports security findings itself, so a suppressed finding is not left without a
+  reader. No check, severity, or output format changed.
+
 ## [0.30.0] - 2026-09-23
 
 ### Changed

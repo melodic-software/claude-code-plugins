@@ -37,8 +37,9 @@ coordinator judges lower-priority still gets its cycle; it is sequenced, never s
 from the fan-out.
 
 **Draft PRs** are in scope, not exempt. Its worker assesses whether the draft's work is
-actually complete: if so, mark it ready for review (`gh pr ready`) and continue through the
-normal fix/resolve/merge steps in the same cycle; if it is genuinely still in progress, leave
+actually complete: if so, mark it ready for review (`/source-control:pull-request ready`, which
+merges the base branch, runs the skills the diff owes, and renders the evidence block before it
+flips) and continue through the normal fix/resolve/merge steps in the same cycle; if it is genuinely still in progress, leave
 it draft and report why. That is a real escalation with a reason, not a silent skip.
 
 Autopilot keeps every cross-tier invariant in `SKILL.md`, including dependency hold-merge. It

@@ -45,12 +45,12 @@ Invoke via `@review:<agent>` or let Claude delegate.
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
   test, hook, or llm-only), and writes one proposal stub per finding naming that rung and its
   owner. It proposes a rung and never implements one.
-- **`/review:code-review`**. CI code-review lane command for
-  `melodic-software/ci-workflows` `claude-review.yml` (correctness /
-  maintainability; security scoped out when a security lane exists).
-- **`/review:security-review`**. CI security-review lane command for
-  `claude-security-review.yml` (org-authored; built-in `/security-review`
-  is unusable under Actions checkout).
+- **`/review:code-review`**. CI code-review lane command for a pull request
+  (correctness / maintainability; security scoped out where a separate security
+  lane runs, folded back in where none does).
+- **`/review:security-review`**. CI security-review lane command for a pull
+  request (org-authored; built-in `/security-review` is unusable under Actions
+  checkout).
 
 ## Requirements
 

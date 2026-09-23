@@ -3,7 +3,9 @@
 ## Open a pull request as a draft
 
 Open every pull request as a draft and flip it to ready when the work is done: a draft skips the
-test lanes and both AI review lanes, and the flip to ready is what asks for them once.
+test lanes, and the flip is the moment reviewers are asked to look. Flip with
+`/source-control:pull-request ready`, which merges the base, runs the mandatory skills the head
+still owes, and renders the `skill-evidence` block into the body before marking it ready.
 
 ## When to stop and when to keep going
 

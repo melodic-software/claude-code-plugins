@@ -219,7 +219,10 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("always route them through a worker", paragraph)
         self.assertIn("never directly to the merge gate", paragraph)
         self.assertIn("In autopilot, that worker assesses", paragraph)
-        self.assertIn("a completed draft is marked ready with `gh pr ready`", paragraph)
+        self.assertIn(
+            "a completed draft is marked ready with `/source-control:pull-request ready`",
+            paragraph,
+        )
         self.assertIn("a genuinely in-progress draft stays draft", paragraph)
         self.assertIn("reported and escalated with the reason", paragraph)
 
@@ -463,8 +466,65 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("owner allowlist", autopilot)
         self.assertIn("`mutation_policy.branch_write_allowed`", autopilot)
         self.assertIn("`needs_worker` delta", autopilot)
-        self.assertIn("mark it ready for review (`gh pr ready`)", drafts)
+        self.assertIn(
+            "mark it ready for review (`/source-control:pull-request ready`", drafts
+        )
         self.assertIn("leave it draft and report why", drafts)
+
+    def test_autopilot_draft_flip_runs_the_pull_request_ready_step(self) -> None:
+        # A bare `gh pr ready` flips the draft and nothing else; the ready step
+        # is what merges the base, runs the skills the diff owes, and renders
+        # the evidence block, so the flip must go through it in both homes.
+        drafts = _paragraph_containing(
+            _reference("autopilot.md"), "**Draft PRs** are in scope"
+        )
+        zero_blocker = _paragraph_containing(
+            self.skill_text, "**Zero-blocker drafts are the exception:**"
+        )
+        policy = _paragraph_containing(self.skill_text, "**Draft policy (per tier).**")
+
+        for text in (drafts, zero_blocker, policy):
+            with self.subTest(text=text[:40]):
+                self.assertIn("/source-control:pull-request ready", text)
+        self.assertNotIn("marked ready with `gh pr ready`", zero_blocker)
+        self.assertIn("rather than a bare `gh pr ready`", policy)
+
+    def test_skill_evidence_routing_paragraph_is_stated(self) -> None:
+        paragraph = _paragraph_containing(
+            self.skill_text, "**Skill-evidence routing (per tier).**"
+        )
+
+        for marker in (
+            "`skillEvidence` record for every",
+            "missing or stale",
+            "`skill_evidence_gap`",
+            "worker whose brief is to run\n`/source-control:pull-request ready`",
+            "The safe tier reports the record",
+            "No tier holds a merge on it",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(" ".join(marker.split()), paragraph)
+
+    def test_safety_md_states_the_advisory_skill_evidence_contract(self) -> None:
+        safety = _reference("safety.md")
+        self.assertIn("## Skill-Evidence Record", safety)
+        opening = _paragraph_containing(safety, "judges nothing by it")
+        freshness = _paragraph_containing(safety, "The record answers what the block")
+        routing = _paragraph_containing(safety, "A gap **routes**, it does not hold")
+
+        for marker, paragraph in (
+            ("never a merge input", opening),
+            ("Nothing in `blockers` comes from it", opening),
+            ("equals the live head exactly", freshness),
+            ("sit on the head's history", freshness),
+            ("`skill_evidence_gap` worker reason", routing),
+            ("/source-control:pull-request ready", routing),
+            ("The safe tier reports the record and dispatches nothing", routing),
+            ("still merges with a gap outstanding, in every tier", routing),
+            ("never fatal", routing),
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, paragraph)
 
 
 if __name__ == "__main__":
