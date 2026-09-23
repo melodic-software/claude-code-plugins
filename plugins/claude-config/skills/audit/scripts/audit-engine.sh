@@ -5,11 +5,12 @@
 # schema and structure (A), the presence of each baseline permission pattern
 # and the placement rules around it (B), MCP server shape (C), hook path, timeout
 # shape, matcher class, placeholder quoting and duplicates (D), plugin membership
-# and drift (E), the secret scan and path separators (F), the skill-listing
-# measurement from an existing debug log (G), model and effort values (H), and
-# deep-link registration (I). Each decided row is emitted once, with the surface
-# it is about and a stable identity, so the model that runs the audit reads one
-# document instead of re-deriving the same facts with a dozen shell calls.
+# and drift (E), the secret scan and env-vars documentation status (F), the
+# skill-listing measurement from an existing debug log (G), model and effort
+# values (H), and deep-link registration (I). Each decided row is emitted once,
+# with the surface it is about and a stable identity, so the model that runs the
+# audit reads one document instead of re-deriving the same facts with a dozen
+# shell calls.
 #
 # WHAT IT LEAVES TO THE MODEL. Anything that needs a reading: whether a hook
 # with no coverage manifest blocks a family, whether a disabled MCP server has a
@@ -950,11 +951,8 @@ if [[ $PROJECT_OK -eq 1 ]]; then
   else
     row F secrets ok none "$SURF_SETTINGS" "no-secret-shaped-value" "no token-shaped value in settings.json" -
   fi
-  while IFS=$'\t' read -r ek ev; do
+  while IFS= read -r ek; do
     [[ -n "$ek" ]] || continue
-    if [[ "$ev" == *\\* ]]; then
-      row F path-separators finding info "$SURF_SETTINGS" "backslash-path:$ek" "env $ek carries a backslash path; forward slashes work on every platform" "/env/$ek"
-    fi
     if [[ -n "$DOCS_DIR" && -f "$DOCS_DIR/env-vars.md" ]]; then
       if grep -q -- "\`$ek\`" "$DOCS_DIR/env-vars.md"; then
         row F documented-var ok none "$SURF_SETTINGS" "documented-on-env-vars:$ek" "$ek is documented on env-vars" -
@@ -964,7 +962,7 @@ if [[ $PROJECT_OK -eq 1 ]]; then
     else
       row F documented-var skip none "$SURF_SETTINGS" "env-page-not-fetched:$ek" "env-vars.md not in --docs-dir; documentation status of $ek not decided" -
     fi
-  done < <(jqf "$SETTINGS" -r '(.env // {}) | to_entries[] | [.key, (.value|tostring)] | @tsv')
+  done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
 
 # --- Category G: skill-listing measurement from an existing debug log ----------

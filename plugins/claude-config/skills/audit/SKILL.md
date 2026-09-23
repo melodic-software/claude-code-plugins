@@ -62,7 +62,7 @@ the document and does only what needs judgment:
 | C: command resolution, `${VAR}` syntax, URL shape, `enableAllProjectMcpServers`, enabled/disabled coverage and name validity | C: documented reasons for disabled servers, launcher-wrapper conventions |
 | D: path resolution and readability, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo, event validity against the live hooks page |
 | E: marketplace membership, explicit `false` entries, ORPHAN / NEW / RENAME drift against the merged scopes, `strict` versus `plugin.json` | E: whether an opt-out is intentional, orphan-`true` review, rename confirmation |
-| F: token-shaped values, backslash paths, documentation status against a fetched `env-vars.md` | F: whether an undocumented custom variable is justified |
+| F: token-shaped values, documentation status against a fetched `env-vars.md` | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log | G: the levers, scoped to the roster's composition |
 | H and I: every value check | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
 

@@ -161,7 +161,6 @@ warning naming the waived guard.
 
 - Env vars in `settings.json` are documented Claude Code variables or justified custom vars
 - Secrets (tokens, keys, passwords) are in `settings.local.json`, NOT in `settings.json`
-- Path-based env vars (cloud-CLI config dirs, tool-cache paths) use forward slashes for cross-platform portability
 
 ## Category G: Skill-listing budget
 
