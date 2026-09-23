@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.3] - 2026-09-23
+
+### Changed
+
+- **`hook-failure-audit` reads only the bytes appended since the last Stop.** The per-session cursor
+  now holds a byte offset (`b<offset>`) instead of a line count, and the warm path reads past it
+  with one `tail -c +N` instead of `mapfile -s`, which read and discarded every earlier line. A
+  warm Stop on a 10 MB transcript drops from a 15.5 s p50 (past the hook's 10 s timeout) to under
+  0.2 s, independent of transcript size, at the cost of one `tail` process per Stop. Two bytes
+  before the offset are read as an anchor, so a transcript that shrank or was replaced resets to
+  the cold scan; a partial final line is scanned but not counted; a line-count cursor from an
+  earlier version reads as malformed and takes the cold scan once, without re-warning.
+
 ## [0.59.2] - 2026-09-23
 
 ### Changed
