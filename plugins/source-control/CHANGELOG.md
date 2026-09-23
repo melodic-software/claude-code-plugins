@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.1]
+
+### Fixed
+
+- The babysit stuck-check route for a wrong `runs-on` label no longer points at `select-runner`. That workflow is gone. The fix belongs in the repository's own workflow YAML. An organization-owned label is an entry in `approvedManagedRunnerLabels` in the standards `runner-policy` component.
+
 ## [0.57.0]
 
 ### Added
