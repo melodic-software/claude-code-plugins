@@ -40,7 +40,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=247
+EXPECTED_CASES=250
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -375,6 +375,46 @@ out="$(bash "$DETECT" "$QUOTED" 2>&1)"
 assert_contains "quote exemption: unquoted filler still fires" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1"
 assert_contains "quote exemption: blockquote and quoted-span hits declined" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=1 declined=2"
 assert_contains "quote exemption: typography rule still fires inside the blockquote" "$out" "Finding: rule=ai-slop/audit/rule-em-dash"
+
+# A verbatim quote carrying a typography tell needs a block marker, and the
+# marker lines must sit outside the blockquote: a `> `-prefixed start or end line
+# matches neither marker form. Characterization of existing behavior.
+QUOTEDBLOCK="$TEST_TMPDIR/quotedblock.md"
+cat >"$QUOTEDBLOCK" <<EOF
+# Quoted block markers
+
+> <!-- ai-slop-ignore-start: verbatim quote -->
+> The source says ship ${EM} now.
+> <!-- ai-slop-ignore-end: end of quote -->
+EOF
+out="$(bash "$DETECT" "$QUOTEDBLOCK" 2>&1)"
+assert_contains "quote markers: a quoted start/end pair does not suppress the em dash" "$out" "rule=ai-slop/audit/rule-em-dash findings=1 declined=0"
+
+OUTSIDEBLOCK="$TEST_TMPDIR/outsideblock.md"
+cat >"$OUTSIDEBLOCK" <<EOF
+# Outside block markers
+
+<!-- ai-slop-ignore-start: verbatim quote -->
+> The source says ship ${EM} now.
+<!-- ai-slop-ignore-end: end of quote -->
+EOF
+out="$(bash "$DETECT" "$OUTSIDEBLOCK" 2>&1)"
+assert_contains "quote markers: a start/end pair outside the blockquote suppresses the em dash" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=1 declined_marker=1"
+
+# The dangerous direction: a start outside and a quoted end never closes, so the
+# block runs to the end of the file and a later unquoted em dash is declined.
+UNCLOSED="$TEST_TMPDIR/unclosed.md"
+cat >"$UNCLOSED" <<EOF
+# Unclosed block
+
+<!-- ai-slop-ignore-start: verbatim quote -->
+> The source says ship ${EM} now.
+> <!-- ai-slop-ignore-end: end of quote -->
+
+Later prose ${EM} after the quote.
+EOF
+out="$(bash "$DETECT" "$UNCLOSED" 2>&1)"
+assert_contains "quote markers: a quoted end does not close, declining later prose" "$out" "rule=ai-slop/audit/rule-em-dash findings=0 declined=2 declined_marker=2"
 
 # Extended knowledge-cutoff families (source section words-to-watch): the
 # original ERE missed even the wiki's own example "as of my last knowledge
