@@ -303,13 +303,17 @@ function Find-SteamGames {
 function Find-EpicGames {
     $dir = (RegProps 'HKCU:\Software\Epic Games\EOS').ModSdkMetadataDir
     if (-not $dir) { $dir = Join-Path $script:ProgramData 'Epic\EpicGamesLauncher\Data\Manifests' }
-    foreach ($f in ListDir 'Epic Games Launcher' $dir @{ Filter = '*.item'; File = $true }) {
-        try { $j = LoadJson $f.FullName; Game 'Epic Games Launcher' ($j.DisplayName ?? $j.AppName) $j.InstallLocation $f.Name }
-        catch { $script:Unchecked += "Epic Games Launcher: $($f.FullName) unreadable: $($_.Exception.Message)" }
-    }
+    $items = @(foreach ($f in ListDir 'Epic Games Launcher' $dir @{ Filter = '*.item'; File = $true }) {
+            Record "Epic Games Launcher: $($f.FullName)" { $j = LoadJson $f.FullName; Game 'Epic Games Launcher' ($j.DisplayName ?? $j.AppName) $j.InstallLocation $f.Name }
+        })
+    $items
+    # The second list repeats most installs; keep only folders the .item manifests did not name.
     $dat = Join-Path $script:ProgramData 'Epic\UnrealEngineLauncher\LauncherInstalled.dat'
-    try { foreach ($e in @((LoadJson $dat).InstallationList)) { if ($e) { Game 'Epic Games Launcher' $e.AppName $e.InstallLocation 'LauncherInstalled.dat' } } }
-    catch { $script:Unchecked += "Epic Games Launcher: $dat unreadable: $($_.Exception.Message)" }
+    Record "Epic Games Launcher: $dat" {
+        foreach ($e in @((LoadJson $dat).InstallationList)) {
+            if ($e) { Game 'Epic Games Launcher' $e.AppName $e.InstallLocation 'LauncherInstalled.dat' | Where-Object { $_.installDir -notin $items.installDir } }
+        }
+    }
 }
 # The EA app's own list (the IS file) is encrypted with a hardware-derived key and is never read.
 function Find-EaGames {
@@ -462,9 +466,11 @@ function Get-AntiCheat($root, $launch, $appId) {
     elseif ($launch.launcher -eq 'Steam') { $unchecked += 'Steam: no appmanifest names this folder, so the store page was not read' }
     else { $unchecked += "$($launch.launcher): no first-party per-game anti-cheat disclosure exists for this launcher" }
     $status = if ($signals) { 'signals' } elseif ($unchecked) { 'unknown' } else { 'none-disclosed' }
-    # The acknowledgement is bound to this id, so a signal that appears after the review refuses.
-    # A newer AreWeAntiCheatYet commit alone does not change it.
-    $fp = (@($status) + @($signals | ForEach-Object { $_ -replace ' \(commit [0-9a-f]{7}\)' } | Sort-Object)) -join "`n"
+    # The acknowledgement is bound to this id, so a signal, or a source that could not be checked,
+    # appearing after the review refuses. Unchecked sources count by name, not by error text, and a
+    # newer AreWeAntiCheatYet commit alone changes nothing.
+    $fp = (@($status) + @($signals | ForEach-Object { $_ -replace ' \(commit [0-9a-f]{7}\)' } | Sort-Object) +
+        @($unchecked | ForEach-Object { 'unchecked ' + (($_ -replace ' \(commit [0-9a-f]{7}\)') -split ':')[0] } | Sort-Object -Unique)) -join "`n"
     [pscustomobject]@{
         status = $status; signals = $signals; unchecked = $unchecked
         reviewId = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($fp))).Substring(0, 12).ToLowerInvariant()
@@ -1202,7 +1208,7 @@ function Do-Selftest {
         Put "$l2\steamapps\appmanifest_222.acf" (& $acf 222 'Clean Game' 'Clean Game')
         Put "$l2\steamapps\appmanifest_333.acf" (& $acf 333 'Listed Game' 'Listed')
         Put "$tmp\pd\Epic\EpicGamesLauncher\Data\Manifests\A1.item" (@{ DisplayName = 'Epic Game'; AppName = 'Ep'; InstallLocation = "$tmp\epic\EpicGame" } | ConvertTo-Json)
-        Put "$tmp\pd\Epic\UnrealEngineLauncher\LauncherInstalled.dat" (@{ InstallationList = @(@{ AppName = 'EpicTwo'; InstallLocation = "$tmp\epic\Two" }) } | ConvertTo-Json -Depth 3)
+        Put "$tmp\pd\Epic\UnrealEngineLauncher\LauncherInstalled.dat" (@{ InstallationList = @(@{ AppName = 'EpicTwo'; InstallLocation = "$tmp\epic\Two" }, @{ AppName = 'Ep'; InstallLocation = "$tmp\EPIC\EpicGame" }) } | ConvertTo-Json -Depth 3)
         Put "$tmp\ea\EA SPORTS FC 26\__Installer\installerdata.xml" '<DiPManifest><contentIDs><contentID>1</contentID></contentIDs></DiPManifest>'
         Put "$tmp\pd\Origin\LocalContent\Old\OFB-1.mfst" ('?id=OFB-1&dipInstallPath=' + [uri]::EscapeDataString("$tmp\origin\Old Game\"))
         $un = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
@@ -1228,6 +1234,7 @@ function Do-Selftest {
         Assert 'discover Steam: registry, libraryfolders.vdf, appmanifest' (& $has 'Steam' "Tom Clancy`u{2019}s Ack Game" "$l2\steamapps\common\Ack Game")
         Assert 'discover Epic: .item manifest' (& $has 'Epic Games Launcher' 'Epic Game' "$tmp\epic\EpicGame")
         Assert 'discover Epic: LauncherInstalled.dat' (& $has 'Epic Games Launcher' 'EpicTwo' "$tmp\epic\Two")
+        Assert 'discover Epic: an install in both lists is listed once, with the .item name' (@($found | Where-Object { $_.launcher -eq 'Epic Games Launcher' -and $_.installDir -eq "$tmp\epic\EpicGame" }).Count -eq 1 -and (& $has 'Epic Games Launcher' 'Epic Game' "$tmp\epic\EpicGame"))
         Assert 'discover EA app: installerdata.xml under an EA root' (& $has 'EA app' 'EA SPORTS FC 26' "$tmp\ea\EA SPORTS FC 26")
         Assert 'discover Origin: .mfst dipInstallPath' (& $has 'Origin' 'Old Game' "$tmp\origin\Old Game")
         Assert 'discover Battle.net: Uninstall entries with --uid only' ((& $has 'Battle.net' 'Overwatch' "$tmp\bnet\Overwatch") -and -not @($found | Where-Object name -eq 'Other').Count)
@@ -1321,6 +1328,10 @@ function Do-Selftest {
         $script:AcceptAntiCheatRisk = $null
         Assert 'AWACY fetch failure: apply refuses without an acknowledgement' (Throws { Do-Apply $cg } "*anti-cheat status 'unknown'*AreWeAntiCheatYet*")
         $script:HttpGet = $ok
+        # Reviewed while AWACY was unreachable; by apply time AWACY answers but the store page does not
+        $script:AcceptAntiCheatRisk = 'Clean Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $ua.antiCheat.reviewId
+        $script:SteamPages['222'] = '<div id="agecheck">'
+        Assert 'ack bound to the review: a different unchecked source refuses' (Throws { Do-Apply $cg } "*changed since the review*Steam store page*")
         # Reviewed while unknown; by apply time the store page names an anti-cheat
         $script:AcceptAntiCheatRisk = 'Clean Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $ua.antiCheat.reviewId
         $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div><div class="anticheat_section"><div class="anticheat_name">BattlEye</div></div>'
