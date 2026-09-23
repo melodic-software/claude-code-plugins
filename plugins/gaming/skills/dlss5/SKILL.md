@@ -93,7 +93,7 @@ age-gate cookies. WebFetch receives the age gate on many titles, and an age gate
 section, so a WebFetch read of it looks clean when it is not.
 
 ```bash
-curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'https://store.steampowered.com/app/<steamAppId>/?l=english' | grep -o -i -E 'apphub_AppName">[^<]*|agecheck|anticheat_section' | sort -u
+curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'https://store.steampowered.com/app/<steamAppId>/?l=english' | grep -o -i -E 'apphub_AppName">[^<]*|agecheck|anticheat_section' | sort -u # portability-ok: -E ERE; the P is in AppName, not a -P flag
 ```
 
 | Result | Outcome |

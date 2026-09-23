@@ -113,7 +113,7 @@ download nothing, and never call `provision` in any form.
    `<data-dir>` names as `gameDir` is FAIL (a modded game this data directory does not track); and
    another directory still holding `state\` is FAIL: the default (`Gaming\dlss5` under Documents)
    when `<data-dir>` is not the default, or the legacy default (`Gaming` under Documents) when
-   `<data-dir>\state\` is absent. The remediation for both is to MOVE the old directory's contents
+   `<data-dir>\state\` is absent. The remediation for both is to MOVE the old directory's contents <!-- portability-ok: Windows path, not a shell regex -->
    (`runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`) to `<data-dir>`; without its
    manifest, `remove` cannot undo the mod. With `data_dir` unset, the script refuses every verb
    but `refetch` and `selftest` on the legacy case.
