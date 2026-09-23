@@ -9,6 +9,7 @@ All notable changes to the `coupling` plugin are documented here. Format follows
 
 - `reduce` closes its report with what waits on the human first (the PR to merge, candidates
   needing a decision), then the ledger path and what was applied and routed.
+- Scan subagents' briefs state when each is done and when it returns early.
 
 ## [0.1.8]
 

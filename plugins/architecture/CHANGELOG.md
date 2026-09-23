@@ -3,6 +3,15 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-09-23
+
+### Changed
+
+- `improve`'s post-report reply leads with the candidate choice waiting on the user, naming the
+  top recommendation.
+- Scan briefings end with a stopping point: done when the friction checklist is walked, early
+  return when a candidate needs code outside the assigned area.
+
 ## [0.9.3] - 2026-09-21
 
 ### Changed

@@ -3,6 +3,13 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-09-23
+
+### Changed
+
+- The report template moves "Open questions for the operator" to directly under the run header,
+  ahead of the findings.
+
 ## [0.12.26] - 2026-09-21
 
 ### Changed

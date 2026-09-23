@@ -77,7 +77,9 @@ it is better to surface a finding that later gets filtered out than to silently 
 Report every issue you find, including ones you are uncertain about or consider low-severity. Do
 not filter for importance or confidence at this stage, a separate normalization pass deduplicates
 and ranks findings downstream. For each finding, include your confidence level (high / medium /
-low) and an estimated severity." Current models follow a stated severity bar faithfully at the
+low) and an estimated severity. You are done when every changed file has been reviewed for your
+concern; if part of the change set cannot be reviewed, name that part and return what you have."
+Current models follow a stated severity bar faithfully at the
 finding stage: they investigate fully, then withhold findings judged below the bar, so a harness
 with a downstream filter that does not say so converts investigations into silence (Anthropic's
 per-model prompting guides, "Code review harnesses"). The clause restores recall without moving

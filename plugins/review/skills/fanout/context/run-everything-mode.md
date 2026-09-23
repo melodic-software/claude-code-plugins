@@ -69,7 +69,9 @@ const COVERAGE_CLAUSE =
   'out than to silently drop a real bug. Report every issue you find, including ones you are ' +
   'uncertain about or consider low-severity. Do not filter for importance or confidence at this ' +
   'stage, a separate normalization pass deduplicates and ranks findings downstream. For each ' +
-  'finding, include your confidence level (high / medium / low) and an estimated severity.'
+  'finding, include your confidence level (high / medium / low) and an estimated severity. You are ' +
+  'done when every changed file has been reviewed for your concern; if part of the change set ' +
+  'cannot be reviewed, name that part and return what you have.'
 
 const AGENT_PROMPT =
   'Review the current change set. Run `git diff ' + REVIEW_DIFF + '` yourself to see the changes, plus ' +

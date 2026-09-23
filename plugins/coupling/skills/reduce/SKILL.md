@@ -92,7 +92,8 @@ own standards.
 
 **B. Scan.** Fan out fresh-context Explore subagents over the scope, each briefed with the
 coupling model and returning findings in ledger-entry form (edge, kind, mechanism, strength,
-degree, locality, evidence). In parallel, mine co-change evidence from version-control
+degree, locality, evidence). Each is done when its slice of the scope has been read; it returns
+early with what it has when a finding needs a file outside that slice. In parallel, mine co-change evidence from version-control
 history: file pairs that repeatedly change in the same commits without a declared dependency
 are coupled through a channel the import graph cannot see, and they outrank most statically
 visible findings.

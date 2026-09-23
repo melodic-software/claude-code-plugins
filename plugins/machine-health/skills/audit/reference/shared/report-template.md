@@ -34,6 +34,10 @@ Placeholder tokens use `{{double-braces}}`. The orchestrator performs simple tex
 
 {{elevation_coverage}}
 
+## Open questions for the operator
+
+{{open_questions}}
+
 ## At a glance
 
 {{at_a_glance_table}}
@@ -70,10 +74,6 @@ Placeholder tokens use `{{double-braces}}`. The orchestrator performs simple tex
 ## Newly discovered checks
 
 {{discovery_section}}
-
-## Open questions for the operator
-
-{{open_questions}}
 
 ## Appendix
 

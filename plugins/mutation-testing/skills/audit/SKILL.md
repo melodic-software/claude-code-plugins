@@ -193,7 +193,9 @@ Every surviving mutant is one of three things, and the difference is a judgment:
 `self-grade` bias class: a context that generated the mutants and ran them is the weakest place to
 decide whether its own findings are worth reporting, and a fork inherits that reasoning rather than
 removing it. Hand over the artifact, the mutated line, its surrounding code, and the tests that
-covered it, never the reasoning that produced the mutant.
+covered it, never the reasoning that produced the mutant. The brief says it is done when every
+handed-over survivor has one of the three verdicts or is marked unclassified, and that it returns
+early rather than guess when the handed-over code is not enough to decide.
 
 For the **equivalence** call specifically, prefer a cross-vendor advisor when one is installed and
 set up (invoked per its own documentation), falling back to the same-vendor fresh-context subagent.

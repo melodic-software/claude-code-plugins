@@ -225,7 +225,7 @@ Each criterion is binary. Read it off an artifact, not from memory. **Any FAIL r
 
 Present research findings as, and if invoked standalone present them directly, while inside a larger workflow they feed the subsequent planning step:
 
-1. **Summary**. 2-3 sentence answer to the research question
+1. **Summary**. 2-3 sentence answer to the research question, preceded by one line naming any decision the findings leave to the user (e.g. two primary sources conflict, or a gap blocks the answer), or omitted when none
 2. **Evidence table**. `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`
 3. **Fetch log**, the written record criteria 6 and 9 are graded against, so it is WRITTEN, not recalled. One entry per fetch PER CLAIM: `Claim | URL or command | artifact-ladder rung | tool used | outcome`, and each accepted claim carries the entry for the rung it came from AND one for every rung above it. **The outcome vocabulary is a parsed schema, not free text**. Five values, three of which look interchangeable and are not, plus the composite changelog entry criterion 6 grades. Write it to the spec in `${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md` ("The fetch log")
 4. **Conflicts**. Disagreements between sources (flagged explicitly; primary wins over blog consensus)

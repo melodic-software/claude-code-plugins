@@ -9,6 +9,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - `batch-simplify`'s summary report opens with the remaining deferrals, the items waiting on the
   user, before the per-group results.
+- `batch-simplify`'s per-group agent brief states when the agent is done.
 
 ## [0.22.1] - 2026-09-21
 

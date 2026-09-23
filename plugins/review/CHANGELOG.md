@@ -14,6 +14,8 @@ All notable changes to the `review` plugin are documented here. Format follows
   code does not bear out to `low` confidence.
 - `doc-drift-detector` also checks documentation for internal contradictions in numbers, dates,
   and names, quoting both statements and their locations.
+- `fanout`'s leaf coverage clause states when a leaf is done and to name any part of the change
+  set it could not review.
 
 ## [0.29.2] - 2026-09-21
 
