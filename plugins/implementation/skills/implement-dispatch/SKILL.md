@@ -93,7 +93,7 @@ The orchestrator stays resident across phase boundaries by default. Clear and re
 - **(b) The next phase is inline-routed** per the routing table (an inline-routed phase wants a fresh window for its own reads)
 - **(c) A model/domain switch is pending** for the next phase
 
-The phase-boundary ritual and resume-prompt emission are the same either way. Resident mode still marks DONE, writes the handoff, and emits the prompt (the prompt is crash insurance, not only a clear-context artifact).
+The phase-boundary ritual and resume-prompt emission are the same either way. Resident mode still marks DONE, writes the handoff, and emits the prompt (the prompt is crash insurance, not only a clear-context artifact). In autonomous mode that summary and prompt are not a stopping point: unless (a), (b), or (c) above calls for a clear, dispatch the next phase in the same turn. Otherwise stop only on Major divergence, when blocked on something only the human can supply, or before a destructive, hard-to-undo, or outward action the plan does not cover.
 
 ## Integration with workflow
 

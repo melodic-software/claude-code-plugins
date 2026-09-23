@@ -5,6 +5,15 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.14.8] - 2026-09-23
+
+### Changed
+
+- The deep fan-out checks each subagent's evidence before accepting its verdict; an unsupported
+  verdict goes back once or is marked unverifiable.
+- `do-your-research` and `do-your-research-deep` name where they looked for anything they could
+  not verify.
+
 ## [0.14.7] - 2026-09-21
 
 ### Changed

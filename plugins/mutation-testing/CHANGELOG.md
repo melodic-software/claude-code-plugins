@@ -3,6 +3,14 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-23
+
+### Changed
+
+- `audit`'s report opens with a "Needs you" line counting proposed suppressions to accept and
+  unclassified survivors to classify.
+- The survivor-judgment subagent's brief states when it is done and when it returns early.
+
 ## [0.3.27] - 2026-09-21
 
 ### Changed

@@ -3,6 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.0]
+
+### Added
+
+- Every `skill-usage.jsonl` row written inside a git work tree carries `sha`, the 40-hex commit HEAD pointed at when the Skill call returned, so a reader can join a row to the commit the skill ran against instead of guessing from the timestamp. Outside a work tree, and on an unborn HEAD, the field is absent rather than empty and `branch` keeps the `unknown` it carried before. The SHA and the branch come from one `git rev-parse HEAD --abbrev-ref HEAD` spawn, the same count as the branch read it replaces: `--abbrev-ref` applies only to the arguments after it, so line 1 is the SHA and line 2 the branch, where the reverse order prints the branch twice.
+- A row also carries `pr`, the pull-request number, when `branch.<name>.pr-number` is set in git config for the checked-out branch. One added `git config` spawn per row inside a work tree; a branch with no pull request writes no field. Both fields are additive: the three readers of the store (`audit_skill_visibility.py`, `skill-pair-cooccurrence.sh`, and the observability pruner) name the keys they read and pass or ignore the rest.
+
+## [0.58.0] - 2026-09-23
+
+### Added
+
+- **`known-issues` `quality`:** before blaming the model, check for a flag fallback. The action
+  explains that a flagged request re-runs on an older model with a transcript notice, and how to
+  recover (`/model`, the "Switch models when a message is flagged" setting, `/feedback`).
+
+### Changed
+
+- **`changelog` apply:** once the plan is approved, implementation and verification run without
+  stopping, with a stated finish line and stop conditions; the final report leads with what waits
+  on the user.
+
 ## [0.57.5] - 2026-09-22
 
 ### Fixed

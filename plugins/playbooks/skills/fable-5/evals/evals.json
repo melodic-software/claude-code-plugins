@@ -16,14 +16,14 @@
     },
     {
       "id": 2,
-      "name": "trigger-opus-5-adaptation-chapter",
-      "prompt": "opus 5 adaptation",
-      "expected_output": "Loads the Opus 5 model-adaptation chapter for the current session rather than the whole playbook or a sibling model's chapter.",
+      "name": "trigger-opus-5-5-adaptation-chapter",
+      "prompt": "opus 5.5 adaptation",
+      "expected_output": "Loads the Opus 5.5 model-adaptation chapter for the current session rather than the whole playbook or a sibling model's chapter.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Routes to the Opus 5 adaptation chapter, not a generic 'read every adaptation file' dump",
-        "Does not apply an Opus 4.8 or Sonnet 5 chapter in place of the Opus 5 file",
+        "Routes to the Opus 5.5 adaptation chapter, opus-5-5.md, not a generic 'read every adaptation file' dump",
+        "Does not apply an Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Opus 5.5 file",
         "Does not treat the request as a /playbooks:update drift check"
       ]
     },
@@ -49,7 +49,7 @@
       "narration": true,
       "expectations": [
         "Routes to the Fable 5.1 adaptation chapter, fable-5-1.md, not a generic 'read every adaptation file' dump",
-        "Does not apply an Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Fable 5.1 file",
+        "Does not apply an Opus 5.5, Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Fable 5.1 file",
         "Does not treat the request as a /playbooks:update drift check"
       ]
     }

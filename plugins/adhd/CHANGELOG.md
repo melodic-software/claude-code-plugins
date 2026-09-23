@@ -3,6 +3,18 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-09-23
+
+### Changed
+
+- `clarify` names the styles a decision-table page leaves out (a hero banner, a cream or
+  off-white background, italic accent words in headings, numbered "01 / 02 / 03" section labels,
+  pill-shaped badges), plus any the reader names, and adds a disliked choice to that list before
+  rendering again.
+- `shape` takes the assistant's own next step in the same message as the state line when that
+  step needs no input, and asks only when the step needs the reader or is destructive or hard to
+  undo.
+
 ## [0.4.10]
 
 ### Changed

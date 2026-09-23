@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff, so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog, covering the checks I1–I34, their evidence tier, authority tag, severity,
+The check catalog, covering the checks I1–I35, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -60,7 +60,7 @@ concerns its siblings already cover, so route rather than re-answer:
 
 On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md,
 `.claude/rules/`, and `rules/` under the user root Phase A resolves),
-this skill runs only the model-era checks I6–I34. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I35. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces;
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -158,8 +158,8 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
   family alias, the abort message also names the normalized token of the version that alias
   currently resolves to per the live model-config docs, as a suggested `--target-model` value the
-  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5`;
-  re-run with `--target-model opus-5` to confirm"). Suggesting is not guessing: the user's
+  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5-5`;
+  re-run with `--target-model opus-5-5` to confirm"). Suggesting is not guessing: the user's
   confirmation is what turns the resolution into a target. The resolved target (and how it was
   resolved) is named in the report's tier-transparency line.
 
@@ -204,7 +204,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 
 It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale
 marker), I10 (reasoning-echo directives), the I8 families under per-family ids: `I8-a`
-instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason (I8-c's
+instructed self-check, `I8-b` conservative-reporting, `I8-c` don't-think / don't-reason, `I8-f`
+think-carefully steer (I8-c's
 tag-naming sub-detect is lane-only, not seeded, as are I8's base row and `I8-d` short-turn
 assumptions, whose phrasings are too varied for a pattern that would earn its false-positive rate;
 `I8-e` forced interim-status cadence is likewise unseeded, but on a narrower ground: its skeleton is

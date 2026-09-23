@@ -14,6 +14,9 @@
 
 - Status: accepted
 - Date: 2026-07-20
+- Superseded in part for this repository by ADR 0037 (2026-09-19): the lane wiring, the
+  skip-actor exception, and the once-per-PR trigger set below no longer apply here; the
+  advisory-before-blocking posture and earned promotion still do.
 
 ## Context
 

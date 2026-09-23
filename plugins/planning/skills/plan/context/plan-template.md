@@ -24,6 +24,7 @@ Scale to the task. Not every section is needed for every plan. A trivial fix nee
 
 **What**: <1-2 sentences: what is being changed>
 **Why**: <1-2 sentences: the motivation, not just "because we need to">
+**Done when**: <the observable finish line, e.g. "every caller reads the new setting and the build is green">
 
 ## Standards grounding
 
@@ -114,6 +115,8 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 ## Plan: <title>
 
 **Goal**: <what and why in one line>
+
+**Done when**: <the observable finish line>
 
 **Steps**:
 1. <step>

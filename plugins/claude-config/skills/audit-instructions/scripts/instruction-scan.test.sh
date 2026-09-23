@@ -129,6 +129,21 @@ assert_contains "flags 'without thinking'" "$OUT" "$I8DT:3:I8-c"
 assert_contains "flags 'skip the reasoning'" "$OUT" "$I8DT:4:I8-c"
 assert_not_contains "positive think instruction not flagged as I8-c" "$OUT" ":5:I8-c"
 assert_contains "flags curly-apostrophe 'Don’t think'" "$OUT" "$I8DT:6:I8-c"
+assert_contains "positive think instruction flagged as I8-f" "$OUT" "$I8DT:5:I8-f"
+
+# --- Case 10b: I8-f think-carefully steers flagged, procedures not ------------
+I8TC="$TEST_TMPDIR/i8-thinkcarefully.md"
+cat >"$I8TC" <<'EOF'
+Think step by step before you answer.
+ultrathink on every review.
+Follow these step-by-step instructions to install the tool.
+Think hard about edge cases.
+EOF
+OUT=$(bash "$SCRIPT" "$I8TC")
+assert_contains "flags 'think step by step'" "$OUT" "$I8TC:1:I8-f"
+assert_contains "flags 'ultrathink'" "$OUT" "$I8TC:2:I8-f"
+assert_not_contains "step-by-step procedure not flagged as I8-f" "$OUT" ":3:I8-f"
+assert_contains "flags 'think hard'" "$OUT" "$I8TC:4:I8-f"
 
 # --- Case 11: I8-b conservative-reporting directives flagged -----------------
 I8CV="$TEST_TMPDIR/i8-conservative.md"

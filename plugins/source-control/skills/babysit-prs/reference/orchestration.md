@@ -120,6 +120,14 @@ rather than recomputing it, so the untriaged-material clause applies there too.
   suppressed, even on an otherwise clean, zero-blocker PR: `SKILL.md` requires a worker to assess
   draft completeness on every draft-to-ready transition, and the merge gate only re-validates
   mergeability, never completeness.
+- **`skill_evidence_gap`** (unsuppressible): the PR body's `skill-evidence` block is missing, the
+  merge gate's record reports it stale for the live head, or, where the snapshot holds only the
+  parsed block, it does not parse or carries no row at the live head. The worker's brief is to run
+  `/source-control:pull-request ready` on that PR: the merge gate can neither run a skill nor edit
+  a body, so a clean, zero-blocker PR is exactly the case that needs the worker, which is why this
+  arm is never suppressed by the direct-gate path. It fires at most once per head: a worker that
+  has already checked in at this exact head was given the chance, and a new head re-arms it.
+  Drafts are out of scope, and the gap never holds a merge, it only routes.
 - **`worker_checkin_head_unconfirmed`** (suppressible, except see below): the most recent durable
   worker check-in is missing a head SHA or names a different head. This closes the
   snapshot-then-dispatch crash gap: only a check-in for the exact current head suppresses another

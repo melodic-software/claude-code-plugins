@@ -1,9 +1,12 @@
-# Repo-owned security-review scope: this repo's security-sensitive surfaces,
-# read by the ci-workflows claude-security-review reusable workflow via its
-# `paths-file` input from the PR's BASE branch. An absent file FAILS OPEN
-# (every PR reviewed). Format: gitignore patterns (one per line), matched via
-# `git check-ignore` from the repo root; `!`, `?`, and `+` are forbidden and fail the
-# security lane closed. `#` comments and blank lines are ignored.
+# Repo-owned security-review scope: this repo's security-sensitive surfaces.
+# Read by the LOCAL security review, on the operator's own session, through the
+# `security` rule of the `pr_skill_evidence` key in .claude/source-control.md,
+# which cites this file as `@file:.github/claude-security-paths`. No CI lane
+# reads it. The breadth below is what makes that review fire on nearly every
+# non-docs pull request, which is deliberate.
+# Format: gitignore patterns (one per line), matched via `git check-ignore`
+# from the repo root; `!`, `?`, and `+` are forbidden. `#` comments and blank
+# lines are ignored.
 .github/**
 .claude/**
 scripts/**

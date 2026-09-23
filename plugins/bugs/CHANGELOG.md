@@ -3,6 +3,13 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-09-23
+
+### Changed
+
+- `scan`'s report opens with a `**Needs you**:` line naming each finding that waits on an operator
+  decision or route choice, omitted when nothing waits.
+
 ## [0.10.5] - 2026-09-22
 
 ### Changed

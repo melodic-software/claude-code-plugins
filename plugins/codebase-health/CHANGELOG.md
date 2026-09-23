@@ -3,6 +3,14 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-09-23
+
+### Changed
+
+- `audit`'s report opens with a **Needs you** line for findings that turn on a user decision and
+  config-gap observations to persist.
+- Each discovery subagent's brief states when it is done and when it returns early.
+
 ## [0.9.5]
 
 ### Changed

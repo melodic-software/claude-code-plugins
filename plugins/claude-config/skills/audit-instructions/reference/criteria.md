@@ -1,6 +1,6 @@
 ---
-version: 1.21.1
-last-updated: 2026-08-09
+version: 1.22.0
+last-updated: 2026-09-23
 ---
 
 # Instruction-Audit Criteria
@@ -46,6 +46,7 @@ Look up a specific check by ID:
   - [I32: Routing text that names a skill absent from the marketplace](#i32-routing-text-that-names-a-skill-absent-from-the-marketplace)
   - [I33: Sibling-file meta-commentary](#i33-sibling-file-meta-commentary)
   - [I34: Maintainer rationale inside model-facing YAML comments](#i34-maintainer-rationale-inside-model-facing-yaml-comments)
+  - [I35: Settled-answers instruction where later steps revise earlier ones](#i35-settled-answers-instruction-where-later-steps-revise-earlier-ones)
 - [Stopping condition](#stopping-condition)
 - [Output format](#output-format)
 
@@ -158,6 +159,13 @@ their own rows.
   Migrating to Claude Fable 5.1 and Migrating to Claude Fable 5.1 from Claude Fable 5. This is the
   basis for every `fable-5-1` scope widening in this catalog. **Recheck trigger:** publication of a
   Fable 5.1 prompting guide, which replaces this basis and joins this list in its place.
+- Prompting Claude Opus 5.5:
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
+- Getting the most out of Opus 5.5 in Claude and Claude Code (vendor blog, published 2026-09-22,
+  which carries the Opus 5.5 guide's chat-scoped claims to saved Claude Code instructions; a dated
+  post, cited where it adds that reach and otherwise corroborating, so the citing rows keep the
+  `ANTHROPIC-DOCS` Authority of the guide above):
+  <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>
 - Prompting Claude Sonnet 5:
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5>
 - Prompting Claude Opus 4.8:
@@ -376,7 +384,7 @@ so this fires for every target model.
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-Rows I8-a, I8-c and I8-d carry their own `Model scope` (single-model guide sources; promotion
+Rows I8-a, I8-c, I8-d and I8-f carry their own `Model scope` (single-model guide sources; promotion
 gate unmet). The base row and rows I8-b and I8-e are unscoped, since a model-agnostic statement or
 convergent model guides meet the gate for each (see the rows); the base row's delegation-throttle
 worked instance keeps a `fable-5` scope of its own.
@@ -496,7 +504,8 @@ target model.
   without it. The "nowhere in the Opus 5 guide" negative re-verified 2026-08-08 against the Opus 5
   guide's raw `.md`: zero occurrences of "nitpick".)
 
-**Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`.
+**Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`,
+`opus-5-5`.
 **The scope is positively confirmed narrow rather than merely unsourced.** A second page states the
 claim (see Source), and it is a model-agnostic feature page, the surface where a wider claim would
 appear, yet it names Claude Opus 5 anyway. The promotion gate stays unmet by upstream's own
@@ -529,6 +538,13 @@ choice, on the same reasoning I10 applies to a declined widening.
   guides, since a claim qualified to two models licenses nothing about the rest. Neither page
   enumerates the models that do *not* leak, so those two sections are the whole of what there is
   to re-read.
+- **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Prompts written for thinking
+  disabled", says to re-test the thinking-disabled mitigations and to "remove the no-thinking rule
+  either way", since thinking is always on for that model. On `opus-5-5` the Detect clause's
+  leakage premise does not apply; the finding stands on that removal instruction alone. **Verified
+  2026-09-23** against the guide's raw `.md` (28,311 bytes, MD5
+  `fb3bff7f41e20fbbb71be78770edb8cb`). **Recheck trigger:** that section ceasing to prescribe the
+  removal.
 
 **Row I8-d: short-turn assumptions** · Tier `behavioral` · Model scope: `fable-5, fable-5-1`.
 
@@ -622,6 +638,31 @@ report one finding per line rather than two.
   send-to-user tool" runs the other way. **Recheck trigger:** either gate source ceasing to
   prescribe removal of forced status scaffolding, which re-opens the scoping question.
 
+**Row I8-f: think-carefully steer** · Tier `behavioral` · Model scope: `opus-5-5`. **The gate is
+unmet by contradiction, not only by absence:** the base row's model-agnostic source recommends
+"think thoroughly" over a hand-written plan, so an unscoped row would contradict it.
+
+- **Detect:** a standing instruction telling the model to think carefully, hard, deeply, or step by
+  step before answering, or an `ultrathink`-style keyword written into a saved instruction rather
+  than typed for one piece of work. The Opus 5.5 model always thinks and decides how much itself,
+  so the line adds latency without a clear quality gain.
+- **Remediate:** delete the line. Where the intent was more or less depth, change effort, the
+  documented control; where a fast answer to simple questions was the intent, lower effort first,
+  and add an "Answer directly." line only after measuring quality with it, since less thinking can
+  lower quality.
+- **Must NOT flag:** "step-by-step" describing a procedure the text lays out, or instructions for a
+  human reader; a per-invocation keyword the human types (I21 owns effort pinning); a document
+  *about* the pattern, on the audience test I8-b applies.
+- **Bounded by:** the **Stopping condition** below, which is enabled by default.
+- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts": for instructions
+  "that tell Claude to think carefully before answering, consider removing them"; removing such a
+  line "made replies start sooner, with no clear decline in the quality of the reply"; "Calibrate
+  effort" for the lower-effort-first remediation. The guide scopes the claim to chat system prompts;
+  the vendor usage guide (Sources) extends it to "your prompts and your saved instructions" and
+  names effort as the Claude Code control. **Verified 2026-09-23** against the guide's raw `.md`
+  (hash as in I8-c). **Recheck trigger:** a second model guide stating the claim, which re-opens
+  the scoping question, or the section dropping it.
+
 ### I9: Example hygiene
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: all.
@@ -642,7 +683,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 ### I10: Reasoning-echo directives
 
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `error` · Surfaces: all · Model scope:
-`fable-5, fable-5-1` (the cited refusal category is documented for that model only; promotion gate
+`fable-5, fable-5-1, opus-5-5` (the cited refusal category is documented per model; promotion gate
 unmet).
 
 - **Detect:** instructions telling the model to show, echo, transcribe, or explain its internal
@@ -678,6 +719,13 @@ unmet).
   Fable 5.1 from Claude Fable 5, restates this behavior for Claude Fable 5.1 and states that Fable 5
   prompt guidance carries over. **Recheck trigger:** publication of a Fable 5.1 prompting guide,
   whose statement of this claim replaces this basis and joins `## Sources`.
+- **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Safeguard refusals": "Requests
+  that push the model to reproduce its internal reasoning in the response text can be declined with
+  the `reasoning_extraction` category, which is new if you're coming from Claude Opus 5." The same
+  section notes that server-side fallback returns these declines to the caller instead of
+  retrying them on a fallback model. Remediate there as above, or ask for what the reader needs instead, such
+  as the rationale in a few sentences. **Verified 2026-09-23** against the guide's raw `.md` (hash
+  as in I8-c). **Recheck trigger:** that section dropping the category.
 
 ### I11: CLI over MCP where equivalent
 
@@ -1675,7 +1723,7 @@ Promotion gate MET: two model guides converge (see Source).
 
 - **Detect:** operative instruction text steering visual design away from a model's default style
   with generic negatives or vague qualifiers such as "don't use that color", "make it clean and
-  minimal", or "less corporate", with neither a concrete specification nor a propose-options step.
+  minimal", "less corporate", or "avoid a generic AI look", with neither a concrete specification nor a propose-options step.
   Both guides
   state the failure the same way: such instructions "tend to shift the model to a different fixed
   palette rather than producing variety." Also flag text recommending sampling parameters as the
@@ -1686,7 +1734,9 @@ Promotion gate MET: two model guides converge (see Source).
   rationale), have the user pick one, and implement only that, on Sonnet 5 "the recommended way to
   produce meaningfully different design directions across runs", since `temperature` is not
   accepted there. A short anti-generic-aesthetics directive with concrete, enumerable negatives
-  (named fonts, named schemes) is the guides' own sanctioned snippet shape, not a finding.
+  (named fonts, named schemes) is the guides' own sanctioned snippet shape, not a finding. Pair the
+  exclusion list with an iteration step: check which styles the result used instead, and extend
+  the list when those are unwanted too.
 - **Must NOT flag:** concrete enumerable negatives. Naming the exact fonts, palettes, or patterns
   to avoid is the sanctioned shape, distinct from a vague qualifier. Non-design uses of "clean" /
   "minimal" (a clean audit, a minimal reproduction). A surface that already runs the propose-options
@@ -1695,8 +1745,12 @@ Promotion gate MET: two model guides converge (see Source).
 - **Source:** Sonnet 5 guide, "Design and frontend defaults", and Opus 4.8 guide, "Design and
   frontend defaults", convergent on the default-style behavior, the fixed-palette failure of
   generic instructions, and both remediations; the Sonnet 5 guide adds the temperature-is-gone
-  ground for preferring propose-options.
-- **Verified 2026-08-08** against both guides, fetched as raw markdown (hashes as in I24).
+  ground for preferring propose-options. Third convergent guide: Opus 5.5, "Frontend design
+  defaults", where "avoid a generic AI look" "mostly swaps one default for another", named patterns
+  work, and the iteration step is "check which styles the first result used instead, and extend
+  the list if needed."
+- **Verified 2026-08-08** against both guides, fetched as raw markdown (hashes as in I24); the
+  Opus 5.5 guide verified 2026-09-23 (hash as in I8-c).
   **Recheck trigger:** either guide's design section dropping the fixed-palette claim or the
   propose-options recommendation.
 
@@ -1923,6 +1977,28 @@ skill body.
   working-memory budget"); comments in files the model never loads.
 - **Remediate:** move the rationale to the CHANGELOG, an ADR, or a maintainer-facing `AGENTS.md`;
   leave the value and, at most, a present-tense reason.
+
+### I35: Settled-answers instruction where later steps revise earlier ones
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all · Model scope:
+`opus-5-5` (a single guide states the instruction and its limits; promotion gate unmet).
+
+- **Detect:** an instruction telling the model to treat earlier answers as settled and not go back
+  over them ("treat that answer as done", "don't revisit earlier answers"), on a surface that
+  governs long analysis, investigation, review, or an agentic task where a later step can show an
+  earlier one wrong.
+- **Remediate:** remove it from that surface. Where a long-chat surface also carries it, keep it
+  there only if the surface's work tolerates the model being less likely to point out its own
+  earlier mistake.
+- **Must NOT flag:** the instruction on a long-chat or project surface for short back-and-forth
+  follow-ups, which is the shape the guide recommends; a document *about* the pattern, on the
+  audience test I8-b applies.
+- **Source:** Opus 5.5 guide, "Thinking instructions in chat system prompts": "Leave it out where
+  you want the model to keep re-examining its earlier work, for example in long analyses, or in
+  agentic tasks where a later step can reveal a mistake in an earlier one", and the instruction "may
+  also make the model less likely to point out a mistake in an earlier answer on its own".
+  **Verified 2026-09-23** against the guide's raw `.md` (hash as in I8-c). **Recheck trigger:** that
+  section dropping the carve-out, or a second model guide stating it.
 
 ---
 

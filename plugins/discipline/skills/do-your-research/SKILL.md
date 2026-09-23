@@ -101,7 +101,7 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
 Correct each forward now: research the unbacked claim, verify the specific
 against the live environment or an authoritative source, re-derive a
 premature solution from the actual problem, and flag whatever stays
-unverifiable rather than smoothing over it. Where your own judgment is
+unverifiable, naming where you looked, rather than smoothing over it. Where your own judgment is
 the suspected source of bias, re-derive in a fresh-context subagent.
 
 ## Escalating to a verification fan-out

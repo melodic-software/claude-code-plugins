@@ -1,6 +1,6 @@
 # System Landscape
 
-Generated on 2026-09-11 from current repository plus reference graph. Remote facts: not used.
+Generated on 2026-09-19 from current repository plus reference graph. Remote facts: not used.
 
 Every fact traces to the file the probe named. Every edge is typed by the
 syntax that carries it and labeled with how many references support it.
@@ -30,24 +30,24 @@ C4Context
   System_Ext(koalaman_shellcheck, "koalaman/shellcheck", "not checked out here")
 
   Rel(melodic_software_claude_code_plugins, Dometrain_mcp, "cites (8)")
-  Rel(melodic_software_claude_code_plugins, anthropics_claude_code, "cites (37)")
+  Rel(melodic_software_claude_code_plugins, anthropics_claude_code, "cites (38)")
   Rel(melodic_software_claude_code_plugins, crate_ci_typos, "cites (9)")
   Rel(melodic_software_claude_code_plugins, koalaman_shellcheck, "cites (7)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (145)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "cites (126)")
   Rel(melodic_software_claude_code_plugins, melodic_software_claude_code_plugins_ci, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_dotfiles, "cites (4)")
   Rel(melodic_software_claude_code_plugins, melodic_software_github_iac, "cites (18)")
   Rel(melodic_software_claude_code_plugins, melodic_software_knowledge_corpus, "cites (2)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_medley, "cites (17)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_medley, "cites (16)")
   Rel(melodic_software_claude_code_plugins, melodic_software_miro_mcp, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_provisioning, "cites (5)")
   Rel(melodic_software_claude_code_plugins, melodic_software_runner_policy_runtime, "cites (1)")
   Rel(melodic_software_claude_code_plugins, melodic_software_standards, "cites (53)")
-  Rel(melodic_software_claude_code_plugins, actions_checkout, "uses-workflow (11)")
-  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (23)")
+  Rel(melodic_software_claude_code_plugins, actions_checkout, "uses-workflow (10)")
+  Rel(melodic_software_claude_code_plugins, melodic_software_ci_workflows, "uses-workflow (22)")
 ```
 
-63 external repositories are referenced but not drawn; the record carries
+66 external repositories are referenced but not drawn; the record carries
 every one of them.
 
 ## Annotations

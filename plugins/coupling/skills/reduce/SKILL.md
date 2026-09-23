@@ -92,7 +92,8 @@ own standards.
 
 **B. Scan.** Fan out fresh-context Explore subagents over the scope, each briefed with the
 coupling model and returning findings in ledger-entry form (edge, kind, mechanism, strength,
-degree, locality, evidence). In parallel, mine co-change evidence from version-control
+degree, locality, evidence). Each is done when its slice of the scope has been read; it returns
+early with what it has when a finding needs a file outside that slice. In parallel, mine co-change evidence from version-control
 history: file pairs that repeatedly change in the same commits without a declared dependency
 are coupled through a channel the import graph cannot see, and they outrank most statically
 visible findings.
@@ -140,7 +141,8 @@ never auto-merges.
 candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
 design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool when that plugin is
 installed, else the repo's own tracker, else present the list to the user. Close by reporting
-the ledger path, what was applied, what was routed where, and the recommended next-run scope.
+what waits on the human first (the PR to merge, any candidate needing a decision), then the ledger
+path, what was applied, what was routed where, and the recommended next-run scope.
 
 ## Fresh-eyes note
 

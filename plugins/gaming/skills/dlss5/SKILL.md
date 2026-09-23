@@ -21,14 +21,17 @@ or nothing.
 
 | Parameter | Resolution |
 |---|---|
-| **Data directory** (`-DataDir`) | `${user_config.data_dir}` when set to a non-empty path. If it is empty or still shows an unexpanded `${user_config.data_dir}` token (option unset), omit `-DataDir`: the script defaults to `Gaming` under the user's Documents folder and follows a OneDrive-redirected Documents, which a hand-built path does not |
+| **Data directory** (`-DataDir`) | `${user_config.data_dir}` when set to a non-empty path. If it is empty or still shows an unexpanded `${user_config.data_dir}` token (option unset), omit `-DataDir`: the script defaults to `Gaming\dlss5` under the user's Documents folder and follows a OneDrive-redirected Documents, which a hand-built path does not |
 | **Runtime DLL** (`-RuntimeDll`) | `${user_config.runtime_dll}` when set to a non-empty path. If it is empty or still an unexpanded token, omit `-RuntimeDll`: the script defaults to `runtime\nvngx_dlssnr.dll` under the data directory |
 
 Never type an option token onto a command line. An unset option survives substitution as its own
 token, and Bash rejects it as a bad substitution before the script starts.
 
 When the ledger path is needed and the data directory option is unset, get the default from the
-native side: `pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) Gaming"`.
+native side: `pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) Gaming\dlss5"`.
+When the data directory is the default, the script refuses every verb but `refetch` and
+`selftest` while the legacy `Documents\Gaming\state\` has entries and the new default's `state\` <!-- portability-ok: Windows path, not a shell regex -->
+has none. Relay the move it names verbatim; never move the files yourself.
 
 ## Running the script
 
@@ -90,7 +93,7 @@ age-gate cookies. WebFetch receives the age gate on many titles, and an age gate
 section, so a WebFetch read of it looks clean when it is not.
 
 ```bash
-curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'https://store.steampowered.com/app/<steamAppId>/?l=english' | grep -o -i -E 'apphub_AppName">[^<]*|agecheck|anticheat_section' | sort -u
+curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'https://store.steampowered.com/app/<steamAppId>/?l=english' | grep -o -i -E 'apphub_AppName">[^<]*|agecheck|anticheat_section' | sort -u # portability-ok: -E ERE; the P is in AppName, not a -P flag
 ```
 
 | Result | Outcome |

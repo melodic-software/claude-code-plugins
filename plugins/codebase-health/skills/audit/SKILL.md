@@ -262,7 +262,9 @@ Doc Drift.
 
 ### Output format
 
-Use this exact table with consistent `error`/`warning`/`info` severity:
+Open with a **Needs you** line naming anything waiting on the user: a finding whose fix turns on a
+decision (which of two conflicting sources is right, a planned-versus-abandoned call), or the
+config-gap observations to persist. Write "Needs you: none" when nothing waits. Then use this exact table with consistent `error`/`warning`/`info` severity:
 
 | # | Severity | Category | File:Line | Description | Verification |
 |---|----------|----------|-----------|-------------|-------------|

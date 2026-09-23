@@ -694,7 +694,7 @@ if [[ "$STOP_ACTIVE" == "true" ]]; then
   [[ -n "$BRANCH" ]] && LANE="$LANE ($BRANCH)"
   [[ -n "$LANE" ]] || LANE="unknown"
   lane::notify "Autonomy lane stopped" \
-    "Lane $LANE stopped without signaling completion — it may be down or stuck. Check it."
+    "Lane $LANE stopped without signaling completion — it may be down, stuck, or waiting on you. Check it."
   emit_tel "ok" "stopped-after-nudge" "none"
   exit 0
 fi
@@ -703,7 +703,7 @@ fi
 # completion self-check. This directly counters the fabricated-context-percentage
 # premature-stop failure (#576/#577): a self-estimated "~50% context" is not a
 # completion condition. Emitted as the documented Stop stdout decision.
-REASON="Autonomy lane-stop gate: you attempted to stop, but this lane's completion condition is not yet signaled. A lane that stops itself before its stated goal is met is a bug. Do NOT stop on a self-estimated context percentage, a turn count, or a vague sense that enough was done — none of those is completion. Either (1) continue working toward the lane's stated goal, or (2) if the goal is genuinely and verifiably met, declare completion by emitting the exact token ${SENTINEL} on its own line (or by creating the configured completion-marker file), then stop. This is your one automated nudge; if you stop again without signaling completion, the operator will be alerted that the lane went down."
+REASON="Autonomy lane-stop gate: you attempted to stop, but this lane's completion condition is not yet signaled. A lane that stops itself before its stated goal is met is a bug. Do NOT stop on a self-estimated context percentage, a turn count, a status summary, an offer to continue, or a vague sense that enough was done. None of those is completion; put status notes in the same message as your next action. Either (1) continue working toward the lane's stated goal, or (2) if the goal is genuinely and verifiably met, declare completion by emitting the exact token ${SENTINEL} on its own line (or by creating the configured completion-marker file), then stop. If you cannot continue without the operator, or the next step is destructive, irreversible, or outward-facing and this lane's prompt does not authorize it, do not take it and do not declare completion: say what you are blocked on and stop again. This is your one automated nudge; if you stop again without signaling completion, the operator will be alerted that the lane went down."
 
 emit_tel "blocked" "nudged" "none"
 jq -nc --arg r "$REASON" '{decision:"block", reason:$r}'

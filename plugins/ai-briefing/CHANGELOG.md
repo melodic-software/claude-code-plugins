@@ -3,6 +3,14 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.37] - 2026-09-23
+
+### Changed
+
+- `generate` leads its end-of-run report with anything waiting on the user (a missing build
+  prerequisite with its setup command, user-supplied X text the run needs) before the counts and
+  the output path.
+
 ## [0.7.36] - 2026-09-21
 
 ### Changed

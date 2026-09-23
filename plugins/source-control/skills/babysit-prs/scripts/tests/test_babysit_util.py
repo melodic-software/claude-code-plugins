@@ -79,5 +79,89 @@ class DigTests(unittest.TestCase):
         self.assertIsNone(util.dig({"a": None}, "a", "b"))
 
 
+class ParseSkillEvidenceBlockTests(unittest.TestCase):
+    """What a PR body claims about the skills that ran, and nothing more."""
+
+    ROW = f"verification:confirm {'a' * 40} 2026-09-13T10:00:00Z"
+
+    def test_a_block_between_prose_is_read(self) -> None:
+        body = f"# PR\n\nprose\n\n```skill-evidence\n{self.ROW}\n\n```\n\nmore prose\n"
+        parsed = util.parse_skill_evidence_block(body)
+
+        self.assertTrue(parsed["present"])
+        self.assertTrue(parsed["parsed"])
+        self.assertEqual(parsed["blocks"], 1)
+        self.assertEqual(
+            parsed["rows"],
+            [
+                {
+                    "skill": "verification:confirm",
+                    "sha": "a" * 40,
+                    "timestamp": "2026-09-13T10:00:00Z",
+                }
+            ],
+        )
+
+    def test_crlf_and_upper_case_shas_normalize(self) -> None:
+        body = (
+            f"```skill-evidence\r\nsimplify {'A' * 40} 2026-09-13T10:00:00Z\r\n```\r\n"
+        )
+        [row] = util.parse_skill_evidence_block(body)["rows"]
+
+        self.assertEqual(row["sha"], "a" * 40)
+
+    def test_a_commented_out_block_is_not_evidence(self) -> None:
+        body = f"<!--\n```skill-evidence\n{self.ROW}\n```\n-->\n"
+        parsed = util.parse_skill_evidence_block(body)
+
+        self.assertFalse(parsed["present"])
+        self.assertEqual(parsed["rows"], [])
+
+    def test_another_fenced_block_is_not_mistaken_for_one(self) -> None:
+        body = f"```text\n{self.ROW}\n```\n\n```python\nprint('x')\n```\n"
+        self.assertFalse(util.parse_skill_evidence_block(body)["present"])
+
+    def test_a_second_block_is_counted_and_the_first_is_read(self) -> None:
+        second = f"simplify {'b' * 40} 2026-09-13T11:00:00Z"
+        body = (
+            f"```skill-evidence\n{self.ROW}\n```\n\n```skill-evidence\n{second}\n```\n"
+        )
+        parsed = util.parse_skill_evidence_block(body)
+
+        self.assertEqual(parsed["blocks"], 2)
+        self.assertEqual(
+            [row["skill"] for row in parsed["rows"]], ["verification:confirm"]
+        )
+
+    def test_a_malformed_row_leaves_the_block_unparsed(self) -> None:
+        body = f"```skill-evidence\n{self.ROW}\nsimplify not-a-sha now\n```\n"
+        parsed = util.parse_skill_evidence_block(body)
+
+        self.assertTrue(parsed["present"])
+        self.assertFalse(parsed["parsed"])
+        self.assertEqual(
+            [row["skill"] for row in parsed["rows"]], ["verification:confirm"]
+        )
+
+    def test_an_empty_block_is_present_and_unparsed(self) -> None:
+        parsed = util.parse_skill_evidence_block("```skill-evidence\n\n```\n")
+
+        self.assertTrue(parsed["present"])
+        self.assertFalse(parsed["parsed"])
+
+    def test_a_tilde_fence_carries_the_same_block(self) -> None:
+        parsed = util.parse_skill_evidence_block(
+            f"~~~skill-evidence\n{self.ROW}\n~~~\n"
+        )
+        self.assertTrue(parsed["parsed"])
+
+    def test_a_non_string_body_reports_an_absent_block(self) -> None:
+        for body in (None, "", 42, {"body": "x"}):
+            with self.subTest(body=body):
+                parsed = util.parse_skill_evidence_block(body)
+                self.assertFalse(parsed["present"])
+                self.assertEqual(parsed["blocks"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

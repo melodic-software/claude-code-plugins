@@ -3,6 +3,31 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.1]
+
+### Changed
+
+- **The two CI lane commands name their lane rather than a workflow file.** `/review:code-review`
+  and `/review:security-review` carry summaries describing what each lane reviews, and the
+  code-review body keys its security scoping on whether a separate security lane runs rather than
+  on a named workflow file being present in the consumer. Where no security lane runs, the
+  code-review lane reports security findings itself, so a suppressed finding is not left without a
+  reader. No check, severity, or output format changed.
+
+## [0.30.0] - 2026-09-23
+
+### Changed
+
+- The CI code-review and security-review lanes and `quality-gate` PR mode ask each finding for the
+  file and line, why it is wrong, and how to show it fails; PR mode leads with the findings that
+  would block the merge. Severity tiers are unchanged.
+- `fanout` reads each CRITICAL finding's cited line before it enters the report and drops one the
+  code does not bear out to `low` confidence.
+- `doc-drift-detector` also checks documentation for internal contradictions in numbers, dates,
+  and names, quoting both statements and their locations.
+- `fanout`'s leaf coverage clause states when a leaf is done and to name any part of the change
+  set it could not review.
+
 ## [0.29.2] - 2026-09-21
 
 ### Changed

@@ -3,6 +3,13 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2] - 2026-09-23
+
+### Changed
+
+- `reach`: a one-shot remote prompt states what done looks like and what should make the remote
+  turn stop and report, since nobody answers its questions.
+
 ## [0.1.1] - 2026-09-21
 
 ### Changed

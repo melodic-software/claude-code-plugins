@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.14.0] - 2026-09-23
+
+### Changed
+
+- `docpage-digest` keeps going between phases that need no input and pauses only when a phase
+  needs the human or the session is ending.
+- The Anthropic docs queue records the Opus 5.5 release notes, prompting guide, and usage guide
+  blog post; the publisher profile now matches `claude.dev/blog` under the same blog rules as
+  `claude.com/blog`.
+- `course-digest`'s per-module agent briefs state when each agent is done and when it returns
+  early, and synthesis checks each claim against the file the agent names for it.
+
 ## [0.13.77] - 2026-09-21
 
 ### Changed

@@ -61,7 +61,9 @@ result from the scope it replaced.
 
 ## Merge
 
-When every batch has a complete result file, concatenate them in batch order into
+When every batch has a complete result file, check each batch's evidence before accepting it:
+spot-check a sample of its findings against the cited file and line, and dispatch the batch again
+when a quoted span is not there. Then concatenate them in batch order into
 `<findings home>/<TS>-ai-slop-rubric.md`, with per-rule totals, `files_reviewed` summed, and
 `files_with_findings` summed at the top. That file is the rubric half of the human report. Rubric
 findings never enter the detector's findings file: they have no crosswalk row and no relay.

@@ -183,6 +183,8 @@ plugin is installed, otherwise present the artifact and stop. The pipeline ends 
 from a verified slice is the interview's job, and building it belongs to the consuming repo's
 planning/implementation flow.
 
+Between phases that need no input, keep going and put any status note in the same message as the
+next phase's first action. Pause only when a phase needs the human or the session is ending.
 Emit a continuation prompt (sibling convention) when the run pauses mid-pipeline: a short
 self-contained prompt naming the slug, the first unticked checklist phase, and the work root.
 

@@ -3,6 +3,33 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-09-23
+
+### Added
+
+- **`audit-instructions` catalog 1.22.0 covers Claude Opus 5.5.** New row I8-f flags standing
+  "think carefully" / "think step by step" / `ultrathink` steers on an `opus-5-5` target, seeded by
+  a new `I8-f` scanner family; new check I35 flags a settled-answers instruction on a surface
+  whose later steps can revise earlier ones. I10 (reasoning-echo) and I8-c (don't-think) widen to
+  `opus-5-5`, and I26 gains the Opus 5.5 guide as a third source plus an iterate-the-exclusion-list
+  step. The Opus 5.5 prompting guide joins Sources; the alias example now names `opus-5-5`.
+- **`audit-prompting-postures` checks run shape.** P6 now asks long-running components, and the
+  CLAUDE.md or AGENTS.md of a repo used for long runs, for a finish line and named stops (keep
+  going with status in the same message; stop only when blocked on the human or before a
+  destructive or outward action). P9 covers a task file for long runs, P1 asks fan-out components
+  to check each worker's evidence, and new P11 checks that an end-of-run report leads with what
+  the human owes.
+- **`audit-pass` names what waits on the operator** before the inline headline.
+- **`audit-automation-gaps`' review step** lists only change-blocking problems, each with file,
+  line, why, and how to show it fails.
+
+### Fixed
+
+- **`emit-findings.sh` parses scan-row suffixes `a` through `f`**, so an `I8-f` row declines as
+  `no-severity-crosswalk-row` rather than `unparsable-row`.
+- **`audit-prompting-postures`' description fits the 1,024-character Agent Skills limit** again,
+  with every trigger phrase kept.
+
 ## [0.46.15] - 2026-09-21
 
 ### Changed
