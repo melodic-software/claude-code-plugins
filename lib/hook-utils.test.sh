@@ -744,18 +744,18 @@ utr_stub() (
   hook::_physical_cached_to() { printf -v "$1" '%s' "$2"; }
   hook::under_temp_root "$3"
 )
-UTR_CAND="C:/Users/X/AppData/Local/Temp"
-for utr_t in /c/users/x/appdata/local/temp/f C:/users/x/appdata/local/temp/f \
-  /C/Users/X/AppData/Local/Temp/ /c/users/x/appdata/local/temp; do
+UTR_CAND="C:/Home/X/AppData/Local/Temp"
+for utr_t in /c/home/x/appdata/local/temp/f C:/home/x/appdata/local/temp/f \
+  /C/Home/X/AppData/Local/Temp/ /c/home/x/appdata/local/temp; do
   if utr_stub msys "$UTR_CAND" "$utr_t"; then
     ok "under_temp_root: drive target '$utr_t' matches its temp candidate"
   else
     fail "under_temp_root: drive target '$utr_t' missed its temp candidate"
   fi
 done
-for utr_t in /c/users/x/appdata/local/tempevil/f C:/Users/x/AppData/Local/TempEvil/f \
-  '/c/users/x~1/appdata/local/temp/f' //server/share/users/x/appdata/local/temp/f \
-  /d/users/x/appdata/local/temp/f /c/users/x/appdata/local; do
+for utr_t in /c/home/x/appdata/local/tempevil/f C:/Home/x/AppData/Local/TempEvil/f \
+  '/c/home/x~1/appdata/local/temp/f' //server/share/home/x/appdata/local/temp/f \
+  /d/home/x/appdata/local/temp/f /c/home/x/appdata/local; do
   if utr_stub msys "$UTR_CAND" "$utr_t"; then
     fail "under_temp_root: '$utr_t' wrongly matched the temp candidate"
   else
