@@ -4536,6 +4536,25 @@ else
   fail "R19b: an absent base ref should exit 2 from the child (rc=$rc): $out"
 fi
 
+# R20. Check 6 runs markdownlint from the skill's repo top level, so a config
+#      there applies when the dispatched root is a subdirectory below it
+#      (markdownlint-cli2 never looks above its cwd). A stub npx records the
+#      cwd and file it was handed, so the assertion needs no Node.
+mkdir -p "$XREPO/bin"
+printf '#!/usr/bin/env bash\nprintf "%%s|%%s\\n" "$PWD" "${*: -1}" >"%s/npx.log"\n' "$XREPO" >"$XREPO/bin/npx"
+chmod +x "$XREPO/bin/npx"
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_SKIP_MARKDOWNLINT \
+    PATH="$XREPO/bin:$PATH" bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+ml_log="$(cat "$XREPO/npx.log" 2>/dev/null)"
+# Suffix match: git and the shell spell the same temp dir differently on Windows.
+if [[ $rc -eq 0 && "$ml_log" == */external\|skills/xskill/SKILL.md ]]; then
+  pass "R20: markdownlint runs from the skill's repo top level"
+else
+  fail "R20: markdownlint should run from the repo top level (npx saw: $ml_log): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
