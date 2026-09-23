@@ -2215,6 +2215,12 @@ run_pwsh "#2663: PowerShell write still blocked after lazy source" \
 # Path-identity keeps ordinary renames unblocked; scratch-root dest stays staging.
 run "#2731: jq > tmp && mv tmp repo-file (blocked)" \
   "jq . f > /tmp/x && mv /tmp/x plugins/guardrails/.claude-plugin/plugin.json" 2
+# Path identity survives a leading `//` on either side: POSIX resolves `//tmp/x`
+# and `/tmp/x` to one file, so the move is still the staged write.
+run "#2731: jq > //tmp && mv /tmp dest (blocked)" \
+  "jq . f > //tmp/x && mv /tmp/x out.json" 2
+run "#2731: jq > /tmp && mv //tmp dest (blocked)" \
+  "jq . f > /tmp/x && mv //tmp/x out.json" 2
 run "#2731: curl > tmp && cp tmp dest (blocked)" \
   "curl -s https://example.com > /tmp/page && cp /tmp/page out.html" 2
 run "#2731: sort > tmp && mv -f tmp dest (blocked)" \

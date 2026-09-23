@@ -931,6 +931,13 @@ scratch_target_exempt() {
 paths_identical() {
   local a="$1" b="$2" na nb
   [[ -n "$a" && -n "$b" ]] || return 1
+  # _norm_path refuses a leading `//`, but POSIX resolves `//tmp/x` and `/tmp/x`
+  # to one file, so the run is collapsed first. Treating the two as identical
+  # can only add a block to this detector, never remove one.
+  a="${a//\\//}"
+  b="${b//\\//}"
+  while [[ "$a" == //* ]]; do a="${a#/}"; done
+  while [[ "$b" == //* ]]; do b="${b#/}"; done
   if _norm_path "$a"; then
     na="$_NORM_PATH"
     if _norm_path "$b"; then
@@ -941,8 +948,6 @@ paths_identical() {
     return 1
   fi
   # Both relative / unexpanded: identity is literal after separator fold.
-  a="${a//\\//}"
-  b="${b//\\//}"
   [[ "$a" == "$b" ]]
 }
 
