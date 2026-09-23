@@ -3,6 +3,14 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.30] - 2026-09-23
+
+### Changed
+
+- **`metaphor` gives the writer-facing reason for showing both finder-question lists.** The old
+  reason treated the visible lists as a substitute for thinking; they stay in the reply because
+  they are raw material the writer mines.
+
 ## [1.4.29] - 2026-09-21
 
 ### Changed

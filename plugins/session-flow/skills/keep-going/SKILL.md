@@ -148,7 +148,7 @@ For any "is it stuck / check the monitor / poke it":
 
 - If you are executing again, the block is already over: **continue the
   work**. Do not produce a summary and stop. Summarize-and-stall is the
-  failure mode. Report only at the end or on a hard block.
+  failure mode. Put status notes in the same message as the next action.
 - The time-vs-reset check belongs to the **orchestration** case: when
   step 2 inspects a worker or subagent that is itself limited, compare the
   current time against the reset its limit message states, to decide

@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1] - 2026-09-23
+
+### Changed
+
+- **`tidy` drops "after thorough exploration" from the clean-exit rule.** Current models explore
+  proactively; the booster added nothing the rule needs.
+
 ## [0.23.0] - 2026-09-23
 
 ### Changed
