@@ -487,7 +487,8 @@ function Get-AntiCheat($root, $launch, $appId) {
     # The acknowledgement is bound to this id, so a signal, or a source that could not be checked,
     # appearing after the review refuses. Unchecked sources count by name, not by error text, and a
     # newer AreWeAntiCheatYet commit alone changes nothing.
-    $fp = (@($status) + @($signals | ForEach-Object { $_ -replace ' \(commit [0-9a-f]{7}\)' } | Sort-Object) +
+    # The game itself (folder, launcher, app id) is part of it too, so a same-named game elsewhere never shares it.
+    $fp = (@("game $($root.ToLowerInvariant()) $($launch.launcher) $appId", $status) + @($signals | ForEach-Object { $_ -replace ' \(commit [0-9a-f]{7}\)' } | Sort-Object) +
         @($unchecked | ForEach-Object { 'unchecked ' + (($_ -replace ' \(commit [0-9a-f]{7}\)') -split ':')[0] } | Sort-Object -Unique)) -join "`n"
     [pscustomobject]@{
         status = $status; signals = $signals; unchecked = $unchecked
@@ -1383,6 +1384,12 @@ function Do-Selftest {
         $script:AcceptAntiCheatRisk = $null
         Assert 'AWACY fetch failure: apply refuses without an acknowledgement' (Throws { Do-Apply $cg } "*anti-cheat status 'unknown'*AreWeAntiCheatYet*")
         $script:HttpGet = $ok
+        # A same-named game in another folder, with identical results, does not share the review
+        $ta = "$tmp\twinA\Twin\Win64"; $tb = "$tmp\twinB\Twin\Win64"
+        foreach ($t in $ta, $tb) { Put "$t\twin.exe" 'exe'; Put "$t\nvngx_dlss.dll" 'dlss' }
+        $taa = (Do-Assess $ta) | ConvertFrom-Json
+        $script:AcceptAntiCheatRisk = $taa.gameName; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $taa.antiCheat.reviewId
+        Assert 'ack bound to the game: a same-named twin elsewhere refuses' ($taa.gameName -eq ((Do-Assess $tb) | ConvertFrom-Json).gameName -and (Throws { Do-Apply $tb } '*changed since the review*') -and -not (Test-Path -LiteralPath (StateDir $tb)))
         # Reviewed while AWACY was unreachable; by apply time AWACY answers but the store page does not
         $script:AcceptAntiCheatRisk = 'Clean Game'; $script:AntiCheatResearch = 'r'; $script:AntiCheatSources = @('https://example.com/r'); $script:AntiCheatReviewId = $ua.antiCheat.reviewId
         $script:SteamPages['222'] = '<div id="agecheck">'
