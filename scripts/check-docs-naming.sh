@@ -126,7 +126,11 @@ if [[ -n "$dups" ]]; then
     if [[ -n "$one" ]]; then
       printf -v key '%q' "$one"
       if [[ $'\n'"$dups"$'\n' == *$'\n'"$key"$'\n'* ]]; then
-        offenders+=("${paths[$i]}: differs only by case from another tracked path ($one)")
+        shown="${paths[$i]}"
+        # A raw newline would split this finding into two records at the final
+        # `printf | sort -u`, so such a path and its fold are shown as `%q`.
+        [[ "$one" == *$'\n'* ]] && printf -v shown '%q' "$shown" && one="$key"
+        offenders+=("$shown: differs only by case from another tracked path ($one)")
       fi
     fi
     i=$((i + 1))

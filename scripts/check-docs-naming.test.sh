@@ -124,6 +124,26 @@ else
   fail "quoted-path collision: fixture build failed"
 fi
 
+# 8c. A case collision on a path holding a newline stays one finding per path:
+#     two `%q` findings plus the summary line, never a split record.
+repo=""
+if mk_repo repo && [[ -n "$repo" ]]; then
+  mkdir -p "$repo/docs/New"$'\n'"line" "$repo/docs/new"$'\n'"line"
+  printf 'seed\n' >"$repo/docs/New"$'\n'"line/foo.md"
+  printf 'seed\n' >"$repo/docs/new"$'\n'"line/foo.md"
+  git_test_config "$repo" add -A >/dev/null
+  git_test_config "$repo" commit -qm case >/dev/null
+  out="$(bash "$repo/scripts/check-docs-naming.sh" --check 2>&1)"
+  rc=$?
+  if [[ $rc -eq 1 ]] && [[ "$(grep -c '' <<<"$out")" -eq 3 ]] && grep -qF "\$'docs/New\\nline/foo.md'" <<<"$out"; then
+    ok "newline-bearing collision is one finding per path"
+  else
+    fail "newline collision: expected rc=1 and three lines (rc=$rc): $out"
+  fi
+else
+  fail "newline collision: fixture build failed"
+fi
+
 # 9. Discover mode (no flag) lists offenders and still exits 1 on any.
 # A failed fixture build leaves $repo empty, and `git -C ""` would then act on
 # THIS checkout, so the build is checked before any git command runs.
