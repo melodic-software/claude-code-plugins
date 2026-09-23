@@ -300,14 +300,15 @@ ALLOW_FILE="${FILE//\\//}"
 # and treated as unset, which only scans more. Claude Code sets the variable to
 # the session's start directory, which may be home or any folder. Cleared:
 #   - a relative root, or one spelled with `//`, `/./`, `/../`, a trailing `/.`
-#     or `/..`, or `~` (an 8.3 name such as PROGRA~1): the string no longer
-#     says which directory it names.
+#     or `/..`, or `~` (an 8.3 name such as PROGRA~1): such a root cannot be
+#     compared with the file path as a string.
 #   - a root that is not a git work tree: its .git holds HEAD, or is a file
 #     whose first line is `gitdir:` (a linked worktree or submodule).
 #   - a root when neither HOME nor USERPROFILE is set: home is unknown.
 #   - home, or an ancestor of home, as a string or as the same directory under
 #     another path (a link, a case or drive spelling): it contains every other
-#     checkout on the machine.
+#     checkout on the machine. The ancestors walked are those of home as
+#     spelled, not of a symlinked home's resolved target.
 # Every test is a builtin, so the check stays fork-free.
 spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
 spd_scope_root="${spd_scope_root//\\//}"

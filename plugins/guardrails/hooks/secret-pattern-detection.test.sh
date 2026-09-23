@@ -159,15 +159,27 @@ RC=$?
 assert_exit "backslash-spelled real repo root: outside write → exit 0" 0 "$RC"
 assert_silent "backslash-spelled real repo root: outside write → no stderr" "$OUT"
 
-# A root spelled with `.`, `..`, a doubled slash or `~` can name home without
-# comparing equal to it as a string, so such a root is never honored. HOME is
-# the repo itself, which each spelling below reaches.
+# Spellings that reach home: HOME is the repo itself, and each root below names
+# it. This pins that no spelling of home is honored; the spelling arms and the
+# directory comparison against home both clear these roots.
 H="$HOME_REPO"
 mkdir -p "$H/~"
 for SPELLED in "$H/." "${H%/*}//${H##*/}" "$H/../${H##*/}" "$H/user/.." "$H/~/.."; do
   OUT=$(env HOME="$H" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
   RC=$?
   assert_exit "unnormalized root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
+done
+
+# Each dot spelling on its own, with HOME elsewhere so only the spelling arm
+# can clear the root. A root kept as spelled cannot be compared with the file
+# path as a string, so even an in-project write would be skipped.
+SPELL_HOME="$TEST_TMPDIR/spell-home"
+mkdir -p "$SPELL_HOME" "$SCOPE_REPO/src" "${SCOPE_REPO%/*}/x"
+for SPELLED in "${SCOPE_REPO%/*}/./${SCOPE_REPO##*/}" "$SCOPE_REPO/src/.." \
+  "$SCOPE_REPO/." "${SCOPE_REPO%/*}/x/../${SCOPE_REPO##*/}"; do
+  OUT=$(env HOME="$SPELL_HOME" USERPROFILE="" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "dot-spelled root '$SPELLED', HOME elsewhere: in-project write scanned → exit 2" 2 "$RC"
 done
 
 # A `~` alone clears a real repo root that is not home: an 8.3 short name
