@@ -292,20 +292,3 @@ function Remove-MachineHealthTempDir {
         }
     }
 }
-
-Export-ModuleMember -Function @(
-    'New-MachineHealthTempDir'
-    'New-MockBattery'
-    'New-MockDefenderComputerStatus'
-    'New-MockDriver'
-    'New-MockEnvironmentKey'
-    'New-MockEventLogRecord'
-    'New-MockPartition'
-    'New-MockPhysicalDisk'
-    'New-MockReliabilityCounter'
-    'New-MockReliabilityRecord'
-    'New-MockReliabilityStabilityMetric'
-    'New-MockService'
-    'New-MockVolume'
-    'Remove-MachineHealthTempDir'
-)
