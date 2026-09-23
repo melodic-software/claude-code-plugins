@@ -3,6 +3,14 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.10] - 2026-09-23
+
+### Changed
+
+- **README "Using vault-exec (opt-in)"** replaces its `event-storming` incompatibility note:
+  `event-storming` 0.6.14 and later detect Miro under the user-scope `mcp__miro__` prefix too
+  ([#4380](https://github.com/melodic-software/claude-code-plugins/issues/4380)).
+
 ## [0.4.9] - 2026-09-23
 
 ### Added
