@@ -3,6 +3,37 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-09-23
+
+### Added
+
+- Per-game presets. Shipped presets live in `skills/dlss5/presets/<key>.json`; a local override
+  with the same key in the data directory's `presets` folder wins per ini key. `assess` reports
+  the matching preset (by Steam app id or exe name) with each key's source, and `apply -Preset
+  <key>` writes its ini keys and records them in the manifest (`preset`, `iniEdits`).
+- A preset may set only `Dx11Upscaler`, `RestoreComputeSignature` and `RestoreGraphicSignature`.
+  `apply` refuses before any write on any other key, on `AutoCapture` whatever its value, on a
+  value that is not a plain token, and on a malformed preset key. A preset key missing from the
+  build's ini rolls the apply back.
+- Shipped presets: `cyberpunk-2077` (proxy `dxgi.dll`, manual settings only) and `007-first-light`
+  (`RestoreComputeSignature=true`, conditional per the wiki). Each carries its sources, as-of dates
+  and a recheck trigger.
+- `SKILL.md`: the apply confirmation lists the preset keys and their sources, apply and tune print
+  the preset's manual settings as a setup guide, the ledger Notes record the preset, and a research
+  step writes a local preset from trusted sources for a game with no shipped one.
+- `reference/presets.md`: format, allow-list, merge rule and shipped presets.
+- `candidate-selection.md`: SEO mod sites are listed as untrusted.
+
+### Fixed
+
+- `assess` and `apply` counted the mod's own upscaler copies (the fork's `OptiScaler\` folder
+  ships FSR and XeSS DLLs) and listed duplicates. Files under the mod's folders and files this
+  game's manifest names no longer count, and entries are unique by path.
+
+### Changed
+
+- `-RestoreComputeSignature` now targets `[Hotfix]`, the section both pinned builds use.
+
 ## [0.2.0] - 2026-09-23
 
 ### Added
