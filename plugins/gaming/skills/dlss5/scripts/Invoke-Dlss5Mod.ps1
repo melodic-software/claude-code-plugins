@@ -316,7 +316,7 @@ function Find-EaGames {
     $script:Unchecked += "EA app: the encrypted install list is not read; scanned $(@($script:EaRoots) -join ', ') for __Installer\installerdata.xml. An EA game elsewhere is recognized when assess is pointed at it"
     foreach ($r in @($script:EaRoots)) {
         foreach ($d in ListDir 'EA app' $r @{ Directory = $true }) {
-            if (Test-Path -LiteralPath (Join-Path $d.FullName '__Installer\installerdata.xml')) { Game 'EA app' $d.Name $d.FullName '__Installer\installerdata.xml' }
+            Record "EA app: $($d.FullName)" { if (Test-Path -LiteralPath (Join-Path $d.FullName '__Installer\installerdata.xml')) { Game 'EA app' $d.Name $d.FullName '__Installer\installerdata.xml' } }
         }
     }
     foreach ($f in ListDir 'Origin' (Join-Path $script:ProgramData 'Origin\LocalContent') @{ Recurse = $true; Filter = '*.mfst'; File = $true }) {
@@ -375,11 +375,14 @@ function Find-XboxGames {
         $roots += Join-Path $d 'Program Files\ModifiableWindowsApps'
         foreach ($r in $roots) {
             foreach ($g in ListDir 'Xbox app' $r @{ Directory = $true }) {
-                $m = @((Join-Path $g.FullName 'appxmanifest.xml'), (Join-Path $g.FullName 'Content\appxmanifest.xml')) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-                if (-not $m) { continue }
-                $n = try { "$(([xml](Get-Content -LiteralPath $m -Raw)).Package.Properties.DisplayName)" } catch { '' }
-                if (-not $n -or $n -like 'ms-resource:*') { $n = $g.Name }
-                Game 'Xbox app' $n (Split-Path $m -Parent) 'appxmanifest.xml'
+                Record "Xbox app: $($g.FullName)" {
+                    $m = @((Join-Path $g.FullName 'appxmanifest.xml'), (Join-Path $g.FullName 'Content\appxmanifest.xml')) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+                    if ($m) {
+                        $n = try { "$(([xml](Get-Content -LiteralPath $m -Raw)).Package.Properties.DisplayName)" } catch { '' }
+                        if (-not $n -or $n -like 'ms-resource:*') { $n = $g.Name }
+                        Game 'Xbox app' $n (Split-Path $m -Parent) 'appxmanifest.xml'
+                    }
+                }
             }
         }
     }
