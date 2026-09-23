@@ -33,19 +33,21 @@ is preserved.
 ## Mid-conversation system messages
 
 Certain models accept a system instruction as a message mid-conversation instead of an edit to
-the system prompt, which preserves the cached prefix. GA on six models (Fable 5.1, Mythos 5.1,
-Fable 5, Mythos 5, Opus 4.8, Opus 5); not available on Sonnet 5. Turn-scoped system messages are
-a separate beta.
-(Basis: `docs/en/build-with-claude/mid-conversation-system-messages`.)
+the system prompt, which preserves the cached prefix. GA on seven models (Fable 5.1, Mythos 5.1,
+Fable 5, Mythos 5, Opus 5.5, Opus 4.8, Opus 5); not available on Sonnet 5. Turn-scoped system
+messages are a separate beta.
+(Basis: `docs/en/build-with-claude/mid-conversation-system-messages`, re-read 2026-09-23 for the
+Opus 5.5 addition.)
 
 ## Effort and the cache
 
 Top-level effort renders into the prompt ahead of content, so it is part of the cached prefix and
 changing it recomputes the request. Per-message effort changes preserve the cache, as a beta on
-Fable 5.1, Mythos 5.1, and Opus 5 only; other models, Fable 5 included, return a 400 for the
-per-message form. Batch model or effort changes into moments the cache is already broken, such as
-compaction, since those rewrite most of the conversation anyway.
-(Basis: `docs/en/build-with-claude/effort#change-effort-mid-conversation-beta`; the
+Fable 5.1, Mythos 5.1, Opus 5.5, and Opus 5 only; other models, Fable 5 included, return a 400
+for the per-message form. Batch model or effort changes into moments the cache is already broken,
+such as compaction, since those rewrite most of the conversation anyway.
+(Basis: `docs/en/build-with-claude/effort#change-effort-mid-conversation-beta`, re-read 2026-09-23
+for the Opus 5.5 addition; the
 compaction-moment practice is corroborated by Cognition's devin-fusion post, 2026-06-29.)
 
 ## Breakpoints and pre-warming

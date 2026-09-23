@@ -4,6 +4,35 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.12.0] - 2026-09-23
+
+### Added
+
+- **`fable-5`**: `reference/model-adaptation/opus-5-5.md`, the Claude Opus 5.5 adaptation
+  chapter: always-on thinking with effort as the depth control, the lower default effort, stopping
+  to report on long runs, delegation and review strengths, the reversed Opus 5 findings, image
+  reading, settled answers in long chats, the new safeguard categories and fallback, fast mode,
+  and what carries over from the Opus 5 chapter.
+
+### Changed
+
+- **`fable-5`**: meta-rule 3 routes Claude Opus 5.5 to its chapter, states that a later version's
+  chapter never substitutes for a missing one, and extends the safeguard-fallback re-resolve to
+  Opus 5.5 sessions. It names the Claude Code fallback targets by category (biology to Opus 5,
+  cybersecurity to Opus 4.8), which is why the Opus 5 and Opus 4.8 chapters stay. The description
+  and the chapter-trigger eval name Opus 5.5.
+- **`fable-5`**: the communication chapter's "No progress theater" now states that a turn does not
+  end on a summary naming the next step, an offer to continue, or a non-blocking choice list; the
+  consent gates are unchanged.
+- **`boris`**: the effort tip's thinking-prompt steers carry an amendment for models that always
+  think: remove "think carefully" lines and change effort instead. The effort-levels tip notes
+  the per-model defaults (`medium` on Opus 5.5).
+- The Opus 5 and Opus 4.8 chapters open with a note that they are kept only as fallback targets
+  for flagged requests. The Opus 5 chapter's thinking-controls bullet now matches the model-config
+  page: `MAX_THINKING_TOKENS=0` has no effect on Opus 5.5 or the Fable models.
+- `reference/prompt-caching.md` lists Opus 5.5 for mid-conversation system messages and
+  per-message effort changes.
+
 ## [0.11.6] - 2026-09-21
 
 ### Changed
