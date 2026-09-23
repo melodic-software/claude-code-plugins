@@ -88,6 +88,7 @@ overwrites a game file, so the collision gate would refuse `dbghelp.dll` there a
 | edgarbatjr `OptiScaler_DLSSNR-THERMOTRON-multipass` `presets` | An unvetted third fork. Read its ini values for reference; never install its build |
 | Fork issue threads | One user's values each; judge per comment |
 | PCGamingWiki | Engine, API and upscaler facts only; it has no NR guidance |
+| SEO mod sites (download mirrors, "DLSS 5 mod" landing pages, such as xmodhub) | **Untrusted.** Upstream's README names GitHub, Discord and Nitec's Nexus as its only legitimate sources, and the one engine and anti-cheat claim traced to such a site had no second source |
 | Guide-style issues authored by FlashAust on the wilsjo2 tracker | **Untrusted.** Self-closed, no replies, implausible steps. #85 reports a failed attempt at an NGX registry signature-verification bypass. Copy nothing, and never apply NGX registry edits |
 
 ## Verification record

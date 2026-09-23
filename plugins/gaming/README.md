@@ -38,6 +38,8 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
   leaves the game folder as it was.
 - The forks' `setup_windows.bat` is interactive and never run; the plugin renames the proxy DLL
   itself.
+- A per-game preset sets only three allow-listed `OptiScaler.ini` keys and never `AutoCapture`.
+  Shipped presets are reviewed by pull request; local overrides in the data directory win.
 
 ## Configuration
 

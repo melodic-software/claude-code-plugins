@@ -34,7 +34,7 @@ any title.
 | Title | Notes |
 |---|---|
 | Cyberpunk 2077 | Proxy `dxgi.dll`, never `dbghelp.dll` (`bin\x64\dbghelp.dll` is a stock game file). Leave the exposure scan off: it cannot find this game's exposure. Do not enable Output Scaling: OptiScaler's menu marks the game incompatible. `RestoreComputeSignature` stays `auto` |
-| 007 First Light | Apply with `-RestoreComputeSignature`: upstream's wiki says NVIDIA users need it "to avoid crashes when overriding sharpness, using Output Scaling". Turn forced sharpness down with Sharpness Override before judging NR. Start with path tracing and Ray Reconstruction off, then enable them one at a time: the only Blackwell report for this title (fork issue #50, Linux) faulted on the first NR frame with RR on |
+| 007 First Light | Apply with the `007-first-light` preset, which sets `RestoreComputeSignature=true`: upstream's wiki says NVIDIA users need it "to avoid crashes when overriding sharpness, using Output Scaling". Turn forced sharpness down with Sharpness Override before judging NR. Start with path tracing and Ray Reconstruction off, then enable them one at a time: the only Blackwell report for this title (fork issue #50, Linux) faulted on the first NR frame with RR on |
 | Dying Light: The Beast | Ships DX11 and DX12 renderers; run DX12. The overlay does not receive mouse clicks here; use the keyboard |
 | Ready or Not | Use the in-game resolution scale slider to set the input resolution |
 

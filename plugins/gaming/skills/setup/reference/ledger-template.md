@@ -11,7 +11,8 @@ argument). **Anti-cheat** kernel or user-mode anti-cheat present, `none` if safe
 changed from stock. **Driver** GeForce driver version at apply time. **DLL** `nvngx_dlssnr.dll`
 runtime version. **Applied** date applied. **FPS before / after** same scene, same settings,
 measured. **Visual verdict** subjective quality call. **Crashes** count and where. **Notes**
-anything a future apply or remove needs to know.
+anything a future apply or remove needs to know, including the preset key, each key's source
+(`shipped` or `local`) and the sources' as-of date.
 
 | Game | Exe dir | Anti-cheat | Build | Proxy | ini deltas | Driver | DLL | Applied | FPS before | FPS after | Visual verdict | Crashes | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|

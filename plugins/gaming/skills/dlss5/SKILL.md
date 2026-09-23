@@ -49,7 +49,8 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 |---|---|---|
 | `-Build` | apply | `dagherbou` (default) or `wilsjo2`; see `reference/fork-comparison.md` |
 | `-Proxy` | apply | Filename the fork's `OptiScaler.dll` is installed as. Default `dxgi.dll`; pick from `assess`'s `freeProxies` |
-| `-RestoreComputeSignature` | apply | Also sets `RestoreComputeSignature=true`; `reference/tuning-guide.md` names the titles that need it |
+| `-Preset` | apply | A preset key from `assess`'s `preset.key`. Writes the preset's allow-listed ini keys and records them in the manifest; `reference/presets.md` |
+| `-RestoreComputeSignature` | apply | Also sets `[Hotfix] RestoreComputeSignature=true` for a game with no preset; `reference/tuning-guide.md` names the titles that need it |
 | `-AllowUnknownRuntime` | apply | Accepts an NVIDIA-signed runtime whose hash is not the known one. Only on the user's explicit request |
 | `-Finish` | remove | Drops the manifest even when drift remains. Only after the user has seen the drift and asked |
 | `-Force` | apply | Lifts only the over-2000-files guard. Only when the user confirms the directory is the exe directory. It does not bypass the anti-cheat refusal |
@@ -66,7 +67,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | `apply` | Install the mod | `assess` and the Steam check first; stop on `refused`, `not-a-candidate`, `unknown`, or an uncleared `requiresWebCheck`. Confirm with the user, run `apply`, add the ledger row |
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
 | `status` | What changed since apply? | Run `status` and explain its exit code |
-| `tune` | Picture or performance | Guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
+| `tune` | Picture or performance | Start from the game's preset, then guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
 | `refetch` | Are forks, driver, runtime current? | Run `refetch`, read the page-backed items, update only the ledger's Upstream watch rows that changed |
 
 When the request is ambiguous, recommend an action and wait. Never commit to `apply` or `remove`
@@ -76,8 +77,10 @@ without the user's confirmation.
 
 1. Run `-Verb assess '<game-dir>'`. It prints JSON: `verdict` (`refused`, `not-a-candidate`,
    `eligible`, `unknown`), `requiresWebCheck`, `refusals`, `upscalers` (each upscaler DLL found,
-   with `family` DLSS, FSR or XeSS, and its version), `dx12`, `proxyCollisions`, `freeProxies`,
-   `steamAppId`.
+   with `family` DLSS, FSR or XeSS, and its version; the mod's own copies do not count), `dx12`,
+   `proxyCollisions`, `freeProxies`, `steamAppId`, and `preset`: the matching preset with each ini
+   key's `source` (`shipped` or `local`), or null. `presetError` names a preset file that failed
+   validation; report it, and apply without that preset until the file is fixed.
 2. `refused`: stop and report the anti-cheat paths. Nothing clears this.
 3. `not-a-candidate`: the game ships no DLSS, FSR 2+ or XeSS, so the mod has nothing to hook. Tell
    the user plainly: "This game has no upscaler for the mod to hook, so it will not help." A 2D or
@@ -111,19 +114,49 @@ curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'http
 
 1. Run the whole `assess` action. Stop on `refused`, `not-a-candidate`, `unknown`, or an uncleared
    check.
-2. Pick the proxy from `freeProxies`, `dxgi.dll` first. Cyberpunk 2077 uses `dxgi.dll`, never
-   `dbghelp.dll`: its `bin\x64\dbghelp.dll` is a stock game file.
-3. Confirm. Show the resolved absolute game directory (`gameDir` from the assess JSON), the build
-   and its tag, the proxy name, the `assess` verdict, and the Steam check result, then ask for an
-   explicit yes. One confirmation covers one game; never batch several games under one yes.
-4. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`. The script refuses before any
-   write on: an existing manifest (`remove` first), no `*.exe`, over 2000 files, anti-cheat on
-   disk, no upscaler DLL (not a candidate), a destination collision, a missing build file (run `/gaming:setup apply`), or a refused
-   runtime DLL. Report a refusal as is; never route around it.
-5. Add the game's row to `LEDGER.md` in the data directory (see Ledger below).
-6. Tell the user how to confirm it runs: launch the game on DX12, enable Neural Rendering in the
+2. Pick the proxy: the preset's `proxy` when `freeProxies` lists it, else `freeProxies` with
+   `dxgi.dll` first. Cyberpunk 2077 uses `dxgi.dll`, never `dbghelp.dll`: its
+   `bin\x64\dbghelp.dll` is a stock game file.
+3. No `preset` in the assess JSON: offer the research step below before applying stock. The user
+   may decline; stock is a valid apply.
+4. Confirm. Show the resolved absolute game directory (`gameDir` from the assess JSON), the build
+   and its tag, the proxy name, the `assess` verdict, the Steam check result, and the preset: its
+   key, and each ini key as `[Section] Key=Value` with its source (`shipped` or `local`) and its
+   `why`. Then ask for an explicit yes. One confirmation covers one game; never batch several
+   games under one yes.
+5. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`, plus `-Preset <key>` when the
+   confirmation showed one. The script refuses before any write on: an existing manifest
+   (`remove` first), no `*.exe`, over 2000 files, anti-cheat on disk, no upscaler DLL (not a
+   candidate), a preset key off the allow-list or `AutoCapture` in a preset, a destination
+   collision, a missing build file (run `/gaming:setup apply`), or a refused runtime DLL. Report a
+   refusal as is; never route around it.
+6. Print the setup guide: the preset's `manual` lines from the apply output, numbered, under the
+   game's title. These are the settings the script cannot write. With no preset, point to the
+   baseline in `reference/tuning-guide.md`.
+7. Add the game's row to `LEDGER.md` in the data directory (see Ledger below).
+8. Tell the user how to confirm it runs: launch the game on DX12, enable Neural Rendering in the
    overlay (Insert) after the game has loaded, then look for `DLSS-NR cost` lines in
    `<game-dir>\OptiScaler.log`.
+
+### Research a preset (no preset matched)
+
+1. Start from the `assess` JSON: `upscalers`, `dx12`, `steamAppId`, and the engine the path
+   suggests.
+2. Read only the trusted sources in the "Per-game config sources" table of
+   `reference/candidate-selection.md`: the OptiScaler wiki's per-game page, the forks' README and
+   `INSTALL-DLSSNR.md` game notes, and the fork issue trackers (one user's values each). Never use
+   a source that table marks untrusted, such as FlashAust-authored guide issues or SEO mod sites.
+   Never apply an NGX registry edit.
+3. Sort each finding. An ini key on the allow-list in `reference/presets.md` with a trusted source
+   goes in `ini`, with its condition in `why`. An in-game setting goes in `manual`. A claim with
+   conflicting reports stays out, or goes in `manual` as "try either" with both sources.
+4. Write `presets\<key>.json` in the data directory in the format of `reference/presets.md`, with <!-- portability-ok: Windows path, not a shell regex -->
+   a `match` on the `steamAppId` when `assess` reported one, else on the game's `*.exe` name in
+   the exe directory (`match.exe`), each source's URL and today's date, and a `recheck`. Rerun
+   `assess` and confirm it reports the preset with no `presetError`.
+5. Note in the ledger row that the preset is local and was researched today.
+6. When the preset would help other users, suggest an issue on this plugin's repository carrying
+   the file and its sources, so it can ship after review.
 
 ## Action: remove
 
@@ -156,8 +189,11 @@ Run `-Verb status '<game-dir>'`. It lists `ADDED` (tagged `manifest`, `byproduct
 ## Action: tune
 
 The fork's in-game overlay (Insert) is the tuning surface, and its Save Settings rewrites
-`OptiScaler.ini`, which `status` already treats as expected. Walk the user through
-`reference/tuning-guide.md`: the baseline first, then one change at a time. If the user wants an
+`OptiScaler.ini`, which `status` already treats as expected. Start from the game's preset: read
+`preset` from `manifest.json` in the game's state folder (or from `assess` before an apply), and
+print its `manual` lines as the setup guide. Then walk the user through
+`reference/tuning-guide.md`: the baseline first, then one change at a time. A setting that works
+and has a trusted source belongs in the local preset; offer to add it there. If the user wants an
 ini edit instead, make it with the game closed. `[DlssNr] AutoCapture` stays `false`. Record what
 changed in the ledger row's ini deltas and visual verdict columns.
 
@@ -171,12 +207,15 @@ changed in the ledger row's ini deltas and visual verdict columns.
 2. Read the page-backed items `refetch` cannot: NVIDIA's GeForce news for new native DLSS 5 titles
    and drivers, and whether upstream OptiScaler merged the Neural Rendering pull requests (the
    commands are in `reference/upstream-watch.md`). For each game row in the ledger, rerun the Steam
-   anti-cheat check from the assess action, because a publisher can add anti-cheat after an apply.
+   anti-cheat check from the assess action, because a publisher can add anti-cheat after an apply,
+   and check the row's preset `recheck` trigger against what changed.
 3. Diff everything against the ledger's Upstream watch table. Edit only the rows that changed and
    their Checked dates. A run where nothing changed is reported as a no-change run.
 4. For each change, say what it means using the "What a change means" table in
    `reference/upstream-watch.md`. A new pin is a plugin release, never an edit to the installed
-   script. A game that now shows an anti-cheat section: recommend `remove`.
+   script. A game that now shows an anti-cheat section: recommend `remove`. A preset whose
+   `recheck` trigger fired: re-read its sources, then update the local preset, or suggest an issue
+   for a shipped one.
 5. Done when every changed row carries today's Checked date and each change has its meaning
    stated, or the run is reported as a no-change run.
 
@@ -191,7 +230,8 @@ changed in the ledger row's ini deltas and visual verdict columns.
   byproduct list does not name.** Never delete game files by hand to help either one along.
 - **Cyberpunk 2077's proxy is `dxgi.dll`, never `dbghelp.dll`.**
 - **`[DlssNr] AutoCapture` stays `false`.** Its default writes raw frame captures into the game
-  folder on every launch.
+  folder on every launch. No preset can set it, and a preset sets only the allow-listed keys in
+  `reference/presets.md`. Never widen that list to fit a preset.
 - **The NVIDIA runtime DLL is never committed, bundled, or placed under the plugin root, and this
   skill names no source for it.** It comes only from the three sources `/gaming:setup` documents,
   each hash- or signature-checked.
@@ -203,8 +243,9 @@ changed in the ledger row's ini deltas and visual verdict columns.
 writes the machine-readable half to `state\<GameKey>\manifest.json`; this skill writes the rows with <!-- portability-ok: Windows path, not a shell regex -->
 Edit. After `apply`, fill: game, exe dir, anti-cheat (the on-disk result and the Steam check),
 build and tag, proxy, ini deltas (`Enabled=true AutoCapture=false LogToFile=true LogLevel=2`, plus
-`RestoreComputeSignature=true` when passed), driver (the manifest's `driver`), DLL version, applied
-date. FPS, visual verdict and crashes stay blank until the user reports them. If `LEDGER.md` is
+`RestoreComputeSignature=true` when passed, plus each preset key), driver (the manifest's
+`driver`), DLL version, applied date. With a preset, Notes gets `preset <key>` with each key's
+source (`shipped` or `local`) and the newest `asOf` among its sources. FPS, visual verdict and crashes stay blank until the user reports them. If `LEDGER.md` is
 absent, recommend `/gaming:setup apply` rather than inventing a format.
 
 ## Reference index
@@ -215,6 +256,7 @@ absent, recommend `/gaming:setup apply` rather than inventing a format.
 | `reference/candidate-selection.md` | Explaining `not-a-candidate`, which games the mod can help, engine notes, or which per-game config sources to trust |
 | `reference/reversal-matrix.md` | Explaining what `remove` deletes, keeps, or reports |
 | `reference/fork-comparison.md` | Choosing or switching `-Build` |
+| `reference/presets.md` | Preset format, the ini allow-list, the shipped-versus-local merge, or writing a local preset |
 | `reference/tuning-guide.md` | The `tune` action, or picking `-RestoreComputeSignature` |
 | `reference/upstream-watch.md` | The `refetch` action |
 
