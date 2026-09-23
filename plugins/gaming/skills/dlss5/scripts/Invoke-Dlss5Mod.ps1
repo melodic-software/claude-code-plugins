@@ -42,6 +42,18 @@ $ProxyNames = @('dxgi.dll', 'dbghelp.dll', 'winmm.dll', 'version.dll')
 # Mirrors reference/anticheat-posture.md; change both together.
 $AntiCheatTokens = @('EasyAntiCheat', 'EasyAntiCheat_EOS', 'BattlEye', 'BEService', 'ACE')
 $ModDirs = @('OptiScaler', 'Licenses', 'dlssnr-capture', 'OptiScalerProfiles')
+# Upscaler DLLs OptiScaler hooks by name (upstream OptiScaler/DllNames.h). Exact names: the frame
+# generation, ray reconstruction and NR runtime DLLs (nvngx_dlssg, nvngx_dlssd, nvngx_dlssnr,
+# libxess_fg, amd_fidelityfx_framegeneration_dx12) are not upscalers. Mirrors
+# reference/candidate-selection.md; change both together.
+$UpscalerDlls = @{
+    'nvngx_dlss.dll' = 'DLSS'
+    'ffx_fsr2_api_x64.dll' = 'FSR'; 'ffx_fsr2_api_dx12_x64.dll' = 'FSR'; 'ffx_fsr3upscaler_x64.dll' = 'FSR'
+    'amd_fidelityfx_dx12.dll' = 'FSR'; 'amd_fidelityfx_loader_dx12.dll' = 'FSR'
+    'amd_fidelityfx_upscaler_dx12.dll' = 'FSR'; 'amd_fidelityfx_vk.dll' = 'FSR'
+    'libxess.dll' = 'XeSS'; 'libxess_dx11.dll' = 'XeSS'
+}
+$NoUpscaler = 'not a candidate: no DLSS, FSR 2+ or XeSS DLL in the game tree, so the mod has no upscaler to hook and will not change the picture. See reference/candidate-selection.md'
 $script:fails = 0
 $script:FaultAfter = 0   # selftest hook: throw after this many copies
 
@@ -157,6 +169,20 @@ function Find-AntiCheat($root) {
     @($items | Where-Object { IsAntiCheatName $_.Name } | ForEach-Object FullName | Sort-Object -Unique)
 }
 
+# Steam: the common\<X> root. Non-Steam Unreal: the install root three levels above
+# <Project>\Binaries\Win64, since the upscaler plugins live under Engine\Plugins. Else the exe dir.
+function Get-GameRoot($root) {
+    if ($root -match '^(.*\\steamapps\\common\\[^\\]+)') { $Matches[1] }
+    elseif ($root -match '^(.*)\\[^\\]+\\Binaries\\Win64$') { $Matches[1] }
+    else { $root }
+}
+function Find-Upscalers($root) {
+    $gameRoot = Get-GameRoot $root
+    @(Get-ChildItem -LiteralPath $gameRoot -Recurse -Filter '*.dll' -File -Force -ErrorAction SilentlyContinue |
+            Where-Object { $UpscalerDlls.ContainsKey($_.Name) } | ForEach-Object {
+                [pscustomobject]@{ family = $UpscalerDlls[$_.Name]; file = $_.FullName.Substring($gameRoot.Length).TrimStart('\'); version = $_.VersionInfo.FileVersion } })
+}
+
 # Numeric parts, not the FileVersion string: NVIDIA's runtime reports "310,8,0,0" there.
 function FileVer($path) {
     $v = (Get-Item -LiteralPath $path).VersionInfo
@@ -241,6 +267,7 @@ function Do-Apply($root) {
     if ($n -gt 2000 -and -not $Force) { throw "over 2000 files under $root; is this a game or library root rather than the exe directory? Pass -Force only after the user confirms it is the exe directory" }
     $ac = Find-AntiCheat $root
     if ($ac) { throw "anti-cheat on disk, refusing: $($ac -join ', ')" }
+    if (-not (Find-Upscalers $root)) { throw $NoUpscaler }
     if ("$($script:DataDir)\".StartsWith("$root\", 'OrdinalIgnoreCase')) { throw "data_dir $($script:DataDir) is inside $root; state files would land in the tree the snapshot restores. Move data_dir outside the game directory" }
 
     $src = Join-Path $script:DataDir "builds\$Build"
@@ -388,13 +415,12 @@ function Do-Remove($root) {
 # Read-only eligibility probe. On-disk facts only; the Steam store page's anti-cheat section is the
 # skill's job, so a clean scan is 'eligible' with requiresWebCheck set, never a final yes.
 function Do-Assess($root) {
-    $gameRoot = if ($root -match '^(.*\\steamapps\\common\\[^\\]+)') { $Matches[1] } else { $root }
+    $gameRoot = Get-GameRoot $root
     $ac = Find-AntiCheat $root
     $hasExe = [bool](Get-ChildItem -LiteralPath $root -Filter *.exe -File)
     $collisions = @($ProxyNames | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) })
     $free = @($ProxyNames | Where-Object { $_ -notin $collisions })
-    $dlss = @(Get-ChildItem -LiteralPath $gameRoot -Recurse -Filter 'nvngx_dlss*.dll' -File -Force -ErrorAction SilentlyContinue |
-            ForEach-Object { [pscustomobject]@{ file = $_.FullName.Substring($gameRoot.Length).TrimStart('\'); version = $_.VersionInfo.FileVersion } })
+    $ups = @(Find-Upscalers $root)
     $appId = $null
     if ($root -match '^(.*\\steamapps)\\common\\([^\\]+)') {
         $dir = $Matches[2]
@@ -405,11 +431,12 @@ function Do-Assess($root) {
     }
     $refusals = @($ac | ForEach-Object { "anti-cheat on disk: $_" })
     if (-not $hasExe) { $refusals += "no *.exe in $root; pass the directory that holds the game executable" }
-    $verdict = if ($ac) { 'refused' } elseif ($hasExe -and $free) { 'eligible' } else { 'unknown' }
+    elseif (-not $ups) { $refusals += $NoUpscaler }
+    $verdict = if ($ac) { 'refused' } elseif (-not $hasExe) { 'unknown' } elseif (-not $ups) { 'not-a-candidate' } elseif ($free) { 'eligible' } else { 'unknown' }
     [pscustomobject]@{
         gameDir = $root; gameRoot = $gameRoot; gameKey = (GameKey $root)
         verdict = $verdict; requiresWebCheck = ($verdict -eq 'eligible')
-        refusals = $refusals; dlss = $dlss
+        refusals = $refusals; upscalers = $ups
         dx12 = [bool](Get-ChildItem -LiteralPath $root -Filter 'd3d12*.dll' -File) -or ($root -match '\\Binaries\\Win64$')
         proxyCollisions = $collisions; freeProxies = $free; steamAppId = $appId
     } | ConvertTo-Json -Depth 4
@@ -634,7 +661,7 @@ function Do-Selftest {
         # Fixtures sit three levels deep so the non-Steam ancestor scan never leaves $tmp.
         $w = "$tmp\w\x\y"
         $g = "$w\g\Win64"
-        Put "$g\game.exe" 'exe'; Put "$g\data\pak.bin" 'pak'; Put "$g\dbghelp.dll" 'stock'
+        Put "$g\game.exe" 'exe'; Put "$g\data\pak.bin" 'pak'; Put "$g\dbghelp.dll" 'stock'; Put "$g\nvngx_dlss.dll" 'dlss'
         New-Item -ItemType Directory -Force -Path "$g\OptiScalerProfiles" | Out-Null
         $script:DataDir = "$g\state"
         Assert 'data_dir inside the game dir refuses' (Throws { Do-Apply $g } '*inside*')
@@ -687,9 +714,27 @@ function Do-Selftest {
         Assert 'pre-existing empty mod dir kept' (Test-Path -LiteralPath "$g\OptiScalerProfiles" -PathType Container)
         Assert 'manifest deleted, snapshot kept' (-not (Test-Path -LiteralPath "$sd\manifest.json") -and (Test-Path -LiteralPath "$sd\snapshot.json"))
 
-        $c = "$w\c\Win64"; Put "$c\game.exe" 'exe'; Put "$c\dxgi.dll" 'game-own-dxgi'
+        $c = "$w\c\Win64"; Put "$c\game.exe" 'exe'; Put "$c\dxgi.dll" 'game-own-dxgi'; Put "$c\libxess.dll" 'xess'
         Assert 'collision fails before copying' (Throws { Do-Apply $c } '*collision*')
-        Assert 'collision dir untouched, no state' (@(Get-ChildItem -LiteralPath $c -Recurse -File).Count -eq 2 -and -not (Test-Path -LiteralPath (StateDir $c)))
+        Assert 'collision dir untouched, no state' (@(Get-ChildItem -LiteralPath $c -Recurse -File).Count -eq 3 -and -not (Test-Path -LiteralPath (StateDir $c)))
+
+        # No hookable upscaler: frame generation, ray reconstruction and the NR runtime do not count
+        $nc = "$w\nc\Win64"; Put "$nc\game.exe" 'exe'
+        foreach ($d in 'nvngx_dlssnr.dll', 'nvngx_dlssg.dll', 'nvngx_dlssd.dll', 'libxess_fg.dll', 'amd_fidelityfx_framegeneration_dx12.dll') { Put "$nc\$d" 'x' }
+        $before = Tree $nc
+        Assert 'no upscaler DLL: apply refuses as not a candidate' (Throws { Do-Apply $nc } '*not a candidate*')
+        Assert 'not-a-candidate refusal writes nothing' ((SameTree (Tree $nc) $before) -and -not (Test-Path -LiteralPath (StateDir $nc)))
+        $nca = (Do-Assess $nc) | ConvertFrom-Json
+        Assert 'assess: no upscaler DLL is not-a-candidate with a reason' ($nca.verdict -eq 'not-a-candidate' -and -not $nca.requiresWebCheck -and @($nca.refusals | Where-Object { $_ -like '*no upscaler to hook*' }).Count -eq 1 -and @($nca.upscalers).Count -eq 0)
+        $fs = "$w\fsr\Win64"; Put "$fs\game.exe" 'exe'; Put "$fs\AMD_FidelityFX_DX12.dll" 'fsr'
+        $fsa = (Do-Assess $fs) | ConvertFrom-Json
+        Assert 'assess: FSR-only fixture is eligible' ($fsa.verdict -eq 'eligible' -and @($fsa.upscalers).Count -eq 1 -and $fsa.upscalers[0].family -eq 'FSR')
+        $xs = "$w\xess\Win64"; Put "$xs\game.exe" 'exe'; Put "$xs\sub\libxess.dll" 'xess'
+        $xsa = (Do-Assess $xs) | ConvertFrom-Json
+        Assert 'assess: XeSS-only fixture is eligible' ($xsa.verdict -eq 'eligible' -and $xsa.upscalers[0].family -eq 'XeSS' -and $xsa.upscalers[0].file -eq 'sub\libxess.dll')
+        $un = "$w\unreal\Proj\Binaries\Win64"; Put "$un\Proj-Win64-Shipping.exe" 'exe'
+        Put "$w\unreal\Engine\Plugins\Runtime\Nvidia\DLSS\Binaries\ThirdParty\Win64\nvngx_dlss.dll" 'dlss'
+        Assert 'assess: non-Steam Unreal finds DLSS under Engine\Plugins' (((Do-Assess $un) | ConvertFrom-Json).verdict -eq 'eligible')
 
         $a = "$tmp\ac\a\b\c"; Put "$a\game.exe" 'exe'
         New-Item -ItemType Directory -Force -Path "$tmp\ac\EasyAntiCheat" | Out-Null
@@ -699,7 +744,7 @@ function Do-Selftest {
         $x = "$w\noexe"; Put "$x\readme.txt" 'r'
         Assert 'directory with no *.exe refuses' (Throws { Do-Apply $x } '*no `*.exe*')
 
-        $f = "$w\f\Win64"; Put "$f\game.exe" 'exe'
+        $f = "$w\f\Win64"; Put "$f\game.exe" 'exe'; Put "$f\nvngx_dlss.dll" 'dlss'
         $before = Tree $f
         $script:Proxy = '..\escape.dll'
         Assert 'proxy outside the allow-list refuses' (Throws { Do-Apply $f } '*unknown proxy*')
@@ -718,7 +763,7 @@ function Do-Selftest {
         Assert 'assess refuses anti-cheat fixture' (((Do-Assess $a) | ConvertFrom-Json).verdict -eq 'refused')
         $ca = (Do-Assess $c) | ConvertFrom-Json
         Assert 'assess lists dxgi.dll collision, not as a free proxy' ('dxgi.dll' -in $ca.proxyCollisions -and 'dxgi.dll' -notin $ca.freeProxies)
-        $k = "$w\clean\Win64"; Put "$k\game.exe" 'exe'
+        $k = "$w\clean\Win64"; Put "$k\game.exe" 'exe'; Put "$k\nvngx_dlss.dll" 'dlss'
         $ka = (Do-Assess $k) | ConvertFrom-Json
         Assert 'assess clean fixture is eligible with requiresWebCheck' ($ka.verdict -eq 'eligible' -and $ka.requiresWebCheck)
         Assert 'assess creates no state dir' (-not (Test-Path -LiteralPath (StateDir $k)))
@@ -760,7 +805,7 @@ function Do-Selftest {
         $BuildFiles['noac'] = @('OptiScaler.dll', 'OptiScaler.ini')
         Put "$tmp\data\builds\noac\OptiScaler.dll" 'p'; Put "$tmp\data\builds\noac\OptiScaler.ini" "[DlssNr]`nEnabled=auto`n"
         $script:Build = 'noac'
-        $n = "$w\noac\Win64"; Put "$n\game.exe" 'exe'
+        $n = "$w\noac\Win64"; Put "$n\game.exe" 'exe'; Put "$n\nvngx_dlss.dll" 'dlss'
         $before = Tree $n
         Assert 'missing AutoCapture key aborts apply' (Throws { Do-Apply $n } '*AutoCapture*')
         Assert 'aborted apply leaves the tree byte-identical' ((SameTree (Tree $n) $before) -and -not (Test-Path -LiteralPath "$(StateDir $n)\manifest.json"))

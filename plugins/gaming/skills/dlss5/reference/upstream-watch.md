@@ -11,7 +11,7 @@ Every row is rechecked on each `refetch` run; the As of column is the last check
 | Item | Known value | As of |
 |---|---|---|
 | Dagherbou fork | `v0.2.0-patch1`, prerelease, 2026-09-04; author on hiatus | 2026-09-22 |
-| wilsjo2 fork | `v0.8.3` newest non-prerelease (2026-09-13); `v0.8.9` newest prerelease (seen 2026-09-22) | 2026-09-22 |
+| wilsjo2 fork | `v0.8.3` newest non-prerelease (2026-09-13), still the pin; `v0.8.91` newest prerelease (seen 2026-09-23). From `v0.8.5` each release ships one `OptiScaler-NR-<version>-SHA256SUMS.txt` instead of a per-zip `.sha256`. Issue #56 (DEVICE_HUNG, reported only on Onimusha) is open with no maintainer reply, and no release through `v0.8.91` claims a fix, so the pin does not move | 2026-09-23 |
 | Runtime DLL `nvngx_dlssnr.dll` | 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E`, NVIDIA-signed. A 310.8.2 is mentioned in wilsjo2's install notes, unverified | 2026-09-21 |
 | GeForce driver | 616.92 WHQL, released 2026-09-09 | 2026-09-22 |
 | Native DLSS 5 titles | NBA 2K27 and Onimusha: Way of the Sword, launched with driver 616.64 | 2026-09-20 |
@@ -55,7 +55,7 @@ unchanged.
 
 | Change | Consequence |
 |---|---|
-| New fork tag | Candidate for a new pin. A pin change is a plugin release (tag, asset and SHA-256 in the script and `reference/fork-comparison.md`), never an edit in the installed plugin |
+| New fork tag | Candidate for a new pin. A pin change is a plugin release (tag, asset and SHA-256 in the script and `reference/fork-comparison.md`), never an edit in the installed plugin. A wilsjo2 pin past `v0.8.4` takes its hash from the release's `SHA256SUMS.txt` |
 | New runtime version | `apply` refuses it as unknown; an NVIDIA-signed copy passes only with `-AllowUnknownRuntime`, until a plugin release updates the known hash |
 | New driver | Relaunch one modded game and confirm the `DLSS-NR cost` log lines before trusting the rest |
 | New native DLSS 5 title | That title needs no mod. It is also a runtime source `/gaming:setup` can scan |

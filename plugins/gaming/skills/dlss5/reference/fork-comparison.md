@@ -53,7 +53,10 @@ only wilsjo2 carries. The research verifier ranked wilsjo2 `v0.8.3` first on mai
 the user chose Dagherbou for its live verification, and the choice stays open.
 
 Against it: almost every tag is a prerelease with self-declared limits ("no new full game-session
-validation ... is claimed"). Profiles (from v0.8.5) add a new runtime write,
+validation ... is claimed"; `v0.8.91`: live game preview not performed). Issue #56, DEVICE_HUNG on
+`v0.8.3`, is open with no maintainer reply and has been reported only on Onimusha; no release
+through `v0.8.91` claims a fix, so the pin stays at `v0.8.3`. From `v0.8.5` releases ship one
+`OptiScaler-NR-<version>-SHA256SUMS.txt` instead of a per-zip `.sha256`. Profiles (from v0.8.5) add a new runtime write,
 `OptiScalerProfiles\`, which `remove` handles as a byproduct.
 
 To switch a game: `remove`, then `/gaming:setup apply` (it provisions both pinned builds and
@@ -73,6 +76,7 @@ leaves an already-provisioned one as is), then `apply -Build wilsjo2`.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | `v0.2.0-patch1` is Dagherbou's newest release and is a prerelease | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases` | 2026-09-22 | A new Dagherbou tag |
-| `v0.8.3` is wilsjo2's newest non-prerelease; prereleases run to `v0.8.8` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases` | 2026-09-22 | wilsjo2 marks a newer tag non-prerelease |
+| `v0.8.3` is wilsjo2's newest non-prerelease; prereleases run to `v0.8.91`; `SHA256SUMS.txt` from `v0.8.5` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases` | 2026-09-23 | wilsjo2 marks a newer tag non-prerelease |
+| wilsjo2 #56 open, no maintainer reply, no release claims a fix | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/issues/56` and its comments; release notes `v0.8.4` to `v0.8.91` | 2026-09-23 | A maintainer reply, or a release that names #56 |
 | Both pinned hashes | `Get-FileHash` over the downloaded assets; the wilsjo2 `.sha256` sidecar | 2026-09-21 | `provision` reports a hash mismatch |
 | Neither fork's `OptiScaler.dll` is signed; upstream v0.9.4 is SignPath-signed | `Get-AuthenticodeSignature` over the extracted files | 2026-09-20 | Either fork ships a signed build |

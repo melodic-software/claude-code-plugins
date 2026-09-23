@@ -38,6 +38,12 @@ any title.
 | Dying Light: The Beast | Ships DX11 and DX12 renderers; run DX12. The overlay does not receive mouse clicks here; use the keyboard |
 | Ready or Not | Use the in-game resolution scale slider to set the input resolution |
 
+## Troubleshooting
+
+| Symptom | Try | Source |
+|---|---|---|
+| NR looks inert: the log shows `DLSS-NR cost` lines, the picture does not change | Switch White point source to the other setting, manual paper white or game exposure, and compare. Reports conflict on which one fixes it | wilsjo2 #34 (`v0.7.6`, fixed by manual paper white); wilsjo2 #96 (`v0.8.7`, fixed by game exposure) |
+
 ## What to record
 
 Per game in the ledger: ini deltas from stock, driver, DLL version, FPS before and after in the
@@ -49,4 +55,5 @@ same scene at the same settings, a visual verdict, and crashes with where they h
 |---|---|---|---|
 | Cyberpunk baseline and the 7.4 ms cost | Live session on an RTX 5090, driver 616.92, Dagherbou `v0.2.0-patch1` | 2026-09-20 | A new build or driver |
 | Per-title notes | Upstream OptiScaler wiki pages (Cyberpunk 2077 last tested 0.9.3, 007 First Light 0.9.4), fork release notes and source, fork issues #7, #22, #50 | 2026-09-20 | A new build, or the title's wiki page changes |
+| NR-inert white point row | `gh api` on wilsjo2 issues #34 and #96 and their comments | 2026-09-23 | A fork release changes White point source |
 | 007 First Light gained path tracing and Ray Reconstruction on 2026-09-15, after both pinned builds | NVIDIA's 616.92 driver announcement | 2026-09-20 | A fork release that names the title |
