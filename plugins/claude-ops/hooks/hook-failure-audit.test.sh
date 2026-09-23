@@ -311,7 +311,7 @@ for PROG in jq grep wc sed find cat mkdir; do
 done
 cursor_of() { head -1 "$1/hook-failure-audit/test-session.cursor"; } # <data_dir>
 size_of() { wc -c <"$1" | tr -d ' '; }                               # <file>
-benign_line() { printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine"}]},"uuid":"c","session_id":"s"}\n'; }
+benign_line() { printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine ✓"}]},"uuid":"c","session_id":"s"}\n'; }
 
 T_CUR="$TEST_TMPDIR/cursor.jsonl"
 DATA_CUR="$TEST_TMPDIR/data-cursor"
@@ -334,11 +334,13 @@ assert_silent "cursor: unchanged transcript -> silent, only tail spawned" "$OUT_
 assert_eq "cursor: unchanged transcript keeps the offset" "b$(size_of "$T_CUR")" "$(cursor_of "$DATA_CUR")"
 
 # Benign lines only: still nothing to hand to jq, still only tail. Every line
-# but the final one is counted; the final one is read again next Stop.
+# but the final one is counted; the final one is read again next Stop. The run
+# uses a UTF-8 locale and benign_line carries a multibyte character, so an
+# offset counted in characters instead of bytes lands short here.
 for _ in {1..20}; do
   benign_line >>"$T_CUR"
 done
-OUT_C3=$(run_hook "$T_CUR" "$DATA_CUR" PATH="$SHIM:$PATH")
+OUT_C3=$(run_hook "$T_CUR" "$DATA_CUR" PATH="$SHIM:$PATH" LC_ALL=C.UTF-8)
 assert_silent "cursor: appended benign lines -> silent, only tail spawned" "$OUT_C3"
 assert_eq "cursor: advances to the start of the final line" \
   "b$(($(size_of "$T_CUR") - $(benign_line | wc -c)))" "$(cursor_of "$DATA_CUR")"

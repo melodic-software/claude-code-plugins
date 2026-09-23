@@ -118,13 +118,18 @@ HAVE_MAPFILE=0
 #   - no marker home, an unreadable or malformed cursor -> 0, a full scan
 #   - a line-count cursor with no `b` prefix -> 0
 #   - a different transcript_path -> 0, this session was handed another file
-#   - fewer bytes present than the cursor, or no newline just before it -> 0,
-#     the transcript shrank or was replaced
+#   - under C-1 bytes present, or no newline at byte C-1 -> 0, the transcript
+#     shrank or was replaced
 #   - a cursor pruned mid-session -> 0
 #   - a non-canonical decimal (a leading zero, or over 15 digits), or an offset
 #     below 2, too short to hold the anchor the warm read checks -> 0
 # Rescanning cannot re-warn: the (hookName, command) marker below is what
 # decides that, and it is unchanged.
+#
+# Two cases get past the anchor. A file cut to exactly C-1 bytes reads as
+# "nothing new" until the next append. A same-path replacement with a newline
+# at byte C-1 is accepted, and its first C bytes are never read; the line
+# cursor had the same gap. Catching either needs a second process per Stop.
 #
 # The cursor covers COMPLETE lines only. A final line with no newline is still
 # scanned this turn — skipping it could hide a record the full scan would have
@@ -274,9 +279,9 @@ scan_lines() { # <first index to test>
 # That stripping also hides whether the final line ended with a newline, so the
 # final line is scanned but never counted — the next Stop reads it again.
 # `LC_ALL=C` makes every length and offset here count bytes, not characters.
-# ponytail: re-reading the final line costs two jq spawns on the Stop after one
-# whose last line is itself a failure record; counting it exactly would need a
-# second process on every Stop.
+# ponytail: re-reading the final line costs two jq and one find on the Stop
+# after one whose last line is itself a failure record; counting it exactly
+# would need a second process on every Stop.
 warm_read() {
   local LC_ALL=C window body complete line
   { window=$(tail -c "+$((CURSOR - 1))" -- "$TRANSCRIPT"); } 2>/dev/null
