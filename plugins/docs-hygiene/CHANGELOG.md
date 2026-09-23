@@ -6,6 +6,14 @@
 
 - **`detect.sh` classifies a repository-root `AGENTS.md` as always-loaded.** `CLAUDE.md`, `CLAUDE.local.md`, and `AGENTS.md` are `tier=always` when the file's directory contains `.git`, including an absolute path to that root file. A repository-root `MEMORY.md` is not session-loaded, so it does not take that test. The same basename nested under another directory stays `invocation`. The repository-root check runs outside the `if`, so a failure there still stops the script. A backtick span is a pointer when, after a `#anchor` is stripped, it contains a slash, ends in `.md`, and uses only path characters; it resolves beside the linking file the way a markdown link does. A command, a flag, or a short token such as `SKILL.md` is not a pointer. The same target on the same line is counted once. Hub reachability uses the same backtick pointers, so a spoke cited as `context/detail.md#section` is not reported as an orphan.
 
+## [0.22.11]
+
+### Fixed
+
+- **The case-collision pass compares one nul-delimited listing.** `git ls-files` without `-z` C-quotes a path that contains a non-ASCII byte, a tab, or a newline, so that quoted text never matched the raw path from the `-z` listing and the collision was missed. Both `scripts/check-docs-naming.sh` and the emitted gate template now read `git ls-files -z` once and fold those same bytes.
+- A case collision on a path that holds a newline is now one finding per path. The raw newline split the finding into several lines on stderr; such a path and its folded form are now shown `%q`-quoted, in both `scripts/check-docs-naming.sh` and the emitted gate template.
+- The emitted-gate suite no longer treats a ShellCheck that rejects `--rcfile` as a dirty emission. That flag is how this repo's `.shellcheckrc` is applied; without it the case is skipped, and a build that accepts the flag still fails the suite when the emitted pair is not clean.
+
 ## [0.22.10] - 2026-09-21
 
 ### Changed

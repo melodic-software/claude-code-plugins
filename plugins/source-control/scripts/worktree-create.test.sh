@@ -138,6 +138,8 @@ commitfile() {
 help_out=$(bash "$HELPER" --help 2>&1)
 assert_exit "--help exit 0" 0 "$?"
 assert_contains "--help documents refuse (exit 3)" "$help_out" "refuse"
+assert_contains "--help documents --session-id" "$help_out" "--session-id"
+assert_contains "--help documents an omitted session id as no claim" "$help_out" "no session token"
 
 # --- Case: missing --name -> usage error (exit 2) ---
 bash "$HELPER" --root "$TEST_TMPDIR/wt" >/dev/null 2>&1
@@ -578,7 +580,7 @@ assert_file_exists "settings.local.json copied into the worktree" "$out/.claude/
 
 # --- Case: a value-taking flag as the last token errors, does not hang (exit 2) ---
 # Regression guard: a failed `shift 2` on a lone positional once spun forever.
-for flag in --name --root --base-ref --repo-dir; do
+for flag in --name --root --base-ref --repo-dir --session-id; do
   code=0
   bash "$HELPER" "$flag" >/dev/null 2>&1 || code=$?
   assert_exit "trailing valueless $flag errors (no hang)" 2 "$code"
@@ -921,6 +923,99 @@ else
   fail "plain removal exits non-zero while the lock is armed" "non-zero" "0"
 fi
 assert_file_exists "the locked worktree survives the removal attempt" "$out/README.md"
+
+# --- Case: --session-id stamps the token check-enter treats as ours ---
+# worktree-claim.sh reason_is_ours matches `session <sid> since` only. The
+# helper must emit that token or check-enter returns FOREIGN CLAIM (exit 4)
+# for a tree this same session just created. No network.
+CLAIM="$SCRIPT_DIR/worktree-claim.sh"
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtroot-session"
+out=$(bash "$HELPER" --name feat/sessown --root "$root" --session-id sess-owner --repo-dir "$repo" 2>/dev/null)
+assert_exit "create with --session-id succeeds (exit 0)" 0 "$?"
+lock_file="$(git -C "$out" rev-parse --absolute-git-dir)/locked"
+reason="$(tr -d '\r\n' <"$lock_file")"
+assert_contains "session lock reason uses the claim token" "$reason" "session sess-owner since"
+assert_contains "session lock reason still names the helper" "$reason" "worktree-create.sh:"
+# The exact stamp is host + `session <id> since` + a UTC timestamp. Pin the
+# stable prefix and the token; the timestamp is whatever `date -u` wrote.
+case "$reason" in
+"worktree-create.sh: lane active on "*" session sess-owner since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
+  pass "session lock reason has the claim_reason shape"
+  ;;
+*)
+  fail "session lock reason has the claim_reason shape" \
+    "worktree-create.sh: lane active on <host> session sess-owner since <utc>; unlock when the owning lane is done" \
+    "$reason"
+  ;;
+esac
+
+bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id sess-owner >/dev/null 2>&1
+assert_exit "check-enter with the creating session id exits 0" 0 "$?"
+
+code=0
+err=$(bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id sess-other 2>&1 >/dev/null) || code=$?
+assert_exit "check-enter with a different session id exits 4" 4 "$code"
+assert_contains "different session id is a foreign claim" "$err" "FOREIGN CLAIM:"
+
+# `s1` must not own an `s10` stamp. The token is `session <sid> since`, not a prefix.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtroot-s10"
+out=$(bash "$HELPER" --name feat/s10 --root "$root" --session-id s10 --repo-dir "$repo" 2>/dev/null)
+assert_exit "create with session id s10 succeeds" 0 "$?"
+bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id s1 >/dev/null 2>&1
+assert_exit "session s1 does not own a helper lock stamped s10" 4 "$?"
+bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id s10 >/dev/null 2>&1
+assert_exit "session s10 owns the helper lock it stamped" 0 "$?"
+
+# --- Case: omitting --session-id matches no session ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtroot-nosess"
+out=$(CLAUDE_SESSION_ID=env-sess bash "$HELPER" --name feat/nosess --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "create without --session-id succeeds (exit 0)" 0 "$?"
+lock_file="$(git -C "$out" rev-parse --absolute-git-dir)/locked"
+reason="$(tr -d '\r\n' <"$lock_file")"
+if [[ "$reason" == *"session "*" since"* ]]; then
+  fail "omitted session id writes no ownable session token" "no session <id> since" "$reason"
+else
+  pass "omitted session id writes no ownable session token"
+fi
+case "$reason" in
+"worktree-create.sh: lane active on "*" since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
+  pass "omitted session id keeps the host-and-time reason"
+  ;;
+*)
+  fail "omitted session id keeps the host-and-time reason" \
+    "worktree-create.sh: lane active on <host> since <utc>; unlock when the owning lane is done" \
+    "$reason"
+  ;;
+esac
+bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id arbitrary-sid >/dev/null 2>&1
+assert_exit "omitted session id does not satisfy check-enter for an arbitrary id" 4 "$?"
+bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id env-sess >/dev/null 2>&1
+assert_exit "omitted session id is not reported as CLAUDE_SESSION_ID's claim" 4 "$?"
+
+# An empty --session-id is the omitted path, not a blank token (`session  since`).
+root="$TEST_TMPDIR/wtroot-emptysid"
+out=$(bash "$HELPER" --name feat/emptysid --root "$root" --session-id "" --repo-dir "$repo" 2>/dev/null)
+assert_exit "empty --session-id still creates (exit 0)" 0 "$?"
+lock_file="$(git -C "$out" rev-parse --absolute-git-dir)/locked"
+reason="$(tr -d '\r\n' <"$lock_file")"
+if [[ "$reason" == *"session "*" since"* ]]; then
+  fail "empty --session-id writes no ownable session token" "no session <id> since" "$reason"
+else
+  pass "empty --session-id writes no ownable session token"
+fi
+bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id arbitrary-sid >/dev/null 2>&1
+assert_exit "empty --session-id does not satisfy check-enter" 4 "$?"
+
+# A session id outside the claim grammar is usage, and creates nothing.
+code=0
+err=$(bash "$HELPER" --name feat/badsess --root "$TEST_TMPDIR/wtroot-badsess" --session-id 'bad id' --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "invalid --session-id is usage (exit 2)" 2 "$code"
+assert_contains "invalid --session-id names the grammar" "$err" "--session-id must match"
+assert_file_absent "invalid --session-id creates nothing" \
+  "$TEST_TMPDIR/wtroot-badsess/acme-widget-feat-badsess/README.md"
 
 # --- Unit: same-drive policy (#2764/#2806) ------------------------------------
 # Path-shape gate is pure string work; extract the helpers so Linux CI can prove

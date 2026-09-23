@@ -33,8 +33,9 @@ mkrepo() {
   printf '%s' "$repo"
 }
 
-# Helper-created reason string — byte-for-byte the format worktree-create.sh
-# writes. Tests must not rewrite it (#2882 AC4).
+# Helper-created reason when --session-id is omitted: host and time, no
+# `session <id> since` token. Claim must not rewrite it (#2882 AC4), and
+# check-enter treats it as foreign to every session.
 HELPER_REASON='worktree-create.sh: lane active on testhost since 2026-08-15T08:46:04Z; unlock when the owning lane is done'
 
 REPO="$(mkrepo)"

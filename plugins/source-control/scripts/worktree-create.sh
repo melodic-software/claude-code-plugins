@@ -4,7 +4,8 @@
 # Single owner of worktree creation for this plugin: external-root path
 # computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, base-ref
 # resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
-# `git worktree lock` liveness guard (#2257), and the `.worktreeinclude`
+# `git worktree lock` liveness guard (#2257) with an optional --session-id
+# claim token, and the `.worktreeinclude`
 # local-file copy. The copy Claude Code performs for its
 # native worktrees (EnterWorktree / --worktree) is bypassed when a worktree is
 # created with `git worktree add` directly, so this helper reimplements it.
@@ -141,6 +142,7 @@ Usage:
   $PROG --name <name> [--root <dir> | --root-file <path>]
         [--fallback-root <dir> | --fallback-root-file <path>]
         [--data-root-file <path>] [--base-ref fresh|head] [--repo-dir <dir>]
+        [--session-id <id>]
 
 Root resolution, most specific first:
   --root/--root-file (explicit, per invocation), then worktreeroot.path
@@ -219,6 +221,17 @@ Options:
                       default branch. With no resolvable remote, or an uncached
                       <remote>/HEAD, it warns and branches from local HEAD.
   --repo-dir <dir>    Source repository directory. Default: current directory.
+  --session-id <id>   Session id recorded in the git worktree lock reason as
+                      \`session <id> since\`, the token worktree-claim.sh
+                      check-enter matches (exit 0 for this id, exit 4 for any
+                      other). The id must match ^[A-Za-z0-9._:-]{1,128}$; any
+                      other value is a usage error (exit 2) and creates nothing.
+                      Omitted or empty: the reason names the helper, host, and
+                      start time only and carries no session token, so
+                      check-enter reports a foreign claim for every session id.
+                      This flag is the only session source. An omitted id is
+                      never filled in from the host name or the environment, and
+                      is not reported as any session's claim.
   -h, --help          Show this help.
 
 On success the created worktree path is printed as the sole stdout line, for the
@@ -242,6 +255,7 @@ data_root_file=""
 data_root_file_given=0
 base_ref=""
 repo_dir="."
+session_id=""
 
 # need_value <flag> — guard against a value-taking flag given as the last token
 # with no argument. Without this, `shift 2` on a single remaining positional
@@ -298,6 +312,11 @@ while [[ $# -gt 0 ]]; do
   --repo-dir)
     need_value "$@"
     repo_dir="$2"
+    shift 2
+    ;;
+  --session-id)
+    need_value "$@"
+    session_id="$2"
     shift 2
     ;;
   -h | --help)
@@ -401,6 +420,15 @@ if ((${#name} > 64)); then
 fi
 if [[ ! "$name" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]]; then
   printf '%s: --name %q is not a valid worktree/branch name (each /-separated segment: letters, digits, dots, underscores, dashes only)\n' "$PROG" "$name" >&2
+  exit 2
+fi
+
+# Same grammar as worktree-claim.sh valid_session_id. Empty is omitted, not
+# invalid: the lock reason then carries no session token (see usage). A value
+# outside this class could break the `session <id> since` match, so refuse
+# before creating anything.
+if [[ -n "$session_id" ]] && [[ ! "$session_id" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]; then
+  printf '%s: --session-id must match ^[A-Za-z0-9._:-]{1,128}$\n' "$PROG" >&2
   exit 2
 fi
 
@@ -897,7 +925,26 @@ fi
 # so the `locked` flag the cleanup skill already honors was structurally always
 # absent (#2257). The owning lane (or cleanup, after explicit confirmation)
 # disarms with `git worktree unlock <path>`.
-lock_reason="worktree-create.sh: lane active on ${HOSTNAME:-$(hostname 2>/dev/null || printf 'unknown-host')} since $(date -u +%Y-%m-%dT%H:%M:%SZ); unlock when the owning lane is done"
+#
+# The reason speaks worktree-claim.sh's dialect. claim_reason writes
+# `session <id> since`, and reason_is_ours matches that token only. With
+# --session-id, this helper emits the same token under its own prefix so
+# check-enter for that id exits 0. Without one, the reason stays host and
+# time only: no session token, so it matches no session and check-enter
+# reports a foreign claim. Do not put the host name where the session id
+# goes; that would make every helper lock look owned by every session.
+lock_host="${HOSTNAME:-}"
+if [[ -z "$lock_host" ]]; then
+  lock_host="$(hostname 2>/dev/null || printf 'unknown-host')"
+fi
+lock_stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+if [[ -n "$session_id" ]]; then
+  lock_reason="$(printf 'worktree-create.sh: lane active on %s session %s since %s; unlock when the owning lane is done' \
+    "$lock_host" "$session_id" "$lock_stamp")"
+else
+  lock_reason="$(printf 'worktree-create.sh: lane active on %s since %s; unlock when the owning lane is done' \
+    "$lock_host" "$lock_stamp")"
+fi
 lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
   lock_failed=1

@@ -112,6 +112,16 @@ res="$(run_gate "$r")"
 assert_eq "two paths differing only by case are offenders" "1" "${res%%|*}"
 assert_contains "the collision is reported as such" "${res#*|}" "differs only by case"
 
+# A newline in a colliding path must not split its finding: two findings plus
+# the summary line on stderr.
+r="$(new_repo)"
+seed "$r" "$PRIMARY_ROOT/New"$'\n'"line/$PROBE_OK"
+seed "$r" "$PRIMARY_ROOT/new"$'\n'"line/$PROBE_OK"
+res="$(run_gate "$r")"
+assert_eq "a newline-bearing collision is an offender" "1" "${res%%|*}"
+rest="${res#*|}"
+assert_eq "each newline-bearing finding stays one line" "3" "$(grep -c '' <<<"${rest#*|}")"
+
 # --- exemptions --------------------------------------------------------------
 #
 # Each exemption is seeded with a name the rule WOULD reject, so a case that
