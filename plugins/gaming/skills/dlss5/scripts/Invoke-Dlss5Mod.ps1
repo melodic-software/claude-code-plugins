@@ -412,6 +412,8 @@ function Get-AntiCheat($root, $launch, $appId) {
         # AWACY's status field is Linux support, not presence; only a non-empty anticheats list counts.
         $aw.entries = @($all | Where-Object { ($appId -and "$($_.storeIds.steam)" -eq $appId) -or ($n -and (NormName $_.name) -eq $n) } |
                 ForEach-Object { [pscustomobject]@{ name = $_.name; anticheats = @($_.anticheats | Where-Object { $_ }) } })
+        # No entry means nobody recorded the title, not that it has no anti-cheat.
+        if (-not $aw.entries) { $unchecked += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))): no entry for this title, so this source is unknown" }
         foreach ($e in $aw.entries) { if ($e.anticheats) { $signals += "AreWeAntiCheatYet (commit $($sha.Substring(0, 7))) lists $($e.name): $($e.anticheats -join ', ')" } }
     }
     catch { $aw.error = $_.Exception.Message; $unchecked += "AreWeAntiCheatYet: fetch failed ($($aw.error)), so this source is unknown" }
@@ -435,7 +437,7 @@ function Get-AntiCheat($root, $launch, $appId) {
     $status = if ($signals) { 'signals' } elseif ($unchecked) { 'unknown' } else { 'none-disclosed' }
     [pscustomobject]@{
         status = $status; signals = $signals; unchecked = $unchecked
-        note = if ($status -eq 'none-disclosed') { 'Steam requires disclosure of kernel-mode anti-cheat only; user-mode and server-side anti-cheat need not be disclosed. AreWeAntiCheatYet lists none and nothing matched on disk. This is not proof of no anti-cheat.' }
+        note = if ($status -eq 'none-disclosed') { 'Steam requires disclosure of kernel-mode anti-cheat only; user-mode and server-side anti-cheat need not be disclosed. AreWeAntiCheatYet has an entry for the title listing no anti-cheat, and nothing matched on disk. This is not proof of no anti-cheat.' }
         awacy = [pscustomobject]$aw; steam = if ($st) { [pscustomobject]$st }
     }
 }
@@ -1239,6 +1241,11 @@ function Do-Selftest {
         $cg = "$l2\steamapps\common\Clean Game"; Put "$cg\clean.exe" 'exe'; Put "$cg\nvngx_dlss.dll" 'dlss'
         $cga = (Do-Assess $cg) | ConvertFrom-Json
         Assert 'Steam with nothing disclosed anywhere: none-disclosed, no acknowledgement, caveat stated' ($cga.antiCheat.status -eq 'none-disclosed' -and -not $cga.acknowledgementRequired -and $cga.antiCheat.note -like '*not proof of no anti-cheat*')
+        $script:SteamPages['444'] = '<div class="apphub_AppName">Unlisted Game</div>'
+        Put "$l2\steamapps\appmanifest_444.acf" (& $acf 444 'Unlisted Game' 'Unlisted')
+        $ul = "$l2\steamapps\common\Unlisted"; Put "$ul\u.exe" 'exe'
+        $ula = (Do-Assess $ul) | ConvertFrom-Json
+        Assert 'Steam with a clean page but no AWACY entry is unknown, not none-disclosed' ($ula.antiCheat.status -eq 'unknown' -and @($ula.antiCheat.unchecked | Where-Object { $_ -like '*no entry for this title*' }).Count -eq 1)
         $script:SteamPages['222'] = '<div id="agecheck">'
         Assert 'Steam age gate is unknown, not none-disclosed' (((Do-Assess $cg) | ConvertFrom-Json).antiCheat.status -eq 'unknown')
         $script:SteamPages['222'] = '<div class="apphub_AppName">Clean Game</div>'

@@ -31,8 +31,9 @@ All notable changes to the `gaming` plugin are documented here. Format follows
   and the AreWeAntiCheatYet commit; the ledger row repeats them. The plugin never disables,
   bypasses or tampers with an anti-cheat.
 - A missing Steam anti-cheat section no longer clears a game by itself. It means only that no
-  kernel anti-cheat was disclosed; with nothing on disk and no AreWeAntiCheatYet entry naming one,
-  the status is `none-disclosed`. An AreWeAntiCheatYet fetch failure is `unknown`.
+  kernel anti-cheat was disclosed. The status is `none-disclosed` only with nothing on disk and an
+  AreWeAntiCheatYet entry for the title that lists no anti-cheat. A title with no
+  AreWeAntiCheatYet entry, or a fetch failure, is `unknown`.
 - `assess` JSON: `requiresWebCheck` is replaced by `antiCheat` and `acknowledgementRequired`.
   `verdict` `refused` now means only a `WindowsApps` path.
 - `provision -Runtime` scans every discovered game's install folder, not only Steam libraries.

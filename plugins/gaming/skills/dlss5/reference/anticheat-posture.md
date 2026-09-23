@@ -41,7 +41,7 @@ anti-cheat software and cause bans!"
 |---|---|---|
 | `signals` | At least one source names anti-cheat | Refuses unless acknowledged |
 | `unknown` | No source named one, but a source could not be read, or the launcher has no first-party disclosure | Refuses unless acknowledged |
-| `none-disclosed` | Steam only: nothing on disk, AreWeAntiCheatYet fetched with no anti-cheat for the title, and a confirmed store page with no anti-cheat section | Proceeds with the normal per-game confirmation |
+| `none-disclosed` | Steam only: nothing on disk, an AreWeAntiCheatYet entry for the title whose `anticheats` list is empty, and a confirmed store page with no anti-cheat section | Proceeds with the normal per-game confirmation |
 
 None of the three means "no anti-cheat". `none-disclosed` means no kernel-mode anti-cheat was
 disclosed and no community record lists one. Every launcher other than Steam tops out at `unknown`.
