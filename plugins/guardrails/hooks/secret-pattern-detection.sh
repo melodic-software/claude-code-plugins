@@ -296,50 +296,62 @@ ALLOW_FILE="${FILE//\\//}"
 # that repo owns its own secret policy. Fail CLOSED: when the root cannot be
 # resolved (CLAUDE_PROJECT_DIR unset), fall through and scan rather than skip.
 #
-# A root that is SET but is not a project is treated exactly like an unset one.
-# Claude Code sets CLAUDE_PROJECT_DIR to the directory the session started in,
-# and that can be the home directory or any directory that is not a repository.
-# Honoring such a root would skip every write outside it, which is nearly every
-# write the session makes. The root is cleared, and the write scanned, when:
-#   - it carries `//`, `/./`, `/../`, a trailing `/.` or `/..`, or `~`: such a
-#     spelling can name home, or an ancestor of it, without comparing equal to
-#     it as a string, and resolving it would cost a process. An 8.3 short name
-#     (KYLESE~1) is cleared by the same arm, which only scans more.
-#   - it is not a git work tree: no repository owns the writes outside it. A
-#     work tree has a .git directory holding HEAD, or a .git file whose first
-#     line is a `gitdir:` pointer (a linked worktree or a submodule); an empty
-#     or unrelated .git entry does not count. Both tests are builtins, so the
-#     check stays fork-free. A subdirectory of a repo is cleared too, which
-#     only scans more.
-#   - home is unknown: with neither HOME nor USERPROFILE set, nothing shows
-#     the root does not contain home.
-#   - it equals home or is an ancestor of home: a home that is itself a
-#     repository (dotfiles) contains every other checkout on the machine, so it
-#     scopes nothing. One prefix test covers both, and a trailing slash on home.
-# Home is ${HOME:-${USERPROFILE:-}}; both sides are normalized so C:\Users\u,
-# C:/Users/u and /c/users/u compare equal on Windows.
+# A SET root is honored only when it names a project; otherwise it is cleared
+# and treated as unset, which only scans more. Claude Code sets the variable to
+# the session's start directory, which may be home or any folder. Cleared:
+#   - a relative root, or one spelled with `//`, `/./`, `/../`, a trailing `/.`
+#     or `/..`, or `~` (an 8.3 name such as PROGRA~1): the string no longer
+#     says which directory it names.
+#   - a root that is not a git work tree: its .git holds HEAD, or is a file
+#     whose first line is `gitdir:` (a linked worktree or submodule).
+#   - a root when neither HOME nor USERPROFILE is set: home is unknown.
+#   - home, or an ancestor of home, as a string or as the same directory under
+#     another path (a link, a case or drive spelling): it contains every other
+#     checkout on the machine.
+# Every test is a builtin, so the check stays fork-free.
 spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
 spd_scope_root="${spd_scope_root//\\//}"
-spd_scope_root="${spd_scope_root%/}"
 PROJECT_DIR=""
 if [[ -n "$spd_scope_root" ]]; then
-  hook::normalize_path_to PROJECT_DIR "$spd_scope_root"
-  spd_home=""
-  hook::normalize_path_to spd_home "${HOME:-${USERPROFILE:-}}"
-  spd_repo=0
+  spd_keep=1
   case "$spd_scope_root" in
-  *//* | */./* | */../* | */. | */.. | *~*) ;;
-  *)
-    if [[ -d "$spd_scope_root/.git" ]]; then
-      [[ -e "$spd_scope_root/.git/HEAD" ]] && spd_repo=1
+  *//* | */./* | */../* | */. | */.. | *~*) spd_keep=0 ;;
+  /* | [A-Za-z]:/*) ;;
+  *) spd_keep=0 ;;
+  esac
+  spd_scope_root="${spd_scope_root%/}"
+  if ((spd_keep)); then
+    spd_keep=0
+    if [[ -e "$spd_scope_root/.git/HEAD" ]]; then
+      spd_keep=1
     elif [[ -f "$spd_scope_root/.git" ]]; then
       spd_gitline=""
       { IFS= read -r spd_gitline <"$spd_scope_root/.git"; } 2>/dev/null || :
-      [[ "$spd_gitline" == gitdir:* ]] && spd_repo=1
+      [[ "$spd_gitline" == gitdir:* ]] && spd_keep=1
     fi
-    ;;
-  esac
-  if ((spd_repo == 0)) || [[ -z "$spd_home" || "$spd_home/" == "$PROJECT_DIR"/* ]]; then
+  fi
+  hook::normalize_path_to PROJECT_DIR "$spd_scope_root"
+  spd_home=""
+  hook::normalize_path_to spd_home "${HOME:-${USERPROFILE:-}}"
+  [[ -z "$spd_home" || "$spd_home/" == "$PROJECT_DIR"/* ]] && spd_keep=0
+  # Each home candidate and each of its parents, compared as a directory. The
+  # walk drops one path component per step, so it ends within the path's depth.
+  spd_prev=""
+  for spd_h in "${HOME:-}" "${USERPROFILE:-}"; do
+    ((spd_keep)) || break
+    [[ -n "$spd_h" && "$spd_h" != "$spd_prev" ]] || continue
+    spd_prev="$spd_h"
+    spd_h="${spd_h//\\//}"
+    spd_h="${spd_h%/}"
+    while [[ "$spd_h" == */* ]]; do
+      if [[ "$spd_scope_root" -ef "$spd_h" ]]; then
+        spd_keep=0
+        break
+      fi
+      spd_h="${spd_h%/*}"
+    done
+  done
+  if ((spd_keep == 0)); then
     spd_scope_root=""
     PROJECT_DIR=""
   fi
@@ -397,8 +409,8 @@ emit_tel() {
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -n "$root" ]] || hook::repo_root_to root "$file_dir"
-  # Guard against a doubled separator: the helper strips "$root/", and a root
-  # ending in "/" would make that prefix "/repo//", which matches nothing.
+  # hook::repo_root_to returns the hint unchanged when git finds no repo, and
+  # the hint ends in "/" for a root-level file; the helper strips "$root/".
   root="${root%/}"
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$root"

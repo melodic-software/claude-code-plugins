@@ -163,11 +163,69 @@ assert_silent "backslash-spelled real repo root: outside write → no stderr" "$
 # comparing equal to it as a string, so such a root is never honored. HOME is
 # the repo itself, which each spelling below reaches.
 H="$HOME_REPO"
-for SPELLED in "$H/." "${H%/*}//${H##*/}" "$H/../${H##*/}"; do
+mkdir -p "$H/~"
+for SPELLED in "$H/." "${H%/*}//${H##*/}" "$H/../${H##*/}" "$H/user/.." "$H/~/.."; do
   OUT=$(env HOME="$H" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
   RC=$?
   assert_exit "unnormalized root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
 done
+
+# A `~` alone clears a real repo root that is not home: an 8.3 short name
+# (PROGRA~1) is one more spelling a string comparison cannot see through.
+TILDE_REPO="$TEST_TMPDIR/tilde~repo"
+mkdir -p "$TILDE_REPO"
+git -C "$TILDE_REPO" init -q
+OUT=$(CLAUDE_PROJECT_DIR="$TILDE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "repo root containing '~': outside write scanned → exit 2" 2 "$RC"
+
+# A trailing doubled slash survives a single trim. Left unrejected, the root
+# keeps a trailing `/`, so even an in-project write fails the prefix test and
+# is skipped.
+for SPELLED in "$SCOPE_REPO//" "${SCOPE_REPO//\//\\}\\\\"; do
+  OUT=$(CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$SCOPE_REPO/src/config.env" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "root '$SPELLED': in-project write scanned → exit 2" 2 "$RC"
+  OUT=$(CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
+done
+
+# A relative root resolves against the hook's working directory, which is not
+# a statement about the project, so it is never honored.
+OUT=$(cd "$SCOPE_REPO" && CLAUDE_PROJECT_DIR=. bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "relative root '.' inside a repo: outside write scanned → exit 2" 2 "$RC"
+
+# A directory link to home names home under another path. Linux CI makes a
+# symlink; a Windows host makes a junction (a plain `ln -s` there copies).
+make_dir_link() { # <target> <link> -> 0 when <link> is a real directory link
+  if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+    command -v cmd >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1 || return 1
+    MSYS_NO_PATHCONV=1 cmd /c mklink /J "$(cygpath -w "$2")" "$(cygpath -w "$1")" >/dev/null 2>&1
+  else
+    ln -s "$1" "$2" 2>/dev/null
+  fi
+  [[ -L "$2" ]]
+}
+if make_dir_link "$HOME_REPO" "$TEST_TMPDIR/home-link"; then
+  OUT=$(env HOME="$HOME_REPO" CLAUDE_PROJECT_DIR="$TEST_TMPDIR/home-link" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "root is a link to home: outside write scanned → exit 2" 2 "$RC"
+else
+  echo "skip: root is a link to home (no directory link could be made on this host)"
+fi
+
+# Both home candidates are checked, not only the first one set.
+ELSEWHERE_HOME="$TEST_TMPDIR/elsewhere-home"
+mkdir -p "$ELSEWHERE_HOME"
+OUT=$(env HOME="$ELSEWHERE_HOME" USERPROFILE="$HOME_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "root is USERPROFILE while HOME is elsewhere: outside write scanned → exit 2" 2 "$RC"
+# The USERPROFILE fallback names a different home: a real repo root keeps scope.
+OUT=$(env -u HOME USERPROFILE="$ELSEWHERE_HOME" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "HOME unset, USERPROFILE elsewhere: real repo root keeps scope → exit 0" 0 "$RC"
 
 # With no home to compare against, a root cannot be shown not to contain it.
 OUT=$(env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
