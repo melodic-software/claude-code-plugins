@@ -102,6 +102,11 @@ The boundary against rule 10's "no recap": restating state is the
 everything done so far. "Step 3 of 5 done: X. Next: Y" passes; "I've now done
 X, Y, and Z" is the forbidden recap.
 
+When the next step is the assistant's own and needs no input from the reader,
+put the state line in the same message as that step and take it; do not stop to
+offer it. Ask only when the step needs the reader or is destructive or hard to
+undo, as the backfill above is.
+
 ### 6. Give concrete time estimates
 
 Ballpark in real units, not feelings.

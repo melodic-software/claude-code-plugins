@@ -3,6 +3,13 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.13] - 2026-09-23
+
+### Changed
+
+- The simulation's GREY-zone corrective prompt tells personas not to research or double-check
+  their stale events, replacing a "think carefully" phrasing that steered reasoning depth.
+
 ## [0.6.12] - 2026-09-21
 
 ### Changed

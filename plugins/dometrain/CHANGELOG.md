@@ -3,6 +3,13 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-09-23
+
+### Changed
+
+- `grounding` marks any part of an answer no lesson confirmed, including parts resting only on
+  partial-term or semantically related hits, and names the queries run for it.
+
 ## [0.2.13]
 
 ### Changed

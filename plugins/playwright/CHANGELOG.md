@@ -3,6 +3,14 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-09-23
+
+### Changed
+
+- `playwright` answers visual questions (layout, overlap, color, a chart against its data) by
+  reading the screenshot file itself with one specific question, since the snapshot YAML carries
+  no layout, and shares the file path as evidence rather than retyping what it shows.
+
 ## [0.6.13]
 
 ### Changed

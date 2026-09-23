@@ -142,7 +142,11 @@ Constraints:
   Before writing a variant, state its direction. Background hex, accent hex, typeface, one-line
   rationale, and make it differ from its siblings on that axis as well as structurally. Generic
   steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
-  declaration is what produces variety.
+  declaration is what produces variety. Also name the defaults no variant may fall back on: a
+  cream or off-white background, italic accent words in headings, numbered "01 / 02 / 03"
+  section labels, monospace labels, and pill-shaped buttons, plus any the user names. When a
+  `skip:` line in the handover rejects a visual choice, add it to that list before the next
+  round.
 
 ### Design-canvas alternative (bundled `design` skill, when available)
 
