@@ -5,13 +5,15 @@ with the model's Edit tool; `Invoke-Dlss5Mod.ps1` writes the machine-readable ha
 `manifest.json` in the game's key folder under `state` in the data directory.
 
 Columns: **Game** title. **Exe dir** the directory the mod is injected into (the `-GameDir`
-argument). **Anti-cheat** kernel or user-mode anti-cheat present, `none` if safe to inject.
+argument). **Anti-cheat** the status (`signals`, `unknown` or `none-disclosed`, never "none") and each
+signal; when the user acknowledged the risk, the date, the name they typed, the research summary
+and its source URLs.
 **Build** which OptiScaler DLSS-NR fork is installed (`dagherbou` or `wilsjo2`) and its tag.
 **Proxy** the DLL name `OptiScaler.dll` is renamed to. **ini deltas** the `OptiScaler.ini` keys
 changed from stock. **Driver** GeForce driver version at apply time. **DLL** `nvngx_dlssnr.dll`
 runtime version. **Applied** date applied. **FPS before / after** same scene, same settings,
 measured. **Visual verdict** subjective quality call. **Crashes** count and where. **Notes**
-anything a future apply or remove needs to know, including the preset key, each key's source
+anything a future apply or remove needs to know, including the launcher, the preset key, each key's source
 (`shipped` or `local`) and the sources' as-of date.
 
 | Game | Exe dir | Anti-cheat | Build | Proxy | ini deltas | Driver | DLL | Applied | FPS before | FPS after | Visual verdict | Crashes | Notes |
