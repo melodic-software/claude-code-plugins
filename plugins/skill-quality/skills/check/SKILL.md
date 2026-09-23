@@ -213,7 +213,10 @@ tool. This gate does not automate that reachability check; author and review aga
 - **Check 6 defers to the skill's own repo markdownlint config.** `markdownlint-cli2` discovers config
   from its working directory downward, never above it, so the checker runs it from the top level of the
   git repo holding the skill: a repo-root `.markdownlint-cli2.jsonc` applies whichever directory or root
-  you started from. A skill in no git repo (a marketplace-installed skill in the plugin cache, which has
+  you started from. (Claim: config applies from parent directories only "up to the current
+  directory". Basis: the `markdownlint-cli2` v0.23.2 README, Configuration section, and a reproduction
+  against this repo. As of 2026-09-23. Recheck when the repo's `markdownlint-cli2` pin changes major or
+  minor version.) A skill in no git repo (a marketplace-installed skill in the plugin cache, which has
   no config) is linted where the checker stands, and markdownlint applies its DEFAULTS, so rules a repo deliberately disables (commonly
   `MD013` line-length for injection blocks and tables, `MD041` first-line-heading for a frontmatter/H2
   start, `MD060` table-pipe style) fire as spurious failures on a skill that passes in-repo. This is the
