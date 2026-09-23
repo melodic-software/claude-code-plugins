@@ -74,6 +74,8 @@ $PresetKeys = @{
     LocalTone = @{ Section = 'DlssNr'; Type = 'number' }; SkinStructure = @{ Section = 'DlssNr'; Type = 'number' }
     Preset = @{ Section = 'DlssNr'; Type = 'uint' }; Style = @{ Section = 'DlssNr'; Type = 'uint' }
 }
+# Each hotkey's default, from both pinned builds' ini comments; -1 is unbound (ToggleKey has no default).
+$HotkeyDefaults = [ordered]@{ ShortcutKey = '0x2D'; FpsShortcutKey = '0x21'; FpsCycleShortcutKey = '0x22'; FGShortcutKey = '0x23'; ToggleKey = '-1' }
 # \A..\z, not ^..$: a trailing newline would let a value inject its own ini line. Case-sensitive, so
 # 'True' is refused rather than guessed at. Hex digits take either case: Save Settings writes 0x7c.
 $PresetTypes = @{
@@ -580,16 +582,22 @@ function Merge-Preset($key, $layers) {
         foreach ($e in @($j.ini)) {
             if ($e) { $ini["$($e.key)"] = [pscustomobject]@{ section = $PresetKeys["$($e.key)"].Section; key = "$($e.key)"; value = "$($e.value)"; why = $e.why; source = $l.source } }
         }
-        foreach ($f in 'title', 'proxy', 'recheck') { if ($j.$f) { $p[$f] = $j.$f } }
-        if ($j.manual) { $p.manual = @($j.manual | Where-Object { $_ }); $p.manualSource = $l.source }
+        # Present wins, even when empty: a local "manual": [] clears the shipped steps.
+        foreach ($f in 'title', 'proxy', 'recheck') { if ($null -ne $j.$f) { $p[$f] = $j.$f } }
+        if ($null -ne $j.manual) { $p.manual = @($j.manual | Where-Object { $_ }); $p.manualSource = $l.source }
         $p.sources += @($j.sources | Where-Object { $_ })
         $p.from += "$($l.source) $($l.file)"
     }
     $p.ini = @($ini.Values)
-    # One key bound to two actions: the game would fire both.
-    $dup = @($p.ini | Where-Object { $PresetKeys[$_.key].Type -eq 'vk' -and $_.value -like '0x*' } |
-            Group-Object { [Convert]::ToInt32($_.value.Substring(2), 16) } | Where-Object Count -gt 1)
-    if ($dup) { throw "preset binds one key to several actions: $(($dup | ForEach-Object { ($_.Group | ForEach-Object { "[$($_.section)] $($_.key)=$($_.value) ($($_.source))" }) -join ' and ' }) -join '; ')" }
+    # One key bound to two actions fires both. Checked on effective bindings: an unset or auto hotkey
+    # keeps the fork's default, so ToggleKey=0x2D collides with the default Insert menu key.
+    $eff = foreach ($k in $HotkeyDefaults.Keys) {
+        $e = $ini[$k]
+        $v = if ($e -and $e.value -ne 'auto') { $e.value } else { $HotkeyDefaults[$k] }
+        if ($v -like '0x*') { [pscustomobject]@{ code = [Convert]::ToInt32($v.Substring(2), 16); text = "[$($PresetKeys[$k].Section)] $k=$v ($(if ($e -and $e.value -ne 'auto') { $e.source } else { 'default' }))" } }
+    }
+    $dup = @($eff | Group-Object code | Where-Object Count -gt 1)
+    if ($dup) { throw "preset binds one key to several actions: $(($dup | ForEach-Object { ($_.Group.text | Sort-Object) -join ' and ' }) -join '; ')" }
     [pscustomobject]$p
 }
 # The effective preset for a per-game key, or for the bases alone when $key is empty.
@@ -1339,6 +1347,13 @@ function Do-Selftest {
         Put "$tmp\presets\dup.json" '{"ini":[{"key":"ShortcutKey","value":"0x7c"}]}'
         $script:Preset = 'dup'
         Assert 'a key bound to two actions across layers refused' (Throws { Do-Apply $rg } '*several actions*ToggleKey=0x7C (shipped-base)*')
+        Put "$tmp\presets\ins.json" '{"ini":[{"key":"ToggleKey","value":"0x2D"}]}'
+        $script:Preset = 'ins'
+        Assert 'a hotkey on a default key the preset left unset is refused' (Throws { Do-Apply $rg } '*several actions*ToggleKey=0x2D (shipped) and `[Menu`] ShortcutKey=0x2D (default)*')
+        Put "$tmp\data\presets\ins.json" '{"ini":[{"key":"ShortcutKey","value":"-1"}],"manual":[]}'
+        Put "$tmp\presets\ins.json" '{"ini":[{"key":"ToggleKey","value":"0x2D"}],"manual":["stale step"]}'
+        $ip = Get-Preset 'ins'
+        Assert 'unbinding the default frees its key, and an empty local manual clears the shipped one' ($ip.manualSource -eq 'local' -and -not $ip.manual.Count)
         Put "$tmp\presets\bad.json" '{"ini":[{"key":"LogLevel","value":"0"}]}'
         $script:Preset = 'bad'
         Assert 'preset key off the allow-list refused' (Throws { Do-Apply $rg } '*not on the preset allow-list*')

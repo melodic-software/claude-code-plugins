@@ -14,8 +14,8 @@ All notable changes to the `gaming` plugin are documented here. Format follows
   base sets no key and binds no hotkey.
 - Hotkeys in presets: `[Menu] ShortcutKey`, `FpsShortcutKey`, `FpsCycleShortcutKey`,
   `FGShortcutKey` and `[DlssNr] ToggleKey`, validated as a VK code `0x01` to `0xFE`, `-1` or
-  `auto`. A merged preset that binds one code to two actions is refused. `reference/presets.md`
-  recommends F13 to F24 for the local base.
+  `auto`. A merged preset that binds one code to two actions, counting each unset hotkey's
+  default, is refused. `reference/presets.md` recommends F13 to F24 for the local base.
 <!-- spellchecker:off -->
 - Picture keys in presets, from `[DlssNr]`: `Enabled`, `TransferStrength`, `ColourStrength`,
   `WhitePointScale`, `MaxRatio`, `Intensity`, `LocalStructure`, `LocalTone`, `SkinStructure`,

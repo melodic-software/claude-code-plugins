@@ -22,8 +22,8 @@ the user's own choices, such as hotkeys, win over the plugin's defaults for a ti
 - **ini keys:** merged per key. The highest layer that sets a key wins, and every key carries its
   `source` (the first column) in the `assess` JSON, the apply confirmation, the `apply` output and
   the manifest.
-- **title, proxy, manual, recheck:** the highest layer that has the field wins. `manualSource`
-  names the layer.
+- **title, proxy, manual, recheck:** the highest layer that has the field wins, even when it is
+  empty, so a local `"manual": []` clears the shipped steps. `manualSource` names the layer.
 - **sources:** every layer's list is kept.
 
 `assess` reports the effective preset. With no per-game match, `preset.key` is null and `preset`
@@ -123,7 +123,9 @@ The script refuses, before any write:
 - any other key;
 - `AutoCapture` by name, whatever its value;
 - a value that does not match its type, so no value can carry a line break into the ini;
-- a merged preset that binds one VK code to two actions, whichever layers they came from;
+- a merged preset that binds one VK code to two actions, whichever layers they came from. An unset
+  or `auto` hotkey counts as its default from the table above, so `ToggleKey=0x2D` alone collides
+  with the Insert menu key; set `ShortcutKey` to another key or `-1` to free it;
 - a key that is missing from the build's `OptiScaler.ini`. The apply rolls back rather than
   record a setting that never landed.
 
