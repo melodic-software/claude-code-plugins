@@ -704,7 +704,7 @@ function Do-Apply($root) {
     $pr = Get-Preset $Preset
 
     $src = Join-Path $script:DataDir "builds\$Build"
-    $tag = (LoadJson (Join-Path $src '.provisioned.json')).tag
+    $marker = LoadJson (Join-Path $src '.provisioned.json'); $tag = $marker.tag
     $plan = [Collections.ArrayList]::new()
     foreach ($item in $files) {
         $p = Join-Path $src $item
@@ -779,7 +779,7 @@ function Do-Apply($root) {
 
     $drv = try { (& nvidia-smi --query-gpu=driver_version --format=csv,noheader | Select-Object -First 1).Trim() } catch { 'unknown' }
     [pscustomobject]@{
-        gameDir = $root; build = $Build; tag = $tag; proxy = $Proxy; applied = (Get-Date).ToString('o'); driver = $drv
+        gameDir = $root; build = $Build; tag = $tag; buildSha256 = $marker.sha256; proxy = $Proxy; applied = (Get-Date).ToString('o'); driver = $drv
         launcher = $launch; antiCheat = $acr; acknowledgement = $ack
         restoreComputeSignature = [bool]$RestoreComputeSignature
         iniEdits = @($edits.Values | ForEach-Object { [pscustomobject]@{ section = $_.Section; key = $_.Key; value = $_.Value } })
@@ -882,8 +882,11 @@ function Do-Capture($root) {
     $stock = Join-Path $script:DataDir "builds\$($mj.build)\OptiScaler.ini"
     if (-not (Test-Path -LiteralPath $stock -PathType Leaf)) { throw "missing stock ini $stock (run /gaming:setup apply). Nothing was written" }
     # A re-provisioned build's new stock defaults would read as overlay tuning.
-    $tagNow = (LoadJson (Join-Path $script:DataDir "builds\$($mj.build)\.provisioned.json")).tag
-    if ($mj.tag -and $tagNow -ne $mj.tag) { throw "the $($mj.build) build is now '$tagNow', but this game was applied from '$($mj.tag)', so its stock ini no longer matches. Nothing was written" }
+    # Provisioning replaces a build on a new asset hash even under the same tag, so both are compared.
+    $m = LoadJson (Join-Path $script:DataDir "builds\$($mj.build)\.provisioned.json")
+    if (($mj.tag -and $m.tag -ne $mj.tag) -or ($mj.buildSha256 -and $m.sha256 -ne $mj.buildSha256)) {
+        throw "the $($mj.build) build is now '$($m.tag)' ($($m.sha256)), but this game was applied from '$($mj.tag)' ($($mj.buildSha256)), so its stock ini no longer matches. Nothing was written"
+    }
     if (-not $mj.tag) { "note: this manifest predates recorded build tags; the diff assumes $($mj.build) is unchanged since the apply" }
     $want = Read-Ini $stock
     foreach ($e in @($mj.iniEdits)) { if ($e) { $want["$($e.section)/$($e.key)"] = $e.value } }
@@ -1211,7 +1214,7 @@ function Do-Selftest {
         "[Menu]`nShortcutKey=auto`nFpsShortcutKey=auto`nFpsCycleShortcutKey=auto`nFGShortcutKey=auto`n[DlssNr]`nToggleKey=auto`nEnabled=auto`nAutoCapture=auto`n" +
         (@($PresetKeys.Keys | Where-Object { $PresetKeys[$_].Section -eq 'DlssNr' -and $_ -notin 'ToggleKey', 'Enabled' } | ForEach-Object { "$_=auto`n" }) -join '')
         [IO.File]::WriteAllText("$bs\OptiScaler.ini", ($ini -replace "`n", "`r`n"), [Text.UTF8Encoding]::new($true))
-        Put "$bs\.provisioned.json" '{"tag":"vtest"}'
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
         $BuildFiles['selftest'] = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses')
         $script:Build = 'selftest'; $script:Proxy = 'dxgi.dll'; $script:RestoreComputeSignature = $true
 
@@ -1231,7 +1234,7 @@ function Do-Selftest {
         Assert 'state lands under DataDir' ($sd.StartsWith("$tmp\data\state\") -and (Test-Path -LiteralPath "$sd\manifest.json"))
         Assert 'nothing written under the script dir' (-not (Get-ChildItem -LiteralPath $PSScriptRoot -Directory))
         Assert 'no pending.json after success' (-not (Test-Path -LiteralPath "$sd\pending.json"))
-        Assert 'manifest records the build tag from .provisioned.json' ((LoadJson "$sd\manifest.json").tag -eq 'vtest')
+        Assert 'manifest records the build tag from .provisioned.json' ((LoadJson "$sd\manifest.json").tag -eq 'vtest' -and (LoadJson "$sd\manifest.json").buildSha256 -eq 'AA')
         $gi = "$g\OptiScaler.ini"
         Assert 'proxy dxgi.dll placed' (Test-Path -LiteralPath "$g\dxgi.dll")
         Assert 'model nvngx_dlssnr.dll placed' (Test-Path -LiteralPath "$g\nvngx_dlssnr.dll")
@@ -1319,9 +1322,11 @@ function Do-Selftest {
         Assert 'capture ignores a base edited after apply' (-not $cv.ContainsKey('WhitePointScale'))
         Assert 'capture lists unknown keys, AutoCapture with its warning, and invalid values, without capturing them' (-not $cv.ContainsKey('LogLevel') -and -not $cv.ContainsKey('AutoCapture') -and -not $cv.ContainsKey('FGShortcutKey') -and -not $cv.ContainsKey('ToggleKey') -and @($cap | Where-Object { $_ -like '*LogLevel=4 (not on the preset allow-list)' -or $_ -like '*AutoCapture=true (never captured. Set it back to false*' -or $_ -like '*FGShortcutKey=0 (value for FGShortcutKey must be a virtual-key code*' -or $_ -like '*ToggleKey=124 (value for ToggleKey must be a virtual-key code*' }).Count -eq 4)
         Assert 'capture never writes the game folder' (SameTree (Tree $pg) $pre)
-        Put "$bs\.provisioned.json" '{"tag":"vnext"}'
-        Assert 'capture refuses when the build was re-provisioned since the apply' (Throws { Do-Capture $pg } "*now 'vnext'*applied from 'vtest'*")
-        Put "$bs\.provisioned.json" '{"tag":"vtest"}'
+        Put "$bs\.provisioned.json" '{"tag":"vnext","sha256":"AA"}'
+        Assert 'capture refuses when the build was re-provisioned under a new tag' (Throws { Do-Capture $pg } "*now 'vnext'*applied from 'vtest'*")
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"BB"}'
+        Assert 'capture refuses when the build was re-provisioned under the same tag with a new hash' (Throws { Do-Capture $pg } "*(BB)*applied from 'vtest' (AA)*")
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
         $script:Preset = 'other'
         Assert 'capture refuses a key other than the game''s own preset' (Throws { Do-Capture $pg } "*preset is 'fx'*")
         $script:Preset = 'fx'

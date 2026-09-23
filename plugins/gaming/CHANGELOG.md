@@ -26,8 +26,8 @@ All notable changes to the `gaming` plugin are documented here. Format follows
   ini with the manifest's `iniEdits` over it), comparing values so Save Settings' `0x7c` and
   `1.000000` spellings are not changes. It merges changed allow-listed keys into the game's local
   per-game preset and lists every other changed key, `AutoCapture` with a reminder to set it back
-  to `false`. It refuses when the build was re-provisioned under another tag since the apply, and
-  it never writes into the game folder.
+  to `false`. It refuses when the build was re-provisioned since the apply (another tag or asset
+  hash), and it never writes into the game folder.
 - Community presets: shipped per-game presets are the community channel, contributed by issue or
   pull request with evidence. The plugin never fetches presets at runtime. The router suggests
   upstreaming a captured preset.
@@ -36,7 +36,8 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 
 - `assess` JSON: `preset` is present whenever a base preset exists, with `preset.key` null when no
   per-game preset matches. Apply with `-Preset` only when `preset.key` is set.
-- The manifest records `tag`, the build's pinned release tag, read from its `.provisioned.json`.
+- The manifest records `tag` and `buildSha256`, the build's pinned release tag and asset hash,
+  read from its `.provisioned.json`.
   The ledger's Build column is filled from it.
 
 ### Fixed
