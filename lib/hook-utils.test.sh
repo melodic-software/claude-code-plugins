@@ -796,17 +796,25 @@ else
   fail "under_temp_root: POSIX target /tmp/x missed the /tmp candidate"
 fi
 # Real host: the long, lowercased Git Bash spelling of TEMP matches the real
-# candidates, including an 8.3 TEMP that the candidate side expands.
+# candidates, including an 8.3 TEMP that the candidate side expands. A TEMP
+# that bash already converted to `/tmp` (as on the GitHub Windows runner) is
+# given back its drive spelling first, which is the shape the harness passes.
 # shellcheck disable=SC2031 # reads the host's real OSTYPE; utr_stub sets it only in its own subshell
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]] &&
   command -v cygpath >/dev/null 2>&1 && [[ -d "${TEMP:-}" ]]; then
-  utr_long=$(cygpath -l -m "$TEMP")
+  utr_temp="$TEMP"
+  [[ "$utr_temp" == [A-Za-z]:* ]] || utr_temp=$(cygpath -m "$utr_temp")
+  utr_long=$(cygpath -l -m "$utr_temp")
   utr_u=$(cygpath -u "$utr_long")
   utr_u="${utr_u,,}/probe/f"
-  if hook::under_temp_root "$utr_u"; then
+  # shellcheck disable=SC2030 # subshell-local by design: the override must not leak into the suite
+  if (
+    export TMPDIR="" TMP="$utr_temp" TEMP="$utr_temp"
+    hook::under_temp_root "$utr_u"
+  ); then
     ok "under_temp_root: real-host '$utr_u' matches the host temp root"
   else
-    fail "under_temp_root: real-host '$utr_u' missed the host temp root (TEMP=$TEMP)"
+    fail "under_temp_root: real-host '$utr_u' missed the host temp root (TEMP=$TEMP, as $utr_temp)"
   fi
 else
   ok "under_temp_root: Windows drive-spelling case SKIPPED (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)"
