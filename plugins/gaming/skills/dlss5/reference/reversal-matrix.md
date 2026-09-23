@@ -54,8 +54,8 @@ prints the drift with a pointer to Steam's "Verify integrity of game files". Aft
 older than the game: `remove -Finish` prints the drift and drops the manifest anyway. Use it only
 on the user's explicit request after they have seen the drift.
 
-An interrupted `apply` leaves `pending.json` listing its intended files; `status` and `remove`
-treat it as the manifest, so `remove` rolls a half-finished install back.
+An interrupted `apply` leaves `pending.json` listing the files it started copying; `status` and
+`remove` treat it as the manifest, so `remove` rolls a half-finished install back.
 
 ## Why the forks' `Remove_OptiScaler.bat` is not used
 

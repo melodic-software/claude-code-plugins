@@ -197,16 +197,17 @@ function Do-Snapshot($root) {
     $t = Tree $root
     [pscustomobject]@{
         gameDir = $root; taken = (Get-Date).ToString('o')
-        files   = @($t.Keys | Sort-Object | ForEach-Object { [pscustomobject]@{ Path = $_; Length = $t[$_].Length; Sha256 = $t[$_].Sha256 } })
+        dirs    = @($ModDirs | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) -PathType Container })
+        files   =@($t.Keys | Sort-Object | ForEach-Object { [pscustomobject]@{ Path = $_; Length = $t[$_].Length; Sha256 = $t[$_].Sha256 } })
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $sp -Encoding utf8
     "snapshot: $($t.Count) files -> $sp"
 }
 
-function Remove-EmptyModDirs($root, $snapPaths) {
+function Remove-EmptyModDirs($root, $snap) {
     foreach ($d in $ModDirs) {
         $dp = Join-Path $root $d
         if (-not (Test-Path -LiteralPath $dp -PathType Container)) { continue }
-        if ($snapPaths | Where-Object { $_ -like "$d\*" }) { continue }   # dir predates the mod
+        if ($snap.dirs -contains $d) { continue }   # dir predates the mod
         if (Get-ChildItem -LiteralPath $dp -Recurse -File -Force) { continue }   # unknown leftovers
         Remove-Item -LiteralPath $dp -Recurse -Force
     }
@@ -227,6 +228,7 @@ function Do-Apply($root) {
     if ($n -gt 2000 -and -not $Force) { throw "over 2000 files under $root; is this a game or library root rather than the exe directory? Pass -Force only after the user confirms it is the exe directory" }
     $ac = Find-AntiCheat $root
     if ($ac) { throw "anti-cheat on disk, refusing: $($ac -join ', ')" }
+    if ("$($script:DataDir)\".StartsWith("$root\", 'OrdinalIgnoreCase')) { throw "data_dir $($script:DataDir) is inside $root; state files would land in the tree the snapshot restores. Move data_dir outside the game directory" }
 
     $src = Join-Path $script:DataDir "builds\$Build"
     $plan = [Collections.ArrayList]::new()
@@ -255,15 +257,22 @@ function Do-Apply($root) {
     Do-Snapshot $root
     $added = @($plan | ForEach-Object { $_.To } | Sort-Object)
     $pp = Join-Path $sd 'pending.json'
-    [pscustomobject]@{ gameDir = $root; build = $Build; files = @($added | ForEach-Object { [pscustomobject]@{ Path = $_ } }) } |
-        ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $pp -Encoding utf8
+    # pending.json names only files whose copy has started, so a hard kill never leaves it naming a
+    # path a later game update could create and remove would then delete.
+    $done = [Collections.ArrayList]::new()
+    $savePending = {
+        [pscustomobject]@{ gameDir = $root; build = $Build; files = @($done | ForEach-Object { [pscustomobject]@{ Path = $_ } }) } |
+            ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $pp -Encoding utf8
+    }
+    & $savePending
     $copied = [Collections.ArrayList]::new()
     try {
         foreach ($e in $plan) {
             if ($script:FaultAfter -and $copied.Count -ge $script:FaultAfter) { throw 'injected copy fault' }
             $d = Join-Path $root $e.To
             New-Item -ItemType Directory -Force -Path (Split-Path $d -Parent) | Out-Null
-            [void]$copied.Add($d)   # before the copy: a partial file must roll back too; the collision gate proved it was absent
+            # Before the copy: a partial file must roll back too; the collision gate proved it was absent.
+            [void]$copied.Add($d); [void]$done.Add($e.To); & $savePending
             Copy-Item -LiteralPath $e.From -Destination $d
         }
         $edits = @(
@@ -277,7 +286,7 @@ function Do-Apply($root) {
     }
     catch {
         $copied | ForEach-Object { Remove-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue }
-        Remove-EmptyModDirs $root @((Load-Snapshot $root).files.Path)
+        Remove-EmptyModDirs $root (Load-Snapshot $root)
         # Keep pending.json while anything it names survives, so remove can still find it.
         if (-not ($copied | Where-Object { Test-Path -LiteralPath $_ })) { Remove-Item -LiteralPath $pp -Force }
         throw
@@ -351,7 +360,7 @@ function Do-Remove($root) {
     }
     $unknown = @($s0.Added | Where-Object Kind -eq 'unknown' | ForEach-Object Path)
     if ($unknown) { 'kept (unknown, not ours):'; $unknown | ForEach-Object { "  ? $_" } }
-    Remove-EmptyModDirs $root @((Load-Snapshot $root).files.Path)
+    Remove-EmptyModDirs $root (Load-Snapshot $root)
     $s = Get-Stat $root
     Show-Stat $s -NoManifest
     if (($s.Modified.Count -or $s.Removed.Count) -and -not $Finish) {
@@ -602,6 +611,11 @@ function Do-Selftest {
         $w = "$tmp\w\x\y"
         $g = "$w\g\Win64"
         Put "$g\game.exe" 'exe'; Put "$g\data\pak.bin" 'pak'; Put "$g\dbghelp.dll" 'stock'
+        New-Item -ItemType Directory -Force -Path "$g\OptiScalerProfiles" | Out-Null
+        $script:DataDir = "$g\state"
+        Assert 'data_dir inside the game dir refuses' (Throws { Do-Apply $g } '*inside*')
+        $script:DataDir = "$tmp\data"
+        Assert 'data_dir refusal writes nothing' (-not (Test-Path -LiteralPath "$g\state"))
         Do-Apply $g | Out-Null
         $sd = StateDir $g
         Assert 'apply with no prior snapshot snapshots first' (Test-Path -LiteralPath "$sd\snapshot.json")
@@ -646,6 +660,7 @@ function Do-Selftest {
         $snap = @{}; foreach ($e in @((Load-Snapshot $g).files)) { $snap[$e.Path] = @{ Sha256 = $e.Sha256 } }
         Assert 'tree restored byte-identical to snapshot' (SameTree (Tree $g) $snap)
         Assert 'mod dirs removed' (-not (Test-Path -LiteralPath "$g\OptiScaler") -and -not (Test-Path -LiteralPath "$g\dlssnr-capture"))
+        Assert 'pre-existing empty mod dir kept' (Test-Path -LiteralPath "$g\OptiScalerProfiles" -PathType Container)
         Assert 'manifest deleted, snapshot kept' (-not (Test-Path -LiteralPath "$sd\manifest.json") -and (Test-Path -LiteralPath "$sd\snapshot.json"))
 
         $c = "$w\c\Win64"; Put "$c\game.exe" 'exe'; Put "$c\dxgi.dll" 'game-own-dxgi'
