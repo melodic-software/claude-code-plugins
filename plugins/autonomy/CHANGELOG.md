@@ -3,6 +3,15 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.18] - 2026-09-23
+
+### Changed
+
+- The telemetry contract names Claude Code's native `tool_decision` event and its `source` attribute
+  as guardrail-firing evidence with its headless-session limits, records headless inbound trace
+  context and that the GenAI conventions have no release or schema URL (so it binds native names),
+  and names auto memory observability as a DEFERRED gap with a trigger; each verified 2026-09-23.
+
 ## [0.23.17] - 2026-09-23
 
 ### Changed
