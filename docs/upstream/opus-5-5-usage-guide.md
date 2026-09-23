@@ -55,7 +55,7 @@ G1.2, G1.4, G4.1, G2.1 to G2.3, G3.1 to G3.3, or the fallback row.
 | Guide item | Ours | Verdict |
 |---|---|---|
 | G1.1 Say what "done" looks like, then let it run | Root `AGENTS.md` stop rule; `claude-config:audit-prompting-postures` P6 (finish line and both kinds of stop); `docs-hygiene:write-for-agents`; dispatch briefs in codebase-health, batch-simplify, coupling, mutation-testing, review:fanout, course-digest, architecture:improve; implementation and planning briefs | ADOPT |
-| G1.2 Stop telling it to "think hard" | `audit-instructions` I8-f (scoped to Opus 5.5 targets, because the model-agnostic best-practices page still recommends thinking steers) and widened I8-c; `write-for-agents` tells authors to leave these lines out; the one live steer found (event-storming simulation) replaced; boris `autonomy.md` carries an amendment note | ADOPT |
+| G1.2 Stop telling it to "think hard" | `audit-instructions` I8-f (scoped to Opus 5.5 targets, because the model-agnostic best-practices page still recommends thinking steers) and widened I8-c; `write-for-agents` defers to I8-f for the target model; the one live steer found (event-storming simulation) replaced; boris `autonomy.md` carries an amendment note | ADOPT |
 | G1.3 Add to a running task | A user habit in the Claude Code UI, with no repository instruction to change | N/A |
 | G1.4 Name the design styles to leave out | `audit-instructions` I26 extended; visualization, prototype, playgrounds, education (eli5, teach), and adhd:clarify name exclusions, extend the list when the user dislikes a choice, and render again | ADOPT |
 
@@ -89,7 +89,7 @@ G1.2, G1.4, G4.1, G2.1 to G2.3, G3.1 to G3.3, or the fallback row.
 | Guide item | Ours | Verdict |
 |---|---|---|
 | Fallback on a flagged message | `opus-5-5.md` records the fallback targets; fable-5 meta-rule 3 re-resolves the adaptation chapter against the model now answering; claude-ops known-issues covers the switch-back steps | ADOPT |
-| G5.1 Don't ask it to show its reasoning in the reply | `audit-instructions` I10 widened to Opus 5.5 targets; `write-for-agents` asks for outcomes, not thinking; prompts/loops ask for a one-line rationale instead of "your reasoning" | ADOPT |
+| G5.1 Don't ask it to show its reasoning in the reply | `audit-instructions` I10 widened to Opus 5.5 targets; `write-for-agents` never asks the model to reproduce its reasoning; prompts/loops ask for a one-line rationale instead of "your reasoning" | ADOPT |
 
 ## Speed
 

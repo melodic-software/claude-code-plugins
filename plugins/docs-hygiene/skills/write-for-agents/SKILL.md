@@ -117,11 +117,12 @@ the positive alternative in the same sentence. A design exclusion is the excepti
 negative: name the specific styles to leave out ("no cream background, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 
-Ask for outcomes, not thinking. Leave out "think carefully" and "think step by step" lines: depth
-is the effort setting's job, and a quick answer is a lower effort level first, "Answer directly."
-second. Never ask the model to
-show or reproduce its reasoning in the reply, which some models decline; ask for what the reader
-needs, such as the rationale in two or three sentences or the evidence as a list.
+Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
+so follow `/claude-config:audit-instructions` criterion I8-f for the model the text will run on:
+it drops these lines for Opus 5.5, where depth is the effort setting's job and a quick answer is
+a lower effort level first, "Answer directly." second. Never ask the model to show or reproduce
+its reasoning in the reply, which some models decline; ask for what the reader needs, such as the
+rationale in two or three sentences or the evidence as a list.
 
 ## After writing
 
