@@ -270,6 +270,18 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["value"], "hidden")
         self.assertEqual(reach["causes"], ["plugin-not-enabled"])
 
+    def test_a_settled_disabled_plugin_outranks_its_frontmatter(self):
+        """A skill that never loads has no listing to misconfigure, so a
+        settled `False` is answered before the frontmatter is judged."""
+        reach = self._row(_malformed=True, _plugin_enabled=False)
+        self.assertEqual(reach["value"], "hidden")
+        entry = _skill("a:one")
+        entry["frontmatter"] = {"description": ""}
+        entry["plugin_enabled"] = False
+        entry["plugin_enabled_evidence"] = engine.NEVER_ENABLED
+        reach = self._classify_one(entry)["skills"][0]["reachability"]
+        self.assertEqual(reach["value"], "not-enabled")
+
     def _classify_one(self, entry):
         now = _utc(2026, 8, 18)
         return engine.classify(
@@ -432,44 +444,42 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["causes"], ["plugin-not-enabled"])
         self.assertEqual(reach["evidence"], paths["project"])
 
-    def test_absent_from_every_scope_is_enabled_by_default(self):
+    def test_absent_from_every_scope_is_not_enabled(self):
+        """An installed plugin no `enabledPlugins` scope names does not load:
+        `claude plugin list --json` on Claude Code 2.1.280 reports it
+        disabled. Its skills are `not-enabled`, never `model-reachable`."""
         with tempfile.TemporaryDirectory() as tmp:
             reach, _ = self._installed_reach(tmp, project={"other@mkt": False})
-        self.assertEqual(reach["value"], "model-reachable")
+        self.assertEqual(reach["value"], "not-enabled")
+        self.assertIs(self.enablement["value"], False)
+        self.assertEqual(reach["causes"], ["plugin-never-enabled"])
+        self.assertTrue(
+            reach["evidence"].startswith(engine.NEVER_ENABLED), reach["evidence"]
+        )
+        self.assertIn("claude plugin enable alpha@mkt", reach["remedy"])
+        self.assertEqual(reach["provenance"], engine.NEVER_ENABLED_PROVENANCE)
 
-    # --- defaultEnabled, the fallback when no scope names the key ------------
+    # --- defaultEnabled does not decide an absent key -------------------------
     #
-    # The official plugins reference makes `defaultEnabled` "the fallback when
-    # nothing else has decided the plugin's state", and this repository's own
-    # rule (`skills/plugins/context/sync-install-enable.md`) puts the
-    # marketplace entry's value above the plugin's own manifest field. A
-    # publisher's opt-in default used to read as enabled here, which libeled
-    # every opt-in plugin's skills as reachable.
+    # The settings and plugins references call `defaultEnabled` the fallback
+    # for a plugin no scope names. A fixture probe of `claude plugin list
+    # --json` on Claude Code 2.1.280 says otherwise: a plugin whose marketplace
+    # entry or manifest sets `defaultEnabled: true`, and no scope names, is
+    # reported disabled. The engine follows the product.
 
-    def test_a_marketplace_default_of_false_hides_when_no_scope_names_the_key(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            reach, _ = self._installed_reach(tmp, catalog=False)
-        self.assertEqual(reach["value"], "hidden")
-        self.assertEqual(reach["causes"], ["plugin-not-enabled"])
-        self.assertEqual(reach["evidence"], engine.DEFAULT_ENABLED_MARKETPLACE)
+    def test_default_enabled_never_decides_an_absent_key(self):
+        for catalog in (True, False, "no", self._NO_KEY):
+            for manifest in (True, False, self._NO_KEY):
+                with self.subTest(catalog=catalog, manifest=manifest):
+                    with tempfile.TemporaryDirectory() as tmp:
+                        reach, _ = self._installed_reach(
+                            tmp, catalog=catalog, manifest=manifest
+                        )
+                    self.assertEqual(reach["value"], "not-enabled")
+                    self.assertIs(self.enablement["value"], False)
+                    self.assertNotIn("defaultEnabled", reach["evidence"])
 
-    def test_a_manifest_default_of_false_hides_when_the_catalog_is_silent(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            reach, _ = self._installed_reach(tmp, manifest=False)
-        self.assertEqual(reach["value"], "hidden")
-        self.assertEqual(reach["evidence"], engine.DEFAULT_ENABLED_MANIFEST)
-
-    def test_both_defaults_silent_is_the_product_default_with_default_evidence(
-        self,
-    ):
-        with tempfile.TemporaryDirectory() as tmp:
-            reach, _ = self._installed_reach(tmp)
-        self.assertEqual(reach["value"], "model-reachable")
-        self.assertEqual(self.enablement, {"value": True, "evidence": "default"})
-
-    def test_an_explicit_enabled_entry_outranks_a_marketplace_default_of_false(
-        self,
-    ):
+    def test_an_explicit_enabled_entry_is_enabled_whatever_the_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             reach, paths = self._installed_reach(
                 tmp, user={"alpha@mkt": True}, catalog=False
@@ -477,33 +487,54 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["value"], "model-reachable")
         self.assertEqual(self.enablement, {"value": True, "evidence": paths["user"]})
 
-    def test_the_marketplace_default_outranks_the_manifest_default(self):
+    def test_an_explicit_false_entry_stays_hidden_under_a_default_of_true(self):
         with tempfile.TemporaryDirectory() as tmp:
-            reach, _ = self._installed_reach(tmp, catalog=True, manifest=False)
-        self.assertEqual(reach["value"], "model-reachable")
-        self.assertEqual(
-            self.enablement,
-            {"value": True, "evidence": engine.DEFAULT_ENABLED_MARKETPLACE},
-        )
-
-    def test_a_non_boolean_default_is_skipped_and_named(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            reach, _ = self._installed_reach(tmp, catalog="no", manifest=False)
+            reach, paths = self._installed_reach(
+                tmp, user={"alpha@mkt": False}, catalog=True
+            )
         self.assertEqual(reach["value"], "hidden")
-        self.assertTrue(
-            reach["evidence"].startswith(engine.DEFAULT_ENABLED_MANIFEST),
-            reach["evidence"],
-        )
-        self.assertIn("marketplace entry defaultEnabled is 'no'", reach["evidence"])
+        self.assertEqual(reach["causes"], ["plugin-not-enabled"])
+        self.assertEqual(reach["evidence"], paths["user"])
 
-    def test_an_unreadable_scope_still_outranks_a_marketplace_default(self):
+    def test_an_unreadable_scope_still_outranks_an_absent_key(self):
         """The unreadable file could have set the key at its own precedence,
-        so the catalog's default does not get to answer either."""
+        so an absence is not knowable and the answer is `unknown`."""
         with tempfile.TemporaryDirectory() as tmp:
-            reach, _ = self._installed_reach(
-                tmp, raw={"project": "{not json"}, catalog=False
+            reach, paths = self._installed_reach(
+                tmp, raw={"project": "{not json"}, catalog=True
             )
         self.assertEqual(reach["value"], "unknown")
+        self.assertEqual(reach["evidence"], paths["project"])
+
+    def test_never_enabled_evidence_names_the_scopes_not_read(self):
+        """The flag scope is never observable and the stubbed managed scope
+        was not enumerated, so neither is claimed as absent."""
+        with tempfile.TemporaryDirectory() as tmp:
+            reach, _ = self._installed_reach(tmp)
+        self.assertEqual(reach["value"], "not-enabled")
+        self.assertEqual(
+            reach["evidence"], f"{engine.NEVER_ENABLED}; scopes not read: flag, policy"
+        )
+
+    def test_a_read_empty_managed_scope_leaves_only_the_flag_unread(self):
+        """`not-enabled` does not rest on the managed stub: with the managed
+        base file enumerated and read (empty), the answer holds and only the
+        flag scope is named as unread."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = os.path.join(tmp, "managed", "managed-settings.json")
+            _write_json(base, {})
+            managed = {
+                "status": "read",
+                "lib": "n/a",
+                "base_file": base,
+                "dropin_dir": os.path.join(tmp, "managed", "managed-settings.d"),
+                "unread_surfaces": [],
+            }
+            reach, _ = self._installed_reach(tmp, managed=managed)
+        self.assertEqual(reach["value"], "not-enabled")
+        self.assertEqual(
+            reach["evidence"], f"{engine.NEVER_ENABLED}; scopes not read: flag"
+        )
 
     def test_project_true_outranks_user_false(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -576,7 +607,10 @@ class EnabledPluginsMergeTest(unittest.TestCase):
         )
         self.assertEqual(merged["plugins"]["a@m"], {"value": True, "evidence": "/p"})
         self.assertEqual(merged["plugins"]["b@m"], {"value": False, "evidence": "/u"})
-        self.assertEqual(engine.enablement_for(merged, "c@m")["evidence"], "default")
+        self.assertEqual(
+            engine.enablement_for(merged, "c@m"),
+            {"value": False, "evidence": engine.NEVER_ENABLED},
+        )
 
     def test_a_non_boolean_value_is_left_out_and_named(self):
         merged = engine.merge_enabled_plugins(
@@ -597,6 +631,7 @@ class EnabledPluginsMergeTest(unittest.TestCase):
             ]
         )
         self.assertEqual(merged["unreadable"], [])
+        self.assertEqual(merged["unread"], ["flag", "policy"])
         self.assertEqual(merged["plugins"]["a@m"]["value"], False)
 
 
@@ -608,7 +643,7 @@ class ReachabilityFixtureTest(unittest.TestCase):
     regression from a smaller install.
     """
 
-    def test_four_skill_fixture_resolves_one_of_each(self):
+    def test_five_skill_fixture_resolves_one_of_each(self):
         fixture = (
             pathlib.Path(__file__).parent.parent
             / "tests"
@@ -635,6 +670,93 @@ class ReachabilityFixtureTest(unittest.TestCase):
         self.assertEqual(counts.get("misconfigured"), 1)
         self.assertEqual(counts.get("model-reachable"), 1)
         self.assertEqual(counts.get("hidden"), 1)
+        self.assertEqual(counts.get("not-enabled"), 1)
+
+
+class NeverEnabledDemandTest(unittest.TestCase):
+    """A never-enabled plugin's skills leave the listing demand entirely."""
+
+    @staticmethod
+    def _install(tmp, plugin, description):
+        root = os.path.join(tmp, "cache", plugin)
+        skill = os.path.join(root, "skills", "one")
+        os.makedirs(skill, exist_ok=True)
+        with open(os.path.join(skill, "SKILL.md"), "w", encoding="utf-8") as h:
+            h.write(f'---\nname: one\ndescription: "{description}"\n---\n')
+        return {"scope": "user", "version": "1.0.0", "installPath": root}
+
+    def test_demand_comes_from_the_enabled_plugin_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plugins_dir = os.path.join(tmp, "cfg")
+            _write_json(
+                os.path.join(plugins_dir, "installed_plugins.json"),
+                {
+                    "version": 2,
+                    "plugins": {
+                        "alpha@mkt": [self._install(tmp, "alpha", "a" * 300)],
+                        "beta@mkt": [self._install(tmp, "beta", "b" * 700)],
+                    },
+                },
+            )
+            merged = engine.merge_enabled_plugins(
+                [
+                    {
+                        "scope": "user",
+                        "path": "/u",
+                        "status": "read",
+                        "settings": {"enabledPlugins": {"alpha@mkt": True}},
+                    }
+                ]
+            )
+            denominator, _ = engine.collect_installed(plugins_dir, None, merged)
+        listing = engine.compute_listing(
+            denominator, engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["demand_chars"], 300)
+        self.assertEqual(listing["competing_count"], 1)
+        self.assertEqual(listing["exempt_count"], 1)
+        by_name = {r["qualified_name"]: r for r in listing["skills"]}
+        self.assertEqual(by_name["beta:one"]["eligibility"], "exempt-hidden")
+        self.assertEqual(by_name["beta:one"]["demand_chars"], 0)
+
+    def test_a_never_enabled_row_takes_no_name_or_separator_from_the_floor(self):
+        """`listed` and the floor are internal, so they are pinned by
+        behavior: the enabled rows are sized so the last granted description
+        fits the remaining budget exactly, and a counted extra name would
+        push it out. Adding a long-named never-enabled row changes nothing."""
+        scores = {f"a:{i}": 9 - i for i in range(9)}
+        sizes = [1000] * 7 + [947, 2000]
+        enabled = [
+            {
+                "qualified_name": f"a:{i}",
+                "source": "plugin",
+                "frontmatter": {"description": "x" * size},
+                "plugin_enabled": True,
+            }
+            for i, size in enumerate(sizes)
+        ]
+        never = {
+            "qualified_name": "a-never-enabled-plugin-with-a-long-name:skill",
+            "source": "plugin",
+            "frontmatter": {"description": "y" * 1000},
+            "plugin_enabled": False,
+            "plugin_enabled_evidence": engine.NEVER_ENABLED,
+        }
+        cfg = engine.ListingConfig(context_window_tokens=200_000)
+        base = engine.compute_listing(enabled, cfg, scores)
+        mixed = engine.compute_listing(enabled + [never], cfg, scores)
+
+        def verdicts(listing):
+            return {
+                r["qualified_name"]: r["verdict"]
+                for r in listing["skills"]
+                if r["eligibility"] == "competing"
+            }
+
+        self.assertEqual(verdicts(base)["a:7"], "likely-retained")
+        self.assertEqual(verdicts(mixed), verdicts(base))
+        self.assertEqual(mixed["starved_count"], base["starved_count"])
+        self.assertEqual(mixed["demand_chars"], base["demand_chars"])
 
 
 class BudgetArithmeticTest(unittest.TestCase):
@@ -1169,7 +1291,7 @@ class ExemptionTest(unittest.TestCase):
         entry = _skill("off:one")
         entry["frontmatter"] = {"description": "x" * 1000}
         entry["plugin_enabled"] = False
-        entry["plugin_enabled_evidence"] = engine.DEFAULT_ENABLED_MARKETPLACE
+        entry["plugin_enabled_evidence"] = "/repo/.claude/settings.json"
         model = engine.classify(
             denominator=[entry],
             events=[],
@@ -1186,6 +1308,26 @@ class ExemptionTest(unittest.TestCase):
         self.assertIn(
             "disabled-plugin skills spend no budget", engine._render_markdown(model)
         )
+
+    def test_a_never_enabled_row_is_exempt_in_the_rendered_report_too(self):
+        now = _utc(2026, 8, 18)
+        entry = _skill("off:one")
+        entry["frontmatter"] = {"description": "x" * 1000}
+        entry["plugin_enabled"] = False
+        entry["plugin_enabled_evidence"] = engine.NEVER_ENABLED
+        model = engine.classify(
+            denominator=[entry],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+        )
+        row = model["skills"][0]
+        self.assertEqual(row["reachability"]["value"], "not-enabled")
+        self.assertEqual(row["starvation"]["eligibility"], "exempt-hidden")
+        self.assertEqual(row["starvation"]["demand_chars"], 0)
+        self.assertEqual(model["listing"]["exempt_count"], 1)
 
     def test_disable_model_invocation_contributes_zero(self):
         listing = self._listing(
@@ -1310,7 +1452,7 @@ class RenderTablesTest(unittest.TestCase):
     def test_next_actions_names_only_the_conditions_present(self):
         hidden = self._described("off:one", 50)
         hidden["plugin_enabled"] = False
-        hidden["plugin_enabled_evidence"] = engine.DEFAULT_ENABLED_MARKETPLACE
+        hidden["plugin_enabled_evidence"] = "/repo/.claude/settings.json"
         md = engine._render_markdown(self._model([hidden, _skill("a:one")]))
         # Nothing is withheld in this run, so the section runs to the end.
         actions = md[md.index("## Next actions") :]
@@ -1318,6 +1460,25 @@ class RenderTablesTest(unittest.TestCase):
         self.assertIn("enable the hidden plugins", actions)
         self.assertNotIn("Trim", actions)
         self.assertNotIn("collect usage", actions)
+
+    def test_never_enabled_plugins_are_counted_apart_and_not_a_fix(self):
+        """A never-enabled plugin is the operator's install-time choice, not
+        a defect: it is counted on its own line and the run recommends
+        nothing for it."""
+        never = [self._described(f"off:s{i}", 50) for i in range(2)]
+        for row in never:
+            row["plugin_enabled"] = False
+            row["plugin_enabled_evidence"] = engine.NEVER_ENABLED
+        md = engine._render_markdown(
+            self._model(never + [self._described("a:one", 50)])
+        )
+        reach = self._section(md, "## Reachability", "## Listing budget")
+        self.assertIn("not-enabled 2", reach)
+        self.assertNotIn("hidden", reach)
+        self.assertIn("Not enabled: 1 installed plugin (2 skills)", reach)
+        self.assertNotIn("claude plugin enable", md)
+        self.assertNotIn("enable the hidden plugins", md)
+        self.assertIn("Nothing to fix from this run.", md)
 
     def _axes_model(self, entries, pins=None, env=None, layers=None):
         base = {
@@ -2525,6 +2686,11 @@ class CollectInstalledTest(unittest.TestCase):
         self.assertEqual([e["qualified_name"] for e in denominator], ["alpha:one"])
         # Read through the catalog path, NOT the (bogus) cached installPath.
         self.assertEqual(denominator[0]["frontmatter"]["description"], "does a")
+        # No scope was consulted, so nothing names the plugin: not enabled.
+        self.assertIs(denominator[0]["plugin_enabled"], False)
+        self.assertEqual(
+            denominator[0]["plugin_enabled_evidence"], engine.NEVER_ENABLED
+        )
 
     def test_a_missing_or_unreadable_config_dir_is_empty_not_an_exception(self):
         denominator, resolution = engine.collect_installed("/nonexistent/dir/here")

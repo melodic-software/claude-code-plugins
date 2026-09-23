@@ -1,5 +1,5 @@
 {
-  "_comment": "Phase 2 fixture of KNOWN composition: exactly one skill per reachability value. Exact counts are asserted against this rather than against the live machine, because the denominator is the operator's enabled fleet and a live count cannot distinguish a regression from a smaller install.",
+  "_comment": "Phase 2 fixture of KNOWN composition: exactly one skill per reachability value (hidden is a settled false from a scope file; not-enabled is an installed plugin no scope names). Exact counts are asserted against this rather than against the live machine, because the denominator is the operator's enabled fleet and a live count cannot distinguish a regression from a smaller install.",
   "now": "2026-08-18T00:00:00+00:00",
   "horizons": {
     "native": "2025-08-18T00:00:00+00:00"
@@ -32,6 +32,13 @@
       "plugin_enabled": false,
       "plugin_enabled_evidence": "/fixture/.claude/settings.json",
       "frontmatter": { "description": "Hidden by a disabled plugin." }
+    },
+    {
+      "qualified_name": "never:enabled",
+      "source": "plugin",
+      "plugin_enabled": false,
+      "plugin_enabled_evidence": "no enabledPlugins scope names this plugin",
+      "frontmatter": { "description": "Installed, but no scope ever enabled it." }
     }
   ]
 }
