@@ -99,7 +99,7 @@ LLMs have natural behavioral defaults that actively **oppose** what Brandolini's
 **LLM default:** Plan the output. Think about the full scope before writing. Produce organized, categorized results.
 **Book requires:** "The structure must emerge from the team's hard work", not from upfront planning. Chaotic Exploration is organic: people write what comes to mind, influenced by what they see on the wall. The facilitator provides structure AFTER chaos, not before.
 
-**Corrective prompt:** "Place events in the order they occur to you, starting with the first one your role would name, and let each event suggest the next. Leave them unsorted and uncategorized: ordering and grouping are Enforce Timeline work, which comes later."
+**Corrective prompt:** "Place events in the order they occur to you, starting with the first one your role would name, and let each event suggest the next. Related events may cluster as they come, but decide no categories up front and leave the whole unsorted: ordering and categorizing are Enforce Timeline work, which comes later."
 
 #### 9. Helpful Gap-Filling → Genuine Blind Spots
 

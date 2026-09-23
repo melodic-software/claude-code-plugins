@@ -9,7 +9,8 @@ All notable changes to the `event-storming` plugin are documented here. Format f
 
 - **The Structured Thinking corrective prompt asks for output order, not for no planning.** On
   models whose thinking is always on, "do not plan" cannot be followed; the prompt now asks
-  personas to place events unsorted and uncategorized, leaving ordering to Enforce Timeline.
+  personas to decide no categories up front and leave the whole unsorted, while related events may
+  still cluster as correction #4 asks; ordering and categorizing stay with Enforce Timeline.
 - **Facilitator re-prompts re-send the specific violated correction with its reason**, instead of
   escalating to "stronger corrections", which over-applies on current models.
 
