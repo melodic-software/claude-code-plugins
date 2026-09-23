@@ -4573,6 +4573,25 @@ else
   fail "R20b: the workspace-local install should run (saw: $ml_log): $out"
 fi
 
+# R20c. The local install needs no npx: with every PATH entry holding npx
+#       dropped, check 6 still lints instead of reporting npx missing.
+no_npx_path=""
+IFS=: read -ra path_dirs <<<"$PATH"
+for d in "${path_dirs[@]}"; do
+  [[ -e "$d/npx" ]] || no_npx_path="${no_npx_path:+$no_npx_path:}$d"
+done
+rm -f "$XREPO/npx.log"
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_SKIP_MARKDOWNLINT \
+    PATH="$no_npx_path" bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+ml_log="$(cat "$XREPO/npx.log" 2>/dev/null)"
+if [[ $rc -eq 0 && "$ml_log" == local\|* ]] && ! grep -q 'npx not found' <<<"$out"; then
+  pass "R20c: a local markdownlint-cli2 runs with no npx on PATH"
+else
+  fail "R20c: the local install should run without npx (saw: $ml_log): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
