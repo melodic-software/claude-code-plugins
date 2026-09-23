@@ -11,7 +11,9 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   above its working directory, so a root-mode run over a subdirectory such as `plugins/<x>/skills`
   linted with the tool's defaults and reported spurious `MD013`, `MD041` and `MD060` failures.
   Check 6 now runs it from the top level of the git repo holding the skill; a skill in no repo is
-  linted where the checker stands, as before. The Gotcha and code comments that claimed root mode
+  linted where the checker stands, as before. The nearest `node_modules/.bin/markdownlint-cli2` above
+  the skill is used when present, so a workspace-local install stays visible; `npx` is the fallback.
+  The Gotcha and code comments that claimed root mode
   already did this are corrected (#4335).
 
 ## [0.24.1] - 2026-09-21

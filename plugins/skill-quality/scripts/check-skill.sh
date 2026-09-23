@@ -1030,7 +1030,19 @@ elif command -v npx >/dev/null 2>&1; then
   else
     ML_CWD=.
   fi
-  if ML_OUT="$(cd -- "$ML_CWD" && npx --no-install markdownlint-cli2 "$ML_FILE" 2>&1)"; then
+  # Leaving the skill's directory hides a workspace-local install (e.g.
+  # packages/foo/node_modules) from npx, so take the nearest install above the
+  # skill first and fall back to npx only when there is none.
+  ML_CMD=(npx --no-install markdownlint-cli2)
+  ml_d="$(CDPATH='' cd -- "$SKILL_DIR" && pwd)"
+  while [[ -n "$ml_d" ]]; do
+    if [[ -x "$ml_d/node_modules/.bin/markdownlint-cli2" ]]; then
+      ML_CMD=("$ml_d/node_modules/.bin/markdownlint-cli2")
+      break
+    fi
+    ml_d="${ml_d%/*}"
+  done
+  if ML_OUT="$(cd -- "$ML_CWD" && "${ML_CMD[@]}" "$ML_FILE" 2>&1)"; then
     note "markdownlint clean"
   elif grep -qE '^[^[:space:]]+:[0-9]+' <<<"$ML_OUT"; then
     err "markdownlint failed:
