@@ -47,9 +47,9 @@ vocabulary):
 
 Both layers sit behind the catalog's policy-level **quotation exemption**: no rule scans fenced
 code or inline code spans, wording rules also skip blockquotes and double-quoted spans, and
-typography rules (em dashes, emoji and other byte residue) still scan blockquotes and
-double-quoted spans. A document that quotes a wording tell to document it, and a changelog that
-backticks the phrase a fix removed, stay marker-free by construction.
+typography rules (em dashes, emoji, paste residue, citation tokens, tracking params) still scan
+blockquotes and double-quoted spans. A document that quotes a wording tell to document it, and a
+changelog that backticks the phrase a fix removed, stay marker-free by construction.
 
 ## Action router
 
@@ -92,7 +92,7 @@ backticks the phrase a fix removed, stay marker-free by construction.
 5. **Persist the findings file** per [`context/persist-findings.md`](context/persist-findings.md)
    whenever the audit examined tracked files: fetch the producer contract first and refuse to
    write when unreachable (report-only is then the outcome, and say so). Script findings only.
-   A non-repository run examined no tracked files, so it is report-only.
+   A non-repository run examined no tracked files, so it writes no findings file.
 6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
    run tripped over deliberate house style (heavy declined counts or a flooded rule).
    `review:fanout fix` routes the whole file: it hands every row but `rule-utm-params` to this
@@ -115,12 +115,18 @@ not a repository, stop and ask for an explicit path instead of guessing a scope.
 is outside a repository, the whole run follows these rules:
 
 - Pass targets to the detector as absolute paths, and use the `file=` path it reports as the
-  path everywhere else in the run.
+  path everywhere else in the run. That path is relative to the session's project directory
+  when the target sits under it, and absolute otherwise.
+- A directory target expands to every `*.md` beneath it, untracked and vendored files included,
+  and the detector prints a "could not confirm a work tree" line on stderr. Both are expected.
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
   inclusion.
 - Config layers come from the session's project directory and the user-global file, not from
-  the target. `--show-config` names the layers in effect.
-- Report only: no findings file is written, and the fix flow's closing re-emit is skipped.
+  the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
+  applies only when it matches the path as the detector sees it.
+- No findings file: none is written, and the fix flow's closing re-emit is skipped.
+- A `fix` run has no git history to undo an edit. Copy each file to the session scratchpad
+  before editing it, name the copy in the per-file report, and revert from it.
 - Rubric batch lists and result files go under the session scratchpad, else the system temp
   directory, per [`context/rubric-fanout.md`](context/rubric-fanout.md).
 - `rule-style-shift` is not evaluable, because there is no history to compare against. Report
@@ -180,8 +186,9 @@ carries the reason.
   verdicts reach the human report only (V1 boundary, revisit with field history).
 - **Does not scan code comments** (`code-tidying:audit-comment-residue` owns them), commit
   messages, PR bodies, or text outside markdown files; structural markdown (heading
-  hierarchy, multiple H1, title case) belongs to the markdown linter lane. Reshaping those commit messages, PR bodies
-  and other text so they lead with the point and carry fewer words is `/writing:be-concise`,
+  hierarchy, multiple H1, title case) belongs to the markdown linter lane. Reshaping those
+  commit messages, PR bodies and other text so they lead with the point and carry fewer words
+  is `/writing:be-concise`,
   which owns that doctrine when the `writing` plugin is installed; without it, say the text
   sits outside this skill's regime rather than auditing it anyway.
 - **Does not weaken rules to pass its own corpus**: a deliberate house style is config in the

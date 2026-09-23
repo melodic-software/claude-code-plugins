@@ -16,8 +16,8 @@ pass therefore fans out, persists as it goes, and resumes from the last complete
    list; never estimate.
 3. Write each batch's file list to the scratchpad as `batch-NN.txt`, zero-padded, one
    repo-relative path per line. For a non-repository target (SKILL.md "Non-repository
-   targets"), write absolute paths instead, since there is no repository root to be relative
-   to; the same spelling goes in the `## <path>` headings below.
+   targets"), write each path as the detector's `file=` field spells it, so script and rubric
+   findings for one file share a key; the same spelling goes in the `## <path>` headings below.
 
 ## Dispatch
 
@@ -31,8 +31,8 @@ Each subagent receives:
 - the result path it must write to (below);
 - the finding shape: `- L<line> rule-<id>: "<verbatim quote, max 25 words>" -- <reason, max 20
   words>`, grouped under `## <path>` headings in the batch list's spelling, files without
-  findings omitted,
-  with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:` lines at the top;
+  findings omitted, with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:`
+  lines at the top;
 - the boundary rules: skip fenced code, blockquotes, double-quoted spans, inline code, YAML
   frontmatter, and table cell literals except for `rule-unusual-tables`; a file that quotes a
   tell to document it is not a finding; cap 6 findings per file and 30 per batch, worst first.

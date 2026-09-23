@@ -132,9 +132,10 @@ ignore-marked lines, whatever its class. Each rule carries a class:
   It scans quoted material too; MOS makes the same split by permitting typographic
   normalization inside quotations while forbidding wording edits.
 
-Known limitation: the double-quoted-span exemption is per-line. A quotation wrapped across a
-line break escapes it; the closures are rewrapping the quote onto one line, the blockquote
-form, or the fenced marker.
+Known limitation: the double-quoted-span exemption covers straight `"` only, and a span open at
+a blank line or at the start of a new block (heading, list item, table row) closes there. A
+quotation that crosses one of those boundaries escapes the exemption; the closures are the
+blockquote form or the fenced marker.
 
 The class assignments live in the detector's rule registry. The exemption moves candidates from
 findings to declines and never changes a rule's crosswalk tier.
