@@ -37,9 +37,9 @@ it with the right tool instead of a rewrite:
    Residue closure for a wording tell: the `ai-slop-ignore-start/end` pair with a reason, only
    where the quote form escapes the exemption (single-quoted, or unmarked quoted prose). A quote
    carrying a typography tell (an em dash) needs a marker in any form: the line marker on the
-   same line, which works on a `> ` line, or a `-start`/`-end` pair on lines outside the
-   blockquote. A `> `-prefixed start or end line matches neither marker form, and a
-   `> `-prefixed end also fails to close a block opened outside, which declines the rest of
+   same line, which works on a blockquote line, or a `-start`/`-end` pair on lines outside the
+   blockquote. A start or end line prefixed with `>` matches neither marker form, and such an
+   end line also fails to close a block opened outside, which declines the rest of
    the file.
 2. **Text that documents the tell it bans** (style guides, forbidden-phrase lists, detection
    criteria, before/after examples, changelog entries citing the phrase a fix removed). The

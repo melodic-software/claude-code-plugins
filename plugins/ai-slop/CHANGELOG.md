@@ -19,7 +19,7 @@
   wherever blockquoted, double-quoted or backticked, and SKILL.md said typography rules scan
   inline code. Every rule skips inline code; typography rules still scan blockquotes and double
   quotes. The guide now says a quoted em dash needs a marker, and that `-start`/`-end` lines
-  prefixed with `> ` do not work. New `detect.test.sh` cases pin this existing behavior.
+  prefixed with the blockquote `>` do not work. New `detect.test.sh` cases pin this existing behavior.
 
 ## [0.7.0] - 2026-09-23
 
