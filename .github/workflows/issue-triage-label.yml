@@ -17,7 +17,7 @@ jobs:
   issue-triage-label:
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
-    uses: melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3 # v0.24.0
+    uses: melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@ac062650c46005edb4787aff378347746bf63804 # v0.27.0
     with:
       runner: ubuntu-24.04
       label: needs-triage
