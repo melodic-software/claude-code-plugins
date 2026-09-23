@@ -900,7 +900,9 @@ function Do-Capture($root) {
         $j = if ($old) { $old } elseif (@($layers | Where-Object source -eq 'shipped').Count) { [pscustomobject]@{} } else {
             [pscustomobject]@{
                 title = (Get-Launcher $root).name
-                match = if ($app = SteamAppId $root) { @{ steamAppId = $app } } else { @{ exe = @(Get-ChildItem -LiteralPath $root -Filter *.exe -File | ForEach-Object Name) } }
+                # One exe only: a shared helper such as UnityCrashHandler64.exe would match other games.
+                # ponytail: the largest exe is taken as the game's; capture prints it for the user to check.
+                match = if ($app = SteamAppId $root) { @{ steamAppId = $app } } else { @{ exe = @(Get-ChildItem -LiteralPath $root -Filter *.exe -File | Sort-Object Length -Descending | Select-Object -First 1 | ForEach-Object Name) } }
             }
         }
         $j | Add-Member -Force -NotePropertyName ini -NotePropertyValue @($ini.Values)
@@ -910,6 +912,7 @@ function Do-Capture($root) {
         New-Item -ItemType Directory -Force -Path (Split-Path $lf -Parent) | Out-Null
         $j | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $lf -Encoding utf8
         "captured $($took.Count) key(s) into local preset '$key' -> $lf"
+        if ($j.match.exe) { "  matches on $($j.match.exe); check it is the game's executable" }
         $took | ForEach-Object { "  $_" }
     }
     if ($left) { 'not captured:'; $left | ForEach-Object { "  $_" } }
@@ -1576,7 +1579,7 @@ function Do-Selftest {
         Assert 'WindowsApps: apply refuses and writes nothing' ((Throws { Do-Apply $wx } '*WindowsApps*') -and (SameTree (Tree $wx) $before) -and -not (Test-Path -LiteralPath (StateDir $wx)))
         $wxa = (Do-Assess $wx) | ConvertFrom-Json
         Assert 'WindowsApps: assess verdict refused, launcher Xbox app' ($wxa.verdict -eq 'refused' -and $wxa.launcher -eq 'Xbox app')
-        $xg = "$($d1)Games\Forza\Content"; Put "$xg\forza.exe" 'exe'; Put "$xg\nvngx_dlss.dll" 'dlss'
+        $xg = "$($d1)Games\Forza\Content"; Put "$xg\forza.exe" 'game-exe'; Put "$xg\CrashHandler.exe" 'c'; Put "$xg\nvngx_dlss.dll" 'dlss'
         $before = Tree $xg
         Ack $xg
         Do-Apply $xg | Out-Null
@@ -1588,7 +1591,7 @@ function Do-Selftest {
         $script:Preset = 'forza-fx'
         Do-Capture $xg | Out-Null
         $fj = LoadJson "$tmp\data\presets\forza-fx.json"
-        Assert 'capture under a new key writes a matchable local preset' ("$($fj.match.exe)" -eq 'forza.exe' -and $fj.title -eq 'Forza Fixture' -and @($fj.ini).Count -eq 1 -and $fj.ini[0].key -eq 'MaxRatio' -and $fj.ini[0].why -like 'captured *' -and (Find-Preset $xg) -eq 'forza-fx')
+        Assert 'capture under a new key writes a local preset matching only the game exe, not a helper' ("$($fj.match.exe)" -eq 'forza.exe' -and $fj.title -eq 'Forza Fixture' -and @($fj.ini).Count -eq 1 -and $fj.ini[0].key -eq 'MaxRatio' -and $fj.ini[0].why -like 'captured *' -and (Find-Preset $xg) -eq 'forza-fx')
         $script:Preset = $null
         Do-Remove $xg | Out-Null
         Assert 'Xbox remove is byte-exact' (SameTree (Tree $xg) $before)

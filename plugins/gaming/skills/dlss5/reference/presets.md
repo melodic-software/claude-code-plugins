@@ -179,7 +179,9 @@ game's local per-game preset:
    `AutoCapture`, with a reminder to set it back to `false`.
 
 The preset key is the one the manifest recorded, else the game's `match`, else `-Preset <key>`
-for a new file, which then matches on the Steam app id or the exe names. A `-Preset` that names
+for a new file, which then matches on the Steam app id, else on the largest exe in the folder
+alone (a shared helper such as a crash handler would match other games). `capture` prints that
+exe name; check it. A `-Preset` that names
 another game's preset is refused. `capture` reads the game folder and writes only
 `presets\<key>.json` in the data directory. A base edited after the apply does not leak into the <!-- portability-ok: Windows path, not a shell regex -->
 capture, because the comparison is against what the apply wrote.
