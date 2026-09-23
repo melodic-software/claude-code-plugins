@@ -120,13 +120,15 @@ is outside a repository, the whole run follows these rules:
 - A directory target expands to every `*.md` beneath it, untracked and vendored files included,
   and the detector prints a "could not confirm a work tree" line on stderr. Both are expected.
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
-  inclusion.
+  inclusion. The detector sorts its own target list by path, so apply this order to the report
+  and the rubric batches, not to the detector's output.
 - Config layers come from the session's project directory and the user-global file, not from
   the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
   applies only when it matches the path as the detector sees it.
 - No findings file: none is written, and the fix flow's closing re-emit is skipped.
 - A `fix` run has no git history to undo an edit. Copy each file to the session scratchpad
-  before editing it, name the copy in the per-file report, and revert from it.
+  before editing it and name the copy in the per-file report. Restore from it only the hunks
+  verification flags; an edit that passes stays.
 - Rubric batch lists and result files go under the session scratchpad, else the system temp
   directory, per [`context/rubric-fanout.md`](context/rubric-fanout.md).
 - `rule-style-shift` is not evaluable, because there is no history to compare against. Report
