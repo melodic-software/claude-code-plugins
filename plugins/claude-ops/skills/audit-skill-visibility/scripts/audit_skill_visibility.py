@@ -52,6 +52,8 @@ MIN_PYTHON = (3, 11)
 # 1.1.0: `listing` gains `inputs` (settings and environment provenance) and,
 # when no window or bytes-per-token pin is given, a `band` array with the
 # top-level numbers nulled. Every 1.0.0 field is still present.
+# 1.3.0: reachability gains `not-enabled` (cause `plugin-never-enabled`);
+# consumers keyed on `hidden` for "plugin off" must also accept it.
 SCHEMA_VERSION = "1.3.0"
 
 
@@ -594,8 +596,8 @@ def resolve_installed(
 
 def collect_installed(
     plugins_dir: str,
-    current_project: str | None = None,
-    enabled_plugins: dict | None = None,
+    current_project: str | None,
+    enabled_plugins: dict,
 ) -> tuple[list[dict], dict]:
     """Read the installed manifest + marketplace registry into a denominator.
 
@@ -603,9 +605,9 @@ def collect_installed(
     can surface superseded and inapplicable records rather than absorbing them.
 
     `enabled_plugins` is `merge_enabled_plugins` over the settings layers; it
-    decides `plugin_enabled` per `plugin@marketplace` key. Omitted, no scope
-    was consulted, so no scope names any plugin and every one resolves to
-    not enabled, with `NEVER_ENABLED` as its evidence.
+    decides `plugin_enabled` per `plugin@marketplace` key. It is required:
+    a key no scope names resolves to not enabled, so a caller that skipped
+    the settings read would report every plugin off.
     """
 
     def _load_json(path: str) -> dict:
@@ -639,11 +641,10 @@ def collect_installed(
     resolution = resolve_installed(
         _load("installed_plugins.json"), marketplaces, current_project
     )
-    enablement = enabled_plugins or merge_enabled_plugins([])
     denominator: list[dict] = []
     for row in resolution["plugins"]:
         key = f"{row['plugin']}@{row['marketplace']}"
-        state = enablement_for(enablement, key)
+        state = enablement_for(enabled_plugins, key)
         denominator += collect_fleet_at(
             row["root"], row["plugin"], state["value"], state["evidence"], key
         )
@@ -974,13 +975,16 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
     }
 
 
-# The evidence a key no readable scope carries resolves to, and the
-# provenance of the rule behind it.
+# The evidence a key no readable scope carries resolves to, the provenance
+# of the rule behind it, and the shape a key must have before it is
+# interpolated into a suggested shell command.
 NEVER_ENABLED = "no enabledPlugins scope names this plugin"
 NEVER_ENABLED_PROVENANCE = (
     "observed: claude plugin list --json fixture probe, Claude Code 2.1.280; "
     "the docs state otherwise"
 )
+UNREAD_MARKER = "; scopes not read: "
+SAFE_PLUGIN_KEY = re.compile(r"[A-Za-z0-9._-]+@[A-Za-z0-9._-]+")
 
 
 def enablement_for(merged: dict, key: str) -> dict:
@@ -1010,7 +1014,7 @@ def enablement_for(merged: dict, key: str) -> dict:
         return {"value": None, "evidence": ", ".join(merged["unreadable"])}
     evidence = NEVER_ENABLED
     if merged.get("unread"):
-        evidence += f"; scopes not read: {', '.join(merged['unread'])}"
+        evidence += UNREAD_MARKER + ", ".join(merged["unread"])
     return {"value": False, "evidence": evidence}
 
 
@@ -1411,8 +1415,9 @@ def _eligibility(entry: dict) -> str:
     of 213 skills -- counting them would inflate the overflow figure enough to
     flip the headline verdict. A skill whose owning plugin resolves to
     `plugin_enabled: False` is never loaded at all, so its description spends
-    nothing either; only a settled `False` exempts, because `None` (not
-    assessed, or undetermined) is not hidden and keeps competing.
+    nothing either. `exempt-hidden` covers both not-loading answers, `hidden`
+    and `not-enabled`; only a settled not-loading answer exempts, because
+    `None` (not assessed, or undetermined) keeps competing.
     `skillOverrides` is not a fourth class: it never applies to plugin skills,
     the only kind this audit enumerates.
     """
@@ -1751,8 +1756,9 @@ def _not_loaded(entry: dict, evidence: str) -> dict:
     plugin false (`hidden`), or no scope names it at all (`not-enabled`).
     """
     if evidence.startswith(NEVER_ENABLED):
-        plugin = entry["qualified_name"].partition(":")[0]
-        key = entry.get("plugin_key") or f"{plugin}@<marketplace>"
+        key = entry.get("plugin_key") or ""
+        if not SAFE_PLUGIN_KEY.fullmatch(key):
+            key = "<plugin>@<marketplace>"
         return {
             "value": "not-enabled",
             "causes": ["plugin-never-enabled"],
@@ -2296,12 +2302,28 @@ def _render_reachability(skills: list[dict]) -> list[str]:
     never = [r for r in skills if r["reachability"]["value"] == "not-enabled"]
     if never:
         plugins = {r["qualified_name"].partition(":")[0] for r in never}
+        # The flag scope is never readable from outside a session; any other
+        # unread scope (managed policy that could not be enumerated) might
+        # enable these, which the line states without changing the verdict.
+        unread = {
+            name: None
+            for r in never
+            for name in str(r["reachability"]["evidence"])
+            .partition(UNREAD_MARKER)[2]
+            .split(", ")
+            if name and name != "flag"
+        }
+        qualifier = (
+            f", unless a scope not read ({', '.join(unread)}) enables them"
+            if unread
+            else ""
+        )
         lines += [
             f"Not enabled: {len(plugins)} installed "
             f"{_plural(len(plugins), 'plugin')} ({len(never)} "
             f"{_plural(len(never), 'skill')}) that no `enabledPlugins` scope "
-            "names. They do not load, so they spend no listing budget and are "
-            "not a finding.",
+            f"names{qualifier}. They do not load, so they spend no listing "
+            "budget and are not a finding.",
             "",
         ]
     lines += _render_misconfigured(skills)

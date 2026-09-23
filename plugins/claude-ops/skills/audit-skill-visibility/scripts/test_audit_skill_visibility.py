@@ -270,6 +270,18 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["value"], "hidden")
         self.assertEqual(reach["causes"], ["plugin-not-enabled"])
 
+    def test_an_unsafe_plugin_key_is_never_interpolated_into_the_remedy(self):
+        entry = _skill("a:one")
+        entry["frontmatter"] = {"description": "d"}
+        entry["plugin_enabled"] = False
+        entry["plugin_enabled_evidence"] = engine.NEVER_ENABLED
+        entry["plugin_key"] = "a;touch x`id`@mkt"
+        reach = self._classify_one(entry)["skills"][0]["reachability"]
+        self.assertEqual(reach["value"], "not-enabled")
+        self.assertIn("claude plugin enable <plugin>@<marketplace>", reach["remedy"])
+        self.assertNotIn(";", reach["remedy"])
+        self.assertNotIn("`id`", reach["remedy"])
+
     def test_a_settled_disabled_plugin_outranks_its_frontmatter(self):
         """A skill that never loads has no listing to misconfigure, so a
         settled `False` is answered before the frontmatter is judged."""
@@ -671,6 +683,21 @@ class ReachabilityFixtureTest(unittest.TestCase):
         self.assertEqual(counts.get("model-reachable"), 1)
         self.assertEqual(counts.get("hidden"), 1)
         self.assertEqual(counts.get("not-enabled"), 1)
+
+    def test_the_fixture_never_enabled_row_carries_the_engine_marker(self):
+        """A rewording of `NEVER_ENABLED` must not silently turn this row
+        into `hidden`."""
+        fixture = (
+            pathlib.Path(__file__).parent.parent
+            / "tests"
+            / "fixtures"
+            / "fleet-reachability.json"
+        )
+        bundle = json.loads(fixture.read_text(encoding="utf-8"))
+        row = next(
+            r for r in bundle["denominator"] if r["qualified_name"] == "never:enabled"
+        )
+        self.assertTrue(row["plugin_enabled_evidence"].startswith(engine.NEVER_ENABLED))
 
 
 class NeverEnabledDemandTest(unittest.TestCase):
@@ -1476,9 +1503,31 @@ class RenderTablesTest(unittest.TestCase):
         self.assertIn("not-enabled 2", reach)
         self.assertNotIn("hidden", reach)
         self.assertIn("Not enabled: 1 installed plugin (2 skills)", reach)
-        self.assertNotIn("claude plugin enable", md)
-        self.assertNotIn("enable the hidden plugins", md)
-        self.assertIn("Nothing to fix from this run.", md)
+        actions = md[md.index("## Next actions") :].split("\n## ")[0]
+        self.assertEqual(
+            actions.strip(), "## Next actions\n\nNothing to fix from this run."
+        )
+        self.assertNotIn("scope not read", reach)
+
+    def _never_enabled_md(self, evidence):
+        row = self._described("off:s0", 50)
+        row["plugin_enabled"] = False
+        row["plugin_enabled_evidence"] = evidence
+        return engine._render_markdown(self._model([row]))
+
+    def test_a_never_enabled_line_names_unread_scopes_beyond_the_flag(self):
+        """A managed scope that could not be read might enable the plugin, so
+        the line says so; the verdict stays not-enabled rather than unknown."""
+        md = self._never_enabled_md(
+            f"{engine.NEVER_ENABLED}; scopes not read: flag, policy"
+        )
+        self.assertIn("not-enabled 1", md)
+        self.assertIn("unless a scope not read (policy) enables them", md)
+
+    def test_an_unread_flag_scope_alone_adds_no_qualifier(self):
+        md = self._never_enabled_md(f"{engine.NEVER_ENABLED}; scopes not read: flag")
+        self.assertIn("Not enabled: 1 installed plugin (1 skill)", md)
+        self.assertNotIn("scope not read", md)
 
     def _axes_model(self, entries, pins=None, env=None, layers=None):
         base = {
@@ -2679,7 +2728,9 @@ class CollectInstalledTest(unittest.TestCase):
                     },
                 },
             )
-            denominator, resolution = engine.collect_installed(plugins_dir)
+            denominator, resolution = engine.collect_installed(
+                plugins_dir, None, engine.merge_enabled_plugins([])
+            )
 
         self.assertEqual(resolution["plugins_resolved"], 1)
         self.assertEqual(resolution["manifest_entries"], 1)
@@ -2693,9 +2744,17 @@ class CollectInstalledTest(unittest.TestCase):
         )
 
     def test_a_missing_or_unreadable_config_dir_is_empty_not_an_exception(self):
-        denominator, resolution = engine.collect_installed("/nonexistent/dir/here")
+        denominator, resolution = engine.collect_installed(
+            "/nonexistent/dir/here", None, engine.merge_enabled_plugins([])
+        )
         self.assertEqual(denominator, [])
         self.assertEqual(resolution["plugins_resolved"], 0)
+
+    def test_enablement_is_a_required_argument(self):
+        """No silent fallback: a caller that forgets the settings merge would
+        otherwise report every plugin as not enabled."""
+        with self.assertRaises(TypeError):
+            engine.collect_installed("/nonexistent/dir/here")
 
     def test_another_projects_install_is_excluded_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2719,7 +2778,9 @@ class CollectInstalledTest(unittest.TestCase):
                 },
             )
             denominator, resolution = engine.collect_installed(
-                plugins_dir, current_project=os.path.join(tmp, "mine")
+                plugins_dir,
+                os.path.join(tmp, "mine"),
+                engine.merge_enabled_plugins([]),
             )
 
         self.assertEqual(denominator, [])

@@ -21,8 +21,8 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 `skillOverrides` under "Override skill visibility". This skill audits every way a
 plugin skill loses it, and `skillOverrides` is not one of those ways: plugin skills
 are governed by `enabledPlugins`, and a plugin it does not set to `true` loads none
-of the skills it ships. `skillOverrides` governs non-plugin skills, which this audit does not
-enumerate, so it is never cited here as a cause. Verified 2026-09-11 against
+of the skills it ships. `skillOverrides` governs non-plugin skills, which this
+audit does not enumerate, so it is never cited here as a cause. Verified 2026-09-11 against
 <https://code.claude.com/docs/en/skills> ("Plugin skills are not affected by
 `skillOverrides`") and Claude Code 2.1.263, whose listing resolver returns `on`
 for every plugin-sourced skill before it reads the override map; recheck when
@@ -265,10 +265,10 @@ means you type it by design, `hidden` means an `enabledPlugins` entry sets the
 owning plugin to `false`, `not-enabled` means the plugin is installed but no
 scope names it, so it never loads, and `misconfigured` is a fix. A skill whose
 plugin settles to not loading is `hidden` or `not-enabled` whatever its
-frontmatter says, since it has no listing entry to misconfigure. `unknown` is reserved for a settings file the reader
-could not parse, and `not-assessed` is the checkout-mode answer, where there is
-no install to read enablement from. Each carries its causes, evidence, and a
-remedy.
+frontmatter says, since it has no listing entry to misconfigure. `unknown` is
+reserved for a settings file the reader could not parse, and `not-assessed` is
+the checkout-mode answer, where there is no install to read enablement from.
+Each carries its causes, evidence, and a remedy.
 
 **The reachability causes are not an official list.** No such list is published;
 this catalogue is assembled from scattered documentation plus strings in the
@@ -291,14 +291,17 @@ its description unconditionally), `exempt-user-only` (`disable-model-invocation`
 keeps it out of context), and `exempt-hidden` (the owning plugin is `hidden` or
 `not-enabled`, so the product never loads the skill). Exempt rows contribute no
 `demand_chars`, so a fleet whose only excess sits in plugins that do not load
-reports `listing-fits`. Only a settled `false` exempts: a `not-assessed`
-checkout row or an `unknown` one keeps competing, because unknown is not hidden.
+reports `listing-fits`. `exempt-hidden` covers both not-loading answers, and
+only a settled not-loading answer (`hidden` or `not-enabled`) exempts: a
+`not-assessed` checkout row or an `unknown` one keeps competing, because
+unknown is not hidden.
 
 The Markdown names what these fields hold rather than only counting it. Under
 Reachability, hidden plugins are tabled with the scope file that disabled them,
-never-enabled plugins get one count line and no fix (leaving an installed
-plugin off is a choice, not a defect), and misconfigured skills are tabled with
-their cause and one remedy per cause. Under
+never-enabled plugins get one count line (leaving an installed plugin off is
+intentional, so it gets no fix; the line names any scope other than the flag
+scope that could not be read and might enable them), and misconfigured skills
+are tabled with their cause and one remedy per cause. Under
 Listing budget, when any row overflows, the ten longest competing descriptions
 are tabled by source length beside the capped charge the listing counts
 (`description_chars` and `demand_chars` in the JSON): trimming lowers the
