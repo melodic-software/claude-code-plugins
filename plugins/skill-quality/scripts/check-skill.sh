@@ -39,7 +39,7 @@
 # tracked paths against the dispatched skill. A root outside any repo therefore
 # resolves to no git and skips those checks with their named notes rather than
 # borrowing the caller's repo; CHECK_SKILL_BASE_REF is resolved against the
-# dispatched repo; and check 6 picks up that tree's markdownlint config.
+# dispatched repo.
 #
 # --require-evals (or CHECK_SKILL_REQUIRE_EVALS=1) FAILs when evals/evals.json
 # is absent for any skill shape, unless the skill has a recorded skip in
@@ -359,9 +359,7 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
       # tracked in the caller's repo is reported against a skill that lives
       # somewhere else entirely. Running at the root also makes a root outside
       # any repo resolve to HAVE_GIT=0, so the git-backed checks skip with their
-      # documented notes instead of silently answering from the caller's repo,
-      # and check 6 discovers the DISPATCHED repo's markdownlint config, which
-      # is the behavior the skill body's own gotcha prescribes.
+      # documented notes instead of silently answering from the caller's repo.
       (
         CDPATH='' cd -- "$dispatch_root" || exit 2
         CHECK_SKILL_SKILLS_ROOT="$dispatch_root" \
@@ -1013,14 +1011,39 @@ done < <(
 # CHECK_SKILL_SKIP_MARKDOWNLINT=1 is a test seam: fixture SKILL.md files may
 # live outside a repo with markdownlint config, so the tool applies defaults
 # (MD041/MD013) that real skills intentionally violate.
+#
+# Check 6 runs from the repo top level (below), which hides a workspace-local
+# install (e.g. packages/foo/node_modules) from npx, so the nearest install
+# above the skill is taken first and npx is the fallback when there is none.
+ML_CMD=(npx --no-install markdownlint-cli2)
+ml_d="$(CDPATH='' cd -- "$SKILL_DIR" && pwd)"
+while [[ -n "$ml_d" ]]; do
+  if [[ -x "$ml_d/node_modules/.bin/markdownlint-cli2" ]]; then
+    ML_CMD=("$ml_d/node_modules/.bin/markdownlint-cli2")
+    break
+  fi
+  ml_d="${ml_d%/*}"
+done
 if [[ "${CHECK_SKILL_SKIP_MARKDOWNLINT:-}" == "1" ]]; then
   note "markdownlint check skipped (CHECK_SKILL_SKIP_MARKDOWNLINT=1)"
-elif command -v npx >/dev/null 2>&1; then
+elif [[ "${ML_CMD[0]}" != npx ]] || command -v npx >/dev/null 2>&1; then
   # --no-install: never trigger a remote fetch. A genuine lint failure emits
   # file:line findings; a non-zero exit WITHOUT such findings means the package
   # is unavailable (not installed / offline), which downgrades to a WARN-skip
   # rather than a hard FAIL on an otherwise valid skill.
-  if ML_OUT="$(npx --no-install markdownlint-cli2 "$SKILL_MD" 2>&1)"; then
+  #
+  # markdownlint-cli2 discovers config only from its cwd downward, never above
+  # it, so a skill in a git repo is linted from that repo's top level: a config
+  # at the repo root applies even when the run starts in a subdirectory such as
+  # plugins/<x>/skills. Outside any repo it runs where it stands.
+  ML_CWD="$(git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  ML_FILE="$SKILL_MD"
+  if [[ -n "$ML_CWD" ]]; then
+    ML_FILE="$(git -C "$SKILL_DIR" rev-parse --show-prefix | tr -d '\r')SKILL.md"
+  else
+    ML_CWD=.
+  fi
+  if ML_OUT="$(cd -- "$ML_CWD" && "${ML_CMD[@]}" "$ML_FILE" 2>&1)"; then
     note "markdownlint clean"
   elif grep -qE '^[^[:space:]]+:[0-9]+' <<<"$ML_OUT"; then
     err "markdownlint failed:

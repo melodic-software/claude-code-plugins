@@ -4536,6 +4536,62 @@ else
   fail "R19b: an absent base ref should exit 2 from the child (rc=$rc): $out"
 fi
 
+# R20. Check 6 runs markdownlint from the skill's repo top level, so a config
+#      there applies when the dispatched root is a subdirectory below it
+#      (markdownlint-cli2 never looks above its cwd). A stub npx records the
+#      cwd and file it was handed, so the assertion needs no Node.
+mkdir -p "$XREPO/bin"
+printf '#!/usr/bin/env bash\nprintf "%%s|%%s\\n" "$PWD" "${*: -1}" >"%s/npx.log"\n' "$XREPO" >"$XREPO/bin/npx"
+chmod +x "$XREPO/bin/npx"
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_SKIP_MARKDOWNLINT \
+    PATH="$XREPO/bin:$PATH" bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+ml_log="$(cat "$XREPO/npx.log" 2>/dev/null)"
+# Suffix match: git and the shell spell the same temp dir differently on Windows.
+if [[ $rc -eq 0 && "$ml_log" == */external\|skills/xskill/SKILL.md ]]; then
+  pass "R20: markdownlint runs from the skill's repo top level"
+else
+  fail "R20: markdownlint should run from the repo top level (npx saw: $ml_log): $out"
+fi
+
+# R20b. A workspace-local install above the skill (invisible to npx from the
+#       repo top level) is used directly, still from the repo top level.
+mkdir -p "$XREPO/external/skills/node_modules/.bin"
+printf '#!/usr/bin/env bash\nprintf "local|%%s|%%s\\n" "$PWD" "$1" >"%s/npx.log"\n' "$XREPO" \
+  >"$XREPO/external/skills/node_modules/.bin/markdownlint-cli2"
+chmod +x "$XREPO/external/skills/node_modules/.bin/markdownlint-cli2"
+rm -f "$XREPO/npx.log"
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_SKIP_MARKDOWNLINT \
+    PATH="$XREPO/bin:$PATH" bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+ml_log="$(cat "$XREPO/npx.log" 2>/dev/null)"
+if [[ $rc -eq 0 && "$ml_log" == local\|*/external\|skills/xskill/SKILL.md ]]; then
+  pass "R20b: a workspace-local markdownlint-cli2 above the skill is preferred over npx"
+else
+  fail "R20b: the workspace-local install should run (saw: $ml_log): $out"
+fi
+
+# R20c. The local install needs no npx: with every PATH entry holding npx
+#       dropped, check 6 still lints instead of reporting npx missing.
+no_npx_path=""
+IFS=: read -ra path_dirs <<<"$PATH"
+for d in "${path_dirs[@]}"; do
+  [[ -e "$d/npx" ]] || no_npx_path="${no_npx_path:+$no_npx_path:}$d"
+done
+rm -f "$XREPO/npx.log"
+out="$(cd "$XREPO/caller" &&
+  env -u CHECK_SKILL_SKILLS_ROOT -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_SKIP_MARKDOWNLINT \
+    PATH="$no_npx_path" bash "$SUT" "$XREPO/external/skills" 2>&1)"
+rc=$?
+ml_log="$(cat "$XREPO/npx.log" 2>/dev/null)"
+if [[ $rc -eq 0 && "$ml_log" == local\|* ]] && ! grep -q 'npx not found' <<<"$out"; then
+  pass "R20c: a local markdownlint-cli2 runs with no npx on PATH"
+else
+  fail "R20c: the local install should run without npx (saw: $ml_log): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
