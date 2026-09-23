@@ -11,13 +11,17 @@ Every row is rechecked on each `refetch` run; the As of column is the last check
 | Item | Known value | As of |
 |---|---|---|
 | Dagherbou fork | `v0.2.0-patch1`, prerelease, 2026-09-04; author on hiatus | 2026-09-22 |
-| wilsjo2 fork | `v0.8.3` newest non-prerelease (2026-09-13); `v0.8.8` newest prerelease (2026-09-22) | 2026-09-22 |
+| wilsjo2 fork | `v0.8.3` newest non-prerelease (2026-09-13); `v0.8.9` newest prerelease (seen 2026-09-22) | 2026-09-22 |
 | Runtime DLL `nvngx_dlssnr.dll` | 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E`, NVIDIA-signed. A 310.8.2 is mentioned in wilsjo2's install notes, unverified | 2026-09-21 |
 | GeForce driver | 616.92 WHQL, released 2026-09-09 | 2026-09-22 |
 | Native DLSS 5 titles | NBA 2K27 and Onimusha: Way of the Sword, launched with driver 616.64 | 2026-09-20 |
 | Upstream OptiScaler | Newest release `v0.9.4` (2026-07-18) has no Neural Rendering; merge PRs #1116 (Dagherbou) and #1158 (wilsjo2) open, unmerged | 2026-09-22 |
 
 ## Recheck commands
+
+`-Verb refetch` runs the fork, upstream-release, driver and runtime checks below and merges the
+result into `cache\upstream.json`. The commands are listed so each row can be rechecked by hand,
+and for the two upstream pull requests, which `refetch` does not read.
 
 ```bash
 # Dagherbou fork. Not releases/latest: it skips prereleases and returns v0.2.0-dlssnr.

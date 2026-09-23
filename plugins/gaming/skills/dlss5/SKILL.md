@@ -64,7 +64,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
 | `status` | What changed since apply? | Run `status` and explain its exit code |
 | `tune` | Picture or performance | Guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
-| `refetch` | Are forks, driver, runtime current? | Run each recheck command in `reference/upstream-watch.md` and update the ledger's Upstream watch rows that changed |
+| `refetch` | Are forks, driver, runtime current? | Run `refetch`, read the page-backed items, update only the ledger's Upstream watch rows that changed |
 
 When the request is ambiguous, recommend an action and wait. Never commit to `apply` or `remove`
 without the user's confirmation.
@@ -153,7 +153,20 @@ changed in the ledger row's ini deltas and visual verdict columns.
 
 ## Action: refetch
 
-Run each recheck command in `reference/upstream-watch.md`, diff against the ledger's Upstream watch table, and Edit only the rows that changed.
+1. Run `-Verb refetch`. It checks both forks' releases, upstream OptiScaler's latest release, the
+   local driver, and the runtime DLL's version, then prints JSON and merges it into
+   `cache\upstream.json` in the data directory. An item with `error` set was not checked this run:
+   its `found` is the previous value, so report it as unchecked, never as unchanged. `gh` is the
+   only tool it needs that setup does not.
+2. Read the page-backed items `refetch` cannot: NVIDIA's GeForce news for new native DLSS 5 titles
+   and drivers, and whether upstream OptiScaler merged the Neural Rendering pull requests (the
+   commands are in `reference/upstream-watch.md`). For each game row in the ledger, rerun the Steam
+   anti-cheat check from the assess action, because a publisher can add anti-cheat after an apply.
+3. Diff everything against the ledger's Upstream watch table. Edit only the rows that changed and
+   their Checked dates. A run where nothing changed is reported as a no-change run.
+4. For each change, say what it means using the "What a change means" table in
+   `reference/upstream-watch.md`. A new pin is a plugin release, never an edit to the installed
+   script. A game that now shows an anti-cheat section: recommend `remove`.
 
 ## Hard safety rules
 

@@ -2,7 +2,7 @@
 # Install/remove the OptiScaler DLSS-NR mod in a game exe dir, with a pre-install snapshot and a
 # file manifest so removal leaves the folder byte-identical. All state lives under -DataDir.
 param(
-    [Parameter(Mandatory)][ValidateSet('assess', 'provision', 'apply', 'status', 'remove', 'selftest')][string]$Verb,
+    [Parameter(Mandatory)][ValidateSet('assess', 'provision', 'apply', 'status', 'remove', 'refetch', 'selftest')][string]$Verb,
     [Parameter(Position = 0)][string]$GameDir,
     [string]$Build = 'dagherbou',
     [string]$Proxy = 'dxgi.dll',
@@ -85,7 +85,9 @@ function GameKey($root) {
     ($prefix -replace '[^A-Za-z0-9_-]', '_') + '_' + $h.Substring(0, 8).ToLowerInvariant()
 }
 function StateDir($root) { Join-Path $script:DataDir ('state\' + (GameKey $root)) }
-function LoadJson($p) { if (Test-Path -LiteralPath $p) { Get-Content -LiteralPath $p -Raw | ConvertFrom-Json } }
+# Keep ISO timestamps as strings where pwsh (7.5+) allows it, so a merged cache round-trips unchanged.
+$JsonOpts = @{}; if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { $JsonOpts.DateKind = 'String' }
+function LoadJson($p) { if (Test-Path -LiteralPath $p) { Get-Content -LiteralPath $p -Raw | ConvertFrom-Json @JsonOpts } }
 function Load-Snapshot($root) {
     $s = LoadJson (Join-Path (StateDir $root) 'snapshot.json')
     if ($s -and $s.gameDir -ne $root) { throw "state records gameDir '$($s.gameDir)', not '$root'; refusing" }
@@ -499,6 +501,51 @@ function Do-ProvisionRuntime {
     throw ($msg -join "`n")
 }
 
+# Shell-resolvable upstream facts only; page-backed items stay in the skill. The cache MERGES: an
+# item that fails keeps its previous found/checked and carries the new error, so one offline run
+# never erases the baseline.
+$script:Gh = 'gh'; $script:Smi = 'nvidia-smi'   # selftest points these at missing commands
+function Probe($item, $source, [scriptblock]$get) {
+    try {
+        $v = & $get
+        if (-not $v) { throw 'no value returned' }
+        [pscustomobject]@{ item = $item; found = $v; source = $source; checked = (Get-Date).ToString('o'); error = $null }
+    }
+    catch { [pscustomobject]@{ item = $item; found = $null; source = $source; checked = $null; error = $_.Exception.Message } }
+}
+function Tool($name) { if (-not (Get-Command $name -ErrorAction SilentlyContinue)) { throw "$name not on PATH" }; $name }
+function GhApi($path, $jq) {
+    $gh = Tool $script:Gh
+    $o = & $gh api $path --jq $jq 2>&1
+    if ($LASTEXITCODE) { throw "gh api $path failed: $($o | Select-Object -First 1)" }
+    @($o | Select-Object -First 5) -join '; '
+}
+function Do-Refetch {
+    $cp = Join-Path $script:DataDir 'cache\upstream.json'
+    $prev = @{}; foreach ($i in @((LoadJson $cp).items)) { if ($i) { $prev[$i.item] = $i } }
+    $rel = '.[] | "\(.tag_name)\(if .prerelease then " (prerelease)" else "" end)"'
+    $items = @(
+        Probe 'Dagherbou/OptiScaler_DLSSNR' 'gh api releases' { GhApi 'repos/Dagherbou/OptiScaler_DLSSNR/releases' $rel }
+        Probe 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass' 'gh api releases' { GhApi 'repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases' $rel }
+        Probe 'optiscaler/OptiScaler' 'gh api releases/latest' { GhApi 'repos/optiscaler/OptiScaler/releases/latest' '.tag_name' }
+        Probe 'GeForce driver' 'nvidia-smi' { $s = Tool $script:Smi; (& $s --query-gpu=driver_version --format=csv,noheader | Select-Object -First 1).Trim() }
+        Probe 'Runtime DLL' 'file version' {
+            if (-not (Test-Path -LiteralPath $script:RuntimeDll)) { throw "missing: $($script:RuntimeDll)" }
+            $v = FileVer $script:RuntimeDll
+            if (-not $v) { throw "no version resource: $($script:RuntimeDll)" }
+            "$v"
+        }
+    ) | ForEach-Object {
+        $p = $prev[$_.item]
+        if ($_.error -and $p -and $p.found) { $_.found = $p.found; $_.checked = $p.checked }
+        $_
+    }
+    $out = [pscustomobject]@{ checked = (Get-Date).ToString('o'); items = $items } | ConvertTo-Json -Depth 4
+    New-Item -ItemType Directory -Force -Path (Split-Path $cp -Parent) | Out-Null
+    Set-Content -LiteralPath $cp -Value $out -Encoding utf8
+    $out
+}
+
 function Assert($name, $cond) { if ($cond) { "PASS  $name" } else { $script:fails++; "FAIL  $name" } }
 function Throws($block, $like) { try { & $block | Out-Null; $false } catch { $_.Exception.Message -like $like } }
 function IniVal($path, $section, $key) {
@@ -661,6 +708,20 @@ function Do-Selftest {
         Put "$tmp\src\nvngx_dlssnr.dll" 'fakemodel'; $script:RuntimeSource = "$tmp\src\nvngx_dlssnr.dll"
         Do-ProvisionRuntime | Out-Null
         Assert 'runtime_source path is placed' ((LoadJson "$tmp\data\runtime\.provisioned.json").source -eq 'runtime_source')
+
+        # refetch: no gh or nvidia-smi available, and the cache merges rather than overwrites
+        $script:Gh = 'gh-missing-selftest'; $script:Smi = 'nvidia-smi-missing-selftest'
+        $uc = "$tmp\data\cache\upstream.json"
+        Put $uc '{"checked":"x","items":[{"item":"GeForce driver","found":"616.92","source":"nvidia-smi","checked":"2026-09-22T00:00:00Z","error":null}]}'
+        Do-Refetch | Out-Null
+        $u = LoadJson $uc
+        Assert 'refetch writes a parseable cache without gh' ($u -and @($u.items).Count -eq 5)
+        $dg = @($u.items) | Where-Object item -eq 'Dagherbou/OptiScaler_DLSSNR'
+        Assert 'refetch records a missing gh as an error, not a failure' ($null -eq $dg.found -and $dg.error -like '*not on PATH*')
+        $dr = @($u.items) | Where-Object item -eq 'GeForce driver'
+        Assert 'refetch keeps the previous value when a probe fails' ($dr.found -eq '616.92' -and $dr.checked -eq '2026-09-22T00:00:00Z' -and $dr.error)
+        $rd = @($u.items) | Where-Object item -eq 'Runtime DLL'
+        Assert 'refetch reports an unversioned runtime DLL as an error' ($null -eq $rd.found -and $rd.error -like '*no version resource*')
     }
     finally {
         Pop-Location
@@ -679,5 +740,6 @@ switch ($Verb) {
         if ($s.Bad) { exit 1 }
     }
     'remove' { Do-Remove (Root $GameDir) }
+    'refetch' { Do-Refetch }
     'selftest' { Do-Selftest; exit ([int]$script:fails) }
 }

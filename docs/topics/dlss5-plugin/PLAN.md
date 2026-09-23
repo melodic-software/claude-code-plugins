@@ -603,7 +603,12 @@ Work items:
 `grep -rn 'melodic-software' plugins/gaming/skills/setup/` returns nothing (exit 1);
 `bash scripts/check-skill-leaf-names.sh --check` exits 0.
 
-### Phase 6: The `refetch` verb and the upstream-watch loop [TODO]
+### Phase 6: The `refetch` verb and the upstream-watch loop [DONE]
+
+Sanity Check run 2026-09-22: selftest `SELFTEST OK`, exit 0 (four refetch cases, including the
+merge rule and a missing `gh`); the temp-dir `refetch` sequence parses. A live run returned the
+fork tags, upstream `v0.9.4`, driver 616.92 and runtime 310.8.0.0. `refetch` also reads upstream
+OptiScaler's latest release, a fifth item beyond the four the plan named.
 
 Kept thin. The script fetches; the model writes the ledger.
 
