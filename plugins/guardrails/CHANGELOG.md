@@ -7,10 +7,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`secret-pattern-detection` no longer skips writes when the project root is not a real project.** The guard honored any set `CLAUDE_PROJECT_DIR` as its scope and let every write outside it through unscanned. Claude Code sets that variable to the directory a session starts in, so a session started in the home directory or in any folder that is not a repository skipped nearly every write it made.
-- **A root is now honored only when it is a git work tree that is neither home nor an ancestor of home.** Any other root is treated as unset, and every local write is scanned. Home is `$HOME`, falling back to `USERPROFILE`, compared after normalization so trailing slashes and the `C:/` and `/c/` spellings of one Windows path match. A session rooted at a repository keeps its scope unchanged; one rooted at a subdirectory of a repository now scans more.
-- **Telemetry `data.file` anchors on the root the guard honored.** When the root is cleared, the path is expressed relative to the file's own checkout, the same as when no root is set. The envelope's project directory still records the raw `CLAUDE_PROJECT_DIR`.
-- **`hardcoded-path-check` is unchanged by design.** Its project-scope skip is deliberate and stays as it is.
+- **`secret-pattern-detection` scans writes outside a project root that is home, an ancestor of home, or not a git work tree.** It honored any set `CLAUDE_PROJECT_DIR` as its scope, and Claude Code sets that variable to the directory a session starts in, so a session started in home or in a non-repository folder skipped nearly every write. Such a root is now treated as unset. A root that is a repository keeps its scope; `hardcoded-path-check`'s scope skip is unchanged by design.
+- **The root check does not trust spelling or a bare `.git` entry.** A root carrying `//`, `/./`, `/../`, a trailing `/.` or `/..`, or `~` is cleared, as is any root when neither `HOME` nor `USERPROFILE` is set. A `.git` entry counts only as a directory holding `HEAD` or a file whose first line is `gitdir:`.
+- **Telemetry `data.file` anchors on the root the guard honored.** When the root is cleared, the path is relative to the file's own checkout, as when no root is set. The envelope's project directory still records the raw `CLAUDE_PROJECT_DIR`.
 
 ## [0.36.0] - 2026-09-21
 

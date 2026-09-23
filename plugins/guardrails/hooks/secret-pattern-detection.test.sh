@@ -153,12 +153,66 @@ RC=$?
 assert_exit "real repo root: outside write → exit 0" 0 "$RC"
 assert_silent "real repo root: outside write → no stderr" "$OUT"
 
+# The same real repo root spelled with backslashes keeps its scope too.
+OUT=$(CLAUDE_PROJECT_DIR="${SCOPE_REPO//\//\\}" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "backslash-spelled real repo root: outside write → exit 0" 0 "$RC"
+assert_silent "backslash-spelled real repo root: outside write → no stderr" "$OUT"
+
+# A root spelled with `.`, `..`, a doubled slash or `~` can name home without
+# comparing equal to it as a string, so such a root is never honored. HOME is
+# the repo itself, which each spelling below reaches.
+H="$HOME_REPO"
+for SPELLED in "$H/." "${H%/*}//${H##*/}" "$H/../${H##*/}"; do
+  OUT=$(env HOME="$H" CLAUDE_PROJECT_DIR="$SPELLED" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "unnormalized root '$SPELLED': outside write scanned → exit 2" 2 "$RC"
+done
+
+# With no home to compare against, a root cannot be shown not to contain it.
+OUT=$(env HOME="" USERPROFILE="" CLAUDE_PROJECT_DIR="$SCOPE_REPO" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "empty HOME and USERPROFILE: outside write scanned → exit 2" 2 "$RC"
+
+# A .git entry is a repository only when it looks like one: a directory with a
+# HEAD, or a file whose first line is a `gitdir:` pointer.
+FAKE_FILE="$TEST_TMPDIR/fake-gitfile"
+mkdir -p "$FAKE_FILE"
+: >"$FAKE_FILE/.git"
+OUT=$(CLAUDE_PROJECT_DIR="$FAKE_FILE" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "empty .git file: outside write scanned → exit 2" 2 "$RC"
+FAKE_DIR="$TEST_TMPDIR/fake-gitdir"
+mkdir -p "$FAKE_DIR/.git"
+OUT=$(CLAUDE_PROJECT_DIR="$FAKE_DIR" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+RC=$?
+assert_exit "empty .git directory (no HEAD): outside write scanned → exit 2" 2 "$RC"
+# A real linked worktree, whose .git is a `gitdir:` file. It needs a commit.
+WT_MAIN="$TEST_TMPDIR/wt-main"
+WT_LINK="$TEST_TMPDIR/wt-link"
+mkdir -p "$WT_MAIN"
+git -C "$WT_MAIN" init -q
+git -C "$WT_MAIN" -c user.email=t@t.test -c user.name=t commit -q --allow-empty -m seed
+git -C "$WT_MAIN" worktree add -q "$WT_LINK" >/dev/null 2>&1
+if [[ -f "$WT_LINK/.git" ]]; then
+  OUT=$(CLAUDE_PROJECT_DIR="$WT_LINK" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "linked worktree root (.git gitdir: file): outside write → exit 0" 0 "$RC"
+else
+  bad "linked worktree root: git worktree add produced no .git file"
+fi
+
 # Windows spellings of the same directory: the root in mixed form (C:/...), HOME
 # in MSYS form (/c/...) with its case folded. Only a real msys/cygwin host with
-# cygpath can build both spellings of one existing directory.
+# cygpath can build both spellings of one existing directory. The mixed form
+# comes from git, which answers with long names: `cygpath -m` can return an 8.3
+# short name, whose `~` would clear the root for a reason other than home.
 if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
-  HOME_REPO_M=$(cygpath -m "$HOME_REPO")
+  HOME_REPO_M=$(git -C "$HOME_REPO" rev-parse --show-toplevel)
   HOME_REPO_U="/${HOME_REPO_M:0:1}${HOME_REPO_M:2}"
+  OUT=$(env HOME="$SCOPE_REPO" CLAUDE_PROJECT_DIR="$HOME_REPO_M" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
+  RC=$?
+  assert_exit "msys: the C:/ root alone is honored when HOME is elsewhere → exit 0" 0 "$RC"
   OUT=$(env HOME="${HOME_REPO_U,,}" CLAUDE_PROJECT_DIR="$HOME_REPO_M" bash "$HOOK" <<<"$(write_json "$OUTSIDE_FILE" "config = '$AWS_TOKEN'")" 2>&1)
   RC=$?
   assert_exit "msys: C:/ root vs lower-cased /c/ HOME is home → exit 2" 2 "$RC"

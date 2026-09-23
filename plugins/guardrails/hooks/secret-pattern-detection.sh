@@ -16,9 +16,9 @@
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
 # repo's concern) only when that root is a git work tree that is not home or an
 # ancestor of home; any other root scans every write, as if unset. A generic
-# allowlist exempts dependency caches, .env
-# examples, test fixtures, and machine-local CC state. Disable entirely with
-# the secret_pattern_detection_enabled userConfig option set to false.
+# allowlist exempts dependency caches, .env examples, test fixtures, and
+# machine-local CC state. Disable entirely with the
+# secret_pattern_detection_enabled userConfig option set to false.
 
 set -uo pipefail
 
@@ -301,26 +301,45 @@ ALLOW_FILE="${FILE//\\//}"
 # and that can be the home directory or any directory that is not a repository.
 # Honoring such a root would skip every write outside it, which is nearly every
 # write the session makes. The root is cleared, and the write scanned, when:
-#   - it has no .git entry: it is not a git work tree, so no repository owns
-#     the writes outside it. A subdirectory of a repo is also cleared, which
-#     only scans more. `-e` rather than a git process keeps this fork-free, and
-#     it matches a worktree's .git file as well as a .git directory.
-#   - it equals home: a home that is itself a repository (dotfiles) contains
-#     every other checkout on the machine, so it scopes nothing.
-#   - it is an ancestor of home: the same containment, one level up.
-# Home is ${HOME:-${USERPROFILE:-}}, both sides normalized and trailing-slash
-# trimmed so C:\Users\u, C:/Users/u and /c/users/u compare equal on Windows.
+#   - it carries `//`, `/./`, `/../`, a trailing `/.` or `/..`, or `~`: such a
+#     spelling can name home, or an ancestor of it, without comparing equal to
+#     it as a string, and resolving it would cost a process. An 8.3 short name
+#     (KYLESE~1) is cleared by the same arm, which only scans more.
+#   - it is not a git work tree: no repository owns the writes outside it. A
+#     work tree has a .git directory holding HEAD, or a .git file whose first
+#     line is a `gitdir:` pointer (a linked worktree or a submodule); an empty
+#     or unrelated .git entry does not count. Both tests are builtins, so the
+#     check stays fork-free. A subdirectory of a repo is cleared too, which
+#     only scans more.
+#   - home is unknown: with neither HOME nor USERPROFILE set, nothing shows
+#     the root does not contain home.
+#   - it equals home or is an ancestor of home: a home that is itself a
+#     repository (dotfiles) contains every other checkout on the machine, so it
+#     scopes nothing. One prefix test covers both, and a trailing slash on home.
+# Home is ${HOME:-${USERPROFILE:-}}; both sides are normalized so C:\Users\u,
+# C:/Users/u and /c/users/u compare equal on Windows.
 spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
 spd_scope_root="${spd_scope_root//\\//}"
 spd_scope_root="${spd_scope_root%/}"
 PROJECT_DIR=""
 if [[ -n "$spd_scope_root" ]]; then
   hook::normalize_path_to PROJECT_DIR "$spd_scope_root"
-  PROJECT_DIR="${PROJECT_DIR%/}"
   spd_home=""
   hook::normalize_path_to spd_home "${HOME:-${USERPROFILE:-}}"
-  spd_home="${spd_home%/}"
-  if [[ ! -e "$spd_scope_root/.git" || "$PROJECT_DIR" == "$spd_home" || "$spd_home" == "$PROJECT_DIR"/* ]]; then
+  spd_repo=0
+  case "$spd_scope_root" in
+  *//* | */./* | */../* | */. | */.. | *~*) ;;
+  *)
+    if [[ -d "$spd_scope_root/.git" ]]; then
+      [[ -e "$spd_scope_root/.git/HEAD" ]] && spd_repo=1
+    elif [[ -f "$spd_scope_root/.git" ]]; then
+      spd_gitline=""
+      { IFS= read -r spd_gitline <"$spd_scope_root/.git"; } 2>/dev/null || :
+      [[ "$spd_gitline" == gitdir:* ]] && spd_repo=1
+    fi
+    ;;
+  esac
+  if ((spd_repo == 0)) || [[ -z "$spd_home" || "$spd_home/" == "$PROJECT_DIR"/* ]]; then
     spd_scope_root=""
     PROJECT_DIR=""
   fi
@@ -378,9 +397,8 @@ emit_tel() {
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/
   [[ -n "$root" ]] || hook::repo_root_to root "$file_dir"
-  # The helper strips "$root/", so a root that ends in a separator would make
-  # the prefix "/repo//" and match nothing: every in-project file would
-  # collapse to its basename. Trim it whichever way the root was resolved.
+  # Guard against a doubled separator: the helper strips "$root/", and a root
+  # ending in "/" would make that prefix "/repo//", which matches nothing.
   root="${root%/}"
   file_rel=""
   hook::repo_relative_path_to file_rel "$FILE" "$root"
