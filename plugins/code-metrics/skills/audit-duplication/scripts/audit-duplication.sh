@@ -89,7 +89,7 @@ fi
 # as "no cap"), then the registries from the resolver's own format
 # (`scope.registries`, or `duplication.registries` as its older name), so this
 # script and the dispatcher read the same list the same way.
-mapfile -t DUP < <("${PY[@]}" -c '
+if ! "${PY[@]}" -c '
 import json, sys
 
 section = json.load(open(sys.argv[1])).get("duplication") or {}
@@ -110,14 +110,28 @@ def cap(key):
     return "" if text in ("", "0") else text
 
 
+def rollup_depth():
+    value = section.get("rollup_depth", 2)
+    if isinstance(value, bool) or not isinstance(value, int):
+        sys.stderr.write(
+            "audit-duplication.sh: duplication.rollup_depth must be an integer (got %r)\n"
+            % (value,)
+        )
+        raise SystemExit(2)
+    return value
+
+
 print(number("min_tokens", 50))
 print(number("min_lines", 5))
 ignore = section.get("ignore")
 print(",".join(str(item) for item in ignore) if isinstance(ignore, list) else "")
 print(cap("max_lines"))
 print(cap("max_size"))
-print(number("rollup_depth", 2))
-' "$CONFIG")
+print(rollup_depth())
+' "$CONFIG" >"$WORK/dup-fields"; then
+  exit 2
+fi
+mapfile -t DUP <"$WORK/dup-fields"
 if [[ ${#DUP[@]} -lt 6 ]]; then
   echo "audit-duplication.sh: the resolved configuration could not be read" >&2
   exit 2

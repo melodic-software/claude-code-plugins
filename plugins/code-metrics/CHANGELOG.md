@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.16]
+
+### Fixed
+
+- `audit-duplication` refuses a non-integer `duplication.rollup_depth` (a float, a quoted integer, or other text) with a usage error that names the key and the value. It no longer falls back to 2 in silence.
+
 ## [0.3.15] - 2026-09-21
 
 ### Changed
