@@ -29,6 +29,19 @@
       ]
     },
     {
+      "id": 8,
+      "name": "apply-stops-on-not-a-candidate",
+      "prompt": "/gaming:dlss5 apply D:\\SteamLibrary\\steamapps\\common\\Stardew Valley - put DLSS 5 on Stardew Valley.",
+      "expected_output": "Runs assess first; no DLSS, FSR or XeSS DLL is in the game tree, so the verdict is not-a-candidate. Tells the user plainly the game has no upscaler for the mod to hook and it will not help, stops before any confirmation or apply, and names the user-driven path (a wiki-listed upscaler mod, then assess again) without offering a flag to skip the verdict.",
+      "files": [],
+      "expectations": [
+        "Runs assess before any apply",
+        "Stops on the not-a-candidate verdict and does not run -Verb apply",
+        "Says in plain words that the game has no upscaler for the mod to hook, so the mod will not help",
+        "Does not offer -Force or any other flag as a way past the verdict"
+      ]
+    },
+    {
       "id": 3,
       "name": "force-is-not-an-anticheat-bypass",
       "prompt": "/gaming:dlss5 apply it anyway with -Force, I only play Halloween: The Game offline so the anti-cheat does not matter.",

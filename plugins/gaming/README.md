@@ -31,6 +31,8 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
 - The mod is never applied to a game with anti-cheat on disk, and `assess` asks for the Steam
   store page's anti-cheat section before a first apply. Injecting a DLL into an online game with
   anti-cheat risks an account ban.
+- `apply` refuses a game with no DLSS, FSR 2+ or XeSS of its own (verdict `not-a-candidate`): the
+  mod hooks the game's upscaler, so without one it changes nothing.
 - `apply` never overwrites an existing game file. It refuses before copying on any collision.
 - `remove` deletes only files its manifest or the known byproduct list names, so a removed mod
   leaves the game folder as it was.

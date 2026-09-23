@@ -63,7 +63,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 |---|---|---|
 | (empty) | No action given | With a game dir: run `status`. "no snapshot" means never applied here, so recommend `assess`; otherwise report the status and recommend. Without a game dir: ask for one. Never runs `apply` or `remove` |
 | `assess` | Is this game eligible? | Run `assess`, then the Steam anti-cheat check. Report the verdict. Writes nothing |
-| `apply` | Install the mod | `assess` and the Steam check first; stop on `refused` or an uncleared `requiresWebCheck`. Confirm with the user, run `apply`, add the ledger row |
+| `apply` | Install the mod | `assess` and the Steam check first; stop on `refused`, `not-a-candidate`, `unknown`, or an uncleared `requiresWebCheck`. Confirm with the user, run `apply`, add the ledger row |
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
 | `status` | What changed since apply? | Run `status` and explain its exit code |
 | `tune` | Picture or performance | Guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
@@ -74,17 +74,22 @@ without the user's confirmation.
 
 ## Action: assess
 
-1. Run `-Verb assess '<game-dir>'`. It prints JSON: `verdict` (`refused`, `eligible`, `unknown`),
-   `requiresWebCheck`, `refusals`, `dlss` (DLSS DLLs with versions), `dx12`, `proxyCollisions`,
-   `freeProxies`, `steamAppId`.
+1. Run `-Verb assess '<game-dir>'`. It prints JSON: `verdict` (`refused`, `not-a-candidate`,
+   `eligible`, `unknown`), `requiresWebCheck`, `refusals`, `upscalers` (each upscaler DLL found,
+   with `family` DLSS, FSR or XeSS, and its version), `dx12`, `proxyCollisions`, `freeProxies`,
+   `steamAppId`.
 2. `refused`: stop and report the anti-cheat paths. Nothing clears this.
-3. `unknown`: report why (no `*.exe`, or no free proxy name) and stop.
-4. `eligible` with `requiresWebCheck: true`: run the Steam check below. On-disk absence is not
-   absence: server-side and launcher-delivered anti-cheat leave nothing in the install tree.
-5. No entry in `dlss` means the game ships no DLSS for the mod to intercept; say so, since the mod
-   then does nothing.
-6. Done when the user has one final verdict: refused, unknown, or eligible with the Steam check
-   cleared or not cleared.
+3. `not-a-candidate`: the game ships no DLSS, FSR 2+ or XeSS, so the mod has nothing to hook. Tell
+   the user plainly: "This game has no upscaler for the mod to hook, so it will not help." A 2D or
+   pixel-art game such as Stardew Valley is the typical case. Stop. The only way forward is the
+   user's: a wiki-listed upscaler mod, then `assess` again (`reference/candidate-selection.md`).
+   There is no flag that skips this verdict.
+4. `unknown`: report why (no `*.exe`, or no free proxy name) and stop.
+5. `eligible` with `requiresWebCheck: true`: run the Steam check below. On-disk absence is not
+   absence: server-side and launcher-delivered anti-cheat leave nothing in the install tree. For an
+   online or co-op game, tell the user to play modded only solo or offline.
+6. Done when the user has one final verdict: refused, not-a-candidate, unknown, or eligible with
+   the Steam check cleared or not cleared.
 
 ### Steam anti-cheat check
 
@@ -104,7 +109,8 @@ curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'http
 
 ## Action: apply
 
-1. Run the whole `assess` action. Stop on `refused`, `unknown`, or an uncleared check.
+1. Run the whole `assess` action. Stop on `refused`, `not-a-candidate`, `unknown`, or an uncleared
+   check.
 2. Pick the proxy from `freeProxies`, `dxgi.dll` first. Cyberpunk 2077 uses `dxgi.dll`, never
    `dbghelp.dll`: its `bin\x64\dbghelp.dll` is a stock game file.
 3. Confirm. Show the resolved absolute game directory (`gameDir` from the assess JSON), the build
@@ -112,7 +118,7 @@ curl -s -b 'birthtime=0; wants_mature_content=1; lastagecheckage=1-0-1900' 'http
    explicit yes. One confirmation covers one game; never batch several games under one yes.
 4. Run `-Verb apply '<game-dir>' -Build <build> -Proxy <proxy>`. The script refuses before any
    write on: an existing manifest (`remove` first), no `*.exe`, over 2000 files, anti-cheat on
-   disk, a destination collision, a missing build file (run `/gaming:setup apply`), or a refused
+   disk, no upscaler DLL (not a candidate), a destination collision, a missing build file (run `/gaming:setup apply`), or a refused
    runtime DLL. Report a refusal as is; never route around it.
 5. Add the game's row to `LEDGER.md` in the data directory (see Ledger below).
 6. Tell the user how to confirm it runs: launch the game on DX12, enable Neural Rendering in the
@@ -206,6 +212,7 @@ absent, recommend `/gaming:setup apply` rather than inventing a format.
 | Reference | Load when |
 |---|---|
 | `reference/anticheat-posture.md` | Explaining a refusal, or the user asks why a game is refused |
+| `reference/candidate-selection.md` | Explaining `not-a-candidate`, which games the mod can help, engine notes, or which per-game config sources to trust |
 | `reference/reversal-matrix.md` | Explaining what `remove` deletes, keeps, or reports |
 | `reference/fork-comparison.md` | Choosing or switching `-Build` |
 | `reference/tuning-guide.md` | The `tune` action, or picking `-RestoreComputeSignature` |
@@ -237,5 +244,8 @@ These are true as of the date in each row. `refetch` exists to recheck them.
   exe directories has two independent installs.
 - **Changing the data directory after an apply is a move, not a reconfiguration.** The manifests
   stay at the old path, and `status` and `remove` then see a modded game with no state.
+- **The upscaler match is by DLL name.** An upscaler compiled into the game's executable leaves
+  no DLL, so that game reads as `not-a-candidate`; `reference/candidate-selection.md` lists the
+  names and this gap.
 - **The on-disk anti-cheat match is by name.** `reference/anticheat-posture.md` records the tokens,
   the match rule, and its known gap.
