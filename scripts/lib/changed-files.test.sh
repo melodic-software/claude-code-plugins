@@ -135,7 +135,7 @@ fi
 paths=()
 if run_into "$repo" paths "$base" -- 'plugins/' &&
   ((${#paths[@]} == 1)) && [[ "${paths[0]}" == "plugins/p1/skills/alpha/SKILL.md" ]]; then
-  ok "into honours a pathspec"
+  ok "into honors a pathspec"
 else
   fail "into pathspec filtering returned: ${paths[*]-<none>}"
 fi

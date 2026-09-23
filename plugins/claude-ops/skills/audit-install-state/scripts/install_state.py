@@ -280,7 +280,7 @@ STRONG_LEDGER_GLOBS = (
     "restore*.sh",
 )
 
-# Names that mean it only in the right neighbourhood. Scanned across the whole
+# Names that mean it only in the right neighborhood. Scanned across the whole
 # tree these are pure noise -- a live run over a real install matched browser
 # payloads, plugin-cache test fixtures and subagent directories, and deny-listed
 # most of the tree. Restricted to a shallow hotspot they are high signal.
@@ -308,7 +308,7 @@ LEDGER_SCAN_SKIP_PREFIXES = ("plugins/cache", "plugins/marketplaces")
 # A number in a filename is NOT reliably a PID. Applying a process lookup to a
 # non-PID returns a meaningless miss that reads as "dead" and authorizes a wrong
 # deletion. Liveness is attempted for exactly one meaning: PID. Everything else,
-# INCLUDING every pattern this table does not recognise, returns
+# INCLUDING every pattern this table does not recognize, returns
 # `not_applicable`.
 # --------------------------------------------------------------------------
 
@@ -419,7 +419,7 @@ class NameVerdict:
 def classify_name(rel: str) -> tuple[str, str]:
     """Return `(number_meaning, note)` for a root-relative POSIX path.
 
-    Unrecognised names carrying digits return `unknown`, never a guess. That
+    Unrecognized names carrying digits return `unknown`, never a guess. That
     default is the safety property: a third-party plugin this table has never
     seen fails closed.
     """
@@ -955,7 +955,7 @@ def rollup(
             # vendored `*.pem` bundles, and the reader needs it against the `files` field
             # sitting beside it to see the proportion rather than assume the whole entry
             # is secret. Promotion is still the right call -- the verdict it produces is
-            # `keep`, and a report-only audit must not summarise a secret-bearing file
+            # `keep`, and a report-only audit must not summarize a secret-bearing file
             # under a milder line.
             note = (
                 f"Contains {secret_members} never-read secret-bearing file(s), so the entry "
@@ -965,7 +965,7 @@ def rollup(
         older = [m for m in members if m.mtime < cutoff]
         # Which member files the engine opened by content. Orthogonal to the
         # surface: `settings.json` stays AUTHORED and the two sentinels stay
-        # unclassified; the flag records the engine's own behaviour, so the
+        # unclassified; the flag records the engine's own behavior, so the
         # retention section and this table agree about what was read.
         read_paths = sorted(
             m.relpath for m in members if m.relpath in CONTENT_READ_ALLOWLIST
@@ -1033,7 +1033,7 @@ def staleness_reading(entry: dict, retention_days: int) -> dict:
                 "That count is a measurement of mtimes. It is NOT proof the sweep is failing, and "
                 "the step from one to the other is an inference this engine will not make for you: "
                 f"the sweep's unit for this path is {unit}. Report the count and investigate; do "
-                "not hand-prune, and do not read this as a deletion authorisation."
+                "not hand-prune, and do not read this as a deletion authorization."
             ),
         }
     if entry["surface"] == SESSION_SCOPED:
@@ -1062,7 +1062,7 @@ def staleness_reading(entry: dict, retention_days: int) -> dict:
 
 
 def recent_writers(rows: list[FileRow], hours: int) -> list[dict]:
-    """Top-level entries written within the window -- behavioural evidence of activity.
+    """Top-level entries written within the window -- behavioral evidence of activity.
 
     Declared configuration is a poor guide to what is actually running: a
     component recorded as disabled in one file can still be enabled at another
@@ -1211,7 +1211,7 @@ def summarize_numeric(
     rows say less than one row with a count. A group whose PID belongs to the
     auditing process's own ancestry is marked `self_held`.
 
-    Unrecognised numeric names are the ones a future scheme table should learn,
+    Unrecognized numeric names are the ones a future scheme table should learn,
     so the sample groups them by SHAPE (digit runs collapsed to `<n>`) with a
     count per shape and a histogram by top-level directory. One repeated
     schema-file shape can no longer fill the whole sample. Shape derivation is
@@ -1479,7 +1479,7 @@ def largest_subtrees(
     """Top directories by bytes under every rolled-up entry.
 
     A directory whose single child holds `passthrough` of its bytes is dropped
-    in favour of that child, so the list names `.../node_modules` rather than
+    in favor of that child, so the list names `.../node_modules` rather than
     five nested prefixes of it. Every figure is the sum of measured sizes.
     """
     rolled = {e["entry"] for e in entries if e.get("listing") == "rolled-up"}

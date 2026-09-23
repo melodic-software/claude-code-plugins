@@ -453,7 +453,7 @@ while IFS="$(printf '\t')" read -r file lineno form; do
   #
   # The test is the left context the sweep itself used to classify the form,
   # applied per occurrence rather than per line. This is not re-deriving the
-  # form: the record names it, and this is where that name is honoured.
+  # form: the record names it, and this is where that name is honored.
   # `plain` and `table-or-key` carry no context requirement, which is what
   # makes them the forms a frozen tier reports rather than edits.
   # All three reset every iteration. They are set per form in the branches

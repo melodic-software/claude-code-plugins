@@ -260,7 +260,7 @@ explicit_git_dir_to() {
 #     enters, which is the same defect wearing the opposite bias.
 #
 # So the launch directory too is derived from git's own answers — `rev-parse
-# --show-toplevel` and `--show-prefix` — never from modelled containment:
+# --show-toplevel` and `--show-prefix` — never from modeled containment:
 #
 #   - prefix NONEMPTY: git computed a cd-up path, i.e. it chdirs the body to
 #     the top level. Return the top level, which also canonicalizes for free —
@@ -404,7 +404,7 @@ alias_launch_dir() {
 #
 # EVERY occurrence is collected in command-line order rather than the first match,
 # for the same reason the sibling does it: git applies last-wins itself, so handing
-# it the whole sequence lets git decide precedence instead of this guard modelling
+# it the whole sequence lets git decide precedence instead of this guard modeling
 # it. Taking the first match would replay the wrong repository for
 # `git --git-dir=<a> --git-dir=<b> …` — a wrong identity can wrongly collapse the
 # shell-alias cycle key and skip an analysis, so this is a correctness question, not

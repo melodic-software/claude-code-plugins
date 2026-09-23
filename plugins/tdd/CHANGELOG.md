@@ -32,7 +32,7 @@ All notable changes to the `tdd` plugin are documented here. Format follows
 
 ### Changed
 
-- **principles:** the description drops three trigger phrases that restated a neighbour's intent
+- **principles:** the description drops three trigger phrases that restated a neighbor's intent
   ('what makes a good test', 'when to mock', 'TDD cycle'); the surviving phrases still name each
   intent.
 - Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/prompt-audit-skills-2026-09.md).

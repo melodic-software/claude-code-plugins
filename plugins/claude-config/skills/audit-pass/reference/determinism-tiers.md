@@ -9,7 +9,7 @@ Terms: [terms.md](terms.md). Full index: [run-contract.md](run-contract.md).
 
 The two-tier `mechanical` / `behavioral` split the delegated catalogs use cannot carry a determinism
 property, for two independently sufficient reasons: no delegated check reaches the report without
-model judgement (a catalog's own lane refinement and verify pass both re-judge, so even a
+model judgment (a catalog's own lane refinement and verify pass both re-judge, so even a
 `mechanical`-tagged check is model-gated), and half the delegated catalog uses a different vocabulary
 entirely. So the property is stated over the part of the run that genuinely is deterministic.
 

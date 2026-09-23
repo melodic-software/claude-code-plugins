@@ -30,7 +30,7 @@
       "id": 3,
       "name": "refuses-a-percentile-the-sample-count-cannot-support",
       "prompt": "/performance:snapshot post. I have 12 samples and I want the p99.",
-      "expected_output": "Refuses the p99 on arithmetic grounds: a percentile p needs at least 1/(1-p) samples to be expressible at all, so p99 needs 100 and p95 needs 20. Twelve samples support neither. Offers the raw samples or more sampling, and distinguishes this enforced arithmetic floor from the p50/p95-over-20 default, which is a labelled house convention with no community grounding.",
+      "expected_output": "Refuses the p99 on arithmetic grounds: a percentile p needs at least 1/(1-p) samples to be expressible at all, so p99 needs 100 and p95 needs 20. Twelve samples support neither. Offers the raw samples or more sampling, and distinguishes this enforced arithmetic floor from the p50/p95-over-20 default, which is a labeled house convention with no community grounding.",
       "files": [],
       "expectations": [
         "Refuses p99 at 12 samples and cites the 1/(1-p) floor as the reason",

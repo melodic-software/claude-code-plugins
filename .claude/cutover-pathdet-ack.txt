@@ -48,6 +48,7 @@ plugins/claude-memory/skills/audit/scripts/nested-agents-check.sh	[[ -f "$dir/CL
 # --- Test fixtures: strings written into temporary repositories -------------
 # None of these locates a path in THIS repository. Each is a string a suite
 # writes into a throwaway tree, or an assertion about output.
+plugins/claude-config/skills/unhobble/scripts/instruction-files.test.sh	rm -f "$repo/CLAUDE.md"	Test-fixture teardown in a throwaway repository the test created, clearing the scratch CLAUDE.md so the case can occupy or stage that name; not a path lookup.
 plugins/claude-memory/skills/audit/scripts/discover-instruction-surfaces.test.sh	assert_eq "a shimmed repo emits what it emitted before agents-md existed" "$(printf 'project\tclaude-md\tCLAUDE.md')" "$OUT_SHIM"	An assertion about that script's output on a temporary shimmed tree, not a path lookup.
 plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	assert_contains "the shim's AGENTS.md is the CLAUDE.md's import" "$OUT" "project import 2 37 AGENTS.md"	An assertion about that script's output, not a path lookup.
 plugins/claude-memory/skills/audit/scripts/instruction-load-stats.test.sh	assert_contains "user CLAUDE.md is a user-scope root" "$OUT" "user root 2 23 $UCFG/CLAUDE.md"	An assertion about that script's output, not a path lookup.

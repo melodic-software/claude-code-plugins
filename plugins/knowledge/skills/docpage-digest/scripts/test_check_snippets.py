@@ -60,7 +60,7 @@ class TestCleanPass(GateHarness):
         self.assertIn("NO per-line strip", out)
         self.assertIn("Nothing outside Prompt snippets", out)
 
-    def test_recognised_none_is_clean_zero(self):
+    def test_recognised_none_is_clean_zero(self):  # identifier, not prose # spellchecker:disable-line
         text = """## Prompt snippets (exact)
 
 none

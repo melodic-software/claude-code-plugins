@@ -68,7 +68,7 @@ one of them is a setting:
   only the fallback when no window is passed to the arithmetic; the live caller
   passes the model's window, which is 1M for current models on the Anthropic API
   unless `CLAUDE_CODE_DISABLE_1M_CONTEXT` forces 200k or
-  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (honoured only when `DISABLE_COMPACT` is
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (honored only when `DISABLE_COMPACT` is
   also set) names another value.
 - `bytesPerToken` is 4 or 3 BY MODEL, resolved from the model id. A 3-byte
   model gets a budget a quarter smaller than a 4-byte model at the same fraction
@@ -78,7 +78,7 @@ So the familiar 8,000 is one point on a surface: 200k window, 4 bytes, 1%. At
 1M and 4 bytes the same fraction budgets 40,000, and at 1M with a 5% fraction
 200,000. The engine never resolves the model from disk, so unpinned it reports
 the budget as a band over both windows and both byte estimates, each row
-labelled, and names no row as the session's; `--context-window` and
+labeled, and names no row as the session's; `--context-window` and
 `--bytes-per-token` collapse the axes when the operator knows them.
 
 ## Why "least invoked" was the wrong description

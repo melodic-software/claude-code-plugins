@@ -5,7 +5,7 @@
 # (/discipline:script-the-deterministic-work). Everything here is mechanical: given a
 # validated spec, the security skeleton, the capabilities manifest, the verb
 # scaffolds, the conformance binding, and the README follow by construction. The
-# judgement — which verbs the provider can honestly support, what its fields mean,
+# judgment — which verbs the provider can honestly support, what its fields mean,
 # what a live instance actually returns — happens in the skill, before this runs, and
 # lands in the spec.
 #
@@ -154,7 +154,7 @@ CONFIG_KEY="$PROVIDER_FUNC"
 
 DISPLAY_NAME="$(sget '.display_name')"
 [[ -n "$DISPLAY_NAME" ]] || die_spec "display_name is required"
-# Constrained here, with its neighbours, for the reason render() states: values are
+# Constrained here, with its neighbors, for the reason render() states: values are
 # substituted LITERALLY and nothing downstream escapes them. display_name is the one
 # free-prose key that reaches all three dangerous context classes in the templates —
 # a single-quoted printf format (`common.sh.tmpl`), a DOUBLE-quoted `${VAR:?…}` where
@@ -399,7 +399,7 @@ if [[ -n "$HOST_SUFFIX" ]]; then
   HOST_PIN_POSTURE="pinned in code to \`$HOST_SUFFIX\`. A binding naming a host outside it is refused unless \`allow_custom_domain\` is set."
 else
   HOST_SUFFIX_DOC="none — $DISPLAY_NAME is self-hosted, so there is no vendor domain to pin against"
-  HOST_PIN_POSTURE="**no code-level pin.** $DISPLAY_NAME is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defence is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
+  HOST_PIN_POSTURE="**no code-level pin.** $DISPLAY_NAME is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defense is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
 fi
 
 # --- auth scheme rendering ---
@@ -421,7 +421,7 @@ CONFORMANCE_AUTH_EXTRA=""
 case "$AUTH_SCHEME" in
 raw)
   # Some providers take the credential as the bare Authorization value with no scheme
-  # word at all — Linear's personal API keys are the case that added this. Modelled as
+  # word at all — Linear's personal API keys are the case that added this. Modeled as
   # its own scheme rather than as an empty prefix, so the generated header cannot come
   # out with a stray leading space.
   AUTH_DESCRIPTION="a $DISPLAY_NAME API key sent as the bare \`Authorization\` value, with no scheme word"

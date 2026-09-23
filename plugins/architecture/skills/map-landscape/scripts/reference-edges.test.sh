@@ -280,7 +280,7 @@ assert_not_contains "quoted: no quote survives into a repository name" \
 
 # --- Case group 10: --print-owner -------------------------------------------
 #
-# The record has to name the organisation the graph was drawn from, and a second
+# The record has to name the organization the graph was drawn from, and a second
 # implementation of that resolution would eventually disagree with this one.
 owner_out="$(bash "$SCRIPT" "$quoted_repo" --print-owner)"
 assert_equals "print-owner: the origin owner, and no edges" "$owner_out" "fixture-owner"

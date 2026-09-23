@@ -13,7 +13,7 @@ against.
 
 ## 1. Finding identity
 
-Prose judgements are undiffable. Identity is three parts, emitted machine-readably, and the third is
+Prose judgments are undiffable. Identity is three parts, emitted machine-readably, and the third is
 a **set**, because a cross-surface finding is about a relation between sites, not about one site
 with a footnote.
 
@@ -91,7 +91,7 @@ arriving in a second field; the report's coverage notes name it there too, and i
 delegate declares its claim templates.
 
 **`primary_site` and `related_site` are presentation and remediation fields, OUTSIDE the hash.**
-Which side a report leads with, and which side a `--fix` proposes editing, is a routing judgement:
+Which side a report leads with, and which side a `--fix` proposes editing, is a routing judgment:
 project scope is editable, user scope is routed, managed policy never. Routing must be free to
 change without renaming the finding.
 
@@ -155,9 +155,9 @@ same v1 rules as the excerpt. That is the same path already carried alongside ea
 an identity input. A surface with no heading structure above the excerpt, or no heading concept at all (a
 prompt-type hook in JSON), uses the fixed sentinel `\x00`.
 
-**Why the enclosing heading path and not the neighbouring text.** A digest over adjacent blocks would
+**Why the enclosing heading path and not the neighboring text.** A digest over adjacent blocks would
 satisfy this thread and violate assertion 1.2 in the same stroke: inserting an unrelated paragraph
-directly above a finding would change its neighbours, hence its anchor, hence its `finding_id`,
+directly above a finding would change its neighbors, hence its anchor, hence its `finding_id`,
 churning suppressions on edits that touch nothing relevant, which is the failure content-derived
 anchoring exists to avoid. The heading path is invariant under insertion, deletion, and reordering of
 *content*, and changes only when the document's structure around the excerpt changes, which is a

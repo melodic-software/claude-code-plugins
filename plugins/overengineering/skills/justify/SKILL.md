@@ -179,7 +179,7 @@ empirical source or is UNPROVEN naming the tier consulted and whether it was sil
   every consult came back silent or unavailable, is UNPROVEN and `unexamined`; where the verdict
   rests on the non-derivable oracle or a protected-class match it is `class-inferred` instead, per
   lane section 9. A KEEP is `measured` or it is not a KEEP.
-- **`Ablation: n/a`**, spelled with the contract's own capitalisation, because that gate does not
+- **`Ablation: n/a`**, spelled with the contract's own capitalization, because that gate does not
   apply on this lane's layers (lane section 8). The
   earned-keep gate is the one every row answers, and a row fusing a class claim with an earned-keep
   verdict is a defect, not a shortcut. The `check` constituent of every id this lane derives carries

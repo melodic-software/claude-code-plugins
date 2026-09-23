@@ -599,7 +599,7 @@ CASES
 # --- an ARGUMENT-taking letter does not build an option cluster: GNU accepts
 # -e's script attached, so `sed -ei` passes the script 'i' and edits nothing in
 # place. A letter outside the documented set is an unknown option sed rejects,
-# so neither shape has GNU-only behaviour to report. -------------------------
+# so neither shape has GNU-only behavior to report. -------------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -1221,7 +1221,7 @@ amp_fires 'a bare & after a process substitution in the replacement' \
 amp_fires 'a bare & replacement after a process substitution in the pattern' \
   'v="${v//<(cmd1 && cmd2)/&}"'
 
-# --- the class honours the SAME escapes every other class does -------------
+# --- the class honors the SAME escapes every other class does -------------
 f="$(tmpsh 'v="${v//X/&}" # portability-ok: the sed-rule expansion is what this line wants')"
 if scan_paths "$amptok" "$f" >/dev/null 2>&1; then
   ok "a same-line portability-ok excuses an & hit"
@@ -2757,7 +2757,7 @@ rm -f "$f"
 # --- admitting a group opener must not weaken what the guard demands INSIDE it:
 # the fallback still has to be the command the group runs first, not merely a
 # string it prints. `|| ( true; stat -f ... )` stays flagged too — reaching a
-# fallback across a `;` is the line-wide behaviour the per-occurrence anchoring
+# fallback across a `;` is the line-wide behavior the per-occurrence anchoring
 # replaced, and widening it back is not worth a contrived spelling.
 f="$(tmpsh "$(printf '%s\n' \
   "stat -c '%s' \"\$f\" || { echo 'stat -f is unavailable'; }" \
@@ -3027,7 +3027,7 @@ rm -f "$TOK" "$f"
 
 # =============================================================================
 # The scanner engine as a file -- scripts/lib/shell-portability-scan.awk.
-# Everything above drives it THROUGH the gate, which is where its behaviour is
+# Everything above drives it THROUGH the gate, which is where its behavior is
 # pinned. These three cases address the program itself: that it compiles, that
 # its two-operand interface is the whole interface, and that the gate refuses
 # to run without it.

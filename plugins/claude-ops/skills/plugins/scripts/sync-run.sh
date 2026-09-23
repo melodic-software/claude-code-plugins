@@ -141,9 +141,9 @@ export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && 
 #   seconds       `date +%s`, the one form every `date` documents (macOS system
 #                 bash is 3.2 and has no EPOCHREALTIME, so this rung is real there)
 # The timings are a diagnostic measurement with no gate, so a coarse rung is
-# acceptable and labelled rather than an error. Stamps are kept as strings and
+# acceptable and labeled rather than an error. Stamps are kept as strings and
 # subtracted in jq at emit time, because bash has no float arithmetic; a `,`
-# radix (the manual leaves EPOCHREALTIME's locale behaviour unstated) is
+# radix (the manual leaves EPOCHREALTIME's locale behavior unstated) is
 # rewritten to `.` first so every field is a JSON number.
 # SYNC_RUN_NO_EPOCHREALTIME=1 is the test seam that forces the `date` rungs on a
 # bash that has the variable: a child shell recreates it at startup, so a caller
@@ -594,7 +594,7 @@ catalog_regression_rows() {
 # --- divergence attribution ----------------------------------------------------
 # Three snapshots, not two: Steps 2 and 3 both mutate versions, so a single
 # pre/post bracket cannot tell which step created a new actionable divergence, and
-# labelling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused
+# labeling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused
 # it. Only `versionsMatch: false` rows are actionable; a same-version multi-scope
 # install is benign and is never counted.
 divergence_block() {
@@ -1440,7 +1440,7 @@ setup_run_dir
 # `downgrades.<mp>.txt` and report a downgrade the first pass already applied. The
 # flag is written once by the pass that starts the run and read back by the
 # re-entry, before anything branches on it; a run directory from an older version
-# carries no file and keeps the previous behaviour.
+# carries no file and keeps the previous behavior.
 SAVED_ALLOW_DOWNGRADE=""
 if ((ONLY_INSTALL_MODE == 1)); then
   if [[ -f "$RUN_DIR/flags.json" ]]; then

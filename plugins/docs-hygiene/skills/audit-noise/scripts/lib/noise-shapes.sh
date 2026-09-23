@@ -97,7 +97,7 @@ audit_noise_line_has_ghost_ref() {
 # future reader can still open — a position inside this page, or a named
 # durable document — rather than the conversation or circumstance the sentence
 # came out of. The input is the raw follower text: it is lowercased here (so a
-# capitalised follower cannot fall through) and cut at the first clause break,
+# capitalized follower cannot fall through) and cut at the first clause break,
 # so a locator noun in a LATER clause cannot exempt the antecedent. Two
 # deliberate absences: tracker nouns
 # (`issue`, `ticket`, `PR`) — a decision parked in a tracker is provenance,
@@ -221,7 +221,7 @@ audit_noise_line_is_tracked_work() {
   local line="$1"
   # Task-list checklist item: `- [ ] … #123` / `- [x] … #123`.
   [[ "$line" =~ ^[[:space:]]*[-*+][[:space:]]+\[[[:space:]xX]\][[:space:]] ]] && return 0
-  # Tracked-work marker with a parenthesised reference.
+  # Tracked-work marker with a parenthesized reference.
   [[ "$line" =~ (TODO|FIXME|HACK|XXX)[[:space:]]*\(#?[A-Za-z0-9_-]+\) ]] && return 0
   return 1
 }

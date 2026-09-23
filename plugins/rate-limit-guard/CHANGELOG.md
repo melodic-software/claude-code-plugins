@@ -3,6 +3,25 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.22] - 2026-09-22
+
+### Changed
+
+- `statusline-shim.sh` resolves the tee once and caches the resolved path in `.statusline-tee-path` under the plugin's operator-home directory, anchored on the effective configuration directory. Every later render revalidates that one path with builtins (shape, existence, version directory not a symlink, no `.orphaned_at`) instead of globbing `plugins/cache/*/rate-limit-guard/*/scripts/statusline-tee.sh`, whose first segment expands over every marketplace directory in the cache. Measured on a fixture cache of 171 marketplace directories (12 real plus 159 orphan `temp_*` clones, each holding a copy of this plugin), counting shell operations rather than wall-clock time because the measuring host's own noise floor spans an order of magnitude: one render executed 171 glob-loop file tests before and 2 after, and 1073 traced shell operations before against 38 on a steady render. A cache miss costs 9 traced operations more than the old shim, so the cache never meaningfully exceeds what it replaces, and only on a miss. Nothing is written on a reuse, and nothing is written at all when no tee resolves, so an uninstalled plugin still costs what it did before. An empty, torn, or stale cache file re-resolves rather than misdirecting the exec.
+- `statusline-shim.sh` never caches a resolution whose version directory is a symlink, and rejects one on read as well. A symlinked development checkout is never marked orphaned and never pruned (plugins reference, "Plugin caching and file resolution"), so no other invalidator could ever clear it and a cached one would pin the checkout permanently. Rejecting it on read alone would be worse than no cache: the glob would re-elect the same symlink and rewrite the file on every render. Skipping the write keeps those operators on exactly the previous resolution behavior and cost. Known gap: on Windows an unprivileged development checkout is often a junction rather than a symlink, `-L` does not report a junction, and whether Claude Code also never-orphans a junctioned version entry is unverified.
+- `statusline-shim.sh` rejects a cached path carrying a `.` or `..` segment. Without `dotglob` the resolving glob's `*` matches no leading dot, so such a path is one the glob could not have produced; a pair of them reaches above the cache root, and `..` also disarms the symlink check structurally, since a version directory spelled `<something>/..` is never itself a link. The write also skips a cache file that is already a symlink, rather than truncating through it.
+- Behavior the cache makes worse, accepted deliberately: installing this plugin from a second marketplace while an un-orphaned copy from the first is cached leaves the first resolved, because nothing orphans it and a cache hit never runs the cross-marketplace mtime comparison. The second takes over once the first is orphaned or pruned, or once the cache file is deleted, which the reader contract already says is safe. Re-globbing often enough to notice a second marketplace is the whole cost the cache exists to avoid, and no cheap invalidator distinguishes the case.
+- The setup skill's uninstall procedure names the cache file for an operator running a relocated `CLAUDE_CONFIG_DIR`, where it sits beside the relocated plugin cache rather than under `~/.claude/rate-limit-guard/`.
+- **Operators should re-run `/rate-limit-guard:setup apply`.** The installed copy at `~/.claude/rate-limit-guard/bin/statusline-shim.sh` is byte-identical to the shipped source by contract, so `setup check` reports it as drifted until it is refreshed. The stale copy keeps working; it just keeps globbing. The shim revision marker moves 3 to 4, and the `>= 3` capability ladder `setup check` reads is unchanged, because this revision adds cost savings rather than behavior.
+
+## [0.8.21] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.8.20]
 
 ### Changed
@@ -382,7 +401,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   returns, so the shim's own sleep was the floor for both cancellation cases
   and the suite spent most of its wall time waiting on a delay that proved
   nothing. Two seconds exercises the same cancellation window behind the same
-  readiness marker. Test-side only; no hook, script or shipped behaviour
+  readiness marker. Test-side only; no hook, script or shipped behavior
   changes.
 
 ## [0.7.28]
@@ -452,11 +471,11 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   the 300-second floor, and the staleness rule itself is unchanged.
 - **Nine new suite cases.** The skip fires on an identical payload inside the floor, does not
   misfire on a changed one, expires with the floor so `captured_at` stays fresh, and the spool sweep
-  honours its cadence while still reclaiming a dead session's aged record. Proven by mtime against a
+  honors its cadence while still reclaiming a dead session's aged record. Proven by mtime against a
   sentinel rather than by content, since the body a skipped refresh would have written is by
   definition byte-identical to the one already there. Each of the three environment knobs is fed a
   value that would create a file if it ever reached the arithmetic, and the suite asserts the file
-  is absent, the default behaviour holds, and the passthrough survives; the shape subscripts an
+  is absent, the default behavior holds, and the passthrough survives; the shape subscripts an
   array bash always sets, because a shape that merely aborted the shell under `set -u` would leave
   every file untouched and pass vacuously. And a PATH `jq` shim that re-emits CRLF line endings
   proves the skip still fires with a CR on the payload side only and on the disk side only.
@@ -723,7 +742,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   (`bench/bench-idle.sh`, `bench/bench-load.sh`, `bench/trace-probe.sh`, `bench/lib-bench.sh`),
   adapted to run from a clean checkout against the repo's own tee, with `bench/README.md`
   recording the baseline numbers, platform, and spawn-floor method, and `bench/bench.test.sh`
-  smoke-testing the harness in CI for behaviour and output shape only, never timing (#2582).
+  smoke-testing the harness in CI for behavior and output shape only, never timing (#2582).
   Review hardening over the scratch originals: fork-free timer reads (`printf -v`, no command
   substitution), a loud bash >= 5.0 refusal instead of an `EPOCHREALTIME` unbound-variable
   abort, render failures abort a lane instead of being timed, and the load lane's
@@ -772,7 +791,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
   **Per-session files, not a shared append spool.** POSIX specifies atomicity for
   concurrent writes to pipes up to `PIPE_BUF` and explicitly leaves regular-file
-  behaviour unspecified; through Cygwin/MSYS the observed no-interleave bound on
+  behavior unspecified; through Cygwin/MSYS the observed no-interleave bound on
   appends is around a kilobyte while statusline payloads are multiple kilobytes, and
   bash's buffered builtin output can split one large record across syscalls anyway.
   Atomicity therefore comes from **file disjointness**, not from an argument about
@@ -818,7 +837,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
   Bash 4.2 is the floor (`%(%s)T` is a 4.2 builtin). Below it, on macOS bash 3.2 where
   `fork` is cheap and this problem does not arise, the previous synchronous path runs
-  untouched, and `RLG_TEE_ASYNC=1` keeps its current behaviour on every version.
+  untouched, and `RLG_TEE_ASYNC=1` keeps its current behavior on every version.
 
   All 75 pre-existing assertions pass unmodified; the suite is now 96.
 
@@ -848,7 +867,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   `_rlg_settings_option`, which the managed scope calls on every refresh wherever a
   `managed-settings.json` exists, and `_rlg_probe`.
 
-  This also restores the fail-OPEN behaviour on a malformed settings file. Parsing
+  This also restores the fail-OPEN behavior on a malformed settings file. Parsing
   the document jq-side (`--argjson`, `--slurpfile`) aborts the whole invocation
   before the filter runs, which took the snapshot down with the verdict; parsing it
   filter-side under `try` yields an empty verdict and leaves the snapshot alone.
@@ -892,7 +911,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   - **`mkdir -p` and `chmod 700` on the contract directory run only when it is absent.**
     Both were unconditional, and both are processes re-asserting a state that already held.
 
-  One deliberate behavioural tradeoff, called out because it is a real one: the contract
+  One deliberate behavioral tradeoff, called out because it is a real one: the contract
   directory's owner-only mode is now asserted at creation instead of re-asserted on every refresh,
   so a mode that a user or another tool later loosens is no longer silently corrected. No builtin
   can read a file mode, so the alternative is a `stat` process per refresh, exactly the cost being
@@ -909,7 +928,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   so forking a bash subshell holding the payload was measured at 75–200 ms against ~24 ms to exec
   a small binary. Detaching does not make the work cheaper; it buys back the render's critical path
   by paying a fork more expensive than the execs it steps around, and it lets successive refreshes
-  overlap instead of serialise. Measured (Windows, 24 cores, statusline + tee):
+  overlap instead of serialize. Measured (Windows, 24 cores, statusline + tee):
 
   |                                   | sync (default) | async      |
   | --------------------------------- | -------------- | ---------- |
@@ -953,7 +972,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, with one
   visible skip notice per session and then exit 0. That is the correct posture for every hook in
-  this plugin, so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  this plugin, so **nothing in this plugin's behavior changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
@@ -988,7 +1007,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 
   **Precedence is now managed → user settings → environment**, highest first. Managed wins because
   a gate a user or a repository can out-vote is not a policy control. The environment channel also
-  moved *below* user settings, which is a second behaviour change and deliberate: it is retained
+  moved *below* user settings, which is a second behavior change and deliberate: it is retained
   only in case `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` is ever delivered to a `statusLine`
   process, and for an unconfigured key a repository `.claude/settings.json` `env` block populates it
   freely with no provenance (same convention, fact 4), so it must not out-vote a value a real
@@ -1074,7 +1093,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 - **A cited plugins-reference section had been renamed upstream.** `scripts/statusline-shim.sh`
   attributed the 14-day orphaned-cache-directory grace period to a section called "Plugin cache and
   file access". That section is now titled **"Plugin caching and file resolution"**, and the cache
-  root it documents is `~/.claude/plugins/cache`. The behaviour cited is unchanged and still stated
+  root it documents is `~/.claude/plugins/cache`. The behavior cited is unchanged and still stated
   verbatim; only the section title a reader would search for had moved, which is exactly the kind of
   silent rot that makes a citation unfollowable. The comment now names the current title and records
   the former one so the rename is traceable.
@@ -1105,7 +1124,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
   flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
-  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  new global, so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.5.2]
 

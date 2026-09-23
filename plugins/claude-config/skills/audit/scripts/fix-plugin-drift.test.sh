@@ -610,8 +610,8 @@ signal_shim() {
   chmod +x "$dir/jq"
 }
 
-# run_signalled <case-dir> <signal> - an apply interrupted at that point.
-run_signalled() {
+# run_signalled <case-dir> <signal> - an apply interrupted at that point.  # identifier, not prose # spellchecker:disable-line
+run_signalled() {  # identifier, not prose # spellchecker:disable-line
   local case_dir="$1" sig="$2"
   signal_shim "$case_dir/shim" "$sig"
   PATH="$case_dir/shim:$PATH" \
@@ -634,7 +634,7 @@ for sig_case in "15 TERM 143" "16 INT 130"; do
   cp "$case_dir/settings.json" "$case_dir/settings.pre"
 
   exit_code=0
-  out=$(run_signalled "$case_dir" "$sig_name") || exit_code=$?
+  out=$(run_signalled "$case_dir" "$sig_name") || exit_code=$?  # identifier, not prose # spellchecker:disable-line
 
   if [[ ! -e "$case_dir/fired" ]]; then
     skip "case-$1: SIG$sig_name during the apply" "the shim never fired, so the signal was never delivered"

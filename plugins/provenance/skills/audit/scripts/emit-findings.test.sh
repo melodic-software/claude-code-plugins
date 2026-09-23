@@ -469,7 +469,7 @@ done
 
 assert_not_contains "an array-tier searched surface never reaches the file" \
   "$(cat "$OUTDIR/withheld-arraytier.md")" "ARRSURFACE.example"
-assert_not_contains "a capitalised-key searched surface never reaches the file" \
+assert_not_contains "a capitalized-key searched surface never reaches the file" \
   "$(cat "$OUTDIR/withheld-capkey.md")" "CAPSURFACE.example"
 
 # The scope is the DECLARED tier. A verdict name spelled in some other field is

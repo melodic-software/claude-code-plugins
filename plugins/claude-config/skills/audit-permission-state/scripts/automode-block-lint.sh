@@ -307,7 +307,7 @@ for section in SECTIONS:
         '"$defaults" is absent and %d of the %d built-in %s entries are gone with it: '
         "a customized section REPLACES the built-in list rather than adding to it. "
         'Add "$defaults" to keep them. First missing: %s'
-        % (len(missing), len(built_in), section, label_of(missing[0]) or "(unlabelled)"),
+        % (len(missing), len(built_in), section, label_of(missing[0]) or "(unlabeled)"),
     )
 
 # --- C2b: the same subject allowed and denied --------------------------------

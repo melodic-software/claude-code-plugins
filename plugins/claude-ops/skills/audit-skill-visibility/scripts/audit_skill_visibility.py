@@ -619,7 +619,7 @@ def collect_installed(
     marketplaces = _load("known_marketplaces.json")
     # Attach EVERY marketplace's catalog (`<installLocation>/.claude-plugin/
     # marketplace.json`, the same file `plugins/scripts/fleet-state.sh`
-    # reads). A directory-source marketplace needs it so the resolver honours
+    # reads). A directory-source marketplace needs it so the resolver honors
     # the plugin's DECLARED source path instead of assuming a layout; every
     # marketplace needs it because the entry's `defaultEnabled` is the first
     # fallback for a plugin no settings scope mentions. A missing or
@@ -1227,7 +1227,7 @@ def settings_layers(project_root: str, config_root: str, managed: dict) -> list[
 # Both are per model, and this script never resolves the model from disk: the
 # session's model is not written anywhere an out-of-process reader can trust.
 # The honest static report is a band over every combination, collapsed only by
-# an operator pin or by an environment variable the product itself honours.
+# an operator pin or by an environment variable the product itself honors.
 #
 # Window resolution order mirrors the binary: `CLAUDE_CODE_MAX_CONTEXT_TOKENS`
 # wins, but only when `DISABLE_COMPACT` is also set; else a truthy
@@ -1250,7 +1250,7 @@ def resolve_windows(pin: int | None, env: Mapping[str, str]) -> dict:
 
     Returns `{"windows": (...), "basis": str, "env": [...]}`. `env` records
     each variable consulted with its effect, so the report can state what was
-    honoured, what was ignored, and why. A pin is the operator's own statement
+    honored, what was ignored, and why. A pin is the operator's own statement
     about the session and outranks the process environment, which may not be
     the session's.
     """
@@ -1262,7 +1262,7 @@ def resolve_windows(pin: int | None, env: Mapping[str, str]) -> dict:
     max_tokens_value: int | None = None
     if max_tokens is not None:
         if not _env_truthy(disable_compact):
-            effect = "ignored: honoured only when DISABLE_COMPACT is also set"
+            effect = "ignored: honored only when DISABLE_COMPACT is also set"
         elif not max_tokens.strip().isdigit() or int(max_tokens) <= 0:
             effect = "ignored: not a positive integer"
         else:
@@ -1493,7 +1493,7 @@ def compute_listing(
 
     INFERENTIAL: which particular skills lose their descriptions. That ordering
     comes from a scorer recovered from one build of the product (see
-    `listing_score`), so it is rendered as a ranked band and labelled, never as
+    `listing_score`), so it is rendered as a ranked band and labeled, never as
     an exact cutoff.
 
     `scores` carries the mirrored scorer's output per qualified name. When it is
@@ -1564,7 +1564,7 @@ def compute_listing(
     # competing entry with a running description budget, granting whatever still
     # fits and shedding whatever does not. Crucially its loop has no early exit,
     # so a cheap low-scored description can still be granted after an expensive
-    # higher-scored one was refused. Modelling this as a prefix understated the
+    # higher-scored one was refused. Modeling this as a prefix understated the
     # protection long descriptions lose and overstated it for short ones.
     #
     # Consequence worth stating plainly: description LENGTH is a ranking input,
@@ -1665,7 +1665,7 @@ def compute_listing_band(
     axes moot) returns the single-row shape `compute_listing` produces, so
     consumers of that shape are unaffected. More than one returns the same
     top-level keys with the per-row numbers nulled, `budget_basis: "band"`,
-    and the rows under `band`, each labelled and carrying its own numbers. No
+    and the rows under `band`, each labeled and carrying its own numbers. No
     row is named as this session's: that is the claim the band exists to
     withhold.
 
@@ -2345,7 +2345,7 @@ def _render_longest(skills: list[dict], cap: int | None) -> list[str]:
     the charge, since the charge saturates at `skillListingMaxDescChars` and
     would order every over-cap description by name; the charge is shown beside
     it because trimming lowers the overflow only once the source length is
-    under the cap. It is arithmetic over length and is labelled that way:
+    under the cap. It is arithmetic over length and is labeled that way:
     which skills LOSE their descriptions is a separate, usage-ordered claim
     that an unscored run withholds, and this table must not be read as that
     ranking.

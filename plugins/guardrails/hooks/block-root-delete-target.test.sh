@@ -1,0 +1,451 @@
+#!/usr/bin/env bash
+# Contract test for block-root-delete-target.sh (guardrails plugin).
+#
+# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
+# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
+# no host-repo assertion library.
+#
+# The core table runs through expect_both, so every verdict is asserted twice:
+# once with the guard alone, and once under hooks/run-guards.sh. A guard that
+# decides one way by itself and another under the dispatcher is a failure here
+# rather than a blind spot.
+#
+# The guard is NOT host-gated, so no case forces OSTYPE: a recursive delete of
+# `/`, of `~`, of `$HOME`, or with --no-preserve-root is unrecoverable on every
+# host this plugin runs on, and CI is Linux.
+#
+# File-wide, and deliberate: every command string below is a LITERAL the guard
+# must read exactly as an operator wrote it. `$HOME` and `${HOME}` are matched
+# as text, because the guard never evaluates an expansion (SC2016), and `\\` is
+# a real pair of backslashes rather than an escaped quote (SC1003). Expanding
+# either here would test something other than what the guard sees.
+# shellcheck disable=SC2016,SC1003
+
+set -uo pipefail
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK="$HOOK_DIR/block-root-delete-target.sh"
+GUARD_UNDER_TEST="$HOOK"
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+
+# shellcheck source=guardrails-test-helpers.sh
+source "$HOOK_DIR/guardrails-test-helpers.sh"
+
+# --- 1. MUST FIRE: the operand normalizes to a filesystem root ----------------
+# The measured gap this guard closes. `rm -rf "\\"` passed all eight guards of
+# the Bash dispatcher at rc 0, because no guard inspected the TARGET of a
+# recursive delete at all.
+expect_both 'rm -rf "\\" blocks' 2 --command 'rm -rf "\\"'
+expect_both 'rm -rf \\ blocks' 2 --command 'rm -rf \\'
+expect_both 'rm -rf / blocks' 2 --command 'rm -rf /'
+expect_both 'rm -rf /* blocks' 2 --command 'rm -rf /*'
+expect_both 'rm -rf "//" blocks' 2 --command 'rm -rf "//"'
+
+# Recursion spelled every way the flag parser must recognize.
+expect_both 'rm -r / blocks' 2 --command 'rm -r /'
+expect_both 'rm --recursive / blocks' 2 --command 'rm --recursive /'
+expect_both 'rm -Rf / blocks (capital R)' 2 --command 'rm -Rf /'
+expect_both 'rm -rf -- / blocks (end of options)' 2 --command 'rm -rf -- /'
+
+# Home, in the spellings the tokenizer hands over verbatim. Detection never
+# evaluates an expansion, so `$HOME` is matched as the literal it is written as.
+expect_both 'rm -rf ~ blocks' 2 --command 'rm -rf ~'
+expect_both 'rm -rf $HOME blocks' 2 --command 'rm -rf $HOME'
+expect_both 'rm -rf "$HOME" blocks' 2 --command 'rm -rf "$HOME"'
+expect_both 'rm -rf ${HOME} blocks' 2 --command 'rm -rf ${HOME}'
+
+# Windows and MSYS drive roots. `C:\` arrives from the tokenizer as `C:`,
+# because the backslash is a bash escape; `C:/` keeps its slash. Both normalize
+# to the same drive root.
+expect_both 'rm -rf C:\ blocks' 2 --command 'rm -rf C:\'
+expect_both 'rm -rf c:/ blocks' 2 --command 'rm -rf c:/'
+expect_both 'rm -rf C: blocks' 2 --command 'rm -rf C:'
+expect_both 'rm -rf /c blocks (MSYS drive root)' 2 --command 'rm -rf /c'
+expect_both 'rm -rf /c/* blocks' 2 --command 'rm -rf /c/*'
+expect_both 'rm -rf /mnt/c blocks (WSL drive root)' 2 --command 'rm -rf /mnt/c'
+expect_both 'rm -rf /cygdrive/c blocks' 2 --command 'rm -rf /cygdrive/c'
+
+# Command-word resolution: a launcher, a path-qualified name, an .exe suffix
+# and a quote-escaped name all resolve to the same `rm`.
+expect_both 'sudo rm -rf / blocks' 2 --command 'sudo rm -rf /'
+expect_both 'env rm -rf / blocks' 2 --command 'env rm -rf /'
+expect_both '/bin/rm -rf / blocks' 2 --command '/bin/rm -rf /'
+expect_both 'rm.exe -rf / blocks' 2 --command 'rm.exe -rf /'
+expect_both '\rm -rf / blocks (quote-escaped name)' 2 --command '\rm -rf /'
+
+# A later segment of a compound command is inspected on its own.
+expect_both 'cd foo && rm -rf / blocks' 2 --command 'cd foo && rm -rf /'
+
+# A RESERVED WORD ahead of `rm` is not the command word. The tokenizer splits on
+# `;`, `&`, `|`, `(` and `)`, so a compound command hands the callback a segment
+# that OPENS with one: `{ rm -rf /`, `then rm -rf /`, and every loop body as
+# `do rm -rf /`. Read as a command word, each of those waved the segment through.
+expect_both 'brace group blocks' 2 --command '{ rm -rf /; }'
+expect_both 'if/then blocks' 2 --command 'if true; then rm -rf /; fi'
+expect_both 'if/else blocks' 2 --command 'if false; then :; else rm -rf /; fi'
+expect_both 'if/elif blocks' 2 --command 'if false; then :; elif rm -rf /; then :; fi'
+expect_both 'while/do blocks' 2 --command 'while :; do rm -rf /; done'
+expect_both 'until blocks' 2 --command 'until rm -rf /; do :; done'
+expect_both 'for/do blocks' 2 --command 'for d in a b; do rm -rf /; done'
+expect_both 'negation blocks' 2 --command '! rm -rf /'
+# `f()` needs no arm of its own: `(` is a segment separator, so the name has
+# already closed its own segment and `{` is what opens the body. `function`
+# does, because it and the name it introduces are both argv words of the body's
+# segment.
+expect_both 'function definition blocks' 2 --command 'f() { rm -rf /; }; f'
+expect_both 'function keyword definition blocks' 2 --command 'function f { rm -rf /; }; f'
+# These three already blocked before the reserved-word walk existed, because
+# `(` and `)` are segment separators and `time` is a launcher. Pinned so they
+# stay that way.
+expect_both 'subshell blocks' 2 --command '(rm -rf /)'
+expect_both 'spaced subshell blocks' 2 --command '( rm -rf / )'
+expect_both 'case arm blocks' 2 --command 'case x in x) rm -rf / ;; esac'
+expect_both 'time rm -rf / blocks' 2 --command 'time rm -rf /'
+# `coproc [NAME] command`, and bash takes the NAME only ahead of a COMPOUND
+# command. Ahead of a SIMPLE one the first word IS the command, so stepping over
+# any identifier that merely had a word after it swallowed the real command
+# word and let a child shell through.
+expect_both 'coproc blocks' 2 --command 'coproc rm -rf --no-preserve-root /'
+expect_both 'coproc brace group blocks' 2 --command 'coproc { rm -rf /; }'
+expect_both 'coproc NAME brace group blocks' 2 --command 'coproc shredder { rm -rf /; }'
+expect_both 'coproc bash -c blocks' 2 --command "coproc bash -c 'rm -rf /'"
+expect_both 'coproc eval blocks' 2 --command 'coproc eval "rm -rf /"'
+expect_both 'coproc su -c blocks' 2 --command "coproc su -c 'rm -rf /'"
+
+# Any operand may be the root, not only the first.
+expect_both 'rm -rf ./ok / blocks on the second operand' 2 --command 'rm -rf ./ok /'
+
+# --no-preserve-root is refused whatever the operand: the flag exists only to
+# defeat the one protection coreutils ships for this mistake.
+expect_both 'rm -rf --no-preserve-root ./x blocks' 2 --command 'rm -rf --no-preserve-root ./x'
+
+# A trailing segment that carries no NAME leaves the operand rooted where it
+# started, so every one of these still names a root. Stripping one glob suffix
+# was not enough: `/*/` keeps a trailing slash, `/./*` keeps a dot segment, and
+# `/.[!.]*` is the ordinary dotfile idiom.
+expect_both 'rm -rf /*/ blocks' 2 --command 'rm -rf /*/'
+expect_both 'rm -rf /./* blocks' 2 --command 'rm -rf /./*'
+expect_both 'rm -rf /.[!.]* blocks (dotfile idiom)' 2 --command 'rm -rf /.[!.]*'
+expect_both 'rm -rf ~/./* blocks' 2 --command 'rm -rf ~/./*'
+expect_both 'rm -rf /c/*/ blocks' 2 --command 'rm -rf /c/*/'
+expect_both 'rm -rf /. blocks' 2 --command 'rm -rf /.'
+expect_both 'rm -rf /.. blocks' 2 --command 'rm -rf /..'
+
+# A launcher option that takes its own operand must not swallow the command
+# word. `sudo -u bob rm` puts `bob` where a naive skip reads the command.
+expect_both 'sudo -u bob rm -rf / blocks' 2 --command 'sudo -u bob rm -rf /'
+expect_both 'env -u FOO rm -rf / blocks' 2 --command 'env -u FOO rm -rf /'
+expect_both 'timeout 60 rm -rf / blocks' 2 --command 'timeout 60 rm -rf /'
+expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
+expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
+expect_both 'stdbuf -o L rm -rf / blocks' 2 --command 'stdbuf -o L rm -rf /'
+expect_both 'time -f FMT rm -rf / blocks' 2 --command '/usr/bin/time -f FMT rm -rf /'
+expect_both 'exec -a foo rm -rf / blocks' 2 --command 'exec -a foo rm -rf /'
+# The LONG spelling of an operand-taking option moves the command word exactly
+# as the short one does, so every short form listed carries its long alias.
+# `--opt=value` carries its own operand and consumes no following word.
+expect_both 'sudo --user root rm -rf / blocks' 2 --command 'sudo --user root rm -rf /'
+expect_both 'sudo --user=root rm -rf / blocks' 2 --command 'sudo --user=root rm -rf /'
+expect_both 'env --chdir /tmp rm -rf / blocks' 2 --command 'env --chdir /tmp rm -rf /'
+expect_both 'nice --adjustment 5 rm -rf / blocks' 2 --command 'nice --adjustment 5 rm -rf /'
+expect_both 'ionice --class 2 rm -rf / blocks' 2 --command 'ionice --class 2 rm -rf /'
+expect_both 'stdbuf --output L rm -rf / blocks' 2 --command 'stdbuf --output L rm -rf /'
+# GNU env's `-S` is not an option argument to step over: env SPLITS the operand
+# and RUNS it, so it is re-parsed as the command it is.
+expect_both 'env -S rm -rf / blocks' 2 --command "env -S 'rm -rf /'"
+expect_both 'env --split-string rm -rf / blocks' 2 --command "env --split-string 'rm -rf /'"
+expect_both 'env --split-string= rm -rf / blocks' 2 --command "env --split-string='rm -rf /'"
+
+# A command substitution RUNS before the word it builds is used, so the shell
+# executes the inner command whatever the outer one is. The tokenizer keeps a
+# substitution inside the enclosing word, so its body is scanned separately.
+expect_both 'echo "$(rm -rf /)" blocks' 2 --command 'echo "$(rm -rf /)"'
+expect_both 'echo $(rm -rf /) blocks' 2 --command 'echo $(rm -rf /)'
+expect_both 'backtick substitution blocks' 2 --command 'echo `rm -rf /`'
+expect_both 'nested substitution blocks' 2 --command 'echo "$(echo "$(rm -rf /)")"'
+expect_both 'substitution with --no-preserve-root blocks' 2 \
+  --command 'echo "$(rm -rf --no-preserve-root /)"'
+expect_both 'substitution in an assignment blocks' 2 --command 'x="$(rm -rf ~)"'
+
+# The scan honors QUOTING when it looks for the END of a body too, so a `)`
+# sitting inside a quoted span is not the terminator. Reading raw characters cut
+# the body off at that paren and lost the delete standing behind it.
+expect_both 'quoted paren inside a substitution body blocks' 2 \
+  --command "echo \"\$(printf '%s\n' ')'; rm -rf --no-preserve-root /)\""
+expect_both 'quoted paren then a root operand blocks' 2 \
+  --command "echo \"\$(printf ')'; rm -rf /)\""
+
+# Nesting is capped, and the cap REFUSES rather than allows: the abort boundary
+# is fail-OPEN, so a scanner that ran out of room would answer allow on exactly
+# the payload built to exhaust it. The innermost command here is harmless, so
+# the cap is the only thing that can refuse this one.
+rdt_deep=""
+for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="\$($rdt_deep"; done
+rdt_deep="${rdt_deep}echo rm"
+for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_deep="$rdt_deep)"; done
+expect_both 'substitution nested 40 deep is refused' 2 --command "$rdt_deep"
+
+# The depth cap bounds the NESTING, not the WORK. The tokenizer splits on
+# unquoted `(`, `)` and `;`, so a payload at the command ceiling nested to just
+# under the depth cap yields as many segments as a flat one AND a body to
+# re-tokenize per level. It ran for 40 s alone and 48 s under the dispatcher,
+# against a 60 s hook timeout, and a hook the harness cancels on that timeout is
+# cancelled WITHOUT a block: the slow path failed OPEN. A MAX_COMMAND_LEN budget
+# over the SUBSTITUTION BODIES, spent before the top-level parse, is what bounds
+# it. `timeout 20` is the backstop, and it is the only timing assertion here: a
+# hang reads as rc 124 rather than as a pass, while a wall-clock threshold on a
+# shared CI shard measures the shard rather than the guard. The bound is set
+# against a HANG, not against the refusal's own cost, which is about 5 s here;
+# 20 keeps room for a loaded shard while still catching the fail-open shape
+# this pin exists for.
+rdt_pad=""
+while ((${#rdt_pad} < 15900)); do rdt_pad+="rm -rf ./x; "; done
+rdt_big=""
+for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="\$($rdt_big"; done
+rdt_big="${rdt_big}${rdt_pad}"
+for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="$rdt_big)"; done
+rdt_payload="$(command_json "$rdt_big")"
+
+for rdt_via in direct dispatched; do
+  if [[ "$rdt_via" == direct ]]; then
+    rdt_argv=(bash "$HOOK")
+  else
+    rdt_argv=(bash "$GUARD_DISPATCH" "$HOOK")
+  fi
+  rdt_rc=0
+  rdt_err="$(timeout 20 "${rdt_argv[@]}" <<<"$rdt_payload" 2>&1 >/dev/null)" || rdt_rc=$?
+  assert_exit "a 16 KB 32-deep payload is refused ($rdt_via)" 2 "$rdt_rc"
+  assert_contains "the refusal names the tokenizing budget ($rdt_via)" \
+    "$rdt_err" "substitution bodies exceed MAX_COMMAND_LEN in total"
+done
+# The budget counts SUBSTITUTION BODIES ONLY. Charging the command's own length
+# against it too refused any command past about half the ceiling that carried
+# one ordinary substitution, while leaving a flat command just under the ceiling
+# alone, which is a size limit on the wrong thing.
+rdt_ok=""
+while ((${#rdt_ok} < 8180)); do rdt_ok+="echo ok; "; done
+expect_both 'a long benign command with one rm-bearing body is allowed' 0 \
+  --command "${rdt_ok}\$(echo rm)"
+
+# SIBLING bodies cannot exhaust this budget by construction: each one's text
+# sits in the command, and the command has its own ceiling. 900 of them total
+# 13,500 characters of body text and are allowed. 1,300 total 19,500, which no
+# command under MAX_COMMAND_LEN can hold, so that payload is refused by the
+# COMMAND ceiling instead, and the message is pinned to keep the difference
+# visible. One arm each: the budget is internal to the guard, so the dispatcher
+# cannot decide it differently, and both payloads are slow to build.
+rdt_sib() {
+  local n="$1" s="echo " k
+  for ((k = 0; k < n; k++)); do s+="\$(echo rm 1234567)"; done
+  printf '%s' "$s"
+}
+expect '900 sibling rm-bearing bodies are allowed' 0 --command "$(rdt_sib 900)"
+guard_invoke --command "$(rdt_sib 1300)"
+assert_exit "1300 sibling rm-bearing bodies are refused" 2 "$GUARD_RC"
+assert_contains "1300 siblings are refused by the COMMAND ceiling, not the body budget" \
+  "$GUARD_ERR" "the command is too long to parse"
+
+expect_both 'substitution nested 3 deep is still parsed' 2 \
+  --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
+
+# `eval` runs its arguments in THIS shell, so the child-shell unwrap never
+# applies to it: there is no -c and no new process.
+expect_both 'eval "rm -rf /" blocks' 2 --command 'eval "rm -rf /"'
+expect_both 'eval rm -rf / blocks (unquoted)' 2 --command 'eval rm -rf /'
+expect_both 'nested eval blocks' 2 --command 'eval "eval \"rm -rf /\""'
+expect_both 'eval with an ordinary delete allowed' 0 --command 'eval "rm -rf ./build"'
+# eval's arguments are joined by TEXT, and an operand a trailing backslash
+# produced arrives EMPTY, so the join must restore the literal `\` from that
+# word's quoting provenance or the operand vanishes on the way into the
+# re-parse and `eval rm -rf \` passes.
+expect_both 'eval rm -rf \ blocks (dangling backslash through eval)' 2 --command 'eval rm -rf \'
+expect_both 'eval "rm -rf" \ blocks' 2 --command 'eval "rm -rf" \'
+expect_both 'eval rm -rf "\\" blocks' 2 --command 'eval rm -rf "\\"'
+expect_both "eval 'rm -rf \\' blocks" 2 --command "eval 'rm -rf \\'"
+
+# A child shell runs its operand as a full command, so the operand is re-parsed
+# with the same tokenizer, exactly as block-no-verify does for `git`.
+expect_both 'bash -c rm -rf / blocks' 2 --command 'bash -c "rm -rf /"'
+expect_both 'sh -c rm -rf / blocks' 2 --command "sh -c 'rm -rf /'"
+expect_both 'bash -lc rm -rf / blocks' 2 --command 'bash -lc "rm -rf /"'
+expect_both 'sudo bash -c rm -rf / blocks' 2 --command 'sudo bash -c "rm -rf /"'
+
+# `su` runs its operand through the target user's shell, so one process is every
+# command inside it too. Its grammar is not a shell's: the operand follows the
+# FLAG, and a user name may sit ahead of it.
+expect_both 'su -c rm -rf / blocks' 2 --command "su -c 'rm -rf /'"
+expect_both 'su bob -c rm -rf / blocks' 2 --command "su bob -c 'rm -rf /'"
+expect_both 'su - bob -c rm -rf / blocks' 2 --command "su - bob -c 'rm -rf /'"
+expect_both 'su -lc rm -rf / blocks (short cluster)' 2 --command "su -lc 'rm -rf /'"
+expect_both 'su --command= rm -rf / blocks' 2 --command "su --command='rm -rf /'"
+expect_both 'su --session-command rm -rf / blocks' 2 --command "su --session-command 'rm -rf /'"
+
+# The command word is compared case-insensitively, so the substring prefilter
+# in front of the parse must be too. On the Windows host this guard was written
+# for, the filesystem and PATH lookup are case-insensitive and `RM` runs rm.
+expect_both 'RM -rf / blocks (upper case)' 2 --command 'RM -rf /'
+expect_both 'Rm.exe -rf C:\ blocks (mixed case)' 2 --command 'Rm.exe -rf C:\'
+expect_both 'busybox rm -rf / blocks' 2 --command 'busybox rm -rf /'
+# The `.exe` suffix is spelled in any case on that filesystem too, so the strip
+# runs AFTER the fold. Stripping first left `rm.EXE` reading as `rm.exe`.
+expect_both 'rm.EXE -rf / blocks' 2 --command 'rm.EXE -rf /'
+expect_both 'RM.exe -rf / blocks' 2 --command 'RM.exe -rf /'
+expect_both '/bin/RM.EXE -rf / blocks' 2 --command '/bin/RM.EXE -rf /'
+
+# A DANGLING trailing backslash is the incident string minus its quotes. Bash
+# passes a literal `\` when one ends the input, and MSYS resolves it to the
+# current drive root. The tokenizer has no character left to emit, so the
+# operand arrives empty and only its quoting provenance separates it from
+# `rm -rf ""`.
+expect_both 'rm -rf \ blocks (dangling backslash)' 2 --command 'rm -rf \'
+expect_both 'rm -rf $(quoted backslash) blocks' 2 --command "rm -rf '\\'"
+
+# coreutils accepts any unambiguous long-option prefix.
+expect_both 'rm --r -f / blocks (abbreviated --recursive)' 2 --command 'rm --r -f /'
+expect_both 'rm --rec -f / blocks' 2 --command 'rm --rec -f /'
+expect_both 'rm -rf --no-p ./x blocks (abbreviated --no-preserve-root)' 2 --command 'rm -rf --no-p ./x'
+
+# A UNC share root is the same class of loss as a drive root.
+expect_both 'rm -rf //server/share blocks' 2 --command 'rm -rf //server/share'
+# Single-quoted, because an UNQUOTED backslash-backslash-server form is not a
+# UNC path to bash at all: the escapes collapse it to `\servershare`, and that
+# is what rm would receive. The quoted spelling is the one that reaches the
+# share, and both verdicts are pinned so the difference stays deliberate.
+# portability-ok: a literal backslash pair inside a UNC path, not a grep -E escape
+expect_both 'quoted UNC share root blocks' 2 --command "rm -rf '\\\\server\\share'"
+# portability-ok: a literal backslash pair inside a UNC path, not a grep -E escape
+expect_both 'unquoted UNC-looking path allowed (its escapes collapse)' 0 --command 'rm -rf \\server\share'
+
+# --- 2. MUST NOT FIRE --------------------------------------------------------
+# Quoted prose keeps `rm` INSIDE one word, so the command word is `git` or
+# `echo` and the guard never reaches its flag parse. That falls out of command
+# word resolution rather than a special case for message text.
+expect_both 'git commit -m "rm -rf /" allowed' 0 --command 'git commit -m "rm -rf /"'
+expect_both 'echo "rm -rf /" allowed' 0 --command 'echo "rm -rf /"'
+expect_both 'echo rm allowed' 0 --command 'echo rm'
+
+# Ordinary recursive deletes under the working tree: the whole point of the
+# narrow trigger is that these stay untouched.
+expect_both 'rm -rf ./build dist allowed' 0 --command 'rm -rf ./build dist'
+expect_both 'rm -rf build/ allowed' 0 --command 'rm -rf build/'
+expect_both 'rm -rf /tmp/x allowed' 0 --command 'rm -rf /tmp/x'
+expect_both 'rm -rf "$TMPDIR/x" allowed' 0 --command 'rm -rf "$TMPDIR/x"'
+expect_both 'rm -rf ~/.cache/foo allowed' 0 --command 'rm -rf ~/.cache/foo'
+expect_both 'rm -rf $HOME/x allowed' 0 --command 'rm -rf $HOME/x'
+# The path segments here are deliberately generic: the repo's machine-specific
+# paths gate reads a drive letter followed by a well-known machine root as a
+# leaked local path, and the assertion is about depth, not about the name.
+expect_both 'rm -rf C:/build/x allowed' 0 --command 'rm -rf C:/build/x'
+expect_both 'rm -rf /c/build/x allowed' 0 --command 'rm -rf /c/build/x'
+
+# No recursion flag: the fire conditions never open.
+expect_both 'rm -f /file allowed' 0 --command 'rm -f /file'
+expect_both 'rm / allowed (no recursion)' 0 --command 'rm /'
+
+# An operand that normalizes to EMPTY is not a root, and a recursive delete
+# with no operand at all has nothing to match.
+expect_both 'rm -rf "" allowed' 0 --command 'rm -rf ""'
+expect_both 'rm -rf allowed (no operand)' 0 --command 'rm -rf'
+
+# A trailing segment that carries a NAME stops the reduction, so these stay
+# ordinary relative or nested deletes rather than roots.
+expect_both 'rm -rf /tmp* allowed' 0 --command 'rm -rf /tmp*'
+expect_both 'rm -rf ~/proj* allowed' 0 --command 'rm -rf ~/proj*'
+expect_both 'rm -rf /c/dev/* allowed' 0 --command 'rm -rf /c/dev/*'
+expect_both 'rm -rf /_ allowed (a directory named _)' 0 --command 'rm -rf /_'
+expect_both 'rm -rf * allowed (cwd-relative, a declared gap)' 0 --command 'rm -rf *'
+# A glob glued to a NAME is an ordinary prefix match, not the root it sits in.
+expect_both 'rm -rf /c* allowed' 0 --command 'rm -rf /c*'
+expect_both 'rm -rf ~* allowed' 0 --command 'rm -rf ~*'
+# A child shell whose operand is an ordinary delete stays allowed.
+expect_both 'bash -c rm -rf ./build allowed' 0 --command 'bash -c "rm -rf ./build"'
+# A launcher whose real command is not rm stays allowed.
+expect_both 'sudo -u bob ls / allowed' 0 --command 'sudo -u bob ls /'
+# A path UNDER a UNC share is not the share root.
+expect_both 'rm -rf //server/share/dir allowed' 0 --command 'rm -rf //server/share/dir'
+# An arithmetic expansion is not a command substitution and carries no command.
+expect_both 'arithmetic expansion allowed' 0 --command 'echo "$((1 + 2))"'
+expect_both 'arithmetic inside a substitution allowed' 0 --command 'echo "$(echo $((1 + 2)))"'
+# A SINGLE-quoted span performs no expansion at all, and inside a double-quoted
+# one a backslash escapes the `$` and the backtick, so none of these four is a
+# substitution: the text is printed and nothing runs. Reading raw characters
+# called all four a substitution and refused a command that deletes nothing.
+expect_both "single-quoted substitution text allowed" 0 --command "echo '\$(rm -rf /)'"
+expect_both 'escaped dollar-paren allowed' 0 --command 'echo "\$(rm -rf /)"'
+expect_both "single-quoted backtick text allowed" 0 --command "echo '\`rm -rf /\`'"
+expect_both 'escaped backtick allowed' 0 --command 'echo "\`rm -rf /\`"'
+# A live substitution nested three deep whose innermost command is harmless is
+# parsed all the way down and still allowed, so the depth cap is not a blanket.
+expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'
+# `coproc NAME <simple command>` is not the NAME form at all: bash runs a
+# command named `shredder` and hands it the rest, so this names no `rm`.
+expect_both 'coproc NAME ahead of a simple command allowed' 0 --command 'coproc shredder rm -rf /'
+expect_both 'coproc NAME with an ordinary delete allowed' 0 --command 'coproc shredder rm -rf ./build'
+# GNU env's -S operand is a COMMAND, split and run, not an opaque argument.
+expect_both 'env -S with an ordinary command allowed' 0 --command "env -S 'ls /'"
+expect_both 'env -S with an ordinary delete allowed' 0 --command "env -S 'rm -rf ./build'"
+expect_both 'sudo --user root ls / allowed' 0 --command 'sudo --user root ls /'
+# A substitution whose inner delete is ordinary stays allowed.
+expect_both 'substitution with an ordinary delete allowed' 0 --command 'echo "$(rm -rf ./build)"'
+# A long option that is not a prefix of either recognized name.
+expect_both 'rm --force / allowed (no recursion)' 0 --command 'rm --force /'
+expect_both 'rm --dir / allowed (no recursion)' 0 --command 'rm --dir /'
+
+# A command word that merely ENDS in rm, or takes rm as a subcommand, is not rm.
+expect_both 'perm -rf / allowed' 0 --command 'perm -rf /'
+expect_both 'rmdir / allowed' 0 --command 'rmdir /'
+expect_both 'git rm -rf src allowed (command word is git)' 0 --command 'git rm -rf src'
+
+# A recursive READ of the root is not a delete.
+expect_both 'ls -R / allowed' 0 --command 'ls -R /'
+
+# The command-word arms must not widen the guard. A reserved word ahead of an
+# ORDINARY delete, a `su` whose operand is ordinary or absent, and a case-folded
+# `rm.EXE` under the working tree all stay allowed.
+expect_both 'brace group with an ordinary delete allowed' 0 --command '{ rm -rf ./build; }'
+expect_both 'if/then with an ordinary delete allowed' 0 --command 'if true; then rm -rf ./build; fi'
+expect_both 'su -c with an ordinary delete allowed' 0 --command "su -c 'rm -rf ./build'"
+expect_both 'su with no -c allowed' 0 --command 'su bob ls /'
+expect_both 'rm.EXE under the tree allowed' 0 --command 'rm.EXE -rf ./build'
+# An empty operand from a QUOTED span is not a dropped backslash, through eval
+# as anywhere else, so the restore must key on provenance rather than emptiness.
+expect_both 'eval rm -rf "" allowed' 0 --command 'eval rm -rf ""'
+
+# --- 3. The block message ----------------------------------------------------
+guard_invoke --command 'rm -rf /'
+assert_exit "blocked case exits 2" 2 "$GUARD_RC"
+assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
+
+# --- 4. Tool gating: the declared PowerShell gap ------------------------------
+# Remove-Item -Recurse -Force and `rd /s` are the same hazard through the
+# PowerShell tool, and this guard does not cover them: it exits on a non-Bash
+# tool_name, which also keeps it out of the PowerShell classifier path entirely.
+# Pinned so widening it later is a deliberate change to this line.
+expect "PowerShell payload is a declared gap, not a block" 0 \
+  --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
+
+# --- 5. Fail-closed inputs ---------------------------------------------------
+rc=0
+bash "$HOOK" </dev/null >/dev/null 2>&1 || rc=$?
+assert_exit "empty stdin is a skip, not a block" 0 "$rc"
+
+expect "a stdin body that is not JSON fails closed" 2 --payload 'not json'
+
+rc=0
+bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
+assert_exit "payload with no command is a skip" 0 "$rc"
+
+# --- 6. Kill switch ----------------------------------------------------------
+expect "kill switch disables the guard" 0 --command 'rm -rf /' \
+  -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"
+
+# --- 7. The guard installs no exit-time handler of its own --------------------
+# abort-boundary.sh owns that slot for every guard in this plugin; a second one
+# in the guard would run after it and could change the status the boundary
+# settled. abort-boundary.test.sh asserts the same property across the whole
+# set, and this pins it for this file on its own.
+own_traps="$(grep -n 'trap' "$HOOK" | grep -Ei 'trap[^#]*(EXIT|[[:space:]]0[[:space:]]*$)' || true)"
+assert_eq "the guard installs no exit-time handler of its own" "" "$own_traps"
+
+report

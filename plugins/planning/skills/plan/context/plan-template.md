@@ -165,7 +165,7 @@ When any phase includes ≥3 sequential shell commands that could conceivably re
 
 ## Sanity-Check Format (per-phase)
 
-Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable: a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgement.
+Every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable: a specific grep, file Read assertion, build exit code, test exit code, or runtime probe a fresh cleared session can execute without inferential judgment.
 
 **Verifiable format** (acceptable):
 
@@ -315,7 +315,7 @@ Omit `Review:` when the phase is docs-only or trivial with no new types/contract
 
 ## Phase-entry checks for tracker writes
 
-When any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgement.
+When any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgment.
 
 Required phase shape:
 

@@ -207,7 +207,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
   pointer for a consumer who installs `implementation` alone and has never met that phrase. It now
   names `work-items:work-loop` and `source-control:babysit-loop`, which is what 0.15.0's own
   release note already told a changelog reader the rule cited. The wording deliberately echoes
-  theirs: same reason, same unwatched-run failure mode, so a reader who has seen one recognises the
+  theirs: same reason, same unwatched-run failure mode, so a reader who has seen one recognizes the
   other.
 
 ## [0.15.1]
@@ -343,7 +343,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 - **`implement`: the mid-phase handoff no longer triggers on a self-estimated context budget.** The
   guidance read "Mid-phase handoff is still appropriate when context is heavy or a pause is
-  imminent", which asks the model to judge its own window and hand off on that judgement. That is the
+  imminent", which asks the model to judge its own window and hand off on that judgment. That is the
   shape the `claude-config` instruction-audit catalog's check I23 detects, and the same clause was
   removed from `session-flow`'s `handoff` in this pass. The licensed triggers are now an imminent pause, the
   user's report, an instrument that measures the window, or visible drift in the responses; a budget

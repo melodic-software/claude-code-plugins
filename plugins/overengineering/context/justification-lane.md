@@ -320,12 +320,12 @@ new" is outside the method.
   cross-run diff stays a statement about verdicts. A row whose evidence improved from
   `class-inferred` to `measured` reports as unchanged.
 - **Two sessions writing one artifact rely on re-read-before-write, not a lock.** The obligation
-  binds both producers and lives in the shared contract rather than here, so neither lane can honour
+  binds both producers and lives in the shared contract rather than here, so neither lane can honor
   it alone. It makes the window small. It does not close it, and no lock is claimed.
 - **A citation search scoped by location misses citations, the way one scoped by name does.** Section
   7 varies the query form, which catches a document cited under a different name. The matching trap
   is a document cited from a place the search does not look. Excluding a document's own directory is
-  the common form: neighbouring documents cite each other, so that exclusion drops exactly the
+  the common form: neighboring documents cite each other, so that exclusion drops exactly the
   citations a tightly-grouped set has, and reports a cited document as uncited. Section 10's
   corroboration step is therefore scoped to the whole repository, and any narrowing of a citation
   search by location is a new instance of this limit rather than an optimization.

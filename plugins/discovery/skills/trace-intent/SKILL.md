@@ -42,7 +42,7 @@ archaeology reads a lot of other people's writing: review threads, ticket histor
 documents. Keeping that out of the orchestrator's context window is the point. The agent
 investigates each resolvable category, writes the artifact set, and returns a file pointer plus a
 verification request, not the transcript. The parent resolves the **pre-dispatch envelope** first: six fields (target on the `Topic:` line, reason, memory-slice path, memory root, budget, capability
-flags), written into the dispatch prompt as the labelled template in the
+flags), written into the dispatch prompt as the labeled template in the
 [parent contract](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), and owns the **post-dispatch
 boundary** after: re-surfacing `open_questions`, dispatching the sibling verifier for tier
 assignment, and writing that verdict back into the index.
@@ -124,9 +124,9 @@ is operational rather than epistemic: code is always present and costs nothing t
 weak-but-admissible rung for it gets filled exactly when the real record is thin, which is exactly
 when a reader most needs to be told so.
 
-**Version-control behaviour is not code shape.** Change coupling, churn and hotspot data are evidence
+**Version-control behavior is not code shape.** Change coupling, churn and hotspot data are evidence
 the code alone cannot give you, and they are admissible, but they locate rather than explain: they
-show that two files always change together, never why anyone decided that. Behavioural signal reaches
+show that two files always change together, never why anyone decided that. Behavioral signal reaches
 `Inferred` at most, never `Supported`, never `Direct`.
 
 ## Evidence categories

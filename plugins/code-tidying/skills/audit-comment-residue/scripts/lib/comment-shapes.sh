@@ -112,7 +112,7 @@ cr_has_license_cue() {
 
 # Line numbers belonging to a license block: a run of contiguous comment lines in which at
 # least one line carries a license cue. The whole run is exempt from origin-note, because a
-# NOTICE header states its licence once and then attributes on a line of its own. The run ends
+# NOTICE header states its license once and then attributes on a line of its own. The run ends
 # at the first non-comment line, so the same sentence elsewhere in the file is unaffected.
 cr_license_block_lines() {
   local line n=0 start=0 cue=0 i
@@ -182,7 +182,7 @@ cr_detect_shapes() {
   # attribution header, whose text the reader may be legally required to keep. The
   # marker test reuses cr_is_sanctioned_todo rather than redefining which markers count.
   # The license test is BLOCK-scoped and the caller owns it, because a NOTICE header
-  # states its licence once and attributes on a separate line; cr_license_block_lines
+  # states its license once and attributes on a separate line; cr_license_block_lines
   # computes the run and the caller passes the verdict in.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
     if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||

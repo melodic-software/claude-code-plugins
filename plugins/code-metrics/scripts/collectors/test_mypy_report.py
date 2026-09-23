@@ -306,7 +306,7 @@ class MypyReportCollectTests(unittest.TestCase):
 
     def test_a_fatal_exit_is_exit_4_with_the_tool_stderr_relayed(self) -> None:
         # mypy exits 2 on a blocking error (a duplicate module name, a usage or
-        # config error) before analysing anything, and still writes a report
+        # config error) before analyzing anything, and still writes a report
         # whose Total row reads 0 over 0. Nothing was measured: the tool
         # resolved but cannot run on these files, which is the adapter
         # contract's exit 4, an `unavailable` row carrying mypy's own message.

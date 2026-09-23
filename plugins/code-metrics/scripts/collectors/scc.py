@@ -75,7 +75,7 @@ def _chunks(files: list[str]) -> list[list[str]]:
 def _count_lines(path: str) -> dict[str, int | None]:
     """The bundled counter's figures for a file scc produced no row for.
 
-    scc lists only the files whose language it recognises, so a lockfile or
+    scc lists only the files whose language it recognizes, so a lockfile or
     an extensionless text file in the catch-all lane comes back with no
     `Files[]` entry; dropping it would report the lane as measured with the
     file missing. Its total and blank lines are counted here, comment-agnostic

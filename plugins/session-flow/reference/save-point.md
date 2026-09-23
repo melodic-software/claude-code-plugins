@@ -306,7 +306,7 @@ handoff file needs no legend. The `▸` gutter marker and the trailing `you are 
 only additions.
 
 **Above 8 units the middle elides; the panel never scrolls.** Keep the first two units, the current
-unit with one neighbour either side, and the last one, replacing each dropped run with a `… N more`
+unit with one neighbor either side, and the last one, replacing each dropped run with a `… N more`
 line. A map keeps its ends and its "you are here" and drops the middle, readable at a glance. A
 rail long enough to scroll is one the operator will not read.
 
@@ -511,7 +511,7 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
 - **The directive is fixed text.** `Read @<absolute path>, confirm its Original goal still governs
   the remaining next steps, then continue them. For the next save-point invoke
   /session-flow:handoff via the Skill tool; never write a handoff file free-hand.` The second
-  sentence is the successor's licence to write handoffs: through the skill only. The
+  sentence is the successor's license to write handoffs: through the skill only. The
   "then execute /<skill>" swap the prompt-only rule below allows is expressed on the full path by
   the `Then:` line instead, so the directive never changes shape.
 - **`Handoff origin:` has ONE form:** `Handoff origin: <remote URL, userinfo stripped> <repo-relative path>`,

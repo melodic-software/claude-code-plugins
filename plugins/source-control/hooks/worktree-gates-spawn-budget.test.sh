@@ -43,7 +43,7 @@ source "$SCRIPT_DIR/../scripts/test-helpers.sh"
 
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 command -v jq >/dev/null 2>&1 || skip_suite "jq not available (the hooks fail open without it)"
-command -v strace >/dev/null 2>&1 || skip_suite "strace not available (Linux-only; the gates' behaviour suites carry the portable coverage)"
+command -v strace >/dev/null 2>&1 || skip_suite "strace not available (Linux-only; the gates' behavior suites carry the portable coverage)"
 # ptrace is commonly restricted inside containers and on hardened hosts. A
 # strace that cannot attach reports nothing, which would silently pass every
 # ceiling — so probe once and skip the suite rather than assert on empty output.

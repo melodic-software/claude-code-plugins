@@ -249,7 +249,7 @@ assert_eq "and they agree on two" "$MAY_CANDIDATES" "2"
 #
 # Requiring a digit beside "may" kept the modal out and took a real stamp form
 # with it, so "Verified this May" left this inventory entirely. The month is
-# capitalised in edited prose and the modal is not, so the capital is what
+# capitalized in edited prose and the modal is not, so the capital is what
 # separates them, tested on the original line rather than the lowered copy.
 # check-stamps.sh carries the same rule at both of its sites; the agreement
 # between the two candidate definitions is asserted here directly, because the
@@ -287,7 +287,7 @@ assert_eq "a digit rescues an ALL-CAPS May date" \
   "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 8)] | length")" "1"
 assert_eq "\"Maybe\" is not a May date" \
   "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 9)] | length")" "0"
-assert_eq "a capitalised modal opening a sentence over-reports, by design" \
+assert_eq "a capitalized modal opening a sentence over-reports, by design" \
   "$(echo "$DIGITLESS_OUT" | jq -r "$DIGITLESS_FILE | [.stamp_lines[] | select(.line == 10)] | length")" "1"
 
 DIGITLESS_CANDIDATES="$(bash "$SCRIPT_DIR/check-stamps.sh" --as-of 2026-08-28 \

@@ -7,6 +7,14 @@
 - **The case-collision pass compares one nul-delimited listing.** `git ls-files` without `-z` C-quotes a path that contains a non-ASCII byte, a tab, or a newline, so that quoted text never matched the raw path from the `-z` listing and the collision was missed. Both `scripts/check-docs-naming.sh` and the emitted gate template now read `git ls-files -z` once and fold those same bytes.
 - The emitted-gate suite no longer treats a ShellCheck that rejects `--rcfile` as a dirty emission. That flag is how this repo's `.shellcheckrc` is applied; without it the case is skipped, and a build that accepts the flag still fails the suite when the emitted pair is not clean.
 
+## [0.22.10] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.22.9]
 
 ### Fixed
@@ -887,9 +895,9 @@
 
 ### Fixed
 
-- **`audit-noise`'s `negation` pairing now recognises a positive supplied as a
+- **`audit-noise`'s `negation` pairing now recognizes a positive supplied as a
   bare imperative after a separator (#3204).** Pairing was a fixed marker list
-  (`instead`, `rather than`, `prefer`, `in place of`, `in favour of`), so a
+  (`instead`, `rather than`, `prefer`, `in place of`, `in favor of`), so a
   correctly paired sentence such as
   `Never confirm a load-bearing deletion — delegate to a fresh subagent` was
   reported as a finding.
@@ -1040,7 +1048,7 @@
   than the 31 a line-level gate produced: 38 genuine imperative prohibitions sit as a *later*
   sentence on their line and were being withheld. Sampling those additions found both real findings
   and a residual false-positive class: a positive alternative supplied as a bare imperative after a
-  separator (`Never confirm X — delegate to Y`) is not recognised, because pairing is matched against
+  separator (`Never confirm X — delegate to Y`) is not recognized, because pairing is matched against
   a fixed marker list. #3180 solves that with a closed function-word stoplist; adopting it is #3204.
 
 - **`emit-findings.sh`'s cell escaping is now idempotent.** A naive `gsub` double-escaped a pipe the
@@ -1115,7 +1123,7 @@ Eight review findings on the shape as first written, all reproduced before being
   marker. Sentences are now peeled right-to-left with a greedy leading `.*`, which splits at every
   terminator that IS followed by whitespace; an abbreviation merely over-splits, and over-splitting
   only narrows the window a suppressing marker can act from. The header comment had claimed the
-  opposite behaviour ("over-split … the fail-safe direction") and was wrong.
+  opposite behavior ("over-split … the fail-safe direction") and was wrong.
 
 - **Every marker is fenced to a whole word.** The withholding predicates matched bare substrings, so
   `secretary` satisfied the `secret` guardrail and `preferentially` satisfied the `prefer` pairing,
@@ -1213,7 +1221,7 @@ Eight review findings on the shape as first written, all reproduced before being
   only ahead of a document locator: a `§` or `#anchor`, a section/chapter/step/table, a link or
   path, an inline-code reference the strip removed, or a named durable document. Tracker nouns are
   deliberately absent from that set, as are nouns for the conversation itself. A decision parked in
-  an issue is provenance, which `ticket-pr-residue` owns and this shape must not launder. Followers are compared case-insensitively, so a capitalised `Above` no longer falls
+  an issue is provenance, which `ticket-pr-residue` owns and this shape must not launder. Followers are compared case-insensitively, so a capitalized `Above` no longer falls
   through. Both first-person actor tests, this one and `plan-reference`'s `in this PR`, admit a
   contracted pronoun in either the straight or the typographic (U+2019) apostrophe, so
   "in this PR we've already switched the default" and "as we've discussed" no longer escape the
@@ -1291,7 +1299,7 @@ Eight review findings on the shape as first written, all reproduced before being
   exists (N=1), and two files asserting the same contract with no declared owner, drifting
   apart (N=2).
 
-  `identify` now rosters candidates in three labelled buckets with the instance count shown
+  `identify` now rosters candidates in three labeled buckets with the instance count shown
   per candidate: **N=1** (inline recap of an existing SSOT), **N=2** (source-of-truth
   bifurcation risk), **N≥3** (Rule of Three met). `verify` Gate 1 assigns that bucket from the
   full-reproduction count and emits it in a new `bucket:` output field;

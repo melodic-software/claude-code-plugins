@@ -149,7 +149,7 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
-One data point, not a licence to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
+One data point, not a license to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
 sweep had all 21 CLI-reported updates already reflected in a post-sweep `fleet-state.sh` re-read, so
 source 3 agreed with source 2 on every id. That establishes the write landed before the re-read on
 that run, not that it is synchronous per call, and not that it holds on another version. Keep
@@ -290,7 +290,7 @@ ERROR: --ids cannot be combined with --all
   Run --ids once per marketplace with --marketplace <name>.
 ```
 
-(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behaviour. The earlier
+(This is `fleet-state.sh`'s own argument guard, not Claude Code CLI behavior. The earlier
 "verified on Claude Code 2.1.240" attribution was a category error. Re-verified 2026-09-05 by
 running the command: the script exits 2 with exactly this text.) `--all` exists for the JSON report, which nests one block per
 marketplace; `--ids` projects a single block, so it takes one marketplace at a time. Loop it.
@@ -707,7 +707,7 @@ routes the user to `converge` for skew this run just created.
 
 **Attribute it to the right step: that needs THREE snapshots, not two.** Steps 2 and 3 both mutate
 versions, so a single pre-Step-2 / post-Step-3 bracket cannot tell which one created a new
-divergence, and labelling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused it.
+divergence, and labeling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused it.
 Concretely: equal project and user records at `v1`, Step 2 updates the project record to `v2`, Step 3's
 user update fails. The skew is Step 2's, and a two-snapshot diff blames Step 3. Take the
 `divergences[]` read from each of the three `fleet-state.sh` calls the algorithm already makes, the

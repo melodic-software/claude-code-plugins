@@ -138,7 +138,7 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 - **Severity is blast radius, not frustration.** Use the rubric; justify in one sentence.
 - **Suggested fix location is not a patch.** Name the file path and function/class. No code, no diff, no "just change line X to Y". The fixer decides the patch.
 - **Title in present tense.** "`priceFor` returns wrong total when `discountPercent` is non-zero", not "fixed pricing bug" or "pricing was broken".
-- **When there is no bug, do not emit a report.** If the survey and Q&A reveal the behaviour is correct, emit the short "No bug confirmed" summary instead (see `context/template.md`).
+- **When there is no bug, do not emit a report.** If the survey and Q&A reveal the behavior is correct, emit the short "No bug confirmed" summary instead (see `context/template.md`).
 
 ## Cross-references
 

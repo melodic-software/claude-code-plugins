@@ -217,7 +217,7 @@ $SECOND_ABSENT_KEY"
     PERMISSION_STATE_PLIST_DOMAIN="" \
     bash "$SCRIPT")
   assert_contains "an absent key is skipped, the existing one is selected" "$OUT_REG" "managed registry unreadable $EXISTING_KEY"
-  assert_contains "a key with no readable value is not a licence to fall through" "$OUT_REG" "Lower-priority policy keys are NOT consulted"
+  assert_contains "a key with no readable value is not a license to fall through" "$OUT_REG" "Lower-priority policy keys are NOT consulted"
   assert_eq "no rules are claimed from an unreadable key" "0" "$(count_matching "$OUT_REG" '^rule managed registry ')"
 
   OUT_REG_NONE=$(env -u CLAUDE_CONFIG_DIR HOME="$FX/home" \

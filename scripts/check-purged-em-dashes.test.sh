@@ -6,7 +6,7 @@
 # it through the four EM_DASH_* injection variables, and asserts on exit code
 # plus output. The one thing it does NOT stub is the detector. The fixture
 # drives the real plugins/ai-slop/skills/audit/scripts/detect.sh, because the
-# behaviour most worth pinning here is precisely that this gate and that
+# behavior most worth pinning here is precisely that this gate and that
 # detector agree on what counts as prose. A stubbed detector would let the two
 # drift and still report green.
 #
