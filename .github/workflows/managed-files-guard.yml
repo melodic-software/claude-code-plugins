@@ -41,6 +41,9 @@ concurrency:
 
 jobs:
   managed-files-guard:
+    # Equal to the job id so the check context stays `managed-files-guard`;
+    # zizmor's pedantic `anonymous-definition` audit flags an unnamed job.
+    name: managed-files-guard
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
