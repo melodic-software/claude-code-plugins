@@ -126,7 +126,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Visual Arts
 
-- [`pixel-art`](../plugins/pixel-art): Creates pixel art with no external tools: static sprites, animation cycles laid out as engine-ready sprite sheets (RPG Maker MZ, Godot, Aseprite JSON, plain strips) with GIF previews, and animated scenes and cutscenes as one self-contained HTML file. The model authors palette-locked specs or procedural generators, a bundled Python standard-library renderer writes PNG, GIF and frame data, and a render-review loop iterates on what it sees. Craft rules and engine layouts are sourced reference files. Optional backends such as the Aseprite CLI or hosted pixel-art generators plug in behind the same artifact contract when present.
+- [`pixel-art`](../plugins/pixel-art): Creates pixel art with no external tools: static sprites, animation cycles laid out as sprite sheets for the target engine (RPG Maker MZ, Godot, PICO-8, plain strips) with Aseprite-shaped frame data and GIF previews, and animated scenes and cutscenes as one self-contained HTML file. The model authors palette-locked specs or procedural generators, a bundled Python standard-library renderer writes PNG, GIF and frame data, and a render-review loop iterates on what it sees. Craft rules and engine layouts are sourced reference files. Optional backends such as the Aseprite CLI or hosted pixel-art generators are documented behind the same artifact contract; the skills select and detect them, and no adapter code ships yet.
 
 ## Music
 

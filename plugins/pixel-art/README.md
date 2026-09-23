@@ -40,8 +40,12 @@ A project can name its own assets folder in its `CLAUDE.md`; that wins over `out
 - **A browser automation tool** (for example a Playwright CLI or MCP): optional. With one, the
   `scene` skill screenshots its own output and reviews it; without one, it says the scene was not
   reviewed visually and asks you to open it.
-- **Backends other than `native`**: optional. Each is detected when selected and falls back to
-  `native` with a notice when absent. See `reference/backends.md`.
+- **Backends other than `native`**: optional and documented in `reference/backends.md`, not yet
+  exercised. The skills check for a selected backend and fall back to `native` with a notice; no
+  adapter code ships in this version.
+
+`sheet.json` follows the shape of Aseprite's json-hash export but is not identical: animation tags
+list frame names and per-frame durations rather than `from`/`to` ranges.
 
 ## Audio
 
