@@ -109,7 +109,7 @@ Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
    - **P1 (requires update)**. Repo already uses this feature/surface and changelog changes behavior or adds capability we should document
    - **P2 (worth considering)**. New capability repo does NOT currently use but SHOULD evaluate for adoption
    - **P3 (no action)**. UI/cosmetic fix, internal change, or feature irrelevant to repo
-3. For P2 items: do NOT skip. Flag as "New capability. Evaluate for adoption" with brief rationale
+3. List every P2 item as "New capability. Evaluate for adoption" with a brief rationale
 
 Output: structured table with item, classification, affected files, rationale.
 

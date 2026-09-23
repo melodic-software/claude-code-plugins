@@ -3,6 +3,16 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.15] - 2026-09-23
+
+### Changed
+
+- **The Structured Thinking corrective prompt asks for output order, not for no planning.** On
+  models whose thinking is always on, "do not plan" cannot be followed; the prompt now asks
+  personas to place events unsorted and uncategorized, leaving ordering to Enforce Timeline.
+- **Facilitator re-prompts re-send the specific violated correction with its reason**, instead of
+  escalating to "stronger corrections", which over-applies on current models.
+
 ## [0.6.14] - 2026-09-23
 
 ### Fixed

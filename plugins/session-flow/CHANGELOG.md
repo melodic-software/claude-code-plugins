@@ -1,5 +1,14 @@
 # Changelog: session-flow plugin
 
+## [0.37.1] - 2026-09-23
+
+### Changed
+
+- **`keep-going` no longer holds updates until the end after a usage limit lifts.** "Report only at
+  the end or on a hard block" contradicted the skill's own autonomy policy and suppressed progress
+  notes on models that already under-narrate; it now says to put status notes in the same message
+  as the next action.
+
 ## [0.37.0] - 2026-09-23
 
 ### Changed

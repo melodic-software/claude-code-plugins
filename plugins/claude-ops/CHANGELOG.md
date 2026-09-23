@@ -3,6 +3,13 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.2] - 2026-09-23
+
+### Changed
+
+- **`changelog` states the P2 rule plainly.** "For P2 items: do NOT skip" becomes "List every P2
+  item as ..."; the capitalized emphasis carried no reason and over-applies on current models.
+
 ## [0.59.1] - 2026-09-23
 
 ### Fixed
