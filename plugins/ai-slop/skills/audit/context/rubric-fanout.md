@@ -8,13 +8,16 @@ pass therefore fans out, persists as it goes, and resumes from the last complete
 ## Batching
 
 1. Take the ordered target list the audit's scope step produced (impact class first, then change
-   frequency). Batch order is that order, so the highest-priority files are judged first.
+   frequency; newest modification time first for a non-repository target). Batch order is that
+   order, so the highest-priority files are judged first.
 2. Pack files into batches by word budget, not by file count: walk the list, adding files to the
    current batch until adding the next would exceed roughly 50,000 words, then start a new
    batch. A single file larger than the budget is its own batch. Measure with `wc -w` over the
    list; never estimate.
 3. Write each batch's file list to the scratchpad as `batch-NN.txt`, zero-padded, one
-   repo-relative path per line.
+   repo-relative path per line. For a non-repository target (SKILL.md "Non-repository
+   targets"), write each path as the detector's `file=` field spells it, so script and rubric
+   findings for one file share a key; the same spelling goes in the `## <path>` headings below.
 
 ## Dispatch
 
@@ -27,11 +30,14 @@ Each subagent receives:
   field), which the subagent copies verbatim into its result;
 - the result path it must write to (below);
 - the finding shape: `- L<line> rule-<id>: "<verbatim quote, max 25 words>" -- <reason, max 20
-  words>`, grouped under `## <repo-relative path>` headings, files without findings omitted,
-  with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:` lines at the top;
+  words>`, grouped under `## <path>` headings in the batch list's spelling, files without
+  findings omitted, with `batch: <digest>`, `files_reviewed:`, and `files_with_findings:`
+  lines at the top;
 - the boundary rules: skip fenced code, blockquotes, double-quoted spans, inline code, YAML
   frontmatter, and table cell literals except for `rule-unusual-tables`; a file that quotes a
   tell to document it is not a finding; cap 6 findings per file and 30 per batch, worst first.
+  For a non-repository target, add that `rule-style-shift` is not evaluable, because there is
+  no history to compare against, and is never reported as a finding.
 
 The subagent writes its result file before it replies, and replies with counts and its three
 strongest findings only. The orchestrator never reads the batch's source files itself.
@@ -40,7 +46,9 @@ strongest findings only. The orchestrator never reads the batch's source files i
 
 Result files live in the findings home the persist contract resolved, as
 `<findings home>/rubric-batch-NN.md`, beside the detector's findings file. That directory is
-memory tier and self-ignored, so nothing here is ever committed.
+memory tier and self-ignored, so nothing here is ever committed. A non-repository target has no
+findings home: result files and the merged file go under the session scratchpad, else the
+system temp directory.
 
 A result file belongs to one batch list, not to a batch number. Batch numbers are reused across
 runs, and a later run over a different scope or order packs different files under the same

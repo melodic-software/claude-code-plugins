@@ -118,10 +118,11 @@ Mined from the pin's Caveats section (byte-identical on the live head; extractio
 
 Stated once here and inherited by every rule; the design follows Wikipedia's MOS "principle of
 minimal change" for quoted material (quotations are not the repo's own prose to restyle) and the
-detector implements it mechanically. Each rule carries a class:
+detector implements it mechanically. No rule scans fenced code, inline code spans, or
+ignore-marked lines, whatever its class. Each rule carries a class:
 
 - **wording**: the rule judges prose the repo AUTHORS. It never scans quoted material:
-  blockquote lines, double-quoted spans, and inline code spans are removed from its input.
+  blockquote lines and double-quoted spans are removed from its input.
   Quote-exempt candidates are counted as declined, never silently dropped.
   This is also the use/mention boundary: a document that QUOTES a tell to document it (a style
   guide, a forbidden-phrase list, a changelog citing the phrase a fix removed) is mentioning,
@@ -131,9 +132,10 @@ detector implements it mechanically. Each rule carries a class:
   It scans quoted material too; MOS makes the same split by permitting typographic
   normalization inside quotations while forbidding wording edits.
 
-Known limitation: the double-quoted-span exemption is per-line. A quotation wrapped across a
-line break escapes it; the closures are rewrapping the quote onto one line, the blockquote
-form, or the fenced marker.
+Known limitation: the double-quoted-span exemption covers straight `"` only, and a span open at
+a blank line or at the start of a new block (heading, list item, table row) closes there. A
+quotation that crosses one of those boundaries escapes the exemption; the closures are the
+blockquote form or the fenced marker.
 
 The class assignments live in the detector's rule registry. The exemption moves candidates from
 findings to declines and never changes a rule's crosswalk tier.
