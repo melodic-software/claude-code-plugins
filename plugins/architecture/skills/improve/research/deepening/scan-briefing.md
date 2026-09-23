@@ -6,7 +6,8 @@ agents. A canonical briefing keeps scan quality from varying run-to-run and puts
 badge-acceptance heuristics in front of each agent while it is still forming its confidence rating.
 
 Assemble one briefing per subagent. Each briefing has five parts: vocabulary primer, friction
-checklist, dependency categories, badge-acceptance heuristics, and the per-candidate return schema.
+checklist, dependency categories, badge-acceptance heuristics, and the per-candidate return schema
+with its stopping point.
 Include the project's own glossary terms (if it maintains one) alongside the architecture vocabulary
 so every agent names things the same way.
 
@@ -71,3 +72,7 @@ render without re-deriving structure:
 
 The `shallow-signal` and `runtime-claim` fields exist specifically so the verification gate
 (Phase 1.5) has something concrete to reproduce rather than a bare assertion.
+
+End every briefing with its stopping point: the agent is done when it has walked the friction
+checklist over its assigned area and returned every candidate in this schema, or said it found
+none; it returns early with what it has when a candidate needs code outside that area.

@@ -255,6 +255,16 @@ To steer thinking without changing effort level:
 - Harder problems: "Think carefully and step-by-step before responding; this problem is harder than it looks."
 - Save tokens: "Prioritize responding quickly rather than thinking deeply. When in doubt, respond directly."
 
+> **Amended (verified 2026-09-23 against the
+> [Opus 5.5 prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)
+> and [model config](https://code.claude.com/docs/en/model-config)):** these prompt steers are an
+> Opus 4.7-era calibration. On models that always think (Opus 5.5 and the Fable models, where
+> thinking cannot be turned off), delete "think carefully" lines from prompts and standing
+> instructions and change effort instead: the guide reports that removing such a line made replies
+> start sooner with no clear quality loss. For a quick answer, its line is "Answer directly without
+> deliberating." **Recheck trigger:** a re-fetch of the guide's "Thinking instructions in chat
+> system prompts" section or the model-config thinking table no longer matching this record.
+
 `/effort` to set your level.
 
 Source: [@bcherny status 2044847856872546639](https://x.com/bcherny/status/2044847856872546639)

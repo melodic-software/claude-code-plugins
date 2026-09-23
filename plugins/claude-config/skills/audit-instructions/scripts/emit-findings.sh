@@ -9,11 +9,11 @@
 # script owns only the deterministic composition.
 #
 # ONLY the I28 and I29 families are emitted. Every other check id
-# instruction-scan.sh marks (I6, I8-a/b/c, I10, I23, I25, I27) has no
+# instruction-scan.sh marks (I6, I8-a/b/c/f, I10, I23, I25, I27) has no
 # severity-crosswalk row, and the detector-findings contract admits no row
 # whose tier cannot be looked up from one — those stay in the human report.
 # Rows for them are counted as declined, never silently dropped. A --from
-# line that is not a scan row at all (suffix outside [a-c], prose, blank)
+# line that is not a scan row at all (suffix outside [a-f], prose, blank)
 # is counted as reason=unparsable-row, never omitted from both Scan rows
 # read and every Declined line. I29 rows come from restatement-scan.py and
 # are concatenated onto the same --from stream.
@@ -125,7 +125,7 @@ fi
 # scanner output. Strip a trailing CR first so an all-CRLF file with a matching
 # row is recognized rather than refused — the same strip the awk intake applies
 # before its pattern match.
-if ! LC_ALL=C grep -qE '^.+:[0-9]+:I[0-9]+(-[a-c])?$' \
+if ! LC_ALL=C grep -qE '^.+:[0-9]+:I[0-9]+(-[a-f])?$' \
   < <(LC_ALL=C sed $'s/\r$//' "$FROM"); then
   echo "emit-findings.sh: $FROM has no instruction-scan.sh rows; not scanner output" >&2
   exit 3
@@ -500,7 +500,7 @@ LC_ALL=C awk \
     sub(/\r$/, "")
     nrows++
   }
-  /^.+:[0-9]+:I[0-9]+(-[a-c])?$/ {
+  /^.+:[0-9]+:I[0-9]+(-[a-f])?$/ {
     # Split from the RIGHT: a path may contain colons, the last two fields never do.
     id = $0; sub(/^.*:/, "", id)
     rest = $0; sub(/:[^:]*$/, "", rest)

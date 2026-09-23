@@ -156,7 +156,12 @@ preference; when a page was asked for, say in one line why it was not produced.
 radii, and accessibility floor (link/focus contrast tokens, color-scheme and
 reduced-motion behavior) from this plugin's bundled chrome reference,
 `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a
-look per page.
+look per page. The chrome does not settle layout habits, so name the ones to leave
+out: italic accent words in headings, numbered "01 / 02 / 03" section labels,
+pill-shaped buttons or badges, and a hero banner above the content, plus any style
+the user names. When the user dislikes a choice in the rendered page, add it to
+that list for the rest of the session and render again. A general "avoid a generic
+look" only swaps one default for another.
 
 **Local-file placement.** Write the local HTML file via the platform's temp
 primitive, never into the consumer's repository tree. On Unix/Linux/Git Bash,

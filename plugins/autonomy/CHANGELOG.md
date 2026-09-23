@@ -3,6 +3,17 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.17] - 2026-09-23
+
+### Changed
+
+- The `lane-stop-gate` block reason names a status summary and an offer to continue as
+  non-completion, asks for status notes in the same message as the next action, and tells a lane
+  that is blocked, or whose next step is destructive and not authorized by its prompt, to say what
+  it is blocked on and stop again.
+- The operator alert for a lane that stopped without signaling completion now says the lane may be
+  down, stuck, or waiting on you, since a blocked lane now stops on purpose.
+
 ## [0.23.16] - 2026-09-21
 
 ### Changed

@@ -1,5 +1,18 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.0] - 2026-09-23
+
+### Added
+
+- **`write-for-agents` names the finish line and the stops.** Task-shaped and long-run
+  instructions state when to keep going and when to stop and ask, keep a task file on long runs,
+  and end with a report that leads with what the human owes. The skill also asks for outcomes
+  rather than thinking (think-carefully lines follow `audit-instructions` I8-f for the target
+  model, so they are dropped for Opus 5.5; no requests to reproduce reasoning) and for
+  named design exclusions instead of "avoid a generic look".
+- **`audit-encapsulation`'s opt-in worker fan-out** checks each worker's evidence before accepting
+  its classification.
+
 ## [0.22.12]
 
 ### Fixed

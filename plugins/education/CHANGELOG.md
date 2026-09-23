@@ -3,6 +3,18 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-09-23
+
+### Changed
+
+- `eli5` names the styles an explainer page leaves out (a cream or off-white background, italic
+  accent words in headings, numbered "01 / 02 / 03" section labels, pill-shaped badges), plus any
+  the user names, passes that list to the upstream skill, and adds a disliked choice to it before
+  redoing the page.
+- `teach` names the same default styles, plus monospace labels and pill-shaped buttons, to leave
+  out when first authoring the shared `lesson.css`, keeps that list as a comment at the top of the
+  stylesheet, and appends a style the learner dislikes to it while removing the rule.
+
 ## [0.10.10]
 
 ### Changed

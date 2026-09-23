@@ -3,6 +3,13 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.47] - 2026-09-23
+
+### Changed
+
+- `clean` batch forms report failed, blocked, and skipped repos with their reasons before the
+  totals. Dry-run-first and the confirmation gates are unchanged.
+
 ## [0.10.46] - 2026-09-21
 
 ### Changed

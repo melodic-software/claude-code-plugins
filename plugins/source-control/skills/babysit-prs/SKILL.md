@@ -363,7 +363,7 @@ post-push merge gating with pinned resolves, per-PR worktree cleanup, and the ne
 
 ## Reporting
 
-Report only material findings, one line per materially changed or blocked PR:
+Report only material findings, one line per materially changed or blocked PR, with the PRs waiting on the user (a decision, a human merge, or a pinned command to run) first:
 
 ```text
 repo#number (@author) | checks | action | open items

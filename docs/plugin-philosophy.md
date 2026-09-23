@@ -951,23 +951,24 @@ model surface, because plugin `userConfig` declares only generic typed options w
 verified 2026-08-10). Doctrine therefore travels by authoring-time conformance in each skill, not runtime
 configuration.
 
-Tier-to-model mapping, dated 2026-08-04 (recheck trigger: a new Claude model family reaches GA, or
+Tier-to-model mapping, dated 2026-09-23 (recheck trigger: a new Claude model family reaches GA, or
 the session default model changes):
 
-| Tier | Model (2026-08-04) |
+| Tier | Model (2026-09-23) |
 |---|---|
-| Consequential verdict (session tier or above) | The active session model; under the fleet's current `opus[1m]` pin that is Opus 5, with Fable 5 the rung above |
+| Consequential verdict (session tier or above) | The active session model; under the fleet's current `opus[1m]` pin that is Opus 5.5, with Fable 5.1 the rung above |
 | Mechanical prep, one tier down | Sonnet 5 |
 | Bulk mechanical sweeps | Haiku 4.5 |
 
 Row 1 is relative by construction: the invariant above makes the ladder relative to the active
-session, so a session already running Fable 5 has no rung above and dispatches consequential
+session, so a session already running Fable 5.1 has no rung above and dispatches consequential
 verdicts at its own tier. The named models are the resolution under the fleet's pinned session
-default (`opus[1m]`, an alias): `opus` resolves to Opus 5 on the Anthropic API, "for complex
-agentic coding and enterprise work", while Fable 5 is "the most capable model in Claude Code",
-positioned for tasks larger than a single sitting rather than for harder verdicts at ordinary
-length. Opus 4.8, the previous row-1 entry, is now a legacy
-model. Rows 2 and 3 re-verify unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
+default (`opus[1m]`, an alias): `opus` resolves to Opus 5.5 on the Anthropic API
+([model-config](https://code.claude.com/docs/en/model-config), verified 2026-09-23), the model the
+models overview says to "start with … for most workloads", while Fable 5.1 is among "the most
+capable models in Claude Code", suited to tasks larger than a single sitting rather than to harder
+verdicts at ordinary length. Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
+unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
 The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
 has not fired it: Mythos "is not generally available", offered invitation-only to approved
 customers under Project Glasswing, so no lane may reach for it. The figures behind the cost ordering
@@ -1022,7 +1023,7 @@ value. A blocked **skill or command** override behaves differently again: "Claud
 override, including a blocked family alias, and the skill or command runs on the session model."
 
 The earlier derivation's conclusion survives its replacement. A blocked subagent alias can still
-land **below** the session, as when the session runs Opus 5, the lane is pinned `opus`, and the
+land **below** the session, as when the session runs Opus 5.5, the lane is pinned `opus`, and the
 allowlist permits only an older Opus. A blocked *cheap* pin lands on the inherited model, which is the session's and
 therefore not cheap. So the tier invariant above is still not self-enforcing for a subagent lane: it
 may depend on its pin in neither direction, and no error is raised either way. Only the skill and

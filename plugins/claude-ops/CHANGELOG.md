@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.0] - 2026-09-23
+
+### Added
+
+- **`known-issues` `quality`:** before blaming the model, check for a flag fallback. The action
+  explains that a flagged request re-runs on an older model with a transcript notice, and how to
+  recover (`/model`, the "Switch models when a message is flagged" setting, `/feedback`).
+
+### Changed
+
+- **`changelog` apply:** once the plan is approved, implementation and verification run without
+  stopping, with a stated finish line and stop conditions; the final report leads with what waits
+  on the user.
+
 ## [0.57.5] - 2026-09-22
 
 ### Fixed

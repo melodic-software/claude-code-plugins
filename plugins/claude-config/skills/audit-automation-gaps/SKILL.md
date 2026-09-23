@@ -380,7 +380,8 @@ For each user-selected item:
 4. **Implement**: execute with incremental validation and commit checkpoints
 5. **Test**: verify the automation works (run hooks, test skills, etc.)
 6. **Review**: dispatch a fresh-context reviewer to check the change against existing patterns,
-   since the context that wrote it is a biased judge of it. Where no subagent surface exists,
+   since the context that wrote it is a biased judge of it. It lists only problems that should
+   block the change, each with file and line, why it is wrong, and how to show it fails. Where no subagent surface exists,
    review inline and record that the review was same-context
 7. **Verify**: build/test the repo if code changed, confirm no regressions
 

@@ -448,7 +448,7 @@ terminals mutating the same row.
 > `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
 > `work-class: structural`, `work-class: untrusted-provenance`.
 >
-> For an item with no trailer, propose a class with your reasoning and
+> For an item with no trailer, propose a class with a one-line rationale and
 > wait. Two traps. `mechanical` is narrow: deterministic, trivially
 > reversible maintenance such as dependency bumps, lint, format, sync.
 > And a change to any path on the `Runtime surfaces` line is not mechanical

@@ -24,12 +24,13 @@ snapshot held as untriaged intake that step 2 promoted mid-cycle. That item stil
 open, and it is worked once the admission gate passes it and a cap slot is free.
 
 Satisfied → the drain is complete: set `first_drain_complete`, write the final report (items
-closed, PR'd, escalated), apply the post-snapshot intake report below, and stop cleanly.
+escalated to a human first, then items closed and PR'd), apply the post-snapshot intake report below, and stop cleanly.
 
 ## Drain-terminal state
 
 When every remaining open item in the snapshot is human-gated or escalated and no PR is in flight,
-report and stop cleanly rather than idling forever. Apply the post-snapshot intake report below
+report and stop cleanly rather than idling forever, leading the report with those human-gated and
+escalated items. Apply the post-snapshot intake report below
 before stopping.
 
 ## Post-snapshot intake report (every drain exit)

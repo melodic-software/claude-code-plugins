@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.21.0] - 2026-09-23
+
+### Changed
+
+- `research`'s output leads with any decision the findings leave to the user before the summary.
+
 ## [0.20.1] - 2026-09-21
 
 ### Changed

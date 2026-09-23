@@ -372,28 +372,29 @@ work class routes to the frontier tier unconditionally.
 The dated resolution of the ordered tiers to live aliases, the artifact the "new model release"
 recheck trigger re-derives. Sourced from live fetches of
 <https://code.claude.com/docs/en/model-config> and
-<https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293):
+<https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293); the
+resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fable 5.1 releases:
 
 | Tier | Alias | Resolves to today |
 |---|---|---|
-| frontier | `best` | Fable 5 where the organization has access, else the latest Opus |
-| strong | `opus` | Opus 5 |
+| frontier | `best` | Fable 5.1 where the organization has access, else the latest Opus |
+| strong | `opus` | Opus 5.5 |
 | fast | `sonnet` | Sonnet 5 |
 
 - **frontier binds `best`, not `fable`.** `best` is the docs' live handle for exactly the frontier
-  tier's meaning, "Fable 5 where your organization has access to it, otherwise the latest Opus",
-  so a frontier dispatch self-heals where Fable 5 is unavailable (it requires organization access
+  tier's meaning, "the model the `fable` alias resolves to where Fable is available to you,
+  otherwise the same model as `opus`", so a frontier dispatch self-heals where Fable is unavailable (it requires organization access
   and Claude Code v2.1.170+, and can bill to usage credits) instead of failing or silently running
-  a stale pin. Two Fable 5 caveats ride along as **known gaps**: its safety classifiers can trigger
+  a stale pin. Two Fable caveats ride along as **known gaps**: its safety classifiers can trigger
   automatic model fallback "most often in cybersecurity and biology domains", and frontier is the
-  tier every security-surface work class routes to, and no lane detects that fallback today; and in
-  non-interactive mode a Fable 5 request that would bill usage credits bills them without a consent
+  tier every security-surface work class routes to, and no lane detects that fallback today (Opus
+  5.5 carries the same classifiers, so the strong tier shares this gap); and in
+  non-interactive mode a Fable request that would bill usage credits bills them without a consent
   prompt, which is the shape every unattended lane runs in.
-- **strong binds `opus`.** The docs' own starting recommendation "for complex agentic coding and
-  enterprise work", and Opus 5's reliable knowledge cutoff (May 2026) is four months *fresher* <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->
-  than Fable 5's (Jan 2026). For lanes whose subject matter is fast-moving harness behavior, the
-  implementer tier benefits most from the fresher model, so raw capability order (Fable above
-  Opus) deliberately does not decide this binding alone.
+- **strong binds `opus`.** The docs' own starting recommendation, "start with Claude Opus 5.5 for
+  most workloads". Opus 5.5 and Fable 5.1 share a June 2026 reliable knowledge cutoff, so cutoff
+  freshness does not separate them, and raw capability order (Fable above Opus) does not decide
+  the binding alone.
 - **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jan
   2026 reliable cutoff: enough headroom to orchestrate and to review mechanical items without
   breaching the reviewer floor.

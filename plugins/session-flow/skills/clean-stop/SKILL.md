@@ -94,10 +94,11 @@ PR and issue bodies on the remote.
    a bootstrap copied in. Anything still holding unmerged commits, dirty state,
    irreplaceable ignored files, or a running job is NOT pruned. It becomes a
    named item in the verdict.
-5. **Free-and-clear verdict.** Close with one of two honest outcomes: "clean
-   to shut down, everything durable and linked", or a named list of the
-   dangling items that still need a hand, each with the one action that would
-   clear it. Never report clean while step 2 or 4 left something surfaced.
+5. **Free-and-clear verdict.** Lead the report with one of two honest
+   outcomes: "clean to shut down, everything durable and linked", or a named
+   list of the dangling items that still need a hand, each with the one
+   action that would clear it; what was pushed, opened, and filed follows.
+   Never report clean while step 2 or 4 left something surfaced.
 
 ## Autonomy policy. Make durable freely, gate destructive cleanup
 

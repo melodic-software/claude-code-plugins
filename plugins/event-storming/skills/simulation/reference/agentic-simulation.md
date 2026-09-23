@@ -106,7 +106,7 @@ LLMs have natural behavioral defaults that actively **oppose** what Brandolini's
 **LLM default:** Notice gaps in the flow and fill them. Anticipate what's missing. Be thorough.
 **Book requires:** DEEP/GREY/PRETEND zones. In your GREY zone, you have stale knowledge, so write events based on outdated assumptions, not current reality. In your PRETEND zone, you bluff. "Pretending to know is the standard behavior in many organizations" (Ch. 2). Your blind spots should produce WRONG events, not missing events.
 
-**Corrective prompt for GREY zone behavior:** "In areas outside your expertise, you have STALE knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. DO NOT research or think carefully about whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
+**Corrective prompt for GREY zone behavior:** "In areas outside your expertise, you have STALE knowledge: things you were told years ago that may no longer be true. Write events in these areas using your outdated understanding. DO NOT research or double-check whether you're right. Your wrongness will force experts to correct you, which is exactly how tacit knowledge surfaces."
 
 **Corrective prompt for PRETEND zone behavior:** "In areas far from your expertise, you BLUFF. Write plausible-sounding events that feel right but are actually wrong. You don't know they're wrong. You genuinely believe them. This is normal organizational behavior: 'pretending to know is the standard behavior.'"
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0] - 2026-09-23
+
+### Added
+
+- **`audit`'s rubric fan-out checks each batch's evidence before merging**: it spot-checks a
+  sample of findings against the cited file and line and re-dispatches a batch whose quoted span
+  is not there.
+
 ## [0.6.5] - 2026-09-22
 
 ### Fixed

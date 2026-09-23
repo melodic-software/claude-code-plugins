@@ -14,3 +14,6 @@ fresh-context subagent; this file owns how that dispatch runs.
 - **Retry the failed subset only.** If an agent errors or times out, retry that
   item once; on a second failure mark it unverifiable, an honest skip, never a
   false pass. Never blind-re-run the whole fan-out to recover a few stragglers.
+- **Check each return's evidence before accepting it.** A verdict whose cited
+  source or diff does not support it goes back once or is marked
+  unverifiable; a subagent's say-so is not a verdict.

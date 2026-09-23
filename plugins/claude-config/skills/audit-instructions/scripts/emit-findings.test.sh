@@ -186,14 +186,14 @@ assert_contains "the unreadable-source decline is counted, never silent" \
 assert_not_contains "no row is emitted with an empty excerpt" "$EOF_OUT" "frontmatter-emphasis.md:9999"
 
 # --- Case 8c: unmatched --from lines are counted, never silent (#3279) ------
-# Count first, classify second: I28-d (well-formed except suffix outside
-# [a-c]), prose, and a blank increment Scan rows read and land in
+# Count first, classify second: I28-z (well-formed except suffix outside
+# [a-f]), prose, and a blank increment Scan rows read and land in
 # reason=unparsable-row. I100-a still matches and declines as
 # no-severity-crosswalk-row; I28-a still emits.
 UNPARSABLE="$TEST_TMPDIR/unparsable.txt"
 {
   printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-a"
-  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-d"
+  printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-z"
   printf '%s\n' "this is not a scan row"
   printf '\n'
   printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I100-a"
@@ -204,8 +204,8 @@ assert_eq "I28-a still emits from a mixed unparsable input" "1" "$UNP_ROWS"
 assert_contains "I28-a is the emitted Location" "$UNP_OUT" "quoted-trigger.md:8"
 assert_contains "Scan rows read counts every considered line, including unparsable" \
   "$UNP_OUT" "Scan rows read: 5. Emitted: 1."
-assert_contains "I28-d is a counted decline, not dropped" \
-  "$UNP_OUT" "Declined candidates: I28-d count=1 reason=unparsable-row"
+assert_contains "I28-z is a counted decline, not dropped" \
+  "$UNP_OUT" "Declined candidates: I28-z count=1 reason=unparsable-row"
 assert_contains "prose and blank lines share the unparsable-row bucket" \
   "$UNP_OUT" "Declined candidates: (unparsable) count=2 reason=unparsable-row"
 assert_contains "I100-a still declines as no-severity-crosswalk-row" \
@@ -227,13 +227,13 @@ assert_not_contains "a matching CRLF row is not declined as unparsable" \
 MIXCRLF="$TEST_TMPDIR/mix-crlf.txt"
 {
   printf '%s\n' "$FIXTURES/quoted-trigger.md:8:I28-a"
-  printf '%s\r\n' "$FIXTURES/quoted-trigger.md:8:I28-d"
+  printf '%s\r\n' "$FIXTURES/quoted-trigger.md:8:I28-z"
 } >"$MIXCRLF"
 MIXCRLF_OUT=$(emit "$MIXCRLF" "$TEST_TMPDIR/mix-crlf.md")
 assert_contains "a mixed CRLF file counts both lines" \
   "$MIXCRLF_OUT" "Scan rows read: 2. Emitted: 1."
-assert_contains "the CRLF I28-d row is a counted decline" \
-  "$MIXCRLF_OUT" "Declined candidates: I28-d count=1 reason=unparsable-row"
+assert_contains "the CRLF I28-z row is a counted decline" \
+  "$MIXCRLF_OUT" "Declined candidates: I28-z count=1 reason=unparsable-row"
 
 # --- Case 9: DOWNGRADE contract in the Action cell ---------------------------
 # The remediation is a downgrade, never a deletion: the directive survives and

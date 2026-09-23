@@ -38,7 +38,8 @@ Parse `$ARGUMENTS`:
 ## Track progress
 
 For multi-server audit runs (Phases 1-3 across ≥2 servers), keep an in-response checklist of the three
-phases and tick each as it completes. Phase 2 may run subagent fan-out for ≥5 tools.
+phases and tick each as it completes. Phase 2 may run subagent fan-out for ≥5 tools; check each
+subagent's evidence before accepting its verdicts, then consolidate them into the one Phase 3 report.
 
 ## Workflow
 

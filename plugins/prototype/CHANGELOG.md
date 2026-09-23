@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-23
+
+### Changed
+
+- `explore-directions` names the default styles no mockup variant may fall back on (a cream or
+  off-white background, italic accent words in headings, numbered "01 / 02 / 03" section labels,
+  monospace labels, pill-shaped buttons), plus any the user names, and adds a visual choice a
+  handover `skip:` line rejects to that list before the next round.
+
 ## [0.11.6] - 2026-09-21
 
 ### Changed

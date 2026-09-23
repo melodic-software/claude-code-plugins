@@ -1,5 +1,20 @@
 # Changelog: session-flow plugin
 
+## [0.37.0] - 2026-09-23
+
+### Changed
+
+- **`orchestrate`:** the spawn spec names what done looks like and when to stop and ask; a
+  worker's evidence is checked before its return is accepted, and a many-item fan-out ends in one
+  table. The loop owner keeps the task list in a file, keeps going when a step needs no input,
+  and stops only when blocked on the user or before a destructive, hard-to-undo, or outward
+  action.
+- **`keep-going`:** auto-resume keeps going instead of ending on an offer to continue; the report
+  leads with what waits on the user. The gate on killing or re-firing side-effectful work is
+  unchanged.
+- **`reconcile` and `clean-stop`:** reports lead with what needs the user (a gated kill, the
+  dangling items). Their gates are unchanged.
+
 ## [0.36.1] - 2026-09-21
 
 ### Changed

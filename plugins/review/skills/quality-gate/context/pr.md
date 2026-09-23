@@ -51,6 +51,7 @@ Used by default, or alongside a bare `/code-review <target>` pass:
 1. `gh pr diff` for the change set (page it, since large PRs flood context)
 2. Apply the project's review criteria (or `${CLAUDE_PLUGIN_ROOT}/context/severity.md` baseline) manually, or dispatch this plugin's `code-reviewer` agent against the PR's merge-base diff
 3. When the repository runs its own CI review bot (e.g. the managed Code Review service) on PR open/sync, note that its coverage still arrives independently
+4. Lead the report with the findings you would block the merge for. Each gives the file and line, why it is wrong, and how to show it fails (the concrete input or command the CRITICAL test names). Lower tiers follow
 
 ## Prerequisites
 

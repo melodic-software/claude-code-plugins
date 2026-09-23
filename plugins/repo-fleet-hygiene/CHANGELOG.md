@@ -3,6 +3,12 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.31] - 2026-09-23
+
+### Changed
+
+- `apply` reports failed and skipped targets first, each with its reason, then the applied count.
+
 ## [0.23.30] - 2026-09-21
 
 ### Changed

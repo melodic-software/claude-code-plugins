@@ -3,6 +3,16 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-09-23
+
+### Changed
+
+- **`implement-dispatch`: a phase boundary is not a stopping point in autonomous mode.** The
+  status summary and resume prompt are followed by the next dispatch in the same turn unless a
+  resident-vs-clear condition calls for a clear; otherwise the run
+  stops only on Major divergence, when blocked on the human, or before a destructive,
+  hard-to-undo, or outward action the plan does not cover.
+
 ## [0.16.8]
 
 ### Fixed

@@ -85,7 +85,9 @@ label anything else as author-claimed and unverified.
 
 ## High-signal bar
 
-Report only findings a careful senior reviewer would block or flag. Exclude:
+Report only findings a careful senior reviewer would block or flag. Each finding
+gives the file and line, why it is wrong, and how to show it fails (the input,
+caller, or command that produces the wrong result). Exclude:
 
 - Anything a linter, formatter, typechecker, or trivial static check catches
 - Pre-existing issues on untouched lines
