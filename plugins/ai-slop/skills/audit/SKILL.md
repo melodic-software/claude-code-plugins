@@ -139,9 +139,9 @@ is outside a repository, the whole run follows these rules:
     nothing and report it. Restore only the hunks verification flags; an edit that passes
     stays. Name the backup path in the per-file report.
 
-  Example, run directory `R`: `C:/Users/me/.claude/skills/a/SKILL.md` backs up to
-  `R/C/Users/me/.claude/skills/a/SKILL.md`, and `C:/Users/me/.claude/skills/b/SKILL.md` to
-  `R/C/Users/me/.claude/skills/b/SKILL.md`. The two never collide, and each `.source` file
+  Example, run directory `R`, home directory `H` on drive `C:`:
+  `H/.claude/skills/a/SKILL.md` backs up to `R/C/H/.claude/skills/a/SKILL.md`, and `H/.claude/skills/b/SKILL.md` to
+  `R/C/H/.claude/skills/b/SKILL.md`, with `H` spelled out in full. The two never collide, and each `.source` file
   names its own original, so a restore meant for `a` can never write `b`'s content.
 - Rubric batch lists and result files go under the session scratchpad, else the system temp
   directory, per [`context/rubric-fanout.md`](context/rubric-fanout.md).
