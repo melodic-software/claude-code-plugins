@@ -81,6 +81,10 @@ PCGamingWiki pages carry an "Anti-cheat" row, and the router links the title's p
 read. The plugin never queries it from a script: its Cargo API refuses anonymous queries, and its
 export route sits behind a Cloudflare challenge.
 
+| Claim | Basis | As of | Recheck trigger |
+|---|---|---|---|
+| PCGamingWiki's anonymous Cargo query returns `permissiondenied`, and `Special:CargoExport` answers HTTP 403 with a Cloudflare challenge | `curl` of `https://www.pcgamingwiki.com/w/api.php?action=cargoquery&tables=Infobox_game...` (error text `permissiondenied`) and of `Special:CargoExport` (HTTP 403, `_cf_chl_opt` in the body) | 2026-09-23 | PCGamingWiki documents a public API, or a plain `curl` of either route returns data |
+
 ## Blizzard EULA
 
 Battle.net titles are a signal because of the Blizzard End User License Agreement (revised March

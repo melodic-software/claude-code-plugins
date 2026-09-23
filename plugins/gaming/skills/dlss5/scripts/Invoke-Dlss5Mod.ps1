@@ -863,7 +863,13 @@ function Get-ScanRoots {
 }
 function Find-RuntimeCandidates {
     # A missing drive has no FileSystem provider, where Get-ChildItem -File does not exist.
-    @(Get-ScanRoots | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Recurse -Filter 'nvngx_dlssnr.dll' -File -Force -ErrorAction SilentlyContinue } | Sort-Object FullName -Unique)
+    # No -Filter: with one, a folder that cannot be listed drops out without an error to report.
+    $script:ScanGaps = @()
+    @(Get-ScanRoots | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | ForEach-Object {
+            $err = $null
+            Get-ChildItem -LiteralPath $_ -Recurse -File -Force -ErrorAction SilentlyContinue -ErrorVariable err | Where-Object Name -eq 'nvngx_dlssnr.dll'
+            foreach ($x in $err) { $script:ScanGaps += "runtime scan: $($x.TargetObject) unreadable: $($x.Exception.Message)" }
+        } | Sort-Object FullName -Unique)
 }
 # Read-only: installed games per launcher, what could not be read, and runtime DLL candidates with
 # their gate result. setup check reads this.
@@ -871,9 +877,10 @@ function Do-Discover {
     $games = Find-Games
     $unchecked = $script:Unchecked
     if ($null -eq $script:ScanRoots) { $script:ScanRoots = @($games | ForEach-Object installDir | Sort-Object -Unique) }
+    $cands = Find-RuntimeCandidates
     [pscustomobject]@{
-        games = @($games | Sort-Object launcher, name); unchecked = $unchecked
-        runtimeCandidates = @(Find-RuntimeCandidates | ForEach-Object {
+        games = @($games | Sort-Object launcher, name); unchecked = @($unchecked) + @($script:ScanGaps)
+        runtimeCandidates = @($cands | ForEach-Object {
                 # A candidate that cannot be read is reported as failing, and the rest still are.
                 $t = try { Test-Runtime $_.FullName; $v = "$(FileVer $_.FullName)" } catch { @{ Ok = $false; Reason = "unreadable: $($_.Exception.Message)" }; $v = $null }
                 [pscustomobject]@{ path = $_.FullName; version = $v; sha256 = $t.Hash; passes = [bool]$t.Ok; known = [bool]$t.Known; reason = $t.Reason
@@ -897,6 +904,7 @@ function Do-ProvisionRuntime {
     if ($script:RuntimeDllConfigured) { throw "configured runtime_dll refused: $($rt.Reason). Fix or unset runtime_dll." }
     $notes = @()
     $cands = Find-RuntimeCandidates
+    $notes += $script:ScanGaps
     $ok = @()
     foreach ($c in $cands) {
         $t = try { Test-Runtime $c.FullName } catch { @{ Ok = $false; Reason = "unreadable: $($_.Exception.Message)" } }
@@ -1256,9 +1264,12 @@ function Do-Selftest {
         $acl = Get-Acl -LiteralPath "$l2\steamapps"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl
         try { $null = Find-Games } finally { $acl = Get-Acl -LiteralPath "$l2\steamapps"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$l2\steamapps" -AclObject $acl }
         Assert 'discover: a library that cannot be listed is reported' (@($script:Unchecked | Where-Object { $_ -like "Steam: *lib2\steamapps unreadable*" }).Count -eq 1)
-        Put "$tmp\rc\a\nvngx_dlssnr.dll" 'held'; Put "$tmp\rc\b\nvngx_dlssnr.dll" 'fakemodel'
+        Put "$tmp\rc\a\nvngx_dlssnr.dll" 'held'; Put "$tmp\rc\b\nvngx_dlssnr.dll" 'fakemodel'; Put "$tmp\rc\c\x.txt" 'x'
         $dlock = [IO.File]::Open("$tmp\rc\a\nvngx_dlssnr.dll", 'Open', 'Read', 'None')
-        try { $script:ScanRoots = @("$tmp\rc"); $rc = (Do-Discover) | ConvertFrom-Json } finally { $dlock.Dispose(); $script:ScanRoots = $null }
+        $acl = Get-Acl -LiteralPath "$tmp\rc\c"; $acl.AddAccessRule($deny); Set-Acl -LiteralPath "$tmp\rc\c" -AclObject $acl
+        try { $script:ScanRoots = @("$tmp\rc"); $rc = (Do-Discover) | ConvertFrom-Json }
+        finally { $dlock.Dispose(); $script:ScanRoots = $null; $acl = Get-Acl -LiteralPath "$tmp\rc\c"; [void]$acl.RemoveAccessRule($deny); Set-Acl -LiteralPath "$tmp\rc\c" -AclObject $acl }
+        Assert 'discover: a game subfolder the runtime scan cannot list is reported' (@($rc.unchecked | Where-Object { $_ -like 'runtime scan:*rc\c*unreadable*' }).Count -eq 1)
         Assert 'discover: an unreadable runtime candidate fails alone and the next is still reported' (@($rc.runtimeCandidates | Where-Object { -not $_.passes -and $_.reason -like 'unreadable*' }).Count -eq 1 -and @($rc.runtimeCandidates | Where-Object passes).Count -eq 1)
         $dj = (Do-Discover) | ConvertFrom-Json
         Assert 'discover verb prints every launcher' (@($dj.games.launcher | Sort-Object -Unique).Count -eq 8)
