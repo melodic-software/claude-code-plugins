@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- The babysit stuck-check route for a wrong `runs-on` label no longer points at `select-runner`. That workflow is gone. The fix belongs in the repository's own workflow YAML. An organization-owned label is an entry in `approvedManagedRunnerLabels` in the standards `runner-policy` component.
+- The babysit stuck-check route for a wrong `runs-on` label points at the branch's own workflow YAML. An organization-owned label is resolved by reading the vendored standards `runner-policy` component and `docs/ci-runner-routing.md`.
 
 ## [0.57.0]
 
