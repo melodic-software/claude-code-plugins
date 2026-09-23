@@ -254,9 +254,13 @@ function SteamAppId($root) { (SteamAcf $root).appid }
 
 # --- Launcher discovery. Each finder returns Game records and adds what it could not read to
 # $script:Unchecked. Locations: reference/launchers.md.
+# A missing key reads as nothing; one that exists but cannot be read throws, so the caller reports it.
+function Assert-RegRead($err) { foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { throw $x.Exception } } }
 function RegProps($key) {
-    if ($null -ne $script:Reg) { return $script:Reg[$key] }
-    $p = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
+    if ($null -ne $script:Reg) { $v = $script:Reg[$key]; if ($v -is [Exception]) { throw $v }; return $v }
+    $err = $null
+    $p = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue -ErrorVariable err
+    Assert-RegRead $err
     if (-not $p) { return }
     $h = @{}
     foreach ($x in $p.PSObject.Properties) { if ($x.Name -notin 'PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider') { $h[$x.Name] = $x.Value } }
@@ -264,7 +268,10 @@ function RegProps($key) {
 }
 function RegKids($key) {
     if ($null -ne $script:Reg) { return @($script:Reg.Keys | Where-Object { $_.StartsWith("$key\") -and $_.Substring($key.Length + 1) -notmatch '\\' } | Sort-Object) }
-    @(Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue | ForEach-Object { "$key\$($_.PSChildName)" })
+    $err = $null
+    # A subkey that cannot be opened is reported; the readable ones are still returned.
+    @(Get-ChildItem -LiteralPath $key -ErrorAction SilentlyContinue -ErrorVariable err | ForEach-Object { "$key\$($_.PSChildName)" })
+    foreach ($x in $err) { if ($x.Exception -isnot [Management.Automation.ItemNotFoundException]) { $script:Unchecked += "registry: $($x.TargetObject) unreadable: $($x.Exception.Message)" } }
 }
 # A record whose folder is empty, quoted, relative or malformed is skipped, never resolved against the cwd.
 function Game($launcher, $name, $dir, $source) {
@@ -366,7 +373,7 @@ function Read-GamingRoot($path) {
     $b = [IO.File]::ReadAllBytes($path)
     if ($b.Length -lt 8 -or [BitConverter]::ToUInt32($b, 0) -ne 0x58424752) { throw 'file magic does not match' }
     $n = [BitConverter]::ToUInt32($b, 4)
-    if ($n -ge 255) { throw "folder count $n exceeds the limit" }
+    if ($n -ge 255 -or $n -eq 0) { throw "folder count $n is out of range" }
     $names = @([Text.Encoding]::Unicode.GetString($b, 8, $b.Length - 8).Split([char]0) | Where-Object { $_ } | Select-Object -First $n)
     if ($names.Count -ne $n) { throw "expected $n folder names, read $($names.Count)" }
     $names | ForEach-Object { Join-Path (Split-Path $path -Parent) $_ }
@@ -1044,7 +1051,7 @@ function Do-Selftest {
         $script:AntiCheatResearch = 'fixture research'; $script:AntiCheatSources = @('https://example.com/r')
     }
     try {
-        $docs =Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\dlss5'
+        $docs = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\dlss5'
         Assert 'empty DataDir uses the default' ((Resolve-DataDir '') -eq $docs)
         Assert 'literal ${user_config.data_dir} uses the default' ((Resolve-DataDir '${user_config.data_dir}') -eq $docs)
         Assert 'no legacy state passes' (-not (Throws { Assert-NoLegacyState "$tmp\docs" } '*'))
@@ -1186,7 +1193,7 @@ function Do-Selftest {
         Assert 'no upscaler DLL: apply refuses as not a candidate' (Throws { Do-Apply $nc } '*not a candidate*')
         Assert 'not-a-candidate refusal writes nothing' ((SameTree (Tree $nc) $before) -and -not (Test-Path -LiteralPath (StateDir $nc)))
         $nca = (Do-Assess $nc) | ConvertFrom-Json
-        Assert 'assess: no upscaler DLL is not-a-candidate with a reason' ($nca.verdict -eq 'not-a-candidate' -and@($nca.refusals | Where-Object { $_ -like '*no upscaler to hook*' }).Count -eq 1 -and @($nca.upscalers).Count -eq 0)
+        Assert 'assess: no upscaler DLL is not-a-candidate with a reason' ($nca.verdict -eq 'not-a-candidate' -and @($nca.refusals | Where-Object { $_ -like '*no upscaler to hook*' }).Count -eq 1 -and @($nca.upscalers).Count -eq 0)
         $fs = "$w\fsr\Win64"; Put "$fs\game.exe" 'exe'; Put "$fs\AMD_FidelityFX_DX12.dll" 'fsr'
         $fsa = (Do-Assess $fs) | ConvertFrom-Json
         Assert 'assess: FSR-only fixture is eligible' ($fsa.verdict -eq 'eligible' -and @($fsa.upscalers).Count -eq 1 -and $fsa.upscalers[0].family -eq 'FSR')
@@ -1238,15 +1245,19 @@ function Do-Selftest {
         $script:Reg["$un\Relative"] =@{ DisplayName = 'Relative'; InstallLocation = 'C:'; UninstallString = 'Battle.net.exe --uid=r' }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\999'] = @{}
         $script:Reg["$un\Other"] =@{ DisplayName = 'Other'; InstallLocation = "$tmp\other"; UninstallString = '"C:\Other\unins000.exe"' }
-        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\1207658924'] =@{ gameName = 'The Witcher 3'; path = "$tmp\gog\Witcher 3" }
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\0denied'] = [UnauthorizedAccessException]::new('fixture: access denied')
+        $script:Reg['HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games\1207658924'] = @{ gameName = 'The Witcher 3'; path = "$tmp\gog\Witcher 3" }
         $script:Reg['HKLM:\SOFTWARE\WOW6432Node\ubisoft\Launcher\Installs\635'] = @{ InstallDir = ("$tmp\ubi\Siege\" -replace '\\', '/') }
-        $d1 = "$tmp\d1\"; $d2 = "$tmp\d2\"; $script:Drives = @($d1, $d2)
+        $d1 = "$tmp\d1\"; $d2 = "$tmp\d2\"; $d3 = "$tmp\d3\"; $script:Drives = @($d1, $d2, $d3)
+        New-Item -ItemType Directory -Force -Path $d3 | Out-Null
+        [IO.File]::WriteAllBytes("$($d3).GamingRoot", [byte[]](@(0x52, 0x47, 0x42, 0x58) + [BitConverter]::GetBytes([uint32]0)))
         $appx = { param($n) "<Package xmlns=`"http://schemas.microsoft.com/appx/manifest/foundation/windows10`"><Properties><DisplayName>$n</DisplayName></Properties></Package>" }
         Put "$($d1)Games\Forza\Content\appxmanifest.xml" (& $appx 'Forza Fixture')
         [IO.File]::WriteAllBytes("$($d1).GamingRoot", [byte[]](@(0x52, 0x47, 0x42, 0x58) + [BitConverter]::GetBytes([uint32]1) + [Text.Encoding]::Unicode.GetBytes("Games`0")))
         Put "$($d1)Program Files\ModifiableWindowsApps\Gears\appxmanifest.xml" (& $appx 'ms-resource:AppName')
         Put "$($d2).GamingRoot" 'garbage'
         Put "$($d2)XboxGames\Halo\appxmanifest.xml" (& $appx 'Halo Fixture')
+        Put "$($d3)XboxGames\Zero\appxmanifest.xml" (& $appx 'Zero Fixture')
         foreach ($p in "$l2\steamapps\common\Ack Game", "$l2\steamapps\common\Clean Game", "$l2\steamapps\common\Listed", "$sp\steamapps\common\MainLib",
             "$tmp\epic\EpicGame", "$tmp\epic\Two", "$tmp\origin\Old Game", "$tmp\bnet\Overwatch", "$tmp\bnet\Quoted", "$tmp\bnet\Nameless Game", "$tmp\gog\Witcher 3", "$tmp\ubi\Siege") {
             New-Item -ItemType Directory -Force -Path $p | Out-Null
@@ -1269,6 +1280,8 @@ function Do-Selftest {
         Assert 'discover: a quoted folder is unquoted; a drive-relative one is skipped' ((& $has 'Battle.net' 'Quoted' "$tmp\bnet\Quoted") -and -not @($found | Where-Object name -eq 'Relative').Count)
         Assert 'discover: a stale Ubisoft key does not stop the rest' (-not @($script:Unchecked | Where-Object { $_ -like 'Ubisoft*' }).Count)
         Assert 'discover GOG: GOG.com\Games registry' (& $has 'GOG Galaxy' 'The Witcher 3' "$tmp\gog\Witcher 3")
+        Assert 'discover: a registry key that exists but cannot be read is reported' (@($script:Unchecked | Where-Object { $_ -like 'GOG Galaxy:*0denied unreadable*access denied' }).Count -eq 1)
+        Assert 'discover Xbox: a .GamingRoot listing zero folders falls back to XboxGames' ((& $has 'Xbox app' 'Zero Fixture' "$($d3)XboxGames\Zero") -and @($script:Unchecked | Where-Object { $_ -like '*d3\.GamingRoot unreadable*out of range*' }).Count -eq 1)
         Assert 'discover: one unreadable record is reported and the next still loads' (@($script:Unchecked | Where-Object { $_ -like 'Steam:*appmanifest_000.acf unreadable*' }).Count -eq 1)
         Assert 'discover Ubisoft: InstallDir with forward slashes' (& $has 'Ubisoft Connect' 'Siege' "$tmp\ubi\Siege")
         Assert 'discover Xbox: .GamingRoot folder, manifest under Content' (& $has 'Xbox app' 'Forza Fixture' "$($d1)Games\Forza\Content")
