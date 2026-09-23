@@ -21,14 +21,17 @@ or nothing.
 
 | Parameter | Resolution |
 |---|---|
-| **Data directory** (`-DataDir`) | `${user_config.data_dir}` when set to a non-empty path. If it is empty or still shows an unexpanded `${user_config.data_dir}` token (option unset), omit `-DataDir`: the script defaults to `Gaming` under the user's Documents folder and follows a OneDrive-redirected Documents, which a hand-built path does not |
+| **Data directory** (`-DataDir`) | `${user_config.data_dir}` when set to a non-empty path. If it is empty or still shows an unexpanded `${user_config.data_dir}` token (option unset), omit `-DataDir`: the script defaults to `Gaming\dlss5` under the user's Documents folder and follows a OneDrive-redirected Documents, which a hand-built path does not |
 | **Runtime DLL** (`-RuntimeDll`) | `${user_config.runtime_dll}` when set to a non-empty path. If it is empty or still an unexpanded token, omit `-RuntimeDll`: the script defaults to `runtime\nvngx_dlssnr.dll` under the data directory |
 
 Never type an option token onto a command line. An unset option survives substitution as its own
 token, and Bash rejects it as a bad substitution before the script starts.
 
 When the ledger path is needed and the data directory option is unset, get the default from the
-native side: `pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) Gaming"`.
+native side: `pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) Gaming\dlss5"`.
+With the option unset, the script refuses every verb but `refetch` and `selftest` while the legacy default
+`Documents\Gaming` holds `state\` and the new default does not. Relay the move it names verbatim;
+never move the files yourself.
 
 ## Running the script
 

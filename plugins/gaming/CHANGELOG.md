@@ -3,6 +3,16 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-09-23
+
+### Changed
+
+- The default `data_dir` is now `Documents\Gaming\dlss5`, so dlss5 state no longer claims the
+  whole `Documents\Gaming` folder. With `data_dir` unset, the script refuses every verb but
+  `refetch` and `selftest` while the legacy `Documents\Gaming\state\` exists and the new default
+  holds no `state\`, and `setup check` step 9 reports it as FAIL. Move `runtime\`, `state\`,
+  `builds\`, `cache\` and `LEDGER.md` into `Documents\Gaming\dlss5`.
+
 ## [0.1.0] - 2026-09-22
 
 ### Added

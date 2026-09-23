@@ -32,7 +32,7 @@ The default `data_dir` follows OneDrive Known Folder Move, which `$env:USERPROFI
 does not:
 
 ```bash
-pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming'"
+pwsh -NoProfile -Command "Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Gaming\dlss5'"
 ```
 
 Pass Windows-form paths in single quotes (`'D:\Gaming'`), never a Git Bash `/d/...` path. Run the
@@ -111,15 +111,19 @@ download nothing, and never call `provision` in any form.
    Two probes for a `data_dir` changed after an apply, since nothing on disk records the previous
    root: a step 7 candidate beside an `OptiScaler.ini` whose directory no manifest under
    `<data-dir>` names as `gameDir` is FAIL (a modded game this data directory does not track); and
-   when `<data-dir>` is not the default, a default directory still holding `state\` is FAIL. The
-   remediation for both is to MOVE the old directory's contents to `<data-dir>`; without its
-   manifest, `remove` cannot undo the mod.
+   another directory still holding `state\` is FAIL: the default (`Gaming\dlss5` under Documents)
+   when `<data-dir>` is not the default, or the legacy default (`Gaming` under Documents) when
+   `<data-dir>\state\` is absent. The remediation for both is to MOVE the old directory's contents
+   (`runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`) to `<data-dir>`; without its
+   manifest, `remove` cannot undo the mod. With `data_dir` unset, the script refuses every verb
+   but `refetch` and `selftest` on the legacy case.
 10. **`gh`.** INFO only: `gh --version`. `refetch` needs it; setup and apply do not, because
     `provision` downloads by direct release URL.
 
 ## `apply` (idempotent)
 
-Run `check`, then these steps in order. `<script>` is
+Run `check`, then these steps in order; stop before step 1 when step 9 reports another
+directory holding `state\`, since step 1 would start an empty state tree beside it. `<script>` is
 `${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1`.
 
 1. Create the tree:

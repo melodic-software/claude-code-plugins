@@ -40,13 +40,16 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
 ## Configuration
 
 Three plugin options: `data_dir` (directory) holds the ledger, snapshots, manifests, fork builds
-and the runtime DLL, and defaults to `Documents\Gaming` under your user profile; `runtime_dll`
-(file) points at a runtime DLL you already have; `runtime_source` (string) points at a copy you
-host. All are optional.
+and the runtime DLL, and defaults to `Documents\Gaming\dlss5` under your user profile;
+`runtime_dll` (file) points at a runtime DLL you already have; `runtime_source` (string) points at
+a copy you host. All are optional.
 
 `data_dir` survives `claude plugin uninstall`. Changing `data_dir` after applying the mod to a
 game is a move of the directory, not a reconfiguration: move the old directory's contents to the
-new path, or `status` and `remove` lose track of the modded games.
+new path, or `status` and `remove` lose track of the modded games. Before 0.1.1 the default was
+`Documents\Gaming`; while that folder holds `state\` and `Documents\Gaming\dlss5` does not, the
+script refuses to run until you move `runtime\`, `state\`, `builds\`, `cache\` and `LEDGER.md`
+into `Documents\Gaming\dlss5`.
 
 `runtime_source` is stored in plain text in `settings.json`, so it must not carry a credential.
 A URL with a query string is refused, because signed-URL credentials live there. The plugin reads
@@ -64,7 +67,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `data_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_DATA_DIR` | Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Leave unset to use the default: Documents\Gaming under your user profile. It survives plugin uninstall. Changing it after applying the mod to a game is a move of the directory, not a reconfiguration: move the old directory's contents to the new path. |
+| `data_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_DATA_DIR` | Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Leave unset to use the default: Documents\Gaming\dlss5 under your user profile. It survives plugin uninstall. Changing it after applying the mod to a game is a move of the directory, not a reconfiguration: move the old directory's contents to the new path. |
 | `runtime_dll` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_DLL` | Path to your own legitimately obtained nvngx_dlssnr.dll (known good: version 310.8.0.0, SHA-256 E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E). Leave unset to use runtime\nvngx_dlssnr.dll under the data directory, which setup fills from an installed DLSS 5 title or from the runtime source. The plugin names no source for this file. |
 | `runtime_source` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_RUNTIME_SOURCE` | Optional local/UNC path or plain https:// URL to a copy of nvngx_dlssnr.dll that you control. The value is stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. For a private store, sync the file to a local path and point this at it. Every copy is hash- or signature-checked before use. |
 
