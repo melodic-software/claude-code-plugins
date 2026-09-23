@@ -45,7 +45,7 @@ presents it as such.
   wants that is missing from their conventions flows UP into those
   conventions, not into the skill.
 - **Adjacent capabilities.** Resolving what a domain concept IS routes to a
-  domain-modelling capability; propagating a chosen name across call sites
+  domain-modeling capability; propagating a chosen name across call sites
   routes to a rename-references capability. Each is invoked through its slash
   command when present, and degrades to prose guidance when absent.
 

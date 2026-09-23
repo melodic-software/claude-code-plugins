@@ -86,7 +86,7 @@ printf '# discovery contract test\n\n'
 # the preload path: the skills page scopes `$ARGUMENTS` to "All arguments passed
 # when invoking the skill" and the sub-agents page says only that "The full
 # content of each listed skill is injected into the subagent's context at
-# startup". Silence is not a licence to assert the behavior in either
+# startup". Silence is not a license to assert the behavior in either
 # direction. The operative rule — scope arrives in the dispatch prompt and the
 # agent refuses to guess — holds whatever the harness does, so it is what the
 # plugin states.

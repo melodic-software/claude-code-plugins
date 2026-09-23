@@ -63,7 +63,7 @@ set -uo pipefail
 
 # --- Queue labels (melodic-software defaults; overridable / filtered live) ------
 DEFAULT_QUEUE_LABELS=(
-  "priority: needs-triage"
+  "needs-triage"
   "status: ready"
   "status: needs-decision"
   "needs-human"

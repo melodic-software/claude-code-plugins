@@ -279,8 +279,8 @@ good_record fx-r001 file present.txt shred >"$m"
 bad_case "bad action" action fx-r001
 printf 'id: fx-r001\nretired: 2026-09-01\nplugin_version: 1.2.3\nkind: file\npath: present.txt\naction: delete\n' >"$m"
 bad_case "missing note" note fx-r001
-good_record fx-r001 file present.txt delete 'colour: blue' >"$m"
-bad_case "unknown key" colour fx-r001
+good_record fx-r001 file present.txt delete 'color: blue' >"$m"
+bad_case "unknown key" color fx-r001
 good_record fx-r001 line present.txt remove-line 'match: "("' >"$m"
 bad_case "invalid ERE" match fx-r001
 printf 'id: fx-r001\nretired: yesterday\nplugin_version: 1.2.3\nkind: file\npath: present.txt\naction: delete\nnote: n\n' >"$m"

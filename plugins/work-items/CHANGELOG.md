@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.24] - 2026-09-22
+
+### Changed
+
+- Filing applies the bare `needs-triage` floor and no priority when a priority is not given. An `--agent-ready` filing does not take the floor.
+
+## [0.40.23] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.40.22]
 
 ### Changed
@@ -43,7 +57,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Changed
 
-- Normalise the storage guard spelling and drop dead cleanup, a single-use helper and a redundant path re-canonicalisation in the local-markdown adapter suites (behavior unchanged).
+- Normalize the storage guard spelling and drop dead cleanup, a single-use helper and a redundant path re-canonicalisation in the local-markdown adapter suites (behavior unchanged).
 
 ## [0.40.15]
 
@@ -647,7 +661,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - **A redundancy in `wit_map_gh_error` is symmetric.** Deleting the `HTTP 404`
   arm is uncaught, and so is deleting the `Not Found` arm, because the single
   fixture string contains both. Killing the whole arm *is* caught, so the
-  assertion is live and the cause is neighbouring-arm masking rather than absent
+  assertion is live and the cause is neighboring-arm masking rather than absent
   coverage.
 - **`conformance/bindings/github.test.sh` is selected by none of these files.** A
   change to a sibling adapter's `common.sh` pulls in four conformance bindings;
@@ -717,7 +731,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   recorded; `LABEL_GOT` is now seeded from page 1 and read directly, which is one
   fewer jq process per label page (measured over a three-page walk: 45 total jq
   spawns and 8 `jq 'length'` before, 42 and 5 after) and collapses three
-  spellings of "page length" to one. Behaviour is unchanged, established two
+  spellings of "page length" to one. Behavior is unchanged, established two
   ways: 23 end-to-end scenarios run against both versions on the same mock,
   comparing exit code, stdout, stderr and the full recorded request log with zero
   divergence; and an instrumented probe that recomputes the old value at the top
@@ -1456,7 +1470,7 @@ parameter, request-body field, and response field the adapter reads matches the 
   ceiling warning never fired either. The issue-list and label-list handlers do send
   `X-Total-Count` (`ctx.SetTotalCountHeader`), so the transport now captures response headers
   and both walks use that count as the authoritative end-of-list signal. The short-page
-  heuristic remains the fallback where no header is sent, so behaviour is unchanged on
+  heuristic remains the fallback where no header is sent, so behavior is unchanged on
   instances that send none, and no extra request is ever spent.
 - **`gitea` fetched pull requests only to throw them away.** `list-items` omitted the
   `type=issues` query parameter that this endpoint actually supports, so PRs consumed the page
@@ -1507,9 +1521,9 @@ Each fix ships with regression cases verified to fail against the unfixed file. 
 transport gained `-D` header support so the `X-Total-Count` path is exercised rather than
 silently falling back.
 
-Four Linear behaviours remain unverifiable without a live credential and are recorded rather
+Four Linear behaviors remain unverifiable without a live credential and are recorded rather
 than guessed: whether `assigneeId: null` semantically unassigns (the schema permits the null;
-the resolver's behaviour is not in the schema), Linear's default comment ordering, and the
+the resolver's behavior is not in the schema), Linear's default comment ordering, and the
 instance-configuration-dependent halves of the Gitea findings (`MAX_RESPONSE_ITEMS`,
 `ALLOW_CROSS_REPOSITORY_DEPENDENCIES`). Forgejo parity is still assumed rather than measured.
 
@@ -1799,7 +1813,7 @@ verified to go red without it.
   sees `data`. A status-code-only check would wave a failed mutation through and let the verb emit
   a malformed record.
 - **`api.auth_scheme` in the adapter spec gained `raw`**, the bare `Authorization` value with no
-  scheme word, which is what Linear's personal API keys take. Modelled as its own scheme rather
+  scheme word, which is what Linear's personal API keys take. Modeled as its own scheme rather
   than an empty prefix, so a generated header cannot come out with a stray leading space.
 
 ### Fixed
@@ -1855,7 +1869,7 @@ verified to go red without it.
   "my tracker is not supported" to an adapter that lives in **their** repo. Four steps: interview
   to lock the provider's shape into an adapter spec, explore the consumer's real instance for the
   per-instance facts only it can settle, generate, verify. The deterministic half is
-  `scripts/generate-adapter.sh`. The judgement stays outside the script: which verbs the provider
+  `scripts/generate-adapter.sh`. The judgment stays outside the script: which verbs the provider
   can honestly support, what its fields mean, what a live instance actually returns. The spec
   file is the whole handoff between them.
 - **The generated security skeleton carries the bundled `jira` adapter's guards, and proves
@@ -2328,7 +2342,7 @@ verified to go red without it.
 - **`work-loop` drain exit excludes open `work-map` containers as lane infrastructure (#2078).**
   A bare container issue is never claimable and never closed by the loop, so it blocked drain
   completion until the `/loop` expiry. `/work-items:triage` and `/work-items:work-loop` now exclude
-  container-labelled items from the snapshot, intake sweep, exit evaluation, and post-snapshot
+  container-labeled items from the snapshot, intake sweep, exit evaluation, and post-snapshot
   intake report, the same treatment as per-lane telemetry issues.
 
 ## [0.35.4]
@@ -2554,7 +2568,7 @@ verified to go red without it.
   Since Claude Code v2.1.211, choosing "Yes, don't ask again" saves the rule to
   `.claude/settings.local.json` at the repository root, resolved through worktrees to the MAIN
   checkout, and the rule applies to sessions anywhere in that repository, every linked worktree
-  included. The preflight modelled the pre-v2.1.211 behaviour instead: it dropped the local file
+  included. The preflight modeled the pre-v2.1.211 behavior instead: it dropped the local file
   wholesale on the `--worktree-root` path, on the reasoning that a gitignored file cannot follow a
   fresh worktree. That reasoning now holds only for a local file living inside some *other* linked
   worktree, so a grant the worker would genuinely inherit was reported as a missing-allow gap. The
@@ -2583,7 +2597,7 @@ verified to go red without it.
   separate git dir at `$HOME/.git` and the foreign layer is the operator's own `~/.claude` local
   file). The header then names that foreign directory **as** the main checkout, in wording identical
   to a correct resolution, so it asserts something false rather than merely omitting it. Correcting
-  the resolution itself is deferred; this release states the behaviour truthfully.
+  the resolution itself is deferred; this release states the behavior truthfully.
   `reference/permission-preflight.md` carries the residual cases rather than leaving them implied,
   scoped to both the pre-dispatch and named-worker modes. A pre-v2.1.211 harness, where a worktree
   session loads its own local file rather than the main checkout's, **masks** a gap the worker really
@@ -2729,7 +2743,7 @@ verified to go red without it.
   subvert in that lane rather than paraphrased across four files, so each binds a boundary the
   skill already states: `triage`'s verification step and direction-gate branch, `decompose`'s
   approval gate and don't-touch-the-parent rule, `work`'s claim-before-dispatch prerequisite and
-  never-merge boundary, and `attend-queue`'s operator-is-the-authority rule. Modelled on
+  never-merge boundary, and `attend-queue`'s operator-is-the-authority rule. Modeled on
   the existing case in `plugin-quality`'s `audit` skill (`anti-pattern-injection-in-audited-source`)
   rather than introducing a second eval shape.
 
@@ -2832,7 +2846,7 @@ verified to go red without it.
 
 - **`work-loop` escalation record write, a deterministic surface for out-of-band notification
   (#1650).** Escalating, whether at step 5, step 2's routed-advisory routing, or the admission gate's
-  first-drain `kind=ratify-c3` queueing, now also creates
+  first-drain `kind=ratify-c3` queuing, now also creates
   `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` with the Write tool in the same
   step that files the tracker escalation, immediately before posting the marker comment: one new
   file per NEWLY filed escalation (suppressed by the marker read the step already performs),

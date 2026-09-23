@@ -1075,7 +1075,7 @@ the singer and sing to someone I know"). See
 ## Direct address + present tense = maximum intimacy
 
 <!-- unaudited: non-book source (Berklee Online); paraphrase retained. The
-     blockquote that stood here was already labelled "paraphrased" inside
+     blockquote that stood here was already labeled "paraphrased" inside
      quotation marks, a fabricated quote, and has been de-quoted. -->
 
 Paraphrase, unverified: Pat is reported to name direct address plus present
@@ -1099,7 +1099,7 @@ tense) loosens intimacy. Pull deliberately, not by accident.
 ## Pronoun-consistency anti-pattern
 
 <!-- unaudited: non-book source (Berklee Online); paraphrase retained. The
-     blockquote here was explicitly labelled a paraphrase inside quotation marks
+     blockquote here was explicitly labeled a paraphrase inside quotation marks
      and has been de-quoted. The two named reference songs are from the same
      unread article and are NOT verified. -->
 

@@ -106,7 +106,7 @@
 #     version-sorts.
 #   - anything else — not a cluster at all, and not portable code either:
 #     `grep -P"attern"` and `sort -V"ersion"` both abort with `unknown option`,
-#     so there is no GNU-only behaviour to report and nothing working to break.
+#     so there is no GNU-only behavior to report and nothing working to break.
 # `(['"][A-Za-z]*['"])*` admits the first two, and being starred it accepts
 # repeated pairs. `echo` is the exception and narrows the class to its own
 # cluster letters — see its token below.
@@ -198,7 +198,7 @@ sort[^;&|()]*[[:space:]]['"]?--sort['"]?(=|[[:space:]]+)['"]?version([[:space:]|
 # `-e`, `-f` and `-l` are deliberately outside the class: GNU accepts their
 # value attached, so `sed -ei` passes the script `i` rather than editing in
 # place, and a letter outside the documented set makes the word an unknown
-# option that sed rejects — no GNU-only behaviour to report either way.
+# option that sed rejects — no GNU-only behavior to report either way.
 #
 # `i` MUST be the cluster's LAST letter. GNU's own syntax is `-i[SUFFIX]`, so
 # any character after `i` is an attached backup suffix, not another option:

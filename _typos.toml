@@ -7,6 +7,10 @@
 # stay minimal.
 
 [default]
+# American English is the house language: non-American variants are corrections,
+# not accepted alternates.
+locale = "en-us"
+
 extend-ignore-re = [
   # Inline ignore directives. typos has no built-in pragma, so this config
   # blesses a convention: silence a single line, the following line, or a
@@ -32,6 +36,21 @@ extend-ignore-re = [
 # with genuinely different policy owns the complete component locally.
 # Each entry only skips its exact token, so the union is inert outside the
 # repos that need it; keep every entry annotated.
+[default.extend-words]
+# ASUS Armoury Crate, and the `Asus.ArmouryCrate` winget package id it is
+# installed by — provisioning. typos splits the compound, so the word entry is
+# what spares the id; rewriting it to "Armory" would break the install.
+armoury = "armoury"
+# Reaching for "the full axe" — claude-code-plugins docs-hygiene. The en-us
+# locale prefers the "ax" variant; both are American, so this is a house
+# spelling choice, not a correction.
+axe = "axe"
+# The Calibre ebook manager: the `calibre.calibre` winget package id, the
+# `calibre`/`calibredb` CLIs, and CALIBRE_-prefixed environment variables —
+# claude-code-plugins kindle-dedrm, provisioning. Rewriting it to "caliber"
+# would break both the package id and the command names.
+calibre = "calibre"
+
 [default.extend-identifiers]
 # Win32 APPBARDATA variable ($abd) — dotfiles set-windows-prefs (taskbar auto-hide).
 abd = "abd"
@@ -49,6 +68,10 @@ DUM = "DUM"
 FO = "FO"
 # Features on Demand (Windows optional-feature packaging) — provisioning.
 FoD = "FoD"
+# The MITRE Corporation (MITRE ATT&CK, the CVE program) — review conventions.
+# The en-us locale corrects the woodworking joint's British spelling to "miter";
+# case-sensitive and whole-token, so that correction still applies to prose.
+MITRE = "MITRE"
 # CC BY-ND license abbreviation (NoDerivatives) — claude-code-proxy.
 # Case-sensitive and whole-token, so lowercase "nd" is unaffected.
 ND = "ND"

@@ -7,7 +7,7 @@ never walked, so five snippets fabricated from recall shipped under
 substring of the source. Payloads are NOT stripped.
 
 A missing section, or a section with unparsed non-empty content and zero
-fences, is a failure — never PASS. A recognised none-marker is a clean
+fences, is a failure — never PASS. A recognized none-marker is a clean
 zero-snippet run and is named as such.
 
 Exit codes:
@@ -56,7 +56,7 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
         return 0
     if not body.strip():
         failures.add(
-            f"{path}: Prompt snippets body is blank. A recognised "
+            f"{path}: Prompt snippets body is blank. A recognized "
             f"none-marker is the only legal empty form; silence is not "
             f"an assertion."
         )
@@ -71,7 +71,7 @@ def check_digest(path: str, source: str, failures: Failures) -> int:
             f"{path}: Prompt snippets has non-empty content but parsed "
             f"ZERO fences. Unparsed section content is the attack surface "
             f"(fabricated-from-recall snippets shipped here). Use a "
-            f"column-0 fence or a recognised none-marker."
+            f"column-0 fence or a recognized none-marker."
         )
         return 0
 
@@ -125,7 +125,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         f"{len(args.digests)} digest(s), {exercised} Prompt-snippets fence "
         f"payload(s) compared as exact contiguous source substrings with "
         f"NO per-line strip. Checked: Prompt snippets heading present, "
-        f"each fence column-0 and in-source (or a recognised none-marker). "
+        f"each fence column-0 and in-source (or a recognized none-marker). "
         f"Nothing outside Prompt snippets / fence payloads was checked."
     )
     return 0

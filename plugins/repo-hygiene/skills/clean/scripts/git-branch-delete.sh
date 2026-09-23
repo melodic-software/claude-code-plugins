@@ -182,7 +182,7 @@ if [[ $REFUSED -eq 0 ]]; then
   if [[ "$first" != "# repo-hygiene branch tip capture v1" ]]; then
     refuse "not a branch tip capture (bad header): $CAPTURE ($CAPTURE_HINT)"
   else
-    # A row is recognised by its shape (tab-separated, a commit id in column
+    # A row is recognized by its shape (tab-separated, a commit id in column
     # 2), never by its first character: `#` is legal at the start of a branch
     # name, so a comment heuristic would read such a branch as metadata and
     # refuse it as uncaptured.
@@ -419,7 +419,7 @@ resolve_file() {
 # The ledger sits beside the capture's real file. Derived from the path as
 # given, a capture reached through a symlink (or a relative path) would put the
 # ledger next to the link, outside the durable sink the capture was written to.
-# A `--capture-file` outside `.git` is honoured as given: it is the documented
+# A `--capture-file` outside `.git` is honored as given: it is the documented
 # fallback when the sink is unwritable, and the pin, not the ledger, is what
 # protects the tip.
 CAPTURE_REAL="$(resolve_file "$CAPTURE")" || CAPTURE_REAL="$CAPTURE"

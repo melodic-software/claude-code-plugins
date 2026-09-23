@@ -579,7 +579,7 @@ CTX="${CTX%"${CTX##*[![:space:]]}"}"
 # additionalContext — a 20% margin under the cap, the agent channel carrying
 # the fuller finding list.
 #
-# DEFENCE IN DEPTH, not the working bound: at MAX_REPORT=10 entries × 60-char
+# DEFENSE IN DEPTH, not the working bound: at MAX_REPORT=10 entries × 60-char
 # elided tokens the message tops out near 1,100 characters, so this ceiling does
 # not fire today and its branch is exercised only if one of those numbers moves.
 # It is kept because both of them are tunable and the documented channel cap is

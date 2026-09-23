@@ -311,7 +311,7 @@ Bucket routing of the pre-check:
   Gate 4).
 - **N≥3, no home** → creation output, subject to the 6-test gate.
 
-Output: ONE ranked table PER BUCKET (three labelled sections, ROI desc, dependency-grouped within
+Output: ONE ranked table PER BUCKET (three labeled sections, ROI desc, dependency-grouped within
 each). Then a batch-sequencing recommendation grouping non-overlapping candidates that can run in
 parallel + dependency chains that must run sequentially.
 
@@ -326,7 +326,7 @@ Do NOT edit files.
 Main session presents to user:
 
 Every candidate table carries the bucket and the instance count per row, and the roster is grouped
-into the three labelled bucket sections. Bucket sections the flags filtered out are still named,
+into the three labeled bucket sections. Bucket sections the flags filtered out are still named,
 with a one-line note saying they were suppressed and by which flag, because a silently missing bucket
 reads as "nothing found there".
 

@@ -485,7 +485,7 @@ table_has() {
   return 1
 }
 
-# parse_consumer_form <bare-expression>: recognises exactly
+# parse_consumer_form <bare-expression>: recognizes exactly
 # `needs.<resolver>.outputs.<name> == '<true|false>'`, setting CF_NAME and
 # CF_VALUE. Deliberately whole-string: a prefix match would accept a longer
 # expression whose extra clauses this gate never reads.

@@ -807,7 +807,7 @@ if [[ -n "${EPOCHREALTIME:-}" ]]; then
     "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 fi
 
-# A `date` whose %N is a literal N: the fallback is whole seconds, labelled.
+# A `date` whose %N is a literal N: the fallback is whole seconds, labeled.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
 cp -r "$case_dir"/. "$case_dir2"/

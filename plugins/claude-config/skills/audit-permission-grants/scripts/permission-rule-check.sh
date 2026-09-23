@@ -38,7 +38,7 @@
 #       specific account, and is not expanded in Bash rules. Emitted under the
 #       id `P2b`, not `P2`: criteria.md gives it its own `### P2b` section with
 #       its own detection rule and SKILL.md's severity table names the error
-#       tier `(P2, P2b)`, so a report that labelled it `P2` left the reader
+#       tier `(P2, P2b)`, so a report that labeled it `P2` left the reader
 #       unable to tell which of the two documented checks fired, and a grep for
 #       `P2b` returned nothing (#4149 defect 3).
 #
@@ -49,7 +49,7 @@
 # completes exits 0 in report and `--count` mode whether or not it found anything.
 # `--check` and `--strict` are the opt-in gate modes — see Usage. Environment gaps
 # exit 2 in EVERY mode: missing jq, a missing shared pattern library, an
-# unrecognised argument, and an unresolvable (or non-directory) scan root — see
+# unrecognized argument, and an unresolvable (or non-directory) scan root — see
 # below. An unresolvable USER scope is a narrower gap: it is announced on stderr
 # and recorded in the coverage block, and it does not by itself change the exit
 # code in any mode. In the GATE modes the blind-scan limb joins them: a run whose
@@ -109,7 +109,7 @@ Usage: permission-rule-check.sh [--count|--check|--strict|--help]
 ARGUMENTS. Flags may appear in any order and may be combined; the STRICTEST one
 wins, ordered (no arg) < --count < --check < --strict. So `--check --strict` and
 `--strict --check` both run as --strict; neither flag is silently discarded. An
-ARGUMENT THAT IS NOT A RECOGNISED FLAG IS REFUSED: this message goes to stderr and
+ARGUMENT THAT IS NOT A RECOGNIZED FLAG IS REFUSED: this message goes to stderr and
 the run exits 2 (cannot determine) without scanning. It never falls through to the
 advisory report, because a typo'd flag in a CI invocation would otherwise leave the
 gate exiting 0 forever on a tree full of findings. A literal empty argument (what a
@@ -152,12 +152,12 @@ EOF
 }
 
 # --- Argument handling ---------------------------------------------------------
-# EVERY argument is read, and an argument that is not a recognised flag is a hard
+# EVERY argument is read, and an argument that is not a recognized flag is a hard
 # refusal — usage on stderr, exit 2 — never something silently ignored. This
 # script is a CI gate: a one-character typo in the flag falling through to the
 # advisory report left the invocation exiting 0 on a tree full of error-tier
 # findings, i.e. a gate quietly turned into a permanent no-op that nobody sees
-# fail. An argument the script cannot honour means it cannot establish what was
+# fail. An argument the script cannot honor means it cannot establish what was
 # asked of it, which is the same "cannot determine" channel a missing jq and an
 # unresolvable root already take.
 #
@@ -193,7 +193,7 @@ for arg in "$@"; do
   --strict) raise_mode strict 3 ;;
   "") ;;
   *)
-    printf 'ERROR: unrecognised argument: %s\n\n' "$arg" >&2
+    printf 'ERROR: unrecognized argument: %s\n\n' "$arg" >&2
     usage >&2
     exit 2
     ;;

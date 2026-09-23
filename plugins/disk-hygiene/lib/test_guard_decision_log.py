@@ -218,7 +218,7 @@ class GuardDecisionLogTests(unittest.TestCase):
                 self.assertFalse(self.write_one())
                 self.assertFalse(self.log_file.exists())
 
-    def test_an_unrecognised_disable_value_leaves_the_record_on(self) -> None:
+    def test_an_unrecognised_disable_value_leaves_the_record_on(self) -> None:  # identifier, not prose # spellchecker:disable-line
         os.environ[decision_log.DISABLE_ENV] = "maybe"
         self.assertTrue(self.write_one())
 

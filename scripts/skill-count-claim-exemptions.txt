@@ -5,7 +5,7 @@
 # something else entirely -- a count of the skills that share a dependency, not
 # a count of the skills the plugin has. Those are the rows below.
 #
-# This is an AUDIT TRAIL, not a mute list. Each row records a human judgement
+# This is an AUDIT TRAIL, not a mute list. Each row records a human judgment
 # that one specific sentence is not a claim about the plugin's size, and a
 # reader should be able to tell from the note why. Before adding a row, check
 # the alternative first: the sentence can usually be reworded so it names its

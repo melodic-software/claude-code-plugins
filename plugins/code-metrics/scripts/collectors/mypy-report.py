@@ -29,7 +29,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   is the bare `x`. `module_name` re-derives that rule; checked against a
   real 186-file run of this repository (182 of 182 listed names matched);
 - mypy exits 1 on any type error and still writes the report (design T1), so
-  exit 1 with a readable report is exit 0 here, with the lane row labelled
+  exit 1 with a readable report is exit 0 here, with the lane row labeled
   `mypy-reported-errors` and a note on stderr (which the dispatcher relays as
   the run row's reason) counting the errors and the missing-stub ones, the
   codes `import-untyped` and `import-not-found`. Error lines go to stdout as
@@ -45,7 +45,7 @@ mypy-any-exprs-modules.txt and mypy-any-exprs-aborted.txt:
   no derived name equals is matched to the one scope file whose derived name
   ends in `.` plus that name, and left out when that is ambiguous;
 - mypy exits 2 on a blocking error (a duplicate module name, a usage or config
-  error) before analysing anything, and still writes a report whose only row
+  error) before analyzing anything, and still writes a report whose only row
   is `Total 0 0 100.00%`. Nothing was measured, so exit 2 is the adapter
   contract's exit 4 (the tool resolved but cannot run on these files) with
   mypy's stderr relayed, never a 100% row. An unwritten or unreadable report on
@@ -97,7 +97,7 @@ TOOL = "mypy"
 MEASURE = "type_coverage"
 LANE = "python"
 # mypy's exit for a blocking error (duplicate module, usage or config error):
-# it stops before analysing anything and its report carries no measurement.
+# it stops before analyzing anything and its report carries no measurement.
 FATAL_EXIT = 2
 # mypy's own order: a stub beside a module wins (find_sources.PY_EXTENSIONS).
 PY_EXTENSIONS = (".pyi", ".py")
@@ -266,7 +266,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
                 if part.strip()
             )
             print(
-                f"mypy could not analyse these files (exit {FATAL_EXIT}): {said}",
+                f"mypy could not analyze these files (exit {FATAL_EXIT}): {said}",
                 file=sys.stderr,
             )
             return 4

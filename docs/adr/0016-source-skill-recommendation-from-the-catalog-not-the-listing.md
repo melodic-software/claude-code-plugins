@@ -182,7 +182,7 @@ That was false — seven carry it — and extracting for two would have left fiv
 beside a new seam: two sources of truth for one probe, worse than the duplication it set out to fix.
 The extraction was withdrawn on that finding and only re-taken once it covered every consumer.
 
-The per-consumer differences are preserved rather than normalised, because a uniform block would
+The per-consumer differences are preserved rather than normalized, because a uniform block would
 have silently changed behavior: `orient` reads `git log -8` where the save-point skills read `-5`,
 `retro` alone takes `git diff --name-only HEAD`, `find-handoff` takes no git state beyond the
 branch, and `workflow` takes no session id. The seam documents each divergence as deliberate so a

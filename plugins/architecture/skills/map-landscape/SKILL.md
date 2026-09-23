@@ -21,7 +21,7 @@ value and carry on; `${CLAUDE_PROJECT_DIR}` is the resolver's `--root` either wa
 ## Purpose
 
 Answer "what systems does this organization have, who owns them, what do they run on, and how do
-they relate" from what a repository already says about its neighbours. Every fact traces to a named
+they relate" from what a repository already says about its neighbors. Every fact traces to a named
 file; every edge traces to a matched string in a tracked file; both are collected by scripts, never
 derived by hand. The committed record makes the answer re-runnable, so the second run reports what
 moved instead of quietly replacing the first.
@@ -87,7 +87,7 @@ The record carries `repositories[]` from `portfolio-facts.sh` (`name`, `remote`,
 and `edges[]` from `reference-edges.sh` (`from`, `to` as `owner/repo`, `type`, `relation`, `count`,
 `files[]`).
 
-It also records `subject_owner`, the organisation the graph was drawn from, resolved by the edge
+It also records `subject_owner`, the organization the graph was drawn from, resolved by the edge
 extractor so the nodes and the edges cannot disagree about it. That is what makes a checkout
 internal: having a repository on disk says where someone works, not who owns the system, so a
 cross-owner checkout is the same external system the edges to it already call external.
@@ -107,7 +107,7 @@ fetched from unless `--remote=all`. Edges are the script's output, not your judg
 the script did not extract, and do not delete one for looking incidental, because a low `cites`
 count IS the signal that the reference is weak.
 
-## Report drift, and honour --check
+## Report drift, and honor --check
 
 When `<architecture_dir>/landscape.json` already exists, compare before writing anything:
 

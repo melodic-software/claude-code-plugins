@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "gaming",
+  "version": "0.1.0",
+  "description": "Apply, track, tune, and cleanly remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in PC games on Windows. Anti-cheat refusal, pre-install snapshots and manifests for byte-exact removal, a per-game ledger, and an upstream watch for fork and driver releases. Ships no NVIDIA binary: the runtime DLL comes from a path, an installed DLSS 5 title, or a source the user configures.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "gaming",
+    "dlss",
+    "dlss5",
+    "nvidia",
+    "optiscaler",
+    "mod",
+    "windows",
+    "powershell",
+    "skill"
+  ],
+  "userConfig": {
+    "data_dir": {
+      "type": "directory",
+      "title": "Data directory",
+      "description": "Directory holding the ledger, per-game snapshots and manifests, provisioned fork builds, and the runtime DLL. Leave unset to use the default: Documents\\Gaming under your user profile. It survives plugin uninstall. Changing it after applying the mod to a game is a move of the directory, not a reconfiguration: move the old directory's contents to the new path."
+    },
+    "runtime_dll": {
+      "type": "file",
+      "title": "DLSS 5 runtime DLL",
+      "description": "Path to your own legitimately obtained nvngx_dlssnr.dll (known good: version 310.8.0.0, SHA-256 E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E). Leave unset to use runtime\\nvngx_dlssnr.dll under the data directory, which setup fills from an installed DLSS 5 title or from the runtime source. The plugin names no source for this file."
+    },
+    "runtime_source": {
+      "type": "string",
+      "title": "DLSS 5 runtime source",
+      "description": "Optional local/UNC path or plain https:// URL to a copy of nvngx_dlssnr.dll that you control. The value is stored in plain text in settings.json, so it must not carry a credential: a URL with a query string is refused. For a private store, sync the file to a local path and point this at it. Every copy is hash- or signature-checked before use."
+    }
+  }
+}

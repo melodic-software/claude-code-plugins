@@ -83,7 +83,7 @@ The simplest notation: **orange sticky notes** = Domain Events, placed along a t
 
 - Break **committee circles**: people trying to agree on perfect wording before writing kill throughput and hide contradictions
 - Don't stress about past tense compliance. Engagement > compliance at this stage
-- Phase names like `Registration` or `Enrolment` hide complexity, so turn those stickies 45° to signal "not an event"
+- Phase names like `Registration` or `Enrollment` hide complexity, so turn those stickies 45° to signal "not an event"
 - Duplicates are fine, because they surface different perspectives. Genuinely identical stickies can be
   stacked during sorting, but differently worded stickies for the same moment stay side by side.
   Divergent wording is a bounded-context signal, so it is preserved rather than merged
@@ -420,7 +420,7 @@ A great session ends with people happily tired and a feeling of accomplishment, 
 
 ### No Tables, No Laptops
 
-- Remove tables from the centre. Small tall tables only, for writing on stickies. No tables means
+- Remove tables from the center. Small tall tables only, for writing on stickies. No tables means
   no space for laptops. "I am so sorry for that. ...No I am not."
 - An open laptop anchors a key person in disengaged mode, sitting back and checked out
 - EventStorming is more interesting than checking corporate email

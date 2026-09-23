@@ -330,7 +330,7 @@ expect "a self-test that cannot turn the job red is rejected" 1 "carries continu
 
 # --- 5. ONE CONSUMER FORM ---------------------------------------------------
 #
-# The historical shape. `!= 'true'` is behaviourally correct here, and is still
+# The historical shape. `!= 'true'` is behaviorally correct here, and is still
 # rejected: the contract is that there is exactly one spelling to copy, so the
 # next consumer has no polarity decision to make and no comment to keep true.
 

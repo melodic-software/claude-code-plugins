@@ -620,4 +620,4 @@ repo wants an audit conducted, not because Pat says it.*
 - `line-edit-rubric.md`: the PRE-EMISSION counterpart to the per-line checklist
   above, the cycle an AI runs on a candidate line before the writer has seen it
 - `voiceprint.md`: the writer's own register, built from their accepted lines;
-  what a register judgement in this checklist is measured against
+  what a register judgment in this checklist is measured against

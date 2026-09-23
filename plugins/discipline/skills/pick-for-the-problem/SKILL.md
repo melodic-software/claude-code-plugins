@@ -63,7 +63,7 @@ baseline.
 ## Mandatory routing. No verdict from memory
 
 When the selection is load-bearing, the field survey and the maintenance /
-security / license / adoption judgement must come from CURRENT research, not
+security / license / adoption judgment must come from CURRENT research, not
 training-data recall, a tool's maintenance status, licensing, and security
 posture drift constantly. Route to a research capability rather than judging
 from memory: invoke `/discovery:research` via the Skill tool, or

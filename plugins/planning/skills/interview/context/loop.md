@@ -62,7 +62,7 @@ The decision space is a TREE, not a flat list. Decisions have dependencies, so r
 Run rounds until the stop condition is met. Each round:
 
 1. **Restate the working understanding** in two or three sentences: what is decided, what branches remain open. This restate doubles as the **session-hop anchor**: after a handoff, resume, or long gap it re-establishes the decided set and the current round's stakes before any question, so a returning reader (or a fresh session resuming from the ledger) is grounded without re-reading the whole ledger. When it fully covers a question's context, that question needs no per-question context line (SKILL.md "Relentless mode")
-2. **Compute the frontier:** every open decision whose prerequisites are settled. A question whose framing or option set depends on another question still open in THIS round belongs to a later round, not this one. Carry-overs first: questions unanswered from the previous round re-surface at the top, labelled as such
+2. **Compute the frontier:** every open decision whose prerequisites are settled. A question whose framing or option set depends on another question still open in THIS round belongs to a later round, not this one. Carry-overs first: questions unanswered from the previous round re-surface at the top, labeled as such
 3. **Codebase gate per frontier question:** check whether the environment already answers it (Grep, Read, Glob). A fact the code answers is STATED, not asked, and its dependents join the frontier now. A slow lookup (deep exploration, external research) is dispatched to a sub-agent without blocking: the running lookup is an unsettled prerequisite, so only its downstream questions wait, and the rest of the frontier is asked this round
 4. **Ask the frontier as one numbered set:** each question with a recommended answer grounded in observed codebase state (when no code signal exists, recommend from conventions and state the basis). Order within the round by blast radius, so the answer that would change the most downstream work goes first
 5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode, except for the acceptance-criteria coverage prompt, which gets no row (see "Write at ask-time, not at answer-time"). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7")
@@ -312,9 +312,9 @@ Each section in the PLAN.md Brief captures a specific shape. Keep tight.
 - ✅ "`GET /api/users/me` returns 401 when the session token is missing" (testable)
 - ❌ "Authentication works correctly" (fuzzy)
 
-Two behaviours attach here, both defined in the SKILL.md section "Acceptance-criteria capture" and summarized below for the writer of this section.
+Two behaviors attach here, both defined in the SKILL.md section "Acceptance-criteria capture" and summarized below for the writer of this section.
 
-**Coverage prompt, always on.** Asked once while these criteria are captured: are they missing an **unwanted-behaviour** case (`IF <trigger>, THEN <response>`) and a **state-driven** case (`WHILE <state>, <response>`)? One prompt for both, "neither applies" closes it, and it is never a `Q<N>` row in the open-question register. It carries no decision, so it must never reach the register gate or `### Deferred questions`. A non-interactive run (a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended, declared and never sniffed) SKIPS the ask, states in its returned summary that unwanted-behaviour and state-driven coverage went unexamined, and records the same line under `### Captured assumptions`. That line records an unrun check and nothing else: it is never a place to park a decision, it satisfies no part of the auto-guard, and a decision genuinely the user's is still recorded `blocked` with **arbiter: USER-RESERVED** per the unattended ladder.
+**Coverage prompt, always on.** Asked once while these criteria are captured: are they missing an **unwanted-behavior** case (`IF <trigger>, THEN <response>`) and a **state-driven** case (`WHILE <state>, <response>`)? One prompt for both, "neither applies" closes it, and it is never a `Q<N>` row in the open-question register. It carries no decision, so it must never reach the register gate or `### Deferred questions`. A non-interactive run (a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended, declared and never sniffed) SKIPS the ask, states in its returned summary that unwanted-behavior and state-driven coverage went unexamined, and records the same line under `### Captured assumptions`. That line records an unrun check and nothing else: it is never a place to park a decision, it satisfies no part of the auto-guard, and a decision genuinely the user's is still recorded `blocked` with **arbiter: USER-RESERVED** per the unattended ladder.
 
 **Pattern tags, only under the `ears` convention.** With `acceptance_criteria_format` resolving to `free-text` (the default and every degrade), criteria are emitted untagged, exactly as the template placeholder shows. With it resolving to `ears`, each criterion takes a bracketed pattern prefix on that same plain bullet, drawn from exactly these five names:
 
@@ -323,7 +323,7 @@ Two behaviours attach here, both defined in the SKILL.md section "Acceptance-cri
 | `[ubiquitous]` | an always-true requirement, no trigger and no state |
 | `[event-driven]` | `WHEN <trigger>, <response>` |
 | `[state-driven]` | `WHILE <state>, <response>` |
-| `[unwanted-behaviour]` | `IF <trigger>, THEN <response>` |
+| `[unwanted-behavior]` | `IF <trigger>, THEN <response>` |
 | `[optional-feature]` | `WHERE <feature is included>, <response>` |
 
 ```text
@@ -331,11 +331,11 @@ Two behaviours attach here, both defined in the SKILL.md section "Acceptance-cri
 - [ubiquitous] The manifest is valid JSON at rest
 - [event-driven] WHEN the upload completes, the manifest is rewritten
 - [state-driven] WHILE a rebuild is in flight, reads are served from the previous manifest
-- [unwanted-behaviour] IF the upload fails, THEN the partial manifest is discarded
+- [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 - [optional-feature] WHERE checksum verification is enabled, the manifest records a digest per entry
 ```
 
-Spell them exactly this way: `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behaviour`, `optional-feature`. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
+Spell them exactly this way: `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, `optional-feature`. A downstream reader matches on the literal name, so a variant spelling is not a near miss; it is an untagged criterion that looks tagged.
 
 **Captured assumptions:** what was deferred-with-assumption. Each captures the assumption AND the trigger forcing a revisit. The point of the section: what would otherwise be silent becomes explicit, and `/planning:devils-advocate` and `/planning:plan` can attack it later.
 

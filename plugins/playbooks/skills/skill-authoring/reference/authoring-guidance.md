@@ -201,7 +201,7 @@ exact template structure:" for data formats and machine-read output; "Here is a 
 format, but use your best judgment:" plus an explicit release line ("Adjust sections as needed")
 where adaptation is wanted. Omit the release only when the structure is fixed.
 
-Where output quality depends on style (commit messages, report prose), give two or three labelled
+Where output quality depends on style (commit messages, report prose), give two or three labeled
 input/output pairs and close with one line naming the rule the pairs illustrate. The pairs carry
 the style; the closing line names it.
 

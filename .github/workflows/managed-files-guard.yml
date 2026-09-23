@@ -14,7 +14,7 @@ name: managed-files-guard
 # it is given and fails the pull request when the diff hand-edits one of them
 # (ADR-0007: a managed file is byte-exact with its standards source; the fix
 # path is a standards change, never a downstream edit). Pull requests opened
-# by the sync itself — labelled `standards-sync`, or authored by
+# by the sync itself — labeled `standards-sync`, or authored by
 # `melodic-standards-sync[bot]` — are exempt inside the action.
 #
 # ADVISORY during soak (standards#496): this check is NOT aggregated into
@@ -41,6 +41,9 @@ concurrency:
 
 jobs:
   managed-files-guard:
+    # Equal to the job id so the check context stays `managed-files-guard`;
+    # zizmor's pedantic `anonymous-definition` audit flags an unnamed job.
+    name: managed-files-guard
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -57,7 +60,7 @@ jobs:
         # now contains that commit, so the pin-comment takes the convention's
         # release-tag form rather than the short-SHA fallback
         # (components/managed-files-guard/README.md).
-        uses: melodic-software/ci-workflows/.github/actions/managed-files-guard@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3 # v0.24.0
+        uses: melodic-software/ci-workflows/.github/actions/managed-files-guard@de644a0a80d78096a9f6074710f913eed13c9a91 # v0.26.0
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

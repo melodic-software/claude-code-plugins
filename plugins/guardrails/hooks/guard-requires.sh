@@ -57,6 +57,7 @@ declare -A GUARD_FIELDS=(
   ["block-hook-bypass.sh"]='.tool_input.command .tool_name .cwd'
   ["block-no-verify.sh"]='.tool_input.command .tool_name'
   ["block-noncanonical-commit.sh"]='.tool_input.command .cwd .tool_name'
+  ["block-root-delete-target.sh"]='.tool_input.command .tool_name'
   ["block-windows-drive-tmp.sh"]='.tool_input.command .tool_name .tool_input.file_path .tool_input.notebook_path'
   ["flag-commit-pr-skill-bypass.sh"]='.tool_input.command .tool_name'
   ["cli-flag-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'

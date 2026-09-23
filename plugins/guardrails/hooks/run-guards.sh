@@ -214,7 +214,7 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
   RUN_GUARDS_PRIMED=1
   # The primed values are keyed by the FILTER that produced them, so every
   # later read is by name. A position is not a name: a filter added ahead of
-  # another silently hands its neighbour's value to whatever read the index,
+  # another silently hands its neighbor's value to whatever read the index,
   # and nothing at run time says so. The dispatcher itself reads two of these
   # (`.tool_name` below, `.hook_event_name` here); abort-boundary.test.sh
   # inserts a filter ahead of them on a copy and checks both still resolve.

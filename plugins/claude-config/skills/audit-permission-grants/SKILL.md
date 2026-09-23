@@ -64,7 +64,7 @@ the user-global settings file (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.jso
 finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count.
 **Exit 2 is the environment-gap channel: report the gap rather than a clean bill.** It is raised by a
 missing `jq`, a missing shared pattern library, a scan root that resolves to neither a git toplevel
-nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not recognise. An unresolvable **user**
+nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not recognize. An unresolvable **user**
 scope is not one of them: the run records it in the coverage block, says so on stderr, and continues.
 On an unresolvable project root, say the scan did not run and
 give the fix: run from inside the repository you mean to scan, or set
@@ -112,14 +112,14 @@ The detector is advisory by default and a gate on request:
 - `--strict` does the same and adds the warning tier (P1, P3).
 - Under either flag a `NOTHING TO AUDIT` result exits 2 rather than 0, and so does a run that saw no
   gate-firing finding but could not read one of its inputs. A scan that could not look is never a pass.
-- Combining flags applies the strictest, whatever the order. An unrecognised argument prints usage on
+- Combining flags applies the strictest, whatever the order. An unrecognized argument prints usage on
   stderr and exits 2 without scanning, because a one-character typo in a CI invocation would otherwise
   leave the gate exiting 0 forever on a tree full of findings.
 - The default report mode and `--count` are unchanged and always exit 0, however many findings print.
 
 **A gate flag does not make this skill a fixer.** The skill stays report-only for the reason stated
 above: the operative rule has to land in a user-global settings file a skill cannot write, and the P1
-and P2 rewrites are judgement calls an operator confirms.
+and P2 rewrites are judgment calls an operator confirms.
 
 ## Phase 2: Report
 

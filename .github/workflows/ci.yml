@@ -355,6 +355,12 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/typos@2c1de45aa0e1b1489afb8edfebc12cb3a4fa6ac3 # v0.24.0
         with:
           config: _typos.toml
+          # A pack's vendored baseline is replaced verbatim from upstream by its
+          # own update script, which reports drift by hashing the committed file
+          # against the fetched one, so any spelling correction here would read
+          # as permanent drift. The managed config cannot carry a consumer-local
+          # exclusion, so the exemption lives on the caller.
+          exclude: plugins/*/skills/*/vendor/**
 
       - name: Scan for secrets
         id: gitleaks

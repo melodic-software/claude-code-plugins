@@ -483,8 +483,8 @@ fi
 #
 # MUTATION-CHECKED: moving a silenced redirect back inside its substitution
 # (`SIZE=$(wc -lc <"$TRANSCRIPT" 2>/dev/null)`) adds a fork with NO new exec,
-# leaves every behavioural assertion above green, and trips the cold creation
-# ceiling below. Dropping the cursor write leaves every behavioural assertion
+# leaves every behavioral assertion above green, and trips the cold creation
+# ceiling below. Dropping the cursor write leaves every behavioral assertion
 # green too, and trips the warm ceiling. That is what the creation count is for;
 # execve alone is blind to both.
 TRACE_OK=1

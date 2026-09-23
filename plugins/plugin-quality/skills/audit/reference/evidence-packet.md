@@ -65,7 +65,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   union across groups.** A session directory accumulates every audit that session ran, so a set
   taken slug-by-slug (each slug's own latest nonce) spans runs: audit A, later audit only B, and
   resuming B also loads A's packet and carries its stale findings into the union contract and the
-  emit. Grouping is what prevents that; it is not a licence to see only the newest group.
+  emit. Grouping is what prevents that; it is not a license to see only the newest group.
   **Report every group**. Its nonce, its slug set, and whether any of its packets holds a
   closed-set findings file, then say which group you selected and why (unattended, that report is
   a new `evidence-<n>.md`, written *before* the packet's seal, never after it). Prefer the group the

@@ -151,7 +151,7 @@ _read_list::parse() {
     fi
     # Trim both ends. Done after inline stripping so `entry   # note` loses the
     # whitespace the comment left behind, and before the leading-# test so an
-    # indented comment is still recognised as one.
+    # indented comment is still recognized as one.
     _rl_line="${_rl_line#"${_rl_line%%[![:space:]]*}"}"
     _rl_line="${_rl_line%"${_rl_line##*[![:space:]]}"}"
     [[ -n "$_rl_line" ]] || continue

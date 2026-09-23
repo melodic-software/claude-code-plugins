@@ -131,7 +131,7 @@ class MultimetricAdapterTests(unittest.TestCase):
                 },
             )
 
-    def test_collect_bash_cyclomatic_is_labelled_an_approximation(self) -> None:
+    def test_collect_bash_cyclomatic_is_labelled_an_approximation(self) -> None:  # identifier, not prose # spellchecker:disable-line
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             result = run(

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.5] - 2026-09-22
+
+### Fixed
+
+- **`detect.test.sh`:** the suite reconciles its executed case total against a declared expected
+  total. The tally was its own only witness: a run that lost cases still printed `All N cases
+  passed` and exited 0, because nothing said how many cases N should have been. Measured on this
+  Windows host: a run lost three unconditional cases, which produced no `PASS`, `FAIL` or `SKIP`
+  line at all, and the run still reported green, so the line proved less than it claimed. A run
+  that aborts mid-file is a different shape and was already loud, since it exits nonzero and prints
+  no summary. The Result block now sums `PASS + FAIL + SKIP` and compares it to `EXPECTED_CASES`. A
+  total that disagrees writes a report to stderr naming both numbers and the breakdown, never prints
+  the green line, and exits nonzero even with zero failures; a failing run that also miscounted
+  prints both reports. The green line and the failure line are byte-identical to before.
+
+## [0.6.4] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.6.3]
 
 ### Fixed
@@ -234,7 +257,7 @@
   time, so `head` closes the pipe mid-run every time and the script dies of SIGPIPE. Measured here:
   `PIPESTATUS` is `141 0`. The probe rendered the full, correct eight-line config and then appended
   `detector unavailable` under it. This was not latent and not a corner case: it was the observed
-  behaviour of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
+  behavior of the shipped line in this repository, and unlike 0.5.4's defect it does not render an
   empty value, it asserts a failure that did not happen.
 
   Reproduced and fixed by execution in three states, each with and without `pipefail`. Skill

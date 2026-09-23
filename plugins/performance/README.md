@@ -68,12 +68,12 @@ not support a rule, the skill says so rather than dressing a house choice as con
 - **The counts-over-wall-clock rationale is grounded only for instruction counts.** Extending it to
   syscalls, queries, and process spawns is this plugin's own generalization, and process-spawn count
   is its headline metric. Valgrind's manual argues both halves itself: execution time "is what users
-  perceive", and its simulations are "unlikely to reflect the behaviour of a modern machine".
+  perceive", and its simulations are "unlikely to reflect the behavior of a modern machine".
 - **Warmup does not establish steady state.** Barrett et al. (OOPSLA 2017) found at most 43.5% of
   VM/benchmark pairs consistently reach one. Discarding warmup iterations is fine; claiming steady
   state is not.
 
-## Relationship to neighbouring plugins
+## Relationship to neighboring plugins
 
 Every plugin named here is **presence-gated**: this plugin prefers to reuse them, and degrades with a
 stated fallback when one is absent. None is a hard install requirement, and none is declared as a

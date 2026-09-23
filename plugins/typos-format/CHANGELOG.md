@@ -3,6 +3,14 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.56] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.6.55]
 
 ### Changed
@@ -239,7 +247,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   on an empty measurement.** It delivered `PS4` as an exported environment
   variable, but bash overwrites and re-exports `PS4` at startup: `env
   PS4='SENTINEL ' bash -c 'declare -p PS4'` reports `declare -x PS4="+ "`.
-  Prefix assignment, `env(1)` and `export` are all discarded alike (`dash` honours
+  Prefix assignment, `env(1)` and `export` are all discarded alike (`dash` honors
   it; bash does not). So the tracer's pattern matched **0 of 802** trace lines,
   `dirname`, `basename`, the own-frame ceiling and the allowlist assertions were
   all measuring an empty word list, and the fifth assertion failed. `PS4` now
@@ -621,7 +629,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 - **Shared `hook-utils.sh`: the jq gate now has a fail-CLOSED sibling, and the posture reasoning
   lives at the helper (#2146).** `hook::require_jq` is unchanged and still fails OPEN, with one
   visible skip notice per session, then exit 0. That is the correct posture for every hook in this
-  plugin, so **nothing in this plugin's behaviour changes**. What is new is `hook::require_jq_blocking`, a
+  plugin, so **nothing in this plugin's behavior changes**. What is new is `hook::require_jq_blocking`, a
   second named function that denies the tool call instead, for the narrow class of guards whose job
   is blocking an irreversible operation (today only two, both in `guardrails`). A sibling function
   rather than a parameter, because a flag's omitted value would default to fail-open and a guard
@@ -637,7 +645,7 @@ disclosure from the tool's own report rather than from an exit-code map.
 - **Carries the shared hook library's new `hook::is_enabled` predicate.** `hook::check_enabled`
   exits the process when a plugin is gated off, which is correct for a hook but wrong for a
   caller that must keep running afterward. The resolution is now also available as a predicate
-  that returns instead of exiting. No behaviour of this plugin changes; the version moves so
+  that returns instead of exiting. No behavior of this plugin changes; the version moves so
   consumers receive the updated library.
 
 ## [0.6.4]
@@ -663,7 +671,7 @@ disclosure from the tool's own report rather than from an exit-code map.
   It is computed from the values as the payload carried them, BEFORE the strip; strip first and the
   flag would read "0" on every payload. Values themselves are unchanged, still stripped, so a
   scanning caller still sees everything after the NUL. This plugin's own hooks do not consult the
-  new global, so their behaviour is unchanged. Synced from `lib/hook-utils.sh`.
+  new global, so their behavior is unchanged. Synced from `lib/hook-utils.sh`.
 
 ## [0.6.2]
 

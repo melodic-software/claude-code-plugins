@@ -3,6 +3,14 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.30] - 2026-09-21
+
+### Changed
+
+- American spellings throughout this plugin's prose, ahead of the `en-us` locale the
+  shared typos config adopts. Wording only: no behavior, option, default, or identifier
+  changes. Released sections were corrected in place on the same terms.
+
 ## [0.23.29]
 
 ### Changed
@@ -178,7 +186,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   was measured.
 - **Two `array_contains` over-fire mutants survive the suite**: a never-matching
   scan at the `repo_verdict` site alone is genuinely equivalent (zero difference
-  in any artefact the suite writes), but a prefix-glob comparison escapes
+  in any artifact the suite writes), but a prefix-glob comparison escapes
   undetected.
 - **Drift across the five-copy `allowed-tools-pairing.test.sh` family fell in
   net** (252 differing lines to 228, with four copies now differing pairwise by
@@ -323,11 +331,11 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Changed
 
-- **The `.git` discovery skip is documented as defence in depth, and defended by a test that can
+- **The `.git` discovery skip is documented as defense in depth, and defended by a test that can
   actually fail (#2844).** `should_skip_dir_name`'s unconditional `.` / `..` / `.git` arm is
   unreachable from its only caller: the child loop's globs (`*`, `.[!.]*`, `..?*`) can never
   yield `.` or `..`, and for `.git` the nested-repository early return fires first on the
-  identical path and predicate. The arm stays as defence in depth against a future refactor of
+  identical path and predicate. The arm stays as defense in depth against a future refactor of
   that early return, and both it and its call site now say so. The discovery-level case
   `--skip omitting .git still skips .git and reaches vendor/` was replaced by a direct
   `should_skip_dir_name` contract assertion, because that case passed identically with the `.git`
@@ -349,7 +357,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 - **`.git` is now an unconditional discovery skip (#2826).** The nested-repository early return
   already stopped discovery descending into any directory holding a `.git` marker, so this
-  changes no observable behavior; making `.git` unconditional is defence in depth against a
+  changes no observable behavior; making `.git` unconditional is defense in depth against a
   future refactor of that return, not a fix for a reachable exposure. Replace semantics are
   unchanged; the replaceable default list is `node_modules`, `vendor`, `.venv`; to extend, pass
   those three plus extra names. (Corrected in 0.23.2, see #2844.)
@@ -839,7 +847,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
   substitution, so increments are lost with the subshell. On Windows, MSYS-style `/c/...` paths are
   converted to `C:/...` for presentation only, since the report is actionable text whose paths get
   pasted into tools that reject the MSYS form. The two differently-scoped `repositories` counts are
-  now labelled distinctly (`Repositories discovered (audit targets after deduplication)` and
+  now labeled distinctly (`Repositories discovered (audit targets after deduplication)` and
   `repositories_audited`). An empty `--root`/`--repo`/`--config` value stops the run rather than
   being counted toward the scope the header reports and then skipped by the discovery loops.
 - **`setup`'s verify step no longer violates `setup`'s own boundary (#1801).** `apply` step 5
@@ -875,7 +883,7 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 
 ### Added
 
-- **Behavioural coverage for the failures a real fleet produced (#1803).** The suite exercised the
+- **Behavioral coverage for the failures a real fleet produced (#1803).** The suite exercised the
   documented happy path while a single 11-repository run surfaced defects none of it could reach.
   New executable assertions cover canonical selection against an earlier-sorting linked worktree
   (constructed red first), the computed scope-provenance line, merged-PR window truncation,

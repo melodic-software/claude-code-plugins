@@ -135,7 +135,7 @@ set -uo pipefail
 # `$( )` on this hook's path therefore holds a bare simple command, with its
 # redirections on the group.
 #
-# The group move itself is behaviour-neutral. The payload pass below also
+# The group move itself is behavior-neutral. The payload pass below also
 # swapped a `printf | jq` pipe for a `<<<` here-string, and that one is NOT
 # free on large payloads — read the note at that call site before treating this
 # rewrite as pure saving.

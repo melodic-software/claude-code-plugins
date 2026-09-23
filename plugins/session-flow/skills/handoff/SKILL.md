@@ -125,7 +125,7 @@ specifically (e.g. "don't `/clear` between phases, keep going").
 ## Fork beats compaction when the window is deep
 
 This section picks between two continuation mechanisms; it never licenses the continuation itself.
-That licence comes from "When to invoke" above, and the thresholds here apply only once it is
+That license comes from "When to invoke" above, and the thresholds here apply only once it is
 granted.
 
 Two ways to keep going past a heavy context: fork (handoff file + `/clear` + fresh session) or

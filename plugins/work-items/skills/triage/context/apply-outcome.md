@@ -11,7 +11,7 @@ tracker, so nothing below runs while the interview is still open.
 
 ## Outcomes and their actions
 
-Every outcome is a **transition off raw**, not a layer on top of it. Applying an outcome **clears the raw-intake marker**, the default `needs-triage` label a fresh item carries before triage, resolved from the live set (whichever axis the repo files it under), in the same edit that applies the labels below, and the item leaves the unlabeled raw state. The label sets in the table are the item's **resulting** state, not deltas stacked over the raw marker, normalization replaces the raw marker, it never adds to it.
+Every outcome is a **transition off raw**, not a layer on top of it. Applying an outcome **clears the raw-intake marker**, the default `needs-triage` label a fresh item carries before triage, resolved from the live set (`needs-triage`), in the same edit that applies the labels below, and the item leaves the unlabeled raw state. The label sets in the table are the item's **resulting** state, not deltas stacked over the raw marker, normalization replaces the raw marker, it never adds to it.
 
 | Outcome | Action |
 |---------|--------|
@@ -34,7 +34,7 @@ For a PR, the outcome addresses the attached code explicitly: adopt the diff (br
 1. **Item-side membership comment**, on the folded item via the adapter's comment operation, stating membership in the umbrella.
 2. **Umbrella-side membership comment**, on the umbrella issue via the adapter's comment operation, matching the item-side claim (a second comment on a different item, not an optional follow-up).
 3. **`blocked-by` edge**, native sub-issue / dependency link from item to umbrella.
-4. **Strip the raw marker**, clear `status:needs-triage` / `priority:needs-triage` in the same edit that applies the routing labels.
+4. **Strip the raw marker**, clear `needs-triage` in the same edit that applies the routing labels.
 
 The item-side comment alone is never sufficient; stopping after step 1 leaves the umbrella unaware and is the failure mode this checklist prevents (#633). Before moving to the next intake row, verify step 2 landed. Re-read the umbrella's comments or the command output if needed.
 

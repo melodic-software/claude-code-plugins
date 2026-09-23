@@ -28,7 +28,7 @@
 #     precedence between `AGENTS.md` and `.claude/AGENTS.md`, or the default **Project
 #     instructions** value stops being `claude-md-or-agents-md`.
 #
-# Two conditions the caller cannot see are assumed rather than modelled: the default
+# Two conditions the caller cannot see are assumed rather than modeled: the default
 # `claude-md-or-agents-md` setting (`claude-md-and-agents-md` would load both files,
 # `claude-md` neither) and a session able to read AGENTS.md directly at all. Both are
 # session state, not repository state.

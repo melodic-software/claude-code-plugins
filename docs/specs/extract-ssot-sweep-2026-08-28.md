@@ -244,7 +244,7 @@ What remains:
 |---|---|---|
 | `overengineering-branch-identity-mechanism` | 6 files in `overengineering` | `delta`'s copy omits the normalize-then-validate step its siblings require, so an environment supplying `refs/heads/<name>` makes `delta` key a different home than the audit it composes, and the lane reports no delta forever, silently |
 | `bugs-scan-git-clean-mechanism` | 1 file | "a fresh clone or a `git clean` erases" the memory tier. The tier is self-ignoring by contract, and plain `git clean` does not remove ignored files. The conclusion is right, the mechanism named is not |
-| `babysit-prs-isolation-account` | 1 file | `plugins/source-control/skills/babysit-prs/SKILL.md` asserts the form-based account of the worktree-isolation refusal ("a git-bearing compound command") that `session-flow` 0.17.16 refutes in favour of a `$`-expansion trigger. Pre-existing on `main`; this sweep neither created nor worsened it |
+| `babysit-prs-isolation-account` | 1 file | `plugins/source-control/skills/babysit-prs/SKILL.md` asserts the form-based account of the worktree-isolation refusal ("a git-bearing compound command") that `session-flow` 0.17.16 refutes in favor of a `$`-expansion trigger. Pre-existing on `main`; this sweep neither created nor worsened it |
 | `detector-findings-tier-self-restatement` | 1 file | `docs/conventions/detector-findings/README.md` declares the severity vocabulary "is not this doc's to define", routing it to `plugins/review/context/severity.md`, then restates CRITICAL's tier test in eight crosswalk rows. (An earlier draft of this row attached the quote "This doc never restates it" to severity; that sentence is about the findings-file shape, a different subject in the same file. The observation stands, the quote did not.) |
 
 Two encapsulation defects the earlier L4 lane's roster of 34 did not carry, both in `docs/**` citing
@@ -657,7 +657,7 @@ Re-running the third expression after the fixes leaves no clause-3 failure in th
 
 The token counts differ between derivations because the expressions do, 52 against 119, and per
 this file's own recall-limits discipline neither is a total. The **failure** count is the claim that
-matters, and 0 was wrong. The lesson generalises past these three rows: **a second derivation
+matters, and 0 was wrong. The lesson generalizes past these three rows: **a second derivation
 confirms a first only if it can fail differently.** The first two here missed the same three rows,
 each of which cites a `SKILL.md` directly rather than a file beneath a `reference/`-shaped
 subdirectory, so reporting them as independent overstated the evidence.
@@ -697,7 +697,7 @@ clause would have been easy.
 **Group 2 was never an encapsulation defect.** The roster says so itself: "Legal as citations under
 ADR 0018, defective as paths." Clause 1 names this exact citing surface: it covers "plugin-level
 `context/`, `reference/` and `agents/` docs" reaching a sibling skill's private files, and
-legalises it. Clause 2 does not reach them: both files ship inside one plugin, so for a reader
+legalizes it. Clause 2 does not reach them: both files ship inside one plugin, so for a reader
 inside that plugin the runtime absence motivating clause 2 does not arise. A consumer enabling
 `source-control` gets `reference/review-discipline.md` and `skills/babysit-prs/reference/safety.md`
 or gets neither.
@@ -721,7 +721,7 @@ that reader, because the variable denotes their plugin and not this one, while
 document. So this row went to the invocation. The paragraph reasoned its way to the exposure and
 then declined to draw the consequence for the fix sitting in the same commit; a review pass drew it.
 
-Clause 1 still legalises the citation and only clause 3 has teeth on it. That much stands. What
+Clause 1 still legalizes the citation and only clause 3 has teeth on it. That much stands. What
 does not is the inference from "clause 3 only" to "path form only". Where a file is fetched across
 the boundary, clause 3 alone can force the invocation, because for the fetched reader no path form
 resolves. A pass auditing intra-plugin citation forms must treat "who fetches this file" as a live
@@ -741,7 +741,7 @@ real base of the citing file's directory.
 
 The one clause that earned its keep here is the ADR's warning that "proximity did not prevent
 them". Eight of the ten non-resolving citations in the corpus were intra-plugin, inside the case
-the decision legalises. Legalising a citation class and requiring it to resolve are separate
+the decision legalizes. Legalizing a citation class and requiring it to resolve are separate
 obligations, and only the second one had teeth in this set.
 
 ### What was deliberately not done
@@ -786,7 +786,7 @@ figures to differ.
   invisible to the pass. The known-refused pre-filter's regexes were broader than the refusals they
   cite and suppressed four recorded-open remediations; all four were separately owned by the
   re-verification lane, so nothing was lost, but the filter cannot be trusted in either direction.
-  And union-find chains blocks transitively, so one site row in eight is labelled by a longer
+  And union-find chains blocks transitively, so one site row in eight is labeled by a longer
   span than it actually shares. The triage contract absorbed all three by requiring every row be
   resolved against the real files before judgment, which is why the roster survived them.
 - **Pass A's floor is 12 words and 25 words of block length.** Below that the detector is silent by

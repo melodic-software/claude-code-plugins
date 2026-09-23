@@ -276,7 +276,7 @@ def created_at(path: Path) -> float:
     """The file's creation time, for the ordering claim against the Skill call.
 
     `st_birthtime` is the real thing where the platform exposes it. Windows
-    reports creation time in `st_ctime` (the documented behaviour there), so
+    reports creation time in `st_ctime` (the documented behavior there), so
     that is the fallback; on Linux `st_ctime` is the inode-change time, which
     for a file this harness watches being created is the same moment.
     """

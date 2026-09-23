@@ -593,7 +593,7 @@ assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
 # dangerous in it. The guard refuses rather than matching because the text it can
 # read is not dependably the text that would run — stripping SPLICES the bytes
 # either side of the NUL into a token the payload never carried contiguously —
-# and which executor behaviour applies has not been traced.
+# and which executor behavior applies has not been traced.
 #
 # A NUL cannot live in a shell variable, so the payload is assembled inside jq:
 # `[0] | implode` is the one-character NUL string, which jq re-emits as a NUL
