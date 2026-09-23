@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.1]
+
+### Fixed
+
+- The babysit stuck-check route for a wrong `runs-on` label points at the branch's own workflow YAML. An organization-owned label is resolved by reading the vendored standards `runner-policy` component and `docs/ci-runner-routing.md`.
+
 ## [0.57.0]
 
 ### Added
