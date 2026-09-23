@@ -587,6 +587,8 @@ _norm_path() {
   *) ;; # every other shape proceeds to normalization below
   esac
   p="${p//\\//}"
+  # A leading `//` names a network host on Windows and is implementation-defined on POSIX.
+  [[ "$p" == //* ]] && return 1
   # `C:/x` and `c:` -> the Git Bash spelling `/c/x`, so both spellings compare
   # equal after normalization.
   if [[ "$p" =~ ^([A-Za-z]):(/.*)?$ ]]; then

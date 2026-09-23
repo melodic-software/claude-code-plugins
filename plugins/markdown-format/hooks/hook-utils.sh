@@ -719,11 +719,13 @@ hook::_temp_root_candidates() {
 # on that path the shortcut skips a lookup, not a process; the batch is what
 # saves the processes. A direct caller without the batch saves the resolver.
 #
-# On a Windows host the target goes through hook::normalize_path_to like the
-# candidates, so its `/c/...` and `C:/...` spellings both compare. A POSIX host
-# leaves it untouched: `\` is a filename byte there, and folding it could make a
-# root-level `tmp\x` compare as under `/tmp`. The target must already be
-# normalized (no `..` segment), as every caller passes it.
+# On a Windows Git Bash host (msys, cygwin, win32) the target goes through
+# hook::normalize_path_to like the candidates, so its `/c/...` and `C:/...`
+# spellings both compare. A POSIX host leaves it untouched: `\` is a filename
+# byte there, and folding it could make a root-level `tmp\x` compare as under
+# `/tmp`. Precondition: the target is already lexically normalized (as
+# block-hook-bypass's _norm_path produces) or physically resolved, with no `..`
+# segment; nothing here resolves `..`.
 #   hook::under_temp_root "$norm_path" && ...
 _HOOK_UTR_TARGET_PHYSICAL=0
 hook::under_temp_root() {

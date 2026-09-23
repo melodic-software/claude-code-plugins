@@ -1847,8 +1847,30 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
   done
   run_cwd "windows temp: a .. climb out of temp into the project still blocks" \
     "echo hello > $WIN_LONG$WIN_UP/srv-bhb-proj/src/main.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
-  run_cwd "windows temp: a repo file still blocks" \
+  run_cwd "windows temp: a relative project file still blocks" \
     "echo hello > src/main.py" "$WIN_PROJ" 2 "$PROJ_ENV=$WIN_PROJ"
+  # `//c/...` is the share `Users` on a host named `c`, not the local drive.
+  run_cwd "windows temp: a //c/ UNC spelling of the temp path still blocks" \
+    "echo hello > //c${WIN_LONG#?:}/f" "$HOME" 2 "$PROJ_ENV=$HOME"
+  # AC6 on Windows: a junction inside the temp tree pointing at a project
+  # outside it. The project sits in the repo's gitignored memory tier, as the
+  # symlink case above does.
+  WIN_JDIR="$WIN_LONG/bhb-junction-$$"
+  WIN_JPROJ="$(cd "$HOOK_DIR/../../.." && pwd)/.work/bhb-junction-proj-$$"
+  mkdir -p "$WIN_JDIR" "$WIN_JPROJ/src"
+  if cmd //c mklink //J "$(cygpath -w "$WIN_JDIR/to-proj")" "$(cygpath -w "$WIN_JPROJ")" >/dev/null 2>&1 &&
+    test -L "$WIN_JDIR/to-proj"; then
+    run_cwd "windows temp: a junction out of the temp tree into the project blocks" \
+      "echo secret > $WIN_JDIR/to-proj/src/tracked.py" "$WIN_JPROJ" 2 "$PROJ_ENV=$WIN_JPROJ"
+    run_cwd "windows temp: a sibling of the junction stays allowed" \
+      "echo probe > $WIN_JDIR/scratch.txt" "$WIN_JPROJ" 0 "$PROJ_ENV=$WIN_JPROJ"
+  else
+    printf 'SKIP: Windows junction escape not asserted (mklink //J failed or the link is not seen as a link; no coverage here, not a pass)\n'
+  fi
+  # Remove the junction itself first, never through it; then only empty dirs.
+  [[ -e "$WIN_JDIR/to-proj" || -L "$WIN_JDIR/to-proj" ]] &&
+    cmd //c rmdir "$(cygpath -w "$WIN_JDIR/to-proj")" >/dev/null 2>&1
+  rmdir "$WIN_JDIR" "$WIN_JPROJ/src" "$WIN_JPROJ" 2>/dev/null || :
   if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
     # Documented residual: an 8.3-spelled target is refused by _norm_path's
     # fail-closed rule for any operand carrying `~`, before the temp compare
@@ -1859,12 +1881,18 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
     printf 'SKIP: 8.3 temp target not asserted (TEMP has no short-name spelling on this volume; no coverage here, not a pass)\n'
   fi
 else
-  printf 'SKIP: Windows drive-path temp default not asserted (POSIX host, no drive-letter temp root; no coverage here, not a pass)\n'
+  printf 'SKIP: Windows drive-path temp default not asserted (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)\n'
 fi
 
 # --- the defaults compose with the option, they do not replace it ------------
 run_cwd "default: configured root still exempts alongside the defaults" \
   "echo hello > /var/jobtmp/f" "$PROJ" 0 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
+# A leading `//` names a network host on Windows and is implementation-defined
+# on POSIX, so neither the temp default nor a configured root exempts it.
+run_cwd "default: a leading // temp spelling still blocks" \
+  "echo hello > //tmp/probe.json" "$PROJ" 2 "$PROJ_ENV=$PROJ"
+run_cwd "default: a leading // configured-root spelling still blocks" \
+  "echo hello > //var/jobtmp/f" "$PROJ" 2 "$PROJ_ENV=$PROJ" "$SCRATCH_ENV=/var/jobtmp"
 # The kill switch is still the whole-guard switch.
 run_cwd "default: repo file allowed when the guard is disabled" \
   "echo hello > src/main.py" "$PROJ" 0 "$PROJ_ENV=$PROJ" \

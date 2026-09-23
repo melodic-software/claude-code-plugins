@@ -809,7 +809,7 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
     fail "under_temp_root: real-host '$utr_u' missed the host temp root (TEMP=$TEMP)"
   fi
 else
-  ok "under_temp_root: Windows drive-spelling case SKIPPED (POSIX host, no drive-letter temp root; no coverage here, not a pass)"
+  ok "under_temp_root: Windows drive-spelling case SKIPPED (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)"
 fi
 
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
