@@ -3,6 +3,20 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.1] - 2026-09-23
+
+### Fixed
+
+- **The audit engine no longer reports an env value containing a backslash as a
+  `path-separators` finding.** Its rationale, "forward slashes work on every platform", had no
+  upstream basis: the [env-vars page](https://code.claude.com/docs/en/env-vars) documents
+  `CLAUDE_CODE_GIT_BASH_PATH` as Windows-only and rejects only a missing path or a file not named
+  `bash.exe`, `sh.exe`, `bash`, or `sh`, and the official examples in
+  [setup](https://code.claude.com/docs/en/setup) and
+  [troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install) use backslashes.
+  The matching `audit-checklist.md` row, the `validation-categories.md` bullet, and the SKILL.md
+  mention are removed.
+
 ## [0.47.0] - 2026-09-23
 
 ### Added

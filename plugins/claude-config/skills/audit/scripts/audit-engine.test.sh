@@ -329,7 +329,8 @@ rc=0
 out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || rc=$?
 assert_exit "case 11: secret-shaped value exits 1" 1 "$rc"
 assert_eq "case 11: secret is an error" "error" "$(jq -r '.findings[] | select(.identity.claim=="secret-shaped-value") | .severity' <<<"$out")"
-assert_eq "case 11: backslash path is info" "info" "$(jq -r '.findings[] | select(.identity.claim=="backslash-path:MY_SINK") | .severity' <<<"$out")"
+assert_eq "case 11: a backslash path is not a finding" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("backslash-path:"))] | length' <<<"$out")"
+assert_eq "case 11: no path-separators row" "0" "$(jq '[.rows[] | select(.check | endswith("/path-separators"))] | length' <<<"$out")"
 assert_eq "case 11: documented var is ok" "ok" "$(jq -r '.rows[] | select(.claim=="documented-on-env-vars:CLAUDE_CODE_DISABLE_AUTO_MEMORY") | .status' <<<"$out")"
 assert_eq "case 11: undocumented var is info" "info" "$(jq -r '.findings[] | select(.identity.claim=="not-on-env-vars-page:MY_SINK") | .severity' <<<"$out")"
 out=$(run "$m" --json 2>&1) || true
