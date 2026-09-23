@@ -217,6 +217,7 @@ function Do-Apply($root) {
     if ((Test-Path -LiteralPath "$sd\manifest.json") -or (Test-Path -LiteralPath "$sd\pending.json")) { throw 'already applied, run remove first' }
     $files = $BuildFiles[$Build]
     if (-not $files) { throw "unknown build '$Build' (have: $($BuildFiles.Keys -join ', '))" }
+    if ($Proxy -notin $ProxyNames) { throw "unknown proxy '$Proxy' (have: $($ProxyNames -join ', '))" }
 
     # Refusal gates. All run before any write, the state directory included.
     if (-not (Get-ChildItem -LiteralPath $root -Filter *.exe -File)) { throw "no *.exe in $root; pass the directory that holds the game executable" }
@@ -661,6 +662,10 @@ function Do-Selftest {
 
         $f = "$w\f\Win64"; Put "$f\game.exe" 'exe'
         $before = Tree $f
+        $script:Proxy = '..\escape.dll'
+        Assert 'proxy outside the allow-list refuses' (Throws { Do-Apply $f } '*unknown proxy*')
+        $script:Proxy = 'dxgi.dll'
+        Assert 'proxy refusal writes nothing' (-not (Test-Path -LiteralPath "$w\f\escape.dll") -and -not (Test-Path -LiteralPath (StateDir $f)))
         $script:FaultAfter = 3
         Assert 'copy fault midway rethrows' (Throws { Do-Apply $f } '*injected*')
         $script:FaultAfter = 0
