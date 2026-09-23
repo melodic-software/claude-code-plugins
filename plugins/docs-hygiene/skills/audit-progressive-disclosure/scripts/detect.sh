@@ -127,8 +127,10 @@ classify_tier() {
   case "$base" in
   CLAUDE.md | CLAUDE.local.md | AGENTS.md | MEMORY.md)
     # Call at_repo_root outside the if. Inside the condition, set -e is
-    # suppressed for that function (SC2310).
-    repo_root="$(at_repo_root "$path")"
+    # suppressed for that function (SC2310). A repository-root MEMORY.md is
+    # not session-loaded (only the auto-memory path is), so it skips the test.
+    repo_root=no
+    [[ "$base" == MEMORY.md ]] || repo_root="$(at_repo_root "$path")"
     if [[ "$rel" == "$base" || "$repo_root" == yes ]]; then
       printf 'always'
     else
@@ -343,7 +345,8 @@ ref_candidates() {
   {
     md_links "$1" | cut -f2
     # shellcheck disable=SC2016  # literal backticks are the matched delimiters
-    grep -oE '`[^` ]+\.md`' "$1" 2>/dev/null | tr -d '`'
+    { grep -oE '`[^` ]+\.md`' "$1" 2>/dev/null || true; } | tr -d '`'
+    backtick_paths "$1" | cut -f2
   } | LC_ALL=C sort -u
 }
 

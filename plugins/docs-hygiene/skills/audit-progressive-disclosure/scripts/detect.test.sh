@@ -288,6 +288,12 @@ out="$(cd "$droot" && bash "$SCRIPT" AGENTS.md)"
 assert_contains "bare root AGENTS.md is always-loaded" \
   "$(printf '%s\n' "$out" | grep '^file')" "tier=always"
 
+# A repository-root MEMORY.md is not session-loaded; only the auto-memory path is.
+printf '# Memory\n' >"$droot/MEMORY.md"
+out="$(cd /tmp && bash "$SCRIPT" "$droot/MEMORY.md")"
+assert_contains "absolute repository-root MEMORY.md is not always-loaded" \
+  "$(printf '%s\n' "$out" | grep '^file')" "tier=invocation"
+
 # --- backtick path pointers --------------------------------------------------
 #
 # A backticked repo-relative path is a pointer and resolves like a markdown
@@ -324,6 +330,15 @@ assert_contains "backtick and link pointers are both counted" "$out" \
 assert_not_contains "command backtick is not a pointer" "$out" "git status"
 assert_not_contains "flag backtick is not a pointer" "$out" "--force"
 assert_not_contains "short-token backtick is not a pointer" "$out" "SKILL.md"
+
+# A hub citing a spoke as a backticked path with an anchor reaches that spoke.
+dhub="$(fixture_dir)"
+mkdir -p "$dhub/context"
+printf '# Detail\n' >"$dhub/context/detail.md"
+# shellcheck disable=SC2016  # literal backticks are the pointer form under test
+printf '# Hub\n\nSee `context/detail.md#section`.\n' >"$dhub/SKILL.md"
+out="$(cd /tmp && bash "$SCRIPT" "$dhub")"
+assert_not_contains "anchored backtick spoke is not an orphan" "$out" $'orphan\t'"$dhub/context/detail.md"
 
 # --- summary -----------------------------------------------------------------
 
