@@ -580,11 +580,14 @@ git fetch --quiet origin "+main:refs/remotes/origin/main" ||
 gh_user="$(gh api user --jq 'select((.login // "") != "" and (.id // "" | tostring) != "")
   | [.login, (.id | tostring), (.name // "")] | @tsv' 2>/dev/null)" || gh_user=''
 IFS=$'\t' read -r gh_login gh_id gh_name <<<"$gh_user" || true
-if [[ -z "$gh_login" || -z "$gh_id" ]]; then
-  echo "cloud-bootstrap: warning: could not read the connected GitHub account; git author left unset" >&2
-elif ! git config --global author.name "${gh_name:-$gh_login}" ||
+# On any failure both keys are cleared, so neither a stale author from an
+# earlier run nor a half-written pair survives.
+if [[ -z "$gh_login" || -z "$gh_id" ]] ||
+  ! git config --global author.name "${gh_name:-$gh_login}" ||
   ! git config --global author.email "$gh_id+$gh_login@users.noreply.github.com"; then
-  echo "cloud-bootstrap: warning: could not set the git author" >&2
+  git config --global --unset author.name 2>/dev/null || true
+  git config --global --unset author.email 2>/dev/null || true
+  echo "cloud-bootstrap: warning: could not derive the git author from the connected GitHub account; author.* cleared" >&2
 fi
 
 # --- Report --------------------------------------------------------------------

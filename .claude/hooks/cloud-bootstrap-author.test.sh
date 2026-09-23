@@ -56,9 +56,14 @@ check() {
   fi
 }
 
-# global_config <label> <script> <remote> <gh user json, empty = gh fails>
+# global_config <label> <script> <remote> <gh user json, empty = gh fails> [stale]
+# A fifth argument seeds a stale author from an earlier run first.
 global_config() {
   local cfg="$TMP/$1.gitconfig"
+  if [[ -n "${5:-}" ]]; then
+    GIT_CONFIG_GLOBAL="$cfg" git config --global author.name 'Stale Author'
+    GIT_CONFIG_GLOBAL="$cfg" git config --global author.email 'stale@example.test'
+  fi
   PATH="$TMP/bin:$PATH" GIT_CONFIG_GLOBAL="$cfg" GIT_CONFIG_NOSYSTEM=1 \
     CLAUDE_CODE_REMOTE="$3" CLAUDE_PROJECT_DIR="$repo_root" GH_STUB_USER="$4" \
     bash "$2" >/dev/null 2>&1 || echo "exit $?"
@@ -74,6 +79,8 @@ check 'an account with no display name falls back to the login' \
   "$(global_config no-name "$BLOCK" true '{"login":"octo","id":42,"name":null}')"
 check 'a failed gh call sets nothing and does not abort' '' \
   "$(global_config failure "$BLOCK" true '')"
+check 'a failed gh call clears a stale author' '' \
+  "$(global_config stale "$BLOCK" true '' stale)"
 check 'an empty login sets nothing' '' \
   "$(global_config no-login "$BLOCK" true '{"login":null,"id":42,"name":"Octo Cat"}')"
 check 'an empty id sets nothing' '' \
