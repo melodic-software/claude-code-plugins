@@ -5,12 +5,14 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ## [0.23.18] - 2026-09-23
 
-### Changed
+### Added
 
-- The telemetry contract names Claude Code's native `tool_decision` event and its `source` attribute
-  as guardrail-firing evidence with its headless-session limits, records headless inbound trace
-  context and that the GenAI conventions have no release or schema URL (so it binds native names),
-  and names auto memory observability as a DEFERRED gap with a trigger; each verified 2026-09-23.
+- The telemetry contract gains a "Claude Code's native export" section. It names the
+  `tool_decision` event's `source` attribute as the evidence that a guardrail fired, with its
+  limits in headless sessions, and notes the events need the logs exporter. It records that
+  headless sessions honor inbound trace context, and that the GenAI conventions have no release or
+  schema URL, so no `gen_ai.*` name is pinned. It names the auto memory startup load as a DEFERRED
+  observability gap with a trigger. Each record is verified 2026-09-23.
 
 ## [0.23.17] - 2026-09-23
 
