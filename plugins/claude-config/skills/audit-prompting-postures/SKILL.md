@@ -1,5 +1,5 @@
 ---
-description: "Audit locally-owned instruction components (skill bodies, agent definitions, hook instruction text, output styles, CLAUDE.md, a natively read AGENTS.md, and rules) for MISSING posture guidance the official prompting guide says their purpose needs: delegation criteria and caps, minimal-scope and anti-test-gaming guardrails, investigate-before-answering and progress-claim grounding, autonomy vs checkpoint posture, destructive-action confirmation, context-budget reassurance, multi-window state guidance, parallel-tool-call steering. The additive complement to audit-instructions (which finds text that is present and wrong; this finds text that is absent and needed). Report-only: proposed additions sourced from a live fetch of the guide, gated to the human, never auto-applied. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', 'missing delegation criteria', 'should this component confirm destructive actions', 'align my components with the prompting guide', after authoring a new skill or agent, or as the additive lane of a prompting-guide alignment pass. Not for removing or rewriting existing instructions (audit-instructions), structural skill lint (skill-quality:check), or brevity (docs-hygiene:compress)."
+description: "Audit locally-owned instruction components (skills, agents, hook text, output styles, CLAUDE.md, a natively read AGENTS.md, rules) for MISSING posture guidance the official prompting guide says their purpose needs: delegation criteria, scope and test-gaming guardrails, grounding, autonomy and stop rules with done criteria, destructive-action confirmation, context budget, multi-window and task-file state, parallel tool calls, end-of-run report shape. The additive complement to audit-instructions, which finds text present and wrong. Report-only, proposals gated to the human. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', 'missing delegation criteria', 'should this component confirm destructive actions', 'does my CLAUDE.md say when to stop', 'align my components with the prompting guide', or after authoring a skill or agent. Not for rewriting existing instructions (audit-instructions), skill lint (skill-quality:check), or brevity (docs-hygiene:compress)."
 argument-hint: "[scope]: skills|agents|hooks|output-styles|claude-md|rules|all (default: all)"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
@@ -52,12 +52,12 @@ It deliberately carries no copied sample text, so no proposal is written before 
 in hand. It names two kinds of page; they are fetched at different times and fail differently.
 
 **The best-practices page: fetched here, every run, before any judging.** It is this skill's one
-non-negotiable input: every posture points at it, so losing it degrades all ten at once. If it
-cannot be fetched, **ABORT the run**, naming the URL and the failure; continuing would emit ten
-`wording-unverified` postures, a report shaped like an audit that audited nothing. Same posture the
+non-negotiable input: nearly every posture points at it, so losing it degrades the catalog at once.
+If it cannot be fetched, **ABORT the run**, naming the URL and the failure; continuing would emit a
+catalog of `wording-unverified` postures, a report shaped like an audit that audited nothing. Same posture the
 sibling takes on its own single input (`audit-instructions/SKILL.md`, "Fail loud on ambiguity").
 
-**Model-specific subpages: fetched lazily, in Phase C, per applicable row**, when a posture whose
+**Model-specific subpages and the usage guide: fetched lazily, in Phase C, per applicable row**, when a posture whose
 predicate actually matched points at one, not once per catalog row, since a row names its subpage
 statically whether or not anything in scope matches. A failed subpage fetch degrades only the
 postures citing it: mark those `wording-unverified`, carry the pointer instead of wording, never

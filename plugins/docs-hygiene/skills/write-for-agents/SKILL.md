@@ -88,6 +88,18 @@ A step is done when its criterion says so, not when text resembling the step has
 - **The agent does the legwork.** Write steps that resolve their own facts from the environment;
   a step that sends the human to look something up the agent could read is a defect.
 
+A task-shaped or long-run instruction also names the whole task's finish line and its stops:
+
+- **Keep going** when a step needs no input, with status notes in the same message as the next
+  action, not a summary that names the next step, an offer to continue, or a list of choices that
+  block nothing.
+- **Stop and ask** only when nothing can move without the human, or before a destructive,
+  hard-to-undo, or outward action. Never pair a keep-going rule with turning off permission prompts
+  or confirmation gates.
+- **Long runs** keep the task list in a file, ticked as items finish, since compaction summarizes
+  the scrollback; reuse a ledger the workflow already has. The final report opens with what is
+  blocked on the human, then what changed and what was found.
+
 ## Split by sequence; choose invocation by the rubric
 
 When one doc serves two moments in time, split it at the moment boundary, the reader at step
@@ -101,7 +113,15 @@ with different invocation modes is a different axis with its own decision rubric
 Write what to do, not what to avoid: a prohibition drags the banned behavior into context, and
 pretrained leading words are the compact anchors that steer ("Prefer X" over "Never do Y unless").
 Keep a negation only when the positive form genuinely loses the constraint, then pair it with
-the positive alternative in the same sentence.
+the positive alternative in the same sentence. A design exclusion is the exception that stays
+negative: name the specific styles to leave out ("no cream background, no pill-shaped buttons"),
+since "avoid a generic look" swaps one default for another.
+
+Ask for outcomes, not thinking. Leave out "think carefully" and "think step by step" lines: depth
+is the effort setting's job, and a quick answer is a lower effort level first, "Answer directly."
+second. Never ask the model to
+show or reproduce its reasoning in the reply, which some models decline; ask for what the reader
+needs, such as the rationale in two or three sentences or the evidence as a list.
 
 ## After writing
 

@@ -5,6 +5,16 @@
 Open every pull request as a draft and flip it to ready when the work is done: a draft skips the
 test lanes and both AI review lanes, and the flip to ready is what asks for them once.
 
+## When to stop and when to keep going
+
+When a step doesn't need the user's input, keep going, with status notes in the same message as
+the next action. Stop and ask only when you can't continue without the user, or before anything
+destructive or outside this checkout: deleting data, force-pushing, pushing, merging, commenting on
+a PR or issue, touching another worktree or repo, a fleet host, or user-scope config. A task or
+loop prompt that explicitly authorizes one of those covers it. Keep permission prompts on while you
+keep going. On a long run, keep the task list in a file and tick it as you go, and end with
+three headings: Blocked on me, Changed, Found.
+
 <!-- BEGIN GENERATED: instruction-placement rules index -->
 
 ## Conventions that load on demand

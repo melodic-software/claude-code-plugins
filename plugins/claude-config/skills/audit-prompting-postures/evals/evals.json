@@ -68,7 +68,7 @@
       "files": [],
       "expectations": [
         "Handled by audit-prompting-postures with no slash command typed, and NOT routed to claude-config:audit-instructions, which owns present-and-wrong text rather than absent-and-needed guidance",
-        "Classifies the component as orchestrating and judges P1, rather than sweeping all ten postures regardless of predicate",
+        "Classifies the component as orchestrating and judges P1, rather than sweeping every posture regardless of predicate",
         "Proposed wording comes from a live fetch of the guide, not from reference/postures.md, which carries pointers only",
         "Proposes rather than applies: no component file is edited"
       ]

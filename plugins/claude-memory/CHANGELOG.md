@@ -3,6 +3,15 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2] - 2026-09-23
+
+### Changed
+
+- **`audit` routes more model-era findings out.** Think-carefully steers, vague design steers, and
+  settled-answers lines on analysis surfaces route to `claude-config:audit-instructions`; a
+  long-run file missing a stop rule, finish line, task file, or report shape routes to
+  `claude-config:audit-prompting-postures`.
+
 ## [0.13.1] - 2026-09-21
 
 ### Changed

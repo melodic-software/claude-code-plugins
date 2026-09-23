@@ -792,7 +792,7 @@ Letting one "primary" shard write it records a partial pass as the whole.
 > the same thing the admission rule forbids. Hand me the exact body-edit
 > command to paste, the same way you hand me the label command.
 >
-> For an item with no trailer, propose a class with your reasoning and
+> For an item with no trailer, propose a class with a one-line rationale and
 > wait. Two traps. `mechanical` is narrow: deterministic, trivially
 > reversible maintenance such as dependency bumps, lint, format, sync.
 > And a change to any path listed on the `Runtime surfaces` line is not
