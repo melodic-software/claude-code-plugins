@@ -92,7 +92,7 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
 5. **Persist the findings file** per [`context/persist-findings.md`](context/persist-findings.md)
    whenever the audit examined tracked files: fetch the producer contract first and refuse to
    write when unreachable (report-only is then the outcome, and say so). Script findings only.
-   A non-repository run examined no tracked files, so it writes no findings file.
+   A run with any non-repository target writes no findings file.
 6. **Recommend**, never auto-run: the `fix` action for the findings, or `/ai-slop:setup` when the
    run tripped over deliberate house style (heavy declined counts or a flooded rule).
    `review:fanout fix` routes the whole file: it hands every row but `rule-utm-params` to this
@@ -115,8 +115,8 @@ not a repository, stop and ask for an explicit path instead of guessing a scope.
 is outside a repository, the whole run follows these rules:
 
 - Pass targets to the detector as absolute paths, and use the `file=` path it reports as the
-  path everywhere else in the run. That path is relative to the session's project directory
-  when the target sits under it, and absolute otherwise.
+  path everywhere else in the run. It may be relative (to `CLAUDE_PROJECT_DIR`, else the git
+  toplevel or cwd) when the target sits under that directory.
 - A directory target expands to every `*.md` beneath it, untracked and vendored files included,
   and the detector prints a "could not confirm a work tree" line on stderr. Both are expected.
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
