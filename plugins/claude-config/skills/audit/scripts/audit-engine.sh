@@ -7,9 +7,10 @@
 # shape, matcher class, placeholder quoting and duplicates (D), plugin membership
 # and drift (E), the secret scan and env-vars documentation status (F), the
 # skill-listing measurement from an existing debug log (G), model and effort
-# values (H), and deep-link registration (I). Each decided row is emitted once, with the surface
-# it is about and a stable identity, so the model that runs the audit reads one
-# document instead of re-deriving the same facts with a dozen shell calls.
+# values (H), and deep-link registration (I). Each decided row is emitted once,
+# with the surface it is about and a stable identity, so the model that runs the
+# audit reads one document instead of re-deriving the same facts with a dozen
+# shell calls.
 #
 # WHAT IT LEAVES TO THE MODEL. Anything that needs a reading: whether a hook
 # with no coverage manifest blocks a family, whether a disabled MCP server has a
@@ -961,7 +962,7 @@ if [[ $PROJECT_OK -eq 1 ]]; then
     else
       row F documented-var skip none "$SURF_SETTINGS" "env-page-not-fetched:$ek" "env-vars.md not in --docs-dir; documentation status of $ek not decided" -
     fi
-  done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[]')
+  done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
 
 # --- Category G: skill-listing measurement from an existing debug log ----------
