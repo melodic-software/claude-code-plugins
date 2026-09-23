@@ -34,7 +34,7 @@ permissions:
 
 # Canonical block from the standards `concurrency-policy` component: a newer
 # push to the same pull request cancels the in-flight guard run; the
-# `run_id` fallback keeps non-PR runs unique and never cancelled.
+# `run_id` fallback keeps non-PR runs unique and never canceled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
