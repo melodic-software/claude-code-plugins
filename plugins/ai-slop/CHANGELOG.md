@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.1] - 2026-09-23
+
+### Fixed
+
+- **`audit` defines a target outside any repository**: the skill had no rule for it, so the
+  orchestrator asked or improvised. It now checks the target with `git -C <dir> rev-parse
+  --is-inside-work-tree`, stops and asks for a path when an empty target has no repository, and
+  for such a run passes absolute paths, orders by modification time, writes no findings file,
+  keeps rubric batch files in the session scratchpad, and reports `rule-style-shift` as not
+  evaluable. A `fix` run backs each file up first, since no git history can undo the edit: the
+  backup path mirrors the file's absolute path under a per-run scratchpad directory, an
+  existing backup stops the edit, and a restore checks the backup's recorded source path. The skill also says config comes from the session, not the
+  target, and "does not scan" now names text outside markdown files instead of non-repo text.
+- **`catalog.md` "Known limitation"** said a double-quoted span wrapped across a line escaped
+  the exemption. The detector carries an open span across lines; the limit is a blank line or
+  a new block.
+- **Quote guidance matches the detector**: the rewrite guide said the exemption declined quotes
+  wherever blockquoted, double-quoted or backticked, and SKILL.md said typography rules scan
+  inline code. Every rule skips inline code; typography rules still scan blockquotes and double
+  quotes. The guide now says a quoted em dash needs a marker, and that `-start`/`-end` lines
+  prefixed with the blockquote `>` do not work. New `detect.test.sh` cases pin this existing behavior.
+
 ## [0.7.0] - 2026-09-23
 
 ### Added

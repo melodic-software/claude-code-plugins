@@ -570,6 +570,26 @@ fi
 git fetch --quiet origin "+main:refs/remotes/origin/main" ||
   echo "cloud-bootstrap: warning: could not fetch origin/main" >&2
 
+# --- Git author (best effort) ---------------------------------------------------
+# Cloud sessions don't author commits as the connected GitHub account
+# (undocumented). This derives the author from the account the session is
+# connected to, so each person is attributed to themselves. Author-only so the
+# committer's SSH signature keeps verifying. Remove once upstream fixes it.
+# The select drops a response missing login or id, so an empty field can never
+# shift the tab-split fields below.
+gh_user="$(gh api user --jq 'select((.login // "") != "" and (.id // "" | tostring) != "")
+  | [.login, (.id | tostring), (.name // "")] | @tsv' 2>/dev/null)" || gh_user=''
+IFS=$'\t' read -r gh_login gh_id gh_name <<<"$gh_user" || true
+# On any failure both keys are cleared, so neither a stale author from an
+# earlier run nor a half-written pair survives.
+if [[ -z "$gh_login" || -z "$gh_id" ]] ||
+  ! git config --global author.name "${gh_name:-$gh_login}" ||
+  ! git config --global author.email "$gh_id+$gh_login@users.noreply.github.com"; then
+  git config --global --unset author.name 2>/dev/null || true
+  git config --global --unset author.email 2>/dev/null || true
+  echo "cloud-bootstrap: warning: could not derive the git author from the connected GitHub account; author.* cleared" >&2
+fi
+
 # --- Report --------------------------------------------------------------------
 # Hook processes do not inherit this script's nvm-augmented PATH or
 # CLAUDE_ENV_FILE repairs (#2739). Build a hook-equivalent PATH: keep
