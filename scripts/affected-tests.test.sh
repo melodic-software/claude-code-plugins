@@ -1283,16 +1283,19 @@ rm -rf "$repo"
 # this suite name that file, and R3 would then cover it without R7. The suite
 # path above IS spelled on purpose: renaming the suite selects this file, and
 # this case then fails instead of R7 silently selecting nothing.
+# The assertion is on the R7 reason, not on bare selection: a live doc can also
+# reach the suite through R4 fan-out (a hook naming it), which would pass without
+# R7. The seed is walked first, so R7's reason is the one recorded.
 live_ref="$(cd "$REPO_ROOT" && git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
 if [[ -z "$live_ref" ]]; then
   fail "LIVE R7: no tracked plugins/autonomy/reference/*.md to probe"
 else
-  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$live_ref" 2>/dev/null)"
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --explain "$live_ref" 2>&1)"
   RC=$?
-  if [[ "$RC" -eq 0 ]] && has_line "$out" "$contract_suite"; then
-    ok "LIVE R7: $live_ref selects the plugin-contract suite"
+  if [[ "$RC" -eq 0 ]] && printf '%s\n' "$out" | grep -qF "select: $contract_suite  (path class:"; then
+    ok "LIVE R7: $live_ref selects the plugin-contract suite through R7"
   else
-    fail "LIVE R7: $live_ref did not select the plugin-contract suite (rc=$RC): $out"
+    fail "LIVE R7: $live_ref did not select the plugin-contract suite through R7 (rc=$RC): $out"
   fi
 fi
 
