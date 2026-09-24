@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.60.1] - 2026-09-24
+## [0.60.3] - 2026-09-24
 
 ### Changed
 
@@ -16,6 +16,31 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.60.2] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/audit-event-emitter.sh`, `hooks/skill-usage-audit.sh`,
+  `hooks/hook-failure-audit.sh` and `hooks/session-retention.sh` through `bash` with
+  `"shell": "bash"`, the #4421 shape, so each fire no longer execs `/usr/bin/env` (the
+  `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged (#4442).
+- The session event log's opt-in rows run `exec bash` on `hooks/session-event-log.sh`, so an enabled
+  fire no longer execs `/usr/bin/env` before bash; `scripts/gen-hook-event-registry.sh` generates
+  the new rows.
+- `hook-failure-audit.sh` reads its `hook_failure_audit_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
+
+## [0.60.1] - 2026-09-24
+
+### Changed
+
+- `hooks/hook-failure-audit.test.sh` and the README's `hook-failure-audit` section no longer say
+  `docs/conventions/hook-budget/README.md` sets a 500 ms per-turn ceiling. That doc states each
+  always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's
+  time). Prose only; the test and the hook are
+  unchanged.
 
 ## [0.60.0] - 2026-09-24
 

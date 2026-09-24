@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.3] - 2026-09-24
+## [0.36.4] - 2026-09-24
 
 ### Changed
 
@@ -17,11 +17,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - run-guards.sh: the file path and the repository root are resolved once per event and served to every guard from then on (`hook::read_file_path_to` and `hook::repo_root_to` are cached in front of their uncached twins, keyed on the payload, the project dir and the scope setting, or on the working directory and the hint). `cli-flag-verify.sh`, `skill-reference-verify.sh` and `stale-path-verify.sh` read the path with `hook::read_file_path_to` on their buffered payload, so a Markdown Write or Edit runs one realpath and one `git rev-parse` instead of three each. Every guard's verdict is unchanged.
 - run-guards.sh: a field a guard reads outside the primed set is added to the event's field cache once jq has answered it cleanly (status 0, no NUL), so `stale-path-verify.sh` reads `replace_all` from the jq that answered `skill-reference-verify.sh` instead of starting its own.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
-- hooks.json: the five PostToolUse verifier rows start the script as `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-guards.sh` with `"shell": "bash"`, instead of executing it through its `#!/usr/bin/env bash` line, so each call runs one process fewer (`env`). `bash` is looked up on `PATH` exactly as `env bash` looked it up.
 - stale-path-verify.sh: the code-span scan, the Edit reconstruction's token set, its anchor lines and its recovered context are computed with shell builtins when the text is printable ASCII and whitespace, instead of `grep`, `sed`, `sort` and `head` pipelines (up to nine processes on a Markdown Edit). Text with any other byte still goes through the pipelines. The candidate paths, and so every finding, are unchanged.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 - stale-path-verify.sh: the Edit reconstruction counts a word anchor's occurrences in the file by splitting each line on non-word bytes (one awk regex pass per line, under C) instead of a per-character walk, and skips the count for a word anchor holding `.` or `-`, which the walk never matched. Same counts; on a 33 KB file the count drops from about 14 ms to 2.
+
+## [0.36.3] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/run-guards.sh` and `hooks/workflow-resilience-check.sh` through
+  `bash` with `"shell": "bash"`, the #4421 shape, so each fire no longer execs `/usr/bin/env` (the
+  `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged (#4442).
 
 ## [0.36.2] - 2026-09-23
 

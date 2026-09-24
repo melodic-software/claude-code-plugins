@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.11.62] - 2026-09-24
+## [0.11.63] - 2026-09-24
 
 ### Changed
 
@@ -14,10 +14,17 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 - hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
-- hooks.json: the two PostToolUse rows start the script as `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/markdown-format.sh` with `"shell": "bash"`, instead of executing it through its `#!/usr/bin/env bash` line, so each call runs one process fewer (`env`). `bash` is looked up on `PATH` exactly as `env bash` looked it up.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 - markdown-format.sh: `cygpath` is looked up only on a Windows bash (`OSTYPE` msys, cygwin or win32) when the missing-markdownlint notice compares `PATH` entries with `HOME`, and the trust gate tests for a drive-letter data path before looking it up. Elsewhere the lookup always missed and probed every `PATH` directory, once per `PATH` entry. Windows behavior is unchanged.
+
+## [0.11.62] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/markdown-format.sh` through `bash`, so each fire no longer execs
+  `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged
+  (#4442).
 
 ## [0.11.61] - 2026-09-23
 

@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.69] - 2026-09-24
+## [0.7.70] - 2026-09-24
 
 ### Changed
 
@@ -17,10 +17,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - zone-crossing-inject.sh: the zone resolver is started only when the session's context snapshot is readable. Without one the resolver answered `unknown` at that same check, so the hook's output is unchanged and a second bash is not started.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
-- hooks.json: the PostToolBatch and UserPromptSubmit rows start the script as `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/zone-crossing-inject.sh` with `"shell": "bash"`, instead of executing it through its `#!/usr/bin/env bash` line, so each call runs one process fewer (`env`). `bash` is looked up on `PATH` exactly as `env bash` looked it up.
 - zone-crossing-inject.sh: exits before sourcing its libraries when `~/.claude/context-guard/context` does not exist and jq is on `PATH`. Without that directory there is no snapshot and no compaction marker, so the hook could only reach `unknown`, which is silent and writes nothing; that is every fire on a machine without the context-guard status line.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.7.69] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/zone-gate.sh`, `hooks/zone-crossing-inject.sh` and
+  `hooks/post-compact-mark.sh` through `bash` with `"shell": "bash"`, the #4421 shape, so each fire
+  no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is
+  unchanged (#4442).
+- `zone-crossing-inject.sh` and `post-compact-mark.sh` read the `context_guard_hooks_enabled` switch
+  before they source `hook-utils.sh`, as `zone-gate.sh` already did, so a disabled hook exits
+  without parsing the library. Enabled behavior is unchanged.
 
 ## [0.7.68] - 2026-09-23
 

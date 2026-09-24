@@ -3,7 +3,7 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.54] - 2026-09-24
+## [0.6.55] - 2026-09-24
 
 ### Changed
 
@@ -15,9 +15,16 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - eol-normalizer.sh: with no telemetry sink wired, `git check-attr` runs from the file's own directory with the absolute file path, which answers the same as from the repository root, so the separate `git rev-parse --show-toplevel` process is not started. A relative path, or a wired sink, still resolves the root first.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
-- hooks.json: the PostToolUse row starts the script as `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/eol-normalizer.sh` with `"shell": "bash"`, instead of executing it through its `#!/usr/bin/env bash` line, so each call runs one process fewer (`env`). `bash` is looked up on `PATH` exactly as `env bash` looked it up.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.6.54] - 2026-09-24
+
+### Changed
+
+- The opt-in hook row runs `exec bash` on `hooks/eol-normalizer.sh` instead of executing the script,
+  so an enabled fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash.
+  Hook behavior is unchanged (#4442).
 
 ## [0.6.53] - 2026-09-24
 

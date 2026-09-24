@@ -3,7 +3,7 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.47] - 2026-09-24
+## [0.6.48] - 2026-09-24
 
 ### Changed
 
@@ -16,6 +16,17 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.6.47] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/desktop-notification.sh` through `bash` with `"shell": "bash"`, the
+  #4421 shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang)
+  before bash. Hook behavior is unchanged (#4442).
+- `desktop-notification.sh` reads its `desktop_notification_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
 
 ## [0.6.46] - 2026-09-23
 

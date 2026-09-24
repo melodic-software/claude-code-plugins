@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
-# Gate: a PreToolUse or PostToolUse hook reads its kill switch BEFORE it
-# sources any library.
+# Gate: a hook finds out it has nothing to do BEFORE it sources any library.
 #
-#   scripts/check-killswitch-hoist.sh   fail on any PreToolUse or PostToolUse
-#                                       hook script whose kill switch sits
-#                                       below a `source` line
+#   scripts/check-killswitch-hoist.sh   rule 1: fail on any PreToolUse or
+#                                       PostToolUse hook script whose kill
+#                                       switch sits below a `source` line
+#                                       rule 2: fail on any blocking hook
+#                                       script, on any event, whose first early
+#                                       exit sits below a `source` line
+#
+# Rule 2 exists because the per-turn hooks (Stop, Notification, SessionEnd and
+# the rest) paid the same cost rule 1 removed from the tool hooks: a disabled
+# or unarmed hook parsed hook-utils.sh before its first `exit 0` (#4415, fixed
+# for lane-stop-gate.sh in #4421). Most of those hooks have no `_enabled`
+# switch, so rule 1 cannot hold them; rule 2 asks only that whatever early exit
+# a hook has comes first. Async hooks are exempt (they do not block); see the
+# discovery block below for the documented exceptions.
 #
 # Why: every guard ships a `<name>_enabled` userConfig boolean, and an operator
 # who turns one off is entitled to stop paying for it. Until #3719 all of them
@@ -44,8 +54,9 @@
 # fifteen copies get revisited rather than silently diverging. That pin is the
 # price of inlining, and it is why inlining is acceptable here at all.
 #
-# Scope: hooks registered on PreToolUse or PostToolUse in
-# `plugins/*/hooks/hooks.json` and implemented as shell scripts. PostToolUse
+# Scope of rule 1: hooks registered on PreToolUse or PostToolUse in
+# `plugins/*/hooks/hooks.json` and implemented as shell scripts. Rule 2 covers
+# every event in the same files, with the same token walk. PostToolUse
 # joined the scope with the formatter, normalizer and verifier hoist (the
 # per-tool-call rows the hook budget counts): the same shape, the same pin, one
 # gate. A hook implemented in another language sources no shell library, has no
@@ -134,6 +145,9 @@ for hooks_json in plugins/*/hooks/hooks.json; do
     [[ -n "$command" ]] || continue
     saw_guard=0
     skip_next=0
+    # Split into words but never glob: a `*` token is text, not a path under
+    # the repository root.
+    set -f
     # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
     for token in $command; do
       token="${token%\"}"
@@ -153,6 +167,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
       saw_guard=1
       guards+=("$hooks_dir/$base")
     done
+    set +f
     # A scanned row that named no shell script is a hook this gate's rule does
     # not reach — a Python or node handler behind a launcher, or a bare
     # interpreter. Reported, never silently passed.
@@ -160,13 +175,75 @@ for hooks_json in plugins/*/hooks/hooks.json; do
   done < <(jq -r '(.hooks.PreToolUse[]?, .hooks.PostToolUse[]?) | .hooks[]?.command // empty' "$hooks_json")
 done
 
-if ((${#guards[@]} == 0)); then
-  echo "check-killswitch-hoist: no PreToolUse or PostToolUse shell hooks found — refusing to report clean" >&2
+# --- discover every blocking hook, on any event (rule 2) ----------------------
+# Same token walk, over every event. A row with `async: true` is skipped: the
+# hooks reference (https://code.claude.com/docs/en/hooks, "Run hooks in the
+# background", fetched 2026-09-24) says "Set `async: true` on a command hook to
+# spawn it in the background without blocking ... Claude Code doesn't await the
+# result". The same section says async is ignored on four events: "`UserPromptSubmit`,
+# `UserPromptExpansion`, `PreModelSwitch`, and `MessageDisplay` require
+# synchronous hooks. When you set `async: true` on a hook for one of those
+# events, Claude Code ignores it and runs the hook synchronously instead." So an
+# async row on those four is still scanned. SessionStart is scanned: that page
+# says only that "Exit code 2 isn't honored for this event", and nowhere that a
+# SessionStart hook runs in the background or does not delay the session.
+SYNC_ONLY_EVENTS=" UserPromptSubmit UserPromptExpansion PreModelSwitch MessageDisplay "
+blocking=()
+unreadable=()
+for hooks_json in plugins/*/hooks/hooks.json; do
+  [[ -f "$hooks_json" ]] || continue
+  hooks_dir="$(dirname "$hooks_json")"
+  # Captured, not streamed: a jq that stops part-way (a non-object hook entry,
+  # invalid JSON) must fail the gate rather than hand back a truncated row list.
+  if ! rows="$(jq -r '.hooks | to_entries[] | .key as $e | .value[]? | .hooks[]?
+    | select(.command | type == "string")
+    | [$e, (.async == true | tostring), .command] | @tsv' "$hooks_json" 2>/dev/null)"; then
+    unreadable+=("$hooks_json")
+    continue
+  fi
+  while IFS=$'\t' read -r event async command; do
+    command="${command%$'\r'}"
+    [[ -n "$command" ]] || continue
+    [[ "$async" == true && "$SYNC_ONLY_EVENTS" != *" $event "* ]] && continue
+    saw_guard=0
+    skip_next=0
+    set -f # word split without globbing, as in the PreToolUse walk above
+    # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
+    for token in $command; do
+      token="${token%\"}"
+      token="${token#\"}"
+      if ((skip_next)); then
+        skip_next=0
+        continue
+      fi
+      if [[ "$token" == "--lib" ]]; then
+        skip_next=1
+        continue
+      fi
+      [[ "$token" == *.sh ]] || continue
+      base="${token##*/}"
+      # shellcheck disable=SC2310  # see the PreToolUse walk above
+      is_launcher "$base" && continue
+      saw_guard=1
+      blocking+=("$hooks_dir/$base")
+    done
+    set +f
+    ((saw_guard)) || unscanned+=("$hooks_json")
+  done <<<"$rows"
+done
+
+if ((${#guards[@]} == 0 && ${#blocking[@]} == 0)); then
+  echo "check-killswitch-hoist: no shell hook scripts found on any event — refusing to report clean" >&2
   exit 1
 fi
 
 # De-duplicate: one guard may be registered on several matchers.
-mapfile -t guards < <(printf '%s\n' "${guards[@]}" | sort -u)
+if ((${#guards[@]} > 0)); then
+  mapfile -t guards < <(printf '%s\n' "${guards[@]}" | sort -u)
+fi
+if ((${#blocking[@]} > 0)); then
+  mapfile -t blocking < <(printf '%s\n' "${blocking[@]}" | LC_ALL=C sort -u)
+fi
 
 # --- the rule ----------------------------------------------------------------
 # Three accepted inlined shapes. The first two are the ordinary default-on and
@@ -237,9 +314,70 @@ for guard in "${guards[@]}"; do
   fi
 done
 
+# --- rule 2: the first early exit comes before the first source -------------
+# An early exit is an `exit 0` or a hook::check_enabled call (which exits 0 when
+# the switch is off) on a code line other than the script's last. A script with
+# no early exit has nothing to hoist and passes; a script whose first early exit
+# sits below a `source` pays for the library on the path that does nothing.
+# ponytail: textual; an `exit 0` inside a function defined above the source
+# counts as early. Upgrade to a real parse if that shape ever ships.
+#
+# `# hoist-ok: <reason>` on the first early exit's line, or on the line directly
+# above it, excuses the order. It applies only when that exit's test needs
+# something the library provides and has no cheaper form to hoist; the reason
+# says which. It is ignored on a hook::check_enabled call: a kill switch is
+# always inlinable.
+EARLY_EXIT_RE='(^|[[:space:];&|(])exit 0([[:space:];)]|$)|^[[:space:]]*hook::check_enabled[[:space:]]'
+for hooks_json in ${unreadable[@]+"${unreadable[@]}"}; do
+  violation "VIOLATION: $hooks_json — not readable as a hooks config; this gate cannot clear it"
+done
+for script in ${blocking[@]+"${blocking[@]}"}; do
+  if [[ ! -f "$script" ]]; then
+    violation "VIOLATION: $script — registered as a hook but missing from the tree"
+    continue
+  fi
+  source_line=0
+  exit_line=0
+  last_code=0
+  exit_text=""
+  exit_marked=0
+  prev=""
+  n=0
+  while IFS= read -r line; do
+    n=$((n + 1))
+    above="$prev"
+    prev="$line"
+    [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+    last_code=$n
+    if ((source_line == 0)) && [[ "$line" =~ $SOURCE_RE ]]; then
+      source_line=$n
+    fi
+    if ((exit_line == 0)) && [[ "${line%%[[:space:]]#*}" =~ $EARLY_EXIT_RE ]]; then
+      exit_line=$n
+      exit_text="$line"
+      if [[ "$line" == *hoist-ok:* || "$above" == *hoist-ok:* ]] &&
+        [[ ! "$line" =~ hook::check_enabled ]]; then
+        exit_marked=1
+      fi
+    fi
+  done <"$script"
+  ((exit_line == last_code)) && exit_line=0
+  ((source_line > 0 && exit_line > source_line && exit_marked == 0)) || continue
+  if [[ "$exit_text" =~ hook::check_enabled ]]; then
+    violation "VIOLATION: $script:$exit_line — calls hook::check_enabled below the source at line $source_line." \
+      "  That helper only exists after the library is sourced, which is the cost" \
+      "  the hoist exists to avoid. Inline the predicate above the source instead:" \
+      "$HOIST_TEMPLATE"
+  else
+    violation "VIOLATION: $script — first early exit at line $exit_line is BELOW the source at line $source_line." \
+      "  A hook that has nothing to do must find out before it parses a library;" \
+      "  move the cheapest exit test above the first source."
+  fi
+done
+
 if ((${#unscanned[@]} > 0)); then
   mapfile -t unscanned < <(printf '%s\n' "${unscanned[@]}" | sort -u)
-  printf 'check-killswitch-hoist: NOT SCANNED (PreToolUse/PostToolUse hook is not a shell script): %s\n' "${unscanned[@]}"
+  printf 'check-killswitch-hoist: NOT SCANNED (hook is not a shell script): %s\n' "${unscanned[@]}"
 fi
 
 if ((violations > 0)); then
@@ -247,4 +385,5 @@ if ((violations > 0)); then
   exit 1
 fi
 
-printf 'check-killswitch-hoist: %d PreToolUse and PostToolUse hook script(s) read their kill switch before any source\n' "${#guards[@]}"
+printf 'check-killswitch-hoist: %d PreToolUse and PostToolUse hook script(s) read their kill switch before any source; %d blocking hook script(s) on any event reach their first early exit before any source\n' \
+  "${#guards[@]}" "${#blocking[@]}"

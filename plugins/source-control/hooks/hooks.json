@@ -7,21 +7,24 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-body-linkage-gate.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-body-linkage-gate.sh",
+            "shell": "bash",
             "if": "Bash(*gh *)",
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-contract gate..."
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-ready-evidence-gate.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-ready-evidence-gate.sh",
+            "shell": "bash",
             "if": "Bash(*gh *)",
             "timeout": 15,
             "statusMessage": "Checking the ready-for-review flip against the mandatory pre-PR skill evidence..."
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-containment-gate.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-containment-gate.sh",
+            "shell": "bash",
             "if": "Bash(*worktree*)",
             "timeout": 15,
             "statusMessage": "Checking git worktree add target against the nesting invariant..."
@@ -33,7 +36,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-ready-evidence-mcp-gate.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-ready-evidence-mcp-gate.sh",
+            "shell": "bash",
             "timeout": 15,
             "statusMessage": "Checking the ready-for-review flip against the mandatory pre-PR skill evidence..."
           }
@@ -44,7 +48,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-linkage-mcp-gate.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/pr-linkage-mcp-gate.sh",
+            "shell": "bash",
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-contract gate..."
           }
@@ -57,7 +62,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-claim-gate.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-add-claim-gate.sh",
+            "shell": "bash",
             "if": "Bash(*worktree*)",
             "timeout": 15,
             "statusMessage": "Claiming a newly added worktree..."
@@ -70,7 +76,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-create-gate.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/worktree-create-gate.sh",
+            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Placing the worktree at the external root..."
           }

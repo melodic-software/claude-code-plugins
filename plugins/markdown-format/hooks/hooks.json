@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/markdown-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/markdown-format.sh",
             "if": "Edit(*.md)",
             "shell": "bash",
             "timeout": 15,
@@ -15,7 +15,7 @@
           },
           {
             "type": "command",
-            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/markdown-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/markdown-format.sh",
             "if": "Edit(*.mdc)",
             "shell": "bash",
             "timeout": 15,
