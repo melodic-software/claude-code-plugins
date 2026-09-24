@@ -1105,6 +1105,38 @@
         "id-token": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/claude-review.yml@39390344a0fef0671d3e5a7546dd03af7a36b8f5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "pr-number",
+        "timeout-minutes",
+        "max-reviews-per-pr",
+        "status-check"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@39390344a0fef0671d3e5a7546dd03af7a36b8f5": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths-file", "skip-actors", "status-check"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/standards-sync.yml@91d06c94d733e5daa507e0afaa06a140bb46d337": {
       "routing": "runner-input",
       "runnerInput": "runner",

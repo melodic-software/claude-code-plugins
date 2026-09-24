@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.8.0] - 2026-09-23
+
+### Added
+
+- **`rubric-fanout.sh`** runs the rubric fan-out's deterministic steps: `plan` orders the target
+  list and packs batches by `wc -w`, printing each list's digest; `extract` writes the
+  catalog's rubric entries and "Signs of human writing" to one file, whose path is all a batch
+  subagent receives from the catalog; `status` reports each batch as complete, missing, or
+  stale with the failed check; `merge` refuses until every batch is complete, then writes
+  summed counts and per-rule totals. `context/rubric-fanout.md` now runs on these commands.
+- **`detect.sh --list-targets`** prints the files a scan would read, as `<key><TAB><path>`
+  after directory expansion and `excluded_paths`, keyed by the `file=` spelling. `--paths-file`
+  reads that format.
+- **`cross-check.sh`** counts em-dash lines per file with a parse separate from the detector's
+  (same fence rules, count only) and prints a `Disagree:` row for each file whose count differs from the detector's
+  `rule-em-dash` findings. The fix flow's closing step runs it and reports every disagreement.
+- **Fix flow concurrent-edit guard**: every fix run gets a run directory; before each write to a
+  file the flow checks the digest it last recorded (`sha256sum -c`) and stops that file on a
+  mismatch. A write that lands between the check and the re-record after the fixer's own write
+  is not detected.
+
+### Fixed
+
+- **An empty `--paths-file` scanned the repository.** A list with no paths fell back to the
+  repository's tracked markdown; it now scans nothing and says so on stderr.
+- **A backup that cannot be written now stops the edit** for a non-repository `fix` run, as when
+  a `\\?\` or UNC source mirrors to an invalid path.
+
 ## [0.7.1] - 2026-09-23
 
 ### Fixed

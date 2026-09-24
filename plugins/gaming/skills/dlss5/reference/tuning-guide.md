@@ -24,6 +24,7 @@ any title.
 | In-game DLSS mode | **Quality, not Auto** | Auto picked Performance (1080p internal at 4K). The overlay's `Target Res: 5760x3240 (3.00)` line was Output Scaling's disabled preview, and `3.00` was the tell; the fix was DLSS Quality, not a resolution change |
 | Model controls | Defaults: Detail 1.0, Color 1.0 | The fork's README: 1.0 is the model's picture, and above 1 is exaggeration |
 | Model resolution (`WorkingScale`) | 100% (1.0) | Above 1.0 supersamples, and cost grows with area |
+| `Passes` (wilsjo2) | 1 | `Passes=2` measured 15.2 to 15.5 ms against a 7.42 ms median at 1 (Cyberpunk 2077, 4K, RTX 5090); the ini puts 2 and 3 at almost exactly 2x and 3x the model time |
 | `[DlssNr] AutoCapture` | `false`, always | Its default writes uncompressed frame captures into the game folder. `apply` sets it; keep it |
 | Reversible proxy | Hybrid proxy + composed | The fork author's stated recommendation; the default is Off |
 | White point source | Paper white, set by eye | The exposure scan is opt-in, off by default, and fails on some titles |
@@ -54,7 +55,8 @@ same scene at the same settings, a visual verdict, and crashes with where they h
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| Cyberpunk baseline and the 7.4 ms cost | Live session on an RTX 5090, driver 616.92, Dagherbou `v0.2.0-patch1` | 2026-09-20 | A new build or driver |
+| Cyberpunk baseline and the 7.4 ms cost | Live session on an RTX 5090, driver 616.92, Dagherbou `v0.2.0-patch1`; wilsjo2 `v0.8.3` matched it (median 7.42 ms) in the A/B of issue #4429 | 2026-09-24 | A new build or driver |
+| `Passes=2` at 15.2 to 15.5 ms | wilsjo2 `v0.8.3` A/B, issue #4429 | 2026-09-24 | A new pin or driver |
 | Per-title notes | Upstream OptiScaler wiki pages (Cyberpunk 2077 last tested 0.9.3, 007 First Light 0.9.4), fork release notes and source, fork issues #7, #22, #50 | 2026-09-20 | A new build, or the title's wiki page changes |
 | NR-inert white point row | `gh api` on wilsjo2 issues #34 and #96 and their comments | 2026-09-23 | A fork release changes White point source |
 | 007 First Light gained path tracing and Ray Reconstruction on 2026-09-15, after both pinned builds | NVIDIA's 616.92 driver announcement | 2026-09-20 | A fork release that names the title |

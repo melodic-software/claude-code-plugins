@@ -4,8 +4,12 @@ A Claude Code plugin that applies the community DLSS 5 Neural Rendering mod to P
 what it changed, and removes it again byte for byte. The mod is an OptiScaler fork that loads
 NVIDIA's DLSS 5 runtime (`nvngx_dlssnr.dll`) into games that do not ship it natively.
 
-Invoke it with `/gaming:dlss5` and an action: `assess`, `apply`, `remove`, `status`, `tune`,
-`capture`, or `refetch`. Run `/gaming:setup` first.
+Invoke it with `/gaming:dlss5` and an action: `assess`, `apply`, `remove`, `status`, `reset`,
+`tune`, `capture`, or `refetch`. Run `/gaming:setup` first.
+
+The default build is wilsjo2's fork (`v0.8.3`); Dagherbou's (`v0.2.0-patch1`) is the fallback.
+`skills/dlss5/reference/fork-comparison.md` has the A/B evidence behind that choice, and
+`skills/dlss5/reference/upstream-watch.md` the process that moves a pin.
 
 ## Windows only
 
@@ -55,8 +59,13 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
 - Presets set only allow-listed `OptiScaler.ini` keys (compatibility fixes, hotkeys, and picture
   controls) and never `AutoCapture`. A base preset applies to every game; the shipped one binds no
   hotkey. Shipped presets are reviewed by pull request, local ones in the data directory win, and
-  the plugin never downloads a preset. `capture` saves overlay tuning as a local preset without
-  writing to the game folder.
+  the plugin never downloads a preset. The allow-list is per build: wilsjo2's extra controls
+  (`Passes`, per-pass model controls, skin and environment protection, the pre-SR modes,
+  `WorkingScale`) are refused on Dagherbou. `capture` saves overlay tuning as a local preset without
+  writing to the game folder, and reports a captured hotkey that collides with another preset layer
+  instead of saving it.
+- `reset` rewrites only the game's `OptiScaler.ini`, back to what `apply` wrote, and only after it
+  has shown what it discards and the user has confirmed.
 
 ## Configuration
 

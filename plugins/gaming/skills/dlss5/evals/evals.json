@@ -84,10 +84,11 @@
       "id": 4,
       "name": "apply-confirms-before-writing",
       "prompt": "/gaming:dlss5 apply C:\\Program Files (x86)\\Steam\\steamapps\\common\\Cyberpunk 2077\\bin\\x64",
-      "expected_output": "Runs assess, which reads the anti-cheat sources, picks dxgi.dll as the proxy (never dbghelp.dll, which is a stock file there), then shows the resolved game directory, build and tag, proxy, and verdict and waits for an explicit yes before running apply. After apply it adds the ledger row.",
+      "expected_output": "Runs assess, which reads the anti-cheat sources, picks dxgi.dll as the proxy (never dbghelp.dll, which is a stock file there), then shows the resolved game directory, the default build wilsjo2 v0.8.3, proxy, and verdict and waits for an explicit yes before running apply. After apply it adds the ledger row.",
       "files": [],
       "expectations": [
         "Uses dxgi.dll as the proxy and never dbghelp.dll",
+        "Names wilsjo2 v0.8.3 as the build, not dagherbou, since the user did not ask for the fallback",
         "Shows the resolved absolute game directory, build, proxy and assess verdict before applying",
         "Waits for the user's explicit confirmation before running -Verb apply",
         "Never runs setup_windows.bat"
@@ -144,6 +145,45 @@
         "Reports each not-captured key and does not add it to the preset by hand",
         "Suggests contributing the preset with evidence, not as a runtime download",
         "Does not edit OptiScaler.ini or any other file in the game folder"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "reset-shows-discards-and-asks-first",
+      "prompt": "/gaming:dlss5 reset D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - I messed up the overlay settings, put it back how it was after apply.",
+      "expected_output": "Runs -Verb reset without -ConfirmReset first, shows the printed list of values it would discard with the resolved game directory and the manifest's build and tag, offers capture if the user might want to keep the tuning, and asks for an explicit yes. Only after the yes does it rerun with -ConfirmReset and the token the preview printed. It never edits OptiScaler.ini by hand.",
+      "files": [],
+      "expectations": [
+        "Runs -Verb reset without -ConfirmReset before any run with it",
+        "Shows the discarded values from the script output and asks for explicit confirmation",
+        "Does not pass -ConfirmReset before the user says yes",
+        "Does not edit or delete OptiScaler.ini or any other game file by hand"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "capture-reports-hotkey-conflict-and-saves-the-rest",
+      "prompt": "/gaming:dlss5 capture D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - I saved Style 2 in the overlay. (capture output: captured 1 key(s) ... [DlssNr] Style=2; not captured: [DlssNr] ToggleKey=0x7f (conflict: the game's ini binds the same key as [Menu] FGShortcutKey=0x7F (local-base); the preset keeps ToggleKey=-1 (default). Rebind one of them, then capture again))",
+      "expected_output": "Reports that Style=2 was captured into the local preset, and that ToggleKey was not because F16 (0x7F) is already FGShortcutKey in the local base. Names both bindings and their layers and the binding the preset keeps, asks which action the user wants on that key, and says to rebind one and capture again. Does not add ToggleKey to the preset by hand and does not change the apply-time duplicate check.",
+      "files": [],
+      "expectations": [
+        "Reports the captured Style key and the preset file",
+        "Names both conflicting bindings with their sources (game ini and local-base) and the binding the preset keeps",
+        "Asks the user which action should own the key rather than choosing for them",
+        "Does not write ToggleKey into any preset file by hand"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "status-reports-build-behind-pin",
+      "prompt": "/gaming:dlss5 status D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - (status output ends: installed build is older than the current pin: wilsjo2 v0.8.3 installed, v0.9.0 pinned. Update steps: reference/upstream-watch.md) what does that mean?",
+      "expected_output": "Explains that the game was applied from an older wilsjo2 pin than this plugin version pins, that this does not change the status exit code, and walks the Updating a pin roll-out from reference/upstream-watch.md: capture the tuning if wanted, run /gaming:setup apply to re-provision the build, then remove and apply this game with its own confirmation. Does not run remove or apply without confirmation.",
+      "files": [],
+      "expectations": [
+        "Says the installed build is older than the current pin and the exit code is unaffected",
+        "Names /gaming:setup apply as the step that re-provisions the build before any remove and apply",
+        "Offers capture before the re-apply",
+        "Does not run -Verb remove or -Verb apply without the user's explicit confirmation"
       ]
     }
   ]

@@ -55,8 +55,40 @@ unchanged.
 
 | Change | Consequence |
 |---|---|
-| New fork tag | Candidate for a new pin. A pin change is a plugin release (tag, asset and SHA-256 in the script and `reference/fork-comparison.md`), never an edit in the installed plugin. A wilsjo2 pin past `v0.8.4` takes its hash from the release's `SHA256SUMS.txt` |
+| New fork tag | Candidate for a new pin; follow Updating a pin below. A pin change is a plugin release, never an edit in the installed plugin |
 | New runtime version | `apply` refuses it as unknown; an NVIDIA-signed copy passes only with `-AllowUnknownRuntime`, until a plugin release updates the known hash |
 | New driver | Relaunch one modded game and confirm the `DLSS-NR cost` log lines before trusting the rest |
 | New native DLSS 5 title | That title needs no mod. It is also a runtime source `/gaming:setup` can scan |
 | Upstream merges Neural Rendering | Both forks become candidates for retirement in favor of a signed upstream build |
+
+## Updating a pin
+
+How a new fork release becomes the plugin's pin, and how each game moves to it.
+
+1. **Detect.** `refetch` lists the new tag.
+2. **Record.** An issue on this plugin's repository carries the release notes, the asset hash, and
+   which games were tested live on it and with what result. A wilsjo2 release from `v0.8.5` on
+   publishes its hashes in `OptiScaler-NR-<version>-SHA256SUMS.txt`; take the zip's line from it.
+   Dagherbou publishes none, so its hash is a local-copy attestation.
+3. **Pin.** A pull request moves the tag, asset, URL and SHA-256 in `$BuildPins` in the script and
+   in `reference/fork-comparison.md`, re-verifies the `[DlssNr]` keys against the new
+   `OptiScaler.ini` (`reference/presets.md`, Verification record), and updates the verification
+   records.
+4. **Roll out, one game at a time.**
+   1. `capture` each game whose overlay tuning should survive: once the build is re-provisioned,
+      `capture` and `reset` refuse on a game still on the old build.
+   2. `claude plugin update` the plugin.
+   3. `/gaming:setup apply` re-provisions the build. The build folder under the data directory
+      changes only here, so a remove and apply before this step reinstalls the old build.
+   4. For each game: `remove`, then `apply` with the same `-Build`, each with its own confirmation.
+
+**A prerelease is never pinned without a live test**: at least one game applied from it, confirmed
+running by its `DLSS-NR cost` log lines, recorded in the step 2 issue.
+
+**Which games are behind.** Each game's manifest records `build`, `tag` and `buildSha256`. `status`
+and `assess` compare them with the current pin for that build and report
+`installed build is older than the current pin` for a game still on an old one; the tags compare
+as versions. A newer tag (the plugin was rolled back) reads `newer than the current pin`, and the
+same version under another hash reads `differs from the current pin`. A manifest written
+before 0.5.0 has no tag, and reads `unknown, re-apply to record` until the game is removed and
+applied again.
