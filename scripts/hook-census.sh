@@ -33,8 +33,9 @@
 # (`mapfile <"$t"`) is counted the same as `cat "$t"`; a spawn counter cannot
 # see that class (#4408).
 #
-# Exit: 0 measured; 2 cannot measure (bad arguments, no strace or jq, no such
-# row); 3 the fire exited nonzero or --check failed.
+# Exit: 0 measured; 2 cannot measure (bad arguments, no strace, jq or git, no
+# such row, --setup failed); 3 the fire exited nonzero, --check failed, or a
+# growth fire read no transcript byte at either size.
 set -euo pipefail
 
 usage() {
