@@ -22,6 +22,7 @@ behavior; this binding and topic-docs remain authoritative for their placement.
 | `interview-checklist.md`, `plan-checklist.md` | Memory | `.work/<topic-slug>/`, never committed |
 | `baselines/`, machine-bound captures from the plan skill's baseline step | Memory | `.work/<topic-slug>/baselines/` |
 | Opt-in `brainstorm.md` (`/planning:brainstorm`, never a default write) | Memory | `.work/<topic-slug>/` |
+| `interview-surface/`, the page session's data dir: `questions.json`, `responses.json`, settings and the server's session files (`/planning:interview` with `surface: page`) | Memory | `.work/<topic-slug>/interview-surface/`, never committed; one per topic so a resume reuses the running server, and discarded after the decisions are exported |
 | `questionnaire-<recipient-role-slug>.md` (`/planning:questionnaire`) | Memory | `.work/<topic-slug>/`, never committed; names a real person, so the memory tier's self-ignore is what keeps that name out of git history |
 | `interview-round-<n>.html`, the dense-round decision table (`/planning:interview`) | Ephemeral | One OS temp directory per interview run, created through the platform's temp API; each round's file lands inside it, is handed back as a path, and is never deleted before returning |
 | PRD pitch view (`/planning:prd`) | Ephemeral | One file per run, created through the platform's temp API; handed back as a path and never deleted before returning |

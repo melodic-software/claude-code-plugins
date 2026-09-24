@@ -1,0 +1,777 @@
+{
+  "meta": {
+    "eyebrow": "Prototype v2 · planning:interview round surface",
+    "title": "Interview surface questions",
+    "stages": {
+      "interview": "Interview",
+      "design": "Design",
+      "plan": "Plan"
+    }
+  },
+  "rev": 32,
+  "handledSeq": 24,
+  "groups": [
+    {
+      "id": "content",
+      "title": "Content and visuals",
+      "summary": "What rich content means and where it lives."
+    },
+    {
+      "id": "ordering",
+      "title": "Ordering and groups",
+      "summary": "How the rail groups and orders questions.",
+      "dependsOn": [
+        "content"
+      ]
+    },
+    {
+      "id": "realtime",
+      "title": "Real-time",
+      "summary": "How Claude hears a save and where replies land.",
+      "dependsOn": [
+        "ordering"
+      ]
+    },
+    {
+      "id": "scope",
+      "title": "Scope and config",
+      "summary": "Which stages use the page and what is configurable.",
+      "dependsOn": [
+        "realtime"
+      ]
+    },
+    {
+      "id": "judged",
+      "title": "Judged splits",
+      "summary": "Where four blind judges disagreed. Everything else in SYNTHESIS.md had 3/4 or 4/4 agreement."
+    },
+    {
+      "id": "wrap",
+      "title": "Wrap-up",
+      "summary": "Everything is answered. Confirm what happens next."
+    }
+  ],
+  "visuals": [
+    {
+      "id": "round1-brief",
+      "scope": "round:interview:1",
+      "title": "Round 1 brief",
+      "kind": "markdown",
+      "content": "## Round 1\n\nOpen questions from FEEDBACK.md section 4, minus #1 (answered).\n\n- **Ordering and groups**: Q2, Q3, Q10\n- **Real-time**: Q4, Q5, Q7\n- **Scope and config**: Q6, Q8, Q9\n\nAnswer one at a time. Each save reaches Claude on its own when the pill says *Claude is listening*."
+    }
+  ],
+  "questions": [
+    {
+      "id": "Q1",
+      "group": "content",
+      "stage": "interview",
+      "round": 1,
+      "rev": 2,
+      "short": "What \"markdown\" meant",
+      "title": "When you said change \"markdown\" and \"responses\", what did you mean?",
+      "facts": "Could mean how question text renders, the ledger files, or something else.",
+      "recommendation": "Read it as rich content: diagrams and markdown docs get their own tab or flyout.",
+      "commits": [
+        "Visuals never render inline in the answer pane"
+      ],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "It meant the ledger files"
+        },
+        {
+          "key": "b",
+          "text": "It meant the page itself, with no separate files"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-23T23:10:37Z",
+          "by": "user-terminal",
+          "kind": "own",
+          "alt": null,
+          "text": "Rich content such as diagrams and markdown docs lives in its own tabs or flyouts.",
+          "summary": "Answered"
+        }
+      ],
+      "terminal": {
+        "decision": "own",
+        "alt": null,
+        "text": "Rich content such as diagrams and markdown docs lives in its own tabs or flyouts.",
+        "updatedAt": "2026-09-23T23:10:37Z"
+      }
+    },
+    {
+      "id": "Q2",
+      "group": "ordering",
+      "stage": "interview",
+      "round": 1,
+      "rev": 3,
+      "short": "Who assigns question groups",
+      "title": "Should Claude assign topic groups, or should groups follow dependency clusters?",
+      "facts": "v1 grouped only by round. You asked for question groups. Topic groups stay put; dependency clusters regroup as answers land.",
+      "recommendation": "Claude assigns a topic group when asking. Rounds and dependency order stay as toolbar views.",
+      "basis": "Stable groups keep a collapsed group collapsed and your place in the rail. Clusters would reshuffle whenever an answer unblocks something.",
+      "commits": [
+        "Claude declares groups in questions.json before asking",
+        "A question changes group only by an explicit revision"
+      ],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Groups follow dependency clusters, recomputed on each change"
+        },
+        {
+          "key": "b",
+          "text": "No groups; rounds only, as in v1"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-23T23:21:02Z",
+          "by": "claude",
+          "text": "Recorded: accepted (you noted it was a test). The loop works: your save woke me, no terminal needed.",
+          "replyTo": 1
+        }
+      ]
+    },
+    {
+      "id": "Q3",
+      "group": "ordering",
+      "stage": "interview",
+      "round": 1,
+      "rev": 19,
+      "short": "Default order and auto-collapse",
+      "title": "What order inside a group, and should answered groups collapse on their own?",
+      "facts": "v1 sorted by a hidden hand-set order (Round 5: Q21, Q25, Q22, Q23, Q24, Q20). This page states its order in the toolbar.",
+      "recommendation": "By id, open first. Answered groups collapse automatically; one you expand stays open until its state changes.",
+      "commits": [
+        "Dependency order is one click away, not the default"
+      ],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Dependency order by default"
+        },
+        {
+          "key": "b",
+          "text": "By id, answered and open mixed"
+        },
+        {
+          "key": "c",
+          "text": "Never auto-collapse"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T01:00:27Z",
+          "by": "claude",
+          "text": "Recorded: accept, plus two refinements. (1) Order: inside a group, questions always show in number order, and I number them in the order you should answer them (prerequisites get lower numbers), so Q6 never sits above Q3. Dependency chains show as a thin connector line in the rail ('needs Q3'), not by reordering. (2) Tree view: yes, it replaces the Dependency view. It draws the decision tree: the path you have taken highlighted, branches you left greyed but clickable, so you can revisit an old branch and see what it would have asked. The views become Groups, Rounds and Tree.",
+          "replyTo": 11
+        }
+      ]
+    },
+    {
+      "id": "Q4",
+      "group": "realtime",
+      "stage": "interview",
+      "round": 1,
+      "rev": 21,
+      "short": "How Claude hears a save",
+      "title": "Is a watching session acceptable, or do you want a per-question \"Send to Claude\" button?",
+      "facts": "Claude can arm a background watcher (one `curl` long-poll) that ends the moment you save, which wakes the session. No flags. Channels push directly but are a research preview.",
+      "recommendation": "Watcher on by default; Claude acts on each save, one question at a time. The status pill shows whether Claude is listening.",
+      "basis": "Research rung 1: background Bash exit-on-change needs no settings and has no deadline. Per-save processing matches \"answer one question, get it processed alone\".",
+      "commits": [
+        "A save reaches Claude at once; change it by saving again",
+        "With no watcher armed, the page tells you to type `next` in the terminal"
+      ],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Explicit Send to Claude per question; saves are drafts until sent"
+        },
+        {
+          "key": "b",
+          "text": "Watcher, but Claude acts once per group"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T01:02:17Z",
+          "by": "claude",
+          "text": "Yes, I'm the watcher: a background long-poll that returns the moment you save (29 ms measured) and wakes me. Options, fastest first: (1) this watcher: works today, no flags; (2) Monitor tool: same idea, 30-min cap, re-arm cost; (3) custom channels: research preview, need the dev flag, and an open bug (#44380) means they may not wake an idle session, so not viable yet. So no separate 'Send to Claude' is needed: every save already sends. If you want to draft several and send together, that can be a 'Hold sends' toggle. Your UX catch is real: 'Ask Claude' was only discoverable on hover. Fix: split the action row into two labelled parts, Decide (Accept, alternatives, own, defer) and Talk (Ask Claude, Rephrase), always visible, so a follow-up is never forced into a decision.",
+          "replyTo": 12
+        },
+        {
+          "at": "2026-09-24T01:03:23Z",
+          "by": "claude",
+          "text": "Honest numbers. Time: it is not polling in the costly sense. The watcher's request sits open on the server and returns within ~30 ms of your save; while you think, it costs nothing, and its 90 s re-polls happen inside the shell script, not in me. Tokens: zero while idle. Each save costs one turn of mine, and that turn re-reads this session's context (cached, so cheaper, but this session is very large). Three fixes: (1) one tool call per event: fold 'read event + reply + re-arm' into a single command (today it is three); (2) run interviews in a small dedicated session so each wake re-reads little context; this is the biggest lever; (3) plain accepts get no reply at all (already doing that). The model's own thinking time, a few seconds per answer, is the real latency floor.",
+          "replyTo": 13
+        }
+      ]
+    },
+    {
+      "id": "Q5",
+      "group": "realtime",
+      "stage": "interview",
+      "round": 1,
+      "rev": 1,
+      "short": "Terminal answers",
+      "title": "Once the page is up, should terminal answers still count?",
+      "facts": "In round 16, P9 to P12 were answered in the terminal and the page showed nothing.",
+      "recommendation": "Yes. Claude records each terminal answer into that question's thread as \"You (terminal)\", so the page stays the full record.",
+      "commits": [
+        "Claude runs `round.py record-terminal` for every terminal answer"
+      ],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Terminal only points you to the page"
+        },
+        {
+          "key": "b",
+          "text": "Accept terminal answers without mirroring them"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        }
+      ]
+    },
+    {
+      "id": "Q6",
+      "group": "scope",
+      "stage": "interview",
+      "round": 1,
+      "rev": 27,
+      "short": "Which stages use the page",
+      "title": "Which stages use the page?",
+      "facts": "Interview, design and plan rounds all used v1. Devils-advocate and audit-answers produce findings that also need a verdict each.",
+      "recommendation": "General-purpose question surface; stage is a filterable tag; sessions persist per topic with a Sessions list in the flyout; any question can be reopened later.",
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "All five stages now"
+        },
+        {
+          "key": "b",
+          "text": "Interview only"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T01:06:00Z",
+          "by": "claude",
+          "text": "Agreed, and it simplifies the answer: stages are just a tag, not a list the page knows about. The page is a general question surface any skill can open, standalone ('ask me about X') or injected into a workflow (brainstorm, PRD, interview, design, plan, devils-advocate, audit-answers, explore and research follow-ups, even mid-implementation). Each question carries its stage tag so you can filter. History: every session is kept per topic; a Sessions list in the flyout lets you cycle back through earlier sessions and reopen any question, so something from exploration can be picked up again during design or implementation. A mid-implementation stop opens a new session on the same topic, pre-loaded with the related earlier answers as context. Revised recommendation: General-purpose question surface; stage is a filterable tag; sessions persist per topic with a Sessions list in the flyout; any question can be reopened later.",
+          "replyTo": 16
+        },
+        {
+          "at": "2026-09-24T01:14:21Z",
+          "by": "claude",
+          "text": "Agreed, and that trims my Q6 answer: no app sitting on top of Claude. Sessions are short-lived: open, answer, then export into the durable artifacts the skills already own (the ledger, the PLAN Brief, the design threads), and the session files can go. Context is kept in those artifacts, not in the page. The 'Sessions list' shrinks to: a new session can be seeded from an existing ledger, so an earlier decision is re-openable without a database. Another machine gets the context the same way it does today, from the artifacts in the repo or topic folder.",
+          "replyTo": 21
+        }
+      ],
+      "previousRecommendation": "Interview, design and plan now. Devils-advocate and audit-answers once the stage field is proven.",
+      "revised": "One surface for every skill and every point in the workflow, including mid-implementation."
+    },
+    {
+      "id": "Q7",
+      "group": "realtime",
+      "stage": "interview",
+      "round": 1,
+      "rev": 23,
+      "short": "Where replies land",
+      "title": "Should Rephrase and Ask Claude reply on the page only, or in the terminal too?",
+      "facts": "Both actions record no decision. Claude's reply lands in the question's thread.",
+      "recommendation": "Page only, plus a one-line terminal note naming the question.",
+      "dependsOn": [
+        "Q4"
+      ],
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Page and the full reply in the terminal"
+        },
+        {
+          "key": "b",
+          "text": "Page only, no terminal note"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T01:07:11Z",
+          "by": "claude",
+          "text": "Recorded, and it reframes the design well: the data is the product, the page is one view of it. Concretely: (1) a versioned public schema (session, questions, decisions, assumptions, events) published with the plugin, like an API contract; (2) an append-only event log is the source of truth and current state is derived from it, which also gives you full history and replay for free; (3) exporters as small scripts: markdown ledger, PLAN Brief section, HTML report, diagram image; importers the same way. Store: JSON files for now (fast, diffable, no dependency); SQLite only if sessions get large, behind the same schema so nothing downstream changes.",
+          "replyTo": 17
+        }
+      ]
+    },
+    {
+      "id": "Q8",
+      "group": "scope",
+      "stage": "interview",
+      "round": 1,
+      "rev": 28,
+      "short": "One surface preference",
+      "title": "Should one surface preference also set the default for visualization:visualize and other rendering skills?",
+      "facts": "After you asked for HTML, the next session kept visuals in the terminal: \"No rendered-views preference is set\".",
+      "recommendation": "The page depends on visual formats, not on other skills; no cross-skill defaults; a shared preference is a neutral setting each skill may read.",
+      "commits": [
+        "A config key shared across plugins"
+      ],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "A setting per skill"
+        },
+        {
+          "key": "b",
+          "text": "Per session only"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T01:08:41Z",
+          "by": "claude",
+          "text": "Yes, all of those go in the visuals flyout, and your coupling point decides how: the page depends on formats, never on skills. A visual is just {title, format, content or file}, with formats svg, mermaid, image, markdown, html and chart data. The page renders those formats (mermaid loaded only when one appears, to keep spin-up fast). Whatever produces them (a C4 skill, an ERD skill, a charting skill, or me by hand) writes a file in one of those formats; the page never names or calls another skill. Swap or remove any producer and nothing here breaks. Same for the original question: no skill sets another skill's default. If a shared preference is wanted, it is one neutral setting both read. Revised recommendation: The page depends on visual formats, not on other skills; no cross-skill defaults; a shared preference is a neutral setting each skill may read.",
+          "replyTo": 18
+        },
+        {
+          "at": "2026-09-24T01:16:05Z",
+          "by": "claude",
+          "text": "Recorded: the interview surface is its own vertical slice, with dependencies inverted. It owns its data contract; other skills and composites plug in by writing files in its formats or reading its exports, never the other way round. On the console-vs-HTML-vs-embedded line: a visual is produced once as a file and linked; the interview embeds it by reference, the terminal gets the path, a standalone HTML view is just another reader. Your note ends at 'composite skills themselves, but' (J7 also ended mid-sentence). The page did not cut it (saves go up to 64 KB), so it may be dictation. Finish the thought here if there was more.",
+          "replyTo": 22
+        }
+      ],
+      "previousRecommendation": "Yes: one user-level setting (terminal or page) that rendering skills read; a skill may override it per call.",
+      "revised": "Keeps coupling at the data contract; producers can change freely."
+    },
+    {
+      "id": "Q9",
+      "group": "scope",
+      "stage": "interview",
+      "round": 1,
+      "rev": 1,
+      "short": "Theme scope",
+      "title": "Theme customization: per user only, or also per repo and organization?",
+      "facts": "Themes are CSS custom properties; `theme.json` in the data dir overrides them today.",
+      "recommendation": "Layered: organization, then repo, then user. The nearest layer wins, per token.",
+      "dependsOn": [
+        "Q8"
+      ],
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Per user only"
+        },
+        {
+          "key": "b",
+          "text": "Per repo only"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        }
+      ]
+    },
+    {
+      "id": "Q10",
+      "group": "ordering",
+      "stage": "interview",
+      "round": 1,
+      "rev": 26,
+      "short": "Flow across groups",
+      "title": "Is this the right flow across groups?",
+      "facts": "See the diagram under Visuals. Content is settled; Real-time waits on Ordering; Scope waits on Real-time.",
+      "recommendation": "Dependent groups open one at a time in order; independent groups open together.",
+      "followUpOf": "Q2",
+      "dependsOn": [
+        "Q2"
+      ],
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Ask all groups in parallel"
+        },
+        {
+          "key": "b",
+          "text": "Open every group at once and let the user choose the order"
+        }
+      ],
+      "visuals": [
+        {
+          "id": "group-flow",
+          "title": "Group dependency flow",
+          "kind": "svg",
+          "content": "<svg viewBox='0 0 540 170' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='Content, then Ordering, then Real-time, then Scope'><style>.b{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.5}.d{fill:var(--ok-soft);stroke:var(--ok)}.o{fill:var(--accent-soft);stroke:var(--accent)}.t{font:600 13px var(--sans);fill:var(--ink)}.s{font:11px var(--mono);fill:var(--muted)}.f{stroke:var(--accent);stroke-width:2;fill:none;stroke-dasharray:6 6;animation:m 1.2s linear infinite}@keyframes m{to{stroke-dashoffset:-12}}@media (prefers-reduced-motion:reduce){.f{animation:none}}</style><defs><marker id='ar' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7' orient='auto'><path d='M0 0L10 5L0 10z' fill='var(--accent)'/></marker></defs><rect class='b d' x='8' y='55' width='112' height='56' rx='8'/><text class='t' x='20' y='80'>Content</text><text class='s' x='20' y='98'>Q1 answered</text><rect class='b o' x='146' y='55' width='112' height='56' rx='8'/><text class='t' x='158' y='80'>Ordering</text><text class='s' x='158' y='98'>Q2 Q3 Q10</text><rect class='b' x='284' y='55' width='112' height='56' rx='8'/><text class='t' x='296' y='80'>Real-time</text><text class='s' x='296' y='98'>Q4 Q5 Q7</text><rect class='b' x='422' y='55' width='112' height='56' rx='8'/><text class='t' x='434' y='80'>Scope</text><text class='s' x='434' y='98'>Q6 Q8 Q9</text><path class='f' d='M120 83H144' marker-end='url(#ar)'/><path class='f' d='M258 83H282' marker-end='url(#ar)'/><path class='f' d='M396 83H420' marker-end='url(#ar)'/><text class='s' x='8' y='30'>waits on: arrows point from the group that must settle first</text><text class='s' x='8' y='150'>Q7 depends on Q4; Q9 depends on Q8; Q10 follows up Q2</text></svg>"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T19:00:00Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T01:10:25Z",
+          "by": "claude",
+          "text": "'Ask all groups in parallel' meant I would show every group's questions at once, even groups that depend on earlier answers, so you could jump anywhere, at the risk that a later answer invalidates what you did there. Your rule is the right one and becomes the recommendation: groups that depend on each other open one at a time, in order; groups with no dependency between them open together and you pick the order. Fair catch on the alternatives: one weak option is not a real choice. Real ones would have been (a) your rule, (b) strictly one group at a time even when independent, (c) everything open at once. Going forward every question gets at least two genuine alternatives. Visuals: adding full-screen with zoom and pan (and a minimum text size), since the diagram text is too small in the flyout. Revised recommendation: Dependent groups open one at a time in order; independent groups open together.",
+          "replyTo": 19
+        },
+        {
+          "at": "2026-09-24T01:13:09Z",
+          "by": "claude",
+          "text": "Makes sense, recorded. It matches the interview skill's frontier rounds: only questions whose prerequisites are settled are asked, so later questions are written after the answers that shape them. Your re-answer point becomes a rule: when you change an earlier answer, I triage the stale dependents. Small impact: I pre-fill a proposed updated answer for each, marked as mine, and you confirm each with one key or edit it. Large impact (the branch changes): those questions are re-asked. Either way nothing is silently carried over; each one is explicitly confirmed, so zero assumptions holds.",
+          "replyTo": 20
+        }
+      ],
+      "previousRecommendation": "Keep this flow: Claude asks Scope questions only after Real-time settles.",
+      "revised": "No wasted answers, no artificial waiting."
+    },
+    {
+      "id": "J1",
+      "group": "judged",
+      "short": "How far 'stale' spreads",
+      "title": "When an answer changes, which other questions get marked stale?",
+      "stage": "design",
+      "facts": "Each decision records what it rests on. Changing one answer can invalidate others. Nothing reopens automatically either way.",
+      "recommendation": "Direct dependents turn stale (one key to reconfirm); anything further downstream is dimmed as 'upstream pending'.",
+      "basis": "Full cascade floods the rail after one edit; direct-only hides real knock-on effects.",
+      "round": 2,
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Mark the whole downstream chain stale"
+        },
+        {
+          "key": "b",
+          "text": "Direct dependents only, nothing dimmed"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T23:42:26Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T00:24:15Z",
+          "by": "claude",
+          "text": "Recorded as your own answer: a decision tree, not just a stale flag. How I'd build it: each question records which answer it hangs off (e.g. 'only if Q5 = b'). When you change an answer: (1) questions on the old branch become 'off-path' and are archived, not deleted; (2) questions that depend on it but stay on-path turn stale for a one-key reconfirm; (3) I add the new branch's questions and they flash in. The tree also gets a live map in the visuals flyout: current path highlighted, off-path branches greyed. If that matches what you meant, no action needed; otherwise correct it here.",
+          "replyTo": 2
+        }
+      ],
+      "rev": 12
+    },
+    {
+      "id": "J2",
+      "group": "judged",
+      "short": "What counts as a conflicting edit",
+      "title": "When do two edits to one question count as a conflict?",
+      "stage": "design",
+      "facts": "Today the question's rev moves on every Claude reply, so a check on rev would flag a conflict whenever Claude has just replied (verified by one judge and the synthesizer).",
+      "recommendation": "Use a separate content version (wording and decision only) for collision checks; thread replies do not count.",
+      "basis": "Stops false 'someone else changed this' prompts after every reply.",
+      "round": 2,
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Keep the single rev and accept false conflicts"
+        },
+        {
+          "key": "b",
+          "text": "Any change to the question, including a thread reply"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T23:42:27Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T00:44:04Z",
+          "by": "claude",
+          "text": "Plain version: every question has a version number that goes up whenever anything on it changes, including when I just reply in its thread. The page uses that number to catch 'someone changed this while you were typing'. Problem: my replies bump it too, so after every reply you'd get a false 'this changed' warning. Fix: keep a second number that only goes up when the question wording or your decision changes. Collisions are checked on that one, so my thread replies never trigger a warning. Revised recommendation: Use a separate content version (wording and decision only) for collision checks; thread replies do not count.",
+          "kind": "rephrase",
+          "replyTo": 3
+        }
+      ],
+      "rev": 13,
+      "previousRecommendation": "Track a separate content revision that moves only when the question or decision changes; replies do not count.",
+      "revised": "No false 'this changed' warnings after every reply from Claude."
+    },
+    {
+      "id": "J3",
+      "group": "judged",
+      "short": "Batching rapid saves",
+      "title": "Should the page hold decisions ~1.5 s to batch rapid saves?",
+      "stage": "design",
+      "facts": "Three judges want a short hold on decisions only (so fast clicking wakes Claude once). One says the watcher already batches whatever arrived between wakes.",
+      "recommendation": "No hold. The watcher already batches, and any delay costs latency you said matters most.",
+      "basis": "Speed is top priority; batching already happens naturally.",
+      "round": 2,
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "1.5 s hold on decisions only"
+        },
+        {
+          "key": "b",
+          "text": "Hold every event, including questions to Claude"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T23:42:27Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T00:55:06Z",
+          "by": "claude",
+          "text": "Recorded: accept, no hold. There is no batch window: every save wakes me on its own, and anything you save while I'm working queues and arrives together on my next wake, so you never wait on me. Accept All per group: good add, with two guards the judges asked for (4/4 flagged silent bulk-accepts): (1) it only covers questions you have opened, and lists them in a confirm; (2) it accepts the recommendations, never the assumptions, which stay unticked until you tick them. Option on top: 'Accept all and have agents check them' routes the batch through the planning plugin's audit-answers skill, which re-examines each answer blind and only sends back the doubtful ones.",
+          "replyTo": 6
+        }
+      ],
+      "rev": 16
+    },
+    {
+      "id": "J4",
+      "group": "judged",
+      "short": "Number keys",
+      "title": "Do number keys follow the on-screen choice numbers?",
+      "stage": "design",
+      "facts": "Choices are shown as a numbered list: Accept, each alternative, own answer, defer.",
+      "recommendation": "Yes: key 1 is whatever is shown as 1.",
+      "basis": "What you see is what you press; no memorizing.",
+      "round": 2,
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "Fixed keys (1 always Accept, 9 always Defer)"
+        },
+        {
+          "key": "b",
+          "text": "Letter keys only, no number keys"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T23:42:27Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T00:56:33Z",
+          "by": "claude",
+          "text": "Recorded. Keep it simple: one labelling scheme everywhere, numbers, shown on the radio buttons themselves (1 Accept, 2 first alternative, ...). Clicking a radio and pressing its number do the same thing, so there is nothing to keep consistent between two systems. Not configurable in v1 (the single-key switch already lets you turn number keys off). Nothing retroactive: labels are computed at render time from the choice order, so old questions pick it up automatically. The alternative letters (a, b) stay only as stored ids, never shown.",
+          "replyTo": 7
+        }
+      ],
+      "rev": 17
+    },
+    {
+      "id": "J5",
+      "group": "judged",
+      "short": "Where stale is computed",
+      "title": "Does the server or the page work out which questions are stale?",
+      "stage": "design",
+      "facts": "Three judges: the server, so every client and the watcher agree. One: the page, which is simpler.",
+      "recommendation": "The server.",
+      "basis": "One source of truth; Claude sees the same staleness you do.",
+      "round": 2,
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "The page"
+        },
+        {
+          "key": "b",
+          "text": "Claude, through round.py after each wake"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T23:42:27Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T00:57:38Z",
+          "by": "claude",
+          "text": "Recorded: accept. Rule: reasoning is Claude's; anything deterministic is code. Working out which questions are stale is a plain walk over the dependency map, so it is code, and it runs in the server, not the page, so the page stays input and display only and Claude reads the same answer you see. Multiple watchers: v1 allows exactly one; the server holds a single watcher lease and shows a warning if a second session tries to attach. Several sessions each taking a group (a lease per group) is logged as a future item, not built now.",
+          "replyTo": 8
+        }
+      ],
+      "rev": 18
+    },
+    {
+      "id": "J6",
+      "group": "judged",
+      "short": "Question budget before wrap-up nudge",
+      "title": "After how many questions should the page suggest wrapping up or splitting the work?",
+      "stage": "interview",
+      "facts": "Your '40 questions' was an example, not a number. Wrap-up is always one click away regardless; this is only when the page nudges and flags 'this might be too big'.",
+      "recommendation": "25, configurable per user or repo.",
+      "basis": "Earlier nudge catches oversized work sooner; you can always keep going.",
+      "round": 2,
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "40"
+        },
+        {
+          "key": "b",
+          "text": "No nudge; wrap-up button only"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T23:42:28Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T00:53:57Z",
+          "by": "claude",
+          "text": "Recorded as your own answer: no fixed question count. Size is the signal: when the tree keeps branching or open items keep growing, the page proposes a decomposition session instead of a nudge at N. That session works at the split level only (what are the pieces, in what order), then each piece gets its own smaller interview and later spec and tickets via the planning plugin's decomposition skills. A count can still exist as an optional checkpoint in Settings, off by default. Your composer notes are captured as requirements: auto-growing text box; paste or drop images and video (stored beside the session, shown as thumbnails); links auto-detected; markdown with code syntax highlighting in answers and previews; slash autocomplete for skills and question ids (e.g. /wayfind, @Q5); and a 'use this interview to improve the interview' loop later.",
+          "replyTo": 5
+        }
+      ],
+      "rev": 15
+    },
+    {
+      "id": "J7",
+      "group": "judged",
+      "short": "Undo window",
+      "title": "How long can you undo a save before Claude acts on it?",
+      "stage": "design",
+      "facts": "An optimistic save advances you immediately; undo pulls it back if Claude has not processed it yet.",
+      "recommendation": "5 seconds.",
+      "basis": "Long enough to catch a misclick; short enough not to slow Claude down.",
+      "round": 2,
+      "commits": [],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "10 seconds"
+        },
+        {
+          "key": "b",
+          "text": "No undo; reopen instead"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-23T23:42:28Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T00:47:12Z",
+          "by": "claude",
+          "text": "Recorded: accept, 5 s default, configurable. General pattern I'll spec: every tunable (undo window, question budget, stale depth, shortcuts, theme) ships as a seeded default in a config file, layered user > repo > plugin default, and is editable live from a Settings flyout on the page. Your note ends at 'take this approach with...': take it with what? Reply here and I'll fold it in.",
+          "replyTo": 4
+        }
+      ],
+      "rev": 14
+    },
+    {
+      "id": "W1",
+      "group": "wrap",
+      "short": "Wrap up and build",
+      "title": "All questions are answered. Wrap up and move on?",
+      "stage": "interview",
+      "facts": "Answered: Q1 to Q10, J1 to J7. Two notes ended mid-sentence (J7 'take this approach with...', Q8 'composite skills themselves, but'). About 25 requirements were added live in FEEDBACK.md, section 5.",
+      "recommendation": "Yes. Next: (1) I build the consensus must-haves plus your live additions into v2 (dictation-safe keys, notes drawer in one shared flyout, Decide/Talk action row, decision tree view, full-screen visuals, an 'all done' screen); (2) I file the plugin inbox item with the page, FEEDBACK.md, SYNTHESIS.md and the research; (3) then the Topic B handoff.",
+      "round": 3,
+      "commits": [
+        "Interview closed; the cut-off notes are dropped unless you add to them"
+      ],
+      "alternatives": [
+        {
+          "key": "a",
+          "text": "File the inbox item now, build v2 later in the plugin repo session"
+        },
+        {
+          "key": "b",
+          "text": "Keep going; I have more to add"
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-09-24T01:18:14Z",
+          "by": "claude",
+          "text": "Asked."
+        },
+        {
+          "at": "2026-09-24T01:20:12Z",
+          "by": "claude",
+          "text": "Got it. Plan: (1) I build what can land now into v2 in place: the finished screen, the labelled Decide/Talk row, dictation-safe keys and an auto-growing text box, one shared flyout (Visuals, Notes, Settings) with full-screen zoomable visuals, the notes drawer, group gating in number order, a basic Tree view, per-answer receipts, conflict protection, Accept All per group, Settings with seeded defaults, and a 5 s undo. (2) You do one final dogfood review on this page (reload when I say). (3) I file the inbox item with everything, including what was deferred (attachments, syntax highlighting, autocomplete, stale cascade, exporters). Then you continue on your other machine.",
+          "replyTo": 23
+        },
+        {
+          "at": "2026-09-24T01:20:49Z",
+          "by": "claude",
+          "text": "Good catch: the history line runs together ('09:19 PMYouAsked Claude') and capitalizes mid-sentence. Fix is in the v2.1 build now: 'You asked Claude · Sep 23, 9:19 PM', and every history label audited the same way.",
+          "replyTo": 24
+        }
+      ],
+      "rev": 32
+    }
+  ]
+}
