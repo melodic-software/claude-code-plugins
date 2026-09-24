@@ -906,7 +906,9 @@ function Assert-Refresh($root, $mj, $gu) {
     if ($ConfirmRefresh -ne $gu.Token) { throw "refusing refresh: the drift changed since the user saw it (confirmed '$ConfirmRefresh', now '$($gu.Token)'). Rerun status and show the new drift. Nothing was changed" }
     # Carried from the manifest; never the old acknowledgement, which the command line must supply.
     $script:Build = $mj.build; $script:Proxy = $mj.proxy; $script:Preset = $mj.preset.key; $script:RestoreComputeSignature = [bool]$mj.restoreComputeSignature
-    if (-not (Test-Path -LiteralPath (Join-Path $script:DataDir "builds\$Build\.provisioned.json"))) { throw "refusing refresh: build $Build is not provisioned (run /gaming:setup apply). Nothing was changed" }
+    $src = Join-Path $script:DataDir "builds\$Build"
+    $miss = @(@($BuildFiles[$Build]) + '.provisioned.json' | Where-Object { -not $_ -or -not (Test-Path -LiteralPath (Join-Path $src $_)) })
+    if (-not $BuildFiles[$Build] -or $miss) { throw "refusing refresh: build $Build is not fully provisioned under $src (missing: $($miss -join ', ')); run /gaming:setup apply. Nothing was changed" }
     $null = Get-Preset $Preset
     $rt = Test-Runtime $script:RuntimeDll
     if (-not $rt.Ok) { throw "refusing refresh: runtime DLL refused: $($rt.Reason). Nothing was changed" }
@@ -1876,6 +1878,9 @@ function Do-Selftest {
         $script:Proxy = 'dxgi.dll'; $script:Preset = $null; $script:RestoreComputeSignature = $true
         Ack $ug
         $script:ConfirmRefresh = $tok
+        Move-Item -LiteralPath "$bs\OptiScaler.dll" -Destination "$tmp\held.dll"
+        Assert 'refresh refuses a build with a payload file missing, before any write' ((Throws { Do-Remove $ug } '*not fully provisioned*OptiScaler.dll*') -and (Test-Path -LiteralPath $umf))
+        Move-Item -LiteralPath "$tmp\held.dll" -Destination "$bs\OptiScaler.dll"
         Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2b'
         Assert 'refresh refuses when a drifted file changed again since the user saw it' ((Throws { Do-Remove $ug } '*drift changed since the user saw it*') -and (Test-Path -LiteralPath $umf))
         Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2'
