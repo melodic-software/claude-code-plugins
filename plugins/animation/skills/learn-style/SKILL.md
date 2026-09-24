@@ -1,6 +1,6 @@
 ---
-description: "Learn a drawn animation style from a rotoscoped clip into a style pack: measure its traces and source drawings into knob values and statistic bands (edge softness, stroke and gap widths, edge roughness, gray inside the ink, boil between held drawings, holds on 1s/2s/3s, palette), then prove the pack by authoring a new scene with ink.js and checking its render against it. Use when: 'learn this style', 'make a style pack', 'extract the style from this clip', 'does my film match the style', 'check this scene against the woodcut pack', 'which statistics separate styles'. Needs a rotoscope work dir; not for copying a clip one to one."
-argument-hint: "<rotoscope work dir> <pack dir>"
+description: "Learn a drawn animation style from a rotoscoped clip into a style pack: measure its traces and source drawings into knob values and statistic bands (edge straightness and roughness, texture scale and periodicity, solid black, boil between held drawings, the hold mix on 1s/2s/3s, palette), prove the bands against adversarial controls, then prove the pack by authoring a new scene with ink.js and checking its render against it. Use when: 'learn this style', 'make a style pack', 'extract the style from this clip', 'does my film match the style', 'check this scene against the woodcut pack', 'which statistics separate styles'. Needs a rotoscope work dir; not for copying a clip one to one."
+argument-hint: "<rotoscope work dir> <pack dir> [--cuts T,T,..] [--credit TEXT] [--negative SUMMARY.json ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -14,14 +14,15 @@ Turn a rotoscoped clip into a style pack: the numbers that make the style what i
 that tells whether a new film shares them. The pack holds statistics only; never copy traced
 geometry, source frames or the clip into it. Read
 [`reference/statistics.md`](reference/statistics.md) first: what each statistic measures, how a
-band is set, and which statistics separated the woodcut style from a near miss and from three
-other styles.
+band is set, which statistics separate the woodcut style from a filtered near miss and from other
+styles, and what the check still cannot separate.
 
 Requirements: the rotoscope skill's requirements (Python with numpy and opencv through
 `uv run --with numpy,opencv-python-headless python ...`, `ffmpeg`, `ffprobe`, Node and
 playwright-core with Chromium) and a rotoscope work directory (`d/dNNN.json` traces and
-`src/dNNN.png` drawings). The scripts are `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/learn.py`
-and the shared `${CLAUDE_PLUGIN_ROOT}/scripts/inkstats.py`.
+`src/dNNN.png` drawings). The scripts are `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/learn.py`,
+`${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/controls.py` and the shared
+`${CLAUDE_PLUGIN_ROOT}/scripts/inkstats.py`.
 
 ## Pack format
 
@@ -29,62 +30,61 @@ and the shared `${CLAUDE_PLUGIN_ROOT}/scripts/inkstats.py`.
 
 | File | Written by | Holds |
 |---|---|---|
-| `style.json` | `learn.py`, then you | `palette` (ink, paper, tone ramp), `knobs` (the seven-knob schema), `stats` (p10/p50/p90), `timing`, `bands`, `check`, `brush`, `credit`, `rotoscope_fits` |
-| `STYLE.md` | you | the style in words for a reader: credit, knob table with each value marked measured or judgment, how to author in it, the validation result |
+| `style.json` | `learn.py`, then you | `palette` (ink, paper, tone ramp), `knobs` (the seven-knob schema), `stats` (p10/p50/p90), `timing`, `ref` (the source's values), `bands`, `check`, `heldout` (how each band was set and how it tested), `brush`, `credit`, `rotoscope_fits` |
+| `STYLE.md` | you | the style in words for a reader: credit, knob table with each value marked measured or judgment and pointing at its `style.json` key, how to author in it, the validation result |
 
-`learn.py` measures `palette`, `stats`, `timing`, `bands` and the `color`, `line`, `frame_rate`
-and `texture` knobs. Bands come from held-out validation over the source's segments, not from a
-chosen margin; `heldout` records the widening each statistic needed. It keeps what it cannot measure from an existing `style.json`: `credit`,
-`brush`, `check`, and the `movement`, `camera` and `backgrounds` knobs, which you fill from
-viewing the source and mark `"basis": "judgment"`. A re-run refreshes numbers without losing them.
+`learn.py` measures everything but `credit`, `brush` and the `movement`, `camera` and `backgrounds`
+knobs, which it keeps from an existing `style.json`; fill the knobs from viewing the source and mark
+them `"basis": "judgment"`. `check` is `learn.py`'s `CHECK`, the statistics shown to separate. The
+numbers live in `style.json` only; STYLE.md and other docs point at its keys.
 
 ## Loop
 
-1. Learn: `learn.py <work> <pack dir> --credit "<who made the source, its URL, date>" --negative
-   <inkstats --json of near misses and other styles>`. The negatives cap each band's widening so
-   they keep failing; without them bands get full held-out coverage.
-2. Describe: fill the judgment knobs in `style.json` and write `STYLE.md`.
-3. Validate: author a short scene (about 10 s) on a subject different from the source, from
-   ink.js and the scene elements, with geometry you write, never traced. Start from the pack's
-   `brush`; a new pack starts from the woodcut-ink one. Render it at the source's size with
-   `capture.mjs --fps 24`, encode with the ffmpeg line at the top of `capture.mjs`, and run
-   `inkstats.py <scene.mp4> --cuts <shot starts> --pack <pack dir>`. It exits 0 only when every
-   checked statistic, every shot's dark field and the palette pass. Passing is not centring: it
-   also prints the distance to source (0 is the source, 1 a band edge on average), which ranks
-   passing scenes; read the per-shot columns so no shot hides behind the median.
-4. Review: measure each prop with `--region X,Y,W,H --t T0-T1` next to source prop boxes, then
+1. Controls: `controls.py measure <out> --near <a near-miss film> --other <films in other styles>
+   --source <the clip> --replica <rotoscope work dir>` measures a filtered family of the near miss
+   (blur, noise, stripes, dry brush, contour warp), synthetic flat polygons, the other styles, and
+   the same-style positives. It alternates the controls between a calibration and an evaluation
+   half.
+2. Learn: `learn.py <work> <pack dir> --cuts <the clip's shot starts> --credit "<who made the
+   source, its URL, date>" --negative <out>/calibration/*.json`. Bands come from film-sized
+   excerpts of the source, split by shot, with half the splits held out. The calibration controls
+   cap each band's widening so they keep failing.
+3. Prove the check: `controls.py check <out> <pack dir>` must show every control failing (margin
+   above 0) and the source and replica passing, with the evaluation half out of sample. Put the
+   table in `reference/statistics.md`. A control that passes goes under "what the check cannot
+   say"; never narrow a band until it fails.
+4. Describe: fill the judgment knobs in `style.json` and write `STYLE.md`.
+5. Validate: author a scene of at least a third of the source's length (bands are learned from
+   excerpts that long) on a different subject, from ink.js and the scene elements, with geometry you
+   write, never traced. Render it at the source's size with `capture.mjs --fps 24`, encode with the
+   ffmpeg line at the top of `capture.mjs`, and run `inkstats.py <scene.mp4> --cuts <shot starts>
+   --pack <pack dir>`. It exits 0 only when every checked row and the palette pass. Each row prints
+   its distance to source: 0 is the source value, 1 the band edge on either side. The film's
+   distance ranks passing scenes and its margin names the row nearest failing.
+6. Review: measure each prop with `--region X,Y,W,H --t T0-T1` next to source prop boxes, then
    read every drawing at 1:1 (tile frames so no image is over 2576 px on the long edge; never
    downscale, never a GIF) beside source crops. A pass on the numbers with a crop that does not
    read as the style is a fail; say which mark is wrong.
-5. Record: put the parameters that passed into the pack's `brush` and the result into `STYLE.md`,
+7. Record: put the parameters that passed into the pack's `brush` and the result into `STYLE.md`,
    including where the scene still falls short.
 
-Repeat 3-5 until the check passes and the crops read as the style. `inkstats.py` also measures
-any film with no pack (`--json` for the full summary), which is how to compare two films.
+Repeat 5-7 until the check passes and the crops read as the style. Tune the scene against the
+check, never the check against the scene. `inkstats.py` also measures any film with no pack
+(`--json` for the full summary), which is how to compare two films.
 
 ## Gotchas
 
-- Boil is edge displacement per edge pixel, so a thin stroke that jumps wholesale (rain, hairlines)
-  holds it near its own width, and vertex jitter barely moves it. What raised the validation
-  scene from 1.5 to 2.6 px was sliding each stroke's ends (18 px) and shifting whole strokes
-  sideways (5.5 px) every drawing, the way a hand redraws.
-- Ridge widths come from a distance transform, so `w50` and `pw50` move in steps (4, 5, 6 px); a
-  value on a band edge flips with a small change. Aim for the middle of the band.
-- Large solid ink areas push `w50` up and thin gouges pull `pw50` down. The woodcut source keeps
-  black regions narrow by carving them: gouges about 9.5 px wide every 24 px brought the
-  validation scene to `w50` 16 and `pw50` 8, the source's own values.
-- A filled polygon prop measures wrong at the region level: too straight, no gray. Stroke-built
-  props (overlapping fill strokes, edges re-stroked past the corners) land inside the source's
-  prop range.
-- `soft` needs a soften pass after drawing: a two-tone canvas render has almost no ramp (round 3:
-  0.94 px against the source's 2.54). A JS gaussian of sigma 0.92 gives 2.46; Chromium's
-  `ctx.filter = 'blur()'` does nothing below about 0.8 px (measured 2026-09-24 on Playwright's
-  Chromium build 1246; recheck when that build changes).
-- `ink_sd` and `flat` pull against each other: gray inside the ink needs dry-brush texture, but
-  about half the woodcut source's dark area is flat black. Texture a band of each dark field and
-  leave the rest flat; carving a field everywhere drove `flat` to 0 and failed the check. Keep the
-  drag at gray 32 or darker: a drag lighter than ink + 16 counts as edge ramp and pushes `soft`
-  up (a `#312c28` drag gave `soft` 3.5), and it widens small props' edge ramp most.
-- Widening every band by its largest held-out miss lets near misses pass. Pass `--negative`
-  controls so the widening stops short of them, and judge the check by a same-style control no
-  band saw (the rotoscope replica) passing and those controls failing.
+- A post filter must not be what passes the check. Blur, noise, stripes and dry-brush overlays move
+  edge softness and the amount of gray inside the ink, so those rows are measured but not checked.
+  The checked texture rows (`grain`, `period`, `flat`) reject overlays, and `straight`, `rough` and
+  `offstep` do not move under them at all. `controls.py selftest <pack dir> [--near <film>]` exits 1
+  if the review's blur-and-stripes filter gets a synthetic or near-miss film through.
+- Bands are learned per excerpt of the whole source, not per shot, so a very short film is judged
+  against bands that may not fit it; there is no per-shot row.
+- `w50` and `pw50` come from a distance transform and move in 2 px steps; every woodcut source
+  excerpt has `pw50` 8, which is why neither is checked.
+- A strictly regular timing fails `offstep`: hold a few drawings for 2 or 4 frames.
+- `soft` needs a soften pass after drawing, since a two-tone canvas render has almost no edge ramp.
+  Chromium's `ctx.filter = 'blur()'` does nothing below about 0.8 px (claim: measured, basis: a
+  Playwright capture of a blurred two-tone canvas, as of 2026-09-24 on Chromium build 1246,
+  recheck when that build changes); soften in JS instead.

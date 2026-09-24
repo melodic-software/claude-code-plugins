@@ -5,19 +5,19 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
                    [--rows OUT] [--pack PACK]
   <film>    a video, a folder of capture.mjs frames (fNNNN.png, played at --fps, default 24), or a rotoscope work dir
             (src/dNNN.png timed by d/index.json)
-  --cuts    shot boundaries in seconds; each shot is a segment. Without it, segments are --seg seconds long (default
-            3.35: nine on a 30 s clip)
+  --cuts    shot boundaries in seconds; each shot is a column of the table. Without it, columns are --seg seconds
+            long (default 3.35). Columns are for reading only: the check judges the whole film.
   --region  measure only this box of every frame (a prop, a dark field); --t keeps only frames with T0 <= t < T1
-  --json    write the summary: per statistic p10/p50/p90 over drawings, and per segment medians
+  --json    write the summary: per statistic p10/p50/p90 over drawings, the timing values, and per column medians
   --rows    write the per-drawing rows (for analysis; a style pack never holds them)
-  --pack    a style pack directory or its style.json. Each statistic in `check` must have its film median inside the
-            pack's band, each in `segment_check` must have every segment median inside its `segment_bands` band
-            (segments of at least the pack's `segment_min_drawings`). A statistic the film leaves undefined (flat
-            with no dark drawings, boil with no held pairs, a dark field with no core) is n/a: neither pass nor
-            fail, and left out of the distance. The ink and paper
-            colours must sit within the palette tolerance. Prints the tables and the distance to source (mean
-            |film median - source median| / band half-width over the checked statistics; ranks passing films);
-            exit 1 if any row fails.
+  --pack    a style pack directory or its style.json. Each statistic in the pack's `check` must have its film value
+            (the median over drawings, or a timing value such as per_second) inside the pack's band, and the ink and
+            paper colours must sit within the palette tolerance. A statistic the film leaves undefined (flat with no
+            dark drawings, boil with no held pairs, grain with no ink interior) is n/a: neither pass nor fail, and
+            left out of the distance. Prints each row with its distance to source and exits 1 if any row fails.
+            Distance of a row: |film - source| / |band edge - source| on the film's side of the source value, so 0 is
+            the source and 1 is the band edge on either side; a row fails above 1. The film's distance is the mean
+            over the rows it defines, and ranks films that all pass.
 Frames that repeat a drawing (fewer than DUP_PX pixels changed by more than 64 gray levels) are dropped, so a 24 fps
 capture and a variable-rate source both reduce to distinct drawings with their hold times.
 
@@ -34,12 +34,18 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
   field_sd  the same inside the largest connected ink area (the dark field), eroded; 0 when it has no core
   flat      dark drawings only (ink >= 0.5): share of mostly-ink 32 px blocks that lie fully inside eroded ink
             with gray sd under 2: the balance of flat black to textured ink
+  grain     inside the ink interior (ink eroded 5 px), sd of the 5x5 box-mean gray over sd of the gray: near 1 for
+            texture in patches wider than 5 px, near 0.2 for pixel noise, lower for 1-2 px stripes
+  period    inside the eroded ink, the highest spatial power at periods under 32 px over the mean power there: large
+            for a texture at one fixed pitch (ruled stripes, combed dry brush), small for irregular texture
   ink_rgb paper_rgb median colours of the ink and paper cores
 Per pair of consecutive drawings:
   boil      on held pairs only (phase-correlation shift under 1 px and ink change under 1 point), ink/paper
             disagreement per edge pixel: the mean edge displacement in px between two drawings of the same pose
   held      share of pairs that are held
-Per drawing duration: hold in 24 fps frames (on 1s, 2s, 3s, 4+) and drawings per second.
+Per drawing duration: hold in 24 fps frames (on 1s, 2s, 3s, 4+), drawings per second, and offstep: the share of
+consecutive drawing pairs whose two holds do not add up to twice the most common hold. It is 0 for a film strictly on
+3s, and it ignores a drawing that re-timing onto a 24 fps grid moves one frame early or late (a 2 then a 4 on 3s).
 """
 import argparse
 import json
@@ -53,12 +59,16 @@ import numpy as np
 DUP_PX = 50
 SEG = 3.35
 STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'specks', 'gaps', 'holes', 'ink_sd',
-         'paper_sd', 'field_sd', 'flat', 'boil')
+         'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'boil')
 FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
 
 
 def frames(film, fps):
-    """Yield (rgb, t) for every stored frame of a video, frame folder or rotoscope work dir."""
+    """Yield (rgb, t) for every stored frame of a video, frame folder or rotoscope work dir; any other iterable of
+    (rgb, t) passes through (filtered or synthetic frames)."""
+    if not isinstance(film, (str, Path)):
+        yield from film
+        return
     film = Path(film)
     if (film / 'src').is_dir():
         for k, t, *_ in json.load(open(film / 'd/index.json'))['drawings']:
@@ -74,12 +84,15 @@ def frames(film, fps):
         pts = [float(t) for t in probe('frame=pts_time').replace(',', ' ').split()]
         p = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(film), '-map', '0:v:0', '-fps_mode', 'passthrough',
                               '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
-        for t in pts:
-            buf = p.stdout.read(w * h * 3)
-            if len(buf) < w * h * 3:
-                break
-            yield np.frombuffer(buf, np.uint8).reshape(h, w, 3), t
-        p.wait()
+        try:
+            for t in pts:
+                buf = p.stdout.read(w * h * 3)
+                if len(buf) < w * h * 3:
+                    break
+                yield np.frombuffer(buf, np.uint8).reshape(h, w, 3), t
+        finally:   # a caller that stops early (--t) must not leave ffmpeg writing into a closed pipe
+            p.kill()
+            p.wait()
 
 
 def drawings(film, fps, region=None, window=None):
@@ -94,6 +107,8 @@ def drawings(film, fps, region=None, window=None):
             break
         if region:
             x, y, w, h = region
+            if x < 0 or y < 0 or w < 1 or h < 1 or x + w > rgb.shape[1] or y + h > rgb.shape[0]:
+                sys.exit(f'inkstats: --region {x},{y},{w},{h} is not inside the {rgb.shape[1]}x{rgb.shape[0]} frame')
             rgb = rgb[y:y + h, x:x + w]
         g = rgb.astype(np.int16)
         if prev is not None and (np.abs(g - prev) > 64).sum() < DUP_PX:
@@ -134,6 +149,21 @@ def contour_stats(ink):
     return (raw / smooth - 1, straight / total) if total else (None, None)   # no contour over 50 px: n/a
 
 
+def texture(g, ink):
+    """(grain, period) of the gray inside the ink; None where the interior is too small to say."""
+    gf = g.astype(np.float32)
+    inner = cv2.erode(ink, np.ones((11, 11), np.uint8)).astype(bool)   # every 5x5 box mean lies inside eroded ink
+    s = gf[inner].std() if inner.sum() >= 1000 else 0
+    grain = float(cv2.blur(gf, (5, 5))[inner].std() / s) if s > 0 else None
+    core = cv2.erode(ink, np.ones((7, 7), np.uint8)).astype(bool)
+    if core.sum() < 5000:
+        return grain, None
+    p = np.abs(np.fft.rfft2(np.where(core, gf - gf[core].mean(), 0))) ** 2
+    short = np.hypot(np.fft.rfftfreq(g.shape[1])[None, :], np.fft.fftfreq(g.shape[0])[:, None]) > 1 / 32
+    mean = p[short].mean()
+    return grain, float(p[short].max() / mean) if mean > 0 else None
+
+
 def one(rgb):
     g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     h = np.bincount(g.ravel(), minlength=256)
@@ -144,6 +174,7 @@ def one(rgb):
     mid = int(((g > ink_g + 16) & (g < paper_g - 16)).sum())
     w, pw = ridge_widths(ink), ridge_widths(~ink)
     rough, straight = contour_stats(ink)
+    grain, period = texture(g, ink.astype(np.uint8))
     k5 = np.ones((5, 5), np.uint8)
     closed = cv2.morphologyEx(ink.astype(np.uint8), cv2.MORPH_CLOSE,
                               cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))).astype(bool)
@@ -173,8 +204,8 @@ def one(rgb):
     return dict(ink=float(ink.mean()), soft=mid / edge if edge else None, w10=pct(w, 10), w50=pct(w, 50),
                 w90=pct(w, 90), pw50=pct(pw, 50), rough=rough, straight=straight, specks=islands(ink, 8),
                 gaps=islands(~ink, 4), holes=float((closed & ~ink).sum() / closed.sum()) if closed.any() else None,
-                ink_sd=sd(core_i), paper_sd=sd(core_p),
-                field_sd=sd(field), flat=flat, ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
+                ink_sd=sd(core_i), paper_sd=sd(core_p), field_sd=sd(field), flat=flat, grain=grain, period=period,
+                ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
 
 
 def boil(a, b):
@@ -186,7 +217,8 @@ def boil(a, b):
 
 
 def measure(film, fps=24, region=None, window=None):
-    """Per-drawing rows: every statistic above plus t (start) and hold (s)."""
+    """Per-drawing rows: every statistic above plus t (start) and hold (s). film is a path or an iterable of
+    (rgb, t) frames."""
     rows, prev = [], None
     for rgb, t in drawings(film, fps, region, window):
         if rows:
@@ -196,10 +228,12 @@ def measure(film, fps=24, region=None, window=None):
         r = one(rgb)
         r['t'] = t
         r['boil'] = boil(prev, r) if prev else None
+        if prev:
+            prev.pop('gray'), prev.pop('mask')
         prev = r
         rows.append(r)
-    for r in rows:
-        r.pop('gray'), r.pop('mask')
+    if prev:
+        prev.pop('gray'), prev.pop('mask')
     if not rows:
         sys.exit(f'inkstats: no drawings in {film}' + (f' between {window[0]} and {window[1]} s' if window else ''))
     return rows
@@ -222,17 +256,27 @@ def median(rows, s):
     return round(float(np.median(v)), 4) if v else None
 
 
+def frames24(rows):
+    return np.array([max(1, round(r['hold'] * 24)) for r in rows])
+
+
+def offstep(rows):
+    """Share of consecutive drawing pairs whose holds do not add up to twice the most common hold."""
+    f = frames24(rows)
+    return round(float((f[:-1] + f[1:] != 2 * np.bincount(f).argmax()).mean()), 4) if len(f) > 1 else None
+
+
 def summary(rows, cuts=None, seg=SEG):
     def pcts(v):
         v = [x for x in v if x is not None]
         return dict(zip(('p10', 'p50', 'p90'), (round(float(np.percentile(v, q)), 4) for q in (10, 50, 90)))) if v \
             else None
     dur = rows[-1]['t'] + rows[-1]['hold'] - rows[0]['t']
-    frames24 = np.array([max(1, round(r['hold'] * 24)) for r in rows])
+    f24 = frames24(rows)
     e = edges(rows, cuts, seg)
     return dict(drawings=len(rows), duration=round(dur, 3), per_second=round(len(rows) / dur, 3),
-                holds={f'on{n}s': round(float((frames24 == n).mean()), 3) for n in (1, 2, 3)} |
-                {'on4s+': round(float((frames24 >= 4).mean()), 3)},
+                holds={f'on{n}s': round(float((f24 == n).mean()), 3) for n in (1, 2, 3)} |
+                {'on4s+': round(float((f24 >= 4).mean()), 3)}, offstep=offstep(rows),
                 held=round(float(np.mean([r['boil'] is not None for r in rows[1:]])), 3) if len(rows) > 1 else 0,
                 stats={s: pcts([r[s] for r in rows]) for s in STATS},
                 **{k: ([int(c) for c in np.median(v, 0)] if (v := [r[k] for r in rows if r[k]]) else None)
@@ -247,42 +291,28 @@ def film_value(m, s):
     return m[s] if s in m else m['stats'][s]['p50'] if m['stats'].get(s) else None
 
 
-def verdict(v, lo, hi):
-    """True inside the band, False outside, None (n/a) when the film has nothing to measure for it."""
-    return None if v is None else lo <= v <= hi
+def distance(v, ref, lo, hi):
+    """|v - ref| over |band edge - ref| on v's side of ref: 0 at the source value, 1 at either band edge."""
+    if v is None:
+        return None
+    side = hi - ref if v >= ref else ref - lo
+    return abs(v - ref) / side if side > 0 else 0.0 if v == ref else float('inf')
 
 
 def check(m, pack):
-    """Rows (name, value, band, ok): each `check` statistic's film median (or a top-level value such as per_second),
-    each `segment_check` statistic per segment, and the largest ink or paper RGB channel difference from the palette.
-    ok is None (n/a) for a statistic the film leaves undefined, such as flat with no dark drawings: neither pass nor
-    fail."""
+    """Rows (name, value, band, distance): each `check` statistic's film value against its band and the source value
+    `ref`, then the largest ink or paper RGB channel difference from the palette (distance = difference / tolerance).
+    A row passes at distance <= 1; distance None (n/a) is a statistic the film leaves undefined."""
     out = []
     for s in pack['check']:
         lo, hi = pack['bands'][s]
         v = film_value(m, s)
-        out.append((s, v, (lo, hi), verdict(v, lo, hi)))
-    for s in pack.get('segment_check', []):
-        lo, hi = pack.get('segment_bands', pack['bands'])[s]
-        for g in (g for g in m['segments'] if g['n'] >= pack.get('segment_min_drawings', 1)):
-            out.append((f"{s} {g['t0']:g}-{g['t1']:g} s", g[s], (lo, hi), verdict(g[s], lo, hi)))
+        out.append((s, v, (lo, hi), distance(v, pack['ref'][s], lo, hi)))
     for s in ('ink_rgb', 'paper_rgb'):
         want, tol = pack['palette'][s[:-4]].lstrip('#'), pack['palette']['tolerance']
         v = max(abs(c - int(want[2 * i:2 * i + 2], 16)) for i, c in enumerate(m[s])) if m[s] else None
-        out.append((s, v, (0, tol), verdict(v, 0, tol)))
+        out.append((s, v, (0, tol), distance(v, 0, 0, tol)))
     return out
-
-
-def distance(m, pack):
-    """(distance, statistics used): the mean over the checked statistics the film defines of |film median - source
-    median| / band half-width. 0 is the source, 1 a band edge on average. Ranks films that all pass."""
-    d = []
-    for s in pack['check']:
-        lo, hi = pack['bands'][s]
-        v, ref = film_value(m, s), pack['timing'][s] if s in pack['timing'] else pack['stats'][s]['p50']
-        if v is not None:
-            d.append(abs(v - ref) / ((hi - lo) / 2))
-    return (float(np.mean(d)) if d else None), len(d)
 
 
 def load_pack(p):
@@ -295,6 +325,24 @@ def nums(s, n=None):
     if v and n and len(v) != n:
         sys.exit(f'inkstats: expected {n} numbers, got {s!r}')
     return v
+
+
+def report(m, pack, name):
+    """Print the check table; return (rows, film distance, margin): margin is the largest row distance minus 1, so a
+    film passes at margin <= 0."""
+    out = check(m, pack)
+    print(f'\ncheck against {name}\n\n| check | film | band | distance | pass |\n|---|---|---|---|---|')
+    for s, v, (lo, hi), d in out:
+        print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | "
+              f"{'n/a' if d is None else f'{d:.2f}'} | {'n/a' if d is None else 'yes' if d <= 1 else 'NO'} |")
+    ds = [r[3] for r in out if r[3] is not None]
+    stat_ds = [r[3] for r in out[:len(pack['check'])] if r[3] is not None]
+    dist = float(np.mean(stat_ds)) if stat_ds else None
+    margin = max(ds) - 1 if ds else None
+    print(f"{sum(d <= 1 for d in ds)}/{len(ds)} pass, {len(out) - len(ds)} n/a; distance to source "
+          f"{'n/a' if dist is None else f'{dist:.3f}'} over {len(stat_ds)}/{len(pack['check'])} statistics; "
+          f"margin {'n/a' if margin is None else f'{margin:+.2f}'}")
+    return out, dist, margin
 
 
 def main(argv=None):
@@ -318,7 +366,7 @@ def main(argv=None):
     if a.rows:
         a.rows.write_text(json.dumps(rows) + '\n')
     print(f"{a.film}{f' region {region}' if region else ''}: {m['drawings']} drawings, {m['duration']} s, "
-          f"{m['per_second']}/s, holds {m['holds']}, held pairs {m['held']}")
+          f"{m['per_second']}/s, holds {m['holds']}, offstep {m['offstep']}, held pairs {m['held']}")
     print('| stat | p10 | p50 | p90 | ' + ' | '.join(f"{g['t0']:g}-{g['t1']:g} s" for g in m['segments']) + ' |')
     print('|---|---|---|---|' + '---|' * len(m['segments']))
     for s, v in m['stats'].items():
@@ -326,16 +374,8 @@ def main(argv=None):
               + ' | '.join('-' if g[s] is None else f'{g[s]:.4g}' for g in m['segments']) + ' |')
     if not pack:
         return 0
-    out = check(m, pack)
-    print(f'\ncheck against {a.pack}\n\n| check | film | band | pass |\n|---|---|---|---|')
-    for s, v, (lo, hi), ok in out:
-        print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | "
-              f"{'n/a' if ok is None else 'yes' if ok else 'NO'} |")
-    defined = [r for r in out if r[3] is not None]
-    d, used = distance(m, pack)
-    print(f"{sum(r[3] for r in defined)}/{len(defined)} pass, {len(out) - len(defined)} n/a; distance to source "
-          f"{'n/a' if d is None else f'{d:.3f}'} over {used}/{len(pack['check'])} statistics")
-    return 1 if any(r[3] is False for r in out) or not defined else 0
+    _, _, margin = report(m, pack, a.pack)
+    return 1 if margin is None or margin > 0 else 0
 
 
 if __name__ == '__main__':
