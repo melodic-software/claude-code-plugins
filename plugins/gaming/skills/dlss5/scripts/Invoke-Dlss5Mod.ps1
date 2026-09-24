@@ -1997,7 +1997,7 @@ switch ($Verb) {
     'apply' { Do-Apply (Root $GameDir) }
     'status' {
         $r = Root $GameDir; $s = Get-Stat $r; Show-Stat $s
-        if (($m = Load-Manifest $r).applied) { Get-PinState $m; (Get-GameUpdate $r $m $s).Text }
+        if (($m = Load-Manifest $r).applied) { Get-PinState $m; if ($gu = Get-GameUpdate $r $m $s) { $gu.Text } }
         if ($s.Bad) { exit 1 }
     }
     'remove' { Do-Remove (Root $GameDir) }
