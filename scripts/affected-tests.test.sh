@@ -1235,6 +1235,65 @@ else
   ok "ci.yml asks for no more than the proven three concurrent suites (#3694)"
 fi
 
+# --- R7: the autonomy reference tree selects the plugin-contract suite -------
+# Those files are markdown no suite names, so without a path rule they fell to
+# the no-suite *.md class while the contract validator gates them. The scope is
+# pinned both ways: nested files are in, and neither another plugin's
+# reference/ nor an autonomy file outside reference/ is.
+contract_suite=scripts/validate-plugin-contracts.test.sh
+mk_repo repo
+mkdir -p "$repo/plugins/autonomy/reference/sub" "$repo/plugins/beta/reference"
+suite_body plugin-contracts >"$repo/$contract_suite"
+printf '# top\n' >"$repo/plugins/autonomy/reference/top-doc.md"
+printf '# nested\n' >"$repo/plugins/autonomy/reference/sub/nested-doc.md"
+printf '# autonomy\n' >"$repo/plugins/autonomy/README.md"
+printf '# other\n' >"$repo/plugins/beta/reference/other-doc.md"
+git_test_config "$repo" add scripts plugins >/dev/null
+git_test_config "$repo" commit -qm reference >/dev/null
+
+for p in plugins/autonomy/reference/top-doc.md plugins/autonomy/reference/sub/nested-doc.md; do
+  run_sel "$repo" "$p"
+  if [[ "$RC" -eq 0 ]] && has_line "$OUT" "$contract_suite"; then
+    ok "R7: $p selects the plugin-contract suite"
+  else
+    fail "R7: $p did not select the plugin-contract suite (rc=$RC): $OUT"
+  fi
+done
+
+out="$(cd "$repo" && bash scripts/affected-tests.sh --explain plugins/autonomy/reference/top-doc.md 2>&1)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && printf '%s\n' "$out" | grep -qF "select: $contract_suite  (path class:"; then
+  ok "R7: --explain reports the path-class reason"
+else
+  fail "R7: --explain lacks the path-class reason (rc=$RC): $out"
+fi
+
+for p in plugins/beta/reference/other-doc.md plugins/autonomy/README.md; do
+  run_sel "$repo" "$p"
+  if [[ "$RC" -eq 0 ]] && ! has_line "$OUT" "$contract_suite"; then
+    ok "R7 scope: $p does not select the plugin-contract suite"
+  else
+    fail "R7 scope: $p selected the plugin-contract suite or failed (rc=$RC): $OUT"
+  fi
+done
+rm -rf "$repo"
+
+# --- LIVE repo: a real autonomy reference doc selects the contract suite -----
+# Discovered, never spelled: a basename written here would make this suite
+# name that file, and R3 would then cover it without R7.
+live_ref="$(cd "$REPO_ROOT" && git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
+if [[ -z "$live_ref" ]]; then
+  fail "LIVE R7: no tracked plugins/autonomy/reference/*.md to probe"
+else
+  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$live_ref" 2>/dev/null)"
+  RC=$?
+  if [[ "$RC" -eq 0 ]] && has_line "$out" "$contract_suite"; then
+    ok "LIVE R7: $live_ref selects the plugin-contract suite"
+  else
+    fail "LIVE R7: $live_ref did not select the plugin-contract suite (rc=$RC): $out"
+  fi
+fi
+
 # --- --help reaches the actual end of the header -----------------------------
 # usage() used to extract a hardcoded sed range that stopped mid-header as the
 # comment block grew (#3424). Pin a sentence that lives on the last header
