@@ -634,6 +634,16 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIn("1 time this session", message)
         self.assertIn("exitCode: 4", message)
 
+    def test_a_stop_with_nothing_appended_reads_nothing(self) -> None:
+        self.write_transcript([_filler_line(500) for _ in range(20)])
+        self.assertIsNone(self.run_monitor())
+        cursor = self.cursor_path().read_text(encoding="utf-8")
+        sizes, patch = self.scanned_sizes()
+        with patch:
+            self.assertIsNone(self.run_monitor())
+        self.assertEqual([0], sizes)
+        self.assertEqual(cursor, self.cursor_path().read_text(encoding="utf-8"))
+
     def test_a_failure_is_reported_once_and_never_missed(self) -> None:
         self.write_transcript([_filler_line(200)])
         self.assertIsNone(self.run_monitor())
