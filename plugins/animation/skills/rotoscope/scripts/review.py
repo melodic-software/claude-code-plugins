@@ -43,7 +43,7 @@ def one(job):
         n, lab, st, _ = cv2.connectedComponentsWithStats(m8, connectivity=8)
         if n < 2:
             continue
-        cored = set(np.unique(lab[cv2.erode(m8, np.ones((4, 4), np.uint8)) > 0]).tolist()) - {0}
+        cored = set(np.unique(lab[cv2.erode(m8, np.ones((4, 4), np.uint8), borderValue=0) > 0]).tolist()) - {0}
         i = 1 + int(np.argmax(st[1:, 4]))
         if st[i, 4] > largest[1]:
             largest = (name, int(st[i, 4]), 'blob' if i in cored else 'sliver')
