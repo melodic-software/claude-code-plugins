@@ -40,7 +40,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=261
+EXPECTED_CASES=262
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -684,10 +684,19 @@ assert_contains "list-targets: --show-config wins" "$out" "Config layers"
 printf '%s\t%s\n' slop.md "$SLOP" >"$TEST_TMPDIR/listed.tsv"
 out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/listed.tsv" 2>&1)"
 assert_contains "list-targets: its output is a valid --paths-file" "$out" "across 1 files scanned"
+# Only a line with exactly one tab is read as `<key><TAB><path>`; any other line
+# is the path itself, tabs included.
+TABF="$TEST_TMPDIR/tab${TAB}in${TAB}name.md"
+if printf 'x\n' >"$TABF" 2>/dev/null && [[ -f "$TABF" ]]; then
+  printf '%s\n' "$TABF" >"$TEST_TMPDIR/tabpath.txt"
+  out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/tabpath.txt" 2>&1)"
+  assert_contains "paths-file: a line with two tabs is the whole path" "$out" "across 1 files scanned"
+else
+  skip "paths-file: a line with two tabs is the whole path" "no tab in file names"
+fi
 
-# A --paths-file with no non-blank line scans nothing. It used to fall back to
-# the bare repository listing, so an empty list scanned the project's tracked
-# markdown instead.
+# A --paths-file with no non-blank line scans nothing, rather than the
+# repository listing a bare invocation reads.
 EPREPO="$TEST_TMPDIR/empty-pf-repo"
 mkdir -p "$EPREPO"
 printf 'Tracked %s here.\n' "$EM" >"$EPREPO/tracked.md"

@@ -21,11 +21,15 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=34
+EXPECTED_CASES=37
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
   printf 'PASS: %s\n' "$1"
+}
+skip() {
+  SKIPPED=$((SKIPPED + 1))
+  printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
 fail() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -51,8 +55,10 @@ assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
 }
 
-sha() { sha256sum "$1" | cut -d' ' -f1; }
+sha() { sha256sum <"$1" | cut -d' ' -f1; }
 lines() { tr '\n' ' ' <"$1"; }
+# digest_of <plan output> <batch>: the digest= field of that batch's row.
+digest_of() { printf '%s\n' "$1" | sed -n "s/^batch=$2 .* digest=//p"; }
 
 # --- plan: packing by word budget --------------------------------------------------
 
@@ -62,10 +68,10 @@ printf 'one two three four\n' >"$P/a.md"
 printf 'one two three four\n' >"$P/b.md"
 for _ in 1 2 3; do printf 'w w w w w w w w w w\n'; done >"$P/big.md"
 printf 'one two three\n' >"$P/c.md"
-touch -d '2026-01-04 00:00:00' "$P/a.md"
-touch -d '2026-01-03 00:00:00' "$P/b.md"
-touch -d '2026-01-02 00:00:00' "$P/big.md"
-touch -d '2026-01-01 00:00:00' "$P/c.md"
+touch -t 202601040000 "$P/a.md"
+touch -t 202601030000 "$P/b.md"
+touch -t 202601020000 "$P/big.md"
+touch -t 202601010000 "$P/c.md"
 printf '%s\t%s\n' a.md "$P/a.md" b.md "$P/b.md" big.md "$P/big.md" c.md "$P/c.md" >"$P/targets.tsv"
 out="$(bash "$FANOUT" plan --out "$P/batches" --budget 10 --order mtime "$P/targets.tsv" 2>&1)"
 rc=$?
@@ -76,6 +82,18 @@ assert_contains "plan: the file after it starts a new batch" "$out" "batch=03 li
 assert_eq "plan: batch list holds keys in order" "$(lines "$P/batches/batch-01.txt")" "a.md b.md "
 assert_eq "plan: oversize batch list" "$(lines "$P/batches/batch-02.txt")" "big.md "
 assert_contains "plan: digest is sha256 of the list file" "$out" "files=1 words=30 digest=$(sha "$P/batches/batch-02.txt")"
+assert_eq "plan: digest is 64 hex characters" "$(digest_of "$out" 01 | grep -cE '^[0-9a-f]{64}$')" "1"
+
+# sha256sum escapes a file name holding a backslash and prefixes the hash with
+# `\`, so the digest is taken from stdin.
+BS="$TEST_TMPDIR/back\\slash"
+if mkdir "$BS" 2>/dev/null && [[ -n "$(find "$TEST_TMPDIR" -maxdepth 1 -name 'back\\slash')" ]]; then
+  out="$(bash "$FANOUT" plan --out "$BS" --order mtime "$P/targets.tsv" 2>&1)"
+  assert_eq "plan: a backslash in --out still yields a bare 64-hex digest" \
+    "$(digest_of "$out" 01 | grep -cE '^[0-9a-f]{64}$')" "1"
+else
+  skip "plan: a backslash in --out still yields a bare 64-hex digest" "no backslash in file names"
+fi
 
 out="$(bash "$FANOUT" plan --out "$P/batches" --budget 10 --order mtime "$P/targets.tsv" 2>&1)"
 rc=$?
@@ -87,8 +105,8 @@ assert_contains "plan: refusal names the resume path" "$out" "already holds batc
 M="$TEST_TMPDIR/mtime"
 mkdir -p "$M"
 for f in x y z; do printf 'text\n' >"$M/$f.md"; done
-touch -d '2026-02-01 00:00:00' "$M/z.md" "$M/y.md"
-touch -d '2026-03-01 00:00:00' "$M/x.md"
+touch -t 202602010000 "$M/z.md" "$M/y.md"
+touch -t 202603010000 "$M/x.md"
 printf '%s\t%s\n' z.md "$M/z.md" y.md "$M/y.md" x.md "$M/x.md" >"$M/targets.tsv"
 bash "$FANOUT" plan --out "$M/batches" --order mtime "$M/targets.tsv" >/dev/null 2>&1
 assert_eq "plan mtime: newest first, a tie broken by key" "$(lines "$M/batches/batch-01.txt")" "x.md y.md z.md "
@@ -124,6 +142,13 @@ bash "$FANOUT" plan --out "$TEST_TMPDIR/auto-batches" "$R/targets.tsv" >/dev/nul
 assert_eq "plan auto: a repository target takes repo order" \
   "$(lines "$TEST_TMPDIR/auto-batches/batch-01.txt")" \
   "README.md .claude/rules/r.md docs/hot.md docs/warm.md docs/cold.md "
+
+# Keys are relative to CLAUDE_PROJECT_DIR, which may sit below the git
+# toplevel; change counts still come from each file's own repository path.
+CLAUDE_PROJECT_DIR="$R/docs" bash "$SCRIPT_DIR/detect.sh" --list-targets "$R/docs" >"$TEST_TMPDIR/sub-targets.tsv" 2>/dev/null
+bash "$FANOUT" plan --out "$TEST_TMPDIR/sub-batches" --order repo "$TEST_TMPDIR/sub-targets.tsv" >/dev/null 2>&1
+assert_eq "plan repo: project dir below the toplevel still counts changes" \
+  "$(lines "$TEST_TMPDIR/sub-batches/batch-01.txt")" "hot.md warm.md cold.md "
 
 # --- extract ------------------------------------------------------------------------
 

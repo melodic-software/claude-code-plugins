@@ -40,11 +40,13 @@ die() {
   exit 2
 }
 
+# Hashed from stdin: given a file name holding a backslash, sha256sum escapes
+# the name and prefixes the hash with `\`.
 digest() {
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | cut -d' ' -f1
+    sha256sum <"$1" | cut -d' ' -f1
   else
-    shasum -a 256 "$1" | cut -d' ' -f1
+    shasum -a 256 <"$1" | cut -d' ' -f1
   fi
 }
 
@@ -110,10 +112,18 @@ cmd_plan() {
       done < <(git -C "$top" -c core.quotePath=false log --since=90.days --name-only --format= 2>/dev/null |
         awk 'NF { c[$0]++ } END { for (k in c) printf "%d\t%s\n", c[k], k }')
     fi
+    # Keys are relative to the project directory, which may sit below the
+    # toplevel, so each file's repository path is its directory's
+    # `--show-prefix` plus its name. One git call per directory, not per file.
+    local -A prefix=()
+    local d rel
     ordered="$(for i in "${!keys[@]}"; do
+      d="$(dirname "${paths[$i]}")"
+      [[ -n "${prefix[$d]+set}" ]] || prefix[$d]="$(git -C "$d" rev-parse --show-prefix 2>/dev/null)"
+      rel="${prefix[$d]}${paths[$i]##*/}"
       c=1
       is_impact "${keys[$i]}" && c=0
-      printf '%d\t%d\t%s\t%d\n' "$c" "${changes[${keys[$i]}]:-0}" "${keys[$i]}" "$i"
+      printf '%d\t%d\t%s\t%d\n' "$c" "${changes[$rel]:-0}" "${keys[$i]}" "$i"
     done | sort -t$'\t' -k1,1n -k2,2nr -k3,3 | cut -f4)"
     ;;
   mtime)
@@ -257,14 +267,10 @@ cmd_merge() {
       { sub(/\r$/, "") }
       /^files_reviewed:/ { fr += $2 }
       /^files_with_findings:/ { fw += $2 }
+      END { printf "files_reviewed: %d\nfiles_with_findings: %d\nbatches: %d\n", fr, fw, ARGC - 1 }' "${files[@]}"
+    awk '
       /^- L[0-9]+ rule-[a-z0-9-]+:/ { r = $3; sub(/:$/, "", r); t[r]++ }
-      END {
-        printf "files_reviewed: %d\nfiles_with_findings: %d\nbatches: %d\n", fr, fw, ARGC - 1
-        n = 0
-        for (r in t) ids[++n] = r
-        for (i = 2; i <= n; i++) for (j = i; j > 1 && ids[j - 1] > ids[j]; j--) { s = ids[j]; ids[j] = ids[j - 1]; ids[j - 1] = s }
-        for (i = 1; i <= n; i++) printf "rule_total: %s=%d\n", ids[i], t[ids[i]]
-      }' "${files[@]}"
+      END { for (r in t) printf "rule_total: %s=%d\n", r, t[r] }' "${files[@]}" | sort
     for f in "${files[@]}"; do
       echo
       tr -d '\r' <"$f" | grep -Ev '^(batch|files_reviewed|files_with_findings):' || true

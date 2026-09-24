@@ -437,15 +437,18 @@ if [[ -n "$PATHS_FILE" ]]; then
     echo "detect.sh: cannot read --paths-file: $PATHS_FILE" >&2
     exit 2
   fi
-  # A `<key><TAB><path>` line (--list-targets output) contributes its path.
+  # A line with exactly one tab is `<key><TAB><path>` (--list-targets output)
+  # and contributes its path; any other line is the path itself.
   while IFS= read -r line; do
-    [[ -n "$line" ]] && TARGETS+=("${line#*$'\t'}")
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    rest="${line#*$'\t'}"
+    [[ "$rest" != "$line" && "$rest" != *$'\t'* ]] && line="$rest"
+    TARGETS+=("$line")
   done <"$PATHS_FILE"
   # A list with no non-blank line is an empty scope, not "no scope given":
   # falling through to the repository listing would scan files nobody asked for.
-  if [[ -z "$(printf '%s' ${TARGETS[@]+"${TARGETS[@]}"} | tr -d '[:space:]')" ]]; then
+  if [[ "${#TARGETS[@]}" -eq 0 ]]; then
     echo "detect.sh: --paths-file lists no paths; nothing was scanned: $PATHS_FILE" >&2
-    TARGETS=()
     PATHS_FILE_EMPTY=1
   fi
 fi

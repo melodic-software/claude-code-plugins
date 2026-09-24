@@ -132,7 +132,7 @@ fi
 RT="$TEST_TMPDIR/real-targets.tsv"
 RD="$TEST_TMPDIR/real-detector.txt"
 bash "$DETECT" --list-targets "$F" >"$RT" 2>/dev/null
-bash "$DETECT" --paths-file <(cut -f2 "$RT") >"$RD" 2>/dev/null
+bash "$DETECT" --paths-file "$RT" >"$RD" 2>/dev/null
 out="$(bash "$CROSS" --targets "$RT" --detector "$RD" 2>&1)"
 assert_contains "real detector: zero disagreements over the fixtures" "$out" "CrossCheck total: files=3 disagreements=0"
 
