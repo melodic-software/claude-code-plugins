@@ -52,7 +52,7 @@ against a run that produced none):
    it, which is why nested spawning stays an optimization here rather than a correctness
    prerequisite.
 
-   **Brief the verifier on every row the gate's Owner column marks verifier, by number** (today
+   **Brief the verifier on every row the gate's Owner column marks verifier, by number** (currently
    rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
    verifier asked only about corroboration and confidence re-fetches the quotes and never asks
    whether the claim follows from them.

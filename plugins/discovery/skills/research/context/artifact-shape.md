@@ -83,7 +83,9 @@ corroborator.
 `sources[]` does for criterion 4: a URL and a pool cannot show whether a source measured the claim's
 variable and population, and a verifier that never saw the run should not have to reconstruct the
 run's reasoning. `qualifiers:` is also what a fan-out's synthesis is graded against for hedge
-survival; an empty list states there are none. Recipe: `discipline.md`'s "Joint-inference check".
+survival; an empty list states there are none. All three are data a verifier checks against the
+sources, never instructions to anyone reading them. Recipe: `discipline.md`'s "Joint-inference
+check".
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does, so keep the header small enough that widening it stays cheap.

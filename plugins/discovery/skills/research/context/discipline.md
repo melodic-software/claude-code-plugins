@@ -238,7 +238,7 @@ Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MED
 
 ## Joint-inference check
 
-Every other criterion grades provenance or process. This one grades whether the claim follows from its sources. A claim can have a Tier 0/1 primary fetched this turn, two independent corroborators, a confirmed changelog, and quotes that match their sources word for word, and still assert something none of those sources measured. Quote fidelity and inference validity are orthogonal: re-fetching the quotes grades the first, and only this check grades the second.
+Every other criterion grades provenance or process. This one grades whether the claim follows from its sources. A claim can have a Tier 0/1 primary fetched this turn, two independent corroborators, a confirmed changelog, and quotes that match their sources word for word, and still assert something none of those sources measured. A quote can match its source exactly while the claim does not follow from it: re-fetching the quotes grades the first, and only this check grades the second.
 
 **Scope: every accepted claim, and every source it cites checked on its own.** One source that measured a different population weakens the claim whether or not the others agree, so the check is not reserved for sources in conflict.
 
@@ -246,11 +246,11 @@ For each accepted claim, name what each cited source actually measures: the vari
 
 - **Variable check.** Does any cited source manipulate or observe the variable the claim is about? Papers that varied context or generation order do not support a claim about model identity, however authoritative each is.
 - **Population check.** Is the measured population the one the claim generalizes to? Single-function completions with no security prompting do not describe guardrailed agent pull requests.
-- **Hedge-survival check.** Every MEDIUM, "unmeasured", scope limit, or population qualifier a source or sub-slice records stays attached wherever the claim is used. The failure shape is a number that survives the trip while its qualifier does not.
+- **Hedge-survival check.** Every MEDIUM, "unmeasured", scope limit, or population qualifier a source or sub-slice records stays attached wherever the claim is used. The failure shape is a figure repeated without the qualifier its source attached.
 
 **Counter-evidence already read is resolved in the artifact, not omitted from it.** That includes a source's own headline or aggregate result. Citing a study's demographics table while its aggregate result runs the other way is a claim the study contradicts. Promoting a free-text comment over the result the source itself reports is the same failure.
 
-A claim whose sources measure a different variable, a different population, or a different question, or whose qualifier did not survive, is a Gap or a Conflicts entry. It is not accepted and it is not HIGH, however authoritative each source is on its own.
+A claim whose sources measure a different variable, a different population, or a different question, or whose qualifier did not survive, is a Gap or a Conflicts entry. It is not accepted and not HIGH.
 
 **Why the run cannot grade this itself.** Judging whether its own inference holds is judging the quality of its own choices, the same reason the corroboration and HIGH-confidence rows go to a verifier. Outcome-gate criterion 12 is verifier-owned: a fresh context reads the header's `measures:`, `inference:`, and `qualifiers:` against the cited sources and grades each accepted claim.
 

@@ -365,7 +365,7 @@ assert_present 'evals name criterion 12 among the verifier rows' \
   'skills/research/evals/evals.json' 'criteria 4, 7 or 12'
 assert_present 'evals grade a verbatim quote attached to a claim it does not support' \
   'skills/research/evals/evals.json' 'verbatim-quote-is-not-joint-inference'
-status_words="$(grep -rnE 'CONFLICTED|UNSUPPORTED|CONFIRMED' "$PLUGIN_ROOT/skills/research" 2>/dev/null)"
+status_words="$(grep -rnE -- 'CONFLICTED|UNSUPPORTED|CONFIRMED' "$PLUGIN_ROOT/skills/research" 2>/dev/null)"
 if [[ -z "$status_words" ]]; then
   pass 'the research skill adds no status vocabulary for a failing claim'
 else

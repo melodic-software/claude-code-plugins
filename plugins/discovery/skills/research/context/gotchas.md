@@ -37,8 +37,8 @@ outcome gate's artifact-grounded criteria, or not at all.
   `verification: pending`, and an inline run hands them off rather than answering them.
 - **Verbatim quotes do not make a claim follow.** Every quote can re-fetch word for word while the
   claim rests on a source that measured a different variable or population, or drops the qualifier
-  the source attached. A verifier briefed only on corroboration and confidence checks the quotes
-  and stops. Criterion 12 is the row that asks whether the claim follows.
+  the source attached. Criterion 12 asks whether the claim follows, and the dispatch contract briefs
+  the verifier on it by number.
 - **Reading the coverage ledger instead of running the gate.** A model cannot reliably audit its own
   checklist, and the context most motivated to call it finished is the one reading it. Criterion 11
   cites the script's exit status. Exit 2, a ledger the script could not parse, is a FAIL, never a
