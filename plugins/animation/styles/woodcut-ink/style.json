@@ -1,0 +1,353 @@
+{
+ "name": "woodcut-ink",
+ "credit": "A study of @shfred0's clip 'Asked Claude Opus 5.5 to animate its own life, from day 0 to now' (https://x.com/shfred0/status/2102495989194236158, posted 2026-09-22). Only statistics measured from it are here; the clip, its frames and its traces are not shipped.",
+ "measured_from": {
+  "drawings": 239,
+  "duration": 30.182,
+  "size": [
+   1762,
+   982
+  ],
+  "segments": 9
+ },
+ "palette": {
+  "ink": "#13110f",
+  "paper": "#efe9e0",
+  "T": 125.5,
+  "tones": [
+   {
+    "lv": 50,
+    "color": "#13110f"
+   },
+   {
+    "lv": 90,
+    "color": "#46423e"
+   },
+   {
+    "lv": 165,
+    "color": "#94908b"
+   },
+   {
+    "lv": 205,
+    "color": "#bebab4"
+   }
+  ],
+  "tolerance": 8
+ },
+ "knobs": {
+  "movement": {
+   "basis": "judgment, from viewing the source",
+   "mode": "limited",
+   "notes": "every drawing is re-inked (boil on holds), so nothing is ever still; motion is pushes, pulls and growth rather than acting; one ink creature carries the action",
+   "transitions": [
+    "ink splat that grows to fill the frame",
+    "hard cut",
+    "jagged wipe"
+   ],
+   "smears": "none",
+   "squash_stretch": 0
+  },
+  "camera": {
+   "basis": "judgment, from viewing the source",
+   "projection": "flat, one-point perspective for interiors",
+   "moves": [
+    "push-in",
+    "pull-back",
+    "tilt"
+   ],
+   "parallax_layers": 1,
+   "motion_blur": false,
+   "depth_of_field": "none"
+  },
+  "backgrounds": {
+   "basis": "judgment, from viewing the source",
+   "mode": "graphic_stylized",
+   "detail_vs_character": "equal: same ink, same boil",
+   "figure_ground": "whole scenes invert: cream cones of light on black, black masses on cream; figures are black with a broken cream outline",
+   "lettering": "hand-lettered lowercase caption in a marker box, top left, typing on"
+  },
+  "color": {
+   "palette_size": 2,
+   "ink": "#13110f",
+   "paper": "#efe9e0",
+   "fill": "flat, soft gray edge ramp",
+   "tone_ramp": [
+    {
+     "lv": 50,
+     "color": "#13110f"
+    },
+    {
+     "lv": 90,
+     "color": "#46423e"
+    },
+    {
+     "lv": 165,
+     "color": "#94908b"
+    },
+    {
+     "lv": 205,
+     "color": "#bebab4"
+    }
+   ]
+  },
+  "line": {
+   "weight_px": {
+    "p10": 8.0,
+    "p50": 16.0,
+    "p90": 20.0
+   },
+   "weight_p90_px": {
+    "p10": 23.6552,
+    "p50": 60.0,
+    "p90": 245.9113
+   },
+   "paper_gap_px": 8.0,
+   "roughness": 0.0706,
+   "straight_share": 0.5439,
+   "boil": {
+    "edge_shift_px": 2.836,
+    "variants": "a new drawing every hold",
+    "on_holds": true
+   }
+  },
+  "frame_rate": {
+   "base_fps": 24,
+   "step": 3,
+   "drawings_per_second": 7.919,
+   "holds": {
+    "on1s": 0.008,
+    "on2s": 0.029,
+    "on3s": 0.921,
+    "on4s+": 0.042
+   }
+  },
+  "texture": {
+   "edge_ramp_px": 2.5423,
+   "ink_gray_sd": 4.1229,
+   "paper_gray_sd": 2.5225,
+   "gaps_per_mpx": 65.3072,
+   "specks_per_mpx": 20.2279,
+   "holes": 0.0212,
+   "ink_coverage": {
+    "p10": 0.1473,
+    "p50": 0.6483,
+    "p90": 0.8592
+   }
+  }
+ },
+ "stats": {
+  "ink": {
+   "p10": 0.1473,
+   "p50": 0.6483,
+   "p90": 0.8592
+  },
+  "soft": {
+   "p10": 2.4528,
+   "p50": 2.5423,
+   "p90": 2.7582
+  },
+  "w10": {
+   "p10": 2.0,
+   "p50": 4.0,
+   "p90": 7.1938
+  },
+  "w50": {
+   "p10": 8.0,
+   "p50": 16.0,
+   "p90": 20.0
+  },
+  "w90": {
+   "p10": 23.6552,
+   "p50": 60.0,
+   "p90": 245.9113
+  },
+  "pw50": {
+   "p10": 6.0,
+   "p50": 8.0,
+   "p90": 10.0
+  },
+  "rough": {
+   "p10": 0.0507,
+   "p50": 0.0706,
+   "p90": 0.0788
+  },
+  "straight": {
+   "p10": 0.4952,
+   "p50": 0.5439,
+   "p90": 0.6846
+  },
+  "specks": {
+   "p10": 4.6235,
+   "p50": 20.2279,
+   "p90": 85.3039
+  },
+  "gaps": {
+   "p10": 29.9373,
+   "p50": 65.3072,
+   "p90": 179.3925
+  },
+  "holes": {
+   "p10": 0.006,
+   "p50": 0.0212,
+   "p90": 0.0399
+  },
+  "ink_sd": {
+   "p10": 2.2987,
+   "p50": 4.1229,
+   "p90": 7.2713
+  },
+  "paper_sd": {
+   "p10": 0.9337,
+   "p50": 2.5225,
+   "p90": 7.6384
+  },
+  "boil": {
+   "p10": 1.7847,
+   "p50": 2.836,
+   "p90": 5.0046
+  }
+ },
+ "timing": {
+  "per_second": 7.919,
+  "holds": {
+   "on1s": 0.008,
+   "on2s": 0.029,
+   "on3s": 0.921,
+   "on4s+": 0.042
+  },
+  "held": 0.525
+ },
+ "bands": {
+  "ink": [
+   0.1267,
+   0.867
+  ],
+  "soft": [
+   2.2134,
+   3.0213
+  ],
+  "w10": [
+   1.8,
+   7.9132
+  ],
+  "w50": [
+   7.2,
+   22.0
+  ],
+  "w90": [
+   19.8,
+   134.2
+  ],
+  "pw50": [
+   5.7544,
+   8.8
+  ],
+  "rough": [
+   0.0473,
+   0.0858
+  ],
+  "straight": [
+   0.3386,
+   0.7349
+  ],
+  "specks": [
+   6.2418,
+   609.9865
+  ],
+  "gaps": [
+   36.9303,
+   204.7063
+  ],
+  "holes": [
+   0.0056,
+   0.0491
+  ],
+  "ink_sd": [
+   2.15,
+   8.8552
+  ],
+  "paper_sd": [
+   0.7135,
+   8.7475
+  ],
+  "boil": [
+   2.18,
+   5.6112
+  ],
+  "per_second": [
+   6.731,
+   9.107
+  ]
+ },
+ "check": [
+  "soft",
+  "w50",
+  "w90",
+  "pw50",
+  "rough",
+  "straight",
+  "gaps",
+  "holes",
+  "ink_sd",
+  "paper_sd",
+  "boil",
+  "per_second"
+ ],
+ "brush": {
+  "why": "Authoring defaults that took a new, untraced scene to 14/14 on this pack's check (STYLE.md, Validation). ink.js arguments where one exists.",
+  "drawings_per_second": 8,
+  "soften_sigma_px": 0.9,
+  "inkFill": {
+   "width": 12,
+   "pitch": 0.78,
+   "len": [
+    30,
+    108
+   ],
+   "dryBrush": 0.1,
+   "overshoot": 0.8
+  },
+  "streaks": {
+   "color": "#27231f",
+   "width": 2.2,
+   "pitch": 6,
+   "dryBrush": 0.7,
+   "inset": 0.82
+  },
+  "inkStroke": {
+   "taper": [
+    1,
+    1
+   ],
+   "wobble": 0.3,
+   "dryBrush": 0.05
+  },
+  "boil": {
+   "vertex_jitter_px": 8,
+   "stroke_end_slide_px": 18,
+   "stroke_side_shift_px": 5.5
+  },
+  "gouge_width_px": 6.5,
+  "carve_pitch_px": {
+   "sky": 20,
+   "sea": 16
+  },
+  "border": {
+   "centre_inset_px": 17.5,
+   "width_px": 17,
+   "paper_margin_px": 8
+  },
+  "caption": {
+   "text_left_px": 96,
+   "baseline_px": 119.5,
+   "x_height_px": 30
+  }
+ },
+ "rotoscope_fits": {
+  "{}": 0.502,
+  "{\"bias\": 0.18, \"blur\": 0.7}": 0.134,
+  "{\"bias\": 0.18}": 0.088,
+  "{\"bias\": 0.16}": 0.084,
+  "{\"bias\": 0.12, \"blur\": 0.5}": 0.063
+ }
+}

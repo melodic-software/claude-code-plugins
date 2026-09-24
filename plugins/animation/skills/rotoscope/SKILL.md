@@ -93,6 +93,11 @@ is not shipped). Given that clip and an empty work directory,
 `$R/regress.py <shfred0.mp4> <work>` extracts with the fixture, renders and measures every
 drawing, and exits 0 only on 239/239. Run it after any change to the scripts.
 
+## Next
+
+`/animation:learn-style <work dir> <pack dir>`. It measures this work directory's traces and
+drawings into a style pack.
+
 ## Gotchas
 
 - `renderFrame(t)` and `renderDrawing(k)` return Promises; a capture that does not await them
