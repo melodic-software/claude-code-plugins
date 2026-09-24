@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.1]
+
+### Fixed
+
+- `hooks/pr-linkage-spawn-budget.test.sh` points its budget at `docs/conventions/hook-budget/README.md`, which owns it, and states that budget in multiples of S; the rule file it named no longer exists.
+
 ## [0.57.0]
 
 ### Added
