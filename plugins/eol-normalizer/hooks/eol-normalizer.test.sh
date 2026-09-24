@@ -34,9 +34,136 @@ ok() {
   PASS=$((PASS + 1))
 }
 
+# --- The hooks.json row reads eol_normalizer_enabled in its own shell --------
+# A disabled hook must cost the one shell Claude Code runs the row in, so the
+# row checks the option and execs the script only when it is on. The row's
+# command text is run the way Claude Code runs it: ${CLAUDE_PLUGIN_ROOT}
+# substituted into the text, then `bash -c` (the row's pinned shell). A
+# sentinel stands in for eol-normalizer.sh and records whether it started. The
+# expected verdict for each value comes from the script's own kill-switch line,
+# run under the same environment, so the row and the script cannot disagree.
+# This section needs jq but not git, so it runs before the no-git exit below.
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+if ! command -v jq >/dev/null 2>&1; then
+  echo "SKIP: jq not on PATH -- row-gate checks skipped"
+else
+  if jq -e '[.hooks[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
+    ok "row-gate: hooks.json registers exactly one hook command"
+  else
+    fail "row-gate: hooks.json registers $(jq '[.hooks[][].hooks[]] | length' "$HOOKS_JSON" 2>&1) hook commands, want 1"
+  fi
+  ROW_JSON=$(jq -c '.hooks.PostToolUse[0].hooks[0]' "$HOOKS_JSON")
+  ROW_CMD=$(jq -r '.command' <<<"$ROW_JSON")
+  ROW_SHELL=$(jq -r '.shell // empty' <<<"$ROW_JSON")
+  if [[ "$ROW_SHELL" == "bash" ]]; then
+    ok "row-gate: the hooks.json row pins shell to bash"
+  else
+    fail "row-gate: the hooks.json row shell is '$ROW_SHELL', want 'bash'"
+  fi
+  # `if` would narrow the .gitattributes-driven file set (#3411); `async` could race the next Edit of the file.
+  if jq -e 'has("if") or has("async")' <<<"$ROW_JSON" >/dev/null; then
+    fail "row-gate: the hooks.json row carries an if or async field: $ROW_JSON"
+  else
+    ok "row-gate: the hooks.json row has no if and no async field"
+  fi
+
+  # shellcheck disable=SC2016  # the literal text of the script's kill-switch line
+  PRED_LINE=$(grep -m1 -F '[[ "${CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED:-true}" == "true" ]] || exit 0' "$HOOK")
+  if [[ -n "$PRED_LINE" ]]; then
+    ok "row-gate: read the script's own kill-switch line"
+  else
+    fail "row-gate: the script's kill-switch line was not found in $HOOK"
+  fi
+
+  ROWGATE="$(mktemp -d "${TMPDIR:-/tmp}/eol-rowgate.XXXXXX")"
+  mkdir -p "$ROWGATE/root/hooks"
+  # shellcheck disable=SC2016  # the sentinel's own lines, expanded when it runs
+  printf '%s\n' '#!/usr/bin/env bash' ': >"$ROWGATE_OUT/started"' 'cat >"$ROWGATE_OUT/stdin"' 'exit 7' \
+    >"$ROWGATE/root/hooks/eol-normalizer.sh"
+  chmod +x "$ROWGATE/root/hooks/eol-normalizer.sh"
+  printf '{"session_id":"row-1","tool_input":{"file_path":"x.txt"},"tool_name":"Write"}\n' >"$ROWGATE/payload"
+  # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+  ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/"$ROWGATE/root"}
+
+  # run_opt <case-dir> <value|__unset__> <command...> -> run <command> with the
+  # option set to <value> (or unset) and ROWGATE_OUT pointing at <case-dir>.
+  run_opt() {
+    local out="$1" v="$2"
+    shift 2
+    if [[ "$v" == "__unset__" ]]; then
+      env -u CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED ROWGATE_OUT="$out" "$@"
+    else
+      env CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED="$v" ROWGATE_OUT="$out" "$@"
+    fi
+  }
+
+  ROW_VALUES=("__unset__" "" "true" "false" "False" "TRUE" "0" "1" "yes" " true" "-n" "a=b")
+  i=0
+  for v in "${ROW_VALUES[@]}"; do
+    i=$((i + 1))
+    label="'$v'"
+    [[ "$v" == "__unset__" ]] && label="unset"
+    case "$v" in
+      __unset__ | "" | true) want=started ;;
+      *) want=skipped ;;
+    esac
+    case_dir="$ROWGATE/case$i"
+    mkdir -p "$case_dir"
+    run_opt "$case_dir" "$v" bash -c "$PRED_LINE"$'\nexit 3' </dev/null
+    if [[ $? -eq 3 ]]; then pred=started; else pred=skipped; fi
+    row_out=$(run_opt "$case_dir" "$v" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload")
+    row_rc=$?
+    if [[ -e "$case_dir/started" ]]; then got=started; else got=skipped; fi
+
+    if [[ "$got" == "$pred" ]]; then
+      ok "row-gate/$label: the row agrees with the script's own predicate ($got)"
+    else
+      fail "row-gate/$label: the row $got the script but its own predicate says $pred"
+    fi
+    if [[ "$want" == started ]]; then
+      if [[ "$got" == started && $row_rc -eq 7 ]] && cmp -s "$ROWGATE/payload" "$case_dir/stdin"; then
+        ok "row-gate/$label: the row starts the script with stdin unchanged and returns its exit code"
+      else
+        fail "row-gate/$label: want the script started with stdin unchanged and rc 7 (got=$got rc=$row_rc)"
+      fi
+    else
+      if [[ "$got" == skipped && $row_rc -eq 0 && -z "$row_out" ]]; then
+        ok "row-gate/$label: the row exits 0 silently without starting the script"
+      else
+        fail "row-gate/$label: want no start, rc 0, empty stdout (got=$got rc=$row_rc out=$row_out)"
+      fi
+    fi
+  done
+
+  # An inherited nounset (exported SHELLOPTS, or a BASH_ENV that runs `set -u`)
+  # must not turn an unset option into a failed row: unset means on.
+  printf 'set -u\n' >"$ROWGATE/nounset.env"
+  for how in SHELLOPTS BASH_ENV; do
+    case_dir="$ROWGATE/nounset-$how"
+    mkdir -p "$case_dir"
+    if [[ "$how" == SHELLOPTS ]]; then
+      run_opt "$case_dir" __unset__ env SHELLOPTS=nounset bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+    else
+      run_opt "$case_dir" __unset__ env BASH_ENV="$ROWGATE/nounset.env" bash -c "$ROW_CMD_RUN" <"$ROWGATE/payload"
+    fi
+    row_rc=$?
+    if [[ -e "$case_dir/started" && $row_rc -eq 7 ]]; then
+      ok "row-gate/nounset-$how: an unset option still starts the script"
+    else
+      fail "row-gate/nounset-$how: want the script started and rc 7 (started=$([[ -e "$case_dir/started" ]] && echo yes || echo no) rc=$row_rc)"
+    fi
+  done
+
+  # Remove only the directory mktemp made above, and only if its path is the one requested.
+  if [[ -n "$ROWGATE" && "$ROWGATE" == "${TMPDIR:-/tmp}"/eol-rowgate.* && -d "$ROWGATE" ]]; then
+    rm -rf "$ROWGATE"
+  fi
+fi
+
 if ! command -v git >/dev/null 2>&1; then
   echo "SKIP: git not on PATH -- eol-normalizer hook tests skipped"
-  exit 0
+  echo "PASS=$PASS FAIL=$FAIL"
+  exit $((FAIL > 0))
 fi
 
 WORK="$(mktemp -d)"

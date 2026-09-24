@@ -3,6 +3,24 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.52] - 2026-09-23
+
+### Changed
+
+- The `hooks/hooks.json` row reads `eol_normalizer_enabled` in the shell Claude Code runs
+  it in and execs `hooks/eol-normalizer.sh` only when the switch is on, so a disabled hook
+  no longer starts the script's `env` and bash. The option is spelled brace-free
+  (`$CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED`), so the shell reads it from the
+  environment at run time and the value is never spliced into the command text, and the
+  row pins `"shell": "bash"` because the hooks reference says the shell "Defaults to
+  `bash`, or to `powershell` on Windows when Git Bash isn't installed"
+  (https://code.claude.com/docs/en/hooks, the `shell` field, verified 2026-09-23). The
+  row runs `set +u` first, so an inherited nounset (`SHELLOPTS`, `BASH_ENV`) cannot turn
+  an unset option into a failed row. Measured on a Windows Git Bash host, 15 interleaved
+  trials with the switch off: 663 ms for the old row, 289 ms for the new one, against a
+  356 ms `bash -c :` floor (medians). The script keeps its own switch for direct
+  invocation, and the matcher, timeout and `.gitattributes`-driven file set are unchanged.
+
 ## [0.6.51] - 2026-09-21
 
 ### Changed
