@@ -1279,8 +1279,10 @@ done
 rm -rf "$repo"
 
 # --- LIVE repo: a real autonomy reference doc selects the contract suite -----
-# Discovered, never spelled: a basename written here would make this suite
-# name that file, and R3 would then cover it without R7.
+# The probe doc is discovered, never spelled: a basename written here would make
+# this suite name that file, and R3 would then cover it without R7. The suite
+# path above IS spelled on purpose: renaming the suite selects this file, and
+# this case then fails instead of R7 silently selecting nothing.
 live_ref="$(cd "$REPO_ROOT" && git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
 if [[ -z "$live_ref" ]]; then
   fail "LIVE R7: no tracked plugins/autonomy/reference/*.md to probe"

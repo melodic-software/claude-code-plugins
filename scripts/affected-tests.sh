@@ -110,7 +110,9 @@
 #                    vendor names across that whole directory, but its files
 #                    are markdown that no suite names, so R1-R4 never reach
 #                    them and they fell to the no-suite *.md class. Only a
-#                    path rule can see them.
+#                    path rule can see them. The validator's fleet-token ban
+#                    over the rest of plugins/autonomy/ is not mapped here;
+#                    CI also runs the contract suite in a step of its own.
 #
 # R3/R4 skip STRUCTURAL basenames — README.md, SKILL.md, plugin.json and the
 # like — because those name a repo-wide role rather than one artifact, so a
