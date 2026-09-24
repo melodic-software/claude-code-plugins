@@ -17,6 +17,7 @@
           {"$ref": "#/$defs/add"},
           {"$ref": "#/$defs/add-round"},
           {"$ref": "#/$defs/group"},
+          {"$ref": "#/$defs/meta"},
           {"$ref": "#/$defs/note-reply"},
           {"$ref": "#/$defs/handle"},
           {"$ref": "#/$defs/archive"},
@@ -94,6 +95,7 @@
       "properties": {
         "op": {"enum": ["add-round"]},
         "round": {"type": "integer"},
+        "meta": {"$ref": "#/$defs/metaSet"},
         "groups": {"type": "array", "items": {"type": "object"}},
         "questions": {"type": "array", "items": {"type": "object"}},
         "visuals": {"type": "array", "items": {"type": "object"}}
@@ -109,6 +111,26 @@
         "title": {"type": "string"},
         "summary": {"type": "string"},
         "dependsOn": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "metaSet": {
+      "description": "questions.json meta keys an op may set; each merges over the current value, and every other meta key stays as it is.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string"},
+        "eyebrow": {"type": "string"},
+        "stages": {"type": "object", "additionalProperties": {"type": "string"}},
+        "next": {"type": "string"}
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["op", "set"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["meta"]},
+        "set": {"$ref": "#/$defs/metaSet"}
       }
     },
     "note-reply": {

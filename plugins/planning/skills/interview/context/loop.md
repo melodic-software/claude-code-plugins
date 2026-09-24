@@ -114,16 +114,16 @@ Targets that catch the most rework downstream:
 
 ### Inline round format
 
-Each round is one numbered set in prose (surface rules: SKILL.md "Question surface"). **Per-question template + partial-round resolution: SKILL.md Stance "Relentless mode"** is the single source; it is not duplicated here.
+Each round is one numbered set in prose (surface rules: SKILL.md "Question surface: inline prose by default" and "Question surface: the page"). **Per-question template + partial-round resolution: SKILL.md Stance "Relentless mode"** is the single source; it is not duplicated here.
 
 `Q<N>` is a running counter across the session and across rounds (Q1–Q4 in round one, Q5… in round two, so the depth stays visible). Wait for the round's answers before computing the next round. The closing probe is what invites the user to surface a hidden constraint that would flip a recommendation. Most answers come back as a one-line "all as recommended". That is the format working, not under-questioning.
 
 ### Page surface
 
-When the surface resolves to `page`, or the user asks for it, the frontier renders on a local page the session watches (SKILL.md "Question surface: the page"). It is an input surface, not a protocol change: the frontier is still asked whole, never capped or split, and the recommendation+basis+probe contract of an inline round holds per question. Protocol: [`surface.md`](surface.md).
+When the surface resolves to `page`, or the user asks for it, the frontier renders on a local page the session watches (SKILL.md "Question surface: the page"). Only the input surface differs: the frontier is still asked whole, never capped or split, and the recommendation+basis+probe contract of an inline round holds per question. Protocol: [`surface.md`](surface.md).
 
 - **Delivery:** `ensure-running`, then `add-round` with the whole frontier; the register's `open` rows are written in the same step.
-- **Per-question contract on the page:** the recommendation first, its 2-3 sentence codebase-grounded basis behind Why (never a terse label), the alternatives numbered, each commitment as its own unchecked row, and the round's closing constraint probe as the round's closing note in `meta.next` or a Claude thread line.
+- **Per-question contract on the page:** the recommendation first, its 2-3 sentence codebase-grounded basis behind Why (never a terse label), the alternatives numbered, each commitment as its own unchecked row, and the constraint probe as the round's closing note, sent with `note-reply` (no `--seq`) so it lands in Notes to Claude, or as a Claude thread line on the round's first question.
 - **Answer path:** the page. Every save is one event the watcher delivers; the terminal stays a valid input and is mirrored onto the page with `record-terminal`.
 - **Degrade:** when the page cannot start (a missing prerequisite, a port that cannot bind, a remote host the browser cannot reach), render the read-only decision table below, same columns and grounding, and say in one line which prerequisite failed.
 

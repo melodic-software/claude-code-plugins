@@ -22,8 +22,14 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`surface` option:** `terminal` (default) or `page`; applies to `/planning:interview` only, and
   any other value falls back to `terminal`.
 - **`interview` skill `context/surface.md`:** the page protocol: start and stop, the one-call wake
-  command, the event table, rules R-A to R-J, the wording lint, the wrap-up exports, settings
-  layers, the security model and the degrade path.
+  command, the event table, rules R1 to R12 and R-A to R-J, the wording lint, the wrap-up
+  exports, settings layers, the security model and the degrade path.
+- **`meta` on the page:** `add-round`'s file takes a `meta` object and `apply` takes a
+  `{"op": "meta", "set": {...}}` op; both merge `title`, `eyebrow`, `stages` and `next` into
+  `questions.json` and refuse any other key.
+- **`--emoji-markers` value rule:** `ensure-running` accepts any value; `false`, `0`, `no` and
+  `off` (any case) mean false, and anything else, an empty string or an unexpanded token
+  included, means true.
 
 ### Changed
 
@@ -33,8 +39,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   "Artifact escape hatch (dense round)".
 - **`use_emoji_question_markers`:** the description covers the page's question title and
   Recommendation heading as well as inline rounds.
-- One section digest in `tests/interview-defenses.test.sh` was re-pinned because the Action
-  Router paragraph changed; both defenses in that region were re-read and neither is weakened.
+- `tests/interview-defenses.test.sh`: one section digest re-pinned for the new Action Router paragraph.
 
 ## [0.40.0] - 2026-09-23
 

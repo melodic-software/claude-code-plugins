@@ -798,5 +798,87 @@ class TestRebuild(unittest.TestCase):
         self.assertEqual(history["Q1"][1]["alt"], "0")
 
 
+class TestMeta(DirCase):
+    """`add-round` meta and the `meta` op: title, eyebrow, stages, next; nothing else."""
+
+    def setUp(self):
+        super().setUp()
+        doc = base_doc()
+        doc["meta"] = {"title": "Test interview", "emojiMarkers": True}
+        self.write_doc(doc)
+
+    def test_add_round_meta_next_lands_in_the_file(self):
+        spec = {
+            "meta": {"next": "Claude writes the Brief.", "eyebrow": "Round 2"},
+            "questions": [question("Q4", group="g1")],
+        }
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, out + err)
+        meta = self.doc()["meta"]
+        self.assertEqual(meta["next"], "Claude writes the Brief.")
+        self.assertEqual(meta["eyebrow"], "Round 2")
+        self.assertEqual(meta["title"], "Test interview")
+        self.assertIs(meta["emojiMarkers"], True)
+
+    def test_add_round_unknown_meta_key_is_refused(self):
+        spec = {"meta": {"emojiMarkers": False}, "questions": [question("Q4")]}
+        out = self.assert_refused("add-round", "--file", self.file("r.json", spec))
+        self.assertIn("emojiMarkers", out)
+
+    def test_apply_meta_op_merges_and_keeps_emoji_markers(self):
+        ops = {
+            "ops": [{"op": "meta", "set": {"next": "Then the plan.", "title": "New"}}]
+        }
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        meta = self.doc()["meta"]
+        self.assertEqual(meta["next"], "Then the plan.")
+        self.assertEqual(meta["title"], "New")
+        self.assertIs(meta["emojiMarkers"], True)
+        self.assertIn("meta:", out)
+
+    def test_apply_meta_op_unknown_key_is_refused(self):
+        ops = {"ops": [{"op": "meta", "set": {"displayName": "Kyle"}}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+
+class TestEmojiMarkersValue(unittest.TestCase):
+    """`--emoji-markers` takes any value: false, 0, no, off mean false; anything else means true."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="iv-emoji-"))
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
+        cls.dir = cls.tmp / "data"
+        cls.dir.mkdir()
+        (cls.dir / "questions.json").write_text(
+            json.dumps(base_doc()), encoding="utf-8"
+        )
+        cls.addClassCleanup(run_round, cls.dir, "stop")
+
+    def markers_after(self, value):
+        rc, out, err = run_round(
+            self.dir, "ensure-running", "--port", "0", "--emoji-markers", value
+        )
+        self.assertEqual(rc, 0, f"{value!r}: {out}{err}")
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        return doc["meta"]["emojiMarkers"]
+
+    def test_every_value_form(self):
+        cases = [
+            ("false", False),
+            ("TRUE", True),
+            ("0", False),
+            ("", True),
+            ("No", False),
+            ("${user_config.use_emoji_question_markers}", True),
+            ("OFF", False),
+            ("yes please", True),
+        ]
+        for value, want in cases:
+            with self.subTest(value=value):
+                self.assertIs(self.markers_after(value), want)
+
+
 if __name__ == "__main__":
     unittest.main()

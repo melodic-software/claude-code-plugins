@@ -1,6 +1,6 @@
 # Interview page surface
 
-A local page for interview rounds. The user answers one question at a time on 127.0.0.1, and the live Claude Code session hears each save through a background watcher and replies on the page. The interview skill's `context/surface.md` holds the rules the session follows; this file is the operator and agent reference for what ships here.
+A local page for interview rounds. The user answers one question at a time on 127.0.0.1, and the live Claude Code session receives each save through a background watcher and replies on the page. The interview skill's `context/surface.md` holds the rules the session follows.
 
 ## Files
 
@@ -9,7 +9,7 @@ A local page for interview rounds. The user answers one question at a time on 12
 | `server.py` | runs | Stdlib `ThreadingHTTPServer` on 127.0.0.1. Serves the page, pushes state over SSE, takes answers, long-polls for the watcher, computes question state and settings |
 | `index.html` | page | Single file, no build step, no CDN |
 | `round.py` | Claude | The only write path to `questions.json`, plus the server lifecycle and the exporters |
-| `round.sh` | Claude | Launcher: runs `round.py` with the first `python3` or `python` that actually runs |
+| `round.sh` | Claude | Launcher: runs `round.py` with the first `python3` or `python` that runs (a stub that fails is skipped) |
 | `watch.sh` | Claude | The watcher, run as a background Bash task |
 | `exporters.py` | Claude | `export-ledger`, `export-brief`, `export-report`, `import-ledger` (called through `round.py`) |
 | `schema.py`, `schema/*.schema.json` | shared | JSON Schemas for the question, response, event, visual and ops files, and the stdlib validator `round.py` applies on every write |
@@ -20,11 +20,11 @@ Per data dir: `questions.json` (Claude, through `round.py`), `responses.json` (s
 ## Run
 
 ```bash
-bash round.sh --dir '<data_dir>' ensure-running [--port P] [--open] [--user-settings F] [--emoji-markers true|false]
+bash round.sh --dir '<data_dir>' ensure-running [--port P] [--open] [--user-settings F] [--emoji-markers V]
 bash round.sh --dir '<data_dir>' stop
 ```
 
-`ensure-running` checks for curl, reuses the server already running for the data dir (same PID), and otherwise starts one detached on the first free port of `--port`, the recorded port, and the resolved `port` setting (an explicit `--port 0` skips the setting), else a free port. It waits for the server's own session files, prints the URL, and with `--open` opens the page unless the resolved `openBrowser` is `false`, through the user file's `browserCommand` when it sets one (the user file recorded in the session when this call passes no `--user-settings`). `--emoji-markers` defaults to `true` on every call and is written to `meta.emojiMarkers`, so pass the session's value each time, including on a restart. `stop` ends the recorded PID only after `/api/ping` on the recorded port answers with that PID; otherwise it just clears the session files. A restart issues a new token: an armed watcher exits 2 at once with "token changed: re-run ensure-running", so re-arm it.
+`ensure-running` checks for curl, reuses the server already running for the data dir (same PID), and otherwise starts one detached on the first free port of `--port`, the recorded port, and the resolved `port` setting (an explicit `--port 0` skips the setting), else a free port. It waits for the server's own session files, prints the URL, and with `--open` opens the page unless the resolved `openBrowser` is `false`, through the user file's `browserCommand` when it sets one (the user file recorded in the session when this call passes no `--user-settings`). `--emoji-markers` takes any value: `false`, `0`, `no` and `off` (any case) mean false, and anything else, an empty string or an unexpanded `user_config` token included, means true. It defaults to `true` on every call and is written to `meta.emojiMarkers`, so pass the session's value each time, including on a restart. `stop` ends the recorded PID only after `/api/ping` on the recorded port answers with that PID; otherwise it only clears the session files. A restart issues a new token: an armed watcher exits 2 at once with "token changed: re-run ensure-running", so re-arm it.
 
 ## Watcher protocol
 
@@ -40,7 +40,8 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 |---|---|
 | `ensure-running`, `stop` | Server lifecycle, as above |
 | `add` | One question from `--file` or flags. Refuses a question without `commits` (`--commit none` is an explicit empty list) or with fewer than two alternatives |
-| `add-round --file F [--round N]` | Groups, questions and visuals in one write; any error writes nothing |
+| `add-round --file F [--round N]` | Meta, groups, questions and visuals in one write; any error writes nothing. The file's `meta` object takes `title`, `eyebrow`, `stages` and `next` (what Claude does after wrap-up, shown on the finished screen) and refuses other keys |
+| `meta` op | `{"op": "meta", "set": {...}}` merges the same four keys into `meta`; other meta keys, such as `emojiMarkers`, stay |
 | `group <id>` | Add or update a group; `--depends` names prerequisite groups |
 | `reply` op | A Claude line on the question's thread; `seq` marks that event handled; `rec` revises the recommendation and needs `affects` |
 | `revise <id>` | Change wording, recommendation (`--rec` needs `--affects`) or alternatives (at least two) |
@@ -59,7 +60,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 
 ## Data contract
 
-`schema/` is the contract; other tools write these formats or read the exports, and the surface reads no other files. Both documents carry `"schemaVersion": "1.0"`; a file without one reads as version 0 and loads unchanged. `responses.json` is an append-only event log with a global `seq`; undo marks an event `withdrawn` and nothing is deleted. Event kinds: `accept`, `alt`, `own`, `defer`, `reopen`, `ask`, `rephrase`, `note`, `undo`, `wrapup`, `confirm`. Question `state` (`open`, `stale`, `upstream-pending`, `archived`) is computed by the server from `dependsOn` and `archived`, never written. A visual is declared by `format` (`svg`, `mermaid`, `image`, `markdown`, `html`, `chart`; `kind` is read as an alias) and never names what produced it.
+`schema/` is the contract; other tools write these formats or read the exports, and the surface reads no other files. Both documents carry `"schemaVersion": "1.0"`; a file without one reads as version 0 and loads unchanged. `responses.json` is an append-only event log with a global `seq`; undo marks an event `withdrawn` and nothing is deleted. Event kinds: `accept`, `alt`, `own`, `defer`, `reopen`, `ask`, `rephrase`, `note`, `undo`, `wrapup`, `confirm`. Question `state` (`open`, `stale`, `upstream-pending`, `archived`) is computed by the server from `dependsOn` and `archived`, never written. A visual is declared by `format` (`svg`, `mermaid`, `image`, `markdown`, `html`, `chart`; `kind` is read as an alias) and describes only its content.
 
 ## Security model
 
@@ -94,7 +95,7 @@ The repo file also takes `themeTokens` (`{"light": {...}, "dark": {...}}`). `bro
 ## Known gaps
 
 - The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh` prints a SKIP with the count not run.
-- A second watcher on one data dir works but is undefined; there is no lease.
-- About six SSE connections per origin, so keep to one or two tabs.
+- Two watchers on one data dir are unsupported: nothing leases the dir, so their behavior is unspecified.
+- Browsers cap HTTP/1.1 connections at six per origin and each tab holds one SSE stream, so keep to one or two tabs.
 - Chromium logs a network error line for an intended 409; the page itself logs nothing.
 - Mermaid visuals show their source with a "rendering not available" line.

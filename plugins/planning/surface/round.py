@@ -302,13 +302,33 @@ def put_group(doc, g):
 # The CLI commands and `apply` share them; only the caller loads, locks and saves.
 
 
+META_KEYS = ("title", "eyebrow", "stages", "next")
+
+
+def set_meta(doc, m):
+    """Merge title, eyebrow, stages and next into questions.json meta; any other key is refused."""
+    if not isinstance(m, dict):
+        sys.exit("refused: meta is an object")
+    extra = sorted(set(m) - set(META_KEYS))
+    if extra:
+        sys.exit(f"refused: unknown meta keys {extra} (known: {', '.join(META_KEYS)})")
+    doc["meta"].update(m)
+
+
+def op_meta(d, doc, a):
+    set_meta(doc, a.set)
+    return [], f"meta set {', '.join(sorted(a.set))}"
+
+
 def op_add(d, doc, a):
     touched = add_question(doc, a.question)
     return touched, f"added {a.question['id']}"
 
 
 def op_add_round(d, doc, a):
-    """{"groups": [...], "questions": [...], "visuals": [...]}: groups first, then questions in file order."""
+    """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}: meta, groups, then questions in file order."""
+    if a.meta is not None:
+        set_meta(doc, a.meta)
     for g in a.groups or []:
         if not g.get("id"):
             sys.exit("a group needs an id")
@@ -534,7 +554,8 @@ def cmd_add(d, a):
 
 def cmd_add_round(d, a):
     spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
-    a.groups, a.questions, a.visuals = (
+    a.meta, a.groups, a.questions, a.visuals = (
+        spec.get("meta"),
         spec.get("groups"),
         spec.get("questions"),
         spec.get("visuals"),
@@ -578,12 +599,19 @@ OP_ARGS = {
     "add": (op_add, {"question": None}),
     "add-round": (
         op_add_round,
-        {"round": None, "groups": None, "questions": None, "visuals": None},
+        {
+            "round": None,
+            "meta": None,
+            "groups": None,
+            "questions": None,
+            "visuals": None,
+        },
     ),
     "group": (
         op_group,
         {"id": None, "title": None, "summary": None, "dependsOn": None},
     ),
+    "meta": (op_meta, {"set": None}),
     "note-reply": (op_note_reply, {"seq": None, "text": None}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
@@ -947,6 +975,11 @@ def open_browser(url, cmd):
     webbrowser.open(url)
 
 
+def emoji_flag(value):
+    """false, 0, no and off (any case) mean false; anything else, an unexpanded token included, means true."""
+    return value.strip().lower() not in ("false", "0", "no", "off")
+
+
 def record_emoji_markers(d, want):
     """meta.emojiMarkers through the normal write path; writes only on a change or a new file."""
     doc = load(d)
@@ -973,7 +1006,7 @@ def cmd_ensure_running(d, a):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
     d.mkdir(parents=True, exist_ok=True)
     with sidecar_lock(d):
-        record_emoji_markers(d, a.emoji_markers == "true")
+        record_emoji_markers(d, emoji_flag(a.emoji_markers))
         s = read_session(d)
         user = (
             str(Path(a.user_settings).resolve())
@@ -1080,7 +1113,7 @@ def main(argv=None):
     s.add_argument(
         "--file",
         required=True,
-        help='{"groups": [...], "questions": [...], "visuals": [...]}',
+        help='{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}',
     )
     s.add_argument("--round", type=int, help="round for questions that do not set one")
     s.set_defaults(fn=cmd_add_round)
@@ -1203,9 +1236,9 @@ def main(argv=None):
     s.add_argument(
         "--emoji-markers",
         dest="emoji_markers",
-        choices=("true", "false"),
         default="true",
-        help="record meta.emojiMarkers in questions.json (default true)",
+        help="record meta.emojiMarkers in questions.json: false, 0, no or off mean false, "
+        "any other value means true (default true)",
     )
     s.set_defaults(fn=cmd_ensure_running)
 
