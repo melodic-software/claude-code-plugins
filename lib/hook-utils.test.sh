@@ -848,6 +848,24 @@ compact_refuses "unterminated string" '{"a":"x}'
 compact_refuses "invalid escape" '{"a":"x\qy"}'
 compact_refuses "trailing backslash escape" '{"a":"x\\\"}'
 compact_refuses "bad \\u hex digits" '{"a":"\uZZZZ"}'
+# The grammar rewrites: each case breaks exactly one production.
+compact_is "nested containers" '{"a":[1,"s",{"b":[]},[[]]],"c":{"d":{}}}' '{"a":[1,"s",{"b":[]},[[]]],"c":{"d":{}}}'
+compact_refuses "two scalars" '{"a":1 2}'
+compact_refuses "key without colon" '{"a" "b"}'
+compact_refuses "array trailing comma" '{"a":[1,]}'
+compact_refuses "array leading comma" '{"a":[,1]}'
+compact_refuses "two objects in a value" '{"a":{"b":1}{"c":2}}'
+compact_refuses "number key" '{1:2}'
+compact_refuses "extra close" '{"a":1}}'
+compact_refuses "colon in array" '{"a":[1:2]}'
+compact_refuses "chained colon" '{"a":"b":"c"}'
+compact_refuses "member without value" '{"a":1,"b"}'
+compact_refuses "mismatched close" '{"a":[1}]'
+compact_refuses "two roots" '{"a":1}{"b":2}'
+compact_refuses "root member list" '1,"x":1'
+compact_refuses "root closes early" '1},{'
+big14c=$(printf '0,%.0s' {1..5000})
+compact_refuses "structure past the grammar cap" "{\"a\":[${big14c}0]}"
 
 # --- Test 3b: builtin envelope is jq's compact rendering, byte for byte -------
 # The sink receives exactly one line, and re-rendering it with jq -c yields the

@@ -867,13 +867,16 @@ hook::_c_locale() {
 # replaced by `@@` (same length), so a quote that survives is a real string
 # delimiter and a body's ORIGINAL bytes are ${text:offset:length}. Returns 1
 # when the text is too large, its quotes do not pair up, or it holds more
-# strings than the callers' loops are meant to walk.
+# strings than the callers' loops are meant to walk. The neutralized text is
+# kept in _HOOK_JSON_NT.
 _HOOK_JSON_PARTS=()
+_HOOK_JSON_NT=""
 hook::_json_split() {
   local __hu_s="$1" __hu_t __hu_q __hu_n
   ((${#__hu_s} <= 65536)) || return 1
   __hu_t=${__hu_s//"\\\\"/@@}
   __hu_t=${__hu_t//"\\\""/@@}
+  _HOOK_JSON_NT=$__hu_t
   __hu_q=${__hu_t//\"/}
   __hu_n=$((${#__hu_t} - ${#__hu_q}))
   ((__hu_n % 2 == 0)) || return 1
@@ -908,12 +911,12 @@ _HOOK_JSON_OFF=()
 _HOOK_JSON_SK_TEXT=""
 _HOOK_JSON_SK_RC=""
 hook::_json_skeleton() {
-  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top __hu_esc __hu_c
+  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_g="" __hu_prev __hu_esc __hu_c
   # The regex checks run where the C locale's regex reads bytes (Linux,
   # macOS). A Windows bash's regex decodes UTF-8 even under C, where
   # [[:cntrl:]] matches a C1 character the glob check does not, so it keeps the
   # glob checks.
-  local __hu_rx=1
+  local __hu_rx=1 __hu_partcntrl=1
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32) __hu_rx=0 ;;
   *) ;;
@@ -926,24 +929,31 @@ hook::_json_skeleton() {
   _HOOK_JSON_SK_TEXT=$__hu_s
   _HOOK_JSON_SK_RC=1
   hook::_json_split "$__hu_s" || return 1
+  if ((__hu_rx)); then
+    # Every escape must be one jq accepts, or jq rejects the whole text. In
+    # the neutralized text `\\` and `\"` are already `@@`, so every surviving
+    # backslash starts one of the other escapes, `\/ \b \f \n \r \t` or
+    # `\uXXXX`; one followed by anything else, or by `u` and fewer than four
+    # hex digits, is an invalid escape. One search over the whole text: a
+    # surviving backslash is never followed by a quote, so a match never spans
+    # two parts, and one in the structural text is not JSON either.
+    [[ "$_HOOK_JSON_NT" =~ $__hu_badesc ]] && return 1
+    # No control byte anywhere: no string body can hold one.
+    [[ "$__hu_s" =~ $__hu_cntrl ]] || __hu_partcntrl=0
+  fi
   __hu_n=${#_HOOK_JSON_PARTS[@]}
   _HOOK_JSON_OFF=()
   for ((__hu_i = 0; __hu_i < __hu_n; __hu_i++)); do
     __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
     if ((__hu_i % 2 == 0)); then
       __hu_sk+=$__hu_part
+      __hu_g+=$__hu_part
     else
       _HOOK_JSON_OFF[__hu_i]=$__hu_off
-      # Every escape must be one jq accepts, or jq rejects the whole text. In
-      # the neutralized part `\\` and `\"` are already `@@`, so every surviving
-      # backslash starts one of the other escapes, `\/ \b \f \n \r \t` or
-      # `\uXXXX`; one followed by anything else, or by `u` and fewer than four
-      # hex digits, is an invalid escape.
       if ((__hu_rx)); then
-        # Regex searches: on a large body a regex scan runs about ten times
-        # faster than the equivalent `*[...]*` glob match.
-        [[ "$__hu_part" =~ $__hu_cntrl ]] && return 1
-        [[ "$__hu_part" =~ $__hu_badesc ]] && return 1
+        # A regex search: on a large body it runs about ten times faster than
+        # the equivalent `*[...]*` glob match.
+        ((__hu_partcntrl)) && [[ "$__hu_part" =~ $__hu_cntrl ]] && return 1
       else
         [[ "$__hu_part" == *[[:cntrl:]]* ]] && return 1
         if [[ "$__hu_part" == *\\* ]]; then
@@ -959,79 +969,56 @@ hook::_json_skeleton() {
         fi
       fi
       __hu_sk+="\"#$__hu_i\""
+      __hu_g+='"'
     fi
     __hu_off=$((__hu_off + ${#__hu_part} + 1))
   done
-  # Tokenize the skeleton and run it through the JSON grammar. Each token is
-  # consumed by one anchored regex on the (small) remainder; whitespace is
-  # allowed only between tokens, so `tr ue` is two bad tokens, not `true`. # spellchecker:disable-line
-  local __hu_re=$'^[ \t\n\r]*(\\{|\\}|\\[|\\]|,|:|"#[0-9]+"|-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][-+]?[0-9]+)?|true|false|null)'
-  local __hu_ws=$'^[ \t\n\r]*$'
-  __hu_rest=$__hu_sk
-  while [[ -n "$__hu_rest" ]] && ! [[ "$__hu_rest" =~ $__hu_ws ]]; do
-    [[ "$__hu_rest" =~ $__hu_re ]] || return 1
-    __hu_tok=${BASH_REMATCH[1]}
-    __hu_rest=${__hu_rest:${#BASH_REMATCH[0]}}
-    __hu_top=${__hu_stack:${#__hu_stack}-1:1}
-    case "$__hu_expect" in
-    value | value_or_end)
-      case "$__hu_tok" in
-      '{')
-        __hu_stack+='{'
-        __hu_expect=key_or_end
-        continue
-        ;;
-      '[')
-        __hu_stack+='['
-        __hu_expect=value_or_end
-        continue
-        ;;
-      ']')
-        [[ "$__hu_expect" == value_or_end ]] || return 1
-        ;;
-      '}' | ',' | ':') return 1 ;;
-      *)
-        # A scalar. Inside a container the next token is , or the close;
-        # at the top level nothing may follow.
-        if [[ -n "$__hu_stack" ]]; then __hu_expect=comma_or_end; else __hu_expect=end; fi
-        continue
-        ;;
-      esac
-      ;;
-    key_or_end | key)
-      case "$__hu_tok" in
-      \"#*)
-        __hu_expect='colon'
-        continue
-        ;;
-      '}') [[ "$__hu_expect" == key_or_end ]] || return 1 ;;
-      *) return 1 ;;
-      esac
-      ;;
-    colon)
-      [[ "$__hu_tok" == ':' ]] || return 1
-      __hu_expect=value
-      continue
-      ;;
-    comma_or_end)
-      case "$__hu_tok" in
-      ',')
-        if [[ "$__hu_top" == '{' ]]; then __hu_expect=key; else __hu_expect=value; fi
-        continue
-        ;;
-      '}') [[ "$__hu_top" == '{' ]] || return 1 ;;
-      ']') [[ "$__hu_top" == '[' ]] || return 1 ;;
-      *) return 1 ;;
-      esac
-      ;;
-    *) return 1 ;; # `end`: a token after the root value closed
-    esac
-    # Reaching here means a container just closed.
-    [[ -n "$__hu_stack" ]] || return 1
-    __hu_stack=${__hu_stack:0:${#__hu_stack}-1}
-    if [[ -n "$__hu_stack" ]]; then __hu_expect=comma_or_end; else __hu_expect=end; fi
+  # Run the structural text, each string a lone `"`, through the JSON grammar
+  # with a few whole-string rewrites instead of a regex per token.
+  # Whitespace is allowed only between tokens: between two characters that
+  # are neither punctuation nor whitespace it splits a token (`tr ue`) or # spellchecker:disable-line
+  # separates two scalars, neither of which is JSON. Anywhere else it goes.
+  local __hu_ws=$' \t\n\r'
+  local __hu_wsre="[^][{}:,$__hu_ws][$__hu_ws]+[^][{}:,$__hu_ws]"
+  [[ "$__hu_g" =~ $__hu_wsre ]] && return 1
+  __hu_g=${__hu_g//[$__hu_ws]/}
+  # Every token between punctuation is a string, a number, true, false or null.
+  local __hu_sc=${__hu_g//[][\{\}:,]/ }
+  local __hu_scre='^ *(("|true|false|null|-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?) +)*$'
+  [[ "$__hu_sc " =~ $__hu_scre ]] || return 1
+  # Grammar: each non-string scalar becomes `v`; a string followed by `,`, `]`
+  # or `}` is a value, so it becomes `v` too, and one followed by `:` stays `s`
+  # (a key). The root is wrapped as `<k:<root>>`, with marks no other rule
+  # makes or consumes. Then reduce until nothing changes, in this order each
+  # pass: `k:v` is `K`; `s:v` is a member `m`; `v,v` is `v`; `m,m` is `m`;
+  # `{m}`, `{}`, `[v]` and `[]` are `v`. Each rewrite undoes one grammar
+  # production, so the text is one JSON value exactly when it reduces to
+  # `<K>`. `v,v` is an array's element list only because `k:v` and `s:v` were
+  # folded just before it: a value after a key or at the root is already
+  # inside a `K` or an `m`, so the rule cannot join it with a stray value.
+  # A structure this long is no hook envelope (about 100 characters); it goes
+  # to jq, which answers the same, rather than through thousands of passes.
+  ((${#__hu_g} <= 8192)) || return 1
+  __hu_g=${__hu_g//[^\]\[\{\}:,\"]/v}
+  while [[ "$__hu_g" == *vv* ]]; do __hu_g=${__hu_g//vv/v}; done
+  __hu_g="<k:${__hu_g//\"/s}>"
+  __hu_g=${__hu_g//s,/v,}
+  __hu_g=${__hu_g//s\]/v]}
+  __hu_g=${__hu_g//s\}/v\}}
+  __hu_g=${__hu_g//s>/v>}
+  while :; do
+    __hu_prev=$__hu_g
+    __hu_g=${__hu_g//k:v/K}
+    __hu_g=${__hu_g//s:v/m}
+    while [[ "$__hu_g" == *v,v* ]]; do __hu_g=${__hu_g//v,v/v}; done
+    while [[ "$__hu_g" == *m,m* ]]; do __hu_g=${__hu_g//m,m/m}; done
+    __hu_g=${__hu_g//\{m\}/v}
+    __hu_g=${__hu_g//\{\}/v}
+    __hu_g=${__hu_g//\[v\]/v}
+    __hu_g=${__hu_g//\[\]/v}
+    [[ "$__hu_g" != "$__hu_prev" ]] || break
   done
-  [[ "$__hu_expect" == end ]] || return 1
+  [[ "$__hu_g" == '<K>' ]] || return 1
   _HOOK_JSON_SK=${__hu_sk//[$' \t\n\r']/}
   _HOOK_JSON_SK_RC=0
   return 0
