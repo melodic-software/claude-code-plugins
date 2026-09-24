@@ -198,12 +198,12 @@ def cmd_propose_tighten(args: argparse.Namespace) -> int:
 def cmd_add(args: argparse.Namespace) -> int:
     # A missing file starts empty; a malformed one still fails loudly in load().
     counters = load(args.file) if os.path.exists(args.file) else []
-    entry = {key: getattr(args, key) for key in KEYS if key != "ceiling"}
-    entry["ceiling"] = 0
+    # Ceiling 0 stands in until measured; validating now refuses a bad or
+    # duplicate entry before its command runs.
+    entry = {key: 0 if key == "ceiling" else getattr(args, key) for key in KEYS}
     validate(args.file, {"counters": [*counters, entry]})
-    first = measure_twice(args.name, args.command, args.field)
-    entry["ceiling"] = first
-    counters.append({key: entry[key] for key in KEYS})
+    first = entry["ceiling"] = measure_twice(args.name, args.command, args.field)
+    counters.append(entry)
     save(args.file, counters)
     print(f"added {args.name}: ceiling {first} ({args.field}), in {args.file}")
     return 0
