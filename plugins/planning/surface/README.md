@@ -24,7 +24,7 @@ bash round.sh --dir <data_dir> ensure-running [--port P] [--open] [--user-settin
 bash round.sh --dir <data_dir> stop
 ```
 
-`ensure-running` checks for curl, reuses the server already running for the data dir (same PID), and otherwise starts one detached on the recorded port when it is free, else a free port. It waits for the server's own session files, prints the URL, and with `--open` opens the page. `stop` ends the recorded PID only after `/api/ping` on the recorded port answers with that PID; otherwise it just clears the session files. A restart issues a new token: an armed watcher exits 2 at once with "token changed: re-run ensure-running", so re-arm it.
+`ensure-running` checks for curl, reuses the server already running for the data dir (same PID), and otherwise starts one detached on the recorded port when it is free, else a free port. It waits for the server's own session files, prints the URL, and with `--open` opens the page. `--emoji-markers` defaults to `true` on every call and is written to `meta.emojiMarkers`, so pass the session's value each time, including on a restart. `stop` ends the recorded PID only after `/api/ping` on the recorded port answers with that PID; otherwise it just clears the session files. A restart issues a new token: an armed watcher exits 2 at once with "token changed: re-run ensure-running", so re-arm it.
 
 ## Watcher protocol
 
