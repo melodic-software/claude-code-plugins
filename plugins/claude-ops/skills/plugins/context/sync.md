@@ -55,7 +55,10 @@ What the model still owns, because the script cannot:
   appends the reload guidance SKILL.md's Report section fixes and answers questions.
 
 The digest carries, per marketplace: the refresh result, `project_root`, the marketplace's
-`auto_update` and `catalog_source`, the in-repo and user-scope sweep outcomes with each pair's
+`auto_update` and `catalog_source`, `source_checkout` for a `directory` source (branch, upstream,
+ahead/behind as of the checkout's last fetch, modified tracked files; `null` for any other source
+kind; the script never fetches or pulls that checkout, because `claude plugin marketplace update`
+reads a directory as it is and the user owns it), the in-repo and user-scope sweep outcomes with each pair's
 direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
 installs whose CLI output named userConfig options left unset
 (`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the project-scope

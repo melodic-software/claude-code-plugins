@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.59.5] - 2026-09-24
+## [0.60.1] - 2026-09-24
 
 ### Changed
 
@@ -17,6 +17,26 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - `hook-failure-audit.sh` reads its `hook_failure_audit_enabled` switch before it sources
   `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
   unchanged.
+
+## [0.60.0] - 2026-09-24
+
+### Fixed
+
+- **`plugins` no longer reports a `directory` marketplace as `current` while its checkout is
+  behind upstream.** `claude plugin marketplace update` on a `directory` source validates the
+  directory as it is and fetches nothing, so the catalog is only as fresh as that checkout. For a
+  `directory` source, `sync-run.sh` now reads the checkout's branch, upstream, ahead/behind counts
+  as of its last fetch, and whether tracked files are modified, into the digest's new
+  `source_checkout` field. It never fetches, pulls, or writes (`git --no-optional-locks`). The
+  report adds a `source:` row under the `Marketplace:` line, reads
+  `source checkout behind <upstream>` instead of `current` when the checkout is behind, and adds an
+  `Action needed` bullet naming `git -C '<path>' pull --ff-only` and `/claude-ops:plugins sync <marketplace>`. A path that is not a git work
+  tree, a branch with no upstream, and a detached HEAD each render as "freshness not checked".
+  Other source kinds carry `source_checkout: null` and render as before (#4456).
+
+### Added
+
+- **`plugins` accepts `update` as an alias for `sync`.**
 
 ## [0.59.4] - 2026-09-24
 
