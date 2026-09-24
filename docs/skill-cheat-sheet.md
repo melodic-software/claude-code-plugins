@@ -79,6 +79,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/animation:rotoscope`](../plugins/animation/skills/rotoscope/SKILL.md) | `animation` | Trace, render, measure and fit a 1:1 replica of a reference animation |
 | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) | `debugging` | Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test |
 | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) | `implementation` | Execute approved plans with TDD, incremental validation, and green commits |
 | [`/implementation:implement-dispatch`](../plugins/implementation/skills/implement-dispatch/SKILL.md) | `implementation` | Orchestrate worker subagents to execute an approved plan |

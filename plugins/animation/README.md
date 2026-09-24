@@ -1,9 +1,39 @@
 # animation
 
-A Claude Code plugin for hand-drawn-style 2D animation made as code. The model writes a
-deterministic `renderFrame(t)` scene, headless Chromium draws every frame, and ffmpeg encodes the
-film.
+A Claude Code plugin for hand-drawn-style 2D animation made as code. Scenes are deterministic
+Canvas 2D modules (`renderFrame(t)`), headless Chromium draws the frames, and ffmpeg encodes them.
 
-Skills arrive in this order: `rotoscope` (copy a reference clip drawing by drawing, measured),
-`learn-style` (turn traces into a reusable style pack), and `film` (brief, boards for approval,
-shots, render, review).
+## Skills
+
+| Skill | What it does |
+|---|---|
+| `/animation:rotoscope <clip> <work dir>` | Copies a reference clip drawing by drawing: traces each distinct drawing to vector paths, renders them through the ink.js brush engine, measures every drawing against its source (XOR against a codec-noise floor, SSIM, edge-band SSIM, paper colour), fits per-shot brush overrides, and reviews 1:1 crops. Each run appends to a learnings file, and a retro step promotes recurring findings into the defaults. |
+
+Planned next: `learn-style` (traces in, a measured style pack out) and `film` (brief, boards for
+approval, shots, render, review).
+
+## Shared scripts
+
+`scripts/` holds what every skill renders with: `ink.js` (the deterministic brush engine: capsule
+dabs, ink fills, strokes, splatter, dashed lines, paper grain), `render.html` (loads a scene module
+named by `?scene=`), and `capture.mjs` (saves each drawing or every frame at a given fps as PNG).
+
+## Requirements
+
+- Python 3 with numpy and opencv, run through `uv run --with numpy,opencv-python-headless`.
+- `ffmpeg` and `ffprobe` on PATH.
+- Node and playwright-core with Chromium. `capture.mjs` looks in `PW_CORE`, then the working
+  directory, then a playwright-cli install on PATH, and prints the remedy when none is found.
+
+## Regression
+
+The shfred0 study is the calibration target: 239 drawings, each within 1.2x its codec-noise floor
+on XOR and at least 0.980 SSIM. Its per-shot override file ships as a fixture (parameters only; the
+clip and traces are not shipped). With the clip and an empty directory:
+
+```bash
+uv run --with numpy,opencv-python-headless python \
+  plugins/animation/skills/rotoscope/scripts/regress.py <shfred0.mp4> <empty work dir>
+```
+
+It exits 0 only on 239/239.
