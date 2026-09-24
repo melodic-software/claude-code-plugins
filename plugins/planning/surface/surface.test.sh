@@ -134,9 +134,24 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
-  read -r -a seqs <<<"$(bash "$here/round.sh" --dir "$c" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' ')"
+  py=$(command -v python3 || command -v python)
+  unhandled() { "$py" "$here/round.py" --dir "$c" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
+  read -r -a seqs <<<"$(unhandled)"
   [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$c" handle --seq "${seqs[@]}" >/dev/null
+  # Phase 3 posts a fresh wrapup and watches the freeze lift inside its 10 s window, so the
+  # handle must land while the page script runs: this background handler polls for the new
+  # unhandled event and handles it (playwright-cli's own start-up, about 5 s on this host,
+  # would otherwise eat the window).
+  (
+    for _ in $(seq 1 40); do
+      read -r -a late <<<"$(unhandled)"
+      if [[ "${#late[@]}" -gt 0 ]]; then "$py" "$here/round.py" --dir "$c" handle --seq "${late[@]}"; break; fi
+      sleep 0.5
+    done
+  ) >/dev/null 2>&1 &
+  handler=$!
   pw run-code --filename "$(script_path "$tmp/ui_c3.js")" >"$tmp/ui_c3.out" 2>&1
+  wait "$handler" 2>/dev/null
 
   # ui_c phase 4 runs against a fourth server whose one event was delivered in 2020 and never
   # handled, with no watcher ever polling.
@@ -150,8 +165,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
 else
-  echo "SKIP: 147 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 147))
+  echo "SKIP: 149 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 149))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

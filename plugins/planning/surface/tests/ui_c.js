@@ -272,10 +272,18 @@ async page => {
     ok("Ctrl+Enter records nothing during the freeze", (await events()).length === n0 + 1);
   }
   if (PHASE === 3) {
-    await page.waitForTimeout(900); // SSE brings the handle
-    const ev = await events(), w = ev.filter(e => e.kind === "wrapup").pop();
-    const age = (Date.now() - Date.parse(w.at)) / 1000;
-    ok("Save re-enabled after handle, inside the 10 s freeze", !(await page.$eval("[data-save]", el => el.disabled)) && age < 10, "age " + age.toFixed(1) + " s");
+    await page.waitForTimeout(600); // SSE brings the handle of phase 2's events
+    await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
+    ok("Save enabled again once phase 2's wrap-up is handled", !(await page.$eval("[data-save]", el => el.disabled)));
+    // A fresh wrapup freezes saves; the shell's background handler lifts the freeze well inside
+    // the 10 s window, which the page must show before that window runs out on its own.
+    const w = await (await post({kind: "wrapup", text: ""})).json();
+    await page.waitForTimeout(600);
+    ok("Save disabled by a fresh wrap-up", await page.$eval("[data-save]", el => el.disabled), "seq " + w.seq);
+    const lifted = await page.waitForFunction(() => !document.querySelector("[data-save]").disabled, null, {timeout: 9000}).then(() => true).catch(() => false);
+    const st = await state(), at = st.responses.events.find(e => e.seq === w.seq).at, age = (Date.now() - Date.parse(at)) / 1000;
+    const handled = (st.questions.handled || []).includes(w.seq) || (st.questions.handledSeq || 0) >= w.seq;
+    ok("Save re-enabled by the handle, inside the 10 s freeze", lifted && handled && age < 10, "age " + age.toFixed(1) + " s, handled " + handled);
   }
   if (PHASE === 4) { // its own server: D1's one event was delivered in 2020 and never handled, and no watcher has polled
     await page.setViewportSize({width: 1400, height: 860});
