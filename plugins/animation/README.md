@@ -20,7 +20,7 @@ never a source's frames or traces.
 
 | Pack | Style |
 |---|---|
-| `woodcut-ink` | Two-tone brushed ink on cream with carved gouges, a soft edge and boil on 3s. A study of @shfred0's clip; a new untraced scene passes its check 15/15. |
+| `woodcut-ink` | Two-tone brushed ink on cream with carved gouges, a soft edge and boil on 3s. A study of @shfred0's clip; a new untraced scene passes its check 17/17. |
 
 ## Shared scripts
 
