@@ -1108,6 +1108,55 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_REFRESH_FAIL_MP=market2 CL
 report_of "$case_dir" --all --install-new none --journal-root "$case_dir/journal"
 assert_exit "render errors: exit 0 despite the per-marketplace failure" 0 "$REPORT_RC"
 assert_golden "render errors: the failing marketplace's errors render under its Action needed" all-with-refresh-failure.txt "$REPORT_TEXT"
+assert_eq "render errors: a github source carries no source_checkout" "null" \
+  "$(jq -c '.marketplaces[0].source_checkout' <<<"$REPORT_DIGEST")"
+
+# --- a directory source whose checkout is behind its upstream ----------------
+# The checkout is a real clone two commits behind its origin as of its last
+# fetch, with a modified tracked file. The source path is recorded in native
+# form where cygpath exists, the way Claude Code records it on Windows. The run
+# reads the checkout and changes nothing in it.
+fixture_git() { git -C "$1" -c user.email=fixture@example.invalid -c user.name=fixture -c commit.gpgsign=false -c core.autocrlf=false "${@:2}"; }
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+git init -q -b main "$case_dir/origin"
+printf 'one\n' >"$case_dir/origin/f"
+fixture_git "$case_dir/origin" add f
+fixture_git "$case_dir/origin" commit -q -m one
+git clone -q "$case_dir/origin" "$case_dir/mkt"
+fixture_git "$case_dir/origin" commit -q --allow-empty -m two
+fixture_git "$case_dir/origin" commit -q --allow-empty -m three
+git -C "$case_dir/mkt" fetch -q
+printf 'edited\n' >"$case_dir/mkt/f"
+src_path="$case_dir/mkt"
+command -v cygpath >/dev/null 2>&1 && src_path=$(cygpath -w "$src_path")
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"directory\", \"path\": \"${src_path//\\/\\\\}\"}, \"installLocation\": \"${src_path//\\/\\\\}\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+before="$(git -C "$case_dir/mkt" rev-parse HEAD origin/main) $(cksum <"$case_dir/mkt/.git/index")"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "render behind: exit 0" 0 "$REPORT_RC"
+assert_golden "render behind: the report matches the golden" directory-source-behind.txt "$REPORT_TEXT"
+assert_eq "render behind: the digest carries the checkout state" \
+  '{"state":"tracking","branch":"main","upstream":"origin/main","ahead":0,"behind":2,"dirty":true}' \
+  "$(jq -c '.marketplaces[0].source_checkout | del(.path)' <<<"$REPORT_DIGEST")"
+assert_eq "render behind: HEAD, the remote-tracking ref and the index are untouched" "$before" \
+  "$(git -C "$case_dir/mkt" rev-parse HEAD origin/main) $(cksum <"$case_dir/mkt/.git/index")"
+# The states that cannot say how fresh the checkout is: each renders its own
+# row and never the behind status or its Action needed bullet.
+checkout_case() {
+  local label="$1" state="$2" row="$3" out
+  out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
+  assert_eq "checkout $label: state" "$state" "$(printf '%s\n' "$out" | head -n 1 | jq -r '.marketplaces[0].source_checkout.state')"
+  assert_contains "checkout $label: row" "$out" "$row"
+  assert_contains "checkout $label: status stays current" "$out" "Marketplace: market1: current (autoUpdate: on)"
+}
+git -C "$case_dir/mkt" checkout -q -b local-only
+checkout_case "no upstream" no_upstream "a git checkout on local-only with no upstream; freshness not checked; tracked files modified (this run does not fetch or pull it)"
+git -C "$case_dir/mkt" checkout -q --detach
+checkout_case "detached" detached "a git checkout at a detached HEAD; freshness not checked; tracked files modified"
+rm -rf "$case_dir/mkt/.git"
+checkout_case "not a repo" not_a_repo "not a git work tree; freshness not checked"
 
 # ============================================================================
 # Case: sync mode without --journal-root is a usage error, not a silent scratch run
