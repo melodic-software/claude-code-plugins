@@ -535,8 +535,8 @@ fi
 
 # --- Spawn budget on the common path (strace, not xtrace) --------------------
 # This hook runs on EVERY Stop, and `docs/conventions/hook-budget/README.md`
-# states each always-on hook's budget in process spawns (k x S), not
-# milliseconds. On the host in #3508 one process creation costs 180-2,841 ms,
+# states each always-on hook's budget as k x S plus measured work (k = fewest
+# spawns, S = one no-op spawn's time), not a fixed millisecond figure. On the host in #3508 one process creation costs 180-2,841 ms,
 # so the budget here is a PROCESS COUNT, not a duration: durations on that host
 # are not comparable across time, and wall clock on a Linux runner says nothing
 # about the Windows spawn tax.

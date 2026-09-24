@@ -121,7 +121,7 @@ exactly how disk-hygiene's guard monitor missed the #1416 incident class.
 Its budget share is stated as a **process count**, not a duration, and the host
 is the reason. The [hook-budget
 convention](../../docs/conventions/hook-budget/README.md) states each
-always-on hook's budget in process spawns (k x S), not milliseconds, and on the host in #3508 one
+always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's time), not a fixed millisecond figure, and on the host in #3508 one
 process creation costs 180-2,841 ms (median 1,108 ms at 501 concurrent
 processes), so the count is what decides whether the set fits and a duration
 measured anywhere else does not transfer. On a turn with **no** hook failure
