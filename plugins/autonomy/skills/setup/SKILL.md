@@ -119,7 +119,8 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` plus `OTEL_TRACES_EXPORTER`; the slice treats spans
    as optional and never depends on beta span shapes. Interactive sessions ignore inbound trace
    context. The slice joins on `autonomy.work_item.url`, since metrics carry no trace IDs;
-   native inbound-context joining is the telemetry contract's recorded migration trigger. Read
+   relying on native inbound-context joining is the telemetry contract's recorded migration
+   trigger. Read
    [`context/agent-session-telemetry.md`](context/agent-session-telemetry.md) when a binding
    asks about trace context or the join, needs evidence that a guardrail fired, or asks what
    memory activity is observable: it holds the dated records for these wiring facts, the
