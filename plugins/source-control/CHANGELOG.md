@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.57.1] - 2026-09-24
+## [0.57.3] - 2026-09-24
 
 ### Changed
 
@@ -11,6 +11,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
   gates) through `bash` with `"shell": "bash"`, the #4421 shape, so each fire no longer execs
   `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged
   (#4442).
+
+## [0.57.2]
+
+### Fixed
+
+- `hooks/pr-linkage-spawn-budget.test.sh` points its budget at `docs/conventions/hook-budget/README.md`, which owns it, and states that budget in multiples of S; the rule file it named no longer exists.
+
+## [0.57.1] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
 
 ## [0.57.0]
 

@@ -3,13 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.2] - 2026-09-24
+## [0.36.3] - 2026-09-24
 
 ### Changed
 
 - Hook registrations run `hooks/run-guards.sh` and `hooks/workflow-resilience-check.sh` through
   `bash` with `"shell": "bash"`, the #4421 shape, so each fire no longer execs `/usr/bin/env` (the
   `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged (#4442).
+
+## [0.36.2] - 2026-09-23
+
+### Fixed
+
+- **`block-hook-bypass`'s shipped temp-tree default grants on a Windows host.** It never did: the redirect target reached `hook::under_temp_root` in the Git Bash `/c/...` spelling while the temp candidates normalized to `C:/...`, so no drive path matched. The target is now normalized the same way on Windows Git Bash hosts, and a bare, forward-slash, long-name target under `TEMP` is allowed when the project root is known and outside the temp tree, a home-directory project root included. A project root that is itself under a drive-spelled temp tree now stands the default down. Still refused: an 8.3 short-name target (a path with a component such as `ABCDEF~1`), because the guard refuses any operand carrying `~`; a quoted target; a backslash target. The normalization does not apply on POSIX hosts.
+- **A redirect target starting with `//` is refused by the scratch-root compare**, for the temp default and for configured roots alike. It was collapsed to a single `/`, so `//c/Users/...` (the share `Users` on a host named `c`) compared as the local temp tree. A leading `//` names a network host on Windows and is implementation-defined on POSIX, so the compare no longer reasons about it.
 
 ## [0.36.1] - 2026-09-23
 

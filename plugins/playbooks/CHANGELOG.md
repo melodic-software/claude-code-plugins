@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.12.2] - 2026-09-24
+
+### Fixed
+
+- **`skill-authoring`**: the authoring guidance points the hook budget at
+  `docs/conventions/hook-budget/README.md`, which owns it; the rule file it named no longer exists.
+
 ## [0.12.1] - 2026-09-23
 
 ### Changed

@@ -3,13 +3,19 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.53] - 2026-09-24
+## [0.6.54] - 2026-09-24
 
 ### Changed
 
 - The opt-in hook row runs `exec bash` on `hooks/eol-normalizer.sh` instead of executing the script,
   so an enabled fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash.
   Hook behavior is unchanged (#4442).
+
+## [0.6.53] - 2026-09-24
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
 
 ## [0.6.52] - 2026-09-23
 

@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.68] - 2026-09-24
+## [0.7.69] - 2026-09-24
 
 ### Changed
 
@@ -16,6 +16,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `zone-crossing-inject.sh` and `post-compact-mark.sh` read the `context_guard_hooks_enabled` switch
   before they source `hook-utils.sh`, as `zone-gate.sh` already did, so a disabled hook exits
   without parsing the library. Enabled behavior is unchanged.
+
+## [0.7.68] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
 
 ## [0.7.67] - 2026-09-23
 

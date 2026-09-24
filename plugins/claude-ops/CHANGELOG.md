@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.59.4] - 2026-09-24
+## [0.59.5] - 2026-09-24
 
 ### Changed
 
@@ -17,6 +17,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - `hook-failure-audit.sh` reads its `hook_failure_audit_enabled` switch before it sources
   `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
   unchanged.
+
+## [0.59.4] - 2026-09-24
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
 
 ## [0.59.3] - 2026-09-23
 
