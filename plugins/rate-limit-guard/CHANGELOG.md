@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.24] - 2026-09-24
+
+### Fixed
+
+- `hooks/record-rate-limit-stop.test.sh` (`run`) and `scripts/statusline-shim.test.sh` (`run_env`) feed a here-string instead of a pipe. The kill switch, and the shim with nothing to run, exit before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
 ## [0.8.23] - 2026-09-23
 
 ### Fixed

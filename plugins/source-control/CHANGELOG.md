@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.3] - 2026-09-24
+
+### Fixed
+
+- `hooks/worktree-add-claim-gate.test.sh` and `hooks/worktree-add-containment-gate.test.sh` (`run`) and the kill-switch case in `hooks/pr-body-linkage-gate.test.sh` feed a here-string instead of a pipe. Each gate's kill switch exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
 ## [0.57.2]
 
 ### Fixed

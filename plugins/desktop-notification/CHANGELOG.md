@@ -3,6 +3,12 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.47] - 2026-09-24
+
+### Fixed
+
+- `hooks/desktop-notification.test.sh`: the kill-switch case feeds the hook a here-string instead of piping `jq` into it. The hook exits before reading stdin there, so a `jq` still writing failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
 ## [0.6.46] - 2026-09-23
 
 ### Fixed

@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.69] - 2026-09-24
+
+### Fixed
+
+- `hooks/post-compact-mark.test.sh`, `hooks/zone-gate.test.sh`, `hooks/zone-crossing-inject.test.sh` and `scripts/statusline-shim.test.sh` feed a here-string instead of a pipe wherever the subject exits before reading stdin: the kill switch, zone-gate's advisory mode, and the shim with nothing to run. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
 ## [0.7.68] - 2026-09-23
 
 ### Fixed
