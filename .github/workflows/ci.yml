@@ -2206,25 +2206,6 @@ jobs:
       # other lane runs a scripts/ suite that needs strace. The counts depend
       # on the image's bash, git, jq and coreutils, so the versions are printed
       # beside every check: an ABOVE after an image bump reads in one log.
-      - name: TEMPORARY census variance probe
-        if: always() && needs.changes.outputs.run_tests == 'true'
-        run: |
-          bash scripts/hook-census.sh --versions
-          R=.performance/ratchets.json
-          for n in $(jq -r '.counters[].name' "$R"); do
-            cmd=$(jq -r --arg n "$n" '.counters[]|select(.name==$n)|.command' "$R")
-            f=$(jq -r --arg n "$n" '.counters[]|select(.name==$n)|.field' "$R")
-            vals=""
-            for i in $(seq 25); do
-              v=$(sh -c "$cmd" 2>/dev/null | grep -oE "(^| )$f=[0-9]+" | head -1 | cut -d= -f2)
-              vals="$vals ${v:-ERR}"
-            done
-            echo "VARIANCE leg=$LEG $n:$vals"
-          done
-          if unshare -rn true 2>/dev/null; then echo "UNSHARE leg=$LEG permitted"; else echo "UNSHARE leg=$LEG refused"; fi
-          for i in 1 2 3; do
-            echo "UNSHARE-CENSUS leg=$LEG $(unshare -rn sh -c "$(jq -r '.counters[]|select(.name=="guardrails-posttooluse-run-guards-spawns")|.command' "$R")" 2>&1 | tail -1)"
-          done
       - name: Check performance counter ceilings
         if: needs.changes.outputs.run_tests == 'true'
         run: |
