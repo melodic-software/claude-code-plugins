@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "animation",
   "version": "0.1.0",
-  "description": "Hand-drawn-style 2D animation as code, rendered in headless Chromium through a deterministic ink brush engine. The rotoscope skill copies a reference clip drawing by drawing: it traces each drawing to vector paths, renders them through the brush engine, measures every drawing against its source (XOR against a codec-noise floor, SSIM, paper colour), fits per-shot brush overrides kept in a tool-neutral override file, reviews 1:1 crops, and logs learnings that a retro step promotes into defaults. A shipped regression reproduces the shfred0 study at 239/239 drawings.",
+  "description": "Hand-drawn-style 2D animation as code, rendered in headless Chromium through a deterministic ink brush engine. The rotoscope skill copies a reference clip drawing by drawing: it traces each drawing to vector paths, renders them through the brush engine, measures every drawing against its source (XOR against a codec-noise floor, SSIM, paper colour), fits per-shot brush overrides kept in a tool-neutral override file, reviews 1:1 crops, and logs learnings that a retro step promotes into defaults. A shipped regression reproduces the shfred0 study at 239/239 drawings. The learn-style skill measures a traced clip into a style pack (palette, style knobs, and bands for edge softness, stroke widths, roughness, gray inside the ink, boil and holds) and checks any new film against it; it ships the woodcut-ink pack.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -11,6 +11,7 @@
   "keywords": [
     "animation",
     "rotoscope",
+    "style-pack",
     "2d-animation",
     "ink",
     "film",
