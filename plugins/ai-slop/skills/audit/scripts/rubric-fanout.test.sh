@@ -86,8 +86,9 @@ assert_eq "plan: digest is 64 hex characters" "$(digest_of "$out" 01 | grep -cE 
 
 # sha256sum escapes a file name holding a backslash and prefixes the hash with
 # `\`, so the digest is taken from stdin.
-BS="$TEST_TMPDIR/back\\slash"
-if mkdir "$BS" 2>/dev/null && [[ -n "$(find "$TEST_TMPDIR" -maxdepth 1 -name 'back\\slash')" ]]; then
+BSL=$'\x5c'
+BS="$TEST_TMPDIR/back${BSL}lash"
+if mkdir "$BS" 2>/dev/null && [[ -n "$(find "$TEST_TMPDIR" -maxdepth 1 -name "back${BSL}${BSL}lash")" ]]; then
   out="$(bash "$FANOUT" plan --out "$BS" --order mtime "$P/targets.tsv" 2>&1)"
   assert_eq "plan: a backslash in --out still yields a bare 64-hex digest" \
     "$(digest_of "$out" 01 | grep -cE '^[0-9a-f]{64}$')" "1"
