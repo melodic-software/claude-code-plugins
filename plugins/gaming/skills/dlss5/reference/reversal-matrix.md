@@ -17,7 +17,7 @@ snapshot. A clean diff deletes the manifest and keeps the snapshot.
 | File | What it is |
 |---|---|
 | `<proxy>` (default `dxgi.dll`) | The fork's `OptiScaler.dll`, installed under the proxy name |
-| `OptiScaler.ini` | Fork config, edited on install: `[DlssNr] Enabled=true`, `AutoCapture=false`; `[Log] LogToFile=true`, `LogLevel=2`; `RestoreComputeSignature=true` when requested; a preset's allow-listed keys (`reference/presets.md`). Deleted whole by `remove`, so no key needs reverting |
+| `OptiScaler.ini` | Fork config, edited on install: `[DlssNr] Enabled=true`, `AutoCapture=false`; `[Log] LogToFile=true`, `LogLevel=2`; `RestoreComputeSignature=true` when requested; a preset's allow-listed keys (`reference/presets.md`). Deleted whole by `remove`, so no key needs reverting. `reset` rewrites it to the same content apply wrote and records its new hash in the manifest; it is the only game file `reset` writes |
 | `OptiScaler\*` | The fork's support tree |
 | `Licenses\*` | The fork's license files |
 | `nvngx.dll_dlssnr.dll` | Dagherbou build only: the forwarder the runtime's caller gate requires |

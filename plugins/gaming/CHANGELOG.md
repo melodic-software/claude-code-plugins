@@ -3,6 +3,47 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-09-24
+
+### Added
+
+- `reset` verb: rewrites the game's `OptiScaler.ini` to the build's stock ini plus the manifest's
+  recorded `iniEdits`, byte for byte what `apply` wrote, undoing the overlay's Save Settings
+  without a remove and apply. It prints every value it discards and a token, and writes only with
+  `-ConfirmReset <token>`, refusing when the file changed since that preview; the skill asks the
+  user first. It updates the manifest's hash for the file, so
+  `status` stays clean and `remove` stays byte-exact. It writes no other game file, and refuses a
+  manifest without a completed apply, ownership of `OptiScaler.ini`, recorded ini edits or build
+  tags, or whose build was re-provisioned since.
+<!-- spellchecker:off -->
+- Per-build preset allow-list. For `-Build wilsjo2` presets and `capture`: `Passes`,
+  `Pass2`/`Pass3` `Preset`, `Style`, `Intensity`, `LocalStructure`, `LocalTone`, `SkinStructure`
+  and `AutoMask`, `SkinProtection`, `SkinToneEnabled`, `SkinDetail`, `SkinColour`,
+  `EnvironmentDetail`, `EnvironmentColour`, `RunBeforeSR`, `FinishedPicture`, `HdrTransfer`,
+  `DeferredDLSS`, `PrivateUpscaler`, `ResidualAcrossRR`, `ResidualAcrossRRBlend` and `WorkingScale`,
+  each typed from wilsjo2 `v0.8.3`'s `Config.cpp` reader. `apply` refuses such a key on another
+  build before any write, naming the key and its layer. `AutoCapture` stays refused; `DebugView`,
+  `ShowSkinMask` and `UnlockPasses` stay off the list.
+<!-- spellchecker:on -->
+- `status` and `assess` (`installedBuild`) report the manifest's build against its build's current
+  pin: `installed build is older than the current pin` (tags compared as versions), `newer than`,
+  `differs from` (same version, another hash), or `unknown, re-apply to record` for a manifest
+  written before 0.5.0.
+- `reference/upstream-watch.md`, Updating a pin: detect, record in an issue, pin by pull request,
+  then roll out one game at a time after `/gaming:setup apply` re-provisions the build. A
+  prerelease is never pinned without a live test.
+
+### Changed
+
+- The default build is wilsjo2 `v0.8.3`; Dagherbou `v0.2.0-patch1` is the fallback. From the
+  owner's live A/B in Cyberpunk 2077 (RTX 5090, driver 616.92, 4K DLSS Quality): the same NR cost
+  (median 7.42 ms against about 7.4 ms), the runtime loading through the NGX driver with no
+  forwarder, a clean exit, and a better-looking picture by default. `Passes=2` measured 15.2 to
+  15.5 ms. `/gaming:setup apply` provisions wilsjo2 first.
+- `capture` no longer aborts when a captured hotkey binds the same key as another preset layer
+  (#4424). It writes every other changed key and lists the conflicting one with both bindings,
+  their layers, and the binding the preset keeps. `apply`'s duplicate-hotkey refusal is unchanged.
+
 ## [0.5.0] - 2026-09-23
 
 ### Added

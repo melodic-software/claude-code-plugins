@@ -2,9 +2,9 @@
 # Install/remove the OptiScaler DLSS-NR mod in a game exe dir, with a pre-install snapshot and a
 # file manifest so removal leaves the folder byte-identical. All state lives under -DataDir.
 param(
-    [Parameter(Mandatory)][ValidateSet('assess', 'discover', 'provision', 'apply', 'status', 'remove', 'capture', 'refetch', 'selftest')][string]$Verb,
+    [Parameter(Mandatory)][ValidateSet('assess', 'discover', 'provision', 'apply', 'status', 'remove', 'reset', 'capture', 'refetch', 'selftest')][string]$Verb,
     [Parameter(Position = 0)][string]$GameDir,
-    [string]$Build = 'dagherbou',
+    [string]$Build = 'wilsjo2',
     [string]$Proxy = 'dxgi.dll',
     [string]$DataDir,
     [string]$RuntimeDll,
@@ -19,6 +19,7 @@ param(
     [switch]$RestoreComputeSignature,
     [switch]$AllowUnknownRuntime,
     [switch]$Finish,
+    [string]$ConfirmReset,
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
@@ -58,8 +59,9 @@ $UpscalerDlls = @{
     'amd_fidelityfx_upscaler_dx12.dll' = 'FSR'; 'amd_fidelityfx_vk.dll' = 'FSR'
     'libxess.dll' = 'XeSS'; 'libxess_dx11.dll' = 'XeSS'
 }
-# The only OptiScaler.ini keys a preset may set, with their section in both pinned builds and the
-# value type. AutoCapture, logging and every safety behavior stay off this list. Mirrors
+# The only OptiScaler.ini keys a preset may set, with their section and value type. A key with
+# Builds is allow-listed for those builds alone; the rest are in both pinned inis. AutoCapture,
+# DebugView, ShowSkinMask, logging and every safety behavior stay off this list. Mirrors
 # reference/presets.md; change both together.
 $PresetKeys = @{
     Dx11Upscaler = @{ Section = 'Upscalers'; Type = 'token' }
@@ -74,6 +76,14 @@ $PresetKeys = @{
     LocalTone = @{ Section = 'DlssNr'; Type = 'number' }; SkinStructure = @{ Section = 'DlssNr'; Type = 'number' }
     Preset = @{ Section = 'DlssNr'; Type = 'uint' }; Style = @{ Section = 'DlssNr'; Type = 'uint' }
 }
+# wilsjo2 v0.8.3 only, typed by its Config.cpp reader (readBool, readFloat, readInt/readUInt).
+# WorkingScale is in the Dagherbou ini too, but is allow-listed for wilsjo2 alone.
+$W2Keys = @{
+    bool   = 'SkinProtection', 'SkinToneEnabled', 'RunBeforeSR', 'FinishedPicture', 'HdrTransfer', 'DeferredDLSS', 'ResidualAcrossRR', 'Pass2AutoMask', 'Pass3AutoMask'
+    number = 'SkinDetail', 'SkinColour', 'EnvironmentDetail', 'EnvironmentColour', 'ResidualAcrossRRBlend', 'WorkingScale', 'Pass2Intensity', 'Pass2LocalStructure', 'Pass2LocalTone', 'Pass2SkinStructure', 'Pass3Intensity', 'Pass3LocalStructure', 'Pass3LocalTone', 'Pass3SkinStructure' # spellchecker:disable-line
+    uint   = 'Passes', 'PrivateUpscaler', 'Pass2Preset', 'Pass2Style', 'Pass3Preset', 'Pass3Style'
+}
+foreach ($t in $W2Keys.Keys) { foreach ($k in $W2Keys[$t]) { $PresetKeys[$k] = @{ Section = 'DlssNr'; Type = $t; Builds = @('wilsjo2') } } }
 # Each hotkey's default, from both pinned builds' ini comments; -1 is unbound (ToggleKey has no default).
 $HotkeyDefaults = [ordered]@{ ShortcutKey = '0x2D'; FpsShortcutKey = '0x21'; FpsCycleShortcutKey = '0x22'; FGShortcutKey = '0x23'; ToggleKey = '-1' }
 # \A..\z, not ^..$: a trailing newline would let a value inject its own ini line. Case-sensitive, so
@@ -541,11 +551,14 @@ function Assert-Acknowledged($acr, $name) {
     [pscustomobject]@{ typed = $AcceptAntiCheatRisk; gameName = $name; reviewId = $acr.reviewId; date = (Get-Date).ToString('o'); research = $AntiCheatResearch.Trim(); sources = $src }
 }
 
-# Why a preset value is refused, or $null when it passes.
-function Test-PresetValue($key, $value) {
+# Why a preset value is refused, or $null when it passes. With $build, a key allow-listed only for
+# other builds is refused too.
+function Test-PresetValue($key, $value, $build) {
     # Refused by name whatever its value: capture stays off, and no preset can say otherwise.
     if ($key -eq 'AutoCapture') { return 'AutoCapture is never settable by a preset' }
     if ("$key" -cnotin $PresetKeys.Keys) { return "'$key' is not on the preset allow-list ($(($PresetKeys.Keys | Sort-Object) -join ', '))" }
+    $b = $PresetKeys[$key].Builds
+    if ($build -and $b -and $build -notin $b) { return "'$key' is on the preset allow-list only for -Build $($b -join ', '), not '$build'" }
     $t = $PresetKeys[$key].Type
     $want = @{ token = 'a plain token (letters, digits, _ and .)'; bool = 'true, false or auto'; number = 'a number or auto'; uint = 'a whole number or auto'; vk = 'a virtual-key code 0x01 to 0xFE, -1 (unbound) or auto' }[$t]
     if ("$value" -cnotmatch $PresetTypes[$t] -or ("$value" -like '0x*' -and [Convert]::ToInt32("$value".Substring(2), 16) -notin 1..254)) { return "value for $key must be ${want}: '$value'" }
@@ -576,12 +589,9 @@ function Get-PresetLayers($key) {
 function Merge-Preset($key, $layers) {
     if (-not $layers) { return }
     $p = [ordered]@{ key = if ($key) { $key }; title = $null; proxy = $null; ini = @(); manual = @(); manualSource = $null; sources = @(); recheck = $null; from = @() }
-    $ini = [ordered]@{}
+    $ini = Merge-Ini $layers
     foreach ($l in $layers) {
         $j = $l.json
-        foreach ($e in @($j.ini)) {
-            if ($e) { $ini["$($e.key)"] = [pscustomobject]@{ section = $PresetKeys["$($e.key)"].Section; key = "$($e.key)"; value = "$($e.value)"; why = $e.why; source = $l.source } }
-        }
         # Present wins, even when empty: a local "manual": [] clears the shipped steps.
         foreach ($f in 'title', 'proxy', 'recheck') { if ($null -ne $j.$f) { $p[$f] = $j.$f } }
         if ($null -ne $j.manual) { $p.manual = @($j.manual | Where-Object { $_ }); $p.manualSource = $l.source }
@@ -589,16 +599,29 @@ function Merge-Preset($key, $layers) {
         $p.from += "$($l.source) $($l.file)"
     }
     $p.ini = @($ini.Values)
-    # One key bound to two actions fires both. Checked on effective bindings: an unset or auto hotkey
-    # keeps the fork's default, so ToggleKey=0x2D collides with the default Insert menu key.
+    $dup = Get-HotkeyDup $ini
+    if ($dup) { throw "preset binds one key to several actions: $(($dup | ForEach-Object { ($_.Group.text | Sort-Object) -join ' and ' }) -join '; ')" }
+    [pscustomobject]$p
+}
+# Key -> effective ini entry, the highest layer winning, each entry naming its layer.
+function Merge-Ini($layers) {
+    $ini = [ordered]@{}
+    foreach ($l in $layers) {
+        foreach ($e in @($l.json.ini)) {
+            if ($e) { $ini["$($e.key)"] = [pscustomobject]@{ section = $PresetKeys["$($e.key)"].Section; key = "$($e.key)"; value = "$($e.value)"; why = $e.why; source = $l.source } }
+        }
+    }
+    $ini
+}
+# One key bound to two actions fires both. Checked on effective bindings: an unset or auto hotkey
+# keeps the fork's default, so ToggleKey=0x2D collides with the default Insert menu key.
+function Get-HotkeyDup($ini) {
     $eff = foreach ($k in $HotkeyDefaults.Keys) {
         $e = $ini[$k]
         $v = if ($e -and $e.value -ne 'auto') { $e.value } else { $HotkeyDefaults[$k] }
-        if ($v -like '0x*') { [pscustomobject]@{ code = [Convert]::ToInt32($v.Substring(2), 16); text = "[$($PresetKeys[$k].Section)] $k=$v ($(if ($e -and $e.value -ne 'auto') { $e.source } else { 'default' }))" } }
+        if ($v -like '0x*') { [pscustomobject]@{ key = $k; code = [Convert]::ToInt32($v.Substring(2), 16); text = "[$($PresetKeys[$k].Section)] $k=$v ($(if ($e -and $e.value -ne 'auto') { $e.source } else { 'default' }))" } }
     }
-    $dup = @($eff | Group-Object code | Where-Object Count -gt 1)
-    if ($dup) { throw "preset binds one key to several actions: $(($dup | ForEach-Object { ($_.Group.text | Sort-Object) -join ' and ' }) -join '; ')" }
-    [pscustomobject]$p
+    @($eff | Group-Object code | Where-Object Count -gt 1)
 }
 # The effective preset for a per-game key, or for the bases alone when $key is empty.
 function Get-Preset($key) {
@@ -702,6 +725,9 @@ function Do-Apply($root) {
     if ("$($script:DataDir)\".StartsWith("$root\", 'OrdinalIgnoreCase')) { throw "data_dir $($script:DataDir) is inside $root; state files would land in the tree the snapshot restores. Move data_dir outside the game directory" }
     # The bases apply with or without -Preset.
     $pr = Get-Preset $Preset
+    foreach ($e in @($pr.ini)) {
+        if ($e -and ($err = Test-PresetValue $e.key $e.value $Build)) { throw "preset key $($e.key) ($($e.source) layer): $err. Remove it from that layer or apply another build; nothing was changed" }
+    }
 
     $src = Join-Path $script:DataDir "builds\$Build"
     $marker = LoadJson (Join-Path $src '.provisioned.json'); $tag = $marker.tag
@@ -879,35 +905,51 @@ function Do-Capture($root) {
     if (-not $key) { throw 'no preset matches this game; pass -Preset <key> to name a new local preset. Nothing was written' }
     $layers = @(Get-PresetLayers $key)
     if (-not $own -and @($layers | Where-Object source -in 'shipped', 'local').Count) { throw "preset '$key' exists and does not match this game; pick another key. Nothing was written" }
-    $stock = Join-Path $script:DataDir "builds\$($mj.build)\OptiScaler.ini"
-    if (-not (Test-Path -LiteralPath $stock -PathType Leaf)) { throw "missing stock ini $stock (run /gaming:setup apply). Nothing was written" }
-    # A re-provisioned build's new stock defaults would read as overlay tuning.
-    # Provisioning replaces a build on a new asset hash even under the same tag, so both are compared.
-    $m = LoadJson (Join-Path $script:DataDir "builds\$($mj.build)\.provisioned.json")
-    if (($mj.tag -and $m.tag -ne $mj.tag) -or ($mj.buildSha256 -and $m.sha256 -ne $mj.buildSha256)) {
-        throw "the $($mj.build) build is now '$($m.tag)' ($($m.sha256)), but this game was applied from '$($mj.tag)' ($($mj.buildSha256)), so its stock ini no longer matches. Nothing was written"
-    }
+    $stock = Get-StockIni $mj
     if (-not $mj.tag) { "note: this manifest predates recorded build tags; the diff assumes $($mj.build) is unchanged since the apply" }
     $want = Read-Ini $stock
     foreach ($e in @($mj.iniEdits)) { if ($e) { $want["$($e.section)/$($e.key)"] = $e.value } }
     $now = Read-Ini (Join-Path $root 'OptiScaler.ini')
     $old = @($layers | Where-Object source -eq 'local').json | Select-Object -First 1
     $ini = [ordered]@{}; foreach ($e in @($old.ini)) { if ($e) { $ini["$($e.key)"] = $e } }
-    $took = @(); $left = @()
+    $oldIni = @{}; foreach ($k in $ini.Keys) { $oldIni[$k] = $ini[$k] }
+    $took = [ordered]@{}; $left = @()
     foreach ($k in $now.Keys | Sort-Object) {
         $sec, $name = $k -split '/', 2
         $v = $now[$k]
         # A respelling counts as unchanged only when it is valid for the key: 124 for 0x7C is reported.
         $allowed = $name -cin $PresetKeys.Keys -and $PresetKeys[$name].Section -ceq $sec
-        if ($v -ceq $want[$k] -or ((NormVal $v) -ceq (NormVal $want[$k]) -and -not ($allowed -and (Test-PresetValue $name $v)))) { continue }
+        if ($v -ceq $want[$k] -or ((NormVal $v) -ceq (NormVal $want[$k]) -and -not ($allowed -and (Test-PresetValue $name $v $mj.build)))) { continue }
         $err = if ($name -eq 'AutoCapture') { 'never captured. Set it back to false: it writes frame captures into the game folder' }
         elseif ($PresetKeys[$name].Section -cne $sec) { 'not on the preset allow-list' }
-        else { Test-PresetValue $name $v }
+        else { Test-PresetValue $name $v $mj.build }
         if ($err) { $left += "[$sec] $name=$v ($err)"; continue }
         $ini[$name] = [pscustomobject]@{ key = $name; value = $v; why = "captured $(Get-Date -Format 'yyyy-MM-dd') from the overlay's Save Settings" }
-        $took += "[$sec] $name=$v"
+        $took[$name] = "[$sec] $name=$v"
     }
-    if (-not $took) { 'nothing captured: no allow-listed key differs from what apply wrote' }
+    # A captured hotkey that shares a key with another layer's binding is left out and reported with
+    # both sources; the rest is still written. apply keeps refusing any such merge outright.
+    $lower = @($layers | Where-Object source -ne 'local')
+    $cur = Merge-Ini $layers
+    $lf = Join-Path $script:DataDir "presets\$key.json"
+    $merged = { Merge-Ini ($lower + [pscustomobject]@{ source = 'local'; file = $lf; json = [pscustomobject]@{ ini = @($ini.Values) } }) }
+    do {
+        $hit = $false
+        foreach ($grp in Get-HotkeyDup (& $merged)) {
+            foreach ($h in @($grp.Group | Where-Object { $_.key -cin $took.Keys })) {
+                $hit = $true
+                $others = @($grp.Group | Where-Object key -cne $h.key | ForEach-Object text) -join ' and '
+                $c = $cur[$h.key]
+                $keeps = if ($c -and $c.value -ne 'auto') { "$($c.value) ($($c.source))" } else { "$($HotkeyDefaults[$h.key]) (default)" }
+                $left += "$($took[$h.key]) (conflict: the game's ini binds the same key as $others; the preset keeps $($h.key)=$keeps. Rebind one of them, then capture again)"
+                if ($oldIni.Contains($h.key)) { $ini[$h.key] = $oldIni[$h.key] } else { $ini.Remove($h.key) }
+                $took.Remove($h.key)
+            }
+        }
+    } while ($hit)
+    $dup = Get-HotkeyDup (& $merged)
+    if ($dup) { "note: the preset layers already bind one key to several actions ($(($dup | ForEach-Object { ($_.Group.text | Sort-Object) -join ' and ' }) -join '; ')); apply refuses until one is rebound" }
+    if (-not $took.Count) { 'nothing captured: no allow-listed key differs from what apply wrote, or every one conflicts' }
     else {
         # A new file beside a shipped preset of the same key inherits its title and match.
         $j = if ($old) { $old } elseif (@($layers | Where-Object source -eq 'shipped').Count) { [pscustomobject]@{} } else {
@@ -919,16 +961,85 @@ function Do-Capture($root) {
             }
         }
         $j | Add-Member -Force -NotePropertyName ini -NotePropertyValue @($ini.Values)
-        $lf = Join-Path $script:DataDir "presets\$key.json"
-        # The merged result must hold before the write: a captured key bound twice refuses here.
-        $null = Merge-Preset $key (@($layers | Where-Object source -ne 'local') + [pscustomobject]@{ source = 'local'; file = $lf; json = $j })
         New-Item -ItemType Directory -Force -Path (Split-Path $lf -Parent) | Out-Null
         $j | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $lf -Encoding utf8
         "captured $($took.Count) key(s) into local preset '$key' -> $lf"
         if ($j.match.exe) { "  matches on $($j.match.exe); check it is the game's executable" }
-        $took | ForEach-Object { "  $_" }
+        $took.Values | ForEach-Object { "  $_" }
     }
     if ($left) { 'not captured:'; $left | ForEach-Object { "  $_" } }
+}
+
+# The provisioned stock ini of the build a manifest was applied from. A re-provisioned build's new
+# stock defaults would read as tuning (capture) or be written as stock (reset). Provisioning replaces
+# a build on a new asset hash even under the same tag, so both are compared. -Strict refuses a
+# manifest that predates recorded tags.
+function Get-StockIni($mj, [switch]$Strict) {
+    if ($Strict -and (-not $mj.tag -or -not $mj.buildSha256)) { throw "this manifest predates recorded build tags, so the stock ini it was applied from is unknown; remove and re-apply to use reset. Nothing was written" }
+    $stock = Join-Path $script:DataDir "builds\$($mj.build)\OptiScaler.ini"
+    if (-not (Test-Path -LiteralPath $stock -PathType Leaf)) { throw "missing stock ini $stock (run /gaming:setup apply). Nothing was written" }
+    $m = LoadJson (Join-Path $script:DataDir "builds\$($mj.build)\.provisioned.json")
+    if (($mj.tag -and $m.tag -ne $mj.tag) -or ($mj.buildSha256 -and $m.sha256 -ne $mj.buildSha256)) {
+        throw "the $($mj.build) build is now '$($m.tag)' ($($m.sha256)), but this game was applied from '$($mj.tag)' ($($mj.buildSha256)), so its stock ini no longer matches. Nothing was written"
+    }
+    $stock
+}
+
+# Whether a manifest's build is its build's current pin. Manifests before 0.5.0 lack tag or buildSha256.
+function Get-PinState($mj) {
+    $pin = $BuildPins["$($mj.build)"]
+    if (-not $mj.tag -or -not $mj.buildSha256) { return "installed build: $($mj.build), tag unknown, re-apply to record" }
+    if (-not $pin) { return "installed build: $($mj.build) $($mj.tag), which this plugin version no longer pins" }
+    if ($mj.tag -eq $pin.Tag -and $mj.buildSha256 -eq $pin.Sha256) { return "installed build: $($mj.build) $($mj.tag), the current pin" }
+    # Tags compare as versions (v0.8.3 < v0.9.0); a same-version tag or a changed asset hash is only "differs".
+    $a = $b = $null
+    $ok = [version]::TryParse(($mj.tag -replace '^v' -replace '-.*$'), [ref]$a) -and [version]::TryParse(($pin.Tag -replace '^v' -replace '-.*$'), [ref]$b) -and $a -ne $b
+    $what = "$($mj.build) $($mj.tag) ($($mj.buildSha256)) installed, $($pin.Tag) ($($pin.Sha256)) pinned"
+    if ($ok -and $a -lt $b) { "installed build is older than the current pin: $what. Update steps: reference/upstream-watch.md" }
+    elseif ($ok) { "installed build is newer than the current pin: $what. This plugin version is older than the one that applied it" }
+    else { "installed build differs from the current pin: $what. Check the pin history before re-applying" }
+}
+
+# Rewrites the game's OptiScaler.ini to the build's stock ini plus the manifest's iniEdits, which is
+# byte for byte what apply wrote, undoing the overlay's Save Settings. Prints what it discards and a
+# token, and writes only with -ConfirmReset <token>. OptiScaler.ini is the one game-folder file it writes, and only when
+# the manifest owns it; the manifest's hash for it is updated so remove stays byte-exact.
+function Do-Reset($root) {
+    $mj = Load-Manifest $root
+    if (-not $mj.applied) { throw "no completed apply for $root; reset rewrites the OptiScaler.ini an apply installed. Nothing was written" }
+    $own = @($mj.files | Where-Object { $_.Path -eq 'OptiScaler.ini' })
+    if (-not $own) { throw 'the manifest does not own OptiScaler.ini; refusing to write it. Nothing was written' }
+    $edits = @($mj.iniEdits | Where-Object { $_ } | ForEach-Object { @{ Section = $_.section; Key = $_.key; Value = $_.value; Required = $true } })
+    if (-not $edits) { throw 'this manifest predates recorded ini edits; remove and re-apply to use reset. Nothing was written' }
+    $stock = Get-StockIni $mj -Strict
+    $gi = Join-Path $root 'OptiScaler.ini'
+    $tmp = Join-Path (StateDir $root) 'reset.ini'
+    try {
+        Copy-Item -LiteralPath $stock -Destination $tmp -Force
+        Edit-Ini $tmp $edits
+        $hash = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash
+        if ((Test-Path -LiteralPath $gi) -and (Get-FileHash -LiteralPath $gi -Algorithm SHA256).Hash -eq $hash) { return 'OptiScaler.ini already matches the stock ini plus the recorded preset; nothing to reset' }
+        # The confirmation names the ini the preview showed, so a file saved again since then refuses.
+        $token = if (Test-Path -LiteralPath $gi) { (Get-FileHash -LiteralPath $gi -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant() } else { 'absent' }
+        if ($ConfirmReset -and $ConfirmReset -ne $token) { throw "OptiScaler.ini changed since the preview (previewed '$ConfirmReset', now '$token'); rerun reset without -ConfirmReset and show the user the new list. Nothing was written" }
+        $cur = if (Test-Path -LiteralPath $gi) { Read-Ini $gi } else { @{} }
+        $new = Read-Ini $tmp
+        'reset discards these OptiScaler.ini values (now -> stock plus preset):'
+        $diff = foreach ($k in @(@($cur.Keys) + @($new.Keys) | Sort-Object -Unique)) {
+            if ($cur[$k] -cne $new[$k]) {
+                $sec, $name = $k -split '/', 2
+                "  [$sec] ${name}: $(if ($cur.ContainsKey($k)) { $cur[$k] } else { '(absent)' }) -> $(if ($new.ContainsKey($k)) { $new[$k] } else { '(absent)' })"
+            }
+        }
+        if ($diff) { $diff } else { '  (no value changes; comments or formatting only)' }
+        if (-not $ConfirmReset) { return "nothing written: rerun with -ConfirmReset $token once the user has confirmed" }
+        Copy-Item -LiteralPath $tmp -Destination $gi -Force
+        $own[0].Sha256 = $hash
+        $mj | Add-Member -Force -NotePropertyName reset -NotePropertyValue (Get-Date).ToString('o')
+        $mj | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path (StateDir $root) 'manifest.json') -Encoding utf8
+        "reset: $gi rewritten to the stock $($mj.build) $($mj.tag) ini plus the recorded preset; manifest updated"
+    }
+    finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
 }
 
 # Read-only eligibility probe: on-disk facts, the launcher, and the anti-cheat sources (on disk,
@@ -951,6 +1062,7 @@ function Do-Assess($root) {
     # A broken preset file must not hide the verdict, so its error rides in the JSON instead.
     $pr = $null; $prErr = $null
     try { $pr = Get-Preset (Find-Preset $root) } catch { $prErr = $_.Exception.Message }
+    $installed = try { if (($m = Load-Manifest $root).applied) { Get-PinState $m } } catch { "state unreadable: $($_.Exception.Message)" }
     $refusals = @()
     if (-not $hasExe) { $refusals += "no *.exe in $root; pass the directory that holds the game executable" }
     elseif (-not $ups) { $refusals += $NoUpscaler }
@@ -963,7 +1075,7 @@ function Do-Assess($root) {
         refusals = $refusals; upscalers = $ups
         dx12 = [bool](Get-ChildItem -LiteralPath $root -Filter 'd3d12*.dll' -File) -or ($root -match '\\Binaries\\Win64$')
         proxyCollisions = $collisions; freeProxies = $free; steamAppId = $appId
-        preset = $pr; presetError = $prErr
+        preset = $pr; presetError = $prErr; installedBuild = $installed
     } | ConvertTo-Json -Depth 8
 }
 
@@ -1217,6 +1329,11 @@ function Do-Selftest {
         Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
         $BuildFiles['selftest'] = @('OptiScaler.dll', 'OptiScaler.ini', 'OptiScaler', 'Licenses')
         $script:Build = 'selftest'; $script:Proxy = 'dxgi.dll'; $script:RestoreComputeSignature = $true
+        $BuildPins['selftest'] = @{ Tag = 'vtest'; Sha256 = 'AA' }
+        Copy-Item -LiteralPath $bs -Destination "$tmp\data\builds\wilsjo2" -Recurse
+        # The param block's default, not $script:Build, which this selftest overwrites.
+        $bp = [Management.Automation.Language.Parser]::ParseFile($PSCommandPath, [ref]$null, [ref]$null).ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'Build' }
+        Assert 'the default build is wilsjo2' ($bp.DefaultValue.Value -eq 'wilsjo2')
 
         # Fixtures sit three levels deep so the non-Steam ancestor scan never leaves $tmp.
         $w = "$tmp\w\x\y"
@@ -1235,6 +1352,17 @@ function Do-Selftest {
         Assert 'nothing written under the script dir' (-not (Get-ChildItem -LiteralPath $PSScriptRoot -Directory))
         Assert 'no pending.json after success' (-not (Test-Path -LiteralPath "$sd\pending.json"))
         Assert 'manifest records the build tag from .provisioned.json' ((LoadJson "$sd\manifest.json").tag -eq 'vtest' -and (LoadJson "$sd\manifest.json").buildSha256 -eq 'AA')
+        $gm = LoadJson "$sd\manifest.json"
+        Assert 'pin state: a manifest on its build''s pin is current' ((Get-PinState $gm) -like '*selftest vtest, the current pin')
+        $BuildPins['selftest'].Tag = 'vnext'
+        Assert 'pin state: a manifest off its build''s pin is reported, in assess too' (((Get-PinState $gm) -like 'installed build differs from the current pin: selftest vtest (AA) installed, vnext (AA) pinned*') -and (((Do-Assess $g) | ConvertFrom-Json).installedBuild -like 'installed build differs from the current pin*'))
+        $pv = { param($tag, $sha) Get-PinState ([pscustomobject]@{ build = 'selftest'; tag = $tag; buildSha256 = $sha }) }
+        $BuildPins['selftest'] = @{ Tag = 'v0.9.0'; Sha256 = 'CC' }
+        Assert 'pin state: a lower version tag is older than the current pin' ((& $pv 'v0.8.3' 'AA') -like 'installed build is older than the current pin: selftest v0.8.3 (AA) installed, v0.9.0 (CC) pinned*')
+        Assert 'pin state: a higher version tag is newer, never older' ((& $pv 'v0.10.1' 'AA') -like 'installed build is newer than the current pin*')
+        Assert 'pin state: the same tag with another hash only differs' ((& $pv 'v0.9.0' 'AA') -like 'installed build differs from the current pin*(AA) installed*(CC) pinned*')
+        $BuildPins['selftest'] = @{ Tag = 'vtest'; Sha256 = 'AA' }
+        Assert 'pin state: an empty tag (before 0.5.0) is unknown' ((Get-PinState ([pscustomobject]@{ build = 'wilsjo2'; tag = '' })) -like '*unknown, re-apply to record')
         $gi = "$g\OptiScaler.ini"
         Assert 'proxy dxgi.dll placed' (Test-Path -LiteralPath "$g\dxgi.dll")
         Assert 'model nvngx_dlssnr.dll placed' (Test-Path -LiteralPath "$g\nvngx_dlssnr.dll")
@@ -1330,8 +1458,31 @@ function Do-Selftest {
         $script:Preset = 'other'
         Assert 'capture refuses a key other than the game''s own preset' (Throws { Do-Capture $pg } "*preset is 'fx'*")
         $script:Preset = 'fx'
+        # reset: back to the stock ini plus the recorded preset, only with -ConfirmReset
+        $pmf = "$(StateDir $pg)\manifest.json"
+        $h0 = (@((LoadJson $pmf).files) | Where-Object Path -eq 'OptiScaler.ini').Sha256
+        $pre = Tree $pg
+        $ro = @(Do-Reset $pg)
+        Assert 'reset without -ConfirmReset prints what it discards and writes nothing' ((SameTree (Tree $pg) $pre) -and @($ro | Where-Object { $_ -like '*`[DlssNr`] LocalTone: 0.300000 -> 0.5' }).Count -eq 1 -and @($ro | Where-Object { $_ -like '*`[DlssNr`] AutoCapture: true -> false' }).Count -eq 1 -and $ro[-1] -like 'nothing written*-ConfirmReset ????????????*')
+        $tok = ($ro[-1] -split ' ')[5]
+        Put "$bs\.provisioned.json" '{"tag":"vnext","sha256":"AA"}'
+        Assert 'reset refuses when the build was re-provisioned' ((Throws { Do-Reset $pg } "*now 'vnext'*") -and (SameTree (Tree $pg) $pre))
+        Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
+        $saved = [IO.File]::ReadAllBytes($pgi)
+        Add-Content -LiteralPath $pgi -Value 'SavedAgain=1'
+        $script:ConfirmReset = $tok
+        $pre2 = Tree $pg
+        Assert 'reset refuses a confirmation for an ini saved again since the preview' ((Throws { Do-Reset $pg } '*changed since the preview*') -and (SameTree (Tree $pg) $pre2))
+        [IO.File]::WriteAllBytes($pgi, $saved)
+        Do-Reset $pg | Out-Null
+        $script:ConfirmReset = $null
+        $post = Tree $pg
+        Assert 'reset restores the stock ini plus the preset byte for byte and records its hash' ((Get-FileHash -LiteralPath $pgi -Algorithm SHA256).Hash -eq $h0 -and (@((LoadJson $pmf).files) | Where-Object Path -eq 'OptiScaler.ini').Sha256 -eq $h0 -and (IniVal $pgi 'DlssNr' 'AutoCapture') -eq 'false')
+        $pre.Remove('OptiScaler.ini'); $post.Remove('OptiScaler.ini')
+        Assert 'reset writes no other file, and status is clean' ((SameTree $post $pre) -and -not (Get-Stat $pg).Bad)
+        Assert 'reset of an unchanged ini writes nothing' (@(Do-Reset $pg)[-1] -like '*nothing to reset')
         Do-Remove $pg | Out-Null
-        Assert 'remove after a preset apply is byte-exact' ((SameTree (Tree $pg) $before) -and -not (Test-Path -LiteralPath "$(StateDir $pg)\manifest.json"))
+        Assert 'remove after a preset apply and a reset is byte-exact' ((SameTree (Tree $pg) $before) -and -not (Test-Path -LiteralPath "$(StateDir $pg)\manifest.json"))
         Do-Apply $pg | Out-Null
         Assert 'capture round-trips: the next apply writes the captured values' ((IniVal $pgi 'DlssNr' 'LocalTone') -eq '0.300000' -and (IniVal $pgi 'Menu' 'FpsShortcutKey') -eq '0x7d' -and (IniVal $pgi 'DlssNr' 'WhitePointScale') -eq '1.3')
         Do-Remove $pg | Out-Null
@@ -1345,6 +1496,13 @@ function Do-Selftest {
                 @('ToggleKey', '0x00', $false), @('ToggleKey', '0xFF', $false), @('ToggleKey', '124', $false), @('ToggleKey', 'F13', $false), @('ToggleKey', '0x100', $false)
                 @('Enabled', 'True', $false), @('TransferStrength', 'abc', $false), @('SkinStructure', '-1.0', $true), @('Style', '-1', $false))) {
             Assert "value check: $($t[0])=$($t[1]) $(if ($t[2]) { 'passes' } else { 'refused' })" ([bool](Test-PresetValue $t[0] $t[1]) -ne $t[2])
+        }
+        foreach ($t in @(
+                @('Passes', '2', 'wilsjo2', $true), @('Pass2Style', '1', 'wilsjo2', $true), @('Pass3AutoMask', 'false', 'wilsjo2', $true), @('WorkingScale', '0.75', 'wilsjo2', $true)
+                @('SkinColour', '0.5', 'wilsjo2', $true), @('ResidualAcrossRR', 'true', 'wilsjo2', $true), @('ToggleKey', '0x7C', 'dagherbou', $true) # spellchecker:disable-line
+                @('Passes', '2', 'dagherbou', $false), @('WorkingScale', '0.75', 'dagherbou', $false), @('Passes', '1.5', 'wilsjo2', $false)
+                @('DebugView', '1', 'wilsjo2', $false), @('ShowSkinMask', 'true', 'wilsjo2', $false), @('AutoCapture', 'false', 'wilsjo2', $false))) {
+            Assert "per-build check: $($t[0])=$($t[1]) on $($t[2]) $(if ($t[3]) { 'passes' } else { 'refused' })" ([bool](Test-PresetValue $t[0] $t[1] $t[2]) -ne $t[3])
         }
         Put "$tmp\presets\hk.json" '{"ini":[{"key":"ToggleKey","value":"F13"}]}'
         $script:Preset = 'hk'
@@ -1372,6 +1530,16 @@ function Do-Selftest {
         Assert 'preset key with a path refused' (Throws { Do-Apply $rg } '*lowercase letters*')
         $script:Preset = $null
         Assert 'preset refusals write nothing' ((SameTree (Tree $rg) $before) -and -not (Test-Path -LiteralPath (StateDir $rg)))
+        Put "$tmp\presets\w2.json" '{"ini":[{"key":"Passes","value":"2"},{"key":"Pass2Style","value":"1"}]}'
+        $script:Preset = 'w2'
+        Assert 'a wilsjo2-only preset key on another build refuses before any write' ((Throws { Do-Apply $rg } "*Passes (shipped layer)*only for -Build wilsjo2, not 'selftest'*") -and (SameTree (Tree $rg) $before) -and -not (Test-Path -LiteralPath (StateDir $rg)))
+        $script:Build = 'wilsjo2'
+        Ack $rg
+        Do-Apply $rg | Out-Null
+        Assert 'a wilsjo2-only preset key applies with -Build wilsjo2' ((IniVal "$rg\OptiScaler.ini" 'DlssNr' 'Passes') -eq '2' -and (IniVal "$rg\OptiScaler.ini" 'DlssNr' 'Pass2Style') -eq '1' -and (LoadJson "$(StateDir $rg)\manifest.json").build -eq 'wilsjo2')
+        Do-Remove $rg | Out-Null
+        Assert 'remove after a wilsjo2 apply is byte-exact' (SameTree (Tree $rg) $before)
+        $script:Build = 'selftest'; $script:Preset = $null
 
         # The mod's own upscaler copies under OptiScaler\ do not make a game a candidate
         $os = "$w\ownonly\Win64"; Put "$os\game.exe" 'exe'; Put "$os\OptiScaler\amd_fidelityfx_dx12.dll" 'fsr'; Put "$os\OptiScaler\libxess.dll" 'xess'
@@ -1614,9 +1782,33 @@ function Do-Selftest {
         Do-Capture $xg | Out-Null
         $fj = LoadJson "$tmp\data\presets\forza-fx.json"
         Assert 'capture under a new key writes a local preset matching only the game exe, not a helper' ("$($fj.match.exe)" -eq 'forza.exe' -and $fj.title -eq 'Forza Fixture' -and @($fj.ini).Count -eq 1 -and $fj.ini[0].key -eq 'MaxRatio' -and $fj.ini[0].why -like 'captured *' -and (Find-Preset $xg) -eq 'forza-fx')
+        # #4424: an overlay-saved hotkey that collides with a local base added after the apply
+        $lb = '{"key":"LocalTone","value":"0.5"},{"key":"Intensity","value":"1.2"},{"key":"WhitePointScale","value":"1.3"}'
+        Put "$tmp\data\presets\_base.json" "{`"ini`":[$lb,{`"key`":`"FGShortcutKey`",`"value`":`"0x7F`"}]}"
+        Set-Content -LiteralPath $xi -Value ((Get-Content -LiteralPath $xi -Raw) -replace 'ToggleKey=0x7C', 'ToggleKey=0x7f' -replace '(?m)^Style=auto', 'Style=2') -NoNewline
         $script:Preset = $null
+        $cc = @(Do-Capture $xg)
+        $fv = @{}; foreach ($e in (LoadJson "$tmp\data\presets\forza-fx.json").ini) { $fv[$e.key] = $e.value }
+        Assert 'capture writes the keys that do not conflict with another layer''s hotkey' ($fv.Style -eq '2' -and $fv.MaxRatio -eq '1.500000' -and -not $fv.ContainsKey('ToggleKey'))
+        Assert 'capture reports a conflicting hotkey with both sources and the binding the preset keeps' (@($cc | Where-Object { $_ -like '*`[DlssNr`] ToggleKey=0x7f (conflict:*`[Menu`] FGShortcutKey=0x7F (local-base)*keeps ToggleKey=0x7C (shipped-base)*' }).Count -eq 1)
+        Put "$tmp\data\presets\_base.json" "{`"ini`":[$lb]}"
         Do-Remove $xg | Out-Null
         Assert 'Xbox remove is byte-exact' (SameTree (Tree $xg) $before)
+
+        # A manifest shaped as 0.1 wrote it: no tag, buildSha256, iniEdits or preset
+        $lm = "$w\legacy\Win64"; Put "$lm\game.exe" 'exe'; Put "$lm\nvngx_dlss.dll" 'dlss'
+        $before = Tree $lm
+        Ack $lm
+        Do-Apply $lm | Out-Null
+        $lmf = "$(StateDir $lm)\manifest.json"; $lj = LoadJson $lmf
+        [pscustomobject]@{ gameDir = $lj.gameDir; build = $lj.build; proxy = $lj.proxy; applied = $lj.applied; iniEdits = $lj.iniEdits; files = $lj.files } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $lmf -Encoding utf8
+        Assert 'reset refuses a manifest with no recorded build tag' (Throws { Do-Reset $lm } '*predates recorded build tags*')
+        [pscustomobject]@{ gameDir = $lj.gameDir; build = $lj.build; proxy = $lj.proxy; applied = $lj.applied; files = $lj.files } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $lmf -Encoding utf8
+        Assert 'a 0.1-shaped manifest: status is clean and the build reads unknown, re-apply to record' (-not (Get-Stat $lm).Bad -and (Get-PinState (LoadJson $lmf)) -like '*unknown, re-apply to record' -and ((Do-Assess $lm) | ConvertFrom-Json).installedBuild -like '*unknown, re-apply to record')
+        Assert 'reset refuses a manifest with no recorded ini edits' (Throws { Do-Reset $lm } '*predates recorded ini edits*')
+        Do-Remove $lm | Out-Null
+        Assert 'remove of a 0.1-shaped manifest is byte-exact' ((SameTree (Tree $lm) $before) -and -not (Test-Path -LiteralPath $lmf))
+        Assert 'reset refuses a game with no apply' (Throws { Do-Reset $lm } '*no completed apply*')
 
         $script:RuntimeDll = "$tmp\other.dll"; Put $script:RuntimeDll 'unknown-runtime'
         Assert 'unknown-hash runtime refused' (Throws { Do-Apply $f } '*runtime DLL refused*')
@@ -1704,10 +1896,12 @@ switch ($Verb) {
     'provision' { if ($Runtime) { Do-ProvisionRuntime } else { Do-ProvisionBuild $Build } }
     'apply' { Do-Apply (Root $GameDir) }
     'status' {
-        $s = Get-Stat (Root $GameDir); Show-Stat $s
+        $r = Root $GameDir; $s = Get-Stat $r; Show-Stat $s
+        if (($m = Load-Manifest $r).applied) { Get-PinState $m }
         if ($s.Bad) { exit 1 }
     }
     'remove' { Do-Remove (Root $GameDir) }
+    'reset' { Do-Reset (Root $GameDir) }
     'capture' { Do-Capture (Root $GameDir) }
     'refetch' { Do-Refetch }
     'discover' { Do-Discover }
