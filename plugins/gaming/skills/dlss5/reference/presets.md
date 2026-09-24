@@ -59,8 +59,10 @@ A base needs only `ini`: `{ "ini": [{ "key": "ToggleKey", "value": "0x7C" }] }`.
 
 ## ini allow-list
 
-A preset may set only these keys. The section comes from the list, not the preset file. Both pinned
-builds (Dagherbou `v0.2.0-patch1`, wilsjo2 `v0.8.3`) carry each key in that section.
+A preset may set only these keys. The section comes from the list, not the preset file. The list is
+per build: the keys in the first table are in both pinned builds (wilsjo2 `v0.8.3`, Dagherbou
+`v0.2.0-patch1`) in that section; the keys in the second table are allow-listed for `-Build wilsjo2`
+alone.
 
 <!-- spellchecker:off -->
 
@@ -87,13 +89,47 @@ builds (Dagherbou `v0.2.0-patch1`, wilsjo2 `v0.8.3`) carry each key in that sect
 | `Preset` | `DlssNr` | whole number or `auto` | Picture: the model preset, applied at the next launch |
 | `Style` | `DlssNr` | whole number or `auto` | Picture |
 
+### wilsjo2 only
+
+All in `[DlssNr]` of wilsjo2's pinned `OptiScaler.ini`. Each type follows the fork's own reader in
+`OptiScaler/Config.cpp` (`readBool`, `readFloat`, `readInt` or `readUInt`), and Save Settings writes
+each one back.
+
+| Key | Value | Kind |
+|---|---|---|
+| `Passes` | whole number or `auto` (the fork clamps to 1 to 3) | Performance and picture: sequential model layers. Each extra pass costs about one more pass of model time; see below |
+| `Pass2Preset`, `Pass2Style`, `Pass3Preset`, `Pass3Style` | whole number or `auto` | Picture: a per-pass model profile; `auto` inherits pass 1 |
+| `Pass2Intensity`, `Pass2LocalStructure`, `Pass2LocalTone`, `Pass2SkinStructure`, and the same four for `Pass3` | number or `auto` | Picture: per-pass model strengths |
+| `Pass2AutoMask`, `Pass3AutoMask` | `true`, `false`, `auto` | Picture |
+| `SkinProtection`, `SkinToneEnabled` | `true`, `false`, `auto` | Picture: the colour-based final-edit filter |
+| `SkinDetail`, `SkinColour`, `EnvironmentDetail`, `EnvironmentColour` | number or `auto` | Picture: that filter's strengths |
+| `RunBeforeSR`, `FinishedPicture`, `HdrTransfer`, `DeferredDLSS`, `ResidualAcrossRR` | `true`, `false`, `auto` | Pipeline placement: run NR before SR, on the finished picture, or across Ray Reconstruction. The ini marks several experimental |
+| `ResidualAcrossRRBlend` | number or `auto` | History blend for `ResidualAcrossRR` |
+| `PrivateUpscaler` | whole number or `auto` (0 DLSS, 1 FSR 2.2, 2 FSR, 3 XeSS) | The private NR upscaler for the pre-SR modes |
+| `WorkingScale` | number or `auto` | Performance and picture: the fraction of the frame the model works at |
+
 <!-- spellchecker:on -->
+
+Cost, for the two performance keys:
+
+- `Passes=2` measured 15.2 to 15.5 ms of NR cost against a 7.42 ms median at the default of 1, in
+  Cyberpunk 2077 at 4K on an RTX 5090 (issue #4429). The ini says 2 and 3 cost "almost exactly 2x
+  and 3x the model time".
+- `WorkingScale`: "Cost falls with the square of this", per the ini; above 1.0 the model
+  supersamples and costs more. Not measured here.
+
+`WorkingScale` is in Dagherbou's ini too, but is allow-listed for wilsjo2 alone, as issue #4429
+scoped it.
+
+`apply` refuses a preset key allow-listed only for another build before any write, naming the key,
+its layer and the builds that allow it: `Passes` in a preset refuses `-Build dagherbou`. `capture`
+lists such a key as not captured.
 
 A number is `-?digits` with an optional decimal part, such as `0.8`, `-1.0` or `1.000000`, the form
 the overlay's Save Settings writes.
 
-A `[DlssNr]` key is on the list only when both builds' ini comment for it describes the picture
-alone:
+A `[DlssNr]` key in the first table is on it because both builds' ini comment for it describes the
+picture alone:
 
 <!-- spellchecker:off -->
 
@@ -107,20 +143,21 @@ alone:
 
 <!-- spellchecker:on -->
 
-Kept off, with the ini's own reason:
+Kept off every build, with the ini's own reason:
 
-- `WorkingScale`: "Cost falls with the square of this", so it changes performance, not only the
-  picture.
-- `ScalingDownscaler`: it matters only with `WorkingScale` above 1.0.
 - `DebugView`: it replaces the picture with a diagnostic view.
+- `ShowSkinMask` (wilsjo2): a diagnostic view of the skin filter, by its name; the ini has no
+  comment for it.
 - `AutoCapture`: "Writes matched before/after frames to a dlssnr-capture folder", into the game
   folder. `apply` always writes `false`.
-- `[Log]` keys, every other section, and the keys only wilsjo2's ini has (`Passes`,
-  `RunBeforeSR`, `SkinProtection` and the rest).
+- `ScalingDownscaler`: it matters only with `WorkingScale` above 1.0.
+- `UnlockPasses` (wilsjo2): "Optional extended range up to 30 passes".
+- `[Log]` keys and every other section.
 
 The script refuses, before any write:
 
 - any other key;
+- a key allow-listed only for another build than the one being applied;
 - `AutoCapture` by name, whatever its value;
 - a value that does not match its type, so no value can carry a line break into the ini;
 - a merged preset that binds one VK code to two actions, whichever layers they came from. An unset
@@ -177,8 +214,13 @@ game's local per-game preset:
 3. A changed key on the allow-list, with a valid value, goes into the local preset, with a `why` of
    `captured <date> from the overlay's Save Settings`. Keys already in that file stay unless
    recaptured.
-4. Every other changed key is listed, not captured: keys off the allow-list, invalid values, and
-   `AutoCapture`, with a reminder to set it back to `false`.
+4. Every other changed key is listed, not captured: keys off the allow-list (or off it for the
+   game's build), invalid values, and `AutoCapture`, with a reminder to set it back to `false`.
+5. A captured hotkey whose code another layer already binds to a different action is not
+   captured; the rest still is. Its line names both bindings with their layers, and the binding the
+   preset keeps. Example: the overlay saved `ToggleKey=0x7f` before the local base bound F16
+   (`0x7F`) to `FGShortcutKey`. The user rebinds one of them, then captures again. `apply` still
+   refuses any merged preset that binds one code twice.
 
 The preset key is the one the manifest recorded, else the game's `match`, else `-Preset <key>`
 for a new file, which then matches on the Steam app id, else on the largest exe in the folder
@@ -187,6 +229,25 @@ exe name; check it. A `-Preset` that names
 another game's preset is refused. `capture` reads the game folder and writes only
 `presets\<key>.json` in the data directory. A base edited after the apply does not leak into the <!-- portability-ok: Windows path, not a shell regex -->
 capture, because the comparison is against what the apply wrote.
+
+## Reset
+
+`reset` undoes the overlay's Save Settings without a remove and apply. It rewrites the game's
+`OptiScaler.ini` to the build's stock ini with the manifest's `iniEdits` over it, which is byte for
+byte what `apply` wrote, and records the file's hash in the manifest. The presets as they are now
+do not matter; the manifest's record does.
+
+1. Without `-ConfirmReset` it prints every value it would discard, as
+   `[Section] Key: now -> stock plus preset`, and a token (the first 12 hex digits of the current
+   file's SHA-256), and writes nothing.
+2. With `-ConfirmReset <token>`, after the user has seen that list and said yes, it writes the
+   file. A token that no longer matches the file (it was saved again since the preview) refuses,
+   so nothing the user was not shown is discarded.
+
+It refuses, writing nothing, when the manifest has no completed apply, does not own
+`OptiScaler.ini`, predates recorded ini edits or build tags (before 0.5.0), or when the build was
+re-provisioned since the apply. `OptiScaler.ini` is the only game file it writes. `remove` stays
+byte-exact afterwards.
 
 ## Community presets
 
@@ -215,6 +276,9 @@ A preset ships only when every claim in it has a trusted source. Challenged clai
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | Allow-listed keys, sections and ini comments | `gh api "repos/Dagherbou/OptiScaler_DLSSNR/contents/OptiScaler.ini?ref=v0.2.0-patch1"` ([file](https://github.com/Dagherbou/OptiScaler_DLSSNR/blob/v0.2.0-patch1/OptiScaler.ini)) and `gh api "repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/contents/OptiScaler.ini?ref=v0.8.3"` ([file](https://github.com/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/blob/v0.8.3/OptiScaler.ini)) | 2026-09-23 | A new pin |
+| wilsjo2-only keys, their section, presence and ini comments; `DebugView`, `ShowSkinMask`, `UnlockPasses` kept off | `gh api "repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/contents/OptiScaler.ini?ref=v0.8.3"`, compared key by key with the Dagherbou ini | 2026-09-24 | A new pin |
+| Each wilsjo2-only key's type, and that Save Settings writes it | `gh api "repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/contents/OptiScaler/Config.cpp?ref=v0.8.3"`: its `readBool`, `readFloat`, `readInt` and `readUInt` calls, and the `[DlssNr]` `SetValue` writes | 2026-09-24 | A new pin |
 | Save Settings writes a bound hotkey as `{:#x}` (`0x7c`), `-1` or `auto`, and a float through `std::to_string` (`1.000000`) | `OptiScaler/Config.cpp` at both pinned tags (`GetIntValue`, `GetFloatValue`, the `[Menu]` and `[DlssNr]` writes) | 2026-09-23 | A new pin |
+| `Passes=2` cost | wilsjo2 `v0.8.3` A/B, issue #4429 | 2026-09-24 | A new pin or driver |
 | F13 to F24 are `0x7C` to `0x87`; `0xFE` is the last defined code | Microsoft's virtual-key codes page | 2026-09-23 | Never: the codes are fixed |
 | Shipped preset contents | Each file's `sources`, re-read on the date given there | 2026-09-23 | Each file's `recheck` |
