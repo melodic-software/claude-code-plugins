@@ -9,6 +9,11 @@
 # Exits 2 when curl is missing, when the env file's PORT is not all digits, when the token was
 # rejected (the server restarted), or when the server stays unreachable for WAIT_FAILS polls
 # (default 12, 5 s apart).
+# Exits 3 when another watcher holds the server's lease (one session watches a data dir at a
+# time); it prints the holder to stderr and does not retry.
+# Each poll names this watcher: WATCH_ID, else CLAUDE_CODE_SESSION_ID (the Bash tool exports it,
+# so every re-arm from one session shares it), else <hostname>-<parent pid>. The id is never
+# written to the data dir, which two sessions share.
 # WAIT_TIMEOUT comes from the session env file (default 90); curl allows 10 s more.
 curl_bin=${WATCH_CURL:-curl}
 command -v "$curl_bin" >/dev/null 2>&1 || { echo "missing prerequisite: curl (watch.sh needs it on PATH)" >&2; exit 2; }
@@ -46,13 +51,34 @@ shell_quote() {
   printf "'%s'" "${1//\'/$q}"
 }
 
+# Percent-encode every byte outside A-Z a-z 0-9 . _ ~ - for the query string.
+url_encode() {
+  local LC_ALL=C s=$1 c out='' i
+  for ((i = 0; i < ${#s}; i++)); do
+    c=${s:i:1}
+    case "$c" in
+      [A-Za-z0-9._~-]) out+=$c ;;
+      *) out+=$(printf '%%%02X' "'$c") ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+watcher=$(url_encode "${WATCH_ID:-${CLAUDE_CODE_SESSION_ID:-$(hostname)-$PPID}}")
+
+# The value of one string field in the 409 body.
+field() { printf '%s' "$out" | sed -n "s/.*\"$1\": \"\\([^\"]*\\)\".*/\\1/p"; }
+
 fails=0
 while :; do
   # The body comes back on stdout (no file path reaches curl), with the status on a last line.
   resp=$("$curl_bin" -s -w '\n%{http_code}' --noproxy '*' --max-time $((WAIT_TIMEOUT + 10)) \
-    -H "X-Interview-Token: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT")
+    -H "X-Interview-Token: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT&watcher=$watcher")
   code=${resp##*$'\n'}
   out=${resp%$'\n'*}
+  if [[ "$code" == 409 && "$out" == *'"lease held"'* ]]; then
+    echo "another watcher holds this interview's lease: session $(field holder), since $(field since), last poll $(field lastWaitAt); one session watches a data dir at a time; coordinate with that session, or wait for the lease to expire ($(field expiresAt))" >&2
+    exit 3
+  fi
   case "$code" in
     200) ;;
     403)

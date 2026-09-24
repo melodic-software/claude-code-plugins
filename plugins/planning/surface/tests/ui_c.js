@@ -211,6 +211,7 @@ async page => {
     ok("AC33: session layer (theme light)", src.theme === "From session" && await val("theme") === "light", src.theme);
     ok("AC33: default layer (shortcuts)", src.shortcuts === "From default", src.shortcuts);
     ok("AC33: read-only rows for displayName, waitTimeout, staleDepth", src.displayName === "From user" && await val("displayName") === "Dana" && src.waitTimeout === "From default" && await val("waitTimeout") === "90" && src.staleDepth === "From default" && await val("staleDepth") === "direct", JSON.stringify(src));
+    ok("AC33: read-only row for leaseTimeout (600, default)", src.leaseTimeout === "From default" && await val("leaseTimeout") === "600", JSON.stringify(src));
     ok("SPEC 4.15: read-only rows for port (0, default) and openBrowser (true, default)", src.port === "From default" && await val("port") === "0" && src.openBrowser === "From default" && await val("openBrowser") === "true", JSON.stringify(src));
     await page.fill('[data-set="undoSeconds"]', "9"); await page.dispatchEvent('[data-set="undoSeconds"]', "change"); await page.waitForTimeout(150);
     ok("AC33: a browser override shows this browser with Reset", /^From this browser/.test(await page.textContent('.setrow[data-key="undoSeconds"] .src')) && !!(await page.$('[data-reset="undoSeconds"]')));

@@ -383,7 +383,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const LABEL = {open: "Open", accept: "Accepted", alt: "Alternative", own: "Own answer", defer: "Deferred", wait: "Waiting", sup: "Superseded", arch: "Archived"};
   const DEC = new Set(["accept", "alt", "own", "defer", "reopen"]);
   const SUMMARY = "__summary";
-  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true};
+  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600};
   const RESTART = "Restart the server to enable this.";
   const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
   const FREEZE_MS = 10000; // longest wrap-up freeze on decision saves
@@ -1009,6 +1009,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       row("displayName", "Name on your lines", ro("displayName")) +
       row("waitTimeout", "Watcher long-poll (seconds)", ro("waitTimeout")) +
       row("staleDepth", "Stale depth", ro("staleDepth")) +
+      row("leaseTimeout", "Watcher lease (seconds)", ro("leaseTimeout")) +
       row("port", "Server port (0 is a free port); applies at the next start", ro("port")) +
       row("openBrowser", "Open the browser at start", ro("openBrowser")) +
       '<div class="fscope">' + (S.api >= 2 ? "Server supports notes, undo, wrap-up and conflict checks." : "Server is v2.0. " + RESTART) + "</div>" +

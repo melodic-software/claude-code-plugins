@@ -6,8 +6,11 @@
 # (one JSON line carrying dataDir and next, .watch-seq stored), re-delivery bounds, the
 # skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
 # the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
-# (WAIT_FAILS=1).
+# (WAIT_FAILS=1), and the one-watcher lease (a second watcher exits 3 naming the holder; a stale
+# lease is reclaimed after leaseTimeout).
 set -u
+# Every watcher in the suite is one session unless a case names another.
+export WATCH_ID=suite
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 pass=0
 fail=0
@@ -25,6 +28,7 @@ abs_dir() { (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; }); }
 odd="$(abs_dir "$tmp")/odd \$(true) \`x\` it's"
 cleanup() {
   bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
+  if [[ -d "$tmp/lease" ]]; then bash "$here/round.sh" --dir "$tmp/lease" stop >/dev/null 2>&1; fi
   if [[ -d "$odd" ]]; then bash "$here/round.sh" --dir "$odd" stop >/dev/null 2>&1; fi
   case "$tmp" in
     */iv-watch.*) rm -rf -- "$tmp" ;;
@@ -61,11 +65,12 @@ PORT=$(sed -n 's/^PORT=//p' "$d/.interview-session.env" | tr -d '\r')
 TOKEN=$(sed -n 's/^TOKEN=//p' "$d/.interview-session.env" | tr -d '\r')
 cp "$d/.interview-session.env" "$tmp/env.saved"
 
-# Block until the server reports a waiting watcher (up to 10 s), so a POST lands mid-wait.
+# Block until the server on port $1 (default $PORT) reports a waiting watcher (up to 10 s), so a
+# POST lands mid-wait.
 until_waiting() {
   local end=$((SECONDS + 10))
   while [[ "$SECONDS" -lt "$end" ]]; do
-    curl -s --max-time 2 "http://127.0.0.1:$PORT/api/state" | grep -q '"waiters": 1' && return 0
+    curl -s --max-time 2 "http://127.0.0.1:${1:-$PORT}/api/state" | grep -q '"waiters": 1' && return 0
     sleep 0.1
   done
   return 1
@@ -301,6 +306,49 @@ else
   bad "odd dir: ensure-running failed: $(cat "$tmp/i.start")"
   bad "odd dir next: not run"
   bad "odd dir next run: not run"
+fi
+
+# (l) one watcher per data dir: a second session exits 3 naming the holder, and a stale lease is
+# reclaimed. Its own data dir sets leaseTimeout and waitTimeout to 5, so the poll a killed holder
+# leaves in flight ends within seconds.
+ld="$tmp/lease"
+mkdir -p "$ld"
+printf '{"leaseTimeout": 5, "waitTimeout": 5}\n' >"$ld/settings.json"
+if bash "$here/round.sh" --dir "$ld" ensure-running --port 0 >/dev/null 2>"$tmp/l.start"; then
+  lport=$(sed -n 's/^PORT=//p' "$ld/.interview-session.env" | tr -d '\r')
+  ltoken=$(sed -n 's/^TOKEN=//p' "$ld/.interview-session.env" | tr -d '\r')
+  WATCH_ID=a bash "$here/watch.sh" "$ld" >"$tmp/la.out" 2>"$tmp/la.err" &
+  apid=$!
+  until_waiting "$lport"
+  WATCH_ID=b bounded 15 "$tmp/lb.out" "$tmp/lb.err" bash "$here/watch.sh" "$ld"
+  rc=$?
+  if [[ "$rc" -eq 3 && ! -s "$tmp/lb.out" ]] && grep -q "lease" "$tmp/lb.err" && grep -q "session a," "$tmp/lb.err"; then
+    ok "a second watcher exits 3 naming the lease and its holder"
+  else
+    bad "second watcher: rc=$rc out=$(cat "$tmp/lb.out") err=$(cat "$tmp/lb.err")"
+  fi
+  kill "$apid" 2>/dev/null
+  wait "$apid" 2>/dev/null
+  # The killed holder's last poll ends by its 5 s timeout; the lease expires 5 s after that.
+  end=$((SECONDS + 20))
+  until curl -s --max-time 2 "http://127.0.0.1:$lport/api/state" | grep -q '"waiting": false' || [[ "$SECONDS" -ge "$end" ]]; do
+    sleep 0.2
+  done
+  sleep 6
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $ltoken" \
+    -H 'Content-Type: application/json' --data '{"kind": "note", "text": "lease note"}' \
+    "http://127.0.0.1:$lport/api/answer")
+  WATCH_ID=b bounded 15 "$tmp/lc.out" "$tmp/lc.err" bash "$here/watch.sh" "$ld"
+  rc=$?
+  text=$("$py" -c 'import json, sys; print(json.loads(open(sys.argv[1], encoding="utf-8").read())["events"][0]["text"])' "$tmp/lc.out" 2>&1)
+  if [[ "$code" == 200 && "$rc" -eq 0 && "$text" == "lease note" ]]; then
+    ok "a stale lease is reclaimed: the next watcher exits 0 with the event"
+  else
+    bad "stale lease: post=$code rc=$rc text=[$text] err=$(cat "$tmp/lc.err")"
+  fi
+else
+  bad "lease dir: ensure-running failed: $(cat "$tmp/l.start")"
+  bad "stale lease: not run"
 fi
 
 # (d) server gone: stop it, put the old env file back, and expect exit 2 after one failed poll

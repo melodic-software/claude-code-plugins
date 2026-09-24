@@ -44,6 +44,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `PORT` that is not all digits. The exported report carries a CSP with no network source.
 - **Opener rule:** the browser opener (`browserCommand`) runs only from a file named by an
   explicit `--user-settings`; the data dir's session file is never a source for it.
+- **One watcher per interview:** the first watcher holds an in-memory server lease; a second
+  session's `watch.sh` gets a 409 naming the holder and exits 3 instead of competing for events.
+  The lease expires after `leaseTimeout` seconds (default 600, a new setting shown on the
+  Settings tab) with no poll, `round.py lease` prints the holder, and `round.py lease --release`
+  hands it over. The skill tells a second Claude session to coordinate with the holder.
 
 ### Changed
 

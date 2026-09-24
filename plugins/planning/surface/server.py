@@ -8,8 +8,9 @@ Usage: python server.py --dir DATA_DIR [--port PORT] [--nonce NONCE]
 Start it through `round.py ensure-running`, which starts it detached and reuses a running one.
 questions.json is Claude's file (written by round.py). responses.json is the page's.
 The page gets state over SSE (/events); answers arrive by token-guarded POST /api/answer;
-Claude's watcher long-polls GET /api/wait?after=handled&replayed=<seq>&timeout=<s>
-(or the older after=<seq>).
+Claude's watcher long-polls GET /api/wait?after=handled&replayed=<seq>&timeout=<s>&watcher=<id>
+(or the older after=<seq>). The first watcher id holds an in-memory lease; another id gets 409
+until the lease expires or POST /api/lease {"action": "release"} clears it.
 """
 
 import argparse
@@ -81,6 +82,7 @@ DEFAULT_SETTINGS = {
     "displayName": "You",
     "waitTimeout": 90,
     "staleDepth": "direct",
+    "leaseTimeout": 600,
 }
 SETTING_RULES = {
     "port": ("int", 0, 65535),
@@ -94,6 +96,7 @@ SETTING_RULES = {
     "displayName": ("str",),
     "waitTimeout": ("int", 5, 110),
     "staleDepth": ("enum", ("direct",)),
+    "leaseTimeout": ("int", 5, 3600),
 }
 REPO_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
 USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
@@ -323,8 +326,8 @@ def question_states(doc, r):
     return out
 
 
-def now_iso():
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+def now_iso(t=None):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
 
 
 def load_json(path, default):
@@ -552,6 +555,57 @@ class Hub:
         self.origins = {f"http://{h}" for h in self.hosts}
         self.layers = Settings(repo_root(self.dir))
         self._last_state = None
+        # The one watcher allowed: {watcher, since, last, inflight}. In memory, so a restart frees it.
+        self.lease = None
+
+    def lease_view(self):
+        lease = self.lease
+        if lease is None:
+            return None
+        return {
+            "watcher": lease["watcher"],
+            "since": now_iso(lease["since"]),
+            "lastWaitAt": now_iso(lease["last"]),
+            "waiting": lease["inflight"] > 0,
+        }
+
+    def claim(self, watcher):
+        """Take or refresh the lease for watcher and count its wait in flight; call under cond.
+
+        Granted when no lease is held, when watcher holds it, or when the holder has no wait in
+        flight and its last wait ended more than leaseTimeout seconds ago. Otherwise raises
+        Conflict naming the holder.
+        """
+        now = time.time()
+        timeout = self.layers.resolve(self.dir, self.user_settings())[0][
+            "leaseTimeout"
+        ]["value"]
+        lease = self.lease
+        if lease and lease["watcher"] != watcher:
+            if lease["inflight"] or now - lease["last"] <= timeout:
+                raise Conflict(
+                    {
+                        "error": "lease held",
+                        "holder": lease["watcher"],
+                        "since": now_iso(lease["since"]),
+                        "lastWaitAt": now_iso(lease["last"]),
+                        # While the holder waits, expiry is at the earliest this.
+                        "expiresAt": now_iso(
+                            (now if lease["inflight"] else lease["last"]) + timeout
+                        ),
+                    }
+                )
+            lease = None
+        if lease is None:
+            lease = self.lease = {
+                "watcher": watcher,
+                "since": now,
+                "last": now,
+                "inflight": 0,
+            }
+        lease["inflight"] += 1
+        lease["last"] = now
+        return lease
 
     def listener(self):
         """idleFor: seconds since a watcher last polled (0 while one waits, None before any)."""
@@ -572,6 +626,7 @@ class Hub:
             "idleFor": idle,
             "lastWaitAt": self.last_wait or None,
             "lastDeliverAt": self.last_deliver or None,
+            "lease": self.lease_view(),
         }
 
     def user_settings(self):
@@ -768,16 +823,21 @@ class Hub:
             if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
         ]
 
-    def wait(self, after, timeout, gone=None, replayed=0):
+    def wait(self, after, timeout, gone=None, replayed=0, watcher=None):
         """Block for events; returns (seq, events, replay) or None when the client went away.
 
         after=<int>: events with seq > after. after="handled": the unhandled set U, at once when
         any seq in U exceeds `replayed` (then `replay` is the highest seq returned), else once a
         new event arrives. Timeout returns no events. `gone` is checked on every 1 s tick.
+        A `watcher` id must hold the lease (see claim), else Conflict; without one the wait
+        takes no part in leasing.
         """
         deadline = time.time() + timeout
         newest = None
+        lease = None
         with self.cond:
+            if watcher is not None:
+                lease = self.claim(watcher)
             self.waiters += 1
             self.last_wait = time.time()
         try:
@@ -824,6 +884,10 @@ class Hub:
             with self.cond:
                 self.waiters -= 1
                 self.last_wait = time.time()
+                # The lease this wait claimed, even when it was released since.
+                if lease is not None:
+                    lease["inflight"] -= 1
+                    lease["last"] = self.last_wait
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -923,7 +987,11 @@ class Handler(BaseHTTPRequestHandler):
                         "error": "after is an integer or handled; replayed and timeout are integers"
                     },
                 )
-            result = hub.wait(after, timeout, self.client_gone, replayed)
+            watcher = (query.get("watcher") or [None])[0]
+            try:
+                result = hub.wait(after, timeout, self.client_gone, replayed, watcher)
+            except Conflict as e:
+                return self.send(409, e.payload)
             if result is None:
                 self.close_connection = True
                 return None
@@ -1030,6 +1098,12 @@ class Handler(BaseHTTPRequestHandler):
                     "listener": self.hub.listener(),
                 },
             )
+        if url.path == "/api/lease":
+            if msg.get("action") != "release":
+                return self.send(400, {"error": 'action must be "release"'})
+            with self.hub.cond:
+                self.hub.lease = None
+            return self.send(200, {"ok": True, "lease": None})
         self.send(404, {"error": "not found"})
 
 

@@ -1146,6 +1146,7 @@ class TestSettingsLayers(ServerCase):
             "displayName": "You",
             "waitTimeout": 90,
             "staleDepth": "direct",
+            "leaseTimeout": 600,
         }
         self.assertEqual({k: v["value"] for k, v in s.items()}, want)
         self.assertEqual({v["layer"] for v in s.values()}, {"default"})
@@ -1601,6 +1602,115 @@ class TestEnsureRunningSettings(unittest.TestCase):
         url = self.ensure("--open")
         self.assertEqual(self.fallback_opened(), url)
         self.assertIsNone(self.opened(1.5))
+
+
+class TestLease(WaitCase):
+    """One watcher per data dir: the first holds a lease, a second gets 409 naming it.
+
+    `leaseTimeout` is 5 in the data dir's settings.json. The methods run in order on one server.
+    """
+
+    env = settings_env()
+
+    @classmethod
+    def prepare(cls):
+        (cls.dir / "settings.json").write_text(
+            json.dumps({"leaseTimeout": 5}), encoding="utf-8"
+        )
+
+    def wait_as(self, watcher, timeout=1):
+        """(status, body) of one after=handled wait; watcher None sends no watcher parameter."""
+        query = f"after=handled&replayed=0&timeout={timeout}"
+        if watcher is not None:
+            query += f"&watcher={watcher}"
+        code, body, _ = self.wait(query, timeout=timeout + 10)
+        return code, body
+
+    def lease(self):
+        return self.state()["listener"]["lease"]
+
+    def until_waiting(self, n=1):
+        end = time.monotonic() + 10
+        while time.monotonic() < end:
+            if self.state()["listener"]["waiters"] >= n:
+                return
+            time.sleep(0.05)
+        self.fail("no wait registered within 10 s")
+
+    def test_1_second_watcher_gets_409_naming_the_holder(self):
+        box = {}
+        th = threading.Thread(target=lambda: box.update(r=self.wait_as("A", 8)))
+        th.start()
+        self.until_waiting()
+        code, body = self.wait_as("B")
+        th.join(30)
+        self.assertEqual(code, 409, body)
+        self.assertEqual(body["error"], "lease held")
+        self.assertEqual(body["holder"], "A")
+        for key in ("since", "lastWaitAt", "expiresAt"):
+            self.assertRegex(body[key], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$", key)
+        self.assertEqual(box["r"][0], 200)
+
+    def test_2_holder_re_arms_and_state_names_it(self):
+        code, body = self.wait_as("A")
+        self.assertEqual(code, 200, body)
+        lease = self.lease()
+        self.assertEqual(lease["watcher"], "A")
+        self.assertFalse(lease["waiting"])
+        self.assertIn("since", lease)
+        self.assertIn("lastWaitAt", lease)
+        self.assertEqual(
+            self.state()["settings"]["leaseTimeout"], {"value": 5, "layer": "session"}
+        )
+
+    def test_3_expired_lease_is_reclaimed(self):
+        time.sleep(5.5)
+        code, body = self.wait_as("B")
+        self.assertEqual(code, 200, body)
+        self.assertEqual(self.lease()["watcher"], "B")
+        code, body = self.wait_as("A")
+        self.assertEqual(code, 409, body)
+        self.assertEqual(body["holder"], "B")
+
+    def test_4_release_hands_the_lease_over(self):
+        rc, out = self.rp("lease")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("B", out)
+        code, raw, _ = request(
+            self.port,
+            "POST",
+            "/api/lease",
+            body={"action": "release"},
+            headers={"Content-Type": "application/json"},
+        )
+        self.assertEqual(code, 403, raw)
+        rc, out = self.rp("lease", "--release")
+        self.assertEqual(rc, 0, out)
+        self.assertIsNone(self.lease())
+        rc, out = self.rp("lease")
+        self.assertEqual((rc, out), (0, "no lease"))
+        code, body = self.wait_as("A")
+        self.assertEqual(code, 200, body)
+        self.assertEqual(self.lease()["watcher"], "A")
+
+    def test_5_wait_without_watcher_takes_no_part(self):
+        code, body = self.wait_as(None)
+        self.assertEqual(code, 200, body)
+        self.assertEqual(self.lease()["watcher"], "A")
+        code, body = self.wait_as("B")
+        self.assertEqual(code, 409, body)
+
+    def test_6_restart_starts_with_no_lease(self):
+        rc, out = self.rp("stop")
+        self.assertEqual(rc, 0, out)
+        p = ensure_running(self.dir, env=self.env)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        s = session(self.dir)
+        type(self).port, type(self).token = s["port"], s["token"]
+        self.assertIsNone(self.lease())
+        code, body = self.wait_as("B")
+        self.assertEqual(code, 200, body)
+        self.assertEqual(self.lease()["watcher"], "B")
 
 
 if __name__ == "__main__":

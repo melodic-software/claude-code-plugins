@@ -20,6 +20,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   import-ledger   seed an empty data dir from an existing ledger
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
   stop            stop the data dir's server (only the recorded PID) and clear its session files
+  lease           print the watcher holding the server's lease, or `no lease`; --release clears it
 
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
 lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
@@ -1085,6 +1086,41 @@ def cmd_stop(d, a):
     print(f"stopped {s['pid']}")
 
 
+def cmd_lease(d, a):
+    """Print the watcher holding the lease, or `no lease`; --release clears it first."""
+    s = read_session(d)
+    if not (s and running(d, s)):
+        sys.exit("not running")
+    conn = http.client.HTTPConnection("127.0.0.1", int(s["port"]), timeout=10)
+    try:
+        if a.release:
+            conn.request(
+                "POST",
+                "/api/lease",
+                body=json.dumps({"action": "release"}),
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Interview-Token": s["token"],
+                },
+            )
+            resp = conn.getresponse()
+            resp.read()
+            if resp.status != 200:
+                sys.exit(f"release refused: HTTP {resp.status}")
+        conn.request("GET", "/api/state")
+        lease = json.loads(conn.getresponse().read())["listener"].get("lease")
+    finally:
+        conn.close()
+    if not lease:
+        print("no lease")
+        return
+    doing = "waiting" if lease["waiting"] else "not waiting"
+    print(
+        f"lease held by {lease['watcher']} since {lease['since']}, "
+        f"last poll {lease['lastWaitAt']}, {doing}"
+    )
+
+
 def add_dir(s):
     s.add_argument(
         "--dir",
@@ -1267,6 +1303,15 @@ def main(argv=None):
     s = sub.add_parser("stop", help="stop the data dir's server")
     add_dir(s)
     s.set_defaults(fn=cmd_stop)
+
+    s = sub.add_parser("lease", help="print the watcher holding the lease")
+    add_dir(s)
+    s.add_argument(
+        "--release",
+        action="store_true",
+        help="clear the lease so another watcher can take it",
+    )
+    s.set_defaults(fn=cmd_lease)
 
     a = p.parse_args(argv)
     if not a.dir:
