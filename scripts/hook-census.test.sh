@@ -32,7 +32,9 @@ cat >"$TMP/plugins/fx/hooks/hooks.json" <<'JSON'
     {"type": "command", "command": "t=$(jq -r .transcript_path); cat \"$t\" >/dev/null # whole"},
     {"type": "command", "command": "t=$(jq -r .transcript_path); tail -c 100 \"$t\" >/dev/null # bounded"},
     {"type": "command", "command": "exit 1 # fails"},
-    {"type": "command", "command": "echo marker # speaks"}
+    {"type": "command", "command": "echo marker # speaks"},
+    {"type": "command", "command": "test \"$CENSUS_FX\" = on # envrow"},
+    {"type": "command", "command": "s=\"$CLAUDE_PLUGIN_DATA/seen\"; [ -e \"$s\" ] && exit 0; : >\"$s\"; x=$(date) # warms"}
   ]}]
 }}
 JSON
@@ -81,6 +83,16 @@ census '# noop' --check 'test -s "$HOOK_STDOUT"'
 expect "a failing --check exits 3" 3 "--check failed"
 census '# fails'
 expect "a fire that exits nonzero exits 3" 3 "the fire exited 1"
+census '# envrow'
+expect "a fire without the row's variable fails" 3 "the fire exited 1"
+census '# envrow' --env CENSUS_FX=on
+expect "--env reaches the fire" 0 "spawns=1 creations=0 execs=1"
+census '# warms'
+expect "an unseeded fire takes the cold path" 0 "spawns=3 creations=1 execs=2"
+census '# warms' --seed
+expect "--seed measures the warm path" 0 "spawns=1 creations=0 execs=1"
+census '# noop' --setup 'exit 1'
+expect "a failing --setup exits 2" 2 "--setup failed"
 census '# absent'
 expect "a row no handler carries exits 2" 2 "no Stop handler"
 census '# noop' --measure duration

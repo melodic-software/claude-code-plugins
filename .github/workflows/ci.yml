@@ -2203,12 +2203,15 @@ jobs:
       # job, because a counter this deterministic only drops when a PR changes
       # it. LEG 0 carries it alone. The hook counters run through
       # scripts/hook-census.sh under strace, so its suite runs first here: no
-      # other lane runs a scripts/ suite that needs strace.
+      # other lane runs a scripts/ suite that needs strace. The counts depend
+      # on the image's bash, git, jq and coreutils, so the versions are printed
+      # beside every check: an ABOVE after an image bump reads in one log.
       - name: Check performance counter ceilings
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 0 ] || exit 0
           bash scripts/hook-census.test.sh
+          bash scripts/hook-census.sh --versions
           python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
       - name: Report not applicable to a docs-only diff

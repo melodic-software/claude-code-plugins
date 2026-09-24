@@ -27,11 +27,17 @@
 #   --check CMD                 run there after the measured fire; it asserts
 #                               the path taken. $HOOK_STDOUT holds its stdout.
 #
+#   scripts/hook-census.sh --versions
+#                               print the versions of the programs a count
+#                               depends on, for reading an ABOVE after a
+#                               runner image change
+#
 # Every fire runs under `env -i` with a fresh HOME, TMPDIR, CLAUDE_PLUGIN_DATA
-# and scratch git repository, all removed on exit, so nothing the host carries
-# moves the count. strace follows descriptors under -P, so a builtin read
-# (`mapfile <"$t"`) is counted the same as `cat "$t"`; a spawn counter cannot
-# see that class (#4408).
+# and scratch git repository, all removed on exit, plus LC_ALL=C and no system
+# git config, so nothing the host carries moves the count except the programs
+# on PATH. Those are what --versions names. strace follows descriptors under
+# -P, so a builtin read (`mapfile <"$t"`) is counted the same as `cat "$t"`; a
+# spawn counter cannot see that class (#4408).
 #
 # Exit: 0 measured; 2 cannot measure (bad arguments, no strace, jq or git, no
 # such row, --setup failed); 3 the fire exited nonzero, --check failed, or a
@@ -42,6 +48,26 @@ usage() {
   sed -n '2,/^set -euo/{/^#/!d;s/^# \{0,1\}//;p}' "$0" >&2
   exit 2
 }
+
+# first_line <program> <args...>: the program's version line, or "absent".
+first_line() {
+  local out
+  out="$("$@" 2>&1)" || :
+  printf '%s' "${out%%$'\n'*}"
+}
+if [[ "${1:-}" == --versions ]]; then
+  echo "hook-census versions: bash=${BASH_VERSION}" \
+    "sh=$(readlink -f /bin/sh)" \
+    "git=$(first_line git --version)" \
+    "jq=$(first_line jq --version)" \
+    "strace=$(first_line strace -V)" \
+    "python3=$(first_line python3 --version)" \
+    "coreutils=$(first_line env --version)" \
+    "grep=$(first_line grep --version)" \
+    "sed=$(first_line sed --version)" \
+    "awk=$(readlink -f "$(command -v awk)")"
+  exit 0
+fi
 
 (($# >= 4)) || usage
 PLUGIN="$1" EVENT="$2" ROW="$3" PAYLOAD="$4"
@@ -112,7 +138,7 @@ census_once() {
   printf '%s' "$payload" >"$run/payload.json"
 
   local env_args=(
-    PATH="$PATH" HOME="$run/home" TMPDIR="$run/tmp"
+    PATH="$PATH" HOME="$run/home" TMPDIR="$run/tmp" LC_ALL=C GIT_CONFIG_NOSYSTEM=1
     CLAUDE_PLUGIN_ROOT="$ROOT" CLAUDE_PLUGIN_DATA="$run/data" CLAUDE_PROJECT_DIR="$dir"
     ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"}
   )

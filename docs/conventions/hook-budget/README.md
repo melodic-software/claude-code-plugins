@@ -59,19 +59,20 @@ A new always-on hook adds itself to one of the two.
 
 Wall-clock (`EPOCHREALTIME`) around direct hook invocation with a benign representative payload, on
 a representative dev host; singles averaged over ≥ 10 runs, sets launched concurrently (`&` +
-`wait`) to approximate the harness's parallel dispatch. Windows numbers are the binding ones:
-process spawn is most expensive there, and the fleet's reference measurements
+`wait`) to approximate the harness's parallel dispatch. Windows numbers are the reference ones for
+wall time: process spawn is most expensive there, and the fleet's reference measurements
 (2026-07-31, Windows 11 + Git Bash, at the pre-#1809 baseline `d5d02a2d`) are `bash -c :` ≈ 80 ms,
 `python3 -c pass` ≈ 160 ms. The per-Bash-call always-on set (six guardrails classifiers + the
 disk-hygiene engine gate) measures ≈ 5.9 s parallel wall and the per-Write set (two formatters +
 three guardrails verifiers) ≈ 1.9 s. #1809's single-writer change removes per-Write work only in
 repos without a markdownlint config; in an opted-in repo the per-Write set is unchanged (typos-format
-still scans in report-only mode), so these figures remain the binding accounting until re-measured.
+still scans in report-only mode), so these figures remain the reference accounting until
+re-measured.
 
 ## Reference figures (2026-09-02, after the hook-performance program)
 
-The fleet's binding measurement is now the dotfiles fan-out harness
-(`common/measure-claude-hook-fanout.sh`, sha256
+The fleet's reference wall-time measurement is now the dotfiles fan-out harness, run on a Windows
+11 + Git Bash host (`common/measure-claude-hook-fanout.sh`, sha256
 `5a254b50a67a9e1b158ce9ff7bd3c7c53f7eade80e55a1b2f8c5075026067178`), which samples 22 events
 against the installed plugin cache, times each hook process in-process with `EPOCHREALTIME`, and
 interleaves a `bash -c :` spawn floor S with every sample. A run is valid at S at or below 160 ms;
@@ -96,7 +97,7 @@ carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawn
 
 In the "after" column the slowest hook on each per-tool-call surface costs 76 to 169 S, and on
 each per-turn surface 16 to 23 S. The per-tool-call cost is the guardrails dispatcher, 1,360 to
-3,048 ms per fire on the measuring host across the Write, Edit and Bash rows (eight guards per Bash
+3,048 ms per fire on the Windows measuring host across the Write, Edit and Bash rows (eight guards per Bash
 call and three per Write or Edit), followed by markdown-format's `markdownlint-cli2` Node process.
 The "after" spawn-equivalents read higher than "before" on the Write and Edit rows because the
 before run's samples lived outside the repository, so every Write and verifier guard early-exited
