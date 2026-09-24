@@ -127,10 +127,14 @@ because a counter can exercise third-party code; only `open-pr`, which runs no c
 A workflow's `GITHUB_TOKEN` can open that PR only when the repository setting "Allow GitHub Actions
 to create and approve pull requests" is on, and it is off by default for a new personal-account
 repository; the PR's `opened` event then creates workflow runs in an approval-required state, so a
-human approves the checks as well as the merge. Verified 2026-09-23 against
-`https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository`
-and `https://docs.github.com/en/actions/concepts/security/github_token`. Recheck when either page
-stops naming that setting or changes what a `GITHUB_TOKEN`-created pull request event triggers.
+human approves the checks as well as the merge. To have the checks start without that approval,
+open the PR with a GitHub App installation token or a personal access token stored as a secret
+instead of `GITHUB_TOKEN`. Verified 2026-09-24 against
+`https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository`,
+`https://docs.github.com/en/actions/concepts/security/github_token`, and
+`https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow`.
+Recheck when any of them stops naming that setting or changes what a `GITHUB_TOKEN`-created pull
+request event triggers.
 
 ## 5. Guardrails for fragile optimizations
 
