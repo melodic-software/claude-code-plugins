@@ -51,9 +51,10 @@ non-blocking, the same silent fail-open through a different door. Unproven guard
 fails closed like every other guard-relevant unknown in this plugin.
 
 1. **Shell-form launcher registration**. All three registrations (both wired hooks in
-   `hooks/hooks.json` and the skill-scoped belt in `skills/clean/SKILL.md` frontmatter) must name
-   `hooks/run-python-hook.sh` directly in `command`, with `"shell": "bash"` and **no `args`**, so
-   Claude Code routes them through its own Git Bash rather than a `PATH` lookup. FAIL if any
+   `hooks/hooks.json` and the skill-scoped belt in `skills/clean/SKILL.md` frontmatter) must spell
+   `command` as `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh ...`, with
+   `"shell": "bash"` and **no `args`**, so Claude Code routes them through its own Git Bash rather
+   than a `PATH` lookup, and Git Bash resolves that leading `bash` on its own `PATH`. FAIL if any
    registration carries an `args` key or sets `command` to a bare interpreter name such as `bash`
    or `python3`: that is exec form, which on Windows resolves `bash` to the WSL relay
    `System32\bash.exe` and `python3` to the zero-length `WindowsApps` App Execution Alias stub, and
@@ -63,6 +64,10 @@ fails closed like every other guard-relevant unknown in this plugin.
    Claude Code, so reordering `PATH` neither causes nor fixes it. Also FAIL if the launcher is
    missing or not executable. Report a missing Git Bash on Windows as an environment prerequisite
    (shell form falls back to PowerShell there, which cannot run a `.sh`), not as a `PATH` fix.
+   Verified 2026-09-23 against Claude Code 2.1.281 at `https://code.claude.com/docs/en/hooks`
+   (shell form goes to Git Bash on Windows, exec form resolves `command` on `PATH`); recheck when
+   that page changes how shell-form commands run on Windows, or a release note names hook shell
+   selection.
 2. **Python floor on `PATH`**. The interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
    that acts only on engine-referencing commands, and the skill-frontmatter belt that

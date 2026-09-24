@@ -7,7 +7,15 @@ hooks:
   PreToolUse:
     - matcher: "Bash|PowerShell"
       hooks:
-        # Shell form, matching hooks/hooks.json. Exec form resolves
+        # Shell form with the same leading `bash` as the hooks/hooks.json rows,
+        # which runs the launcher without the `env` process its shebang costs.
+        # Git Bash, which runs the shell-form string, looks that `bash` up on
+        # its own PATH, so it is not the WSL relay an exec-form lookup finds.
+        # Verified 2026-09-23 against Claude Code 2.1.281 at
+        # https://code.claude.com/docs/en/hooks (shell form goes to Git Bash on
+        # Windows; exec form resolves `command` on PATH); recheck when that
+        # page changes how shell-form commands are run on Windows, or a
+        # release note names hook shell selection. Exec form resolves
         # `command` on PATH with no shell, and a bare `python3` there is
         # the zero-length WindowsApps App Execution Alias stub on stock
         # Windows, the hook cannot launch, and a failed launch is non-blocking,
@@ -20,7 +28,7 @@ hooks:
         # \" escapes; every path placeholder must stay double-quoted, because the
         # shell re-tokenizes the string and plugin roots contain spaces.
         - type: command
-          command: '"${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
+          command: 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh "${CLAUDE_PLUGIN_ROOT}"/skills/clean/scripts/destructive_guard.py --plugin-root "${CLAUDE_PLUGIN_ROOT}"'
           shell: bash
           timeout: 60
 metadata:
