@@ -1056,8 +1056,8 @@ for v in "${ROW_VALUES[@]}"; do
   label="'$v'"
   [[ "$v" == "__unset__" ]] && label="unset"
   case "$v" in
-    __unset__ | "" | true) want=started ;;
-    *) want=skipped ;;
+  __unset__ | "" | true) want=started ;;
+  *) want=skipped ;;
   esac
   case_dir="$ROWGATE/case$i"
   mkdir -p "$case_dir"
@@ -1975,10 +1975,10 @@ for banned in dirname basename; do
   fi
 done
 N_JQ="$(trace_execs jq "$TRACE")"
-if [[ "$N_JQ" == "1" ]]; then
-  ok "traced benign: exactly 1 jq (the shared payload validation)"
+if [[ "$N_JQ" == "0" ]]; then
+  ok "traced benign: no jq (payload validation and the path read are builtin)"
 else
-  fail "traced benign: jq spawned $N_JQ time(s), expected 1"
+  fail "traced benign: jq spawned $N_JQ time(s), expected 0"
 fi
 
 # One external, the typos binary, which is the point of the hook. The two

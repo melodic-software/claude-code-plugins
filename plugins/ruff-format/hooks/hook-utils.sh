@@ -16,10 +16,11 @@
 # https://mywiki.wooledge.org/CommandSubstitution), and on Windows Git Bash a
 # fork is a non-copy-on-write Win32 CreateProcess costing milliseconds, so a
 # capture around a `_to` helper is pure loss on hooks that run per edit.
-# Five helpers still print instead — hook::json_escape, hook::physical_path,
-# hook::repo_root, hook::buffer_stdin and hook::read_file_path (which reads
-# fd0 and has no `_to` twin). Each carries, at its definition, the one-line
-# reason its capture is still paid for.
+# Six helpers still print instead — hook::json_escape, hook::physical_path,
+# hook::repo_root, hook::buffer_stdin, hook::raw_file_path and
+# hook::read_file_path (which reads fd0; a hook holding the buffered payload
+# calls hook::read_file_path_to). Each carries, at its definition, the reason
+# its print form is kept.
 
 # Guard against double-sourcing.
 [[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
@@ -336,11 +337,21 @@ hook::notice_once() {
 # JSON-escaped (backslashes doubled); that is fine for extension/segment
 # matching, which is all the pre-filter does. Returns 1 when no file_path is
 # present.
+#   hook::raw_file_path_to RAW_FILE "$INPUT" || exit 0
+# <var> is left unchanged on a return of 1.
+hook::raw_file_path_to() {
+  [[ "$2" =~ \"file_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
+  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
+  printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+}
+
+# Print form, kept for the hooks that capture it once at top level
+# (instruction-placement index-drift.sh), off the per-edit prologue.
 #   RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
 hook::raw_file_path() {
-  [[ "$1" =~ \"file_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]] || return 1
-  [[ -n "${BASH_REMATCH[1]}" ]] || return 1
-  printf '%s' "${BASH_REMATCH[1]}"
+  local __hu_raw
+  hook::raw_file_path_to __hu_raw "$1" || return 1
+  printf '%s' "$__hu_raw"
 }
 
 # ============================================================================
@@ -769,11 +780,13 @@ hook::in_git_working_tree() {
 # back", never "close enough".
 #
 # What the builtin paths rely on: the text is valid JSON. Every hook payload
-# reaching hook::read_file_path has passed hook::buffer_stdin's jq validation,
-# and every telemetry data object is built with jq. The helpers still verify
-# the structure they walk (terminated strings, well-formed tokens, properly
-# nested brackets, one root, no raw control bytes inside strings), but they
-# are not a full JSON parser and do not claim to reject every malformed text.
+# reaching hook::read_file_path has passed hook::buffer_stdin's validation
+# (jq's, or hook::_json_object_proven's for an object the skeleton below
+# accepts), and every telemetry data object is built with jq. The helpers
+# verify the structure they walk (terminated strings, well-formed tokens,
+# properly nested brackets, one root, no raw control bytes inside strings,
+# only escapes jq accepts). What they do not check is jq's parser depth limit
+# (jq 1.8.2 rejects 9999 nested levels), which no hook payload comes near.
 #
 # Why no scanning: on this repo's Windows hosts bash regex matching and the
 # `%%`/`##` pattern operators cost about a microsecond per character, so a
@@ -781,6 +794,30 @@ hook::in_git_working_tree() {
 # only string operations used on the whole payload are literal-substring
 # replacement, `[[ == *x* ]]` containment, IFS word splitting and offset
 # slicing, all of which run at C speed.
+#
+# They run in the C locale. Under a UTF-8 locale bash does those operations
+# per multibyte character, and the cost grows faster than the payload: 297 ms
+# for a 37 KB Edit payload against about 8 ms under C, on WSL. In C one
+# character is one byte, so the offsets and lengths recorded while splitting
+# are byte counts, and the bodies sliced with them are the payload's own bytes;
+# a non-ASCII byte is ordinary string data, as JSON allows. The entry points
+# (hook::_fast_file_path_to, hook::_fast_fields, hook::json_compact_to,
+# hook::_json_object_proven) re-enter through hook::_c_locale, so every
+# skeleton, and the cached one, is built under the same locale.
+
+# hook::_c_locale <command> [args...]
+# Run <command> with LC_ALL=C and put the caller's LC_ALL back afterwards,
+# exported or not, set or unset, whatever <command> returned. An explicit save
+# and restore rather than `local LC_ALL`, whose unwind is not relied on to reset
+# the shell's locale on every bash these hooks support (normalize-eol.sh uses
+# the same idiom). Nothing it wraps starts a process.
+hook::_c_locale() {
+  local __hu_lc_set=${LC_ALL+x} __hu_lc=${LC_ALL-} __hu_lc_rc=0
+  LC_ALL=C
+  "$@" || __hu_lc_rc=$?
+  if [[ -n "$__hu_lc_set" ]]; then LC_ALL=$__hu_lc; else unset LC_ALL; fi
+  return "$__hu_lc_rc"
+}
 
 # hook::_json_split <text>
 # Split <text> at every unescaped double quote into the global array
@@ -939,6 +976,18 @@ hook::_json_skeleton() {
   return 0
 }
 
+# hook::_json_object_proven <text>
+# The builtin stand-in for hook::buffer_stdin's `jq -e .` probe: 0 when
+# hook::_json_skeleton accepts <text> and its root is an object, which jq -e
+# accepts too (an object is truthy); 1 when not proven, and the caller runs jq.
+hook::_json_object_proven() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::_json_object_proven "$@"
+    return
+  }
+  hook::_json_skeleton "$1" && [[ "$_HOOK_JSON_SK" == \{* ]]
+}
+
 # hook::json_unescape_to <var> <raw>
 # Decode a JSON string body (the bytes between the quotes) into <var>. Handles
 # \" \\ \/ \b \f \n \r \t and \uXXXX for U+0001 to U+007F. Returns 1 on any
@@ -995,6 +1044,10 @@ hook::json_unescape_to() {
 # still recognized; a body longer than any escaped spelling of either name is
 # skipped without decoding.
 hook::_fast_file_path_to() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::_fast_file_path_to "$@"
+    return
+  }
   local __hu_s="$2" __hu_i __hu_n __hu_part __hu_body __hu_ti=-1 __hu_fp=-1 __hu_m __hu_raw __hu_pre __hu_re __hu_file
   hook::_json_skeleton "$__hu_s" || return 2
   [[ "$_HOOK_JSON_SK" == \{* ]] || return 2
@@ -1092,6 +1145,10 @@ hook::_fast_fields_supported() {
 # Bash 4.0+ only (the `local -A` index below), so the call site gates it on
 # hook::_fast_fields_supported and a 3.2 shell runs jq instead.
 hook::_fast_fields() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::_fast_fields "$@"
+    return
+  }
   local __hu_s="$1"
   shift
   local -a __hu_k1=() __hu_k2=()
@@ -1239,6 +1296,10 @@ hook::_print_nul_joined() {
 # outside the JSON set, a raw control byte), or the structure fails
 # hook::_json_skeleton; the caller then runs jq.
 hook::json_compact_to() {
+  [[ "${LC_ALL-}" == C ]] || {
+    hook::_c_locale hook::json_compact_to "$@"
+    return
+  }
   local __hu_s="$2" __hu_out="" __hu_i __hu_part __hu_n
   hook::_json_skeleton "$__hu_s" || return 1
   [[ "$_HOOK_JSON_SK" == \{*\} ]] || return 1
@@ -1339,35 +1400,67 @@ hook::json_str_object_to() {
 # directories for the process. Same verdict, same emitted path, fewer
 # processes: on Windows Git Bash each spawn costs tens of milliseconds and this
 # guard runs on every Write and Edit.
+#
+# Print form, kept for a caller that holds no buffered payload and reads fd0
+# itself. A hook that already buffered stdin calls hook::read_file_path_to
+# with that buffer: `FILE=$(printf '%s' "$INPUT" | hook::read_file_path)`
+# paid a capture subshell, a pipeline member and a byte-at-a-time
+# `read -d ''` of the pipe for the same answer.
 hook::read_file_path() {
-  local -a chunks=()
-  local chunk file="" mode=2
+  local -a __hu_chunks=()
+  local __hu_chunk __hu_out=""
   # Builtin read to NUL or EOF. A NUL splits the payload into several chunks;
   # the fast path only takes a single-chunk (NUL-free) payload, and the jq
   # fallback is fed the chunks NUL-joined, so it sees the bytes jq used to
   # read straight from stdin.
   while :; do
-    chunk=""
-    if IFS= read -r -d '' chunk; then
-      chunks+=("$chunk")
+    __hu_chunk=""
+    if IFS= read -r -d '' __hu_chunk; then
+      __hu_chunks+=("$__hu_chunk")
       continue
     fi
-    chunks+=("$chunk")
+    __hu_chunks+=("$__hu_chunk")
     break
   done
-  if ((${#chunks[@]} == 1)); then
-    mode=0
-    hook::_fast_file_path_to file "${chunks[0]}" || mode=$?
+  hook::read_file_path_to __hu_out "${__hu_chunks[@]}" || return 1
+  printf '%s' "$__hu_out"
+}
+
+# hook::read_file_path_to <var> <payload>
+# hook::read_file_path's answer for an already-buffered payload, written into
+# <var> in THIS shell; returns 1 to skip, leaving <var> unchanged. A buffered
+# payload holds no NUL, so it is one chunk. More than one argument is the print
+# form's NUL-split stdin, which only jq may parse.
+#
+# The in-shell call leaves hook::_physical_prime's directory cache (and the
+# temp-root candidates) in the caller's process, where the print form's
+# subshell dropped them; a later path check in the same process reuses them,
+# which is what that cache is for.
+#
+# The one entry point is split in two names, as hook::jq_fields is: a
+# dispatcher that answers several guards from one payload (guardrails
+# run-guards.sh) puts a cache in front of hook::read_file_path_to and falls
+# through to hook::read_file_path_uncached_to on a miss.
+hook::read_file_path_to() {
+  hook::read_file_path_uncached_to "$@"
+}
+
+hook::read_file_path_uncached_to() {
+  local __hu_rf_dest="$1" __hu_rf_file="" __hu_rf_mode=2
+  shift
+  if (($# == 1)); then
+    __hu_rf_mode=0
+    hook::_fast_file_path_to __hu_rf_file "$1" || __hu_rf_mode=$?
   fi
-  case "$mode" in
-  0) ;;          # proven: `file` holds jq's answer
+  case "$__hu_rf_mode" in
+  0) ;;          # proven: `__hu_rf_file` holds jq's answer
   1) return 1 ;; # proven absent
   *)
-    file=$(hook::_print_nul_joined "${chunks[@]}" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+    __hu_rf_file=$(hook::_print_nul_joined "$@" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
     ;;
   esac
-  [[ -n "$file" ]] || return 1
-  [[ -f "$file" ]] || return 1
+  [[ -n "$__hu_rf_file" ]] || return 1
+  [[ -f "$__hu_rf_file" ]] || return 1
   # Scope opt-out, off unless the caller sets it for the duration of ONE call
   # (`local HOOK_READ_FILE_PATH_UNSCOPED=1` in the calling frame). Parse and
   # existence only, no membership.
@@ -1382,23 +1475,24 @@ hook::read_file_path() {
   # guard: there the scope is what stops a rewrite of something outside the
   # project.
   if [[ "${HOOK_READ_FILE_PATH_UNSCOPED:-0}" == 1 ]]; then
-    printf '%s' "$file"
+    printf -v "$__hu_rf_dest" '%s' "$__hu_rf_file"
     return 0
   fi
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local norm_file norm_project phys_file phys_project file_resolved=0 project_resolved=0
+    local __hu_rf_norm_file __hu_rf_norm_project __hu_rf_phys_file __hu_rf_phys_project
+    local __hu_rf_file_resolved=0 __hu_rf_project_resolved=0
     hook::_temp_root_candidates
-    hook::_physical_prime "$file" "${CLAUDE_PROJECT_DIR}" ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
-    hook::_physical_cached_to phys_file "$file" && file_resolved=1
-    hook::_phys_cache_forget "$file"
-    hook::_physical_cached_to phys_project "${CLAUDE_PROJECT_DIR}" && project_resolved=1
-    hook::normalize_path_to norm_file "$phys_file"
-    hook::normalize_path_to norm_project "$phys_project"
-    norm_project="${norm_project%/}"
+    hook::_physical_prime "$__hu_rf_file" "${CLAUDE_PROJECT_DIR}" ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
+    hook::_physical_cached_to __hu_rf_phys_file "$__hu_rf_file" && __hu_rf_file_resolved=1
+    hook::_phys_cache_forget "$__hu_rf_file"
+    hook::_physical_cached_to __hu_rf_phys_project "${CLAUDE_PROJECT_DIR}" && __hu_rf_project_resolved=1
+    hook::normalize_path_to __hu_rf_norm_file "$__hu_rf_phys_file"
+    hook::normalize_path_to __hu_rf_norm_project "$__hu_rf_phys_project"
+    __hu_rf_norm_project="${__hu_rf_norm_project%/}"
     # Anchor on a path-segment boundary: accept the project root itself or a
     # child under it, but not a sibling whose name merely shares the prefix
     # (e.g. /c/repo must not admit /c/repo-backup/...).
-    if [[ "$norm_file" != "$norm_project" && "$norm_file" != "$norm_project"/* ]]; then
+    if [[ "$__hu_rf_norm_file" != "$__hu_rf_norm_project" && "$__hu_rf_norm_file" != "$__hu_rf_norm_project"/* ]]; then
       return 1
     fi
     # Prefix membership alone is not project membership. When the project dir is
@@ -1414,28 +1508,28 @@ hook::read_file_path() {
     # built by `mktemp -d`, which is how this repo's own hook suites run), so
     # the branch must not fire. Only a temp-tree file reached from a project
     # root OUTSIDE the temp tree is scratch.
-    local file_in_temp=0
-    _HOOK_UTR_TARGET_PHYSICAL=$file_resolved
-    hook::under_temp_root "$norm_file" && file_in_temp=1
+    local __hu_rf_file_in_temp=0
+    _HOOK_UTR_TARGET_PHYSICAL=$__hu_rf_file_resolved
+    hook::under_temp_root "$__hu_rf_norm_file" && __hu_rf_file_in_temp=1
     _HOOK_UTR_TARGET_PHYSICAL=0
-    if ((file_in_temp)); then
-      local project_in_temp=0
-      _HOOK_UTR_TARGET_PHYSICAL=$project_resolved
-      hook::under_temp_root "$norm_project" && project_in_temp=1
+    if ((__hu_rf_file_in_temp)); then
+      local __hu_rf_project_in_temp=0
+      _HOOK_UTR_TARGET_PHYSICAL=$__hu_rf_project_resolved
+      hook::under_temp_root "$__hu_rf_norm_project" && __hu_rf_project_in_temp=1
       _HOOK_UTR_TARGET_PHYSICAL=0
-      ((project_in_temp)) || return 1
+      ((__hu_rf_project_in_temp)) || return 1
     fi
   elif command -v git >/dev/null 2>&1; then
     # When CLAUDE_PROJECT_DIR is unset, scope to git-working-tree membership so
     # scratch files outside any repository are not mutated by formatter hooks
     # (#1091 / #972).
-    local file_physical file_dir
-    hook::physical_path_to file_physical "$file" || :
-    if [[ -L "$file" && "$file_physical" == "$file" ]]; then
+    local __hu_rf_file_physical __hu_rf_file_dir
+    hook::physical_path_to __hu_rf_file_physical "$__hu_rf_file" || :
+    if [[ -L "$__hu_rf_file" && "$__hu_rf_file_physical" == "$__hu_rf_file" ]]; then
       return 1
     fi
-    hook::dirname_to file_dir "$file_physical"
-    if ! hook::in_git_working_tree "$file_dir"; then
+    hook::dirname_to __hu_rf_file_dir "$__hu_rf_file_physical"
+    if ! hook::in_git_working_tree "$__hu_rf_file_dir"; then
       return 1
     fi
   else
@@ -1443,7 +1537,7 @@ hook::read_file_path() {
     # pre-#1091 behavior (#1091).
     return 1
   fi
-  printf '%s' "$file"
+  printf -v "$__hu_rf_dest" '%s' "$__hu_rf_file"
 }
 
 # Resolve the repository root (working-tree top) for a path inside the tree.
@@ -1460,8 +1554,16 @@ hook::read_file_path() {
 # `_to` writes in THIS shell so the caller does not pay an extra subshell
 # around the necessary git process (Command Substitution, Bash Reference
 # Manual; https://mywiki.wooledge.org/CommandSubstitution).
-# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
+#
+# Split in two names like hook::read_file_path_to: guardrails run-guards.sh
+# caches in front of hook::repo_root_to and falls through to
+# hook::repo_root_uncached_to.
 hook::repo_root_to() {
+  hook::repo_root_uncached_to "$@"
+}
+
+# shellcheck disable=SC2034  # public contract: advisory callers may read HOOK_REPO_ROOT_UNRESOLVED
+hook::repo_root_uncached_to() {
   local __hu_rr_dest="$1"
   local __hu_rr_hint="${2:-.}"
   local __hu_rr_val
@@ -1557,12 +1659,13 @@ hook::walk_up_to() {
 # Repo-relative form of <file> under <repo-root> — the shape the telemetry
 # schema requires of `data.file` ("relative to the consuming repo root").
 #
-# Both sides go through `cygpath -lm` (long name, forward-slash mixed form)
-# when it is available, so the prefix strip compares ONE representation: on
-# Windows Git Bash `git rev-parse --show-toplevel` answers with a drive-letter
-# path while file_path may arrive in POSIX mount form, and the raw strip never
-# matches. On Linux/macOS cygpath is absent and both paths are already POSIX,
-# so the strip runs directly.
+# On a Windows bash host (OSTYPE msys, cygwin or win32) both sides go through
+# `cygpath -lm` (long name, forward-slash mixed form) when it is available, so
+# the prefix strip compares ONE representation: on Windows Git Bash
+# `git rev-parse --show-toplevel` answers with a drive-letter path while
+# file_path may arrive in POSIX mount form, and the raw strip never matches. On
+# Linux/macOS both paths are already POSIX, so the strip runs directly without
+# looking for cygpath.
 #
 # What survives the strip is not trusted to BE relative. A mount/symlink
 # mismatch, or a cygpath that answers for one side and not the other, leaves
@@ -1592,7 +1695,16 @@ hook::repo_relative_path_to() {
   # redaction below, so it would leak with a success status. Skipping the strip
   # leaves rel as the input, which the redaction then degrades correctly.
   if [[ -n "$__hu_rp_root" ]]; then
-    if command -v cygpath >/dev/null 2>&1; then
+    # cygpath exists only on the Windows bash hosts (the OSTYPE set
+    # hook::normalize_path_to uses). Elsewhere `command -v` misses, and a miss
+    # probes every PATH directory: on WSL that includes the /mnt/c entries, one
+    # 9P round trip each, 13-20 ms per call.
+    local __hu_rp_cyg=0
+    case "${OSTYPE:-}" in
+    msys* | cygwin* | win32) command -v cygpath >/dev/null 2>&1 && __hu_rp_cyg=1 ;;
+    *) ;;
+    esac
+    if ((__hu_rp_cyg)); then
       local __hu_rp_file_lm __hu_rp_root_lm
       __hu_rp_file_lm=$(cygpath -lm "$__hu_rp_file" 2>/dev/null)
       __hu_rp_root_lm=$(cygpath -lm "$__hu_rp_root" 2>/dev/null)
@@ -1945,7 +2057,13 @@ hook::buffer_stdin_to() {
     if ((__hu_fields_rc == 2)); then
       __hu_jq_rc=2
     fi
-  elif ((__hu_validated == 0)) && command -v jq >/dev/null 2>&1; then
+  elif ((__hu_validated == 0)) && command -v jq >/dev/null 2>&1 &&
+    ! hook::_json_object_proven "$__hu_input"; then
+    # hook::_json_object_proven answers first, with builtins: a text
+    # hook::_json_skeleton accepts whose root is an object is one `jq -e .`
+    # accepts (an object is truthy), so the common payload spawns nothing. The
+    # skeleton it builds is cached for the file-path and field parses that
+    # follow on the same text. Anything it cannot prove still goes to jq.
     # `printf | jq`, not a here-string — see hook::json_complete: a here-string
     # at or above the pipe capacity deadlocks the shell before jq is exec'd, and
     # a hook payload routinely exceeds it. A direct probe, not a command
@@ -2404,7 +2522,8 @@ hook::begin() {
   # `/dev/stdin` cannot resolve at all.
   hook::buffer_stdin_to INPUT || exit 0
 
-  RAW_FILE=$(hook::raw_file_path "$INPUT") || RAW_FILE=""
+  RAW_FILE=""
+  hook::raw_file_path_to RAW_FILE "$INPUT" || :
   if [[ -z "$RAW_FILE" ]] && ((__hu_bg_notebook)); then
     RAW_FILE=$(hook::raw_notebook_path "$INPUT") || RAW_FILE=""
   fi
@@ -2446,7 +2565,8 @@ hook::begin() {
   fi
 
   local HOOK_READ_FILE_PATH_UNSCOPED="$__hu_bg_unscoped"
-  FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+  FILE=""
+  hook::read_file_path_to FILE "$INPUT" || exit 0
   if (($#)); then
     hook::path_matches "$FILE" "$@" || exit 0
   fi

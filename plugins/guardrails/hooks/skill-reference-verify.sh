@@ -67,7 +67,8 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+FILE=""
+hook::read_file_path_to FILE "$INPUT" || exit 0
 case "$FILE" in
 # A CHANGELOG is an append-only historical record: an entry saying a skill was
 # renamed MUST keep naming the old command, so every rename permanently adds an

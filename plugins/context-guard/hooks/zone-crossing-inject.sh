@@ -336,7 +336,16 @@ zones_seen=0
 # one process, and `$(bash … 2>/dev/null)` billed two for it. Same suppression
 # (the resolver's zones.json notices stay hidden from this caller, as before),
 # same captured word, and `||` still sees the resolver's status.
-{ zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
+#
+# With no readable snapshot the resolver's answer is already known: it prints
+# `unknown` at its `[[ -r "$snap" ]]` check, before reading anything else, and
+# so it does for an empty HOME. That check is made here instead, which saves
+# starting a second bash on every batch of a session that never wrote a
+# snapshot (no context-guard status line, or a headless `claude -p` run).
+zone="unknown"
+if [[ -n "${HOME:-}" && -r "$HOME/.claude/context-guard/context/$SESSION.json" ]]; then
+  { zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
+fi
 
 # Evidence-degraded marker (reader contract): a compacted session is treated
 # as dumb regardless of the resolved word — including a green post-compaction

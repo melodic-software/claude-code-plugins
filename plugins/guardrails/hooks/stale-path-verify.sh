@@ -71,7 +71,8 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "guardrails-stale-path-verify" "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+FILE=""
+hook::read_file_path_to FILE "$INPUT" || exit 0
 case "$FILE" in
 # A CHANGELOG is an append-only historical record, and this oracle selects
 # precisely for removed paths — precisely what such a record documents. Mirrors
