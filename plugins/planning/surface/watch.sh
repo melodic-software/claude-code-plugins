@@ -2,8 +2,10 @@
 # Claude's watcher. Run in a background Bash task; it exits when the page has something new.
 #   bash watch.sh <data_dir>
 # Long-polls /api/wait (each poll is the heartbeat the page shows as "Claude is listening"),
-# prints the new events as one JSON line carrying "dataDir" and "next" (the exact re-arm
-# command), stores the seq in .watch-seq, and exits 0.
+# prints the unhandled events as one JSON line carrying "dataDir" and "next" (the exact re-arm
+# command), stores the seq in .watch-seq, and exits 0. Events a dead turn never handled come
+# back at once on the next arm; after that re-delivery (recorded in .watch-replay) an arm waits
+# for a new event.
 # Exits 2 when curl is missing, when the token was rejected (the server restarted), or when
 # the server stays unreachable for WAIT_FAILS polls (default 12, 5 s apart).
 # WAIT_TIMEOUT comes from the session env file (default 90); curl allows 10 s more.
@@ -20,8 +22,9 @@ WAIT_TIMEOUT=$(sed -n 's/^WAIT_TIMEOUT=//p' "$env_file" | tr -dc '0-9')
 WAIT_TIMEOUT=${WAIT_TIMEOUT:-90}
 [[ -n "$PORT" && -n "$TOKEN" ]] || { echo "server not running (empty $env_file)" >&2; exit 2; }
 max_fails=${WAIT_FAILS:-12}
-after=$(tr -dc '0-9' <"$dir/.watch-seq" 2>/dev/null)
-after=${after:-0}
+# after=handled returns every unhandled event; .watch-replay bounds re-delivery to one extra wake.
+replayed=$(tr -dc '0-9' <"$dir/.watch-replay" 2>/dev/null)
+replayed=${replayed:-0}
 body="$dir/.watch-body.$$"
 trap 'rm -f "$body"' EXIT
 
@@ -33,7 +36,7 @@ json_escape() {
 fails=0
 while :; do
   code=$("$curl_bin" -s -o "$body" -w '%{http_code}' --max-time $((WAIT_TIMEOUT + 10)) \
-    -H "X-Interview-Token: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=$after&timeout=$WAIT_TIMEOUT")
+    -H "X-Interview-Token: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT")
   case "$code" in
     200) ;;
     403)
@@ -57,6 +60,12 @@ while :; do
       next="bash \"$here/round.sh\" --dir \"$dir\" apply --file ops.json && bash \"$here/watch.sh\" \"$dir\""
       printf '%s, "dataDir": "%s", "next": "%s"}\n' "${out%\}}" "$(json_escape "$dir")" "$(json_escape "$next")"
       printf '%s' "$out" | sed -n 's/^{"seq": \([0-9]*\).*/\1/p' >"$dir/.watch-seq"
+      case "$out" in
+        '{"seq": '*', "timedOut": false, "replayed": '*)
+          printf '%s' "$out" | sed -n 's/^{"seq": [0-9]*, "timedOut": false, "replayed": \([0-9]*\).*/\1/p' >"$dir/.watch-replay"
+          ;;
+        *) ;;
+      esac
       exit 0
       ;;
     *) ;;

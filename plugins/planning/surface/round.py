@@ -55,9 +55,11 @@ import schema  # noqa: E402
 from server import (  # noqa: E402
     EMPTY_RESPONSES,
     SCHEMA_VERSION,
+    Settings,
     is_handled,
     load_json,
     rebuild_responses,
+    repo_root,
     save_json,
 )
 
@@ -931,12 +933,40 @@ def open_browser(url, settings):
     webbrowser.open(url)
 
 
+def record_emoji_markers(d, want):
+    """meta.emojiMarkers through the normal write path; writes only on a change or a new file."""
+    doc = load(d)
+    if (d / "questions.json").exists() and doc["meta"].get("emojiMarkers") is want:
+        return
+    doc["meta"]["emojiMarkers"] = want
+    save(d, doc)
+
+
+def record_wait_timeout(d, user):
+    """The resolved waitTimeout into the session env file, where watch.sh reads it."""
+    settings, _ = Settings(repo_root(d)).resolve(d, user)
+    env = d / SESSION_FILES[1]
+    lines = [
+        x
+        for x in env.read_text(encoding="utf-8").splitlines()
+        if not x.startswith("WAIT_TIMEOUT=")
+    ]
+    lines.append(f"WAIT_TIMEOUT={settings['waitTimeout']['value']}")
+    env.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
     d.mkdir(parents=True, exist_ok=True)
     with sidecar_lock(d):
+        record_emoji_markers(d, a.emoji_markers == "true")
         s = read_session(d)
+        user = (
+            str(Path(a.user_settings).resolve())
+            if a.user_settings
+            else (s or {}).get("userSettings")
+        )
         if not (s and running(d, s)):
             port = a.port or (s or {}).get("port") or 0
             if port and not port_free(port):
@@ -950,9 +980,10 @@ def cmd_ensure_running(d, a):
                 sys.exit(
                     f"the server did not start within {START_SECONDS} s (data dir {d})"
                 )
-        if a.user_settings:
-            s["userSettings"] = str(Path(a.user_settings).resolve())
+        if user and s.get("userSettings") != user:
+            s["userSettings"] = user
             save_json(d / SESSION_FILES[0], s)
+        record_wait_timeout(d, user)
     print(s["url"])
     if a.open:
         open_browser(s["url"], read_user_settings(a.user_settings))
@@ -1152,6 +1183,13 @@ def main(argv=None):
     s.add_argument("--open", action="store_true", help="open the page in a browser")
     s.add_argument(
         "--user-settings", dest="user_settings", help="user settings JSON file"
+    )
+    s.add_argument(
+        "--emoji-markers",
+        dest="emoji_markers",
+        choices=("true", "false"),
+        default="true",
+        help="record meta.emojiMarkers in questions.json (default true)",
     )
     s.set_defaults(fn=cmd_ensure_running)
 

@@ -386,7 +386,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function localSettings(){ try { return JSON.parse(localStorage.getItem("iv2:settings") || "{}") || {}; } catch (e) { return {}; } }
   function setLocal(k, v){ const o = localSettings(); if (v === undefined) delete o[k]; else o[k] = v; try { localStorage.setItem("iv2:settings", JSON.stringify(o)); } catch (e) {} applySettings(); }
   function setting(k){ const l = localSettings(), d = S.dataSettings || {}; return k in l ? l[k] : k in d ? d[k] : DEFAULTS[k]; }
-  function settingSrc(k){ return k in localSettings() ? "your browser" : k in (S.dataSettings || {}) ? "settings.json" : "default"; }
+  function settingSrc(k){ return k in localSettings() ? "your browser" : k in (S.dataSettings || {}) ? ({user: "user settings", repo: "repo settings"}[(S.settingLayer || {})[k]] || "settings.json") : "default"; }
 
   // ---------- markdown subset (escape first) ----------
   function refHtml(id){ const q = Q[id]; return '<button type="button" class="ref" data-q="' + esc(id) + '"><b>' + esc(id) + '</b>' + esc(q ? (q.short || q.title) : "unknown") + '</button>'; }
@@ -1068,7 +1068,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const first = !S.loaded;
     S.session = data.session || S.session;
     S.api = data.api || 1;
-    S.dataSettings = data.settings || {};
+    S.dataSettings = {}; S.settingLayer = {};
+    Object.entries(data.settings || {}).forEach(([k, v]) => { if (v && typeof v === "object" && "layer" in v) { if (v.layer !== "default") { S.dataSettings[k] = v.value; S.settingLayer[k] = v.layer; } } else { S.dataSettings[k] = v; S.settingLayer[k] = "session"; } });
     S.watchSeq = data.watchSeq || 0;
     S.doc = Object.assign({meta: {}, groups: [], questions: [], visuals: [], notes: []}, data.questions || {});
     S.resp = Object.assign({seq: 0, responses: {}, history: {}, events: []}, data.responses || {});

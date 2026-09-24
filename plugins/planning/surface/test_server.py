@@ -8,17 +8,21 @@ lifecycle and security acceptance criteria (AC2 to AC7).
 
 from __future__ import annotations
 
+import contextlib
 import http.client
+import io
 import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -87,6 +91,11 @@ class ServerCase(unittest.TestCase):
     """Starts one server per class in a temp data dir; `fixtures` seeds the bundle's sample data."""
 
     fixtures = False
+    env = None
+
+    @classmethod
+    def prepare(cls):
+        """Hook: seed files (or move cls.dir) before the server starts."""
 
     @classmethod
     def setUpClass(cls):
@@ -98,9 +107,10 @@ class ServerCase(unittest.TestCase):
             for name in ("questions.json", "responses.json"):
                 shutil.copy(FIXTURES / name, cls.dir / name)
             (cls.dir / ".watch-seq").write_text("24", encoding="utf-8")
+        cls.prepare()
         cls.addClassCleanup(run_round, cls.dir, "stop")
         started = time.monotonic()
-        p = ensure_running(cls.dir)
+        p = ensure_running(cls.dir, env=cls.env)
         cls.start_seconds = time.monotonic() - started
         if p.returncode != 0:
             raise AssertionError(
@@ -561,6 +571,469 @@ class TestSecurity(ServerCase):
         self.assertEqual(code, 200)
         self.assertIn("returned", box)
         self.assertLess(box["returned"] - posted, 1.0)
+
+    def test_ac7_after_handled_reaches_a_waiting_watcher_within_1_second(self):
+        rc, out = self.rp("handle", "--seq", *map(str, self.unhandled_seqs()))
+        self.assertEqual(rc, 0, out)
+        box = {}
+
+        def waiter():
+            box["code"], box["raw"], _ = self.get(
+                "/api/wait?after=handled&replayed=0&timeout=20"
+            )
+            box["returned"] = time.monotonic()
+
+        th = threading.Thread(target=waiter)
+        th.start()
+        time.sleep(0.5)
+        posted = time.monotonic()
+        code, data = self.post({"kind": "note", "text": "Timing note, handled mode."})
+        th.join(30)
+        self.assertEqual(code, 200)
+        self.assertEqual(box.get("code"), 200, box.get("raw"))
+        self.assertEqual(seqs(json.loads(box["raw"])["events"]), [data["seq"]])
+        self.assertLess(box["returned"] - posted, 1.0)
+
+    def unhandled_seqs(self):
+        st = self.state()
+        q = st["questions"]
+        done = set(q.get("handled") or [])
+        return [
+            e["seq"]
+            for e in st["responses"]["events"]
+            if e["seq"] > (q.get("handledSeq") or 0) and e["seq"] not in done
+        ] or [1]
+
+
+def question(qid, **extra):
+    return {
+        "id": qid,
+        "short": f"Short {qid}",
+        "title": f"Question {qid}?",
+        "recommendation": "Yes.",
+        "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}],
+        "commits": ["First commitment", "Second commitment"],
+        **extra,
+    }
+
+
+def seed_questions(d, *qs):
+    doc = {"meta": {}, "rev": 1, "groups": [], "questions": list(qs)}
+    (Path(d) / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+
+
+def seqs(events):
+    return [e["seq"] for e in events]
+
+
+class WaitCase(ServerCase):
+    """Adds a timed /api/wait and a thread helper to ServerCase."""
+
+    def wait(self, query, timeout=30):
+        started = time.monotonic()
+        code, raw, _ = request(
+            self.port,
+            "GET",
+            "/api/wait?" + query,
+            headers={"X-Interview-Token": self.token},
+            timeout=timeout,
+        )
+        return code, json.loads(raw), time.monotonic() - started
+
+    def wait_during(self, query, action, delay=0.5):
+        """Arm a wait in a thread, run action after delay, return (wait result, action result)."""
+        box = {}
+        th = threading.Thread(target=lambda: box.update(r=self.wait(query)))
+        th.start()
+        time.sleep(delay)
+        acted = action()
+        th.join(40)
+        return box.get("r"), acted
+
+    def q(self, qid):
+        return next(x for x in self.state()["questions"]["questions"] if x["id"] == qid)
+
+
+class TestReplay(WaitCase):
+    """AC8 and the bounded replay: after=handled re-delivers unhandled events once, then blocks."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_1_blocking_delivery_has_no_replay_mark(self):
+        r, posted = self.wait_during(
+            "after=handled&replayed=0&timeout=20",
+            lambda: self.post({"id": "A", "kind": "accept"}),
+        )
+        code, body, _ = r
+        type(self).first = posted[1]["seq"]
+        self.assertEqual(code, 200)
+        self.assertFalse(body["timedOut"])
+        self.assertEqual(seqs(body["events"]), [self.first])
+        self.assertNotIn("replayed", body)
+
+    def test_2_ac8_rearm_without_handle_redelivers_at_once(self):
+        code, body, took = self.wait("after=handled&replayed=0&timeout=20")
+        self.assertEqual(code, 200)
+        self.assertLess(took, 1.5)
+        self.assertEqual(seqs(body["events"]), [self.first])
+        self.assertEqual(body.get("replayed"), self.first)
+
+    def test_3_second_rearm_without_a_new_event_blocks_until_timeout(self):
+        code, body, took = self.wait(f"after=handled&replayed={self.first}&timeout=3")
+        self.assertEqual(code, 200)
+        self.assertGreaterEqual(took, 2.5)
+        self.assertTrue(body["timedOut"])
+        self.assertEqual(body["events"], [])
+
+    def test_4_new_post_returns_the_old_unhandled_event_and_the_new_one(self):
+        r, posted = self.wait_during(
+            f"after=handled&replayed={self.first}&timeout=20",
+            lambda: self.post({"kind": "note", "text": "Second event."}),
+        )
+        code, body, _ = r
+        self.assertEqual(code, 200)
+        self.assertEqual(seqs(body["events"]), [self.first, posted[1]["seq"]])
+        self.assertNotIn("replayed", body)
+        type(self).second = posted[1]["seq"]
+
+    def test_5_nothing_unhandled_blocks(self):
+        rc, out = self.rp("handle", "--seq", str(self.first), str(self.second))
+        self.assertEqual(rc, 0, out)
+        code, body, took = self.wait("after=handled&replayed=0&timeout=2")
+        self.assertTrue(body["timedOut"])
+        self.assertGreaterEqual(took, 1.5)
+
+    def test_6_replayed_past_the_log_counts_as_zero(self):
+        _, posted = self.post({"kind": "note", "text": "Third event."})
+        code, body, took = self.wait("after=handled&replayed=9999&timeout=5")
+        self.assertLess(took, 1.5)
+        self.assertEqual(seqs(body["events"]), [posted["seq"]])
+
+
+class TestListener(WaitCase):
+    """Socket-EOF detection in Hub.wait and listener.idleFor (AC26 server side)."""
+
+    def listener(self):
+        return self.state()["listener"]
+
+    def test_1_idle_for_is_null_before_any_wait(self):
+        self.assertIn("idleFor", self.listener())
+        self.assertIsNone(self.listener()["idleFor"])
+
+    def test_2_idle_for_is_zero_while_a_watcher_waits(self):
+        r, lst = self.wait_during("after=handled&timeout=4", self.listener, delay=2.0)
+        self.assertEqual(lst["waiters"], 1)
+        self.assertEqual(lst["idleFor"], 0)
+        self.assertTrue(r[1]["timedOut"])
+
+    def test_3_idle_for_counts_after_the_wait_ends(self):
+        time.sleep(1.2)
+        idle = self.listener()["idleFor"]
+        self.assertGreaterEqual(idle, 1.0)
+        self.assertLess(idle, 10)
+
+    def test_4_closed_client_frees_the_waiter_and_gets_no_delivery(self):
+        sock = socket.create_connection(("127.0.0.1", self.port), timeout=5)
+        sock.sendall(
+            (
+                "GET /api/wait?after=handled&timeout=20 HTTP/1.1\r\n"
+                f"Host: 127.0.0.1:{self.port}\r\n"
+                f"X-Interview-Token: {self.token}\r\n\r\n"
+            ).encode("ascii")
+        )
+        time.sleep(0.5)
+        self.assertEqual(self.listener()["waiters"], 1)
+        sock.close()
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and self.listener()["waiters"]:
+            time.sleep(0.1)
+        self.assertEqual(self.listener()["waiters"], 0)
+        _, posted = self.post({"kind": "note", "text": "Nobody is listening."})
+        time.sleep(1.5)
+        ev = next(
+            e for e in self.state()["responses"]["events"] if e["seq"] == posted["seq"]
+        )
+        self.assertNotIn("deliveredAt", ev)
+
+
+class TestQuestionState(WaitCase):
+    """AC19: stale direct dependents, upstream-pending descendants, archived, revising."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C", dependsOn=["B"]),
+            question("D"),
+        )
+
+    def states(self):
+        return {q["id"]: q.get("state") for q in self.state()["questions"]["questions"]}
+
+    def decide(self, qid, kind="accept", **extra):
+        code, data = self.post({"id": qid, "kind": kind, **extra})
+        self.assertEqual(code, 200, data)
+        return data["seq"]
+
+    def handle_all(self):
+        st = self.state()
+        rc, out = self.rp("handle", "--seq", *map(str, seqs(st["responses"]["events"])))
+        self.assertEqual(rc, 0, out)
+
+    def test_1_answering_in_order_leaves_every_question_open(self):
+        for qid in ("A", "B", "C"):
+            self.decide(qid)
+        self.assertEqual(
+            self.states(), {"A": "open", "B": "open", "C": "open", "D": "open"}
+        )
+
+    def test_2_reanswer_marks_direct_dependent_stale_and_descendant_upstream_pending(
+        self,
+    ):
+        self.decide("A", "alt", alt="b")
+        self.assertEqual(
+            self.states(),
+            {"A": "open", "B": "stale", "C": "upstream-pending", "D": "open"},
+        )
+
+    def test_3_handle_does_not_change_state(self):
+        self.handle_all()
+        self.assertEqual(self.states()["B"], "stale")
+        self.assertEqual(self.states()["C"], "upstream-pending")
+
+    def test_4_reanswering_the_stale_question_clears_it_and_its_descendant(self):
+        self.decide("B")
+        self.assertEqual(
+            self.states(), {"A": "open", "B": "open", "C": "open", "D": "open"}
+        )
+
+    def test_5_undo_of_the_change_clears_the_stale_mark(self):
+        self.handle_all()
+        seq = self.decide("A")
+        self.assertEqual(self.states()["B"], "stale")
+        code, data = self.post({"kind": "undo", "undoSeq": seq})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states()["B"], "open")
+
+    def test_6_state_is_never_written_to_questions_json(self):
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(any("state" in q for q in doc["questions"]))
+
+    def test_7_revising_marks_direct_dependents_of_a_delivered_unhandled_decision(
+        self,
+    ):
+        self.handle_all()
+        self.decide("A", "alt", alt="a")
+        before = {
+            q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
+        }
+        self.assertFalse(before["B"], "revising before delivery")
+        code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
+        self.assertFalse(body["timedOut"])
+        rev = {
+            q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
+        }
+        self.assertEqual(rev, {"A": False, "B": True, "C": False, "D": False})
+        self.handle_all()
+        rev = {
+            q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
+        }
+        self.assertFalse(rev["B"])
+
+    def test_8_archived(self):
+        rc, out = self.rp("archive", "D", "--why", "Off the chosen path.")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["D"], "archived")
+
+
+class TestConfirm(WaitCase):
+    """The `confirm` event: ticks one commitment, records no decision, needs handling."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_1_confirm_is_saved_as_a_user_line_without_a_decision(self):
+        code, data = self.post({"id": "A", "kind": "accept"})
+        crev = data["contentRev"]
+        code, data = self.post({"id": "A", "kind": "confirm", "alt": "1"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["contentRev"], crev)
+        r = self.state()["responses"]
+        self.assertEqual(r["responses"]["A"]["decision"], "accept")
+        line = r["history"]["A"][-1]
+        self.assertEqual((line["kind"], line["alt"]), ("confirm", "1"))
+        code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
+        self.assertIn(data["seq"], seqs(body["events"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+    def test_2_confirm_without_alt_is_400(self):
+        code, _ = self.post({"id": "A", "kind": "confirm"})
+        self.assertEqual(code, 400)
+
+
+def settings_env(**extra):
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
+    env.update(extra)
+    return env
+
+
+class TestSettingsLayers(ServerCase):
+    """AC33 server side: default, repo, user and session layers, each value with its layer."""
+
+    env = settings_env()
+
+    @classmethod
+    def prepare(cls):
+        cls.repo = cls.tmp / "repo"
+        (cls.repo / ".claude").mkdir(parents=True)
+        (cls.repo / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        cls.dir = cls.repo / ".work" / "topic" / "interview-surface"
+        cls.dir.mkdir(parents=True)
+        (cls.dir / "theme.json").write_text(
+            json.dumps({"light": {"--bg": "#333333"}}), encoding="utf-8"
+        )
+
+    def settings(self):
+        return self.state()["settings"]
+
+    def env_file(self):
+        return (self.dir / ".interview-session.env").read_text(encoding="utf-8")
+
+    def test_1_plugin_defaults(self):
+        s = self.settings()
+        want = {
+            "port": 0,
+            "openBrowser": True,
+            "shortcuts": True,
+            "undoSeconds": 5,
+            "checkpoint": 0,
+            "theme": "auto",
+            "density": "compact",
+            "minText": 14,
+            "displayName": "You",
+            "waitTimeout": 90,
+            "staleDepth": "direct",
+        }
+        self.assertEqual({k: v["value"] for k, v in s.items()}, want)
+        self.assertEqual({v["layer"] for v in s.values()}, {"default"})
+        self.assertRegex(self.env_file(), r"(?m)^WAIT_TIMEOUT=90$")
+
+    def test_2_repo_layer_beats_default_and_is_restricted(self):
+        (self.repo / ".claude" / "interview-surface.json").write_text(
+            json.dumps(
+                {
+                    "undoSeconds": 20,
+                    "checkpoint": 9999,
+                    "minText": True,
+                    "displayName": "Repo Person",
+                    "unknownKey": 1,
+                    "themeTokens": {"light": {"--bg": "#111111", "--fg": "#222222"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        s = self.settings()
+        self.assertEqual(s["undoSeconds"], {"value": 20, "layer": "repo"})
+        self.assertEqual(s["checkpoint"], {"value": 0, "layer": "default"})
+        self.assertEqual(s["minText"], {"value": 14, "layer": "default"})
+        self.assertEqual(s["displayName"], {"value": "You", "layer": "default"})
+        self.assertNotIn("unknownKey", s)
+        theme = self.state()["theme"]
+        self.assertEqual(theme["light"], {"--bg": "#333333", "--fg": "#222222"})
+
+    def test_3_user_layer_beats_repo(self):
+        user = self.tmp / "user-settings.json"
+        user.write_text(
+            json.dumps({"undoSeconds": 30, "displayName": "Tester", "waitTimeout": 40}),
+            encoding="utf-8",
+        )
+        pid = session(self.dir)["pid"]
+        p = ensure_running(self.dir, "--user-settings", str(user), env=self.env)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertEqual(session(self.dir)["pid"], pid)
+        s = self.settings()
+        self.assertEqual(s["undoSeconds"], {"value": 30, "layer": "user"})
+        self.assertEqual(s["displayName"], {"value": "Tester", "layer": "user"})
+        self.assertEqual(s["waitTimeout"], {"value": 40, "layer": "user"})
+        self.assertRegex(self.env_file(), r"(?m)^WAIT_TIMEOUT=40$")
+        self.assertEqual(len(re.findall(r"(?m)^WAIT_TIMEOUT=", self.env_file())), 1)
+
+    def test_4_session_layer_beats_user(self):
+        (self.dir / "settings.json").write_text(
+            json.dumps({"undoSeconds": 45, "waitTimeout": 500}), encoding="utf-8"
+        )
+        s = self.settings()
+        self.assertEqual(s["undoSeconds"], {"value": 45, "layer": "session"})
+        self.assertEqual(s["waitTimeout"], {"value": 40, "layer": "user"})
+
+
+class TestSettingsResolver(unittest.TestCase):
+    """The resolver in-process: repo root ladder and one stderr note per problem."""
+
+    def setUp(self):
+        import server
+
+        self.server = server
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-settings-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def test_repo_root_prefers_claude_project_dir_then_git_ancestor(self):
+        repo = self.tmp / "repo"
+        data = repo / "a" / "b"
+        data.mkdir(parents=True)
+        (repo / ".git").mkdir()
+        other = self.tmp / "other"
+        other.mkdir()
+        with unittest.mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": str(other)}):
+            self.assertTrue(same_dir(self.server.repo_root(data), other))
+        env = settings_env()
+        with unittest.mock.patch.dict(os.environ, env, clear=True):
+            self.assertTrue(same_dir(self.server.repo_root(data), repo))
+            self.assertIsNone(self.server.repo_root(self.tmp / "other"))
+
+    def test_invalid_and_unknown_repo_keys_are_noted_once(self):
+        repo = self.tmp / "r"
+        (repo / ".claude").mkdir(parents=True)
+        (repo / ".claude" / "interview-surface.json").write_text(
+            json.dumps({"undoSeconds": 61, "bogus": 1}), encoding="utf-8"
+        )
+        notes = io.StringIO()
+        with contextlib.redirect_stderr(notes):
+            layers = self.server.Settings(repo)
+            first, _ = layers.resolve(self.tmp)
+            layers.resolve(self.tmp)
+        text = notes.getvalue()
+        self.assertEqual(first["undoSeconds"]["layer"], "default")
+        self.assertEqual(text.count("undoSeconds"), 1, text)
+        self.assertEqual(text.count("bogus"), 1, text)
+
+
+class TestEmojiMarkers(ServerCase):
+    """meta.emojiMarkers from ensure-running, written once through the locked path."""
+
+    def meta(self):
+        return self.state()["questions"]["meta"]
+
+    def test_1_default_true_creates_questions_json(self):
+        self.assertTrue((self.dir / "questions.json").exists())
+        self.assertIs(self.meta().get("emojiMarkers"), True)
+
+    def test_2_false_is_recorded_and_a_repeat_does_not_bump_rev(self):
+        p = ensure_running(self.dir, "--emoji-markers", "false")
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertIs(self.meta().get("emojiMarkers"), False)
+        rev = self.state()["questions"]["rev"]
+        ensure_running(self.dir, "--emoji-markers", "false")
+        self.assertEqual(self.state()["questions"]["rev"], rev)
+
+    def test_3_display_name_reaches_state(self):
+        self.assertEqual(self.state()["settings"]["displayName"]["value"], "You")
 
 
 if __name__ == "__main__":

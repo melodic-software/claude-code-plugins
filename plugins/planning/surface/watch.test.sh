@@ -51,6 +51,16 @@ PORT=$(sed -n 's/^PORT=//p' "$d/.interview-session.env" | tr -d '\r')
 TOKEN=$(sed -n 's/^TOKEN=//p' "$d/.interview-session.env" | tr -d '\r')
 cp "$d/.interview-session.env" "$tmp/env.saved"
 
+# Block until the server reports a waiting watcher (up to 10 s), so a POST lands mid-wait.
+until_waiting() {
+  local end=$((SECONDS + 10))
+  while [[ "$SECONDS" -lt "$end" ]]; do
+    curl -s --max-time 2 "http://127.0.0.1:$PORT/api/state" | grep -q '"waiters": 1' && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
 # (a) curl missing
 WATCH_CURL=/nonexistent bounded 10 "$tmp/a.out" "$tmp/a.err" bash "$here/watch.sh" "$d"
 rc=$?
@@ -76,7 +86,7 @@ fi
 # (c) a delivery prints one self-describing JSON line and exits 0
 bash "$here/watch.sh" "$d" >"$tmp/c.out" 2>"$tmp/c.err" &
 wpid=$!
-sleep 1
+until_waiting
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $TOKEN" \
   -H 'Content-Type: application/json' --data '{"kind": "note", "text": "watch test note"}' \
   "http://127.0.0.1:$PORT/api/answer")
@@ -107,6 +117,59 @@ else
 fi
 seq=$(tr -dc '0-9' <"$d/.watch-seq" 2>/dev/null)
 if [[ -n "$seq" && "$seq" -ge 1 ]]; then ok ".watch-seq stores the delivered seq ($seq)"; else bad ".watch-seq not stored"; fi
+if [[ ! -f "$d/.watch-replay" ]]; then ok "a blocking delivery writes no .watch-replay"; else bad ".watch-replay written after a blocking delivery"; fi
+
+post_note() {
+  curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $TOKEN" \
+    -H 'Content-Type: application/json' --data "{\"kind\": \"note\", \"text\": \"$1\"}" \
+    "http://127.0.0.1:$PORT/api/answer"
+}
+event_seqs() { # file: the delivered seqs, space-separated
+  "$py" -c '
+import json, sys
+print(" ".join(str(e["seq"]) for e in json.loads(open(sys.argv[1], encoding="utf-8").read())["events"]))
+' "$1" 2>&1
+}
+
+# (e) AC8: the turn died before handling; the next arm re-delivers at once and records the replay
+start=$SECONDS
+bounded 5 "$tmp/e.out" "$tmp/e.err" bash "$here/watch.sh" "$d"
+rc=$?
+got=$(event_seqs "$tmp/e.out")
+replay=$(tr -dc '0-9' <"$d/.watch-replay" 2>/dev/null)
+if [[ "$rc" -eq 0 && "$got" == "$seq" && "$replay" == "$seq" && $((SECONDS - start)) -le 3 ]]; then
+  ok "AC8: an unhandled event re-delivers on the next arm; .watch-replay=$replay"
+else
+  bad "AC8 re-delivery: rc=$rc got=[$got] replay=[$replay] err=$(cat "$tmp/e.err")"
+fi
+
+# (f) a second arm with no new event keeps waiting
+bounded 3 "$tmp/f.out" "$tmp/f.err" bash "$here/watch.sh" "$d"
+rc=$?
+if [[ "$rc" -eq 124 && ! -s "$tmp/f.out" ]]; then
+  ok "a second arm without a new event does not return"
+else
+  bad "second arm returned: rc=$rc out=$(cat "$tmp/f.out") err=$(cat "$tmp/f.err")"
+fi
+
+# (g) a new event during the wait returns the old unhandled event and the new one
+bash "$here/watch.sh" "$d" >"$tmp/g.out" 2>"$tmp/g.err" &
+wpid=$!
+until_waiting
+code=$(post_note "second watch note")
+end=$((SECONDS + 10))
+while kill -0 "$wpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do
+  sleep 0.1
+done
+if kill -0 "$wpid" 2>/dev/null; then kill "$wpid" 2>/dev/null; fi
+wait "$wpid"
+rc=$?
+got=$(event_seqs "$tmp/g.out")
+if [[ "$code" == 200 && "$rc" -eq 0 && "$got" == "$seq $((seq + 1))" ]]; then
+  ok "a new event returns the unhandled set ($got)"
+else
+  bad "new event: post=$code rc=$rc got=[$got] err=$(cat "$tmp/g.err")"
+fi
 
 # (d) server gone: stop it, put the old env file back, and expect exit 2 after one failed poll
 if bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1; then ok "round.sh stop stops the server"; else bad "round.sh stop failed"; fi
