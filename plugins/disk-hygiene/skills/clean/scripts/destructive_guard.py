@@ -297,7 +297,6 @@ def _plugin_data_root_from_root(plugin_root: str) -> str | None:
 _KNOWN_MARKETPLACES_FILENAME = "known_marketplaces.json"
 _MANIFEST_DIRNAME = ".claude-plugin"
 _DIRECTORY_SOURCE = "directory"
-_PLUGIN_NAME_SHAPE = re.compile(r"[A-Za-z0-9._-]+")
 # FOLDERID_Profile, the account's profile folder (KNOWNFOLDERID reference).
 _FOLDERID_PROFILE = "5E6C858F-0E22-4760-9AFE-EA3317B67173"
 
@@ -345,8 +344,12 @@ def _trusted_config_dir() -> Path | None:
     ``CLAUDE_CONFIG_DIR``: a repo ``settings.json`` ``env`` block reaches hook
     subprocesses, so any environment value could point this anchor at a forged
     ``known_marketplaces.json``. There is deliberately no argv or env override.
-    A config relocated with ``CLAUDE_CONFIG_DIR`` therefore resolves nothing
-    here and fails closed. Any failure to read the record yields None.
+    With a config relocated by ``CLAUDE_CONFIG_DIR`` the channel still reads
+    only the account home's ``.claude``: it fails closed unless that home file
+    still lists the marketplace, and then authority stays inside
+    ``<home>/.claude/plugins/data/`` and the kill switch reads the home
+    settings, no less restrictive than before. Any failure to read the record
+    yields None.
     """
     try:
         home = _account_home()
@@ -361,7 +364,6 @@ class _DirectoryInstall(NamedTuple):
     """What the directory-marketplace channel proves about this install."""
 
     config_dir: Path
-    plugin_id: str
     data_root: str
 
 
@@ -430,8 +432,8 @@ def _directory_marketplace_install(plugin_root: str) -> _DirectoryInstall | None
     - that marketplace's ``.claude-plugin/marketplace.json`` is named for the
       same key;
     - exactly one plugin entry whose relative string ``source`` strict-resolves
-      to the plugin root, named a sane plugin name that matches the root's own
-      ``.claude-plugin/plugin.json``.
+      to the plugin root, whose ``name`` is ``disk-hygiene`` and matches the
+      root's own ``.claude-plugin/plugin.json``.
 
     The data root is built ONLY from the trusted config dir and the sanitized
     ``<name>@<marketplace>`` id, never from a path read out of either file.
@@ -481,26 +483,15 @@ def _directory_marketplace_install(plugin_root: str) -> _DirectoryInstall | None
         entry_root = _marketplace_entry_root(entry.get("source"), location, plugin_base)
         if entry_root and os.path.normcase(os.fspath(entry_root)) == root_key:
             names.append(entry.get("name"))
-    if len(names) != 1:
-        return None
-    name = names[0]
-    if not (
-        isinstance(name, str)
-        and _PLUGIN_NAME_SHAPE.fullmatch(name)
-        and _PLUGIN_ID_DISALLOWED.sub("-", name).strip("-")
-    ):
+    name = killswitch_config.PLUGIN_NAME
+    if names != [name]:
         return None
     own = _read_json_object(root / _MANIFEST_DIRNAME / "plugin.json")
     if own is None or own.get("name") != name:
         return None
-    plugin_id = f"{name}@{marketplace}"
-    data_root = (
-        config_dir
-        / _PLUGINS_DIRNAME
-        / _PLUGIN_DATA_DIRNAME
-        / _PLUGIN_ID_DISALLOWED.sub("-", plugin_id)
-    )
-    return _DirectoryInstall(config_dir, plugin_id, os.fspath(data_root))
+    plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+    data_root = config_dir / _PLUGINS_DIRNAME / _PLUGIN_DATA_DIRNAME / plugin_id
+    return _DirectoryInstall(config_dir, os.fspath(data_root))
 
 
 def _directory_install_for(plugin_root: str) -> _DirectoryInstall | None:
@@ -1085,7 +1076,10 @@ def resolve_disk_hygiene_enabled() -> bool:
     env-borne toggle (or an env-borne user-settings path) would reopen the hole
     this closes — hence the user settings file is located from the tamper-resistant
     ``--plugin-root`` first (see ``_resolve_user_settings_path``), and the managed
-    file from its fixed root-owned system path.
+    file from its fixed root-owned system path. A local-directory marketplace
+    install passes no exact ``<name>@<marketplace>`` id, so both reads match
+    any ``disk-hygiene`` key, as broad as before that install's user settings
+    were read at all: the channel can only add a deny.
 
     Every absent, unreadable, or ambiguous read fails **closed to enabled**: the
     guard stays active and gates every mutation behind the final human prompt even
@@ -1095,12 +1089,7 @@ def resolve_disk_hygiene_enabled() -> bool:
     so the belt needs no environment channel it does not have.
     """
     plugin_root = _plugin_root_argument()
-    plugin_id = None
-    if plugin_root:
-        install = _directory_install_for(plugin_root)
-        plugin_id = (
-            install.plugin_id if install else _plugin_id_from_root(plugin_root)
-        )
+    plugin_id = _plugin_id_from_root(plugin_root) if plugin_root else None
     return killswitch_config.resolve_effective(
         _resolve_user_settings_path(),
         killswitch_config.managed_settings_path(),

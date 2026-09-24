@@ -197,7 +197,8 @@ is accepted only when it matches the plugin data directory the guard derives fro
 guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 [persistent-data-directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory)
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
-local-directory marketplace, through `known_marketplaces.json` (see below). A host that can substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
+local-directory marketplace, through `known_marketplaces.json` (see below). A host that can
+substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
 `--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last; absent
 every channel the flag fails closed. `--max-depth` accepts only a bare positive-integer literal.
 `--confirmed-large-scan`, `--quiet` and `--root-children` are the valueless scan flags; the guard
@@ -225,11 +226,13 @@ segment, while its data directory is still `<config>/plugins/data/<id>`. For suc
 reads `<config>/plugins/known_marketplaces.json` and requires exactly one entry whose `source.source`
 is `directory` and whose `installLocation` strict-resolves to a directory containing the plugin root.
 That marketplace's `.claude-plugin/marketplace.json` must carry the entry's key as its `name` and
-exactly one plugin entry whose relative string `source` resolves to the plugin root, with a `name`
-matching the root's own `.claude-plugin/plugin.json`. The id is `<entry name>@<key>`, sanitized as
-the documented layout does, and the data root is built only from the trusted config dir plus that id,
-never from a path read out of either file. The same proof supplies `<config>/settings.json` and the
-exact `pluginConfigs` key, so the kill switch is read on a directory install too. This couples to the
+exactly one plugin entry whose relative string `source` resolves to the plugin root, with the `name`
+`disk-hygiene`, matching the root's own `.claude-plugin/plugin.json`. The id is `disk-hygiene@<key>`,
+sanitized as the documented layout does, and the data root is built only from the trusted config dir
+plus that id, never from a path read out of either file. The same proof supplies
+`<config>/settings.json`, so the kill switch is read on a directory install too. That read passes no
+exact `pluginConfigs` key: the user and managed reads match any `disk-hygiene` key, as broad as the
+managed read was before, so the channel can only add a deny. This couples to the
 undocumented contents of `known_marketplaces.json`, and is acceptable on the same terms as the cache
 coupling: its only failure mode is fail-closed, since any unproven step yields no authority.
 
@@ -238,7 +241,10 @@ database entry for the effective uid on POSIX, the Profile known folder on Windo
 `USERPROFILE`, `CLAUDE_CONFIG_DIR`, or `Path.home()`. A repo `settings.json` `env` block reaches hook
 subprocesses, so an environment-derived anchor would let a repo point the read at a forged
 `known_marketplaces.json`. There is no argv or env override, and a user whose `HOME` differs from the
-account record fails closed.
+account record fails closed. A config relocated with `CLAUDE_CONFIG_DIR` is still read only from the
+account home's `.claude`: it fails closed unless that home file still lists the marketplace, and then
+authority stays inside `<home>/.claude/plugins/data/` and the kill switch reads the home settings, no
+less restrictive than before.
 
 Data-root precedence, highest first: `--authorized-data-root`, the cache derivation, the
 directory-marketplace derivation, then the `CLAUDE_PLUGIN_DATA` environment variable. **Residual:** a
@@ -274,14 +280,15 @@ Verification records for the directory channel:
 The remaining shapes with no derivable authority are a `claude --plugin-dir <checkout>` development
 session and a config relocated with `CLAUDE_CONFIG_DIR`. A `--plugin-dir` checkout has no
 `<plugins>/cache/<marketplace>` structure and sits in no directory marketplace, so it has no stable
-marketplace-keyed data `<id>`. A relocated config is refused by design, because honoring
-`CLAUDE_CONFIG_DIR` would reopen the env-injection hole. Both rely solely on the `CLAUDE_PLUGIN_DATA`
+marketplace-keyed data `<id>`. `CLAUDE_CONFIG_DIR` itself is never honored, because that would
+reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
+account-home note above). Both rely on the `CLAUDE_PLUGIN_DATA`
 environment variable; where a Claude Code build does not export it to a skill hook, the engine lane is
 fail-closed there (every `--data-root` invocation denied) while the destructive-action guard itself
 stays fully active. This is a deliberate safe-over-convenient tradeoff, not a security gap. The belt's
-denial names the recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to this
-plugin's data directory (`<config>/plugins/data/<name>-<marketplace>`), or exercise the engine lane
-through a marketplace install.
+denial names one recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to this
+plugin's data directory (`<config>/plugins/data/<name>-<marketplace>`). Exercising the engine lane
+through a marketplace install also works.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
@@ -330,7 +337,8 @@ from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo canno
 `plugins/cache` layout's sibling `settings.json`, or for a local-directory marketplace install
 `<config>/settings.json` under the account-record config dir above. It is **never** located
 from `CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could inject. A root that
-proves neither (a `--plugin-dir` checkout, or a `CLAUDE_CONFIG_DIR`-relocated config) yields no trusted
+proves neither (a `--plugin-dir` checkout, or a `CLAUDE_CONFIG_DIR`-relocated config whose account
+home no longer lists the marketplace) yields no trusted
 user-settings path, so the user scope is skipped there and the switch relies on managed settings, failing
 closed to enabled otherwise. The **managed**
 (enterprise) file at its fixed root-owned system path is read too and, as the highest-precedence

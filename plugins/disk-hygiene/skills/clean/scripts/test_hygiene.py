@@ -9581,6 +9581,31 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         belt = self.run_main(self.engine_command("scan"), self.argv())
         self.assertEqual("deny", belt["permissionDecision"])
 
+    def test_directory_install_keeps_any_key_managed_match(self) -> None:
+        # The directory read passes no exact id, so a managed false keyed to
+        # another marketplace still disables, as it did before this channel.
+        self.write_json(
+            self.managed,
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@org-market": {
+                        "options": {"disk_hygiene_enabled": False}
+                    }
+                }
+            },
+        )
+        self.assertFalse(self.resolve_enabled())
+        belt = self.run_main(self.engine_command("apply"), self.argv())
+        self.assertEqual("deny", belt["permissionDecision"])
+        self.assertIn("execution is disabled", belt["permissionDecisionReason"])
+
+    def test_fails_closed_on_a_plugin_other_than_disk_hygiene(self) -> None:
+        self.write_json(
+            self.plugin_root / ".claude-plugin" / "plugin.json", {"name": "foo"}
+        )
+        self.write_entries({"name": "foo", "source": "./plugins/disk-hygiene"})
+        self.assert_fails_closed()
+
     def test_directory_install_reads_the_kill_switch(self) -> None:
         self.assertTrue(self.resolve_enabled())
         self.write_json(
@@ -9768,8 +9793,8 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertEqual(
             "/from-argv", self.resolve("--authorized-data-root", "/from-argv")
         )
-        # A cache-layout root inside the same directory marketplace still takes
-        # the cache derivation, which ranks above the directory channel.
+        # A cache-layout root never consults the directory channel at all
+        # (`_directory_install_for` gates it), so the cache derivation wins.
         cached = self.checkout / "plugins" / "cache" / "mk" / "disk-hygiene" / "1.0"
         (cached / ".claude-plugin").mkdir(parents=True)
         self.write_json(cached / ".claude-plugin" / "plugin.json", {"name": "disk-hygiene"})
@@ -9777,6 +9802,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             {"name": "disk-hygiene", "source": "./plugins/cache/mk/disk-hygiene/1.0"}
         )
         guard._directory_marketplace_install.cache_clear()
+        self.assertIsNone(guard._directory_install_for(os.fspath(cached)))
         with mock.patch.object(
             guard.sys, "argv", [self.SCRIPT, "--plugin-root", os.fspath(cached)]
         ):
@@ -9843,7 +9869,8 @@ class TrustedConfigDirTests(unittest.TestCase):
 
     def test_environment_does_not_move_the_account_record_home(self) -> None:
         baseline = guard._trusted_config_dir()
-        self.assertIsNotNone(baseline)
+        if baseline is None:
+            self.skipTest("no OS account record for this uid")
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(
                 os.environ,
@@ -9854,6 +9881,11 @@ class TrustedConfigDirTests(unittest.TestCase):
                 for name in ("HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR"):
                     os.environ.pop(name, None)
                 self.assertEqual(baseline, guard._trusted_config_dir())
+
+    def test_account_lookup_failure_yields_no_anchor(self) -> None:
+        # A uid with no password-database entry raises KeyError on POSIX.
+        with mock.patch.object(guard, "_account_home", side_effect=KeyError(1000)):
+            self.assertIsNone(guard._trusted_config_dir())
 
 
 class EngineGrammarTests(unittest.TestCase):
