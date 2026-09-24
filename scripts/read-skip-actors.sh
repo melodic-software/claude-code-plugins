@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Print the ratified review skip-actors list in the comma-separated, no-spaces
-# form the ci-workflows reusable workflows take.
+# form the ci-workflows reusable workflows take
+# (claude-security-review's `skip-actors` input).
 #
 #   scripts/read-skip-actors.sh [<file>]
 #
