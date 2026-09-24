@@ -1,5 +1,36 @@
 # Changelog: discovery plugin
 
+## [0.22.0] - 2026-09-24
+
+### Added
+
+- **`research`:** outcome-gate criterion 12, owned by the verifier, asks whether every accepted
+  claim follows jointly from its cited sources, and discipline 15 points at its recipe, the new
+  "Joint-inference check" in `context/discipline.md`: variable, population, and hedge-survival
+  sub-tests, plus counter-evidence already read resolved in the artifact. The pass bar is one
+  rule: the claim's primary source measures the claim's variable and population; a corroborator
+  that does not is recorded, not counted toward criterion 4. A failing claim is a Gap or a
+  Conflicts entry.
+- **`research`:** the sidecar header carries per-source `measures:` and per-claim `inference:` and
+  `qualifiers:`, so a verifier can grade criterion 12 off disk.
+- **`research`:** on a fan-out, the synthesized slice-root index goes to a fresh verifier for
+  criterion 12 before it is surfaced: sub-slice qualifiers survive, and a claim the synthesis adds
+  gets the full check.
+- **`research`:** an eval case where a verbatim-quoted source backs a claim about a variable it
+  never measured.
+
+### Changed
+
+- **`research`:** the parent briefs the verifier on every verifier-owned row by number (4, 7 and
+  12), whatever the payload's `verification_request.criterion` string names. Gotchas and evals name
+  criterion 12 among the verifier rows, and one eval no longer counts the gate's criteria.
+- **`research`:** the gate states that its Owner column governs over any enumeration of the
+  verifier rows in an agent definition or sibling skill.
+- **`researcher` agent:** withholds three criteria from its own verdict, joint inference added,
+  and its `verification_request.criterion` names joint-inference validity.
+- **`research-deep`:** names joint inference among the verifier-owned rows and points at the
+  synthesis criterion-12 check on the N-topic path.
+
 ## [0.21.0] - 2026-09-23
 
 ### Changed

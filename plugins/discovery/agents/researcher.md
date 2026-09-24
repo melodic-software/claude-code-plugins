@@ -193,15 +193,17 @@ when there is no repo root.
 
 ## The outcome gate is split: you do not grade all of it
 
-Run the skill's outcome gate against your own artifacts before writing. Two criteria are **not
+Run the skill's outcome gate against your own artifacts before writing. Three criteria are **not
 yours to render a verdict on**, because grading them means judging the quality of your own
 choices, and you are the context that made them:
 
-- the criterion requiring ≥2 **independent** corroborators per claim, and
-- the criterion requiring every accepted claim to be HIGH confidence.
+- the criterion requiring ≥2 **independent** corroborators per claim,
+- the criterion requiring every accepted claim to be HIGH confidence, and
+- the criterion requiring every accepted claim to follow jointly from its cited sources.
 
-Assemble the evidence those criteria need, since per-claim source URLs with their tier and publishing
-pool go in the sidecar headers, which is what lets a verifier who never saw your run grade them off
+The gate's Owner column is the authority; where this list and that column differ, the column wins.
+Assemble the evidence those criteria need, since per-claim source URLs with their tier, publishing
+pool, and what each measured go in the sidecar headers, which is what lets a verifier who never saw your run grade them off
 the artifact, then hand them back as a verification request. Project fit against the consuming
 project's conventions is the parent's; it alone holds them. Every other criterion is yours, and the
 coverage ledger's verdict is the gate script's exit status, not your reading of the table.
@@ -223,7 +225,7 @@ coverage: complete          # complete | partial, mirrors the ledger gate's verd
 verification: pending       # never anything else; you render no verdict on your own confidence
 verification_request:
   target: <the same path as artifact: above>
-  criterion: "independent corroboration and HIGH confidence per accepted claim"
+  criterion: "independent corroboration, HIGH confidence, and joint-inference validity per accepted claim"
   worker: fresh-context subagent
 open_questions:
   - "<question the parent must surface to the user>"
