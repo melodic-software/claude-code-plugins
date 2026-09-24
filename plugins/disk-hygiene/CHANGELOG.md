@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.15] - 2026-09-24
+
+### Fixed
+
+- **The `clean` belt no longer denies every engine call on a local-directory marketplace install.** A plugin loaded in place from a local-directory marketplace gets a `${CLAUDE_PLUGIN_ROOT}` that is its source checkout, with no `plugins/cache` segment, so the belt resolved no data root and denied the skill's exact scan, preview, and apply for the rest of the session. The guard now proves such an install against `<config>/plugins/known_marketplaces.json` and the marketplace's own `marketplace.json` and `plugin.json`, and builds the data root only from `<config>` plus the sanitized `disk-hygiene@<marketplace>` id; the marketplace entry must be named `disk-hygiene`. Any unproven step still fails closed.
+- `<config>` is `<account home>/.claude`, with the home read from the OS account record (`pwd` on POSIX, the Profile known folder on Windows), never from `HOME`, `USERPROFILE`, or `CLAUDE_CONFIG_DIR`, which a repo `env` block can set. A `--plugin-dir` session has no derived authority unless its root lies inside a registered directory marketplace, where it derives that marketplace's canonical data root. A config relocated with `CLAUDE_CONFIG_DIR` derives authority only if the account home's `.claude` still lists the marketplace, and then only inside `<home>/.claude/plugins/data/`.
+- Data-root precedence is `--authorized-data-root`, the cache layout, the directory marketplace, then `CLAUDE_PLUGIN_DATA`, so on a directory install a differing environment value no longer wins.
+- The no-authority denial now names the recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to `<config>/plugins/data/<name>-<marketplace>`.
+
+### Security
+
+- The kill switch is now read on a directory install: the same proof locates `<config>/settings.json`, so a configured `disk_hygiene_enabled: false` denies `apply` there. The read matches any `disk-hygiene` `pluginConfigs` key, as broad as the managed read was before, so a managed `false` keyed to another marketplace still disables.
+
 ## [0.23.14] - 2026-09-23
 
 ### Changed
