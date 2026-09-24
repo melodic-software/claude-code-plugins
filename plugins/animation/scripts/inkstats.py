@@ -12,7 +12,9 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
   --rows    write the per-drawing rows (for analysis; a style pack never holds them)
   --pack    a style pack directory or its style.json. Each statistic in `check` must have its film median inside the
             pack's band, each in `segment_check` must have every segment median inside its `segment_bands` band
-            (segments of at least the pack's `segment_min_drawings`), and the ink and paper
+            (segments of at least the pack's `segment_min_drawings`). A statistic the film leaves undefined (flat
+            with no dark drawings, boil with no held pairs, a dark field with no core) is n/a: neither pass nor
+            fail, and left out of the distance. The ink and paper
             colours must sit within the palette tolerance. Prints the tables and the distance to source (mean
             |film median - source median| / band half-width over the checked statistics; ranks passing films);
             exit 1 if any row fails.
@@ -129,7 +131,7 @@ def contour_stats(ink):
         seg = np.hypot(*(np.roll(p, -1, 0) - p).T)
         total += seg.sum()
         straight += seg[seg >= 30].sum()
-    return raw / max(smooth, 1) - 1, straight / max(total, 1)
+    return (raw / smooth - 1, straight / total) if total else (None, None)   # no contour over 50 px: n/a
 
 
 def one(rgb):
@@ -159,17 +161,19 @@ def one(rgb):
     n, lab, st, _ = cv2.connectedComponentsWithStats(ink.astype(np.uint8), connectivity=8)
     field = core_i & (lab == 1 + int(np.argmax(st[1:, 4]))) if n > 1 else core_i
 
+    # a statistic with nothing to measure in this drawing is None (n/a), never 0
     def pct(v, q):
-        return float(np.percentile(v, q)) if len(v) else 0.0
+        return float(np.percentile(v, q)) if len(v) else None
 
     def sd(m):
-        return float(g[m].std()) if m.any() else 0.0
+        return float(g[m].std()) if m.any() else None
 
     def med(m):
-        return [int(c) for c in np.median(rgb[m], 0)] if m.any() else [0, 0, 0]
-    return dict(ink=float(ink.mean()), soft=mid / max(edge, 1), w10=pct(w, 10), w50=pct(w, 50), w90=pct(w, 90),
-                pw50=pct(pw, 50), rough=rough, straight=straight, specks=islands(ink, 8), gaps=islands(~ink, 4),
-                holes=float((closed & ~ink).sum() / max(closed.sum(), 1)), ink_sd=sd(core_i), paper_sd=sd(core_p),
+        return [int(c) for c in np.median(rgb[m], 0)] if m.any() else None
+    return dict(ink=float(ink.mean()), soft=mid / edge if edge else None, w10=pct(w, 10), w50=pct(w, 50),
+                w90=pct(w, 90), pw50=pct(pw, 50), rough=rough, straight=straight, specks=islands(ink, 8),
+                gaps=islands(~ink, 4), holes=float((closed & ~ink).sum() / closed.sum()) if closed.any() else None,
+                ink_sd=sd(core_i), paper_sd=sd(core_p),
                 field_sd=sd(field), flat=flat, ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
 
 
@@ -231,44 +235,54 @@ def summary(rows, cuts=None, seg=SEG):
                 {'on4s+': round(float((frames24 >= 4).mean()), 3)},
                 held=round(float(np.mean([r['boil'] is not None for r in rows[1:]])), 3) if len(rows) > 1 else 0,
                 stats={s: pcts([r[s] for r in rows]) for s in STATS},
-                ink_rgb=[int(c) for c in np.median([r['ink_rgb'] for r in rows], 0)],
-                paper_rgb=[int(c) for c in np.median([r['paper_rgb'] for r in rows], 0)],
+                **{k: ([int(c) for c in np.median(v, 0)] if (v := [r[k] for r in rows if r[k]]) else None)
+                   for k in ('ink_rgb', 'paper_rgb')},
                 T=float(np.median([r['T'] for r in rows])),
                 segments=[dict(t0=round(a, 3), t1=round(b, 3), n=len(sr), per_second=round(len(sr) / (b - a), 3),
                                **{s: median(sr, s) for s in STATS})
                           for (a, b), sr in zip(zip(e, e[1:]), segment(rows, e)) if sr])
 
 
+def film_value(m, s):
+    return m[s] if s in m else m['stats'][s]['p50'] if m['stats'].get(s) else None
+
+
+def verdict(v, lo, hi):
+    """True inside the band, False outside, None (n/a) when the film has nothing to measure for it."""
+    return None if v is None else lo <= v <= hi
+
+
 def check(m, pack):
     """Rows (name, value, band, ok): each `check` statistic's film median (or a top-level value such as per_second),
-    each `segment_check` statistic per segment, and the largest ink or paper RGB channel difference from the palette."""
+    each `segment_check` statistic per segment, and the largest ink or paper RGB channel difference from the palette.
+    ok is None (n/a) for a statistic the film leaves undefined, such as flat with no dark drawings: neither pass nor
+    fail."""
     out = []
     for s in pack['check']:
         lo, hi = pack['bands'][s]
-        v = m[s] if s in m else m['stats'][s]['p50'] if m['stats'].get(s) else None
-        out.append((s, v, (lo, hi), v is not None and lo <= v <= hi))
+        v = film_value(m, s)
+        out.append((s, v, (lo, hi), verdict(v, lo, hi)))
     for s in pack.get('segment_check', []):
         lo, hi = pack.get('segment_bands', pack['bands'])[s]
         for g in (g for g in m['segments'] if g['n'] >= pack.get('segment_min_drawings', 1)):
-            out.append((f"{s} {g['t0']:g}-{g['t1']:g} s", g[s], (lo, hi), g[s] is not None and lo <= g[s] <= hi))
+            out.append((f"{s} {g['t0']:g}-{g['t1']:g} s", g[s], (lo, hi), verdict(g[s], lo, hi)))
     for s in ('ink_rgb', 'paper_rgb'):
-        want = pack['palette'][s[:-4]].lstrip('#')
-        v = max(abs(c - int(want[2 * i:2 * i + 2], 16)) for i, c in enumerate(m[s]))
-        out.append((s, v, (0, pack['palette']['tolerance']), v <= pack['palette']['tolerance']))
+        want, tol = pack['palette'][s[:-4]].lstrip('#'), pack['palette']['tolerance']
+        v = max(abs(c - int(want[2 * i:2 * i + 2], 16)) for i, c in enumerate(m[s])) if m[s] else None
+        out.append((s, v, (0, tol), verdict(v, 0, tol)))
     return out
 
 
 def distance(m, pack):
-    """Mean over the checked statistics of |film median - source median| / band half-width: 0 is the source, 1 is
-    a band edge on average. Ranks films that all pass."""
+    """(distance, statistics used): the mean over the checked statistics the film defines of |film median - source
+    median| / band half-width. 0 is the source, 1 a band edge on average. Ranks films that all pass."""
     d = []
     for s in pack['check']:
         lo, hi = pack['bands'][s]
-        v = m[s] if s in m else m['stats'][s]['p50'] if m['stats'].get(s) else None
-        ref = pack['timing'][s] if s in pack['timing'] else pack['stats'][s]['p50']
+        v, ref = film_value(m, s), pack['timing'][s] if s in pack['timing'] else pack['stats'][s]['p50']
         if v is not None:
             d.append(abs(v - ref) / ((hi - lo) / 2))
-    return float(np.mean(d))
+    return (float(np.mean(d)) if d else None), len(d)
 
 
 def load_pack(p):
@@ -315,9 +329,13 @@ def main(argv=None):
     out = check(m, pack)
     print(f'\ncheck against {a.pack}\n\n| check | film | band | pass |\n|---|---|---|---|')
     for s, v, (lo, hi), ok in out:
-        print(f"| {s} | {'-' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | {'yes' if ok else 'NO'} |")
-    print(f'{sum(r[3] for r in out)}/{len(out)} pass; distance to source {distance(m, pack):.3f}')
-    return 0 if all(r[3] for r in out) else 1
+        print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | "
+              f"{'n/a' if ok is None else 'yes' if ok else 'NO'} |")
+    defined = [r for r in out if r[3] is not None]
+    d, used = distance(m, pack)
+    print(f"{sum(r[3] for r in defined)}/{len(defined)} pass, {len(out) - len(defined)} n/a; distance to source "
+          f"{'n/a' if d is None else f'{d:.3f}'} over {used}/{len(pack['check'])} statistics")
+    return 1 if any(r[3] is False for r in out) or not defined else 0
 
 
 if __name__ == '__main__':

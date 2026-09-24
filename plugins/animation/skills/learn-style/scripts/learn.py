@@ -128,8 +128,8 @@ def main(argv=None):
     for s in rule:
         rule[s]['heldout_pass'] = f"{sum(x == 0 for x in final[s])}/{len(final[s])}"
     nsplits = len(splits(parts))
-    tol = max(math.ceil(float(np.abs(np.median([r[k] for r in p], 0) - m[k]).max())) for p in parts
-              for k in ('ink_rgb', 'paper_rgb'))
+    tol = max(math.ceil(float(np.abs(np.median(v, 0) - m[k]).max())) for p in parts
+              for k in ('ink_rgb', 'paper_rgb') if (v := [r[k] for r in p if r[k]]))
     st = m['stats']
     step = max(m['holds'], key=m['holds'].get)
     knobs = old.get('knobs', {}) | dict(

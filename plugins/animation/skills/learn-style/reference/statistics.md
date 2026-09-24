@@ -40,6 +40,15 @@ Per drawing, with ink and paper at the gray histogram modes and T at their midpo
 `--region X,Y,W,H --t T0-T1` measures one box over a time window, `--cuts` makes each shot a
 segment, and `--pack` prints each row, the distance to source, and exits 1 on any failing row.
 
+**Undefined is n/a.** A statistic with nothing to measure is n/a, never 0: `flat` with no dark
+drawings, `boil` with no held pairs, `field_sd`, `ink_sd` and `paper_sd` with no eroded core,
+widths with no ridge, `rough` and `straight` with no contour over 50 px, `soft` with no edge,
+`holes` with no ink, and the palette with no ink or paper core. An n/a row neither passes nor
+fails, the distance averages only the defined statistics and prints how many it used, and a film
+with no defined row exits 1. An all-cream test (the scene's dawn shot above its sea band,
+`--region 0,0,1762,720`) passes 14/14 with `flat` n/a at distance 0.214 over 11 of 12 statistics;
+the spiral clip, which has no dark drawings either, still fails 20 of its 21 defined rows.
+
 ## How a band is set
 
 `learn.py` cuts the source into nine 3.35 s segments. For each statistic, the raw band spans the
