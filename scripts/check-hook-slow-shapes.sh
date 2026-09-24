@@ -19,8 +19,11 @@
 #     above it) is excused by `slow-shape-ok: <reason>` on the line or the line
 #     above. Out of reach: a path handed to another process (`--transcript
 #     "$T"`), a variable filled by `read` or `printf -v` rather than `name=`,
-#     readers not in the list (`wc`, `tac`), and a read continued onto the next
-#     line with a backslash.
+#     readers not in the list (`wc`, `tac`), a read continued onto the next
+#     line with a backslash, and a command whose text merely contains `tail -c`
+#     or `head -c` (`grep -c "tail -c" "$T"` reads as bounded). The hook-census
+#     `growth` ratchets in .performance/ratchets.json measure the actual bytes
+#     read and are the behavioral check behind this text match.
 #
 # (b) ENV SHEBANG. A shell-form hook runs a script as its command word, with no
 #     interpreter in front of it, and that script starts `#!/usr/bin/env`. The

@@ -173,6 +173,14 @@ for read_line in 'head -c 1 /dev/null; cat "$TRANSCRIPT"' 'tail -c 5 /dev/null &
   expect "(a) '$read_line' is not bounded by the earlier command and FAILS" "$f" 1 "TRANSCRIPT READ"
 done
 
+# Documented miss (header, "Out of reach"): text that merely contains
+# `tail -c` reads as a bound. Pinned so a change in this behavior is seen;
+# the growth ratchets, not this lint, catch the cost.
+new_fixture f
+plugin_file "$f" demo hooks/x.sh "$(transcript_hook 'grep -c "tail -c" "$TRANSCRIPT"')"
+hooks_json "$f" demo "bash $ROOTED"
+expect "(a) KNOWN MISS: bound text inside a grep pattern reads as bounded" "$f" 0
+
 new_fixture f
 plugin_file "$f" demo hooks/x.sh "$(transcript_hook '# slow-shape-ok: size-checked above
 mapfile LINES <"$TRANSCRIPT"')"
