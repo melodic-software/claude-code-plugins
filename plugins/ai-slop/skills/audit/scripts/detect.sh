@@ -11,7 +11,9 @@
 # per-rule finding and declined counts, the declined count split by cause
 # (marker, quote, config), and the rule's disabled flag. All key=value,
 # line-oriented. A chunked run (--offset/--limit) emits one Summary block per
-# chunk; emit-findings.sh sums them.
+# chunk; emit-findings.sh sums them. --list-targets prints the resolved target
+# list instead of scanning: one `<key><TAB><path>` row per file, the key spelled
+# as the file= field.
 # Exit: always 0 on audit paths (a read-only audit must never fail the caller);
 # 2 on unknown arguments or unreadable --paths-file.
 #
@@ -136,6 +138,8 @@ TARGETS=()
 OFFSET=0
 LIMIT=0
 SHOW_CONFIG=0
+LIST_TARGETS=0
+PATHS_FILE_EMPTY=0
 
 usage() {
   cat <<'EOF'
@@ -145,10 +149,13 @@ Usage:
   detect.sh [file.md ...]
   detect.sh --paths-file <file>
   detect.sh --offset N --limit N   # chunk the sorted target list
+  detect.sh --list-targets [...]   # print <key><TAB><path> per file a scan would read, then exit
   detect.sh --show-config          # print effective config per layer, then exit
   detect.sh --help
 
 With no paths, scans the repository's tracked markdown (git ls-files '*.md').
+A --paths-file with no non-blank line scans nothing; it also reads --list-targets output.
+--list-targets ignores --offset/--limit; --show-config wins over it.
 Exit: 0 on audit, 2 on unknown arguments or unreadable --paths-file.
 EOF
 }
@@ -172,6 +179,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --show-config)
     SHOW_CONFIG=1
+    shift
+    ;;
+  --list-targets)
+    LIST_TARGETS=1
     shift
     ;;
   --help | -h)
@@ -426,9 +437,17 @@ if [[ -n "$PATHS_FILE" ]]; then
     echo "detect.sh: cannot read --paths-file: $PATHS_FILE" >&2
     exit 2
   fi
+  # A `<key><TAB><path>` line (--list-targets output) contributes its path.
   while IFS= read -r line; do
-    [[ -n "$line" ]] && TARGETS+=("$line")
+    [[ -n "$line" ]] && TARGETS+=("${line#*$'\t'}")
   done <"$PATHS_FILE"
+  # A list with no non-blank line is an empty scope, not "no scope given":
+  # falling through to the repository listing would scan files nobody asked for.
+  if [[ -z "$(printf '%s' ${TARGETS[@]+"${TARGETS[@]}"} | tr -d '[:space:]')" ]]; then
+    echo "detect.sh: --paths-file lists no paths; nothing was scanned: $PATHS_FILE" >&2
+    TARGETS=()
+    PATHS_FILE_EMPTY=1
+  fi
 fi
 
 # A bare invocation lists the repository's tracked markdown, and it carries the
@@ -475,7 +494,7 @@ list_repo_markdown() {
   printf '%s\n' "$listing"
 }
 
-if [[ "${#TARGETS[@]}" -eq 0 ]]; then
+if [[ "${#TARGETS[@]}" -eq 0 && "$PATHS_FILE_EMPTY" -eq 0 ]]; then
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     TARGETS+=("$REPO_ROOT/$line")
@@ -574,7 +593,7 @@ for t in ${TARGETS[@]+"${TARGETS[@]}"}; do
   fi
 done
 mapfile -t TARGETS < <(printf '%s\n' ${EXPANDED[@]+"${EXPANDED[@]}"} | sort -u)
-if [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
+if [[ "$LIST_TARGETS" -eq 0 ]] && [[ "$OFFSET" -gt 0 || "$LIMIT" -gt 0 ]]; then
   end="${#TARGETS[@]}"
   [[ "$LIMIT" -gt 0 ]] && end=$((OFFSET + LIMIT))
   mapfile -t TARGETS < <(printf '%s\n' ${TARGETS[@]+"${TARGETS[@]}"} | awk -v s="$OFFSET" -v e="$end" 'NR > s && NR <= e')
@@ -592,6 +611,16 @@ matches_glob() {
   done
   return 1
 }
+
+# The same two filters the scan loop applies before reading a file.
+if [[ "$LIST_TARGETS" -eq 1 ]]; then
+  for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
+    [[ -f "$file" ]] || continue
+    [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}" && continue
+    printf '%s\t%s\n' "${file#"$REPO_ROOT"/}" "$file"
+  done
+  exit 0
+fi
 
 # --- Prose extraction ------------------------------------------------------------
 # Emits "lineno<TAB>text" for prose lines; strips fenced code blocks, inline code

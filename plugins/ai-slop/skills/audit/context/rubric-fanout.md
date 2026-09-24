@@ -5,29 +5,34 @@ repo-wide audit over a large corpus is hundreds of thousands of words, which is 
 context can read and more than one session can afford to lose to a rate limit or a crash. The
 pass therefore fans out, persists as it goes, and resumes from the last completed batch.
 
+`${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh` does every counting, ordering, digest and
+merge step. The orchestrator runs it and reads its output; it never packs, digests or totals
+by hand.
+
 ## Batching
 
-1. Take the ordered target list the audit's scope step produced (impact class first, then change
-   frequency; newest modification time first for a non-repository target). Batch order is that
-   order, so the highest-priority files are judged first.
-2. Pack files into batches by word budget, not by file count: walk the list, adding files to the
-   current batch until adding the next would exceed roughly 50,000 words, then start a new
-   batch. A single file larger than the budget is its own batch. Measure with `wc -w` over the
-   list; never estimate.
-3. Write each batch's file list to the scratchpad as `batch-NN.txt`, zero-padded, one
-   repo-relative path per line. For a non-repository target (SKILL.md "Non-repository
-   targets"), write each path as the detector's `file=` field spells it, so script and rubric
-   findings for one file share a key; the same spelling goes in the `## <path>` headings below.
+1. Start from the list file the audit's step 2 wrote with `detect.sh --list-targets`. Its keys
+   are the detector's `file=` spelling, so script and rubric findings for one file share a key.
+2. Run `rubric-fanout.sh plan --out <batch dir> <list>`. It orders the files (impact class,
+   then 90-day change count, then key inside a repository; newest modification time first,
+   then key, outside one; `--order repo|mtime` overrides the choice), packs them into batches
+   of at most 50,000 words by `wc -w` (`--budget N` changes it; a larger file is its own
+   batch), and writes `batch-NN.txt`, one key per line. It prints one line per batch:
+   `batch=NN list=<path> files=N words=W digest=<sha256 of the list>`.
+3. `plan` refuses a directory that already holds batch lists. A new scope gets a new batch
+   directory. A resume keeps the existing one and skips `plan`.
 
 ## Dispatch
+
+Run `rubric-fanout.sh extract --out <rubric file>` once. It writes the catalog's `v1: rubric`
+entries plus the "Signs of human writing" section to that file.
 
 One fresh-context subagent per batch, all dispatched in one message so they run concurrently.
 Each subagent receives:
 
-- the path of the extracted rubric text (the catalog's `v1: rubric` entries plus the "Signs of
-  human writing" section, extracted once to the scratchpad);
-- the path of its batch list and that list's digest (`sha256sum` over the list file, first
-  field), which the subagent copies verbatim into its result;
+- the path of the extracted rubric file, and nothing else from the catalog;
+- the path of its batch list and the digest `plan` printed for it, which the subagent copies
+  verbatim into its result;
 - the result path it must write to (below);
 - the finding shape: `- L<line> rule-<id>: "<verbatim quote, max 25 words>" -- <reason, max 20
   words>`, grouped under `## <path>` headings in the batch list's spelling, files without
@@ -47,34 +52,35 @@ strongest findings only. The orchestrator never reads the batch's source files i
 Result files live in the findings home the persist contract resolved, as
 `<findings home>/rubric-batch-NN.md`, beside the detector's findings file. That directory is
 memory tier and self-ignored, so nothing here is ever committed. A non-repository target has no
-findings home: result files and the merged file go under the session scratchpad, else the
-system temp directory.
+findings home: batch lists, result files and the merged file go under the session scratchpad,
+else the system temp directory.
 
-A result file belongs to one batch list, not to a batch number. Batch numbers are reused across
-runs, and a later run over a different scope or order packs different files under the same
-number, so a leftover `rubric-batch-03.md` from an earlier run can sit exactly where the current
-run's third batch will write. Before dispatching, compute each current batch list's digest and
-check the result files that already exist. A batch is complete only when its result file:
+A result file belongs to one batch list, not to a batch number: a leftover
+`rubric-batch-03.md` from an earlier scope can sit exactly where the current third batch will
+write. Before dispatching, and on every resume, run
+`rubric-fanout.sh status --batches <batch dir> --results <findings home>`. It prints one row
+per batch:
 
-1. carries a `batch:` line equal to the current list's digest;
-2. carries a `files_reviewed:` count equal to the current list's length; and
-3. names no `## <path>` heading that is absent from the current list (`grep '^## '` over the
-   result, each path checked against the list).
+- `status=complete`: the result carries the list's digest on its `batch:` line, a
+  `files_reviewed:` count equal to the list's length, and no `## <path>` heading outside the
+  list. Skip the batch.
+- `status=missing`, or `status=stale reason=digest|files_reviewed|foreign-heading`: dispatch
+  the batch again and let the subagent overwrite the file.
 
-Skip a complete batch. Any other result file, whether absent, short, from another list, or
-naming a file outside the list, is stale: dispatch the batch again and let the subagent
-overwrite it. A terminated subagent therefore costs one batch, and a rerun after a limit resets
-dispatches only the batches that did not finish; a run over a changed scope never inherits a
-result from the scope it replaced.
+A terminated subagent therefore costs one batch, a rerun after a limit resets dispatches only
+the batches that did not finish, and a run over a changed scope never inherits a result from
+the scope it replaced. `status` exits 0 only when every batch is complete.
 
 ## Merge
 
-When every batch has a complete result file, check each batch's evidence before accepting it:
+When `status` reports every batch complete, check each batch's evidence before accepting it:
 spot-check a sample of its findings against the cited file and line, and dispatch the batch again
-when a quoted span is not there. Then concatenate them in batch order into
-`<findings home>/<TS>-ai-slop-rubric.md`, with per-rule totals, `files_reviewed` summed, and
-`files_with_findings` summed at the top. That file is the rubric half of the human report. Rubric
-findings never enter the detector's findings file: they have no crosswalk row and no relay.
+when a quoted span is not there. Then run `rubric-fanout.sh merge --batches <batch dir>
+--results <findings home> --out <findings home>/<TS>-ai-slop-rubric.md`. It refuses while any
+batch is incomplete, and otherwise writes summed `files_reviewed` and `files_with_findings`,
+one `rule_total:` line per rule, and each result body in batch order. That file is the rubric
+half of the human report. Rubric findings never enter the detector's findings file: they have
+no crosswalk row and no relay.
 
 ## What this is not
 

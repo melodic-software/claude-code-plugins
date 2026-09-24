@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+# Deterministic steps of the rubric fan-out (context/rubric-fanout.md).
+#
+#   plan     order a `detect.sh --list-targets` file, pack it into batches by
+#            `wc -w`, write batch-NN.txt lists, print each list's digest
+#   extract  the catalog's `v1: rubric` entries plus "Signs of human writing"
+#   status   per batch: complete, missing, or stale with the failed check
+#   merge    one merged rubric file, written only when every batch is complete
+#
+# Exit: 0 ok; 1 when status or merge finds a batch that is not complete;
+# 2 on usage errors and refusals.
+set -u
+export LC_ALL=C
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/opt-value.sh
+source "$SCRIPT_DIR/lib/opt-value.sh"
+CATALOG="$SCRIPT_DIR/../reference/catalog.md"
+ME="rubric-fanout.sh"
+
+usage() {
+  cat <<'EOF'
+rubric-fanout.sh: deterministic steps of the /ai-slop:audit rubric fan-out.
+
+Usage:
+  rubric-fanout.sh plan --out <dir> [--budget N] [--order auto|repo|mtime] <targets-file>
+  rubric-fanout.sh extract [--out <file>]
+  rubric-fanout.sh status --batches <dir> --results <dir>
+  rubric-fanout.sh merge --batches <dir> --results <dir> --out <file>
+
+<targets-file> is `detect.sh --list-targets` output: <key><TAB><path> per line.
+Order repo: impact class (CLAUDE.md, AGENTS.md, SKILL.md, README.md, .claude/rules/),
+then 90-day change count, then key. Order mtime: newest first, then key.
+Exit: 0 ok, 1 a batch is not complete, 2 usage error or refusal.
+EOF
+}
+
+die() {
+  echo "$ME: $*" >&2
+  exit 2
+}
+
+digest() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+
+mtime() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0
+}
+
+is_impact() {
+  case "/$1" in
+  */CLAUDE.md | */AGENTS.md | */SKILL.md | */README.md | */.claude/rules/*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+cmd_plan() {
+  local out="" budget=50000 order=auto targets=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --out) require_opt_value "$ME" "$@"; out="$2"; shift 2 ;;
+    --budget) require_opt_value "$ME" "$@"; budget="$2"; shift 2 ;;
+    --order) require_opt_value "$ME" "$@"; order="$2"; shift 2 ;;
+    -*) die "plan: unknown option: $1" ;;
+    *) targets="$1"; shift ;;
+    esac
+  done
+  [[ -n "$out" && -n "$targets" ]] || die "plan needs --out <dir> and a targets file"
+  [[ "$budget" =~ ^[1-9][0-9]*$ ]] || die "plan: --budget must be a positive integer"
+  [[ -r "$targets" ]] || die "plan: cannot read targets file: $targets"
+  mkdir -p "$out" || die "plan: cannot create $out"
+  if compgen -G "$out/batch-*.txt" >/dev/null; then
+    die "plan: $out already holds batch lists; plan into a fresh directory, or run status to resume"
+  fi
+
+  local -a keys=() paths=()
+  local key path
+  while IFS=$'\t' read -r key path; do
+    key="${key%$'\r'}"
+    path="${path%$'\r'}"
+    [[ -n "$key" ]] || continue
+    keys+=("$key")
+    paths+=("${path:-$key}")
+  done <"$targets"
+  if [[ "${#keys[@]}" -eq 0 ]]; then
+    echo "$ME: plan: targets file lists no files; no batches written" >&2
+    return 0
+  fi
+
+  if [[ "$order" == auto ]]; then
+    order=mtime
+    [[ "$(git -C "$(dirname "${paths[0]}")" rev-parse --is-inside-work-tree 2>/dev/null)" == true ]] && order=repo
+  fi
+
+  local i ordered
+  case "$order" in
+  repo)
+    local top
+    local -A changes=()
+    top="$(git -C "$(dirname "${paths[0]}")" rev-parse --show-toplevel 2>/dev/null)"
+    if [[ -n "$top" ]]; then
+      local n k
+      while IFS=$'\t' read -r n k; do
+        changes[$k]="$n"
+      done < <(git -C "$top" -c core.quotePath=false log --since=90.days --name-only --format= 2>/dev/null |
+        awk 'NF { c[$0]++ } END { for (k in c) printf "%d\t%s\n", c[k], k }')
+    fi
+    ordered="$(for i in "${!keys[@]}"; do
+      c=1
+      is_impact "${keys[$i]}" && c=0
+      printf '%d\t%d\t%s\t%d\n' "$c" "${changes[${keys[$i]}]:-0}" "${keys[$i]}" "$i"
+    done | sort -t$'\t' -k1,1n -k2,2nr -k3,3 | cut -f4)"
+    ;;
+  mtime)
+    ordered="$(for i in "${!keys[@]}"; do
+      printf '%d\t%s\t%d\n' "$(mtime "${paths[$i]}")" "${keys[$i]}" "$i"
+    done | sort -t$'\t' -k1,1nr -k2,2 | cut -f3)"
+    ;;
+  *) die "plan: --order must be auto, repo, or mtime" ;;
+  esac
+
+  # Pack: add files until the next one would exceed the budget. A file larger
+  # than the budget lands alone, because the batch before it is flushed first.
+  local -a lists=() words=() counts=()
+  local cur="" cur_w=0 cur_n=0 w
+  for i in $ordered; do
+    w="$(wc -w <"${paths[$i]}" 2>/dev/null | tr -d ' ')"
+    [[ -n "$w" ]] || { echo "$ME: plan: cannot read ${paths[$i]}; counted as 0 words" >&2; w=0; }
+    if [[ "$cur_n" -gt 0 && $((cur_w + w)) -gt "$budget" ]]; then
+      lists+=("$cur"); words+=("$cur_w"); counts+=("$cur_n")
+      cur="" cur_w=0 cur_n=0
+    fi
+    cur+="${keys[$i]}"$'\n'
+    cur_w=$((cur_w + w))
+    cur_n=$((cur_n + 1))
+  done
+  lists+=("$cur"); words+=("$cur_w"); counts+=("$cur_n")
+
+  local width=${#lists[@]} b nn list
+  width=${#width}
+  [[ "$width" -lt 2 ]] && width=2
+  for b in "${!lists[@]}"; do
+    nn="$(printf '%0*d' "$width" $((b + 1)))"
+    list="$out/batch-$nn.txt"
+    printf '%s' "${lists[$b]}" >"$list" || die "plan: cannot write $list"
+    printf 'batch=%s list=%s files=%d words=%d digest=%s\n' \
+      "$nn" "$list" "${counts[$b]}" "${words[$b]}" "$(digest "$list")"
+  done
+}
+
+cmd_extract() {
+  local out=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --out) require_opt_value "$ME" "$@"; out="$2"; shift 2 ;;
+    *) die "extract: unknown argument: $1" ;;
+    esac
+  done
+  [[ -r "$CATALOG" ]] || die "extract: cannot read catalog: $CATALOG"
+  # A `### rule-` section runs to the next heading and is kept only when its
+  # body carries `- v1: rubric`. The human-writing section is kept whole.
+  # shellcheck disable=SC2016  # an awk program, not a shell expansion
+  local prog='
+    function flush() { if (rubric) printf "%s", buf; buf = ""; rubric = 0; inrule = 0 }
+    { sub(/\r$/, "") }
+    /^## / { flush(); human = ($0 ~ /^## Signs of human writing[[:space:]]*$/) }
+    /^### / { flush(); if (!human && $0 ~ /^### rule-/) inrule = 1 }
+    human { print; next }
+    inrule { buf = buf $0 "\n"; if ($0 ~ /^- v1: rubric[[:space:]]*$/) rubric = 1 }
+    END { flush() }'
+  if [[ -n "$out" ]]; then
+    awk "$prog" "$CATALOG" >"$out" || die "extract: cannot write $out"
+  else
+    awk "$prog" "$CATALOG"
+  fi
+}
+
+# status_rows <batches> <results>: one `batch=NN status=...` row per list.
+status_rows() {
+  local batches="$1" results="$2" list nn res d n got
+  for list in "$batches"/batch-*.txt; do
+    [[ -f "$list" ]] || continue
+    nn="${list##*/batch-}"
+    nn="${nn%.txt}"
+    res="$results/rubric-batch-$nn.md"
+    if [[ ! -f "$res" ]]; then
+      echo "batch=$nn status=missing"
+      continue
+    fi
+    d="$(digest "$list")"
+    n="$(awk 'NF' "$list" | wc -l | tr -d ' ')"
+    got="$(tr -d '\r' <"$res" | sed -n 's/^batch:[[:space:]]*//p' | head -1 | tr -d '[:space:]')"
+    if [[ "$got" != "$d" ]]; then
+      echo "batch=$nn status=stale reason=digest"
+      continue
+    fi
+    got="$(tr -d '\r' <"$res" | sed -n 's/^files_reviewed:[[:space:]]*//p' | head -1 | tr -d '[:space:]')"
+    if [[ "$got" != "$n" ]]; then
+      echo "batch=$nn status=stale reason=files_reviewed"
+      continue
+    fi
+    if tr -d '\r' <"$res" | awk 'NR == FNR { if (NF) k[$0] = 1; next }
+         /^## / && !(substr($0, 4) in k) { bad = 1 } END { exit !bad }' "$list" -; then
+      echo "batch=$nn status=stale reason=foreign-heading"
+      continue
+    fi
+    echo "batch=$nn status=complete"
+  done
+}
+
+parse_dirs() {
+  BATCHES="" RESULTS="" OUT=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --batches) require_opt_value "$ME" "$@"; BATCHES="$2"; shift 2 ;;
+    --results) require_opt_value "$ME" "$@"; RESULTS="$2"; shift 2 ;;
+    --out) require_opt_value "$ME" "$@"; OUT="$2"; shift 2 ;;
+    *) die "unknown argument: $1" ;;
+    esac
+  done
+  [[ -n "$BATCHES" && -n "$RESULTS" ]] || die "--batches <dir> and --results <dir> are required"
+  compgen -G "$BATCHES/batch-*.txt" >/dev/null || die "no batch-*.txt lists in $BATCHES"
+}
+
+cmd_status() {
+  parse_dirs "$@"
+  local rows
+  rows="$(status_rows "$BATCHES" "$RESULTS")"
+  printf '%s\n' "$rows"
+  ! grep -qv 'status=complete$' <<<"$rows"
+}
+
+cmd_merge() {
+  parse_dirs "$@"
+  [[ -n "$OUT" ]] || die "merge needs --out <file>"
+  local rows
+  rows="$(status_rows "$BATCHES" "$RESULTS")"
+  if grep -qv 'status=complete$' <<<"$rows"; then
+    echo "$ME: merge refused: not every batch is complete" >&2
+    printf '%s\n' "$rows"
+    return 1
+  fi
+  local -a files=()
+  local nn
+  while IFS= read -r nn; do
+    nn="${nn#batch=}"
+    files+=("$RESULTS/rubric-batch-${nn%% *}.md")
+  done <<<"$rows"
+  local f
+  {
+    awk '
+      { sub(/\r$/, "") }
+      /^files_reviewed:/ { fr += $2 }
+      /^files_with_findings:/ { fw += $2 }
+      /^- L[0-9]+ rule-[a-z0-9-]+:/ { r = $3; sub(/:$/, "", r); t[r]++ }
+      END {
+        printf "files_reviewed: %d\nfiles_with_findings: %d\nbatches: %d\n", fr, fw, ARGC - 1
+        n = 0
+        for (r in t) ids[++n] = r
+        for (i = 2; i <= n; i++) for (j = i; j > 1 && ids[j - 1] > ids[j]; j--) { s = ids[j]; ids[j] = ids[j - 1]; ids[j - 1] = s }
+        for (i = 1; i <= n; i++) printf "rule_total: %s=%d\n", ids[i], t[ids[i]]
+      }' "${files[@]}"
+    for f in "${files[@]}"; do
+      echo
+      tr -d '\r' <"$f" | grep -Ev '^(batch|files_reviewed|files_with_findings):' || true
+    done
+  } >"$OUT" || die "merge: cannot write $OUT"
+  echo "$ME: merged ${#files[@]} batch result(s) into $OUT"
+}
+
+case "${1:-}" in
+plan | extract | status | merge)
+  cmd="$1"
+  shift
+  "cmd_$cmd" "$@"
+  ;;
+--help | -h)
+  usage
+  ;;
+*)
+  usage >&2
+  exit 2
+  ;;
+esac
