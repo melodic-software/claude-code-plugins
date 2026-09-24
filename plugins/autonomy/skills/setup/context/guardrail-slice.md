@@ -50,8 +50,9 @@ depends on the binding until that human-landed change exists.
      `L2` boundary).
 
    A WSL2 surface also runs the interop launch check from
-   [`windows-surfaces.md`](windows-surfaces.md), a launch that must fail, recorded beside the
-   transcript as evidence the reviewing human confirms rather than a fourth checker assertion.
+   [`windows-surfaces.md`](windows-surfaces.md), a launch that must succeed outside and fail
+   inside, recorded beside the transcript as evidence the reviewing human confirms rather than a
+   fourth checker assertion. Without that record the WSL2 level stays unbound.
 
    The checker resolves no DNS and reads no remote host, so it validates the probe's targets against
    operator-configured seams. The egress target checks against `--egress-hosts <host,...>` (a

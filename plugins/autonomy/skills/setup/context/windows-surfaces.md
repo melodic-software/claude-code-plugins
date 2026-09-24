@@ -68,19 +68,23 @@ touching sandbox platform support or the sandbox runtime, or a read-time fetch o
 that no longer matches this record.
 
 *Claim:* WSL hands a launch of a Windows binary, such as `cmd.exe`, `powershell.exe`, or anything
-under `/mnt/c/`, to the Windows host over a Unix socket, and the sandbox's seccomp filter is what
-blocks that socket. A launch that gets through runs on the Windows host, outside every WSL2
-boundary. *Basis:* the WSL2 notes under
+under `/mnt/c/`, to the Windows host over a Unix socket, and the sandbox's optional seccomp filter
+is what blocks that socket. With the filter missing, or with `allowAllUnixSockets` set, the socket
+stays open. A launch that gets through runs on the Windows host, outside every WSL2 boundary. *Basis:* the WSL2 notes under
 [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2), read as
 raw markdown. *Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog entry touching WSL
 interop, Unix socket blocking, or the seccomp filter, or a read-time fetch of that section that no
 longer matches this record.
 
-So every WSL2 boundary adds an interop launch check to step 3: a harmless launch (marked example:
-`cmd.exe /c ver`) run inside the boundary must fail. Which filter is installed is not the evidence;
-the failed launch is. Record its command, exit code, and output beside the probe transcript as
-review evidence in the prepared change, not inside `assertions`. The checker does not parse it, so
-the reviewing human confirms it failed.
+So every WSL2 boundary adds an interop launch check to step 3: a harmless launch by absolute path
+(marked example: `/mnt/c/Windows/System32/cmd.exe /c ver`) must succeed in the outer context and
+fail inside the boundary. The outer success is the control: without it, a launch that fails
+because the binary is off the path or the check never ran inside the boundary would read as
+blocked. Which filter is installed is not the evidence; the paired outcomes are. Record both
+commands, exit codes, and outputs beside the probe transcript as review evidence in the prepared
+change, not inside `assertions`. The checker does not parse them, so the reviewing human confirms
+them, and a WSL2 `L2` binding with no such record, or with an inner launch that succeeded, is
+unbound and blocked at step 6.
 
 WSL2 probes also look through the Windows drive mount. Credential probes and `--credential-roots`
 include the Windows profile paths the distribution reaches there (marked example: an `.ssh`
@@ -95,7 +99,7 @@ The sandbox environments page's
 names Docker Sandboxes (a marked example) as a microVM that needs no Docker Desktop. Docker's pages
 give it a separate kernel per sandbox, so its class is `vm-microvm` at `L3`.
 
-*Claim:* installation and workspace.
+*Claim:* each installation and workspace fact below holds for this marked example.
 
 - It needs Windows 11 on a 64-bit Intel or AMD processor with the Windows Hypervisor Platform
   feature, which is turned on once from an elevated PowerShell prompt (a human step). The `sbx` CLI
@@ -105,7 +109,8 @@ give it a separate kernel per sandbox, so its class is `vm-microvm` at `L3`.
   on the host at once, which fails the containment probe. A conforming workspace is clone mode
   (`--clone`: the repository is mounted read-only and the agent edits a private clone) or a
   sandbox created with no workspace path, which has no host mount. Extra workspaces are always
-  mounted directly, so clone mode with an extra workspace fails again. Clone mode is rejected
+  mounted directly, so each extra workspace is mounted read-only (`:ro`) or the containment probe
+  fails again. Clone mode is rejected
   inside a Git worktree other than the main one; create it from the main checkout.
 - The shared agent skills store is read-only by default, but `--skills` or `skills.defaultMode`
   can mount it `readwrite`, a host write outside the workspace that other sandboxes read. Require
@@ -118,7 +123,7 @@ Clone mode, Multiple workspaces), and
 boundaries, Isolation layers), read as markdown. *Verified:* 2026-09-23. *Recheck trigger:* a
 read-time fetch of those pages that no longer matches this record.
 
-*Claim:* egress, credentials, and permissions.
+*Claim:* each egress, credential, and permission fact below holds for this marked example.
 
 - Egress is deny by default, but the default allowed domains include broad wildcards such as
   `*.googleapis.com`. List the active rules with `sbx policy ls`, remove those the run does not
@@ -146,6 +151,8 @@ security binding has no field for a base allowlist.
 a host process, and an OCI-packaged stdio server runs on the host with host Docker isolation, not
 sandbox isolation. Either can reach host files, host network, and credentials made available to
 it. They are the ladder's brokered protocol-connected tool surfaces, outside the boundary at `L3`.
+Setup lists the gateway's registrations and records each local stdio server in the prepared change
+as a host-executing surface; a surface with none says so.
 *Basis:* Docker's [MCP gateway page](https://docs.docker.com/ai/sandboxes/mcp-gateway/#local-stdio-server)
 (Register an MCP server, Local stdio server) and its security page's
 [Trust boundaries](https://docs.docker.com/ai/sandboxes/security/#trust-boundaries), read as
