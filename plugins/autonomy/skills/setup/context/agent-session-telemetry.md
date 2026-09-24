@@ -1,9 +1,10 @@
 # Agent-session telemetry: Claude Code native evidence
 
 The Claude Code records behind the setup skill's agent-session wiring step and the telemetry
-contract's "Native agent-surface evidence" section. The [monitoring page](https://code.claude.com/docs/en/monitoring-usage) owns every event,
-attribute, value set, and configuration variable of the export; this file restates only what a
-binding depends on.
+contract's "Native agent-surface evidence" section. The
+[monitoring page](https://code.claude.com/docs/en/monitoring-usage) owns every event, attribute,
+value set, and configuration variable of the export; this file restates only what a binding
+depends on.
 
 ## Signal the evidence rides
 
@@ -32,7 +33,8 @@ fetch of that section that no longer matches this record.
 
 *Claim:* `-p` and Agent SDK sessions read `TRACEPARENT` and `TRACESTATE` from the environment, and
 with `TRACEPARENT` set each event record carries the inbound trace ID, even with no traces
-exporter and no beta flag. Three limits bind how the IDs are read:
+exporter and no beta flag. The page gives trace IDs to event records only, not to metric
+datapoints. Limits:
 
 - With no active interaction span, a record's span ID is the caller's inbound span ID. With beta
   tracing on, records emitted inside a turn carry the interaction span's IDs instead; that case is
@@ -51,9 +53,10 @@ longer matches this record.
 
 ## Traces stay beta
 
-*Claim:* spans are emitted only with `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
-`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`, and an `OTEL_TRACES_EXPORTER` all set, so the slice
-treats spans as optional. *Basis:* the page's
+*Claim:* spans go through the traces exporter only with `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
+`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`, and an `OTEL_TRACES_EXPORTER` all set; detailed beta
+tracing (`ENABLE_BETA_TRACING_DETAILED` with `BETA_TRACING_ENDPOINT`) sends logs and traces to that
+endpoint instead. The slice treats spans as optional. *Basis:* the page's
 [Traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta) section, read as
 raw markdown. *Verified:* 2026-09-23. *Recheck trigger:* the page drops the beta label from that
 section or drops the `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` flag.

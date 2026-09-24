@@ -11,9 +11,13 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   `TRACEPARENT` only under the enhanced-telemetry beta. Headless and Agent SDK sessions read
   inbound trace context, and their event records carry the inbound trace ID without the beta flag
   or a traces exporter; spans still need both. The slice keeps joining on
-  `autonomy.work_item.url`. `context/agent-session-telemetry.md` gains dated records for resource
-  attributes, inbound trace context (with a probe on Claude Code 2.1.281), and the traces beta,
-  and the CI template's trace-context wording matches.
+  `autonomy.work_item.url`.
+- The CI template's trace-context wording and session env block comment match that behavior.
+
+### Added
+
+- `context/agent-session-telemetry.md` gains dated records for resource attributes, inbound trace
+  context (with a probe on Claude Code 2.1.281), and the traces beta, each verified 2026-09-23.
 
 ## [0.23.18] - 2026-09-23
 
