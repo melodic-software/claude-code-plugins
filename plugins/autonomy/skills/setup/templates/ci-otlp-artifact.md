@@ -42,8 +42,8 @@ export TRACEPARENT="00-$trace_id-$span_id-01"
 ```
 
 Whether the agent CLI's own native session emissions honor that context is
-surface-specific, so verify empirically (some read it only behind an opt-in flag, and a
-default surface may start a fresh root). A session that does not join the trace still
+surface-specific, so verify empirically (a surface may join only its event records, only its
+spans behind an opt-in flag, or not at all). A session that does not join the trace still
 attaches query-side through the `autonomy.work_item.url` resource attribute, which the
 dispatching step injects via `OTEL_RESOURCE_ATTRIBUTES`:
 
@@ -91,8 +91,8 @@ emit nothing:
 export CLAUDE_CODE_ENABLE_TELEMETRY=1
 export OTEL_METRICS_EXPORTER=otlp
 export OTEL_LOGS_EXPORTER=otlp
-# Session spans are beta: both flags below are required for the session to
-# join the trace tree; without them only metrics/logs are emitted.
+# Session spans are beta: they need both the beta flag and the traces
+# exporter below. Headless event logs carry the inbound trace ID without them.
 export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
 export OTEL_TRACES_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
