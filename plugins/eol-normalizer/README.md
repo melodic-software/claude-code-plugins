@@ -232,8 +232,8 @@ and no reported message changes.
 `eol_normalizer_enabled` itself and exits before the script starts, so the
 harness's shell is the only process a disabled hook creates. Measured on a
 heavily loaded Windows Git Bash host, 15 interleaved trials with the switch off,
-the old row cost about 1.9 times the `bash -c :` floor and the new row no more
-than the floor (medians: 663 ms against 289 ms on a 356 ms floor). With the
+the old row cost about 1.9 times the `bash -c :` floor and the new row ran at
+the floor (medians: old 663 ms, new 289 ms, floor 356 ms). With the
 switch on the row `exec`s the script in place of its own shell, so the process
 count is unchanged.
 
