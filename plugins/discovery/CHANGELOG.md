@@ -11,8 +11,9 @@
   or a Conflicts entry.
 - **`research`:** the sidecar header carries per-source `measures:` and per-claim `inference:` and
   `qualifiers:`, so a verifier can grade criterion 12 off disk.
-- **`research`:** on a fan-out, the synthesized slice-root index goes to a fresh verifier for hedge
-  survival before it is surfaced.
+- **`research`:** on a fan-out, the synthesized slice-root index goes to a fresh verifier for
+  criterion 12 before it is surfaced: sub-slice qualifiers survive, and a claim the synthesis adds
+  gets the full check.
 - **`research`:** an eval case where a verbatim-quoted source backs a claim about a variable it
   never measured.
 

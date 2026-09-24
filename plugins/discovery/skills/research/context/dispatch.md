@@ -139,11 +139,11 @@ obligation is the parent's, not the script's. Grade each run against the sub-sli
 and grade before synthesis. A slice-root invocation grades only the synthesized index, never any
 dispatched run.
 
-**The synthesis is itself unverified, so it goes to a fresh verifier for hedge survival** before
-it is surfaced: every `qualifiers:` entry and scope limit a sub-slice recorded stays attached
-wherever the synthesized index uses that claim. The context that wrote the synthesis is the one
-least able to see a figure that kept its number and lost its qualifier. A dropped qualifier sends
-the synthesis back for rewriting, not the sub-slice for re-dispatch.
+**The synthesis is itself unverified, so it goes to a fresh verifier for criterion 12** before it
+is surfaced. Every `qualifiers:` entry and scope limit a sub-slice recorded stays attached wherever
+the synthesized index uses that claim, and a claim the synthesis adds that no sub-slice accepted,
+such as a cross-topic conclusion, gets the full joint-inference check or is filed as a Gap. Either
+failure sends the synthesis back for rewriting, not the sub-slice for re-dispatch.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 

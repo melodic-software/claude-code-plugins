@@ -351,10 +351,12 @@ assert_present 'an improvised header costs criterion 12 its evidence too' \
   'skills/research/SKILL.md' 'costs criteria 4, 6, 9 and 12 their evidence'
 assert_present 'the carry-forward line lists the new header fields' \
   'skills/research/SKILL.md' 'Carry this much into the read:.*measures.*inference.*qualifiers'
-assert_present 'the fan-out obligation sends the synthesis to a hedge-survival verifier' \
-  'skills/research/context/dispatch.md' '^\*\*The synthesis .*hedge survival'
-assert_present 'the SKILL.md fan-out paragraph points at the hedge-survival obligation' \
-  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*hedge survival'
+assert_present 'the fan-out obligation sends the synthesis to a criterion-12 verifier' \
+  'skills/research/context/dispatch.md' '^\*\*The synthesis .*fresh verifier for criterion 12'
+assert_present 'the synthesis verifier also checks claims the synthesis adds' \
+  'skills/research/context/dispatch.md' 'a claim the synthesis adds'
+assert_present 'the SKILL.md fan-out paragraph points at the synthesis criterion-12 check' \
+  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*verifier for criterion 12'
 assert_present 'the verifier is briefed on rows 4, 7 and 12 by number' \
   'skills/research/context/dispatch.md' 'rows 4, 7 and 12'
 assert_present 'the verifier brief overrides the payload criterion string' \
