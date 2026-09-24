@@ -17,7 +17,8 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
   (https://code.claude.com/docs/en/hooks, the `shell` field, verified 2026-09-23). The
   row runs `set +u` first, so an inherited nounset (`SHELLOPTS`, `BASH_ENV`) cannot turn
   an unset option into a failed row. The README's Hook cost accounting section has the
-  measurement. The script keeps its own switch for direct invocation, and the matcher, timeout and `.gitattributes`-driven file set are unchanged.
+  measurement. The script keeps its own switch for direct invocation, and the matcher,
+  timeout and `.gitattributes`-driven file set are unchanged.
 
 ## [0.6.51] - 2026-09-21
 
