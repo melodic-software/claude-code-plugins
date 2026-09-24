@@ -237,16 +237,30 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
     prev="$line"
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ "$line" == *slow-shape-ok:* || "$above" == *slow-shape-ok:* ]] && continue
-    for v in "${vars[@]}"; do
-      ref="\\\$\\{?${v}([^A-Za-z0-9_]|$)"
-      redirect="(^|[^<])<[[:space:]]*\"?${ref}"
-      # The bound counts only when it reads the file itself: `tail -c N ... "$T"`
-      # in the same pipeline stage, not a `| head -c` after a whole-file reader.
-      bounded="(tail|head)[[:space:]]+-c[^|]*${ref}"
-      [[ "$line" =~ $ref ]] || continue
-      [[ "$line" =~ $bounded ]] && continue
-      if [[ "$line" =~ $READERS_RE || "$line" =~ $redirect ]]; then
-        finding "TRANSCRIPT READ: ${script}:${n}: reads \$${v} whole with no tail -c/head -c bound: ${line#"${line%%[![:space:]]*}"}"
+    # One simple command at a time: a bound counts only when it reads the file
+    # itself (`tail -c N -- "$T"`), not from an earlier command on the line
+    # (`head -c 1 x; cat "$T"`) or a later pipeline stage (`cat "$T" | head -c`).
+    # ponytail: splits on ; & | inside quotes and $( ) too; that only splits
+    # more finely, never joins a bound to a read it does not govern.
+    segline="${line//&&/;}"
+    segline="${segline//||/;}"
+    segline="${segline//|/;}"
+    segline="${segline//&/;}"
+    IFS=';' read -r -a segs <<<"$segline"
+    for seg in "${segs[@]}"; do
+      [[ "$seg" == *'tail -c'* || "$seg" == *'head -c'* ]] && continue
+      hit=""
+      for v in "${vars[@]}"; do
+        ref="\\\$\\{?${v}([^A-Za-z0-9_]|$)"
+        redirect="(^|[^<])<[[:space:]]*\"?${ref}"
+        [[ "$seg" =~ $ref ]] || continue
+        if [[ "$seg" =~ $READERS_RE || "$seg" =~ $redirect ]]; then
+          hit="$v"
+          break
+        fi
+      done
+      if [[ -n "$hit" ]]; then
+        finding "TRANSCRIPT READ: ${script}:${n}: reads \$${hit} whole with no tail -c/head -c bound: ${line#"${line%%[![:space:]]*}"}"
         break
       fi
     done

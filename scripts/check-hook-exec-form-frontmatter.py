@@ -198,12 +198,12 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
                 )
         elif "command" in entries:
             command_node, command_key_node = entries["command"]
+            line = command_key_node.start_mark.line + offset
             if isinstance(command_node, yaml.ScalarNode):
+                emit("S", path, line, command_node.value)
+            else:
                 emit(
-                    "S",
-                    path,
-                    command_key_node.start_mark.line + offset,
-                    command_node.value,
+                    "X", path, line, "a shell-form hook whose `command` is not a scalar"
                 )
         for value_node, _ in entries.values():
             scan_node(value_node, path, offset, seen)

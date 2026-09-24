@@ -114,6 +114,25 @@ hooks:
 body'
 expect "(b) a skill-frontmatter hook is scanned" "$f" 1 "ENV SHEBANG: plugins/demo/skills/s/SKILL.md"
 
+# A shell-form frontmatter hook whose command is not a scalar is unreadable, a
+# finding, never silently skipped.
+new_fixture f
+plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
+plugin_file "$f" demo hooks/y.sh '#!/bin/bash
+exit 0'
+hooks_json "$f" demo 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/y.sh'
+plugin_file "$f" demo skills/s/SKILL.md '---
+name: s
+hooks:
+  PreToolUse:
+    - hooks:
+        - type: command
+          command:
+            - x.sh
+---
+body'
+expect "(b) a non-scalar shell-form frontmatter command is a finding" "$f" 1 "UNREADABLE FRONTMATTER: plugins/demo/skills/s/SKILL.md"
+
 new_fixture f
 plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
 plugin_file "$f" demo .claude-plugin/plugin.json '{"name":"demo","hooks":"./config/extra.json"}'
@@ -145,6 +164,14 @@ new_fixture f
 plugin_file "$f" demo hooks/x.sh "$(transcript_hook 'grep -F x -- "$TRANSCRIPT" | head -c 4096')"
 hooks_json "$f" demo "bash $ROOTED"
 expect "(a) a head -c AFTER a whole-file reader is not a bound and FAILS" "$f" 1 "TRANSCRIPT READ"
+
+# A bound in an earlier command on the same line bounds nothing later.
+for read_line in 'head -c 1 /dev/null; cat "$TRANSCRIPT"' 'tail -c 5 /dev/null && grep -F x "$TRANSCRIPT"'; do
+  new_fixture f
+  plugin_file "$f" demo hooks/x.sh "$(transcript_hook "$read_line")"
+  hooks_json "$f" demo "bash $ROOTED"
+  expect "(a) '$read_line' is not bounded by the earlier command and FAILS" "$f" 1 "TRANSCRIPT READ"
+done
 
 new_fixture f
 plugin_file "$f" demo hooks/x.sh "$(transcript_hook '# slow-shape-ok: size-checked above
