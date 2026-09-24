@@ -34,6 +34,10 @@
 #     (the detector's only output channel) so the operator sees the blind spot.
 #   * destructive_guard.py — exit 0 silently (existing PreToolUse fail-open).
 set -uo pipefail
+# `_lookup` reads bash's command hash table. A BASH_ENV (or inherited option
+# state) that turned hashing off would leave every lookup empty, so resolution
+# would find no interpreter at all and the guard would not run.
+set -h
 
 # `$(cd ... && pwd)` forks twice (command substitution plus `dirname`) on a path
 # every registered caller already passes ABSOLUTE — hooks.json and the skill
@@ -71,8 +75,13 @@ ENGINE="$SCRIPT_DIR/../skills/clean/scripts/hygiene.py"
 # instead of a `sed` plus a Python. `hygiene.MIN_PYTHON` remains the single
 # origin of the floor (#1028) — this changes who reads it, not where it lives —
 # and the hardcoded fallback below still applies when the engine is unreadable.
+#
+# Past the floor the probe reports `sys.executable` as filesystem-encoded bytes
+# (UTF-8 on Windows, which is how MSYS reads paths). `print` would encode it
+# with the ANSI code page when stdout is a pipe and raise on a path outside it,
+# failing the probe and rejecting a working interpreter.
 PYTHON_VERSION_PROBE='
-import re, sys
+import os, re, sys
 floor = (3, 11)
 try:
     with open(sys.argv[1], encoding="utf-8") as handle:
@@ -85,7 +94,7 @@ except OSError:
     pass
 if sys.version_info < floor:
     raise SystemExit(1)
-print(sys.executable)
+sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 '
 
 # --- optional per-session launch marker ------------------------------------
@@ -340,8 +349,11 @@ resolve_python3() {
   [[ -n "$_LOOKUP" ]] || return 1
   exe="$("$_LOOKUP" -3 -c "$PYTHON_VERSION_PROBE" "$ENGINE" 2>/dev/null)" || return 1
   exe="${exe%$'\r'}"
-  [[ -n "$exe" && "$exe" != *$'\n'* ]] || return 1
-  PYTHON="$exe"
+  if [[ "$exe" != *$'\n'* && -x "$exe" && -s "$exe" ]] && _interpreter_shaped "$exe"; then
+    PYTHON="$exe"
+    return 0
+  fi
+  return 1
 }
 
 # --- resolved-interpreter cache -------------------------------------------

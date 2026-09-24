@@ -243,6 +243,20 @@ else
     "0" "$fnm_calls"
   assert_eq "and the target runs" "ran" "$(target_ran)"
 
+  # A BASH_ENV that turns command hashing off must not blind the lookups: the
+  # launcher turns hashing back on before it resolves anything.
+  NOHASH_ENV="$CACHE_ROOT/nohash.bash"
+  printf 'set +h\n' >"$NOHASH_ENV"
+  cache_launch >/dev/null
+  rm -f "$FIXTURE_MARKER"
+  : >"$CACHE_LOG"
+  HOME="$CACHE_HOME" PATH="$CACHE_BIN:$PATH" BASH_ENV="$NOHASH_ENV" \
+    bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+    "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+  assert_eq "a BASH_ENV with hashing off still hits the cache" \
+    "0" "$(grep -cx -- '-c' "$CACHE_LOG" || true)"
+  assert_eq "and the target runs" "ran" "$(target_ran)"
+
   # A PATH on which a DIFFERENT python3 now wins must re-resolve.
   SHADOW_BIN="$CACHE_ROOT/shadow-bin"
   SHADOW_LOG="$CACHE_ROOT/shadow-calls"
@@ -364,6 +378,36 @@ else
     printf 'SKIP: no cygpath; native-path cache acceptance not exercised\n'
   fi
 
+  # An interpreter under a non-ASCII directory must still resolve. The probe
+  # reports `sys.executable` over a pipe; printed as text, Windows encodes it
+  # with the ANSI code page, a character outside it (`碼` is not in cp1252)
+  # raises, the probe exits non-zero, and every candidate is rejected: the
+  # guard silently does not run. A venv gives an interpreter whose
+  # `sys.executable` is its own path.
+  UNICODE_ROOT="$CACHE_ROOT/ü碼 dir"
+  if "$REAL_PYTHON" -m venv --without-pip "$UNICODE_ROOT/venv" >/dev/null 2>&1; then
+    venv_python="$UNICODE_ROOT/venv/bin/python"
+    [[ -x "$venv_python" ]] || venv_python="$UNICODE_ROOT/venv/Scripts/python.exe"
+    UNICODE_BIN="$UNICODE_ROOT/bin"
+    mkdir -p "$UNICODE_BIN"
+    printf '#!/usr/bin/env bash\nexec "%s" "$@"\n' "$venv_python" >"$UNICODE_BIN/python3"
+    chmod +x "$UNICODE_BIN/python3"
+    UNICODE_HOME="$CACHE_ROOT/home-unicode"
+    mkdir -p "$UNICODE_HOME"
+    rm -f "$FIXTURE_MARKER"
+    HOME="$UNICODE_HOME" PATH="$UNICODE_BIN:$PATH" PYTHONUTF8=0 PYTHONIOENCODING='' \
+      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      "$FIXTURE_TARGET" "$FIXTURE_MARKER" >/dev/null 2>&1 || true
+    assert_eq "an interpreter under a non-ASCII directory runs the target" \
+      "ran" "$(target_ran)"
+    unicode_record="$(find "$UNICODE_HOME/.cache/disk-hygiene" -name 'interpreter-*' \
+      -type f 2>/dev/null | head -n 1)"
+    assert_contains "and the record names that interpreter" "ü碼 dir" \
+      "$(sed -n 's/^interpreter=//p' "$unicode_record" 2>/dev/null)"
+  else
+    printf 'SKIP: no venv module; non-ASCII interpreter path not exercised\n'
+  fi
+
   # An unwritable cache directory must not stop the launcher from working.
   NOCACHE_HOME="$CACHE_ROOT/home-readonly"
   mkdir -p "$NOCACHE_HOME"
@@ -447,6 +491,28 @@ MONITOR_OUT="$(
 )"
 assert_contains "monitor mode warns when python is unavailable" "systemMessage" "$MONITOR_OUT"
 assert_contains "monitor mode names the guard" "destructive guard" "$MONITOR_OUT"
+
+# --- the `py -3` branch validates the path it is handed ---
+#
+# `py` reports the interpreter it chose; a path that is not an interpreter by
+# shape must be refused like any other, not exec'd.
+PY_BIN="$(mktemp -d)"
+trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR" "$PY_BIN"' EXIT
+for stub in python3 python; do
+  printf '#!/usr/bin/env bash\nexit 127\n' >"$PY_BIN/$stub"
+  chmod +x "$PY_BIN/$stub"
+done
+printf '#!/usr/bin/env bash\nexit 0\n' >"$PY_BIN/node"
+chmod +x "$PY_BIN/node"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s"\n' "$PY_BIN/node" >"$PY_BIN/py"
+chmod +x "$PY_BIN/py"
+PY_OUT="$(
+  HOME="$PY_BIN" PATH="$PY_BIN:$PATH" bash "$LAUNCHER" \
+    "$SCRIPT_DIR/../skills/clean/scripts/guard_launch_monitor.py" \
+    --data-root "$PY_BIN/data" 2>/dev/null || true
+)"
+assert_contains "a py -3 result that is not an interpreter is refused" \
+  "systemMessage" "$PY_OUT"
 
 # --- guard mode without python is silent success ---
 GUARD_RC=0
