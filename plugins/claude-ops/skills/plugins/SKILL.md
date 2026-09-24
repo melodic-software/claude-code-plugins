@@ -1,6 +1,6 @@
 ---
 description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), audit (read-only dry run), converge (explicit scope consolidation). Use when: 'sync plugins', 'update my plugins', 'are my plugins current', 'check plugin drift', 'converge plugin scopes', or before relying on a plugin that might be stale."
-argument-hint: "[action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default), audit, converge"
+argument-hint: "[action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default; alias update), audit, converge"
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -86,8 +86,8 @@ itself is rendered by the script.
 | `audit` | No | Same algorithm as `sync`, every mutating CLI call replaced with a prediction; the reads those calls sit beside still run | "Action: audit" below |
 | `converge` | Yes. Can rewrite committed settings after confirm | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
 
-Bare invocation (no arguments) → `sync` against the default marketplace. `help` or an unrecognized
-action → show this table.
+Bare invocation (no arguments) → `sync` against the default marketplace. `update` is an alias for
+`sync`. `help` or an unrecognized action → show this table.
 
 ## Running `sync` and `audit`
 
@@ -210,15 +210,18 @@ reproduces it from a run directory later. Every section, conditional row, annota
 `Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
 scope from being misstated between the run and the report: the `Marketplace:` line with its
 three-way `autoUpdate` slot (`on`; `off` with the suggestion to enable it; `unreadable` for a
-`null`, never rendered as off); the fixed `In-repo:` row in its three variants (`skipped` naming
+`null`, never rendered as off), whose status reads `source checkout behind <upstream>` instead of
+`current` when a `directory` source's git checkout is behind its upstream; the `source:` row under
+it for a `directory` source (branch, upstream, ahead/behind as of the checkout's last fetch, modified
+tracked files, or why freshness was not checked; the run never fetches or pulls the checkout); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
 counted variant, forward moves only); `Updated:` (forward moves and pairs flagged
 `(direction unknown)`) and `Downgraded:`; `Catalog regression:`; `Installed:` with the policy-`all`
 recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
 when a root resolved; the self-update note when the sweep moved this plugin; the stale project
 records and cache content sections; the `Timing:` row (the marketplace total and its slowest step,
-with the clock's resolution; a measurement with no threshold); and `Action needed` (install and
-enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
+with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
+`git -C <path> pull --ff-only` to run, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
 updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
 project-scope map, withheld downgrades with both versions and the likely cause, and every error).
 In `audit` mode every mutating line carries the `would run:` prefix and `Would withhold:` sits
