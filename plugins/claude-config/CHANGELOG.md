@@ -3,6 +3,44 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-09-23
+
+### Added
+
+- **The audit engine reads its upstream sources every run.** It fetches the docs index
+  (`https://code.claude.com/docs/llms.txt`), resolves `settings-reference` and `env-vars` from the
+  links there, and reads each page verbatim. The document's new `docs` object lists the index and
+  every page with its URL or path, byte count, and `read` or `unread`, and `--table` prints it.
+  `--docs-dir` is now optional reuse: a page found there is read instead of fetched.
+- **The engine records the Claude Code version.** It runs `claude --version` and carries the
+  result as `claude_version`. Version-gated rows are evaluated against it, and an unreadable version
+  makes them `skip`.
+- **Documented and deprecated keys (category A).** Every top-level and `permissions.*` key in the
+  project, local, and user settings is looked up on `settings-reference`. A key with no heading
+  there is `info` when the installed `claude` binary carries its literal name and `warning` when it
+  does not; a key whose section says it is deprecated is a `warning` quoting that line, gated on
+  the recorded version when the line names one. `$schema` is exempt.
+
+### Changed
+
+- **The `effortLevel` rule is now "value not in the documented set".** The accepted values, and
+  the `disableDeepLinkRegistration` value, come from the key's **Type** bullet on the fetched
+  `settings-reference` instead of a list in the engine, so any undocumented value is flagged, not
+  only `max` and `ultracode`. Claims `effortLevel:<value>` and `disableDeepLinkRegistration:<value>`
+  keep their identity. The matching `audit-checklist.md` rows now point at the Type bullet.
+- **`enforceAvailableModels-without-list` is gated on the version the key requires.** On a Claude
+  Code older than the first "Requires Claude Code" version in the key's section, the row is `ok`
+  with the reason.
+- **Env-var documentation rows are `not-inspectable`, not `skip`, when `env-vars` was not read.**
+  The claim `env-page-not-fetched:<key>` is unchanged.
+- **Default runs use the network.** An offline run reports the unfetched pages `unread` and every
+  row resting on them `not-inspectable`.
+
+### Fixed
+
+- **An env key containing `.` is matched literally on the env-vars page.** The check grepped the
+  key as a regex, so `A.B` matched a documented `AXB`.
+
 ## [0.47.1] - 2026-09-23
 
 ### Fixed

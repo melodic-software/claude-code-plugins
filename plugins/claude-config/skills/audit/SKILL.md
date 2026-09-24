@@ -57,14 +57,14 @@ the document and does only what needs judgment:
 
 | Engine (deterministic, emitted once) | Model (judgment, on the engine's output) |
 | --- | --- |
-| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file | A: nothing |
+| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level and `permissions.*` key is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one) | A: nothing |
 | B: presence of each baseline pattern, deny rules in the local file, blanket `Bash(git *)`, the allow-completeness rows at `info`, narrowing 3 where a hook plugin ships a coverage manifest, suppression-record matching | B: narrowings 1 and 2 (a documented exemption, a documented hook convention), narrowing 3 for hooks with no manifest, the consuming repo's extra required patterns |
 | C: command resolution, `${VAR}` syntax, URL shape, `enableAllProjectMcpServers`, enabled/disabled coverage and name validity | C: documented reasons for disabled servers, launcher-wrapper conventions |
 | D: path resolution and readability, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo, event validity against the live hooks page |
 | E: marketplace membership, explicit `false` entries, ORPHAN / NEW / RENAME drift against the merged scopes, `strict` versus `plugin.json` | E: whether an opt-out is intentional, orphan-`true` review, rename confirmation |
-| F: token-shaped values, documentation status against a fetched `env-vars.md` | F: whether an undocumented custom variable is justified |
+| F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log | G: the levers, scoped to the roster's composition |
-| H and I: every value check | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
+| H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values and the version `enforceAvailableModels` requires come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
 
 A row the engine marks `skip` or `not-inspectable` is exactly that in the report: never clean.
 
@@ -106,24 +106,35 @@ mode.
 
 ## Phase 1: Run the engine
 
-Record the installed Claude Code version (`claude --version`); Phase 3.2 compares issue-fix versions
-against it. Then run the engine once, with the findings file in the topic's memory slice (the
-`memory_dir` the consuming repo binds, default `.work/`):
+Run the engine once, with the findings file in the topic's memory slice (the `memory_dir` the
+consuming repo binds, default `.work/`):
 
 ```bash
 mkdir -p .work/claude-config-audit
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh" --table \
   --out .work/claude-config-audit/findings.json \
-  [--docs-dir <dir of pages fetched in Phase 3>] [--debug-log <file>]
+  [--docs-dir <dir of pages already fetched>] [--debug-log <file>]
 ```
 
-Run it with `--json` instead when you want the whole document; `--table` prints the findings, each
-with its paste-ready `suppress:` line, then the suppressed, skipped, and not-inspectable rows, then
-the skill-listing measurement. Exit `0` means no error-severity finding, `1` at least one, `2` a
-fatal condition (no project settings, `jq` missing). Read the document, not the exit code alone.
+The engine records the installed Claude Code version itself (`claude --version`, carried as
+`claude_version`); version-gated rows are evaluated against it, and Phase 3.2 compares issue-fix
+versions against it. An unreadable version turns those rows into `skip`, never clean.
 
-Pass `--docs-dir` when Phase 3 has already fetched pages this run: the engine then decides the
-environment-variable documentation rows against `env-vars.md` on disk. Pass `--debug-log` when you
+It also reads the upstream pages its rows rest on, every run, so a default run needs the network.
+It fetches the docs index (`llms.txt`), resolves each page it needs from a link there, and reads
+the page verbatim. The `docs` object in the document is the coverage record: the index and each
+page with its URL or path, byte count, and `read` or `unread`. Every row resting on an unread page
+is `not-inspectable`. The pages this covers today are `settings-reference` and `env-vars`; every
+other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
+instead of fetched again, and a page missing from it is fetched as usual.
+
+Run it with `--json` instead when you want the whole document; `--table` prints the version and
+the docs coverage, the findings, each with its paste-ready `suppress:` line, then the suppressed,
+skipped, and not-inspectable rows, then the skill-listing measurement. Exit `0` means no
+error-severity finding, `1` at least one, `2` a fatal condition (no project settings, `jq`
+missing). Read the document, not the exit code alone.
+
+Pass `--debug-log` when you
 know where this session's debug log is; otherwise the engine looks in the documented locations
 (`CLAUDE_CODE_DEBUG_LOGS_DIR`, a file path despite its name, then the newest file under
 `<user dir>/debug/`). A log it found rather than was given settles the row only when the log
@@ -189,7 +200,9 @@ category; **full per-check criteria in
 
 ## Phase 3: Research & Recheck
 
-External verification against current documentation.
+The engine already read `settings-reference` and `env-vars` in Phase 1 and decided the rows that
+rest on them. This phase covers the pages and questions it does not: the pages the citation check
+names, model configuration, permission syntax, and known issues.
 
 **Read every page in this phase verbatim, not through a summarizer.** These pages are long, with
 `settings-reference` and `env-vars` running to hundreds of KB, and a summarizing fetch truncates,
@@ -241,8 +254,8 @@ the settings-specific workaround is still needed and recommend retiring it if no
 Any category H finding requires a fetch of
 [code.claude.com/docs/en/model-config](https://code.claude.com/docs/en/model-config) confirming the
 behavior the finding rests on. Do NOT report a category H finding from this checklist's wording
-alone: the accepted `effortLevel` values, the fallback-chain cap, and the allowlist wildcard rule
-are all upstream-owned and move with the harness.
+alone: the fallback-chain cap and the allowlist wildcard rule are upstream-owned and move with the
+harness. The accepted `effortLevel` values the engine already reads from `settings-reference`.
 
 ### 3.4 Permission syntax verification
 

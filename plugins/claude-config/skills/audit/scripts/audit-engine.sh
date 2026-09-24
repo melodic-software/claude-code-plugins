@@ -2,7 +2,8 @@
 # Deterministic engine for the audit skill.
 #
 # WHAT IT DECIDES. Every audit row that a script can settle without a reading:
-# schema and structure (A), the presence of each baseline permission pattern
+# schema, structure, and whether each settings key is documented or deprecated
+# (A), the presence of each baseline permission pattern
 # and the placement rules around it (B), MCP server shape (C), hook path, timeout
 # shape, matcher class, placeholder quoting and duplicates (D), plugin membership
 # and drift (E), the secret scan and env-vars documentation status (F), the
@@ -11,6 +12,19 @@
 # with the surface it is about and a stable identity, so the model that runs the
 # audit reads one document instead of re-deriving the same facts with a dozen
 # shell calls.
+#
+# WHERE ITS CRITERIA COME FROM. The upstream pages, read every run. The engine
+# fetches the docs index (llms.txt) over the network with curl, resolves each
+# page it needs (settings-reference, env-vars) from a link in that index, and
+# reads it verbatim into a temp directory it removes on exit (trap). A page
+# supplied through --docs-dir is read from there instead. Whether a key is
+# documented or deprecated, the accepted effortLevel and
+# disableDeepLinkRegistration values, and the version a key requires are taken
+# from settings-reference; env-var documentation status from env-vars. A row
+# resting on a page that was not read is not-inspectable, never clean. The
+# engine also runs `claude --version` and records the result, and searches the
+# installed claude binary for the literal names of undocumented keys. The
+# document lists every page with its byte count and read state.
 #
 # WHAT IT LEAVES TO THE MODEL. Anything that needs a reading: whether a hook
 # with no coverage manifest blocks a family, whether a disabled MCP server has a
@@ -30,8 +44,8 @@
 # to decide which rows apply: session posture is declared by the consumer's
 # suppression record and nothing else. It never echoes a value from
 # settings.local.json other than the four model and effort keys the audit
-# already reports by value. It never runs a hook, and it never writes anywhere
-# except the path given to --out.
+# already reports by value. It never runs a hook, and it writes nowhere except
+# the path given to --out and its own temp directories.
 #
 # Exit codes:
 #   0  no error-severity finding
@@ -45,6 +59,10 @@
 #   SETTINGS_AUDIT_ENGINE_BASELINE_FILE  required-permissions.md to read the baseline from
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
+#   SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR  directory holding llms.txt and <slug>.md; when set,
+#                                       nothing is fetched and pages resolve through that llms.txt
+#   SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL the docs index (default https://code.claude.com/docs/llms.txt)
+#   SETTINGS_AUDIT_ENGINE_CLAUDE_BIN    the claude CLI to version and search (else `command -v claude`)
 #   SETTINGS_AUDIT_FIXTURE_DIR          passed through to check-plugin-drift.sh
 #   SETTINGS_AUDIT_MANAGED_PATH         passed through to the managed-scope library
 #
@@ -74,7 +92,7 @@ Usage:
   --table       emit a human-readable summary instead
   --out <file>  also write the findings rows, in the audit-pass identity shape, to <file>
   --docs-dir    a directory holding verbatim docs pages (<slug>.md) fetched this run;
-                when present the environment-variable rows are checked against env-vars.md
+                a page found there is read instead of fetched
   --debug-log   a debug log to read the skill-listing measurement from, ahead of the
                 documented locations
 
@@ -477,6 +495,209 @@ load_suppression_layer team "$PROJECT_ROOT/.claude/audit-pass.md"
 [[ -n "$USER_DIR" ]] && load_suppression_layer user-global "$USER_DIR/audit-pass.md"
 load_suppression_layer local "$PROJECT_ROOT/.claude/audit-pass.local.md"
 
+# --- Upstream sources: the docs pages and the installed CLI ---------------------
+#
+# Read here, after every early exit, so the identity subcommands and a fatal
+# argument or settings error never reach the network or run the CLI.
+
+DOCS_TMP="$(mktemp -d)"
+trap 'rm -rf "$DOCS_TMP"' EXIT
+
+DOCS_INDEX_URL="${SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
+DOCS_ORIGIN=""
+[[ "$DOCS_INDEX_URL" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/]*) ]] && DOCS_ORIGIN="${BASH_REMATCH[1]}"
+# Set, even to an empty or missing directory, means no network: a seam that
+# points nowhere reads as unread pages, never as a fall back to the fetch.
+DOCS_FIXTURE_SET=0
+[[ -n "${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR+x}" ]] && DOCS_FIXTURE_SET=1
+DOCS_FIXTURE="${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR:-}"
+
+# fetch_verbatim <url> <dest>: the whole body or nothing. A timeout or an HTTP
+# error mid-download leaves no partial file to be counted as read.
+fetch_verbatim() {
+  if curl -fsSL --connect-timeout 15 --max-time 120 -o "$2" "$1" 2>/dev/null && [[ -s "$2" ]]; then
+    return 0
+  fi
+  rm -f "$2"
+  return 1
+}
+
+# The index is read on the first page that needs it; a run whose pages all
+# come from --docs-dir leaves it not-needed.
+INDEX_STATE=""
+INDEX_SOURCE=""
+INDEX_BYTES=0
+INDEX_REASON=""
+load_index() {
+  [[ -n "$INDEX_STATE" ]] && return 0
+  local raw=""
+  INDEX_STATE=unread
+  if [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
+    INDEX_SOURCE=fixture
+    if [[ -s "$DOCS_FIXTURE/llms.txt" ]]; then raw="$DOCS_FIXTURE/llms.txt"; else INDEX_REASON="fixture-missing"; fi
+  elif ! command -v curl >/dev/null 2>&1; then
+    INDEX_SOURCE=fetch
+    INDEX_REASON="curl-missing"
+  else
+    INDEX_SOURCE=fetch
+    if fetch_verbatim "$DOCS_INDEX_URL" "$DOCS_TMP/llms.raw"; then raw="$DOCS_TMP/llms.raw"; else INDEX_REASON="fetch-failed"; fi
+  fi
+  [[ -n "$raw" ]] || return 0
+  INDEX_BYTES="$(wc -c <"$raw" | tr -d ' ')"
+  tr -d '\r' <"$raw" >"$DOCS_TMP/llms.txt"
+  INDEX_STATE="read"
+}
+
+# index_link <slug>: the first link URL in the index that ends in /<slug>.md.
+index_link() {
+  awk -v suf="/$1.md" '{
+    while (match($0, /\]\([^) \t]+\)/)) {
+      u = substr($0, RSTART + 2, RLENGTH - 3)
+      $0 = substr($0, RSTART + RLENGTH)
+      if (length(u) >= length(suf) && substr(u, length(u) - length(suf) + 1) == suf) { print u; exit }
+    }
+  }' "$DOCS_TMP/llms.txt"
+}
+
+declare -A PAGE_FILE=()
+DOCS_PAGES_JSON='[]'
+# acquire_page <slug>: read the page verbatim into the temp directory (CR
+# stripped) and record where it came from, its byte count, and its state.
+acquire_page() {
+  local slug="$1" src="" loc="" raw="" reason="" state=unread bytes=0
+  if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
+    src=docs-dir
+    loc="$DOCS_DIR/$slug.md"
+    raw="$loc"
+  else
+    load_index
+    if [[ "$INDEX_STATE" != "read" ]]; then
+      reason="index-unread"
+    else
+      loc="$(index_link "$slug")"
+      if [[ -z "$loc" ]]; then
+        reason="not-in-index"
+      elif [[ -z "$DOCS_ORIGIN" || "$loc" != "$DOCS_ORIGIN/docs/"* ]]; then
+        reason="off-origin"
+      elif [[ $DOCS_FIXTURE_SET -eq 1 ]]; then
+        src=fixture
+        if [[ -s "$DOCS_FIXTURE/$slug.md" ]]; then raw="$DOCS_FIXTURE/$slug.md"; else reason="fixture-missing"; fi
+      else
+        src=fetch
+        if fetch_verbatim "$loc" "$DOCS_TMP/$slug.raw"; then raw="$DOCS_TMP/$slug.raw"; else reason="fetch-failed"; fi
+      fi
+    fi
+  fi
+  if [[ -n "$raw" ]]; then
+    bytes="$(wc -c <"$raw" | tr -d ' ')"
+    tr -d '\r' <"$raw" >"$DOCS_TMP/$slug.md"
+    PAGE_FILE[$slug]="$DOCS_TMP/$slug.md"
+    state="read"
+  fi
+  DOCS_PAGES_JSON="$(jq -c --arg s "$slug" --arg l "$loc" --arg src "$src" --argjson b "$bytes" --arg st "$state" --arg r "$reason" \
+    '. + [{slug:$s,url_or_path:$l,source:$src,bytes:$b,state:$st,reason:$r}]' <<<"$DOCS_PAGES_JSON")"
+}
+acquire_page settings-reference
+acquire_page env-vars
+[[ -n "$INDEX_STATE" ]] || INDEX_STATE=not-needed
+SR="${PAGE_FILE[settings-reference]:-}"
+EV="${PAGE_FILE[env-vars]:-}"
+
+# The CLI. A seam that is set but names nothing is unreadable, never a fall
+# back to the claude on PATH.
+if [[ -n "${SETTINGS_AUDIT_ENGINE_CLAUDE_BIN+x}" ]]; then
+  CLAUDE_BIN="$SETTINGS_AUDIT_ENGINE_CLAUDE_BIN"
+else
+  CLAUDE_BIN="$(command -v claude 2>/dev/null || true)"
+  [[ -n "$CLAUDE_BIN" ]] && CLAUDE_BIN="$(readlink -f "$CLAUDE_BIN" 2>/dev/null || printf '%s' "$CLAUDE_BIN")"
+fi
+CLAUDE_RAW=""
+CLAUDE_VERSION=""
+if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" ]]; then
+  if command -v timeout >/dev/null 2>&1; then
+    CLAUDE_RAW="$(timeout 30 "$CLAUDE_BIN" --version 2>/dev/null </dev/null | tr -d '\r' | head -n 1)"
+  else
+    CLAUDE_RAW="$("$CLAUDE_BIN" --version 2>/dev/null </dev/null | tr -d '\r' | head -n 1)"
+  fi
+  [[ "$CLAUDE_RAW" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && CLAUDE_VERSION="${BASH_REMATCH[1]}"
+fi
+
+# version_lt <a> <b>: true when x.y.z a is older than b, compared numerically.
+version_lt() {
+  local IFS=. i
+  local -a a b
+  read -r -a a <<<"$1"
+  read -r -a b <<<"$2"
+  for i in 0 1 2; do
+    ((10#${a[i]:-0} < 10#${b[i]:-0})) && return 0
+    ((10#${a[i]:-0} > 10#${b[i]:-0})) && return 1
+  done
+  return 1
+}
+
+# settings-reference, parsed once: every ### `key` heading, the first line of
+# its section that begins "Deprecated", and the first "Requires Claude Code
+# vX.Y.Z". A section ends at the next heading of any level outside a code fence.
+declare -A SR_KEY=()
+declare -A SR_DEPRECATED=()
+declare -A SR_REQUIRES=()
+declare -A PERM_TYPE_KEYS=()
+if [[ -n "$SR" ]]; then
+  while IFS=$'\t' read -r k dep req; do
+    [[ -n "$k" ]] || continue
+    SR_KEY[$k]=1
+    [[ "$dep" != "-" ]] && SR_DEPRECATED[$k]="$dep"
+    [[ "$req" != "-" ]] && SR_REQUIRES[$k]="$req"
+  done < <(awk '
+    function flush() { if (key != "") printf "%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req); key = "" }
+    /^[[:space:]]*```/ { fence = !fence; next }
+    fence { next }
+    /^(#|##|###|####) / {
+      flush()
+      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = "" }
+      next
+    }
+    key == "" { next }
+    dep == "" && /^[[:space:]]*Deprecated/ { dep = $0; sub(/^[[:space:]]+/, "", dep); gsub(/\t/, " ", dep) }
+    req == "" && match($0, /Requires Claude Code v[0-9]+\.[0-9]+\.[0-9]+/) { req = substr($0, RSTART + 22, RLENGTH - 22) }
+    END { flush() }
+  ' "$SR")
+fi
+
+# sr_section <key>: the body of the key's section on settings-reference.
+sr_section() {
+  awk -v h="### \`$1\`" '
+    /^[[:space:]]*```/ { fence = !fence; if (in_s) print; next }
+    !fence && /^(#|##|###|####) / { if (in_s) exit; in_s = ($0 == h); next }
+    in_s { print }
+  ' "$SR"
+}
+
+# type_values <key>: the string values the key's Type bullet accepts, one per
+# line, from either shape the page uses: "string, one of:" followed by nested
+# `"value"` bullets, or "the string `"value"`". Nothing when neither parses.
+type_values() {
+  sr_section "$1" | awk '
+    mode == "list" {
+      if ($0 ~ /^[[:space:]]+\* `"[^"]*"`/) { v = $0; sub(/^[[:space:]]+\* `"/, "", v); sub(/"`.*$/, "", v); print v; next }
+      exit
+    }
+    /^\* \*\*Type\*\*:/ {
+      if ($0 ~ /string, one of:[[:space:]]*$/) { mode = "list"; next }
+      if (match($0, /the string `"[^"]*"`/)) print substr($0, RSTART + 13, RLENGTH - 15)
+      exit
+    }
+  '
+}
+
+# The permissions object's Type bullet names the nested keys it takes, which
+# covers one with no heading of its own.
+if [[ -n "$SR" ]]; then
+  while IFS= read -r pk; do
+    [[ -n "$pk" ]] && PERM_TYPE_KEYS[$pk]=1
+  done < <(sr_section permissions | grep -m1 -E '^\* \*\*Type\*\*:' | grep -oE '`[^`]+`' | tr -d '`')
+fi
+
 # --- Category A: schema and structure ----------------------------------------
 
 SCHEMA_URL="https://json.schemastore.org/claude-code-settings.json"
@@ -502,6 +723,91 @@ if [[ $LOCAL_OK -eq 1 ]]; then
   if [[ "$(jqf "$LOCAL" -r 'has("hooks")')" == "true" ]]; then
     row A hooks-in-local finding info "$SURF_LOCAL" "personal-key:hooks" "hooks in settings.local.json are personal, not team configuration" /hooks
   fi
+fi
+
+# Documented and deprecated keys: every top-level and permissions.* key is
+# looked up on settings-reference. A key with no heading there is not reported
+# as ignored, because the page omits keys the CLI manages itself; the installed
+# binary settles it, searched once for every such key after the scopes are read.
+KEY_PENDING=()
+check_keys() {
+  # check_keys <file> <surface>
+  local file="$1" surface="$2" k leaf ptr dep since
+  while IFS=$'\t' read -r k leaf ptr; do
+    [[ -n "$k" ]] || continue
+    if [[ -z "$SR" ]]; then
+      row A key-documented not-inspectable none "$surface" "key-page-not-fetched:$k" "settings-reference was not read this run; whether $k is documented is not decided" -
+      continue
+    fi
+    if [[ -z "${SR_KEY[$k]:-}" ]] && ! [[ "$ptr" == /permissions/* && -n "${PERM_TYPE_KEYS[$leaf]:-}" ]]; then
+      KEY_PENDING+=("$surface"$'\t'"$k"$'\t'"$leaf"$'\t'"$ptr")
+      continue
+    fi
+    dep="${SR_DEPRECATED[$k]:-}"
+    if [[ -z "$dep" ]]; then
+      row A key-documented ok none "$surface" "documented-key:$k" "$k is documented on settings-reference" -
+      continue
+    fi
+    if [[ "$dep" =~ since\ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+      since="${BASH_REMATCH[1]}"
+      if [[ -z "$CLAUDE_VERSION" ]]; then
+        row A key-deprecated skip none "$surface" "deprecated-key:$k" "settings-reference deprecates $k since v$since and the installed Claude Code version could not be read; not decided" -
+        continue
+      fi
+      if version_lt "$CLAUDE_VERSION" "$since"; then
+        row A key-deprecated ok none "$surface" "deprecated-key:$k" "installed v$CLAUDE_VERSION predates v$since, where settings-reference deprecates $k" -
+        continue
+      fi
+    fi
+    row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
+  done < <(jqf "$file" -r 'if type == "object" then ((keys_unsorted[] | select(. != "$schema") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | ["permissions." + ., ., "/permissions/" + .] else empty end)) | @tsv else empty end')
+}
+[[ $PROJECT_OK -eq 1 ]] && check_keys "$SETTINGS" "$SURF_SETTINGS"
+[[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"
+[[ $USER_OK -eq 1 ]] && check_keys "$USER_SETTINGS" "$SURF_USER"
+
+# The binary is searched once, for every undocumented key's literal plus two
+# documented keys every build carries. A file missing either control (a .cmd
+# shim, a wrapper script) was not really searched, so no key is called absent.
+BIN_SEARCH=not-needed
+declare -A BIN_HAS=()
+if [[ ${#KEY_PENDING[@]} -gt 0 ]]; then
+  BIN_SEARCH=not-searched
+  if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" && -r "$CLAUDE_BIN" ]]; then
+    lits="$DOCS_TMP/key-literals.txt"
+    {
+      printf '%s\n' enabledPlugins permissions
+      for p in "${KEY_PENDING[@]}"; do
+        IFS=$'\t' read -r _ _ leaf _ <<<"$p"
+        printf '%s\n' "$leaf"
+      done
+    } | grep -v '^$' | sort -u >"$lits"
+    while IFS= read -r hit; do
+      [[ -n "$hit" ]] && BIN_HAS[$hit]=1
+    done < <(grep -aoF -f "$lits" "$CLAUDE_BIN" 2>/dev/null | tr -d '\r' | sort -u)
+    # -o reports one match per position, so a literal inside a longer one that
+    # matched at the same place is present through that match.
+    while IFS= read -r lit; do
+      [[ -n "${BIN_HAS[$lit]:-}" ]] && continue
+      for hit in "${!BIN_HAS[@]}"; do
+        if [[ "$hit" == *"$lit"* ]]; then
+          BIN_HAS[$lit]=1
+          break
+        fi
+      done
+    done <"$lits"
+    [[ -n "${BIN_HAS[enabledPlugins]:-}" && -n "${BIN_HAS[permissions]:-}" ]] && BIN_SEARCH=searched
+  fi
+  for p in "${KEY_PENDING[@]}"; do
+    IFS=$'\t' read -r surface k leaf ptr <<<"$p"
+    if [[ "$BIN_SEARCH" != "searched" ]]; then
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known" "$ptr"
+    elif [[ -n "${BIN_HAS[$leaf]:-}" ]]; then
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries the literal string $leaf, so it may be an internal key the CLI manages" "$ptr"
+    else
+      row A key-documented finding warning "$surface" "unknown-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it" "$ptr"
+    fi
+  done
 fi
 
 # --- Baseline patterns (read from the reference, never transcribed) ----------
@@ -953,14 +1259,14 @@ if [[ $PROJECT_OK -eq 1 ]]; then
   fi
   while IFS= read -r ek; do
     [[ -n "$ek" ]] || continue
-    if [[ -n "$DOCS_DIR" && -f "$DOCS_DIR/env-vars.md" ]]; then
-      if grep -q -- "\`$ek\`" "$DOCS_DIR/env-vars.md"; then
+    if [[ -n "$EV" ]]; then
+      if grep -qF -- "\`$ek\`" "$EV"; then
         row F documented-var ok none "$SURF_SETTINGS" "documented-on-env-vars:$ek" "$ek is documented on env-vars" -
       else
         row F documented-var finding info "$SURF_SETTINGS" "not-on-env-vars-page:$ek" "$ek is not on the env-vars page; it may be documented elsewhere or be a justified custom variable (the model decides)" "/env/$ek"
       fi
     else
-      row F documented-var skip none "$SURF_SETTINGS" "env-page-not-fetched:$ek" "env-vars.md not in --docs-dir; documentation status of $ek not decided" -
+      row F documented-var not-inspectable none "$SURF_SETTINGS" "env-page-not-fetched:$ek" "env-vars was not read this run; documentation status of $ek not decided" -
     fi
   done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
@@ -1021,17 +1327,32 @@ fi
 
 # --- Category H: model and effort values -----------------------------------------
 
+# documented_value <cat> <slug> <key> <value> <surface>: the value against the
+# set the key's Type bullet on settings-reference accepts. The claim is
+# <key>:<value> whatever the outcome, so a finding keeps one identity.
+documented_value() {
+  local cat="$1" slug="$2" key="$3" v="$4" surface="$5" accepted
+  if [[ -z "$SR" ]]; then
+    row "$cat" "$slug" not-inspectable none "$surface" "$key:$v" "settings-reference was not read this run; the values $key accepts are not known" -
+    return 0
+  fi
+  accepted="$(type_values "$key")"
+  if [[ -z "$accepted" ]]; then
+    row "$cat" "$slug" skip none "$surface" "$key:$v" "the Type bullet of $key on settings-reference did not parse to a value set; not decided" -
+  elif grep -qxF -- "$v" <<<"$accepted"; then
+    row "$cat" "$slug" ok none "$surface" "$key:$v" "$v is a value settings-reference documents for $key" -
+  else
+    row "$cat" "$slug" finding warning "$surface" "$key:$v" "$key is $v, which is not among the values its settings-reference Type bullet documents (${accepted//$'\n'/, })" "/$key"
+  fi
+}
+
 check_h() {
   # check_h <file> <surface>
   local file="$1" surface="$2"
-  local effort raw dedup mix enforce avail_len
-  effort="$(jqf "$file" -r 'if has("effortLevel") then (.effortLevel|tostring) else "" end')"
-  case "$effort" in
-  max | ultracode)
-    row H effort-level finding warning "$surface" "effortLevel:$effort" "effortLevel $effort is session-only and is not accepted from a settings file; the persisted level is not the one asked for" /effortLevel
-    ;;
-  *) ;;
-  esac
+  local raw dedup mix enforce avail_len req
+  if [[ "$(jqf "$file" -r 'has("effortLevel")')" == "true" ]]; then
+    documented_value H effort-level effortLevel "$(jqf "$file" -r '.effortLevel | tostring')" "$surface"
+  fi
   if [[ "$(jqf "$file" -r 'has("fallbackModel")')" == "true" ]]; then
     raw="$(jqf "$file" -r '.fallbackModel | if type=="array" then length else 1 end')"
     dedup="$(jqf "$file" -r '.fallbackModel | if type=="array" then (reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) else 1 end')"
@@ -1053,7 +1374,18 @@ check_h() {
   fi
   enforce="$(jqf "$file" -r 'if has("enforceAvailableModels") then (.enforceAvailableModels|tostring) else "" end')"
   if [[ "$enforce" == "true" && "${avail_len:-0}" -eq 0 ]]; then
-    row H enforce-available finding error "$surface" "enforceAvailableModels-without-list" "enforceAvailableModels is true with no availableModels; the flag has no effect, so the Default option is not constrained" /enforceAvailableModels
+    # Gated on the first "Requires Claude Code vX.Y.Z" in the key's section: on
+    # an older CLI the key is not read at all, so the missing list costs nothing.
+    req="${SR_REQUIRES[enforceAvailableModels]:-}"
+    if [[ -z "$SR" ]]; then
+      row H enforce-available not-inspectable none "$surface" "enforceAvailableModels-without-list" "settings-reference was not read this run; the version enforceAvailableModels requires is not known" -
+    elif [[ -n "$req" && -z "$CLAUDE_VERSION" ]]; then
+      row H enforce-available skip none "$surface" "enforceAvailableModels-without-list" "enforceAvailableModels requires Claude Code v$req and the installed version could not be read; not decided" -
+    elif [[ -n "$req" ]] && version_lt "$CLAUDE_VERSION" "$req"; then
+      row H enforce-available ok none "$surface" "enforceAvailableModels-without-list" "installed v$CLAUDE_VERSION predates v$req, the first version that reads enforceAvailableModels" -
+    else
+      row H enforce-available finding error "$surface" "enforceAvailableModels-without-list" "enforceAvailableModels is true with no availableModels; the flag has no effect, so the Default option is not constrained" /enforceAvailableModels
+    fi
   fi
 }
 [[ $PROJECT_OK -eq 1 ]] && check_h "$SETTINGS" "$SURF_SETTINGS"
@@ -1063,14 +1395,9 @@ check_h() {
 # --- Category I: deep-link registration ------------------------------------------
 
 check_i() {
-  local file="$1" surface="$2" v
+  local file="$1" surface="$2"
   if [[ "$(jqf "$file" -r 'has("disableDeepLinkRegistration")')" == "true" ]]; then
-    v="$(jqf "$file" -r '.disableDeepLinkRegistration | tostring')"
-    if [[ "$v" != "disable" ]]; then
-      row I deep-link-value finding warning "$surface" "disableDeepLinkRegistration:$v" "the key is present with $v; the one documented value that prevents registration is the string \"disable\"" /disableDeepLinkRegistration
-    else
-      row I deep-link-value ok none "$surface" "disableDeepLinkRegistration:disable" "set to \"disable\"" -
-    fi
+    documented_value I deep-link-value disableDeepLinkRegistration "$(jqf "$file" -r '.disableDeepLinkRegistration | tostring')" "$surface"
   fi
 }
 [[ $PROJECT_OK -eq 1 ]] && check_i "$SETTINGS" "$SURF_SETTINGS"
@@ -1085,6 +1412,10 @@ personal_json="$(if [[ ${#PERSONAL_ONLY[@]} -gt 0 ]]; then printf '%s\n' "${PERS
 malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORMED[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 
 inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.unreadable // []), divergence:(.divergence // [])}' <<<"$INVENTORY_JSON")"
+version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg bin "$CLAUDE_BIN" --arg search "$BIN_SEARCH" \
+  '{raw:$raw,version:(if $v == "" then null else $v end),state:(if $v == "" then "unreadable" else "read" end),binary:{path:$bin,key_search:$search}}')"
+docs_json="$(jq -c --arg url "$DOCS_INDEX_URL" --arg src "$INDEX_SOURCE" --argjson b "$INDEX_BYTES" --arg st "$INDEX_STATE" --arg r "$INDEX_REASON" \
+  '{index:{url:$url,source:$src,bytes:$b,state:$st,reason:$r},pages:.}' <<<"$DOCS_PAGES_JSON")"
 
 # The payloads ride stdin and are slurped, rather than being bound as --argjson
 # values. The whole argv is ONE Win32 command line, and a single argument past
@@ -1098,13 +1429,14 @@ inv_json="$(jq -c '{inventory:.inventory, levers:(.levers // []), unreadable:(.u
 DOC="$(printf '%s\n' \
   "${SCOPES_JSON:-null}" "${rows_json:-null}" "${findings_json:-null}" \
   "${suppressed_json:-null}" "${personal_json:-null}" "${malformed_json:-null}" \
-  "${inv_json:-null}" "${COVERAGE_JSON:-null}" "${G_JSON:-null}" |
+  "${inv_json:-null}" "${COVERAGE_JSON:-null}" "${G_JSON:-null}" \
+  "${version_json:-null}" "${docs_json:-null}" |
   jq -s \
     --arg root "$PROJECT_ROOT" \
     --arg drift_state "$DRIFT_STATE" \
     --argjson errors "$ERROR_COUNT" \
-    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing] |
-     {engine:"claude-config/audit-engine/1",project_root:$root,scopes:$scopes,
+    '. as [$scopes,$rows,$findings,$suppressed,$personal,$malformed,$inv,$coverage,$listing,$version,$docs] |
+     {engine:"claude-config/audit-engine/1",project_root:$root,claude_version:$version,docs:$docs,scopes:$scopes,
       hook_inventory:$inv,coverage_manifests:$coverage,drift:{state:$drift_state},skill_listing:$listing,
       suppressions:{applied:$suppressed,personal_only:$personal,malformed:$malformed},
       summary:{rows:($rows|length),findings:($findings|length),errors:$errors,
@@ -1130,6 +1462,10 @@ else
   echo "============"
   echo "Project root: $PROJECT_ROOT"
   jq -r '.scopes[] | "  \(.label): \(.state) (\(.path))"' <<<"$DOC"
+  jq -r '.claude_version | "Claude Code: \(.version // "unreadable") (\(.state); --version printed \"\(.raw)\")"' <<<"$DOC"
+  echo "Docs read this run:"
+  jq -r '.docs.index | "  index: \(.state) \(.bytes) bytes (\(.url))\(if .reason != "" then "; " + .reason else "" end)"' <<<"$DOC"
+  jq -r '.docs.pages[] | "  \(.slug): \(.state) \(.bytes) bytes (\(.source) \(.url_or_path))\(if .reason != "" then "; " + .reason else "" end)"' <<<"$DOC"
   echo
   jq -r '.summary | "Rows: \(.rows)  Findings: \(.findings)  errors=\(.errors) warnings=\(.warnings) info=\(.info)"' <<<"$DOC"
   echo
