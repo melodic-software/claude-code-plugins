@@ -14,7 +14,7 @@
   after directory expansion and `excluded_paths`, keyed by the `file=` spelling. `--paths-file`
   reads that format.
 - **`cross-check.sh`** counts em-dash lines per file with a parse separate from the detector's
-  and prints a `Disagree:` row for each file whose count differs from the detector's
+  (same fence rules, count only) and prints a `Disagree:` row for each file whose count differs from the detector's
   `rule-em-dash` findings. The fix flow's closing step runs it and reports every disagreement.
 - **Fix flow concurrent-edit guard**: every fix run gets a run directory; before each write to a
   file the flow checks the digest it last recorded (`sha256sum -c`) and stops that file on a

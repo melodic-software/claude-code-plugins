@@ -90,21 +90,33 @@ count_prog='
   { line = $0; sub(/\r$/, "", line) }
   line ~ /^[ \t]*<!-- ai-slop-ignore-file(:[^>]*)? -->[ \t]*$/ { n = 0; nextfile }
   {
+    # CommonMark fence rules as detect.sh applies them: indentation counts
+    # spaces only; an opener sits at most three spaces in, optionally after a
+    # bullet or an ordinal of up to nine digits and one to four spaces; a closer
+    # sits at most three spaces past the opener column.
     t = line
-    sub(/^[ \t]+/, "", t)
+    sub(/^ +/, "", t)
     ind = length(line) - length(t)
     # A fence opened inside a list item ends with the item: a non-blank line
     # indented less than the item content column.
     if (fence != "" && fcol > 0 && t != "" && ind < fcol) fence = ""
     if (fence != "") {
-      if (fchar(t) == fence) fence = ""
+      if (fchar(t) == fence && ind <= fcol + 3) fence = ""
       next
     }
-    c = fchar(t)
-    fcol = 0
-    if (c == "" && match(t, /^([-*+]|[0-9]+[.)])[ ]+/)) {
-      c = fchar(substr(t, RLENGTH + 1))
-      if (c != "") fcol = ind + RLENGTH
+    c = ""
+    if (ind <= 3) {
+      c = fchar(t)
+      fcol = 0
+      if (c == "" && match(t, /^([-*+]|[0-9]+[.)])/) && RLENGTH <= 10) {
+        m = RLENGTH
+        sp = 0
+        while (substr(t, m + sp + 1, 1) == " ") sp++
+        if (sp >= 1 && sp <= 4) {
+          c = fchar(substr(t, m + sp + 1))
+          if (c != "") fcol = ind + m + sp
+        }
+      }
     }
     if (c != "") { fence = c; next }
   }

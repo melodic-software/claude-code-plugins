@@ -21,7 +21,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=39
+EXPECTED_CASES=43
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -170,7 +170,7 @@ assert_eq "extract --out: writes the same text" "$(cat "$TEST_TMPDIR/rubric.md")
 B="$TEST_TMPDIR/status/batches"
 RS="$TEST_TMPDIR/status/results"
 mkdir -p "$B" "$RS"
-for n in 01 02 03 04 05 06 07; do printf 'a.md\nb.md\n' >"$B/batch-$n.txt"; done
+for n in 01 02 03 04 05 06 07 08 09 10 11; do printf 'a.md\nb.md\n' >"$B/batch-$n.txt"; done
 d="$(sha "$B/batch-01.txt")"
 printf 'batch: %s\r\nfiles_reviewed: 2\r\nfiles_with_findings: 1\r\n\r\n## a.md\r\n' "$d" >"$RS/rubric-batch-01.md"
 printf 'batch: %s\nfiles_reviewed: 2\n' "0000" >"$RS/rubric-batch-03.md"
@@ -178,6 +178,11 @@ printf 'batch: %s\nfiles_reviewed: 3\n' "$d" >"$RS/rubric-batch-04.md"
 printf 'batch: %s\nfiles_reviewed: 2\n\n## a.md\n## other.md\n' "$d" >"$RS/rubric-batch-05.md"
 printf 'batch: %s\nfiles_reviewed: 2\n\n## a.md\n' "$d" >"$RS/rubric-batch-06.md"
 printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 1\n\n## a.md\n## b.md\n' "$d" >"$RS/rubric-batch-07.md"
+# Each header must appear exactly once: merge sums every line it finds.
+for _ in 1 2; do printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 0\n' "$d"; done >"$RS/rubric-batch-08.md"
+printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 0\nfiles_with_findings: 0\n' "$d" >"$RS/rubric-batch-09.md"
+printf 'batch: %s\nbatch: %s\nfiles_reviewed: 2\nfiles_with_findings: 0\n' "$d" "$d" >"$RS/rubric-batch-10.md"
+printf 'batch: %s\nfiles_reviewed: 2\nfiles_reviewed: 2\nfiles_with_findings: 0\n' "$d" >"$RS/rubric-batch-11.md"
 out="$(bash "$FANOUT" status --batches "$B" --results "$RS" 2>&1)"
 rc=$?
 assert_exit "status: exit 1 when a batch is not complete" 1 "$rc"
@@ -188,6 +193,10 @@ assert_contains "status: a short files_reviewed is stale" "$out" "batch=04 statu
 assert_contains "status: a heading outside the list is stale" "$out" "batch=05 status=stale reason=foreign-heading"
 assert_contains "status: a missing files_with_findings is stale" "$out" "batch=06 status=stale reason=files_with_findings"
 assert_contains "status: files_with_findings must match the headings" "$out" "batch=07 status=stale reason=files_with_findings"
+assert_contains "status: a result written twice is stale" "$out" "batch=08 status=stale reason=digest"
+assert_contains "status: a duplicated files_with_findings is stale" "$out" "batch=09 status=stale reason=files_with_findings"
+assert_contains "status: a duplicated batch line is stale" "$out" "batch=10 status=stale reason=digest"
+assert_contains "status: a duplicated files_reviewed is stale" "$out" "batch=11 status=stale reason=files_reviewed"
 
 # --- merge ----------------------------------------------------------------------
 

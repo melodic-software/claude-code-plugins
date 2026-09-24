@@ -204,12 +204,14 @@ status_rows() {
     fi
     d="$(digest "$list")"
     n="$(awk 'NF' "$list" | wc -l | tr -d ' ')"
-    got="$(tr -d '\r' <"$res" | sed -n 's/^batch:[[:space:]]*//p' | head -1 | tr -d '[:space:]')"
+    # A header is read whole, not its first line: one written twice joins into
+    # a value that matches nothing, because merge sums every copy.
+    got="$(tr -d '\r' <"$res" | sed -n 's/^batch:[[:space:]]*//p' | tr -d '[:space:]')"
     if [[ "$got" != "$d" ]]; then
       echo "batch=$nn status=stale reason=digest"
       continue
     fi
-    got="$(tr -d '\r' <"$res" | sed -n 's/^files_reviewed:[[:space:]]*//p' | head -1 | tr -d '[:space:]')"
+    got="$(tr -d '\r' <"$res" | sed -n 's/^files_reviewed:[[:space:]]*//p' | tr -d '[:space:]')"
     if [[ "$got" != "$n" ]]; then
       echo "batch=$nn status=stale reason=files_reviewed"
       continue
@@ -219,7 +221,7 @@ status_rows() {
       echo "batch=$nn status=stale reason=foreign-heading"
       continue
     fi
-    got="$(tr -d '\r' <"$res" | sed -n 's/^files_with_findings:[[:space:]]*//p' | head -1 | tr -d '[:space:]')"
+    got="$(tr -d '\r' <"$res" | sed -n 's/^files_with_findings:[[:space:]]*//p' | tr -d '[:space:]')"
     if [[ "$got" != "$(tr -d '\r' <"$res" | grep -c '^## ')" ]]; then
       echo "batch=$nn status=stale reason=files_with_findings"
       continue

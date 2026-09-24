@@ -64,9 +64,11 @@ write. Before dispatching, and on every resume, run
 `rubric-fanout.sh status --batches <batch dir> --results <findings home>`. It prints one row
 per batch:
 
-- `status=complete`: the result carries the list's digest on its `batch:` line, a
-  `files_reviewed:` count equal to the list's length, no `## <path>` heading outside the
-  list, and a `files_with_findings:` count equal to its `## <path>` headings. Skip the batch.
+- `status=complete`: the result carries exactly one of each header line: `batch:` equal to
+  the list's digest, `files_reviewed:` equal to the list's length, and `files_with_findings:`
+  equal to its `## <path>` headings, none of which is outside the list. Skip the batch.
+  The digest binds a result to the batch list, not to the listed files' contents: a file
+  edited after its batch completed keeps that batch complete.
 - `status=missing`, or `status=stale
   reason=digest|files_reviewed|foreign-heading|files_with_findings`: dispatch
   the batch again and let the subagent overwrite the file.

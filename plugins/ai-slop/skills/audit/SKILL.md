@@ -212,7 +212,9 @@ and re-emit the findings file per [`context/persist-findings.md`](context/persis
 "Re-running", so no stale findings file survives its own remediation. Skip the re-emit for a
 non-repository target, which never wrote one. Then run `cross-check.sh --targets <list>
 --detector <detector output>`: it counts em-dash lines with its own parse, so an em dash the
-detector's parse missed still shows up. Report every `Disagree:` row, then totals:
+detector's parse missed still shows up. It follows the detector's fence rules but not its
+full parse, and compares a count per file, not which lines, so treat a `Disagree:` row as a
+file to reread rather than a proven miss. Report every `Disagree:` row, then totals:
 fixed, suppressed, reverted, remaining.
 
 ## Configuration

@@ -20,7 +20,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=18
+EXPECTED_CASES=19
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -68,6 +68,14 @@ printf 'Before %s the marker.\n<!-- ai-slop-ignore-file -->\nAfter %s it.\n' "$E
 # An unclosed fence in a list item ends when a non-blank line dedents past the
 # item's content column.
 printf -- '- ```sh\n  echo a %s b\nDedented %s line.\n' "$EM" "$EM" >"$F/dedent.md"
+# None of these lines opens a fence under the detector rules: a four-space
+# indent, a tab indent, five spaces after a list marker, a ten-digit ordinal.
+{
+  printf '    ```\nA %s one.\n\n' "$EM"
+  printf '\t```\nA %s two.\n\n' "$EM"
+  printf -- '-     ```\nA %s three.\n\n' "$EM"
+  printf '1234567890. ```\nA %s four.\n' "$EM"
+} >"$F/notfence.md"
 
 T="$TEST_TMPDIR/targets.tsv"
 printf '%s\t%s\n' plain.md "$F/plain.md" listfence.md "$F/listfence.md" markers.md "$F/markers.md" \
@@ -86,6 +94,9 @@ assert_not_contains "count: no total without detector output" "$out" "CrossCheck
 printf '%s\t%s\n' dedent.md "$F/dedent.md" >"$TEST_TMPDIR/dedent.tsv"
 out="$(bash "$CROSS" --targets "$TEST_TMPDIR/dedent.tsv" 2>&1)"
 assert_contains "count: a dedented line closes a list-item fence" "$out" "CrossCheck: file=dedent.md em_dash_lines=1"
+printf '%s\t%s\n' notfence.md "$F/notfence.md" >"$TEST_TMPDIR/notfence.tsv"
+out="$(bash "$CROSS" --targets "$TEST_TMPDIR/notfence.tsv" 2>&1)"
+assert_contains "count: openers the detector rejects stay prose" "$out" "CrossCheck: file=notfence.md em_dash_lines=4"
 
 bash "$CROSS" >/dev/null 2>&1
 rc=$?
@@ -140,7 +151,7 @@ RD="$TEST_TMPDIR/real-detector.txt"
 bash "$DETECT" --list-targets "$F" >"$RT" 2>/dev/null
 bash "$DETECT" --paths-file "$RT" >"$RD" 2>/dev/null
 out="$(bash "$CROSS" --targets "$RT" --detector "$RD" 2>&1)"
-assert_contains "real detector: zero disagreements over the fixtures" "$out" "CrossCheck total: files=4 disagreements=0"
+assert_contains "real detector: zero disagreements over the fixtures" "$out" "CrossCheck total: files=5 disagreements=0"
 
 # --- Result ---------------------------------------------------------------------
 
