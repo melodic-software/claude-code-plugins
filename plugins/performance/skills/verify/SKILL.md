@@ -59,7 +59,7 @@ Target:      <realistic> / <ideal>        Floor: <value>
 Counter:     <before> -> <after>          [headline] [unproven, when Correlation is]
 Correlation: <evidence, repeated from the goal> | unproven
 Duration:    <p50/p95 before> -> <after>  [or: REFUSED, <reason from is_measurable>]
-Rig:         <hardware>, <runtime mode>, <throttling>, <run count>, <date>
+Rig:         <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
 Verdict:     MET | NOT MET | UNMEASURABLE
 Behavior:    UNCHANGED (differential: N inputs, modes covered: <list>)
              | CHANGED: <what changed>    [ranked above the performance claim]

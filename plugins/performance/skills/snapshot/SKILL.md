@@ -76,7 +76,7 @@ Never a single sample. Never a bare mean.
 Every duration carries a rig line, because a number without its rig cannot be reproduced:
 
 ```text
-Rig:  <hardware>, <runtime mode>, <throttling>, <run count>, <date>
+Rig:  <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
 ```
 
 ### 4. Evidence for the goal's `Correlation:` line
