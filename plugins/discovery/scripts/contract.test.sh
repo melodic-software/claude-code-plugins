@@ -375,7 +375,23 @@ else
   printf '%s\n' "$status_words" >&2
 fi
 assert_absent 'no stale two-row verifier count' \
-  '([Cc]riteri(a|on)|rows) 4 (and|or) 7([^,0-9]|$)'
+  '([Cc]riteri(a|on)|rows) 4 (and|or) 7([^,0-9]|$)|[Tt]wo criteria are'
+assert_present 'the gate states the Owner column governs over any other enumeration' \
+  'skills/research/SKILL.md' 'Owner column governs over any enumeration'
+assert_present 'researcher withholds three criteria' \
+  'agents/researcher.md' 'Three criteria are'
+assert_present 'researcher lists joint inference as a withheld criterion' \
+  'agents/researcher.md' '^- the criterion requiring every accepted claim to follow jointly'
+assert_present 'researcher verification request names joint-inference validity' \
+  'agents/researcher.md' '^  criterion: ".*joint-inference validity'
+assert_present 'research-deep lists joint inference among the verifier rows' \
+  'skills/research-deep/SKILL.md' 'verifier-owned rows \(independent corroboration, HIGH confidence, joint inference\)'
+assert_present 'research-deep points at the synthesis criterion-12 check' \
+  'skills/research-deep/SKILL.md' 'synthesized root index also goes to a fresh verifier for criterion 12'
+assert_present 'row 12 has one pass bar: the primary measures the variable and population' \
+  'skills/research/SKILL.md' "^\| 12 \|.*the claim's primary source measures the claim's variable and population"
+assert_present 'a non-measuring corroborator is recorded, not counted' \
+  'skills/research/context/discipline.md' 'recorded, not counted toward'
 assert_absent 'no evals entry counts the gate criteria' \
   'all [0-9]+ binary criteria'
 
