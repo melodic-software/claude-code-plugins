@@ -66,7 +66,7 @@ per batch:
 
 - `status=complete`: the result carries the list's digest on its `batch:` line, a
   `files_reviewed:` count equal to the list's length, no `## <path>` heading outside the
-  list, and a `files_with_findings:` count equal to its `## ` headings. Skip the batch.
+  list, and a `files_with_findings:` count equal to its `## <path>` headings. Skip the batch.
 - `status=missing`, or `status=stale
   reason=digest|files_reviewed|foreign-heading|files_with_findings`: dispatch
   the batch again and let the subagent overwrite the file.
