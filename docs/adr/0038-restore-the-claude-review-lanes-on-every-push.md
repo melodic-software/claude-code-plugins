@@ -12,6 +12,30 @@ The operator requires a code review and a security review on every pull request,
 "Mandatory" here means a review runs on every pull request and a failed review shows red. It does
 not mean a review blocks a merge.
 
+This rule is the operator's. Anthropic does not document review on every pull request as a
+requirement. Its launch post says it runs Code Review "on nearly every PR at Anthropic"
+(<https://claude.com/blog/code-review>, fetched 2026-09-24); the product docs set no default
+trigger, leaving an Owner to pick once, every push, or manual per repository
+(<https://code.claude.com/docs/en/code-review>, fetched 2026-09-24); and Boris Cherny's Steps of
+AI Adoption says "Automated code review and security review are on by default"
+(<https://claude.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf>, fetched 2026-09-24).
+What Anthropic does document is that its reviews do not gate a merge:
+
+- The managed Code Review check run "always completes with a neutral conclusion so it never
+  blocks merging through branch protection rules" (code-review page above).
+- `anthropics/claude-code-security-review` never fails its job on findings: its `action.yml`
+  exits non-zero only when the API key is missing, downgrades a scanner failure to a warning,
+  and reports findings as a count and PR comments
+  (<https://github.com/anthropics/claude-code-security-review/blob/main/action.yml>, fetched
+  2026-09-24).
+
+Both lanes authenticate with the org-shared `CLAUDE_CODE_OAUTH_TOKEN`. Anthropic's GitHub Actions
+doc recommends an API key from the Claude Console, or workload identity federation, for a secret
+shared across repositories, because an OAuth token is tied to the subscription of the person who
+minted it (<https://code.claude.com/docs/en/github-actions>, fetched 2026-09-24). The operator
+keeps the shared OAuth secret on purpose. The account that holds it is tracked in
+melodic-software/claude-code-account-rotation#145.
+
 ADR 0037 measured the lanes' coverage (14 of the last 40 merged pull requests had no successful
 code-review run; 1 was reviewed on the commit that merged) and retired them. The cause of that gap
 was trigger timing, not the lanes existing: both callers ran on `opened`, `ready_for_review` and
@@ -81,6 +105,16 @@ plugin's security-review policy
 sets per-class floors (C2 not required, C3 advisory, C4 and C5 blocking) and lets a binding
 tighten any cell, never weaken one. An advisory security review on every pull request, C2
 included, is a permitted tightening.
+
+That tightening is advisory today. It lives in this ADR and in the callers, and neither is a
+binding surface: the policy's knobs bind only on the org's security governance surface, the
+settings-as-code home `melodic-software/github-iac`, and the security-binding schema resolves no
+axis from a repo-local surface. The binding cell is
+`verification_blocking.ai-review.C2: advisory`. No security binding exists in github-iac yet, and an absent binding falls back to the
+shipped floors, so the tightening becomes binding only once that document is authored. The
+trigger to author it is running the autonomy plugin's guided setup (`/autonomy:setup`) for the
+org. Trigger frequency and path scope have no dimension in the binding and stay in this ADR and
+the callers.
 
 `.github/claude-security-paths` stays: the `security` class of the `pr_skill_evidence` map in
 `.claude/source-control.md` reads it for the seat-run security review, and the `ci.yml` evidence
