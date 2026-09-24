@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "gaming",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Apply, track, tune, and cleanly remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in PC games on Windows, from Steam, Epic, EA app, Battle.net, GOG, Ubisoft Connect and the Xbox app. Anti-cheat checks that refuse by default and install only on a typed at-your-own-risk acknowledgement, pre-install snapshots and manifests for byte-exact removal, a per-game ledger, and an upstream watch for fork and driver releases. Ships no NVIDIA binary: the runtime DLL comes from a path, an installed DLSS 5 title, or a source the user configures.",
   "author": {
     "name": "Melodic Software",
