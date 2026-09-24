@@ -655,7 +655,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const [cls, text] = status(), pill = $("pill");
     pill.className = "pill " + cls;
-    const next = /^(.*[Tt]ype )next( in the terminal)$/.exec(text);
+    const next = /^(.*(?:type|Type) )next( in the terminal)$/.exec(text);
     if (next) pill.innerHTML = esc(next[1]) + "<code>next</code>" + esc(next[2]); else pill.textContent = text;
     const na = openAssumptions(), ac = $("assumeCount");
     ac.hidden = !na; ac.textContent = na + (na === 1 ? " assumption open" : " assumptions open");
