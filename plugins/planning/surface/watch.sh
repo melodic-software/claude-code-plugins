@@ -11,8 +11,8 @@
 # (default 12, 5 s apart).
 # Exits 3 when another watcher holds the server's lease (one session watches a data dir at a
 # time); it prints the holder to stderr and does not retry.
-# Each poll names this watcher: WATCH_ID, else CLAUDE_CODE_SESSION_ID (the Bash tool exports it,
-# so every re-arm from one session shares it), else <hostname>-<parent pid>. The id is never
+# Each poll names this watcher: WATCH_ID, else CLAUDE_CODE_SESSION_ID (Claude Code exports it to
+# every shell a session runs, so every re-arm shares it), else <hostname>-<parent pid>. The id is never
 # written to the data dir, which two sessions share.
 # WAIT_TIMEOUT comes from the session env file (default 90); curl allows 10 s more.
 curl_bin=${WATCH_CURL:-curl}

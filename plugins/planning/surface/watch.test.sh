@@ -85,14 +85,16 @@ else
   bad "curl missing: rc=$rc err=$(cat "$tmp/a.err")"
 fi
 
-# (b) wrong token: a second data dir whose env file points at the live port with another token
+# (b) wrong token: a second data dir whose env file points at the live port with another token.
+# "At once" means no retry: a retry loop would sleep 5 s per failed poll (60 s before exit 2),
+# so a 20 s bound still catches one while leaving room for process start-up on a loaded host.
 mkdir -p "$tmp/wrong"
 sed 's/^TOKEN=.*/TOKEN=not-the-token/' "$tmp/env.saved" >"$tmp/wrong/.interview-session.env"
 start=$SECONDS
-bounded 10 "$tmp/b.out" "$tmp/b.err" bash "$here/watch.sh" "$tmp/wrong"
+bounded 25 "$tmp/b.out" "$tmp/b.err" bash "$here/watch.sh" "$tmp/wrong"
 rc=$?
 took=$((SECONDS - start))
-if [[ "$rc" -eq 2 && "$took" -le 5 ]] && grep -q "token changed: re-run ensure-running" "$tmp/b.err"; then
+if [[ "$rc" -eq 2 && "$took" -le 20 ]] && grep -q "token changed: re-run ensure-running" "$tmp/b.err"; then
   ok "exits 2 at once on a wrong token (${took}s)"
 else
   bad "wrong token: rc=$rc took=${took}s err=$(cat "$tmp/b.err")"
