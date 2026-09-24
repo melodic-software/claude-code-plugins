@@ -39,6 +39,11 @@
 # -P, so a builtin read (`mapfile <"$t"`) is counted the same as `cat "$t"`; a
 # spawn counter cannot see that class (#4408).
 #
+# The fire is not network-sandboxed, and CLAUDE_PLUGIN_ROOT is this checkout:
+# the ubuntu-24.04 runner refuses `unshare -rn` (write to /proc/self/uid_map
+# not permitted). A payload must steer the hook down a path that neither
+# reaches the network nor writes under its plugin root.
+#
 # Exit: 0 measured; 2 cannot measure (bad arguments, no strace, jq or git, no
 # such row, --setup failed); 3 the fire exited nonzero, --check failed, or a
 # growth fire read no transcript byte at either size.
