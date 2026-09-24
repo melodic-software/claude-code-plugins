@@ -241,6 +241,11 @@ printf '{not json\n' >"$f/plugins/demo/hooks/hooks.json"
 expect "an unparsable hooks.json is a finding, not a clean run" "$f" 1 "UNREADABLE HOOK CONFIG"
 
 new_fixture f
+mkdir -p "$f/plugins/demo/.claude-plugin"
+printf '{not json\n' >"$f/plugins/demo/.claude-plugin/plugin.json"
+expect "an unparsable plugin.json is a finding, not a clean run" "$f" 1 "UNREADABLE HOOK CONFIG: plugins/demo/.claude-plugin/plugin.json"
+
+new_fixture f
 mkdir -p "$f/plugins/demo/hooks"
 jq -n '{hooks:{}}' >"$f/plugins/demo/hooks/hooks.json"
 expect "a corpus with no command hooks refuses to report clean" "$f" 1 "refusing to report clean"

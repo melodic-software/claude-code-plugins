@@ -20,10 +20,11 @@
 #     above. Out of reach: a path handed to another process (`--transcript
 #     "$T"`), a variable filled by `read` or `printf -v` rather than `name=`,
 #     readers not in the list (`wc`, `tac`), a read continued onto the next
-#     line with a backslash, and a command whose text merely contains `tail -c`
-#     or `head -c` (`grep -c "tail -c" "$T"` reads as bounded). The hook-census
-#     `growth` ratchets in .performance/ratchets.json measure the actual bytes
-#     read and are the behavioral check behind this text match.
+#     line with a backslash, a read inside a library the script sources, and a
+#     command whose text merely contains `tail -c` or `head -c` (`grep -c
+#     "tail -c" "$T"` and the whole-file `tail -c +1 "$T"` read as bounded).
+#     The hook-census `growth` ratchets in .performance/ratchets.json measure
+#     the actual bytes read and are the behavioral check behind this text match.
 #
 # (b) ENV SHEBANG. A shell-form hook runs a script as its command word, with no
 #     interpreter in front of it, and that script starts `#!/usr/bin/env`. The
@@ -186,7 +187,10 @@ for plugin in plugins/*/; do
   manifest="$plugin/.claude-plugin/plugin.json"
   [[ -f "$manifest" ]] || continue
   # A native Windows jq ends lines with CRLF; every jq line read here drops the CR.
-  kind="$(jq -r '.hooks | type' "$manifest" 2>/dev/null || true)"
+  if ! kind="$(jq -r '.hooks | type' "$manifest" 2>/dev/null)"; then
+    finding "UNREADABLE HOOK CONFIG: ${manifest}: not parseable as JSON; this gate cannot clear it"
+    continue
+  fi
   case "${kind%$'\r'}" in
   object) scan_json_files ".hooks" ".hooks" "$manifest" ;;
   string | array)
