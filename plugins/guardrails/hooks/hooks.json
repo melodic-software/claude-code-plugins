@@ -7,7 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh",
+            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking for secrets, hardcoded paths, and Windows drive-root /tmp writes..."
           }
@@ -18,7 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh secret-pattern-detection.sh hardcoded-path-check.sh",
+            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking content bound for GitHub for secrets and hardcoded paths..."
           }
@@ -29,7 +31,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh block-root-delete-target.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh block-root-delete-target.sh",
+            "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, and root-delete guards..."
           }
@@ -40,7 +43,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/workflow-resilience-check.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/workflow-resilience-check.sh",
+            "shell": "bash",
             "timeout": 10,
             "statusMessage": "Checking workflow resilience..."
           }
@@ -54,35 +58,40 @@
           {
             "type": "command",
             "if": "Edit(*.md)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "shell": "bash",
             "timeout": 30,
             "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
           },
           {
             "type": "command",
             "if": "Edit(*.sh)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "shell": "bash",
             "timeout": 30,
             "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
           },
           {
             "type": "command",
             "if": "Edit(*.bash)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "shell": "bash",
             "timeout": 30,
             "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
           },
           {
             "type": "command",
             "if": "Edit(*.ps1)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "shell": "bash",
             "timeout": 30,
             "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
           },
           {
             "type": "command",
             "if": "Edit(*.psm1)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/run-guards.sh cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh",
+            "shell": "bash",
             "timeout": 30,
             "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
           }

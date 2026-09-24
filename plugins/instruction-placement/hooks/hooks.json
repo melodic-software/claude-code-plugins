@@ -7,7 +7,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/index-drift.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/index-drift.sh",
+            "shell": "bash",
             "if": "Edit(**/.claude/rules/*.md)",
             "timeout": 10,
             "statusMessage": "Checking rules index..."
