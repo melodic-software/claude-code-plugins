@@ -2358,8 +2358,9 @@ jobs:
           # that map cites, the reporter, and the evidence engine. Read from
           # the merge ref, a same-repo pull request could edit its own map and
           # make the validator inert on itself in the same commit the
-          # validator is meant to judge. The security review lane reads its
-          # paths file from the base for exactly that reason, and
+          # validator is meant to judge. The security review lane read its
+          # paths file from the base for exactly that reason while it was
+          # path-gated, and
           # plugins/source-control/reference/config-resolution.md fixes the
           # split: enforcement reads the tracked layer, never a layer the
           # subject supplies. Empty on a non-pull_request event, where
