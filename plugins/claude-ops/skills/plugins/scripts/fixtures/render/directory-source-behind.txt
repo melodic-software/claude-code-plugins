@@ -1,0 +1,10 @@
+Marketplace: market1: source checkout behind origin/main (autoUpdate: on)
+  source: directory <case>/mkt, on main, 2 behind and 0 ahead of origin/main as of its last fetch; tracked files modified (this run does not fetch or pull it)
+In-repo: 0: <case> has no project/local installs
+Divergences: 0 actionable
+Timing: <elided>
+Action needed:
+  - source checkout <case>/mkt is 2 commit(s) behind origin/main, and the catalog is read from it as it is: run `git -C '<case>/mkt' pull --ff-only`, then rerun `/claude-ops:plugins sync market1`; tracked files are modified, and the pull refuses if it would overwrite them
+
+Run journal: <run_dir>
+Timing: <elided>
