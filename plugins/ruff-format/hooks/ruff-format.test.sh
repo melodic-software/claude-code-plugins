@@ -109,12 +109,14 @@ new_ruff_repo() {
 # membership guard is disabled (not part of the fire gate); this isolates
 # lint/format behavior from path-form mismatch in the guard.
 run_hook_env() {
-  local file_path="$1"
+  local file_path="$1" payload
   shift
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  printf -v payload '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK" <<<"$payload"
   )
 }
 

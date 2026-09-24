@@ -1292,7 +1292,8 @@ if [[ -z "$live_ref" ]]; then
 else
   out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --explain "$live_ref" 2>&1)"
   RC=$?
-  if [[ "$RC" -eq 0 ]] && printf '%s\n' "$out" | grep -qF "select: $contract_suite  (path class:"; then
+  # A pattern match, not `printf | grep -q`: see the capture-first note above.
+  if [[ "$RC" -eq 0 && "$out" == *"select: $contract_suite  (path class:"* ]]; then
     ok "LIVE R7: $live_ref selects the plugin-contract suite through R7"
   else
     fail "LIVE R7: $live_ref did not select the plugin-contract suite through R7 (rc=$RC): $out"

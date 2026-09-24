@@ -51,10 +51,11 @@ run() {
     payload=$(jq -n --arg cmd "$cmd" \
       '{session_id:"test",tool_name:"Bash",tool_input:{command:$cmd}}')
   fi
-  ERR=$(cd "$UNRELATED" && printf '%s' "$payload" |
-    env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT -u CLAUDE_PLUGIN_DATA \
-      -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED \
-      "$@" bash "$HOOK" 2>&1 >/dev/null)
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  ERR=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT -u CLAUDE_PLUGIN_DATA \
+    -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED \
+    "$@" bash "$HOOK" <<<"$payload" 2>&1 >/dev/null)
   RC=$?
 }
 

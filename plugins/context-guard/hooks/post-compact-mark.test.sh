@@ -38,7 +38,9 @@ MARK="$H/.claude/context-guard/context"
 run() { # <payload> [extra env k=v...]
   local payload="$1"
   shift
-  printf '%s' "$payload" | HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" env "$@" bash "$HOOK" 2>/dev/null
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" env "$@" bash "$HOOK" <<<"$payload" 2>/dev/null
 }
 
 # 1. Auto trigger recorded.

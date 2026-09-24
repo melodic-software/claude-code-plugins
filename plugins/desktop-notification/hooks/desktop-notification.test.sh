@@ -116,9 +116,11 @@ epoch_delta_ms() {
 }
 
 # --- Case 1: master kill switch false → silent exit 0 -----------------------
-OUT="$(cd "$UNRELATED" && build_input permission_prompt |
-  env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
-    CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false bash "$HOOK" 2>&1)"
+# A here-string, never a pipe: the kill switch exits before reading stdin, and
+# a jq still writing then fails on the closed pipe, which pipefail reports.
+OUT="$(cd "$UNRELATED" && env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
+  CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false bash "$HOOK" \
+  <<<"$(build_input permission_prompt)" 2>&1)"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch false → silent exit 0"; else fail "kill switch (rc=$RC out=$OUT)"; fi
 

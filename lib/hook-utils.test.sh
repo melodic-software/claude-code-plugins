@@ -3886,8 +3886,14 @@ source "$BG_LIB"
 # A stub reader makes the half of hook::begin that runs AFTER a path is
 # admitted reachable for paths no test can create: a file directly under the
 # filesystem root (needs privileges) and a spelling only Windows produces.
+# It drains stdin as the real reader does: hook::begin pipes the payload into it
+# under pipefail, and a stub that returned first would leave that printf writing
+# to a closed pipe, failing the pipeline and sending hook::begin down its exit 0.
 if [[ -n "${BG_STUB_FILE:-}" ]]; then
-  hook::read_file_path() { printf '%s' "$BG_STUB_FILE"; }
+  hook::read_file_path() {
+    cat >/dev/null
+    printf '%s' "$BG_STUB_FILE"
+  }
 fi
 # A repo-root resolver whose answer is NOT an ancestor of the file, which is
 # what makes hook::repo_relative_path_to degrade to the basename.

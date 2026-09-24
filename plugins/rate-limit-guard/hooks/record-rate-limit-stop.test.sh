@@ -52,11 +52,12 @@ count_records() {
 run() {
   local home="$1" input="$2"
   shift 2
-  printf '%s' "$input" |
-    env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
-      HOME="$home" \
-      "$@" \
-      bash "$HOOK" 2>&1
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  env -u CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED \
+    HOME="$home" \
+    "$@" \
+    bash "$HOOK" <<<"$input" 2>&1
 }
 
 # --- Case 1: kill switch false → silent exit 0, nothing written --------------

@@ -112,7 +112,9 @@ ERR=""
 RC=0
 run_env() {
   local errfile="$WORK/stderr.$$"
-  OUT="$(printf '%s' "$INPUT" | env "$@" 2>"$errfile")"
+  # A here-string, never a pipe: a shim that finds nothing to run exits before
+  # reading stdin, and a printf still writing then fails on the closed pipe.
+  OUT="$(env "$@" <<<"$INPUT" 2>"$errfile")"
   RC=$?
   ERR="$(<"$errfile")"
   rm -f "$errfile"
