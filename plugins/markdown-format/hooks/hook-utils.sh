@@ -346,7 +346,7 @@ hook::raw_file_path_to() {
 }
 
 # Print form, kept for the hooks that capture it once at top level
-# (instruction-placement index-drift.sh), off the per-edit prologue.
+# (instruction-placement's index-drift hook), off the per-edit prologue.
 #   RAW_FILE=$(hook::raw_file_path "$INPUT") || exit 0
 hook::raw_file_path() {
   local __hu_raw
@@ -809,8 +809,8 @@ hook::in_git_working_tree() {
 # Run <command> with LC_ALL=C and put the caller's LC_ALL back afterwards,
 # exported or not, set or unset, whatever <command> returned. An explicit save
 # and restore rather than `local LC_ALL`, whose unwind is not relied on to reset
-# the shell's locale on every bash these hooks support (normalize-eol.sh uses
-# the same idiom). Nothing it wraps starts a process.
+# the shell's locale on every bash these hooks support (the eol-normalizer
+# plugin's EOL library uses the same idiom). Nothing it wraps starts a process.
 hook::_c_locale() {
   local __hu_lc_set=${LC_ALL+x} __hu_lc=${LC_ALL-} __hu_lc_rc=0
   LC_ALL=C
