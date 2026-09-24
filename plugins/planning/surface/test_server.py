@@ -671,7 +671,22 @@ class TestVisualFile(ServerCase):
             "TOKEN=transient\n", encoding="utf-8"
         )
         (d / "images" / ".hidden.png").write_bytes(cls.BYTES)
+        # Each would be served without the lexical guard: a same-drive drive-relative path joins
+        # inside the data dir on Windows (x.png), a colon name is a plain file elsewhere, and on
+        # NTFS ok.png:hid is an alternate data stream of ok.png.
+        (d / "x.png").write_bytes(cls.BYTES)
+        if os.name != "nt":
+            (d / "C:x.png").write_bytes(cls.BYTES)
+        (d / "ok.png").write_bytes(b"")
+        (d / "ok.png:hid").write_bytes(cls.BYTES)
+        drive = Path(d).drive or "C:"
         visuals = {
+            "unc": r"\\host.invalid\share\x.png",
+            "unc2": "//host.invalid/share/x.png",
+            "drive": drive + "x.png",
+            "ads": "ok.png:hid",
+            "updown": "a/../../x",
+            "subup": "sub/../../escape.txt",
             "top": "images/ok.bin",
             "up": "../escape.txt",
             "abs": str((cls.tmp / "escape.txt").resolve()),
@@ -743,6 +758,22 @@ class TestVisualFile(ServerCase):
         code, raw, _ = self.fetch("abs")
         self.assertEqual(code, 404)
         self.assertNotIn(b"escape", raw)
+
+    def test_unc_path_is_404(self):
+        for vid in ("unc", "unc2"):
+            self.assertEqual(self.fetch(vid)[0], 404, vid)
+
+    def test_drive_relative_path_is_404(self):
+        self.assertEqual(self.fetch("drive")[0], 404)
+
+    def test_alternate_data_stream_is_404(self):
+        self.assertEqual(self.fetch("ads")[0], 404)
+
+    def test_dot_dot_through_a_subfolder_is_404(self):
+        for vid in ("updown", "subup"):
+            code, raw, _ = self.fetch(vid)
+            self.assertEqual(code, 404, vid)
+            self.assertNotIn(b"outside", raw)
 
     def test_directory_is_404(self):
         self.assertEqual(self.fetch("dir")[0], 404)
@@ -1295,6 +1326,28 @@ class TestAnswerValidation(WaitCase):
         code, data = self.post({"id": "A", "kind": "confirm", "alt": "1"})
         self.assertEqual(code, 200, data)
 
+    def test_non_string_id_or_kind_is_400_and_the_server_answers(self):
+        for body in (
+            {"id": "A", "kind": []},
+            {"id": [], "kind": "accept"},
+            {"id": {}, "kind": "note", "text": "x"},
+        ):
+            code, data = self.post(body)
+            self.assertEqual(code, 400, body)
+            self.assertIn("must be strings", data["error"])
+            self.assertEqual(self.get("/api/state")[0], 200)
+
+    def test_mistyped_text_content_rev_or_undo_seq_is_400(self):
+        for body in (
+            {"id": "A", "kind": "own", "text": ["x"]},
+            {"id": "A", "kind": "accept", "contentRev": "0"},
+            {"id": "A", "kind": "accept", "contentRev": True},
+            {"kind": "undo", "undoSeq": True},
+            {"kind": "undo", "undoSeq": 1.5},
+        ):
+            code, _ = self.post(body)
+            self.assertEqual(code, 400, body)
+
     def test_stale_content_rev_wins_over_an_unknown_key(self):
         code, data = self.post(
             {"id": "A", "kind": "alt", "alt": "z", "contentRev": 999}
@@ -1516,6 +1569,28 @@ class TestEnsureRunningSettings(unittest.TestCase):
         self.assertTrue(same_dir(session(self.dir)["userSettings"], self.user))
         self.assertEqual(self.ensure("--open"), url)
         self.assertEqual(self.fallback_opened(), url)
+        self.assertIsNone(self.opened(1.5))
+
+    def test_recorded_url_is_never_printed_or_opened(self):
+        self.ensure()
+        s = session(self.dir)
+        s["url"] = "planted-not-a-url"
+        (self.dir / ".interview-session.json").write_text(
+            json.dumps(s), encoding="utf-8"
+        )
+        want = f"http://127.0.0.1:{s['port']}/"
+        self.assertEqual(self.ensure("--open"), want)
+        self.assertEqual(self.fallback_opened(), want)
+
+    def test_recorded_user_file_keeps_supplying_settings(self):
+        data = json.loads(self.user.read_text(encoding="utf-8"))
+        data.update(waitTimeout=33, openBrowser=False)
+        self.user.write_text(json.dumps(data), encoding="utf-8")
+        self.ensure("--user-settings", str(self.user))
+        self.ensure("--open")
+        env = (self.dir / ".interview-session.env").read_text(encoding="utf-8")
+        self.assertIn("WAIT_TIMEOUT=33", env.splitlines())
+        self.assertIsNone(self.fallback_opened())
         self.assertIsNone(self.opened(1.5))
 
     def test_planted_session_file_never_supplies_the_opener(self):

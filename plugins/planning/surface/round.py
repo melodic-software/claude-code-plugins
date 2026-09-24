@@ -1028,11 +1028,14 @@ def cmd_ensure_running(d, a):
     with sidecar_lock(d):
         record_emoji_markers(d, emoji_flag(a.emoji_markers))
         s = read_session(d)
-        # Only an explicit --user-settings names the user file: the session file is data-dir content,
-        # never a source for the browser opener.
+        live = bool(s and running(d, s))
+        # The settings layers use --user-settings, else the user file the live server applies. The
+        # session file is data-dir content, so it never supplies the browser opener or the URL.
         user = str(Path(a.user_settings).resolve()) if a.user_settings else None
-        settings, _ = Settings(repo_root(d)).resolve(d, user)
-        if not (s and running(d, s)):
+        recorded = s.get("userSettings") if live else None
+        layers = user or (recorded if isinstance(recorded, str) else None)
+        settings, _ = Settings(repo_root(d)).resolve(d, layers)
+        if not live:
             # --port first, then the recorded port (the page's origin), then the resolved setting;
             # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
             ports = [a.port, (s or {}).get("port")]
@@ -1052,9 +1055,10 @@ def cmd_ensure_running(d, a):
             s["userSettings"] = user
             write_private(d / SESSION_FILES[0], json.dumps(s, indent=2) + "\n")
         record_wait_timeout(d, settings["waitTimeout"]["value"])
-    print(s["url"])
+    url = f"http://127.0.0.1:{int(s['port'])}/"
+    print(url)
     if a.open and settings["openBrowser"]["value"]:
-        open_browser(s["url"], read_user_settings(user).get("browserCommand"))
+        open_browser(url, read_user_settings(user).get("browserCommand"))
 
 
 def clear_session(d):

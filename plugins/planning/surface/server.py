@@ -25,7 +25,7 @@ import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
@@ -358,9 +358,17 @@ def read_visual_file(data_dir, file):
     """Bytes of the regular file `file` names inside data_dir (at most MAX_VISUAL_FILE + 1 of them).
 
     None when file is not a string, or resolves outside data_dir (absolute, `..`, a symlink out),
-    or is missing, not a regular file, or a runtime path (see runtime_path).
+    or is missing, not a regular file, or a runtime path (see runtime_path). A drive, anchor, UNC
+    prefix, colon (an NTFS stream) or `..` part is refused before any filesystem call.
     """
-    if not isinstance(file, str) or not file:
+    if (
+        not isinstance(file, str)
+        or not file
+        or ":" in file
+        # A Windows anchor covers a root on either separator and a UNC share.
+        or PureWindowsPath(file).anchor
+        or ".." in file.replace("\\", "/").split("/")
+    ):
         return None
     root = Path(data_dir).resolve()
     try:
@@ -629,7 +637,15 @@ class Hub:
     def record(self, msg):
         """Append one page event. Returns (seq, contentRev or None). Raises ValueError (400) or Conflict (409)."""
         qid, kind = msg.get("id"), msg.get("kind")
-        text = str(msg.get("text") or "")
+        if not isinstance(kind, str) or not isinstance(qid, (str, type(None))):
+            raise ValueError("id and kind must be strings")
+        if not isinstance(msg.get("text"), (str, type(None))):
+            raise ValueError("text must be a string")
+        for key in ("contentRev", "undoSeq"):
+            v = msg.get(key)
+            if v is not None and (not isinstance(v, int) or isinstance(v, bool)):
+                raise ValueError(f"{key} must be an integer")
+        text = msg.get("text") or ""
         alt = msg.get("alt")
         if kind not in DECISIONS | REQUESTS | FREE | WITH_ALT | {"undo"}:
             raise ValueError("unknown kind")
@@ -1001,7 +1017,7 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/answer":
             try:
                 seq, crev = self.hub.record(msg)
-            except ValueError as e:
+            except (ValueError, TypeError) as e:
                 return self.send(400, {"error": str(e)})
             except Conflict as e:
                 return self.send(409, e.payload)

@@ -132,6 +132,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   done
   pw run-code --filename "$(script_path "$tmp/ui_c1.js")" >"$tmp/ui_c1.out" 2>&1
   bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --force >/dev/null
+  # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
+  bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
   py=$(command -v python3 || command -v python)
@@ -165,8 +167,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
 else
-  echo "SKIP: 149 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 149))
+  echo "SKIP: 153 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 153))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

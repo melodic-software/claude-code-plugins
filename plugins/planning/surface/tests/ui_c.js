@@ -166,6 +166,22 @@ async page => {
     const ev3 = await last();
     ok("2 then save on a stale question picks again: accept", /^2\s*Accept/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
     await pick("P2");
+    // An armed choice keeps its identity when an upstream decision stales the question and a Reconfirm row renumbers the list
+    await page.click("main.detail h3"); await page.keyboard.press("3");
+    const a0 = (await armed()).trim();
+    await post({id: "P1", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900);
+    const a1 = (await armed()).trim(), wasStale = await stale("P2");
+    await page.click("main.detail h3"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const ev4 = await last();
+    ok("an armed alternative survives renumbering: 3 (b) shows as 4 (b) once stale and saves alt b", /^3\s*\(b\)/.test(a0) && wasStale && /^4\s*\(b\)/.test(a1) && ev4.id === "P2" && ev4.kind === "alt" && ev4.alt === "b", a0 + " / " + a1 + " " + JSON.stringify(ev4));
+    // Reconfirm with a note typed over the kept one records the typed note
+    await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "accept"});
+    await page.fill("#note", "Weekdays too");
+    await page.click("main.detail h3"); await page.keyboard.press("a");
+    const r6 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const ev6 = await last();
+    ok("Reconfirm sends the note typed over the kept one", /^1\s*Reconfirm/.test(r6) && ev6.id === "P2" && ev6.kind === "alt" && ev6.alt === "b" && ev6.text === "Weekdays too", r6 + " " + JSON.stringify(ev6));
+    await pick("P2");
 
     // SPEC 5.2: revising while an upstream decision is delivered and unhandled
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
@@ -217,12 +233,17 @@ async page => {
     ok("chart renders a table of series", /Saves/.test(await page.textContent("#fbody table")) && /Tue/.test(await page.textContent("#fbody table")));
     // SPEC 3.4: a file visual is fetched by visual id and rendered through the inline format paths, captioned with its path
     const fileVis = async (id, done) => { await page.click('[data-vtab="v:' + id + '"]'); await page.waitForFunction(done, null, {timeout: 5000}).catch(() => {}); return page.evaluate(() => { const b = document.getElementById("fbody"), f = b.querySelector("iframe"), i = b.querySelector("img"); return {text: b.innerText, cap: (b.querySelector(".vfile code") || {}).textContent, srcdoc: f ? f.srcdoc : null, sandbox: f ? f.getAttribute("sandbox") : null, img: i ? i.getAttribute("src") : null}; }); };
+    let vxFetches = 0;
+    page.on("request", r => { if (/\/api\/visual-file\?id=vx$/.test(r.url())) vxFetches++; });
     const fi = await fileVis("vi", () => !!document.querySelector("#fbody img"));
     ok("file image renders an img from a data:image/png URL, captioned with its path", /^data:image\/png;base64,/.test(fi.img || "") && fi.cap === "images/flow.png", JSON.stringify(fi).slice(0, 160));
     const fv = await fileVis("vs", () => !!document.querySelector("#fbody iframe"));
     ok("file svg renders only inside a sandboxed iframe, captioned with its path", fv.sandbox === "" && /filemark/.test(fv.srcdoc || "") && !/filemark/.test(fv.text) && fv.cap === "diagrams/flow.svg", JSON.stringify(fv).slice(0, 160));
     const fx = await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText));
     ok("a missing file shows its path and the error", fx.cap === "missing.svg" && /not found/.test(fx.text) && !fx.srcdoc, JSON.stringify(fx).slice(0, 160));
+    await page.click('[data-vtab="v:vi"]'); await page.waitForTimeout(5200);
+    await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText)); await page.waitForTimeout(600);
+    ok("a failed file visual is fetched again, once, on a render after 5 s", vxFetches === 2, "fetches " + vxFetches);
     await fileVis("vs", () => !!document.querySelector("#fbody iframe"));
     await page.click("[data-full]"); await page.waitForTimeout(200);
     const fsv = await page.evaluate(() => { const f = document.querySelector("#fsStage iframe"); return {open: !document.getElementById("fs").hidden, srcdoc: f ? f.srcdoc : "", sandbox: f ? f.getAttribute("sandbox") : null, cap: (document.querySelector("#fsStage .vfile code") || {}).textContent}; });
@@ -270,6 +291,11 @@ async page => {
     ok("Save disabled during the wrap-up freeze", await page.$eval("[data-save]", el => el.disabled) && /Accept/.test(await armed()));
     await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(500); await page.keyboard.press("Escape");
     ok("Ctrl+Enter records nothing during the freeze", (await events()).length === n0 + 1);
+    // The shell's revise between phases dropped P2's alternative (b), which its kept decision names
+    const s2 = await state(), p2 = s2.questions.questions.find(q => q.id === "P2");
+    await pick("P2");
+    const first = await page.$eval("#choices .choice b", e => e.textContent), dtext = await page.textContent("#dscroll");
+    ok("no Reconfirm for a kept alternative a revise removed", p2.state === "stale" && s2.responses.responses.P2.alt === "b" && !p2.alternatives.some(a => a.key === "b") && first === "Accept" && /Pick an answer/.test(dtext), [p2.state, s2.responses.responses.P2.alt, first].join(" ") + " " + dtext.slice(0, 120));
   }
   if (PHASE === 3) {
     await page.waitForTimeout(600); // SSE brings the handle of phase 2's events

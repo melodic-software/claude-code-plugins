@@ -714,7 +714,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
     if (!["accept", "alt", "own", "defer"].includes(k)) return null;
     const a = (q.alternatives || []).find(x => x.key === d.alt);
-    const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + ")" + (a ? ": " + a.text : "") : k === "own" ? "your own answer" : "deferred";
+    if (k === "alt" && !a) return null; // a revise removed the kept alternative: nothing to reconfirm
+    const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : "deferred";
     return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text};
   }
   function choicesOf(q){
@@ -723,6 +724,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     (q.alternatives || []).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
     c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"});
     return c.map((x, i) => Object.assign(x, {n: i + 1}));
+  }
+  function armedOf(cs){ // the armed choice by identity, never by the number it had when armed
+    const a = S.armed;
+    return a ? cs.find(c => c.kind === a.kind && (c.alt ?? null) === a.alt && !!c.re === a.re) : undefined;
   }
   function renderDetail(opts){
     opts = opts || {};
@@ -794,9 +799,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       : '<span class="kbd">No decision yet.' + (setting("shortcuts") ? " Number keys pick; Ctrl+Enter saves." : " Ctrl+Enter saves.") + "</span>" + (last ? receipts(last) : "");
     const cs = choicesOf(q), cur = d && d.decision ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt)) : null;
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" ? " d" : "";
-    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && c.kind === "accept" ? " rec" : "") + (S.armed === c.n ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (S.armed === c.n ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t"><b>' + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
-    const armed = cs.find(c => c.n === S.armed), needText = armed && armed.kind === "own" && keptText(armed) === undefined && !text, frozen = wrapFreeze() > 0;
+    const armed = armedOf(cs);
+    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && c.kind === "accept" ? " rec" : "") + (armed === c ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t"><b>' + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
+    const needText = armed && armed.kind === "own" && keptText(armed) === undefined && !text, frozen = wrapFreeze() > 0;
     $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + (armed ? "Save: " + esc(armed.label) : "Save") + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? "Own answer needs a note" : "Ctrl+Enter") + "</span>" +
       (d && d.decision ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
@@ -929,6 +935,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         }
       }
     } catch (e) { c = {key, err: "could not load it: " + e.message}; }
+    c.at = Date.now();
     if ((S.vfiles[v.id] || {}).key !== key) return;
     S.vfiles[v.id] = c;
     if (S.fly === "visuals" && S.vtab === "v:" + v.id) { renderFly(); if (!$("fs").hidden) fsOpen(); }
@@ -937,7 +944,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const f = v.format || v.kind || "html";
     if (v.content == null && v.file) {
       const key = v.file + "\n" + S.doc.rev, c = S.vfiles[v.id], cap = t => '<p class="fscope vfile">' + t + " <code>" + esc(v.file) + "</code></p>";
-      if (!c || c.key !== key) loadFile(v, key);
+      if (!c || c.key !== key || (c.err && Date.now() - c.at > 5000)) loadFile(v, key); // an error is kept 5 s, then the next render asks again
       if (!c || c.key !== key || (c.content == null && !c.err)) return {md: cap("Loading")};
       if (c.err) return {md: cap("File") + '<p class="empty">' + esc(c.err) + "</p>"};
       return Object.assign(visualBody(Object.assign({}, v, {content: c.content, file: undefined})), {cap: cap("File")});
@@ -1085,10 +1092,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function arm(n){
     const q = Q[S.sel]; if (!q || S.busy) return;
     const c = choicesOf(q).find(x => x.n === n); if (!c) return;
-    S.armed = n; renderAnswer();
+    S.armed = {kind: c.kind, alt: c.alt ?? null, re: !!c.re}; renderAnswer();
     if (c.kind === "own" && keptText(c) === undefined) $("note").focus();
   }
-  function keptText(c){ return c.re && (c.keep || c.kind !== "own") ? c.keep : undefined; } // Reconfirm sends the kept note, never an empty own answer
+  function keptText(c){ // Reconfirm sends a note typed over the kept one, else the kept note; never an empty own answer
+    if (!c.re || (!c.keep && c.kind === "own")) return undefined;
+    const t = $("note").value.trim();
+    return t && t !== c.keep.trim() ? t : c.keep;
+  }
   function textFocused(){ const a = document.activeElement; return !!a && (a.tagName === "TEXTAREA" || a.tagName === "SELECT" || (a.tagName === "INPUT" && !/^(radio|checkbox|button|submit|range)$/.test(a.type)) || a.isContentEditable); }
 
   // ---------- network ----------
@@ -1113,7 +1124,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function submitArmed(){
     const q = Q[S.sel]; if (!q) return;
-    const c = choicesOf(q).find(x => x.n === S.armed);
+    const c = armedOf(choicesOf(q));
+    if (!c && S.armed) { S.armed = null; toast("Pick a choice again: the choices changed.", true); renderAnswer(); return; }
     if (!c) { toast("Pick a choice first (1 to " + choicesOf(q).length + ").", true); const el = $("choices"); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); return; }
     const keep = keptText(c);
     if (c.kind === "own" && keep === undefined && !$("note").value.trim()) { toast("Own answer needs a note.", true); $("note").focus(); return; }
