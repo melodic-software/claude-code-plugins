@@ -16,7 +16,7 @@ by hand.
 2. Run `rubric-fanout.sh plan --out <batch dir> <list>`. It orders the files (impact class,
    then 90-day change count, then key inside a repository; newest modification time first,
    then key, outside one; `--order repo|mtime` overrides the choice), packs them into batches
-   of at most 50,000 words by `wc -w` (`--budget N` changes it; a larger file is its own
+   of up to 50,000 words by `wc -w` (`--budget N` changes it; a larger file is its own
    batch), and writes `batch-NN.txt`, one key per line. It prints one line per batch:
    `batch=NN list=<path> files=N words=W digest=<sha256 of the list>`.
 3. The batch directory is `<findings home>/rubric-lists-<TS>/`, so a later session can resume

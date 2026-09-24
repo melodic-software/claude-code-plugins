@@ -94,17 +94,17 @@ cmd_plan() {
     return 0
   fi
 
+  local top
+  top="$(git -C "$(dirname "${paths[0]}")" rev-parse --show-toplevel 2>/dev/null)"
   if [[ "$order" == auto ]]; then
     order=mtime
-    [[ "$(git -C "$(dirname "${paths[0]}")" rev-parse --is-inside-work-tree 2>/dev/null)" == true ]] && order=repo
+    [[ -n "$top" ]] && order=repo
   fi
 
   local i ordered
   case "$order" in
   repo)
-    local top
     local -A changes=()
-    top="$(git -C "$(dirname "${paths[0]}")" rev-parse --show-toplevel 2>/dev/null)"
     if [[ -n "$top" ]]; then
       local n k
       while IFS=$'\t' read -r n k; do

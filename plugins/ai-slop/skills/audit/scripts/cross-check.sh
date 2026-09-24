@@ -58,10 +58,8 @@ read -r -a allowed <<<"$(sed -n 's/^Effective: rule_allowed_paths\[rule-em-dash\
 is_allowed() {
   local g
   for g in ${allowed[@]+"${allowed[@]}"}; do
-    # shellcheck disable=SC2254
-    case "$1" in $g) return 0 ;; *) ;; esac
-    # shellcheck disable=SC2254
-    case "$2" in $g) return 0 ;; *) ;; esac
+    # shellcheck disable=SC2053
+    [[ $1 == $g || $2 == $g ]] && return 0
   done
   return 1
 }

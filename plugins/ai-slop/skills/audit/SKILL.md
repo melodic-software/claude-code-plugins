@@ -70,8 +70,8 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    in-repo files as file paths. Check the target first: a target outside any repository
    follows [Non-repository targets](#non-repository-targets).
 2. **Run the detector.** Build the target list once: `detect.sh --list-targets <targets>`,
-   with its stdout redirected to a list file in the session scratchpad (no targets lists the
-   repository's tracked markdown). Each line is `<key><TAB><path>`, the key spelled as the
+   with its stdout redirected to a list file in the session scratchpad (with no targets, it
+   lists the repository's tracked markdown). Each line is `<key><TAB><path>`, the key spelled as the
    detector's `file=` field, after directory expansion and `excluded_paths`. That file feeds
    the chunked runs, `detect.sh --paths-file <list> --offset N --limit M` per chunk (one
    process per chunk, no per-file shell loop; roughly 200 files per chunk keeps each call under
@@ -129,7 +129,7 @@ is outside a repository, the whole run follows these rules:
   a `.git` directory is walked with no message. Both are expected.
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
   inclusion. `rubric-fanout.sh plan` picks this order for a target outside a repository; apply
-  it to the report too, not to the detector's output, which keeps its own path order.
+  it to the report too.
 - Config layers come from the session's project directory and the user-global file, not from
   the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
   applies only when it matches the path as the detector sees it.
@@ -173,8 +173,9 @@ rewrite, record the file's digest: create the state file's parent directory, the
 path>.sha256`. Before every write the flow makes to that file, a rewrite or a restore, run
 `sha256sum -c --status <that state file>`; after each of its own writes, record the digest
 again the same way. On a mismatch, write nothing more to the file, stop work on it, and report
-it. On macOS use `shasum -a 256` and `shasum -a 256 -c`. A write that lands while the fixer is
-mid-edit, between a check and the flow's own write, is not detected.
+it. If the state file cannot be written, do not edit the file; stop and report it. On macOS use
+`shasum -a 256` and `shasum -a 256 -c`. A write that lands between a check and
+the flow's own write is not detected.
 
 Per file, worst-first:
 
