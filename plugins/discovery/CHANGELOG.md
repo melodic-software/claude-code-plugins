@@ -1,5 +1,27 @@
 # Changelog: discovery plugin
 
+## [0.22.0] - 2026-09-24
+
+### Added
+
+- **`research`:** outcome-gate criterion 12, owned by the verifier, asks whether every accepted
+  claim follows jointly from its cited sources, and discipline 15 points at its recipe, the new
+  "Joint-inference check" in `context/discipline.md`: variable, population, and hedge-survival
+  sub-tests, plus counter-evidence already read resolved in the artifact. A failing claim is a Gap
+  or a Conflicts entry.
+- **`research`:** the sidecar header carries per-source `measures:` and per-claim `inference:` and
+  `qualifiers:`, so a verifier can grade criterion 12 off disk.
+- **`research`:** on a fan-out, the synthesized slice-root index goes to a fresh verifier for hedge
+  survival before it is surfaced.
+- **`research`:** an eval case where a verbatim-quoted source backs a claim about a variable it
+  never measured.
+
+### Changed
+
+- **`research`:** the parent briefs the verifier on every verifier-owned row by number (4, 7 and
+  12), whatever the payload's `verification_request.criterion` string names. Gotchas and evals name
+  criterion 12 among the verifier rows, and one eval no longer counts the gate's criteria.
+
 ## [0.21.0] - 2026-09-23
 
 ### Changed

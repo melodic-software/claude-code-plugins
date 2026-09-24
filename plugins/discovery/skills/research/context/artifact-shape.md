@@ -62,6 +62,9 @@ claims:
       - url: "<url fetched this turn>"
         tier: 1
         pool: "<publisher/org — two sources sharing a pool are NOT independent>"
+        measures: "<variable, population, and era or question this source measured>"
+    inference: "<one line: why the claim follows from its sources jointly>"
+    qualifiers: []            # every MEDIUM, scope limit, or population qualifier; may be empty
 produced_by: <phase id>
 ---
 ```
@@ -75,6 +78,16 @@ saw the run**. Independence is a property of the publishing pools behind a claim
 encodes neither the URL nor the pool, so without `sources[]` the verifier can only take the run's
 word for the one criterion the whole discipline rests on. Two entries sharing a `pool` are one
 corroborator.
+
+**`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact.** A
+verifier that never saw the run cannot tell from a URL and a pool whether a source measured the
+claim's variable and population; `measures:` records what each source actually measured, so a
+mismatch with the claim is visible without replaying the run. `inference:` is the run's one-line
+reason the claim follows jointly, which the verifier checks against the sources rather than
+reconstructing. `qualifiers:` lists every MEDIUM, scope limit, and population qualifier the claim
+carries; on a fan-out it is the list the synthesis is graded against for hedge survival, and an
+empty list is a statement that there are none. The recipe is `discipline.md`'s "Joint-inference
+check".
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does, so keep the header small enough that widening it stays cheap.

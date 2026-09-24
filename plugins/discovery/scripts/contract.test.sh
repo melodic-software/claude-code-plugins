@@ -313,6 +313,71 @@ assert_present 'trace-intent dispatch contract forbids inferring fired from the 
 assert_present 'trace-intent evals grade matching-token-is-not-preload-proof' \
   'skills/trace-intent/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
 
+# ---------------------------------------------------------------------------
+# 12. Joint-inference validity is a verifier-owned gate row
+#
+# Every other gate row grades provenance or process. A claim can pass all of
+# them behind verbatim quotes and still not follow from its sources. Row 12
+# asks whether it does, and a verifier grades it off disk, so the sidecar
+# header carries what each source measures and each claim's inference and
+# qualifiers. Failing claims use the existing vocabulary, a Gap or a Conflicts
+# entry; no new status words.
+# ---------------------------------------------------------------------------
+assert_present 'gate row 12 is owned by the verifier' \
+  'skills/research/SKILL.md' '^\| 12 \|.*jointly.*\| \*\*verifier\*\* \|'
+assert_present 'gate row 12 routes a FAIL to a source that measures the variable, else a Gap' \
+  'skills/research/SKILL.md' '^\| 12 \|.*variable and population, else file the claim as a Gap'
+assert_present 'discipline 15 points at the joint-inference recipe' \
+  'skills/research/SKILL.md' '^15\. \*\*.*"Joint-inference check"'
+assert_present 'discipline.md carries the joint-inference section' \
+  'skills/research/context/discipline.md' '^## Joint-inference check$'
+assert_present 'the joint-inference check covers single-source claims too' \
+  'skills/research/context/discipline.md' 'single-source ones included'
+assert_present 'the joint-inference check names the variable sub-test' \
+  'skills/research/context/discipline.md' '\*\*Variable check\.\*\*'
+assert_present 'the joint-inference check names the population sub-test' \
+  'skills/research/context/discipline.md' '\*\*Population check\.\*\*'
+assert_present 'the joint-inference check names the hedge-survival sub-test' \
+  'skills/research/context/discipline.md' '\*\*Hedge-survival check\.\*\*'
+assert_present 'counter-evidence already read, including a headline result, is resolved' \
+  'skills/research/context/discipline.md' 'own headline or aggregate result'
+assert_present 'a failing claim is a Gap or a Conflicts entry' \
+  'skills/research/context/discipline.md' 'is a Gap or a Conflicts entry'
+assert_present 'the failure patterns separate quote fidelity from inference validity' \
+  'skills/research/context/discipline.md' 'Quote fidelity and inference validity are orthogonal'
+assert_present 'the sidecar header carries per-source measures' \
+  'skills/research/context/artifact-shape.md' '^ +measures: '
+assert_present 'the sidecar header carries per-claim inference' \
+  'skills/research/context/artifact-shape.md' '^ +inference: '
+assert_present 'the sidecar header carries per-claim qualifiers' \
+  'skills/research/context/artifact-shape.md' '^ +qualifiers: '
+assert_present 'artifact-shape says why the new fields make criterion 12 gradeable' \
+  'skills/research/context/artifact-shape.md' 'criterion 12 gradeable'
+assert_present 'an improvised header costs criterion 12 its evidence too' \
+  'skills/research/SKILL.md' 'costs criteria 4, 6, 9 and 12 their evidence'
+assert_present 'the carry-forward line lists the new header fields' \
+  'skills/research/SKILL.md' 'Carry this much into the read:.*measures.*inference.*qualifiers'
+assert_present 'the fan-out obligation sends the synthesis to a hedge-survival verifier' \
+  'skills/research/context/dispatch.md' 'fresh verifier for hedge survival'
+assert_present 'the SKILL.md fan-out paragraph points at the hedge-survival obligation' \
+  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*hedge survival'
+assert_present 'the verifier is briefed on rows 4, 7 and 12 by number' \
+  'skills/research/context/dispatch.md' 'rows 4, 7 and 12'
+assert_present 'the verifier brief overrides the payload criterion string' \
+  'skills/research/context/dispatch.md' 'verification_request\.criterion'
+assert_present 'gotchas name criterion 12 among the verifier rows' \
+  'skills/research/context/gotchas.md' 'Criteria 4, 7 and 12'
+assert_present 'evals name criterion 12 among the verifier rows' \
+  'skills/research/evals/evals.json' 'criteria 4, 7 or 12'
+assert_present 'evals grade a verbatim quote attached to a claim it does not support' \
+  'skills/research/evals/evals.json' 'verbatim-quote-is-not-joint-inference'
+assert_absent 'no new status vocabulary for a failing claim' \
+  'CONFLICTED|UNSUPPORTED|CONFIRMED'
+assert_absent 'no stale two-row verifier count' \
+  '[Cc]riteria 4 (and|or) 7'
+assert_absent 'no stale criteria count' \
+  'all 10 binary criteria'
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'

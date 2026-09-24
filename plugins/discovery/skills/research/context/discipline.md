@@ -236,10 +236,29 @@ The evidence-table `Confidence` column must be set per claim:
 
 Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
 
+## Joint-inference check
+
+Every other criterion grades where a claim's sources came from. This one grades whether the claim follows from them. A claim can have a Tier 0/1 primary fetched this turn, two independent corroborators, a confirmed changelog, and quotes that match their sources word for word, and still assert something none of those sources measured.
+
+**Scope: every accepted claim, single-source ones included.** One source can miss the population as easily as three can, so the check is not reserved for multi-source claims.
+
+For each accepted claim, name what each cited source actually measures: the variable it manipulated or observed, the population it measured, and the era or question it answered. Then state in one line why the claim follows from those sources **jointly**. Record both in the sidecar header (`measures:` per source, `inference:` and `qualifiers:` per claim, per the artifact-shape file) so the check can be graded off disk.
+
+- **Variable check.** Does any cited source manipulate or observe the variable the claim is about? Papers that varied context or generation order do not support a claim about model identity, however authoritative each is.
+- **Population check.** Is the measured population the one the claim generalizes to? Single-function completions with no security prompting do not describe guardrailed agent pull requests.
+- **Hedge-survival check.** Every MEDIUM, "unmeasured", scope limit, or population qualifier a source or sub-slice records stays attached wherever the claim is used. The failure shape is a number that survives the trip while its qualifier does not.
+
+**Counter-evidence already read is resolved in the artifact, not omitted from it.** That includes a source's own headline or aggregate result. Citing a study's demographics table while its aggregate result runs the other way is a claim the study contradicts. Promoting a free-text comment over the result the source itself reports is the same failure.
+
+A claim whose sources measure a different variable, a different population, or a different question, or whose qualifier did not survive, is a Gap or a Conflicts entry. It is not accepted and it is not HIGH, however authoritative each source is on its own.
+
+**Why the run cannot grade this itself.** Judging whether its own inference holds is judging the quality of its own choices, the same reason the corroboration and HIGH-confidence rows go to a verifier. Outcome-gate criterion 12 is verifier-owned: a fresh context reads the header's `measures:`, `inference:`, and `qualifiers:` against the cited sources and grades each accepted claim.
+
 ## Observed failure patterns
 
 - **Synthesis tools give wrong versions.** AI-synthesis tools routinely assert wrong version numbers and hallucinate canonical conventions (a config path that "is canonical" but isn't). Always verify version-specific features empirically (`gh api repos/<owner>/<repo>/releases/latest`, an actual import/call test). Never trust secondary sources for version claims. A single direct fetch of the canonical doc falsifies this class.
 - **Agent consensus can be unanimously wrong.** Multiple subagents agreeing is one source, not N, because they share training priors. Verify claims empirically before shipping, especially env-var / tool-behavior claims.
+- **Verbatim quotes do not make a claim follow.** Quote fidelity and inference validity are orthogonal. A run whose every quote re-fetched verbatim still accepted conclusions its sources never measured: a source applied to a question it did not study, a feature's absence used to refute a claim about model behavior, a qualifier dropped between slice and synthesis. Re-fetching the quotes grades the first; the joint-inference check above grades the second.
 - **Two sources can both be wrong.** Two sources parroting the same incorrect information is common. Count INDEPENDENT primary sources, not citation count.
 - **Phases must be sequential.** Phase 2 MUST analyze Phase 1 results before launching. Running all phases in parallel produces redundant queries that miss the gaps Phase 1 would have revealed.
 - **No parallel MCP calls to the same stdio server.** stdio transport serializes. Run queries sequentially within a server; parallelize across different servers/tools.
