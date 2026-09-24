@@ -54,6 +54,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | `-RestoreComputeSignature` | apply | Also sets `[Hotfix] RestoreComputeSignature=true` for a game with no preset; `reference/tuning-guide.md` names the titles that need it |
 | `-AllowUnknownRuntime` | apply | Accepts an NVIDIA-signed runtime whose hash is not the known one. Only on the user's explicit request |
 | `-Finish` | remove | Drops the manifest even when drift remains. Only after the user has seen the drift and asked |
+| `-ConfirmRefresh` | remove | The token a `game updated by` line printed. Removes the mod, drops the manifest, then applies again with the manifest's build, proxy, preset and `-RestoreComputeSignature`. Only after the user has seen that drift and said yes; see Refresh after a game update |
 | `-ConfirmReset` | reset | The token the preview run printed. Writes the reset, and refuses if `OptiScaler.ini` changed since that preview. Only after the user has seen the printed list of discarded values and said yes |
 | `-Force` | apply | Lifts only the over-2000-files guard. Only when the user confirms the directory is the exe directory. It has no effect on the anti-cheat gate |
 | `-AcceptAntiCheatRisk` | apply | The game name exactly as the user typed it, after the anti-cheat review below. Never filled in by you |
@@ -74,15 +75,15 @@ Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
 | (empty) | No action given | With a game dir: run `status`. "no snapshot" means never applied here, so recommend `assess`; otherwise report the status and recommend. Without a game dir: ask for one. Never runs `apply`, `remove` or `reset` |
 | `assess` | Is this game eligible? | Run `assess`. Report the launcher, the verdict and the anti-cheat status. Writes nothing |
 | `apply` | Install the mod | `assess` first; stop on verdict `refused`, `not-a-candidate` or `unknown`. Any anti-cheat status but `none-disclosed` runs the anti-cheat review. Confirm with the user, run `apply`, add the ledger row |
-| `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
+| `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row. After a game update, offer the refresh |
 | `status` | What changed since apply? | Run `status` and explain its exit code and its installed-build line |
 | `reset` | Undo overlay changes | Show what it discards, ask, then rewrite `OptiScaler.ini` to the stock ini plus the recorded preset |
 | `tune` | Picture or performance | Start from the game's preset, then guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
 | `capture` | Keep the overlay tuning | Run `capture` after the user's Save Settings; it writes the game's local preset. Writes nothing in the game folder |
 | `refetch` | Are forks, driver, runtime current? | Run `refetch`, read the page-backed items, update only the ledger's Upstream watch rows that changed |
 
-When the request is ambiguous, recommend an action and wait. Never commit to `apply`, `remove` or
-`reset -ConfirmReset` without the user's confirmation.
+When the request is ambiguous, recommend an action and wait. Never commit to `apply`, `remove`,
+`remove -ConfirmRefresh` or `reset -ConfirmReset` without the user's confirmation.
 
 ## Action: assess
 
@@ -221,11 +222,49 @@ it.
 3. Read the output back to the user:
    - `kept (unknown, not ours)`: files the mod did not install. They stay; the user decides.
    - `MODIFIED` or `REMOVED` entries, with the Steam "Verify integrity" line: pre-install files
-     differ from the snapshot and the manifest is kept. After a verify, run `remove` again. After a
-     game update the drift is the update, not the mod: show it, and on the user's explicit request
-     run `remove -Finish`.
+     differ from the snapshot and the manifest is kept. After a verify, run `remove` again. When
+     the user says a game update caused it, show the drift, and on their explicit request run
+     `remove -Finish`.
+   - `MODIFIED` or `REMOVED` entries, with a `game updated by <launcher> (build X -> Y) since the
+     apply` line: the launcher updated the game since the apply, only game files drifted, and the
+     manifest is kept. Show the drift and the build change, then offer the refresh below; the user
+     may also leave it as is or ask for `remove -Finish`.
    - `removed: manifest deleted, snapshot kept`: done.
 4. Update the game's ledger row: note the removal date.
+
+### Refresh after a game update
+
+A launcher that updates a modded game rewrites files the snapshot recorded, so `status` and
+`remove` report drift that is the update, not the mod. For Steam, `apply` records the
+appmanifest's `buildid` and `LastUpdated`; when the build id changed and no mod file changed, both
+print `game updated by Steam (build X -> Y) since the apply` with a `-ConfirmRefresh <token>`. A
+manifest from before 0.7.0, or a game from another launcher, records no build and keeps the
+Verify integrity line.
+
+1. Show the drift lines and the build change. The refresh rewrites `OptiScaler.ini` to the stock
+   ini plus the preset, so offer `capture` first when the mod is still installed (from `status`,
+   before any `remove`).
+2. Run `assess`. When `acknowledgementRequired` is true, compare `antiCheat.reviewId` with the
+   `antiCheat.reviewId` in the game's `manifest.json`. Changed: run the whole anti-cheat review
+   again, with live research. Unchanged: show the recorded research and sources from the
+   manifest's `acknowledgement`. Either way the user types the game's name again in this
+   conversation; never pass the old typed name.
+3. Confirm, once: the resolved game directory, the build change, and that the refresh removes the
+   mod, drops the old manifest, and applies again against a fresh snapshot with the manifest's
+   build, proxy, preset key (or bases only), and `-RestoreComputeSignature`, replacing any overlay
+   tuning. Name the tag that will be installed from that build's `.provisioned.json` under the
+   data directory's `builds` folder: after a pin roll-out it is not the manifest's tag. Ask for an
+   explicit yes.
+4. Run `-Verb remove '<game-dir>' -ConfirmRefresh <token>`, plus the four acknowledgement
+   parameters whenever `acknowledgementRequired` is true: the name the user just typed, and the
+   new research, or on an unchanged review id the manifest's recorded `research` and `sources`.
+   Before any deletion the script refuses: a token for other drift
+   (rerun `status` and show the new drift), a change that is not a launcher game update, a build
+   that is not provisioned, a missing preset, a refused runtime DLL, or a missing or stale
+   acknowledgement. `apply`'s own gates run again after the remove; if one refuses there, the mod
+   is off and the manifest is gone: report the refusal, and `apply` again once it is fixed.
+5. Report both halves of the output, print the preset's `manual` lines as after `apply`, and
+   update the ledger row: the refresh date and the build change.
 
 ## Action: status
 
@@ -240,6 +279,10 @@ means the plugin was rolled back since the apply, and `differs from the current 
 version under another asset hash, or tags that do not compare as versions: report either and
 recommend nothing until the user says which build they want. `unknown, re-apply to record` means
 the manifest predates recorded build tags. None of them changes the exit code.
+
+A `game updated by <launcher> (build X -> Y) since the apply` line means the launcher updated the
+game and only game files drifted. The exit code stays 1; offer the refresh in Action: remove,
+Refresh after a game update.
 
 | Exit | Meaning |
 |---|---|
@@ -341,8 +384,9 @@ ledger row's ini deltas and visual verdict columns.
 - **The NVIDIA runtime DLL is never committed, bundled, or placed under the plugin root, and this
   skill names no source for it.** It comes only from the three sources `/gaming:setup` documents,
   each hash- or signature-checked.
-- **`apply`, `remove` and `reset -ConfirmReset` each need the user's explicit confirmation**, one
-  game at a time.
+- **`apply`, `remove`, `remove -ConfirmRefresh` and `reset -ConfirmReset` each need the user's
+  explicit confirmation**, one game at a time. `-Finish` and `-ConfirmRefresh` only after the user
+  has seen the drift.
 
 ## Ledger
 
@@ -363,7 +407,7 @@ absent, recommend `/gaming:setup apply` rather than inventing a format.
 | `reference/anticheat-posture.md` | The anti-cheat review, explaining a status or a refusal, or quoting the Blizzard EULA |
 | `reference/launchers.md` | Which launcher a game came from, what `discover` reads, or an Xbox app game |
 | `reference/candidate-selection.md` | Explaining `not-a-candidate`, which games the mod can help, engine notes, or which per-game config sources to trust |
-| `reference/reversal-matrix.md` | Explaining what `remove` deletes, keeps, or reports |
+| `reference/reversal-matrix.md` | Explaining what `remove` deletes, keeps, or reports, or a game update and the refresh |
 | `reference/fork-comparison.md` | Choosing or switching `-Build` |
 | `reference/presets.md` | Preset format, the four layers and their precedence, the per-build ini allow-list, hotkeys, `capture`, `reset`, writing a local preset, or contributing one |
 | `reference/tuning-guide.md` | The `tune` action, or picking `-RestoreComputeSignature` |
@@ -380,6 +424,7 @@ These are true as of the date in each row. `refetch` exists to recheck them.
 | GeForce driver 616.92 WHQL, the driver the mod was verified live on | `nvidia-smi` on the proving-ground machine | 2026-09-22 | A new Game Ready driver |
 | Steam requires the store-page anti-cheat field only for client-side kernel-mode anti-cheat; for anything else it is optional | Steamworks announcement 4547038620960934857, read through the Steam event API | 2026-09-23 | Valve changes the anti-cheat disclosure rule |
 | AreWeAntiCheatYet `games.json` fields `name`, `anticheats`, `status` (Linux and Proton support), `storeIds` (`steam`, `epic`); 1167 entries at commit `e31a7e6` | `https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/<sha>/games.json`, parsed live; `components/Legend.tsx` for the status meaning | 2026-09-23 | `assess` reports an AreWeAntiCheatYet fetch failure that persists, or the file's fields change |
+| Steam's appmanifest records the installed build as `buildid` and the update time as `LastUpdated` (Unix seconds); `TargetBuildID` is a queued update. No other launcher's install record the script reads carries a build field | GameFinder `AppManifestParser.cs`; `reference/launchers.md`, Build record and Verification record | 2026-09-24 | A Steam update that `status` does not report as `game updated by Steam`, or a launcher record gains a build field |
 | Blizzard EULA revised March 21, 2024; section 1.C.i and 1.C.ii text as quoted in `reference/anticheat-posture.md` | The EULA page, fetched | 2026-09-23 | The page shows a newer revision date |
 
 ## Next

@@ -185,6 +185,20 @@
         "Offers capture before the re-apply",
         "Does not run -Verb remove or -Verb apply without the user's explicit confirmation"
       ]
+    },
+    {
+      "id": 15,
+      "name": "game-update-offers-refresh",
+      "prompt": "/gaming:dlss5 status D:\\SteamLibrary\\steamapps\\common\\Example\\Example\\Binaries\\Win64 - (status output: MODIFIED (1) Example-Win64-Shipping.exe, then: game updated by Steam (build 1000 -> 2000) since the apply: only game files drifted, none of the mod's. The manifest is kept. To remove the mod and apply it again on a fresh snapshot with the same build, proxy and preset, run remove -ConfirmRefresh 0123456789ab once the user has seen this drift and said yes) what now?",
+      "expected_output": "Explains that Steam updated the game since the apply and the drift is the update, not the mod, and that the exit code is still 1. Shows the drift and the build change, offers capture first because the refresh replaces the overlay tuning, runs assess and compares the anti-cheat review id with the manifest's, and asks for one explicit yes naming the build, proxy and preset the refresh carries over. Does not run remove -ConfirmRefresh or remove -Finish before that yes, and asks for the typed game name again when the status needs an acknowledgement.",
+      "files": [],
+      "expectations": [
+        "Says Steam updated the game and the drift is the update, not the mod",
+        "Offers capture before the refresh",
+        "Runs assess and compares antiCheat.reviewId with the manifest's before the refresh",
+        "Does not run -ConfirmRefresh or -Finish before the user's explicit yes",
+        "Does not pass an acknowledgement the user did not type in this conversation"
+      ]
     }
   ]
 }
