@@ -280,6 +280,99 @@ expect_both 'su - bob -c rm -rf / blocks' 2 --command "su - bob -c 'rm -rf /'"
 expect_both 'su -lc rm -rf / blocks (short cluster)' 2 --command "su -lc 'rm -rf /'"
 expect_both 'su --command= rm -rf / blocks' 2 --command "su --command='rm -rf /'"
 expect_both 'su --session-command rm -rf / blocks' 2 --command "su --session-command 'rm -rf /'"
+# getopt_long takes any unambiguous prefix of a long option, so an abbreviated
+# `--command` or `--session-command` carries the operand exactly as the full
+# name does.
+expect_both 'su --comm rm -rf / blocks (abbreviated --command)' 2 --command "su --comm 'rm -rf /'"
+expect_both 'su --c= rm -rf / blocks' 2 --command "su --c='rm -rf /'"
+
+# The launcher family. Each of these moves the command word exactly as `sudo`
+# and `nice` do, so the real command is found behind its options and its own
+# positional argument. The two item examples come first.
+expect_both "runuser -c rm -rf / blocks" 2 --command "runuser -c 'rm -rf /'"
+expect_both 'taskset 1 rm -rf / blocks' 2 --command 'taskset 1 rm -rf /'
+# runuser WITHOUT -u is su's grammar: the operand follows -c, a user may sit
+# ahead of it, and short clusters and abbreviated long names carry it too.
+expect_both 'runuser bob -c rm -rf / blocks' 2 --command "runuser bob -c 'rm -rf /'"
+expect_both 'runuser - bob -c rm -rf / blocks' 2 --command "runuser - bob -c 'rm -rf /'"
+expect_both 'runuser -lc rm -rf / blocks' 2 --command "runuser -lc 'rm -rf /'"
+expect_both 'runuser --command= rm -rf / blocks' 2 --command "runuser --command='rm -rf /'"
+expect_both 'runuser --session-c rm -rf / blocks' 2 --command "runuser --session-c 'rm -rf /'"
+expect_both '/usr/sbin/runuser -c rm -rf / blocks' 2 --command "/usr/sbin/runuser -c 'rm -rf /'"
+expect_both 'RUNUSER.exe -c rm -rf / blocks' 2 --command "RUNUSER.exe -c 'rm -rf /'"
+expect_both 'sudo runuser -c rm -rf / blocks' 2 --command "sudo runuser -c 'rm -rf /'"
+expect_both 'nice -n 5 runuser -c rm -rf / blocks' 2 --command "nice -n 5 runuser -c 'rm -rf /'"
+# A -u hidden inside another option's operand is not -u, so these stay su form.
+expect_both 'runuser -lc with a -u inside the operand blocks' 2 --command "runuser -lc '-u x; rm -rf /'"
+expect_both 'runuser --whitelist-environment -u,PATH -c blocks' 2 \
+  --command "runuser --whitelist-environment -u,PATH bob -c 'rm -rf /'"
+expect_both 'runuser -w -u,PATH -c blocks' 2 --command "runuser -w -u,PATH bob -c 'rm -rf /'"
+# runuser WITH -u is a launcher: the command follows the user, after an optional --.
+expect_both 'runuser -u bob -- rm -rf / blocks' 2 --command 'runuser -u bob -- rm -rf /'
+expect_both 'runuser -u bob rm -rf / blocks' 2 --command 'runuser -u bob rm -rf /'
+expect_both 'runuser --user bob -- rm -rf / blocks' 2 --command 'runuser --user bob -- rm -rf /'
+expect_both 'runuser --user=bob -- rm -rf / blocks' 2 --command 'runuser --user=bob -- rm -rf /'
+expect_both 'runuser -ubob -- rm -rf / blocks' 2 --command 'runuser -ubob -- rm -rf /'
+expect_both 'runuser -u bob -G wheel -w PATH -- rm -rf / blocks' 2 \
+  --command 'runuser -u bob -G wheel -w PATH -- rm -rf /'
+expect_both 'runuser -u bob -- bash -c rm -rf / blocks' 2 --command "runuser -u bob -- bash -c 'rm -rf /'"
+expect_both 'sudo runuser -u bob -- rm -rf / blocks' 2 --command 'sudo runuser -u bob -- rm -rf /'
+# taskset takes a mask (or a cpu list under -c) ahead of the command.
+expect_both 'taskset 0x3 rm -rf / blocks' 2 --command 'taskset 0x3 rm -rf /'
+expect_both 'taskset -c 0 rm -rf / blocks' 2 --command 'taskset -c 0 rm -rf /'
+expect_both 'taskset --cpu-list 0-3 rm -rf / blocks' 2 --command 'taskset --cpu-list 0-3 rm -rf /'
+expect_both 'taskset -ac 0 rm -rf / blocks' 2 --command 'taskset -ac 0 rm -rf /'
+expect_both 'taskset -- 1 rm -rf / blocks' 2 --command 'taskset -- 1 rm -rf /'
+expect_both "'taskset' 1 rm -rf / blocks" 2 --command "'taskset' 1 rm -rf /"
+expect_both 'TASKSET.EXE 1 rm -rf / blocks' 2 --command 'TASKSET.EXE 1 rm -rf /'
+expect_both 'taskset 1 rm -rf C:\ blocks' 2 --command 'taskset 1 rm -rf C:\'
+expect_both 'taskset 1 rm -rf \ blocks (dangling backslash)' 2 --command 'taskset 1 rm -rf \'
+expect_both 'env -u X taskset -c 0 rm -rf / blocks' 2 --command 'env -u X taskset -c 0 rm -rf /'
+expect_both 'timeout 5 taskset 1 rm -rf / blocks' 2 --command 'timeout 5 taskset 1 rm -rf /'
+expect_both 'taskset 1 bash -c rm -rf / blocks' 2 --command "taskset 1 bash -c 'rm -rf /'"
+expect_both 'substitution through taskset blocks' 2 --command 'echo "$(taskset 1 rm -rf /)"'
+expect_both 'env -S through taskset blocks' 2 --command "env -S 'taskset 1 rm -rf /'"
+# chrt takes a priority only when the word is all digits; otherwise the word
+# is the command. `chrt -r rm` is an invocation chrt itself rejects (rr needs a
+# priority), refused anyway because underblocking is the costlier mistake.
+expect_both 'chrt 10 rm -rf / blocks' 2 --command 'chrt 10 rm -rf /'
+expect_both 'chrt --fifo 10 rm -rf / blocks' 2 --command 'chrt --fifo 10 rm -rf /'
+expect_both 'chrt -o rm -rf / blocks (no priority)' 2 --command 'chrt -o rm -rf /'
+expect_both 'chrt -r rm -rf / blocks' 2 --command 'chrt -r rm -rf /'
+expect_both 'chrt -d -T -P -D 0 rm -rf / blocks' 2 --command 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf /'
+expect_both 'chrt -- 5 rm -rf / blocks' 2 --command 'chrt -- 5 rm -rf /'
+# flock takes a lock file, and runs -c / --command through a shell.
+expect_both 'flock /tmp/l rm -rf / blocks' 2 --command 'flock /tmp/l rm -rf /'
+expect_both 'flock -w 5 /tmp/l rm -rf / blocks' 2 --command 'flock -w 5 /tmp/l rm -rf /'
+expect_both 'flock -x /tmp/l -c rm -rf / blocks' 2 --command "flock -x /tmp/l -c 'rm -rf /'"
+expect_both 'flock /tmp/l --command rm -rf / blocks' 2 --command "flock /tmp/l --command 'rm -rf /'"
+expect_both 'flock -c rm -rf / blocks (no file)' 2 --command "flock -c 'rm -rf /'"
+expect_both 'flock -- /tmp/l rm -rf / blocks' 2 --command 'flock -- /tmp/l rm -rf /'
+# With --fd there is no lock file, so the first positional is the command.
+expect_both 'flock --fd 9 rm -rf / blocks' 2 --command 'flock --fd 9 rm -rf /'
+expect_both 'flock --fd=9 rm -rf / blocks' 2 --command 'flock --fd=9 rm -rf /'
+# unshare, nsenter and numactl take no positional; only their operand-taking
+# options consume a word.
+expect_both 'unshare rm -rf / blocks' 2 --command 'unshare rm -rf /'
+expect_both 'unshare --mount --pid --fork rm -rf / blocks' 2 --command 'unshare --mount --pid --fork rm -rf /'
+expect_both 'unshare -S 0 -G 0 rm -rf / blocks' 2 --command 'unshare -S 0 -G 0 rm -rf /'
+expect_both 'unshare -R /mnt rm -rf / blocks' 2 --command 'unshare -R /mnt rm -rf /'
+expect_both 'nsenter -t 1 -m rm -rf / blocks' 2 --command 'nsenter -t 1 -m rm -rf /'
+expect_both 'nsenter --target 1 --mount rm -rf / blocks' 2 --command 'nsenter --target 1 --mount rm -rf /'
+expect_both 'nsenter -t1 -m rm -rf / blocks' 2 --command 'nsenter -t1 -m rm -rf /'
+expect_both 'numactl -i all rm -rf / blocks' 2 --command 'numactl -i all rm -rf /'
+expect_both 'numactl --interleave=all rm -rf / blocks' 2 --command 'numactl --interleave=all rm -rf /'
+expect_both 'numactl --cpunodebind 0 rm -rf / blocks' 2 --command 'numactl --cpunodebind 0 rm -rf /'
+# chroot takes NEWROOT. `chroot /mnt rm -rf /` deletes /mnt on the host rather
+# than the host root, and is refused anyway: a known overblock, kept on the
+# refusal side until someone decides otherwise.
+expect_both 'chroot / rm -rf / blocks' 2 --command 'chroot / rm -rf /'
+expect_both 'chroot /mnt rm -rf / blocks (known overblock)' 2 --command 'chroot /mnt rm -rf /'
+expect_both 'chroot --userspec bob:bob /mnt rm -rf / blocks' 2 --command 'chroot --userspec bob:bob /mnt rm -rf /'
+expect_both 'chroot -- / rm -rf / blocks' 2 --command 'chroot -- / rm -rf /'
+# Launchers stack.
+expect_both 'the whole launcher family stacked blocks' 2 \
+  --command 'flock /tmp/l chrt 5 unshare nsenter -t 1 chroot / numactl -l taskset 1 runuser -u bob -- rm -rf /'
 
 # The command word is compared case-insensitively, so the substring prefilter
 # in front of the parse must be too. On the Windows host this guard was written
@@ -412,6 +505,28 @@ expect_both 'rm.EXE under the tree allowed' 0 --command 'rm.EXE -rf ./build'
 # as anywhere else, so the restore must key on provenance rather than emptiness.
 expect_both 'eval rm -rf "" allowed' 0 --command 'eval rm -rf ""'
 
+# The launcher family must not widen the guard either: a launcher whose real
+# command is benign, or an ordinary delete, stays allowed, and so does a form
+# that launches nothing at all.
+expect_both 'taskset 1 rm -rf ./build allowed' 0 --command 'taskset 1 rm -rf ./build'
+expect_both 'taskset -p 1234 allowed (launches nothing)' 0 --command 'taskset -p 1234'
+expect_both 'taskset -cp 0 1234 allowed' 0 --command 'taskset -cp 0 1234'
+expect_both 'runuser -u bob -- ls / allowed' 0 --command 'runuser -u bob -- ls /'
+expect_both 'runuser -u bob -- rm -rf ./build allowed' 0 --command 'runuser -u bob -- rm -rf ./build'
+expect_both 'runuser -c with an ordinary delete allowed' 0 --command "runuser -c 'rm -rf ./build'"
+expect_both 'runuser -l bob allowed' 0 --command 'runuser -l bob'
+expect_both 'chrt 5 ls / allowed' 0 --command 'chrt 5 ls /'
+expect_both 'chrt -p 5 1234 allowed' 0 --command 'chrt -p 5 1234'
+expect_both 'flock /tmp/l rm -rf ./build allowed' 0 --command 'flock /tmp/l rm -rf ./build'
+expect_both 'flock -x 9 allowed' 0 --command 'flock -x 9'
+expect_both 'flock --fd 9 ls / allowed' 0 --command 'flock --fd 9 ls /'
+expect_both 'unshare ls / allowed' 0 --command 'unshare ls /'
+expect_both 'nsenter -t 1 -m ls / allowed' 0 --command 'nsenter -t 1 -m ls /'
+expect_both 'chroot /mnt ls / allowed' 0 --command 'chroot /mnt ls /'
+expect_both 'numactl -i all ls / allowed' 0 --command 'numactl -i all ls /'
+expect_both 'echo of the launcher names allowed' 0 --command 'echo runuser taskset chrt flock unshare nsenter chroot numactl'
+expect_both 'git commit -m quoting runuser allowed' 0 --command "git commit -m \"runuser -c 'rm -rf /'\""
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
@@ -424,6 +539,17 @@ assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
 # Pinned so widening it later is a deliberate change to this line.
 expect "PowerShell payload is a declared gap, not a block" 0 \
   --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
+
+# Launcher spellings that stay declared gaps. Reading each one correctly means
+# treating the word after it as an operand, and that same reading turns a
+# spelling main refuses today into an allow (`sudo -R rm -rf /` would read `rm`
+# as the chroot directory). Pinned so widening any of them later is a
+# deliberate change to these lines.
+expect_both 'sudo -R is a declared gap' 0 --command 'sudo -R /mnt rm -rf /'
+expect_both 'sudo --chroot is a declared gap' 0 --command 'sudo --chroot /mnt rm -rf /'
+expect_both 'sudo -Eu cluster is a declared gap' 0 --command 'sudo -Eu bob rm -rf /'
+expect_both 'runuser -mu cluster is a declared gap' 0 --command 'runuser -mu bob -- rm -rf /'
+expect_both 'sudo abbreviated --us is a declared gap' 0 --command 'sudo --us bob rm -rf /'
 
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0

@@ -80,11 +80,22 @@
 #     and GNU `env`'s `-S` / `--split-string` operand ARE unwrapped and
 #     re-parsed; an interpreter that is not a shell (`python -c`, `perl -e`)
 #     is not.
-#   * A LAUNCHER that is not in the table below. `runuser -c '…'` and
-#     `taskset <mask> rm -rf /` move the command word exactly as `sudo` and
-#     `nice` do, and are not resolved: the table is an allow-list of names, so
-#     an unlisted launcher ends the walk and its own name is read as the
-#     command word. Queued as follow-up item 20260922-070000.
+#   * A LAUNCHER that is not in the table below. The table is an allow-list of
+#     names, so an unlisted launcher ends the walk and its own name is read as
+#     the command word. Listed: sudo, doas, env, timeout, nice, ionice, stdbuf,
+#     time, exec, command, nohup, setsid, busybox, and the util-linux family
+#     taskset, chrt, flock (with its `-c` / `--command` operand), unshare,
+#     nsenter, numactl, chroot, and runuser (su's grammar without `-u`, a
+#     launcher's with it).
+#   * Launcher spellings whose correct reading would LOOSEN the guard: sudo's
+#     `-R` / `--chroot`, a short cluster ending in an operand-taking letter
+#     (`sudo -Eu bob …`, `runuser -mu bob -- …`), and an abbreviated launcher
+#     long option (`sudo --us bob …`). Each is read as a flag that takes no
+#     operand, so the word after it becomes the command word. Reading it as
+#     the operand it is would also turn `sudo -R rm -rf /`, refused today, into
+#     an allow, so these stay gaps rather than trading one hole for another.
+#   * `chroot /mnt rm -rf /` is refused although it deletes `/mnt` on the host
+#     rather than the host root: a known overblock, kept on the refusal side.
 #   * A command word split across quoting so the RAW text never spells it.
 #     `\rm` and `RM` are caught, because the cheap substring prefilter below
 #     folds case and the raw text still reads `rm`; `r\m`, `r''m` and `"r"m`
@@ -330,6 +341,40 @@ rdt_is_root() {
   return 1
 }
 
+# rdt_runuser_has_u <words after runuser>: true when runuser's own options
+# carry -u, which switches it from su's grammar to a launcher's. runuser's
+# getopt permutes, so -u counts wherever it sits before `--`. The operands of
+# its other operand-taking options are stepped over, so a `-u` that is really
+# the argument of -c or -w (`runuser -w -u,PATH bob -c '…'`) is not read as one.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_runuser_has_u() {
+  local w lname
+  while (($#)); do
+    w="$1"
+    shift
+    case "$w" in
+    --) return 1 ;;
+    -c | -s | -g | -G | -w | --command | --session-command | --shell | --group | --supp-group | --whitelist-environment)
+      (($#)) && shift
+      ;;
+    --?*)
+      # Any unambiguous prefix of --user: no other runuser option starts with `u`.
+      lname="${w#--}"
+      lname="${lname%%=*}"
+      [[ -n "$lname" && "user" == "$lname"* ]] && return 0
+      ;;
+    -*)
+      # A short cluster: flags first, then either -u (its operand may be
+      # attached) or an operand-taking letter that consumes the next word.
+      [[ "$w" =~ ^-[flmpPThV]*u ]] && return 0
+      [[ "$w" =~ ^-[flmpPThV]*[csgGw]$ ]] && (($#)) && shift
+      ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
+
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
 # it. Prefixed because guards share one process under run-guards.sh and two
 # siblings already define a function named check_segment.
@@ -402,6 +447,36 @@ rdt_check_segment() {
     consume_bare=0
     case "$base" in
     sudo | doas) optarg=" -u --user -g --group -p --prompt -C --close-from -D --chdir -r --role -t --type -T --command-timeout -U --other-user -h --host " ;;
+    # The util-linux launchers. Each operand list is read from the tool's own
+    # getopt string; an option whose argument is OPTIONAL (nsenter's `-m`,
+    # unshare's `--mount`) takes it only when attached, so it consumes no word.
+    # taskset's mask, flock's lock file and chroot's NEWROOT always precede the
+    # command, and chrt's priority does when it is all digits.
+    taskset)
+      optarg=""
+      consume_bare=1
+      ;;
+    chrt)
+      optarg=" -D --sched-deadline -P --sched-period -T --sched-runtime -U --clamp-min -X --clamp-max "
+      consume_bare=1
+      ;;
+    flock)
+      optarg=" -w --wait --timeout -E --conflict-exit-code --start --length --fd "
+      consume_bare=1
+      ;;
+    unshare) optarg=" -R --root -w --wd -S --setuid -G --setgid -l --load-interp --map-user --map-users --map-group --map-groups --owner --propagation --setgroups --monotonic --boottime --whitelist-env " ;;
+    nsenter) optarg=" -t --target -N --net-socket -S --setuid -G --setgid " ;;
+    numactl) optarg=" -i --interleave -w --weighted-interleave -p --preferred -P --preferred-many -c --cpubind -N --cpunodebind -C --physcpubind -m --membind -S --shm -f --file -o --offset -L --length -M --shmmode -I --shmid " ;;
+    chroot)
+      optarg=" --userspec --groups "
+      consume_bare=1
+      ;;
+    # runuser has two grammars. With -u it is a launcher and the command follows
+    # the user; without it, it is su's grammar and the su arm below judges it.
+    runuser)
+      rdt_runuser_has_u ${words[@]+"${words[@]:i+1}"} || break
+      optarg=" -u --user -g --group -G --supp-group -w --whitelist-environment "
+      ;;
     # `-S` / `--split-string` is absent on purpose: it is not an opaque option
     # argument but a COMMAND, and the arm below re-parses it.
     env) optarg=" -u --unset -C --chdir " ;;
@@ -424,9 +499,27 @@ rdt_check_segment() {
       case "$w" in
       --)
         i=$((i + 1))
+        # `--` ends the options but not the positional: `taskset -- 1 rm` still
+        # reads `1` as the mask. timeout is left out, as it always has been.
+        if ((consume_bare && i < n)); then
+          case "$base" in
+          taskset | flock | chroot) i=$((i + 1)) ;;
+          chrt) [[ "${words[i]}" =~ ^[0-9]+$ ]] && i=$((i + 1)) ;;
+          *) ;;
+          esac
+        fi
         break
         ;;
       -*)
+        # flock runs a -c / --command operand through a shell, and demands it
+        # be the last word, so the operand is the whole command.
+        if [[ "$base" == "flock" && ("$w" == "-c" || "$w" == "--command") ]]; then
+          ((i + 1 < n)) && hook::bash_parse_segments "${words[i + 1]}" rdt_check_segment
+          return 0
+        fi
+        # With --fd the lock is an already-open descriptor, so there is no lock
+        # file and flock's first positional is the command itself.
+        [[ "$base" == "flock" && ("$w" == "--fd" || "$w" == --fd=*) ]] && consume_bare=0
         # GNU env's `-S` SPLITS its operand and RUNS the result, so the operand
         # is a command and not an option argument to step over. The split words
         # are spliced back in ahead of whatever followed, exactly as
@@ -467,6 +560,9 @@ rdt_check_segment() {
         ;;
       *)
         ((consume_bare)) || break
+        # chrt reads a priority only when the word is all digits; otherwise
+        # that word is already the command.
+        [[ "$base" == "chrt" && ! "$w" =~ ^[0-9]+$ ]] && break
         consume_bare=0
         i=$((i + 1))
         ;;
@@ -497,8 +593,12 @@ rdt_check_segment() {
   # than in the shared hook::shell_c_operand because su's grammar differs: the
   # operand follows the FLAG, and a user name may sit ahead of it
   # (`su bob -c '…'`), where a shell takes its first bare word.
+  #
+  # runuser without -u shares su's option parser, so it is read the same way.
+  [[ "$base" == "runuser" ]] && base="su"
   if [[ "$base" == "su" ]]; then
     local k
+    local sulong
     for ((k = i + 1; k < n; k++)); do
       case "${words[k]}" in
       --command=* | --session-command=*)
@@ -508,6 +608,21 @@ rdt_check_segment() {
       --command | --session-command)
         ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
         return 0
+        ;;
+      --?*)
+        # getopt_long takes any unambiguous prefix. No other su option starts
+        # with `c`, and `se` is the shortest prefix that separates
+        # session-command from shell and supp-group.
+        sulong="${words[k]#--}"
+        sulong="${sulong%%=*}"
+        if [[ -n "$sulong" && ("command" == "$sulong"* || ("${#sulong}" -ge 2 && "session-command" == "$sulong"*)) ]]; then
+          if [[ "${words[k]}" == *=* ]]; then
+            hook::bash_parse_segments "${words[k]#*=}" rdt_check_segment
+          else
+            ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+          fi
+          return 0
+        fi
         ;;
       -*)
         if [[ "${words[k]}" =~ ^-[A-Za-z]+$ && "${words[k]}" == *c* ]]; then

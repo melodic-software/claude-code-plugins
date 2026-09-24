@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.9] - 2026-09-25
+
+### Fixed
+
+- **`block-root-delete-target` resolves the command word through `runuser`, `taskset` and the rest of the util-linux launcher family.** `runuser -c 'rm -rf /'` and `taskset 1 rm -rf /` returned 0, because an unlisted launcher ended the walk with its own name read as the command word. Now unwrapped, each with the option grammar its upstream source declares: `taskset` (the mask, also after `--`), `chrt` (the priority, only when all digits), `flock` (the lock file, none under `--fd`, and its `-c` / `--command` operand re-parsed as a command), `unshare`, `nsenter`, `numactl`, `chroot` (NEWROOT), and `runuser`, read as su's grammar without `-u` and as a launcher with it. su's and runuser's `--command` and `--session-command` now match on any unambiguous prefix. Still declared gaps, because reading them correctly would turn a spelling refused today into an allow: `sudo -R` / `--chroot`, a short cluster ending in an operand-taking letter (`sudo -Eu bob`, `runuser -mu bob`), and an abbreviated launcher long option (`sudo --us bob`). `chroot /mnt rm -rf /` is refused although it deletes `/mnt` on the host, a known overblock.
+
 ## [0.36.8] - 2026-09-25
 
 ### Changed
