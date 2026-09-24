@@ -137,6 +137,10 @@ expect_both 'rm -rf /.. blocks' 2 --command 'rm -rf /..'
 expect_both 'sudo -u bob rm -rf / blocks' 2 --command 'sudo -u bob rm -rf /'
 expect_both 'env -u FOO rm -rf / blocks' 2 --command 'env -u FOO rm -rf /'
 expect_both 'timeout 60 rm -rf / blocks' 2 --command 'timeout 60 rm -rf /'
+# `--` ends options, not the duration; a word that cannot be a duration is the
+# command word.
+expect_both 'timeout -- 5 rm -rf / blocks' 2 --command 'timeout -- 5 rm -rf /'
+expect_both 'timeout -- rm -rf / blocks' 2 --command 'timeout -- rm -rf /'
 expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
 expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
 expect_both 'stdbuf -o L rm -rf / blocks' 2 --command 'stdbuf -o L rm -rf /'
@@ -285,6 +289,14 @@ expect_both 'su --session-command rm -rf / blocks' 2 --command "su --session-com
 # name does.
 expect_both 'su --comm rm -rf / blocks (abbreviated --command)' 2 --command "su --comm 'rm -rf /'"
 expect_both 'su --c= rm -rf / blocks' 2 --command "su --c='rm -rf /'"
+# EVERY word after a -c-like word is parsed, not only the first: su runs the
+# last -c, and a -c-looking word may be another option's operand.
+expect_both 'su with two -c, the second a delete, blocks' 2 --command "su bob -c true -c 'rm -rf /*'"
+expect_both 'su -w -c -c blocks' 2 --command "su -w -c -c 'rm -rf /*'"
+# An operand attached to -c arrives inside the same word.
+expect_both "su -c'rm -rf /' blocks (attached operand)" 2 --command "su -c'rm -rf /'"
+expect_both "runuser -lc'rm -rf /' blocks (attached operand)" 2 --command "runuser -lc'rm -rf /'"
+expect_both "su -c'ls /' allowed (attached benign operand)" 0 --command "su -c'ls /'"
 
 # The launcher family. Each of these moves the command word exactly as `sudo`
 # and `nice` do, so the real command is found behind its options and its own
@@ -307,7 +319,26 @@ expect_both 'runuser -lc with a -u inside the operand blocks' 2 --command "runus
 expect_both 'runuser --whitelist-environment -u,PATH -c blocks' 2 \
   --command "runuser --whitelist-environment -u,PATH bob -c 'rm -rf /'"
 expect_both 'runuser -w -u,PATH -c blocks' 2 --command "runuser -w -u,PATH bob -c 'rm -rf /'"
-# runuser WITH -u is a launcher: the command follows the user, after an optional --.
+expect_both 'runuser --white -u,PATH -c blocks' 2 --command "runuser --white -u,PATH bob -c 'rm -rf /'"
+# runuser's getopt PERMUTES and takes the LAST of a repeated option, so every
+# -c operand is judged, and an option operand is never mistaken for an option.
+expect_both 'runuser two -c, the second a delete, blocks' 2 --command "runuser bob -c true -c 'rm -rf /*'"
+expect_both 'runuser --command then --session-command blocks' 2 \
+  --command "runuser bob --command=true --session-command 'rm -rf /*'"
+expect_both 'runuser -wc then -c blocks' 2 --command "runuser bob -wc -c 'rm -rf /*'"
+expect_both 'runuser --whitelist-environment -c then -c blocks' 2 \
+  --command "runuser bob --whitelist-environment -c -c 'rm -rf /*'"
+expect_both 'runuser --white -u then -c blocks' 2 --command "runuser bob --white -u -c 'rm -rf /*'"
+expect_both 'runuser --sess -u then -c blocks' 2 --command "runuser bob --sess -u -c 'rm -rf /*'"
+expect_both 'runuser --comm with a -u inside the operand blocks' 2 --command "runuser bob --comm '-u; rm -rf /'"
+expect_both 'runuser --sess with a -u inside the operand blocks' 2 --command "runuser --sess '-u x; rm -rf /'"
+# runuser WITH -u is a launcher: its non-option words are the command, wherever
+# the options sit among them, and the first -- ends the options.
+expect_both 'runuser -u bob rm -- -rf /* blocks (permuted)' 2 --command 'runuser -u bob rm -- -rf /*'
+expect_both 'runuser rm -u bob -- -rf /* blocks (permuted)' 2 --command 'runuser rm -u bob -- -rf /*'
+expect_both 'runuser -mu cluster blocks' 2 --command 'runuser -mu bob -- rm -rf /'
+expect_both 'runuser --u bob blocks (abbreviated --user)' 2 --command 'runuser --u bob -- rm -rf /'
+expect_both 'runuser --us=bob blocks' 2 --command 'runuser --us=bob -- rm -rf /'
 expect_both 'runuser -u bob -- rm -rf / blocks' 2 --command 'runuser -u bob -- rm -rf /'
 expect_both 'runuser -u bob rm -rf / blocks' 2 --command 'runuser -u bob rm -rf /'
 expect_both 'runuser --user bob -- rm -rf / blocks' 2 --command 'runuser --user bob -- rm -rf /'
@@ -339,7 +370,7 @@ expect_both 'chrt 10 rm -rf / blocks' 2 --command 'chrt 10 rm -rf /'
 expect_both 'chrt --fifo 10 rm -rf / blocks' 2 --command 'chrt --fifo 10 rm -rf /'
 expect_both 'chrt -o rm -rf / blocks (no priority)' 2 --command 'chrt -o rm -rf /'
 expect_both 'chrt -r rm -rf / blocks' 2 --command 'chrt -r rm -rf /'
-expect_both 'chrt -d -T -P -D 0 rm -rf / blocks' 2 --command 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf /'
+expect_both 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf / blocks' 2 --command 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf /'
 expect_both 'chrt -- 5 rm -rf / blocks' 2 --command 'chrt -- 5 rm -rf /'
 # flock takes a lock file, and runs -c / --command through a shell.
 expect_both 'flock /tmp/l rm -rf / blocks' 2 --command 'flock /tmp/l rm -rf /'
@@ -500,6 +531,8 @@ expect_both 'brace group with an ordinary delete allowed' 0 --command '{ rm -rf 
 expect_both 'if/then with an ordinary delete allowed' 0 --command 'if true; then rm -rf ./build; fi'
 expect_both 'su -c with an ordinary delete allowed' 0 --command "su -c 'rm -rf ./build'"
 expect_both 'su with no -c allowed' 0 --command 'su bob ls /'
+# `--s` is ambiguous (session-command, shell, supp-group), so su rejects it.
+expect_both 'su --s ambiguous prefix allowed' 0 --command "su --s 'rm -rf /'"
 expect_both 'rm.EXE under the tree allowed' 0 --command 'rm.EXE -rf ./build'
 # An empty operand from a QUOTED span is not a dropped backslash, through eval
 # as anywhere else, so the restore must key on provenance rather than emptiness.
@@ -540,15 +573,14 @@ assert_contains "blocked case names the BLOCKED token" "$GUARD_ERR" "BLOCKED:"
 expect "PowerShell payload is a declared gap, not a block" 0 \
   --tool PowerShell --command 'Remove-Item -Recurse -Force C:\'
 
-# Launcher spellings that stay declared gaps. Reading each one correctly means
-# treating the word after it as an operand, and that same reading turns a
-# spelling main refuses today into an allow (`sudo -R rm -rf /` would read `rm`
-# as the chroot directory). Pinned so widening any of them later is a
-# deliberate change to these lines.
+# sudo spellings that stay declared gaps. Reading each one correctly means
+# treating the word after it as an operand, which changes how sudo lines the
+# guard refuses today are read (`sudo -R rm -rf /` would read `rm` as the
+# chroot directory), and this guard only ever adds refusals. Pinned so widening
+# any of them later is a deliberate change to these lines.
 expect_both 'sudo -R is a declared gap' 0 --command 'sudo -R /mnt rm -rf /'
 expect_both 'sudo --chroot is a declared gap' 0 --command 'sudo --chroot /mnt rm -rf /'
 expect_both 'sudo -Eu cluster is a declared gap' 0 --command 'sudo -Eu bob rm -rf /'
-expect_both 'runuser -mu cluster is a declared gap' 0 --command 'runuser -mu bob -- rm -rf /'
 expect_both 'sudo abbreviated --us is a declared gap' 0 --command 'sudo --us bob rm -rf /'
 
 # --- 5. Fail-closed inputs ---------------------------------------------------

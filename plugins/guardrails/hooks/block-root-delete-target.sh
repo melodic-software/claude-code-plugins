@@ -80,20 +80,18 @@
 #     and GNU `env`'s `-S` / `--split-string` operand ARE unwrapped and
 #     re-parsed; an interpreter that is not a shell (`python -c`, `perl -e`)
 #     is not.
-#   * A LAUNCHER that is not in the table below. The table is an allow-list of
-#     names, so an unlisted launcher ends the walk and its own name is read as
-#     the command word. Listed: sudo, doas, env, timeout, nice, ionice, stdbuf,
-#     time, exec, command, nohup, setsid, busybox, and the util-linux family
-#     taskset, chrt, flock (with its `-c` / `--command` operand), unshare,
-#     nsenter, numactl, chroot, and runuser (su's grammar without `-u`, a
-#     launcher's with it).
-#   * Launcher spellings whose correct reading would LOOSEN the guard: sudo's
-#     `-R` / `--chroot`, a short cluster ending in an operand-taking letter
-#     (`sudo -Eu bob …`, `runuser -mu bob -- …`), and an abbreviated launcher
-#     long option (`sudo --us bob …`). Each is read as a flag that takes no
-#     operand, so the word after it becomes the command word. Reading it as
-#     the operand it is would also turn `sudo -R rm -rf /`, refused today, into
-#     an allow, so these stay gaps rather than trading one hole for another.
+#   * A LAUNCHER that is not in the launcher table in rdt_check_segment. The
+#     table is an allow-list of names, so an unlisted launcher ends the walk
+#     and its own name is read as the command word. runuser is read by its own
+#     helper, because its getopt permutes: its -c operands are commands (su's
+#     grammar) and, with -u, its non-option words are the command.
+#   * Three sudo spellings: `-R` / `--chroot`, a short cluster ending in an
+#     operand-taking letter (`sudo -Eu bob …`), and an abbreviated long option
+#     (`sudo --us bob …`). Each is read as a flag that takes no operand, so the
+#     word after it becomes the command word. Reading them correctly changes
+#     how sudo lines the guard refuses today are read (`sudo -R rm -rf /` would
+#     take `rm` as the chroot directory), and this guard only ever adds
+#     refusals, so they stay gaps.
 #   * `chroot /mnt rm -rf /` is refused although it deletes `/mnt` on the host
 #     rather than the host root: a known overblock, kept on the refusal side.
 #   * A command word split across quoting so the RAW text never spells it.
@@ -341,38 +339,110 @@ rdt_is_root() {
   return 1
 }
 
-# rdt_runuser_has_u <words after runuser>: true when runuser's own options
-# carry -u, which switches it from su's grammar to a launcher's. runuser's
-# getopt permutes, so -u counts wherever it sits before `--`. The operands of
-# its other operand-taking options are stepped over, so a `-u` that is really
-# the argument of -c or -w (`runuser -w -u,PATH bob -c '…'`) is not read as one.
+# rdt_runuser_argv <offset> <words after runuser>: read runuser's argv the way
+# its getopt does. The optstring has no leading `+`, so getopt PERMUTES:
+# options are recognized anywhere before the first `--`, and every non-option
+# word, wherever it sits, is collected in order. Results, in globals the
+# caller copies at once because a nested parse can re-enter this:
+#   RDT_RU_CMDS   every -c / --command / --session-command operand (su's grammar)
+#   RDT_RU_U      1 when -u / --user was given, which makes it a launcher
+#   RDT_RU_ARGV   the non-option words, then everything after the first `--`
+#   RDT_RU_QUOTED the quoting provenance of each RDT_RU_ARGV word, copied from
+#                 HOOK_SEG_WORD_QUOTED at <offset> plus its original position
+# A short cluster holding a letter runuser rejects makes runuser refuse the
+# whole invocation; that word is kept as a non-option rather than read as
+# options, so `runuser -u bob rm -rf /` still reads `-rf` as rm's flag.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
-rdt_runuser_has_u() {
-  local w lname
-  while (($#)); do
-    w="$1"
-    shift
+rdt_runuser_argv() {
+  local off="$1"
+  shift
+  local -a a=("$@")
+  local n=$# k=0 m w name hit hits opt ch val bad
+  RDT_RU_CMDS=()
+  RDT_RU_ARGV=()
+  RDT_RU_QUOTED=()
+  RDT_RU_U=0
+  while ((k < n)); do
+    w="${a[k]}"
     case "$w" in
-    --) return 1 ;;
-    -c | -s | -g | -G | -w | --command | --session-command | --shell | --group | --supp-group | --whitelist-environment)
-      (($#)) && shift
+    --)
+      for ((m = k + 1; m < n; m++)); do
+        RDT_RU_ARGV+=("${a[m]}")
+        RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + m]:-0}")
+      done
+      return 0
       ;;
     --?*)
-      # Any unambiguous prefix of --user: no other runuser option starts with `u`.
-      lname="${w#--}"
-      lname="${lname%%=*}"
-      [[ -n "$lname" && "user" == "$lname"* ]] && return 0
+      # getopt_long: an exact name wins, otherwise a UNIQUE prefix; an
+      # ambiguous or unknown name is an error that consumes nothing more.
+      name="${w#--}"
+      name="${name%%=*}"
+      hit=""
+      hits=0
+      for opt in command session-command fast login preserve-environment pty no-pty shell group supp-group user whitelist-environment help version; do
+        if [[ "$opt" == "$name" ]]; then
+          hit="$opt"
+          hits=1
+          break
+        fi
+        if [[ -n "$name" && "$opt" == "$name"* ]]; then
+          hit="$opt"
+          hits=$((hits + 1))
+        fi
+      done
+      ((hits == 1)) || hit=""
+      k=$((k + 1))
+      case "$hit" in
+      command | session-command | shell | group | supp-group | user | whitelist-environment)
+        if [[ "$w" == *=* ]]; then
+          val="${w#*=}"
+        else
+          val="${a[k]-}"
+          ((k < n)) && k=$((k + 1))
+        fi
+        [[ "$hit" == "command" || "$hit" == "session-command" ]] && RDT_RU_CMDS+=("$val")
+        [[ "$hit" == "user" ]] && RDT_RU_U=1
+        ;;
+      *) ;;
+      esac
+      continue
       ;;
-    -*)
-      # A short cluster: flags first, then either -u (its operand may be
-      # attached) or an operand-taking letter that consumes the next word.
-      [[ "$w" =~ ^-[flmpPThV]*u ]] && return 0
-      [[ "$w" =~ ^-[flmpPThV]*[csgGw]$ ]] && (($#)) && shift
+    -?*)
+      # A short cluster: flags, then at most one operand-taking letter, which
+      # takes the rest of the word or, when it is last, the next word.
+      bad=0
+      for ((m = 1; m < ${#w}; m++)); do
+        ch="${w:m:1}"
+        case "$ch" in
+        f | l | m | p | P | T | h | V) ;;
+        c | g | G | s | u | w) break ;;
+        *)
+          bad=1
+          break
+          ;;
+        esac
+      done
+      if ((bad == 0)); then
+        k=$((k + 1))
+        if ((m < ${#w})); then
+          val="${w:m+1}"
+          if [[ -z "$val" ]]; then
+            val="${a[k]-}"
+            ((k < n)) && k=$((k + 1))
+          fi
+          [[ "$ch" == "c" ]] && RDT_RU_CMDS+=("$val")
+          [[ "$ch" == "u" ]] && RDT_RU_U=1
+        fi
+        continue
+      fi
       ;;
     *) ;;
     esac
+    RDT_RU_ARGV+=("$w")
+    RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + k]:-0}")
+    k=$((k + 1))
   done
-  return 1
+  return 0
 }
 
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
@@ -471,11 +541,29 @@ rdt_check_segment() {
       optarg=" --userspec --groups "
       consume_bare=1
       ;;
-    # runuser has two grammars. With -u it is a launcher and the command follows
-    # the user; without it, it is su's grammar and the su arm below judges it.
+    # runuser has two grammars and both are judged, blocking if either does:
+    # every -c / --command / --session-command operand is a command, and with
+    # -u its non-option words are the command. Without -u the first non-option
+    # is the user and the rest go to the shell, so they get su's scan. The
+    # remapped provenance is saved first, because each parse rebuilds it.
     runuser)
-      rdt_runuser_has_u ${words[@]+"${words[@]:i+1}"} || break
-      optarg=" -u --user -g --group -G --supp-group -w --whitelist-environment "
+      rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+      local -a ru_cmds=() ru_argv=() ru_quoted=()
+      local ru_u="$RDT_RU_U" ru_cmd
+      ru_cmds=(${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"})
+      ru_argv=(${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"})
+      ru_quoted=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
+      for ru_cmd in ${ru_cmds[@]+"${ru_cmds[@]}"}; do
+        hook::bash_parse_segments "$ru_cmd" rdt_check_segment
+      done
+      if ((ru_u)); then
+        HOOK_SEG_WORD_QUOTED=(${ru_quoted[@]+"${ru_quoted[@]}"})
+        ((${#ru_argv[@]})) && rdt_check_segment "${ru_argv[@]}"
+      elif ((${#ru_argv[@]} > 1)); then
+        HOOK_SEG_WORD_QUOTED=()
+        rdt_check_segment su "${ru_argv[@]:1}"
+      fi
+      return 0
       ;;
     # `-S` / `--split-string` is absent on purpose: it is not an opaque option
     # argument but a COMMAND, and the arm below re-parses it.
@@ -500,12 +588,14 @@ rdt_check_segment() {
       --)
         i=$((i + 1))
         # `--` ends the options but not the positional: `taskset -- 1 rm` still
-        # reads `1` as the mask. timeout is left out, as it always has been.
+        # reads `1` as the mask. chrt's priority must be all digits, and
+        # timeout's duration must start like a number, so `timeout -- rm -rf /`
+        # keeps `rm` as the command word rather than reading it as a duration.
         if ((consume_bare && i < n)); then
           case "$base" in
-          taskset | flock | chroot) i=$((i + 1)) ;;
           chrt) [[ "${words[i]}" =~ ^[0-9]+$ ]] && i=$((i + 1)) ;;
-          *) ;;
+          timeout) [[ "${words[i]}" =~ ^[0-9.] ]] && i=$((i + 1)) ;;
+          *) i=$((i + 1)) ;;
           esac
         fi
         break
@@ -594,21 +684,15 @@ rdt_check_segment() {
   # operand follows the FLAG, and a user name may sit ahead of it
   # (`su bob -c '…'`), where a shell takes its first bare word.
   #
-  # runuser without -u shares su's option parser, so it is read the same way.
-  [[ "$base" == "runuser" ]] && base="su"
+  # FAIL-CLOSED rather than exact: EVERY word that follows a -c-like word is
+  # parsed, not only the first. su takes the LAST -c it sees, and a word that
+  # looks like -c may really be another option's operand (`su -w -c -c '…'`),
+  # so parsing every candidate is what keeps both readings covered.
   if [[ "$base" == "su" ]]; then
     local k
     local sulong
     for ((k = i + 1; k < n; k++)); do
       case "${words[k]}" in
-      --command=* | --session-command=*)
-        hook::bash_parse_segments "${words[k]#*=}" rdt_check_segment
-        return 0
-        ;;
-      --command | --session-command)
-        ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
-        return 0
-        ;;
       --?*)
         # getopt_long takes any unambiguous prefix. No other su option starts
         # with `c`, and `se` is the shortest prefix that separates
@@ -621,13 +705,17 @@ rdt_check_segment() {
           else
             ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
           fi
-          return 0
         fi
         ;;
       -*)
         if [[ "${words[k]}" =~ ^-[A-Za-z]+$ && "${words[k]}" == *c* ]]; then
           ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
-          return 0
+        fi
+        # An operand ATTACHED to the -c is the text after the first `c` that
+        # only letters precede: `su -c'rm -rf /'` is the one word `-crm -rf /`.
+        if [[ "${words[k]}" =~ ^-[A-Zabd-z]*c. ]]; then
+          sulong="${words[k]#-}"
+          hook::bash_parse_segments "${sulong#*c}" rdt_check_segment
         fi
         ;;
       *) ;;
