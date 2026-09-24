@@ -39,9 +39,16 @@ matches this record.
 
 ## WSL2 distribution
 
-A bare WSL2 distribution is neither `L3` nor `L2`, whatever its virtualization: WSL hands a launch
-of a Windows binary to the Windows host (record below), so the distribution executes on the host.
-Never ratify one as `vm-microvm`; with nothing else inside it, it is `L0`.
+*Claim:* a bare WSL2 distribution is neither `L3` nor `L2`, whatever its virtualization. By
+default WSL mounts the fixed Windows drives under `/mnt` (`C:\` at `/mnt/c/`), launches Windows
+processes from the Linux side, and appends Windows path elements to `$PATH`, so the distribution
+reads and writes the host file system and executes on the host. Never ratify one as `vm-microvm`;
+with nothing else inside it, it is `L0`. *Basis:* Microsoft's
+[wsl.conf reference](https://learn.microsoft.com/en-us/windows/wsl/wsl-config) (Automount settings
+and Interop settings defaults) and
+[Working across file systems](https://learn.microsoft.com/en-us/windows/wsl/filesystems), read as
+their source markdown. *Verified:* 2026-09-24. *Recheck trigger:* a read-time fetch of those pages
+whose `[automount]` or `[interop]` defaults no longer match this record.
 
 *Claim:* on WSL2 the built-in sandbox uses bubblewrap as on Linux and isolates Bash subprocesses
 only; file tools, MCP servers, and hooks stay on the host, and the page calls it not sufficient for
@@ -86,10 +93,10 @@ change, not inside `assertions`. The checker does not parse them, so the reviewi
 them, and a WSL2 `L2` binding with no such record, or with an inner launch that succeeded, is
 unbound and blocked at step 6.
 
-WSL2 probes also look through the Windows drive mount. Credential probes and `--credential-roots`
-include the Windows profile paths the distribution reaches there (marked example: an `.ssh`
-directory under `/mnt/c/Users/<user>/`), since hiding the distribution's own home proves nothing
-about the host's. A workspace under a Windows drive mount is checked for containment from the
+WSL2 probes also look through the Windows drive mount (the automount record above). Credential
+probes and `--credential-roots` include the Windows profile paths the distribution reaches there
+(marked example: an `.ssh` directory under `/mnt/c/Users/<user>/`), since hiding the
+distribution's own home proves nothing about the host's. A workspace under a Windows drive mount is checked for containment from the
 Windows side, where the host executes it.
 
 ## L3 microVM on a Windows host
@@ -97,7 +104,8 @@ Windows side, where the host executes it.
 The sandbox environments page's
 [Virtual machine](https://code.claude.com/docs/en/sandbox-environments#virtual-machine) section
 names Docker Sandboxes (a marked example) as a microVM that needs no Docker Desktop. Docker's pages
-give it a separate kernel per sandbox, so its class is `vm-microvm` at `L3`.
+give it a separate kernel per sandbox (security page, Isolation layers, cited in the records
+below), so its class is `vm-microvm` at `L3`.
 
 *Claim:* each installation and workspace fact below holds for this marked example.
 
