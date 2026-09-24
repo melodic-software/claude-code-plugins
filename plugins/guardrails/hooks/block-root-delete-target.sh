@@ -351,10 +351,12 @@ rdt_is_root() {
 #                 HOOK_SEG_WORD_QUOTED at <offset> plus its original position
 #   RDT_RU_SHELL  the last -s / --shell operand, empty when none was given
 # A short cluster holding a letter runuser rejects, or a long option it does
-# not know or cannot resolve, makes runuser refuse the whole invocation; that
-# word is kept as a non-option rather than read as options, so
-# `runuser -u bob rm -rf /` still reads `-rf` as rm's flag. The same keeps the
-# words right when POSIXLY_CORRECT stops getopt at the first non-option.
+# not know or cannot resolve, makes runuser refuse the whole invocation. Once
+# a non-option has been seen, that word is kept as one rather than read as
+# options, so `runuser -u bob rm -rf /` still reads `-rf` as rm's flag and the
+# words stay right when POSIXLY_CORRECT stops getopt at the first non-option.
+# Ahead of every non-option it is dropped, so it never becomes the command
+# word (`runuser -u root --foo rm -rf /`).
 # su shares this option parser, so its arm reads su's argv here too.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_runuser_argv() {
@@ -397,6 +399,11 @@ rdt_runuser_argv() {
       done
       ((hits == 1)) || hit=""
       if [[ -z "$hit" ]]; then
+        # Never the command word, only an operand after it (see below).
+        if ((${#RDT_RU_ARGV[@]} == 0)); then
+          k=$((k + 1))
+          continue
+        fi
         RDT_RU_ARGV+=("$w")
         RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + k]:-0}")
         k=$((k + 1))
@@ -412,6 +419,8 @@ rdt_runuser_argv() {
           ((k < n)) && k=$((k + 1))
         fi
         [[ "$hit" == "command" || "$hit" == "session-command" ]] && RDT_RU_CMDS+=("$val")
+        # su builds `sh -c -- CMD` from an operand of `--`, so CMD is the next word.
+        [[ ("$hit" == "command" || "$hit" == "session-command") && "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
         [[ "$hit" == "user" ]] && RDT_RU_U=1
         [[ "$hit" == "shell" ]] && RDT_RU_SHELL="$val"
         ;;
@@ -443,9 +452,16 @@ rdt_runuser_argv() {
             ((k < n)) && k=$((k + 1))
           fi
           [[ "$ch" == "c" ]] && RDT_RU_CMDS+=("$val")
+          [[ "$ch" == "c" && "$val" == "--" ]] && ((k < n)) && RDT_RU_CMDS+=("${a[k]}")
           [[ "$ch" == "u" ]] && RDT_RU_U=1
           [[ "$ch" == "s" ]] && RDT_RU_SHELL="$val"
         fi
+        continue
+      fi
+      # A rejected cluster, like an unknown long option, is never the
+      # command word.
+      if ((${#RDT_RU_ARGV[@]} == 0)); then
+        k=$((k + 1))
         continue
       fi
       ;;
@@ -482,7 +498,9 @@ rdt_su_shell_run() {
 # rdt_long_takes_arg <launcher> <name>: true when `--<name>`, written without
 # `=`, takes the next word as its operand. getopt_long accepts any unambiguous
 # prefix, so `flock --wa 5` is `flock --wait 5`; an ambiguous prefix is counted
-# as taking one only when every candidate does, which fails closed either way.
+# as taking one only when every candidate does. The walk judges this reading IN
+# ADDITION to the plain one that steps over the word alone, and blocks if
+# either does, so resolving a prefix can only add refusals.
 # Each list is the launcher's operand-taking long names, then its flag names.
 # sudo and doas are absent: their abbreviations are a declared gap.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
@@ -550,6 +568,10 @@ rdt_long_takes_arg() {
   done
   ((nop > 0 && nfl == 0))
 }
+
+# Extra walks spent on the abbreviated-long-option reading, for the whole
+# command; see that arm in rdt_check_segment.
+RDT_ALTS=0
 
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
 # it. Prefixed because guards share one process under run-guards.sh and two
@@ -756,10 +778,18 @@ rdt_check_segment() {
           *) ;;
           esac
         fi
-        # An abbreviated long option takes its operand exactly as the full name.
-        if [[ "$w" == --?* && "$w" != *=* && "$optarg" != *" $w "* ]] && rdt_long_takes_arg "$base" "${w#--}"; then
-          i=$((i + 2))
-          continue
+        # An abbreviated long option takes its operand exactly as the full name
+        # does. That reading is judged as a SECOND segment, with the operand
+        # joined on as `--opt=value`, and the walk then carries on with the plain
+        # reading, so a block from either stands. Joined, the word cannot fire
+        # this arm again, and RDT_ALTS caps the extra walks one command can cost.
+        if ((i + 1 < n && RDT_ALTS < 16)) && [[ "$w" == --?* && "$w" != *=* && "$optarg" != *" $w "* ]] &&
+          rdt_long_takes_arg "$base" "${w#--}"; then
+          RDT_ALTS=$((RDT_ALTS + 1))
+          local -a alt_q=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+          HOOK_SEG_WORD_QUOTED=(${alt_q[@]+"${alt_q[@]:0:i+1}"} ${alt_q[@]+"${alt_q[@]:i+2}"})
+          rdt_check_segment ${words[@]+"${words[@]:0:i}"} "$w=${words[i + 1]}" ${words[@]+"${words[@]:i+2}"}
+          HOOK_SEG_WORD_QUOTED=(${alt_q[@]+"${alt_q[@]}"})
         fi
         if [[ -n "$optarg" && "$optarg" == *" $w "* ]]; then
           i=$((i + 2))
@@ -823,6 +853,8 @@ rdt_check_segment() {
         if [[ -n "$sulong" && ("command" == "$sulong"* || ("${#sulong}" -ge 2 && "session-command" == "$sulong"*)) ]]; then
           if [[ "${words[k]}" == *=* ]]; then
             hook::bash_parse_segments "${words[k]#*=}" rdt_check_segment
+            # su builds `sh -c -- CMD` from an operand of `--`, so CMD is next.
+            ((k + 1 < n)) && [[ "${words[k]#*=}" == "--" ]] && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
           else
             ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
             # A shell reads `-c -- '…'` as `-c '…'`, so the word after `--` too.
@@ -840,6 +872,7 @@ rdt_check_segment() {
         if [[ "${words[k]}" =~ ^-[A-Zabd-z]*c. ]]; then
           sulong="${words[k]#-}"
           hook::bash_parse_segments "${sulong#*c}" rdt_check_segment
+          ((k + 1 < n)) && [[ "${sulong#*c}" == "--" ]] && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
         fi
         ;;
       *) ;;

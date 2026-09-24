@@ -146,6 +146,14 @@ expect_both 'timeout -- +5 rm -rf /* blocks' 2 --command 'timeout -- +5 rm -rf /
 expect_both "timeout -- ' 5' rm -rf /* blocks" 2 --command "timeout -- ' 5' rm -rf /*"
 expect_both 'timeout -- inf rm -rf /* blocks' 2 --command 'timeout -- inf rm -rf /*'
 expect_both 'timeout --k 1 5 rm -rf /* blocks (abbreviated --kill-after)' 2 --command 'timeout --k 1 5 rm -rf /*'
+# The prefix reading is judged beside the plain one, never instead of it, so a
+# launcher this guard already walked keeps every refusal it had.
+expect_both 'nice --adj rm -rf /* blocks' 2 --command 'nice --adj rm -rf /*'
+expect_both 'ionice --cl rm -rf /* blocks' 2 --command 'ionice --cl rm -rf /*'
+expect_both 'env --ch rm -rf /* blocks' 2 --command 'env --ch rm -rf /*'
+expect_both 'stdbuf --ou rm -rf /* blocks' 2 --command 'stdbuf --ou rm -rf /*'
+expect_both 'timeout --k 1 rm -rf /* blocks' 2 --command 'timeout --k 1 rm -rf /*'
+expect_both 'nice --adj 5 ls / allowed' 0 --command 'nice --adj 5 ls /'
 expect_both 'timeout -- 5 ls / allowed' 0 --command 'timeout -- 5 ls /'
 expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
 expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
@@ -306,6 +314,14 @@ expect_both "su -c'ls /' allowed (attached benign operand)" 0 --command "su -c'l
 # A shell reads `-c -- '…'` as `-c '…'`.
 expect_both 'su -c -- blocks' 2 --command "su bob -- -c -- 'rm -rf /*'"
 expect_both 'runuser -c -- blocks' 2 --command "runuser bob -- -c -- 'rm -rf /*'"
+# A -c operand of exactly `--` makes su build `sh -c -- CMD`, so CMD is the
+# word after it, in every spelling of the option.
+expect_both 'su --com=-- blocks' 2 --command "su root --com=-- 'rm -rf /*'"
+expect_both 'su -c-- blocks' 2 --command "su root -c-- 'rm -rf /*'"
+expect_both 'su --session-command=-- blocks' 2 --command "su root --session-command=-- 'rm -rf /*'"
+expect_both 'runuser --command=-- blocks' 2 --command "runuser root --command=-- 'rm -rf /*'"
+expect_both 'runuser -c -- operand blocks' 2 --command "runuser root -c -- 'rm -rf /*'"
+expect_both 'su --com=-- ls allowed' 0 --command "su root --com=-- 'ls /'"
 # -s / --shell naming a program that is not a shell runs that program with the
 # words after the user, so the program is the command.
 expect_both 'su -s /bin/rm blocks' 2 --command 'su root -s /bin/rm -- -rf /*'
@@ -359,6 +375,9 @@ expect_both 'runuser --us=bob blocks' 2 --command 'runuser --us=bob -- rm -rf /'
 # right when POSIXLY_CORRECT stops getopt at the first non-option.
 expect_both 'POSIXLY_CORRECT runuser rm --recursive blocks' 2 \
   --command 'POSIXLY_CORRECT=1 runuser -u bob rm --recursive --force /*'
+# A word runuser rejects is never the command word.
+expect_both 'runuser -u root --foo rm blocks' 2 --command 'runuser -u root --foo rm -rf /*'
+expect_both 'runuser -u root -x rm blocks' 2 --command 'runuser -u root -x rm -rf /*'
 expect_both 'runuser -u bob -- flock -- -c blocks' 2 --command "runuser -u bob -- flock -- /tmp/l -c 'rm -rf /*'"
 expect_both 'runuser -u bob -- rm -rf / blocks' 2 --command 'runuser -u bob -- rm -rf /'
 expect_both 'runuser -u bob rm -rf / blocks' 2 --command 'runuser -u bob rm -rf /'
@@ -416,6 +435,7 @@ expect_both 'numactl --memb 0 blocks' 2 --command 'numactl --memb 0 rm -rf /*'
 expect_both 'chroot --user a:b / blocks' 2 --command 'chroot --user a:b / rm -rf /*'
 expect_both 'chrt --sched-r 5 -d 0 blocks' 2 --command 'chrt --sched-r 5 -d 0 rm -rf /*'
 expect_both 'nsenter --ta 1 ls / allowed' 0 --command 'nsenter --ta 1 ls /'
+expect_both 'nsenter --ta rm -rf / blocks (plain reading)' 2 --command 'nsenter --ta rm -rf /'
 # unshare, nsenter and numactl take no positional; only their operand-taking
 # options consume a word.
 expect_both 'unshare rm -rf / blocks' 2 --command 'unshare rm -rf /'
