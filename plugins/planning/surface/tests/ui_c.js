@@ -235,6 +235,13 @@ async page => {
     const age = (Date.now() - Date.parse(w.at)) / 1000;
     ok("Save re-enabled after handle, inside the 10 s freeze", !(await page.$eval("[data-save]", el => el.disabled)) && age < 10, "age " + age.toFixed(1) + " s");
   }
+  if (PHASE === 4) { // its own server: D1's one event was delivered in 2020 and never handled, and no watcher has polled
+    await page.setViewportSize({width: 1400, height: 860});
+    await page.goto(base);
+    await page.waitForFunction(() => /Waiting on Claude/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
+    const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent}; });
+    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Waiting on Claude: D1. Type next in the terminal" && pill.code === "next" && pill.cls === "pill idle", JSON.stringify(pill));
+  }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network line for an intended 409)", real.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }

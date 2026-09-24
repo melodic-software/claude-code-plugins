@@ -28,7 +28,7 @@ bash round.sh --dir '<data_dir>' stop
 
 ## Watcher protocol
 
-`bash watch.sh '<data_dir>'` long-polls `/api/wait?after=handled&replayed=<n>` with the token, where `<n>` comes from `.watch-replay`. When there are unhandled events it prints one JSON line (`seq`, `timedOut`, `events`, `note`, `dataDir`, `next`) and exits 0; `next` is the exact re-arm command with absolute paths, each in single quotes. Events a dead turn never handled come back at once on the next arm; after that re-delivery an arm waits for a new event. It exits 2 when curl is missing, when the token is rejected, or when the server stays unreachable.
+`bash watch.sh '<data_dir>'` long-polls `/api/wait?after=handled&replayed=<n>` with the token, where `<n>` comes from `.watch-replay`. When there are unhandled events it prints one JSON line (`seq`, `timedOut`, `events`, `note`, `dataDir`, `next`) and exits 0; `next` is the exact re-arm command with absolute paths, each in single quotes. Events a dead turn never handled come back at once on the next arm; after that re-delivery an arm waits for a new event. The page's status pill reads "Claude is working on Qn" while a delivered event is unhandled, and after ten minutes with no watcher waiting it reads "Waiting on Claude: Qn. Type `next` in the terminal". It exits 2 when curl is missing, when the token is rejected, or when the server stays unreachable.
 
 Each wake is one background Bash call: `round.sh --dir '<data_dir>' apply --file '<data_dir>/ops.json' && watch.sh '<data_dir>'`. The interview skill's `context/surface.md` has the event table, the op shapes and the rules.
 

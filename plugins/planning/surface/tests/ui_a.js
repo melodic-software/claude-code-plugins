@@ -129,6 +129,8 @@ async page => {
   ok("N2 armed with a note before the external revise", !!(await page.$(".choice.armed")));
   const rail = await page.evaluate(() => { const r = document.getElementById("railList"); return r.scrollHeight > r.clientHeight ? "scrolls" : "fits"; });
   ok("page itself never scrolls", await page.evaluate(() => document.scrollingElement.scrollHeight <= innerHeight + 1), rail);
+  const inView = await page.evaluate(() => { const box = el => { const b = el.getBoundingClientRect(); return b.height > 0 && b.top >= 0 && b.left >= 0 && b.bottom <= innerHeight && b.right <= innerWidth; }; return {answer: box(document.getElementById("answer")), save: box(document.querySelector("[data-save]"))}; });
+  ok("AC36: answer pane and Save sit inside the 1400 by 860 viewport", inView.answer && inView.save, JSON.stringify(inView));
   ok("zero console errors so far", errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0] + " | " + await page.evaluate(() => document.getElementById("flyTitle").textContent + " / sel=" + (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q + " / " + document.getElementById("fbody").innerText.slice(0, 200)).catch(() => "")); }
   return R.join("\n");

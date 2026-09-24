@@ -96,7 +96,7 @@ A challenge to a commitment arrives as an `ask` whose text leads with the commit
 
 ## Receipts and handled state
 
-Each save shows Saved, then Delivered (the watcher took it), then Replied (a Claude line answering that seq) or Handled. Every event must end handled; until then the page reads "Claude is working on Qn", and after ten minutes "Waiting on Claude: Qn". An unhandled event comes back once on the next arm; after that the watcher waits for a new event, so a forgotten `handle` costs a wake and then stalls the page's status.
+Each save shows Saved, then Delivered (the watcher took it), then Replied (a Claude line answering that seq) or Handled. Every event must end handled; until then the page reads "Claude is working on Qn", and after ten minutes "Waiting on Claude: Qn". When no watcher is waiting at that point, the page adds the rung 5 instruction: "Waiting on Claude: Qn. Type `next` in the terminal". An unhandled event comes back once on the next arm; after that the watcher waits for a new event, so a forgotten `handle` costs a wake and then stalls the page's status.
 
 ## Rules
 

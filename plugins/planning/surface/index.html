@@ -635,7 +635,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       const d = p.find(delivered), more = p.length > 1 ? " (+" + (p.length - 1) + ")" : "";
       if (d) {
         const age = d.deliveredAt ? Date.now() - Date.parse(d.deliveredAt) : 0;
-        return age > 600000 ? ["reading", "Waiting on Claude: " + subject(d) + more] : ["working", "Claude is working on " + subject(d) + more];
+        if (age <= 600000) return ["working", "Claude is working on " + subject(d) + more];
+        // the watcher stays unarmed while Claude works, so only a 10-minute wait with none waiting means rung 5
+        return (S.listener || {}).waiters > 0 ? ["reading", "Waiting on Claude: " + subject(d) + more] : ["idle", "Waiting on Claude: " + subject(d) + more + ". Type next in the terminal"];
       }
       if (deaf()) return RUNG5;
       return ls === "listening" ? ["listening", "Sent to Claude"] : ["idle", "Sent. Waiting for Claude's watcher"];
@@ -653,7 +655,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const [cls, text] = status(), pill = $("pill");
     pill.className = "pill " + cls;
-    if (text === RUNG5[1]) pill.innerHTML = "Claude is not listening: type <code>next</code> in the terminal"; else pill.textContent = text;
+    const next = /^(.*[Tt]ype )next( in the terminal)$/.exec(text);
+    if (next) pill.innerHTML = esc(next[1]) + "<code>next</code>" + esc(next[2]); else pill.textContent = text;
     const na = openAssumptions(), ac = $("assumeCount");
     ac.hidden = !na; ac.textContent = na + (na === 1 ? " assumption open" : " assumptions open");
     $("sumBtn").setAttribute("aria-pressed", String(S.sel === SUMMARY));

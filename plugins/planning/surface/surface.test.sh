@@ -80,6 +80,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX")
   d="$tmp/d3"
   c="$tmp/c3"
+  e="$tmp/e3"
   session="iv-$$"
   # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
   pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); }
@@ -87,6 +88,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
     pw close >/dev/null 2>&1
     bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$c" stop >/dev/null 2>&1
+    bash "$here/round.sh" --dir "$e" stop >/dev/null 2>&1
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -128,12 +130,21 @@ if command -v playwright-cli >/dev/null 2>&1; then
   read -r -a seqs <<<"$(bash "$here/round.sh" --dir "$c" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' ')"
   [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$c" handle --seq "${seqs[@]}" >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c3.js")" >"$tmp/ui_c3.out" 2>&1
+
+  # ui_c phase 4 runs against a fourth server whose one event was delivered in 2020 and never
+  # handled, with no watcher ever polling.
+  mkdir -p "$e"
+  cp tests/fixtures/ui_d/questions.json tests/fixtures/ui_d/responses.json "$e/"
+  bash "$here/round.sh" --dir "$e" ensure-running --port 0 >/dev/null
+  eport=$(sed -n 's/^PORT=//p' "$e/.interview-session.env" | tr -d '\r')
+  sed "s/__PORT__/$eport/; s/__PHASE__/4/" tests/ui_c.js >"$tmp/ui_c4.js"
+  pw run-code --filename "$(script_path "$tmp/ui_c4.js")" >"$tmp/ui_c4.out" 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
-  for n in 1 2 3; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
 else
-  echo "SKIP: 131 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 131))
+  echo "SKIP: 134 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 134))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"
