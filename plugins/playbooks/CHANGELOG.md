@@ -4,6 +4,21 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.12.1] - 2026-09-23
+
+### Changed
+
+- **`fable-5`**: the orchestration chapter gains "Narrow threads per benchmark or journey", marked
+  as inference: one thread per benchmark or journey, scaling a loop horizontally only after it
+  works on one thread, merging threads that collide, judgment criteria for closing a thread at
+  diminishing returns, and room for agent-proposed work with no share stated.
+- **`fable-5`**: the execution chapter's feature-flag rule names a kill switch as its rollback
+  case and a ramp or staged exposure as the same case at partial scale, each removed as soon as
+  it is safe. The rule is not loosened.
+- The Opus 5.5 chapter gains "Scope: bolder when the guardrails are named": a careful-on-scope
+  default observed on a comparable unreleased model and unverified on Opus 5.5, with its
+  verification record, and the correction to name the guardrails when asking for a bolder step.
+
 ## [0.12.0] - 2026-09-23
 
 ### Added
