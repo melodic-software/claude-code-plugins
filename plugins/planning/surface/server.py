@@ -206,7 +206,12 @@ class Settings:
                 tokens = {}
         theme = self.read(Path(data_dir) / "theme.json", "theme")
         for mode in ("light", "dark"):
-            merged = {**tokens.get(mode, {}), **(theme.get(mode) or {})}
+            own = theme.get(mode)
+            if own is not None and not isinstance(own, dict):
+                self.note(f"theme file: {mode} ignored (not a JSON object)")
+                theme = {k: v for k, v in theme.items() if k != mode}
+                own = None
+            merged = {**tokens.get(mode, {}), **(own or {})}
             if merged:
                 theme = {**theme, mode: merged}
         return out, theme
@@ -304,7 +309,22 @@ def save_json(path, data):
     fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
     with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    for i in range(20):
+    replace_into(tmp, path)
+
+
+def write_private(path, text):
+    """Atomic write of a file only its owner may read: created 0600 (advisory on Windows)."""
+    path = Path(path)
+    tmp = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    replace_into(tmp, path)
+
+
+def replace_into(tmp, path):
+    """os.replace with retry: Windows refuses while a reader holds the target open."""
+    for _ in range(20):
         try:
             os.replace(tmp, path)
             return
@@ -348,6 +368,14 @@ def decision_view(event, prev_text=""):
     }
 
 
+def fold_decisions(events):
+    """The responses[id] entry after a run of live decision events in seq order (a reopen keeps the note)."""
+    view = None
+    for e in events:
+        view = decision_view(e, view["text"] if view else "")
+    return view
+
+
 def rebuild_responses(events):
     """Derive (responses, history) from the event log alone, replaying it in seq order.
 
@@ -373,7 +401,7 @@ def rebuild_responses(events):
                 and x["seq"] not in withdrawn
             ]
             if live:
-                responses[qid] = decision_view(live[-1])
+                responses[qid] = fold_decisions(live)
             else:
                 responses.pop(qid, None)
         elif kind in DECISIONS and qid:
@@ -399,6 +427,22 @@ def rebuild_responses(events):
             if line["seq"] in withdrawn:
                 line["withdrawn"] = True
     return responses, history
+
+
+def check_alt(q, kind, alt):
+    """ValueError (400) unless `alt` names one of q's alternative keys (alt) or commitments (confirm)."""
+    if kind == "alt":
+        keys = {
+            a.get("key") for a in q.get("alternatives") or [] if isinstance(a, dict)
+        }
+        if not (isinstance(alt, str) and alt in keys):
+            raise ValueError("alt must be one of the question's alternatives[].key")
+    else:
+        n = len(q.get("commits") or [])
+        if not (isinstance(alt, str) and alt.isdecimal() and int(alt) < n):
+            raise ValueError(
+                f"confirm needs alt: a commitment index, a decimal string below {n}"
+            )
 
 
 class Conflict(Exception):
@@ -525,12 +569,6 @@ class Hub:
             qid = None
         elif kind != "undo" and qid not in qs:
             raise ValueError("unknown question")
-        if kind == "alt" and not alt:
-            raise ValueError("alt needs a key")
-        if kind == "confirm":
-            if alt is None or isinstance(alt, bool) or str(alt) == "":
-                raise ValueError("confirm needs alt: the commitment index")
-            alt = str(alt)
         if kind in ("own", "ask", "note") and not text.strip():
             raise ValueError("text required")
         now = now_iso()
@@ -570,6 +608,9 @@ class Hub:
                             "decision": r["responses"].get(qid),
                         }
                     )
+            # After the contentRev check, so a page holding old alternatives gets the 409 payload.
+            if kind in WITH_ALT:
+                check_alt(qs[qid], kind, alt)
             r["seq"] = seq = event["seq"]
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:
@@ -628,14 +669,7 @@ class Hub:
             if h.get("seq") == target_seq:
                 h["withdrawn"] = True
         if len(live) > 1:
-            p = live[-2]
-            r["responses"][qid] = {
-                "decision": None if p["kind"] == "reopen" else p["kind"],
-                "alt": p.get("alt"),
-                "text": p.get("text", ""),
-                "updatedAt": p["at"],
-                "seq": p["seq"],
-            }
+            r["responses"][qid] = fold_decisions(live[:-1])
         else:
             r["responses"].pop(qid, None)
         event.update(id=qid, undoSeq=target_seq)
@@ -762,8 +796,9 @@ class Handler(BaseHTTPRequestHandler):
         except (OSError, ValueError):
             return True
 
-    def token_ok(self, query):
-        given = self.headers.get("X-Interview-Token") or (query.get("token") or [""])[0]
+    def token_ok(self):
+        """The token rides only in the X-Interview-Token header, never in a URL."""
+        given = self.headers.get("X-Interview-Token") or ""
         return secrets.compare_digest(given, self.hub.token)
 
     def do_GET(self):
@@ -784,7 +819,7 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/events":
             return self.sse()
         if url.path == "/api/wait":
-            if not self.token_ok(query):
+            if not self.token_ok():
                 return self.send(403, {"error": "token required"})
             try:
                 after = (query.get("after") or ["0"])[0]
@@ -857,7 +892,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.origin_ok():
             return self.send(403, {"error": "bad host or origin"})
         url = urlparse(self.path)
-        if not self.token_ok({}):
+        if not self.token_ok():
             return self.send(403, {"error": "token required"})
         if (
             not self.headers.get("Content-Type", "")
@@ -865,7 +900,10 @@ class Handler(BaseHTTPRequestHandler):
             .startswith("application/json")
         ):
             return self.send(415, {"error": "application/json required"})
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return self.send(400, {"error": "Content-Length must be an integer"})
         if length <= 0 or length > MAX_BODY:
             return self.send(413, {"error": "body size"})
         try:
@@ -928,12 +966,10 @@ def main(argv=None):
         "nonce": a.nonce,
         "startedAt": now_iso(),
     }
-    save_json(hub.dir / ".interview-session.json", session)
-    env = hub.dir / ".interview-session.env"
-    env.write_text(
+    write_private(hub.dir / SESSION_JSON, json.dumps(session, indent=2) + "\n")
+    write_private(
+        hub.dir / ".interview-session.env",
         f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\nNONCE={a.nonce}\n",
-        encoding="utf-8",
-        newline="\n",
     )
     print(f"{url}\ntoken: {hub.token}\npid: {pid}\ndata: {hub.dir}", flush=True)
     try:

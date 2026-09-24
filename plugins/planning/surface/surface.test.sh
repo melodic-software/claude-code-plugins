@@ -34,7 +34,7 @@ hits=$(grep -nE "(^|[^a-z0-9-])($names):[a-z-]+" "${files[@]}" |
   grep -vE '^exporters\.py:[0-9]+:ARBITER_PLAN = "\*\*arbiter: /planning:plan\*\*"$')
 if [[ -z "$hits" ]]; then ok "AC35: no skill token in ${#files[@]} files"; else bad "AC35: skill tokens: $hits"; fi
 
-# AC34: no user name, home path, or port other than the documented default 8766 (or 0).
+# AC34: no user name, home path, or port other than the documented default 0 (a free port).
 hits=""
 for u in "${USER:-}" "${USERNAME:-}" "$(whoami 2>/dev/null)"; do
   u=${u##*\\}
@@ -46,8 +46,8 @@ if [[ -z "$hits" ]]; then ok "AC34: no user name"; else bad "AC34: user name fou
 hits=$(grep -nE '/Users/|[Cc]:[\\/]+Users|/home/' "${files[@]}")
 if [[ -z "$hits" ]]; then ok "AC34: no home path"; else bad "AC34: home path found: $hits"; fi
 hits=$(grep -noE '(127\.0\.0\.1|localhost):[0-9]+|--port[ =][0-9]+|PORT=[0-9]+' "${files[@]}" |
-  grep -vE ':(8766|0)$|[ =](8766|0)$')
-if [[ -z "$hits" ]]; then ok "AC34: no port but 8766 or 0"; else bad "AC34: hardcoded port: $hits"; fi
+  grep -vE '[:= ]0$')
+if [[ -z "$hits" ]]; then ok "AC34: no port but 0"; else bad "AC34: hardcoded port: $hits"; fi
 
 # index.html lint, when the repo's htmlhint is installed.
 if [[ -x "$root/node_modules/.bin/htmlhint" ]]; then
@@ -132,8 +132,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
 else
-  echo "SKIP: 129 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 129))
+  echo "SKIP: 131 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 131))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

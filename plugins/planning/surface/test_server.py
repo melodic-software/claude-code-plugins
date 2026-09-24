@@ -548,6 +548,27 @@ class TestSecurity(ServerCase):
         )
         self.assertEqual(code, 415)
 
+    def test_wait_token_in_the_query_is_403(self):
+        code, _, _ = self.get(
+            f"/api/wait?after=0&timeout=1&token={self.token}", token=False
+        )
+        self.assertEqual(code, 403)
+
+    def test_non_integer_content_length_is_400(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.putrequest("POST", "/api/answer")
+            conn.putheader("Content-Type", "application/json")
+            conn.putheader("X-Interview-Token", self.token)
+            conn.putheader("Content-Length", "abc")
+            conn.endheaders(b'{"kind": "note", "text": "x"}')
+            resp = conn.getresponse()
+            code, body = resp.status, json.loads(resp.read())
+        finally:
+            conn.close()
+        self.assertEqual(code, 400)
+        self.assertIn("Content-Length", body["error"])
+
     def test_ac6_csp_names_no_host(self):
         _, _, headers = self.get("/", token=False)
         csp = headers.get("Content-Security-Policy", "")
@@ -655,57 +676,61 @@ class WaitCase(ServerCase):
 
 
 class TestReplay(WaitCase):
-    """AC8 and the bounded replay: after=handled re-delivers unhandled events once, then blocks."""
+    """AC8 and the bounded replay: after=handled re-delivers unhandled events once, then blocks.
+
+    One method walks the whole chain, so it passes when run alone.
+    """
 
     @classmethod
     def prepare(cls):
         seed_questions(cls.dir, question("A"))
 
-    def test_1_blocking_delivery_has_no_replay_mark(self):
+    def test_bounded_replay_chain(self):
+        # A blocking delivery carries no replay mark.
         r, posted = self.wait_during(
             "after=handled&replayed=0&timeout=20",
             lambda: self.post({"id": "A", "kind": "accept"}),
         )
         code, body, _ = r
-        type(self).first = posted[1]["seq"]
+        first = posted[1]["seq"]
         self.assertEqual(code, 200)
         self.assertFalse(body["timedOut"])
-        self.assertEqual(seqs(body["events"]), [self.first])
+        self.assertEqual(seqs(body["events"]), [first])
         self.assertNotIn("replayed", body)
 
-    def test_2_ac8_rearm_without_handle_redelivers_at_once(self):
+        # AC8: a re-arm without a handle re-delivers at once.
         code, body, took = self.wait("after=handled&replayed=0&timeout=20")
         self.assertEqual(code, 200)
         self.assertLess(took, 1.5)
-        self.assertEqual(seqs(body["events"]), [self.first])
-        self.assertEqual(body.get("replayed"), self.first)
+        self.assertEqual(seqs(body["events"]), [first])
+        self.assertEqual(body.get("replayed"), first)
 
-    def test_3_second_rearm_without_a_new_event_blocks_until_timeout(self):
-        code, body, took = self.wait(f"after=handled&replayed={self.first}&timeout=3")
+        # A second re-arm without a new event blocks until its timeout.
+        code, body, took = self.wait(f"after=handled&replayed={first}&timeout=3")
         self.assertEqual(code, 200)
         self.assertGreaterEqual(took, 2.5)
         self.assertTrue(body["timedOut"])
         self.assertEqual(body["events"], [])
 
-    def test_4_new_post_returns_the_old_unhandled_event_and_the_new_one(self):
+        # A new post returns the old unhandled event and the new one.
         r, posted = self.wait_during(
-            f"after=handled&replayed={self.first}&timeout=20",
+            f"after=handled&replayed={first}&timeout=20",
             lambda: self.post({"kind": "note", "text": "Second event."}),
         )
         code, body, _ = r
+        second = posted[1]["seq"]
         self.assertEqual(code, 200)
-        self.assertEqual(seqs(body["events"]), [self.first, posted[1]["seq"]])
+        self.assertEqual(seqs(body["events"]), [first, second])
         self.assertNotIn("replayed", body)
-        type(self).second = posted[1]["seq"]
 
-    def test_5_nothing_unhandled_blocks(self):
-        rc, out = self.rp("handle", "--seq", str(self.first), str(self.second))
+        # Nothing unhandled blocks.
+        rc, out = self.rp("handle", "--seq", str(first), str(second))
         self.assertEqual(rc, 0, out)
         code, body, took = self.wait("after=handled&replayed=0&timeout=2")
         self.assertTrue(body["timedOut"])
         self.assertGreaterEqual(took, 1.5)
 
-    def test_6_replayed_past_the_log_counts_as_zero(self):
+        # A replayed value past the log counts as zero.
         _, posted = self.post({"kind": "note", "text": "Third event."})
         code, body, took = self.wait("after=handled&replayed=9999&timeout=5")
         self.assertLess(took, 1.5)
@@ -713,28 +738,36 @@ class TestReplay(WaitCase):
 
 
 class TestListener(WaitCase):
-    """Socket-EOF detection in Hub.wait and listener.idleFor (AC26 server side)."""
+    """listener.idleFor (AC26 server side): null before any wait, 0 while one waits, then counting.
+
+    One method walks the chain, so it passes when run alone.
+    """
 
     def listener(self):
         return self.state()["listener"]
 
-    def test_1_idle_for_is_null_before_any_wait(self):
+    def test_idle_for_null_then_zero_then_counting(self):
         self.assertIn("idleFor", self.listener())
         self.assertIsNone(self.listener()["idleFor"])
 
-    def test_2_idle_for_is_zero_while_a_watcher_waits(self):
         r, lst = self.wait_during("after=handled&timeout=4", self.listener, delay=2.0)
         self.assertEqual(lst["waiters"], 1)
         self.assertEqual(lst["idleFor"], 0)
         self.assertTrue(r[1]["timedOut"])
 
-    def test_3_idle_for_counts_after_the_wait_ends(self):
         time.sleep(1.2)
         idle = self.listener()["idleFor"]
         self.assertGreaterEqual(idle, 1.0)
         self.assertLess(idle, 10)
 
-    def test_4_closed_client_frees_the_waiter_and_gets_no_delivery(self):
+
+class TestListenerDisconnect(WaitCase):
+    """Socket-EOF detection in Hub.wait, on its own server."""
+
+    def listener(self):
+        return self.state()["listener"]
+
+    def test_closed_client_frees_the_waiter_and_gets_no_delivery(self):
         sock = socket.create_connection(("127.0.0.1", self.port), timeout=5)
         sock.sendall(
             (
@@ -1034,6 +1067,170 @@ class TestEmojiMarkers(ServerCase):
 
     def test_3_display_name_reaches_state(self):
         self.assertEqual(self.state()["settings"]["displayName"]["value"], "You")
+
+
+class TestAnswerValidation(WaitCase):
+    """`alt` names one of the question's alternative keys; `confirm` names a commitment index."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_alt_with_an_unknown_key_is_400(self):
+        for alt in ("z", 1, ["a"]):
+            code, data = self.post({"id": "A", "kind": "alt", "alt": alt})
+            self.assertEqual(code, 400, alt)
+            self.assertIn("alternatives", data["error"])
+
+    def test_alt_with_a_known_key_saves(self):
+        code, data = self.post({"id": "A", "kind": "alt", "alt": "b"})
+        self.assertEqual(code, 200, data)
+
+    def test_confirm_outside_the_commitments_is_400(self):
+        for alt in ("2", "-1", "x", "1.0", 0):
+            code, data = self.post({"id": "A", "kind": "confirm", "alt": alt})
+            self.assertEqual(code, 400, alt)
+            self.assertIn("commitment index", data["error"])
+
+    def test_confirm_inside_the_commitments_saves(self):
+        code, data = self.post({"id": "A", "kind": "confirm", "alt": "1"})
+        self.assertEqual(code, 200, data)
+
+    def test_stale_content_rev_wins_over_an_unknown_key(self):
+        code, data = self.post(
+            {"id": "A", "kind": "alt", "alt": "z", "contentRev": 999}
+        )
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data["error"], "changed")
+
+
+class TestUndoKeepsReopenNote(WaitCase):
+    """An undo that restores a reopen keeps the note that reopen kept."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_undo_back_to_a_reopen_keeps_the_note(self):
+        for body in (
+            {"id": "A", "kind": "accept", "text": "Keep this note."},
+            {"id": "A", "kind": "reopen", "text": ""},
+        ):
+            code, data = self.post(body)
+            self.assertEqual(code, 200, data)
+        code, data = self.post({"id": "A", "kind": "accept", "text": ""})
+        self.assertEqual(code, 200, data)
+        code, undo = self.post({"kind": "undo", "undoSeq": data["seq"]})
+        self.assertEqual(code, 200, undo)
+        view = self.state()["responses"]["responses"]["A"]
+        self.assertIsNone(view["decision"])
+        self.assertEqual(view["text"], "Keep this note.")
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
+class TestThemeMerge(ServerCase):
+    """A theme.json mode value that is not an object is read as {}."""
+
+    @classmethod
+    def prepare(cls):
+        (cls.dir / "theme.json").write_text(
+            json.dumps({"light": "x", "dark": {"--bg": "#000000"}}), encoding="utf-8"
+        )
+
+    def test_non_object_mode_is_ignored(self):
+        code, raw, _ = self.get("/api/state")
+        self.assertEqual(code, 200, raw)
+        theme = json.loads(raw)["theme"]
+        self.assertIsInstance(theme.get("light", {}), dict)
+        self.assertEqual(theme["dark"], {"--bg": "#000000"})
+
+
+@unittest.skipUnless(os.name == "posix", "file modes are advisory on Windows")
+class TestSessionFileMode(ServerCase):
+    """The token-bearing session files are 0600."""
+
+    def test_session_files_are_owner_only(self):
+        for name in (".interview-session.env", ".interview-session.json"):
+            mode = (self.dir / name).stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600, f"{name}: {oct(mode)}")
+
+
+def free_port():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+class TestEnsureRunningSettings(unittest.TestCase):
+    """ensure-running resolves the settings layers: the port and openBrowser come from them."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-ensure-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = self.tmp / "repo"
+        (self.repo / ".claude").mkdir(parents=True)
+        self.dir = self.tmp / "data"
+        self.dir.mkdir()
+        self.addCleanup(run_round, self.dir, "stop")
+        # BROWSER points webbrowser at the interpreter, so a fall-through never opens a real browser.
+        self.env = settings_env(
+            CLAUDE_PROJECT_DIR=str(self.repo), BROWSER=sys.executable
+        )
+        self.marker = self.tmp / "opened.txt"
+        code = f"import pathlib, sys; pathlib.Path({str(self.marker)!r}).write_text(sys.argv[1])"
+        self.user = self.tmp / "user-settings.json"
+        self.user.write_text(
+            json.dumps({"browserCommand": [sys.executable, "-c", code]}),
+            encoding="utf-8",
+        )
+
+    def repo_settings(self, data):
+        (self.repo / ".claude" / "interview-surface.json").write_text(
+            json.dumps(data), encoding="utf-8"
+        )
+
+    def ensure(self, *extra):
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "--dir",
+                str(self.dir),
+                "ensure-running",
+                *extra,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+            env=self.env,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return p.stdout.strip().splitlines()[-1]
+
+    def opened(self, seconds):
+        deadline = time.monotonic() + seconds
+        while not self.marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        return self.marker.read_text(encoding="utf-8") if self.marker.exists() else None
+
+    def test_repo_port_is_used_on_a_fresh_start(self):
+        port = free_port()
+        self.repo_settings({"port": port})
+        url = self.ensure()
+        self.assertEqual(session(self.dir)["port"], port)
+        self.assertEqual(url, f"http://127.0.0.1:{port}/")
+
+    def test_repo_open_browser_false_wins_over_open(self):
+        self.repo_settings({"openBrowser": False})
+        self.ensure("--open", "--user-settings", str(self.user))
+        self.assertIsNone(self.opened(2))
+
+    def test_open_uses_the_recorded_user_file(self):
+        url = self.ensure("--user-settings", str(self.user))
+        self.assertIsNone(self.opened(0.5))
+        self.ensure("--open")
+        self.assertEqual(self.opened(5), url)
 
 
 if __name__ == "__main__":

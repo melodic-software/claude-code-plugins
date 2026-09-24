@@ -3,7 +3,8 @@
 #   bash watch.test.sh
 # Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), a delivery
 # (one JSON line carrying dataDir and next, .watch-seq stored), re-delivery bounds, the
-# skill's documented wake command read from context/surface.md (AC9, AC10), server gone
+# skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
+# the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
 # (WAIT_FAILS=1).
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -16,8 +17,14 @@ py=$(command -v python3 || command -v python)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-watch.XXXXXX")
 d="$tmp/data"
 mkdir -p "$d"
+# The native absolute form watch.sh prints (C:/... under Git Bash, the plain path elsewhere).
+abs_dir() { (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; }); }
+# A data dir whose name carries shell syntax: $( ), a backtick and a single quote. It is built on
+# the native form, which a native Python takes as is.
+odd="$(abs_dir "$tmp")/odd \$(true) \`x\` it's"
 cleanup() {
   bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
+  if [[ -d "$odd" ]]; then bash "$here/round.sh" --dir "$odd" stop >/dev/null 2>&1; fi
   case "$tmp" in
     */iv-watch.*) rm -rf -- "$tmp" ;;
     *) ;;
@@ -111,8 +118,10 @@ print(d["events"][0]["kind"])
 data_dir=$(printf '%s\n' "$fields" | sed -n 1p)
 next=$(printf '%s\n' "$fields" | sed -n 2p)
 kind=$(printf '%s\n' "$fields" | sed -n 3p)
-want_next="bash \"$here/round.sh\" --dir \"$d\" apply --file \"$d/ops.json\" && bash \"$here/watch.sh\" \"$d\""
-if [[ "$code" == 200 && "$rc" -eq 0 && "$lines" == 1 && "$data_dir" == "$d" && "$next" == "$want_next" && "$kind" == note ]]; then
+nd=$(abs_dir "$d")
+nh=$(abs_dir "$here")
+want_next="bash '$nh/round.sh' --dir '$nd' apply --file '$nd/ops.json' && bash '$nh/watch.sh' '$nd'"
+if [[ "$code" == 200 && "$rc" -eq 0 && "$lines" == 1 && "$data_dir" == "$nd" && "$next" == "$want_next" && "$kind" == note ]]; then
   ok "a delivery prints one JSON line with dataDir and next, exit 0"
 else
   bad "delivery: post=$code rc=$rc lines=$lines fields=[$fields] out=$(cat "$tmp/c.out") err=$(cat "$tmp/c.err")"
@@ -154,8 +163,9 @@ else
   bad "second arm returned: rc=$rc out=$(cat "$tmp/f.out") err=$(cat "$tmp/f.err")"
 fi
 
-# (g) a new event during the wait returns the old unhandled event and the new one
-bash "$here/watch.sh" "$d" >"$tmp/g.out" 2>"$tmp/g.err" &
+# (g) a new event during the wait returns the old unhandled event and the new one; the watcher
+# runs with a dead proxy in http_proxy, which its curl call must bypass for 127.0.0.1.
+http_proxy=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 bash "$here/watch.sh" "$d" >"$tmp/g.out" 2>"$tmp/g.err" &
 wpid=$!
 until_waiting
 code=$(post_note "second watch note")
@@ -168,7 +178,7 @@ wait "$wpid"
 rc=$?
 got=$(event_seqs "$tmp/g.out")
 if [[ "$code" == 200 && "$rc" -eq 0 && "$got" == "$seq $((seq + 1))" ]]; then
-  ok "a new event returns the unhandled set ($got)"
+  ok "a new event returns the unhandled set past a dead http_proxy ($got)"
 else
   bad "new event: post=$code rc=$rc got=[$got] err=$(cat "$tmp/g.err")"
 fi
@@ -221,6 +231,60 @@ if [[ "$rc" -eq 124 && "$lines_before" =~ ^[0-9]+$ && "$lines_after" == "$lines_
   ok "AC9: handling a plain accept writes no Claude thread line"
 else
   bad "AC9: Claude lines on Q1 went from $lines_before to $lines_after (chain rc=$rc)"
+fi
+
+# (i) a data dir named with $( ), a backtick and a single quote: `next` stays one literal command
+# for that exact dir.
+mkdir -p "$odd"
+if bash "$here/round.sh" --dir "$odd" ensure-running --port 0 >/dev/null 2>"$tmp/i.start"; then
+  oport=$(sed -n 's/^PORT=//p' "$odd/.interview-session.env" | tr -d '\r')
+  otoken=$(sed -n 's/^TOKEN=//p' "$odd/.interview-session.env" | tr -d '\r')
+  WAIT_FAILS=1 bash "$here/watch.sh" "$odd" >"$tmp/i.out" 2>"$tmp/i.err" &
+  wpid=$!
+  end=$((SECONDS + 10))
+  until curl -s --max-time 2 "http://127.0.0.1:$oport/api/state" | grep -q '"waiters": 1' || [[ "$SECONDS" -ge "$end" ]]; do
+    sleep 0.1
+  done
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $otoken" \
+    -H 'Content-Type: application/json' --data '{"kind": "note", "text": "odd dir note"}' \
+    "http://127.0.0.1:$oport/api/answer")
+  end=$((SECONDS + 10))
+  while kill -0 "$wpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do
+    sleep 0.1
+  done
+  if kill -0 "$wpid" 2>/dev/null; then kill "$wpid" 2>/dev/null; fi
+  wait "$wpid"
+  rc=$?
+  fields=$("$py" -c '
+import json, shlex, sys
+d = json.loads(open(sys.argv[1], encoding="utf-8").read().strip())
+t = shlex.split(d["next"])
+print(d["dataDir"]); print(t[3]); print(t[6]); print(t[-1]); print(len(t)); print(d["next"])
+print(d["events"][0]["seq"])
+' "$tmp/i.out" 2>&1)
+  line() { printf '%s\n' "$fields" | sed -n "$1p"; }
+  next=$(line 6)
+  if [[ "$code" == 200 && "$rc" -eq 0 && "$(line 1)" == "$odd" && "$(line 2)" == "$odd" && "$(line 3)" == "$odd/ops.json" && "$(line 4)" == "$odd" && "$(line 5)" == 11 ]]; then
+    ok "next names an odd data dir as literal words"
+  else
+    bad "odd dir: post=$code rc=$rc fields=[$fields] out=$(cat "$tmp/i.out") err=$(cat "$tmp/i.err")"
+  fi
+  if bash -n -c "$next" 2>/dev/null; then ok "next for an odd data dir passes bash -n"; else bad "odd dir next fails bash -n: $next"; fi
+  # Running next applies ops.json in that exact dir, then re-arms a watcher that waits.
+  oseq=$(line 7)
+  printf '{"ops": [{"op": "handle", "seqs": [%s]}]}\n' "$oseq" >"$odd/ops.json"
+  CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/j.out" "$tmp/j.err" bash -c "$next"
+  rc=$?
+  if [[ "$rc" -eq 124 && "$oseq" =~ ^[0-9]+$ ]] && grep -q '^applied 1 ops' "$tmp/j.out" &&
+    bash "$here/round.sh" --dir "$odd" status | grep -q "handledSeq $oseq;"; then
+    ok "running next applies ops.json in the odd data dir and re-arms"
+  else
+    bad "odd dir next: rc=$rc seq=[$oseq] out=$(cat "$tmp/j.out") err=$(cat "$tmp/j.err")"
+  fi
+else
+  bad "odd dir: ensure-running failed: $(cat "$tmp/i.start")"
+  bad "odd dir next: not run"
+  bad "odd dir next run: not run"
 fi
 
 # (d) server gone: stop it, put the old env file back, and expect exit 2 after one failed poll

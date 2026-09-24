@@ -1292,24 +1292,25 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   document.addEventListener("keydown", e => {
     if (e.isComposing || e.keyCode === 229) return; // IME composition, including Safari
     const inText = textFocused();
+    const modal = $("dlg").open || $("keysDlg").open, fullScreen = !$("fs").hidden;
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
+      if (modal || fullScreen) return; // never save behind a dialog or a full-screen visual
       if (e.target.id === "noteText") sendNote();
       else if (S.sel === SUMMARY || !Q[S.sel]) return;
       else if (e.shiftKey) { if ($("note").value.trim()) send("ask"); else toast("Write your question in the note first.", true); }
       else submitArmed();
       return;
     }
-    const modal = $("dlg").open || $("keysDlg").open;
     if (e.key === "Escape") {
-      if (!$("fs").hidden) { fsClose(); e.preventDefault(); return; }
+      if (fullScreen) { fsClose(); e.preventDefault(); return; }
       if (modal) return;
       if (inText) { document.activeElement.blur(); e.preventDefault(); return; }
       if (S.fly && !S.pinned) { S.fly = null; lsSet("fly", null); renderFly(); renderHeader(); }
       return;
     }
     if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && e.target.closest && e.target.closest("[data-submit]")) { e.preventDefault(); return; } // dictation: plain Enter never submits
-    if (!$("fs").hidden) {
+    if (fullScreen) {
       if (e.key === "+" || e.key === "=") fsZoom(1.25); else if (e.key === "-") fsZoom(0.8); else if (e.key === "0") { FS.z = 1; FS.x = 0; FS.y = 0; fsApply(); }
       return;
     }

@@ -99,6 +99,11 @@ async page => {
     const sheet = await page.evaluate(() => { const d = document.getElementById("keysDlg"); return d && d.open ? d.innerText : ""; });
     ok("AC16: ? opens the shortcut sheet listing the keys", /Reconfirm/.test(sheet) && /Filter/.test(sheet) && /Shift\+N/.test(sheet), sheet.replace(/\s+/g, " ").slice(0, 120));
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
+    await page.click("main.detail h3"); await page.keyboard.press("a"); await page.keyboard.press("?"); await page.waitForTimeout(150);
+    const armedBehind = /Accept/.test(await armed());
+    await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
+    ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
+    await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     ok("AC16: Esc closes the sheet", await page.evaluate(() => !document.getElementById("keysDlg").open));
     await pick("Q1"); await page.click("main.detail h3");
     await page.keyboard.press("r"); await page.waitForTimeout(700);
@@ -198,8 +203,12 @@ async page => {
 
     // AC23 setup: open A1 and A2, then leave the Accept all dialog open for the external revise
     await pick("A1"); await pick("A2");
+    await page.click("main.detail h3"); await page.keyboard.press("1");
     await page.click('[data-acceptall="batch"]'); await page.waitForTimeout(200);
     ok("Accept all lists both opened questions", await page.evaluate(() => document.getElementById("dlg").open && /A1/.test(document.getElementById("dlgBody").innerText) && /A2/.test(document.getElementById("dlgBody").innerText)));
+    const n3 = (await events()).length;
+    await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
+    ok("Ctrl+Enter saves nothing behind the open Accept all dialog", (await events()).length === n3 && await page.evaluate(() => document.getElementById("dlg").open), await armed());
   }
   if (PHASE === 2) {
     await page.waitForTimeout(900); // SSE brings the external revise of A2 and the emoji switch
