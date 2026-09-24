@@ -390,8 +390,67 @@ fi
 # "could not be summarized" on exactly the typo-heavy files the disclosure
 # matters most for. The marker is not valid JSON, so it can never collide with
 # a finding line.
-CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
-  jq -R -s -c --argjson max "$MAX_REPORT" '
+#
+# Report-only runs first try typos_classify_report_only, which writes the same
+# CLASSIFIED text with builtins and no jq process. With no write pass the
+# residual set IS the scan set, so nothing is applied and the classification
+# reduces to listing the findings. It answers only when every non-empty line is
+# a typo finding in typos' own field order whose path, token and corrections
+# are printable ASCII without `"` or `\` (so no string needs escaping and
+# length is characters), and the output is at most 16 KB; any other output,
+# and every Windows bash (whose regex decodes UTF-8 even under C), goes to jq.
+# shellcheck disable=SC2329 # invoked through hook::_c_locale
+typos_classify_report_only() {
+  [[ "$WRITE_CHANGES" != "true" ]] || return 1
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) return 1 ;;
+  *) ;;
+  esac
+  ((${#SCAN_OUTPUT} <= 16384)) || return 1
+  local a='[] !#-[^-~]'
+  local re="^\\{\"type\":\"typo\",\"path\":\"$a*\",\"line_num\":(0|[1-9][0-9]{0,14}),\"byte_offset\":(0|[1-9][0-9]*),\"typo\":\"($a*)\",\"corrections\":(null|\\[(\"$a*\"(,\"$a*\")*)?\\])\\}\$"
+  local rest="$SCAN_OUTPUT"$'\n' line ln tok corr item corrs shown m n=0 findings="" text=""
+  while [[ -n "$rest" ]]; do
+    line=${rest%%$'\n'*}
+    rest=${rest#*$'\n'}
+    [[ -n "$line" ]] || continue
+    [[ "$line" =~ $re ]] || return 1
+    ln=${BASH_REMATCH[1]}
+    tok=${BASH_REMATCH[3]}
+    corr=${BASH_REMATCH[4]}
+    findings+="${findings:+,}{\\\"typo\\\":\\\"$tok\\\",\\\"corrections\\\":${corr//\"/\\\"}}"
+    n=$((n + 1))
+    ((n <= MAX_REPORT)) || continue
+    ((${#tok} > 60)) && tok="${tok:0:60}…"
+    if [[ "$corr" == null ]]; then
+      shown="  \\\"$tok\\\" (line $ln) is disallowed, no known correction."
+    else
+      m=0
+      corrs=""
+      corr=${corr:1:${#corr}-2}
+      while [[ -n "$corr" ]]; do
+        item=${corr#\"}
+        item=${item%%\"*}
+        corr=${corr#\"*\"}
+        corr=${corr#,}
+        ((${#item} > 60)) && item="${item:0:60}…"
+        ((m++)) && corrs+=" or "
+        corrs+=$item
+      done
+      if ((m > 1)); then
+        shown="  \\\"$tok\\\" (line $ln) should be $corrs (ambiguous — typos will not auto-correct this)."
+      else
+        shown="  \\\"$tok\\\" (line $ln) should be \\\"$corrs\\\"."
+      fi
+    fi
+    text+="${text:+\\n}$shown"
+  done
+  CLASSIFIED="{\"appliedCount\":\"0\",\"residualCount\":\"$n\",\"applied\":\"[]\",\"findings\":\"[$findings]\",\"appliedText\":\"\",\"appliedInline\":\"\",\"residualText\":\"$text\"}"
+}
+CLASSIFIED=""
+hook::_c_locale typos_classify_report_only ||
+  CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL_OUTPUT" |
+    jq -R -s -c --argjson max "$MAX_REPORT" '
     def parse($lines): [$lines[] | select(length > 0) | (fromjson? // empty) | select(.type == "typo")];
     def tokof: [(.typo // ""), .corrections] | tojson;
     # Entry count is capped, but a single entry is not bounded by that: a token

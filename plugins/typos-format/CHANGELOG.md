@@ -7,6 +7,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
+- typos-format.sh: in report-only mode the finding classifier is built with bash builtins instead of a jq process when every line of typos' output is a finding in its own field order with printable-ASCII text and no quote or backslash, and the output is at most 16 KB. Byte-identical to the jq program's output; anything else, write mode, and every Windows bash still run jq.
 - hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
 - hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
 - hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.

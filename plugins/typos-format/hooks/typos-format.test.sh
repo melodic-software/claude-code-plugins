@@ -2035,6 +2035,41 @@ else
   done
 fi
 
+# The report-only builtin classifier writes jq's CLASSIFIED text byte for byte,
+# or declines. Both are lifted out of the hook; each case either matches the jq
+# program's output or is declined, and the ASCII cases must be answered.
+# spellchecker:off
+RO_FN=$(awk '/^typos_classify_report_only\(\) \{/ { cap = 1 } cap { print } cap && /^}/ { exit }' "$HOOK")
+ro_case() { # <desc> <must-answer 0|1> <scan output>
+  local desc="$1" must="$2" got want
+  got=$(
+    # shellcheck source=hook-utils.sh
+    source "$HOOK_DIR/hook-utils.sh"
+    eval "$RO_FN"
+    # shellcheck disable=SC2034 # read by the eval'd function
+    SCAN_OUTPUT=$3 MAX_REPORT=10 WRITE_CHANGES=false CLASSIFIED=""
+    hook::_c_locale typos_classify_report_only || exit 3
+    printf '%s' "$CLASSIFIED"
+  ) || {
+    if ((must)); then fail "report-only builtin: $desc was declined"; else ok "report-only builtin: $desc goes to jq"; fi
+    return
+  }
+  want=$(printf '%s\n@@typos-format-split@@\n%s\n' "$3" "$3" | jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null)
+  if [[ "$got" == "$want" ]]; then ok "report-only builtin: $desc equals jq"; else fail "report-only builtin: $desc: got $got want $want"; fi
+}
+ro_long=$(printf 'x%.0s' {1..70})
+ro_case "one finding" 1 '{"type":"typo","path":"a.md","line_num":427,"byte_offset":65,"typo":"doin","corrections":["doing"]}'
+ro_case "ambiguous, disallowed, empty and elided" 1 "$(printf '%s\n' \
+  '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"wich","corrections":["which","witch"]}' \
+  '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"teh","corrections":null}' \
+  '{"type":"typo","path":"a","line_num":3,"byte_offset":0,"typo":"nd","corrections":[]}' \
+  "{\"type\":\"typo\",\"path\":\"a\",\"line_num\":4,\"byte_offset\":0,\"typo\":\"$ro_long\",\"corrections\":[\"$ro_long\"]}")"
+ro_case "more findings than the report cap" 1 "$(for i in {1..12}; do printf '{"type":"typo","path":"a","line_num":%d,"byte_offset":0,"typo":"teh","corrections":["the"]}\n' "$i"; done)"
+ro_case "a quote in a token" 0 '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"a\"b","corrections":["ab"]}'
+ro_case "a non-ASCII token" 0 '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"é","corrections":["e"]}'
+ro_case "a stderr line" 0 'warning: something'
+# spellchecker:on
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
