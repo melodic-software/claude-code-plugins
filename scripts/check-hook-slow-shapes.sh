@@ -79,14 +79,12 @@ if ((${#reader_cmd[@]} == 0)); then
   exit 2
 fi
 
-findings=0
 commands=0
 # Findings are buffered and printed once, sorted under LC_ALL=C, so the order
 # never depends on glob collation, jq key order or the walk.
 FINDINGS=()
 finding() {
   FINDINGS+=("$1")
-  findings=$((findings + 1))
 }
 
 # Scripts shape (a) scans, keyed by path, each mapped to one declaring site.
@@ -221,7 +219,7 @@ while IFS=$'\t' read -r kind file line detail; do
 done <<<"$fm"
 
 if ((commands == 0)); then
-  ((findings == 0)) || printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
+  ((${#FINDINGS[@]} == 0)) || printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
   echo "check-hook-slow-shapes: no command hooks found; refusing to report clean" >&2
   exit 1
 fi
@@ -274,7 +272,7 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
   done <"$script"
 done
 
-if ((findings > 0)); then
+if ((${#FINDINGS[@]} > 0)); then
   printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
   cat >&2 <<'REMEDY'
 
@@ -285,7 +283,7 @@ TRANSCRIPT READ: read a bounded tail (`tail -c N -- "$TRANSCRIPT"`) or resume
 from a byte cursor, as hook-failure-audit.sh does since #4408. A read already
 bounded by a size check above it takes `# slow-shape-ok: <reason>`.
 REMEDY
-  echo "check-hook-slow-shapes: $findings finding(s)" >&2
+  echo "check-hook-slow-shapes: ${#FINDINGS[@]} finding(s)" >&2
   exit 1
 fi
 printf 'check-hook-slow-shapes: %d hook command(s), %d script(s): no slow hook shapes\n' \
