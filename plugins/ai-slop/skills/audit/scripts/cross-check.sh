@@ -86,20 +86,26 @@ count_prog='
   }
   function done_file() { if (cur != "") printf "%s\t%d\n", cur, n }
   BEGIN { em = "\342\200\224" }
-  FNR == 1 { done_file(); cur = FILENAME; n = 0; fence = ""; block = 0 }
+  FNR == 1 { done_file(); cur = FILENAME; n = 0; fence = ""; fcol = 0; block = 0 }
   { line = $0; sub(/\r$/, "", line) }
   line ~ /^[ \t]*<!-- ai-slop-ignore-file(:[^>]*)? -->[ \t]*$/ { n = 0; nextfile }
   {
     t = line
     sub(/^[ \t]+/, "", t)
+    ind = length(line) - length(t)
+    # A fence opened inside a list item ends with the item: a non-blank line
+    # indented less than the item content column.
+    if (fence != "" && fcol > 0 && t != "" && ind < fcol) fence = ""
     if (fence != "") {
       if (fchar(t) == fence) fence = ""
       next
     }
-    u = t
-    if (match(u, /^([-*+]|[0-9]+[.)])[ ]+/)) u = substr(u, RLENGTH + 1)
     c = fchar(t)
-    if (c == "") c = fchar(u)
+    fcol = 0
+    if (c == "" && match(t, /^([-*+]|[0-9]+[.)])[ ]+/)) {
+      c = fchar(substr(t, RLENGTH + 1))
+      if (c != "") fcol = ind + RLENGTH
+    }
     if (c != "") { fence = c; next }
   }
   line ~ /^[ \t]*<!-- ai-slop-ignore-start(:[^>]*)? -->[ \t]*$/ { block = 1; next }

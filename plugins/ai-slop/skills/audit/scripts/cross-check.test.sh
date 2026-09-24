@@ -20,7 +20,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=17
+EXPECTED_CASES=18
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -65,6 +65,9 @@ printf -- '- item\n- ```sh\n  echo a %s b\n  ```\n\nText %s here.\n' "$EM" "$EM"
   printf 'Mention `<!-- ai-slop-ignore -->` and %s dash.\n' "$EM"
 } >"$F/markers.md"
 printf 'Before %s the marker.\n<!-- ai-slop-ignore-file -->\nAfter %s it.\n' "$EM" "$EM" >"$F/filemark.md"
+# An unclosed fence in a list item ends when a non-blank line dedents past the
+# item's content column.
+printf -- '- ```sh\n  echo a %s b\nDedented %s line.\n' "$EM" "$EM" >"$F/dedent.md"
 
 T="$TEST_TMPDIR/targets.tsv"
 printf '%s\t%s\n' plain.md "$F/plain.md" listfence.md "$F/listfence.md" markers.md "$F/markers.md" \
@@ -80,6 +83,9 @@ assert_contains "count: a fence opened after a list marker is code" "$out" "Cros
 assert_contains "count: inline code and ignore markers are not counted" "$out" "CrossCheck: file=markers.md em_dash_lines=2"
 assert_contains "count: a file marker skips the whole file" "$out" "CrossCheck: file=filemark.md em_dash_lines=0"
 assert_not_contains "count: no total without detector output" "$out" "CrossCheck total:"
+printf '%s\t%s\n' dedent.md "$F/dedent.md" >"$TEST_TMPDIR/dedent.tsv"
+out="$(bash "$CROSS" --targets "$TEST_TMPDIR/dedent.tsv" 2>&1)"
+assert_contains "count: a dedented line closes a list-item fence" "$out" "CrossCheck: file=dedent.md em_dash_lines=1"
 
 bash "$CROSS" >/dev/null 2>&1
 rc=$?
@@ -134,7 +140,7 @@ RD="$TEST_TMPDIR/real-detector.txt"
 bash "$DETECT" --list-targets "$F" >"$RT" 2>/dev/null
 bash "$DETECT" --paths-file "$RT" >"$RD" 2>/dev/null
 out="$(bash "$CROSS" --targets "$RT" --detector "$RD" 2>&1)"
-assert_contains "real detector: zero disagreements over the fixtures" "$out" "CrossCheck total: files=3 disagreements=0"
+assert_contains "real detector: zero disagreements over the fixtures" "$out" "CrossCheck total: files=4 disagreements=0"
 
 # --- Result ---------------------------------------------------------------------
 

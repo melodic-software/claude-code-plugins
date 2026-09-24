@@ -219,6 +219,11 @@ status_rows() {
       echo "batch=$nn status=stale reason=foreign-heading"
       continue
     fi
+    got="$(tr -d '\r' <"$res" | sed -n 's/^files_with_findings:[[:space:]]*//p' | head -1 | tr -d '[:space:]')"
+    if [[ "$got" != "$(tr -d '\r' <"$res" | grep -c '^## ')" ]]; then
+      echo "batch=$nn status=stale reason=files_with_findings"
+      continue
+    fi
     echo "batch=$nn status=complete"
   done
 }
