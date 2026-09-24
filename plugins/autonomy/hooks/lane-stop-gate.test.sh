@@ -985,14 +985,17 @@ if [[ -r "$SETTINGS" ]]; then
   # ordering is still pinned by the CI lanes that run as a normal user.
   ok "SKIP: chmod 000 does not deny for this user — unreadable-source stderr not asserted here"
 else
-  OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
-    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
-      -u CLAUDE_PLUGIN_DATA \
-      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
-      bash "$HOOK" 2>"$UNREADABLE_ERR")"
+  # stdin is a file: an unreadable settings file is no gate footprint, so the
+  # hook exits at the pre-filter without reading stdin, and a pipe writer that
+  # has not finished gets EPIPE (jq exits 2 where SIGPIPE is ignored, as on CI
+  # runners), which pipefail would report as the hook's status.
+  OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    bash "$HOOK" <"$PROBE_PAYLOAD" 2>"$UNREADABLE_ERR")"
   RC=$?
   UNREADABLE_STDERR="$(<"$UNREADABLE_ERR")"
   if [[ -z "$UNREADABLE_STDERR" ]]; then
