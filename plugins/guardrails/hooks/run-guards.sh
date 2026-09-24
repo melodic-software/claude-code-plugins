@@ -250,7 +250,19 @@ hook::jq_fields() {
       return 0
     fi
   fi
-  hook::jq_fields_uncached "$input" "$@"
+  hook::jq_fields_uncached "$input" "$@" || return
+  # A miss on the event's own payload joins the cache, so a later guard asking
+  # for the same unprimed filter (stale-path-verify's `replace_all` after
+  # skill-reference-verify's) is answered without a second jq. Only a clean
+  # answer is kept: status 0 and no NUL in the values.
+  if ((RUN_GUARDS_PRIMED && HOOK_JQ_FIELDS_NUL == 0)) && [[ "$input" == "$RUN_GUARDS_INPUT" ]]; then
+    local __rg_i=0 __rg_f
+    for __rg_f in "$@"; do
+      RUN_GUARDS_FIELD["$__rg_f"]="${HOOK_JQ_FIELDS[__rg_i]}"
+      __rg_i=$((__rg_i + 1))
+    done
+  fi
+  return 0
 }
 
 # The file path and the repository root, each resolved once per event. The

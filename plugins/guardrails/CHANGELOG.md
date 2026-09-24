@@ -13,6 +13,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - run-guards.sh: the file path and the repository root are resolved once per event and served to every guard from then on (`hook::read_file_path_to` and `hook::repo_root_to` are cached in front of their uncached twins, keyed on the payload, the project dir and the scope setting, or on the working directory and the hint). `cli-flag-verify.sh`, `skill-reference-verify.sh` and `stale-path-verify.sh` read the path with `hook::read_file_path_to` on their buffered payload, so a Markdown Write or Edit runs one realpath and one `git rev-parse` instead of three each. Every guard's verdict is unchanged.
+- run-guards.sh: a field a guard reads outside the primed set is added to the event's field cache once jq has answered it cleanly (status 0, no NUL), so `stale-path-verify.sh` reads `replace_all` from the jq that answered `skill-reference-verify.sh` instead of starting its own.
 
 ## [0.36.1] - 2026-09-23
 

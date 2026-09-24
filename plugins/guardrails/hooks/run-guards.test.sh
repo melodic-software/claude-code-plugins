@@ -296,6 +296,38 @@ assert_absent "benign Bash dispatcher never sources ps-command.sh" \
 # is a process creation on Windows Git Bash.
 assert_eq "benign Bash dispatcher forks no subshell (one BASHPID in the xtrace)" \
   "1" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
+# --- PostToolUse verifiers: one path read, one root, one unprimed jq ------------
+# The three verifiers each read the file path and the repository root, and two
+# of them ask for the unprimed `replace_all` filter. Through the dispatcher the
+# path is resolved once (one realpath), the root once (one git), and the jq
+# that answers skill-reference-verify's unprimed filters also answers
+# stale-path-verify's.
+PV_REPO="$TEST_TMPDIR/pv-repo"
+mkdir -p "$PV_REPO"
+git -C "$PV_REPO" init -q
+printf '# Doc\n\nSee `docs/a.md`.\n' >"$PV_REPO/doc.md"
+PV_PAYLOAD=$(jq -cn --arg f "$PV_REPO/doc.md" \
+  '{tool_name:"Edit",tool_input:{file_path:$f,old_string:"Doc",new_string:"See `docs/a.md` again",replace_all:false},
+    tool_response:{structuredPatch:[{lines:["+See `docs/a.md` again"]}]}}')
+if [[ -x "$SHIM/jq" ]]; then
+  printf '#!/usr/bin/env bash\nprintf "realpath\\n" >>%q\nexec %q "$@"\n' \
+    "$SPAWN_LOG" "$(type -P realpath)" >"$SHIM/realpath"
+  # git logs its arguments: stale-path-verify's own ls-files and log are its work, not a root read.
+  printf '#!/usr/bin/env bash\nprintf "git %%s\\n" "$*" >>%q\nexec %q "$@"\n' \
+    "$SPAWN_LOG" "$(type -P git)" >"$SHIM/git"
+  chmod +x "$SHIM/realpath" "$SHIM/git"
+  : >"$SPAWN_LOG"
+  PATH="$SHIM:$PATH" CLAUDE_PROJECT_DIR="$PV_REPO" bash "$DISPATCH" \
+    cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <<<"$PV_PAYLOAD" >/dev/null 2>&1
+  assert_eq "post-verify dispatcher: one jq for the unprimed filters of both guards" \
+    "1" "$(grep -cx jq "$SPAWN_LOG")"
+  assert_eq "post-verify dispatcher: one realpath for the three path reads" \
+    "1" "$(grep -cx realpath "$SPAWN_LOG")"
+  assert_eq "post-verify dispatcher: one git rev-parse for the three root reads" \
+    "1" "$(grep -c 'rev-parse --show-toplevel' "$SPAWN_LOG")"
+  rm -f "$SHIM/realpath" "$SHIM/git"
+fi
+
 DISPATCH_SRC=$(cat "$DISPATCH")
 assert_absent "dispatcher does not copy the library's jq_fields (the lib names its uncached form)" \
   "$DISPATCH_SRC" 'declare -f'
