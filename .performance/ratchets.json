@@ -11,49 +11,49 @@
       "name": "claude-ops-stop-hook-failure-audit-growth",
       "command": "bash scripts/hook-census.sh claude-ops Stop hook-failure-audit.sh '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth",
       "field": "growth",
-      "ceiling": 999999999,
+      "ceiling": 0,
       "goal": "A warm Stop reads the same transcript bytes at 10 MiB as at 50 KiB: the cursor read follows what the turn appended, not the session's length (#4408)."
     },
     {
       "name": "disk-hygiene-stop-guard-launch-monitor-growth",
       "command": "bash scripts/hook-census.sh disk-hygiene Stop guard_launch_monitor.py '{\"session_id\":\"census\",\"transcript_path\":\"@TRANSCRIPT@\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --seed --measure growth --setup 'mkdir -p \"$CLAUDE_PLUGIN_DATA/guard-launch-monitor\" && : >\"$CLAUDE_PLUGIN_DATA/guard-launch-monitor/census.launched\"'",
       "field": "growth",
-      "ceiling": 999999999,
+      "ceiling": 0,
       "goal": "With a guard launch marked, a warm Stop's monitor reads the same transcript bytes at 10 MiB as at 50 KiB (guard_launch_monitor.py incremental read, #4422)."
     },
     {
       "name": "claude-ops-stop-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh claude-ops Stop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 999999999,
+      "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the Stop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts."
     },
     {
       "name": "claude-ops-posttoolbatch-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh claude-ops PostToolBatch session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 999999999,
+      "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the PostToolBatch row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts."
     },
     {
       "name": "claude-ops-subagentstop-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh claude-ops SubagentStop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"SubagentStop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 999999999,
+      "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the SubagentStop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts."
     },
     {
       "name": "claude-ops-userpromptsubmit-session-event-log-spawns",
       "command": "bash scripts/hook-census.sh claude-ops UserPromptSubmit session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"UserPromptSubmit\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 999999999,
+      "ceiling": 1,
       "goal": "With session_event_log_enabled at its default (off), the UserPromptSubmit row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts."
     },
     {
       "name": "guardrails-posttooluse-run-guards-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -q docs/old.md \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 999999999,
+      "ceiling": 103,
       "goal": "The PostToolUse Edit(*.md) verify bundle (cli-flag-verify, skill-reference-verify, stale-path-verify through run-guards.sh) spends at most this many process creations and execs on an Edit whose new text cites a path the repository deleted. #4390 measured 87 processes per PostToolUse:Edit fire on Windows."
     }
   ]
