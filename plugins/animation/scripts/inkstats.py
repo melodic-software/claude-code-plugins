@@ -38,6 +38,8 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
             texture in patches wider than 5 px, near 0.2 for pixel noise, lower for 1-2 px stripes
   period    inside the eroded ink, the highest spatial power at periods under 32 px over the mean power there: large
             for a texture at one fixed pitch (ruled stripes, combed dry brush), small for irregular texture
+  sliver    median area / width^2 of the paper islands inside the ink (carved slivers and gouges, 6-20000 px, not
+            touching the frame edge; width = 2 x the largest distance to ink): long thin lines high, chunky cuts low
   ink_rgb paper_rgb median colours of the ink and paper cores
 Per pair of consecutive drawings:
   boil      on held pairs only (phase-correlation shift under 1 px and ink change under 1 point), ink/paper
@@ -59,7 +61,7 @@ import numpy as np
 DUP_PX = 50
 SEG = 3.35
 STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'specks', 'gaps', 'holes', 'ink_sd',
-         'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'boil')
+         'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver', 'boil')
 FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
 
 
@@ -164,6 +166,22 @@ def texture(g, ink):
     return grain, float(p[short].max() / mean) if mean > 0 else None
 
 
+def sliver(ink):
+    """Median shape of the carved paper inside the ink: area / width^2 of each paper island that does not touch the
+    frame edge (6 to 20000 px; width = 2 x its largest distance to ink). Long thin gouge lines score high, chunky
+    cuts low; None with no such island."""
+    paper = (~ink).astype(np.uint8)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(paper, connectivity=4)
+    x, y, w, h, a = st[1:].T
+    keep = (x > 0) & (y > 0) & (x + w < ink.shape[1]) & (y + h < ink.shape[0]) & (a >= 6) & (a <= 20000)
+    if not keep.any():
+        return None
+    width = np.zeros(n)
+    np.maximum.at(width, lab.ravel(), cv2.distanceTransform(paper, cv2.DIST_L2, 5).ravel())
+    i = np.nonzero(keep)[0] + 1
+    return float(np.median(a[i - 1] / np.maximum(2 * width[i], 1) ** 2))
+
+
 def one(rgb):
     g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     h = np.bincount(g.ravel(), minlength=256)
@@ -205,6 +223,7 @@ def one(rgb):
                 w90=pct(w, 90), pw50=pct(pw, 50), rough=rough, straight=straight, specks=islands(ink, 8),
                 gaps=islands(~ink, 4), holes=float((closed & ~ink).sum() / closed.sum()) if closed.any() else None,
                 ink_sd=sd(core_i), paper_sd=sd(core_p), field_sd=sd(field), flat=flat, grain=grain, period=period,
+                sliver=sliver(ink),
                 ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
 
 

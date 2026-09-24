@@ -14,11 +14,14 @@ measure  writes an inkstats --json summary per film into <out>/calibration, <out
          Pass <out>/calibration/*.json to learn.py --negative; the evaluation half never sets a band.
 check    prints every film's rows failed and margin (largest row distance - 1: a control needs a margin above 0, a
          positive at or below 0); exit 1 if any control passes or any positive fails.
-selftest exit 1 unless a gamed film fails the pack: synthetic polygons, and --near when given, through game.py's
-         filter (gaussian blur sigma 0.9, then +12 gray on every 3rd column of the dark left half).
+selftest exit 1 unless every gamed film fails the pack: synthetic polygons through game.py's filter (gaussian blur
+         sigma 0.9, then +12 gray on every 3rd column of the dark left half), and with --near that film through the
+         same filter and through ATTACK.
 Filters, applied in order: blurS (gaussian, sigma S px), noiseA (gaussian gray noise of sd A on dark pixels, new every
 frame), stripesA (+A gray on every 3rd column of dark pixels, left half), dryA / dryhalfA (static dry-brush streaks
-+A gray on dark pixels, whole frame / left half), warpA (a static smooth displacement of A px sd: contour jitter).
++A gray on dark pixels, whole frame / left half), warpA (a static smooth displacement of A px sd: contour jitter),
+patchA (a static gray offset of sd A per 8 px block on dark pixels), rowsA (static horizontal tonal rows 20-40 px
+apart, sd A, on dark pixels), retimeN (every Nth frame held one 24 fps frame longer).
 """
 import argparse
 import json
@@ -34,10 +37,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import inkstats  # noqa: E402
 
 GAME = 'blur0.9+stripes12'
+# game plus: a sub-pixel contour warp (straight, rough), a few holds lengthened (offstep), and faint tonal rows at the
+# source's texture peak with fine noise (period, grain)
+ATTACK = 'warp0.5+blur0.9+rows0.15+noise0.4+retime72'
 NEAR = ['none', 'blur0.9', 'stripes12', GAME, 'blur0.6', 'blur1.3', 'blur0.9+noise4', 'blur0.9+noise8',
         'blur0.9+noise16', 'noise8+blur0.9', 'blur0.9+stripes6', 'blur0.9+stripes24', 'blur0.9+dry8', 'blur0.9+dry16',
         'blur0.9+dry32', 'blur0.9+dryhalf16', 'warp1.5+blur0.9', 'warp3+blur0.9', 'blur0.9+noise8+stripes12+dry16',
-        'warp0.7+blur0.9']
+        'warp0.7+blur0.9', ATTACK, 'warp0.7+blur0.9+rows0.15+noise0.4+retime72',
+        'warp0.4+blur0.9+rows0.15+noise0.4+retime72', 'warp0.5+rows0.2+noise0.6+retime72']
 POLY = ['none', 'blur0.9', 'blur0.9+noise8', 'noise8+blur0.9', GAME, 'blur0.9+dry16', 'warp3+blur0.9+noise8']
 INK, PAPER = (0x13, 0x11, 0x0f), (0xef, 0xe9, 0xe0)
 
@@ -76,6 +83,14 @@ def post(spec, frames):
                 f = [cv2.GaussianBlur(rng.normal(0, 1, (h, w)).astype(np.float32), (0, 0), 6) for _ in 'xy']
                 gx, gy = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
                 cache[kind, shape, v] = (gx + f[0] * v / f[0].std(), gy + f[1] * v / f[1].std())
+            elif kind == 'patch':   # blocky tonal patches: one random gray offset per 8 px block, sd v
+                m = rng.normal(0, v, (h // 8 + 1, w // 8 + 1)).astype(np.float32)
+                cache[kind, shape, v] = np.kron(m, np.ones((8, 8), np.float32))[:h, :w]
+            elif kind == 'rows':   # horizontal tonal rows near the woodcut source's texture peak: 20-40 px apart
+                f = np.fft.rfft(rng.normal(0, 1, h))
+                f[(np.fft.rfftfreq(h) < 1 / 40) | (np.fft.rfftfreq(h) > 1 / 20)] = 0
+                r = np.fft.irfft(f, h).astype(np.float32)
+                cache[kind, shape, v] = np.repeat((v * r / r.std())[:, None], w, 1)
             elif kind == 'stripes':
                 m = np.zeros((h, w), bool)
                 m[:, :w // 2:3] = True
@@ -89,6 +104,7 @@ def post(spec, frames):
                     m[:, w // 2:] = 0
                 cache[kind, shape, v] = m.astype(bool)
         return cache[kind, shape, v]
+    retime, late = int(dict(steps).get('retime', 0)), 0
     for i, (rgb, t) in enumerate(frames):
         x = rgb.astype(np.float32)
         for kind, v in steps:
@@ -99,23 +115,29 @@ def post(spec, frames):
                 x += (np.random.default_rng(i).normal(0, v, dark.shape) * dark)[..., None]
             elif kind == 'warp':
                 x = cv2.remap(x, *static(kind, dark.shape, v), cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
-            else:
+            elif kind in ('patch', 'rows'):
+                x += (static(kind, dark.shape, v) * dark)[..., None]
+            elif kind != 'retime':
                 x[dark & static(kind, dark.shape, v)] += v
-        yield np.clip(x, 0, 255).astype(np.uint8), t
+        x = np.clip(x, 0, 255).astype(np.uint8)
+        yield x, t + late / 24
+        if retime and i % retime == 0:   # hold this frame one 24 fps frame longer
+            late += 1
+            yield x, t + late / 24
 
 
-def replica(work, tag, out):
-    """Encode the rotoscope replica's drawings at 24 fps with capture.mjs's ffmpeg settings; return the mp4."""
-    work, mp4 = Path(work), Path(out) / 'replica.mp4'
+def encode(work, folder, mp4):
+    """Encode a work dir's drawings <folder>/dNNN.png, timed by d/index.json, at 24 fps with capture.mjs's ffmpeg
+    settings (libx264, yuv420p, crf 16); return the mp4."""
+    work = Path(work)
     ds = json.load(open(work / 'd/index.json'))['drawings']
-    img = cv2.imread(str(work / f'out/{tag}/rep/d{ds[0][0]:03d}.png'))
-    h, w = img.shape[:2]
+    h, w = cv2.imread(str(work / f'{folder}/d{ds[0][0]:03d}.png')).shape[:2]
     p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}',
                           '-framerate', '24', '-i', '-', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '16', str(mp4)],
                          stdin=subprocess.PIPE)
     fi = 0
     for (k, *_), nxt in zip(ds, [*ds[1:], [None, ds[-1][2]]]):
-        img = cv2.imread(str(work / f'out/{tag}/rep/d{k:03d}.png'))
+        img = cv2.imread(str(work / f'{folder}/d{k:03d}.png'))
         while fi / 24 < nxt[1] - 1e-6:
             p.stdin.write(img.tobytes())
             fi += 1
@@ -123,6 +145,11 @@ def replica(work, tag, out):
     if p.wait():
         sys.exit(f'controls: ffmpeg failed encoding {mp4}')
     return mp4
+
+
+def replica(work, tag, out):
+    """The rotoscope replica's drawings encoded as a scene is; return the mp4."""
+    return encode(work, f'out/{tag}/rep', Path(out) / 'replica.mp4')
 
 
 def run(job):
@@ -172,11 +199,13 @@ def check(a):
 
 def selftest(a):
     pack, bad = inkstats.load_pack(a.pack), []
-    for name, frames in [('poly', poly(seconds=10)), *([('near', inkstats.frames(a.near, 24))] if a.near else [])]:
-        rows = inkstats.check(inkstats.summary(inkstats.measure(post(GAME, frames), 24)), pack)
+    cases = [('poly', GAME, poly(seconds=10))] + ([('near', s, inkstats.frames(a.near, 24)) for s in (GAME, ATTACK)]
+                                                  if a.near else [])
+    for name, spec, frames in cases:
+        rows = inkstats.check(inkstats.summary(inkstats.measure(post(spec, frames), 24)), pack)
         failed = [s for s, _, _, d in rows if d is not None and d > 1]
-        print(f"{name} + {GAME}: fails {', '.join(failed) or 'nothing'}")
-        bad += [] if failed else [name]
+        print(f"{name} + {spec}: fails {', '.join(failed) or 'nothing'}")
+        bad += [] if failed else [f'{name} + {spec}']
     if bad:
         print(f"selftest: the gamed {', '.join(bad)} passes the check: a post filter games it again")
     return 1 if bad else 0

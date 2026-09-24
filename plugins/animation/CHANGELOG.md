@@ -21,7 +21,7 @@ All notable changes to the `animation` plugin are documented here. Format follow
   per shot (`--cuts`) or per box (`--region`, `--t`), including flat-black share and dark-field
   texture, and a `--pack` check that takes the pack directory, checks each shot's largest dark
   field, prints a distance to source, and exits 1 on any failing row.
-- `woodcut-ink` style pack, a study of @shfred0's clip: statistics only, with brush defaults that
-  took a new, untraced 10 s scene to 17/17 on its check.
+- `woodcut-ink` style pack, a study of @shfred0's clip: statistics only, with brush starting values
+  not yet validated against its current check.
 - `review.py` exits 1 when any drawing is flagged, and stops with a message when no replica is
   rendered.

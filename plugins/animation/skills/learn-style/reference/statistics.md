@@ -36,6 +36,7 @@ Per drawing, with ink and paper at the gray histogram modes and T at their midpo
 | `field_sd` | the same inside the largest connected ink area only | texture, backgrounds |
 | `flat` | dark drawings only (ink 50% or more): share of mostly-ink 32 px blocks that lie fully inside eroded ink with gray sd under 2: solid black against textured black | texture, backgrounds |
 | `grain` | inside the ink interior, sd of the 5x5 box-mean gray over sd of the gray: the scale of the texture (near 1 for patches wider than 5 px, near 0.2 for pixel noise, lower for 1-2 px stripes) | texture |
+| `sliver` | median area / width² of the paper islands inside the ink (carved slivers and gouges): long thin lines score high, chunky cuts low | texture, line |
 | `period` | inside the eroded ink, the highest spatial power at periods under 32 px over the mean power there: large for a texture at one fixed pitch (ruled stripes, a combed dry brush) | texture |
 | `ink` | ink coverage | color |
 | `boil` | on held pairs (shift under 1 px, ink change under 1 point), ink/paper disagreement per edge pixel: mean edge displacement between two drawings of one pose | line, movement |
@@ -67,8 +68,13 @@ calibration control lies outside the raw band. Each control counts only at the c
 rejects it most, so that row keeps rejecting it by a clear margin while the other rows keep full
 held-out coverage. `style.json` `heldout.rule` records, per statistic, the raw band, the held-out
 miss, the widening, the controls that cap it, every control's margin, and the calibration and
-evaluation pass rates. The palette tolerance is the largest channel difference between a shot's
-median ink or paper colour and the clip's.
+evaluation pass rates.
+
+The palette tolerance (`palette.tolerance`) adds two measured terms and rounds up.
+`palette.encode_shift` is the largest channel change in the clip's median ink or paper colour when
+all its drawings are encoded as `capture.mjs` encodes a scene and decoded again. `palette.excerpt_stray`
+is the largest channel difference between an excerpt's median colour and the clip's. Encoding moves
+the woodcut ink by 4 levels on its blue channel (15 to 11), which is also what it does to the replica.
 
 There are no per-shot rows. A shot of a few drawings (shfred0's 0.5 s flash has 3) cannot give a
 stable median, and the per-shot rows needed a drawing-count exemption to pass the source itself. The
@@ -76,7 +82,7 @@ per-shot columns in the table are for reading, not for the check.
 
 ## Which statistics separate
 
-`learn.py` `CHECK` holds nine statistics. Values are film values from the records above; the
+`learn.py` `CHECK` holds ten statistics. Values are film values from the records above; the
 source's excerpt ranges are the raw bands in `style.json` `heldout.rule`.
 
 | Stat | Source excerpts | Replica | Round 3, every post filter | What it rejects |
@@ -84,6 +90,7 @@ source's excerpt ranges are the raw bands in `style.json` `heldout.rule`.
 | `straight` | 0.51-0.64 | 0.544 | 0.687-0.696 | round 3 and every filter of it, flat polygons (0.98) |
 | `rough` | 0.059-0.076 | 0.069 | 0.053-0.056 | round 3 and every filter of it, flat polygons (0.025), the spiral and anime clips |
 | `offstep` | 0.031-0.141 | 0.101 | 0.004 (on strict 3s) | round 3, the anime and collage clips |
+| `sliver` | 2.13-3.42 (band) | 3.16 | 3.50-3.75 | long thin carved gouges; the only row that still rejects the retimed, warped, textured attack |
 | `grain` | 0.674-0.715 | 0.689 | 0.44 raw; 0.21-0.32 with noise, 0.48-0.57 with stripes, 0.64 with dry brush, 0.54 at blur 0.6, 0.79 at blur 1.3 | pixel noise, stripes, flat fills made gray by a blur |
 | `period` | 537-886 | 592 | 74 raw; 1.1e5-1.9e5 with stripes; 15-81 with noise | fixed-pitch texture, pixel noise |
 | `flat` | 0.13-0.80 | 0.537 | 0 with any overlay over all the black | textures laid over every black area |
@@ -109,53 +116,70 @@ control needs a margin above 0.
 
 | Half | Control | Rows failed | Margin | Worst row |
 |---|---|---|---|---|
-| calibration | anime (BiosRiosz) | 10/11 | +119.35 | per_second |
-| calibration | spiral | 7/10 | +16.00 | ink_rgb |
-| calibration | round 3, blur 0.6 | 5/11 | +6.88 | grain |
-| calibration | round 3, blur 0.9 + dry 32 | 7/11 | +7.00 | ink_rgb |
-| calibration | round 3, blur 0.9 + dry 8 | 7/11 | +1.58 | grain |
-| calibration | round 3, blur 0.9 + noise 16 | 8/11 | +131.79 | per_second |
-| calibration | round 3, blur 0.9 + noise 4 | 6/11 | +17.91 | grain |
-| calibration | round 3, blur 0.9 + noise 8 + stripes 12 + dry 16 | 7/11 | +126.74 | period |
-| calibration | round 3, blur 0.9 + stripes 6 | 5/11 | +630.87 | period |
-| calibration | round 3 | 5/11 | +11.96 | grain |
-| calibration | round 3, stripes 12 | 5/11 | +904.71 | period |
-| calibration | round 3, warp 1.5 + blur 0.9 | 4/11 | +6.84 | straight |
-| calibration | polygons, blur 0.9 + noise 8 | 8/11 | +23.19 | grain |
-| calibration | polygons, blur 0.9 + stripes 12 | 7/11 | +884.36 | period |
-| calibration | polygons | 8/11 | +16.62 | grain |
-| calibration | polygons, warp 3 + blur 0.9 + noise 8 | 8/11 | +23.32 | grain |
-| evaluation | collage | 9/11 | +45.97 | per_second |
-| evaluation | round 3, blur 0.9 + dry 16 | 7/11 | +3.00 | ink_rgb |
-| evaluation | round 3, blur 0.9 + dry 16 on the left half | 4/11 | +4.93 | grain |
-| evaluation | round 3, blur 0.9 + noise 8 | 6/11 | +21.94 | grain |
-| evaluation | round 3, blur 0.9 + stripes 12 (the review's game.py) | 5/11 | +940.44 | period |
-| evaluation | round 3, blur 0.9 + stripes 24 | 5/11 | +1073.33 | period |
-| evaluation | round 3, blur 0.9 | 5/11 | +1.34 | period |
-| evaluation | round 3, blur 1.3 | 4/11 | +3.44 | grain |
-| evaluation | round 3, noise 8 then blur 0.9 | 6/11 | +5.28 | grain |
-| evaluation | round 3, warp 3 + blur 0.9 | 4/11 | +11.21 | straight |
-| evaluation | round 3, warp 0.7 + blur 0.9 | 2/11 | +1.01 | period |
-| evaluation | polygons, blur 0.9 + dry 16 | 8/11 | +3.32 | straight |
-| evaluation | polygons, blur 0.9 | 8/11 | +3.32 | straight |
-| evaluation | polygons, noise 8 then blur 0.9 | 8/11 | +7.03 | grain |
+| calibration | anime (BiosRiosz) | 11/12 | +119.35 | per_second |
+| calibration | spiral | 6/11 | +12.60 | ink_rgb |
+| calibration | round 3, blur 0.6 | 6/12 | +6.88 | grain |
+| calibration | round 3, blur 0.9 + dry 32 | 8/12 | +5.40 | ink_rgb |
+| calibration | round 3, blur 0.9 + dry 8 | 8/12 | +1.58 | grain |
+| calibration | round 3, blur 0.9 + noise 16 | 9/12 | +131.79 | per_second |
+| calibration | round 3, blur 0.9 + noise 4 | 7/12 | +17.91 | grain |
+| calibration | round 3, blur 0.9 + noise 8 + stripes 12 + dry 16 | 8/12 | +126.74 | period |
+| calibration | round 3, blur 0.9 + stripes 6 | 6/12 | +630.87 | period |
+| calibration | round 3 | 6/12 | +11.96 | grain |
+| calibration | round 3, stripes 12 | 6/12 | +904.71 | period |
+| calibration | round 3, attack with warp 0.4 | 1/12 | +0.22 | sliver |
+| calibration | round 3, attack (`ATTACK`, warp 0.5) | 1/12 | +0.23 | sliver |
+| calibration | round 3, warp 1.5 + blur 0.9 | 4/12 | +6.84 | straight |
+| calibration | polygons, blur 0.9 + noise 8 | 9/12 | +23.19 | grain |
+| calibration | polygons, blur 0.9 + stripes 12 | 8/12 | +884.36 | period |
+| calibration | polygons | 9/12 | +16.62 | grain |
+| calibration | polygons, warp 3 + blur 0.9 + noise 8 | 9/12 | +23.32 | grain |
+| evaluation | collage | 9/12 | +45.97 | per_second |
+| evaluation | round 3, blur 0.9 + dry 16 | 8/12 | +2.20 | ink_rgb |
+| evaluation | round 3, blur 0.9 + dry 16 on the left half | 5/12 | +4.93 | grain |
+| evaluation | round 3, blur 0.9 + noise 8 | 7/12 | +21.94 | grain |
+| evaluation | round 3, blur 0.9 + stripes 12 (the review's game.py) | 6/12 | +940.44 | period |
+| evaluation | round 3, blur 0.9 + stripes 24 | 6/12 | +1073.33 | period |
+| evaluation | round 3, blur 0.9 | 6/12 | +1.34 | period |
+| evaluation | round 3, blur 1.3 | 5/12 | +3.44 | grain |
+| evaluation | round 3, noise 8 then blur 0.9 | 7/12 | +5.28 | grain |
+| evaluation | round 3, attack without blur (warp 0.5, rows 0.2, noise 0.6) | 2/12 | +9.77 | grain |
+| evaluation | round 3, attack with warp 0.7 | 1/12 | +0.14 | sliver |
+| evaluation | round 3, warp 0.7 + blur 0.9 | 3/12 | +1.01 | period |
+| evaluation | round 3, warp 3 + blur 0.9 | 4/12 | +11.21 | straight |
+| evaluation | polygons, blur 0.9 + dry 16 | 8/12 | +3.32 | straight |
+| evaluation | polygons, blur 0.9 | 9/12 | +3.32 | straight |
+| evaluation | polygons, noise 8 then blur 0.9 | 8/12 | +7.03 | grain |
 
-All 30 controls fail. `controls.py selftest` reruns the review's game.py filter on synthetic polygons
-(and on round 3 when given) and exits 1 if the gamed film passes.
+All 34 controls fail. The attack (`controls.py` `ATTACK`) is game.py plus three more filters. A
+static 0.5 px contour warp moves `straight` and `rough` into their bands. One frame is held longer
+every 3 s, which brings `offstep` into its band. Faint tonal rows 20-40 px apart, where the source's
+texture has its spectral peak, and fine noise match `period` and `grain`. Against the pack without
+`sliver` it passed 11/11 at margin -0.21. With `sliver` it fails at +0.14 to +0.23: a warp keeps round
+3's carving long and thin (3.50-3.55 against the source's 2.88). `controls.py selftest` reruns
+game.py's filter on synthetic polygons, and game.py's filter and `ATTACK` on round 3 when given. It
+exits 1 if any gamed film passes.
 
 ## Held-out and out-of-sample results
 
 - Held-out source excerpts: 150/150 calibration and 150/150 evaluation pass every checked row, and
   each band passes 150/150 in both halves.
-- Out of sample: the evaluation controls set no band, and all 14 fail. The evaluation excerpts set no
+- Out of sample: the evaluation controls set no band, and all 16 fail. The evaluation excerpts set no
   band, and all 150 pass.
-- Replica: 0/11 rows fail. Its closest row is the palette: its ink is 4 levels from the pack's ink,
-  exactly the tolerance.
-- The out-of-sample claim has two caveats. `ink_sd` left the check, and `offstep` changed from the
-  share of drawings off the common hold to the pair form, after an evaluation excerpt failed each
-  and after the replica failed the old `offstep` at 0.23. The cap now counts each control only at
-  its strongest row, a change made after the same result. Every other choice was made on
-  calibration data.
+- Replica (its decoded mp4, judged as the source is): 0/12 rows fail, margin -0.20. Its closest row
+  is still the palette (ink 4 levels off against a tolerance of 5).
+
+Four choices were made after seeing evaluation or positive results, so their results are **not out of
+sample**:
+
+| Choice | Seen first |
+|---|---|
+| `ink_sd` left `CHECK` | an evaluation excerpt failed it |
+| `offstep` changed to the pair form | an evaluation excerpt and the replica (0.23) failed the per-drawing form |
+| the cap counts each control only at its strongest row | an evaluation excerpt failed under the per-row cap |
+| `sliver` added to `CHECK` | chosen to catch the attack, after it passed |
+
+Every other choice was made on calibration data.
 
 ## Distance to source
 
@@ -163,15 +187,13 @@ A row's distance is |film value - source value| divided by |band edge - source v
 band edge on the film's side of the source value. It is 0 at the source value and 1 at either band
 edge, however asymmetric the band. A row fails above 1. The film's distance is the mean over its
 defined rows and ranks films that pass; its margin (largest row distance minus 1) says how far the
-worst row is from the edge. The source scores 0 and the replica 0.193.
+worst row is from the edge. The source scores 0.
 
 ## What the check cannot say
 
-- **A fine contour warp plus a retime.** A static 0.4-0.7 px displacement warp before the blur moves
-  round 3's `straight` (0.51-0.63) and `rough` (0.059-0.066) inside their bands. Round 3 is then
-  caught only by `offstep`, which an author fixes by re-timing a few drawings, and by `period`,
-  which a texture at the source's power could set. A near miss that does all three was not built
-  and would likely pass.
+- **The attack is caught by one row, narrowly.** `sliver` rejects it at +0.14 to +0.23, and it was
+  added after the attack was seen. A filter that makes round 3's gouges chunkier without breaking
+  `straight` (a warp of 1 px or more does break it) would likely pass. No such filter was built.
 - **Composition and reading.** It checks mechanics, not whether a scene reads as the style. The
   research slice on style learning found no agreed metric or ground truth for style similarity, so
   human judgment on 1:1 crops stays the final gate.

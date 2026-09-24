@@ -34,7 +34,7 @@ now measures:
   never a filled polygon. Polygon edges are too straight (`straight`) and too smooth (`rough`).
 - Texture: gray inside the ink comes in irregular patches. Parallel dry-brush lines at a fixed pitch
   read as ribbed black and raise `period`; pixel noise lowers `grain`.
-- Carving: gouges are chunky and irregular, not rows at one spacing.
+- Carving: gouges are chunky and irregular, not long thin lines (`sliver`) or rows at one spacing.
 - Solid black: leave about half of the dark area flat (`flat`); texturing all of it fails.
 - Timing: step at about 8 drawings a second on 3s, but hold some drawings for 2 or 4 frames as the
   source does (`offstep`); a film strictly on 3s fails.

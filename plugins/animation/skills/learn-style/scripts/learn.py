@@ -17,26 +17,29 @@ calibration pair against the band of the other calibration pairs, capped at CLEA
 --negative film (another style or a near miss) lies outside the raw band, counting each control only at the checked
 row that rejects it most: coverage gives way to discrimination where they conflict. style.json records, per statistic, the widening, the control margins and the calibration and
 evaluation pass rates, and `ref`, the whole source's value, which the distance is measured from. The palette tolerance
-is the largest channel difference between a part's median ink or paper colour and the whole clip's. Statistics only:
-no geometry, no per-drawing rows, no frames.
+is the encode shift (the largest channel change in the clip's median ink or paper colour when its drawings are encoded
+as capture.mjs encodes a scene and decoded again) plus the largest channel difference between an excerpt's median
+colour and the clip's, rounded up. Statistics only: no geometry, no per-drawing rows, no frames.
 """
 import argparse
 import itertools
 import json
 import math
 import sys
+import tempfile
 from collections import Counter
 from pathlib import Path
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
+import controls  # noqa: E402
 import inkstats  # noqa: E402
 
 # Checked statistics, each chosen for what it separates (reference/statistics.md, "Which statistics separate"):
-# straight, rough and offstep are drawing and timing structure a post filter does not move; grain, period and flat
-# reject texture overlays; the rest reject other styles.
-CHECK = ['straight', 'rough', 'offstep', 'grain', 'period', 'flat', 'holes', 'boil', 'per_second']
+# straight, rough, offstep and sliver are drawing, timing and carving structure a post filter barely moves; grain,
+# period and flat reject texture overlays; the rest reject other styles.
+CHECK = ['straight', 'rough', 'offstep', 'sliver', 'grain', 'period', 'flat', 'holes', 'boil', 'per_second']
 CLEAR = 0.5
 # Shortest excerpt: a third of the source, about 10 s of a 30 s clip, the length SKILL.md asks a validation scene to be.
 FLOOR = 1 / 3
@@ -159,8 +162,15 @@ def main(argv=None):
         ok = sum(all(v is None or bands[s][0] <= v <= bands[s][1]
                      for s in check for v in [value([parts[j] for j in side], s)]) for side in sides)
         return f'{ok}/{len(sides)}'
-    tol = max(math.ceil(float(np.abs(np.median(v, 0) - m[k]).max())) for p in parts
-              for k in ('ink_rgb', 'paper_rgb') if (v := [r[k] for r in p if r[k]]))
+    def colour(rs, k):
+        return np.median([r[k] for r in rs if r[k]], 0)
+    # palette tolerance = what encoding does to the colours + how far a source excerpt's colours stray from the clip's
+    with tempfile.TemporaryDirectory() as tmp:
+        enc = inkstats.measure(str(controls.encode(a.work, 'src', Path(tmp) / 'source.mp4')))
+    shift = max(float(np.abs(colour(enc, k) - m[k]).max()) for k in ('ink_rgb', 'paper_rgb'))
+    stray = max(float(np.abs(colour([r for j in side for r in parts[j]], k) - m[k]).max())
+                for pair in ps for side in pair for k in ('ink_rgb', 'paper_rgb'))
+    tol = math.ceil(shift + stray)
     st = m['stats']
     step = max(m['holds'], key=m['holds'].get)
     knobs = old.get('knobs', {}) | dict(
@@ -179,7 +189,8 @@ def main(argv=None):
         name=a.pack.name, credit=a.credit or old.get('credit', ''),
         measured_from=dict(drawings=m['drawings'], duration=m['duration'], size=tr['size'], parts=len(parts),
                            cuts=cuts, segment_seconds=None if cuts else a.seg),
-        palette=dict(ink=tr['ink'], paper=tr['paper'], T=tr['T'], tones=tr['tones'], tolerance=tol),
+        palette=dict(ink=tr['ink'], paper=tr['paper'], T=tr['T'], tones=tr['tones'], tolerance=tol,
+                     encode_shift=round(shift, 2), excerpt_stray=round(stray, 2)),
         knobs=knobs, stats=st, timing=dict(per_second=m['per_second'], holds=m['holds'], offstep=m['offstep'],
                                            held=m['held']),
         heldout=dict(excerpt_share=[round(FLOOR, 3), round(1 - FLOOR, 3)], splits=len(ps), calibration=len(calib),
