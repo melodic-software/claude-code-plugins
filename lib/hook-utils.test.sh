@@ -731,6 +731,95 @@ else
   fail "under_temp_root: root temp candidate discarded — '/' trimmed to empty"
 fi
 
+# --- Test 12e: under_temp_root, drive spellings of the target ----------------
+# Callers hand the target in the Git Bash `/c/...` spelling while candidates
+# normalize to `C:/...`, so on a Windows host the target must be normalized the
+# same way. Candidates and the resolver are stubbed, so these cases run on any
+# host. utr_stub <ostype> <candidate> <target> returns the verdict.
+utr_stub() (
+  # shellcheck disable=SC2030,SC2031 # subshell-local by design: the overrides must not leak into the suite
+  OSTYPE="$1"
+  _utr_cand="$2"
+  hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("$_utr_cand"); }
+  hook::_physical_cached_to() { printf -v "$1" '%s' "$2"; }
+  hook::under_temp_root "$3"
+)
+UTR_CAND="C:/Home/X/AppData/Local/Temp"
+for utr_t in /c/home/x/appdata/local/temp/f C:/home/x/appdata/local/temp/f \
+  /C/Home/X/AppData/Local/Temp/ /c/home/x/appdata/local/temp; do
+  if utr_stub msys "$UTR_CAND" "$utr_t"; then
+    ok "under_temp_root: drive target '$utr_t' matches its temp candidate"
+  else
+    fail "under_temp_root: drive target '$utr_t' missed its temp candidate"
+  fi
+done
+for utr_t in /c/home/x/appdata/local/tempevil/f C:/Home/x/AppData/Local/TempEvil/f \
+  '/c/home/x~1/appdata/local/temp/f' //server/share/home/x/appdata/local/temp/f \
+  /d/home/x/appdata/local/temp/f /c/home/x/appdata/local; do
+  if utr_stub msys "$UTR_CAND" "$utr_t"; then
+    fail "under_temp_root: '$utr_t' wrongly matched the temp candidate"
+  else
+    ok "under_temp_root: '$utr_t' is not under the temp candidate"
+  fi
+done
+if utr_stub msys C:/tmp /c/tmpx; then
+  fail "under_temp_root: /c/tmpx wrongly matched a C:/tmp candidate"
+else
+  ok "under_temp_root: /c/tmpx is not under a C:/tmp candidate"
+fi
+if utr_stub msys C:/tmp /c/tmp/x; then
+  ok "under_temp_root: /c/tmp/x matches a C:/tmp candidate"
+else
+  fail "under_temp_root: /c/tmp/x missed a C:/tmp candidate"
+fi
+# A drive-root candidate normalizes to `C:` and contains every path on that
+# drive, the drive analogue of the `/` arm in Test 12d.
+if utr_stub msys C:/ /c/anything/f; then
+  ok "under_temp_root: drive-root candidate contains a path on its drive"
+else
+  fail "under_temp_root: drive-root candidate missed a path on its drive"
+fi
+if utr_stub msys C:/ /d/anything; then
+  fail "under_temp_root: drive-root candidate matched another drive"
+else
+  ok "under_temp_root: drive-root candidate does not contain another drive"
+fi
+# POSIX hosts leave the target as given: `\` is a filename byte there.
+if utr_stub linux-gnu /tmp '/tmp\x'; then
+  fail "under_temp_root: POSIX target '/tmp\\x' folded into the /tmp candidate"
+else
+  ok "under_temp_root: POSIX target '/tmp\\x' is not folded under /tmp"
+fi
+if utr_stub linux-gnu /tmp /tmp/x; then
+  ok "under_temp_root: POSIX target /tmp/x matches the /tmp candidate"
+else
+  fail "under_temp_root: POSIX target /tmp/x missed the /tmp candidate"
+fi
+# Real host: the long, lowercased Git Bash spelling of TEMP matches the real
+# candidates, including an 8.3 TEMP that the candidate side expands. A TEMP
+# that bash already converted to `/tmp` (as on the GitHub Windows runner) is
+# given back its drive spelling first, which is the shape the harness passes.
+# shellcheck disable=SC2031 # reads the host's real OSTYPE; utr_stub sets it only in its own subshell
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]] &&
+  command -v cygpath >/dev/null 2>&1 && [[ -d "${TEMP:-}" ]]; then
+  utr_temp="$TEMP"
+  [[ "$utr_temp" == [A-Za-z]:* ]] || utr_temp=$(cygpath -m "$utr_temp")
+  utr_long=$(cygpath -l -m "$utr_temp")
+  utr_u=$(cygpath -u "$utr_long")
+  utr_u="${utr_u,,}/probe/f"
+  # shellcheck disable=SC2030 # subshell-local by design: the override must not leak into the suite
+  if (
+    export TMPDIR="" TMP="$utr_temp" TEMP="$utr_temp"
+    hook::under_temp_root "$utr_u"
+  ); then
+    ok "under_temp_root: real-host '$utr_u' matches the host temp root"
+  else
+    fail "under_temp_root: real-host '$utr_u' missed the host temp root (TEMP=$TEMP, as $utr_temp)"
+  fi
+else
+  ok "under_temp_root: Windows drive-spelling case SKIPPED (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)"
+fi
+
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must
 # track HOOK_TELEMETRY_SINK exactly: unset and empty are disabled, any

@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.2] - 2026-09-23
+## [0.36.3] - 2026-09-24
 
 ### Changed
 
@@ -20,6 +20,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 - stale-path-verify.sh: the Edit reconstruction counts a word anchor's occurrences in the file by splitting each line on non-word bytes (one awk regex pass per line, under C) instead of a per-character walk, and skips the count for a word anchor holding `.` or `-`, which the walk never matched. Same counts; on a 33 KB file the count drops from about 14 ms to 2.
+
+## [0.36.2] - 2026-09-23
+
+### Fixed
+
+- **`block-hook-bypass`'s shipped temp-tree default grants on a Windows host.** It never did: the redirect target reached `hook::under_temp_root` in the Git Bash `/c/...` spelling while the temp candidates normalized to `C:/...`, so no drive path matched. The target is now normalized the same way on Windows Git Bash hosts, and a bare, forward-slash, long-name target under `TEMP` is allowed when the project root is known and outside the temp tree, a home-directory project root included. A project root that is itself under a drive-spelled temp tree now stands the default down. Still refused: an 8.3 short-name target (a path with a component such as `ABCDEF~1`), because the guard refuses any operand carrying `~`; a quoted target; a backslash target. The normalization does not apply on POSIX hosts.
+- **A redirect target starting with `//` is refused by the scratch-root compare**, for the temp default and for configured roots alike. It was collapsed to a single `/`, so `//c/Users/...` (the share `Users` on a host named `c`) compared as the local temp tree. A leading `//` names a network host on Windows and is implementation-defined on POSIX, so the compare no longer reasons about it.
 
 ## [0.36.1] - 2026-09-23
 
