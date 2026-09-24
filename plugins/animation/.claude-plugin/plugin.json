@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "animation",
+  "version": "0.1.0",
+  "description": "Makes hand-drawn-style 2D animation as code: the model writes a deterministic renderFrame(t) scene, headless Chromium draws every frame, and ffmpeg encodes the film. The rotoscope skill copies a reference clip drawing by drawing (trace, render through a brush engine, measure each drawing against its source by XOR and SSIM, review at 1:1) and records what it learns so recurring fixes become defaults.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "animation",
+    "rotoscope",
+    "2d-animation",
+    "ink",
+    "film",
+    "canvas",
+    "skill"
+  ]
+}
