@@ -278,9 +278,11 @@ Verification records for the directory channel:
   page documents the file's contents, or a release note names `known_marketplaces.json`.
 
 The remaining shapes with no derivable authority are a `claude --plugin-dir <checkout>` development
-session and a config relocated with `CLAUDE_CONFIG_DIR`. A `--plugin-dir` checkout has no
-`<plugins>/cache/<marketplace>` structure and sits in no directory marketplace, so it has no stable
-marketplace-keyed data `<id>`. `CLAUDE_CONFIG_DIR` itself is never honored, because that would
+session whose checkout lies outside every registered directory marketplace, and a config relocated
+with `CLAUDE_CONFIG_DIR`. Such a `--plugin-dir` checkout has no `<plugins>/cache/<marketplace>`
+structure and no marketplace entry, so it has no stable marketplace-keyed data `<id>`. A
+`--plugin-dir` root that does sit inside a registered directory marketplace is indistinguishable
+from that install and derives the marketplace's canonical data root. `CLAUDE_CONFIG_DIR` itself is never honored, because that would
 reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
 account-home note above). Both rely on the `CLAUDE_PLUGIN_DATA`
 environment variable; where a Claude Code build does not export it to a skill hook, the engine lane is
