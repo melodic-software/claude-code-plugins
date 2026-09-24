@@ -40,7 +40,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=250
+EXPECTED_CASES=262
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -660,6 +660,56 @@ pf="$TEST_TMPDIR/paths.txt"
 printf '%s\n%s\n' "$SLOP" "$CLEAN" >"$pf"
 out="$(bash "$DETECT" --paths-file "$pf" --offset 0 --limit 1 2>&1)"
 assert_contains "chunking: limit 1 scans one file" "$out" "across 1 files scanned"
+
+# --list-targets prints the exact list a scan reads, one `<key><TAB><path>` row
+# per file, after directory expansion and excluded_paths; the key is the file=
+# spelling. Chunk options are ignored so a caller plans over the whole list.
+LT="$TEST_TMPDIR/list-targets"
+mkdir -p "$LT/sub" "$LT/vendor" "$LT/.claude"
+printf 'one\n' >"$LT/a.md"
+printf 'two\n' >"$LT/sub/b.md"
+printf 'three\n' >"$LT/vendor/c.md"
+printf '%s\n' '{ "excluded_paths": ["vendor/**"] }' >"$LT/.claude/ai-slop.json"
+TAB=$'\t'
+out="$(CLAUDE_PROJECT_DIR="$LT" bash "$DETECT" --list-targets --offset 0 --limit 1 "$LT" "$LT/missing.md" 2>/dev/null)"
+rc=$?
+assert_exit "list-targets: exit 0" 0 "$rc"
+assert_contains "list-targets: key is the file= spelling, then the path" "$out" "a.md${TAB}$LT/a.md"
+assert_contains "list-targets: a directory target expands" "$out" "sub/b.md${TAB}$LT/sub/b.md"
+assert_not_contains "list-targets: excluded_paths drops the file" "$out" "vendor/c.md"
+assert_not_contains "list-targets: a missing file is dropped" "$out" "missing.md"
+assert_eq "list-targets: offset and limit are ignored, no Summary rows" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" "2"
+out="$(bash "$DETECT" --list-targets --show-config 2>&1)"
+assert_contains "list-targets: --show-config wins" "$out" "Config layers"
+printf '%s\t%s\n' slop.md "$SLOP" >"$TEST_TMPDIR/listed.tsv"
+out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/listed.tsv" 2>&1)"
+assert_contains "list-targets: its output is a valid --paths-file" "$out" "across 1 files scanned"
+# Only a line with exactly one tab is read as `<key><TAB><path>`; any other line
+# is the path itself, tabs included.
+TABF="$TEST_TMPDIR/tab${TAB}in${TAB}name.md"
+if printf 'x\n' >"$TABF" 2>/dev/null && [[ -f "$TABF" ]]; then
+  printf '%s\n' "$TABF" >"$TEST_TMPDIR/tabpath.txt"
+  out="$(bash "$DETECT" --paths-file "$TEST_TMPDIR/tabpath.txt" 2>&1)"
+  assert_contains "paths-file: a line with two tabs is the whole path" "$out" "across 1 files scanned"
+else
+  skip "paths-file: a line with two tabs is the whole path" "no tab in file names"
+fi
+
+# A --paths-file with no non-blank line scans nothing, rather than the
+# repository listing a bare invocation reads.
+EPREPO="$TEST_TMPDIR/empty-pf-repo"
+mkdir -p "$EPREPO"
+printf 'Tracked %s here.\n' "$EM" >"$EPREPO/tracked.md"
+(
+  cd "$EPREPO" || exit 1
+  git init -q .
+  git add tracked.md 2>/dev/null
+)
+printf '\n\n' >"$TEST_TMPDIR/empty-paths.txt"
+out="$(CLAUDE_PROJECT_DIR="$EPREPO" bash "$DETECT" --paths-file "$TEST_TMPDIR/empty-paths.txt" 2>&1)"
+assert_not_contains "empty paths-file: the repository listing is not scanned" "$out" "tracked.md"
+assert_contains "empty paths-file: stderr says the list is empty" "$out" "lists no paths"
+assert_contains "empty paths-file: zero-file Summary" "$out" "0 findings across 0 files scanned"
 
 # --- Config cascade --------------------------------------------------------------
 
