@@ -5,6 +5,18 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.68] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/zone-gate.sh`, `hooks/zone-crossing-inject.sh` and
+  `hooks/post-compact-mark.sh` through `bash` with `"shell": "bash"`, the #4421 shape, so each fire
+  no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is
+  unchanged (#4442).
+- `zone-crossing-inject.sh` and `post-compact-mark.sh` read the `context_guard_hooks_enabled` switch
+  before they source `hook-utils.sh`, as `zone-gate.sh` already did, so a disabled hook exits
+  without parsing the library. Enabled behavior is unchanged.
+
 ## [0.7.67] - 2026-09-23
 
 ### Changed

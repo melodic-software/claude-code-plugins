@@ -94,10 +94,10 @@ HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
 # The producer row is SHELL FORM carrying its own kill switch, so a consumer who
 # has not turned the log on pays one process (the shell Claude Code runs the
 # command in) per event instead of three: that shell, the `env` of the script's
-# shebang, and the bash it execs. A consumer who has turned it on pays that one
-# process too: `exec bash` replaces the shell with bash directly, with no `env`
-# in between (the check-hook-slow-shapes.sh ENV SHEBANG rule, which also holds
-# the RETENTION row's leading `bash`). hooks.json has no other way to read the
+# shebang, and the bash it execs. A consumer who has turned it on skips the
+# `env` too: `exec bash` replaces the shell with bash directly (the
+# check-hook-slow-shapes.sh ENV SHEBANG rule, which also holds the RETENTION
+# row's leading `bash`). hooks.json has no other way to read the
 # switch: `if` takes one permission rule and is evaluated only on tool events,
 # so it cannot see a plugin option, and the option reaches a hook only as
 # $CLAUDE_PLUGIN_OPTION_<KEY> in the environment.

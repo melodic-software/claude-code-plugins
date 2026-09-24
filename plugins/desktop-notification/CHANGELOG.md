@@ -3,6 +3,17 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.46] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/desktop-notification.sh` through `bash` with `"shell": "bash"`, the
+  #4421 shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang)
+  before bash. Hook behavior is unchanged (#4442).
+- `desktop-notification.sh` reads its `desktop_notification_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
+
 ## [0.6.45] - 2026-09-21
 
 ### Changed
