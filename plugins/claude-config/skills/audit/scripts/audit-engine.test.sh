@@ -679,22 +679,25 @@ assert_eq "case 26: a page the index does not list is unread" "unread not-in-ind
 
 # --- Case 27: undocumented keys, settled by the installed binary ---------------
 m="$(make_machine keys)"
-printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {internalOnlyKey:true,zzBogusKey:1} | .permissions += {disableAutoMode:"disable",zzBogusPerm:[]}' >"$m/project/.claude/settings.json"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {internalOnlyKey:true,zzBogusKey:1,"":1} | .permissions += {disableAutoMode:"disable",zzBogusPerm:[],"":1}' >"$m/project/.claude/settings.json"
 printf '%s\n' '{"zzLocalKey":1}' >"$m/project/.claude/settings.local.json"
 out=$(run "$m" --json 2>&1) || true
+# An empty key name is left out: it has no literal to look up.
+assert_eq "case 27: an empty key name raises no shell error" "0" "$(grep -c 'bad array subscript' <<<"$out")"
+assert_eq "case 27: an empty key name gets no key row" "0" "$(jq '[.rows[] | select(.check | test("/A/key-")) | select(.claim | test(":(permissions\\.)?$"))] | length' <<<"$out" 2>/dev/null || echo unparsed)"
 assert_eq "case 27: the binary was searched" "searched" "$(jq -r '.claude_version.binary.key_search' <<<"$out")"
 assert_eq "case 27: a key the binary carries is info" "info" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:internalOnlyKey") | .severity' <<<"$out")"
 assert_contains "case 27: it says the binary carries the literal" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:internalOnlyKey") | .detail' <<<"$out")" "carries the literal string"
-assert_eq "case 27: a key in neither is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="unknown-key:zzBogusKey") | .severity' <<<"$out")"
-assert_eq "case 27: a nested permissions key in neither is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="unknown-key:permissions.zzBogusPerm") | .severity' <<<"$out")"
+assert_eq "case 27: a key in neither is a warning under the same claim" "warning" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:zzBogusKey") | .severity' <<<"$out")"
+assert_eq "case 27: a nested permissions key in neither is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:permissions.zzBogusPerm") | .severity' <<<"$out")"
 assert_eq "case 27: a key named only in the permissions Type bullet is documented" "ok" "$(jq -r '.rows[] | select(.claim=="documented-key:permissions.disableAutoMode") | .status' <<<"$out")"
 assert_eq "case 27: a key with its own heading is documented" "ok" "$(jq -r '.rows[] | select(.claim=="documented-key:permissions.deny") | .status' <<<"$out")"
-assert_eq "case 27: the local scope is checked too" ".claude/settings.local.json" "$(jq -r '.findings[] | select(.identity.claim=="unknown-key:zzLocalKey") | .identity.sites[0].surface' <<<"$out")"
+assert_eq "case 27: the local scope is checked too" ".claude/settings.local.json" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:zzLocalKey") | .identity.sites[0].surface' <<<"$out")"
 assert_eq "case 27: \$schema is never a key row" "0" "$(jq '[.rows[] | select(.claim | test("key:\\$schema$"))] | length' <<<"$out")"
 make_cli "$m/claude-shim" "2.1.281 (Claude Code)" internalOnlyKey
 out=$(CLI_BIN="$m/claude-shim" run "$m" --json 2>&1) || true
 assert_eq "case 27: a file without the control literals was not searched" "not-searched" "$(jq -r '.claude_version.binary.key_search' <<<"$out")"
-assert_eq "case 27: so an absent key is info, never unknown" "info 0" "$(jq -r '[(.findings[] | select(.identity.claim=="undocumented-key:zzBogusKey") | .severity), ([.findings[] | select(.identity.claim | startswith("unknown-key:"))] | length | tostring)] | join(" ")' <<<"$out")"
+assert_eq "case 27: so an absent key is info, never a warning" "info 0" "$(jq -r '[(.findings[] | select(.identity.claim=="undocumented-key:zzBogusKey") | .severity), ([.findings[] | select(.identity.claim | startswith("undocumented-key:")) | select(.severity=="warning")] | length | tostring)] | join(" ")' <<<"$out")"
 
 # --- Case 28: a key's section ends at the next heading of any level -----------
 m="$(make_machine sections)"
@@ -717,7 +720,7 @@ mkdir -p "$m/oddtype"
 cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/oddtype/"
 sed 's/^\* \*\*Type\*\*: string, one of:$/* **Type**: string/; s/^\* \*\*Type\*\*: the string `"disable"`$/* **Type**: string/' "$DOCS/settings-reference.md" >"$m/oddtype/settings-reference.md"
 out=$(DOCS_FIXTURE="$m/oddtype" run "$m" --json 2>&1) || true
-assert_eq "case 29: an unparseable Type bullet is a skip" "skip" "$(jq -r '.rows[] | select(.claim=="effortLevel:bogus") | .status' <<<"$out")"
+assert_eq "case 29: an unparsable Type bullet is a skip" "skip" "$(jq -r '.rows[] | select(.claim=="effortLevel:bogus") | .status' <<<"$out")"
 assert_eq "case 29: for the deep-link key too" "skip" "$(jq -r '.rows[] | select(.claim=="disableDeepLinkRegistration:disable") | .status' <<<"$out")"
 
 # --- Case 30: the table prints the version and the docs coverage --------------
@@ -737,38 +740,94 @@ mkdir -p "$m/shim" "$m/served"
 cat >"$m/shim/curl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_SHIM_LOG"
-out="" url=""
+out="" url="" wfmt=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -o | --connect-timeout | --max-time) [[ "$1" == "-o" ]] && out="$2"; shift 2 ;;
+  -o | -w | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs)
+    [[ "$1" == "-o" ]] && out="$2"
+    [[ "$1" == "-w" ]] && wfmt="$2"
+    shift 2
+    ;;
   -*) shift ;;
   *) url="$1"; shift ;;
   esac
 done
 [[ -f "$CURL_SHIM_SRC/${url##*/}" ]] || exit 22
 cp "$CURL_SHIM_SRC/${url##*/}" "$out"
+# -w '%{url_effective}': where the body came from, after any redirect.
+effective="$url"
+[[ -n "${CURL_SHIM_REDIRECT:-}" && "$url" == *settings-reference.md ]] && effective="$CURL_SHIM_REDIRECT"
+[[ "$wfmt" == '%{url_effective}' ]] && printf '%s' "$effective"
+exit 0
 EOF
 chmod +x "$m/shim/curl"
 cp "$DOCS/settings-reference.md" "$DOCS/env-vars.md" "$m/served/"
-printf '%s\n' '# Docs' '- [All settings](http://docs.test/docs/en/settings-reference.md): keys' '- [Environment variables](http://other.test/docs/en/env-vars.md): vars' >"$m/served/llms.txt"
+printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' '- [Environment variables](https://other.test/docs/en/env-vars.md): vars' >"$m/served/llms.txt"
 fetch_run() {
   env -u SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR PATH="$m/shim:$PATH" CURL_SHIM_LOG="$m/curl.log" CURL_SHIM_SRC="$m/served" \
+    CURL_SHIM_REDIRECT="${CURL_SHIM_REDIRECT:-}" \
     SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
     SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-    SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL="http://docs.test/docs/llms.txt" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+    SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL="https://docs.test/docs/llms.txt" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
     bash "$SCRIPT" --json 2>&1
 }
 out=$(fetch_run) || true
 assert_eq "case 31: the index is fetched" "read fetch" "$(jq -r '.docs.index | "\(.state) \(.source)"' <<<"$out")"
-assert_eq "case 31: a page is fetched from the URL the index links" "read fetch http://docs.test/docs/en/settings-reference.md" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.source) \(.url_or_path)"' <<<"$out")"
+assert_eq "case 31: a page is fetched from the URL the index links" "read fetch https://docs.test/docs/en/settings-reference.md" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.source) \(.url_or_path)"' <<<"$out")"
 assert_eq "case 31: an off-origin page is not fetched" "unread off-origin" "$(jq -r '.docs.pages[] | select(.slug=="env-vars") | "\(.state) \(.reason)"' <<<"$out")"
-assert_eq "case 31: two requests, the index then the one page" "http://docs.test/docs/llms.txt http://docs.test/docs/en/settings-reference.md" "$(awk '{print $NF}' "$m/curl.log" | paste -sd' ' -)"
+assert_eq "case 31: two requests, the index then the one page" "https://docs.test/docs/llms.txt https://docs.test/docs/en/settings-reference.md" "$(awk '{print $NF}' "$m/curl.log" | paste -sd' ' -)"
 assert_eq "case 31: every request carries a connect timeout and a max time" "2" "$(grep -c -- '--connect-timeout .* --max-time ' "$m/curl.log")"
+assert_eq "case 31: every request is HTTPS only, redirects included and capped" "2" "$(grep -c -- '--proto =https --proto-redir =https --max-redirs 5 ' "$m/curl.log")"
+rm -f "$m/curl.log"
+out=$(CURL_SHIM_REDIRECT="https://elsewhere.example/docs/en/settings-reference.md" fetch_run) || true
+assert_eq "case 31: a page redirected off-origin is unread" "unread redirected-off-origin" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.reason)"' <<<"$out")"
 rm -f "$m/curl.log" "$m/served/llms.txt"
 out=$(fetch_run) || true
 assert_eq "case 31: an index that fails to fetch is unread" "unread fetch-failed" "$(jq -r '.docs.index | "\(.state) \(.reason)"' <<<"$out")"
 assert_eq "case 31: and no page is requested after it" "1" "$(wc -l <"$m/curl.log" | tr -d ' ')"
+
+# --- Case 32: a read page that does not parse fails closed --------------------
+# A soft 404 arrives as a page with a body and no key headings. Read at face
+# value it would make every key undocumented; the positive control stops that.
+m="$(make_machine soft404)"
+mkdir -p "$m/docs"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/docs/"
+printf '%s\n' '<!DOCTYPE html>' '<html><body><h1>Page not found</h1></body></html>' >"$m/docs/settings-reference.md"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"max",enforceAvailableModels:true,zzBogusKey:1}' >"$m/project/.claude/settings.json"
+rc=0
+out=$(DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || rc=$?
+assert_exit "case 32: nothing resting on the unparsed page is an error" 0 "$rc"
+assert_eq "case 32: the page is recorded read but unparsed" "read unparsed" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.reason)"' <<<"$out")"
+assert_eq "case 32: key rows are not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:zzBogusKey") | .status' <<<"$out")"
+assert_contains "case 32: the reason names the page as unparsed" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:zzBogusKey") | .detail' <<<"$out")" "did not parse"
+assert_eq "case 32: the derived value row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="effortLevel:max") | .status' <<<"$out")"
+assert_eq "case 32: the gated enforce row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="enforceAvailableModels-without-list") | .status' <<<"$out")"
+assert_eq "case 32: no undocumented-key finding" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("undocumented-key:"))] | length' <<<"$out")"
+
+# --- Case 33: CRLF pages parse the same as LF pages ----------------------------
+m="$(make_machine crlf)"
+mkdir -p "$m/docs"
+sed 's/$/\r/' "$DOCS/llms.txt" >"$m/docs/llms.txt"
+sed 's/$/\r/' "$DOCS/settings-reference.md" >"$m/docs/settings-reference.md"
+cp "$DOCS/env-vars.md" "$m/docs/"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {voiceEnabled:true,effortLevel:"bogus",disableDeepLinkRegistration:"disable"} | .permissions += {disableAutoMode:"disable"}' >"$m/project/.claude/settings.json"
+out=$(DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || true
+assert_eq "case 33: the CRLF page resolves and reads" "read read" "$(jq -r '[.docs.index.state, (.docs.pages[] | select(.slug=="settings-reference") | .state)] | join(" ")' <<<"$out")"
+assert_eq "case 33: the deprecation is found" "warning" "$(jq -r '.findings[] | select(.identity.claim=="deprecated-key:voiceEnabled") | .severity' <<<"$out")"
+assert_eq "case 33: the quoted line carries no CR" "false" "$(jq -r '.findings[] | select(.identity.claim=="deprecated-key:voiceEnabled") | .detail | test("\r")' <<<"$out")"
+assert_contains "case 33: the list-shaped Type bullet parses" "$(jq -r '.findings[] | select(.identity.claim=="effortLevel:bogus") | .detail' <<<"$out")" "low, medium, high, xhigh"
+assert_eq "case 33: the inline Type bullet parses" "ok" "$(jq -r '.rows[] | select(.claim=="disableDeepLinkRegistration:disable") | .status' <<<"$out")"
+assert_eq "case 33: the permissions Type bullet parses" "ok" "$(jq -r '.rows[] | select(.claim=="documented-key:permissions.disableAutoMode") | .status' <<<"$out")"
+
+# --- Case 34: control characters in the CLI's output never reach the document -
+m="$(make_machine cntrl)"
+printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
+make_cli "$m/claude-esc" $'\e[1m2.1.281\e[0m (Claude Code)' enabledPlugins permissions
+out=$(CLI_BIN="$m/claude-esc" run "$m" --json 2>&1) || true
+assert_eq "case 34: the version still parses" "2.1.281" "$(jq -r '.claude_version.version' <<<"$out")"
+assert_eq "case 34: the raw line carries no control character" "0" "$(jq '[.claude_version.raw | explode[] | select(. < 32 or . == 127)] | length' <<<"$out" | tr -d '\r')"
+assert_contains "case 34: the printable text survives" "$(jq -r '.claude_version.raw' <<<"$out")" "(Claude Code)"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

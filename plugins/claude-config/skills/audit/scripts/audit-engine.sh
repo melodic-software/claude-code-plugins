@@ -500,7 +500,11 @@ load_suppression_layer local "$PROJECT_ROOT/.claude/audit-pass.local.md"
 # Read here, after every early exit, so the identity subcommands and a fatal
 # argument or settings error never reach the network or run the CLI.
 
-DOCS_TMP="$(mktemp -d)"
+DOCS_TMP="$(mktemp -d 2>/dev/null)"
+if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
+  echo "ERROR: could not create a temp directory for the docs pages" >&2
+  exit 2
+fi
 trap 'rm -rf "$DOCS_TMP"' EXIT
 
 DOCS_INDEX_URL="${SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
@@ -511,12 +515,23 @@ DOCS_ORIGIN=""
 DOCS_FIXTURE_SET=0
 [[ -n "${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR+x}" ]] && DOCS_FIXTURE_SET=1
 DOCS_FIXTURE="${SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR:-}"
+# Every control character but tab and newline, CR included, is dropped from the
+# working copy of a page, so text quoted from it into a row or the table never
+# carries one. Byte counts are taken from the page as read.
+DOC_CNTRL='\000-\010\013-\037\177'
 
 # fetch_verbatim <url> <dest>: the whole body or nothing. A timeout or an HTTP
-# error mid-download leaves no partial file to be counted as read.
+# error mid-download leaves no partial file to be counted as read (return 1).
+# HTTPS only, redirects included, and a redirect that lands outside the docs
+# origin is refused after the fact (return 2): the origin check on the linked
+# URL says nothing about where a redirected body came from.
 fetch_verbatim() {
-  if curl -fsSL --connect-timeout 15 --max-time 120 -o "$2" "$1" 2>/dev/null && [[ -s "$2" ]]; then
-    return 0
+  local effective
+  if effective="$(curl -fsSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
+    -w '%{url_effective}' -o "$2" "$1" 2>/dev/null)" && [[ -s "$2" ]]; then
+    [[ -n "$DOCS_ORIGIN" && "$effective" == "$DOCS_ORIGIN/docs/"* ]] && return 0
+    rm -f "$2"
+    return 2
   fi
   rm -f "$2"
   return 1
@@ -540,11 +555,16 @@ load_index() {
     INDEX_REASON="curl-missing"
   else
     INDEX_SOURCE=fetch
-    if fetch_verbatim "$DOCS_INDEX_URL" "$DOCS_TMP/llms.raw"; then raw="$DOCS_TMP/llms.raw"; else INDEX_REASON="fetch-failed"; fi
+    fetch_verbatim "$DOCS_INDEX_URL" "$DOCS_TMP/llms.raw"
+    case $? in
+    0) raw="$DOCS_TMP/llms.raw" ;;
+    2) INDEX_REASON="redirected-off-origin" ;;
+    *) INDEX_REASON="fetch-failed" ;;
+    esac
   fi
   [[ -n "$raw" ]] || return 0
   INDEX_BYTES="$(wc -c <"$raw" | tr -d ' ')"
-  tr -d '\r' <"$raw" >"$DOCS_TMP/llms.txt"
+  tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/llms.txt"
   INDEX_STATE="read"
 }
 
@@ -561,8 +581,8 @@ index_link() {
 
 declare -A PAGE_FILE=()
 DOCS_PAGES_JSON='[]'
-# acquire_page <slug>: read the page verbatim into the temp directory (CR
-# stripped) and record where it came from, its byte count, and its state.
+# acquire_page <slug>: read the page verbatim into the temp directory (control
+# characters stripped) and record where it came from, its byte count, and its state.
 acquire_page() {
   local slug="$1" src="" loc="" raw="" reason="" state=unread bytes=0
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
@@ -584,13 +604,18 @@ acquire_page() {
         if [[ -s "$DOCS_FIXTURE/$slug.md" ]]; then raw="$DOCS_FIXTURE/$slug.md"; else reason="fixture-missing"; fi
       else
         src=fetch
-        if fetch_verbatim "$loc" "$DOCS_TMP/$slug.raw"; then raw="$DOCS_TMP/$slug.raw"; else reason="fetch-failed"; fi
+        fetch_verbatim "$loc" "$DOCS_TMP/$slug.raw"
+        case $? in
+        0) raw="$DOCS_TMP/$slug.raw" ;;
+        2) reason="redirected-off-origin" ;;
+        *) reason="fetch-failed" ;;
+        esac
       fi
     fi
   fi
   if [[ -n "$raw" ]]; then
     bytes="$(wc -c <"$raw" | tr -d ' ')"
-    tr -d '\r' <"$raw" >"$DOCS_TMP/$slug.md"
+    tr -d "$DOC_CNTRL" <"$raw" >"$DOCS_TMP/$slug.md"
     PAGE_FILE[$slug]="$DOCS_TMP/$slug.md"
     state="read"
   fi
@@ -609,16 +634,18 @@ if [[ -n "${SETTINGS_AUDIT_ENGINE_CLAUDE_BIN+x}" ]]; then
   CLAUDE_BIN="$SETTINGS_AUDIT_ENGINE_CLAUDE_BIN"
 else
   CLAUDE_BIN="$(command -v claude 2>/dev/null || true)"
-  [[ -n "$CLAUDE_BIN" ]] && CLAUDE_BIN="$(readlink -f "$CLAUDE_BIN" 2>/dev/null || printf '%s' "$CLAUDE_BIN")"
+  [[ -n "$CLAUDE_BIN" ]] && CLAUDE_BIN="$(readlink -f "$CLAUDE_BIN" 2>/dev/null || printf '%s' "$CLAUDE_BIN")" # portability-ok: a readlink without -f falls back to the unresolved path
 fi
 CLAUDE_RAW=""
 CLAUDE_VERSION=""
 if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" ]]; then
   if command -v timeout >/dev/null 2>&1; then
-    CLAUDE_RAW="$(timeout 30 "$CLAUDE_BIN" --version 2>/dev/null </dev/null | tr -d '\r' | head -n 1)"
+    CLAUDE_RAW="$(timeout 30 "$CLAUDE_BIN" --version 2>/dev/null </dev/null | head -n 1)"
   else
-    CLAUDE_RAW="$("$CLAUDE_BIN" --version 2>/dev/null </dev/null | tr -d '\r' | head -n 1)"
+    CLAUDE_RAW="$("$CLAUDE_BIN" --version 2>/dev/null </dev/null | head -n 1)"
   fi
+  # Control characters (a terminal escape, a CR) never reach a row or the table.
+  CLAUDE_RAW="$(tr -d '[:cntrl:]' <<<"$CLAUDE_RAW")"
   [[ "$CLAUDE_RAW" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && CLAUDE_VERSION="${BASH_REMATCH[1]}"
 fi
 
@@ -698,6 +725,16 @@ if [[ -n "$SR" ]]; then
   done < <(sr_section permissions | grep -m1 -E '^\* \*\*Type\*\*:' | grep -oE '`[^`]+`' | tr -d '`')
 fi
 
+# Positive control: a page that was read but has no heading for two keys every
+# version documents (a soft 404, a reshaped page) did not parse, and every row
+# resting on it is not-inspectable rather than a run of undocumented keys.
+SR_UNREAD_WHY="settings-reference was not read this run"
+if [[ -n "$SR" && ( -z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins]:-}" ) ]]; then
+  SR=""
+  SR_UNREAD_WHY="settings-reference was read but has no heading for permissions or enabledPlugins, so it did not parse"
+  DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .reason = "unparsed" else . end)' <<<"$DOCS_PAGES_JSON")"
+fi
+
 # --- Category A: schema and structure ----------------------------------------
 
 SCHEMA_URL="https://json.schemastore.org/claude-code-settings.json"
@@ -736,7 +773,7 @@ check_keys() {
   while IFS=$'\t' read -r k leaf ptr; do
     [[ -n "$k" ]] || continue
     if [[ -z "$SR" ]]; then
-      row A key-documented not-inspectable none "$surface" "key-page-not-fetched:$k" "settings-reference was not read this run; whether $k is documented is not decided" -
+      row A key-documented not-inspectable none "$surface" "key-page-not-fetched:$k" "$SR_UNREAD_WHY; whether $k is documented is not decided" -
       continue
     fi
     if [[ -z "${SR_KEY[$k]:-}" ]] && ! [[ "$ptr" == /permissions/* && -n "${PERM_TYPE_KEYS[$leaf]:-}" ]]; then
@@ -760,52 +797,40 @@ check_keys() {
       fi
     fi
     row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
-  done < <(jqf "$file" -r 'if type == "object" then ((keys_unsorted[] | select(. != "$schema") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | ["permissions." + ., ., "/permissions/" + .] else empty end)) | @tsv else empty end')
+    # An empty key name has no literal to look up, and an empty field would
+    # shift the tab-separated columns, so it is left out before it gets here.
+  done < <(jqf "$file" -r 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | @tsv else empty end')
 }
 [[ $PROJECT_OK -eq 1 ]] && check_keys "$SETTINGS" "$SURF_SETTINGS"
 [[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"
 [[ $USER_OK -eq 1 ]] && check_keys "$USER_SETTINGS" "$SURF_USER"
 
-# The binary is searched once, for every undocumented key's literal plus two
-# documented keys every build carries. A file missing either control (a .cmd
-# shim, a wrapper script) was not really searched, so no key is called absent.
+# The binary is searched only for undocumented keys, once per literal, after
+# two documented keys every build carries are found in it. A file missing
+# either control (a .cmd shim, a wrapper script) was not really searched, so no
+# key is called absent. Every undocumented key keeps one claim; only the
+# severity and the detail say what the binary showed.
 BIN_SEARCH=not-needed
 declare -A BIN_HAS=()
 if [[ ${#KEY_PENDING[@]} -gt 0 ]]; then
   BIN_SEARCH=not-searched
-  if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" && -r "$CLAUDE_BIN" ]]; then
-    lits="$DOCS_TMP/key-literals.txt"
-    {
-      printf '%s\n' enabledPlugins permissions
-      for p in "${KEY_PENDING[@]}"; do
-        IFS=$'\t' read -r _ _ leaf _ <<<"$p"
-        printf '%s\n' "$leaf"
-      done
-    } | grep -v '^$' | sort -u >"$lits"
-    while IFS= read -r hit; do
-      [[ -n "$hit" ]] && BIN_HAS[$hit]=1
-    done < <(grep -aoF -f "$lits" "$CLAUDE_BIN" 2>/dev/null | tr -d '\r' | sort -u)
-    # -o reports one match per position, so a literal inside a longer one that
-    # matched at the same place is present through that match.
-    while IFS= read -r lit; do
-      [[ -n "${BIN_HAS[$lit]:-}" ]] && continue
-      for hit in "${!BIN_HAS[@]}"; do
-        if [[ "$hit" == *"$lit"* ]]; then
-          BIN_HAS[$lit]=1
-          break
-        fi
-      done
-    done <"$lits"
-    [[ -n "${BIN_HAS[enabledPlugins]:-}" && -n "${BIN_HAS[permissions]:-}" ]] && BIN_SEARCH=searched
+  if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" && -r "$CLAUDE_BIN" ]] &&
+    grep -aqF -- enabledPlugins "$CLAUDE_BIN" 2>/dev/null && grep -aqF -- permissions "$CLAUDE_BIN" 2>/dev/null; then
+    BIN_SEARCH=searched
+    for p in "${KEY_PENDING[@]}"; do
+      IFS=$'\t' read -r _ _ leaf _ <<<"$p"
+      [[ -n "${BIN_HAS[$leaf]:-}" ]] && continue
+      if grep -aqF -- "$leaf" "$CLAUDE_BIN" 2>/dev/null; then BIN_HAS[$leaf]=yes; else BIN_HAS[$leaf]=no; fi
+    done
   fi
   for p in "${KEY_PENDING[@]}"; do
     IFS=$'\t' read -r surface k leaf ptr <<<"$p"
     if [[ "$BIN_SEARCH" != "searched" ]]; then
       row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known" "$ptr"
-    elif [[ -n "${BIN_HAS[$leaf]:-}" ]]; then
+    elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
       row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries the literal string $leaf, so it may be an internal key the CLI manages" "$ptr"
     else
-      row A key-documented finding warning "$surface" "unknown-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it" "$ptr"
+      row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it" "$ptr"
     fi
   done
 fi
@@ -1333,7 +1358,7 @@ fi
 documented_value() {
   local cat="$1" slug="$2" key="$3" v="$4" surface="$5" accepted
   if [[ -z "$SR" ]]; then
-    row "$cat" "$slug" not-inspectable none "$surface" "$key:$v" "settings-reference was not read this run; the values $key accepts are not known" -
+    row "$cat" "$slug" not-inspectable none "$surface" "$key:$v" "$SR_UNREAD_WHY; the values $key accepts are not known" -
     return 0
   fi
   accepted="$(type_values "$key")"
@@ -1378,7 +1403,7 @@ check_h() {
     # an older CLI the key is not read at all, so the missing list costs nothing.
     req="${SR_REQUIRES[enforceAvailableModels]:-}"
     if [[ -z "$SR" ]]; then
-      row H enforce-available not-inspectable none "$surface" "enforceAvailableModels-without-list" "settings-reference was not read this run; the version enforceAvailableModels requires is not known" -
+      row H enforce-available not-inspectable none "$surface" "enforceAvailableModels-without-list" "$SR_UNREAD_WHY; the version enforceAvailableModels requires is not known" -
     elif [[ -n "$req" && -z "$CLAUDE_VERSION" ]]; then
       row H enforce-available skip none "$surface" "enforceAvailableModels-without-list" "enforceAvailableModels requires Claude Code v$req and the installed version could not be read; not decided" -
     elif [[ -n "$req" ]] && version_lt "$CLAUDE_VERSION" "$req"; then

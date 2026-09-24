@@ -11,15 +11,24 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   (`https://code.claude.com/docs/llms.txt`), resolves `settings-reference` and `env-vars` from the
   links there, and reads each page verbatim. The document's new `docs` object lists the index and
   every page with its URL or path, byte count, and `read` or `unread`, and `--table` prints it.
-  `--docs-dir` is now optional reuse: a page found there is read instead of fetched.
+  `--docs-dir` is now optional reuse: a page found there is read instead of fetched. Fetches are
+  HTTPS only, redirects included (at most 5), and a page whose redirect lands outside the docs
+  origin is `unread` with reason `redirected-off-origin`.
 - **The engine records the Claude Code version.** It runs `claude --version` and carries the
   result as `claude_version`. Version-gated rows are evaluated against it, and an unreadable version
   makes them `skip`.
 - **Documented and deprecated keys (category A).** Every top-level and `permissions.*` key in the
-  project, local, and user settings is looked up on `settings-reference`. A key with no heading
-  there is `info` when the installed `claude` binary carries its literal name and `warning` when it
-  does not; a key whose section says it is deprecated is a `warning` quoting that line, gated on
-  the recorded version when the line names one. `$schema` is exempt.
+  project, local, and user settings is looked up on `settings-reference`: by its own heading, or,
+  for a `permissions.*` key, by its name in the `permissions` **Type** bullet. A key found neither
+  way is one finding, claim `undocumented-key:<key>`, whose severity says what the installed
+  `claude` binary showed: `info` when the binary carries the literal name, `warning` when it does
+  not, and `info` when the binary could not be searched (missing, or a shim lacking two known
+  key names). A key whose section says it is deprecated is a `warning` quoting that line, gated on
+  the recorded version when the line names one. `$schema` and empty key names are exempt.
+- **A `settings-reference` page that does not parse fails closed.** A page that was read but has
+  no heading for `permissions` or `enabledPlugins` (a soft 404, a reshaped page) is recorded with
+  reason `unparsed`, and every key, value, and version row resting on it is `not-inspectable`
+  rather than a run of undocumented-key findings.
 
 ### Changed
 
