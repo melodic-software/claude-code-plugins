@@ -7,7 +7,11 @@ owns only the READING of the frontmatter surface, and emits what it finds as
 tab-separated records on stdout:
 
     V<TAB><file><TAB><line><TAB><command>   an exec-form hook object
+    S<TAB><file><TAB><line><TAB><command>   a shell-form hook object (no `args`)
     X<TAB><file><TAB><line><TAB><reason>    frontmatter that could not be read
+
+`scripts/check-hook-slow-shapes.sh` reads the S records; the exec-form gate
+ignores them.
 
 Why a real YAML parser, and why Python
 --------------------------------------
@@ -162,7 +166,7 @@ def merge_sources(node, seen):
 
 
 def scan_node(node, path: str, offset: int, seen: set) -> None:
-    """Report every mapping in this subtree carrying both `command` and `args`."""
+    """Report every mapping in this subtree carrying `command` (V with `args`, S without)."""
     if node is None or id(node) in seen:
         return
     seen.add(id(node))
@@ -191,6 +195,15 @@ def scan_node(node, path: str, offset: int, seen: set) -> None:
             else:
                 emit(
                     "X", path, line, "an exec-form hook whose `command` is not a scalar"
+                )
+        elif "command" in entries:
+            command_node, command_key_node = entries["command"]
+            if isinstance(command_node, yaml.ScalarNode):
+                emit(
+                    "S",
+                    path,
+                    command_key_node.start_mark.line + offset,
+                    command_node.value,
                 )
         for value_node, _ in entries.values():
             scan_node(value_node, path, offset, seen)
