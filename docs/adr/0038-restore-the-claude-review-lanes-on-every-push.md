@@ -123,3 +123,23 @@ the callers.
 reporter checks it out from the base to serve that map. With no path list, the reusable's
 incremental relevance skip (ci-workflows#259) no longer applies, so every push to a ready pull
 request is security-reviewed.
+
+## Addendum (2026-09-24): the lanes carry only the callers and the status check
+
+The operator approved removing the repo-owned bookkeeping this record had restored beside the
+lanes. Each lane is now its caller job plus the reusable's `status-check` output, and nothing
+else in this repository.
+
+- Decision 1 is narrowed: the evidence guards (`review-skill-evidence`,
+  `security-review-evidence`), their shared library, the skip-actors reader and
+  `.github/claude-skip-actors` are deleted. The security caller states the skip-actors list
+  inline until the later re-pin drops the input (ADR 0002, 2026-09-24 addendum).
+- Decision 4's `status-check` is the only signal that a review failed.
+- Decision 5 still holds: no review check is required, and `ci-status` stays the only required
+  check.
+- Decision 6 is withdrawn: the seat layer's evidence system is removed (ADR 0037, 2026-09-24
+  addendum). The ready step stays, without the evidence.
+- The first addendum's reason for keeping `.github/claude-security-paths` no longer holds. Nothing
+  reads the file, so it is deleted.
+- The Consequences bullet about the skill-degrade guard meeting #4306 no longer applies: that guard
+  is deleted.
