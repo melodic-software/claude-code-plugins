@@ -3,7 +3,7 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.19] - 2026-09-23
+## [0.23.20] - 2026-09-23
 
 ### Changed
 
@@ -12,6 +12,22 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 - hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
 - hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+
+## [0.23.19] - 2026-09-23
+
+### Fixed
+
+- The setup skill's agent-session wiring step no longer says headless `-p` sessions inherit
+  `TRACEPARENT` only under the enhanced-telemetry beta. Headless and Agent SDK sessions read
+  inbound trace context, and their event records carry the inbound trace ID without the beta flag
+  or a traces exporter; spans still need both. The slice keeps joining on
+  `autonomy.work_item.url`.
+- The CI template's trace-context wording and session env block comment match that behavior.
+
+### Added
+
+- `context/agent-session-telemetry.md` gains dated records for resource attributes, inbound trace
+  context (with a probe on Claude Code 2.1.281), and the traces beta, each verified 2026-09-23.
 
 ## [0.23.18] - 2026-09-23
 

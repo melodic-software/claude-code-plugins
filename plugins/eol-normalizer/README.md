@@ -228,6 +228,15 @@ the chunked builtin probe cannot answer across chunk boundaries.
 longer opened for writing, so the hook no longer touches its mtime. No content
 and no reported message changes.
 
+**A disabled hook costs one shell.** The `hooks/hooks.json` row reads
+`eol_normalizer_enabled` itself and exits before the script starts, so the
+harness's shell is the only process a disabled hook creates. Measured on a
+heavily loaded Windows Git Bash host, 15 interleaved trials with the switch off,
+the old row cost about 1.9 times the `bash -c :` floor and the new row ran at
+the floor (medians: old 663 ms, new 289 ms, floor 356 ms). With the
+switch on the row `exec`s the script in place of its own shell, so the process
+count is unchanged.
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).

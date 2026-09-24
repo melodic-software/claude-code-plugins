@@ -3,7 +3,7 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.52] - 2026-09-23
+## [0.6.53] - 2026-09-23
 
 ### Changed
 
@@ -13,6 +13,23 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 - hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - eol-normalizer.sh: with no telemetry sink wired, `git check-attr` runs from the file's own directory with the absolute file path, which answers the same as from the repository root, so the separate `git rev-parse --show-toplevel` process is not started. A relative path, or a wired sink, still resolves the root first.
+
+## [0.6.52] - 2026-09-23
+
+### Changed
+
+- The `hooks/hooks.json` row reads `eol_normalizer_enabled` in the shell Claude Code runs
+  it in and execs `hooks/eol-normalizer.sh` only when the switch is on, so a disabled hook
+  no longer starts the script's `env` and bash. The option is spelled brace-free
+  (`$CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED`), so the shell reads it from the
+  environment at run time and the value is never spliced into the command text, and the
+  row pins `"shell": "bash"` because the hooks reference says the shell "Defaults to
+  `bash`, or to `powershell` on Windows when Git Bash isn't installed"
+  (https://code.claude.com/docs/en/hooks, the `shell` field, verified 2026-09-23). The
+  row runs `set +u` first, so an inherited nounset (`SHELLOPTS`, `BASH_ENV`) cannot turn
+  an unset option into a failed row. The README's Hook cost accounting section has the
+  measurement. The script keeps its own switch for direct invocation, and the matcher,
+  timeout and `.gitattributes`-driven file set are unchanged.
 
 ## [0.6.51] - 2026-09-21
 
