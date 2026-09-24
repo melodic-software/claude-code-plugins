@@ -16,6 +16,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - pull-request `ready` merges the base, runs the security review over the pull request's diff and the verify gate on the merged head, then flips. It no longer checks or renders evidence.
 - pull-request prep classifies the changed files by a table in `reference/prep.md` instead of reading a config map.
 
+## [0.57.3] - 2026-09-24
+
+### Changed
+
+- Hook registrations run each `hooks/*.sh` gate (the PR-linkage, PR-ready-evidence and worktree
+  gates) through `bash` with `"shell": "bash"`, the #4421 shape, so each fire no longer execs
+  `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged
+  (#4442).
+
 ## [0.57.2]
 
 ### Fixed

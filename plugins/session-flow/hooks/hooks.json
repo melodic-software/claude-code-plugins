@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/observer-arm.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/observer-arm.sh",
+            "shell": "bash",
             "timeout": 30,
             "statusMessage": "Arming session observer..."
           }

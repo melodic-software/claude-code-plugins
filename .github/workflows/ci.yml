@@ -829,15 +829,31 @@ jobs:
       # The audit that prompted #3712 found the switch below the source in 43 of
       # 43 hooks, and scripts/sync-hook-utils.sh covers the vendored library
       # copies but NOT the entry scripts, so nothing else here would notice the
-      # ordering drifting back. Self-test first so a broken detector cannot mask
-      # a regression.
+      # ordering drifting back. Rule 2 holds every other blocking event to the
+      # same order: a Stop or Notification hook's first early exit comes before
+      # its first source (#4415). Self-test first so a broken detector cannot
+      # mask a regression.
       - name: Test the kill-switch hoist gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-killswitch-hoist.test.sh
-      - name: Check that PreToolUse guards read their kill switch before sourcing
+      - name: Check that hooks exit early before sourcing any library
         id: killswitch_hoist
         continue-on-error: true
         run: scripts/check-killswitch-hoist.sh
+
+      # Two hook shapes a spawn budget misses or every fire pays for: a
+      # whole-file read of the session transcript (#4408: a bash builtin, no
+      # extra process, 11.6 s per fire at 10 MB), and a #!/usr/bin/env script
+      # registered with no leading `bash`, which costs an env exec on every
+      # fire (#4421). Self-test first so a broken detector cannot mask a
+      # regression.
+      - name: Test the hook slow-shapes gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-hook-slow-shapes.test.sh
+      - name: Check hooks for transcript reads and env-shebang registrations
+        id: hook_slow_shapes
+        continue-on-error: true
+        run: scripts/check-hook-slow-shapes.sh
 
       # A plugin hooks.json takes an optional top-level `description`, the one
       # place a plugin labels its hooks as a set (the plugins reference, hooks
@@ -1422,6 +1438,7 @@ jobs:
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
+            hook-slow-shapes=${{ steps.hook_slow_shapes.outcome }}
             hooks-description=${{ steps.hooks_description.outcome }}
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}

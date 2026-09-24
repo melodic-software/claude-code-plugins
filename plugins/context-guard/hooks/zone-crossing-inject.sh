@@ -146,12 +146,13 @@ set -uo pipefail
 # is what holds this rule, and #3520 is the regression it was added for.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
+# Kill switch FIRST, above every source, as in zone-gate.sh: a disabled hook
+# must not pay to parse hook-utils.sh before finding out it is off.
+[[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
 # shellcheck source=hook-utils.sh
 source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
 source "$CG_DIR/payload.sh"
-
-hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
 START_EPOCH=${EPOCHREALTIME:-0}
 # Not absolutized through `cd … && pwd`: this path is only ever handed to

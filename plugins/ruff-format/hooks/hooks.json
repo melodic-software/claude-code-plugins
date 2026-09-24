@@ -7,14 +7,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/ruff-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/ruff-format.sh",
+            "shell": "bash",
             "if": "Edit(*.py)",
             "timeout": 15,
             "statusMessage": "Formatting Python with Ruff..."
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/ruff-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/ruff-format.sh",
+            "shell": "bash",
             "if": "Edit(*.pyi)",
             "timeout": 15,
             "statusMessage": "Formatting Python with Ruff..."

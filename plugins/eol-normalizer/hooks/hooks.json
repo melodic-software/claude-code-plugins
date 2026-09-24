@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "set +u; [ \"$CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED\" = true ] || [ -z \"$CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED\" ] || exit 0; exec \"${CLAUDE_PLUGIN_ROOT}\"/hooks/eol-normalizer.sh",
+            "command": "set +u; [ \"$CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED\" = true ] || [ -z \"$CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED\" ] || exit 0; exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/eol-normalizer.sh",
             "shell": "bash",
             "timeout": 15,
             "statusMessage": "Normalizing line endings..."

@@ -9,6 +9,21 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - `skill-usage.jsonl` rows no longer carry `sha` or `pr`. Their only reader, source-control's skill-evidence script, is removed. The branch read is one `git rev-parse --abbrev-ref HEAD` again, and the `git config --get branch.<name>.pr-number` spawn is gone, so the store write costs 3 git processes inside a work tree instead of 4.
 
+## [0.60.2] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/audit-event-emitter.sh`, `hooks/skill-usage-audit.sh`,
+  `hooks/hook-failure-audit.sh` and `hooks/session-retention.sh` through `bash` with
+  `"shell": "bash"`, the #4421 shape, so each fire no longer execs `/usr/bin/env` (the
+  `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged (#4442).
+- The session event log's opt-in rows run `exec bash` on `hooks/session-event-log.sh`, so an enabled
+  fire no longer execs `/usr/bin/env` before bash; `scripts/gen-hook-event-registry.sh` generates
+  the new rows.
+- `hook-failure-audit.sh` reads its `hook_failure_audit_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
+
 ## [0.60.1] - 2026-09-24
 
 ### Changed
