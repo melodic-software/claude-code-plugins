@@ -96,8 +96,8 @@ unbound and blocked at step 6.
 WSL2 probes also look through the Windows drive mount (the automount record above). Credential
 probes and `--credential-roots` include the Windows profile paths the distribution reaches there
 (marked example: an `.ssh` directory under `/mnt/c/Users/<user>/`), since hiding the
-distribution's own home proves nothing about the host's. A workspace under a Windows drive mount is checked for containment from the
-Windows side, where the host executes it.
+distribution's own home proves nothing about the host's. A workspace under a Windows drive mount
+is checked for containment from the Windows side, where the host executes it.
 
 ## L3 microVM on a Windows host
 
