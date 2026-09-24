@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, schema.py, and the JSON
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, schema.py, and the JSON
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
 # schema/visual.schema.json and schema/ops.schema.json.
 # The browser suites run only where playwright-cli resolves; elsewhere they print a SKIP with
@@ -79,12 +79,14 @@ grade() { # suite output-file
 if command -v playwright-cli >/dev/null 2>&1; then
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX")
   d="$tmp/d3"
+  c="$tmp/c3"
   session="iv-$$"
   # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
   pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); }
   finish() {
     pw close >/dev/null 2>&1
     bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
+    bash "$here/round.sh" --dir "$c" stop >/dev/null 2>&1
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -104,11 +106,34 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_a.js")" >"$tmp/ui_a.out" 2>&1
   bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --affects none --force >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_b.js")" >"$tmp/ui_b.out" 2>&1
+
+  # ui_c runs against a third server seeded with settings in every layer: the repo file through
+  # CLAUDE_PROJECT_DIR (inherited by the detached server), the user file, and the data dir's
+  # settings.json. It runs in three phases; the shell writes as Claude between them.
+  repo="$tmp/repo"
+  mkdir -p "$c" "$repo/.claude"
+  cp tests/fixtures/ui_c/questions.json tests/fixtures/ui_c/responses.json tests/fixtures/ui_c/settings.json "$c/"
+  cp tests/fixtures/ui_c/repo-settings.json "$repo/.claude/interview-surface.json"
+  bash "$here/round.sh" --dir "$c" archive X1 --why "The old path left the plan" >/dev/null
+  CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 \
+    --user-settings tests/fixtures/ui_c/user-settings.json >/dev/null
+  cport=$(sed -n 's/^PORT=//p' "$c/.interview-session.env" | tr -d '\r')
+  for n in 1 2 3; do
+    sed "s/__PORT__/$cport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
+  done
+  pw run-code --filename "$(script_path "$tmp/ui_c1.js")" >"$tmp/ui_c1.out" 2>&1
+  bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
+  pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
+  read -r -a seqs <<<"$(bash "$here/round.sh" --dir "$c" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' ')"
+  [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$c" handle --seq "${seqs[@]}" >/dev/null
+  pw run-code --filename "$(script_path "$tmp/ui_c3.js")" >"$tmp/ui_c3.out" 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
+  for n in 1 2 3; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
 else
-  echo "SKIP: 61 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 61))
+  echo "SKIP: 129 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 129))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

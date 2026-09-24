@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "seq": 2,
+  "events": [
+    {"seq": 1, "id": "R1", "kind": "accept", "alt": null, "text": "", "at": "2026-09-24T01:00:00Z", "deliveredAt": "2026-09-24T01:00:01Z"},
+    {"seq": 2, "id": "R1", "kind": "ask", "alt": null, "text": "Which thread?", "at": "2026-09-24T01:01:00Z", "deliveredAt": "2026-09-24T01:01:01Z"}
+  ],
+  "responses": {
+    "R1": {"decision": "accept", "alt": null, "text": "", "updatedAt": "2026-09-24T01:00:00Z", "seq": 1}
+  },
+  "history": {
+    "R1": [
+      {"at": "2026-09-24T01:00:00Z", "by": "user", "kind": "accept", "alt": null, "text": "", "seq": 1},
+      {"at": "2026-09-24T01:01:00Z", "by": "user", "kind": "ask", "alt": null, "text": "Which thread?", "seq": 2}
+    ]
+  }
+}

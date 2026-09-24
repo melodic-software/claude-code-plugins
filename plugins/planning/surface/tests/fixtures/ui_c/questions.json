@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "title": "Surface V1 checks",
+    "eyebrow": "Interview",
+    "stages": {"interview": "Interview"}
+  },
+  "rev": 1,
+  "handledSeq": 2,
+  "groups": [
+    {"id": "base", "title": "Basics", "summary": "Order, commitments and visuals."},
+    {"id": "chain", "title": "Chain", "summary": "A dependsOn chain."},
+    {"id": "talk", "title": "Talk", "summary": "An answer with a Claude reply."},
+    {"id": "batch", "title": "Batch", "summary": "Accept all."}
+  ],
+  "visuals": [
+    {"id": "vc", "scope": "question:Q2", "title": "Chart", "format": "chart", "content": {"labels": ["Mon", "Tue"], "series": [{"name": "Saves", "data": [3, 5]}]}}
+  ],
+  "questions": [
+    {"id": "Q3", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Third", "title": "Should the third step run?", "recommendation": "Yes, third.", "commits": ["The third step owns its own log"], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]},
+    {"id": "Q1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "First", "title": "Should the first step use the shared cache?", "recommendation": "Yes. The shared cache keeps saves fast.", "basis": "One cache is already warm.", "facts": "The cache exists today.", "commits": ["Uses the shared cache", "Runs on every save"], "alternatives": [{"key": "a", "text": "No cache"}, {"key": "b", "text": "A private cache"}]},
+    {"id": "Q2", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Visuals", "title": "Which diagram shows the flow?", "recommendation": "The first one.", "commits": [], "alternatives": [{"key": "a", "text": "The second one"}, {"key": "b", "text": "Neither"}], "visuals": [
+      {"id": "vk", "title": "Kind svg", "kind": "svg", "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 120 40\"><rect width=\"120\" height=\"40\" fill=\"#2f5d8a\"/><text x=\"10\" y=\"25\" fill=\"#fff\">svgmark</text></svg>"},
+      {"id": "vf", "title": "Format svg", "format": "svg", "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 120 40\"><rect width=\"120\" height=\"40\" fill=\"#2f5d8a\"/><text x=\"10\" y=\"25\" fill=\"#fff\">svgmark</text></svg>"},
+      {"id": "vh", "title": "Html", "format": "html", "content": "<p id=\"htmlmark\">htmlmark paragraph</p>"},
+      {"id": "vm", "title": "Mermaid", "format": "mermaid", "content": "graph TD\n  A-->B"},
+      {"id": "vi", "title": "Image", "format": "image", "file": "images/flow.png"}
+    ]},
+    {"id": "X1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Dropped", "title": "Should the old path stay?", "recommendation": "No.", "commits": [], "alternatives": [{"key": "a", "text": "Yes"}, {"key": "b", "text": "Only for a release"}]},
+    {"id": "P1", "group": "chain", "stage": "interview", "round": 1, "rev": 1, "short": "Upstream", "title": "Should the upstream step run?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
+    {"id": "P2", "group": "chain", "stage": "interview", "round": 1, "rev": 1, "short": "Middle", "title": "Should the middle step run?", "dependsOn": ["P1"], "recommendation": "Yes, after the upstream step.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
+    {"id": "P3", "group": "chain", "stage": "interview", "round": 1, "rev": 1, "short": "Downstream", "title": "Should the downstream step run?", "dependsOn": ["P2"], "recommendation": "Yes, last.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
+    {"id": "R1", "group": "talk", "stage": "interview", "round": 1, "rev": 1, "short": "Replied", "title": "Should replies stay in the thread?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only the last one"}], "history": [
+      {"at": "2026-09-24T01:02:00Z", "by": "claude", "text": "The thread keeps every reply.", "replyTo": 2}
+    ]},
+    {"id": "A1", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch one", "title": "Should batch one run?", "recommendation": "Yes, batch one.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
+    {"id": "A2", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch two", "title": "Should batch two run?", "recommendation": "Yes, batch two.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]}
+  ]
+}
