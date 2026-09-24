@@ -1,22 +1,14 @@
 name: claude-security-review
 
-# Dedicated LLM security-review pass via the ci-workflows reusable workflow — the
-# security sibling of claude-review.yml, ADR 0002's default-on advisory posture.
-# The caller owns the triggers and the GITHUB_TOKEN grant.
-# NO PATH GATE (ADR 0038 addendum): every non-draft pull request is reviewed.
-# The caller passes neither `paths` nor `paths-file`, which the reusable reads
-# as "every call is relevant". Every check in this file
-# is advisory (ADR 0002, ADR 0038): never add one to required status checks;
-# `ci-status` is the only required check. Fork PRs receive no secrets
-# and a read-only token, so they are simply not reviewed by design. Requires
-# `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org secret's
-# selected-repositories scope. Public repo: hosted default runner.
+# Dedicated LLM security-review pass via the ci-workflows reusable workflow, the
+# security sibling of claude-review.yml (ADR 0002's default-on advisory
+# posture). The caller owns the triggers and the GITHUB_TOKEN grant. Every
+# non-draft pull request is reviewed; fork PRs and bot actors are not (ADR
+# 0038). Every check in this file is advisory: `ci-status` is the only
+# required check. Requires `claude-code-plugins` in the
+# CLAUDE_CODE_OAUTH_TOKEN org secret's selected-repositories scope. Public
+# repo: hosted default runner.
 #
-# EVERY PUSH IS REVIEWED; DRAFTS ARE NOT (ADR 0038), matching
-# claude-review.yml. `synchronize` puts the verdict on the head that merges and
-# reaches a pull request that conflicted with main when it opened (GitHub runs
-# no pull_request workflow while it conflicts). A newer push cancels the older
-# run: nothing here is a required check, so a cancelled run blocks nothing.
 # The `security-review / claude-security-review-status` check goes red and
 # names the cause when the review fails (ci-workflows#619).
 on:
@@ -37,16 +29,9 @@ jobs:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review
       id-token: write        # OIDC — mints the Claude GitHub App token
-    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@39390344a0fef0671d3e5a7546dd03af7a36b8f5 # v0.28.0
+    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@6567856ef6070a4a1c9c2691f610278a7f2de153 # v0.29.0
     with:
       runner: ubuntu-24.04
-      # No `paths` / `paths-file`: every non-draft pull request is in scope
-      # (ADR 0038 addendum).
-      skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]
-      # Publishes `security-review / claude-security-review-status`, red with
-      # the failure class when the review fails (ci-workflows#619). Advisory,
-      # never required.
-      status-check: true
     # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

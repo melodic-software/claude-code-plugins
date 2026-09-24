@@ -143,3 +143,8 @@ else in this repository.
   reads the file, so it is deleted.
 - The Consequences bullet about the skill-degrade guard meeting #4306 no longer applies: that guard
   is deleted.
+- The re-pin to ci-workflows v0.29.0 (ci-workflows#622) completes this: both callers pass only
+  `runner`. The reusable now skips bot actors and fork pull requests itself, always publishes the
+  status check, and has no `workflow_dispatch` re-review, no per-PR cap and no path gate, so
+  `skip-actors`, `status-check`, `max-reviews-per-pr`, `timeout-minutes` and `pr-number` are
+  gone from the callers. A new review comes from a push, a reopen, or a draft-then-ready flip.
