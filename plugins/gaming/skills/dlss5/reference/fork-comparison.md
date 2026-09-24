@@ -6,7 +6,7 @@ them.
 
 ## Pinned releases
 
-| | `dagherbou` (default) | `wilsjo2` |
+| | `dagherbou` (fallback) | `wilsjo2` (default) |
 |---|---|---|
 | Repo | `Dagherbou/OptiScaler_DLSSNR` | `wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass` |
 | Tag | `v0.2.0-patch1` | `v0.8.3` |
@@ -29,14 +29,40 @@ resolve to `v0.2.0-dlssnr`, an older release carrying `OptiScaler-DLSSNR-v0.2.0.
 lacks the Onimusha fix. Any tooling that resolves "latest" gets the wrong build; take the pinned
 asset by name.
 
-## Why Dagherbou is the default
+## Why wilsjo2 is the default
+
+The owner's decision on 2026-09-24 (issue #4429), from a live A/B in Cyberpunk 2077 on an RTX 5090,
+driver 616.92, 4K, DLSS Quality:
+
+- **Same cost.** wilsjo2 `v0.8.3` NR cost median 7.42 ms (range 7.32 to 8.00 ms), against about
+  7.4 ms for Dagherbou.
+- **No forwarder.** The runtime loads through the NVIDIA NGX driver, with no forwarder DLL beside it.
+- **Clean exit.**
+- **Better-looking by default**, in the owner's judgment.
+- **More controls.** `Passes`, the per-pass model controls, skin and environment protection, and
+  the pre-SR modes, which `reference/presets.md` allow-lists for this build. `Passes=2` measured
+  15.2 to 15.5 ms, about twice the cost of one pass.
+
+It is also the maintained line: rebased onto current OptiScaler, releasing near daily, and the
+author of the open upstream merge PR (#1158).
+
+Against it: almost every tag is a prerelease with self-declared limits ("no new full game-session
+validation ... is claimed"; `v0.8.91`: live game preview not performed). Issue #56, DEVICE_HUNG on
+`v0.8.3`, is open with no maintainer reply and has been reported only on Onimusha; no release
+through `v0.8.91` claims a fix. From `v0.8.5` releases ship one
+`OptiScaler-NR-<version>-SHA256SUMS.txt` instead of a per-zip `.sha256`. Profiles (from v0.8.5) add
+a new runtime write, `OptiScalerProfiles\`, which `remove` handles as a byproduct.
+
+## When to use Dagherbou
+
+The fallback. Use it when a wilsjo2 bug bites a title (such as #56 on an RE Engine game) and
+Dagherbou is known to work there.
 
 - It is live-verified: applied with this plugin's script and confirmed running (`DLSS-NR cost` log
   lines) in Cyberpunk 2077 and Dying Light: The Beast on an RTX 5090 with driver 616.92.
 - It is frozen, so its footprint is fully known: the runtime writes are audited in
   `reference/reversal-matrix.md`.
-- DLSS 5 Swapper pins this exact asset by URL and SHA-256, which makes it the most exercised single
-  build.
+- DLSS 5 Swapper pins this exact asset by URL and SHA-256.
 
 Against it:
 
@@ -44,23 +70,12 @@ Against it:
   open issues get no answers.
 - Issue #43: a regression introduced by patch1 on the Vulkan interop path (0.1.1.5 works, patch1
   crashes on save load). It does not bind DX12 titles, and it will not be fixed.
+- A preset that sets a wilsjo2-only key is refused on this build.
 
-## When to use wilsjo2
-
-It is the maintained line: rebased onto current OptiScaler, releasing near daily, and the author of
-the open upstream merge PR. Switch when a Dagherbou bug bites a title, or when a title needs a fix
-only wilsjo2 carries. The research verifier ranked wilsjo2 `v0.8.3` first on maintenance grounds;
-the user chose Dagherbou for its live verification, and the choice stays open.
-
-Against it: almost every tag is a prerelease with self-declared limits ("no new full game-session
-validation ... is claimed"; `v0.8.91`: live game preview not performed). Issue #56, DEVICE_HUNG on
-`v0.8.3`, is open with no maintainer reply and has been reported only on Onimusha; no release
-through `v0.8.91` claims a fix, so the pin stays at `v0.8.3`. From `v0.8.5` releases ship one
-`OptiScaler-NR-<version>-SHA256SUMS.txt` instead of a per-zip `.sha256`. Profiles (from v0.8.5) add a new runtime write,
-`OptiScalerProfiles\`, which `remove` handles as a byproduct.
-
-To switch a game: `remove`, then `/gaming:setup apply` (it provisions both pinned builds and
-leaves an already-provisioned one as is), then `apply -Build wilsjo2`.
+To switch a game: `capture` its tuning if wanted, `remove`, then `/gaming:setup apply` (it
+provisions both pinned builds and leaves an already-provisioned one as is), then
+`apply -Build dagherbou` (or `-Build wilsjo2` to switch back). Moving to a newer pin of the same
+build: `reference/upstream-watch.md`, Updating a pin.
 
 ## Packages not to use
 
@@ -78,5 +93,6 @@ leaves an already-provisioned one as is), then `apply -Build wilsjo2`.
 | `v0.2.0-patch1` is Dagherbou's newest release and is a prerelease | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases` | 2026-09-22 | A new Dagherbou tag |
 | `v0.8.3` is wilsjo2's newest non-prerelease; prereleases run to `v0.8.91`; `SHA256SUMS.txt` from `v0.8.5` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases` | 2026-09-23 | wilsjo2 marks a newer tag non-prerelease |
 | wilsjo2 #56 open, no maintainer reply, no release claims a fix | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/issues/56` and its comments; release notes `v0.8.4` to `v0.8.91` | 2026-09-23 | A maintainer reply, or a release that names #56 |
+| wilsjo2 `v0.8.3` A/B against Dagherbou: cost, NGX-driver load, clean exit, `Passes=2` cost | Owner's live session, Cyberpunk 2077, RTX 5090, driver 616.92, 4K DLSS Quality; recorded in issue #4429 | 2026-09-24 | A new pin or driver |
 | Both pinned hashes | `Get-FileHash` over the downloaded assets; the wilsjo2 `.sha256` sidecar | 2026-09-21 | `provision` reports a hash mismatch |
 | Neither fork's `OptiScaler.dll` is signed; upstream v0.9.4 is SignPath-signed | `Get-AuthenticodeSignature` over the extracted files | 2026-09-20 | Either fork ships a signed build |

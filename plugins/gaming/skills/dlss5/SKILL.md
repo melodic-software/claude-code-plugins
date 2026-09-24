@@ -1,6 +1,6 @@
 ---
-description: "Apply, track, tune, and remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in a PC game on Windows. Action router: assess (eligibility, launcher, anti-cheat signals), apply (snapshot, then install; anti-cheat risk only with a typed acknowledgement), remove (byte-exact uninstall from the manifest), status (drift against the manifest), tune (in-game overlay guidance), capture (save overlay tuning as a local preset), refetch (fork, driver and runtime release watch). Use when: 'apply DLSS 5 to this game', 'is this game safe for the DLSS 5 mod', 'remove the DLSS 5 mod', 'check for new OptiScaler DLSSNR releases', or DLSS 5, DLSSNR, or OptiScaler is mentioned with a game folder."
-argument-hint: "[assess|apply|remove|status|tune|capture|refetch] [<game-dir>]"
+description: "Apply, track, tune, and remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in a PC game on Windows. Action router: assess (eligibility, launcher, anti-cheat signals), apply (snapshot, then install; anti-cheat risk only with a typed acknowledgement), remove (byte-exact uninstall from the manifest), status (drift and stale-build report against the manifest), reset (back to stock ini plus preset, after confirmation), tune (in-game overlay guidance), capture (save overlay tuning as a local preset), refetch (fork, driver and runtime release watch). Use when: 'apply DLSS 5 to this game', 'is this game safe for the DLSS 5 mod', 'remove the DLSS 5 mod', 'check for new OptiScaler DLSSNR releases', or DLSS 5, DLSSNR, or OptiScaler is mentioned with a game folder."
+argument-hint: "[assess|apply|remove|status|reset|tune|capture|refetch] [<game-dir>]"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -48,12 +48,13 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 
 | Parameter | Used by | Meaning |
 |---|---|---|
-| `-Build` | apply | `dagherbou` (default) or `wilsjo2`; see `reference/fork-comparison.md` |
+| `-Build` | apply | `wilsjo2` (default) or `dagherbou` (fallback); see `reference/fork-comparison.md` |
 | `-Proxy` | apply | Filename the fork's `OptiScaler.dll` is installed as. Default `dxgi.dll`; pick from `assess`'s `freeProxies` |
 | `-Preset` | apply, capture | A per-game preset key: `assess`'s `preset.key` for apply, or the key a new capture is saved under. The base presets apply without it; `reference/presets.md` |
 | `-RestoreComputeSignature` | apply | Also sets `[Hotfix] RestoreComputeSignature=true` for a game with no preset; `reference/tuning-guide.md` names the titles that need it |
 | `-AllowUnknownRuntime` | apply | Accepts an NVIDIA-signed runtime whose hash is not the known one. Only on the user's explicit request |
 | `-Finish` | remove | Drops the manifest even when drift remains. Only after the user has seen the drift and asked |
+| `-ConfirmReset` | reset | Writes the reset. Only after the user has seen the printed list of discarded values and said yes |
 | `-Force` | apply | Lifts only the over-2000-files guard. Only when the user confirms the directory is the exe directory. It has no effect on the anti-cheat gate |
 | `-AcceptAntiCheatRisk` | apply | The game name exactly as the user typed it, after the anti-cheat review below. Never filled in by you |
 | `-AntiCheatResearch` | apply | The research summary shown to the user, one paragraph |
@@ -74,7 +75,8 @@ Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
 | `assess` | Is this game eligible? | Run `assess`. Report the launcher, the verdict and the anti-cheat status. Writes nothing |
 | `apply` | Install the mod | `assess` first; stop on verdict `refused`, `not-a-candidate` or `unknown`. Any anti-cheat status but `none-disclosed` runs the anti-cheat review. Confirm with the user, run `apply`, add the ledger row |
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
-| `status` | What changed since apply? | Run `status` and explain its exit code |
+| `status` | What changed since apply? | Run `status` and explain its exit code and its installed-build line |
+| `reset` | Undo overlay changes | Show what it discards, ask, then rewrite `OptiScaler.ini` to the stock ini plus the recorded preset |
 | `tune` | Picture or performance | Start from the game's preset, then guide the in-game overlay from `reference/tuning-guide.md`; no script verb |
 | `capture` | Keep the overlay tuning | Run `capture` after the user's Save Settings; it writes the game's local preset. Writes nothing in the game folder |
 | `refetch` | Are forks, driver, runtime current? | Run `refetch`, read the page-backed items, update only the ledger's Upstream watch rows that changed |
@@ -98,7 +100,9 @@ without the user's confirmation.
      `local-base` or `local`). `preset.key` is the matching per-game preset, or null when only the
      bases apply. `presetError` names a preset file that failed validation; report it. A broken
      base makes every `apply` refuse, and a broken per-game file cannot be passed as `-Preset`,
-     until the file is fixed.
+     until the file is fixed;
+   - `installedBuild`: null when the mod is not applied here, else the manifest's build against
+     its current pin, as in `status`.
 2. `refused`: the directory is under `WindowsApps`. Stop and say why
    (`reference/launchers.md`). Nothing clears this.
 3. `not-a-candidate`: the game ships no DLSS, FSR 2+ or XeSS, so the mod has nothing to hook. Tell
@@ -159,7 +163,8 @@ it.
 3. `preset.key` null in the assess JSON (no per-game preset): offer the research step below before
    applying with the bases alone. The user may decline; that is a valid apply.
 4. Confirm. Show the resolved absolute game directory (`gameDir` from the assess JSON), the
-   launcher, the build and its tag, the proxy name, the `assess` verdict, the anti-cheat status
+   launcher, the build and its tag (`wilsjo2` unless the user chose the `dagherbou` fallback), the
+   proxy name, the `assess` verdict, the anti-cheat status
    (and, when acknowledged, the typed name), and the preset: its key (or "bases only"), and each
    ini key as `[Section] Key=Value` with its source and its `why`. Then ask for an explicit yes.
    The typed game name is the risk acknowledgement, not this confirmation; ask for both. One
@@ -168,8 +173,9 @@ it.
    `preset.key` is not null, plus the four acknowledgement parameters when the review ran. The
    script rereads every anti-cheat source and refuses before any write on: an existing manifest
    (`remove` first), no `*.exe`, a `WindowsApps` path, over 2000 files, no upscaler DLL (not a
-   candidate), a preset key off the allow-list, `AutoCapture` in a preset, a value of the wrong
-   type, one hotkey bound to two actions, a destination
+   candidate), a preset key off the allow-list or allow-listed only for another build,
+   `AutoCapture` in a preset, a value of the wrong type, one hotkey bound to two actions, a
+   destination
    collision, a missing build file (run `/gaming:setup apply`), a refused runtime DLL, an
    anti-cheat status other than `none-disclosed` without a matching acknowledgement, or a folder
    its write probe cannot write. Report a refusal as is; never route around it.
@@ -227,10 +233,29 @@ Run `-Verb status '<game-dir>'`. It lists `ADDED` (tagged `manifest`, `byproduct
 `MODIFIED`, `REMOVED`, and any `MANIFEST FILES MISSING` or `MANIFEST FILES CHANGED`.
 `INTERRUPTED APPLY` means a crashed `apply` left `pending.json`; `remove` rolls it back.
 
+The last line compares the manifest's `build`, `tag` and `buildSha256` with that build's current
+pin. `installed build is older than the current pin` means this game predates a pin update: offer
+the roll-out steps in `reference/upstream-watch.md`, Updating a pin. `unknown, re-apply to record`
+means the manifest predates recorded build tags. Neither changes the exit code.
+
 | Exit | Meaning |
 |---|---|
 | 0 | No unexpected drift. `ADDED` byproducts, `ADDED` unknown files, and a changed `OptiScaler.ini` (the overlay's Save Settings rewrites it) all exit 0 |
 | 1 | A pre-install file was modified or removed, or a manifest file other than `OptiScaler.ini` is missing or changed. Also exit 1 when no snapshot exists (never applied here) |
+
+## Action: reset
+
+Undoes the overlay's Save Settings without a remove and apply: the game's `OptiScaler.ini` goes
+back to the build's stock ini plus the preset recorded in the manifest (`reference/presets.md`,
+Reset). Offer `capture` first when the user may want to keep the current tuning.
+
+1. Run `-Verb reset '<game-dir>'` without `-ConfirmReset`. It prints each value it would discard
+   and writes nothing. Stop and relay a refusal as is.
+2. Show the user that list, the resolved game directory, and the manifest's build and tag, and ask
+   for an explicit yes. Ask with the game closed.
+3. On yes, rerun with `-ConfirmReset`. Report the rewrite; the manifest now records the file's
+   hash, so `status` stays clean and `remove` stays byte-exact.
+4. Note the reset in the game's ledger row.
 
 ## Action: tune
 
@@ -253,7 +278,10 @@ ledger row's ini deltas and visual verdict columns.
    game name (lowercase letters, digits, hyphens) and rerun with it.
 3. Report the captured keys and the file. Report every `not captured` line: keys off the
    allow-list stay in the game's ini only, and an `AutoCapture=true` line means the user turned
-   frame capture on; tell them to set it back to `false`.
+   frame capture on; tell them to set it back to `false`. A `conflict` line is a captured hotkey
+   whose key another layer already binds: the other keys were still saved. Show both bindings and
+   the one the preset keeps, and ask which action the user wants on that key; after they rebind
+   one (in the overlay, or in the named preset layer), run `capture` again.
 4. The next `apply` of this game writes the captured values. `capture` never writes into the game
    folder, so `remove` stays byte-exact.
 5. Note the capture in the ledger row. Suggest upstreaming the preset as a community preset,
@@ -299,8 +327,9 @@ ledger row's ini deltas and visual verdict columns.
 - **`not-a-candidate` and a `WindowsApps` path have no override.**
 - **Never run the forks' `setup_windows.bat`.** It is interactive and hangs a non-interactive shell;
   the script installs the proxy itself, and `provision` never extracts that file.
-- **`apply` never overwrites a game file, and `remove` never deletes a file the manifest or the
-  byproduct list does not name.** Never delete game files by hand to help either one along.
+- **`apply` never overwrites a game file, `remove` never deletes a file the manifest or the
+  byproduct list does not name, and `reset` writes only the manifest-owned `OptiScaler.ini`.**
+  Never delete game files by hand to help any of them along.
 - **Cyberpunk 2077's proxy is `dxgi.dll`, never `dbghelp.dll`.**
 - **`[DlssNr] AutoCapture` stays `false`.** Its default writes raw frame captures into the game
   folder on every launch. No preset can set it, `capture` never captures it, and a preset sets
@@ -308,7 +337,8 @@ ledger row's ini deltas and visual verdict columns.
 - **The NVIDIA runtime DLL is never committed, bundled, or placed under the plugin root, and this
   skill names no source for it.** It comes only from the three sources `/gaming:setup` documents,
   each hash- or signature-checked.
-- **`apply` and `remove` each need the user's explicit confirmation**, one game at a time.
+- **`apply`, `remove` and `reset -ConfirmReset` each need the user's explicit confirmation**, one
+  game at a time.
 
 ## Ledger
 
@@ -331,9 +361,9 @@ absent, recommend `/gaming:setup apply` rather than inventing a format.
 | `reference/candidate-selection.md` | Explaining `not-a-candidate`, which games the mod can help, engine notes, or which per-game config sources to trust |
 | `reference/reversal-matrix.md` | Explaining what `remove` deletes, keeps, or reports |
 | `reference/fork-comparison.md` | Choosing or switching `-Build` |
-| `reference/presets.md` | Preset format, the four layers and their precedence, the ini allow-list, hotkeys, `capture`, writing a local preset, or contributing one |
+| `reference/presets.md` | Preset format, the four layers and their precedence, the per-build ini allow-list, hotkeys, `capture`, `reset`, writing a local preset, or contributing one |
 | `reference/tuning-guide.md` | The `tune` action, or picking `-RestoreComputeSignature` |
-| `reference/upstream-watch.md` | The `refetch` action |
+| `reference/upstream-watch.md` | The `refetch` action, a new pin, or a game whose installed build is older than the current pin |
 
 ## Volatile specifics
 
@@ -342,7 +372,7 @@ These are true as of the date in each row. `refetch` exists to recheck them.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | Known-good runtime: `nvngx_dlssnr.dll` 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E` | `$ModelHash` in the script; NVIDIA-signed copy hashed locally | 2026-09-22 | A DLSS 5 title ships a newer runtime, or `apply` refuses a signed runtime as unknown |
-| Default build Dagherbou `v0.2.0-patch1` (prerelease); fallback wilsjo2 `v0.8.3` (newest non-prerelease) | `gh api repos/<owner>/<repo>/releases` | 2026-09-22 | `refetch` shows a new tag, or a pinned asset stops resolving |
+| Default build wilsjo2 `v0.8.3` (newest non-prerelease); fallback Dagherbou `v0.2.0-patch1` (prerelease). Default chosen from the owner's live A/B, issue #4429 | `gh api repos/<owner>/<repo>/releases`; `reference/fork-comparison.md` | 2026-09-24 | `refetch` shows a new tag, or a pinned asset stops resolving |
 | GeForce driver 616.92 WHQL, the driver the mod was verified live on | `nvidia-smi` on the proving-ground machine | 2026-09-22 | A new Game Ready driver |
 | Steam requires the store-page anti-cheat field only for client-side kernel-mode anti-cheat; for anything else it is optional | Steamworks announcement 4547038620960934857, read through the Steam event API | 2026-09-23 | Valve changes the anti-cheat disclosure rule |
 | AreWeAntiCheatYet `games.json` fields `name`, `anticheats`, `status` (Linux and Proton support), `storeIds` (`steam`, `epic`); 1167 entries at commit `e31a7e6` | `https://raw.githubusercontent.com/AreWeAntiCheatYet/AreWeAntiCheatYet/<sha>/games.json`, parsed live; `components/Legend.tsx` for the status meaning | 2026-09-23 | `assess` reports an AreWeAntiCheatYet fetch failure that persists, or the file's fields change |

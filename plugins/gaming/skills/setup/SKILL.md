@@ -132,9 +132,9 @@ directory holding `state\`, since step 1 would start an empty state tree beside 
    When the user has explicitly asked to accept an NVIDIA-signed runtime that fails the hash, add
    `-AllowUnknownRuntime` and say so in the report; never add it otherwise. On a non-zero exit,
    relay the printed remedies and refusals verbatim and continue to step 4.
-4. Provision both pinned fork builds, so an apply that falls back to `wilsjo2` finds its files:
-   `pwsh -NoProfile -File "<script>" -Verb provision -Build dagherbou -DataDir '<data-dir>'`, then
-   the same with `-Build wilsjo2`.
+4. Provision both pinned fork builds, so an apply that falls back to `dagherbou` finds its files:
+   `pwsh -NoProfile -File "<script>" -Verb provision -Build wilsjo2 -DataDir '<data-dir>'`, then
+   the same with `-Build dagherbou`.
 5. Run `check` again and report its actual table; never report success from an exit code alone.
 
 Re-running `apply` changes nothing: the directories exist, the ledger is kept, `provision -Runtime`
@@ -150,8 +150,8 @@ anywhere but the three sources `provision -Runtime` tries.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | Known-good runtime: `nvngx_dlssnr.dll` 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E` | `$ModelHash` in the script, hashed from a working install | 2026-09-22 | `/gaming:dlss5 refetch` reports a different runtime version, or an NVIDIA-signed runtime fails the hash |
-| Primary fork pin: `Dagherbou/OptiScaler_DLSSNR` tag `v0.2.0-patch1` (a prerelease), asset `OptiScaler-DLSSNR-v0.2.0-onimusha-fix.zip`, SHA-256 `5DB547216FA8A7DBD8AB0A193DA1E3BCE0EA4BD71F91189AFA4ED2EDE8BB9561` | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases`; the release publishes no checksum, so the hash is a local-copy attestation | 2026-09-21 | a new release on that repo, or `refetch` reports a tag change |
-| Fallback fork pin: `wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass` tag `v0.8.3`, asset `OptiScaler-NR-v0.8.3.zip`, SHA-256 `3F2D26FB136D964A394BF50896D082156173153A2A55B88E1995277B4DABE3C8` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases`; the hash matches the release's own `.sha256` sidecar | 2026-09-21 | a new non-prerelease on that repo, or `refetch` reports a tag change |
+| Default fork pin: `wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass` tag `v0.8.3`, asset `OptiScaler-NR-v0.8.3.zip`, SHA-256 `3F2D26FB136D964A394BF50896D082156173153A2A55B88E1995277B4DABE3C8` | `gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases`; the hash matches the release's own `.sha256` sidecar | 2026-09-24 | a new non-prerelease on that repo, or `refetch` reports a tag change |
+| Fallback fork pin: `Dagherbou/OptiScaler_DLSSNR` tag `v0.2.0-patch1` (a prerelease), asset `OptiScaler-DLSSNR-v0.2.0-onimusha-fix.zip`, SHA-256 `5DB547216FA8A7DBD8AB0A193DA1E3BCE0EA4BD71F91189AFA4ED2EDE8BB9561` | `gh api repos/Dagherbou/OptiScaler_DLSSNR/releases`; the release publishes no checksum, so the hash is a local-copy attestation | 2026-09-21 | a new release on that repo, or `refetch` reports a tag change |
 | DLSS 5 officially supports RTX 50-series GPUs only | https://www.nvidia.com/en-us/geforce/news/dlss-5-3d-guided-neural-rendering/ | 2026-09-20 | NVIDIA ships DLSS 5 support for another GPU series |
 
 ## Next
