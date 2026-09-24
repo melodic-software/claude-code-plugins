@@ -64,7 +64,7 @@ claims:
         pool: "<publisher/org — two sources sharing a pool are NOT independent>"
         measures: "<variable, population, and era or question this source measured>"
     inference: "<one line: why the claim follows from its sources jointly>"
-    qualifiers: []            # every MEDIUM, scope limit, or population qualifier; may be empty
+    qualifiers: []            # every hedge, scope limit, or population qualifier a source records
 produced_by: <phase id>
 ---
 ```
@@ -79,15 +79,11 @@ encodes neither the URL nor the pool, so without `sources[]` the verifier can on
 word for the one criterion the whole discipline rests on. Two entries sharing a `pool` are one
 corroborator.
 
-**`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact.** A
-verifier that never saw the run cannot tell from a URL and a pool whether a source measured the
-claim's variable and population; `measures:` records what each source actually measured, so a
-mismatch with the claim is visible without replaying the run. `inference:` is the run's one-line
-reason the claim follows jointly, which the verifier checks against the sources rather than
-reconstructing. `qualifiers:` lists every MEDIUM, scope limit, and population qualifier the claim
-carries; on a fan-out it is the list the synthesis is graded against for hedge survival, and an
-empty list is a statement that there are none. The recipe is `discipline.md`'s "Joint-inference
-check".
+**`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact**, as
+`sources[]` does for criterion 4: a URL and a pool cannot show whether a source measured the claim's
+variable and population, and a verifier that never saw the run should not have to reconstruct the
+run's reasoning. `qualifiers:` is also what a fan-out's synthesis is graded against for hedge
+survival; an empty list states there are none. Recipe: `discipline.md`'s "Joint-inference check".
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does, so keep the header small enough that widening it stays cheap.

@@ -52,11 +52,10 @@ against a run that produced none):
    it, which is why nested spawning stays an optimization here rather than a correctness
    prerequisite.
 
-   **Brief the verifier on every verifier-owned row by number:** today rows 4, 7 and 12, read from
-   the gate's Owner column in `SKILL.md`. The payload's `verification_request.criterion` string is
-   the producer's summary, not the scope; brief the rows whatever that string names. A verifier
-   asked only about corroboration and confidence re-fetches the quotes and never asks whether the
-   claim follows from them.
+   **Brief the verifier on every row the gate's Owner column marks verifier, by number** (today
+   rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
+   verifier asked only about corroboration and confidence re-fetches the quotes and never asks
+   whether the claim follows from them.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
@@ -141,11 +140,10 @@ and grade before synthesis. A slice-root invocation grades only the synthesized 
 dispatched run.
 
 **The synthesis is itself unverified, so it goes to a fresh verifier for hedge survival** before
-it is surfaced. Every `qualifiers:` entry, and every MEDIUM or scope limit, recorded in a
-sub-slice must still be attached wherever the synthesized index uses that claim. The number
-surviving the trip while its qualifier does not is the failure this check exists for, and the
-context that wrote the synthesis is the one least able to see it. A dropped qualifier sends the
-synthesis back for rewriting, not the sub-slice for re-dispatch.
+it is surfaced: every `qualifiers:` entry and scope limit a sub-slice recorded stays attached
+wherever the synthesized index uses that claim. The context that wrote the synthesis is the one
+least able to see a figure that kept its number and lost its qualifier. A dropped qualifier sends
+the synthesis back for rewriting, not the sub-slice for re-dispatch.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 

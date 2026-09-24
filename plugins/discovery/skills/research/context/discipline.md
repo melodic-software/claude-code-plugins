@@ -238,9 +238,9 @@ Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MED
 
 ## Joint-inference check
 
-Every other criterion grades where a claim's sources came from. This one grades whether the claim follows from them. A claim can have a Tier 0/1 primary fetched this turn, two independent corroborators, a confirmed changelog, and quotes that match their sources word for word, and still assert something none of those sources measured.
+Every other criterion grades provenance or process. This one grades whether the claim follows from its sources. A claim can have a Tier 0/1 primary fetched this turn, two independent corroborators, a confirmed changelog, and quotes that match their sources word for word, and still assert something none of those sources measured. Quote fidelity and inference validity are orthogonal: re-fetching the quotes grades the first, and only this check grades the second.
 
-**Scope: every accepted claim, single-source ones included.** One source can miss the population as easily as three can, so the check is not reserved for multi-source claims.
+**Scope: every accepted claim, and every source it cites checked on its own.** One source that measured a different population weakens the claim whether or not the others agree, so the check is not reserved for sources in conflict.
 
 For each accepted claim, name what each cited source actually measures: the variable it manipulated or observed, the population it measured, and the era or question it answered. Then state in one line why the claim follows from those sources **jointly**. Record both in the sidecar header (`measures:` per source, `inference:` and `qualifiers:` per claim, per the artifact-shape file) so the check can be graded off disk.
 
@@ -258,7 +258,6 @@ A claim whose sources measure a different variable, a different population, or a
 
 - **Synthesis tools give wrong versions.** AI-synthesis tools routinely assert wrong version numbers and hallucinate canonical conventions (a config path that "is canonical" but isn't). Always verify version-specific features empirically (`gh api repos/<owner>/<repo>/releases/latest`, an actual import/call test). Never trust secondary sources for version claims. A single direct fetch of the canonical doc falsifies this class.
 - **Agent consensus can be unanimously wrong.** Multiple subagents agreeing is one source, not N, because they share training priors. Verify claims empirically before shipping, especially env-var / tool-behavior claims.
-- **Verbatim quotes do not make a claim follow.** Quote fidelity and inference validity are orthogonal. A run whose every quote re-fetched verbatim still accepted conclusions its sources never measured: a source applied to a question it did not study, a feature's absence used to refute a claim about model behavior, a qualifier dropped between slice and synthesis. Re-fetching the quotes grades the first; the joint-inference check above grades the second.
 - **Two sources can both be wrong.** Two sources parroting the same incorrect information is common. Count INDEPENDENT primary sources, not citation count.
 - **Phases must be sequential.** Phase 2 MUST analyze Phase 1 results before launching. Running all phases in parallel produces redundant queries that miss the gaps Phase 1 would have revealed.
 - **No parallel MCP calls to the same stdio server.** stdio transport serializes. Run queries sequentially within a server; parallelize across different servers/tools.
