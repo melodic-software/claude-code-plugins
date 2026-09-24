@@ -11,6 +11,11 @@
 # Every caller invokes this file in SHELL FORM — the `command` string names this
 # script by path and carries its arguments, with no `args` key. Claude Code
 # routes shell form through Git Bash on Windows, resolved by Claude Code itself.
+# hooks.json prefixes the path with `bash`, which saves the `env` process the
+# `#!/usr/bin/env bash` shebang would spend. That `bash` is looked up by the
+# Git Bash running the command string, on that shell's own PATH, the same
+# lookup the shebang's `env` already does, so it finds Git Bash, not the WSL
+# relay below.
 # It must NOT be registered in exec form: exec form is a bare PATH lookup, and on
 # Windows `"command": "bash"` resolves to the WSL relay `System32\bash.exe`
 # before Git Bash, failing with `execvpe(/bin/bash) failed` (#1006, regressed by
