@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, and the JSON Schemas
-# schema/questions.schema.json and schema/responses.schema.json once they ship.
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, schema.py, and the JSON
+# Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
+# schema/visual.schema.json and schema/ops.schema.json.
 # The browser suites run only where playwright-cli resolves; elsewhere they print a SKIP with
 # the number of checks not run, never a pass.
 set -u
@@ -16,7 +17,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 cd "$here" || exit 1
 files=()
-for f in server.py round.py round.sh watch.sh index.html exporters.py tests/*.js; do
+for f in server.py round.py round.sh watch.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
   [[ -f "$f" ]] && files+=("$f")
 done
 
@@ -26,7 +27,11 @@ for p in "$root"/plugins/*/; do
   p=${p%/}
   names="${names:+$names|}${p##*/}"
 done
-hits=$(grep -nE "(^|[^a-z0-9-])($names):[a-z-]+" "${files[@]}")
+# One exemption: exporters.py's ARBITER_PLAN line writes the Brief contract's arbiter token
+# (the Deferred questions tag in the interview skill's Brief template), which names the resolver
+# of a deferred question, never a visual's producer.
+hits=$(grep -nE "(^|[^a-z0-9-])($names):[a-z-]+" "${files[@]}" |
+  grep -vE '^exporters\.py:[0-9]+:ARBITER_PLAN = "\*\*arbiter: /planning:plan\*\*"$')
 if [[ -z "$hits" ]]; then ok "AC35: no skill token in ${#files[@]} files"; else bad "AC35: skill tokens: $hits"; fi
 
 # AC34: no user name, home path, or port other than the documented default 8766 (or 0).
@@ -97,7 +102,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   script_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
   pw open >/dev/null 2>&1
   pw run-code --filename "$(script_path "$tmp/ui_a.js")" >"$tmp/ui_a.out" 2>&1
-  bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --force >/dev/null
+  bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --affects none --force >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_b.js")" >"$tmp/ui_b.out" 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"

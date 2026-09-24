@@ -24,7 +24,14 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
-EMPTY_RESPONSES = {"seq": 0, "responses": {}, "history": {}, "events": []}
+SCHEMA_VERSION = "1.0"
+EMPTY_RESPONSES = {
+    "schemaVersion": SCHEMA_VERSION,
+    "seq": 0,
+    "responses": {},
+    "history": {},
+    "events": [],
+}
 DECISIONS = {"accept", "alt", "own", "defer", "reopen"}
 REQUESTS = {"ask", "rephrase"}
 FREE = {"note", "wrapup"}  # events not tied to a question
@@ -89,6 +96,71 @@ def content_rev(q, events):
         for e in events
         if e.get("id") == qid and e.get("kind") in DECISIONS | {"undo"}
     )
+
+
+def decision_view(event, prev_text=""):
+    """The responses[id] entry one decision event produces; a reopen without text keeps the note."""
+    kind, text = event["kind"], event.get("text") or ""
+    return {
+        "decision": None if kind == "reopen" else kind,
+        "alt": event.get("alt") if kind == "alt" else None,
+        "text": text if text.strip() or kind != "reopen" else prev_text,
+        "updatedAt": event["at"],
+        "seq": event["seq"],
+    }
+
+
+def rebuild_responses(events):
+    """Derive (responses, history) from the event log alone, replaying it in seq order.
+
+    Mirrors Hub.record and Hub._undo: an undo withdraws its target and restores the decision
+    before it from that event's own text. An event flagged withdrawn with no undo naming it
+    is skipped as a decision.
+    """
+    responses, history = {}, {}
+    undone = {e.get("undoSeq") for e in events if e.get("kind") == "undo"}
+    withdrawn = set()
+    ordered = sorted(events, key=lambda e: e["seq"])
+    for e in ordered:
+        kind, qid = e.get("kind"), e.get("id")
+        if kind == "undo":
+            target = e.get("undoSeq")
+            withdrawn.add(target)
+            live = [
+                x
+                for x in ordered
+                if x["seq"] < e["seq"]
+                and x.get("id") == qid
+                and x.get("kind") in DECISIONS
+                and x["seq"] not in withdrawn
+            ]
+            if live:
+                responses[qid] = decision_view(live[-1])
+            else:
+                responses.pop(qid, None)
+        elif kind in DECISIONS and qid:
+            if e.get("withdrawn") and e["seq"] not in undone:
+                withdrawn.add(e["seq"])
+            else:
+                prev = responses.get(qid, {}).get("text", "")
+                responses[qid] = decision_view(e, prev)
+        if qid:
+            line = {
+                "at": e["at"],
+                "by": "user",
+                "kind": kind,
+                "alt": e.get("alt"),
+                "text": e.get("text") or "",
+                "seq": e["seq"],
+            }
+            if kind == "undo":
+                line["undoSeq"] = e.get("undoSeq")
+            history.setdefault(qid, []).append(line)
+    for lines in history.values():
+        for line in lines:
+            if line["seq"] in withdrawn:
+                line["withdrawn"] = True
+    return responses, history
 
 
 class Conflict(Exception):
@@ -326,6 +398,7 @@ class Hub:
                                 at = now_iso()
                                 for e in fresh:
                                     e["deliveredAt"] = at
+                                r.setdefault("schemaVersion", SCHEMA_VERSION)
                                 save_json(self.responses, r)
                         return r.get("seq", 0), events
                     self.cond.wait(min(left, 1.0))

@@ -9,20 +9,34 @@ python round.py [--dir DATA_DIR] <command> ...
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
   note-reply      reply in the Notes to Claude thread
   record-terminal record an answer the user gave in the terminal
-  status          open and answered counts per group, plus unhandled page events
+  archive         archive off-path questions with a reason (the server derives their state)
+  apply           run a list of ops from one JSON file, as one atomic write
+  status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
   bump            bump the file rev (and one question's rev with --id)
+  validate        check questions.json and responses.json against the shipped schemas
+  export-ledger   write the interview ledger (decision tree and open-question register)
+  export-brief    write the PLAN.md Brief sections
+  export-report   write one self-contained HTML report
+  import-ledger   seed an empty data dir from an existing ledger
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
   stop            stop the data dir's server (only the recorded PID) and clear its session files
 
-reply --rec and revise refuse when the question has a user event newer than --seq (without --seq:
-any unhandled user event on it), unless --force.
+Every write validates questions.json against schema/questions.schema.json and holds the sidecar
+lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
+New questions need a `commits` key (an explicit empty list is allowed; `--commit none` on the
+flags) and at least two alternatives.
+reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a user
+event newer than --seq (without --seq: any unhandled user event on it), unless --force.
 """
 
 import argparse
+import calendar
 import contextlib
 import http.client
 import json
+import math
 import os
+import re
 import secrets
 import shutil
 import signal
@@ -36,13 +50,26 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
-from server import EMPTY_RESPONSES, is_handled, load_json, save_json  # noqa: E402
+import exporters  # noqa: E402
+import schema  # noqa: E402
+from server import (  # noqa: E402
+    EMPTY_RESPONSES,
+    SCHEMA_VERSION,
+    is_handled,
+    load_json,
+    rebuild_responses,
+    save_json,
+)
 
 DECISIONS = ("accept", "alt", "own", "defer")
 SESSION_FILES = (".interview-session.json", ".interview-session.env")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
+REC_BUDGET = 200
+BASIS_SENTENCES = 3
+ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
+SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 
 if os.name == "nt":
     import msvcrt
@@ -68,6 +95,10 @@ def now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def warn(msg):
+    print(f"warning: {msg}", file=sys.stderr)
+
+
 def load(d):
     doc = load_json(
         d / "questions.json", {"meta": {}, "rev": 0, "groups": [], "questions": []}
@@ -84,9 +115,14 @@ def load(d):
 
 
 def save(d, doc, touched=()):
+    """Bump rev, stamp the schema version, validate, then write; a schema failure writes nothing."""
+    doc["schemaVersion"] = SCHEMA_VERSION
     doc["rev"] = doc.get("rev", 0) + 1
     for q in touched:
         q["rev"] = doc["rev"]
+    err = schema.first_error(doc, schema.load("questions"))
+    if err:
+        sys.exit(f"refused: questions.json would not match its schema: {err}")
     save_json(d / "questions.json", doc)
 
 
@@ -98,10 +134,23 @@ def find(doc, qid):
 
 
 def split_alt(s):
+    if isinstance(s, dict):
+        return {"key": str(s.get("key", "")).strip(), "text": str(s.get("text", ""))}
     key, sep, text = s.partition(":")
     if not sep:
         sys.exit(f"--alt needs key:text, got {s!r}")
     return {"key": key.strip(), "text": text.strip()}
+
+
+def parse_affects(v):
+    """None when absent; `none` is an empty list; a list or comma-joined ids otherwise."""
+    if v is None:
+        return None
+    if isinstance(v, list):
+        return [str(x).strip() for x in v if str(x).strip()]
+    if v.strip().lower() == "none":
+        return []
+    return [x.strip() for x in v.split(",") if x.strip()]
 
 
 def mark_handled(doc, seqs):
@@ -140,11 +189,29 @@ def guard_revision(d, doc, qid, seq, force):
         )
 
 
+def require_affects(qid, affects):
+    if affects is None:
+        sys.exit(
+            f"refused: a recommendation change on {qid} needs --affects <id,...>|none (R2)"
+        )
+
+
 def add_question(doc, q):
     """Validate and append one question; returns the questions whose rev must bump. Exits before any write."""
     for req in ("id", "short", "title"):
         if not q.get(req):
             sys.exit(f"missing {req}")
+    if "commits" not in q:
+        sys.exit(
+            f"refused: {q['id']} declares no commits; list what accepting commits the user to, "
+            'or pass an explicit empty list ("commits": [] or --commit none) (R1)'
+        )
+    alts = q.get("alternatives") or []
+    if len(alts) < 2:
+        sys.exit(
+            f"refused: {q['id']} has {len(alts)} alternatives; every question needs at least 2 "
+            "genuine alternatives besides the recommendation (R-I)"
+        )
     if any(x.get("id") == q["id"] for x in doc["questions"]):
         sys.exit(f"duplicate id: {q['id']}")
     known = {x["id"] for x in doc["questions"]}
@@ -180,6 +247,33 @@ def add_question(doc, q):
     return touched
 
 
+def lint_questions(doc, qs):
+    """Warnings, never refusals: R12 length budget and bare ids that name no question here."""
+    ids = {x.get("id") for x in doc["questions"]}
+    for q in qs:
+        rec = q.get("recommendation") or ""
+        m = SENTENCE_BREAK.search(rec)
+        first = m.start() + 1 if m else len(rec)
+        if first > REC_BUDGET:
+            warn(
+                f"{q['id']} recommendation runs {first} characters before its first sentence "
+                f"break (budget {REC_BUDGET}, R12)"
+            )
+        basis = (q.get("basis") or "").strip()
+        n = len([s for s in re.split(r"(?<=[.!?])\s+", basis) if s]) if basis else 0
+        if n > BASIS_SENTENCES:
+            warn(f"{q['id']} basis has {n} sentences (budget {BASIS_SENTENCES}, R12)")
+        for field in ("title", "recommendation", "basis"):
+            seen = set()
+            for tok in ID_TOKEN.findall(q.get(field) or ""):
+                if tok not in ids and tok not in seen:
+                    seen.add(tok)
+                    warn(
+                        f"{q['id']} {field} names {tok}, which is not a question id in this "
+                        "file; spell it out or use the question's id"
+                    )
+
+
 def put_group(doc, g):
     cur = next((x for x in doc["groups"] if x["id"] == g["id"]), None)
     if cur is None:
@@ -194,85 +288,56 @@ def put_group(doc, g):
             sys.exit(f"unknown group in {g['id']} dependsOn: {ref}")
 
 
-def cmd_add(d, a):
-    doc = load(d)
-    q = json.loads(Path(a.file).read_text(encoding="utf-8")) if a.file else {}
-    for field in (
-        "id",
-        "group",
-        "short",
-        "title",
-        "stage",
-        "facts",
-        "recommendation",
-        "basis",
-        "followUpOf",
-        "supersedes",
-        "waitsOn",
-    ):
-        val = getattr(a, field.replace("recommendation", "rec"), None)
-        if val is not None:
-            q[field] = val
-    if a.round is not None:
-        q["round"] = a.round
-    if a.commit:
-        q["commits"] = a.commit
-    if a.alt:
-        q["alternatives"] = [split_alt(s) for s in a.alt]
-    if a.depends:
-        q["dependsOn"] = a.depends
-    if a.waiting:
-        q["waiting"] = True
-    touched = add_question(doc, q)
-    save(d, doc, touched)
-    print(f"added {q['id']} (rev {doc['rev']})")
+# Ops: each takes (d, doc, a), changes doc in memory, and returns (touched questions, message).
+# The CLI commands and `apply` share them; only the caller loads, locks and saves.
 
 
-def cmd_add_round(d, a):
+def op_add(d, doc, a):
+    touched = add_question(doc, a.question)
+    return touched, f"added {a.question['id']}"
+
+
+def op_add_round(d, doc, a):
     """{"groups": [...], "questions": [...], "visuals": [...]}: groups first, then questions in file order."""
-    doc = load(d)
-    spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
-    for g in spec.get("groups", []):
+    for g in a.groups or []:
         if not g.get("id"):
             sys.exit("a group needs an id")
         put_group(doc, g)
     touched = []
-    for q in spec.get("questions", []):
+    for q in a.questions or []:
         if a.round is not None:
             q.setdefault("round", a.round)
         touched += add_question(doc, q)
     ids = {v.get("id") for v in doc["visuals"]}
-    for v in spec.get("visuals", []):
+    for v in a.visuals or []:
         if not v.get("id") or v["id"] in ids:
             sys.exit(f"a visual needs a new id: {v.get('id')}")
         doc["visuals"].append(v)
         ids.add(v["id"])
-    save(d, doc, touched)
-    print(
-        f"added {len(spec.get('questions', []))} questions, {len(spec.get('groups', []))} groups, "
-        f"{len(spec.get('visuals', []))} visuals (rev {doc['rev']})"
+    return touched, (
+        f"added {len(a.questions or [])} questions, {len(a.groups or [])} groups, "
+        f"{len(a.visuals or [])} visuals"
     )
 
 
-def cmd_group(d, a):
-    doc = load(d)
+def op_group(d, doc, a):
     put_group(
         doc,
-        {"id": a.id, "title": a.title, "summary": a.summary, "dependsOn": a.depends},
+        {"id": a.id, "title": a.title, "summary": a.summary, "dependsOn": a.dependsOn},
     )
-    save(d, doc)
-    print(f"group {a.id} saved (rev {doc['rev']})")
+    return [], f"group {a.id} saved"
 
 
-def cmd_reply(d, a):
-    doc = load(d)
+def op_reply(d, doc, a):
     q = find(doc, a.id)
-    line = {"at": now(), "by": "claude", "text": a.text}
+    line = {"at": now(), "by": "claude", "text": a.text or ""}
     if a.kind:
         line["kind"] = a.kind
     if a.seq is not None:
         line["replyTo"] = a.seq
     if a.rec:
+        affects = parse_affects(a.affects)
+        require_affects(a.id, affects)
         guard_revision(d, doc, a.id, a.seq, a.force)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
@@ -281,17 +346,19 @@ def cmd_reply(d, a):
         line["text"] = (
             (a.text + " " if a.text else "") + "Revised recommendation: " + a.rec
         )
+        line["affects"] = affects
     if a.handled:
         doc["handledSeq"] = max(doc.get("handledSeq") or 0, a.handled)
     mark_handled(doc, [a.seq])
     q.setdefault("history", []).append(line)
-    save(d, doc, [q])
-    print(f"replied on {a.id} (rev {doc['rev']})")
+    return [q], f"replied on {a.id}"
 
 
-def cmd_revise(d, a):
-    doc = load(d)
+def op_revise(d, doc, a):
     q = find(doc, a.id)
+    affects = parse_affects(a.affects)
+    if a.rec is not None:
+        require_affects(a.id, affects)
     guard_revision(d, doc, a.id, a.seq, a.force)
     changed = []
     for field, val in (
@@ -322,34 +389,28 @@ def cmd_revise(d, a):
     }
     if a.seq is not None:
         line["replyTo"] = a.seq
+    if affects is not None:
+        line["affects"] = affects
     q.setdefault("history", []).append(line)
     mark_handled(doc, [a.seq])
-    save(d, doc, [q])
-    print(f"revised {a.id}: {', '.join(changed)} (rev {doc['rev']})")
+    return [q], f"revised {a.id}: {', '.join(changed)}"
 
 
-def cmd_handle(d, a):
-    doc = load(d)
+def op_handle(d, doc, a):
     mark_handled(doc, a.seq)
-    save(d, doc)
-    print(
-        f"handled {', '.join(map(str, a.seq))}; handledSeq {doc['handledSeq']} (rev {doc['rev']})"
-    )
+    return [], f"handled {', '.join(map(str, a.seq))}; handledSeq {doc['handledSeq']}"
 
 
-def cmd_note_reply(d, a):
-    doc = load(d)
+def op_note_reply(d, doc, a):
     line = {"at": now(), "by": "claude", "text": a.text}
     if a.seq is not None:
         line["replyTo"] = a.seq
     doc.setdefault("notes", []).append(line)
     mark_handled(doc, [a.seq])
-    save(d, doc)
-    print(f"note reply saved (rev {doc['rev']})")
+    return [], "note reply saved"
 
 
-def cmd_record_terminal(d, a):
-    doc = load(d)
+def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
     if a.decision == "alt" and not a.alt:
         sys.exit("--alt KEY required with --decision alt")
@@ -377,8 +438,198 @@ def cmd_record_terminal(d, a):
             "summary": label,
         }
     )
-    save(d, doc, [q])
-    print(f"recorded terminal answer on {a.id} (rev {doc['rev']})")
+    return [q], f"recorded terminal answer on {a.id}"
+
+
+def op_archive(d, doc, a):
+    """Record why a question left the path; the server derives its archived state."""
+    if not (a.why or "").strip():
+        sys.exit("archive needs --why")
+    qs = [find(doc, qid) for qid in a.ids]
+    at = now()
+    for q in qs:
+        q["archived"] = {"why": a.why, "at": at}
+        q.setdefault("history", []).append(
+            {"at": at, "by": "claude", "kind": "archive", "text": f"Archived: {a.why}"}
+        )
+    return qs, f"archived {', '.join(a.ids)}"
+
+
+def op_bump(d, doc, a):
+    return ([find(doc, a.id)] if a.id else []), "bumped"
+
+
+def write_op(fn):
+    """A CLI command: lock, load, run one op, save once, then report."""
+
+    def cmd(d, a):
+        with sidecar_lock(d):
+            doc = load(d)
+            touched, msg = fn(d, doc, a)
+            save(d, doc, touched)
+        print(f"{msg} (rev {doc['rev']})")
+
+    return cmd
+
+
+def op_add_linted(d, doc, a):
+    result = op_add(d, doc, a)
+    lint_questions(doc, [a.question])
+    return result
+
+
+def op_add_round_linted(d, doc, a):
+    result = op_add_round(d, doc, a)
+    lint_questions(doc, a.questions or [])
+    return result
+
+
+def cmd_add(d, a):
+    q = json.loads(Path(a.file).read_text(encoding="utf-8")) if a.file else {}
+    for field in (
+        "id",
+        "group",
+        "short",
+        "title",
+        "stage",
+        "facts",
+        "recommendation",
+        "basis",
+        "followUpOf",
+        "supersedes",
+        "waitsOn",
+    ):
+        val = getattr(a, field.replace("recommendation", "rec"), None)
+        if val is not None:
+            q[field] = val
+    if a.round is not None:
+        q["round"] = a.round
+    if a.commit:
+        q["commits"] = [] if a.commit == ["none"] else a.commit
+    if a.alt:
+        q["alternatives"] = [split_alt(s) for s in a.alt]
+    if a.depends:
+        q["dependsOn"] = a.depends
+    if a.waiting:
+        q["waiting"] = True
+    a.question = q
+    write_op(op_add_linted)(d, a)
+
+
+def cmd_add_round(d, a):
+    spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    a.groups, a.questions, a.visuals = (
+        spec.get("groups"),
+        spec.get("questions"),
+        spec.get("visuals"),
+    )
+    write_op(op_add_round_linted)(d, a)
+
+
+# Per-op argument defaults for `apply`: the op file's keys map onto the same namespace the CLI builds.
+OP_ARGS = {
+    "reply": (
+        op_reply,
+        {
+            "id": None,
+            "text": "",
+            "seq": None,
+            "kind": None,
+            "rec": None,
+            "why": None,
+            "affects": None,
+            "handled": None,
+            "force": False,
+        },
+    ),
+    "revise": (
+        op_revise,
+        {
+            "id": None,
+            "title": None,
+            "short": None,
+            "facts": None,
+            "basis": None,
+            "rec": None,
+            "why": None,
+            "text": None,
+            "alternatives": None,
+            "seq": None,
+            "affects": None,
+            "force": False,
+        },
+    ),
+    "add": (op_add, {"question": None}),
+    "add-round": (
+        op_add_round,
+        {"round": None, "groups": None, "questions": None, "visuals": None},
+    ),
+    "group": (
+        op_group,
+        {"id": None, "title": None, "summary": None, "dependsOn": None},
+    ),
+    "note-reply": (op_note_reply, {"seq": None, "text": None}),
+    "handle": (op_handle, {"seqs": None}),
+    "archive": (op_archive, {"ids": None, "why": None}),
+    "record-terminal": (
+        op_record_terminal,
+        {"id": None, "decision": None, "alt": None, "text": None},
+    ),
+}
+
+
+def cmd_apply(d, a):
+    """Every op against one loaded document, one validated write; any refusal writes nothing."""
+    try:
+        spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        sys.exit(f"refused: cannot read ops file {a.file}: {e}")
+    ops_schema = schema.load("ops")
+    if (
+        not isinstance(spec, dict)
+        or not isinstance(spec.get("ops"), list)
+        or not spec["ops"]
+    ):
+        sys.exit('refused: an ops file is {"ops": [...]} with at least one op')
+    if set(spec) != {"ops"}:
+        sys.exit(
+            f"refused: unexpected keys in the ops file: {sorted(set(spec) - {'ops'})}"
+        )
+    for i, op in enumerate(spec["ops"]):
+        name = op.get("op") if isinstance(op, dict) else None
+        if name not in OP_ARGS:
+            sys.exit(
+                f"refused: $.ops[{i}]: unknown op {name!r} (known: {', '.join(OP_ARGS)})"
+            )
+        err = schema.first_error(
+            op, ops_schema["$defs"][name], f"$.ops[{i}]", ops_schema
+        )
+        if err:
+            sys.exit(f"refused: {err}")
+    with sidecar_lock(d):
+        doc = load(d)
+        touched, lines, added = [], [], []
+        for op in spec["ops"]:
+            fn, defaults = OP_ARGS[op["op"]]
+            args = argparse.Namespace(
+                **{**defaults, **{k: v for k, v in op.items() if k != "op"}}
+            )
+            if op["op"] == "revise":
+                args.alt = args.alternatives
+            if op["op"] == "handle":
+                args.seq = args.seqs
+            t, msg = fn(d, doc, args)
+            touched += [q for q in t if q not in touched]
+            if op["op"] == "add":
+                added.append(args.question)
+            elif op["op"] == "add-round":
+                added += args.questions or []
+            lines.append(f"{op['op']}: {msg}")
+        lint_questions(doc, added)
+        save(d, doc, touched)
+    for line in lines:
+        print(line)
+    print(f"applied {len(lines)} ops (rev {doc['rev']})")
 
 
 def effective(q, resp):
@@ -389,6 +640,8 @@ def effective(q, resp):
 
 
 def cmd_status(d, a):
+    if a.latency:
+        return print_latency(d)
     doc = load(d)
     r = load_json(d / "responses.json", EMPTY_RESPONSES)
     resp = r.get("responses", {})
@@ -397,12 +650,17 @@ def cmd_status(d, a):
     rows = {}
     for q in doc["questions"]:
         dec = effective(q, resp)
-        state = dec or (
-            "superseded"
-            if q.get("supersededBy")
-            else "waiting"
-            if q.get("waiting")
-            else "open"
+        state = (
+            "archived"
+            if q.get("archived")
+            else dec
+            or (
+                "superseded"
+                if q.get("supersededBy")
+                else "waiting"
+                if q.get("waiting")
+                else "open"
+            )
         )
         rows.setdefault(q.get("group"), []).append((q["id"], q.get("short", ""), state))
     for gid in order:
@@ -410,10 +668,12 @@ def cmd_status(d, a):
             continue
         items = rows[gid]
         opened = [f"{i} {s}" for i, s, st in items if st == "open"]
+        archived = [i for i, _, st in items if st == "archived"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
         print(
             f"{title}: {len(items) - len(opened)} of {len(items)} closed"
             + (f"; open: {', '.join(opened)}" if opened else "")
+            + (f"; archived: {', '.join(archived)}" if archived else "")
         )
     hs, extra = doc.get("handledSeq") or 0, set(doc.get("handled") or [])
     pending = [
@@ -432,16 +692,112 @@ def cmd_status(d, a):
         )
 
 
-def cmd_bump(d, a):
+def seconds(stamp):
+    return calendar.timegm(time.strptime(stamp[:19], "%Y-%m-%dT%H:%M:%S"))
+
+
+def percentile(values, p):
+    """Nearest-rank percentile of a non-empty list."""
+    v = sorted(values)
+    return v[max(0, math.ceil(p / 100 * len(v)) - 1)]
+
+
+def print_latency(d):
+    """p50 and p95 seconds: save to Delivered (deliveredAt - at), save to the first Claude reply."""
     doc = load(d)
-    touched = [find(doc, a.id)] if a.id else []
-    save(d, doc, touched)
-    print(f"rev {doc['rev']}")
+    events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
+    replies = {}
+    lines = [h for q in doc["questions"] for h in q.get("history", [])]
+    for h in lines + list(doc.get("notes") or []):
+        if h.get("by") == "claude" and h.get("replyTo") is not None and h.get("at"):
+            replies.setdefault(h["replyTo"], []).append(seconds(h["at"]))
+    delivered, replied = [], []
+    for e in events:
+        if not e.get("at"):
+            continue
+        if e.get("deliveredAt"):
+            delivered.append(seconds(e["deliveredAt"]) - seconds(e["at"]))
+        if e.get("seq") in replies:
+            replied.append(min(replies[e["seq"]]) - seconds(e["at"]))
+    for name, vals in (("save-to-delivered", delivered), ("save-to-reply", replied)):
+        if vals:
+            print(
+                f"{name} n={len(vals)} p50={percentile(vals, 50):g} p95={percentile(vals, 95):g}"
+            )
+        else:
+            print(f"{name} n=0 p50=- p95=-")
+
+
+def cmd_validate(d, a):
+    """Both files against the shipped schemas, then the event-log rebuild check; exit 1 on the first error."""
+    checks = (
+        ("questions.json", "questions", {"questions": []}),
+        ("responses.json", "responses", EMPTY_RESPONSES),
+    )
+    for name, schema_name, default in checks:
+        doc = load_json(d / name, default)
+        err = schema.first_error(doc, schema.load(schema_name))
+        if err:
+            sys.exit(f"{name}: {err}")
+    r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    responses, history = rebuild_responses(r.get("events", []))
+    for label, derived, stored in (
+        ("responses", responses, r.get("responses", {})),
+        ("history", history, r.get("history", {})),
+    ):
+        if derived != stored:
+            ids = sorted(
+                k for k in set(derived) | set(stored) if derived.get(k) != stored.get(k)
+            )
+            sys.exit(
+                f"responses.json: rebuild mismatch in {label} for {', '.join(ids)}: "
+                "the stored view differs from the one derived from events"
+            )
+    print("valid: questions.json, responses.json; rebuild from events matches")
+
+
+def write_text(path, text):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text(text, encoding="utf-8", newline="\n")
+
+
+def cmd_export(d, a):
+    fn = {
+        "ledger": exporters.export_ledger,
+        "brief": exporters.export_brief,
+        "report": exporters.export_report,
+    }[a.what]
+    write_text(a.out, fn(d))
+    print(f"wrote {a.out}")
+
+
+def cmd_import_ledger(d, a):
+    text = Path(a.ledger).read_text(encoding="utf-8")
+    with sidecar_lock(d):
+        doc = load(d)
+        if doc["questions"]:
+            sys.exit(
+                f"refused: {d / 'questions.json'} already has questions; import seeds a new session"
+            )
+        exporters.import_ledger(doc, text, str(Path(a.ledger).resolve()), now())
+        save(d, doc, doc["questions"])
+    print(
+        f"seeded {len(doc['questions'])} questions from {a.ledger} (rev {doc['rev']})"
+    )
+
+
+def lock_seconds():
+    try:
+        return float(os.environ.get("ROUND_LOCK_TIMEOUT") or LOCK_SECONDS)
+    except ValueError:
+        return LOCK_SECONDS
 
 
 @contextlib.contextmanager
-def sidecar_lock(d, seconds=LOCK_SECONDS):
-    """OS lock on questions.json.lock, a file never replaced, so os.replace on questions.json stays free."""
+def sidecar_lock(d, seconds=None):
+    """OS lock on questions.json.lock, a file never replaced, so os.replace on questions.json stays free.
+    Held once per command: never nest it (a second lock from the same process would wait on itself)."""
+    seconds = lock_seconds() if seconds is None else seconds
     path = d / LOCK_NAME
     with open(path, "a+b") as f:
         deadline = time.monotonic() + seconds
@@ -452,7 +808,7 @@ def sidecar_lock(d, seconds=LOCK_SECONDS):
             except OSError:
                 if time.monotonic() >= deadline:
                     sys.exit(
-                        f"could not lock {path} within {seconds} s: another round.py holds it"
+                        f"could not lock {path} within {seconds:g} s: another round.py holds it"
                     )
                 time.sleep(0.05)
         try:
@@ -626,6 +982,14 @@ def cmd_stop(d, a):
     print(f"stopped {s['pid']}")
 
 
+def add_dir(s):
+    s.add_argument(
+        "--dir",
+        default=argparse.SUPPRESS,
+        help="data dir (same as the top-level --dir)",
+    )
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -654,7 +1018,11 @@ def main(argv=None):
             "--" + f, dest=f.replace("-", "_").replace("waits_on", "waitsOn")
         )
     s.add_argument("--round", type=int)
-    s.add_argument("--commit", action="append", help="repeatable")
+    s.add_argument(
+        "--commit",
+        action="append",
+        help="repeatable; `--commit none` alone: commits nothing",
+    )
     s.add_argument("--alt", action="append", help="key:text, repeatable")
     s.add_argument("--depends", action="append", help="question id, repeatable")
     s.add_argument("--follow-up-of", dest="followUpOf")
@@ -677,9 +1045,12 @@ def main(argv=None):
     s.add_argument("id")
     s.add_argument("--title")
     s.add_argument("--summary")
-    s.add_argument("--depends", action="append", help="group id, repeatable")
-    s.set_defaults(fn=cmd_group)
+    s.add_argument(
+        "--depends", dest="dependsOn", action="append", help="group id, repeatable"
+    )
+    s.set_defaults(fn=write_op(op_group))
 
+    affects_help = "question ids this change affects, comma-separated, or none (required with --rec)"
     s = sub.add_parser(
         "reply", help="append a Claude line; optional revised recommendation"
     )
@@ -687,6 +1058,7 @@ def main(argv=None):
     s.add_argument("--text", default="")
     s.add_argument("--rec", help="revised recommendation")
     s.add_argument("--why", help="one line shown in the Revised banner")
+    s.add_argument("--affects", help=affects_help)
     s.add_argument("--kind", choices=("reply", "rephrase", "note"))
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"
@@ -697,12 +1069,13 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=cmd_reply)
+    s.set_defaults(fn=write_op(op_reply))
 
     s = sub.add_parser("revise", help="change wording, recommendation or alternatives")
     s.add_argument("id")
     for f in ("title", "short", "facts", "basis", "rec", "why", "text"):
         s.add_argument("--" + f)
+    s.add_argument("--affects", help=affects_help)
     s.add_argument(
         "--alt", action="append", help="key:text, repeatable; replaces all alternatives"
     )
@@ -712,43 +1085,65 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=cmd_revise)
+    s.set_defaults(fn=write_op(op_revise))
 
     s = sub.add_parser("handle", help="mark page events handled with no reply")
     s.add_argument("--seq", type=int, nargs="+", required=True)
-    s.set_defaults(fn=cmd_handle)
+    s.set_defaults(fn=write_op(op_handle))
 
     s = sub.add_parser("note-reply", help="reply in the Notes to Claude thread")
     s.add_argument("--text", required=True)
     s.add_argument(
         "--seq", type=int, help="note event seq this answers; marks it handled"
     )
-    s.set_defaults(fn=cmd_note_reply)
+    s.set_defaults(fn=write_op(op_note_reply))
 
     s = sub.add_parser("record-terminal", help="record the user's terminal answer")
     s.add_argument("id")
     s.add_argument("--decision", required=True, choices=DECISIONS)
     s.add_argument("--alt")
     s.add_argument("--text")
-    s.set_defaults(fn=cmd_record_terminal)
+    s.set_defaults(fn=write_op(op_record_terminal))
 
-    sub.add_parser("status", help="open and answered per group").set_defaults(
-        fn=cmd_status
+    s = sub.add_parser("archive", help="archive off-path questions with a reason")
+    s.add_argument("ids", nargs="+", metavar="id")
+    s.add_argument("--why", required=True, help="why the questions left the path")
+    s.set_defaults(fn=write_op(op_archive))
+
+    s = sub.add_parser("apply", help="run a list of ops from one JSON file, one write")
+    s.add_argument("--file", required=True, help='{"ops": [{"op": "reply", ...}, ...]}')
+    s.set_defaults(fn=cmd_apply)
+
+    s = sub.add_parser("status", help="open and answered per group")
+    s.add_argument(
+        "--latency",
+        action="store_true",
+        help="p50/p95 save-to-delivered and save-to-reply",
     )
+    s.set_defaults(fn=cmd_status)
 
     s = sub.add_parser("bump", help="bump rev")
     s.add_argument("--id")
-    s.set_defaults(fn=cmd_bump)
+    s.set_defaults(fn=write_op(op_bump))
+
+    s = sub.add_parser("validate", help="check both files against the shipped schemas")
+    add_dir(s)
+    s.set_defaults(fn=cmd_validate)
+
+    for what in ("ledger", "brief", "report"):
+        s = sub.add_parser(f"export-{what}", help=f"write the {what} export")
+        s.add_argument("--out", required=True, help="output file")
+        s.set_defaults(fn=cmd_export, what=what)
+
+    s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.set_defaults(fn=cmd_import_ledger)
 
     s = sub.add_parser(
         "ensure-running",
         help="start the server for the data dir or reuse it; prints the URL",
     )
-    s.add_argument(
-        "--dir",
-        default=argparse.SUPPRESS,
-        help="data dir (same as the top-level --dir)",
-    )
+    add_dir(s)
     s.add_argument(
         "--port",
         type=int,
@@ -761,11 +1156,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_ensure_running)
 
     s = sub.add_parser("stop", help="stop the data dir's server")
-    s.add_argument(
-        "--dir",
-        default=argparse.SUPPRESS,
-        help="data dir (same as the top-level --dir)",
-    )
+    add_dir(s)
     s.set_defaults(fn=cmd_stop)
 
     a = p.parse_args(argv)

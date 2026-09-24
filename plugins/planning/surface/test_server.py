@@ -260,7 +260,14 @@ class TestApi(ServerCase):
 
     def test_19_revise_refused_when_a_newer_user_event_exists(self):
         rc, out = self.rp(
-            "revise", "Q5", "--rec", "New rec", "--seq", str(self.accept["seq"])
+            "revise",
+            "Q5",
+            "--rec",
+            "New rec",
+            "--affects",
+            "none",
+            "--seq",
+            str(self.accept["seq"]),
         )
         self.assertNotEqual(rc, 0)
         self.assertIn("refused", out)
@@ -271,6 +278,8 @@ class TestApi(ServerCase):
             "Q5",
             "--rec",
             "New rec",
+            "--affects",
+            "none",
             "--seq",
             str(self.accept["seq"]),
             "--force",
@@ -366,6 +375,18 @@ class TestApi(ServerCase):
         rc, out = self.rp("status")
         self.assertEqual(rc, 0, out)
         self.assertIn("unhandled events", out)
+
+    def test_27_ac30_responses_rebuild_from_events_after_the_suite(self):
+        from server import rebuild_responses
+
+        r = self.state()["responses"]
+        responses, history = rebuild_responses(r["events"])
+        self.assertEqual(responses, r["responses"])
+        self.assertEqual(history, r["history"])
+
+    def test_28_ac31_both_files_validate_after_the_suite(self):
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
 
 
 class TestEnsureRunning(ServerCase):
