@@ -11,9 +11,9 @@ All notable changes to the `gaming` plugin are documented here. Format follows
   Steam, the appmanifest's `buildid` and `LastUpdated`. No other launcher's install record carries
   a build field, so those games record nothing.
 - `status` and `remove` recognize a launcher game update (#4445). When the recorded build id
-  differs from the current one and no mod file changed, they print
-  `game updated by Steam (build X -> Y) since the apply` in place of the Verify integrity line,
-  with a token. Exit codes and the kept manifest are unchanged. A manifest from before 0.7.0
+  differs from the current one and no mod file changed or went missing (short of a remove that
+  deleted them all), they print `game updated by Steam (build X -> Y) since the apply` in place of
+  the Verify integrity line, with a token bound to the build ids and each drifted file's hash. Exit codes and the kept manifest are unchanged. A manifest from before 0.7.0
   keeps the old report.
 - `remove -ConfirmRefresh <token>`: on the user's one confirmation, removes the mod, drops the
   manifest, and applies again against a fresh snapshot with the manifest's build, proxy, preset

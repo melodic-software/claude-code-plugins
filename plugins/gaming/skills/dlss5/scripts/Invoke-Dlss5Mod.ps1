@@ -878,15 +878,21 @@ function Show-Stat($s, [switch]$NoManifest) {
 }
 
 # A launcher update since the apply: the manifest's recorded build differs from the launcher's now,
-# and the drift is game files only. A manifest file that is missing does not count against it: a
-# remove that kept the manifest already deleted them. $null for a manifest with no recorded build.
-# The token covers only what a remove leaves unchanged, so status and remove print the same one.
+# and the drift is game files only: no manifest file changed, and none is missing unless all are
+# (a remove that kept the manifest deleted them). $null for a manifest with no recorded build.
+# The token covers the build ids and each drifted file's current hash, which a remove leaves
+# unchanged, so status and remove print the same one and any later change to the drift refuses.
 function Get-GameUpdate($root, $mj, $s) {
     $was = $mj.launcherBuild; $now = Get-LauncherBuild $root
     if (-not $was.buildId -or -not $now.buildId -or $was.buildId -eq $now.buildId) { return }
     $drift = @($s.Modified) + @($s.Removed)
-    if (-not $drift.Count -or $s.ManifestModified.Count) { return }
-    $token = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes((@("$($was.buildId)>$($now.buildId)") + ($drift | Sort-Object)) -join "`n"))).Substring(0, 12).ToLowerInvariant()
+    $miss = $s.ManifestMissing.Count
+    if (-not $drift.Count -or $s.ManifestModified.Count -or ($miss -and $miss -lt @($mj.files).Count)) { return }
+    $seen = @("$($was.buildId)>$($now.buildId)") + @($drift | Sort-Object | ForEach-Object {
+            $f = Join-Path $root $_
+            "$_ $(if (Test-Path -LiteralPath $f) { (Get-FileHash -LiteralPath $f -Algorithm SHA256).Hash } else { 'removed' })"
+        })
+    $token = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($seen -join "`n"))).Substring(0, 12).ToLowerInvariant()
     [pscustomobject]@{
         Token = $token
         Text  = "game updated by $($now.launcher) (build $($was.buildId) -> $($now.buildId)) since the apply: only game files drifted, none of the mod's. The manifest is kept. To remove the mod and apply it again on a fresh snapshot with the same build, proxy and preset, run remove -ConfirmRefresh $token once the user has seen this drift and said yes"
@@ -1855,6 +1861,8 @@ function Do-Selftest {
         $tok = [regex]::Match(($so -join "`n"), 'ConfirmRefresh ([0-9a-f]{12})').Groups[1].Value
         $wm = "$ug\winmm.dll"; $wb = [IO.File]::ReadAllBytes($wm); Put $wm 'tampered'
         Assert 'a changed mod file beside the update keeps the generic drift report' (-not (Get-GameUpdate $ug $um (Get-Stat $ug)))
+        Remove-Item -LiteralPath $wm
+        Assert 'a missing mod file beside the update keeps the generic drift report' (-not (Get-GameUpdate $ug $um (Get-Stat $ug)))
         [IO.File]::WriteAllBytes($wm, $wb)
         $pre = Tree $ug
         $script:ConfirmRefresh = 'stale'
@@ -1868,6 +1876,9 @@ function Do-Selftest {
         $script:Proxy = 'dxgi.dll'; $script:Preset = $null; $script:RestoreComputeSignature = $true
         Ack $ug
         $script:ConfirmRefresh = $tok
+        Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2b'
+        Assert 'refresh refuses when a drifted file changed again since the user saw it' ((Throws { Do-Remove $ug } '*drift changed since the user saw it*') -and (Test-Path -LiteralPath $umf))
+        Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2'
         $rf = @(Do-Remove $ug)
         $script:ConfirmRefresh = $null
         $nm = LoadJson $umf
