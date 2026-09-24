@@ -2,6 +2,9 @@
 
 - Status: accepted
 - Date: 2026-09-19
+- Superseded in part by ADR 0038 (2026-09-24): decision 2 (both OAuth lanes retire) and the
+  consequences and revisit triggers that follow from it. Both lanes are restored and run on every
+  push; the seat layer in the other decisions stands as a second layer.
 - Supersedes, for this repository: the lane wiring, the skip-actor exception, and the once-per-PR
   trigger set recorded in ADR 0002. ADR 0002's posture of advisory before blocking and earned
   promotion still stands and this record applies it.

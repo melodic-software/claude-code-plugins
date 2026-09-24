@@ -498,6 +498,8 @@ jobs:
           builtin-schema: vendor.github-workflows
           files: >-
             .github/workflows/ci.yml
+            .github/workflows/claude-review.yml
+            .github/workflows/claude-security-review.yml
             .github/workflows/dependabot-miro-bundle.yml
             .github/workflows/silent-revert-canary.yml
             .github/workflows/test-windows.yml
@@ -2356,7 +2358,7 @@ jobs:
           # that map cites, the reporter, and the evidence engine. Read from
           # the merge ref, a same-repo pull request could edit its own map and
           # make the validator inert on itself in the same commit the
-          # validator is meant to judge. The retired review lane read its
+          # validator is meant to judge. The security review lane reads its
           # paths file from the base for exactly that reason, and
           # plugins/source-control/reference/config-resolution.md fixes the
           # split: enforcement reads the tracked layer, never a layer the
