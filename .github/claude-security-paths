@@ -1,14 +1,11 @@
 # Repo-owned security-review scope: this repo's security-sensitive surfaces.
-# Two readers, one list:
-# - the ci-workflows claude-security-review reusable workflow, via its
-#   `paths-file` input, reads it from the PR's BASE branch. An absent file
-#   FAILS OPEN (every PR reviewed); a forbidden pattern fails the lane closed.
-# - the LOCAL security review on the operator's session, through the
-#   `security` rule of the `pr_skill_evidence` key in
-#   .claude/source-control.md, which cites it as
-#   `@file:.github/claude-security-paths`.
-# The breadth below is what makes both fire on nearly every non-docs pull
-# request, which is deliberate.
+# Read by the LOCAL security review on the operator's session, through the
+# `security` rule of the `pr_skill_evidence` key in .claude/source-control.md,
+# which cites it as `@file:.github/claude-security-paths`, and by the ci.yml
+# evidence reporter's base checkout that serves that map. The CI security lane
+# does NOT read it: that lane reviews every non-draft pull request (ADR 0038
+# addendum). The breadth below is what makes the seat review fire on nearly
+# every non-docs pull request, which is deliberate.
 # Format: gitignore patterns (one per line), matched via `git check-ignore`
 # from the repo root; `!`, `?`, and `+` are forbidden. `#` comments and blank
 # lines are ignored.

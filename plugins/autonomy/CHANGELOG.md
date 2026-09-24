@@ -3,6 +3,28 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.21] - 2026-09-24
+
+### Added
+
+- The setup skill's guardrail slice gains `context/windows-surfaces.md`, dated records for
+  Windows execution surfaces, each verified 2026-09-23 or 2026-09-24. Native Windows has no
+  Claude Code sandbox, and sandbox settings alone never evidence `L1` there. A bare WSL2
+  distribution is not `L2` or `L3`, its built-in sandbox is `L1`, and its `L2` candidates carry
+  the sandbox runtime's launch limits and an interop launch check a human confirms beside the
+  probe transcript. An `L3` microVM on a Windows host (a marked example) needs a sandbox created
+  and removed per run, a clone or mountless workspace, a pruned egress allowlist, an explicit
+  permission posture, SSH agent forwarding disabled or its signing capability ratified, and static
+  tool-server mode with no host-executing server attached. The fail-closed consequence names the
+  compliant paths.
+
+### Changed
+
+- The isolation ladder states that a protocol-connected tool surface the substrate brokers from
+  the host keeps executing on the host at `L2` and `L3`.
+- The guardrail slice's detect and probe steps and the setup skill's guardrail slice paragraph
+  point to the Windows records.
+
 ## [0.23.20] - 2026-09-23
 
 ### Changed
