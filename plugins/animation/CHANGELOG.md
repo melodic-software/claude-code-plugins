@@ -13,10 +13,13 @@ All notable changes to the `animation` plugin are documented here. Format follow
   override file, a learnings log with a retro step, and the shfred0 regression (239/239).
 - Shared `ink.js` brush engine, `render.html` scene page and `capture.mjs` frame capture.
 - `learn-style` skill: `learn.py` measures a rotoscope work directory into a style pack (palette,
-  tone ramp, seven style knobs, statistic percentiles and bands, a list of checked statistics),
-  keeping hand-written credit, brush defaults and judgment knobs across re-runs; a reference on
-  which statistics separate styles, measured over seven films.
-- Shared `inkstats.py`: style statistics of any film (video, frame folder or rotoscope work dir)
-  and a `--pack` check.
+  tone ramp, seven style knobs, statistic percentiles, bands set by held-out validation over the
+  source's segments, checked statistics), keeping hand-written credit, brush defaults and judgment
+  knobs across re-runs; a reference on which statistics separate styles, measured over eight films.
+- Shared `inkstats.py`: style statistics of any film (video, frame folder or rotoscope work dir),
+  per shot (`--cuts`) or per box (`--region`, `--t`), and a `--pack` check that takes the pack
+  directory, checks each shot's largest dark field, and exits 1 on any failing row.
 - `woodcut-ink` style pack, a study of @shfred0's clip: statistics only, with brush defaults that
-  took a new, untraced 10 s scene to 14/14 on its check.
+  took a new, untraced 10 s scene to 15/15 on its check.
+- `review.py` exits 1 when any drawing is flagged, and stops with a message when no replica is
+  rendered.
