@@ -1,0 +1,77 @@
+{
+  "skill_name": "protect",
+  "evals": [
+    {
+      "id": 1,
+      "name": "refuses-to-ratchet-a-duration",
+      "prompt": "/performance:protect the hook now runs in 180 ms p50 instead of 420 ms. Add a CI check that fails if p50 goes above 200 ms.",
+      "expected_output": "Declines to check in a duration ceiling: a wall-clock number moves with runner load, so the check would fail at random and invite someone to raise it. Asks for, or names, the drift-immune counter behind the win (spawns, queries, allocations) from the verify report and proposes ratcheting that instead. If no counter exists, says the win cannot be protected by a ceiling yet and routes back to measurement rather than inventing one.",
+      "files": [],
+      "expectations": [
+        "Does not propose a ceiling on the 180 ms or 200 ms duration",
+        "States that a duration ceiling fails with runner load rather than with the code",
+        "Proposes ratcheting the counter behind the win, or says a counter must be measured first"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "ceiling-is-the-measured-value",
+      "prompt": "/performance:protect verify reported MET: the guard's spawn count went from 9 to 6, reproduced by an independent verifier. Set the ceiling to 8 so we have some headroom.",
+      "expected_output": "Sets the ceiling to 6, the measured value, not 8. States that headroom above the measured count is room for a regression to land unnoticed, so a ceiling of 8 would let the next change add two spawns back and still pass. Uses ratchet.py add, which measures the counter twice and records the agreed value.",
+      "files": [],
+      "expectations": [
+        "Proposes a ceiling of 6, not 8",
+        "Explains that headroom lets a regression pass the check",
+        "Records the ceiling from a measurement (ratchet.py add measuring twice) rather than a chosen number"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "measures-in-the-cache-state-ci-sees",
+      "prompt": "/performance:protect the commit guard. On my machine its spawn census reads 1 every time, so ratchet it at 1. The guard caches its resolved pattern under CLAUDE_PLUGIN_DATA.",
+      "expected_output": "Flags that 1 is the warm, cached count, while a fresh CI runner starts with no cache and will measure the cold count, so a ceiling of 1 would fail on every CI run. Pins the cache state in the counter's command (for example by unsetting or emptying the cache location) and measures the counter in that state before recording the ceiling.",
+      "files": [],
+      "expectations": [
+        "Identifies 1 as a warm-cache measurement that a fresh CI runner will not reproduce",
+        "Pins the cache state in the counter command before measuring",
+        "Does not record a ceiling of 1 measured warm"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "the-counter-command-fails-with-the-subject",
+      "prompt": "/performance:protect ratchet the spawn census of the hook. The command is `bash spawn-census.sh --shim-dir ~/.cache/shim --label hook -- bash hook.sh`, and the field is spawns.",
+      "expected_output": "Points out that spawn-census.sh exits 0 whatever the subject did and reports the subject's exit in an rc= field, so a hook that breaks and exits early would spend fewer spawns and pass the ratchet. Makes the command fail when the subject fails, for example by appending a filter that requires rc=0, so a crashed subject exits the ratchet with status 2 instead of passing.",
+      "files": [],
+      "expectations": [
+        "States that a failing subject spends fewer spawns and would pass the ceiling",
+        "Changes the command so it exits non-zero when the subject's rc is not 0",
+        "Does not accept the command as given"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "the-scheduled-job-opens-a-draft-pr-and-never-merges",
+      "prompt": "/performance:protect add the nightly tighten job, and have it auto-merge the lower ceiling so nobody has to click anything.",
+      "expected_output": "Declines the auto-merge. The scheduled job runs propose-tighten --write and opens a draft PR; a human reviews and merges it, because this plugin never merges under any autonomy setting. Notes that a workflow's GITHUB_TOKEN can only open the PR when the repository allows GitHub Actions to create pull requests, and that runs on that PR start in an approval-required state. No model runs in the job.",
+      "files": [],
+      "expectations": [
+        "Refuses to have the job merge the PR",
+        "The proposed job opens a draft PR from propose-tighten --write",
+        "Names the repository setting a GITHUB_TOKEN-created pull request depends on"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "not-run-on-an-unmet-result",
+      "prompt": "/performance:protect verify came back NOT MET: target was 3 spawns, we got 5. Lock in the 5 anyway so it doesn't get worse.",
+      "expected_output": "Does not treat the result as a verified win to protect: protect runs after verify reports MET. Says so and routes back to the performance loop (/performance:target or another iteration) for the unmet target. If the user explicitly wants a regression floor at 5 anyway, states that it protects the current state, not the goal, and records the goal line accordingly rather than describing it as the protected win.",
+      "files": [],
+      "expectations": [
+        "Does not present a ceiling of 5 as protecting a met goal",
+        "States that protect runs after verify reports MET",
+        "Routes the unmet target back to the performance loop"
+      ]
+    }
+  ]
+}

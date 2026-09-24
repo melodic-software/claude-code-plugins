@@ -35,8 +35,20 @@ worse than generating none.
 | `/performance:goal` | Human-gated. The metric and the exact command producing it, a **realistic** target and an **ideal** target held separately, and the **floor** computed before any work. |
 | `/performance:snapshot` | Host qualification, baseline and post capture, interleaved and duet A/B, the drift-immune counter, and the unmeasurable-host refusal. |
 | `/performance:verify` | Fresh-context re-derivation that does not inherit the implementer's numbers, plus the report. |
+| `/performance:protect` | Locks in a proven counter win: a checked-in counter ceiling, a CI check that fails when the counter rises, and a scheduled job that opens a lower-ceiling PR when it falls. Never merges. |
 
 Each names its successor. There is no router skill.
+
+## Reference
+
+- [`reference/techniques.md`](reference/techniques.md): the technique catalog, by loop phase. Each
+  skill step points at the section it uses.
+- [`reference/glossary.md`](reference/glossary.md): the terms the skills and the catalog use.
+- [`reference/harness-integrity.md`](reference/harness-integrity.md): the rules a harness must
+  satisfy before any number it produces is reported.
+
+The catalog draws on
+["How we made claude.ai 3x faster in two weeks"](https://claude.dev/blog/how-we-made-claude-ai-faster).
 
 ## What it refuses to do
 
@@ -94,6 +106,8 @@ missing fails worse than the duplication it was avoiding.
 
 ## Baselines
 
-Baselines live in the topic's memory tier (`.work/<topic-slug>/baselines/`), are machine-bound, and
-are **never committed**, matching `/verification:measure`. A committed baseline is a number that
-outlives the conditions that made it true.
+Durations are never committed; a counter ceiling for `/performance:protect` may be. Baselines live
+in the topic's memory tier (`.work/<topic-slug>/baselines/`) and are machine-bound, matching
+`/verification:measure`. A committed duration is a number that outlives the conditions that made it
+true. A ceiling on a deterministic counter does not drift with host load, which is why it is the one
+number that is checked in.

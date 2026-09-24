@@ -75,6 +75,44 @@
         "Distinguishes the ENFORCED arithmetic floor from the unenforced house convention",
         "Does not cite coordinated omission to justify percentiles for a synchronous harness"
       ]
+    },
+    {
+      "id": 7,
+      "name": "correlation-line-is-required-and-unproven-is-legal",
+      "prompt": "/performance:goal the pre-tool hook. Counter is spawns per tool call, metric is the hook's p50. I have never checked whether cutting spawns actually moves the p50, so leave the Correlation line out of the goal.",
+      "expected_output": "Keeps the Correlation line in the goal, because it is required, and records it as `unproven` rather than omitting it or inventing evidence. States that `unproven` is a legal value that travels to the verify report beside the headline counter, and names the two-rig recipe in /performance:snapshot as the way to produce the evidence.",
+      "files": [],
+      "expectations": [
+        "Does not omit the Correlation line from the goal",
+        "Records Correlation as `unproven` rather than fabricating evidence that the counter moves the duration",
+        "States that `unproven` is a legal value and that it is carried to the verify report beside the headline counter",
+        "Points to the two-rig recipe in /performance:snapshot as the way to produce correlation evidence"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "names-the-measurement-boundary",
+      "prompt": "/performance:goal the 'send a message' path. Metric: how long sending takes, p50 and p95. Record the goal.",
+      "expected_output": "Does not record the goal until the measurement boundary is named: the start event, the end event, and which side of the client/server or process split each falls on, plus the start state (cold start, fresh load, or warm path). Proposes ending the measurement where the user can act rather than where loading finishes, and fills a Boundary line in the goal.",
+      "files": [],
+      "expectations": [
+        "Requires a named start event and a named end event before recording the goal",
+        "Requires stating which side of the client/server or process split each event falls on",
+        "Requires naming the start state (cold, fresh, or warm)",
+        "Does not record 'how long sending takes' as the metric without a boundary"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "green-metric-with-a-visible-symptom-is-the-wrong-metric",
+      "prompt": "/performance:goal the page layout. Users send recordings of the page jumping on load, but our layout-shift score is well inside its 'good' threshold. Set the goal on that score.",
+      "expected_output": "Declines to set the goal on the composite score: a metric that stays green while the reported symptom is visible is the wrong metric. Names the underlying signal to measure instead, the raw shift events the score is built from, and treats the recordings as evidence the monitor misses.",
+      "files": [],
+      "expectations": [
+        "Does not accept the green composite score as the goal's metric while the symptom is visible",
+        "States that a metric green while the symptom is visible is the wrong metric",
+        "Names the underlying raw signal (the individual shift events) as the metric to measure"
+      ]
     }
   ]
 }

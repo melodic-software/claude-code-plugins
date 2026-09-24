@@ -1,0 +1,11 @@
+{
+  "counters": [
+    {
+      "name": "guardrails-commit-guard-spawns",
+      "command": "mkdir -p \"$HOME/.cache/performance-ratchet\" && env -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_ROOT=plugins/guardrails bash plugins/performance/scripts/spawn-census.sh --shim-dir \"$HOME/.cache/performance-ratchet/shim\" --label guardrails-commit-guard --no-ledger --tool awk --tool git --tool jq --tool sed --tool grep --tool dirname --stdin '{\"tool_name\":\"Bash\",\"cwd\":\".\",\"tool_input\":{\"command\":\"git commit -m \\\"feat: add x\\\"\"}}' -- bash plugins/guardrails/hooks/run-guards.sh --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh block-hook-bypass.sh flag-commit-pr-skill-bypass.sh block-noncanonical-commit.sh block-convention-violation.sh block-windows-drive-tmp.sh block-exported-msys-pathconv.sh block-root-delete-target.sh | grep -F ' rc=0 '",
+      "field": "spawns",
+      "ceiling": 6,
+      "goal": "The Bash PreToolUse guard row spends at most this many external processes judging a git commit with no convention cache (plugins/guardrails/hooks/hooks.json, block-convention-violation.sh)."
+    }
+  ]
+}
