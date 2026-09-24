@@ -906,9 +906,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function visualBody(v){ // by format, with the v2.1 `kind` as an alias; svg and html only ever render in a sandboxed iframe
     const f = v.format || v.kind || "html";
-    if (v.content == null && v.file && !(f === "image" && v.src)) return {md: '<p class="empty">File <code>' + esc(v.file) + "</code> in the data folder. This version of the page does not serve files; open it from there.</p>"};
+    if (v.content == null && v.file) return {md: '<p class="empty">File <code>' + esc(v.file) + "</code> in the data folder. This version of the page does not serve files; open it from there.</p>"};
     if (f === "markdown") return {md: md(v.content)};
-    if (f === "image") return {html: '<img alt="' + esc(v.title || v.id) + '" src="' + esc(v.src) + '" style="max-width:100%">'};
+    if (f === "image") { // only a data:image/ or http(s) URL renders; anything else shows as text
+      const s = v.content;
+      if (typeof s === "string" && /^(data:image\/|https?:\/\/)/i.test(s)) return {html: '<img alt="' + esc(v.title || v.id) + '" src="' + esc(s) + '" style="max-width:100%">'};
+      return {md: '<div class="md"><pre><code>' + esc(typeof s === "string" ? s : JSON.stringify(s)) + "</code></pre></div>"};
+    }
     if (f === "mermaid") return {md: '<div class="md"><p class="empty">Mermaid rendering is not available in this version. Source:</p><pre><code>' + esc(v.content) + "</code></pre></div>"};
     if (f === "chart") return {md: chartTable(v.content)};
     return {frame: typeof v.content === "string" ? v.content : ""};

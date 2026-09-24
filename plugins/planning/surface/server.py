@@ -223,7 +223,9 @@ class Settings:
 def question_states(doc, r):
     """Per question id: (state, revising). Never written to questions.json.
 
-    Live decision events replay in seq order. A decision on a question that is not stale marks
+    Live decision events replay in seq order, with each question's terminal decision placed by its
+    updatedAt against the events' `at` (before a same-second event, as the page decision wins that
+    tie in round.py's effective()). A decision on a question that is not stale marks
     its direct dependents that hold a live decision stale; a decision on a stale question clears
     it without re-staling its own dependents (that cascade is deferred). A withdrawn event never
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
@@ -246,8 +248,24 @@ def question_states(doc, r):
         ),
         key=lambda e: e.get("seq", 0),
     )
+    terminal = [
+        {"id": q["id"], "kind": t["decision"], "at": t["updatedAt"]}
+        for q in qs
+        if isinstance(t := q.get("terminal"), dict)
+        and t.get("decision")
+        and isinstance(t.get("updatedAt"), str)
+    ]
+
+    def slot(at):  # the first event at or after `at`
+        return next(
+            (i for i, e in enumerate(events) if (e.get("at") or "") >= at),
+            len(events),
+        )
+
+    replay = [(i, 1, "", e) for i, e in enumerate(events)]
+    replay += [(slot(t["at"]), 0, t["at"], t) for t in terminal]
     live, stale = {}, set()
-    for e in events:
+    for *_, e in sorted(replay, key=lambda x: x[:3]):
         qid = e["id"]
         was_stale = qid in stale
         stale.discard(qid)

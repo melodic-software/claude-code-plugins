@@ -584,6 +584,23 @@ class TestApply(DirCase):
             self.assertIn(name, out)
 
 
+class TestRecordTerminal(DirCase):
+    """record-terminal --decision alt takes only a key from the question's alternatives."""
+
+    def test_unknown_alt_key_is_refused(self):
+        out = self.assert_refused(
+            "record-terminal", "Q1", "--decision", "alt", "--alt", "z"
+        )
+        self.assertIn("alternatives", out)
+
+    def test_known_alt_key_is_recorded(self):
+        rc, out, err = self.rp(
+            "record-terminal", "Q1", "--decision", "alt", "--alt", "b"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
+
+
 class TestArchive(DirCase):
     """AC20 server side: archive sets archived {why, at}, never state."""
 

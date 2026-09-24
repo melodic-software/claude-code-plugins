@@ -192,6 +192,10 @@ async page => {
     ok("chart renders a table of series", /Saves/.test(await page.textContent("#fbody table")) && /Tue/.test(await page.textContent("#fbody table")));
     await page.click('[data-vtab="v:vi"]'); await page.waitForTimeout(150);
     ok("image file shows its path", /images\/flow\.png/.test(await page.textContent("#fbody")));
+    await page.click('[data-vtab="v:vp"]'); await page.waitForTimeout(150);
+    const vpSrc = (await state()).questions.questions.find(q => q.id === "Q2").visuals.find(v => v.id === "vp").content;
+    const img = await page.evaluate(() => { const i = document.querySelector("#fbody img"); return i ? i.getAttribute("src") : null; });
+    ok("inline image renders its content as the img src", img === vpSrc, String(img).slice(0, 60));
     await page.click("#flyClose");
 
     // SPEC 4.1: mobile stacks, no horizontal scroll at 800 px

@@ -910,6 +910,29 @@ class TestQuestionState(WaitCase):
         self.assertEqual(self.states()["D"], "archived")
 
 
+class TestTerminalStale(WaitCase):
+    """A terminal decision takes part in the stale replay, placed by its updatedAt."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"), question("B", dependsOn=["A"]))
+
+    def states(self):
+        return {q["id"]: q.get("state") for q in self.state()["questions"]["questions"]}
+
+    def test_terminal_dependent_goes_stale_when_its_prerequisite_changes(self):
+        code, data = self.post({"id": "A", "kind": "accept"})
+        self.assertEqual(code, 200, data)
+        time.sleep(1.1)  # timestamps have one-second resolution
+        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states(), {"A": "open", "B": "open"})
+        time.sleep(1.1)
+        code, data = self.post({"id": "A", "kind": "alt", "alt": "b"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.states(), {"A": "open", "B": "stale"})
+
+
 class TestConfirm(WaitCase):
     """The `confirm` event: ticks one commitment, records no decision, needs handling."""
 

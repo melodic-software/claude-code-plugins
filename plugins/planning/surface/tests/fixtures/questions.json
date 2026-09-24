@@ -220,7 +220,7 @@
         {
           "at": "2026-09-24T01:02:17Z",
           "by": "claude",
-          "text": "Yes, I'm the watcher: a background long-poll that returns the moment you save (29 ms measured) and wakes me. Options, fastest first: (1) this watcher: works today, no flags; (2) Monitor tool: same idea, 30-min cap, re-arm cost; (3) custom channels: research preview, need the dev flag, and an open bug (#44380) means they may not wake an idle session, so not viable yet. So no separate 'Send to Claude' is needed: every save already sends. If you want to draft several and send together, that can be a 'Hold sends' toggle. Your UX catch is real: 'Ask Claude' was only discoverable on hover. Fix: split the action row into two labelled parts, Decide (Accept, alternatives, own, defer) and Talk (Ask Claude, Rephrase), always visible, so a follow-up is never forced into a decision.",
+          "text": "Yes, I'm the watcher: a background long-poll that returns the moment you save (29 ms measured) and wakes me. Options, fastest first: (1) this watcher: works today, no flags; (2) Monitor tool: same idea, 30-min cap, re-arm cost; (3) custom channels: research preview, need the dev flag, and an open bug (#44380) means they may not wake an idle session, so not viable yet. So no separate 'Send to Claude' is needed: every save already sends. If you want to draft several and send together, that can be a 'Hold sends' toggle. Your UX catch is real: 'Ask Claude' was only discoverable on hover. Fix: split the action row into two labeledparts, Decide (Accept, alternatives, own, defer) and Talk (Ask Claude, Rephrase), always visible, so a follow-up is never forced into a decision.",
           "replyTo": 12
         },
         {
@@ -616,7 +616,7 @@
         {
           "at": "2026-09-24T00:56:33Z",
           "by": "claude",
-          "text": "Recorded. Keep it simple: one labelling scheme everywhere, numbers, shown on the radio buttons themselves (1 Accept, 2 first alternative, ...). Clicking a radio and pressing its number do the same thing, so there is nothing to keep consistent between two systems. Not configurable in v1 (the single-key switch already lets you turn number keys off). Nothing retroactive: labels are computed at render time from the choice order, so old questions pick it up automatically. The alternative letters (a, b) stay only as stored ids, never shown.",
+          "text": "Recorded. Keep it simple: one labeling scheme everywhere, numbers, shown on the radio buttons themselves (1 Accept, 2 first alternative, ...). Clicking a radio and pressing its number do the same thing, so there is nothing to keep consistent between two systems. Not configurable in v1 (the single-key switch already lets you turn number keys off). Nothing retroactive: labels are computed at render time from the choice order, so old questions pick it up automatically. The alternative letters (a, b) stay only as stored ids, never shown.",
           "replyTo": 7
         }
       ],
@@ -761,7 +761,7 @@
         {
           "at": "2026-09-24T01:20:12Z",
           "by": "claude",
-          "text": "Got it. Plan: (1) I build what can land now into v2 in place: the finished screen, the labelled Decide/Talk row, dictation-safe keys and an auto-growing text box, one shared flyout (Visuals, Notes, Settings) with full-screen zoomable visuals, the notes drawer, group gating in number order, a basic Tree view, per-answer receipts, conflict protection, Accept All per group, Settings with seeded defaults, and a 5 s undo. (2) You do one final dogfood review on this page (reload when I say). (3) I file the inbox item with everything, including what was deferred (attachments, syntax highlighting, autocomplete, stale cascade, exporters). Then you continue on your other machine.",
+          "text": "Got it. Plan: (1) I build what can land now into v2 in place: the finished screen, the labeledDecide/Talk row, dictation-safe keys and an auto-growing text box, one shared flyout (Visuals, Notes, Settings) with full-screen zoomable visuals, the notes drawer, group gating in number order, a basic Tree view, per-answer receipts, conflict protection, Accept All per group, Settings with seeded defaults, and a 5 s undo. (2) You do one final dogfood review on this page (reload when I say). (3) I file the inbox item with everything, including what was deferred (attachments, syntax highlighting, autocomplete, stale cascade, exporters). Then you continue on your other machine.",
           "replyTo": 23
         },
         {

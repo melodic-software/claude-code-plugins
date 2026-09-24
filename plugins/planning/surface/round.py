@@ -59,6 +59,7 @@ from server import (  # noqa: E402
     EMPTY_RESPONSES,
     SCHEMA_VERSION,
     Settings,
+    check_alt,
     is_handled,
     load_json,
     rebuild_responses,
@@ -451,6 +452,11 @@ def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
     if a.decision == "alt" and not a.alt:
         sys.exit("--alt KEY required with --decision alt")
+    if a.decision == "alt":
+        try:
+            check_alt(q, "alt", a.alt)
+        except ValueError as e:
+            sys.exit(f"refused: {a.id}: {e}")
     at = now()
     q["terminal"] = {
         "decision": a.decision,

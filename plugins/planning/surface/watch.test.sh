@@ -118,10 +118,10 @@ print(d["events"][0]["kind"])
 data_dir=$(printf '%s\n' "$fields" | sed -n 1p)
 next=$(printf '%s\n' "$fields" | sed -n 2p)
 kind=$(printf '%s\n' "$fields" | sed -n 3p)
-nd=$(abs_dir "$d")
+ndir=$(abs_dir "$d")
 nh=$(abs_dir "$here")
-want_next="bash '$nh/round.sh' --dir '$nd' apply --file '$nd/ops.json' && bash '$nh/watch.sh' '$nd'"
-if [[ "$code" == 200 && "$rc" -eq 0 && "$lines" == 1 && "$data_dir" == "$nd" && "$next" == "$want_next" && "$kind" == note ]]; then
+want_next="bash '$nh/round.sh' --dir '$ndir' apply --file '$ndir/ops.json' && bash '$nh/watch.sh' '$ndir'"
+if [[ "$code" == 200 && "$rc" -eq 0 && "$lines" == 1 && "$data_dir" == "$ndir" && "$next" == "$want_next" && "$kind" == note ]]; then
   ok "a delivery prints one JSON line with dataDir and next, exit 0"
 else
   bad "delivery: post=$code rc=$rc lines=$lines fields=[$fields] out=$(cat "$tmp/c.out") err=$(cat "$tmp/c.err")"

@@ -43,7 +43,7 @@ for u in "${USER:-}" "${USERNAME:-}" "$(whoami 2>/dev/null)"; do
   hits="$hits$h"
 done
 if [[ -z "$hits" ]]; then ok "AC34: no user name"; else bad "AC34: user name found: $hits"; fi
-hits=$(grep -nE '/Users/|[Cc]:[\\/]+Users|/home/' "${files[@]}")
+hits=$(grep -nE '/[U]sers/|[Cc]:[\\/]+[U]sers|/[h]ome/' "${files[@]}")
 if [[ -z "$hits" ]]; then ok "AC34: no home path"; else bad "AC34: home path found: $hits"; fi
 hits=$(grep -noE '(127\.0\.0\.1|localhost):[0-9]+|--port[ =][0-9]+|PORT=[0-9]+' "${files[@]}" |
   grep -vE '[:= ]0$')
@@ -143,8 +143,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
 else
-  echo "SKIP: 134 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 134))
+  echo "SKIP: 135 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 135))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"
