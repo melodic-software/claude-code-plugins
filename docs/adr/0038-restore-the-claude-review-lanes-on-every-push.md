@@ -110,8 +110,10 @@ That tightening is advisory today. It lives in this ADR and in the callers, and 
 binding surface: the policy's knobs bind only on the org's security governance surface, the
 settings-as-code home `melodic-software/github-iac`, and the security-binding schema resolves no
 axis from a repo-local surface. The binding cell is
-`verification_blocking.ai-review.C2: advisory`. No security binding exists in github-iac yet, and an absent binding falls back to the
-shipped floors, so the tightening becomes binding only once that document is authored. The
+`verification_blocking.ai-review.C2: advisory`. No security binding exists in github-iac yet. An absent binding is fail-closed, not a
+defaulted policy: it blocks autonomous dispatch, every signal goes to the human gate, and no
+security axis resolves from a documented default. The tightening becomes binding only once that
+document is authored. The
 trigger to author it is running the autonomy plugin's guided setup (`/autonomy:setup`) for the
 org. Trigger frequency and path scope have no dimension in the binding and stay in this ADR and
 the callers.
