@@ -116,9 +116,48 @@ run_sel() {
   RC=$?
 }
 
+# has_line <text> <line>: <line> is one whole line of <text>, matched literally.
 has_line() {
   printf '%s\n' "$1" | grep -qxF "$2"
 }
+
+# contains <text> <needle>: <needle> occurs anywhere in <text>, matched literally.
+contains() { printf '%s' "$1" | grep -qF -- "$2"; }
+
+# --- the match helpers hold on an input far larger than a pipe buffer -------
+# A reader that exits on its first match can leave the writer to die of SIGPIPE,
+# and pipefail then reports that 141 as the match failing: a present needle reads
+# as absent, and a negated assertion passes. The needle sits on line 1 of 1 MB.
+filler=x
+for _ in {1..20}; do filler+=$filler; done
+big=$'NEEDLE-LINE\n'"$filler"
+unset filler
+if has_line "$big" NEEDLE-LINE; then
+  ok "has_line finds line 1 of a 1 MB input"
+else
+  fail "has_line missed line 1 of a 1 MB input"
+fi
+if contains "$big" NEEDLE-LINE; then
+  ok "contains finds a needle on line 1 of a 1 MB input"
+else
+  fail "contains missed a needle on line 1 of a 1 MB input"
+fi
+if ! has_line "$big" NEEDLE-LINE; then
+  fail "! has_line passed for a line that is present in a 1 MB input"
+else
+  ok "! has_line fails for a line that is present in a 1 MB input"
+fi
+if ! contains "$big" NEEDLE-LINE; then
+  fail "! contains passed for a needle that is present in a 1 MB input"
+else
+  ok "! contains fails for a needle that is present in a 1 MB input"
+fi
+if has_line "$big" ABSENT-LINE || contains "$big" ABSENT-NEEDLE; then
+  fail "a needle absent from a 1 MB input was reported present"
+else
+  ok "a needle absent from a 1 MB input is reported absent by both helpers"
+fi
+unset big
 
 # --- co-located mapping ----------------------------------------------------
 mk_repo repo
