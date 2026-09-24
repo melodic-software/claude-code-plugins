@@ -185,9 +185,18 @@ done
 # SessionStart hook runs in the background or does not delay the session.
 SYNC_ONLY_EVENTS=" UserPromptSubmit UserPromptExpansion PreModelSwitch MessageDisplay "
 blocking=()
+unreadable=()
 for hooks_json in plugins/*/hooks/hooks.json; do
   [[ -f "$hooks_json" ]] || continue
   hooks_dir="$(dirname "$hooks_json")"
+  # Captured, not streamed: a jq that stops part-way (a non-object hook entry,
+  # invalid JSON) must fail the gate rather than hand back a truncated row list.
+  if ! rows="$(jq -r '.hooks | to_entries[] | .key as $e | .value[]? | .hooks[]?
+    | select(.command | type == "string")
+    | [$e, (.async == true | tostring), .command] | @tsv' "$hooks_json" 2>/dev/null)"; then
+    unreadable+=("$hooks_json")
+    continue
+  fi
   while IFS=$'\t' read -r event async command; do
     command="${command%$'\r'}"
     [[ -n "$command" ]] || continue
@@ -214,9 +223,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
       blocking+=("$hooks_dir/$base")
     done
     ((saw_guard)) || unscanned+=("$hooks_json")
-  done < <(jq -r '.hooks | to_entries[] | .key as $e | .value[]? | .hooks[]?
-    | select(.command | type == "string")
-    | [$e, (.async == true | tostring), .command] | @tsv' "$hooks_json")
+  done <<<"$rows"
 done
 
 if ((${#guards[@]} == 0 && ${#blocking[@]} == 0)); then
@@ -309,7 +316,10 @@ done
 # ponytail: textual; an `exit 0` inside a function defined above the source
 # counts as early. Upgrade to a real parse if that shape ever ships.
 EARLY_EXIT_RE='(^|[[:space:];&|(])exit 0([[:space:];)]|$)|^[[:space:]]*hook::check_enabled[[:space:]]'
-for script in "${blocking[@]}"; do
+for hooks_json in ${unreadable[@]+"${unreadable[@]}"}; do
+  violation "VIOLATION: $hooks_json — not readable as a hooks config; this gate cannot clear it"
+done
+for script in ${blocking[@]+"${blocking[@]}"}; do
   if [[ ! -f "$script" ]]; then
     violation "VIOLATION: $script — registered as a hook but missing from the tree"
     continue

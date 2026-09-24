@@ -376,6 +376,23 @@ else
   fail "a Notification hook calling hook::check_enabled after its source FAILS (rc=$rc): $out"
 fi
 
+# A hook entry jq cannot index stops jq part-way; the rows after it must not be
+# silently dropped.
+new_fixture f
+guard "$f" demo "alpha.sh" "$HOISTED"
+hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
+guard "$f" broken "stop.sh" "$SOURCE_THEN_EXIT"
+mkdir -p "$f/plugins/broken/hooks"
+printf '%s\n' '{"hooks":{"Stop":[{"hooks":["bogus",{"type":"command","command":"bash stop.sh"}]}]}}' \
+  >"$f/plugins/broken/hooks/hooks.json"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"broken/hooks/hooks.json — not readable"* ]]; then
+  ok "a hooks.json jq cannot fully read fails closed"
+else
+  fail "a hooks.json jq cannot fully read fails closed (rc=$rc): $out"
+fi
+
 # Only a trailing `exit 0`: nothing exits early, so nothing can be hoisted.
 new_fixture f
 stop_hook "$f" Stop "$NO_SWITCH"

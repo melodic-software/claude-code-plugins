@@ -17,8 +17,10 @@
 #     out of a library array (`HOOK_JQ_FIELDS[0]`), which no textual dataflow
 #     rule follows. A read the script bounds some other way (a size check
 #     above it) is excused by `slow-shape-ok: <reason>` on the line or the line
-#     above. A path handed to another process (`--transcript "$T"`) is out of
-#     reach.
+#     above. Out of reach: a path handed to another process (`--transcript
+#     "$T"`), a variable filled by `read` or `printf -v` rather than `name=`,
+#     readers not in the list (`wc`, `tac`), and a read continued onto the next
+#     line with a backslash.
 #
 # (b) ENV SHEBANG. A shell-form hook runs a script as its command word, with no
 #     interpreter in front of it, and that script starts `#!/usr/bin/env`. The
@@ -98,7 +100,9 @@ consider() {
   cmd="${cmd//&&/;}"
   cmd="${cmd//||/;}"
   cmd="${cmd//|/;}"
-  # ponytail: splits on ; & | even inside quotes; no registered command quotes one today.
+  # ponytail: splits on ; && || | even inside quotes, and skips only `exec` and
+  # VAR= as leading words (`env`, `timeout`, `nice` hide the script); no
+  # registered command has either shape today.
   IFS=';' read -r -a segs <<<"$cmd"
   for seg in "${segs[@]}"; do
     read -r -a words <<<"$seg" || true
@@ -116,7 +120,9 @@ consider() {
         shebang=""
         IFS= read -r shebang <"$path" || true
         if [[ "$shebang" == '#!/usr/bin/env'* ]]; then
-          finding "ENV SHEBANG: ${file}:${where}: runs ${word} (${shebang%$'\r'}) with no interpreter prefix; register it as bash ${word}"
+          shebang="${shebang%$'\r'}"
+          read -r _ interp _ <<<"$shebang" || true
+          finding "ENV SHEBANG: ${file}:${where}: runs ${word} (${shebang}) with no interpreter prefix; register it as ${interp:-bash} ${word}"
         fi
       fi
       first=0
@@ -222,12 +228,15 @@ for script in "${!SCRIPTS[@]}"; do
     above="$prev"
     prev="$line"
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
-    [[ "$line" == *'tail -c'* || "$line" == *'head -c'* ]] && continue
     [[ "$line" == *slow-shape-ok:* || "$above" == *slow-shape-ok:* ]] && continue
     for v in "${vars[@]}"; do
       ref="\\\$\\{?${v}([^A-Za-z0-9_]|$)"
       redirect="(^|[^<])<[[:space:]]*\"?${ref}"
+      # The bound counts only when it reads the file itself: `tail -c N ... "$T"`
+      # in the same pipeline stage, not a `| head -c` after a whole-file reader.
+      bounded="(tail|head)[[:space:]]+-c[^|]*${ref}"
       [[ "$line" =~ $ref ]] || continue
+      [[ "$line" =~ $bounded ]] && continue
       if [[ "$line" =~ $READERS_RE || "$line" =~ $redirect ]]; then
         finding "TRANSCRIPT READ: ${script}:${n}: reads \$${v} whole with no tail -c/head -c bound: ${line#"${line%%[![:space:]]*}"}"
         break

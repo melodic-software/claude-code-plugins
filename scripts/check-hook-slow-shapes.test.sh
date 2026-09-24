@@ -142,6 +142,11 @@ hooks_json "$f" demo "bash $ROOTED"
 expect "(a) a tail -c bounded read passes" "$f" 0
 
 new_fixture f
+plugin_file "$f" demo hooks/x.sh "$(transcript_hook 'grep -F x -- "$TRANSCRIPT" | head -c 4096')"
+hooks_json "$f" demo "bash $ROOTED"
+expect "(a) a head -c AFTER a whole-file reader is not a bound and FAILS" "$f" 1 "TRANSCRIPT READ"
+
+new_fixture f
 plugin_file "$f" demo hooks/x.sh "$(transcript_hook '# slow-shape-ok: size-checked above
 mapfile LINES <"$TRANSCRIPT"')"
 hooks_json "$f" demo "bash $ROOTED"
