@@ -224,7 +224,7 @@ rdt_block() {
     ;;
   too-many-abbreviations)
     printf '%s\n' \
-      'BLOCKED: too many abbreviated launcher options to judge every reading of this command.' \
+      'BLOCKED: too many command segments with abbreviated launcher options to judge every reading; spell the options in full.' \
       'Each abbreviated long option (such as flock --wa) is judged both with and without taking the next word, and past the limit a recursive delete behind them cannot be ruled out.' \
       'Fix: spell the launcher options in full (flock --wait 5), or split the command into shorter ones.' >&2
     ;;
@@ -351,7 +351,8 @@ rdt_is_root() {
 # word, wherever it sits, is collected in order. Results, in globals the
 # caller copies at once because a nested parse can re-enter this:
 #   RDT_RU_CMDS   every -c / --command / --session-command operand (su's grammar)
-#   RDT_RU_U      1 when -u / --user was given, which makes it a launcher
+#   RDT_RU_U      1 when -u / --user was given, which makes it a launcher;
+#                 runuser-only (su has no -u)
 #   RDT_RU_ARGV   the non-option words, then everything after the first `--`
 #   RDT_RU_QUOTED the quoting provenance of each RDT_RU_ARGV word, copied from
 #                 HOOK_SEG_WORD_QUOTED at <offset> plus its original position
@@ -363,7 +364,8 @@ rdt_is_root() {
 # words stay right when POSIXLY_CORRECT stops getopt at the first non-option.
 # Ahead of every non-option it is dropped, so it never becomes the command
 # word (`runuser -u root --foo rm -rf /`).
-# su shares this option parser, so its arm reads su's argv here too.
+# su shares this option parser, so its arm reads su's argv here too, to find
+# the words that follow a -s program that is not a shell.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_runuser_argv() {
   local off="$1"
@@ -508,6 +510,7 @@ rdt_su_shell_run() {
 # ADDITION to the plain one that steps over the word alone, and blocks if
 # either does, so resolving a prefix can only add refusals.
 # Each list is the launcher's operand-taking long names, then its flag names.
+# The `ops` lists must stay in sync with each launcher's `optarg` long names.
 # sudo and doas are absent: their abbreviations are a declared gap.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_long_takes_arg() {
@@ -804,7 +807,7 @@ rdt_check_segment() {
         fi
         # An abbreviated long option takes its operand exactly as the full name
         # does. Two readings are judged, and a block from either stands: the
-        # PLAIN one, which steps over the word alone as this walk always has,
+        # PLAIN one, which steps over the word alone,
         # and the RESOLVED one, which takes the operand at every abbreviation.
         # The first abbreviation in a plain walk starts one resolved walk of the
         # whole segment; a resolved walk consumes and never starts another, so

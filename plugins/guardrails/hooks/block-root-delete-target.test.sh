@@ -177,7 +177,7 @@ rdt_cap=""
 for ((rdt_d = 0; rdt_d < 260; rdt_d++)); do rdt_cap+="flock --wa 1 f true; "; done
 guard_invoke --command "${rdt_cap}rm -rf ./build"
 assert_exit "past the abbreviation cap the guard refuses" 2 "$GUARD_RC"
-assert_contains "the refusal names the abbreviation cap" "$GUARD_ERR" "too many abbreviated launcher options"
+assert_contains "the refusal names the abbreviation cap" "$GUARD_ERR" "too many command segments with abbreviated launcher options"
 expect_both 'timeout -- 5 ls / allowed' 0 --command 'timeout -- 5 ls /'
 expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
 expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
@@ -356,7 +356,7 @@ expect_both 'su -s /bin/bash -c ls allowed' 0 --command "su root -s /bin/bash -c
 
 # The launcher family. Each of these moves the command word exactly as `sudo`
 # and `nice` do, so the real command is found behind its options and its own
-# positional argument. The two item examples come first.
+# positional argument.
 expect_both "runuser -c rm -rf / blocks" 2 --command "runuser -c 'rm -rf /'"
 expect_both 'taskset 1 rm -rf / blocks' 2 --command 'taskset 1 rm -rf /'
 # runuser WITHOUT -u is su's grammar: the operand follows -c, a user may sit
@@ -402,7 +402,7 @@ expect_both 'POSIXLY_CORRECT runuser rm --recursive blocks' 2 \
 # A word runuser rejects is never the command word.
 expect_both 'runuser -u root --foo rm blocks' 2 --command 'runuser -u root --foo rm -rf /*'
 expect_both 'runuser -u root -x rm blocks' 2 --command 'runuser -u root -x rm -rf /*'
-expect_both 'runuser -u bob -- flock -- -c blocks' 2 --command "runuser -u bob -- flock -- /tmp/l -c 'rm -rf /*'"
+expect_both 'runuser -u bob -- flock -- /tmp/l -c blocks' 2 --command "runuser -u bob -- flock -- /tmp/l -c 'rm -rf /*'"
 expect_both 'runuser -u bob -- rm -rf / blocks' 2 --command 'runuser -u bob -- rm -rf /'
 expect_both 'runuser -u bob rm -rf / blocks' 2 --command 'runuser -u bob rm -rf /'
 expect_both 'runuser --user bob -- rm -rf / blocks' 2 --command 'runuser --user bob -- rm -rf /'
@@ -474,7 +474,7 @@ expect_both 'numactl --interleave=all rm -rf / blocks' 2 --command 'numactl --in
 expect_both 'numactl --cpunodebind 0 rm -rf / blocks' 2 --command 'numactl --cpunodebind 0 rm -rf /'
 # chroot takes NEWROOT. `chroot /mnt rm -rf /` deletes /mnt on the host rather
 # than the host root, and is refused anyway: a known overblock, kept on the
-# refusal side until someone decides otherwise.
+# refusal side.
 expect_both 'chroot / rm -rf / blocks' 2 --command 'chroot / rm -rf /'
 expect_both 'chroot /mnt rm -rf / blocks (known overblock)' 2 --command 'chroot /mnt rm -rf /'
 expect_both 'chroot --userspec bob:bob /mnt rm -rf / blocks' 2 --command 'chroot --userspec bob:bob /mnt rm -rf /'
