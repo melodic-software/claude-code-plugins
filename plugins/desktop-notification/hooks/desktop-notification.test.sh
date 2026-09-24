@@ -116,9 +116,12 @@ epoch_delta_ms() {
 }
 
 # --- Case 1: master kill switch false → silent exit 0 -----------------------
-OUT="$(cd "$UNRELATED" && build_input permission_prompt |
+# Stdin from a file, not a pipe: the disabled hook exits before it reads, and a
+# writer still feeding a pipe would take EPIPE and fail the pipeline.
+build_input permission_prompt >"$WORK/kill-switch.json"
+OUT="$(cd "$UNRELATED" &&
   env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$FAKE_REPO" \
-    CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false bash "$HOOK" 2>&1)"
+    CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED=false bash "$HOOK" <"$WORK/kill-switch.json" 2>&1)"
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch false → silent exit 0"; else fail "kill switch (rc=$RC out=$OUT)"; fi
 
