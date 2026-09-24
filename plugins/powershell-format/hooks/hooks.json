@@ -7,21 +7,24 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "shell": "bash",
             "if": "Edit(*.ps1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "shell": "bash",
             "if": "Edit(*.psm1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
+            "shell": "bash",
             "if": "Edit(*.psd1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."

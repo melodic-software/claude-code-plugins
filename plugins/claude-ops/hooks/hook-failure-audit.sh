@@ -66,9 +66,15 @@ set -uo pipefail
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
+# Kill switch FIRST, above every source: a disabled hook must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh fails a hook whose first early exit sits
+# below a source.
+[[ "${CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-hook::check_enabled "HOOK_FAILURE_AUDIT"
 
 START=${EPOCHREALTIME:-}
 
@@ -338,6 +344,7 @@ if ((CURSOR == 0)); then
     RECORDS=$(tail -c "$TAIL_BYTES" -- "$TRANSCRIPT" 2>/dev/null | sed '1d' |
       grep -F "$NEEDLE")
   elif ((HAVE_MAPFILE)); then
+    # slow-shape-ok: SIZE <= TAIL_BYTES on this branch, so the whole file is at most the cap
     mapfile LINES <"$TRANSCRIPT" 2>/dev/null
     N=${#LINES[@]}
     scan_lines 0
@@ -345,6 +352,7 @@ if ((CURSOR == 0)); then
     # Group-scoped redirect: `grep … 2>/dev/null` inside the substitution would
     # cost the extra fork the file-argument form just saved (#3779). The group
     # holds one command, so nothing beyond grep's own stderr is silenced.
+    # slow-shape-ok: SIZE <= TAIL_BYTES on this branch, so the whole file is at most the cap
     { RECORDS=$(grep -F "$NEEDLE" -- "$TRANSCRIPT"); } 2>/dev/null
   fi
 fi

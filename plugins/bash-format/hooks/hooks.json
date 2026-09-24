@@ -7,14 +7,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
+            "shell": "bash",
             "if": "Edit(*.sh)",
             "timeout": 15,
             "statusMessage": "Formatting shell script..."
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/bash-format.sh",
+            "shell": "bash",
             "if": "Edit(*.bash)",
             "timeout": 15,
             "statusMessage": "Formatting shell script..."

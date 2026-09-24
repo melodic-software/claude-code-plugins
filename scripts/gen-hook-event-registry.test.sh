@@ -23,9 +23,9 @@ LIB="$REPO/plugins/claude-ops/hooks/session-log-lib.sh"
 f=""
 
 # shellcheck disable=SC2016  # literal hooks.json command text, never expanded here
-PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
+PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
-RETENTION='"${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
+RETENTION='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 
 # new_fixture -> a repo root carrying the real hooks.json with every producer
 # row stripped (so the base is the nine handlers alone) and the lib.

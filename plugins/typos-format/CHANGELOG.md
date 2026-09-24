@@ -3,6 +3,14 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.59] - 2026-09-24
+
+### Changed
+
+- The opt-in hook row runs `exec bash` on `hooks/typos-format.sh` instead of executing the script,
+  so an enabled fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash.
+  Hook behavior is unchanged (#4442).
+
 ## [0.6.58] - 2026-09-23
 
 ### Fixed

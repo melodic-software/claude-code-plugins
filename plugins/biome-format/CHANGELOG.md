@@ -3,6 +3,14 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.52] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/biome-format.sh` through `bash` with `"shell": "bash"`, the #4421
+  shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before
+  bash. Hook behavior is unchanged (#4442).
+
 ## [0.6.51] - 2026-09-23
 
 ### Fixed

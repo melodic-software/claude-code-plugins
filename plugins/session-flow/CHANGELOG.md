@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [0.37.2] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/observer-arm.sh` through `bash` with `"shell": "bash"`, the #4421
+  shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before
+  bash. Hook behavior is unchanged (#4442).
+
 ## [0.37.1] - 2026-09-23
 
 ### Changed

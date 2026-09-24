@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.3] - 2026-09-24
+
+### Changed
+
+- Hook registrations run each `hooks/*.sh` gate (the PR-linkage, PR-ready-evidence and worktree
+  gates) through `bash` with `"shell": "bash"`, the #4421 shape, so each fire no longer execs
+  `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged
+  (#4442).
+
 ## [0.57.2]
 
 ### Fixed
