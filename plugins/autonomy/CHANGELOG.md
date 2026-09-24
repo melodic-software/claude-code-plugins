@@ -3,7 +3,7 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.21] - 2026-09-24
+## [0.23.22] - 2026-09-24
 
 ### Changed
 
@@ -14,6 +14,28 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+
+## [0.23.21] - 2026-09-24
+
+### Added
+
+- The setup skill's guardrail slice gains `context/windows-surfaces.md`, dated records for
+  Windows execution surfaces, each verified 2026-09-23 or 2026-09-24. Native Windows has no
+  Claude Code sandbox, and sandbox settings alone never evidence `L1` there. A bare WSL2
+  distribution is not `L2` or `L3`, its built-in sandbox is `L1`, and its `L2` candidates carry
+  the sandbox runtime's launch limits and an interop launch check a human confirms beside the
+  probe transcript. An `L3` microVM on a Windows host (a marked example) needs a sandbox created
+  and removed per run, a clone or mountless workspace, a pruned egress allowlist, an explicit
+  permission posture, SSH agent forwarding disabled or its signing capability ratified, and static
+  tool-server mode with no host-executing server attached. The fail-closed consequence names the
+  compliant paths.
+
+### Changed
+
+- The isolation ladder states that a protocol-connected tool surface the substrate brokers from
+  the host keeps executing on the host at `L2` and `L3`.
+- The guardrail slice's detect and probe steps and the setup skill's guardrail slice paragraph
+  point to the Windows records.
 
 ## [0.23.20] - 2026-09-23
 

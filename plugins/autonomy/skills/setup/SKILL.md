@@ -236,8 +236,9 @@ policy resolves; this slice is the action that produces the security binding it 
 [`context/guardrail-slice.md`](context/guardrail-slice.md) when `apply` reaches the guardrail
 slice: it owns the per-layer wiring, the isolation-ladder probe (recipe in
 [`templates/isolation-probe.md`](templates/isolation-probe.md)), the security-binding schema and
-its validator, and the paid-SKU opt-in surface. The slice is argument-selected, so a run that does
-not select it never needs the file.
+its validator, and the paid-SKU opt-in surface. It reads
+[`context/windows-surfaces.md`](context/windows-surfaces.md) when a surface's host is Windows. The
+slice is argument-selected, so a run that does not select it never needs the file.
 
 ## Routine slice
 
