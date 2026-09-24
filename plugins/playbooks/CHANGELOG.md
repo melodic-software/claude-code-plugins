@@ -11,7 +11,9 @@ only after that version increases.
 - **`fable-5`**: the orchestration chapter gains "Narrow threads per benchmark or journey", marked
   as inference: one thread per benchmark or journey, scaling a loop horizontally only after it
   works on one thread, merging threads that collide, judgment criteria for closing a thread at
-  diminishing returns, and room for agent-proposed work with no share stated.
+  diminishing returns, room for agent-proposed work with no share stated, one named human owner
+  who steers each thread, a standing brief per thread, a signal the thread can re-run alone, one
+  shared visible place for threads, and a reporting cadence planned ahead of throughput.
 - **`fable-5`**: the execution chapter's feature-flag rule names a kill switch as its rollback
   case and a ramp or staged exposure as the same case at partial scale, each removed as soon as
   it is safe. The rule is not loosened.
