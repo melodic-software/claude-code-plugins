@@ -32,7 +32,7 @@ Verdicts:
 | D10 | `uv` | README.md:35,47; rotoscope SKILL.md:19; learn-style SKILL.md:21 | on PATH; the scripts themselves do not need it | documented |
 | D11 | numpy | imports: `extract.py:26`, `measure.py:32`, `review.py:25`, `inkstats.py:49`, `learn.py:25` | `uv run --with numpy` | documented; **fix needed**: unpinned, and the package list is restated in three docs (V19) |
 | D12 | opencv-python-headless | imports: `extract.py:25`, `measure.py:31`, `review.py:24`, `inkstats.py:48` | `uv run --with opencv-python-headless` | documented; **fix needed**, same as D11 |
-| D13 | Python version | syntax such as dict `|` (`learn.py:133`) | whatever `uv` resolves | **fix needed**: no minimum stated; one `requires-python` line (V19 fix) covers it |
+| D13 | Python version | syntax such as the dict union operator (`learn.py:133`) | whatever `uv` resolves | **fix needed**: no minimum stated; one `requires-python` line (V19 fix) covers it |
 
 ### Serving, ports and render wiring
 
