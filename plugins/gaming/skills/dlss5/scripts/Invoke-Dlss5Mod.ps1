@@ -20,6 +20,7 @@ param(
     [switch]$AllowUnknownRuntime,
     [switch]$Finish,
     [string]$ConfirmReset,
+    [string]$ConfirmRefresh,
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
@@ -285,10 +286,17 @@ function SteamAcf($root) {
     foreach ($acf in Get-ChildItem -LiteralPath $Matches[1] -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue) {
         # Another game's unreadable manifest must not hide this one's.
         $t = try { Get-Content -LiteralPath $acf.FullName -Raw -Encoding utf8 } catch { continue }
-        if ((Acf $t 'installdir') -eq $dir -and (Acf $t 'appid') -match '^\d+$') { return @{ appid = (Acf $t 'appid'); name = (Acf $t 'name') } }
+        # buildid is the installed build; TargetBuildID (a queued update) never matches Acf's leading quote.
+        if ((Acf $t 'installdir') -eq $dir -and (Acf $t 'appid') -match '^\d+$') { return @{ appid = (Acf $t 'appid'); name = (Acf $t 'name'); buildid = (Acf $t 'buildid'); lastUpdated = (Acf $t 'LastUpdated') } }
     }
 }
 function SteamAppId($root) { (SteamAcf $root).appid }
+# The launcher's record of the installed build, or $null. Steam only: no other launcher's install
+# record in reference/launchers.md carries a verified build field.
+function Get-LauncherBuild($root) {
+    $a = SteamAcf $root
+    if ($a.buildid) { [pscustomobject]@{ launcher = 'Steam'; appId = $a.appid; buildId = $a.buildid; lastUpdated = $a.lastUpdated } }
+}
 
 # --- Launcher discovery. Each finder returns Game records and adds what it could not read to
 # $script:Unchecked. Locations: reference/launchers.md.
@@ -686,11 +694,11 @@ function NormVal($v) {
     $v
 }
 
-function Do-Snapshot($root) {
+function Do-Snapshot($root, $lb) {
     $sp = Join-Path (StateDir $root) 'snapshot.json'
     $t = Tree $root
     [pscustomobject]@{
-        gameDir = $root; taken = (Get-Date).ToString('o')
+        gameDir = $root; taken = (Get-Date).ToString('o'); launcherBuild = $lb
         dirs    = @($ModDirs | Where-Object { Test-Path -LiteralPath (Join-Path $root $_) -PathType Container })
         files   =@($t.Keys | Sort-Object | ForEach-Object { [pscustomobject]@{ Path = $_; Length = $t[$_].Length; Sha256 = $t[$_].Sha256 } })
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $sp -Encoding utf8
@@ -764,7 +772,8 @@ function Do-Apply($root) {
     # Always a fresh snapshot: with no manifest the tree is pre-install, and an old snapshot may
     # predate a game update.
     New-Item -ItemType Directory -Force -Path $sd | Out-Null
-    Do-Snapshot $root
+    $lb = Get-LauncherBuild $root
+    Do-Snapshot $root $lb
     $added = @($plan | ForEach-Object { $_.To } | Sort-Object)
     $pp = Join-Path $sd 'pending.json'
     # pending.json names only files whose copy has started, so a hard kill never leaves it naming a
@@ -806,7 +815,7 @@ function Do-Apply($root) {
     $drv = try { (& nvidia-smi --query-gpu=driver_version --format=csv,noheader | Select-Object -First 1).Trim() } catch { 'unknown' }
     [pscustomobject]@{
         gameDir = $root; build = $Build; tag = $tag; buildSha256 = $marker.sha256; proxy = $Proxy; applied = (Get-Date).ToString('o'); driver = $drv
-        launcher = $launch; antiCheat = $acr; acknowledgement = $ack
+        launcher = $launch; launcherBuild = $lb; antiCheat = $acr; acknowledgement = $ack
         restoreComputeSignature = [bool]$RestoreComputeSignature
         iniEdits = @($edits.Values | ForEach-Object { [pscustomobject]@{ section = $_.Section; key = $_.Key; value = $_.Value } })
         preset = $pr
@@ -868,11 +877,44 @@ function Show-Stat($s, [switch]$NoManifest) {
     }
 }
 
+# A launcher update since the apply: the manifest's recorded build differs from the launcher's now,
+# and the drift is game files only. A manifest file that is missing does not count against it: a
+# remove that kept the manifest already deleted them. $null for a manifest with no recorded build.
+# The token covers only what a remove leaves unchanged, so status and remove print the same one.
+function Get-GameUpdate($root, $mj, $s) {
+    $was = $mj.launcherBuild; $now = Get-LauncherBuild $root
+    if (-not $was.buildId -or -not $now.buildId -or $was.buildId -eq $now.buildId) { return }
+    $drift = @($s.Modified) + @($s.Removed)
+    if (-not $drift.Count -or $s.ManifestModified.Count) { return }
+    $token = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes((@("$($was.buildId)>$($now.buildId)") + ($drift | Sort-Object)) -join "`n"))).Substring(0, 12).ToLowerInvariant()
+    [pscustomobject]@{
+        Token = $token
+        Text  = "game updated by $($now.launcher) (build $($was.buildId) -> $($now.buildId)) since the apply: only game files drifted, none of the mod's. The manifest is kept. To remove the mod and apply it again on a fresh snapshot with the same build, proxy and preset, run remove -ConfirmRefresh $token once the user has seen this drift and said yes"
+    }
+}
+# Every refusal of a confirmed refresh, before remove deletes anything. apply's own gates run again
+# after the remove; this repeats the ones that can fail, so a refusal leaves the mod installed.
+function Assert-Refresh($root, $mj, $gu) {
+    if (-not $mj.applied) { throw 'refusing refresh: an interrupted apply left pending.json; run remove without -ConfirmRefresh. Nothing was changed' }
+    if (-not $gu) { throw 'refusing refresh: this is not a launcher game update (a recorded build that changed, with only game files drifted). Run remove, show the user the drift, and use -Finish only on their request. Nothing was changed' }
+    if ($ConfirmRefresh -ne $gu.Token) { throw "refusing refresh: the drift changed since the user saw it (confirmed '$ConfirmRefresh', now '$($gu.Token)'). Rerun status and show the new drift. Nothing was changed" }
+    # Carried from the manifest; never the old acknowledgement, which the command line must supply.
+    $script:Build = $mj.build; $script:Proxy = $mj.proxy; $script:Preset = $mj.preset.key; $script:RestoreComputeSignature = [bool]$mj.restoreComputeSignature
+    if (-not (Test-Path -LiteralPath (Join-Path $script:DataDir "builds\$Build\.provisioned.json"))) { throw "refusing refresh: build $Build is not provisioned (run /gaming:setup apply). Nothing was changed" }
+    $null = Get-Preset $Preset
+    $rt = Test-Runtime $script:RuntimeDll
+    if (-not $rt.Ok) { throw "refusing refresh: runtime DLL refused: $($rt.Reason). Nothing was changed" }
+    $launch = Get-Launcher $root
+    $null = Assert-Acknowledged (Get-AntiCheat $root $launch (SteamAppId $root)) $launch.name
+}
+
 function Do-Remove($root) {
     $sd = StateDir $root
     $mj = Load-Manifest $root
     if (-not $mj) { throw "no manifest for $root, nothing to remove" }
     $s0 = Get-Stat $root
+    $gu = Get-GameUpdate $root $mj $s0
+    if ($ConfirmRefresh) { Assert-Refresh $root $mj $gu }
     $del = @($mj.files | ForEach-Object Path) + @($s0.Added | Where-Object Kind -eq 'byproduct' | ForEach-Object Path)
     foreach ($p in $del) {
         $f = Join-Path $root $p
@@ -883,12 +925,13 @@ function Do-Remove($root) {
     Remove-EmptyModDirs $root (Load-Snapshot $root)
     $s = Get-Stat $root
     Show-Stat $s -NoManifest
-    if (($s.Modified.Count -or $s.Removed.Count) -and -not $Finish) {
-        'Run Steam > Verify integrity of game files, then remove again (or remove -Finish to drop the manifest as is)'
+    if (($s.Modified.Count -or $s.Removed.Count) -and -not $Finish -and -not $ConfirmRefresh) {
+        if ($gu) { $gu.Text } else { 'Run Steam > Verify integrity of game files, then remove again (or remove -Finish to drop the manifest as is)' }
     }
     else {
         'manifest.json', 'pending.json' | ForEach-Object { Remove-Item -LiteralPath (Join-Path $sd $_) -Force -ErrorAction SilentlyContinue }
         'removed: manifest deleted, snapshot kept'
+        if ($ConfirmRefresh) { Do-Apply $root }
     }
 }
 
@@ -1795,6 +1838,52 @@ function Do-Selftest {
         Do-Remove $xg | Out-Null
         Assert 'Xbox remove is byte-exact' (SameTree (Tree $xg) $before)
 
+        # #4445: Steam updates a modded game and replaces its exe; the snapshot is refreshed on one confirmation
+        $acfb = { param($b) (& $acf 555 'Update Game' 'Update Game').TrimEnd('}') + "`t`"buildid`"`t`t`"$b`"`n`t`"TargetBuildID`"`t`t`"999`"`n`t`"LastUpdated`"`t`t`"1790000000`"`n}" }
+        Put "$l2\steamapps\appmanifest_555.acf" (& $acfb '100')
+        $ug = "$l2\steamapps\common\Update Game\Binaries\Win64"; Put "$ug\Ride-Win64-Shipping.exe" 'exe-v1'; Put "$ug\nvngx_dlss.dll" 'dlss'
+        $script:Proxy = 'winmm.dll'; $script:Preset = 'fx'; $script:RestoreComputeSignature = $false
+        Ack $ug
+        Do-Apply $ug | Out-Null
+        $umf = "$(StateDir $ug)\manifest.json"; $um = LoadJson $umf
+        Assert 'apply records the Steam buildid and LastUpdated, not TargetBuildID, in the manifest and the snapshot' ($um.launcherBuild.launcher -eq 'Steam' -and $um.launcherBuild.buildId -eq '100' -and $um.launcherBuild.lastUpdated -eq '1790000000' -and (Load-Snapshot $ug).launcherBuild.buildId -eq '100')
+        Put "$l2\steamapps\appmanifest_555.acf" (& $acfb '200'); Put "$ug\Ride-Win64-Shipping.exe" 'exe-v2'
+        # The real verbs in a child process, for their exit codes; -DataDir keeps it off the user's data.
+        $pw = (Get-Process -Id $PID).Path
+        $so = @(& $pw -NoProfile -NonInteractive -File $PSCommandPath -Verb status $ug -DataDir "$tmp\data"); $sx = $LASTEXITCODE
+        Assert 'status: a Steam update with only game files drifted reads as a game update, and still exits 1' ($sx -eq 1 -and @($so | Where-Object { $_ -like 'game updated by Steam (build 100 -> 200) since the apply: only game files drifted*remove -ConfirmRefresh ????????????*' }).Count -eq 1)
+        $tok = [regex]::Match(($so -join "`n"), 'ConfirmRefresh ([0-9a-f]{12})').Groups[1].Value
+        $wm = "$ug\winmm.dll"; $wb = [IO.File]::ReadAllBytes($wm); Put $wm 'tampered'
+        Assert 'a changed mod file beside the update keeps the generic drift report' (-not (Get-GameUpdate $ug $um (Get-Stat $ug)))
+        [IO.File]::WriteAllBytes($wm, $wb)
+        $pre = Tree $ug
+        $script:ConfirmRefresh = 'stale'
+        Assert 'refresh with a token for other drift refuses before any write' ((Throws { Do-Remove $ug } '*drift changed since the user saw it*') -and (SameTree (Tree $ug) $pre) -and (Test-Path -LiteralPath $umf))
+        $script:ConfirmRefresh = $tok
+        $script:SteamPages['555'] = '<div class="apphub_AppName">Update Game</div><div class="anticheat_section"><div class="anticheat_name">BattlEye</div></div>'
+        Assert 'refresh with the old acknowledgement after the review id changed refuses before any write' ((Throws { Do-Remove $ug } '*changed since the review*BattlEye*') -and (SameTree (Tree $ug) $pre) -and (Test-Path -LiteralPath $umf))
+        $script:SteamPages.Remove('555'); $script:ConfirmRefresh = $null
+        $ro = @(& $pw -NoProfile -NonInteractive -File $PSCommandPath -Verb remove $ug -DataDir "$tmp\data"); $rx = $LASTEXITCODE
+        Assert 'remove: the game update replaces the verify-integrity line with the same token, exits 0, keeps the manifest' ($rx -eq 0 -and @($ro | Where-Object { $_ -like "game updated by Steam (build 100 -> 200) since the apply*-ConfirmRefresh $tok once*" }).Count -eq 1 -and -not @($ro | Where-Object { $_ -like '*Verify integrity*' }).Count -and (Test-Path -LiteralPath $umf) -and -not (Test-Path -LiteralPath $wm))
+        $script:Proxy = 'dxgi.dll'; $script:Preset = $null; $script:RestoreComputeSignature = $true
+        Ack $ug
+        $script:ConfirmRefresh = $tok
+        $rf = @(Do-Remove $ug)
+        $script:ConfirmRefresh = $null
+        $nm = LoadJson $umf
+        Assert 'refresh drops the old manifest and applies again with its build, proxy, preset and switch' (@($rf | Where-Object { $_ -eq 'removed: manifest deleted, snapshot kept' }).Count -eq 1 -and @($rf | Where-Object { $_ -like 'applied selftest*' }).Count -eq 1 -and $nm.build -eq $um.build -and $nm.proxy -eq 'winmm.dll' -and $nm.preset.key -eq 'fx' -and $nm.restoreComputeSignature -eq $false -and (Test-Path -LiteralPath $wm))
+        Assert 'refresh snapshots the updated game, records the new build, and status is clean' ($nm.launcherBuild.buildId -eq '200' -and @((Load-Snapshot $ug).files | Where-Object { $_.Path -eq 'Ride-Win64-Shipping.exe' -and $_.Sha256 -eq (Get-FileHash -LiteralPath "$ug\Ride-Win64-Shipping.exe" -Algorithm SHA256).Hash }).Count -eq 1 -and -not (Get-Stat $ug).Bad)
+        # A manifest from before 0.7.0 records no build: the drift report is unchanged and refresh refuses
+        $nm.PSObject.Properties.Remove('launcherBuild'); $nm | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $umf -Encoding utf8
+        Put "$l2\steamapps\appmanifest_555.acf" (& $acfb '300'); Put "$ug\Ride-Win64-Shipping.exe" 'exe-v3'
+        $script:ConfirmRefresh = 'x'
+        Assert 'an old manifest refuses -ConfirmRefresh before any write' ((Throws { Do-Remove $ug } '*not a launcher game update*') -and (Test-Path -LiteralPath $wm))
+        $script:ConfirmRefresh = $null
+        $oo = @(Do-Remove $ug)
+        Assert 'an old manifest keeps the verify-integrity line and the manifest, with no game-update line' (@($oo | Where-Object { $_ -like 'Run Steam > Verify integrity*' }).Count -eq 1 -and -not @($oo | Where-Object { $_ -like 'game updated*' }).Count -and (Test-Path -LiteralPath $umf))
+        $script:Finish = $true; Do-Remove $ug | Out-Null; $script:Finish = $false
+        $script:Build = 'selftest'; $script:Proxy = 'dxgi.dll'; $script:Preset = $null; $script:RestoreComputeSignature = $true
+
         # A manifest shaped as 0.1 wrote it: no tag, buildSha256, iniEdits or preset
         $lm = "$w\legacy\Win64"; Put "$lm\game.exe" 'exe'; Put "$lm\nvngx_dlss.dll" 'dlss'
         $before = Tree $lm
@@ -1897,7 +1986,7 @@ switch ($Verb) {
     'apply' { Do-Apply (Root $GameDir) }
     'status' {
         $r = Root $GameDir; $s = Get-Stat $r; Show-Stat $s
-        if (($m = Load-Manifest $r).applied) { Get-PinState $m }
+        if (($m = Load-Manifest $r).applied) { Get-PinState $m; (Get-GameUpdate $r $m $s).Text }
         if ($s.Bad) { exit 1 }
     }
     'remove' { Do-Remove (Root $GameDir) }
