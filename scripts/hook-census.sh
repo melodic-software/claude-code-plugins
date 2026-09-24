@@ -54,15 +54,18 @@ usage() {
   exit 2
 }
 
-# first_line <program> <args...>: the program's version line, or "absent".
+# first_line <program> <args...>: the first line the program prints, or the
+# shell's error when it is missing.
 first_line() {
   local out
   out="$("$@" 2>&1)" || :
   printf '%s' "${out%%$'\n'*}"
 }
 if [[ "${1:-}" == --versions ]]; then
+  sh_path="$(readlink -f /bin/sh)"              # portability-ok: strace makes this script Linux-only
+  awk_path="$(readlink -f "$(command -v awk)")" # portability-ok: strace makes this script Linux-only
   echo "hook-census versions: bash=${BASH_VERSION}" \
-    "sh=$(readlink -f /bin/sh)" \
+    "sh=$sh_path" \
     "git=$(first_line git --version)" \
     "jq=$(first_line jq --version)" \
     "strace=$(first_line strace -V)" \
@@ -70,7 +73,7 @@ if [[ "${1:-}" == --versions ]]; then
     "coreutils=$(first_line env --version)" \
     "grep=$(first_line grep --version)" \
     "sed=$(first_line sed --version)" \
-    "awk=$(readlink -f "$(command -v awk)")"
+    "awk=$awk_path"
   exit 0
 fi
 
