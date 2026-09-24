@@ -14,8 +14,9 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   the sandbox runtime's launch limits and an interop launch check a human confirms beside the
   probe transcript. An `L3` microVM on a Windows host (a marked example) needs a sandbox created
   and removed per run, a clone or mountless workspace, a pruned egress allowlist, an explicit
-  permission posture, and static tool-server mode with no host-executing server attached. The
-  fail-closed consequence names the compliant paths.
+  permission posture, SSH agent forwarding disabled or its signing capability ratified, and static
+  tool-server mode with no host-executing server attached. The fail-closed consequence names the
+  compliant paths.
 
 ### Changed
 

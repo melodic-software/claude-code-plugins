@@ -161,6 +161,16 @@ read-time fetch of those pages that no longer matches this record.
 (Authentication, Default startup command), read as markdown. *Verified:* 2026-09-23. *Recheck
 trigger:* a read-time fetch of those pages that no longer matches this record.
 
+*Claim:* SSH agent forwarding is on by default. The private keys stay on the host, but any process
+inside the sandbox can ask the forwarded agent to authenticate or sign, so a run can push or sign
+with the host's identity. The credential probe sees no key file and cannot detect this. A microVM
+binds only with forwarding disabled for the run, shown by an in-VM check that no agent answers
+(recorded beside the probe transcript), or with the signing capability listed in the prepared
+change for the human to ratify. *Basis:* Docker's
+[Isolation layers](https://docs.docker.com/ai/sandboxes/security/isolation/#credential-isolation)
+page (Credential isolation), read as markdown. *Verified:* 2026-09-24. *Recheck trigger:* a
+read-time fetch of that section that no longer matches this record.
+
 The remaining allowlist is shown in the prepared change for the human. It is not
 `component_reachable_hosts`: that field lists destinations the probe must show denied, and the
 security binding has no field for a base allowlist.
@@ -188,5 +198,5 @@ A native Windows surface with no validated `L2` or `L3` binding blocks autonomou
 6, and no setting lifts it. Setup names the compliant paths: a WSL2 distribution under the sandbox
 runtime or a default-deny container, passing the probe and the interop launch check; or an `L3` VM
 or microVM on the host, created fresh and removed per run, passing the probe in clone mode or with
-no workspace mount, with no host-executing tool server attached. Otherwise the surface stays
-human-gated.
+no workspace mount, with no host-executing tool server attached and SSH agent forwarding disabled
+or its signing capability ratified. Otherwise the surface stays human-gated.
