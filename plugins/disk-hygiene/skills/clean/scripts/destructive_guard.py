@@ -49,6 +49,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
@@ -293,6 +294,227 @@ def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
 
 
+_KNOWN_MARKETPLACES_FILENAME = "known_marketplaces.json"
+_MANIFEST_DIRNAME = ".claude-plugin"
+_DIRECTORY_SOURCE = "directory"
+_PLUGIN_NAME_SHAPE = re.compile(r"[A-Za-z0-9._-]+")
+# FOLDERID_Profile, the account's profile folder (KNOWNFOLDERID reference).
+_FOLDERID_PROFILE = "5E6C858F-0E22-4760-9AFE-EA3317B67173"
+
+
+def _account_home() -> Path:
+    """The account's home directory from the OS account record.
+
+    POSIX reads the password database for the effective uid; Windows asks the
+    shell for the Profile known folder of the process token. Neither consults
+    ``HOME``, ``USERPROFILE``, or any other environment value.
+    """
+    if os.name != "nt":
+        import pwd
+
+        return Path(pwd.getpwuid(os.geteuid()).pw_dir)
+    import ctypes
+    import uuid
+
+    guid = (ctypes.c_ubyte * 16).from_buffer_copy(uuid.UUID(_FOLDERID_PROFILE).bytes_le)
+    shell32 = ctypes.WinDLL("shell32")
+    ole32 = ctypes.WinDLL("ole32")
+    known_folder_path = shell32.SHGetKnownFolderPath
+    known_folder_path.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    known_folder_path.restype = ctypes.c_long
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    ole32.CoTaskMemFree.restype = None
+    buffer = ctypes.c_void_p()
+    try:
+        if known_folder_path(ctypes.byref(guid), 0, None, ctypes.byref(buffer)) != 0:
+            raise OSError("SHGetKnownFolderPath(FOLDERID_Profile) failed")
+        return Path(ctypes.wstring_at(buffer.value))
+    finally:
+        ole32.CoTaskMemFree(buffer)
+
+
+def _trusted_config_dir() -> Path | None:
+    """``<account home>/.claude``, anchored on the OS account record, or None.
+
+    Never ``Path.home()``, ``expanduser``, ``HOME``, ``USERPROFILE``, or
+    ``CLAUDE_CONFIG_DIR``: a repo ``settings.json`` ``env`` block reaches hook
+    subprocesses, so any environment value could point this anchor at a forged
+    ``known_marketplaces.json``. There is deliberately no argv or env override.
+    A config relocated with ``CLAUDE_CONFIG_DIR`` therefore resolves nothing
+    here and fails closed. Any failure to read the record yields None.
+    """
+    try:
+        home = _account_home()
+    except Exception:  # noqa: BLE001 - any failure means no trusted anchor
+        return None
+    if not home.is_absolute():
+        return None
+    return home / ".claude"
+
+
+class _DirectoryInstall(NamedTuple):
+    """What the directory-marketplace channel proves about this install."""
+
+    config_dir: Path
+    plugin_id: str
+    data_root: str
+
+
+def _read_json_object(path: Path) -> dict | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _strict_resolve(path: Path) -> Path | None:
+    try:
+        return path.resolve(strict=True)
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+
+def _same_or_within(path: Path, directory: Path) -> bool:
+    child = os.path.normcase(os.fspath(path))
+    parent = os.path.normcase(os.fspath(directory))
+    try:
+        return os.path.commonpath([child, parent]) == parent
+    except ValueError:
+        return False
+
+
+def _marketplace_entry_root(
+    source: object, location: Path, plugin_base: object
+) -> Path | None:
+    """Strict-resolve one marketplace entry's relative string ``source``.
+
+    ``./x`` resolves against the marketplace root; a bare name resolves against
+    ``metadata.pluginRoot`` when that is a relative string. Absolute sources,
+    object sources, and anything resolving outside the marketplace yield None.
+    """
+    if not isinstance(source, str) or not source or Path(source).anchor:
+        return None
+    if source.startswith("./"):
+        candidate = location / source
+    elif isinstance(plugin_base, str) and not Path(plugin_base).anchor:
+        candidate = location / plugin_base / source
+    else:
+        return None
+    resolved = _strict_resolve(candidate)
+    if resolved is None or not _same_or_within(resolved, location):
+        return None
+    return resolved
+
+
+@functools.lru_cache(maxsize=8)
+def _directory_marketplace_install(plugin_root: str) -> _DirectoryInstall | None:
+    """Prove this plugin is loaded in place from a local-directory marketplace.
+
+    Claude Code loads a relative-path plugin from a marketplace added from a
+    local directory in place, so its ``${CLAUDE_PLUGIN_ROOT}`` is the source
+    checkout and carries no ``plugins/cache`` marker, while
+    ``${CLAUDE_PLUGIN_DATA}`` is still ``<config>/plugins/data/<id>`` (plugins
+    reference, "Persistent data directory"). This recovers ``<id>`` from the
+    trusted config dir's ``plugins/known_marketplaces.json`` (an undocumented
+    file) and the marketplace's own manifest, and every unproven step fails
+    closed to None:
+
+    - exactly one ``directory``-source entry whose ``installLocation``
+      strict-resolves to a directory containing the plugin root;
+    - that marketplace's ``.claude-plugin/marketplace.json`` is named for the
+      same key;
+    - exactly one plugin entry whose relative string ``source`` strict-resolves
+      to the plugin root, named a sane plugin name that matches the root's own
+      ``.claude-plugin/plugin.json``.
+
+    The data root is built ONLY from the trusted config dir and the sanitized
+    ``<name>@<marketplace>`` id, never from a path read out of either file.
+    Memoized per process: the guard runs once per tool call.
+    """
+    config_dir = _trusted_config_dir()
+    root = _strict_resolve(Path(plugin_root))
+    if config_dir is None or root is None:
+        return None
+    known = _read_json_object(
+        config_dir / _PLUGINS_DIRNAME / _KNOWN_MARKETPLACES_FILENAME
+    )
+    if known is None:
+        return None
+    candidates: list[tuple[str, Path]] = []
+    for key, entry in known.items():
+        if not isinstance(entry, dict):
+            continue
+        source = entry.get("source")
+        location = entry.get("installLocation")
+        if not (
+            isinstance(source, dict)
+            and source.get("source") == _DIRECTORY_SOURCE
+            and isinstance(location, str)
+            and location
+        ):
+            continue
+        resolved = _strict_resolve(Path(location))
+        if resolved is not None and _same_or_within(root, resolved):
+            candidates.append((key, resolved))
+    if len(candidates) != 1:
+        return None
+    marketplace, location = candidates[0]
+    manifest = _read_json_object(location / _MANIFEST_DIRNAME / "marketplace.json")
+    if manifest is None or manifest.get("name") != marketplace:
+        return None
+    plugins = manifest.get("plugins")
+    if not isinstance(plugins, list):
+        return None
+    metadata = manifest.get("metadata")
+    plugin_base = metadata.get("pluginRoot") if isinstance(metadata, dict) else None
+    root_key = os.path.normcase(os.fspath(root))
+    names = []
+    for entry in plugins:
+        if not isinstance(entry, dict):
+            continue
+        entry_root = _marketplace_entry_root(entry.get("source"), location, plugin_base)
+        if entry_root and os.path.normcase(os.fspath(entry_root)) == root_key:
+            names.append(entry.get("name"))
+    if len(names) != 1:
+        return None
+    name = names[0]
+    if not (
+        isinstance(name, str)
+        and _PLUGIN_NAME_SHAPE.fullmatch(name)
+        and _PLUGIN_ID_DISALLOWED.sub("-", name).strip("-")
+    ):
+        return None
+    own = _read_json_object(root / _MANIFEST_DIRNAME / "plugin.json")
+    if own is None or own.get("name") != name:
+        return None
+    plugin_id = f"{name}@{marketplace}"
+    data_root = (
+        config_dir
+        / _PLUGINS_DIRNAME
+        / _PLUGIN_DATA_DIRNAME
+        / _PLUGIN_ID_DISALLOWED.sub("-", plugin_id)
+    )
+    return _DirectoryInstall(config_dir, plugin_id, os.fspath(data_root))
+
+
+def _directory_install_for(plugin_root: str) -> _DirectoryInstall | None:
+    """The directory-marketplace channel, consulted only off the cache layout.
+
+    One condition gates it for the data root, the user settings path, and the
+    plugin id alike, so a root can never pair a cache-derived value with a
+    directory-derived one.
+    """
+    if _plugins_cache_index(Path(plugin_root).parts) is not None:
+        return None
+    return _directory_marketplace_install(plugin_root)
+
+
 _MODE_FLAG = "--mode"
 _MODE_BELT = "belt"
 _MODE_ENGINE_GATE = "engine-gate"
@@ -320,10 +542,11 @@ def _plugin_cache_family_root() -> str | None:
     The prefix is derived from this module's OWN path rather than from
     ``--plugin-root``: ``__file__`` is the file actually executing, so it needs
     no argv channel and nothing outside the process can redirect it. A root
-    without the ``plugins/cache`` marker — a ``--plugin-dir`` checkout install,
-    or a working tree — yields None and no narrowing applies, which is correct:
-    such an install has no cached siblings to protect against, and narrowing
-    there would gate a contributor's work on their own checkout.
+    without the ``plugins/cache`` marker (a ``--plugin-dir`` checkout install,
+    a plugin loaded in place from a local-directory marketplace, or a working
+    tree) yields None and no narrowing applies, which is correct: such an
+    install has no cached siblings to protect against, and narrowing there
+    would gate a contributor's work on their own checkout.
     """
     parts = Path(__file__).resolve().parts
     index = _plugins_cache_index(parts)
@@ -746,9 +969,13 @@ def resolve_authorized_data_root() -> str | None:
        ``${CLAUDE_PLUGIN_DATA}`` itself (a plugin ``hooks.json`` hook can; a skill
        hook cannot).
     2. ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — the only substitution a skill hook
-       receives; the data root is derived from it. This is the channel the bundled
-       ``clean`` skill uses.
-    3. The ``CLAUDE_PLUGIN_DATA`` environment variable, if present.
+       receives; the data root is derived from its ``plugins/cache`` layout. This
+       is the channel the bundled ``clean`` skill uses.
+    3. The same ``--plugin-root`` when it has no cache layout: a plugin loaded in
+       place from a local-directory marketplace, proven against the trusted
+       config dir's ``known_marketplaces.json`` (``_directory_marketplace_install``).
+    4. The ``CLAUDE_PLUGIN_DATA`` environment variable, if present. A repo
+       ``settings.json`` ``env`` block can set it, so it ranks last.
 
     A literal, unsubstituted placeholder is treated as absent at each step. Absent
     every channel the guard has no authority and every ``--data-root`` engine call
@@ -762,6 +989,9 @@ def resolve_authorized_data_root() -> str | None:
         derived = _plugin_data_root_from_root(plugin_root)
         if derived:
             return derived
+        install = _directory_install_for(plugin_root)
+        if install:
+            return install.data_root
     return os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
 
 
@@ -816,16 +1046,22 @@ def _resolve_user_settings_path() -> Path | None:
     those are environment values, and a repo ``.claude/settings.json`` ``env`` block
     reaches hook subprocesses, so trusting them would let a repo point the read at a
     forged settings file and flip the switch (the exact provenance hole this design
-    closes). When the plugin root carries no marker — e.g. a ``--plugin-dir``
-    checkout install — no trusted user-settings location exists and this returns
-    ``None``; the caller then relies on managed settings (fixed system paths) and
-    otherwise fails closed to enabled.
+    closes). A root without the marker that is loaded in place from a
+    local-directory marketplace resolves ``<config>/settings.json`` from the
+    account-record config dir instead (``_directory_marketplace_install``).
+    Otherwise, e.g. a ``--plugin-dir`` checkout install or a config relocated
+    with ``CLAUDE_CONFIG_DIR``, no trusted user-settings location exists and
+    this returns ``None``; the caller then relies on managed settings (fixed
+    system paths) and otherwise fails closed to enabled.
     """
     plugin_root = _plugin_root_argument()
     if plugin_root:
         derived = _user_settings_path_from_root(plugin_root)
         if derived:
             return Path(derived)
+        install = _directory_install_for(plugin_root)
+        if install:
+            return install.config_dir / "settings.json"
     return None
 
 
@@ -859,7 +1095,12 @@ def resolve_disk_hygiene_enabled() -> bool:
     so the belt needs no environment channel it does not have.
     """
     plugin_root = _plugin_root_argument()
-    plugin_id = _plugin_id_from_root(plugin_root) if plugin_root else None
+    plugin_id = None
+    if plugin_root:
+        install = _directory_install_for(plugin_root)
+        plugin_id = (
+            install.plugin_id if install else _plugin_id_from_root(plugin_root)
+        )
     return killswitch_config.resolve_effective(
         _resolve_user_settings_path(),
         killswitch_config.managed_settings_path(),
@@ -1508,9 +1749,13 @@ def _bash_allowlist_disclosure(authority: str | None) -> str:
         if data_root
         else (
             " The guard did not receive an authorized data root (none of the"
-            f" {_PLUGIN_ROOT_FLAG} or {_AUTHORIZED_DATA_ROOT_FLAG} hook arguments"
-            " nor CLAUDE_PLUGIN_DATA resolved one), so --data-root cannot be"
-            " validated and engine calls fail closed."
+            f" {_PLUGIN_ROOT_FLAG} or {_AUTHORIZED_DATA_ROOT_FLAG} hook arguments,"
+            " a local-directory marketplace install resolved from"
+            f" {_KNOWN_MARKETPLACES_FILENAME}, nor {_CLAUDE_PLUGIN_DATA_ENV}"
+            " resolved one), so --data-root cannot be validated and engine calls"
+            " fail closed. To supply one, start Claude Code from a shell with"
+            f" {_CLAUDE_PLUGIN_DATA_ENV} set to this plugin's data directory"
+            " (<config>/plugins/data/<name>-<marketplace>)."
         )
     )
     subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])

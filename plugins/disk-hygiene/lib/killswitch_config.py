@@ -301,8 +301,8 @@ def resolve_effective(
 
     ``settings_path`` is ``None`` when the caller has no *trusted* user-settings
     location (e.g. a ``--plugin-dir`` install whose root carries no ``plugins/cache``
-    marker, where the only remaining locator would be a repo-tamperable environment
-    variable). In that case the user scope contributes no verdict and, absent a
+    marker and sits in no local-directory marketplace, where the only remaining
+    locator would be a repo-tamperable environment variable). In that case the user scope contributes no verdict and, absent a
     managed one, the switch fails **closed to enabled**. Every file read is
     ``probe()``'s effective value, itself closed to enabled.
     """
