@@ -3,7 +3,7 @@ description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-
 argument-hint: "[audit|fix] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -64,13 +64,19 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    tracked markdown minus config `excluded_paths`. Order repo-wide work by impact class first
    (instruction surfaces: `CLAUDE.md`, `AGENTS.md`, `.claude/rules/**`, `**/SKILL.md`,
    `README.md`), then by change frequency (`git log --since=90.days --name-only` counts over
-   tracked `.md`); ordering affects report and chunk order only, never inclusion. Inside a
+   tracked `.md`). `rubric-fanout.sh plan` applies this order to the rubric batches; the
+   detector keeps its own path order, and ordering never changes inclusion. Inside a
    repository, a directory target expands to its tracked markdown only, so pass untracked
    in-repo files as file paths. Check the target first: a target outside any repository
    follows [Non-repository targets](#non-repository-targets).
-2. **Run the detector.** Chunk large corpora: write the ordered list to a temp file and invoke
-   `detect.sh --paths-file <list> --offset N --limit M` per chunk (one process per chunk, no
-   per-file shell loop; roughly 200 files per chunk keeps each call under a minute).
+2. **Run the detector.** Build the target list once: `detect.sh --list-targets <targets>`,
+   with its stdout redirected to a list file in the session scratchpad (with no targets, it
+   lists the repository's tracked markdown). Each line is `<key><TAB><path>`, the key spelled as the
+   detector's `file=` field, after directory expansion and `excluded_paths`. That file feeds
+   the chunked runs, `detect.sh --paths-file <list> --offset N --limit M` per chunk (one
+   process per chunk, no per-file shell loop; roughly 200 files per chunk keeps each call under
+   a minute), and `rubric-fanout.sh plan` in step 3. A `--paths-file` with no paths scans
+   nothing.
 3. **Apply the rubric** to every file in scope, in the same priority order. The rubric pass is
    independent of the detector: a file with zero script findings still gets its rubric read,
    and a fix pass that only revisits detector hits has not covered the rubric. The rubric tells
@@ -78,13 +84,14 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    reporting. Counter-signs (the catalog's "Signs of human writing") temper a verdict, never
    generate findings. Coverage is uniform: never trade the rubric away for budget on a
    repo-wide run. Make it affordable by fanning out instead, per
-   [`context/rubric-fanout.md`](context/rubric-fanout.md): pack the ordered list into batches of
-   roughly 50,000 words, dispatch one fresh-context subagent per batch with the rubric text and
-   the batch list, and have each subagent write its result file into the findings home (the
-   scratchpad for a non-repository target) before it reports. A batch whose result file is
-   bound to the current batch list (its digest and file count match) is skipped on a re-run,
-   so a rate limit or a crash costs one batch, not the pass, and a leftover result from an
-   earlier scope is never accepted.
+   [`context/rubric-fanout.md`](context/rubric-fanout.md), with `rubric-fanout.sh`: `plan`
+   orders the step 2 list and packs it into batches of about 50,000 words, `extract` writes
+   the rubric text to one file, one fresh-context subagent per batch gets that file's path and
+   its batch list and writes its result file into the findings home (the scratchpad for a
+   non-repository target) before it reports, `status` names the batches that still need a run,
+   and `merge` joins the results once every batch is complete. A batch whose result file is
+   bound to its current list is skipped on a re-run, so a rate limit or a crash costs one
+   batch, not the pass, and a leftover result from an earlier scope is never accepted.
 4. **Report.** Group findings by file in priority order: for script findings quote the rule id,
    line, and fired condition; for rubric findings quote the offending text and name the catalog
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules
@@ -121,18 +128,19 @@ is outside a repository, the whole run follows these rules:
   The detector usually prints a "could not confirm a work tree" line on stderr; a target inside
   a `.git` directory is walked with no message. Both are expected.
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
-  inclusion. The detector sorts its own target list by path, so apply this order to the report
-  and the rubric batches, not to the detector's output.
+  inclusion. `rubric-fanout.sh plan` picks this order for a target outside a repository; apply
+  it to the report too.
 - Config layers come from the session's project directory and the user-global file, not from
   the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
   applies only when it matches the path as the detector sees it.
 - No findings file: none is written, and the fix flow's closing re-emit is skipped.
 - A `fix` run has no git history to undo an edit, so back up each file before editing it:
-  - Create one new directory per run, `<scratchpad>/ai-slop-fix-<TS>/` (`TS` as in
-    [`context/persist-findings.md`](context/persist-findings.md)). The backup path mirrors the
-    file's full absolute path under it, with a drive letter as a directory. Never name a
-    backup by basename alone: a target holds many files named `SKILL.md`.
+  - The backup path mirrors the file's full absolute path under the fix flow's run directory,
+    with a drive letter as a directory. Never name a backup by basename alone: a target holds
+    many files named `SKILL.md`.
   - If the backup path already exists, do not edit the file. Stop and report it.
+  - If the backup cannot be written (the copy fails, or the mirrored path is not a valid path,
+    as a `\\?\` or UNC source produces), do not edit the file. Stop and report it.
   - Next to each backup, write `<backup>.source` holding the file's absolute path.
   - Verification takes the backup as the "before" file. Before restoring any hunk, read
     `<backup>.source` and confirm it equals the file being restored; on a mismatch restore
@@ -151,7 +159,25 @@ is outside a repository, the whole run follows these rules:
 ## Fix flow (explicit invocation only)
 
 Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
-"detect and rewrite" request). Per file, worst-first:
+"detect and rewrite" request).
+
+Every fix run first creates one new run directory, `<scratchpad>/ai-slop-fix-<TS>/` (`TS` as
+in [`context/persist-findings.md`](context/persist-findings.md)). A path "mirrored" under it
+is the file's full absolute path with a drive letter as a directory, the same rule the
+non-repository backups use.
+
+**Concurrent-edit guard.** The flow assumes nothing else writes the files it fixes, and checks
+that before each of its own writes. When the flow first reads a file, before it composes any
+rewrite, record the file's digest: create the state file's parent directory, then run
+`sha256sum <absolute path>` with its stdout redirected to `<run>/digests/<mirrored
+path>.sha256`. Before every write the flow makes to that file, a rewrite or a restore, run
+`sha256sum -c --status <that state file>`; after each of its own writes, record the digest
+again the same way. On a mismatch, write nothing more to the file, stop work on it, and report
+it. If the state file cannot be written, do not edit the file; stop and report it. On macOS use
+`shasum -a 256` and `shasum -a 256 -c`. A write that lands between a check and
+the re-record after the flow's own write is not detected.
+
+Per file, worst-first:
 
 1. **Apply** the file's findings per [`reference/rewrite-guide.md`](reference/rewrite-guide.md)
    (read it first; it owns the replacement forms, the plain-speech target, the legitimate-hit
@@ -180,10 +206,16 @@ Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
 3. **Close** the file: findings fixed, explicitly suppressed (in-file marker with a reason), or
    reverted-with-reason. Report per file as you go on long runs.
 
-After the last file: re-run the detector over the fixed set and re-emit the findings file per
-[`context/persist-findings.md`](context/persist-findings.md) "Re-running", so no stale findings
-file survives its own remediation. Skip the re-emit for a non-repository target, which never
-wrote one. Then report totals: fixed, suppressed, reverted, remaining.
+After the last file: build the fixed set's list with `detect.sh --list-targets`, run the
+detector over it with `--paths-file`, redirecting both outputs to files in the run directory,
+and re-emit the findings file per [`context/persist-findings.md`](context/persist-findings.md)
+"Re-running", so no stale findings file survives its own remediation. Skip the re-emit for a
+non-repository target, which never wrote one. Then run `cross-check.sh --targets <list>
+--detector <detector output>`: it counts em-dash lines with its own parse, so an em dash the
+detector's parse missed still shows up. It follows the detector's fence rules but not its
+full parse, and compares a count per file, not which lines, so treat a `Disagree:` row as a
+file to reread rather than a proven miss. Report every `Disagree:` row, then totals:
+fixed, suppressed, reverted, remaining.
 
 ## Configuration
 
