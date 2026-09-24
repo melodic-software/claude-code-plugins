@@ -143,6 +143,30 @@ async page => {
     await page.keyboard.press("Shift+N");
     ok("AC16: Shift+N goes back (P2)", await sel() === "P2", await sel());
 
+    // SPEC 6 re-answer triage: Reconfirm re-sends the kept decision exactly; choice 2 onward picks again
+    const last = async () => { const e = await events(); return e[e.length - 1]; };
+    const stale = async id => (await state()).questions.questions.find(q => q.id === id).state === "stale";
+    const reconfirm = async () => { await page.click("main.detail h3"); await page.keyboard.press("a"); const a = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800); return a; };
+    const restale = async (p2, p1) => { await post(Object.assign({id: "P2", alt: null, text: ""}, p2)); await post(Object.assign({id: "P1", alt: null, text: ""}, p1)); await page.waitForTimeout(900); await pick("P2"); };
+    const r0 = await reconfirm(), ev0 = await last();
+    ok("Reconfirm of a kept accept records accept", /the recommendation/.test(r0) && ev0.id === "P2" && ev0.kind === "accept" && ev0.alt === null && !(await stale("P2")), r0 + " " + JSON.stringify(ev0));
+    await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "alt", alt: "a"});
+    ok("stale banner names Reconfirm as choice 1", /Reconfirm it \(a, choice 1\)/.test(await page.textContent("#dscroll")), (await page.textContent("#dscroll")).slice(0, 160));
+    const r1 = await reconfirm(), ev1 = await last();
+    ok("a on a stale kept alternative arms 1 Reconfirm naming alternative (b)", /^1\s*Reconfirm/.test(r1) && /alternative \(b\): Later/.test(r1), r1);
+    ok("Reconfirm of a kept alternative records the same alt and note", ev1.id === "P2" && ev1.kind === "alt" && ev1.alt === "b" && ev1.text === "Only on weekends" && !(await stale("P2")), JSON.stringify(ev1));
+    await restale({kind: "own", text: "Run it by hand"}, {kind: "accept"});
+    const r2 = await reconfirm(), ev2 = await last();
+    ok("Reconfirm of a kept own answer records own with the kept text", /^1\s*Reconfirm/.test(r2) && /your own answer/.test(r2) && ev2.id === "P2" && ev2.kind === "own" && ev2.text === "Run it by hand" && !(await stale("P2")), r2 + " " + JSON.stringify(ev2));
+    await restale({kind: "defer"}, {kind: "alt", alt: "b"});
+    const radios = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("input").value + "=" + e.querySelector(".n").textContent + " " + e.querySelector("b").textContent));
+    ok("stale with a decision: 1 Reconfirm, 2 Accept, radio values equal the numbers shown", radios[0] === "1=1 Reconfirm" && radios[1] === "2=2 Accept" && radios.every((r, i) => r.startsWith((i + 1) + "=" + (i + 1) + " ")), radios.join(", "));
+    await page.click("main.detail h3"); await page.keyboard.press("2");
+    const r3 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const ev3 = await last();
+    ok("2 then save on a stale question picks again: accept", /^2\s*Accept/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
+    await pick("P2");
+
     // SPEC 5.2: revising while an upstream decision is delivered and unhandled
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
@@ -171,6 +195,7 @@ async page => {
     ok("AC33: session layer (theme light)", src.theme === "From session" && await val("theme") === "light", src.theme);
     ok("AC33: default layer (shortcuts)", src.shortcuts === "From default", src.shortcuts);
     ok("AC33: read-only rows for displayName, waitTimeout, staleDepth", src.displayName === "From user" && await val("displayName") === "Dana" && src.waitTimeout === "From default" && await val("waitTimeout") === "90" && src.staleDepth === "From default" && await val("staleDepth") === "direct", JSON.stringify(src));
+    ok("SPEC 4.15: read-only rows for port (0, default) and openBrowser (true, default)", src.port === "From default" && await val("port") === "0" && src.openBrowser === "From default" && await val("openBrowser") === "true", JSON.stringify(src));
     await page.fill('[data-set="undoSeconds"]', "9"); await page.dispatchEvent('[data-set="undoSeconds"]', "change"); await page.waitForTimeout(150);
     ok("AC33: a browser override shows this browser with Reset", /^From this browser/.test(await page.textContent('.setrow[data-key="undoSeconds"] .src')) && !!(await page.$('[data-reset="undoSeconds"]')));
     await page.click('[data-reset="undoSeconds"]'); await page.waitForTimeout(150);

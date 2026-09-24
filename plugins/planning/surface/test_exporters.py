@@ -316,6 +316,55 @@ class TestExportReport(SessionCase):
         for url in re.findall(r"https?://[^\s\"'<>&]+", text):
             self.assertIn(url, data)
 
+    def test_report_head_carries_a_csp_with_no_network_source(self):
+        svg = (
+            "<svg xmlns='http://www.w3.org/2000/svg'>"
+            "<image href='http://127.0.0.1:9/x.png' width='10' height='10'/></svg>"
+        )
+        page = "<img src='http://127.0.0.1:9/y.png'>"
+        qs = [
+            question(
+                "Q1",
+                visuals=[
+                    {"id": "v1", "format": "svg", "content": svg},
+                    {"id": "v2", "format": "html", "content": page},
+                ],
+            )
+        ]
+        self.session(qs, [event(1, "Q1", "accept")])
+        text = self.export("report").read_text(encoding="utf-8")
+
+        class Head(html.parser.HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.in_head, self.csp, self.srcdocs = False, [], []
+
+            def handle_starttag(self, tag, attrs):
+                a = dict(attrs)
+                if tag == "head":
+                    self.in_head = True
+                if (
+                    tag == "meta"
+                    and self.in_head
+                    and (a.get("http-equiv") or "").lower() == "content-security-policy"
+                ):
+                    self.csp.append(a.get("content") or "")
+                if tag == "iframe":
+                    self.srcdocs.append(a.get("srcdoc"))
+
+            def handle_endtag(self, tag):
+                if tag == "head":
+                    self.in_head = False
+
+        h = Head()
+        h.feed(text)
+        h.close()
+        self.assertEqual(len(h.csp), 1, text[:400])
+        csp = h.csp[0]
+        self.assertIn("default-src 'none'", csp)
+        self.assertNotIn("http", csp.lower())
+        self.assertEqual(h.srcdocs, [svg, page])
+
 
 class TestImportLedger(SessionCase):
     """AC29: import-ledger then export-ledger round-trips with no decision lost."""

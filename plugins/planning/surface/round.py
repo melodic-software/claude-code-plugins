@@ -1028,11 +1028,9 @@ def cmd_ensure_running(d, a):
     with sidecar_lock(d):
         record_emoji_markers(d, emoji_flag(a.emoji_markers))
         s = read_session(d)
-        user = (
-            str(Path(a.user_settings).resolve())
-            if a.user_settings
-            else (s or {}).get("userSettings")
-        )
+        # Only an explicit --user-settings names the user file: the session file is data-dir content,
+        # never a source for the browser opener.
+        user = str(Path(a.user_settings).resolve()) if a.user_settings else None
         settings, _ = Settings(repo_root(d)).resolve(d, user)
         if not (s and running(d, s)):
             # --port first, then the recorded port (the page's origin), then the resolved setting;

@@ -1055,6 +1055,42 @@ class TestSettingsLayers(ServerCase):
         self.assertEqual(s["undoSeconds"], {"value": 45, "layer": "session"})
         self.assertEqual(s["waitTimeout"], {"value": 40, "layer": "user"})
 
+    def test_5_user_theme_tokens_beat_repo_per_token(self):
+        (self.repo / ".claude" / "interview-surface.json").write_text(
+            json.dumps(
+                {
+                    "themeTokens": {
+                        "light": {
+                            "--bg": "#111111",
+                            "--fg": "#222222",
+                            "--repo": "#666666",
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        user = self.tmp / "user-theme.json"
+        user.write_text(
+            json.dumps(
+                {
+                    "themeTokens": {
+                        "light": {"--bg": "#999999", "--fg": "#444444"},
+                        "dark": {"--fg": "#555555"},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        p = ensure_running(self.dir, "--user-settings", str(user), env=self.env)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self.assertNotIn("themeTokens ignored", p.stderr)
+        theme = self.state()["theme"]
+        self.assertEqual(
+            theme["light"], {"--bg": "#333333", "--fg": "#444444", "--repo": "#666666"}
+        )
+        self.assertEqual(theme["dark"], {"--fg": "#555555"})
+
 
 class TestSettingsResolver(unittest.TestCase):
     """The resolver in-process: repo root ladder and one stderr note per problem."""
@@ -1154,6 +1190,62 @@ class TestAnswerValidation(WaitCase):
         self.assertEqual(data["error"], "changed")
 
 
+class TestBodyLimits(WaitCase):
+    """The 64 KB body cap is the only limit on text; a body that is not a JSON object is 400."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def raw_post(self, body, length=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.putrequest("POST", "/api/answer")
+            conn.putheader("Content-Type", "application/json")
+            conn.putheader("X-Interview-Token", self.token)
+            conn.putheader(
+                "Content-Length", str(len(body) if length is None else length)
+            )
+            conn.endheaders(body or None)
+            resp = conn.getresponse()
+            return resp.status, json.loads(resp.read())
+        finally:
+            conn.close()
+
+    def test_long_own_text_round_trips_byte_exact(self):
+        import server
+
+        text = ('Line with a quote " and a tab\t, café.\n' * 600)[:20000]
+        self.assertEqual(len(text), 20000)
+        self.assertLess(
+            len(json.dumps({"id": "A", "kind": "own", "text": text})), server.MAX_BODY
+        )
+        code, data = self.post({"id": "A", "kind": "own", "text": text})
+        self.assertEqual(code, 200, data)
+        r = self.state()["responses"]
+        self.assertEqual(r["responses"]["A"]["text"], text)
+        self.assertEqual(r["events"][-1]["text"], text)
+
+    def test_body_over_the_cap_is_413_naming_the_limit(self):
+        import server
+
+        code, data = self.raw_post(b"", length=server.MAX_BODY + 1)
+        self.assertEqual(code, 413)
+        self.assertIn(str(server.MAX_BODY), data["error"])
+
+    def test_json_array_body_is_400(self):
+        code, data = self.raw_post(b'["a"]')
+        self.assertEqual(code, 400)
+        self.assertIn("JSON object", data["error"])
+        self.assertEqual(self.get("/api/state")[0], 200)
+
+    def test_deeply_nested_body_is_400(self):
+        body = b"[" * 30000 + b"]" * 30000
+        code, _ = self.raw_post(body)
+        self.assertEqual(code, 400)
+        self.assertEqual(self.get("/api/state")[0], 200)
+
+
 class TestUndoKeepsReopenNote(WaitCase):
     """An undo that restores a reopen keeps the note that reopen kept."""
 
@@ -1223,9 +1315,11 @@ class TestEnsureRunningSettings(unittest.TestCase):
         self.dir = self.tmp / "data"
         self.dir.mkdir()
         self.addCleanup(run_round, self.dir, "stop")
-        # BROWSER points webbrowser at the interpreter, so a fall-through never opens a real browser.
+        # BROWSER points webbrowser at a program that records the URL and exits 0, so the
+        # default-browser fall-through is observable and never opens a real browser.
+        self.fallback = self.tmp / "fallback.txt"
         self.env = settings_env(
-            CLAUDE_PROJECT_DIR=str(self.repo), BROWSER=sys.executable
+            CLAUDE_PROJECT_DIR=str(self.repo), BROWSER=str(self.fallback_program())
         )
         self.marker = self.tmp / "opened.txt"
         code = f"import pathlib, sys; pathlib.Path({str(self.marker)!r}).write_text(sys.argv[1])"
@@ -1234,6 +1328,25 @@ class TestEnsureRunningSettings(unittest.TestCase):
             json.dumps({"browserCommand": [sys.executable, "-c", code]}),
             encoding="utf-8",
         )
+
+    def fallback_program(self):
+        """A program webbrowser runs as [program, url]: it writes the URL to self.fallback."""
+        script = self.tmp / "fallback.py"
+        script.write_text(
+            f"import pathlib, sys; pathlib.Path({str(self.fallback)!r}).write_text(sys.argv[1])",
+            encoding="utf-8",
+        )
+        if os.name == "nt":
+            prog = self.tmp / "fallback.bat"
+            prog.write_text(f'@"{sys.executable}" "{script}" %*\r\n', encoding="utf-8")
+        else:
+            prog = self.tmp / "fallback.sh"
+            prog.write_text(
+                f"#!/bin/sh\nexec '{sys.executable}' '{script}' \"$@\"\n",
+                encoding="utf-8",
+            )
+            prog.chmod(0o755)
+        return prog
 
     def repo_settings(self, data):
         (self.repo / ".claude" / "interview-surface.json").write_text(
@@ -1276,11 +1389,30 @@ class TestEnsureRunningSettings(unittest.TestCase):
         self.ensure("--open", "--user-settings", str(self.user))
         self.assertIsNone(self.opened(2))
 
-    def test_open_uses_the_recorded_user_file(self):
+    def fallback_opened(self):
+        # webbrowser waits for the program, so the URL is written before ensure-running returns.
+        return (
+            self.fallback.read_text(encoding="utf-8").strip()
+            if self.fallback.exists()
+            else None
+        )
+
+    def test_open_ignores_the_recorded_user_file(self):
         url = self.ensure("--user-settings", str(self.user))
         self.assertIsNone(self.opened(0.5))
-        self.ensure("--open")
-        self.assertEqual(self.opened(5), url)
+        self.assertTrue(same_dir(session(self.dir)["userSettings"], self.user))
+        self.assertEqual(self.ensure("--open"), url)
+        self.assertEqual(self.fallback_opened(), url)
+        self.assertIsNone(self.opened(1.5))
+
+    def test_planted_session_file_never_supplies_the_opener(self):
+        (self.dir / ".interview-session.json").write_text(
+            json.dumps({"pid": 1, "port": free_port(), "userSettings": str(self.user)}),
+            encoding="utf-8",
+        )
+        url = self.ensure("--open")
+        self.assertEqual(self.fallback_opened(), url)
+        self.assertIsNone(self.opened(1.5))
 
 
 if __name__ == "__main__":

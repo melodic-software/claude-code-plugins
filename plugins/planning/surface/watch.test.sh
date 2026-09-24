@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests for watch.sh against a live server started through round.sh ensure-running.
 #   bash watch.test.sh
-# Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), a delivery
+# Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), a PORT that is not all
+# digits (exit 2 naming the env file), a delivery
 # (one JSON line carrying dataDir and next, .watch-seq stored), re-delivery bounds, the
 # skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
 # the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
@@ -90,6 +91,17 @@ if [[ "$rc" -eq 2 && "$took" -le 5 ]] && grep -q "token changed: re-run ensure-r
   ok "exits 2 at once on a wrong token (${took}s)"
 else
   bad "wrong token: rc=$rc took=${took}s err=$(cat "$tmp/b.err")"
+fi
+
+# (k) a PORT that is not all digits: exit 2 naming the env file, never a stripped port
+mkdir -p "$tmp/badport"
+sed 's/^PORT=.*/PORT=80@evil/' "$tmp/env.saved" >"$tmp/badport/.interview-session.env"
+bounded 10 "$tmp/k.out" "$tmp/k.err" bash "$here/watch.sh" "$tmp/badport"
+rc=$?
+if [[ "$rc" -eq 2 ]] && grep -q "PORT" "$tmp/k.err" && grep -qF ".interview-session.env" "$tmp/k.err"; then
+  ok "exits 2 naming the env file when PORT is not all digits"
+else
+  bad "bad PORT: rc=$rc err=$(cat "$tmp/k.err")"
 fi
 
 # (c) a delivery prints one self-describing JSON line and exits 0

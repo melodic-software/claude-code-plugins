@@ -346,6 +346,8 @@ table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccd;padding:4p
 section{border-top:1px solid #ccd;margin-top:16px}iframe{width:100%;height:320px;border:1px solid #ccd}
 pre{white-space:pre-wrap;background:#f4f5f8;padding:8px}.muted{color:#667}.withdrawn{text-decoration:line-through}
 """
+# No network source: the srcdoc iframes inherit this policy, so a visual cannot load remote content.
+REPORT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 
 
 def export_report(d):
@@ -355,6 +357,7 @@ def export_report(d):
     out = [
         "<!doctype html>",
         '<html lang="en"><head><meta charset="utf-8">',
+        f'<meta http-equiv="Content-Security-Policy" content="{REPORT_CSP}">',
         f"<title>{esc(title)}</title><style>{STYLE}</style></head><body>",
         f"<h1>{esc(title)}</h1>",
         "<h2>Decisions</h2>",

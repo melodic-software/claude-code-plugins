@@ -166,16 +166,13 @@ class Settings:
         return data
 
     def resolve(self, data_dir, user_file=None):
-        """({key: {value, layer}}, theme token map with repo tokens under theme.json's)."""
+        """({key: {value, layer}}, theme token map: theme.json over user over repo tokens)."""
         out = {k: {"value": v, "layer": "default"} for k, v in DEFAULT_SETTINGS.items()}
         repo = self.read(self.repo_file, "repo settings")
+        user = self.read(user_file, "user settings")
         layers = (
             ("repo", repo, REPO_KEYS | {"themeTokens"}),
-            (
-                "user",
-                self.read(user_file, "user settings"),
-                set(DEFAULT_SETTINGS) | USER_ONLY,
-            ),
+            ("user", user, set(DEFAULT_SETTINGS) | USER_ONLY | {"themeTokens"}),
             (
                 "session",
                 self.read(Path(data_dir) / "settings.json", "session settings"),
@@ -199,14 +196,17 @@ class Settings:
                     self.note(f"{layer} layer: {err}; the layer below applies")
                     continue
                 out[k] = {"value": v, "layer": layer}
-        tokens = {}
-        if "themeTokens" in repo:
-            tokens = token_map(repo["themeTokens"])
-            if tokens is None:
+        tokens = []
+        for layer, data in (("repo", repo), ("user", user)):
+            if "themeTokens" not in data:
+                continue
+            got = token_map(data["themeTokens"])
+            if got is None:
                 self.note(
-                    "repo layer: themeTokens must be {light: {...}, dark: {...}} of strings"
+                    f"{layer} layer: themeTokens must be {{light: {{...}}, dark: {{...}}}} of strings"
                 )
-                tokens = {}
+            else:
+                tokens.append(got)
         theme = self.read(Path(data_dir) / "theme.json", "theme")
         for mode in ("light", "dark"):
             own = theme.get(mode)
@@ -214,7 +214,8 @@ class Settings:
                 self.note(f"theme file: {mode} ignored (not a JSON object)")
                 theme = {k: v for k, v in theme.items() if k != mode}
                 own = None
-            merged = {**tokens.get(mode, {}), **(own or {})}
+            merged = {k: v for t in tokens for k, v in t.get(mode, {}).items()}
+            merged.update(own or {})
             if merged:
                 theme = {**theme, mode: merged}
         return out, theme
@@ -580,7 +581,7 @@ class Hub:
     def record(self, msg):
         """Append one page event. Returns (seq, contentRev or None). Raises ValueError (400) or Conflict (409)."""
         qid, kind = msg.get("id"), msg.get("kind")
-        text = str(msg.get("text") or "")[:8000]
+        text = str(msg.get("text") or "")
         alt = msg.get("alt")
         if kind not in DECISIONS | REQUESTS | FREE | WITH_ALT | {"undo"}:
             raise ValueError("unknown kind")
@@ -927,11 +928,13 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self.send(400, {"error": "Content-Length must be an integer"})
         if length <= 0 or length > MAX_BODY:
-            return self.send(413, {"error": "body size"})
+            return self.send(413, {"error": f"body must be 1 to {MAX_BODY} bytes"})
         try:
             msg = json.loads(self.rfile.read(length))
-        except ValueError:
+        except (ValueError, RecursionError):
             return self.send(400, {"error": "bad json"})
+        if not isinstance(msg, dict):
+            return self.send(400, {"error": "JSON object required"})
         if url.path == "/api/answer":
             try:
                 seq, crev = self.hub.record(msg)

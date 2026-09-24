@@ -6,8 +6,9 @@
 # command), stores the seq in .watch-seq, and exits 0. Events a dead turn never handled come
 # back at once on the next arm; after that re-delivery (recorded in .watch-replay) an arm waits
 # for a new event.
-# Exits 2 when curl is missing, when the token was rejected (the server restarted), or when
-# the server stays unreachable for WAIT_FAILS polls (default 12, 5 s apart).
+# Exits 2 when curl is missing, when the env file's PORT is not all digits, when the token was
+# rejected (the server restarted), or when the server stays unreachable for WAIT_FAILS polls
+# (default 12, 5 s apart).
 # WAIT_TIMEOUT comes from the session env file (default 90); curl allows 10 s more.
 curl_bin=${WATCH_CURL:-curl}
 command -v "$curl_bin" >/dev/null 2>&1 || { echo "missing prerequisite: curl (watch.sh needs it on PATH)" >&2; exit 2; }
@@ -25,6 +26,7 @@ TOKEN=$(sed -n 's/^TOKEN=//p' "$env_file" | tr -d '\r')
 WAIT_TIMEOUT=$(sed -n 's/^WAIT_TIMEOUT=//p' "$env_file" | tr -dc '0-9')
 WAIT_TIMEOUT=${WAIT_TIMEOUT:-90}
 [[ -n "$PORT" && -n "$TOKEN" ]] || { echo "server not running (empty $env_file)" >&2; exit 2; }
+[[ "$PORT" =~ ^[0-9]+$ ]] || { echo "PORT in $env_file is not a number: re-run ensure-running" >&2; exit 2; }
 max_fails=${WAIT_FAILS:-12}
 # after=handled returns every unhandled event; .watch-replay bounds re-delivery to one extra wake.
 replayed=$(tr -dc '0-9' 2>/dev/null <"$dir/.watch-replay")
