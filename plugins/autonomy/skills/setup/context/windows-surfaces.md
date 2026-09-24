@@ -77,8 +77,8 @@ that no longer matches this record.
 *Claim:* WSL hands a launch of a Windows binary, such as `cmd.exe`, `powershell.exe`, or anything
 under `/mnt/c/`, to the Windows host over a Unix socket, and the sandbox's optional seccomp filter
 is what blocks that socket. With the filter missing, or with `allowAllUnixSockets` set, the socket
-stays open. A launch that gets through runs on the Windows host, outside every WSL2 boundary. *Basis:* the WSL2 notes under
-[Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2), read as
+stays open. A launch that gets through runs on the Windows host, outside every WSL2 boundary.
+*Basis:* the WSL2 notes under [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2), read as
 raw markdown. *Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog entry touching WSL
 interop, Unix socket blocking, or the seccomp filter, or a read-time fetch of that section that no
 longer matches this record.
@@ -87,11 +87,15 @@ So every WSL2 boundary adds an interop launch check to step 3: a harmless launch
 (marked example: `/mnt/c/Windows/System32/cmd.exe /c ver`) must succeed in the outer context and
 fail inside the boundary. The outer success is the control: without it, a launch that fails
 because the binary is off the path or the check never ran inside the boundary would read as
-blocked. Which filter is installed is not the evidence; the paired outcomes are. Record both
-commands, exit codes, and outputs beside the probe transcript as review evidence in the prepared
-change, not inside `assertions`. The checker does not parse them, so the reviewing human confirms
-them, and a WSL2 `L2` binding with no such record, or with an inner launch that succeeded, is
-unbound and blocked at step 6.
+blocked. The inner run first proves the executable is present inside the boundary (a file test
+that succeeds, recorded); where the boundary has no Windows drive mount, as in most containers,
+copy a harmless Windows executable into the boundary and launch that copy. An inner failure that
+reports a missing file is no evidence; only a denied launch of a present executable counts. Which
+filter is installed is not the evidence; the paired outcomes are. Record both commands, exit
+codes, and outputs beside the probe transcript as review evidence in the prepared change, not
+inside `assertions`. The checker does not parse them, so the reviewing human confirms them, and a
+WSL2 `L2` binding with no such record, or with an inner launch that succeeded, is unbound and
+blocked at step 6.
 
 WSL2 probes also look through the Windows drive mount (the automount record above). Credential
 probes and `--credential-roots` include the Windows profile paths the distribution reaches there
@@ -105,7 +109,13 @@ The sandbox environments page's
 [Virtual machine](https://code.claude.com/docs/en/sandbox-environments#virtual-machine) section
 names Docker Sandboxes (a marked example) as a microVM that needs no Docker Desktop. Docker's pages
 give it a separate kernel per sandbox (security page, Isolation layers, cited in the records
-below), so its class is `vm-microvm` at `L3`.
+below), so its class is `vm-microvm`. A separate kernel is not ephemerality: a sandbox keeps its
+files across stops and restarts until `sbx rm` deletes it. It counts as `L3` only when each run
+gets a sandbox created for that run and removed at teardown; a reused sandbox carries a prior
+run's state and does not bind. *Basis:* Docker's
+[usage page](https://docs.docker.com/ai/sandboxes/usage/) (Start, stop, and remove), read as
+markdown. *Verified:* 2026-09-24. *Recheck trigger:* a read-time fetch of that section that no
+longer matches this record.
 
 *Claim:* each installation and workspace fact below holds for this marked example.
 
@@ -159,10 +169,15 @@ security binding has no field for a base allowlist.
 a host process, and an OCI-packaged stdio server runs on the host with host Docker isolation, not
 sandbox isolation. Either can reach host files, host network, and credentials made available to
 it. They are the ladder's brokered protocol-connected tool surfaces, outside the boundary at `L3`.
-Setup lists the gateway's registrations and records each local stdio server in the prepared change
-as a host-executing surface; a surface with none says so.
+Every sandbox starts a gateway, and without `--static-mcp` it runs in dynamic mode, where the agent
+can find and attach any server registered on the host. Inventory alone does not stop a tool call
+from leaving the VM, so an autonomous `L3` run is created with `--static-mcp` naming no local stdio
+or OCI-packaged server. Each remote server in the static set is a host-side connection the in-VM
+egress probe cannot see; list it in the prepared change for the human to ratify. A run that needs
+a host-executing server is not `L3` and stays human-gated.
 *Basis:* Docker's [MCP gateway page](https://docs.docker.com/ai/sandboxes/mcp-gateway/#local-stdio-server)
-(Register an MCP server, Local stdio server) and its security page's
+(Register an MCP server, Local stdio server, Use static mode, Use dynamic mode) and its security
+page's
 [Trust boundaries](https://docs.docker.com/ai/sandboxes/security/#trust-boundaries), read as
 markdown. *Verified:* 2026-09-23. *Recheck trigger:* a read-time fetch of those pages that no
 longer matches this record.
@@ -172,5 +187,6 @@ longer matches this record.
 A native Windows surface with no validated `L2` or `L3` binding blocks autonomous dispatch at step
 6, and no setting lifts it. Setup names the compliant paths: a WSL2 distribution under the sandbox
 runtime or a default-deny container, passing the probe and the interop launch check; or an `L3` VM
-or microVM on the host, passing the probe in clone mode or with no workspace mount. Otherwise the
-surface stays human-gated.
+or microVM on the host, created fresh and removed per run, passing the probe in clone mode or with
+no workspace mount, with no host-executing tool server attached. Otherwise the surface stays
+human-gated.
