@@ -13,9 +13,11 @@ Reads <work>/src, <work>/d and the replicas in <work>/out/<tag>/rep; writes <wor
               or paper that XOR cannot see
   paper_err, paper_d  mean abs and signed replica-source RGB over source paper: a tint
   flags       blob; tone (tile > TILE_MAX); paper (paper_err > PAPER_MAX)
+Exit 1 when any drawing is flagged.
 """
 import argparse
 import json
+import sys
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -69,7 +71,7 @@ def one(job):
     cv2.imwrite(str(out / f'crops/d{k:03d}.png'), np.hstack([src[win], rep[win], heat[win]]))
     flags = [f for f, on in (('blob', blob[1] > 0), ('tone', tile > TILE_MAX), ('paper', pe > PAPER_MAX)) if on]
     return (f"| {k} | {largest[0]} {largest[1]} {largest[2]} | {blob[0]} {blob[1]} | {int((x & border).sum())} | {tile:.1f} | "
-            f"{pe:.2f} | {','.join(f'{c:+.2f}' for c in pd)} | ({int(x0)},{int(y0)}) | {' '.join(flags)} |")
+            f"{pe:.2f} | {','.join(f'{c:+.2f}' for c in pd)} | ({int(x0)},{int(y0)}) | {' '.join(flags)} |"), bool(flags)
 
 
 def main(argv=None):
@@ -83,14 +85,18 @@ def main(argv=None):
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
     ks = [k for k, *_ in json.load(open(work / 'd/index.json'))['drawings']
           if k0 <= k <= k1 and (out / f'rep/d{k:03d}.png').exists()]
+    if not ks:
+        sys.exit(f'review: no rendered drawings in {out / "rep"}' + (f' for {a.only}' if a.only else ''))
     with Pool() as p:
-        rows = p.map(one, [(work, out, k) for k in ks])
+        rows, flagged = zip(*p.map(one, [(work, out, k) for k in ks]))
     lines = [f'# review {a.tag} d{ks[0]:03d}-d{ks[-1]:03d}', '',
              '| k | largest | blob | edge px | tile | paper_err | paper_d R,G,B | crop at | flags |',
-             '|---|---|---|---|---|---|---|---|---|'] + rows
+             '|---|---|---|---|---|---|---|---|---|', *rows]
     (out / f'review-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n')
     print('\n'.join(lines))
+    print(f'{sum(flagged)}/{len(ks)} drawings flagged')
+    return 1 if any(flagged) else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

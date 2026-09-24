@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """Style statistics of an ink film, computed the same way for a source clip and for any render.
 
-usage: inkstats.py <film> [--fps N] [--seg S] [--json OUT] [--pack style.json]
-  <film>   a video, a folder of capture.mjs frames (fNNNN.png, played at --fps, default 24), or a rotoscope work dir
-           (src/dNNN.png timed by d/index.json)
-  --seg    segment length in seconds (default 3.35: nine segments on a 30 s clip); a segment stands in for a shot
-  --json   write the summary: per statistic p10/p50/p90 over drawings, and per segment medians
-  --pack   check against a style pack's style.json: each statistic the pack lists under `check` must have its film
-           median inside the pack's band, and the ink and paper colours must sit within the palette tolerance.
-           Prints the table; exit 0 only if every row passes.
+usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H] [--t T0-T1] [--json OUT]
+                   [--rows OUT] [--pack PACK]
+  <film>    a video, a folder of capture.mjs frames (fNNNN.png, played at --fps, default 24), or a rotoscope work dir
+            (src/dNNN.png timed by d/index.json)
+  --cuts    shot boundaries in seconds; each shot is a segment. Without it, segments are --seg seconds long (default
+            3.35: nine on a 30 s clip)
+  --region  measure only this box of every frame (a prop, a dark field); --t keeps only frames with T0 <= t < T1
+  --json    write the summary: per statistic p10/p50/p90 over drawings, and per segment medians
+  --rows    write the per-drawing rows (for analysis; a style pack never holds them)
+  --pack    a style pack directory or its style.json. Each statistic in `check` must have its film median inside the
+            pack's band, each in `segment_check` must have every segment median inside it (segments of at least
+            the pack's `segment_min_drawings`), and the ink and paper
+            colours must sit within the palette tolerance. Prints the tables; exit 1 if any row fails.
 Frames that repeat a drawing (fewer than DUP_PX pixels changed by more than 64 gray levels) are dropped, so a 24 fps
 capture and a variable-rate source both reduce to distinct drawings with their hold times.
 
@@ -22,6 +27,7 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
   specks    ink islands of 2-200 px per megapixel      gaps  paper islands of 2-200 px per megapixel
   holes     paper share of the ink after a 7 px closing: streaks and gouges inside masses
   ink_sd paper_sd   gray standard deviation inside eroded ink and paper: dry brush and paper grain
+  field_sd  the same inside the largest connected ink area (the dark field), eroded; 0 when it has no core
   ink_rgb paper_rgb median colours of the ink and paper cores
 Per pair of consecutive drawings:
   boil      on held pairs only (phase-correlation shift under 1 px and ink change under 1 point), ink/paper
@@ -41,7 +47,7 @@ import numpy as np
 DUP_PX = 50
 SEG = 3.35
 STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'specks', 'gaps', 'holes', 'ink_sd',
-         'paper_sd', 'boil')
+         'paper_sd', 'field_sd', 'boil')
 
 
 def frames(film, fps):
@@ -69,16 +75,27 @@ def frames(film, fps):
         p.wait()
 
 
-def drawings(film, fps):
-    """Yield (rgb, t0) for each distinct drawing, and finally (None, end time)."""
+def drawings(film, fps, region=None, window=None):
+    """Yield (rgb, t0) for each distinct drawing (cropped to region, inside window), and finally (None, end time)."""
     prev, t, dt = None, 0.0, 1 / fps
+    t0, t1 = window or (-1e9, 1e9)
     for rgb, t in frames(film, fps):
+        if t < t0:
+            continue
+        if t >= t1:
+            t = t1
+            break
+        if region:
+            x, y, w, h = region
+            rgb = rgb[y:y + h, x:x + w]
         g = rgb.astype(np.int16)
         if prev is not None and (np.abs(g - prev) > 64).sum() < DUP_PX:
             continue
         prev = g
         yield rgb, t
-    yield None, t + dt
+    else:
+        t += dt
+    yield None, t
 
 
 def ridge_widths(mask):
@@ -120,10 +137,13 @@ def one(rgb):
     mid = int(((g > ink_g + 16) & (g < paper_g - 16)).sum())
     w, pw = ridge_widths(ink), ridge_widths(~ink)
     rough, straight = contour_stats(ink)
-    k7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-    closed = cv2.morphologyEx(ink.astype(np.uint8), cv2.MORPH_CLOSE, k7).astype(bool)
-    core_i = cv2.erode(ink.astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool)
-    core_p = cv2.erode((~ink).astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool)
+    k5 = np.ones((5, 5), np.uint8)
+    closed = cv2.morphologyEx(ink.astype(np.uint8), cv2.MORPH_CLOSE,
+                              cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))).astype(bool)
+    core_i = cv2.erode(ink.astype(np.uint8), k5).astype(bool)
+    core_p = cv2.erode((~ink).astype(np.uint8), k5).astype(bool)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(ink.astype(np.uint8), connectivity=8)
+    field = core_i & (lab == 1 + int(np.argmax(st[1:, 4]))) if n > 1 else core_i
 
     def pct(v, q):
         return float(np.percentile(v, q)) if len(v) else 0.0
@@ -136,7 +156,7 @@ def one(rgb):
     return dict(ink=float(ink.mean()), soft=mid / max(edge, 1), w10=pct(w, 10), w50=pct(w, 50), w90=pct(w, 90),
                 pw50=pct(pw, 50), rough=rough, straight=straight, specks=islands(ink, 8), gaps=islands(~ink, 4),
                 holes=float((closed & ~ink).sum() / max(closed.sum(), 1)), ink_sd=sd(core_i), paper_sd=sd(core_p),
-                ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
+                field_sd=sd(field), ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
 
 
 def boil(a, b):
@@ -147,9 +167,10 @@ def boil(a, b):
     return float((a['mask'] ^ b['mask']).sum() / max(a['edge'], b['edge'], 1))
 
 
-def measure(film, fps=24, seg=SEG):
+def measure(film, fps=24, region=None, window=None):
+    """Per-drawing rows: every statistic above plus t (start) and hold (s)."""
     rows, prev = [], None
-    for rgb, t in drawings(film, fps):
+    for rgb, t in drawings(film, fps, region, window):
         if rows:
             rows[-1]['hold'] = t - rows[-1]['t']
         if rgb is None:
@@ -161,47 +182,78 @@ def measure(film, fps=24, seg=SEG):
         rows.append(r)
     for r in rows:
         r.pop('gray'), r.pop('mask')
-    return summary(rows, seg)
+    if not rows:
+        sys.exit(f'inkstats: no drawings in {film}' + (f' between {window[0]} and {window[1]} s' if window else ''))
+    return rows
 
 
-def summary(rows, seg):
+def edges(rows, cuts=None, seg=SEG):
+    """Segment boundaries in film seconds: the given cuts, else every seg seconds."""
+    t0, t1 = rows[0]['t'], rows[-1]['t'] + rows[-1]['hold']
+    inner = [c for c in cuts if t0 < c < t1] if cuts else list(np.arange(t0 + seg, t1 - 1e-6, seg))
+    return [t0, *inner, t1]
+
+
+def segment(rows, e):
+    """Rows split at boundaries e."""
+    return [[r for r in rows if a <= r['t'] < b] for a, b in zip(e, e[1:])]
+
+
+def median(rows, s):
+    v = [r[s] for r in rows if r[s] is not None]
+    return round(float(np.median(v)), 4) if v else None
+
+
+def summary(rows, cuts=None, seg=SEG):
     def pcts(v):
         v = [x for x in v if x is not None]
         return dict(zip(('p10', 'p50', 'p90'), (round(float(np.percentile(v, q)), 4) for q in (10, 50, 90)))) if v \
             else None
     dur = rows[-1]['t'] + rows[-1]['hold'] - rows[0]['t']
     frames24 = np.array([max(1, round(r['hold'] * 24)) for r in rows])
-    out = dict(drawings=len(rows), duration=round(dur, 3), per_second=round(len(rows) / dur, 3),
-               holds={f'on{n}s': round(float((frames24 == n).mean()), 3) for n in (1, 2, 3)} |
-               {'on4s+': round(float((frames24 >= 4).mean()), 3)},
-               held=round(float(np.mean([r['boil'] is not None for r in rows[1:]])), 3) if len(rows) > 1 else 0,
-               stats={s: pcts([r[s] for r in rows]) for s in STATS},
-               ink_rgb=[int(c) for c in np.median([r['ink_rgb'] for r in rows], 0)],
-               paper_rgb=[int(c) for c in np.median([r['paper_rgb'] for r in rows], 0)],
-               T=float(np.median([r['T'] for r in rows])), segments=[])
-    t0 = rows[0]['t']
-    for i in range(int(np.ceil(dur / seg - 1e-6))):
-        sr = [r for r in rows if t0 + i * seg <= r['t'] < t0 + (i + 1) * seg]
-        if sr:
-            out['segments'].append(dict(t0=round(i * seg, 2), n=len(sr), **{
-                s: (round(float(np.median(v)), 4) if (v := [r[s] for r in sr if r[s] is not None]) else None)
-                for s in STATS}))
-    return out
+    e = edges(rows, cuts, seg)
+    return dict(drawings=len(rows), duration=round(dur, 3), per_second=round(len(rows) / dur, 3),
+                holds={f'on{n}s': round(float((frames24 == n).mean()), 3) for n in (1, 2, 3)} |
+                {'on4s+': round(float((frames24 >= 4).mean()), 3)},
+                held=round(float(np.mean([r['boil'] is not None for r in rows[1:]])), 3) if len(rows) > 1 else 0,
+                stats={s: pcts([r[s] for r in rows]) for s in STATS},
+                ink_rgb=[int(c) for c in np.median([r['ink_rgb'] for r in rows], 0)],
+                paper_rgb=[int(c) for c in np.median([r['paper_rgb'] for r in rows], 0)],
+                T=float(np.median([r['T'] for r in rows])),
+                segments=[dict(t0=round(a, 3), t1=round(b, 3), n=len(sr), per_second=round(len(sr) / (b - a), 3),
+                               **{s: median(sr, s) for s in STATS})
+                          for (a, b), sr in zip(zip(e, e[1:]), segment(rows, e)) if sr])
 
 
 def check(m, pack):
-    """Rows (stat, film value, band, ok) for every statistic the pack checks: a statistic's median over drawings, a
-    top-level value such as per_second, and the largest ink or paper RGB channel difference from the pack's palette."""
-    rows = []
+    """Rows (name, value, band, ok): each `check` statistic's film median (or a top-level value such as per_second),
+    each `segment_check` statistic per segment, and the largest ink or paper RGB channel difference from the palette."""
+    out = []
     for s in pack['check']:
         lo, hi = pack['bands'][s]
         v = m[s] if s in m else m['stats'][s]['p50'] if m['stats'].get(s) else None
-        rows.append((s, v, (lo, hi), v is not None and lo <= v <= hi))
+        out.append((s, v, (lo, hi), v is not None and lo <= v <= hi))
+    for s in pack.get('segment_check', []):
+        lo, hi = pack['bands'][s]
+        for g in (g for g in m['segments'] if g['n'] >= pack.get('segment_min_drawings', 1)):
+            out.append((f"{s} {g['t0']:g}-{g['t1']:g} s", g[s], (lo, hi), g[s] is not None and lo <= g[s] <= hi))
     for s in ('ink_rgb', 'paper_rgb'):
         want = pack['palette'][s[:-4]].lstrip('#')
         v = max(abs(c - int(want[2 * i:2 * i + 2], 16)) for i, c in enumerate(m[s]))
-        rows.append((s, v, (0, pack['palette']['tolerance']), v <= pack['palette']['tolerance']))
-    return rows
+        out.append((s, v, (0, pack['palette']['tolerance']), v <= pack['palette']['tolerance']))
+    return out
+
+
+def load_pack(p):
+    p = Path(p)
+    return json.load(open(p / 'style.json' if p.is_dir() else p))
+
+
+def nums(s, n=None):
+    v = [float(x) for x in s.replace('-', ',').split(',')] if s else None
+    if v and n and len(v) != n:
+        sys.exit(f'inkstats: expected {n} numbers, got {s!r}')
+    return v
 
 
 def main(argv=None):
@@ -209,25 +261,36 @@ def main(argv=None):
     ap.add_argument('film')
     ap.add_argument('--fps', type=float, default=24)
     ap.add_argument('--seg', type=float, default=SEG)
+    ap.add_argument('--cuts')
+    ap.add_argument('--region')
+    ap.add_argument('--t')
     ap.add_argument('--json', type=Path)
+    ap.add_argument('--rows', type=Path)
     ap.add_argument('--pack', type=Path)
     a = ap.parse_args(argv)
-    m = measure(a.film, a.fps, a.seg)
+    pack = load_pack(a.pack) if a.pack else None   # fail on a bad pack path before the long measure
+    region = [int(v) for v in nums(a.region, 4)] if a.region else None
+    rows = measure(a.film, a.fps, region, nums(a.t, 2))
+    m = summary(rows, nums(a.cuts), a.seg)
     if a.json:
         a.json.write_text(json.dumps(m, indent=1) + '\n')
-    print(f"{a.film}: {m['drawings']} drawings, {m['duration']} s, {m['per_second']}/s, holds {m['holds']}, "
-          f"held pairs {m['held']}")
-    print('| stat | p10 | p50 | p90 |\n|---|---|---|---|')
+    if a.rows:
+        a.rows.write_text(json.dumps(rows) + '\n')
+    print(f"{a.film}{f' region {region}' if region else ''}: {m['drawings']} drawings, {m['duration']} s, "
+          f"{m['per_second']}/s, holds {m['holds']}, held pairs {m['held']}")
+    print('| stat | p10 | p50 | p90 | ' + ' | '.join(f"{g['t0']:g}-{g['t1']:g} s" for g in m['segments']) + ' |')
+    print('|---|---|---|---|' + '---|' * len(m['segments']))
     for s, v in m['stats'].items():
-        print(f'| {s} | ' + (' | '.join(f'{v[q]:.4g}' for q in ('p10', 'p50', 'p90')) if v else '- | - | -') + ' |')
-    if not a.pack:
+        print(f'| {s} | ' + (' | '.join(f'{v[q]:.4g}' for q in ('p10', 'p50', 'p90')) if v else '- | - | -') + ' | '
+              + ' | '.join('-' if g[s] is None else f'{g[s]:.4g}' for g in m['segments']) + ' |')
+    if not pack:
         return 0
-    rows = check(m, json.load(open(a.pack)))
-    print(f'\ncheck against {a.pack}\n\n| stat | film p50 | band | pass |\n|---|---|---|---|')
-    for s, v, (lo, hi), ok in rows:
+    out = check(m, pack)
+    print(f'\ncheck against {a.pack}\n\n| check | film | band | pass |\n|---|---|---|---|')
+    for s, v, (lo, hi), ok in out:
         print(f"| {s} | {'-' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | {'yes' if ok else 'NO'} |")
-    print(f'{sum(r[3] for r in rows)}/{len(rows)} pass')
-    return 0 if all(r[3] for r in rows) else 1
+    print(f'{sum(r[3] for r in out)}/{len(out)} pass')
+    return 0 if all(r[3] for r in out) else 1
 
 
 if __name__ == '__main__':
