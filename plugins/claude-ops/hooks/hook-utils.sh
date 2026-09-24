@@ -1186,7 +1186,10 @@ hook::_fast_fields_supported() {
 
 # hook::_fast_fields <payload> <filter>...
 # The builtin answer to hook::jq_fields' jq program for the filters that
-# program is usually given: `.key` and `.key.sub`, identifier keys only.
+# program is usually given: `.key` and `.key.sub`, identifier keys only, each
+# optionally followed by ` // false | tostring` (the guards' `replace_all`
+# read). With that suffix an absent or null value is `false`, and a boolean is
+# proven too: jq prints `true` or `false`.
 # Returns
 #   0  proven: HOOK_JQ_FIELDS holds, per filter, exactly what jq prints for
 #      `((<filter>) // "" | tostring)` with CR stripped, and HOOK_JQ_FIELDS_NUL
@@ -1217,15 +1220,16 @@ hook::_fast_fields() {
   }
   local __hu_s="$1"
   shift
-  local -a __hu_k1=() __hu_k2=()
-  local __hu_f __hu_i __hu_n __hu_part __hu_body __hu_re __hu_raw __hu_val __hu_j
+  local -a __hu_k1=() __hu_k2=() __hu_df=()
+  local __hu_f __hu_i __hu_n __hu_part __hu_body __hu_re __hu_raw __hu_val __hu_j __hu_nil
   local __hu_ident='[A-Za-z_][A-Za-z0-9_]*'
   local __hu_cap=0
-  __hu_re="^\\.($__hu_ident)(\\.($__hu_ident))?\$"
+  __hu_re="^\\.($__hu_ident)(\\.($__hu_ident))?( // false \\| tostring)?\$"
   for __hu_f in "$@"; do
     [[ "$__hu_f" =~ $__hu_re ]] || return 2
     __hu_k1+=("${BASH_REMATCH[1]}")
     __hu_k2+=("${BASH_REMATCH[3]}")
+    __hu_df+=("${BASH_REMATCH[4]:+1}")
     ((${#BASH_REMATCH[1]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[1]}
     ((${#BASH_REMATCH[3]} > __hu_cap)) && __hu_cap=${#BASH_REMATCH[3]}
   done
@@ -1268,10 +1272,13 @@ hook::_fast_fields() {
   local -a __hu_vals=()
   local __hu_ti __hu_fi __hu_pre __hu_o1 __hu_o2 __hu_c1 __hu_c2 __hu_depth __hu_tok
   for ((__hu_j = 0; __hu_j < ${#__hu_k1[@]}; __hu_j++)); do
+    # What jq prints for an absent or null value: `// ""` gives the empty
+    # string, `// false | tostring` gives `false`.
+    __hu_nil=${__hu_df[__hu_j]:+false}
     __hu_ti=${__hu_idx[${__hu_k1[__hu_j]}]--2}
     ((__hu_ti != -1)) || return 2
     if ((__hu_ti == -2)); then
-      __hu_vals+=("") # no string in the payload spells the key: absent
+      __hu_vals+=("$__hu_nil") # no string in the payload spells the key: absent
       continue
     fi
     # The key must be a direct member of the root: a key position at depth
@@ -1279,7 +1286,7 @@ hook::_fast_fields() {
     # member, and the unique spelling means nothing else could be one.
     __hu_re="(^|[{,])\"#$__hu_ti\":(\"#[0-9]+\"|\\{[^][{}]*\\}|null|true|false|[-0-9][^,}]*|\\[|\\{)"
     if ! [[ "$_HOOK_JSON_SK" =~ $__hu_re ]]; then
-      __hu_vals+=("")
+      __hu_vals+=("$__hu_nil")
       continue
     fi
     __hu_tok=${BASH_REMATCH[2]}
@@ -1290,37 +1297,45 @@ hook::_fast_fields() {
     __hu_c2=${__hu_pre//\]/}
     __hu_depth=$(((${#__hu_pre} - ${#__hu_o1}) + (${#__hu_pre} - ${#__hu_o2}) - (${#__hu_pre} - ${#__hu_c1}) - (${#__hu_pre} - ${#__hu_c2})))
     if ((__hu_depth != 1)); then
-      __hu_vals+=("")
+      __hu_vals+=("$__hu_nil")
       continue
     fi
     if [[ -z "${__hu_k2[__hu_j]}" ]]; then
       case "$__hu_tok" in
       \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
-      null) __hu_vals+=("") && continue ;;
+      null) __hu_vals+=("$__hu_nil") && continue ;;
+      true | false)
+        [[ -n "${__hu_df[__hu_j]}" ]] || return 2
+        __hu_vals+=("$__hu_tok") && continue
+        ;;
       *) return 2 ;;
       esac
     else
       case "$__hu_tok" in
-      null) __hu_vals+=("") && continue ;;
+      null) __hu_vals+=("$__hu_nil") && continue ;;
       \{*\}) ;;      # a flat object: its members are the only place the key can be
       *) return 2 ;; # a string, number, boolean, array, or an object with a container inside
       esac
       __hu_fi=${__hu_idx[${__hu_k2[__hu_j]}]--2}
       ((__hu_fi != -1)) || return 2
       if ((__hu_fi == -2)); then
-        __hu_vals+=("")
+        __hu_vals+=("$__hu_nil")
         continue
       fi
       __hu_body=${__hu_tok:1:${#__hu_tok}-2}
       __hu_re="(^|,)\"#$__hu_fi\":(\"#[0-9]+\"|null|true|false|[-0-9][^,]*)(,|\$)"
       if ! [[ "$__hu_body" =~ $__hu_re ]]; then
-        __hu_vals+=("") # not a key of the parent; unique, so not one anywhere
+        __hu_vals+=("$__hu_nil") # not a key of the parent; unique, so not one anywhere
         continue
       fi
       __hu_tok=${BASH_REMATCH[2]}
       case "$__hu_tok" in
       \"#*) __hu_raw=${__hu_tok:2:${#__hu_tok}-3} ;;
-      null) __hu_vals+=("") && continue ;;
+      null) __hu_vals+=("$__hu_nil") && continue ;;
+      true | false)
+        [[ -n "${__hu_df[__hu_j]}" ]] || return 2
+        __hu_vals+=("$__hu_tok") && continue
+        ;;
       *) return 2 ;;
       esac
     fi

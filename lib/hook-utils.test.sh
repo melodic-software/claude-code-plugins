@@ -4835,6 +4835,21 @@ for ((ff_i = 0; ff_i < ${#ff_name}; ff_i++)); do
 done
 ff_pair_check "fast fields: a key spelled entirely with \\u escapes is recognized" \
   "{\"$ff_esc\":\"PreToolUse\",\"tool_name\":\"Bash\"}" ".$ff_name" "PreToolUse"
+# The guards' `replace_all` read: ` // false | tostring` turns absent and null
+# into `false` and proves a boolean.
+ff_ra='.tool_input.replace_all // false | tostring'
+ff_pair_check "fast fields: // false | tostring on false" '{"tool_input":{"replace_all":false}}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on true" '{"tool_input":{"replace_all":true}}' "$ff_ra" "true"
+ff_pair_check "fast fields: // false | tostring on an absent key" '{"tool_input":{"new_string":"x"}}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on a null parent" '{"tool_input":null}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on an empty string" '{"tool_input":{"replace_all":""}}' "$ff_ra" ""
+ff_pair_check "fast fields: // false | tostring at the root" '{"replace_all":true}' '.replace_all // false | tostring' "true"
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"replace_all":1}}' "$ff_ra" || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: // false | tostring on a number falls back to jq"; else fail "fast fields: number rc=$ff_rc"; fi
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"replace_all":true}}' '.tool_input.replace_all' || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: a bare boolean read still falls back to jq"; else fail "fast fields: bare boolean rc=$ff_rc"; fi
 
 # The Bash 4.0 floor. hook::_fast_fields indexes with an associative array, so
 # below 4.0 the call site must skip the whole fast path and let jq answer.

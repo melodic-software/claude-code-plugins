@@ -319,8 +319,11 @@ if [[ -x "$SHIM/jq" ]]; then
   : >"$SPAWN_LOG"
   PATH="$SHIM:$PATH" CLAUDE_PROJECT_DIR="$PV_REPO" bash "$DISPATCH" \
     cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <<<"$PV_PAYLOAD" >/dev/null 2>&1
-  assert_eq "post-verify dispatcher: one jq for the unprimed filters of both guards" \
-    "1" "$(grep -cx jq "$SPAWN_LOG")"
+  # Outside a marketplace repo skill-reference-verify stops at its plugins gate
+  # before its payload read, and the builtin parser answers stale-path-verify's
+  # `replace_all`: no jq at all.
+  assert_eq "post-verify dispatcher: no jq outside a marketplace repo" \
+    "0" "$(grep -cx jq "$SPAWN_LOG")"
   # Linux reads the physical paths with `cd -P` (hook::_physical_builtin_to), so no realpath runs there.
   want_realpath=1
   [[ "$OSTYPE" == linux* ]] && want_realpath=0
@@ -328,6 +331,15 @@ if [[ -x "$SHIM/jq" ]]; then
     "$want_realpath" "$(grep -cx realpath "$SPAWN_LOG")"
   assert_eq "post-verify dispatcher: one git rev-parse for the three root reads" \
     "1" "$(grep -c 'rev-parse --show-toplevel' "$SPAWN_LOG")"
+  # Inside one, skill-reference-verify reads structuredPatch with jq, and that
+  # one jq also answers stale-path-verify's `replace_all` from the cache.
+  mkdir -p "$PV_REPO/plugins/p/.claude-plugin"
+  printf '{"name":"p"}\n' >"$PV_REPO/plugins/p/.claude-plugin/plugin.json"
+  : >"$SPAWN_LOG"
+  PATH="$SHIM:$PATH" CLAUDE_PROJECT_DIR="$PV_REPO" bash "$DISPATCH" \
+    cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <<<"$PV_PAYLOAD" >/dev/null 2>&1
+  assert_eq "post-verify dispatcher: one jq for the unprimed filters of both guards in a marketplace repo" \
+    "1" "$(grep -cx jq "$SPAWN_LOG")"
   rm -f "$SHIM/realpath" "$SHIM/git"
 fi
 
