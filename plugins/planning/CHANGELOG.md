@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1] - 2026-09-24
+
+### Fixed
+
+- **`interview`:** a recommendation that fixes more than one decision lists each part under
+  `Commits you to:`, and each part is its own register row. Accepting the headline resolves
+  the listed parts; an alternative or rejection withdraws them; an unlisted part is not
+  decided by any answer to the headline.
+- **`interview`:** a hedged reply ("yes?", "I think so") resolves at most the headline of one
+  question, is recorded `hedged:`, and leaves its commitment rows open. A hedged
+  accept-shorthand is not an accept-shorthand.
+- **`interview`:** a question that names a mechanism (tool, API, credential, runtime,
+  platform) triggers one question: settle mechanism-level decisions now or at planning. On
+  "at planning", open mechanism rows are deferred.
+- **`interview`:** historical evidence is labeled past, current, or intended when the process
+  changed or its currency is unknown, and past-only evidence never alone grounds a
+  recommendation about the intended process.
+- **`interview`:** the skill names its successors in a `## Next` section.
+- Three section digests in `tests/interview-defenses.test.sh` were re-pinned (SKILL.md
+  Stance, SKILL.md "does NOT do", loop.md open-question register). Each fired on the added
+  text, which narrows the accept-shorthand and resolution rules and qualifies no defense.
+
 ## [0.41.0] - 2026-09-24
 
 ### Added

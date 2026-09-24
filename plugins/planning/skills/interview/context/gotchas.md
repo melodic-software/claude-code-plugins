@@ -28,6 +28,14 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. There is no way to detect non-interactivity, so the caller declares it.
 
+- **A bundled recommendation locked by accepting its headline:** a design that also picks a platform, a runtime, and a credential reads as one answer, so a "yes" records one row and locks every part the user never saw. List each part under `Commits you to:` with its own row; a part left unlisted is not decided (SKILL.md "A recommendation that fixes more than one decision lists every part").
+
+- **A hedged reply read as accept-all:** "yes?" or "I think so" is doubt, not consent. It resolves at most one headline, flagged `hedged:`, and its commitment rows stay open; echo back what it commits to.
+
+- **Drifting from what to how:** recommendations slide into per-step platforms and token scopes with nothing stopping them. The first question that names a mechanism triggers one question: settle mechanisms now, or at planning (SKILL.md "What, not how: the mechanism tripwire").
+
+- **Past evidence read as the target:** months of metrics describe the old process, not the one the user just changed to. Label each finding past, current, or intended, and never recommend the intended process from past-only evidence.
+
 ## Page surface
 
 - **A stale `ops.json`:** a file left from an earlier wake re-applies its old replies; write it fresh with the Write tool on every wake.

@@ -494,21 +494,32 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # into the register. Both were phrase-pinned only, so an appended `**Exception:**` on
 # either inverted it at FAIL=0. Their sections are digested, which covers the lines and any
 # paragraph placed beside them.
+#
+# Re-pinned in planning 0.40.1 when Stance gained the `Commits you to:` template block and
+# four paragraphs: every part of a bundled recommendation is its own row, a hedged reply
+# resolves only the headline, the mechanism tripwire, and labeling evidence by when it was
+# true. Each narrows what an answer or an accept-shorthand resolves, never widens it, and
+# none qualifies the no-silent-resolve rule or any other defense in the section.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "c7237c317c82adeb84f181f498d88d40ec6b72ca613c9ad6b898021dd44f1158"
+  "436df236ab8fa23f88a85bfe1f52b8b8aba5e4a845a3ca94243852f94517d4dc"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
   "### Step 1. Survey before you ask" \
   "c84a3506c3410b64938b898238a53f502e5e411522ea61e7444f3ad382a21860"
+# Re-pinned in planning 0.40.1 when the register gained the "Commitment rows" and "Hedged
+# flag" paragraphs. Both narrow what a reply or an accept-shorthand resolves, never widen
+# it: commitment rows add rows the gate grades, and a hedged reply resolves at most one
+# headline. Neither qualifies the gap or unattended-blocker bindings, the ladder, or the
+# gate.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "99f82d225f43dae2fdce380557ad4a69ae19a274b5df40e9a95f31dc8b8f8135"
+  "9cb990949200df557968e3e80acbd3cc7b92a496859e54a474a7b4ec41e065b9"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -563,11 +574,15 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
   "70a31635b8c538f3f3838b56d7f731c9a73f61f452c43a9f9d8d3815ab772b83"
+# Re-pinned in planning 0.40.1 when a `## Next` section naming the successor skills landed
+# before "Composition with other skills", inside this region. It lists successors only; it
+# widens no accept-shorthand or resolution rule and qualifies no bullet above it,
+# including the fudge prohibition.
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Composition with other skills" \
-  "02754ea58401497b72a653ee4d5bfe1c8a069e464bb3420f189e6d23e63c26ee"
+  "93793366137b3adfc13faf57cad15eb4b092a272d71ea56d14cc8634c3bda8fa"
 
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
@@ -702,6 +717,47 @@ pin "loop.md processes queued out-of-band output before the same-turn reply" "$L
   "When a user reply and queued out-of-band output share a turn, process the queued output first."
 pin "SKILL.md carries the out-of-band check beside the register rule" "$SKILL" \
   "**Out-of-band output gets the same check, keyed on relevance.**"
+
+# A7c. A recommendation can fix decisions the user never saw. These pins hold the rules
+#      that stop an answer from locking more than it names: every part of a bundled
+#      recommendation is its own register row, a hedged reply resolves at most one
+#      headline, a named mechanism triggers one now-or-at-planning question, and
+#      historical evidence is labeled by when it was true. Each narrows what an answer or
+#      an accept-shorthand resolves; none of them relaxes a defense above.
+pin "SKILL.md lists every part of a bundled recommendation" "$SKILL" \
+  "**A recommendation that fixes more than one decision lists every part.**"
+pin "SKILL.md per-question template carries the commitment block" "$SKILL" \
+  "[Commits you to: <ONLY when the recommendation fixes more than one decision"
+pin "SKILL.md: an unlisted sub-decision is not decided by the headline" "$SKILL" \
+  "is not decided by any answer to the headline"
+pin "SKILL.md: an accept-shorthand that resolved commitment rows names them" "$SKILL" \
+  "lists those \`Q<N>\` ids in one line"
+pin "loop.md defines commitment rows" "$LOOP" \
+  "**Commitment rows.**"
+pin "loop.md: an alternative or rejection withdraws the commitment rows" "$LOOP" \
+  "sets each to \`withdrawn\` with \`pruned by Q5 = <answer>\`"
+pin "loop.md: unattended, each part takes the ladder on its own" "$LOOP" \
+  "a codebase-resolvable headline does not make its parts resolvable"
+pin "SKILL.md: a hedged reply resolves only the headline" "$SKILL" \
+  "**A hedged reply resolves only the headline.**"
+pin "SKILL.md: a hedged accept-shorthand is not an accept-shorthand" "$SKILL" \
+  "is not an accept-shorthand"
+pin "loop.md defines the hedged flag" "$LOOP" \
+  "recorded as \`hedged: <answer>\`"
+pin "loop.md: the confirmation restate lists every hedged row" "$LOOP" \
+  "lists every \`hedged:\` row for explicit confirmation"
+pin "SKILL.md carries the mechanism tripwire" "$SKILL" \
+  "**What, not how: the mechanism tripwire.**"
+pin "SKILL.md: at planning, open mechanism rows become deferred" "$SKILL" \
+  "When the answer is \"at planning\", no later recommendation fixes a mechanism"
+pin "SKILL.md labels evidence by when it was true" "$SKILL" \
+  "**Label evidence by when it was true.**"
+pin "SKILL.md: a past-only finding never alone grounds the intended process" "$SKILL" \
+  "A past-only finding never on its own grounds a recommendation about the intended process."
+pin "SKILL.md: unknown currency is stated or asked before recommending" "$SKILL" \
+  "When the survey cannot tell whether the process changed"
+pin_exact "SKILL.md names its successors in a \`## Next\` section" "$SKILL" \
+  "## Next"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of

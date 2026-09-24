@@ -15,6 +15,8 @@ Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; 
 
 **Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked`. `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
 
+Each `Commits you to:` part of a recommendation is a row of its own, numbered after its headline with `(part of Q<N>)` in the question field: accepting the headline answers it, an alternative or rejection withdraws it.
+
 Register rows are unfenced `- Q<N>` list items. A fenced block in this section is the schema illustration, not data: the gate ignores fenced rows by design. Replace the example rows with this run's questions; keep every live row unfenced.
 
 - Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin
