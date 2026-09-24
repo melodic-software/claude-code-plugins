@@ -349,9 +349,13 @@ rdt_is_root() {
 #   RDT_RU_ARGV   the non-option words, then everything after the first `--`
 #   RDT_RU_QUOTED the quoting provenance of each RDT_RU_ARGV word, copied from
 #                 HOOK_SEG_WORD_QUOTED at <offset> plus its original position
-# A short cluster holding a letter runuser rejects makes runuser refuse the
-# whole invocation; that word is kept as a non-option rather than read as
-# options, so `runuser -u bob rm -rf /` still reads `-rf` as rm's flag.
+#   RDT_RU_SHELL  the last -s / --shell operand, empty when none was given
+# A short cluster holding a letter runuser rejects, or a long option it does
+# not know or cannot resolve, makes runuser refuse the whole invocation; that
+# word is kept as a non-option rather than read as options, so
+# `runuser -u bob rm -rf /` still reads `-rf` as rm's flag. The same keeps the
+# words right when POSIXLY_CORRECT stops getopt at the first non-option.
+# su shares this option parser, so its arm reads su's argv here too.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_runuser_argv() {
   local off="$1"
@@ -362,6 +366,7 @@ rdt_runuser_argv() {
   RDT_RU_ARGV=()
   RDT_RU_QUOTED=()
   RDT_RU_U=0
+  RDT_RU_SHELL=""
   while ((k < n)); do
     w="${a[k]}"
     case "$w" in
@@ -391,6 +396,12 @@ rdt_runuser_argv() {
         fi
       done
       ((hits == 1)) || hit=""
+      if [[ -z "$hit" ]]; then
+        RDT_RU_ARGV+=("$w")
+        RDT_RU_QUOTED+=("${HOOK_SEG_WORD_QUOTED[off + k]:-0}")
+        k=$((k + 1))
+        continue
+      fi
       k=$((k + 1))
       case "$hit" in
       command | session-command | shell | group | supp-group | user | whitelist-environment)
@@ -402,6 +413,7 @@ rdt_runuser_argv() {
         fi
         [[ "$hit" == "command" || "$hit" == "session-command" ]] && RDT_RU_CMDS+=("$val")
         [[ "$hit" == "user" ]] && RDT_RU_U=1
+        [[ "$hit" == "shell" ]] && RDT_RU_SHELL="$val"
         ;;
       *) ;;
       esac
@@ -432,6 +444,7 @@ rdt_runuser_argv() {
           fi
           [[ "$ch" == "c" ]] && RDT_RU_CMDS+=("$val")
           [[ "$ch" == "u" ]] && RDT_RU_U=1
+          [[ "$ch" == "s" ]] && RDT_RU_SHELL="$val"
         fi
         continue
       fi
@@ -443,6 +456,99 @@ rdt_runuser_argv() {
     k=$((k + 1))
   done
   return 0
+}
+
+# rdt_su_shell_run: su and runuser exec their -s / --shell program with the
+# words after the user as its arguments. When that program is not a shell, it
+# is the command itself (`su root -s /bin/rm -- -rf /`), so it is judged as
+# one. Reads the RDT_RU_* results of the rdt_runuser_argv call just made, and
+# must run before any parse re-enters it.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_su_shell_run() {
+  local prog="$RDT_RU_SHELL" name
+  [[ -n "$prog" ]] || return 0
+  name="${prog##*/}"
+  name="${name,,}"
+  name="${name%.exe}"
+  case "$name" in
+  bash | sh | zsh | dash | ksh | mksh) return 0 ;;
+  *) ;;
+  esac
+  local -a av=(${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"}) avq=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
+  HOOK_SEG_WORD_QUOTED=(0 ${avq[@]+"${avq[@]:1}"})
+  rdt_check_segment "$prog" ${av[@]+"${av[@]:1}"}
+}
+
+# rdt_long_takes_arg <launcher> <name>: true when `--<name>`, written without
+# `=`, takes the next word as its operand. getopt_long accepts any unambiguous
+# prefix, so `flock --wa 5` is `flock --wait 5`; an ambiguous prefix is counted
+# as taking one only when every candidate does, which fails closed either way.
+# Each list is the launcher's operand-taking long names, then its flag names.
+# sudo and doas are absent: their abbreviations are a declared gap.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_long_takes_arg() {
+  local name="$2" ops fls o nop=0 nfl=0
+  [[ -n "$name" ]] || return 1
+  case "$1" in
+  env)
+    ops="unset chdir"
+    fls="ignore-environment null block-signal default-signal ignore-signal list-signal-handling debug help version"
+    ;;
+  timeout)
+    ops="signal kill-after"
+    fls="foreground preserve-status verbose help version"
+    ;;
+  nice)
+    ops="adjustment"
+    fls="help version"
+    ;;
+  ionice)
+    ops="class classdata pid pgid uid"
+    fls="ignore help version"
+    ;;
+  stdbuf)
+    ops="input output error"
+    fls="help version"
+    ;;
+  time)
+    ops="format output"
+    fls="append verbose portability quiet help version"
+    ;;
+  chrt)
+    ops="sched-runtime sched-period sched-deadline clamp-min clamp-max"
+    fls="all-tasks batch deadline deadline-overrun ext fifo idle pid help max other rr reset-on-fork reclaim-grub verbose version"
+    ;;
+  flock)
+    ops="timeout wait conflict-exit-code start length fd"
+    fls="shared exclusive unlock nonblocking nb close no-fork verbose fcntl help version"
+    ;;
+  unshare)
+    ops="map-user map-users map-group map-groups owner propagation setgroups setuid setgid root wd monotonic boottime load-interp whitelist-env"
+    fls="help version mount uts ipc net pid user cgroup time fork kill-child forward-signals mount-proc mount-binfmt map-root-user map-current-user map-auto map-subids keep-caps clear-env"
+    ;;
+  nsenter)
+    ops="target net-socket setuid setgid"
+    fls="all help version mount uts ipc net pid user cgroup time root wd wdns env no-fork join-cgroup preserve-credentials keep-caps user-parent follow-context"
+    ;;
+  numactl)
+    ops="interleave weighted-interleave preferred preferred-many cpubind cpunodebind physcpubind membind shm file offset length shmmode shmid"
+    fls="all show localalloc balancing hardware strict dump dump-nodes huge touch cpu-compress verify version"
+    ;;
+  chroot)
+    ops="userspec groups"
+    fls="skip-chdir help version"
+    ;;
+  *) return 1 ;;
+  esac
+  for o in $ops; do
+    [[ "$o" == "$name" ]] && return 0
+    [[ "$o" == "$name"* ]] && nop=$((nop + 1))
+  done
+  for o in $fls; do
+    [[ "$o" == "$name" ]] && return 1
+    [[ "$o" == "$name"* ]] && nfl=$((nfl + 1))
+  done
+  ((nop > 0 && nfl == 0))
 }
 
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
@@ -553,6 +659,7 @@ rdt_check_segment() {
       ru_cmds=(${RDT_RU_CMDS[@]+"${RDT_RU_CMDS[@]}"})
       ru_argv=(${RDT_RU_ARGV[@]+"${RDT_RU_ARGV[@]}"})
       ru_quoted=(${RDT_RU_QUOTED[@]+"${RDT_RU_QUOTED[@]}"})
+      rdt_su_shell_run
       for ru_cmd in ${ru_cmds[@]+"${ru_cmds[@]}"}; do
         hook::bash_parse_segments "$ru_cmd" rdt_check_segment
       done
@@ -591,12 +698,19 @@ rdt_check_segment() {
         # reads `1` as the mask. chrt's priority must be all digits, and
         # timeout's duration must start like a number, so `timeout -- rm -rf /`
         # keeps `rm` as the command word rather than reading it as a duration.
+        # timeout's test follows strtod: leading space, a sign, then a digit,
+        # a `.`, inf or nan in any case.
         if ((consume_bare && i < n)); then
           case "$base" in
           chrt) [[ "${words[i]}" =~ ^[0-9]+$ ]] && i=$((i + 1)) ;;
-          timeout) [[ "${words[i]}" =~ ^[0-9.] ]] && i=$((i + 1)) ;;
+          timeout) [[ "${words[i]}" =~ ^[[:space:]]*[+-]?([0-9.]|[iI][nN][fF]|[nN][aA][nN]) ]] && i=$((i + 1)) ;;
           *) i=$((i + 1)) ;;
           esac
+          # flock takes -c / --command right after its lock file, `--` or not.
+          if [[ "$base" == "flock" ]] && ((i < n)) && [[ "${words[i]}" == "-c" || "${words[i]}" == "--command" ]]; then
+            ((i + 1 < n)) && hook::bash_parse_segments "${words[i + 1]}" rdt_check_segment
+            return 0
+          fi
         fi
         break
         ;;
@@ -641,6 +755,11 @@ rdt_check_segment() {
             ;;
           *) ;;
           esac
+        fi
+        # An abbreviated long option takes its operand exactly as the full name.
+        if [[ "$w" == --?* && "$w" != *=* && "$optarg" != *" $w "* ]] && rdt_long_takes_arg "$base" "${w#--}"; then
+          i=$((i + 2))
+          continue
         fi
         if [[ -n "$optarg" && "$optarg" == *" $w "* ]]; then
           i=$((i + 2))
@@ -691,6 +810,8 @@ rdt_check_segment() {
   if [[ "$base" == "su" ]]; then
     local k
     local sulong
+    rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+    rdt_su_shell_run
     for ((k = i + 1; k < n; k++)); do
       case "${words[k]}" in
       --?*)
@@ -704,12 +825,15 @@ rdt_check_segment() {
             hook::bash_parse_segments "${words[k]#*=}" rdt_check_segment
           else
             ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+            # A shell reads `-c -- '…'` as `-c '…'`, so the word after `--` too.
+            ((k + 2 < n)) && [[ "${words[k + 1]}" == "--" ]] && hook::bash_parse_segments "${words[k + 2]}" rdt_check_segment
           fi
         fi
         ;;
       -*)
         if [[ "${words[k]}" =~ ^-[A-Za-z]+$ && "${words[k]}" == *c* ]]; then
           ((k + 1 < n)) && hook::bash_parse_segments "${words[k + 1]}" rdt_check_segment
+          ((k + 2 < n)) && [[ "${words[k + 1]}" == "--" ]] && hook::bash_parse_segments "${words[k + 2]}" rdt_check_segment
         fi
         # An operand ATTACHED to the -c is the text after the first `c` that
         # only letters precede: `su -c'rm -rf /'` is the one word `-crm -rf /`.

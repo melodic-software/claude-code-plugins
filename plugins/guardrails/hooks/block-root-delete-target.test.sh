@@ -141,6 +141,12 @@ expect_both 'timeout 60 rm -rf / blocks' 2 --command 'timeout 60 rm -rf /'
 # command word.
 expect_both 'timeout -- 5 rm -rf / blocks' 2 --command 'timeout -- 5 rm -rf /'
 expect_both 'timeout -- rm -rf / blocks' 2 --command 'timeout -- rm -rf /'
+# The duration after `--` is read in strtod's shape: space, a sign, inf.
+expect_both 'timeout -- +5 rm -rf /* blocks' 2 --command 'timeout -- +5 rm -rf /*'
+expect_both "timeout -- ' 5' rm -rf /* blocks" 2 --command "timeout -- ' 5' rm -rf /*"
+expect_both 'timeout -- inf rm -rf /* blocks' 2 --command 'timeout -- inf rm -rf /*'
+expect_both 'timeout --k 1 5 rm -rf /* blocks (abbreviated --kill-after)' 2 --command 'timeout --k 1 5 rm -rf /*'
+expect_both 'timeout -- 5 ls / allowed' 0 --command 'timeout -- 5 ls /'
 expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
 expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
 expect_both 'stdbuf -o L rm -rf / blocks' 2 --command 'stdbuf -o L rm -rf /'
@@ -297,6 +303,16 @@ expect_both 'su -w -c -c blocks' 2 --command "su -w -c -c 'rm -rf /*'"
 expect_both "su -c'rm -rf /' blocks (attached operand)" 2 --command "su -c'rm -rf /'"
 expect_both "runuser -lc'rm -rf /' blocks (attached operand)" 2 --command "runuser -lc'rm -rf /'"
 expect_both "su -c'ls /' allowed (attached benign operand)" 0 --command "su -c'ls /'"
+# A shell reads `-c -- '…'` as `-c '…'`.
+expect_both 'su -c -- blocks' 2 --command "su bob -- -c -- 'rm -rf /*'"
+expect_both 'runuser -c -- blocks' 2 --command "runuser bob -- -c -- 'rm -rf /*'"
+# -s / --shell naming a program that is not a shell runs that program with the
+# words after the user, so the program is the command.
+expect_both 'su -s /bin/rm blocks' 2 --command 'su root -s /bin/rm -- -rf /*'
+expect_both 'runuser -s /bin/rm blocks' 2 --command 'runuser bob -s /bin/rm -- -rf /*'
+expect_both 'runuser --shell=/bin/rm blocks' 2 --command 'runuser --shell=/bin/rm bob -- -rf /*'
+expect_both 'runuser -s/bin/rm blocks (attached)' 2 --command 'runuser -s/bin/rm root -- -rf /*'
+expect_both 'su -s /bin/bash -c ls allowed' 0 --command "su root -s /bin/bash -c 'ls /'"
 
 # The launcher family. Each of these moves the command word exactly as `sudo`
 # and `nice` do, so the real command is found behind its options and its own
@@ -339,6 +355,11 @@ expect_both 'runuser rm -u bob -- -rf /* blocks (permuted)' 2 --command 'runuser
 expect_both 'runuser -mu cluster blocks' 2 --command 'runuser -mu bob -- rm -rf /'
 expect_both 'runuser --u bob blocks (abbreviated --user)' 2 --command 'runuser --u bob -- rm -rf /'
 expect_both 'runuser --us=bob blocks' 2 --command 'runuser --us=bob -- rm -rf /'
+# An unknown long option is kept as a non-option, which also reads the words
+# right when POSIXLY_CORRECT stops getopt at the first non-option.
+expect_both 'POSIXLY_CORRECT runuser rm --recursive blocks' 2 \
+  --command 'POSIXLY_CORRECT=1 runuser -u bob rm --recursive --force /*'
+expect_both 'runuser -u bob -- flock -- -c blocks' 2 --command "runuser -u bob -- flock -- /tmp/l -c 'rm -rf /*'"
 expect_both 'runuser -u bob -- rm -rf / blocks' 2 --command 'runuser -u bob -- rm -rf /'
 expect_both 'runuser -u bob rm -rf / blocks' 2 --command 'runuser -u bob rm -rf /'
 expect_both 'runuser --user bob -- rm -rf / blocks' 2 --command 'runuser --user bob -- rm -rf /'
@@ -382,6 +403,19 @@ expect_both 'flock -- /tmp/l rm -rf / blocks' 2 --command 'flock -- /tmp/l rm -r
 # With --fd there is no lock file, so the first positional is the command.
 expect_both 'flock --fd 9 rm -rf / blocks' 2 --command 'flock --fd 9 rm -rf /'
 expect_both 'flock --fd=9 rm -rf / blocks' 2 --command 'flock --fd=9 rm -rf /'
+# -c / --command right after the lock file counts after `--` too.
+expect_both 'flock -- /tmp/l -c blocks' 2 --command "flock -- /tmp/l -c 'rm -rf /*'"
+expect_both 'flock -n -- /tmp/l --command blocks' 2 --command "flock -n -- /tmp/l --command 'rm -rf /*'"
+expect_both 'flock -- /tmp/l -c ls allowed' 0 --command "flock -- /tmp/l -c 'ls /'"
+# An abbreviated long option takes its operand as the full name does.
+expect_both 'flock --wa 5 blocks' 2 --command 'flock --wa 5 /tmp/l rm -rf /*'
+expect_both 'flock --tim 5 blocks' 2 --command 'flock --tim 5 /tmp/l rm -rf /*'
+expect_both 'nsenter --ta 1 blocks' 2 --command 'nsenter --ta 1 rm -rf /*'
+expect_both 'unshare --roo /mnt blocks' 2 --command 'unshare --roo /mnt rm -rf /*'
+expect_both 'numactl --memb 0 blocks' 2 --command 'numactl --memb 0 rm -rf /*'
+expect_both 'chroot --user a:b / blocks' 2 --command 'chroot --user a:b / rm -rf /*'
+expect_both 'chrt --sched-r 5 -d 0 blocks' 2 --command 'chrt --sched-r 5 -d 0 rm -rf /*'
+expect_both 'nsenter --ta 1 ls / allowed' 0 --command 'nsenter --ta 1 ls /'
 # unshare, nsenter and numactl take no positional; only their operand-taking
 # options consume a word.
 expect_both 'unshare rm -rf / blocks' 2 --command 'unshare rm -rf /'
