@@ -25,8 +25,8 @@ pull-request skill; ADR 0037 records that pull requests opened any other way rec
 ## Decision
 
 1. **Both lanes are restored** as they stood before #4210: the two callers, their evidence guards,
-   the shared guard library, the skip-actors reader and list, and the security lane's path gate
-   `.github/claude-security-paths` with its patterns unchanged.
+   the shared guard library, and the skip-actors reader and list. The security lane's path gate
+   was restored too, then removed the same day (see the addendum).
 2. **Every push is reviewed.** Both callers trigger on `opened`, `synchronize`,
    `ready_for_review` and `reopened`. Drafts are still skipped. The push that resolves a merge
    conflict is a `synchronize` event, so a pull request that conflicted when it opened is reviewed
@@ -47,12 +47,8 @@ pull-request skill; ADR 0037 records that pull requests opened any other way rec
 
 ## Consequences
 
-- Review spend rises from one run per pull request to one per push, drawn on the subscription
-  window the interactive sessions share. Cancelling superseded runs and the security lane's
-  incremental relevance check (ci-workflows#259) bound it.
-- The security lane is still path-gated: a pull request touching no path in
-  `.github/claude-security-paths` gets no security review in CI. Whether that gate should go is an
-  open operator question.
+- Review spend rises from one run per pull request to one per push for both lanes, drawn on the
+  subscription window the interactive sessions share. Cancelling superseded runs bounds it.
 - `REVIEW.md` keys the security split on the security workflow file existing. With the file
   restored, the code-review lane again leaves security findings to the security lane, which is the
   split the `review` plugin's skills state.
@@ -69,4 +65,25 @@ pull-request skill; ADR 0037 records that pull requests opened any other way rec
   window) rather than muting the check.
 - Per-push spend exceeds what the operator accepts → reintroduce `max-reviews-per-pr` or drop
   `synchronize` on one lane, and record which.
-- The operator decides the security review must run regardless of paths → remove the path gate.
+- The autonomy security-review policy's floors change so that a class below C3 must not run the
+  security lane → reintroduce `paths-file`, and record why.
+
+## Addendum (2026-09-24): the security lane runs on every pull request
+
+The operator decided that the security lane reviews every non-draft pull request, not only those
+touching a path in `.github/claude-security-paths`. The caller now passes neither `paths` nor
+`paths-file`, which the reusable treats as "every call is relevant". The lane stays advisory and is
+never a required check.
+
+The operator's rule is a code review and a security review on every pull request. The autonomy
+plugin's security-review policy
+([`plugins/autonomy/reference/guardrails/security-review.md`](../../plugins/autonomy/reference/guardrails/security-review.md))
+sets per-class floors (C2 not required, C3 advisory, C4 and C5 blocking) and lets a binding
+tighten any cell, never weaken one. An advisory security review on every pull request, C2
+included, is a permitted tightening.
+
+`.github/claude-security-paths` stays: the `security` class of the `pr_skill_evidence` map in
+`.claude/source-control.md` reads it for the seat-run security review, and the `ci.yml` evidence
+reporter checks it out from the base to serve that map. With no path list, the reusable's
+incremental relevance skip (ci-workflows#259) no longer applies, so every push to a ready pull
+request is security-reviewed.

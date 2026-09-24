@@ -25,7 +25,8 @@ depends on the binding until that human-landed change exists.
    an `L2` whole-process OS-sandbox wrap or default-deny-egress container, an `L3` kernel-separated
    VM/microVM or hosted ephemeral executor. Detection is per surface, a substrate present on one
    surface says nothing about another, and the flat "some surface has L2" answer never satisfies a
-   different dispatch surface.
+   different dispatch surface. For a surface whose host is Windows (native, WSL2, or a VM launched
+   from it), read [`windows-surfaces.md`](windows-surfaces.md) first.
 2. **Detect-diff-reconcile against existing guardrail surfaces**, never greenfield-assume, never
    silently overwrite. Before proposing any binding value, read the org's existing guardrail
    surfaces. Sandbox/runner configurations, branch protections, review workflows and scanner
@@ -47,6 +48,11 @@ depends on the binding until that human-landed change exists.
    - a **workspace host-write containment check**. Randomized canaries written inside must all be
      absent on the host after teardown (a boundary the host later executes writes from is not an
      `L2` boundary).
+
+   A WSL2 surface also runs the interop launch check from
+   [`windows-surfaces.md`](windows-surfaces.md), a launch that must succeed outside and fail
+   inside, recorded beside the transcript as evidence the reviewing human confirms rather than a
+   fourth checker assertion. Without that record the WSL2 level stays unbound.
 
    The checker resolves no DNS and reads no remote host, so it validates the probe's targets against
    operator-configured seams. The egress target checks against `--egress-hosts <host,...>` (a

@@ -3,6 +3,58 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-09-23
+
+### Added
+
+- **The audit engine reads its upstream sources every run.** It fetches the docs index
+  (`https://code.claude.com/docs/llms.txt`), resolves `settings-reference` and `env-vars` from the
+  links there, and reads each page verbatim. The document's new `docs` object lists the index and
+  every page with its URL or path, byte count, and state (`read`, `unread` with a reason, or
+  `unparsed`), and `--table` prints it.
+  `--docs-dir` is now optional reuse: a page found there is read instead of fetched. Fetches are
+  HTTPS only, redirects included (at most 5), and a page whose redirect lands outside the docs
+  origin is `unread` with reason `redirected-off-origin`.
+- **The engine records the Claude Code version.** It runs `claude --version` and carries the
+  result as `claude_version`. Version-gated rows are evaluated against it, and an unreadable version
+  makes them `skip`.
+- **Documented and deprecated keys (category A).** Every top-level and `permissions.*` key in the
+  project, local, and user settings is looked up on `settings-reference`: by its own heading, or,
+  for a `permissions.*` key, by its name in the `permissions` **Type** bullet. A key found neither
+  way is one finding, claim `undocumented-key:<key>`, whose severity says what the installed
+  `claude` binary showed: `info` when the binary carries the name standalone (bounded by
+  characters that cannot continue an identifier), `warning` when it does not, and `info` when the
+  binary could not be searched (missing, or a shim lacking two known key names) or the name is
+  shorter than four characters or not identifier-shaped. A hit shows the name is in the CLI, not
+  that the CLI reads the key. Keys reach their claim exactly as written, with no tab-separated
+  escaping. A key whose section says it is deprecated is a `warning` quoting that line, gated on
+  the recorded version when the line names one. `$schema` and empty key names are exempt.
+- **A `settings-reference` page that does not parse fails closed.** A page that downloaded but has
+  no heading for `permissions` or `enabledPlugins` (a soft 404, a reshaped page) is recorded with
+  state `unparsed`, not `read`, and every key, value, and version row resting on it is
+  `not-inspectable` rather than a run of undocumented-key findings.
+
+### Changed
+
+- **The `effortLevel` rule is now "value not in the documented set".** The accepted values, and
+  the `disableDeepLinkRegistration` value, come from the key's **Type** bullet on the fetched
+  `settings-reference` instead of a list in the engine, so any undocumented value is flagged, not
+  only `max` and `ultracode`. A value is matched as one whole string, so a multi-line value is
+  never accepted on the strength of one documented line. Claims `effortLevel:<value>` and `disableDeepLinkRegistration:<value>`
+  keep their identity. The matching `audit-checklist.md` rows now point at the Type bullet.
+- **`enforceAvailableModels-without-list` is gated on the version the key requires.** On a Claude
+  Code older than the first "Requires Claude Code" version in the key's section, the row is `ok`
+  with the reason.
+- **Env-var documentation rows are `not-inspectable`, not `skip`, when `env-vars` was not read.**
+  The claim `env-page-not-fetched:<key>` is unchanged.
+- **Default runs use the network.** An offline run reports the unfetched pages `unread` and every
+  row resting on them `not-inspectable`.
+
+### Fixed
+
+- **An env key containing `.` is matched literally on the env-vars page.** The check grepped the
+  key as a regex, so `A.B` matched a documented `AXB`.
+
 ## [0.47.1] - 2026-09-23
 
 ### Fixed
