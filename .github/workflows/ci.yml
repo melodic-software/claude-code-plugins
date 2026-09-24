@@ -2193,6 +2193,19 @@ jobs:
           [ "$LEG" = 2 ] || exit 0
           python -m unittest -v test_hygiene
 
+      # Counter ceilings from .performance/ratchets.json: each counter's command
+      # runs and the step fails when one rises above its checked-in ceiling.
+      # Counters only, never durations, so the answer does not move with runner
+      # load. A lower count is lowered in the file by hand in the same PR
+      # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
+      # job, because a counter this deterministic only drops when a PR changes
+      # it. LEG 0 carries it alone: under a second.
+      - name: Check performance counter ceilings
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 0 ] || exit 0
+          python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
+
       - name: Report not applicable to a docs-only diff
         if: needs.changes.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt), or this is a draft pull request; the plugin contract suite, the sync gates and the sub-project builds cannot be affected — reporting success."

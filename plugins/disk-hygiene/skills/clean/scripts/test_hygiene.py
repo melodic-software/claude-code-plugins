@@ -7138,6 +7138,11 @@ class GuardTests(unittest.TestCase):
             command,
             f"skill hook must launch through the shared launcher: {command!r}",
         )
+        self.assertTrue(
+            command.startswith('bash "${CLAUDE_PLUGIN_ROOT}"/'),
+            "the belt runs the launcher with a leading `bash`, as every "
+            f"hooks.json row does, so no `env` process runs: {command!r}",
+        )
         self.assertNotIn(
             "args",
             hook,
@@ -7167,8 +7172,9 @@ class GuardTests(unittest.TestCase):
         The belt currently works wherever `python3` resolves to a real
         interpreter, so the risk of #2568 is breaking a working guard rather than
         reviving a dead one. Everything from `destructive_guard.py` onward must
-        therefore survive the conversion byte-identically; only argv[0] changes,
-        from an interpreter name to the launcher path, which IS the fix.
+        therefore survive the conversion byte-identically; only the launch prefix
+        changes, from an interpreter name to `bash` and the launcher path, which
+        IS the fix.
 
         Asserted against roots containing spaces and backslashes because that is
         where quoting fails: a Windows plugin root routinely sits under a

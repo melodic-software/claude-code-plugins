@@ -87,6 +87,11 @@ def _record(
     return json.dumps(payload)
 
 
+# A tail-window size the large-transcript fixtures straddle, so a cold scan
+# capped to the tail would fail them.
+_OLD_TAIL_CAP = 2_000_000
+
+
 def _filler_line(nbytes: int) -> str:
     """An ignorable ASCII JSONL record occupying exactly ``nbytes`` with its newline."""
     prefix = '{"type": "other", "noise": "'
@@ -410,14 +415,14 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIn("durationMs: 200", message)
         self.assertIn("second failure", message)
 
-    # -- bounded tail read ----------------------------------------------------
+    # -- large transcripts: the cold scan reads the whole file ----------------
 
     def test_tail_read_still_finds_failure_near_end_of_large_transcript(self) -> None:
         filler = json.dumps({"type": "other", "noise": "x" * 200})
         lines = [filler for _ in range(20000)]
         lines.append(_record(exit_code=1, duration_ms=17054))
         self.write_transcript(lines)
-        self.assertGreater(self.transcript_path.stat().st_size, monitor._MAX_TAIL_BYTES)
+        self.assertGreater(self.transcript_path.stat().st_size, _OLD_TAIL_CAP)
         message = self.run_monitor()
         self.assertIsNotNone(message)
         self.assertIn("exitCode: 1", message)
@@ -430,7 +435,7 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         record can be the session's only guard failure.
         """
         failure = _record(exit_code=9, duration_ms=4242, stderr="boundary failure")
-        pad = _filler_line(monitor._MAX_TAIL_BYTES - len(failure) - 1)
+        pad = _filler_line(_OLD_TAIL_CAP - len(failure) - 1)
         head = [_filler_line(4096) for _ in range(4)]
         # Written as bytes with explicit LF: the byte offsets are the fixture's
         # whole point, and text mode would insert a platform line ending.
@@ -439,7 +444,7 @@ class GuardLaunchMonitorTests(unittest.TestCase):
 
         size = self.transcript_path.stat().st_size
         self.assertEqual(
-            size - monitor._MAX_TAIL_BYTES,
+            size - _OLD_TAIL_CAP,
             sum(len(line) + 1 for line in head),
             "fixture must place the window boundary exactly at the failure record",
         )
@@ -450,11 +455,11 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.assertIn("durationMs: 4242", message)
 
     def test_head_region_failure_survives_later_oversized_append(self) -> None:
-        """#1514: a guard failure more than _MAX_TAIL_BYTES from EOF must still warn."""
+        """#1514: a guard failure more than _OLD_TAIL_CAP from EOF must still warn."""
         failure = _record(exit_code=2, duration_ms=99, stderr="head failure")
-        pad = _filler_line(monitor._MAX_TAIL_BYTES + 100_000)
+        pad = _filler_line(_OLD_TAIL_CAP + 100_000)
         self.write_transcript([failure, pad])
-        self.assertGreater(self.transcript_path.stat().st_size, monitor._MAX_TAIL_BYTES)
+        self.assertGreater(self.transcript_path.stat().st_size, _OLD_TAIL_CAP)
         message = self.run_monitor()
         self.assertIsNotNone(message)
         self.assertIn("exitCode: 2", message)
@@ -585,6 +590,177 @@ class GuardLaunchMonitorTests(unittest.TestCase):
                 with redirect_stdout(stdout):
                     monitor.main(["--data-root", str(self.data_root)])
         self.assertFalse(out_file.exists())
+
+    # -- incremental scan: a per-session byte-offset cursor -----------------
+
+    def cursor_path(self, session_id: str = "session-1") -> Path:
+        return self.data_root / "guard-launch-monitor" / f"{session_id}.cursor"
+
+    def append(self, text: str) -> None:
+        with self.transcript_path.open("ab") as handle:
+            handle.write(text.encode("utf-8"))
+
+    def scanned_sizes(self) -> tuple[list[int], mock._patch]:
+        """Patch ``_read_new`` to record how many bytes each run scanned."""
+        sizes: list[int] = []
+        real = monitor._read_new
+
+        def spy(path: str, cursor: int):
+            data, offset = real(path, cursor)
+            sizes.append(len(data))
+            return data, offset
+
+        return sizes, mock.patch.object(monitor, "_read_new", side_effect=spy)
+
+    def test_a_clean_scan_records_a_cursor_at_the_end_of_the_file(self) -> None:
+        self.write_transcript([_filler_line(100) for _ in range(10)])
+        self.assertIsNone(self.run_monitor())
+        size = self.transcript_path.stat().st_size
+        self.assertEqual(
+            f"b{size}\n{self.transcript_path}\n",
+            self.cursor_path().read_text(encoding="utf-8"),
+        )
+
+    def test_a_warm_scan_reads_only_the_appended_bytes(self) -> None:
+        self.write_transcript([_filler_line(1000) for _ in range(3000)])
+        cold_size = self.transcript_path.stat().st_size
+        sizes, patch = self.scanned_sizes()
+        with patch:
+            self.assertIsNone(self.run_monitor())
+            appended = _record(exit_code=4, duration_ms=44) + "\n"
+            self.append(appended)
+            message = self.run_monitor()
+        self.assertEqual([cold_size, len(appended)], sizes)
+        self.assertIn("1 time this session", message)
+        self.assertIn("exitCode: 4", message)
+
+    def test_a_stop_with_nothing_appended_reads_nothing(self) -> None:
+        self.write_transcript([_filler_line(500) for _ in range(20)])
+        self.assertIsNone(self.run_monitor())
+        cursor = self.cursor_path().read_text(encoding="utf-8")
+        sizes, patch = self.scanned_sizes()
+        with patch:
+            self.assertIsNone(self.run_monitor())
+        self.assertEqual([0], sizes)
+        self.assertEqual(cursor, self.cursor_path().read_text(encoding="utf-8"))
+
+    def test_a_failure_is_reported_once_and_never_missed(self) -> None:
+        self.write_transcript([_filler_line(200)])
+        self.assertIsNone(self.run_monitor())
+        self.append(_filler_line(200) + "\n")
+        self.assertIsNone(self.run_monitor())
+        self.append(_record(exit_code=5, duration_ms=55) + "\n")
+        self.assertIn("exitCode: 5", self.run_monitor())
+        self.append(_record(exit_code=6, duration_ms=66) + "\n")
+        self.assertIsNone(self.run_monitor())
+
+    def test_a_failure_does_not_advance_the_cursor(self) -> None:
+        """An unmarked warning re-warns next Stop with the same count, as before."""
+        self.write_transcript([_filler_line(200)])
+        self.assertIsNone(self.run_monitor())
+        before = self.cursor_path().read_text(encoding="utf-8")
+        self.append(_record(exit_code=5, duration_ms=55) + "\n")
+        with mock.patch.object(monitor, "_write_marker"):
+            first = self.run_monitor()
+            second = self.run_monitor()
+        self.assertEqual(before, self.cursor_path().read_text(encoding="utf-8"))
+        self.assertIsNotNone(first)
+        self.assertEqual(first, second)
+
+    def test_a_partial_final_line_is_rescanned_once_complete(self) -> None:
+        self.write_transcript([_filler_line(200)])
+        clean_size = self.transcript_path.stat().st_size
+        failure = _record(exit_code=7, duration_ms=77, stderr="late")
+        self.append(failure[:40])
+        self.assertIsNone(self.run_monitor())
+        self.assertTrue(
+            self.cursor_path()
+            .read_text(encoding="utf-8")
+            .startswith(f"b{clean_size}\n")
+        )
+        self.append(failure[40:] + "\n")
+        message = self.run_monitor()
+        self.assertIn("1 time this session", message)
+        self.assertIn("late", message)
+
+    def test_a_complete_final_line_without_newline_still_warns(self) -> None:
+        self.write_transcript([_filler_line(200)])
+        self.assertIsNone(self.run_monitor())
+        self.append(_record(exit_code=8, duration_ms=88))
+        self.assertIn("exitCode: 8", self.run_monitor())
+
+    def test_a_truncated_transcript_is_scanned_cold(self) -> None:
+        self.write_transcript([_filler_line(1000) for _ in range(50)])
+        self.assertIsNone(self.run_monitor())
+        self.write_transcript([_record(exit_code=3, duration_ms=33)])
+        self.assertIn("exitCode: 3", self.run_monitor())
+
+    def test_a_replaced_transcript_of_equal_size_is_scanned_cold(self) -> None:
+        """No newline before the cursor means the bytes behind it changed."""
+        self.write_transcript([_filler_line(1000)])
+        self.assertIsNone(self.run_monitor())
+        size = self.transcript_path.stat().st_size
+        failure = _record(exit_code=3, duration_ms=33)
+        body = failure + "\n" + "x" * (size - len(failure) - 1)
+        self.transcript_path.write_bytes(body.encode("utf-8"))
+        self.assertEqual(size, self.transcript_path.stat().st_size)
+        self.assertIn("exitCode: 3", self.run_monitor())
+
+    def test_a_cursor_for_another_transcript_is_ignored(self) -> None:
+        self.write_transcript([_record(exit_code=3, duration_ms=33), _filler_line(200)])
+        self.cursor_path().parent.mkdir(parents=True)
+        size = self.transcript_path.stat().st_size
+        self.cursor_path().write_text(f"b{size}\n/elsewhere.jsonl\n", encoding="utf-8")
+        self.assertIn("exitCode: 3", self.run_monitor())
+
+    def test_a_legacy_or_malformed_cursor_is_scanned_cold(self) -> None:
+        cursors = ("5\n{path}\n", "b0\n{path}\n", "b007\n{path}\n", "garbage", "")
+        for index, content in enumerate(cursors):
+            with self.subTest(cursor=content):
+                session = f"legacy-{index}"
+                self.write_transcript(
+                    [_record(exit_code=3, duration_ms=33), _filler_line(200)]
+                )
+                path = self.cursor_path(session)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    content.format(path=self.transcript_path), encoding="utf-8"
+                )
+                self.assertIn("exitCode: 3", self.run_monitor(session_id=session))
+
+    def test_no_data_root_keeps_the_cursor_in_the_tmp_fallback(self) -> None:
+        self.write_transcript([_filler_line(5000)])
+        sizes, patch = self.scanned_sizes()
+        with patch, mock.patch.object(monitor, "_resolve_data_root", return_value=None):
+            self.assertIsNone(self.run_monitor())
+            self.append(_record(exit_code=2, duration_ms=22) + "\n")
+            self.assertIn("exitCode: 2", self.run_monitor())
+        self.assertLess(sizes[1], 2000)
+        self.assertFalse(self.cursor_path().exists())
+
+    def test_warning_text_is_byte_identical_cold_and_warm(self) -> None:
+        """The message for the same records is unchanged by where the scan starts."""
+        failures = [
+            _record(exit_code=1, duration_ms=100, stderr="first failure"),
+            _record(exit_code=2, duration_ms=200, stderr="second failure"),
+        ]
+        expected = (
+            "disk-hygiene: destructive_guard.py failed to run or exited non-zero "
+            "2 times this session and its failure(s) were not visible as a denial. "
+            "Most recent failure: exitCode: 2, durationMs: 200, stderr: second "
+            "failure This means destructive-action review may not have been "
+            "enforced for the guarded command(s) in question. This detector covers "
+            "only destructive_guard.py's own command string in this session's "
+            "transcript; it does not cover repo-hygiene's guard and does not "
+            "retroactively scan past sessions."
+        )
+        self.write_transcript([_filler_line(300)] + failures)
+        self.assertEqual(expected, self.run_monitor(session_id="cold"))
+
+        self.write_transcript([_filler_line(300)])
+        self.assertIsNone(self.run_monitor(session_id="warm"))
+        self.append("\n".join(failures) + "\n")
+        self.assertEqual(expected, self.run_monitor(session_id="warm"))
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.20] - 2026-09-23
+## [0.23.21] - 2026-09-24
 
 ### Changed
 
@@ -12,6 +12,22 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 - hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
 - hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+
+## [0.23.20] - 2026-09-23
+
+### Changed
+
+- `lane-stop-gate.sh` decides whether the gate could be configured before it sources any library.
+  A session with no gate footprint (the interactive default) now exits without parsing
+  `hook-utils.sh`, `lane-notify.sh` and `lane-stop-gate-lib.sh`. The pre-filter still
+  reads the same opt-in sources: the arm-id and enabled env presences, the install-anchored user
+  settings.json, and every platform's managed-settings file and drop-ins. The suite pins its copy
+  of the managed paths to the lib's literals. `gate_managed_candidates_load` is removed from the
+  lib; the pre-filter was its only caller.
+- The Stop registration runs `bash "${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh"` with
+  `"shell": "bash"`, dropping the `env` process the `#!/usr/bin/env bash` shebang added. Each Stop
+  now starts two processes instead of three. Blocking decisions, messages and notifications are
+  unchanged in every mode (#4415).
 
 ## [0.23.19] - 2026-09-23
 
