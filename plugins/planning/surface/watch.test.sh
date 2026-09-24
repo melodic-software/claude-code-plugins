@@ -142,16 +142,20 @@ print(" ".join(str(e["seq"]) for e in json.loads(open(sys.argv[1], encoding="utf
 ' "$1" 2>&1
 }
 
-# (e) AC8: the turn died before handling; the next arm re-delivers at once and records the replay
-start=$SECONDS
-bounded 5 "$tmp/e.out" "$tmp/e.err" bash "$here/watch.sh" "$d"
+# (e) AC8: the turn died before handling; the next arm re-delivers at once and records the replay.
+# A wait that did not re-deliver would hold the watcher for the whole WAIT_TIMEOUT, so the watcher
+# exiting inside a third of it proves "at once". The bound is on the watcher's exit, not on wall
+# seconds, which on a loaded Windows host mostly count Git Bash process spawns.
+wait_timeout=$(sed -n 's/^WAIT_TIMEOUT=//p' "$d/.interview-session.env" | tr -dc '0-9')
+bound=$((${wait_timeout:-90} / 3))
+bounded "$bound" "$tmp/e.out" "$tmp/e.err" bash "$here/watch.sh" "$d"
 rc=$?
 got=$(event_seqs "$tmp/e.out")
 replay=$(tr -dc '0-9' <"$d/.watch-replay" 2>/dev/null)
-if [[ "$rc" -eq 0 && "$got" == "$seq" && "$replay" == "$seq" && $((SECONDS - start)) -le 3 ]]; then
-  ok "AC8: an unhandled event re-delivers on the next arm; .watch-replay=$replay"
+if [[ "$bound" -ge 10 && "$rc" -eq 0 && "$got" == "$seq" && "$replay" == "$seq" ]]; then
+  ok "AC8: an unhandled event re-delivers on the next arm within ${bound}s of a ${wait_timeout:-90}s wait; .watch-replay=$replay"
 else
-  bad "AC8 re-delivery: rc=$rc got=[$got] replay=[$replay] err=$(cat "$tmp/e.err")"
+  bad "AC8 re-delivery: bound=${bound}s rc=$rc got=[$got] replay=[$replay] err=$(cat "$tmp/e.err")"
 fi
 
 # (f) a second arm with no new event keeps waiting

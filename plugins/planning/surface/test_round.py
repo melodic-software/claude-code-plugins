@@ -674,6 +674,7 @@ class TestLock(DirCase):
             [sys.executable, "-c", LOCK_HOLDER, str(HERE), str(self.dir), str(seconds)],
             stdout=subprocess.PIPE,
             text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         self.addCleanup(p.wait, 30)
         self.assertEqual(p.stdout.readline().strip(), "locked")

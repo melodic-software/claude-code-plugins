@@ -13,6 +13,7 @@ Claude's watcher long-polls GET /api/wait?after=handled&replayed=<seq>&timeout=<
 """
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -49,6 +50,8 @@ READING_WINDOW = 180  # seconds Claude is shown as reading after an answer was d
 DISCONNECTS = (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
 SESSION_JSON = ".interview-session.json"
 REPO_SETTINGS = Path(".claude") / "interview-surface.json"
+# Debug: the console window this process owns (0 means none); None off Windows.
+CONSOLE_WINDOW = ctypes.windll.kernel32.GetConsoleWindow() if os.name == "nt" else None
 
 # Settings, lowest layer first: plugin default, repo file, user file, the data dir's settings.json.
 DEFAULT_SETTINGS = {
@@ -855,6 +858,7 @@ class Handler(BaseHTTPRequestHandler):
                     "api": API,
                     "pid": os.getpid(),
                     "dataDir": str(hub.dir),
+                    "consoleWindow": CONSOLE_WINDOW,
                 },
             )
         self.send(404, {"error": "not found"})

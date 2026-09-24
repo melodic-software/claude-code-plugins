@@ -457,6 +457,32 @@ class TestEnsureRunning(ServerCase):
         self.assertFalse((other / ".interview-session.json").exists())
 
 
+def round_sh_python():
+    """The interpreter round.sh picks: python3, then python, from PATH."""
+    return shutil.which("python3") or shutil.which("python") or sys.executable
+
+
+@unittest.skipUnless(os.name == "nt", "console windows exist only on Windows")
+class TestNoConsoleWindow(unittest.TestCase):
+    """The server runs without a console window, through the interpreter round.sh picks."""
+
+    def test_server_has_no_console_window(self):
+        d = Path(tempfile.mkdtemp(prefix="iv-console-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        self.addCleanup(run_round, d, "stop")
+        p = subprocess.run(
+            [round_sh_python(), str(ROUND), "ensure-running", "--dir", str(d)]
+            + ["--port", "0"],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        code, raw, _ = request(session(d)["port"], "GET", "/api/ping")
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(raw)["consoleWindow"], 0)
+
+
 class TestStop(unittest.TestCase):
     """AC3: stop ends only the recorded PID and never another process."""
 
@@ -492,7 +518,8 @@ class TestStop(unittest.TestCase):
     def test_stop_never_kills_an_unrelated_pid(self):
         sb = session(self.b)
         sleeper = subprocess.Popen(
-            [sys.executable, "-c", "import time; time.sleep(60)"]
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         self.addCleanup(sleeper.wait, 10)
         self.addCleanup(sleeper.kill)

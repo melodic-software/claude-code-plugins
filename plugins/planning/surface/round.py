@@ -72,6 +72,7 @@ SESSION_FILES = (".interview-session.json", ".interview-session.env")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
@@ -906,10 +907,22 @@ def port_free(port):
     return True
 
 
+def interpreter():
+    """The real interpreter: on Windows outside a venv, the base one behind a launcher such as a uv trampoline."""
+    base = getattr(sys, "_base_executable", "")
+    if os.name == "nt" and sys.prefix == sys.base_prefix and os.path.isfile(base):
+        return base
+    return sys.executable
+
+
 def start_server(d, port, nonce):
-    """Start server.py detached from this process: no inherited stdio, own session or process group."""
+    """Start server.py apart from this process: no inherited stdio, own session or process group.
+
+    On Windows the child gets a console with no window (CREATE_NO_WINDOW), never
+    DETACHED_PROCESS: a detached launcher's console child would allocate a new, visible one.
+    """
     cmd = [
-        sys.executable,
+        interpreter(),
         str(HERE / "server.py"),
         "--dir",
         str(d),
@@ -926,7 +939,7 @@ def start_server(d, port, nonce):
     }
     if os.name != "nt":
         return subprocess.Popen(cmd, start_new_session=True, **kw)
-    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    flags = NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
     try:
         return subprocess.Popen(
             cmd, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kw
@@ -970,6 +983,7 @@ def open_browser(url, cmd):
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=NO_WINDOW,
         )
         return
     webbrowser.open(url)
