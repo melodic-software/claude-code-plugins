@@ -71,7 +71,7 @@ Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
 
 | Action | When | What it does |
 |---|---|---|
-| (empty) | No action given | With a game dir: run `status`. "no snapshot" means never applied here, so recommend `assess`; otherwise report the status and recommend. Without a game dir: ask for one. Never runs `apply` or `remove` |
+| (empty) | No action given | With a game dir: run `status`. "no snapshot" means never applied here, so recommend `assess`; otherwise report the status and recommend. Without a game dir: ask for one. Never runs `apply`, `remove` or `reset` |
 | `assess` | Is this game eligible? | Run `assess`. Report the launcher, the verdict and the anti-cheat status. Writes nothing |
 | `apply` | Install the mod | `assess` first; stop on verdict `refused`, `not-a-candidate` or `unknown`. Any anti-cheat status but `none-disclosed` runs the anti-cheat review. Confirm with the user, run `apply`, add the ledger row |
 | `remove` | Uninstall the mod | Confirm with the user, run `remove`, report what was kept and any drift, update the ledger row |
@@ -81,8 +81,8 @@ Rainbow Six'`. `-AntiCheatResearch` text takes the same escape.
 | `capture` | Keep the overlay tuning | Run `capture` after the user's Save Settings; it writes the game's local preset. Writes nothing in the game folder |
 | `refetch` | Are forks, driver, runtime current? | Run `refetch`, read the page-backed items, update only the ledger's Upstream watch rows that changed |
 
-When the request is ambiguous, recommend an action and wait. Never commit to `apply` or `remove`
-without the user's confirmation.
+When the request is ambiguous, recommend an action and wait. Never commit to `apply`, `remove` or
+`reset -ConfirmReset` without the user's confirmation.
 
 ## Action: assess
 

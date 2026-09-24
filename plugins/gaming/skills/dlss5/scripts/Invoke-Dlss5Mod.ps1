@@ -1346,7 +1346,7 @@ function Do-Selftest {
         $gm = LoadJson "$sd\manifest.json"
         Assert 'pin state: a manifest on its build''s pin is current' ((Get-PinState $gm) -like '*selftest vtest, the current pin')
         $BuildPins['selftest'].Tag = 'vnext'
-        Assert 'pin state: a manifest behind its build''s pin is reported by status and assess' (((Get-PinState $gm) -like 'installed build is older than the current pin: selftest vtest installed, vnext pinned*') -and (((Do-Assess $g) | ConvertFrom-Json).installedBuild -like 'installed build is older than the current pin*'))
+        Assert 'pin state: a manifest behind its build''s pin reads older than the current pin, in assess too' (((Get-PinState $gm) -like 'installed build is older than the current pin: selftest vtest installed, vnext pinned*') -and (((Do-Assess $g) | ConvertFrom-Json).installedBuild -like 'installed build is older than the current pin*'))
         $BuildPins['selftest'].Tag = 'vtest'
         Assert 'pin state: an empty tag (before 0.5.0) is unknown' ((Get-PinState ([pscustomobject]@{ build = 'wilsjo2'; tag = '' })) -like '*unknown, re-apply to record')
         $gi = "$g\OptiScaler.ini"
