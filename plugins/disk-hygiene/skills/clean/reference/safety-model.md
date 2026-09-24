@@ -196,7 +196,8 @@ is accepted only when it matches the plugin data directory the guard derives fro
 `${CLAUDE_PLUGIN_ROOT}`, the only substitution a skill-frontmatter hook receives, passed to the
 guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 [persistent-data-directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory)
-layout. A host that can substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
+layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
+local-directory marketplace, through `known_marketplaces.json` (see below). A host that can substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
 `--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last; absent
 every channel the flag fails closed. `--max-depth` accepts only a bare positive-integer literal.
 `--confirmed-large-scan`, `--quiet` and `--root-children` are the valueless scan flags; the guard
@@ -218,14 +219,69 @@ authority wherever the runtime honors that for skill hooks, making the derivatio
 Not every Claude Code build exports it to a skill hook, so both channels exist and the
 derivation is the one that has to hold when the variable is absent.
 
-A `claude --plugin-dir <checkout>` development session is the one shape with no derivable authority: a
-bare checkout has no `<plugins>/cache/<marketplace>` structure and no stable marketplace-keyed data
-`<id>`, so the marker walk finds nothing. That dev workflow relies solely on the `CLAUDE_PLUGIN_DATA`
+**Local-directory marketplace installs.** A plugin loaded in place from a local-directory
+marketplace has a `${CLAUDE_PLUGIN_ROOT}` that is the source checkout, with no `<plugins>/cache`
+segment, while its data directory is still `<config>/plugins/data/<id>`. For such a root the guard
+reads `<config>/plugins/known_marketplaces.json` and requires exactly one entry whose `source.source`
+is `directory` and whose `installLocation` strict-resolves to a directory containing the plugin root.
+That marketplace's `.claude-plugin/marketplace.json` must carry the entry's key as its `name` and
+exactly one plugin entry whose relative string `source` resolves to the plugin root, with a `name`
+matching the root's own `.claude-plugin/plugin.json`. The id is `<entry name>@<key>`, sanitized as
+the documented layout does, and the data root is built only from the trusted config dir plus that id,
+never from a path read out of either file. The same proof supplies `<config>/settings.json` and the
+exact `pluginConfigs` key, so the kill switch is read on a directory install too. This couples to the
+undocumented contents of `known_marketplaces.json`, and is acceptable on the same terms as the cache
+coupling: its only failure mode is fail-closed, since any unproven step yields no authority.
+
+`<config>` is `<account home>/.claude`, with the home read from the OS account record (the password
+database entry for the effective uid on POSIX, the Profile known folder on Windows), never `HOME`,
+`USERPROFILE`, `CLAUDE_CONFIG_DIR`, or `Path.home()`. A repo `settings.json` `env` block reaches hook
+subprocesses, so an environment-derived anchor would let a repo point the read at a forged
+`known_marketplaces.json`. There is no argv or env override, and a user whose `HOME` differs from the
+account record fails closed.
+
+Data-root precedence, highest first: `--authorized-data-root`, the cache derivation, the
+directory-marketplace derivation, then the `CLAUDE_PLUGIN_DATA` environment variable. **Residual:** a
+repo `env` block can set that variable, so the env fallback carries no provenance. On a directory
+install the proven channel now outranks it, so a differing value there cannot win; it still decides
+where no other channel resolves.
+
+Verification records for the directory channel:
+
+- **Claim:** a plugin loaded in place from a local-directory marketplace hands its hook processes a
+  `CLAUDE_PLUGIN_ROOT` pointing at the source directory. **Basis:** plugins reference,
+  [plugin caching and file resolution](https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution):
+  "For a plugin loaded in place from a local-directory marketplace, ... The plugin's hook processes
+  and MCP and LSP servers receive a `CLAUDE_PLUGIN_ROOT` that points at the source directory."
+  **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that page stops carrying the sentence,
+  or a release note changes in-place loading.
+- **Claim:** the data directory is `~/.claude/plugins/data/{id}/`, `{id}` being the plugin identifier
+  with characters outside `[A-Za-z0-9_-]` replaced by `-`. **Basis:** plugins reference,
+  [persistent data directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory):
+  "`{id}` is the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced
+  by `-`". **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that section's id rule
+  changes, or a release note names the plugin data directory.
+- **Claim:** the docs name `~/.claude/plugins/known_marketplaces.json` only as where marketplace state
+  is stored, and `installLocation` only as a field of `claude plugin marketplace list --json` output;
+  the file's contents are undocumented. **Basis:** raw-markdown fetches of the plugins reference (no
+  mention) and
+  [plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) ("Marketplace state is
+  stored once per user in `~/.claude/plugins/known_marketplaces.json`, not per project"; "an
+  `installLocation` field with the local cache path where the marketplace is stored"). The absence
+  covers those two pages only. **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when either
+  page documents the file's contents, or a release note names `known_marketplaces.json`.
+
+The remaining shapes with no derivable authority are a `claude --plugin-dir <checkout>` development
+session and a config relocated with `CLAUDE_CONFIG_DIR`. A `--plugin-dir` checkout has no
+`<plugins>/cache/<marketplace>` structure and sits in no directory marketplace, so it has no stable
+marketplace-keyed data `<id>`. A relocated config is refused by design, because honoring
+`CLAUDE_CONFIG_DIR` would reopen the env-injection hole. Both rely solely on the `CLAUDE_PLUGIN_DATA`
 environment variable; where a Claude Code build does not export it to a skill hook, the engine lane is
 fail-closed there (every `--data-root` invocation denied) while the destructive-action guard itself
-stays fully active. This is a deliberate safe-over-convenient tradeoff for a development-only mode,
-not a security gap. A local developer sets `CLAUDE_PLUGIN_DATA` or exercises the engine lane through
-a real marketplace install.
+stays fully active. This is a deliberate safe-over-convenient tradeoff, not a security gap. The belt's
+denial names the recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to this
+plugin's data directory (`<config>/plugins/data/<name>-<marketplace>`), or exercise the engine lane
+through a marketplace install.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
@@ -270,9 +326,11 @@ local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That
 project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
 were read before v2.1.207. Recheck when that page stops carrying the ignored-project-scope statement, or
 when a release note names `pluginConfigs` scope. The **user** file is located
-from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge) and **never**
-from `CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could inject. A marker-less
-install root (a `--plugin-dir` checkout, whose path has no `plugins/cache` segment) yields no trusted
+from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge): the
+`plugins/cache` layout's sibling `settings.json`, or for a local-directory marketplace install
+`<config>/settings.json` under the account-record config dir above. It is **never** located
+from `CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could inject. A root that
+proves neither (a `--plugin-dir` checkout, or a `CLAUDE_CONFIG_DIR`-relocated config) yields no trusted
 user-settings path, so the user scope is skipped there and the switch relies on managed settings, failing
 closed to enabled otherwise. The **managed**
 (enterprise) file at its fixed root-owned system path is read too and, as the highest-precedence
@@ -306,8 +364,9 @@ so that escape also covered every previous version of *this* engine sitting besi
 each a genuinely different file, each deletion-capable, and each answering to nothing but its own
 containment once the always-on gate defers. The gate now refuses that escape to any path resolving
 inside `<plugins>/cache/<marketplace>/<name>`, derived from the guard module's own `__file__` rather
-than from argv, so no environment channel can redirect it. A `--plugin-dir` checkout has no such
-prefix and the narrowing is inert there, which is correct: a checkout has no cached siblings, and
+than from argv, so no environment channel can redirect it. A `--plugin-dir` checkout, or a plugin
+loaded in place from a local-directory marketplace, has no such prefix and the narrowing is inert
+there, which is correct: a checkout has no cached siblings, and
 narrowing on it would gate a contributor's work on their own tree. **Residual:** versions at or below
 0.8.1 predate settings-based kill-switch enforcement entirely, and a copied engine, rather than a
 cache-resident one, remains outside the prefix, as it is outside every identity check the gate
