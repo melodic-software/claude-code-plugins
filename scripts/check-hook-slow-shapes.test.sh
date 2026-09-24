@@ -166,6 +166,23 @@ plugin_file "$f" demo hooks/inner.sh "$(transcript_hook 'cat "$TRANSCRIPT"')"
 hooks_json "$f" demo 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run.sh inner.sh'
 expect "(a) a launcher argument script is scanned" "$f" 1 "TRANSCRIPT READ: plugins/demo/hooks/inner.sh"
 
+# --- deterministic output ----------------------------------------------------
+# Several flagged scripts: the findings come out in sorted path order, the same
+# on every run.
+new_fixture f
+for s in zz mm aa kk; do
+  plugin_file "$f" demo "hooks/$s.sh" "$(transcript_hook 'cat "$TRANSCRIPT"')"
+done
+hooks_json "$f" demo 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/zz.sh; bash "${CLAUDE_PLUGIN_ROOT}"/hooks/mm.sh; bash "${CLAUDE_PLUGIN_ROOT}"/hooks/aa.sh; bash "${CLAUDE_PLUGIN_ROOT}"/hooks/kk.sh'
+first="$(run_check "$f" | grep '^TRANSCRIPT READ: plugins/')"
+second="$(run_check "$f" | grep '^TRANSCRIPT READ: plugins/')"
+sorted="$(printf '%s\n' "$first" | LC_ALL=C sort)"
+if [[ "$(grep -c . <<<"$first")" == 4 && "$first" == "$second" && "$first" == "$sorted" ]]; then
+  ok "findings are sorted by path and identical across runs"
+else
+  fail "findings are sorted by path and identical across runs: $first"
+fi
+
 # --- fail closed -------------------------------------------------------------
 
 new_fixture f

@@ -217,7 +217,11 @@ fi
 
 # --- shape (a) ---------------------------------------------------------------
 READERS_RE='(^|[^A-Za-z0-9_-])(mapfile|readarray|cat|grep|jq|sed|awk)([^A-Za-z0-9_-]|$)'
-for script in "${!SCRIPTS[@]}"; do
+# Sorted: an associative array's key order is unspecified, and the findings
+# must come out in the same order on every run.
+mapfile -t scripts < <(printf '%s\n' "${!SCRIPTS[@]}" | LC_ALL=C sort)
+for script in ${scripts[@]+"${scripts[@]}"}; do
+  [[ -n "$script" ]] || continue
   grep -q 'transcript_path' "$script" || continue
   mapfile -t vars < <(grep -oiE '[A-Za-z0-9_]*transcript[A-Za-z0-9_]*=' "$script" | tr -d '=' | sort -u)
   ((${#vars[@]})) || continue

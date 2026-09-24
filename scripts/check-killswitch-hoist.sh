@@ -236,7 +236,7 @@ if ((${#guards[@]} > 0)); then
   mapfile -t guards < <(printf '%s\n' "${guards[@]}" | sort -u)
 fi
 if ((${#blocking[@]} > 0)); then
-  mapfile -t blocking < <(printf '%s\n' "${blocking[@]}" | sort -u)
+  mapfile -t blocking < <(printf '%s\n' "${blocking[@]}" | LC_ALL=C sort -u)
 fi
 
 # --- the rule ----------------------------------------------------------------

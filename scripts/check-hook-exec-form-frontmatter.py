@@ -264,7 +264,8 @@ def main(argv: list[str]) -> int:
         )
         return 2
     for root in argv[1:]:
-        for directory, _, filenames in os.walk(root):
+        for directory, dirnames, filenames in os.walk(root):
+            dirnames.sort()  # walk order is filesystem order otherwise; sorted keeps output stable
             for filename in sorted(filenames):
                 if filename.endswith(".md"):
                     scan_file(os.path.join(directory, filename).replace(os.sep, "/"))
