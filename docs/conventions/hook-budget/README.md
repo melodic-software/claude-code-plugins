@@ -8,22 +8,54 @@ This doc states the ceiling the sum must fit inside. The
 [hook-precision](../hook-precision/README.md) convention owns *what* a hook fires on; this one owns
 *what the always-on set may cost*.
 
+## The unit: S
+
+S is the wall time of one no-op process spawn (`bash -c :`) on the host running the hook, measured
+in the same run as the hook. Budgets are stated in multiples of S because a millisecond figure does
+not survive a change of host: the Windows measurements below put S anywhere from 18 ms to 80 ms.
+
 ## The budget
 
-Fleet-wide aggregate across every always-on hook a consumer install fires, measured as parallel
-wall time (Claude Code runs matching hooks in parallel, so the wall is the max of the set under
-spawn contention, not the sum):
+Each hook's budget is k × S, where k is the fewest processes one fire can cost for its shape:
 
-| Surface | Budget |
-| --- | --- |
-| Per tool call (`PreToolUse` + `PostToolUse` for one matcher) | ≤ 1 s typical, ≤ 2 s worst-case |
-| Per turn (`Stop` / notification-shaped hooks) | ≤ 500 ms |
+| Hook shape | k | Basis ([hooks docs](https://code.claude.com/docs/en/hooks)) |
+| --- | --- | --- |
+| Shell form (no `args`) | 1 for the shell, plus 1 per program it starts; a script is at least 2 | "The `command` string is passed to a shell: `sh -c` on macOS and Linux, Git Bash on Windows, or PowerShell when Git Bash isn't installed." |
+| Exec form (`args` set) | 1 | "Claude Code resolves `command` as an executable on `PATH` and spawns it directly with `args` as the argument vector. There is no shell" |
+| `if` that does not match | 0 | "the `if` check would fail and `block-rm.sh` would never run, avoiding the process spawn overhead" |
+| `async: true` | 0 on the turn's path | "By default, hooks block Claude's execution until they complete." An async hook "runs in the background without blocking." |
+
+- **Ideal:** k × S.
+- **Realistic:** k × S plus the hook's measured work. That work must not grow with the session: a
+  per-turn hook reads what the turn appended, never the whole transcript.
+
+"All matching hooks run in parallel", so a surface costs its slowest hook under spawn contention,
+not the sum of its hooks.
 
 "Always-on" means the hook fires regardless of whether the plugin's feature is in use: an
-unconditional matcher like `Bash|PowerShell` or `Write|Edit`. A hook that fires only inside its
-plugin's own workflow is not in this budget.
+unconditional matcher like `Bash|PowerShell` or `Write|Edit`, or a per-turn event (`Stop`,
+`SubagentStop`, `PostToolBatch`, `UserPromptSubmit`). A hook that fires only inside its plugin's own
+workflow is not in this budget.
 
-## Measurement method
+## What enforces it
+
+CI enforces counts, never durations, in two places:
+
+1. **`.performance/ratchets.json`**, checked by the test-linux step "Check performance counter
+   ceilings" (`ratchet.py check`). Hook counters run through `scripts/hook-census.sh`, which fires
+   the command exactly as `hooks.json` registers it, under strace, from a scratch repository:
+   - `spawns` counts process creations plus successful execs, the hook's own shell included;
+   - `growth` counts transcript bytes read on a warm fire at 10 MiB minus at 50 KiB, ceiling 0.
+     strace follows the descriptor, so a builtin read such as `mapfile <"$t"` counts too.
+
+   A ceiling is the value measured on the CI runner. A change that lowers a count lowers the
+   ceiling in the same pull request (`ratchet.py propose-tighten --write`).
+2. **Per-hook strace budget tests** in the hook's own suite. `grep -l strace plugins/*/hooks/*.test.sh`
+   lists them. A row a budget test already covers gets no `spawns` entry in the ratchets file.
+
+A new always-on hook adds itself to one of the two.
+
+## Wall-clock measurement (Windows)
 
 Wall-clock (`EPOCHREALTIME`) around direct hook invocation with a benign representative payload, on
 a representative dev host; singles averaged over ≥ 10 runs, sets launched concurrently (`&` +
@@ -62,36 +94,25 @@ carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawn
 | Stop, slowest of four (per turn) | 11.4 | 22.8 (410 ms) | about 1.8 s |
 | SessionStart `startup`, slowest | 2.7 | 3.3 (60 ms) | about 0.26 s |
 
-The budget table above sums PreToolUse and PostToolUse for one tool call and says the Windows
-reference-host figures are binding, so the reading is: **no per-tool-call surface meets the
-budget, and on the reference host no per-turn surface does either.** On the measuring host at
-S = 18 ms an in-repo Markdown Write costs 1,360 plus 1,949 = 3,309 ms and an in-repo Edit 2,062
-plus 3,048 = 5,110 ms, both above the 2 s worst case; a benign Bash call costs 1,599 ms (no
-PostToolUse hook fires), above the 1 s typical ceiling and inside the worst case. Scaled to the
-80 ms reference host those pairs are about 14.7 s and 22.7 s, and the per-turn rows land at 1.3 to
-1.8 s against 500 ms. What the program changed is the size of the overage: in the pre-program shape
-the in-repo Write pair was 773 plus 13,225 = 14.0 s and the Edit pair 1,147 plus 17,192 = 18.3 s
-on the same host, and PostToolBatch and UserPromptSubmit were 1,254 and 975 ms per turn. The
-"after" spawn-equivalents read higher than "before" on the Write and Edit rows because the before
-run's samples lived outside the repository, so every Write and verifier guard early-exited and
-measured a no-op; the harness now writes its samples under the measured cwd. The remaining
-per-tool-call cost is the guardrails dispatcher, 1,360 to 3,048 ms per fire on this host across
-the Write, Edit and Bash rows (eight guards per Bash call and three per Write or Edit, each still
-sourcing the library and building its telemetry data), followed by markdown-format's
-`markdownlint-cli2` Node process; rule 2 stands, and that overage is the guardrails plugin's
-remediation work, named in its README. Per-plugin READMEs carry
-the paired before-and-after figures for each change (guardrails, context-guard,
+In the "after" column the slowest hook on each per-tool-call surface costs 76 to 169 S, and on
+each per-turn surface 16 to 23 S. The per-tool-call cost is the guardrails dispatcher, 1,360 to
+3,048 ms per fire on the measuring host across the Write, Edit and Bash rows (eight guards per Bash
+call and three per Write or Edit), followed by markdown-format's `markdownlint-cli2` Node process.
+The "after" spawn-equivalents read higher than "before" on the Write and Edit rows because the
+before run's samples lived outside the repository, so every Write and verifier guard early-exited
+and measured a no-op; the harness now writes its samples under the measured cwd. Per-plugin
+READMEs carry the paired before-and-after figures for each change (guardrails, context-guard,
 rate-limit-guard, typos-format, eol-normalizer, markdown-format). The run's transcript, the
 installed versions and shas, the per-file cache compare and every `hooks.json` entry measured are
 recorded in the hook-performance program's DEVIATIONS log.
 
 ## Rules
 
-1. **A plugin adding or widening an always-on hook states its measured share** (method above) in
-   its README, and the change's review weighs that share against the headroom left in the budget.
-2. **The budget never relaxes to absorb an overage.** The current per-Bash-call set exceeds the
-   ceiling several times over; that overage is per-plugin remediation work (e.g. guardrails
-   spawn-reduction, #1403), not grounds to move the ceiling.
+1. **A plugin adding or widening an always-on hook states its k and its measured cost in S** in its
+   README, and adds the hook to one of the two enforced lists above.
+2. **The budget never relaxes to absorb an overage.** The per-tool-call set exceeds k × S many
+   times over; that overage is per-plugin remediation work (guardrails spawn reduction, #1403 and
+   #4390), not grounds to raise a ceiling.
 3. **Interpreter choice is a budget decision.** Every always-on hook pays its interpreter's startup
-   on every fire; a Python `Stop` hook spends a third of the whole per-turn budget before its first
-   statement on the reference host.
+   on every fire. On the Windows reference host `python3 -c pass` measured about 160 ms against
+   80 ms for `bash -c :`, so a Python hook costs about 2 S before its first statement.

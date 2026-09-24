@@ -10,8 +10,8 @@
 # #3509 process creation runs 0.3-0.9 s per spawn and every recorded run of
 # `pr-body-linkage-gate.sh` exceeded its 15 s timeout — a gate that is killed
 # before it renders a verdict protects nothing. The cost is therefore part of
-# the contract, and `.claude/rules/hook-budget.md` states the ceiling it draws
-# on (<= 1 s typical, <= 2 s worst case for a whole PreToolUse matcher).
+# the contract, and `docs/conventions/hook-budget/README.md` states the budget
+# it draws on (k x S: the processes one fire costs, times one no-op spawn).
 #
 # WHY strace AND NOT xtrace — an xtrace command-position count reads the SOURCE
 # positions bash traced, not the processes the kernel created. `$(cmd 2>/dev/null)`

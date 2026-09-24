@@ -99,8 +99,9 @@ gets information plus room to adapt. Decide the level per section, not per skill
 
 The body states the gate ("Only proceed when validation passes"); it cannot enforce it. When the
 cost of a skipped gate is high, a hook is the escalation: deterministic, independent of what the
-model read, and charged to the marketplace's hook budget (`.claude/rules/hook-budget.md`), which
-is why it is the exception rather than the default.
+model read, and charged to the marketplace's hook budget
+(`docs/conventions/hook-budget/README.md`), which is why it is the exception rather than the
+default.
 
 **Record.** Levels:
 <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#set-appropriate-degrees-of-freedom>.
