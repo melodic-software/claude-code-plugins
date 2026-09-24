@@ -132,7 +132,8 @@ draft skip. Safe: evaluate and report draft status, never flip a draft ready. Wo
 autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
 `/source-control:pull-request ready` rather than a bare `gh pr ready`: that step merges the base
-branch before it flips, which a bare flip does not.
+branch and runs the security review and the verify gate before it flips, which a bare flip does
+not.
 
 ## Autopilot
 

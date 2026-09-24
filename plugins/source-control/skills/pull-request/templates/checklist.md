@@ -15,7 +15,7 @@ Copy into your project's working-notes location (or track inline). Tick each box
 ## Skip criteria
 
 - Phase 1 sub-steps may use `prep quick` / `prep review-only` / `prep simplify-only` variants for partial coverage
-- Phase 2.5 SKIPPED only when the PR is already out of draft and its evidence is fresh for HEAD
+- Phase 2.5 SKIPPED only when the PR is already out of draft, the base is merged in, the security review covered the PR diff, and the verify gate ran clean on the current HEAD
 - Phase 3.5 SKIPPED when no review comments received
 - Phase 4 NEVER skipped (merge + cleanup non-negotiable)
 
