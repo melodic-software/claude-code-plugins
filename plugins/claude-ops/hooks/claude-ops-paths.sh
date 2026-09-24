@@ -178,13 +178,11 @@ claude_ops::ensure_git_exclude() {
 # scope, and write the row. Best-effort throughout; every skip is surfaced once
 # per session via hook::notice_once markers keyed "<notice_prefix>-badscope /
 # -badconfig / -nodest" and emitted for <hook_event>. expansion_type is
-# recorded only when non-empty (the tool-path producer passes ""); sha and pr
-# only inside a git work tree (below).
+# recorded only when non-empty (the tool-path producer passes "").
 claude_ops::record_skill_use() {
   local hook_event="$1" notice_prefix="$2" input="$3" skill="$4" src="$5" exp_type="$6"
   local project_dir="" rel_dir scope log_dir verified_log_dir ts branch line=""
-  local rev sha pr
-  local -a exp_keys=() sha_keys=() pr_keys=()
+  local -a exp_keys=()
   hook::repo_root_to project_dir "${CLAUDE_PROJECT_DIR:-.}" || :
   rel_dir="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR:-.claude/observability}"
   scope="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE:-repo}"
@@ -208,34 +206,15 @@ claude_ops::record_skill_use() {
     [[ "$verified_log_dir" == "$log_dir" ]]; then
     [[ "$scope" == "repo" ]] && claude_ops::ensure_git_exclude "$project_dir" "$rel_dir"
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
-    # One spawn for both git facts: `rev-parse HEAD --abbrev-ref HEAD` prints
-    # the SHA on line 1 and the branch on line 2, because --abbrev-ref applies
-    # only to the arguments after it (the reverse order prints the branch
-    # twice). A failure anywhere — no work tree, an unborn HEAD — leaves both
-    # empty, and the row keeps the "unknown" branch it carried before with no
-    # sha field at all.
-    rev=$(git -C "$project_dir" rev-parse HEAD --abbrev-ref HEAD 2>/dev/null) || rev=""
-    rev="${rev//$'\r'/}"
-    sha="${rev%%$'\n'*}"
-    branch="${rev#*$'\n'}"
-    if [[ "$sha" =~ ^[0-9a-f]{40}$ && -n "$branch" && "$branch" != "$sha" ]]; then
-      sha_keys=(sha s "$sha")
-      # The pull-request skill records the PR number on the branch at create
-      # time. Absent key, absent field: only a branch that has a PR carries one.
-      pr=$(git -C "$project_dir" config --get "branch.${branch}.pr-number" 2>/dev/null) || pr=""
-      pr="${pr//$'\r'/}"
-      [[ -n "$pr" ]] && pr_keys=(pr s "$pr")
-    else
-      branch="unknown"
-    fi
+    # No work tree or an unborn HEAD fails the read and records "unknown".
+    branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch="unknown"
+    branch="${branch//$'\r'/}"
     [[ -n "$exp_type" ]] && exp_keys=(expansion_type s "$exp_type")
     slog_record_to line \
       ts s "$ts" \
       event s "SkillUse" \
       skill s "$skill" \
       branch s "$branch" \
-      ${sha_keys[@]+"${sha_keys[@]}"} \
-      ${pr_keys[@]+"${pr_keys[@]}"} \
       project s "$(basename -- "$project_dir")" \
       project_id s "$(claude_ops::repo_slug "$project_dir")" \
       hook s "skill-usage-audit" \

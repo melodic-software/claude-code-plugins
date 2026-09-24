@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.61.0] - 2026-09-24
+
+### Removed
+
+- `skill-usage.jsonl` rows no longer carry `sha` or `pr`. Their only reader, source-control's skill-evidence script, is removed. The branch read is one `git rev-parse --abbrev-ref HEAD` again, and the `git config --get branch.<name>.pr-number` spawn is gone, so the store write costs 3 git processes inside a work tree instead of 4.
+
 ## [0.60.1] - 2026-09-24
 
 ### Changed

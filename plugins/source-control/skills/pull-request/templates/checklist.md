@@ -6,8 +6,8 @@ Copy into your project's working-notes location (or track inline). Tick each box
 
 - [ ] Phase 0: Parse action + detect state. Live `gh pr view` lookup, branch check, route to appropriate phase
 - [ ] Phase 1: Prep. Classify the diff; run each class's skills (agents/inline fallback when a plugin is absent); verify findings; simplify; run the project's build+test+lint gate
-- [ ] Phase 2: Create. Branch-name conformance check; `git push -u`; `gh pr create --draft` with `Closes #N` if the branch carries an issue number; record the PR number on the branch
-- [ ] Phase 2.5: Ready. Merge the base; run every mandatory skill that has no fresh row for HEAD, terminal skill last; render the evidence block into the body; `gh pr ready`
+- [ ] Phase 2: Create. Branch-name conformance check; `git push -u`; `gh pr create --draft` with `Closes #N` if the branch carries an issue number
+- [ ] Phase 2.5: Ready. Merge the base; security review over the PR diff; verify gate on the merged head; `gh pr ready`
 - [ ] Phase 3: Monitor. Push channel (when available) OR Monitor watch fallback; CI watch + comment response loop; research before any fix
 - [ ] Phase 3.5: Comments. Evaluate/respond to PR comments only (sub-phase of monitor)
 - [ ] Phase 4: Merge. `gh pr merge --squash --delete-branch`; worktree cleanup; verify

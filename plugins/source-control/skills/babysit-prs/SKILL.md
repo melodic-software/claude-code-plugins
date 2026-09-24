@@ -132,22 +132,7 @@ draft skip. Safe: evaluate and report draft status, never flip a draft ready. Wo
 autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
 `/source-control:pull-request ready` rather than a bare `gh pr ready`: that step merges the base
-branch, runs the mandatory skills the diff owes, and renders the evidence block into the body,
-none of which a bare flip does.
-
-**Skill-evidence routing (per tier).** The merge gate reports a `skillEvidence` record for every
-tier, read from the fenced `skill-evidence` block in the PR body: which mandatory skills the body
-claims ran, whether the terminal skill's row sits at the live head, and whether every other row
-sits on that head's history. A PR whose block is missing or stale carries a `skill_evidence_gap`
-reason out of the snapshot (on the queue-snapshot path, which holds the parsed block and no gate
-verdict, a block that does not parse or has no row at the live head counts as stale), and the
-worker tier dispatches a worker whose brief is to run
-`/source-control:pull-request ready` on it. That routing reason stands down where head-branch
-writes are disallowed, an external fork head, because closing the gap means committing to the head
-branch and editing the body; the record still reports the gap, which is the honest statement. The
-safe tier reports the record and dispatches nothing. No tier holds a merge on it: the record
-raises no blocker in any tier, so a PR the gate otherwise proves ready still merges while the gap
-is advisory.
+branch before it flips, which a bare flip does not.
 
 ## Autopilot
 
