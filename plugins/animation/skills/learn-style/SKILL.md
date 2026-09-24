@@ -76,8 +76,9 @@ check, never the check against the scene. `inkstats.py` also measures any film w
 
 - A post filter must not be what passes the check. Blur, noise, stripes and dry-brush overlays move
   edge softness and the amount of gray inside the ink, so those rows are measured but not checked.
-  The checked texture rows (`grain`, `period`, `flat`) reject overlays, and `straight`, `rough` and
-  `offstep` do not move under them at all. `controls.py selftest <pack dir> [--near <film>]` exits 1
+  The checked texture rows `grain` and `period` reject overlays, `flat` rejects texture laid over
+  all the black, and `straight`, `rough` and `offstep` do not move under blur, noise, stripes or dry
+  brush at all. A sub-pixel contour warp does move `straight` and `rough`. `controls.py selftest <pack dir> [--near <film>]` exits 1
   if the review's blur-and-stripes filter gets a synthetic or near-miss film through.
 - Bands are learned per excerpt of the whole source, not per shot, so a very short film is judged
   against bands that may not fit it; there is no per-shot row.
