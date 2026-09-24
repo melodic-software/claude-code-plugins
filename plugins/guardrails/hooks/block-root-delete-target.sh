@@ -222,6 +222,12 @@ rdt_block() {
       'Past that depth the scanner stops descending, so a recursive delete inside it cannot be ruled out, and an allow here would be an allow on exactly the input built to exhaust it.' \
       'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
     ;;
+  too-many-abbreviations)
+    printf '%s\n' \
+      'BLOCKED: too many abbreviated launcher options to judge every reading of this command.' \
+      'Each abbreviated long option (such as flock --wa) is judged both with and without taking the next word, and past the limit a recursive delete behind them cannot be ruled out.' \
+      'Fix: spell the launcher options in full (flock --wait 5), or split the command into shorter ones.' >&2
+    ;;
   bodies-too-long)
     printf '%s\n' \
       'BLOCKED: substitution bodies exceed MAX_COMMAND_LEN in total.' \
@@ -569,9 +575,26 @@ rdt_long_takes_arg() {
   ((nop > 0 && nfl == 0))
 }
 
-# Extra walks spent on the abbreviated-long-option reading, for the whole
-# command; see that arm in rdt_check_segment.
-RDT_ALTS=0
+# rdt_abbr is 1 inside a RESOLVED walk, where an abbreviated launcher long
+# option takes its operand; see that arm in rdt_check_segment. rdt_resolved
+# counts those walks for the whole command, and past the cap the guard
+# REFUSES rather than judging one reading only.
+rdt_abbr=0
+rdt_resolved=0
+MAX_RESOLVED_WALKS=256
+
+# rdt_resolved_walk <argv word>...: judge one segment with every abbreviated
+# launcher long option taking its operand. The provenance array is restored
+# afterwards, because a nested parse inside the walk rebuilds it.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_resolved_walk() {
+  rdt_resolved=$((rdt_resolved + 1))
+  ((rdt_resolved > MAX_RESOLVED_WALKS)) && rdt_block "too-many-abbreviations"
+  local rdt_abbr=1
+  local -a saved_q=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  rdt_check_segment "$@"
+  HOOK_SEG_WORD_QUOTED=(${saved_q[@]+"${saved_q[@]}"})
+}
 
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
 # it. Prefixed because guards share one process under run-guards.sh and two
@@ -580,6 +603,7 @@ RDT_ALTS=0
 rdt_check_segment() {
   local -a words=("$@")
   local n=$# i=0 j w base sval optarg consume_bare
+  local abbr_forked=0
 
   # Command word: step over leading NAME=value assignments and over a launcher
   # that takes the real command as its argument. A launcher's own options are
@@ -779,17 +803,22 @@ rdt_check_segment() {
           esac
         fi
         # An abbreviated long option takes its operand exactly as the full name
-        # does. That reading is judged as a SECOND segment, with the operand
-        # joined on as `--opt=value`, and the walk then carries on with the plain
-        # reading, so a block from either stands. Joined, the word cannot fire
-        # this arm again, and RDT_ALTS caps the extra walks one command can cost.
-        if ((i + 1 < n && RDT_ALTS < 16)) && [[ "$w" == --?* && "$w" != *=* && "$optarg" != *" $w "* ]] &&
+        # does. Two readings are judged, and a block from either stands: the
+        # PLAIN one, which steps over the word alone as this walk always has,
+        # and the RESOLVED one, which takes the operand at every abbreviation.
+        # The first abbreviation in a plain walk starts one resolved walk of the
+        # whole segment; a resolved walk consumes and never starts another, so
+        # the work is two walks per segment, not one per combination.
+        if ((i + 1 < n)) && [[ "$w" == --?* && "$w" != *=* && "$optarg" != *" $w "* ]] &&
           rdt_long_takes_arg "$base" "${w#--}"; then
-          RDT_ALTS=$((RDT_ALTS + 1))
-          local -a alt_q=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
-          HOOK_SEG_WORD_QUOTED=(${alt_q[@]+"${alt_q[@]:0:i+1}"} ${alt_q[@]+"${alt_q[@]:i+2}"})
-          rdt_check_segment ${words[@]+"${words[@]:0:i}"} "$w=${words[i + 1]}" ${words[@]+"${words[@]:i+2}"}
-          HOOK_SEG_WORD_QUOTED=(${alt_q[@]+"${alt_q[@]}"})
+          if ((rdt_abbr)); then
+            i=$((i + 2))
+            continue
+          fi
+          if ((abbr_forked == 0)); then
+            abbr_forked=1
+            rdt_resolved_walk ${words[@]+"${words[@]}"}
+          fi
         fi
         if [[ -n "$optarg" && "$optarg" == *" $w "* ]]; then
           i=$((i + 2))

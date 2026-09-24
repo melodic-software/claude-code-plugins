@@ -154,6 +154,30 @@ expect_both 'env --ch rm -rf /* blocks' 2 --command 'env --ch rm -rf /*'
 expect_both 'stdbuf --ou rm -rf /* blocks' 2 --command 'stdbuf --ou rm -rf /*'
 expect_both 'timeout --k 1 rm -rf /* blocks' 2 --command 'timeout --k 1 rm -rf /*'
 expect_both 'nice --adj 5 ls / allowed' 0 --command 'nice --adj 5 ls /'
+# Both readings are judged for EVERY segment: an earlier segment spending some
+# shared budget, or many abbreviations in one segment, must not leave a later
+# delete judged on the plain reading alone.
+rdt_wa=""
+for ((rdt_d = 0; rdt_d < 17; rdt_d++)); do rdt_wa+="--wa 1 "; done
+expect_both 'abbreviations in earlier segments do not spend the later check' 2 \
+  --command 'flock --wa 1 --wa 1 --wa 1 --wa 1 --wa 1 f true; flock --wa 1 f rm -rf /*'
+expect_both 'repeated timeout --si segments still check the last' 2 \
+  --command 'timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 true; timeout --si KILL 5 rm -rf /*'
+expect_both '17 abbreviations in one segment blocks' 2 --command "flock ${rdt_wa}f rm -rf /*"
+expect_both '17 abbreviations in one segment blocks on C:\' 2 --command "flock ${rdt_wa}f rm -rf C:\\"
+expect_both 'dangling backslash after abbreviation segments blocks' 2 \
+  --command 'flock --wa 1 --wa 1 --wa 1 --wa 1 --wa 1 f true; flock --wa 1 f rm -rf \'
+expect_both '17 abbreviations with an ordinary delete allowed' 0 --command "flock ${rdt_wa}f rm -rf ./build"
+rdt_ok20=""
+for ((rdt_d = 0; rdt_d < 20; rdt_d++)); do rdt_ok20+="timeout 5 true; "; done
+expect_both 'twenty ordinary timeout segments then an ordinary delete allowed' 0 --command "${rdt_ok20}rm -rf ./build"
+# Past the cap on resolved walks the guard REFUSES rather than judging one
+# reading only; the limit is far above any command a person writes.
+rdt_cap=""
+for ((rdt_d = 0; rdt_d < 260; rdt_d++)); do rdt_cap+="flock --wa 1 f true; "; done
+guard_invoke --command "${rdt_cap}rm -rf ./build"
+assert_exit "past the abbreviation cap the guard refuses" 2 "$GUARD_RC"
+assert_contains "the refusal names the abbreviation cap" "$GUARD_ERR" "too many abbreviated launcher options"
 expect_both 'timeout -- 5 ls / allowed' 0 --command 'timeout -- 5 ls /'
 expect_both 'nice -n 10 rm -rf / blocks' 2 --command 'nice -n 10 rm -rf /'
 expect_both 'nohup rm -rf / blocks' 2 --command 'nohup rm -rf /'
