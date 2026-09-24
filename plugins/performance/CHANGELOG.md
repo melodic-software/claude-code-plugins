@@ -13,8 +13,8 @@ All notable changes to the `performance` plugin are documented here. Format foll
   that can fall without a code change. It also covers guardrails
   for fragile optimizations and win decay. It never merges.
 - **`scripts/ratchet.py`** with `check`, `propose-tighten`, and `add`, plus `ratchet.test.sh`
-  negative controls: a counter above its ceiling fails, at or below passes, and malformed input
-  fails.
+  negative controls: a counter above its ceiling fails, at or below passes, and malformed input,
+  including a NaN or infinite ceiling or measured value, fails.
 - **`reference/techniques.md`**: a technique catalog in loop-phase order (choose the target,
   define the goal and its boundary, lab rigs, prove the proxy, diagnose, latency patterns, protect
   the win, ship and read the field, steer, write the result up). Each skill step points at the

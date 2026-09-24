@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -50,7 +51,13 @@ def fail(message: str) -> NoReturn:
 
 def is_number(value: object) -> bool:
     # bool is an int subclass; `"ceiling": true` is a typo, not a ceiling of 1.
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    # json.load accepts NaN and Infinity, and a NaN ceiling compares false both
+    # ways, so every counter would read as equal to it and pass.
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def load(path: str) -> list[dict]:
@@ -81,7 +88,9 @@ def validate(path: str, data: object) -> list[dict]:
             if not isinstance(counter[key], str) or not counter[key].strip():
                 fail(f"{where}: {key} must be a non-empty string.")
         if not is_number(counter["ceiling"]):
-            fail(f"{where}: ceiling must be a number, got {counter['ceiling']!r}.")
+            fail(
+                f"{where}: ceiling must be a finite number, got {counter['ceiling']!r}."
+            )
         if counter["name"] in seen:
             fail(f"{where}: duplicate counter name {counter['name']!r}.")
         seen.add(counter["name"])
@@ -126,7 +135,11 @@ def measure(name: str, command: str, field: str) -> int | float:
             f"stdout: {result.stdout.strip()!r}"
         )
     text = match.group(1)
-    return float(text) if "." in text else int(text)
+    value = float(text) if "." in text else int(text)
+    if not is_number(value):
+        # A digit string past float range parses to inf.
+        fail(f"counter {name!r}: {field}={text[:40]}... is not a finite number.")
+    return value
 
 
 def cmd_check(args: argparse.Namespace) -> int:
