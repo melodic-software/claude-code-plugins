@@ -397,7 +397,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const S = {doc: {meta: {}, groups: [], questions: [], visuals: [], notes: []}, resp: {seq: 0, responses: {}, history: {}, events: []},
     listener: {state: "idle"}, online: false, session: "", sel: null, busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
-    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0};
+    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, vfiles: {}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -912,9 +912,36 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return '<table class="sum"><thead><tr><th>Series</th>' + labels.map(l => "<th>" + esc(l) + "</th>").join("") + "</tr></thead><tbody>" +
       series.map(s => "<tr><td>" + esc(s.name) + "</td>" + labels.map((_, i) => "<td>" + esc(s.data[i] ?? "") + "</td>").join("") + "</tr>").join("") + "</tbody></table>";
   }
+  const IMAGE_TYPES = {png: "png", jpg: "jpeg", jpeg: "jpeg", gif: "gif", webp: "webp", svg: "svg+xml"};
+  async function loadFile(v, key){ // one fetch per visual id and file name per questions rev; the result re-renders the open view
+    S.vfiles[v.id] = {key};
+    let c;
+    try {
+      const res = await fetch("/api/visual-file?id=" + encodeURIComponent(v.id), {cache: "no-store", headers: {"X-Interview-Token": TOKEN}});
+      if (!res.ok) c = {key, err: await res.json().then(b => b.error, () => "") || "HTTP " + res.status};
+      else if ((v.format || v.kind) !== "image") c = {key, content: await res.text()};
+      else {
+        const t = IMAGE_TYPES[(v.file.split(".").pop() || "").toLowerCase()];
+        if (!t) c = {key, err: "not an image type (png, jpg, gif, webp or svg)"};
+        else {
+          const blob = new Blob([await res.arrayBuffer()], {type: "image/" + t});
+          c = {key, content: await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsDataURL(blob); })};
+        }
+      }
+    } catch (e) { c = {key, err: "could not load it: " + e.message}; }
+    if ((S.vfiles[v.id] || {}).key !== key) return;
+    S.vfiles[v.id] = c;
+    if (S.fly === "visuals" && S.vtab === "v:" + v.id) { renderFly(); if (!$("fs").hidden) fsOpen(); }
+  }
   function visualBody(v){ // by format, with the v2.1 `kind` as an alias; svg and html only ever render in a sandboxed iframe
     const f = v.format || v.kind || "html";
-    if (v.content == null && v.file) return {md: '<p class="empty">File <code>' + esc(v.file) + "</code> in the data folder. This version of the page does not serve files; open it from there.</p>"};
+    if (v.content == null && v.file) {
+      const key = v.file + "\n" + S.doc.rev, c = S.vfiles[v.id], cap = t => '<p class="fscope vfile">' + t + " <code>" + esc(v.file) + "</code></p>";
+      if (!c || c.key !== key) loadFile(v, key);
+      if (!c || c.key !== key || (c.content == null && !c.err)) return {md: cap("Loading")};
+      if (c.err) return {md: cap("File") + '<p class="empty">' + esc(c.err) + "</p>"};
+      return Object.assign(visualBody(Object.assign({}, v, {content: c.content, file: undefined})), {cap: cap("File")});
+    }
     if (f === "markdown") return {md: md(v.content)};
     if (f === "image") { // only a data:image/ or http(s) URL renders; anything else shows as text
       const s = v.content;
@@ -945,7 +972,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let h = '<div class="tabs">' + subs.map(x => '<button data-vtab="' + esc(x.id) + '" aria-selected="' + (x.id === S.vtab) + '">' + esc(x.title) + "</button>").join("") + "</div>";
     if (t.id === "map") { body.innerHTML = h + '<div class="fscope">Questions by depends and follow-up links. The current path is outlined.</div>' + treeHtml(true); return; }
     const vb = visualBody(t.v);
-    h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.md || vb.html || '<iframe sandbox="" title="' + esc(t.v.title || t.v.id) + '"></iframe>') +
+    h += '<div class="fscope">From ' + esc(t.v.where) + "</div>" + (vb.cap || "") + (vb.md || vb.html || '<iframe sandbox="" title="' + esc(t.v.title || t.v.id) + '"></iframe>') +
       '<div class="arow"><button class="tbtn small" data-full="1" aria-keyshortcuts="f">Full screen' + (setting("shortcuts") ? " (f)" : "") + '</button>' + (vb.frame !== undefined ? '<button class="tbtn small" data-replay="1">Replay</button>' : "") + "</div>";
     body.innerHTML = h;
     const fr = body.querySelector("iframe"); if (fr) fr.srcdoc = frameDoc(vb.frame);
@@ -998,7 +1025,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const q = Q[S.sel], t = visualsFor(q).find(v => "v:" + v.id === S.vtab); if (!t) return;
     const vb = visualBody(t), st = $("fsStage");
     $("fsTitle").textContent = (t.title || t.id) + (q ? " (" + q.id + ")" : "");
-    st.innerHTML = vb.md || vb.html || '<iframe sandbox="" title="' + esc(t.title || t.id) + '"></iframe>';
+    st.innerHTML = (vb.cap || "") + (vb.md || vb.html || '<iframe sandbox="" title="' + esc(t.title || t.id) + '"></iframe>');
     const fr = st.querySelector("iframe"); if (fr) fr.srcdoc = frameDoc(vb.frame, true);
     FS.z = 1; FS.x = 0; FS.y = 0; fsApply();
     $("fs").hidden = false; $("fsClose").focus();

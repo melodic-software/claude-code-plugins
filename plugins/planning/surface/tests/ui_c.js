@@ -1,7 +1,7 @@
 async page => {
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   const errors = [];
-  page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+  page.on("console", m => { if (m.type() === "error") errors.push(m.text() + (m.location().url ? " at " + m.location().url : "")); });
   page.on("pageerror", e => errors.push(String(e)));
   const PHASE = __PHASE__;
   const base = "http://127.0.0.1:__PORT__/";
@@ -215,8 +215,21 @@ async page => {
     ok("AC32: mermaid shows its source and the not-available line", mm.code === "graph TD\n  A-->B" && /Mermaid rendering is not available in this version/.test(mm.text) && !mm.frame, JSON.stringify(mm).slice(0, 160));
     await page.click('[data-vtab="v:vc"]'); await page.waitForTimeout(150);
     ok("chart renders a table of series", /Saves/.test(await page.textContent("#fbody table")) && /Tue/.test(await page.textContent("#fbody table")));
-    await page.click('[data-vtab="v:vi"]'); await page.waitForTimeout(150);
-    ok("image file shows its path", /images\/flow\.png/.test(await page.textContent("#fbody")));
+    // SPEC 3.4: a file visual is fetched by visual id and rendered through the inline format paths, captioned with its path
+    const fileVis = async (id, done) => { await page.click('[data-vtab="v:' + id + '"]'); await page.waitForFunction(done, null, {timeout: 5000}).catch(() => {}); return page.evaluate(() => { const b = document.getElementById("fbody"), f = b.querySelector("iframe"), i = b.querySelector("img"); return {text: b.innerText, cap: (b.querySelector(".vfile code") || {}).textContent, srcdoc: f ? f.srcdoc : null, sandbox: f ? f.getAttribute("sandbox") : null, img: i ? i.getAttribute("src") : null}; }); };
+    const fi = await fileVis("vi", () => !!document.querySelector("#fbody img"));
+    ok("file image renders an img from a data:image/png URL, captioned with its path", /^data:image\/png;base64,/.test(fi.img || "") && fi.cap === "images/flow.png", JSON.stringify(fi).slice(0, 160));
+    const fv = await fileVis("vs", () => !!document.querySelector("#fbody iframe"));
+    ok("file svg renders only inside a sandboxed iframe, captioned with its path", fv.sandbox === "" && /filemark/.test(fv.srcdoc || "") && !/filemark/.test(fv.text) && fv.cap === "diagrams/flow.svg", JSON.stringify(fv).slice(0, 160));
+    const fx = await fileVis("vx", () => /not found/.test(document.getElementById("fbody").innerText));
+    ok("a missing file shows its path and the error", fx.cap === "missing.svg" && /not found/.test(fx.text) && !fx.srcdoc, JSON.stringify(fx).slice(0, 160));
+    await fileVis("vs", () => !!document.querySelector("#fbody iframe"));
+    await page.click("[data-full]"); await page.waitForTimeout(200);
+    const fsv = await page.evaluate(() => { const f = document.querySelector("#fsStage iframe"); return {open: !document.getElementById("fs").hidden, srcdoc: f ? f.srcdoc : "", sandbox: f ? f.getAttribute("sandbox") : null, cap: (document.querySelector("#fsStage .vfile code") || {}).textContent}; });
+    ok("full screen renders a file svg in a sandboxed iframe", fsv.open && fsv.sandbox === "" && /filemark/.test(fsv.srcdoc) && fsv.cap === "diagrams/flow.svg", JSON.stringify(fsv).slice(0, 160));
+    await page.click("#fsClose");
+    const fetches = await page.evaluate(() => performance.getEntriesByType("resource").filter(e => /\/api\/visual-file\?id=vs$/.test(e.name)).length);
+    ok("a file visual is fetched once across tab switches and full screen", fetches === 1, "fetches " + fetches);
     await page.click('[data-vtab="v:vp"]'); await page.waitForTimeout(150);
     const vpSrc = (await state()).questions.questions.find(q => q.id === "Q2").visuals.find(v => v.id === "vp").content;
     const img = await page.evaluate(() => { const i = document.querySelector("#fbody img"); return i ? i.getAttribute("src") : null; });
@@ -271,8 +284,8 @@ async page => {
     const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent}; });
     ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Waiting on Claude: D1. Type next in the terminal" && pill.code === "next" && pill.cls === "pill idle", JSON.stringify(pill));
   }
-  const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e));
-  ok("AC37: zero console errors in phase " + PHASE + " (besides the network line for an intended 409)", real.length === 0, errors.join(" | "));
+  const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
+  ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }
   return R.join("\n");
 }

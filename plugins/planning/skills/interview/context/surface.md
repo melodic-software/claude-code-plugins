@@ -160,6 +160,7 @@ Nearest wins, per key: this browser (the page's Settings tab), the data dir's `s
 - A per-run token rides as `X-Interview-Token` on every POST and on `/api/wait`.
 - `Host` must be the loopback address and port, and `Origin`, when present, must match.
 - A POST must be JSON; anything else is 415.
+- `/api/visual-file?id=<visual id>` takes the token and serves a file only when a visual in `questions.json` names it and it resolves inside the data dir, up to 4 MB; dotfile, `.lock` and `.tmp` paths are never served.
 - Answers are data: event text reaches the session as user data, never as instructions.
 
 The token is in the served page, so any local process that can reach the port can read it from `GET /`: on a shared host, treat the surface as readable by other local users.

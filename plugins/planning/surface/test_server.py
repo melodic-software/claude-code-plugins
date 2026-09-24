@@ -653,6 +653,119 @@ class TestSecurity(ServerCase):
         ] or [1]
 
 
+class TestVisualFile(ServerCase):
+    """GET /api/visual-file serves only a file a visual names, inside the data dir."""
+
+    BYTES = bytes(range(256)) * 4
+    CAP = 4 * 1024 * 1024
+
+    @classmethod
+    def prepare(cls):
+        d = cls.dir
+        (d / "images").mkdir()
+        (d / "images" / "ok.bin").write_bytes(cls.BYTES)
+        (d / "sub").mkdir()
+        (cls.tmp / "escape.txt").write_text("outside", encoding="utf-8")
+        (d / "big.bin").write_bytes(b"x" * (cls.CAP + 1))
+        (d / ".interview-session.env.ab12.tmp").write_text(
+            "TOKEN=transient\n", encoding="utf-8"
+        )
+        (d / "images" / ".hidden.png").write_bytes(cls.BYTES)
+        visuals = {
+            "top": "images/ok.bin",
+            "up": "../escape.txt",
+            "abs": str((cls.tmp / "escape.txt").resolve()),
+            "dir": "sub",
+            "big": "big.bin",
+            "session": ".interview-session.env",
+            "tmp": ".interview-session.env.ab12.tmp",
+            "dot": "images/.hidden.png",
+        }
+        doc = {
+            "meta": {},
+            "rev": 1,
+            "groups": [],
+            "visuals": [
+                {"id": k, "scope": "all", "format": "image", "file": f}
+                for k, f in visuals.items()
+            ]
+            + [{"id": "inline", "scope": "all", "format": "svg", "content": "<svg/>"}],
+            "questions": [
+                question(
+                    "Q1",
+                    visuals=[
+                        "top",
+                        {"id": "own", "format": "svg", "file": "images/ok.bin"},
+                    ],
+                )
+            ],
+        }
+        (d / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def fetch(self, vid, token=True):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            h = {"X-Interview-Token": self.token} if token else {}
+            conn.request("GET", f"/api/visual-file?id={vid}", headers=h)
+            resp = conn.getresponse()
+            return resp.status, resp.read(), resp.headers
+        finally:
+            conn.close()
+
+    def test_without_token_is_403(self):
+        self.assertEqual(self.fetch("top", token=False)[0], 403)
+
+    def test_top_level_visual_file_is_served_as_exact_bytes(self):
+        code, raw, headers = self.fetch("top")
+        self.assertEqual(code, 200)
+        self.assertEqual(raw, self.BYTES)
+        self.assertEqual(headers["Content-Type"], "application/octet-stream")
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertIsNone(headers.get("Content-Disposition"))
+
+    def test_inline_question_visual_file_is_served(self):
+        code, raw, _ = self.fetch("own")
+        self.assertEqual((code, raw), (200, self.BYTES))
+
+    def test_unknown_id_is_404(self):
+        self.assertEqual(self.fetch("nope")[0], 404)
+
+    def test_visual_with_content_and_no_file_is_404(self):
+        self.assertEqual(self.fetch("inline")[0], 404)
+
+    def test_dot_dot_escape_is_404(self):
+        code, raw, _ = self.fetch("up")
+        self.assertEqual(code, 404)
+        self.assertEqual(json.loads(raw), {"error": "not found"})
+
+    def test_absolute_path_is_404(self):
+        code, raw, _ = self.fetch("abs")
+        self.assertEqual(code, 404)
+        self.assertNotIn(b"escape", raw)
+
+    def test_directory_is_404(self):
+        self.assertEqual(self.fetch("dir")[0], 404)
+
+    def test_runtime_session_file_is_404(self):
+        code, raw, _ = self.fetch("session")
+        self.assertEqual(code, 404)
+        self.assertNotIn(self.token.encode(), raw)
+
+    def test_transient_session_temp_file_is_404(self):
+        code, raw, _ = self.fetch("tmp")
+        self.assertEqual(code, 404)
+        self.assertNotIn(b"transient", raw)
+
+    def test_dotfile_in_a_subfolder_is_404(self):
+        self.assertEqual(self.fetch("dot")[0], 404)
+
+    def test_file_over_the_cap_is_413(self):
+        code, raw, _ = self.fetch("big")
+        self.assertEqual(code, 413)
+        self.assertIn("4 MB", json.loads(raw)["error"])
+
+
 def question(qid, **extra):
     return {
         "id": qid,

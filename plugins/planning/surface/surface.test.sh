@@ -116,6 +116,13 @@ if command -v playwright-cli >/dev/null 2>&1; then
   mkdir -p "$c" "$repo/.claude"
   cp tests/fixtures/ui_c/questions.json tests/fixtures/ui_c/responses.json tests/fixtures/ui_c/settings.json "$c/"
   cp tests/fixtures/ui_c/repo-settings.json "$repo/.claude/interview-surface.json"
+  # File visuals: vi's PNG is the 1x1 image vp carries inline, vs's SVG carries a text marker,
+  # and vx names a file that is never written.
+  mkdir -p "$c/images" "$c/diagrams"
+  printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' |
+    base64 -d >"$c/images/flow.png"
+  printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40"><text x="10" y="25">filemark</text></svg>' \
+    >"$c/diagrams/flow.svg"
   bash "$here/round.sh" --dir "$c" archive X1 --why "The old path left the plan" >/dev/null
   CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 \
     --user-settings tests/fixtures/ui_c/user-settings.json >/dev/null
@@ -143,8 +150,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
 else
-  echo "SKIP: 143 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 143))
+  echo "SKIP: 147 browser checks not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 147))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

@@ -6,7 +6,7 @@ A local page for interview rounds. The user answers one question at a time on 12
 
 | File | Owner | Role |
 |---|---|---|
-| `server.py` | runs | Stdlib `ThreadingHTTPServer` on 127.0.0.1. Serves the page, pushes state over SSE, takes answers, long-polls for the watcher, computes question state and settings |
+| `server.py` | runs | Stdlib `ThreadingHTTPServer` on 127.0.0.1. Serves the page, pushes state over SSE, takes answers, long-polls for the watcher, serves file visuals by visual id (`/api/visual-file?id=`), computes question state and settings |
 | `index.html` | page | Single file, no build step, no CDN |
 | `round.py` | Claude | The only write path to `questions.json`, plus the server lifecycle and the exporters |
 | `round.sh` | Claude | Launcher: runs `round.py` with the first `python3` or `python` that runs (a stub that fails is skipped) |
@@ -60,7 +60,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 
 ## Data contract
 
-`schema/` is the contract; other tools write these formats or read the exports, and the surface reads no other files. Both documents carry `"schemaVersion": "1.0"`; a file without one reads as version 0 and loads unchanged. `responses.json` is an append-only event log with a global `seq`; undo marks an event `withdrawn` and nothing is deleted. Event kinds: `accept`, `alt`, `own`, `defer`, `reopen`, `ask`, `rephrase`, `note`, `undo`, `wrapup`, `confirm`. Question `state` (`open`, `stale`, `upstream-pending`, `archived`) is computed by the server from `dependsOn` and `archived`, never written. A visual is declared by `format` (`svg`, `mermaid`, `image`, `markdown`, `html`, `chart`; `kind` is read as an alias) and describes only its content.
+`schema/` is the contract; other tools write these formats or read the exports, and the surface reads no other files except a file a visual names inside the data dir. Both documents carry `"schemaVersion": "1.0"`; a file without one reads as version 0 and loads unchanged. `responses.json` is an append-only event log with a global `seq`; undo marks an event `withdrawn` and nothing is deleted. Event kinds: `accept`, `alt`, `own`, `defer`, `reopen`, `ask`, `rephrase`, `note`, `undo`, `wrapup`, `confirm`. Question `state` (`open`, `stale`, `upstream-pending`, `archived`) is computed by the server from `dependsOn` and `archived`, never written. A visual is declared by `format` (`svg`, `mermaid`, `image`, `markdown`, `html`, `chart`; `kind` is read as an alias) and describes only its content.
 
 ## Security model
 
@@ -69,6 +69,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 - `Host` must be `127.0.0.1:<port>` or `localhost:<port>` on every request, which blocks DNS rebinding; `Origin`, when present, must match.
 - POST must be `application/json` (415 otherwise), bodies over 64 KB are 413 (the only limit on answer text); a body that is not a JSON object, unknown ids and kinds, an `alt` that is not one of the question's alternative keys, a `confirm` index outside its `commits`, and a non-integer `Content-Length` are 400. The token is read only from the header, never from the query string. `.interview-session.json` and `.interview-session.env` hold the token and are written with mode 0600 (advisory on Windows). The CSP allows only `'self'`, with `frame-ancestors 'none'`, `X-Frame-Options: DENY` and `nosniff`.
 - Answers are data: `/api/wait` responses say so, and markdown is escaped before rendering; SVG and HTML visuals render in a sandboxed iframe.
+- `/api/visual-file?id=<visual id>` takes the token and serves a file only when a visual in `questions.json` names it and it resolves to a regular file inside the data dir, up to 4 MB (413 above); a path with a dotfile component, a `.lock` or a `.tmp` name (the runtime files and their temp copies hold the token) and anything else is 404 `not found`. No route takes a path from the URL.
 
 Limits: any local process that can reach the port can read the token from `GET /`, so on a shared host other local users can answer. A session on a remote host serves its own 127.0.0.1, which the user's browser cannot reach; the skill then falls back to its read-only table.
 

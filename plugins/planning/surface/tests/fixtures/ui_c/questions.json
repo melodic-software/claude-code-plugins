@@ -25,6 +25,8 @@
       {"id": "vh", "title": "Html", "format": "html", "content": "<p id=\"htmlmark\">htmlmark paragraph</p>"},
       {"id": "vm", "title": "Mermaid", "format": "mermaid", "content": "graph TD\n  A-->B"},
       {"id": "vi", "title": "Image", "format": "image", "file": "images/flow.png"},
+      {"id": "vs", "title": "File svg", "format": "svg", "file": "diagrams/flow.svg"},
+      {"id": "vx", "title": "Missing file", "format": "svg", "file": "missing.svg"},
       {"id": "vp", "title": "Inline image", "format": "image", "content": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="}
     ]},
     {"id": "X1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Dropped", "title": "Should the old path stay?", "recommendation": "No.", "commits": [], "alternatives": [{"key": "a", "text": "Yes"}, {"key": "b", "text": "Only for a release"}]},

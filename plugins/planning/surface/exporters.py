@@ -4,7 +4,8 @@ Each exporter reads only questions.json and responses.json from a data dir and r
   export_ledger  the interview ledger: a decision-tree checklist, then the open-question register in
                  the row shape scripts/check-open-questions.sh grades, then the deferred questions
   export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`
-  export_report  one self-contained HTML file (no external resources; everything escaped)
+  export_report  one self-contained HTML file (no external resources; everything escaped); it
+                 also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
 round.py exposes them as export-ledger, export-brief, export-report and import-ledger.
 
@@ -13,12 +14,13 @@ Q1..Qn in natural id order (letters, then number) and each row's resolution lead
 which import_ledger reads back so a re-export numbers the same way.
 """
 
+import base64
 import html
 import json
 import re
 from pathlib import Path
 
-from server import EMPTY_RESPONSES, load_json
+from server import EMPTY_RESPONSES, MAX_VISUAL_FILE, load_json, read_visual_file
 
 # The Brief contract's arbiter tokens (the interview skill's context/loop.md "Brief template").
 ARBITER_USER = "**arbiter: USER-RESERVED**"
@@ -29,6 +31,14 @@ LEAD = re.compile(r"^\[([^\]\s]+)\]\s*(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
 MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
 QN = re.compile(r"^Q[1-9][0-9]*$")
+IMAGE_TYPES = {
+    ".png": "png",
+    ".jpg": "jpeg",
+    ".jpeg": "jpeg",
+    ".gif": "gif",
+    ".webp": "webp",
+    ".svg": "svg+xml",
+}
 
 
 def clean(s):
@@ -253,15 +263,26 @@ def esc(s):
     return html.escape(str(s if s is not None else ""), quote=True)
 
 
-def render_visual(v):
+def render_visual(v, d):
+    """One visual as HTML; a file visual inside data dir d is inlined like inline content."""
     fmt = v.get("format") or v.get("kind") or ""
     head = f"<h4>{esc(v.get('title') or v.get('id'))} <small>({esc(fmt)})</small></h4>"
-    if "file" in v:
-        return head + (
-            f"<p>File <code>{esc(v['file'])}</code> in the data dir; the report embeds only "
-            "what questions.json carries.</p>"
-        )
     content = v.get("content")
+    if "file" in v:
+        file = v["file"]
+        raw = read_visual_file(d, file)
+        itype = IMAGE_TYPES.get(Path(str(file)).suffix.lower())
+        if raw is None or len(raw) > MAX_VISUAL_FILE or (fmt == "image" and not itype):
+            return head + (
+                f"<p>File <code>{esc(file)}</code> in the data dir, not inlined: it is outside "
+                f"the data dir, missing, over {MAX_VISUAL_FILE // 2**20} MB, or not an image type.</p>"
+            )
+        head += f"<p class=muted>File <code>{esc(file)}</code></p>"
+        content = (
+            f"data:image/{itype};base64,{base64.b64encode(raw).decode('ascii')}"
+            if fmt == "image"
+            else raw.decode("utf-8", "replace")
+        )
     if not isinstance(content, str):
         content = json.dumps(content, indent=2, ensure_ascii=False)
     if fmt in ("svg", "html"):
@@ -392,7 +413,7 @@ def export_report(d):
                 + "</ul>"
             )
         out.append(thread(q, resp))
-        out += [render_visual(v) for v in visuals_for(doc, q)]
+        out += [render_visual(v, d) for v in visuals_for(doc, q)]
         out.append("</section>")
     scoped = {
         v.get("id") for q in doc.get("questions") or [] for v in visuals_for(doc, q)
@@ -400,7 +421,7 @@ def export_report(d):
     others = [v for v in doc.get("visuals") or [] if v.get("id") not in scoped]
     if others:
         out.append("<h2>Visuals</h2>")
-        out += [render_visual(v) for v in others]
+        out += [render_visual(v, d) for v in others]
     notes = [e for e in resp.get("events") or [] if e.get("kind") == "note"]
     if notes or doc.get("notes"):
         out.append("<h2>Notes</h2><ol>")

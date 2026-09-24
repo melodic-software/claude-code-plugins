@@ -7,6 +7,7 @@ Brief outputs are graded by the plugin's `scripts/check-open-questions.sh`.
 
 from __future__ import annotations
 
+import base64
 import html.parser
 import json
 import re
@@ -364,6 +365,60 @@ class TestExportReport(SessionCase):
         self.assertIn("default-src 'none'", csp)
         self.assertNotIn("http", csp.lower())
         self.assertEqual(h.srcdocs, [svg, page])
+
+
+class TestReportFileVisuals(SessionCase):
+    SVG = "<svg xmlns='http://www.w3.org/2000/svg'><text>filemark</text></svg>"
+    PNG = bytes.fromhex("89504e470d0a1a0a0000000d49484452")
+
+    def report(self, *visuals):
+        self.session(
+            [question("Q1", visuals=list(visuals))], [event(1, "Q1", "accept")]
+        )
+        return self.export("report").read_text(encoding="utf-8")
+
+    def iframes(self, text):
+        class Walk(html.parser.HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.found = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "iframe":
+                    self.found.append(dict(attrs))
+
+        w = Walk()
+        w.feed(text)
+        w.close()
+        return w.found
+
+    def test_file_svg_is_inlined_into_a_sandboxed_srcdoc(self):
+        (self.dir / "diagrams").mkdir()
+        (self.dir / "diagrams" / "flow.svg").write_text(self.SVG, encoding="utf-8")
+        text = self.report({"id": "v1", "format": "svg", "file": "diagrams/flow.svg"})
+        frames = self.iframes(text)
+        self.assertEqual(len(frames), 1)
+        self.assertEqual(frames[0].get("sandbox"), "")
+        self.assertEqual(frames[0].get("srcdoc"), self.SVG)
+        self.assertIn("diagrams/flow.svg", text)
+
+    def test_file_image_becomes_a_data_url(self):
+        (self.dir / "flow.png").write_bytes(self.PNG)
+        text = self.report({"id": "v1", "format": "image", "file": "flow.png"})
+        url = "data:image/png;base64," + base64.b64encode(self.PNG).decode("ascii")
+        self.assertIn(f'src="{url}"', text)
+
+    def test_file_outside_the_data_dir_keeps_the_path_line(self):
+        (self.tmp / "x.svg").write_text(self.SVG, encoding="utf-8")
+        text = self.report({"id": "v1", "format": "svg", "file": "../x.svg"})
+        self.assertEqual(self.iframes(text), [])
+        self.assertNotIn("filemark", text)
+        self.assertIn("<code>../x.svg</code>", text)
+
+    def test_missing_file_keeps_the_path_line(self):
+        text = self.report({"id": "v1", "format": "svg", "file": "missing.svg"})
+        self.assertEqual(self.iframes(text), [])
+        self.assertIn("<code>missing.svg</code>", text)
 
 
 class TestImportLedger(SessionCase):

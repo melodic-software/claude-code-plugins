@@ -30,6 +30,20 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`--emoji-markers` value rule:** `ensure-running` accepts any value; `false`, `0`, `no` and
   `off` (any case) mean false, and anything else, an empty string or an unexpanded token
   included, means true.
+- **Reconfirm keeps the decision:** on a stale question, choice 1 re-arms the kept decision
+  exactly (kind, alternative, own text and note) and the other choices renumber after it; `a`
+  arms it. Picking again is always available.
+- **File visuals by reference:** a visual with `file` renders on the page and in the exported
+  report through the same format paths as inline content. The server serves it at
+  `GET /api/visual-file?id=<visual id>` (token required) only when the path resolves inside the
+  data dir and a visual in `questions.json` names it; 4 MB cap.
+- **Settings rows** for `port` and `openBrowser`, each naming its layer; `themeTokens` is also
+  read from the user file (data dir `theme.json`, then user, then repo, then built-in).
+- **Limits and errors:** a POST body may be up to 64 KB and the text inside it is never cut;
+  a body that is not a JSON object, or is nested too deeply, is a 400. `watch.sh` refuses a
+  `PORT` that is not all digits. The exported report carries a CSP with no network source.
+- **Opener rule:** the browser opener (`browserCommand`) runs only from a file named by an
+  explicit `--user-settings`; the data dir's session file is never a source for it.
 
 ### Changed
 
