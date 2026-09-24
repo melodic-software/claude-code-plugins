@@ -10,6 +10,7 @@
 - [Addendum (2026-08-03): mechanism correction — the exception moved to a reusable default](#addendum-2026-08-03-mechanism-correction--the-exception-moved-to-a-reusable-default)
 - [Addendum (2026-08-04): operator decision — Branch A ratified, four actors](#addendum-2026-08-04-operator-decision--branch-a-ratified-four-actors)
 - [Addendum (2026-09-07): once per pull request, drafts filtered, reviews queued](#addendum-2026-09-07-once-per-pull-request-drafts-filtered-reviews-queued)
+- [Addendum (2026-09-24): skip-actors list file and evidence guards removed](#addendum-2026-09-24-skip-actors-list-file-and-evidence-guards-removed)
 - [Revisit triggers](#revisit-triggers)
 
 - Status: accepted
@@ -17,7 +18,8 @@
 - Superseded in part for this repository by ADR 0038 (2026-09-24): the once-per-PR trigger set
   below no longer applies here; both lanes run on every push. The lane wiring and the skip-actor
   exception, which ADR 0037 (2026-09-19) had retired, are restored by ADR 0038. The
-  advisory-before-blocking posture and earned promotion still apply.
+  advisory-before-blocking posture and earned promotion still apply. The skip-actors list file and
+  the repo-owned evidence guards are removed by the 2026-09-24 addendum below.
 
 ## Context
 
@@ -380,6 +382,27 @@ request while one runs is queued until the in-progress review completes
 The organization-wide statement of this posture, with its evidence, is in github-iac
 `docs/topics/ci-perf/POSTURE.md` under "Advisory AI review", and the org record that the lanes are
 advisory at all is github-iac ADR 0011.
+
+## Addendum (2026-09-24): skip-actors list file and evidence guards removed
+
+The operator approved removing the repo-owned bookkeeping around both lanes. This changes where
+the skip-actor exception is stated, not which actors it covers.
+
+- `.github/claude-skip-actors`, its reader `scripts/read-skip-actors.sh`, and the `skip-actors`
+  job in `claude-security-review.yml` that fed the list across `needs` are deleted. The security
+  caller states the list inline:
+  `dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[bot],cursor[bot]`. The
+  review caller passes no `skip-actors` input, as before.
+- The repo-owned evidence guards that defaulted from that file are deleted:
+  `review-skill-evidence` (`scripts/verify-claude-review-skill.sh`), `security-review-evidence`
+  (`scripts/verify-security-review-evidence.sh`), and their shared library
+  `scripts/lib/review-lane-guard.sh`. Each lane's own `status-check` output (ci-workflows#619)
+  is now the only signal that a review failed.
+- The inline list is interim. The later pull request that re-pins both callers drops the
+  `skip-actors` input in the same commit that moves the pin; that change records the resulting
+  exception.
+
+The `skip-actors` revisit trigger below still applies to the inline list while it exists.
 
 ## Revisit triggers
 

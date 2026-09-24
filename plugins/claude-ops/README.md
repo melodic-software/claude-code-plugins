@@ -91,17 +91,11 @@ One row per Skill call, with these fields:
 | `event` | always | `SkillUse`, the key readers filter this store on |
 | `skill` | always | the skill name, leading slash stripped |
 | `branch` | always | the checked-out branch, `unknown` outside a git work tree |
-| `sha` | in a git work tree | the 40-hex commit HEAD pointed at when the call returned, so a reader can join the row to the commit the skill ran against |
-| `pr` | when the branch carries one | the pull-request number from `branch.<name>.pr-number` in git config, written by the pull-request skill at create time |
 | `project` | always | the project root's basename, for display |
 | `project_id` | always | basename plus a digest, collision-resistant across checkouts in the user and data-dir scopes |
 | `hook` | always | `skill-usage-audit` |
 | `source` | always | `tool` (the Skill tool) or `expansion` (a user-typed slash command) |
 | `expansion_type` | expansion path only | `slash_command` or `mcp_prompt` |
-
-`sha` and `pr` are absent, never empty or null, when nothing resolves them: an
-unborn HEAD and a directory outside any repository both write the row without
-them. Readers name the keys they read, so both fields are additive.
 
 `hook-failure-audit` is the other exception. Its user-facing `systemMessage`
 warning fires regardless of sink wiring (only its envelope needs a sink),
@@ -144,15 +138,9 @@ tool). Events carry a `source` field (`tool` vs `expansion`) so consumers can
 tell the paths apart; both share the same telemetry `hook` id and second store.
 
 Its share of the budget is stated as a **git process count**, the part of the
-row's cost that varies with the store's contents. Inside a git work tree the
-store write spawns **4 git processes**: the repo-root read, the
-`.git/info/exclude` hygiene read (repo scope only), one
-`git rev-parse HEAD --abbrev-ref HEAD` that answers the SHA and the branch
-together, and one `git config --get branch.<name>.pr-number`. The `rev-parse`
-count is unchanged by the `sha` field: `--abbrev-ref` applies only to the
-arguments after it, so the one call that used to answer the branch alone now
-answers both. The `git config` read is the single added spawn, and it is
-charged only inside a work tree: outside one the count stays at 3, as it was.
+row's cost that varies with the store's contents. The store write spawns
+**3 git processes**: the repo-root read, the `.git/info/exclude` hygiene read
+(repo scope only), and one `git rev-parse --abbrev-ref HEAD` for the branch.
 Measured with `strace -ff -e trace=execve` on a throwaway fixture repository,
 the same method the `hook-failure-audit` counts above use. This row is not in
 the always-on per-tool-call set: its matcher is `Skill`, so an ordinary tool

@@ -55,15 +55,7 @@ pr_title_pattern           Same as subject_pattern      team
 trailer_policy             none                         local overlay
 pr_body_attribution        none                         local overlay
 pr_body_required_sections  Summary, Test plan           plugin default
-pr_skill_evidence          none (inert)                 plugin default
 ```
-
-`pr_skill_evidence` is the mandatory map `/source-control:pull-request` checks a pull request's
-skill evidence against, one `- <class> | <patterns> | <skills>` rule per bullet (grammar:
-config-resolution.md). Render the row as the class names the winning layer declares, comma-joined,
-and as `none (inert)` when no layer declares it or a layer declares `none`. Like
-`pr_body_required_sections` it is a closed list, so the winning layer's rules are taken whole. Both
-states are INFO: a repository that requires no skill evidence is a legitimate configuration.
 
 `pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
 above it), render it comma-joined for this report regardless of how many lines the winning layer's
@@ -343,9 +335,7 @@ used. `check` alone reports the effective configuration across both surfaces and
   `apply` interview states this when it applies).
 - **`none` and absence are different states** for `trailer_policy`, `pr_body_attribution`, and
   `pr_body_required_sections`: absence falls through (ultimately to the bundled default), `none` is
-  a resolved opt-out that wins its layer's per-key override. `pr_skill_evidence` is the one key
-  where the two states meet in the same place: absent and `none` both leave the mechanism inert, so
-  report which of the two it is rather than collapsing them.
+  a resolved opt-out that wins its layer's per-key override.
 - **Gate inference on the resolved value, never file presence.** A `source-control.md` layer that
   contributes only other keys leaves `subject_pattern` unresolved. Skipping inference because
   "some config file exists" recommends the bundled default over the repo's real convention.

@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.0] - 2026-09-24
+
+### Removed
+
+- **BREAKING:** the skill-evidence system. `scripts/skill-evidence.sh` and its suite, the `pr_skill_evidence` config key, the `skill-evidence` PR body block, and the `pr-ready-evidence-gate` and `pr-ready-evidence-mcp-gate` hooks with their `pr_ready_evidence_gate_enabled` and `skill_evidence_store` options are gone. A `.claude/source-control.md` that still declares `pr_skill_evidence` is ignored.
+- The babysit gate no longer reads a PR body: `view_pr` and `evaluate()` drop the `skillEvidence` record, and the snapshot drops the `skill_evidence_gap` worker reason.
+- pull-request create no longer writes `branch.<name>.pr-number` into git config.
+
+### Changed
+
+- pull-request `ready` merges the base, runs the security review over the pull request's diff and the verify gate on the merged head, then flips. It no longer checks or renders evidence.
+- pull-request prep classifies the changed files by a table in `reference/prep.md` instead of reading a config map.
+
 ## [0.57.3] - 2026-09-24
 
 ### Changed
