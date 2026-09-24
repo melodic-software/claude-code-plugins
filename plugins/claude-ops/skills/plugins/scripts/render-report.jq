@@ -195,7 +195,7 @@ def block($d):
       # Action needed: omitted entirely when nothing needs action.
       ([
          (if $behind then
-            "source checkout \($src.path) is \($src.behind) commit(s) behind \($src.upstream), and the catalog is read from it as it is: run `git -C \"\($src.path)\" pull --ff-only`, then rerun `/claude-ops:plugins sync`"
+            "source checkout \($src.path) is \($src.behind) commit(s) behind \($src.upstream), and the catalog is read from it as it is: run `git -C \($src.path | @sh) pull --ff-only`, then rerun `/claude-ops:plugins sync \(.name)`"
             + (if $src.ahead > 0 then "; it also carries \($src.ahead) local commit(s), so --ff-only refuses until they are reconciled" else "" end)
             + (if $src.dirty then "; tracked files are modified, and the pull refuses if it would overwrite them" else "" end)
           else empty end),

@@ -15,7 +15,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `source_checkout` field. It never fetches, pulls, or writes (`git --no-optional-locks`). The
   report adds a `source:` row under the `Marketplace:` line, reads
   `source checkout behind <upstream>` instead of `current` when the checkout is behind, and adds an
-  `Action needed` bullet naming `git -C "<path>" pull --ff-only`. A path that is not a git work
+  `Action needed` bullet naming `git -C '<path>' pull --ff-only` and `/claude-ops:plugins sync <marketplace>`. A path that is not a git work
   tree, a branch with no upstream, and a detached HEAD each render as "freshness not checked".
   Other source kinds carry `source_checkout: null` and render as before (#4456).
 

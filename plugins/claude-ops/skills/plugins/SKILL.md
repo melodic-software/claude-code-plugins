@@ -221,7 +221,7 @@ recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by t
 when a root resolved; the self-update note when the sweep moved this plugin; the stale project
 records and cache content sections; the `Timing:` row (the marketplace total and its slowest step,
 with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
-`git -C <path> pull --ff-only` to run, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
+`git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
 updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
 project-scope map, withheld downgrades with both versions and the likely cause, and every error).
 In `audit` mode every mutating line carries the `would run:` prefix and `Would withhold:` sits
