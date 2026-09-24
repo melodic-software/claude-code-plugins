@@ -23,7 +23,7 @@ WAIT_TIMEOUT=${WAIT_TIMEOUT:-90}
 [[ -n "$PORT" && -n "$TOKEN" ]] || { echo "server not running (empty $env_file)" >&2; exit 2; }
 max_fails=${WAIT_FAILS:-12}
 # after=handled returns every unhandled event; .watch-replay bounds re-delivery to one extra wake.
-replayed=$(tr -dc '0-9' <"$dir/.watch-replay" 2>/dev/null)
+replayed=$(tr -dc '0-9' 2>/dev/null <"$dir/.watch-replay")
 replayed=${replayed:-0}
 body="$dir/.watch-body.$$"
 trap 'rm -f "$body"' EXIT
@@ -57,7 +57,7 @@ while :; do
   out=$(cat "$body")
   case "$out" in
     *'"timedOut": false'*)
-      next="bash \"$here/round.sh\" --dir \"$dir\" apply --file ops.json && bash \"$here/watch.sh\" \"$dir\""
+      next="bash \"$here/round.sh\" --dir \"$dir\" apply --file \"$dir/ops.json\" && bash \"$here/watch.sh\" \"$dir\""
       printf '%s, "dataDir": "%s", "next": "%s"}\n' "${out%\}}" "$(json_escape "$dir")" "$(json_escape "$next")"
       printf '%s' "$out" | sed -n 's/^{"seq": \([0-9]*\).*/\1/p' >"$dir/.watch-seq"
       case "$out" in

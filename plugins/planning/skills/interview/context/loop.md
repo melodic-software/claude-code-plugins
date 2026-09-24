@@ -118,16 +118,23 @@ Each round is one numbered set in prose (surface rules: SKILL.md "Question surfa
 
 `Q<N>` is a running counter across the session and across rounds (Q1–Q4 in round one, Q5… in round two, so the depth stays visible). Wait for the round's answers before computing the next round. The closing probe is what invites the user to surface a hidden constraint that would flip a recommendation. Most answers come back as a one-line "all as recommended". That is the format working, not under-questioning.
 
-### Artifact escape hatch (dense round)
+### Page surface
 
-When a round is large or dense enough that inline prose reads as a wall, offer to render the **whole frontier** as a decision table (SKILL.md "Artifact escape hatch"). It is a rendering surface, not a protocol change. The frontier is still asked whole, never capped or split across cards, and the recommendation+basis+probe contract of an inline round is preserved (below).
+When the surface resolves to `page`, or the user asks for it, the frontier renders on a local page the session watches (SKILL.md "Question surface: the page"). It is an input surface, not a protocol change: the frontier is still asked whole, never capped or split, and the recommendation+basis+probe contract of an inline round holds per question. Protocol: [`surface.md`](surface.md).
+
+- **Delivery:** `ensure-running`, then `add-round` with the whole frontier; the register's `open` rows are written in the same step.
+- **Per-question contract on the page:** the recommendation first, its 2-3 sentence codebase-grounded basis behind Why (never a terse label), the alternatives numbered, each commitment as its own unchecked row, and the round's closing constraint probe as the round's closing note in `meta.next` or a Claude thread line.
+- **Answer path:** the page. Every save is one event the watcher delivers; the terminal stays a valid input and is mirrored onto the page with `record-terminal`.
+- **Degrade:** when the page cannot start (a missing prerequisite, a port that cannot bind, a remote host the browser cannot reach), render the read-only decision table below, same columns and grounding, and say in one line which prerequisite failed.
+
+The read-only decision table (the degrade):
 
 - **Delivery:** write a **self-contained** HTML file to the topic-docs **ephemeral tier**, not the memory slice. Nothing downstream reads a round table again, and the ledger and terminal stay the tracked record (the HTML is a scannable view, not the source of truth, so mirror the repo's HTML-vs-markdown convention when it declares one). Create **one** OS temp directory per interview run through the platform's temp primitive, naming the temp root in the template (`mktemp -d "${TMPDIR:-/tmp}/interview-XXXXXX"` on Unix, the positional-template form GNU and BSD accept identically, and the only form that reliably leaves the working directory; a user-scoped temp under `%LOCALAPPDATA%\Temp` on Windows) and write that run's `interview-round-<n>.html` files inside it, one directory per run, never an accumulating tree in the repo. Resolve that one path deterministically: never branch on whether the harness injected a scratchpad path or set `CLAUDE_JOB_DIR`, and never depend on the session scratchpad. Give the user the file's path to open, and do **not** delete it. The path is the delivery mechanism, so it must still be readable when the reader opens it, and it outlives this invocation. A resumed interview starts a **new** run directory: after the handoff-and-clear in "Incremental persistence + branch-out", the prior run's directory is not re-resolvable, and it does not need to be. The ledger and Brief carry every resolved answer, and the temp path is deliberately not recorded anywhere to make it so (a pointer into the temp tree is not memory-tier content). Rules and rationale: the binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 - **Columns:** `#` (the terminal `Q<N>`) | `Question` | `Recommendation`, the answer **with its 2-3 sentence codebase-grounded basis**, the same grounding an inline round carries, never a terse label | `Alternatives` (the other options, one line each) | `Deciding what` (the stakes, meaning what this answer changes downstream).
 - **Constraint probe kept:** render the round's closing probe (the invitation to surface a constraint that would flip a recommendation) with the table, in the terminal residue or beneath the table, so the challenge mechanism the inline contract requires is not lost.
 - **Answer path:** the row `#` equals the terminal `Q<N>`, so the user answers in the terminal by number ("Q7 = b", "accept all") exactly as with an inline round; the table is read-only scanning, not an input surface.
 - **Terminal residue:** the terminal keeps a one-line summary (how many questions, what the round turns on), the file path, and the closing probe, never a silent hand-off to the artifact.
-- **Degrade:** when HTML rendering is unavailable, render the same columns (with the same grounded basis) and the probe as a fenced markdown table inline.
+- **No HTML:** when HTML rendering is unavailable, render the same columns (with the same grounded basis) and the probe as a fenced markdown table inline.
 
 ### Session-shorthand glossary
 

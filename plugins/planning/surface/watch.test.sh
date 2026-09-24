@@ -2,7 +2,9 @@
 # Tests for watch.sh against a live server started through round.sh ensure-running.
 #   bash watch.test.sh
 # Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), a delivery
-# (one JSON line carrying dataDir and next, .watch-seq stored), server gone (WAIT_FAILS=1).
+# (one JSON line carrying dataDir and next, .watch-seq stored), re-delivery bounds, the
+# skill's documented wake command read from context/surface.md (AC9, AC10), server gone
+# (WAIT_FAILS=1).
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 pass=0
@@ -109,7 +111,7 @@ print(d["events"][0]["kind"])
 data_dir=$(printf '%s\n' "$fields" | sed -n 1p)
 next=$(printf '%s\n' "$fields" | sed -n 2p)
 kind=$(printf '%s\n' "$fields" | sed -n 3p)
-want_next="bash \"$here/round.sh\" --dir \"$d\" apply --file ops.json && bash \"$here/watch.sh\" \"$d\""
+want_next="bash \"$here/round.sh\" --dir \"$d\" apply --file \"$d/ops.json\" && bash \"$here/watch.sh\" \"$d\""
 if [[ "$code" == 200 && "$rc" -eq 0 && "$lines" == 1 && "$data_dir" == "$d" && "$next" == "$want_next" && "$kind" == note ]]; then
   ok "a delivery prints one JSON line with dataDir and next, exit 0"
 else
@@ -169,6 +171,56 @@ if [[ "$code" == 200 && "$rc" -eq 0 && "$got" == "$seq $((seq + 1))" ]]; then
   ok "a new event returns the unhandled set ($got)"
 else
   bad "new event: post=$code rc=$rc got=[$got] err=$(cat "$tmp/g.err")"
+fi
+
+# (h) AC9, AC10: the wake command exactly as the skill documents it in context/surface.md, run
+# as one bash invocation with an ops.json holding one handle op for every unhandled event.
+doc="$here/../skills/interview/context/surface.md"
+marker='<!-- wake-command: surface/watch.test.sh runs the fenced command below -->'
+n_marker=$(grep -cxF -- "$marker" "$doc" 2>/dev/null)
+cmd=$(awk -v m="$marker" '
+  found == 0 && $0 == m { found = 1; next }
+  found == 1 { if ($0 == "```bash") { found = 2; next } else { exit } }
+  found == 2 { if ($0 == "```") exit; print }
+' "$doc" 2>/dev/null)
+cmd_lines=$(printf '%s\n' "$cmd" | grep -c .)
+if [[ "$n_marker" == 1 && "$cmd_lines" == 1 ]]; then
+  ok "context/surface.md documents the wake command as one line after its marker"
+else
+  bad "documented wake command: marker x${n_marker:-0}, command lines $cmd_lines"
+fi
+add_out=$(bash "$here/round.sh" --dir "$d" add --id Q1 --short Store --title "Which store keeps the answers?" \
+  --rec "JSON files in the data dir." --commit none --alt "a:SQLite" --alt "b:One file per answer" 2>&1)
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $TOKEN" \
+  -H 'Content-Type: application/json' --data '{"kind": "accept", "id": "Q1"}' \
+  "http://127.0.0.1:$PORT/api/answer")
+rev() { "$py" -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["rev"])' "$d/questions.json" 2>&1; }
+claude_lines() { # Claude thread lines on Q1 (add writes the first one)
+  "$py" -c '
+import json, sys
+q = next(q for q in json.load(open(sys.argv[1], encoding="utf-8"))["questions"] if q["id"] == "Q1")
+print(sum(1 for h in q.get("history", []) if h.get("by") == "claude"))
+' "$d/questions.json" 2>&1
+}
+rev_before=$(rev)
+lines_before=$(claude_lines)
+printf '{"ops": [{"op": "handle", "seqs": [%s, %s, %s]}]}\n' "$seq" "$((seq + 1))" "$((seq + 2))" >"$d/ops.json"
+run="${cmd//<data_dir>/$d}"
+CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/h.out" "$tmp/h.err" bash -c "$run"
+rc=$?
+rev_after=$(rev)
+lines_after=$(claude_lines)
+# Every event is handled, so the re-armed watcher waits (a clean timeout here) and prints no line.
+if [[ "$code" == 200 && "$rc" -eq 124 && "$rev_after" == $((rev_before + 1)) ]] &&
+  grep -q '^applied 1 ops' "$tmp/h.out" && ! grep -q '^{' "$tmp/h.out"; then
+  ok "AC10: the documented chain applies once (rev $rev_before to $rev_after) and re-arms a waiting watcher"
+else
+  bad "documented chain: add=[$add_out] post=$code rc=$rc rev $rev_before to $rev_after out=$(cat "$tmp/h.out") err=$(cat "$tmp/h.err")"
+fi
+if [[ "$rc" -eq 124 && "$lines_before" =~ ^[0-9]+$ && "$lines_after" == "$lines_before" ]]; then
+  ok "AC9: handling a plain accept writes no Claude thread line"
+else
+  bad "AC9: Claude lines on Q1 went from $lines_before to $lines_after (chain rc=$rc)"
 fi
 
 # (d) server gone: stop it, put the old env file back, and expect exit 2 after one failed poll

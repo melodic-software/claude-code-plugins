@@ -3,6 +3,39 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-09-24
+
+### Added
+
+- **Interview page surface** under `surface/`: a stdlib server bound to 127.0.0.1 (`server.py`),
+  the single-file page (`index.html`), `round.py` (Claude's only write path to the question file,
+  launched through `round.sh`), the background watcher `watch.sh`, JSON Schemas for the question,
+  response, event, visual and ops files, and the test suites. The user answers each question on
+  the page; every save reaches the live session through the watcher.
+- **`round.py` commands:** `ensure-running` and `stop` for the server's lifecycle, `apply` (every
+  op in one validated write), `archive`, `status --latency`, `validate`, and the sidecar lock
+  `questions.json.lock`. `add` and `add-round` refuse a question without `commits` or with fewer
+  than two alternatives, and `reply --rec` and `revise --rec` require `--affects`.
+- **Exporters:** `export-ledger` (the register rows `check-open-questions.sh` grades),
+  `export-brief` (the PLAN.md `## Brief` sections, unconfirmed commitments as named risks),
+  `export-report` (one self-contained HTML file), and `import-ledger`.
+- **`surface` option:** `terminal` (default) or `page`; applies to `/planning:interview` only, and
+  any other value falls back to `terminal`.
+- **`interview` skill `context/surface.md`:** the page protocol: start and stop, the one-call wake
+  command, the event table, rules R-A to R-J, the wording lint, the wrap-up exports, settings
+  layers, the security model and the degrade path.
+
+### Changed
+
+- **`interview`:** the question-surface rule replaces the artifact escape hatch. `surface: page`,
+  or the user asking for it, starts the page as the input surface; the read-only decision table
+  stays only as the degrade when the page cannot start. `context/loop.md` "Page surface" replaces
+  "Artifact escape hatch (dense round)".
+- **`use_emoji_question_markers`:** the description covers the page's question title and
+  Recommendation heading as well as inline rounds.
+- One section digest in `tests/interview-defenses.test.sh` was re-pinned because the Action
+  Router paragraph changed; both defenses in that region were re-read and neither is weakened.
+
 ## [0.40.0] - 2026-09-23
 
 ### Changed
