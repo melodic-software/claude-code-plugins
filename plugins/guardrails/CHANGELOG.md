@@ -7,6 +7,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
+- hooks.json: the five PostToolUse verifier rows run `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-guards.sh ...` instead of `bash ...`, so a `sh -c` wrapper replaces itself with bash instead of forking it: one process fewer per call where Claude Code runs the row through `sh` (Linux, macOS). Under a bash wrapper nothing changes.
 - hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
 - skill-reference-verify.sh: the plugins-root gate runs before the payload read, so an Edit or Write outside a marketplace repo no longer starts jq for the `structuredPatch` filter the builtin parser cannot answer. Same output. With the builtin `replace_all` read above, the PostToolUse verifiers start no jq on a `.md` edit there.
 - hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.

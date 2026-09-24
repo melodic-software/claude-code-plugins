@@ -7,6 +7,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 ### Changed
 
+- hooks.json: the two PostToolUse rows run `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/markdown-format.sh` instead of `bash ...`, so a `sh -c` wrapper replaces itself with bash instead of forking it: one process fewer per call where Claude Code runs the row through `sh` (Linux, macOS). Under a bash wrapper nothing changes.
 - hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
 - hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
 - hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
