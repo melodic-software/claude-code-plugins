@@ -130,15 +130,17 @@ run_bare() {
   local input="$1"
   shift
   rm -f "$SETTINGS"
-  (cd "$UNRELATED" && printf '%s' "$input" |
-    env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
-      -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
-      -u CLAUDE_PLUGIN_DATA \
-      CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
-      "$@" \
-      bash "$HOOK" 2>/dev/null)
+  # Process substitution, not a pipe: the unconfigured path exits without
+  # reading stdin, and a pipe writer's EPIPE would become the status under
+  # pipefail.
+  (cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    "$@" \
+    bash "$HOOK" < <(printf '%s' "$input") 2>/dev/null)
 }
 
 is_block() { printf '%s' "$1" | jq -e '.decision == "block"' >/dev/null 2>&1; }
@@ -1124,40 +1126,73 @@ chmod 600 "$UNREAD_PLUGIN/.claude-plugin/plugin.json" "$UNREAD_OPTS" 2>/dev/null
 rm -rf "$UNREAD_PLUGIN" "$UNREAD_OPTS"
 
 # ============================================================================
-# The pre-filter decides the managed-settings root by PATH, not by uname.
+# #4415 — the pre-filter runs before any library is sourced.
 # ============================================================================
-# The platform-free candidate scan is what lets the interactive default path
-# spawn nothing. It must stay a ROUTING list: filling the authoritative
-# GATE_MANAGED_FILES from it would move the highest-precedence scope off
-# `uname -s`, and on a POSIX host the Windows spelling is cwd-relative and so
-# repo-plantable. Case 38 pins the authoritative selection; this pins the
-# separation, and that the candidates are the fixed roots and nothing else.
+# The managed-settings layer is not seam-injectable, so the pre-filter's copy of
+# the three fixed primaries is pinned to the lib's authoritative literals: a
+# path changed in one place and not the other would make the pre-filter answer
+# "not configured" for a host whose managed settings do configure the gate.
+HOOK_TEXT="$(<"$HOOK")"
 if (
   # shellcheck source=lane-stop-gate-lib.sh
   source "$STAGED_DIR/lane-stop-gate-lib.sh"
-  # shellcheck disable=SC2329 # would be invoked indirectly if the scan spawned
-  uname() {
-    printf 'STUB\n'
-    exit 1
-  }
-  gate_managed_candidates_load || exit 1
-  # The scan contributes nothing to the authoritative list.
-  ((GATE_MANAGED_FILES_LOADED == 0)) || exit 1
-  ((${#GATE_MANAGED_FILES[@]} == 0)) || exit 1
-  # Whatever exists on this host, every candidate is under one of the three
-  # fixed roots — nothing derived from the environment or the cwd.
-  for c in ${GATE_MANAGED_CANDIDATES[@]+"${GATE_MANAGED_CANDIDATES[@]}"}; do
-    case "$c" in
-    "${GATE_MANAGED_PRIMARY_DARWIN%/*}"/* | "${GATE_MANAGED_PRIMARY_WINDOWS%/*}"/* | "${GATE_MANAGED_PRIMARY_LINUX%/*}"/*) ;;
-    *) exit 1 ;;
-    esac
+  for p in "$GATE_MANAGED_PRIMARY_DARWIN" "$GATE_MANAGED_PRIMARY_WINDOWS" "$GATE_MANAGED_PRIMARY_LINUX"; do
+    [[ "$HOOK_TEXT" == *"\"$p\""* ]] || exit 1
   done
-  exit 0
 ); then
-  ok "the managed-settings candidate scan routes only: it never fills the uname-selected authoritative list"
+  ok "the pre-filter's managed-settings primaries match the lib's literals"
 else
-  fail "the candidate scan leaked into GATE_MANAGED_FILES or emitted a path outside the fixed managed roots"
+  fail "the pre-filter's managed-settings primaries drifted from GATE_MANAGED_PRIMARY_* in the lib"
 fi
+
+# A second staged install whose three libraries are replaced by stubs that
+# record being sourced. Unconfigured, the hook must exit before sourcing any of
+# them; each opt-in source the pre-filter honors must still reach them (the
+# positive control that the stub would have caught a source).
+SRC_ROOT="$(mktemp -d "$WORK/srcprobe.XXXXXX")"
+SRC_DIR="$SRC_ROOT/plugins/cache/melodic/autonomy/9.9.9/hooks"
+SRC_MARK="$WORK/sourced.txt"
+mkdir -p "$SRC_DIR"
+cp "$HOOK" "$SRC_DIR/"
+for lib in hook-utils.sh lane-notify.sh lane-stop-gate-lib.sh; do
+  printf 'printf "%%s\\n" %s >>"%s"\nexit 0\n' "$lib" "$SRC_MARK" >"$SRC_DIR/$lib"
+done
+# src_probe [KEY=VAL ...] — run the stubbed hook; SRC_OUT holds stdout.
+src_probe() {
+  rm -f "$SRC_MARK"
+  SRC_OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    "$@" bash "$SRC_DIR/lane-stop-gate.sh" <"$PROBE_PAYLOAD" 2>&1)"
+  SRC_RC=$?
+}
+rm -f "$SRC_ROOT/settings.json"
+src_probe
+if [[ $SRC_RC -eq 0 && -z "$SRC_OUT" && ! -e "$SRC_MARK" ]]; then
+  ok "unconfigured: silent exit 0 without sourcing any library"
+else
+  fail "unconfigured session sourced a library or spoke (rc=$SRC_RC out=$SRC_OUT sourced=$(cat "$SRC_MARK" 2>/dev/null))"
+fi
+src_probe CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID=probe-arm-id
+if [[ -e "$SRC_MARK" ]]; then ok "arm id env presence reaches the full path"; else fail "arm id env presence exited at the pre-filter"; fi
+src_probe CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true
+if [[ -e "$SRC_MARK" ]]; then ok "enabled env presence reaches the full path"; else fail "enabled env presence exited at the pre-filter"; fi
+printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":false}}}}\n' >"$SRC_ROOT/settings.json"
+src_probe
+if [[ -e "$SRC_MARK" ]]; then ok "anchored user settings mentioning the gate reach the full path"; else fail "anchored user settings were missed by the pre-filter"; fi
+printf '{"pluginConfigs":{}}\n' >"$SRC_ROOT/settings.json"
+src_probe
+if [[ ! -e "$SRC_MARK" ]]; then ok "user settings without the gate key stay on the early exit"; else fail "user settings without the gate key reached the libraries"; fi
+
+# A RELATIVE hook path takes the pre-filter's `cd` branch for the plugin root;
+# an enabled lane invoked that way must still find its settings and block.
+write_settings true
+OUT="$(cd "$STAGED_DIR/.." && build_input Stop "no token" false |
+  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+    -u CLAUDE_PLUGIN_DATA \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false \
+    bash hooks/lane-stop-gate.sh 2>/dev/null)"
+if is_block "$OUT"; then ok "relative invocation: the pre-filter resolves the anchor and the lane blocks"; else fail "relative invocation lost the enabled lane's block: $OUT"; fi
 
 # --- The interactive default path launches NO external command --------------
 # The strace case below proves the count where ptrace is available; this proves
@@ -1176,14 +1211,16 @@ for t in uname realpath readlink cygpath dirname basename jq grep sed tr cat awk
   chmod +x "$NOSPAWN/$t"
 done
 rm -f "$SETTINGS" "$NOSPAWN_MARK"
-NOSPAWN_OUT="$(cd "$UNRELATED" && build_input Stop "no token" false |
-  env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
-    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
-    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
-    -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
-    -u CLAUDE_PLUGIN_DATA \
-    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false HOOK_TELEMETRY_SINK="" \
-    PATH="$NOSPAWN" "$BASH" "$HOOK" 2>&1)"
+# stdin is a FILE, not a pipe from build_input: the default path now exits
+# before the writer finishes, and under pipefail the writer's EPIPE would be
+# read as the hook's status.
+NOSPAWN_OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+  -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL \
+  -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER \
+  -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
+  -u CLAUDE_PLUGIN_DATA \
+  CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=false HOOK_TELEMETRY_SINK="" \
+  PATH="$NOSPAWN" "$BASH" "$HOOK" <"$PROBE_PAYLOAD" 2>&1)"
 NOSPAWN_RC=$?
 if [[ $NOSPAWN_RC -eq 0 && -z "$NOSPAWN_OUT" ]]; then
   ok "PATH-shim: the interactive default path still exits 0 silently"

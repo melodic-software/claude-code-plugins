@@ -82,84 +82,61 @@ set -uo pipefail
 # no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
+# The plugin root, as gate_plugin_root_to derives it: the libraries are not
+# loaded yet (see the pre-filter below), so the derivation is spelled here.
+case "$HOOK_DIR" in
+/* | ?:[/\\]*) _gate_root="$HOOK_DIR/.." ;;
+*) _gate_root=$(cd "$HOOK_DIR/.." 2>/dev/null && pwd) ;;
+esac
 
-# shellcheck source=hook-utils.sh
-source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=lane-notify.sh
-source "$HOOK_DIR/lane-notify.sh"
-# shellcheck source=lane-stop-gate-lib.sh
-source "$HOOK_DIR/lane-stop-gate-lib.sh"
-_gate_root=""
-gate_plugin_root_to _gate_root "$HOOK_DIR"
-# Only the ANCHOR half of the install resolution runs here: it is pure parameter
-# expansion, and the pre-filter below needs the GATE_CONFIG_ROOT it sets to
-# locate the user settings.json. The other half — the manifest read that names
-# an unanchored (--plugin-dir) install — costs a jq process and answers a
-# question no one asks above the pre-filter, so it is deferred past it.
-gate_resolve_anchor "$_gate_root" || true
-
-# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
-# on an older host it is empty and hook::emit_telemetry skips fail-open.
-START=${EPOCHREALTIME:-}
-
-# emit_tel <status> <outcome> <signal> — fire-and-forget telemetry for an
-# EVALUATED gate outcome (hook-telemetry convention; no-op unless the consumer
-# sets HOOK_TELEMETRY_SINK). Only the three evaluated outcomes emit; the
-# fail-open/skip exits stay silent — they are pre-evaluation, and emitting on
-# every interactive default-off stop would be noise, not signal. The payload is
-# a closed fixed vocabulary by design: never the sentinel value, the marker
-# path, the cwd, or the branch, so the envelope cannot leak the completion
-# token or lane-identifying paths into the sink.
+# jq-free, stdin-free, library-free pre-filter: is the gate plausibly configured
+# anywhere this host could honor — or at least CLAIMED, which must produce the
+# visible notice further down rather than silence? Sessions with no gate
+# footprint at all (the interactive default) exit here, before the ~4,800 lines
+# of sourced libraries are parsed, before the stdin buffer, and before the jq
+# gate: an unarmed session pays for nothing it cannot use, and a jq-less machine
+# never sees a lane-stop-gate notice for a session that never opted in. The env
+# presence tests grant no authority: a hit only routes into evaluation, where
+# the trusted sources decide.
 #
-# The data object is assembled in the shell, not by `jq -nc --arg …`: both
-# fields are literals from the closed vocabulary at the call sites below (no
-# quote, backslash or control byte among them), so the bytes are the ones jq's
-# compact printer wrote — `{"outcome":"…","signal":"…"}` — without spending a
-# process on every evaluated stop, sink or no sink.
-emit_tel() {
-  local data='{"outcome":"'"$2"'","signal":"'"$3"'"}'
-  hook::emit_telemetry "lane-stop-gate" "Stop" "$1" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
-}
-
-# jq-free AND stdin-free pre-filter: is the gate plausibly configured anywhere
-# this host could honor — or at least CLAIMED, which must produce the visible
-# notice below rather than silence? Sessions with no gate footprint at all (the
-# interactive default) exit here, before the stdin buffer and the jq gate, so an
-# unarmed session never pays the buffered read for a decision it cannot make,
-# and a jq-less machine never sees a lane-stop-gate notice for a session that
-# never opted in. The env presence tests grant no authority: a hit only routes
-# into evaluation, where the trusted sources decide.
-#
-# Everything this reads is already in scope above: the two env presences, and
-# the two settings-file locators from lane-stop-gate-lib.sh — gate_user_settings_file_to,
-# which derives from the GATE_CONFIG_ROOT that gate_resolve_anchor establishes
-# at the top of this file, and gate_managed_candidates_load, which depends on
-# nothing but `[[ -f ]]` over fixed paths.
+# It reads, with builtins only (no process of any kind):
+#   - the ARM_ID and ENABLED env presences;
+#   - the user settings.json at the install anchor, located exactly as
+#     gate_resolve_anchor + gate_user_settings_file_to locate it;
+#   - every managed-settings file that EXISTS for ANY platform: the fixed
+#     primaries (the GATE_MANAGED_PRIMARY_* literals of lane-stop-gate-lib.sh,
+#     which the suite pins against this copy) and each one's
+#     managed-settings.d/*.json. Testing all three is equivalent to selecting one
+#     by `uname -s` because another platform's path does not exist, and this list
+#     ROUTES only: every managed VALUE still comes from the lib's uname-selected,
+#     absoluteness-asserted list. The Windows spelling carries no leading `/`, so
+#     on a POSIX host it resolves against the cwd, where a repo can plant one;
+#     that routes into evaluation and nothing more, the same forcing power the
+#     repo's own `env` block already has over the presence tests.
 # Nothing here is payload-derived, so it MUST stay above the buffer — and
 # everything payload-derived (hook::require_jq, EVENT, SESSION_ID, and the
 # SubagentStop-versus-Stop discrimination) MUST stay below it (#2852).
-#
-# This is the path every interactive stop takes, and it now spawns NOTHING: the
-# file scan is a builtin read where it used to be a `grep -q` process, the
-# locators write into variables where they used to be captured through a
-# subshell, and the managed-settings question is answered by testing the fixed
-# primary of every platform rather than by asking `uname -s` which one to test
-# (three process creations on this hook's Windows host: the `$( )` fork, then
-# the fork and exec of uname). The candidate scan ROUTES only. The option
-# resolution below still loads the authoritative, uname-selected list, which is
-# where every managed VALUE comes from — see the lib header for why that
-# separation is what preserves the trust boundary.
 gate_maybe_configured() {
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" ]] && return 0
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" ]] && return 0
-  local f
-  if gate_user_settings_file_to f && [[ -f "$f" ]]; then
-    gate_file_mentions "$f" && return 0
+  local rest marketplace name primary f
+  if [[ -n "$_gate_root" && "$_gate_root" == */plugins/cache/*/*/* ]]; then
+    rest="${_gate_root#*/plugins/cache/}"
+    marketplace="${rest%%/*}"
+    rest="${rest#*/}"
+    name="${rest%%/*}"
+    if [[ -n "$marketplace" && -n "$name" ]]; then
+      f="${_gate_root%%/plugins/cache/*}/settings.json"
+      [[ -f "$f" ]] && gate_file_mentions "$f" && return 0
+    fi
   fi
-  gate_managed_candidates_load
-  for f in ${GATE_MANAGED_CANDIDATES[@]+"${GATE_MANAGED_CANDIDATES[@]}"}; do
-    [[ -n "$f" ]] || continue
-    gate_file_mentions "$f" && return 0
+  for primary in "/Library/Application Support/ClaudeCode/managed-settings.json" \
+    "C:/Program Files/ClaudeCode/managed-settings.json" \
+    "/etc/claude-code/managed-settings.json"; do
+    [[ -f "$primary" ]] && gate_file_mentions "$primary" && return 0
+    for f in "${primary%/*}/managed-settings.d"/*.json; do
+      [[ -f "$f" ]] && gate_file_mentions "$f" && return 0
+    done
   done
   return 1
 }
@@ -187,12 +164,41 @@ gate_file_mentions() {
 }
 gate_maybe_configured || exit 0
 
-# Past the pre-filter: this session will be evaluated, so the deferred half of
-# the install resolution runs now. It names an UNANCHORED (--plugin-dir)
-# install from its manifest, which gate_settings_options_to needs to match a
-# pluginConfigs entry; an anchored install already has its marketplace-qualified
-# id and never reaches the jq.
+# shellcheck source=hook-utils.sh
+source "$HOOK_DIR/hook-utils.sh"
+# shellcheck source=lane-notify.sh
+source "$HOOK_DIR/lane-notify.sh"
+# shellcheck source=lane-stop-gate-lib.sh
+source "$HOOK_DIR/lane-stop-gate-lib.sh"
+# The ANCHOR half of the install resolution, then — only for an unanchored
+# (--plugin-dir) install — the manifest read that names it, which costs a jq
+# process. gate_settings_options_to needs the name to match a pluginConfigs
+# entry; an anchored install already has its marketplace-qualified id.
+gate_resolve_anchor "$_gate_root" || true
 [[ -n "$GATE_CONFIG_ROOT" ]] || gate_resolve_plugin_name "$_gate_root" || true
+
+# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
+# on an older host it is empty and hook::emit_telemetry skips fail-open.
+START=${EPOCHREALTIME:-}
+
+# emit_tel <status> <outcome> <signal> — fire-and-forget telemetry for an
+# EVALUATED gate outcome (hook-telemetry convention; no-op unless the consumer
+# sets HOOK_TELEMETRY_SINK). Only the three evaluated outcomes emit; the
+# fail-open/skip exits stay silent — they are pre-evaluation, and emitting on
+# every interactive default-off stop would be noise, not signal. The payload is
+# a closed fixed vocabulary by design: never the sentinel value, the marker
+# path, the cwd, or the branch, so the envelope cannot leak the completion
+# token or lane-identifying paths into the sink.
+#
+# The data object is assembled in the shell, not by `jq -nc --arg …`: both
+# fields are literals from the closed vocabulary at the call sites below (no
+# quote, backslash or control byte among them), so the bytes are the ones jq's
+# compact printer wrote — `{"outcome":"…","signal":"…"}` — without spending a
+# process on every evaluated stop, sink or no sink.
+emit_tel() {
+  local data='{"outcome":"'"$2"'","signal":"'"$3"'"}'
+  hook::emit_telemetry "lane-stop-gate" "Stop" "$1" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
+}
 
 # Buffer stdin. Empty (rc 1) or timed-out (rc 2) → allow the stop (fail-open: a
 # gate that cannot read the payload must not trap the lane).
