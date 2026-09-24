@@ -79,5 +79,5 @@ It checks the mechanics of a style, not whether a scene is good or reads as the 
 research slice on style learning found no agreed metric or ground truth for style similarity, so
 the human judgment on 1:1 crops stays the final gate. The bands come from the source itself, so
 the source passes by construction; the replica is the evidence that a same-style film passes, and
-the three clips that a different style fails. A statistic that separates only shot for shot, as
-`straight` does for round 3, cannot judge a new subject.
+the three clips that a different style fails. `straight` separates round 3 only shot for shot, so
+it cannot catch that near miss on a new subject; it stays checked because it separates the collage.
