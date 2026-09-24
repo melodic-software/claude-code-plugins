@@ -15,6 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - zone-crossing-inject.sh: the zone resolver is started only when the session's context snapshot is readable. Without one the resolver answered `unknown` at that same check, so the hook's output is unchanged and a second bash is not started.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hooks.json: the PostToolBatch and UserPromptSubmit rows start the script as `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/zone-crossing-inject.sh` with `"shell": "bash"`, instead of executing it through its `#!/usr/bin/env bash` line, so each call runs one process fewer (`env`). `bash` is looked up on `PATH` exactly as `env bash` looked it up.
+- zone-crossing-inject.sh: exits before sourcing its libraries when `~/.claude/context-guard/context` does not exist and jq is on `PATH`. Without that directory there is no snapshot and no compaction marker, so the hook could only reach `unknown`, which is silent and writes nothing; that is every fire on a machine without the context-guard status line.
 
 ## [0.7.67] - 2026-09-23
 

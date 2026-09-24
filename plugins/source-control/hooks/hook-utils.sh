@@ -544,6 +544,40 @@ hook::expand_8dot3_to() {
   printf -v "$1" '%s' "$__hu_p"
 }
 
+# hook::_physical_builtin_to <var> <path>...
+# realpath's answer for every <path>, one per line, with no realpath process:
+# one subshell reads the physical form with `cd -P` (a directory, or a file's
+# directory plus its name). Linux only, and only for the shapes where the two
+# agree: every path absolute with no `//`, each an existing directory or an
+# existing non-symlink file whose name is not `.` or `..`, and every `cd -P`
+# succeeding. Anything else returns 1 and the caller runs realpath as before:
+# a symlinked file, a missing path, a relative one, a directory it cannot
+# enter. Git Bash and macOS keep realpath, whose drive and short-name forms
+# this does not reproduce.
+hook::_physical_builtin_to() {
+  [[ "${OSTYPE:-}" == linux* ]] || return 1
+  local __hu_pb_dest="$1" __hu_pb_p __hu_pb_out
+  shift
+  for __hu_pb_p in "$@"; do
+    [[ "$__hu_pb_p" == /* && "$__hu_pb_p" != *//* && "$__hu_pb_p" != *$'\n'* ]] || return 1
+  done
+  __hu_pb_out=$(
+    for __hu_pb_p in "$@"; do
+      if [[ -d "$__hu_pb_p" ]]; then
+        cd -P -- "$__hu_pb_p" 2>/dev/null || exit 1
+        printf '%s\n' "$PWD"
+      else
+        [[ -e "$__hu_pb_p" && ! -L "$__hu_pb_p" ]] || exit 1
+        __hu_pb_d=${__hu_pb_p%/*} __hu_pb_b=${__hu_pb_p##*/}
+        [[ -n "$__hu_pb_b" && "$__hu_pb_b" != . && "$__hu_pb_b" != .. ]] || exit 1
+        cd -P -- "${__hu_pb_d:-/}" 2>/dev/null || exit 1
+        printf '%s\n' "${PWD%/}/$__hu_pb_b"
+      fi
+    done
+  ) || return 1
+  printf -v "$__hu_pb_dest" '%s' "$__hu_pb_out"
+}
+
 # Canonicalize to a physical path — symlinks resolved, Windows 8.3 short names
 # expanded — for the membership comparison below, so an in-project symlink
 # pointing outside the project root cannot defeat the guard (the lexical path
@@ -564,6 +598,10 @@ hook::expand_8dot3_to() {
 hook::physical_path_to() {
   local __hu_r
   HOOK_PHYSICAL_PATH_UNRESOLVED=0
+  if hook::_physical_builtin_to __hu_r "$2"; then
+    hook::expand_8dot3_to "$1" "$__hu_r"
+    return 0
+  fi
   if __hu_r=$(realpath -- "$2" 2>/dev/null) || __hu_r=$(readlink -f -- "$2" 2>/dev/null); then
     if [[ -n "$__hu_r" ]]; then
       hook::expand_8dot3_to "$1" "$__hu_r"
@@ -664,9 +702,11 @@ hook::_physical_prime() {
     __hu_todo+=("$__hu_p")
   done
   ((${#__hu_todo[@]} > 1)) || return 0
-  command -v realpath >/dev/null 2>&1 || return 0
-  # portability-ok: realpath with several operands is GNU and BSD alike; a host whose realpath rejects it fails the exit-status check and falls back per path
-  __hu_out=$(realpath -- "${__hu_todo[@]}" 2>/dev/null) || return 0
+  if ! hook::_physical_builtin_to __hu_out "${__hu_todo[@]}"; then
+    command -v realpath >/dev/null 2>&1 || return 0
+    # portability-ok: realpath with several operands is GNU and BSD alike; a host whose realpath rejects it fails the exit-status check and falls back per path
+    __hu_out=$(realpath -- "${__hu_todo[@]}" 2>/dev/null) || return 0
+  fi
   local -a __hu_lines=()
   local __hu_glob=0
   [[ $- == *f* ]] || __hu_glob=1

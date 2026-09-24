@@ -299,7 +299,7 @@ assert_eq "benign Bash dispatcher forks no subshell (one BASHPID in the xtrace)"
 # --- PostToolUse verifiers: one path read, one root, one unprimed jq ------------
 # The three verifiers each read the file path and the repository root, and two
 # of them ask for the unprimed `replace_all` filter. Through the dispatcher the
-# path is resolved once (one realpath), the root once (one git), and the jq
+# path is resolved once (one realpath, none on Linux), the root once (one git), and the jq
 # that answers skill-reference-verify's unprimed filters also answers
 # stale-path-verify's.
 PV_REPO="$TEST_TMPDIR/pv-repo"
@@ -321,8 +321,11 @@ if [[ -x "$SHIM/jq" ]]; then
     cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <<<"$PV_PAYLOAD" >/dev/null 2>&1
   assert_eq "post-verify dispatcher: one jq for the unprimed filters of both guards" \
     "1" "$(grep -cx jq "$SPAWN_LOG")"
-  assert_eq "post-verify dispatcher: one realpath for the three path reads" \
-    "1" "$(grep -cx realpath "$SPAWN_LOG")"
+  # Linux reads the physical paths with `cd -P` (hook::_physical_builtin_to), so no realpath runs there.
+  want_realpath=1
+  [[ "$OSTYPE" == linux* ]] && want_realpath=0
+  assert_eq "post-verify dispatcher: $want_realpath realpath for the three path reads" \
+    "$want_realpath" "$(grep -cx realpath "$SPAWN_LOG")"
   assert_eq "post-verify dispatcher: one git rev-parse for the three root reads" \
     "1" "$(grep -c 'rev-parse --show-toplevel' "$SPAWN_LOG")"
   rm -f "$SHIM/realpath" "$SHIM/git"

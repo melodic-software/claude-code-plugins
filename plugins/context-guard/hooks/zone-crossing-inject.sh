@@ -144,6 +144,17 @@ set -uo pipefail
 # zone-crossing-inject.test.sh, which counts commands in COMMAND POSITION: a
 # fork that never execs never reaches one. The strace-based counterpart there
 # is what holds this rule, and #3520 is the regression it was added for.
+# NO CONTEXT DIRECTORY, NOTHING TO SAY. Without
+# $HOME/.claude/context-guard/context there is no snapshot and no compaction
+# marker for any session, so every path below ends at `unknown`, which is
+# silent and writes nothing. That is every fire on a machine without the
+# context-guard status line, so the check runs before the libraries are
+# sourced, which cost more than the rest of such a fire. jq must be on PATH for
+# the skip: without it the full path owes its once-per-session notice.
+if [[ ! -e "${HOME:-}/.claude/context-guard/context" ]] && command -v jq >/dev/null 2>&1; then
+  exit 0
+fi
+
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
 # shellcheck source=hook-utils.sh

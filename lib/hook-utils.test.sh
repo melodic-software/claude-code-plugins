@@ -3068,6 +3068,7 @@ physical_path_unresolved() {
   cat >"$no_canon" <<'EOF'
 realpath() { return 1; }
 readlink() { return 1; }
+cd() { return 1; }
 EOF
   probe_lib hook::physical_path HOOK_PHYSICAL_PATH_UNRESOLVED "$target" "$no_canon"
   rm -f "$no_canon"

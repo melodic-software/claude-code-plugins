@@ -13,6 +13,8 @@ All notable changes to the `eol-normalizer` plugin are documented here. Format f
 - hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - eol-normalizer.sh: with no telemetry sink wired, `git check-attr` runs from the file's own directory with the absolute file path, which answers the same as from the repository root, so the separate `git rev-parse --show-toplevel` process is not started. A relative path, or a wired sink, still resolves the root first.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hooks.json: the PostToolUse row starts the script as `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/eol-normalizer.sh` with `"shell": "bash"`, instead of executing it through its `#!/usr/bin/env bash` line, so each call runs one process fewer (`env`). `bash` is looked up on `PATH` exactly as `env bash` looked it up.
 
 ## [0.6.52] - 2026-09-23
 
