@@ -13,7 +13,23 @@ set -uo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/secret-pattern-detection.sh"
 TEST_TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# The temp-decline block below makes a directory link in a temp dir of its own,
+# outside TEST_TMPDIR. The link is removed first and without recursion, then the
+# emptied dir, so no recursive delete ever runs over a directory holding a link.
+D1_LINKDIR=""
+d1_cleanup() {
+  [[ -n "$D1_LINKDIR" ]] || return 0
+  if [[ -L "$D1_LINKDIR/ToHooks" ]]; then
+    if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+      MSYS_NO_PATHCONV=1 cmd /c rmdir "$(cygpath -w "$D1_LINKDIR/ToHooks")" >/dev/null 2>&1
+    else
+      rm -f "$D1_LINKDIR/ToHooks"
+    fi
+  fi
+  rmdir "$D1_LINKDIR" 2>/dev/null
+  return 0
+}
+trap 'd1_cleanup; rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -725,5 +741,146 @@ RC=0
 CLAUDE_PLUGIN_OPTION_SECRET_PATTERN_DETECTION_ENABLED=false bash "$HOOK" \
   <<<"$(mcp_single_json "src/app.py" "token = '$GH_PAT'")" >/dev/null 2>&1 || RC=$?
 assert_exit "MCP: disabled guard allows the write" 0 "$RC"
+
+# ============ Temp-tree decline at the Bash exemption's width ================
+# block-hook-bypass exempts a Bash redirect into a host temp tree when the
+# project root is known and outside that tree. A Write of the same content to
+# the same path declines here under the same gate, so the two routes agree.
+#
+# Every rc 2 case below is the rc 0 payload (D1_ROOT + D1_TARGET) with ONE input
+# changed, so the refusal it pins is the only reason it scans.
+#
+# On a Windows host the Write tool is Node, which resolves `/tmp/x` and `/c/x`
+# differently from Git Bash, so only a long-name drive spelling may decline:
+# the temp base comes from `cygpath -l -m`, never from mktemp or raw TEMP (8.3).
+D1_WIN=0
+[[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && D1_WIN=1
+if ((D1_WIN)); then
+  D1_TEMP=$(cygpath -l -m "${TEMP:-${TMP:-/tmp}}")
+  D1_ROOT="C:/spd-d1-nonrepo-root"
+  D1_HOME="C:/spd-d1-home"
+else
+  D1_TEMP=/tmp
+  D1_ROOT="/spd-d1-nonrepo-root"
+  D1_HOME="/spd-d1-home"
+fi
+D1_TARGET="$D1_TEMP/spd-d1-$$/sub/f.txt"
+
+# d1_rc <root, empty for unset> <target> [NAME=value...] -> the hook's exit code
+d1_rc() {
+  local root="$1" target="$2" rc=0
+  shift 2
+  if [[ -n "$root" ]]; then
+    env "$@" CLAUDE_PROJECT_DIR="$root" bash "$HOOK" <<<"$(write_json "$target" "token = '$GH_PAT'")" >/dev/null 2>&1 || rc=$?
+  else
+    env "$@" bash "$HOOK" <<<"$(write_json "$target" "token = '$GH_PAT'")" >/dev/null 2>&1 || rc=$?
+  fi
+  printf '%s' "$rc"
+}
+
+assert_exit "D1 non-temp non-git root, temp target → exit 0" 0 "$(d1_rc "$D1_ROOT" "$D1_TARGET")"
+assert_exit "D1 root is HOME, temp target → exit 0" 0 \
+  "$(d1_rc "$D1_HOME" "$D1_TARGET" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+assert_exit "D1 root unset, temp target → exit 2" 2 "$(d1_rc "" "$D1_TARGET")"
+assert_exit "D1 root under temp → exit 2" 2 "$(d1_rc "$D1_TEMP/spd-d1-$$" "$D1_TARGET")"
+assert_exit "D1 root is the temp root → exit 2" 2 "$(d1_rc "$D1_TEMP" "$D1_TARGET")"
+
+# Target spellings refused before any resolution.
+for D1_T in "$D1_TEMP/spd-d1-$$/../../spd-d1-out/f.txt" "${D1_TEMP}Evil/spd-d1/f.txt" \
+  "$D1_TEMP/spd~1/f.txt" "/$D1_TARGET" "$D1_TEMP//spd-d1/f.txt" "tmp/spd-d1/f.txt"; do
+  assert_exit "D1 target '$D1_T' → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_T")"
+done
+# Root spellings block-hook-bypass would not accept, and a filesystem root.
+for D1_R in "$D1_ROOT\$x" "${D1_ROOT}*" "${D1_ROOT}~1" "spd-d1-rel-root" "/" "${D1_ROOT%%/*}/"; do
+  assert_exit "D1 root '$D1_R' → exit 2" 2 "$(d1_rc "$D1_R" "$D1_TARGET")"
+done
+
+# A link under a temp dir pointing at an existing non-temp directory. The target
+# through it lands outside temp and scans; a genuine sibling declines. The link
+# name carries capitals so a walk over a lowercased copy would miss it on POSIX.
+D1_LINKDIR=$(mktemp -d)
+D1_LINKBASE="$D1_LINKDIR"
+((D1_WIN)) && D1_LINKBASE=$(cygpath -l -m "$D1_LINKDIR")
+if make_dir_link "$HOOK_DIR" "$D1_LINKDIR/ToHooks"; then
+  assert_exit "D1 target through a temp link to a non-temp dir → exit 2" 2 \
+    "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/ToHooks/spd-d1-absent/f.txt")"
+  assert_exit "D1 genuine sibling in the same temp dir → exit 0" 0 \
+    "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/genuine/f.txt")"
+else
+  echo "SKIP: D1 temp link cases (no directory link could be made on this host)"
+fi
+
+# A drive spelling that names no volume must terminate, as a target and as a
+# root. timeout 124 is a hang, not a verdict; the bound is run_bounded's, since
+# a loaded Windows host spends tens of seconds on one ordinary fire.
+assert_exit "D1 Z:/Temp target with a non-temp root → exit 2" 2 \
+  "$(D1_RC=0; timeout 150 env CLAUDE_PROJECT_DIR="$D1_ROOT" bash "$HOOK" <<<"$(write_json "Z:/Temp/spd/f.txt" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?; printf '%s' "$D1_RC")"
+if ((D1_WIN)); then
+  assert_exit "D1 windows: Z:/ root, temp target, terminates → exit 0" 0 \
+    "$(D1_RC=0; timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?; printf '%s' "$D1_RC")"
+  assert_exit "D1 windows: backslash long spelling, HOME root → exit 0" 0 \
+    "$(d1_rc "$D1_HOME" "${D1_TARGET//\//\\}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  assert_exit "D1 windows: /c/ spelling → exit 2" 2 \
+    "$(d1_rc "$D1_HOME" "/${D1_TARGET:0:1}${D1_TARGET:2}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  assert_exit "D1 windows: /tmp/ spelling → exit 2" 2 \
+    "$(d1_rc "$D1_HOME" "/tmp/spd-d1-$$/f.txt" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  D1_SHORT="$(cygpath -s -m "$D1_TEMP")/spd-d1-$$/sub/f.txt"
+  if [[ "$D1_SHORT" != "$D1_TARGET" ]]; then
+    assert_exit "D1 windows: 8.3 short spelling → exit 2" 2 \
+      "$(d1_rc "$D1_HOME" "$D1_SHORT" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
+  else
+    echo "SKIP: D1 windows 8.3 case (the temp path has no short spelling on this volume)"
+  fi
+else
+  echo "SKIP: D1 Windows spelling cases (not a Windows Git Bash host)"
+  assert_exit "D1 posix: target carrying a backslash → exit 2" 2 \
+    "$(d1_rc "$D1_ROOT" "/tmp/spd-d1-$$\\x/f.txt")"
+fi
+
+# Fork-free common path: a shim logs every resolver the hook spawns. A non-temp
+# target spawns none; a temp target spawns at least one, which shows the shim is
+# on the path the hook takes. Telemetry is off: its path helper runs cygpath on
+# a block, which is not the decline's cost.
+D1_SHIM="$TEST_TMPDIR/d1-shim"
+D1_LOG="$TEST_TMPDIR/d1-shim.log"
+mkdir -p "$D1_SHIM"
+for D1_BIN in realpath readlink cygpath; do
+  D1_REAL=$(command -v "$D1_BIN") || continue
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'printf "%%s\\n" %s >>"%s"\n' "$D1_BIN" "$D1_LOG"
+    printf 'exec "%s" "$@"\n' "$D1_REAL"
+  } >"$D1_SHIM/$D1_BIN"
+  chmod +x "$D1_SHIM/$D1_BIN"
+done
+: >"$D1_LOG"
+d1_rc "$D1_ROOT" "$D1_ROOT/src/f.txt" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
+assert_eq "D1 non-temp target spawns no resolver" "" "$(cat "$D1_LOG")"
+: >"$D1_LOG"
+d1_rc "$D1_ROOT" "$D1_TARGET" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
+if [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
+
+# After a decline the physical-path vouch stays off and the target never enters
+# the directory cache. Shape: the guard is sourced in a child shell whose `exit`
+# is a function printing both globals before the real exit; abort-boundary owns
+# the EXIT trap, so a trap of our own would be replaced.
+# shellcheck disable=SC2016  # the child shell's expansions are literal source text
+D1_PROBE=$(CLAUDE_PROJECT_DIR="$D1_ROOT" bash -c 'exit() { printf "MARK|%s|%s\n" "$_HOOK_UTR_TARGET_PHYSICAL" "${_HOOK_PHYS_KEYS[*]-}"; builtin exit "$@"; }; source "$1"' _ "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" 2>/dev/null)
+D1_PROBE_RC=$?
+assert_exit "D1 probe: sourced guard declines" 0 "$D1_PROBE_RC"
+assert_contains "D1 probe: exit marker printed" "$D1_PROBE" "MARK|0|"
+D1_KEYS="${D1_PROBE#*MARK|0|}"
+if [[ "$D1_PROBE" == *"MARK|0|"* && -n "$D1_KEYS" ]]; then ok "D1 probe: resolve stage ran"; else bad "D1 probe: no cache keys ($D1_PROBE)"; fi
+assert_absent "D1 probe: target not cached" "$D1_KEYS" "spd-d1-$$/sub"
+
+# The dispatcher runs this guard beside the other Write|Edit guards.
+D1_DISPATCH_RC=0
+CLAUDE_PROJECT_DIR="$D1_ROOT" bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
+  <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
+assert_exit "D1 dispatcher: non-temp root, temp target → exit 0" 0 "$D1_DISPATCH_RC"
+D1_DISPATCH_RC=0
+bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
+  <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
+assert_exit "D1 dispatcher: root unset → exit 2" 2 "$D1_DISPATCH_RC"
 
 report

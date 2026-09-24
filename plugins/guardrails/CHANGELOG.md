@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.5] - 2026-09-24
+
+### Fixed
+
+- **`secret-pattern-detection` no longer blocks a temp-tree `Write` that `block-hook-bypass` exempts for Bash.** With a project root that is set and outside the temp tree but that the guard clears as a scope (home, a folder that is not a git work tree), a `Write` of a secret to a temp-tree file was blocked while `echo <secret> > <same path>` through Bash was exempt. The guard declines such a target under a gate no wider than that exemption: `CLAUDE_PROJECT_DIR` set, spelled as `block-hook-bypass` accepts it, and under temp neither as spelled nor physically resolved; the target under a temp root both as spelled and once its nearest existing ancestor is physically resolved, so a link under temp pointing elsewhere is still scanned. On a POSIX host the target must also be under temp once lowercased, as `block-hook-bypass` compares it. A builtin pre-match runs first, so a target with no temp-looking component spawns no resolver process.
+  - **Refused, so still scanned:** an existing target file with more than one hard link, or whose link count cannot be read; below Bash 4 on a POSIX host, a target carrying a capital; a relative target; a target carrying any character outside letters, digits and `._/:+,=@%-` (so whitespace, quotes, `;`, `&`, `|`, `<`, `>`, parens, `#`, `$`, a backtick, `*`, `?`, `[` and `~`: a Bash redirect needs quoting for those, and `block-hook-bypass` never exempts a quoted target); a target carrying `//`, `/./`, `/../`, or a trailing `/.` or `/..`; on a Windows host any target not spelled with a drive letter (the `Write` tool resolves `/tmp/x` and `/c/x` to other places than Git Bash does); on a POSIX host a drive spelling, or a target or root carrying `\`; a root carrying `$`, a backtick, `~`, `*`, `?`, `[`, or an unnormalized spelling; a relative root; a root that is `/` or a drive root.
+  - **Residuals.** A target spelled with an 8.3 short name (`ABCDEF~1`) is still scanned on `Write`, and blocked for Bash, so a harness scratchpad path spelled that way is covered by neither exemption. On Windows a `/`-spelled temp target is scanned. A `TMPDIR` inside the project tree makes a project file look like temp to both guards. A git repository that lives under temp is not scanned when the root is home or a non-git folder, matching the Bash exemption. A link created under temp after the hook resolves the path is a time-of-check race shared with `block-hook-bypass`. On macOS the `/tmp` and `TMPDIR` spellings resolve under `/private`, so the lexical under-temp check misses and the target is still scanned; `block-hook-bypass` has the same miss. On a POSIX host a temp tree spelled with capitals is scanned.
+
 ## [0.36.4] - 2026-09-24
 
 ### Fixed
