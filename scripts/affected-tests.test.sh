@@ -142,22 +142,22 @@ if contains "$big" NEEDLE-LINE; then
 else
   fail "contains missed a needle on line 1 of a 1 MB input"
 fi
-if ! has_line "$big" NEEDLE-LINE; then
-  fail "! has_line passed for a line that is present in a 1 MB input"
-else
-  ok "! has_line fails for a line that is present in a 1 MB input"
-fi
-if ! contains "$big" NEEDLE-LINE; then
-  fail "! contains passed for a needle that is present in a 1 MB input"
-else
-  ok "! contains fails for a needle that is present in a 1 MB input"
-fi
 if has_line "$big" ABSENT-LINE || contains "$big" ABSENT-NEEDLE; then
   fail "a needle absent from a 1 MB input was reported present"
 else
   ok "a needle absent from a 1 MB input is reported absent by both helpers"
 fi
 unset big
+
+# --- no assertion in this file pipes output into an early-exit grep --------
+# The pin above covers the helpers; this keeps the piped shape from coming back
+# at any other site. Comment lines are skipped, so prose may still name it.
+piped_q="$(grep -nE '^[^#]*\|[[:space:]]*grep[^|]*-[a-zA-Z]*q' "$SELF_DIR/affected-tests.test.sh")"
+case $? in
+0) fail "non-comment lines pipe into grep -q, a SIGPIPE race under pipefail: $piped_q" ;;
+1) ok "no non-comment line in this suite pipes into grep -q" ;;
+*) fail "the piped grep -q guard could not read $SELF_DIR/affected-tests.test.sh" ;;
+esac
 
 # --- co-located mapping ----------------------------------------------------
 mk_repo repo
@@ -794,6 +794,7 @@ fi
 # to do with the no-suite list. This is the MATCHING rule documented in
 # affected-tests.sh's header, met head-on: naming a file in a suite is exactly
 # what makes the selector consider it covered.
+# The exit status of this head pipe is never read, so its early exit is harmless.
 mapfile -t eco_yaml < <(cd "$REPO_ROOT" && git ls-files \
   'plugins/toolchain/reference/ecosystems/*.yaml' \
   'docs/conventions/ecosystem-commands/examples/*.yaml' | head -2)
@@ -1325,6 +1326,7 @@ rm -rf "$repo"
 # The assertion is on the R7 reason, not on bare selection: a live doc can also
 # reach the suite through R4 fan-out (a hook naming it), which would pass without
 # R7. The seed is walked first, so R7's reason is the one recorded.
+# The exit status of this head pipe is never read, so its early exit is harmless.
 live_ref="$(cd "$REPO_ROOT" && git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
 if [[ -z "$live_ref" ]]; then
   fail "LIVE R7: no tracked plugins/autonomy/reference/*.md to probe"
