@@ -40,16 +40,18 @@ viewing the source and mark `"basis": "judgment"`. A re-run refreshes numbers wi
 
 ## Loop
 
-1. Learn: `learn.py <work> <pack dir> --credit "<who made the source, its URL, date>"`.
+1. Learn: `learn.py <work> <pack dir> --credit "<who made the source, its URL, date>" --negative
+   <inkstats --json of near misses and other styles>`. The negatives cap each band's widening so
+   they keep failing; without them bands get full held-out coverage.
 2. Describe: fill the judgment knobs in `style.json` and write `STYLE.md`.
 3. Validate: author a short scene (about 10 s) on a subject different from the source, from
    ink.js and the scene elements, with geometry you write, never traced. Start from the pack's
    `brush`; a new pack starts from the woodcut-ink one. Render it at the source's size with
    `capture.mjs --fps 24`, encode with the ffmpeg line at the top of `capture.mjs`, and run
    `inkstats.py <scene.mp4> --cuts <shot starts> --pack <pack dir>`. It exits 0 only when every
-   checked statistic, every shot's dark field and the palette pass. Passing is not centring: aim
-   the film medians at the source's, and read the per-shot columns so no shot hides behind the
-   median.
+   checked statistic, every shot's dark field and the palette pass. Passing is not centring: it
+   also prints the distance to source (0 is the source, 1 a band edge on average), which ranks
+   passing scenes; read the per-shot columns so no shot hides behind the median.
 4. Review: measure each prop with `--region X,Y,W,H --t T0-T1` next to source prop boxes, then
    read every drawing at 1:1 (tile frames so no image is over 2576 px on the long edge; never
    downscale, never a GIF) beside source crops. A pass on the numbers with a crop that does not
@@ -78,8 +80,11 @@ any film with no pack (`--json` for the full summary), which is how to compare t
   0.94 px against the source's 2.54). A JS gaussian of sigma 0.92 gives 2.46; Chromium's
   `ctx.filter = 'blur()'` does nothing below about 0.8 px (measured 2026-09-24 on Playwright's
   Chromium build 1246; recheck when that build changes).
-- `ink_sd` needs gray inside the ink: sparse dry-brush strokes a little lighter than the ink over
-  each mass and dark field. Solid `fillRect` backgrounds contribute none, and a drag colour much
-  lighter than about gray 31 overshoots (a `#312c28` drag gave 7.9 and pushed `soft` to 3.5).
-- Held-out bands pass every held-out part by construction. Judge the check by a same-style
-  control no band saw (the rotoscope replica) passing and different styles failing.
+- `ink_sd` and `flat` pull against each other: gray inside the ink needs dry-brush texture, but
+  about half the woodcut source's dark area is flat black. Texture a band of each dark field and
+  leave the rest flat; carving a field everywhere drove `flat` to 0 and failed the check. Keep the
+  drag at gray 32 or darker: a drag lighter than ink + 16 counts as edge ramp and pushes `soft`
+  up (a `#312c28` drag gave `soft` 3.5), and it widens small props' edge ramp most.
+- Widening every band by its largest held-out miss lets near misses pass. Pass `--negative`
+  controls so the widening stops short of them, and judge the check by a same-style control no
+  band saw (the rotoscope replica) passing and those controls failing.

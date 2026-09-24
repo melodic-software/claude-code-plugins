@@ -208,6 +208,11 @@
    "p50": 3.9121,
    "p90": 6.6949
   },
+  "flat": {
+   "p10": 0.2745,
+   "p50": 0.5367,
+   "p90": 0.7883
+  },
   "boil": {
    "p10": 1.7847,
    "p50": 2.836,
@@ -226,89 +231,276 @@
  },
  "heldout": {
   "splits": 13,
-  "widening": {
-   "ink": 0.644,
-   "soft": 0.035,
-   "w10": 0.4,
-   "w50": 0.111,
-   "w90": 0.321,
-   "pw50": 0.201,
-   "rough": 0.099,
-   "straight": 0.262,
-   "specks": 5.953,
-   "gaps": 0.296,
-   "holes": 0.566,
-   "ink_sd": 0.285,
-   "paper_sd": 0.381,
-   "field_sd": 0.278,
-   "boil": 0.078,
-   "per_second": 0.026
+  "clear": 0.5,
+  "negatives": [
+   "bios",
+   "collage",
+   "r3",
+   "spiral"
+  ],
+  "rule": {
+   "ink": {
+    "heldout_max_miss": 0.644,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.0,
+     "collage": 0.0,
+     "bios": 0.0
+    },
+    "widening": 0.644,
+    "heldout_pass": "12/13"
+   },
+   "soft": {
+    "heldout_max_miss": 0.035,
+    "control_margins": {
+     "r3": 0.617,
+     "spiral": 0.337,
+     "collage": 3.768,
+     "bios": 13.08
+    },
+    "widening": 0.035,
+    "heldout_pass": "13/13"
+   },
+   "w10": {
+    "heldout_max_miss": 0.4,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.0,
+     "collage": 0.0,
+     "bios": 0.0
+    },
+    "widening": 0.4,
+    "heldout_pass": "13/13"
+   },
+   "w50": {
+    "heldout_max_miss": 0.111,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.5,
+     "collage": 0.079,
+     "bios": 0.101
+    },
+    "widening": 0.04,
+    "heldout_pass": "11/13"
+   },
+   "w90": {
+    "heldout_max_miss": 0.321,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.546,
+     "collage": 0.279,
+     "bios": 0.033
+    },
+    "widening": 0.016,
+    "heldout_pass": "11/13"
+   },
+   "pw50": {
+    "heldout_max_miss": 0.201,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.374,
+     "collage": 0.124,
+     "bios": 0.374
+    },
+    "widening": 0.062,
+    "heldout_pass": "12/13"
+   },
+   "rough": {
+    "heldout_max_miss": 0.099,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.231,
+     "collage": 0.337,
+     "bios": 0.406
+    },
+    "widening": 0.099,
+    "heldout_pass": "12/13"
+   },
+   "straight": {
+    "heldout_max_miss": 0.262,
+    "control_margins": {
+     "r3": 0.041,
+     "spiral": 0.0,
+     "collage": 0.22,
+     "bios": 0.0
+    },
+    "widening": 0.021,
+    "heldout_pass": "11/13"
+   },
+   "specks": {
+    "heldout_max_miss": 5.953,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.0,
+     "collage": 0.0,
+     "bios": 0.0
+    },
+    "widening": 5.953,
+    "heldout_pass": "13/13"
+   },
+   "gaps": {
+    "heldout_max_miss": 0.296,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.124,
+     "collage": 0.096,
+     "bios": 0.0
+    },
+    "widening": 0.048,
+    "heldout_pass": "11/13"
+   },
+   "holes": {
+    "heldout_max_miss": 0.566,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 1.484,
+     "collage": 0.0,
+     "bios": 0.0
+    },
+    "widening": 0.566,
+    "heldout_pass": "12/13"
+   },
+   "ink_sd": {
+    "heldout_max_miss": 0.285,
+    "control_margins": {
+     "r3": 0.189,
+     "spiral": 1.581,
+     "collage": 1.711,
+     "bios": 2.426
+    },
+    "widening": 0.095,
+    "heldout_pass": "11/13"
+   },
+   "paper_sd": {
+    "heldout_max_miss": 0.381,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.0,
+     "collage": 2.211,
+     "bios": 3.226
+    },
+    "widening": 0.381,
+    "heldout_pass": "12/13"
+   },
+   "field_sd": {
+    "heldout_max_miss": 0.278,
+    "control_margins": {
+     "r3": 0.178,
+     "spiral": 1.608,
+     "collage": 0.6,
+     "bios": 1.896
+    },
+    "widening": 0.089,
+    "heldout_pass": "11/13"
+   },
+   "flat": {
+    "heldout_max_miss": 0.37,
+    "control_margins": {
+     "r3": 0.0,
+     "collage": 0.0,
+     "bios": 0.184
+    },
+    "widening": 0.092,
+    "heldout_pass": "8/11"
+   },
+   "boil": {
+    "heldout_max_miss": 0.078,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.986,
+     "collage": 0.253,
+     "bios": 0.645
+    },
+    "widening": 0.078,
+    "heldout_pass": "12/13"
+   },
+   "per_second": {
+    "heldout_max_miss": 0.026,
+    "control_margins": {
+     "r3": 0.0,
+     "spiral": 0.119,
+     "collage": 0.667,
+     "bios": 1.756
+    },
+    "widening": 0.026,
+    "heldout_pass": "13/13"
+   }
   }
  },
  "bands": {
   "ink": [
    0.0501,
-   1.2958
+   1.2961
   ],
   "soft": [
-   2.3732,
-   2.8427
+   2.3739,
+   2.842
   ],
   "w10": [
    1.2,
    10.0713
   ],
   "w50": [
-   7.112,
-   22.22
+   7.6837,
+   20.7907
   ],
   "w90": [
-   14.938,
-   161.162
+   21.6393,
+   124.0
   ],
   "pw50": [
-   5.1086,
-   9.608
+   5.9969,
+   8.4966
   ],
   "rough": [
    0.0474,
    0.0857
   ],
   "straight": [
-   0.2776,
-   0.8431
+   0.3684,
+   0.6819
   ],
   "specks": [
-   -34.3505,
-   3855.6693
+   -34.3498,
+   3855.6125
   ],
   "gaps": [
-   28.8877,
-   241.1812
+   39.0568,
+   195.0623
   ],
   "holes": [
    0.0027,
-   0.0698
+   0.0699
   ],
   "ink_sd": [
-   1.7081,
-   10.3445
+   2.1626,
+   8.8126
   ],
   "paper_sd": [
-   0.4907,
-   10.9821
+   0.4906,
+   10.9838
   ],
   "field_sd": [
-   1.688,
-   10.0701
+   2.1301,
+   8.58
+  ],
+  "flat": [
+   0.176,
+   0.798
   ],
   "boil": [
-   2.2333,
-   5.499
+   2.2332,
+   5.4991
   ],
   "per_second": [
-   7.4119,
-   8.3734
+   7.4137,
+   8.3715
+  ]
+ },
+ "segment_bands": {
+  "field_sd": [
+   1.6872,
+   10.0727
   ]
  },
  "check": [
@@ -320,6 +512,8 @@
   "holes",
   "ink_sd",
   "paper_sd",
+  "field_sd",
+  "flat",
   "boil",
   "per_second"
  ],
@@ -328,9 +522,9 @@
  ],
  "segment_min_drawings": 8,
  "brush": {
-  "why": "Authoring defaults that took a new, untraced scene to 15/15 on this pack's check, with film-median w50 16, pw50 8 and ink_sd 4.14 against the source's 16, 8 and 4.12 (STYLE.md, Validation). ink.js arguments where one exists.",
+  "why": "Authoring defaults that took a new, untraced scene to 17/17 on this pack's check at distance 0.159 from the source, with film-median w50 16.2, pw50 8, ink_sd 3.79, rough 0.070 and flat 0.472 against the source's 16, 8, 4.12, 0.071 and 0.537 (STYLE.md, Validation). ink.js arguments where one exists.",
   "drawings_per_second": 8,
-  "soften_sigma_px": 0.92,
+  "soften_sigma_px": 0.89,
   "inkFill": {
    "width": 12,
    "pitch": 0.78,
@@ -351,18 +545,19 @@
    },
    "edge_stroke_px": 5,
    "edge_overshoot_px": 6,
-   "edge_wobble": 0.2,
+   "edge_wobble": 0.12,
    "hatch_width_px": 7,
    "hatch_gap_px": 24
   },
   "dry_brush": {
-   "why": "sparse strokes a little lighter than the ink over every mass and dark field: the gray inside the source's ink",
-   "color": "#221e1b",
+   "why": "dense strokes a little lighter than the ink (gray 32, under ink + 16 so edges stay sharp) over masses and the carved band of dark fields; the rest of a field stays flat black, as about half of the source's dark area does (flat 0.537)",
+   "color": "#231f1c",
+   "prop_color": "#1e1a17",
    "streak_width_px": 2.4,
    "streak_pitch": 5,
-   "field_width_px": 2.6,
-   "field_pitch": 4.5,
-   "dryBrush": 0.6
+   "field_width_px": 3.4,
+   "field_pitch": 2.2,
+   "dryBrush": 0.25
   },
   "inkStroke": {
    "taper": [
@@ -378,9 +573,11 @@
    "stroke_side_shift_px": 5.5
   },
   "carve": {
-   "why": "large dark areas are carved with cream gouge rows; cream floods are carved the other way with ink rows",
+   "why": "a band of a large dark area near its edge is carved with cream gouge rows; the rest stays flat black",
    "gouge_width_px": 9.5,
    "gouge_start_taper": 0.6,
+   "gouge_wobble": 0.2,
+   "carved_share_of_sea_depth": 0.18,
    "row_pitch_px": 24,
    "gouge_length_px": [
     80,

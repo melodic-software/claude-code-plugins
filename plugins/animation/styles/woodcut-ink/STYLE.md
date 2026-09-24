@@ -32,33 +32,35 @@ viewing it and are labelled so.
 - Props: never a filled polygon. Overlapping `inkFill` strokes (width 11, pitch 0.62) along the
   prop's main direction, then every edge re-stroked by hand 5 px wide, running past the corners so
   the stroke ends show; hatch light props with 7 px strokes every 24 px.
-- Gray inside the ink: sparse dry-brush strokes a little lighter than the ink (`#221e1b`) over
-  every mass and dark field.
-- Large dark areas: carve rows of cream gouges about 9.5 px wide every 24 px, 80-280 px long; a
-  cream flood is carved the other way, with ink rows.
+- Gray inside the ink: dense dry-brush strokes at gray 32 (`#231f1c`, under ink + 16 so edges
+  stay sharp) over masses and the carved band of dark fields; props get a darker one (`#1e1a17`).
+- Large dark areas: carve only a band near the edge (the upper 18% of a sea) with rows of cream
+  gouges about 9.5 px wide every 24 px, 80-280 px long, and leave the rest flat black: about half
+  the source's dark area is flat.
+- Splats and transitions are solid ink growing on cream, with a few carved slivers.
 - Boil: every drawing, slide each brushed stroke's ends up to 18 px, shift it up to 5.5 px
   sideways, and shake solid vertices about 8 px.
 - Step every element at 8 drawings a second, finish each frame with a gaussian soften of sigma
-  0.92 px, and frame it with a 17 px marker border 17.5 px in.
+  0.89 px, and frame it with a 17 px marker border 17.5 px in.
 
 ## Validation
 
-"the keeper" (10 s: a storm at sea, a lighthouse beam that finds a boat, a cream splat, dawn),
+"the keeper" (10 s: a storm at sea, a lighthouse beam that finds a boat, an ink splat, dawn),
 authored in code on a subject the source never shows, rendered at 1762x982 and measured from its
-mp4 with its own shot cuts, passes the check 15/15. Film medians: stroke width 16, cream gap 8,
-gray inside the ink 4.14 (source 16, 8, 4.12). Per shot (storm, night, splat, dawn): stroke width
-16, 16, 14.2, 16; cream gap 8, 8, 9.2, 8; dark-field sd 5.43, 3.74, 4.59, 3.85. Its five prop boxes
-fall inside the pack bands and inside the range of eight source prop boxes on edge softness,
-roughness, straightness, gray inside the ink and stroke width. Round 3 fails edge
-softness (0.94); clips in three other styles fail 15 to 20 of their rows. The full tables are in
-the learn-style skill's `reference/statistics.md`.
+mp4 with its own shot cuts, passes the check 17/17 at a distance of 0.159 from the source (the
+replica scores 0.111, round 3 0.834). Film medians against the source: stroke width 16.2 (16),
+cream gap 8 (8), gray inside the ink 3.79 (4.12), roughness 0.070 (0.071), flat black 0.472
+(0.537). Per shot (storm, night, splat, dawn): stroke width 18, 16, 18, 16; cream gap 8 in every
+shot; dark-field sd 4.63, 3.54, 4.53, 2.83. The splat shot matches the source's own splat window
+(stroke width 18, cream gap 8). Its five prop boxes fall inside the pack bands and inside the
+range of eight source prop boxes on edge softness, roughness, straightness, gray inside the ink
+and stroke width. Round 3 fails edge softness, gray inside the ink and dark-field texture; clips
+in three other styles fail 19 to 24 of their rows. The full tables are in the learn-style skill's
+`reference/statistics.md`.
 
-Where it still falls short, on 1:1 crops next to the source:
+Where it still differs, on 1:1 crops next to the source:
 
-- Its edge roughness (0.085) is near the band's top (0.086); the source sits at 0.071.
-- The 0.5 s splat is off-centre per shot (stroke width 14.2, cream gap 9.2), and reads as a carved
-  cream flood rather than the source's solid ink splat.
-- The night sea is carved everywhere, so the night shot is busier than the source's dark
-  interiors, which keep large flat black areas (the rainy city's dark-field sd is 0.57).
-- The distant lighthouse at dawn is small (85 px wide), so its box's cream gap (18 px) is the gap
-  around it, not a stroke gap.
+- The distant lighthouse at dawn is 85 px wide, so its box's cream gap (18 px) is the paper
+  around a small shape, not a stroke gap.
+- Its seas and skies are horizontal carving; the source's dark fields are architecture (shelves,
+  windows, walls), so the scene reads as a woodcut seascape rather than as the source's interiors.
