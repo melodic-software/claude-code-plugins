@@ -23,12 +23,9 @@
 # Codepoint counts recorded at a3dc8f48a, measured the way check 2b measures
 # (UTF-8 -> UTF-32BE via iconv, bytes / 4).
 
-plugins/architecture/skills/improve                       # 1105
 plugins/claude-ops/skills/audit-performance               # 1528
 plugins/claude-ops/skills/audit-skill-visibility          # 1467
-plugins/code-tidying/skills/audit-dead-code               # 1094
 plugins/improvement/skills/find                           # 1212
-plugins/mutation-testing/skills/audit                     # 1150
 plugins/overengineering/skills/audit                      # 1202
 plugins/overengineering/skills/realign                    # 1130
 plugins/session-flow/skills/show-options                  # 1140

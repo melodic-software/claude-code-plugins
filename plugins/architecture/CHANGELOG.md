@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Changed
+
+- `improve`'s description is under the 1024-codepoint field cap. Every quoted trigger phrase is still there.
+
 ## [0.10.0] - 2026-09-23
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Changed
+
+- `audit`'s description is under the 1024-codepoint field cap. The trigger phrases and flags are unchanged.
+
 ## [0.4.0] - 2026-09-23
 
 ### Changed
