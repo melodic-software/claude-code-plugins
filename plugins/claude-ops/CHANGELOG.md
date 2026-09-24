@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.60.1] - 2026-09-24
+
+### Changed
+
+- `hooks/hook-failure-audit.test.sh` and the README's `hook-failure-audit` section no longer say
+  `docs/conventions/hook-budget/README.md` sets a 500 ms per-turn ceiling. That doc states each
+  always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's
+  time). Prose only; the test and the hook are
+  unchanged.
+
 ## [0.60.0] - 2026-09-24
 
 ### Fixed
