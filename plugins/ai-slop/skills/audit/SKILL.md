@@ -175,7 +175,7 @@ path>.sha256`. Before every write the flow makes to that file, a rewrite or a re
 again the same way. On a mismatch, write nothing more to the file, stop work on it, and report
 it. If the state file cannot be written, do not edit the file; stop and report it. On macOS use
 `shasum -a 256` and `shasum -a 256 -c`. A write that lands between a check and
-the flow's own write is not detected.
+the re-record after the flow's own write is not detected.
 
 Per file, worst-first:
 

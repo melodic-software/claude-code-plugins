@@ -18,7 +18,8 @@
   `rule-em-dash` findings. The fix flow's closing step runs it and reports every disagreement.
 - **Fix flow concurrent-edit guard**: every fix run gets a run directory; before each write to a
   file the flow checks the digest it last recorded (`sha256sum -c`) and stops that file on a
-  mismatch. A write that lands between the check and the fixer's own write is not detected.
+  mismatch. A write that lands between the check and the re-record after the fixer's own write
+  is not detected.
 
 ### Fixed
 
