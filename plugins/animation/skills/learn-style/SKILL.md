@@ -33,7 +33,8 @@ and the shared `${CLAUDE_PLUGIN_ROOT}/scripts/inkstats.py`.
 | `STYLE.md` | you | the style in words for a reader: credit, knob table with each value marked measured or judgment, how to author in it, the validation result |
 
 `learn.py` measures `palette`, `stats`, `timing`, `bands` and the `color`, `line`, `frame_rate`
-and `texture` knobs. It keeps what it cannot measure from an existing `style.json`: `credit`,
+and `texture` knobs. Bands come from held-out validation over the source's segments, not from a
+chosen margin; `heldout` records the widening each statistic needed. It keeps what it cannot measure from an existing `style.json`: `credit`,
 `brush`, `check`, and the `movement`, `camera` and `backgrounds` knobs, which you fill from
 viewing the source and mark `"basis": "judgment"`. A re-run refreshes numbers without losing them.
 
@@ -45,11 +46,14 @@ viewing the source and mark `"basis": "judgment"`. A re-run refreshes numbers wi
    ink.js and the scene elements, with geometry you write, never traced. Start from the pack's
    `brush`; a new pack starts from the woodcut-ink one. Render it at the source's size with
    `capture.mjs --fps 24`, encode with the ffmpeg line at the top of `capture.mjs`, and run
-   `inkstats.py <scene.mp4> --pack <pack dir>/style.json`. It exits 0 only when every checked
-   statistic and the palette pass.
-4. Review: read 1:1 crops of every shot next to crops of the source (never downscaled, never over
-   2576 px on the long edge, never a GIF). A pass on the numbers with a crop that does not read as
-   the style is a fail; say which mark is wrong.
+   `inkstats.py <scene.mp4> --cuts <shot starts> --pack <pack dir>`. It exits 0 only when every
+   checked statistic, every shot's dark field and the palette pass. Passing is not centring: aim
+   the film medians at the source's, and read the per-shot columns so no shot hides behind the
+   median.
+4. Review: measure each prop with `--region X,Y,W,H --t T0-T1` next to source prop boxes, then
+   read every drawing at 1:1 (tile frames so no image is over 2576 px on the long edge; never
+   downscale, never a GIF) beside source crops. A pass on the numbers with a crop that does not
+   read as the style is a fail; say which mark is wrong.
 5. Record: put the parameters that passed into the pack's `brush` and the result into `STYLE.md`,
    including where the scene still falls short.
 
@@ -64,13 +68,18 @@ any film with no pack (`--json` for the full summary), which is how to compare t
   sideways (5.5 px) every drawing, the way a hand redraws.
 - Ridge widths come from a distance transform, so `w50` and `pw50` move in steps (4, 5, 6 px); a
   value on a band edge flips with a small change. Aim for the middle of the band.
-- Large solid ink areas push `w50` up. The woodcut source keeps black regions narrow by carving
-  them: rows of cream gouges about 6.5 px wide at a 16-20 px pitch brought the scene from 34 to 20.
+- Large solid ink areas push `w50` up and thin gouges pull `pw50` down. The woodcut source keeps
+  black regions narrow by carving them: gouges about 9.5 px wide every 24 px brought the
+  validation scene to `w50` 16 and `pw50` 8, the source's own values.
+- A filled polygon prop measures wrong at the region level: too straight, no gray. Stroke-built
+  props (overlapping fill strokes, edges re-stroked past the corners) land inside the source's
+  prop range.
 - `soft` needs a soften pass after drawing: a two-tone canvas render has almost no ramp (round 3:
-  0.94 px against the source's 2.54). A JS gaussian of sigma 0.9 gives 2.4; Chromium's
+  0.94 px against the source's 2.54). A JS gaussian of sigma 0.92 gives 2.46; Chromium's
   `ctx.filter = 'blur()'` does nothing below about 0.8 px (measured 2026-09-24 on Playwright's
   Chromium build 1246; recheck when that build changes).
-- `ink_sd` needs gray inside the ink: thin, slightly lighter dry-brush streaks inset in each mass.
-  Solid `fillRect` backgrounds contribute none.
-- The bands come from the source's own segments, so the source always passes. Judge the check by
-  a same-style control (the rotoscope replica) passing and different styles failing.
+- `ink_sd` needs gray inside the ink: sparse dry-brush strokes a little lighter than the ink over
+  each mass and dark field. Solid `fillRect` backgrounds contribute none, and a drag colour much
+  lighter than about gray 31 overshoots (a `#312c28` drag gave 7.9 and pushed `soft` to 3.5).
+- Held-out bands pass every held-out part by construction. Judge the check by a same-style
+  control no band saw (the rotoscope replica) passing and different styles failing.

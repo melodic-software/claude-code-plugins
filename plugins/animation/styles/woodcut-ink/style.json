@@ -8,7 +8,8 @@
    1762,
    982
   ],
-  "segments": 9
+  "segments": 9,
+  "segment_seconds": 3.35
  },
  "palette": {
   "ink": "#13110f",
@@ -32,7 +33,7 @@
     "color": "#bebab4"
    }
   ],
-  "tolerance": 8
+  "tolerance": 3
  },
  "knobs": {
   "movement": {
@@ -124,6 +125,7 @@
   "texture": {
    "edge_ramp_px": 2.5423,
    "ink_gray_sd": 4.1229,
+   "field_gray_sd": 3.9121,
    "paper_gray_sd": 2.5225,
    "gaps_per_mpx": 65.3072,
    "specks_per_mpx": 20.2279,
@@ -201,6 +203,11 @@
    "p50": 2.5225,
    "p90": 7.6384
   },
+  "field_sd": {
+   "p10": 2.222,
+   "p50": 3.9121,
+   "p90": 6.6949
+  },
   "boil": {
    "p10": 1.7847,
    "p50": 2.836,
@@ -217,66 +224,91 @@
   },
   "held": 0.525
  },
+ "heldout": {
+  "splits": 13,
+  "widening": {
+   "ink": 0.644,
+   "soft": 0.035,
+   "w10": 0.4,
+   "w50": 0.111,
+   "w90": 0.321,
+   "pw50": 0.201,
+   "rough": 0.099,
+   "straight": 0.262,
+   "specks": 5.953,
+   "gaps": 0.296,
+   "holes": 0.566,
+   "ink_sd": 0.285,
+   "paper_sd": 0.381,
+   "field_sd": 0.278,
+   "boil": 0.078,
+   "per_second": 0.026
+  }
+ },
  "bands": {
   "ink": [
-   0.1267,
-   0.867
+   0.0501,
+   1.2958
   ],
   "soft": [
-   2.2134,
-   3.0213
+   2.3732,
+   2.8427
   ],
   "w10": [
-   1.8,
-   7.9132
+   1.2,
+   10.0713
   ],
   "w50": [
-   7.2,
-   22.0
+   7.112,
+   22.22
   ],
   "w90": [
-   19.8,
-   134.2
+   14.938,
+   161.162
   ],
   "pw50": [
-   5.7544,
-   8.8
+   5.1086,
+   9.608
   ],
   "rough": [
-   0.0473,
-   0.0858
+   0.0474,
+   0.0857
   ],
   "straight": [
-   0.3386,
-   0.7349
+   0.2776,
+   0.8431
   ],
   "specks": [
-   6.2418,
-   609.9865
+   -34.3505,
+   3855.6693
   ],
   "gaps": [
-   36.9303,
-   204.7063
+   28.8877,
+   241.1812
   ],
   "holes": [
-   0.0056,
-   0.0491
+   0.0027,
+   0.0698
   ],
   "ink_sd": [
-   2.15,
-   8.8552
+   1.7081,
+   10.3445
   ],
   "paper_sd": [
-   0.7135,
-   8.7475
+   0.4907,
+   10.9821
+  ],
+  "field_sd": [
+   1.688,
+   10.0701
   ],
   "boil": [
-   2.18,
-   5.6112
+   2.2333,
+   5.499
   ],
   "per_second": [
-   6.731,
-   9.107
+   7.4119,
+   8.3734
   ]
  },
  "check": [
@@ -285,18 +317,20 @@
   "w90",
   "pw50",
   "rough",
-  "straight",
-  "gaps",
   "holes",
   "ink_sd",
   "paper_sd",
   "boil",
   "per_second"
  ],
+ "segment_check": [
+  "field_sd"
+ ],
+ "segment_min_drawings": 8,
  "brush": {
-  "why": "Authoring defaults that took a new, untraced scene to 14/14 on this pack's check (STYLE.md, Validation). ink.js arguments where one exists.",
+  "why": "Authoring defaults that took a new, untraced scene to 15/15 on this pack's check, with film-median w50 16, pw50 8 and ink_sd 4.14 against the source's 16, 8 and 4.12 (STYLE.md, Validation). ink.js arguments where one exists.",
   "drawings_per_second": 8,
-  "soften_sigma_px": 0.9,
+  "soften_sigma_px": 0.92,
   "inkFill": {
    "width": 12,
    "pitch": 0.78,
@@ -307,12 +341,28 @@
    "dryBrush": 0.1,
    "overshoot": 0.8
   },
-  "streaks": {
-   "color": "#27231f",
-   "width": 2.2,
-   "pitch": 6,
-   "dryBrush": 0.7,
-   "inset": 0.82
+  "props": {
+   "why": "props are overlapping inkFill strokes, then every edge re-stroked by hand past the corners so stroke ends show; never a filled polygon",
+   "inkFill": {
+    "width": 11,
+    "pitch": 0.62,
+    "dryBrush": 0.15,
+    "overshoot": 0.6
+   },
+   "edge_stroke_px": 5,
+   "edge_overshoot_px": 6,
+   "edge_wobble": 0.2,
+   "hatch_width_px": 7,
+   "hatch_gap_px": 24
+  },
+  "dry_brush": {
+   "why": "sparse strokes a little lighter than the ink over every mass and dark field: the gray inside the source's ink",
+   "color": "#221e1b",
+   "streak_width_px": 2.4,
+   "streak_pitch": 5,
+   "field_width_px": 2.6,
+   "field_pitch": 4.5,
+   "dryBrush": 0.6
   },
   "inkStroke": {
    "taper": [
@@ -327,10 +377,19 @@
    "stroke_end_slide_px": 18,
    "stroke_side_shift_px": 5.5
   },
-  "gouge_width_px": 6.5,
-  "carve_pitch_px": {
-   "sky": 20,
-   "sea": 16
+  "carve": {
+   "why": "large dark areas are carved with cream gouge rows; cream floods are carved the other way with ink rows",
+   "gouge_width_px": 9.5,
+   "gouge_start_taper": 0.6,
+   "row_pitch_px": 24,
+   "gouge_length_px": [
+    80,
+    280
+   ],
+   "gap_px": [
+    8,
+    68
+   ]
   },
   "border": {
    "centre_inset_px": 17.5,
