@@ -167,13 +167,14 @@ is the file's full absolute path with a drive letter as a directory, the same ru
 non-repository backups use.
 
 **Concurrent-edit guard.** The flow assumes nothing else writes the files it fixes, and checks
-that before each of its own writes. Before its first write to a file, record the file's digest
-with `sha256sum <absolute path>`, its stdout redirected to `<run>/digests/<mirrored
+that before each of its own writes. When the flow first reads a file, before it composes any
+rewrite, record the file's digest: create the state file's parent directory, then run
+`sha256sum <absolute path>` with its stdout redirected to `<run>/digests/<mirrored
 path>.sha256`. Before every write the flow makes to that file, a rewrite or a restore, run
 `sha256sum -c --status <that state file>`; after each of its own writes, record the digest
 again the same way. On a mismatch, write nothing more to the file, stop work on it, and report
 it. On macOS use `shasum -a 256` and `shasum -a 256 -c`. A write that lands while the fixer is
-mid-edit, between the check and the flow's own write, is not detected.
+mid-edit, between a check and the flow's own write, is not detected.
 
 Per file, worst-first:
 

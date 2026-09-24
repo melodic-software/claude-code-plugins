@@ -19,8 +19,11 @@ by hand.
    of at most 50,000 words by `wc -w` (`--budget N` changes it; a larger file is its own
    batch), and writes `batch-NN.txt`, one key per line. It prints one line per batch:
    `batch=NN list=<path> files=N words=W digest=<sha256 of the list>`.
-3. `plan` refuses a directory that already holds batch lists. A new scope gets a new batch
-   directory. A resume keeps the existing one and skips `plan`.
+3. The batch directory is the findings home, beside the result files, so a later session can
+   resume from it; a non-repository target uses the session scratchpad. `plan` refuses a
+   directory that already holds batch lists, so a new scope gets a new batch directory. A
+   resume keeps the existing one and skips `plan`: re-planning can reorder the files (a new
+   commit moves the change counts), which changes every list's digest.
 
 ## Dispatch
 
