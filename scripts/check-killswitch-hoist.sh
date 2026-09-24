@@ -145,6 +145,9 @@ for hooks_json in plugins/*/hooks/hooks.json; do
     [[ -n "$command" ]] || continue
     saw_guard=0
     skip_next=0
+    # Split into words but never glob: a `*` token is text, not a path under
+    # the repository root.
+    set -f
     # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
     for token in $command; do
       token="${token%\"}"
@@ -164,6 +167,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
       saw_guard=1
       guards+=("$hooks_dir/$base")
     done
+    set +f
     # A scanned row that named no shell script is a hook this gate's rule does
     # not reach — a Python or node handler behind a launcher, or a bare
     # interpreter. Reported, never silently passed.
@@ -203,6 +207,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
     [[ "$async" == true && "$SYNC_ONLY_EVENTS" != *" $event "* ]] && continue
     saw_guard=0
     skip_next=0
+    set -f # word split without globbing, as in the PreToolUse walk above
     # shellcheck disable=SC2086  # deliberate word split: the command is a shell command line
     for token in $command; do
       token="${token%\"}"
@@ -222,6 +227,7 @@ for hooks_json in plugins/*/hooks/hooks.json; do
       saw_guard=1
       blocking+=("$hooks_dir/$base")
     done
+    set +f
     ((saw_guard)) || unscanned+=("$hooks_json")
   done <<<"$rows"
 done
@@ -315,6 +321,12 @@ done
 # sits below a `source` pays for the library on the path that does nothing.
 # ponytail: textual; an `exit 0` inside a function defined above the source
 # counts as early. Upgrade to a real parse if that shape ever ships.
+#
+# `# hoist-ok: <reason>` on the first early exit's line, or on the line directly
+# above it, excuses the order. It applies only when that exit's test needs
+# something the library provides and has no cheaper form to hoist; the reason
+# says which. It is ignored on a hook::check_enabled call: a kill switch is
+# always inlinable.
 EARLY_EXIT_RE='(^|[[:space:];&|(])exit 0([[:space:];)]|$)|^[[:space:]]*hook::check_enabled[[:space:]]'
 for hooks_json in ${unreadable[@]+"${unreadable[@]}"}; do
   violation "VIOLATION: $hooks_json — not readable as a hooks config; this gate cannot clear it"
@@ -328,9 +340,13 @@ for script in ${blocking[@]+"${blocking[@]}"}; do
   exit_line=0
   last_code=0
   exit_text=""
+  exit_marked=0
+  prev=""
   n=0
   while IFS= read -r line; do
     n=$((n + 1))
+    above="$prev"
+    prev="$line"
     [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
     last_code=$n
     if ((source_line == 0)) && [[ "$line" =~ $SOURCE_RE ]]; then
@@ -339,10 +355,14 @@ for script in ${blocking[@]+"${blocking[@]}"}; do
     if ((exit_line == 0)) && [[ "${line%%[[:space:]]#*}" =~ $EARLY_EXIT_RE ]]; then
       exit_line=$n
       exit_text="$line"
+      if [[ "$line" == *hoist-ok:* || "$above" == *hoist-ok:* ]] &&
+        [[ ! "$line" =~ hook::check_enabled ]]; then
+        exit_marked=1
+      fi
     fi
   done <"$script"
   ((exit_line == last_code)) && exit_line=0
-  ((source_line > 0 && exit_line > source_line)) || continue
+  ((source_line > 0 && exit_line > source_line && exit_marked == 0)) || continue
   if [[ "$exit_text" =~ hook::check_enabled ]]; then
     violation "VIOLATION: $script:$exit_line — calls hook::check_enabled below the source at line $source_line." \
       "  That helper only exists after the library is sourced, which is the cost" \

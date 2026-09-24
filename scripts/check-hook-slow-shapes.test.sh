@@ -183,6 +183,21 @@ else
   fail "findings are sorted by path and identical across runs: $first"
 fi
 
+# ENV SHEBANG findings too: jq walks Stop before Notification (document order),
+# and the output must still come out sorted.
+new_fixture f
+plugin_file "$f" demo hooks/x.sh "$ENV_SCRIPT"
+printf '%s' "$ROOTED" | jq -Rs '{hooks:{Stop:[{hooks:[{type:"command",command:.}]}],
+  Notification:[{hooks:[{type:"command",command:.}]}]}}' >"$f/plugins/demo/hooks/hooks.json"
+first="$(run_check "$f" | grep '^ENV SHEBANG: plugins/')"
+second="$(run_check "$f" | grep '^ENV SHEBANG: plugins/')"
+sorted="$(printf '%s\n' "$first" | LC_ALL=C sort)"
+if [[ "$(grep -c . <<<"$first")" == 2 && "$first" == "$second" && "$first" == "$sorted" ]]; then
+  ok "ENV SHEBANG findings are sorted and identical across runs"
+else
+  fail "ENV SHEBANG findings are sorted and identical across runs: $first"
+fi
+
 # --- fail closed -------------------------------------------------------------
 
 new_fixture f

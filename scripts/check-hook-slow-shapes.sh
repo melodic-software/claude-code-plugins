@@ -77,8 +77,11 @@ fi
 
 findings=0
 commands=0
+# Findings are buffered and printed once, sorted under LC_ALL=C, so the order
+# never depends on glob collation, jq key order or the walk.
+FINDINGS=()
 finding() {
-  printf '%s\n' "$@" >&2
+  FINDINGS+=("$1")
   findings=$((findings + 1))
 }
 
@@ -211,6 +214,7 @@ while IFS=$'\t' read -r kind file line detail; do
 done <<<"$fm"
 
 if ((commands == 0)); then
+  ((findings == 0)) || printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
   echo "check-hook-slow-shapes: no command hooks found; refusing to report clean" >&2
   exit 1
 fi
@@ -250,6 +254,7 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
 done
 
 if ((findings > 0)); then
+  printf '%s\n' "${FINDINGS[@]}" | LC_ALL=C sort >&2
   cat >&2 <<'REMEDY'
 
 ENV SHEBANG: prefix the command word with bash, keeping the path's quoting, and

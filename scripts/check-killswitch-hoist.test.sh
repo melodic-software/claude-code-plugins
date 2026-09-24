@@ -393,6 +393,64 @@ else
   fail "a hooks.json jq cannot fully read fails closed (rc=$rc): $out"
 fi
 
+# `hoist-ok:` above the first early exit excuses the order; on a
+# hook::check_enabled call it does not.
+new_fixture f
+stop_hook "$f" Stop '#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+# hoist-ok: the arm test is a library function with no inline form
+hook::demo_armed || exit 0
+exit 0'
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a hoist-ok marker above the first early exit excuses the order"
+else
+  fail "a hoist-ok marker above the first early exit excuses the order (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" Stop '#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+hook::check_enabled "DEMO" # hoist-ok: not honored here
+exit 0'
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"calls hook::check_enabled below the source"* ]]; then
+  ok "hoist-ok does not excuse a kill switch left below the source"
+else
+  fail "hoist-ok does not excuse a kill switch left below the source (rc=$rc): $out"
+fi
+
+# A `*` token in a command is text, never a glob against the repository root:
+# a root file `a-root.sh` must not become a scanned (and missing) hook script.
+new_fixture f
+stop_hook "$f" Stop "$EXIT_THEN_SOURCE"
+jq -n '{hooks:{Stop:[{hooks:[{type:"command",command:"bash stop.sh a*"}]}]}}' \
+  >"$f/plugins/demo/hooks/hooks.json"
+: >"$f/a-root.sh"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a glob token in a Stop command is not expanded (rule 2 walk)"
+else
+  fail "a glob token in a Stop command is not expanded (rule 2 walk) (rc=$rc): $out"
+fi
+
+new_fixture f
+guard "$f" demo "alpha.sh" "$HOISTED"
+hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh a*'
+: >"$f/a-root.sh"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a glob token in a PreToolUse command is not expanded (rule 1 walk)"
+else
+  fail "a glob token in a PreToolUse command is not expanded (rule 1 walk) (rc=$rc): $out"
+fi
+
 # Only a trailing `exit 0`: nothing exits early, so nothing can be hoisted.
 new_fixture f
 stop_hook "$f" Stop "$NO_SWITCH"

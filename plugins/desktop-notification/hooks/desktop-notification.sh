@@ -46,7 +46,7 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
-# Capture $EPOCHREALTIME immediately after the kill switch so telemetry duration
+# Capture $EPOCHREALTIME after the library loads so telemetry duration
 # covers the hook's work. EPOCHREALTIME is Bash 5.0+; on older bash it is unset,
 # so default to empty — referencing it bare under `set -u` would abort before the
 # advisory exit 0. Empty start => telemetry is skipped, the hook still notifies.
