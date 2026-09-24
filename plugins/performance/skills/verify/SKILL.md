@@ -101,7 +101,7 @@ Rules that bind the report:
 
 - Target met on a drift-immune counter, to lock the win in: `/performance:protect`, which then
   hands off to `/source-control:pull-request`.
-- Target met otherwise: `/source-control:pull-request`.
+- Target met on a duration only: `/source-control:pull-request`.
 - Target met with a large realistic-to-ideal gap (re-scan), or not met with another candidate due:
   `/performance:target`.
 - Behavior changed: `/debugging:debug`.
