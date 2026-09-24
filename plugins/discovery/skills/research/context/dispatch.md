@@ -51,6 +51,11 @@ against a run that produced none):
    verifier that reads the artifact off disk has never seen the producing context, whoever spawned
    it, which is why nested spawning stays an optimization here rather than a correctness
    prerequisite.
+
+   **Brief the verifier on every row the gate's Owner column marks verifier, by number** (currently
+   rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
+   verifier asked only about corroboration and confidence re-fetches the quotes and never asks
+   whether the claim follows from them.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
@@ -133,6 +138,12 @@ sub-slice indexes, confuses nothing: each invocation names which artifact it is 
 obligation is the parent's, not the script's. Grade each run against the sub-slice it was assigned,
 and grade before synthesis. A slice-root invocation grades only the synthesized index, never any
 dispatched run.
+
+**The synthesis is itself unverified, so it goes to a fresh verifier for criterion 12** before it
+is surfaced. Every `qualifiers:` entry and scope limit a sub-slice recorded stays attached wherever
+the synthesized index uses that claim, and a claim the synthesis adds that no sub-slice accepted,
+such as a cross-topic conclusion, gets the full joint-inference check or is filed as a Gap. Either
+failure sends the synthesis back for rewriting, not the sub-slice for re-dispatch.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 

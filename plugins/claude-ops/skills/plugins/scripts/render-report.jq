@@ -62,8 +62,22 @@ def block($d):
         or ((.install_gap | length) > 0 and ($installed_ok | length) == 0))
      end) as $needs
   | .timings as $t
+  | .source_checkout as $src
+  | (($src.behind // 0) > 0) as $behind
   | [
-      "Marketplace: \(.name): \(if $needs then "needs update" else "current" end) (autoUpdate: \(.auto_update | auto_update_slot))",
+      "Marketplace: \(.name): \(if $needs then "needs update" elif $behind then "source checkout behind \($src.upstream)" else "current" end) (autoUpdate: \(.auto_update | auto_update_slot))",
+      # A directory source is read as it is on disk; this row says how fresh that is.
+      (if $src == null then empty
+       elif $src.state == "not_a_repo" then
+         "  source: directory \($src.path), not a git work tree; freshness not checked"
+       else
+         "  source: directory \($src.path), "
+         + (if $src.state == "detached" then "a git checkout at a detached HEAD; freshness not checked"
+            elif $src.state == "no_upstream" then "a git checkout on \($src.branch) with no upstream; freshness not checked"
+            else "on \($src.branch), \($src.behind) behind and \($src.ahead) ahead of \($src.upstream) as of its last fetch" end)
+         + (if $src.dirty then "; tracked files modified" else "" end)
+         + " (this run does not fetch or pull it)"
+       end),
       (if $audit then
          "  would run: claude plugin marketplace update \(.name) (audit: predicted against the unrefreshed catalog, lastUpdated \(.catalog_last_updated // "unknown"); a lower bound on what sync would update)"
        elif .refresh.rc != null and .refresh.rc != 0 then
@@ -180,6 +194,11 @@ def block($d):
 
       # Action needed: omitted entirely when nothing needs action.
       ([
+         (if $behind then
+            "source checkout \($src.path) is \($src.behind) commit(s) behind \($src.upstream), and the catalog is read from it as it is: run `git -C \($src.path | @sh) pull --ff-only`, then rerun `/claude-ops:plugins sync \(.name)`"
+            + (if $src.ahead > 0 then "; it also carries \($src.ahead) local commit(s), so --ff-only refuses until they are reconciled" else "" end)
+            + (if $src.dirty then "; tracked files are modified, and the pull refuses if it would overwrite them" else "" end)
+          else empty end),
          (if .stopped_before_install == true then
             "\(.install_gap | length) catalog plugin(s) not installed at user scope (policy ask; stopped before Step 4 pending the batched prompt): \(.install_gap | join(", "))"
           elif .install_enable_deferred == true and (.install_gap | length) > 0 then
