@@ -74,6 +74,10 @@
 #   lane_stop_gate_arm_id      launcher-written arm-record id (never authority)
 
 set -uo pipefail
+# High-res start stamp for the telemetry envelope, taken first so an evaluated
+# stop's duration includes the library parse. EPOCHREALTIME is Bash 5.0+; on an
+# older host it is empty and hook::emit_telemetry skips fail-open.
+START=${EPOCHREALTIME:-}
 # Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
 # subshell for every command substitution even when the body is a builtin
 # (Command Substitution, Bash Reference Manual). On Windows Git Bash that
@@ -92,8 +96,8 @@ esac
 # jq-free, stdin-free, library-free pre-filter: is the gate plausibly configured
 # anywhere this host could honor — or at least CLAIMED, which must produce the
 # visible notice further down rather than silence? Sessions with no gate
-# footprint at all (the interactive default) exit here, before the ~4,800 lines
-# of sourced libraries are parsed, before the stdin buffer, and before the jq
+# footprint at all (the interactive default) exit here, before the sourced
+# libraries are parsed, before the stdin buffer, and before the jq
 # gate: an unarmed session pays for nothing it cannot use, and a jq-less machine
 # never sees a lane-stop-gate notice for a session that never opted in. The env
 # presence tests grant no authority: a hit only routes into evaluation, where
@@ -176,10 +180,6 @@ source "$HOOK_DIR/lane-stop-gate-lib.sh"
 # entry; an anchored install already has its marketplace-qualified id.
 gate_resolve_anchor "$_gate_root" || true
 [[ -n "$GATE_CONFIG_ROOT" ]] || gate_resolve_plugin_name "$_gate_root" || true
-
-# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
-# on an older host it is empty and hook::emit_telemetry skips fail-open.
-START=${EPOCHREALTIME:-}
 
 # emit_tel <status> <outcome> <signal> — fire-and-forget telemetry for an
 # EVALUATED gate outcome (hook-telemetry convention; no-op unless the consumer

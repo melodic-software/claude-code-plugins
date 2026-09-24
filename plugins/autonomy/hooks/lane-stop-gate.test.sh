@@ -1160,7 +1160,7 @@ done
 # src_probe [KEY=VAL ...] — run the stubbed hook; SRC_OUT holds stdout.
 src_probe() {
   rm -f "$SRC_MARK"
-  SRC_OUT="$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
+  SRC_OUT="$(cd "${SRC_CWD:-$UNRELATED}" && env -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED \
     -u CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID \
     "$@" bash "$SRC_DIR/lane-stop-gate.sh" <"$PROBE_PAYLOAD" 2>&1)"
   SRC_RC=$?
@@ -1182,6 +1182,24 @@ if [[ -e "$SRC_MARK" ]]; then ok "anchored user settings mentioning the gate rea
 printf '{"pluginConfigs":{}}\n' >"$SRC_ROOT/settings.json"
 src_probe
 if [[ ! -e "$SRC_MARK" ]]; then ok "user settings without the gate key stay on the early exit"; else fail "user settings without the gate key reached the libraries"; fi
+
+# The managed-settings loop, exercised behaviorally. The Windows primary has no
+# leading `/`, so on a POSIX host it resolves against the cwd: a drop-in planted
+# at `<cwd>/C:/Program Files/ClaudeCode/managed-settings.d/` is reachable from a
+# writable test root. The probe dir decides whether that route exists here; on
+# Windows the literal is a real drive path, so the case skips visibly and never
+# writes under C:.
+MANAGED_CWD="$(mktemp -d "$WORK/managedcwd.XXXXXX")"
+mkdir -p "$MANAGED_CWD/C:/lane-stop-gate-probe" 2>/dev/null || true
+if (cd "$MANAGED_CWD" && [[ -d "C:/lane-stop-gate-probe" ]]); then
+  mkdir -p "$MANAGED_CWD/C:/Program Files/ClaudeCode/managed-settings.d"
+  printf '{"pluginConfigs":{"autonomy@melodic":{"options":{"lane_stop_gate_enabled":false}}}}\n' \
+    >"$MANAGED_CWD/C:/Program Files/ClaudeCode/managed-settings.d/50-lane.json"
+  SRC_CWD="$MANAGED_CWD" src_probe
+  if [[ -e "$SRC_MARK" ]]; then ok "a managed-settings drop-in mentioning the gate reaches the full path"; else fail "the pre-filter missed a managed-settings drop-in"; fi
+else
+  ok "SKIP: the Windows managed path is a real drive here — drop-in route not exercised"
+fi
 
 # A RELATIVE hook path takes the pre-filter's `cd` branch for the plugin root;
 # an enabled lane invoked that way must still find its settings and block.
