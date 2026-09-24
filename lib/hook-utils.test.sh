@@ -3085,6 +3085,46 @@ physical_path_resolved "$PP_TARGET"
 physical_path_unresolved "$PP_TARGET"
 rm -f "$PP_TARGET"
 
+# hook::_physical_builtin_to answers exactly what realpath answers, or declines
+# (status 1) so the caller runs realpath. Linux only; elsewhere it always declines.
+PB="$(mktemp -d)"
+pb_linux=0
+[[ "$(uname -s)" == Linux ]] && pb_linux=1
+mkdir -p "$PB/real/sub" "$PB/a"
+: >"$PB/real/f.md"
+ln -s real "$PB/ln"
+ln -s ../real "$PB/a/rel"
+ln -s "$PB/real/f.md" "$PB/flink.md"
+# shellcheck disable=SC2016  # the child's script is literal, expanded by the child
+PB_OUT=$(bash -c '
+  source "$1"
+  PB=$2 pb_linux=$3
+  for p in "$PB/ln/f.md" "$PB/ln/sub/../f.md" "$PB/a/rel/sub" "$PB/a/rel/../a" "$PB/real/sub/" /tmp/ /; do
+    v=""
+    if hook::_physical_builtin_to v "$p"; then
+      ((pb_linux)) || echo "answered off Linux: $p"
+      [[ "$v" == "$(realpath -- "$p")" ]] || echo "differs from realpath: $p = $v"
+    elif ((pb_linux)); then
+      echo "declined on Linux: $p"
+    fi
+  done
+  for p in "$PB/flink.md" "$PB/missing.md" "real/f.md" "$PB//real/f.md" "$PB/real/f.md/"; do
+    v=""
+    hook::_physical_builtin_to v "$p" && echo "answered a declined shape: $p = $v"
+  done
+  v=""
+  if hook::_physical_builtin_to v "$PB/ln/f.md" "$PB/ln" /tmp; then
+    [[ "$v" == "$(realpath -- "$PB/ln/f.md" "$PB/ln" /tmp)" ]] || echo "batch differs: $v"
+  fi
+  echo pb-ok
+' _ "$HOOK_DIR/hook-utils.sh" "$PB" "$pb_linux")
+rm -rf "$PB"
+if [[ "$PB_OUT" == pb-ok ]]; then
+  ok "physical_builtin: realpath's answer or a decline, per shape"
+else
+  fail "physical_builtin: $PB_OUT"
+fi
+
 repo_root_resolved() {
   local hint="$1"
   probe_lib hook::repo_root HOOK_REPO_ROOT_UNRESOLVED "$hint"

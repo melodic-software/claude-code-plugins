@@ -735,4 +735,49 @@ parity "dispatched parity: surviving path" 'See `docs/real.md` here.' 0 ""
 parity "dispatched parity: renamed-away path" 'Run `tools/legacy-emit.sh` to build.' 0 \
   "STALE_PATH: tools/legacy-emit.sh"
 
+# --- Builtin twins answer what the pipelines answer ------------------------------
+# The twins replace grep/sed/sort/head pipelines for printable-ASCII text. Each
+# case runs both on this host's own grep and sed (GNU on CI Linux, Git Bash on
+# Windows), in a child shell that sources the library and the twins alone.
+# Token sets compare sorted, since the caller only tests membership.
+TWIN_CASES=(
+  'See `docs/gone.md` and `a b` here' '``x`' 'a`b`c`d' '`unclosed docs/gone.md' '````' '` `'
+  $'line one `x.md`\r\nline two `y.md`\r\n' $'\t`tab.md`\t\n   \n\t\n' $'v\vf\f`z.md`'
+  'a- ..ab -x x a.b.c 12 1a -- gone-md gone_md' 'Root `gone.md` and `README.md` x' $'\n\n`a`\n\n`b`\n'
+  'a\b `c:\d` "q" (p) [s] {c} $v ~h' "$(printf '%s\n' {1..45} | sed 's/.*/fix `docs\/gone.md` n&/')"
+)
+TWIN_OUT=$(
+  source "$HOOK_DIR/hook-utils.sh"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  SPV_OUT=()
+  lines() { ((${#SPV_OUT[@]})) && printf '%s\n' "${SPV_OUT[@]}"; }
+  for t in "${TWIN_CASES[@]}"; do
+    spv_plain "$t" || {
+      printf 'bad %q gate rejected plain text\n' "$t"
+      continue
+    }
+    hook::_c_locale spv__spans "$t"
+    # shellcheck disable=SC2016  # backticks are literal ERE data
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -oE '`[^`]+`' | sed -E 's/^`+//; s/`+$//')" ]] ||
+      printf 'bad %q spans\n' "$t"
+    hook::_c_locale spv__residue_tokens "$t"
+    # shellcheck disable=SC2016  # backticks are literal ERE data
+    [[ "$(lines | LC_ALL=C sort)" == "$(printf '%s' "$t" | sed -E 's/`[^`]*`//g' |
+      grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | LC_ALL=C sort -u)" ]] || printf 'bad %q residue tokens\n' "$t"
+    hook::_c_locale spv__nonblank "$t"
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$')" ]] || printf 'bad %q nonblank\n' "$t"
+    hook::_c_locale spv__nonblank "$t" 40
+    [[ "$(lines)" == "$(printf '%s' "$t" | grep -vE '^[[:space:]]*$' | head -40)" ]] || printf 'bad %q nonblank 40\n' "$t"
+  done
+  for t in 'é `docs/gone.md`' $'esc \x1b[0m `x.md`' $'del \x7f'; do
+    spv_plain "$t" && printf 'bad %q gate accepted\n' "$t"
+  done
+  echo twins-ok
+)
+if [[ "$TWIN_OUT" == twins-ok ]]; then
+  ok "builtin twins match the grep/sed/sort/head pipelines on ${#TWIN_CASES[@]} texts, and the gate sends other bytes to the pipelines"
+else
+  bad "builtin twins differ from the pipelines: $TWIN_OUT"
+fi
+
 report
