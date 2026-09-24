@@ -687,7 +687,7 @@ assert_eq "case 27: an empty key name raises no shell error" "0" "$(grep -c 'bad
 assert_eq "case 27: an empty key name gets no key row" "0" "$(jq '[.rows[] | select(.check | test("/A/key-")) | select(.claim | test(":(permissions\\.)?$"))] | length' <<<"$out" 2>/dev/null || echo unparsed)"
 assert_eq "case 27: the binary was searched" "searched" "$(jq -r '.claude_version.binary.key_search' <<<"$out")"
 assert_eq "case 27: a key the binary carries is info" "info" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:internalOnlyKey") | .severity' <<<"$out")"
-assert_contains "case 27: it says the binary carries the literal" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:internalOnlyKey") | .detail' <<<"$out")" "carries the literal string"
+assert_contains "case 27: it says the binary carries the name standalone" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:internalOnlyKey") | .detail' <<<"$out")" "as a standalone name"
 assert_eq "case 27: a key in neither is a warning under the same claim" "warning" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:zzBogusKey") | .severity' <<<"$out")"
 assert_eq "case 27: a nested permissions key in neither is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:permissions.zzBogusPerm") | .severity' <<<"$out")"
 assert_eq "case 27: a key named only in the permissions Type bullet is documented" "ok" "$(jq -r '.rows[] | select(.claim=="documented-key:permissions.disableAutoMode") | .status' <<<"$out")"
@@ -798,7 +798,7 @@ printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"max",enforceAvailableMod
 rc=0
 out=$(DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || rc=$?
 assert_exit "case 32: nothing resting on the unparsed page is an error" 0 "$rc"
-assert_eq "case 32: the page is recorded read but unparsed" "read unparsed" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.reason)"' <<<"$out")"
+assert_eq "case 32: the page is recorded unparsed, not read" "unparsed no-key-headings" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.reason)"' <<<"$out")"
 assert_eq "case 32: key rows are not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:zzBogusKey") | .status' <<<"$out")"
 assert_contains "case 32: the reason names the page as unparsed" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:zzBogusKey") | .detail' <<<"$out")" "did not parse"
 assert_eq "case 32: the derived value row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="effortLevel:max") | .status' <<<"$out")"
@@ -828,6 +828,31 @@ out=$(CLI_BIN="$m/claude-esc" run "$m" --json 2>&1) || true
 assert_eq "case 34: the version still parses" "2.1.281" "$(jq -r '.claude_version.version' <<<"$out")"
 assert_eq "case 34: the raw line carries no control character" "0" "$(jq '[.claude_version.raw | explode[] | select(. < 32 or . == 127)] | length' <<<"$out" | tr -d '\r')"
 assert_contains "case 34: the printable text survives" "$(jq -r '.claude_version.raw' <<<"$out")" "(Claude Code)"
+
+# --- Case 35: a multi-line value is matched as one whole string ----------------
+# grep reads each line of a multi-line pattern on its own, so a value whose
+# second line is a documented one would pass.
+m="$(make_machine multiline)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"bogus\nhigh",disableDeepLinkRegistration:"disable\nzzz"}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 35: an effortLevel with a documented second line is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="effortLevel:bogus\nhigh") | .severity' <<<"$out")"
+assert_eq "case 35: a deep-link value with a documented first line is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="disableDeepLinkRegistration:disable\nzzz") | .severity' <<<"$out")"
+
+# --- Case 36: key identity carries the key exactly as written -------------------
+m="$(make_machine rawkeys)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {"a\tb":1,"c\\d":1}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 36: a key with a tab keeps the tab in its claim" "1" "$(jq '[.findings[] | select(.identity.claim=="undocumented-key:a\tb")] | length' <<<"$out")"
+assert_eq "case 36: a key with a backslash keeps one backslash" "1" "$(jq '[.findings[] | select(.identity.claim=="undocumented-key:c\\d")] | length' <<<"$out")"
+assert_eq "case 36: no claim carries tab-separated escaping" "0" "$(jq '[.findings[] | select(.identity.claim | test("a\\\\tb|c\\\\\\\\d"))] | length' <<<"$out")"
+
+# --- Case 37: the binary tie-breaker needs a standalone, searchable name --------
+m="$(make_machine standalone)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {e:1,Plugins:1}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 37: a name that only occurs inside a longer one is absent" "warning" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:Plugins") | .severity' <<<"$out")"
+assert_eq "case 37: a one-letter name is not settled by the binary" "info" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:e") | .severity' <<<"$out")"
+assert_contains "case 37: and says why" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:e") | .detail' <<<"$out")" "too short or not identifier-shaped"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

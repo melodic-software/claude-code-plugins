@@ -123,8 +123,11 @@ versions against it. An unreadable version turns those rows into `skip`, never c
 It also reads the upstream pages its rows rest on, every run, so a default run needs the network.
 It fetches the docs index (`llms.txt`), resolves each page it needs from a link there, and reads
 the page verbatim. The `docs` object in the document is the coverage record: the index and each
-page with its URL or path, byte count, and `read` or `unread`. Every row resting on an unread page
-is `not-inspectable`. The pages this covers today are `settings-reference` and `env-vars`; every
+page with its URL or path, byte count, and one `state`: `read`; `unread`, with a `reason` such as
+`fetch-failed`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
+settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins` (a soft
+404, a reshaped page). Only `read` means the engine decided anything from the page; every row resting
+on an `unread` or `unparsed` page is `not-inspectable`. The pages this covers today are `settings-reference` and `env-vars`; every
 other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
 instead of fetched again, and a page missing from it is fetched as usual.
 
@@ -134,8 +137,7 @@ skipped, and not-inspectable rows, then the skill-listing measurement. Exit `0` 
 error-severity finding, `1` at least one, `2` a fatal condition (no project settings, `jq`
 missing). Read the document, not the exit code alone.
 
-Pass `--debug-log` when you
-know where this session's debug log is; otherwise the engine looks in the documented locations
+Pass `--debug-log` when you know where this session's debug log is; otherwise the engine looks in the documented locations
 (`CLAUDE_CODE_DEBUG_LOGS_DIR`, a file path despite its name, then the newest file under
 `<user dir>/debug/`). A log it found rather than was given settles the row only when the log
 names this project.

@@ -732,7 +732,7 @@ SR_UNREAD_WHY="settings-reference was not read this run"
 if [[ -n "$SR" && ( -z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins]:-}" ) ]]; then
   SR=""
   SR_UNREAD_WHY="settings-reference was read but has no heading for permissions or enabledPlugins, so it did not parse"
-  DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .reason = "unparsed" else . end)' <<<"$DOCS_PAGES_JSON")"
+  DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .state = "unparsed" | .reason = "no-key-headings" else . end)' <<<"$DOCS_PAGES_JSON")"
 fi
 
 # --- Category A: schema and structure ----------------------------------------
@@ -766,18 +766,20 @@ fi
 # looked up on settings-reference. A key with no heading there is not reported
 # as ignored, because the page omits keys the CLI manages itself; the installed
 # binary settles it, searched once for every such key after the scopes are read.
-KEY_PENDING=()
+KP_SURF=() KP_KEY=() KP_LEAF=() KP_PTR=()
 check_keys() {
   # check_keys <file> <surface>
   local file="$1" surface="$2" k leaf ptr dep since
-  while IFS=$'\t' read -r k leaf ptr; do
+  # Fields arrive NUL-separated, so a key reaches its claim and the binary
+  # search exactly as written in the file: no tab-separated escaping.
+  while IFS= read -r -d '' k && IFS= read -r -d '' leaf && IFS= read -r -d '' ptr; do
     [[ -n "$k" ]] || continue
     if [[ -z "$SR" ]]; then
       row A key-documented not-inspectable none "$surface" "key-page-not-fetched:$k" "$SR_UNREAD_WHY; whether $k is documented is not decided" -
       continue
     fi
     if [[ -z "${SR_KEY[$k]:-}" ]] && ! [[ "$ptr" == /permissions/* && -n "${PERM_TYPE_KEYS[$leaf]:-}" ]]; then
-      KEY_PENDING+=("$surface"$'\t'"$k"$'\t'"$leaf"$'\t'"$ptr")
+      KP_SURF+=("$surface") KP_KEY+=("$k") KP_LEAF+=("$leaf") KP_PTR+=("$ptr")
       continue
     fi
     dep="${SR_DEPRECATED[$k]:-}"
@@ -797,9 +799,8 @@ check_keys() {
       fi
     fi
     row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
-    # An empty key name has no literal to look up, and an empty field would
-    # shift the tab-separated columns, so it is left out before it gets here.
-  done < <(jqf "$file" -r 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | @tsv else empty end')
+    # An empty key name has no literal to look up, so it is left out here.
+  done < <(jqf "$file" -j 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
 }
 [[ $PROJECT_OK -eq 1 ]] && check_keys "$SETTINGS" "$SURF_SETTINGS"
 [[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"
@@ -810,25 +811,40 @@ check_keys() {
 # either control (a .cmd shim, a wrapper script) was not really searched, so no
 # key is called absent. Every undocumented key keeps one claim; only the
 # severity and the detail say what the binary showed.
+#
+# The match is delimited: the name must stand alone, bounded on both sides by a
+# character that cannot continue a JavaScript identifier, so `e` does not match
+# inside `enabledPlugins`. Only an identifier-shaped name of four or more
+# characters is searched; a shorter or odd-shaped one would match too much to
+# prove anything and is reported as not searched. A hit shows the CLI carries
+# the name as a standalone identifier or string, not that it reads the key.
 BIN_SEARCH=not-needed
+BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
 declare -A BIN_HAS=()
-if [[ ${#KEY_PENDING[@]} -gt 0 ]]; then
+if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   BIN_SEARCH=not-searched
   if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" && -r "$CLAUDE_BIN" ]] &&
     grep -aqF -- enabledPlugins "$CLAUDE_BIN" 2>/dev/null && grep -aqF -- permissions "$CLAUDE_BIN" 2>/dev/null; then
     BIN_SEARCH=searched
-    for p in "${KEY_PENDING[@]}"; do
-      IFS=$'\t' read -r _ _ leaf _ <<<"$p"
+    for leaf in "${KP_LEAF[@]}"; do
       [[ -n "${BIN_HAS[$leaf]:-}" ]] && continue
-      if grep -aqF -- "$leaf" "$CLAUDE_BIN" 2>/dev/null; then BIN_HAS[$leaf]=yes; else BIN_HAS[$leaf]=no; fi
+      if [[ ! "$leaf" =~ $BIN_WORD ]]; then
+        BIN_HAS[$leaf]=unsearchable
+      elif grep -aqE -- "(^|[^A-Za-z0-9_\$])${leaf}([^A-Za-z0-9_\$]|\$)" "$CLAUDE_BIN" 2>/dev/null; then
+        BIN_HAS[$leaf]=yes
+      else
+        BIN_HAS[$leaf]=no
+      fi
     done
   fi
-  for p in "${KEY_PENDING[@]}"; do
-    IFS=$'\t' read -r surface k leaf ptr <<<"$p"
+  for i in "${!KP_KEY[@]}"; do
+    surface="${KP_SURF[$i]}" k="${KP_KEY[$i]}" leaf="${KP_LEAF[$i]}" ptr="${KP_PTR[$i]}"
     if [[ "$BIN_SEARCH" != "searched" ]]; then
       row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known" "$ptr"
+    elif [[ "${BIN_HAS[$leaf]}" == "unsearchable" ]]; then
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known" "$ptr"
     elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries the literal string $leaf, so it may be an internal key the CLI manages" "$ptr"
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)" "$ptr"
     else
       row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it" "$ptr"
     fi
@@ -1364,7 +1380,9 @@ documented_value() {
   accepted="$(type_values "$key")"
   if [[ -z "$accepted" ]]; then
     row "$cat" "$slug" skip none "$surface" "$key:$v" "the Type bullet of $key on settings-reference did not parse to a value set; not decided" -
-  elif grep -qxF -- "$v" <<<"$accepted"; then
+  elif [[ -n "$v" && "$v" != *$'\n'* && $'\n'"$accepted"$'\n' == *$'\n'"$v"$'\n'* ]]; then
+    # A whole-string match: grep would read a multi-line value as several
+    # patterns and pass "bogus<newline>high" on its second line.
     row "$cat" "$slug" ok none "$surface" "$key:$v" "$v is a value settings-reference documents for $key" -
   else
     row "$cat" "$slug" finding warning "$surface" "$key:$v" "$key is $v, which is not among the values its settings-reference Type bullet documents (${accepted//$'\n'/, })" "/$key"
