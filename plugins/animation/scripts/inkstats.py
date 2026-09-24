@@ -15,6 +15,7 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
             paper colours must sit within the palette tolerance. A statistic the film leaves undefined (flat with no
             dark drawings, boil with no held pairs, grain with no ink interior) is n/a: neither pass nor fail, and
             left out of the distance. Prints each row with its distance to source and exits 1 if any row fails.
+            The pack's `measured_only` statistics (subject-sensitive) print beside the source value, unjudged.
             Distance of a row: |film - source| / |band edge - source| on the film's side of the source value, so 0 is
             the source and 1 is the band edge on either side; a row fails above 1. The film's distance is the mean
             over the rows it defines, and ranks films that all pass.
@@ -28,6 +29,8 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
   pw50      paper width median, px: the same on paper (slivers and gaps between strokes)
   rough     raw contour length / length after approxPolyDP(4 px) - 1, contours over 50 px: edge wobble
   straight  share of contour length in straight runs of 30 px or more (approxPolyDP 1.5 px): ruled lines
+  straight_border straight_caption   the same over the contour segments whose midpoint lies in that content class,
+            leaving out segments that run along the frame edge; None under 200 px of such contour
   specks    ink islands of 2-200 px per megapixel      gaps  paper islands of 2-200 px per megapixel
   holes     paper share of the ink after a 7 px closing: streaks and gouges inside masses
   ink_sd paper_sd   gray standard deviation inside eroded ink and paper: dry brush and paper grain
@@ -36,15 +39,26 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
             with gray sd under 2: the balance of flat black to textured ink
   grain     inside the ink interior (ink eroded 5 px), sd of the 5x5 box-mean gray over sd of the gray: near 1 for
             texture in patches wider than 5 px, near 0.2 for pixel noise, lower for 1-2 px stripes
-  period    inside the eroded ink, the highest spatial power at periods under 32 px over the mean power there: large
-            for a texture at one fixed pitch (ruled stripes, combed dry brush), small for irregular texture
+  period    inside the eroded ink, the highest spatial power at periods under 32 px over the mean power there,
+            divided by ln(eroded ink pixels): large for a texture at one fixed pitch (ruled stripes, combed dry
+            brush), small for irregular texture. An irregular texture's peak-to-mean is the largest of about that
+            many independent bins, so it grows as the log of the ink area; the division takes the area out
   sliver    median area / width^2 of the paper islands inside the ink (carved slivers and gouges, 6-20000 px, not
             touching the frame edge; width = 2 x the largest distance to ink): long thin lines high, chunky cuts low
+  sliver_border sliver_caption   the same over the islands whose centroid lies in that content class; None under 3
+Content classes, from the ink mask alone, so a source and any film get them the same way:
+  border    the ring within BORDER (2%) of the short side of the frame edge: the hand-drawn frame
+  caption   a caption panel: a paper rectangle (after a 5 px closing of the ink) in the top quarter of the frame, not
+            touching its edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box
+            and holding ink (lettering); its box grown by the border width, outside the border ring
+  interior  everything else: the subject. straight and sliver there and over the whole frame follow what is drawn
   ink_rgb paper_rgb median colours of the ink and paper cores
 Per pair of consecutive drawings:
-  boil      on held pairs only (phase-correlation shift under 1 px and ink change under 1 point), ink/paper
-            disagreement per edge pixel: the mean edge displacement in px between two drawings of the same pose
-  held      share of pairs that are held
+  boil      over the border and caption classes of both drawings (the anchor), on pairs whose anchor ink share
+            changes under 1 point and that have 500 or more anchor edge pixels: ink/paper disagreement there per
+            anchor edge pixel, the mean edge displacement in px of the frame and caption between two drawings. The
+            anchor holds still in every film of the style, so boil does not depend on what the subject does
+  held      share of pairs boil is measured on
 Per drawing duration: hold in 24 fps frames (on 1s, 2s, 3s, 4+), drawings per second, and offstep: the share of
 consecutive drawing pairs whose two holds do not add up to twice the most common hold. It is 0 for a film strictly on
 3s, and it ignores a drawing that re-timing onto a 24 fps grid moves one frame early or late (a 2 then a 4 on 3s).
@@ -60,9 +74,12 @@ import numpy as np
 
 DUP_PX = 50
 SEG = 3.35
-STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'specks', 'gaps', 'holes', 'ink_sd',
-         'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver', 'boil')
+STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'straight_border', 'straight_caption',
+         'specks', 'gaps', 'holes', 'ink_sd', 'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver',
+         'sliver_border', 'sliver_caption', 'boil')
 FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
+BORDER = 0.02             # border class: this share of the frame's short side, from each edge
+CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
 
 
 def frames(film, fps):
@@ -135,9 +152,44 @@ def islands(mask, conn):
     return int(((a >= 2) & (a <= 200)).sum()) * 1e6 / mask.size
 
 
-def contour_stats(ink):
+def captions(ink):
+    """Caption panel boxes (x0, y0, x1, y1): see the caption class above."""
+    H, W = ink.shape
+    paper = 1 - cv2.morphologyEx(ink.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    cs, hier = cv2.findContours(paper, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    out = []
+    for c, (_, _, child, parent) in zip(cs, hier[0] if cs else []):
+        x, y, w, h = cv2.boundingRect(c)
+        a = cv2.contourArea(c)
+        if parent == -1 and child != -1 and 0.002 * H * W <= a <= 0.06 * H * W and x > 0 and y > 0 and x + w < W \
+                and y + h <= H / 4 and w >= 1.5 * h and a >= 0.8 * np.prod(cv2.minAreaRect(c)[1]):
+            out.append((x, y, x + w, y + h))
+    return out
+
+
+def classes(ink):
+    """Content class per pixel: 0 border, 1 caption, 2 interior."""
+    H, W = ink.shape
+    e = round(BORDER * min(H, W))
+    lab = np.full((H, W), 2, np.uint8)
+    for x0, y0, x1, y1 in captions(ink):
+        lab[max(0, y0 - e):y1 + e, max(0, x0 - e):x1 + e] = 1
+    lab[:e], lab[-e:], lab[:, :e], lab[:, -e:] = 0, 0, 0, 0
+    return lab
+
+
+def at(lab, xy):
+    """Class of each (x, y) point."""
+    xy = np.clip(np.round(xy).astype(int), 0, [lab.shape[1] - 1, lab.shape[0] - 1])
+    return lab[xy[:, 1], xy[:, 0]]
+
+
+def contour_stats(ink, lab):
+    """(rough, straight, {class: straight share}) over contours of 50 px or more."""
     cs, _ = cv2.findContours(ink.astype(np.uint8), cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    H, W = ink.shape
     raw = smooth = total = straight = 0.0
+    segs = [np.zeros((0, 2))]
     for c in cs:
         L = cv2.arcLength(c, True)
         if L < 50:
@@ -145,10 +197,19 @@ def contour_stats(ink):
         raw += L
         smooth += cv2.arcLength(cv2.approxPolyDP(c, 4, True), True)
         p = cv2.approxPolyDP(c, 1.5, True)[:, 0].astype(float)
-        seg = np.hypot(*(np.roll(p, -1, 0) - p).T)
+        q = np.roll(p, -1, 0)
+        seg = np.hypot(*(q - p).T)
         total += seg.sum()
         straight += seg[seg >= 30].sum()
-    return (raw / smooth - 1, straight / total) if total else (None, None)   # no contour over 50 px: n/a
+        frame = ((p <= 0) & (q <= 0)).any(1) | ((p[:, 0] >= W - 1) & (q[:, 0] >= W - 1)) \
+            | ((p[:, 1] >= H - 1) & (q[:, 1] >= H - 1))   # a run along the frame edge is the frame, not a stroke
+        segs.append(np.c_[at(lab, (p + q) / 2), seg][~frame])
+    segs = np.vstack(segs)
+    per = {}
+    for k, n in enumerate(CLASSES):
+        s = segs[segs[:, 0] == k, 1]
+        per[n] = float(s[s >= 30].sum() / s.sum()) if s.sum() >= 200 else None
+    return (raw / smooth - 1, straight / total, per) if total else (None, None, per)   # no contour over 50 px: n/a
 
 
 def texture(g, ink):
@@ -163,23 +224,26 @@ def texture(g, ink):
     p = np.abs(np.fft.rfft2(np.where(core, gf - gf[core].mean(), 0))) ** 2
     short = np.hypot(np.fft.rfftfreq(g.shape[1])[None, :], np.fft.fftfreq(g.shape[0])[:, None]) > 1 / 32
     mean = p[short].mean()
-    return grain, float(p[short].max() / mean) if mean > 0 else None
+    return grain, float(p[short].max() / mean / np.log(core.sum())) if mean > 0 else None
 
 
-def sliver(ink):
+def sliver(ink, cls):
     """Median shape of the carved paper inside the ink: area / width^2 of each paper island that does not touch the
     frame edge (6 to 20000 px; width = 2 x its largest distance to ink). Long thin gouge lines score high, chunky
-    cuts low; None with no such island."""
+    cuts low; None with no such island. Returns it and {class: the median over the islands centred in that class,
+    None under 3}."""
     paper = (~ink).astype(np.uint8)
-    n, lab, st, _ = cv2.connectedComponentsWithStats(paper, connectivity=4)
+    n, lab, st, cen = cv2.connectedComponentsWithStats(paper, connectivity=4)
     x, y, w, h, a = st[1:].T
     keep = (x > 0) & (y > 0) & (x + w < ink.shape[1]) & (y + h < ink.shape[0]) & (a >= 6) & (a <= 20000)
     if not keep.any():
-        return None
+        return None, dict.fromkeys(CLASSES)
     width = np.zeros(n)
     np.maximum.at(width, lab.ravel(), cv2.distanceTransform(paper, cv2.DIST_L2, 5).ravel())
     i = np.nonzero(keep)[0] + 1
-    return float(np.median(a[i - 1] / np.maximum(2 * width[i], 1) ** 2))
+    v, k = a[i - 1] / np.maximum(2 * width[i], 1) ** 2, at(cls, cen[i])
+    return float(np.median(v)), {c: float(np.median(v[k == j])) if (k == j).sum() >= 3 else None
+                                 for j, c in enumerate(CLASSES)}
 
 
 def one(rgb):
@@ -191,7 +255,9 @@ def one(rgb):
     edge = int((ink[:, 1:] != ink[:, :-1]).sum() + (ink[1:] != ink[:-1]).sum())
     mid = int(((g > ink_g + 16) & (g < paper_g - 16)).sum())
     w, pw = ridge_widths(ink), ridge_widths(~ink)
-    rough, straight = contour_stats(ink)
+    cls = classes(ink)
+    rough, straight, straight_c = contour_stats(ink, cls)
+    sliver_all, sliver_c = sliver(ink, cls)
     grain, period = texture(g, ink.astype(np.uint8))
     k5 = np.ones((5, 5), np.uint8)
     closed = cv2.morphologyEx(ink.astype(np.uint8), cv2.MORPH_CLOSE,
@@ -223,16 +289,22 @@ def one(rgb):
                 w90=pct(w, 90), pw50=pct(pw, 50), rough=rough, straight=straight, specks=islands(ink, 8),
                 gaps=islands(~ink, 4), holes=float((closed & ~ink).sum() / closed.sum()) if closed.any() else None,
                 ink_sd=sd(core_i), paper_sd=sd(core_p), field_sd=sd(field), flat=flat, grain=grain, period=period,
-                sliver=sliver(ink),
-                ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
+                sliver=sliver_all, **{f'straight_{c}': v for c, v in straight_c.items()},
+                **{f'sliver_{c}': v for c, v in sliver_c.items()},
+                ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, mask=ink, anchor=cls < 2)
 
 
 def boil(a, b):
-    """Edge displacement between consecutive drawings a, b if they hold one pose, else None."""
-    (dx, dy), _ = cv2.phaseCorrelate(a['gray'].astype(np.float32), b['gray'].astype(np.float32))
-    if abs(dx) >= 1 or abs(dy) >= 1 or abs(a['ink'] - b['ink']) >= 0.01:
+    """Edge displacement over the anchor (border and caption) of consecutive drawings a, b; None when the anchor
+    changes or has too few edges to say."""
+    m = a['anchor'] | b['anchor']
+
+    def edges(ink):
+        return int((ink[:, 1:] != ink[:, :-1])[m[:, 1:]].sum() + (ink[1:] != ink[:-1])[m[1:]].sum())
+    e = max(edges(a['mask']), edges(b['mask']))
+    if e < 500 or abs(a['mask'][m].mean() - b['mask'][m].mean()) >= 0.01:
         return None
-    return float((a['mask'] ^ b['mask']).sum() / max(a['edge'], b['edge'], 1))
+    return float((a['mask'] ^ b['mask'])[m].sum() / e)
 
 
 def measure(film, fps=24, region=None, window=None):
@@ -248,11 +320,11 @@ def measure(film, fps=24, region=None, window=None):
         r['t'] = t
         r['boil'] = boil(prev, r) if prev else None
         if prev:
-            prev.pop('gray'), prev.pop('mask')
+            prev.pop('mask'), prev.pop('anchor')
         prev = r
         rows.append(r)
     if prev:
-        prev.pop('gray'), prev.pop('mask')
+        prev.pop('mask'), prev.pop('anchor')
     if not rows:
         sys.exit(f'inkstats: no drawings in {film}' + (f' between {window[0]} and {window[1]} s' if window else ''))
     return rows
@@ -354,6 +426,9 @@ def report(m, pack, name):
     for s, v, (lo, hi), d in out:
         print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | "
               f"{'n/a' if d is None else f'{d:.2f}'} | {'n/a' if d is None else 'yes' if d <= 1 else 'NO'} |")
+    for s in pack.get('measured_only', []):   # subject-sensitive: reported beside the source, never judged
+        v = film_value(m, s)
+        print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | source {pack['ref'][s]:.4g} | - | measured only |")
     ds = [r[3] for r in out if r[3] is not None]
     stat_ds = [r[3] for r in out[:len(pack['check'])] if r[3] is not None]
     dist = float(np.mean(stat_ds)) if stat_ds else None

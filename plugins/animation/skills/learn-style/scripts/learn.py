@@ -38,8 +38,12 @@ import inkstats  # noqa: E402
 
 # Checked statistics, each chosen for what it separates (reference/statistics.md, "Which statistics separate"):
 # straight, rough, offstep and sliver are drawing, timing and carving structure a post filter barely moves; grain,
-# period and flat reject texture overlays; the rest reject other styles.
-CHECK = ['straight', 'rough', 'offstep', 'sliver', 'grain', 'period', 'flat', 'holes', 'boil', 'per_second']
+# period and flat reject texture overlays; the rest reject other styles. straight and sliver follow the subject, so
+# they are checked only inside the content classes every film of the style has (inkstats.CLASSES), and only where
+# the source defines the class in at least two parts; over the whole frame they are MEASURED_ONLY.
+CHECK = ['straight_border', 'straight_caption', 'rough', 'offstep', 'sliver_border', 'sliver_caption', 'grain',
+         'period', 'flat', 'holes', 'boil', 'per_second']
+MEASURED_ONLY = ['straight', 'sliver']
 CLEAR = 0.5
 # Shortest excerpt: a third of the source, about 10 s of a 30 s clip, the length SKILL.md asks a validation scene to be.
 FLOOR = 1 / 3
@@ -155,7 +159,7 @@ def main(argv=None):
                        capped_by=sorted(n for n in margins if best[n] == s and margins[n] > 0),
                        calibration_pass=rate(calib), evaluation_pass=rate(evals))
         ref[s] = round(ref[s], 4)
-    check = [s for s in CHECK if s in bands]
+    check = [s for s in CHECK if s in bands and sum(value([p], s) is not None for p in parts) >= 2]
 
     def whole(group):   # excerpts passing every checked row
         sides = [side for pair in group for side in pair]
@@ -196,7 +200,8 @@ def main(argv=None):
         heldout=dict(excerpt_share=[round(FLOOR, 3), round(1 - FLOOR, 3)], splits=len(ps), calibration=len(calib),
                      evaluation=len(evals), clear=CLEAR, negatives=sorted(negs), calibration_pass=whole(calib),
                      evaluation_pass=whole(evals), rule=rule),
-        ref={s: ref[s] for s in bands}, bands=bands, check=check, brush=old.get('brush', {}), rotoscope_fits=tr['fits'])
+        ref={s: ref[s] for s in bands}, bands=bands, check=check,
+        measured_only=[s for s in MEASURED_ONLY if s in bands], brush=old.get('brush', {}), rotoscope_fits=tr['fits'])
     a.pack.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(pack, indent=1) + '\n')
     print(f'{f}: {m["drawings"]} drawings, {len(parts)} parts, {len(ps)} splits ({len(calib)} calibration, '
