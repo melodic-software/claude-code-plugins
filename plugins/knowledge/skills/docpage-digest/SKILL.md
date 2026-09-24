@@ -112,6 +112,10 @@ note the rename in the checklist, and continue. Never re-inventory over it.
    `source.pdf` and a non-empty `source.txt`. Set complete → tick Phase 1 with a
    resumed-snapshot note and continue. `source.pdf` present but `source.txt` missing/empty →
    keep the PDF (it is the original) and produce the extraction from it now, never re-download.
+   `source.md` present but a profile-required `source.html` missing (a work root from before
+   the HTML requirement) → keep `source.md` unchanged, fetch `source.html` beside it now, and
+   note in the checklist that the HTML was fetched later, so the two may reflect different
+   revisions of the page.
    A provably corrupt or empty snapshot is reconciled explicitly, never silently replaced: move
    it aside with a dated suffix, record the move in the checklist, then fetch fresh.
 2. Select the publisher profile: match the URL's host against the profiles under `context/`

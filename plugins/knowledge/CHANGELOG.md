@@ -12,7 +12,8 @@ only after that version increases.
   text (inline SVG `<text>`, image alt text, video captions) is dropped by text extraction, so the
   raw HTML is kept as `source.html` beside `source.md` and that text is read from it;
   `docpage-digest` Phase 1 and the checklist template count `source.html` in the rendered
-  channel's file set where the profile requires it. The title
+  channel's file set where the profile requires it. A resumed work root holding only
+  `source.md` keeps it unchanged and fetches `source.html` beside it, noted in the checklist. The title
   recovery reads `source.html` first. Claude Tag product mechanics are `tag-exempt
   (consumer-surface)`.
 - The Anthropic docs queue records three blog posts: getting started with loops, code review, and
