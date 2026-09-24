@@ -22,6 +22,14 @@ Everything discovery could not read, and every record whose folder no longer exi
 game with no Uninstall entry. It does not change the anti-cheat status, whose own `unchecked` list
 names the anti-cheat sources that could not be read.
 
+## Build record
+
+`apply` records the installed build so `status` and `remove` can tell a game update from other
+drift (`reference/reversal-matrix.md`). Only Steam's install record carries one: the
+appmanifest's `buildid` (the installed build; `TargetBuildID` is a queued update and is not read)
+and `LastUpdated` (Unix seconds). The other launchers' records above carry no build field the
+script reads, so their games record nothing and keep the generic drift report.
+
 ## Naming the launcher of a game directory
 
 1. The deepest discovered install folder that contains the directory.
@@ -57,6 +65,7 @@ names the anti-cheat sources that could not be read.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | Steam: `SteamPath`, `libraryfolders.vdf` `path`, `appmanifest_*.acf` `installdir` | https://github.com/erri120/GameFinder/blob/master/src/GameFinder.StoreHandlers.Steam/Services/SteamLocationFinder.cs, `.../Services/Parsers/LibraryFoldersManifestParser.cs`, `.../Services/Parsers/AppManifestParser.cs`; https://github.com/JosefNemec/PlayniteExtensions/blob/master/source/Libraries/SteamLibrary/Steam.cs | 2026-09-23 | Steam games missing from `discover` |
+| Steam: appmanifest `buildid`, `TargetBuildID` and `LastUpdated` (Unix epoch) | https://github.com/erri120/GameFinder/blob/master/src/GameFinder.StoreHandlers.Steam/Services/Parsers/AppManifestParser.cs (`ParseBuildId`, `ParseDateTimeOffset`) | 2026-09-24 | A Steam update that `status` does not report as `game updated by Steam` |
 | Epic: `Manifests\*.item`, the `ModSdkMetadataDir` override, `LauncherInstalled.dat` | https://github.com/erri120/GameFinder/blob/master/src/GameFinder.StoreHandlers.EGS/EGSHandler.cs; https://github.com/JosefNemec/PlayniteExtensions/blob/master/source/Libraries/EpicLibrary/EpicLauncher.cs; https://github.com/derrod/legendary/blob/master/legendary/lfs/egl.py | 2026-09-23 | Epic games missing from `discover` |
 | EA app: the encrypted `IS` list, per-game `__Installer\installerdata.xml` | https://github.com/erri120/GameFinder/blob/master/src/GameFinder.StoreHandlers.EADesktop/EADesktopHandler.cs; https://github.com/lutris/lutris/blob/master/lutris/services/ea_app.py | 2026-09-23 | An EA game under `%ProgramFiles%\EA Games` missing from `discover` |
 | Origin: `LocalContent\**\*.mfst` `dipInstallPath` | https://github.com/erri120/GameFinder/blob/master/src/GameFinder.StoreHandlers.Origin/OriginHandler.cs | 2026-09-23 | Origin games missing from `discover` |
