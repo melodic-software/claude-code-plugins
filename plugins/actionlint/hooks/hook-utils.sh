@@ -553,7 +553,8 @@ hook::expand_8dot3_to() {
 # succeeding. Anything else returns 1 and the caller runs realpath as before:
 # a symlinked file, a missing path, a relative one, a directory it cannot
 # enter. Git Bash and macOS keep realpath, whose drive and short-name forms
-# this does not reproduce.
+# this does not reproduce. `builtin cd`, so an exported `cd` function cannot
+# answer for it.
 hook::_physical_builtin_to() {
   [[ "${OSTYPE:-}" == linux* ]] || return 1
   local __hu_pb_dest="$1" __hu_pb_p __hu_pb_out
@@ -564,13 +565,13 @@ hook::_physical_builtin_to() {
   __hu_pb_out=$(
     for __hu_pb_p in "$@"; do
       if [[ -d "$__hu_pb_p" ]]; then
-        cd -P -- "$__hu_pb_p" 2>/dev/null || exit 1
+        builtin cd -P -- "$__hu_pb_p" 2>/dev/null || exit 1
         printf '%s\n' "$PWD"
       else
         [[ -e "$__hu_pb_p" && ! -L "$__hu_pb_p" ]] || exit 1
         __hu_pb_d=${__hu_pb_p%/*} __hu_pb_b=${__hu_pb_p##*/}
         [[ -n "$__hu_pb_b" && "$__hu_pb_b" != . && "$__hu_pb_b" != .. ]] || exit 1
-        cd -P -- "${__hu_pb_d:-/}" 2>/dev/null || exit 1
+        builtin cd -P -- "${__hu_pb_d:-/}" 2>/dev/null || exit 1
         printf '%s\n' "${PWD%/}/$__hu_pb_b"
       fi
     done
