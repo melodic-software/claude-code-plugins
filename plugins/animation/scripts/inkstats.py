@@ -11,9 +11,11 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
   --json    write the summary: per statistic p10/p50/p90 over drawings, and per segment medians
   --rows    write the per-drawing rows (for analysis; a style pack never holds them)
   --pack    a style pack directory or its style.json. Each statistic in `check` must have its film median inside the
-            pack's band, each in `segment_check` must have every segment median inside it (segments of at least
-            the pack's `segment_min_drawings`), and the ink and paper
-            colours must sit within the palette tolerance. Prints the tables; exit 1 if any row fails.
+            pack's band, each in `segment_check` must have every segment median inside its `segment_bands` band
+            (segments of at least the pack's `segment_min_drawings`), and the ink and paper
+            colours must sit within the palette tolerance. Prints the tables and the distance to source (mean
+            |film median - source median| / band half-width over the checked statistics; ranks passing films);
+            exit 1 if any row fails.
 Frames that repeat a drawing (fewer than DUP_PX pixels changed by more than 64 gray levels) are dropped, so a 24 fps
 capture and a variable-rate source both reduce to distinct drawings with their hold times.
 
@@ -28,6 +30,8 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
   holes     paper share of the ink after a 7 px closing: streaks and gouges inside masses
   ink_sd paper_sd   gray standard deviation inside eroded ink and paper: dry brush and paper grain
   field_sd  the same inside the largest connected ink area (the dark field), eroded; 0 when it has no core
+  flat      dark drawings only (ink >= 0.5): share of mostly-ink 32 px blocks that lie fully inside eroded ink
+            with gray sd under 2: the balance of flat black to textured ink
   ink_rgb paper_rgb median colours of the ink and paper cores
 Per pair of consecutive drawings:
   boil      on held pairs only (phase-correlation shift under 1 px and ink change under 1 point), ink/paper
@@ -47,7 +51,8 @@ import numpy as np
 DUP_PX = 50
 SEG = 3.35
 STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'specks', 'gaps', 'holes', 'ink_sd',
-         'paper_sd', 'field_sd', 'boil')
+         'paper_sd', 'field_sd', 'flat', 'boil')
+FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
 
 
 def frames(film, fps):
@@ -142,6 +147,15 @@ def one(rgb):
                               cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))).astype(bool)
     core_i = cv2.erode(ink.astype(np.uint8), k5).astype(bool)
     core_p = cv2.erode((~ink).astype(np.uint8), k5).astype(bool)
+    flat = None
+    if ink.mean() >= 0.5:   # dark drawings only: share of mostly-ink blocks that are flat, untextured black
+        H, W = (g.shape[0] // FLAT_B) * FLAT_B, (g.shape[1] // FLAT_B) * FLAT_B
+
+        def blocks(a):
+            return a[:H, :W].reshape(H // FLAT_B, FLAT_B, W // FLAT_B, FLAT_B)
+        inkb = blocks(ink).mean((1, 3)) > 0.5
+        flat = float((blocks(core_i).all((1, 3)) & (blocks(g.astype(np.float32)).std((1, 3)) < FLAT_SD)).sum()
+                     / max(inkb.sum(), 1))
     n, lab, st, _ = cv2.connectedComponentsWithStats(ink.astype(np.uint8), connectivity=8)
     field = core_i & (lab == 1 + int(np.argmax(st[1:, 4]))) if n > 1 else core_i
 
@@ -156,7 +170,7 @@ def one(rgb):
     return dict(ink=float(ink.mean()), soft=mid / max(edge, 1), w10=pct(w, 10), w50=pct(w, 50), w90=pct(w, 90),
                 pw50=pct(pw, 50), rough=rough, straight=straight, specks=islands(ink, 8), gaps=islands(~ink, 4),
                 holes=float((closed & ~ink).sum() / max(closed.sum(), 1)), ink_sd=sd(core_i), paper_sd=sd(core_p),
-                field_sd=sd(field), ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
+                field_sd=sd(field), flat=flat, ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, gray=g, mask=ink)
 
 
 def boil(a, b):
@@ -234,7 +248,7 @@ def check(m, pack):
         v = m[s] if s in m else m['stats'][s]['p50'] if m['stats'].get(s) else None
         out.append((s, v, (lo, hi), v is not None and lo <= v <= hi))
     for s in pack.get('segment_check', []):
-        lo, hi = pack['bands'][s]
+        lo, hi = pack.get('segment_bands', pack['bands'])[s]
         for g in (g for g in m['segments'] if g['n'] >= pack.get('segment_min_drawings', 1)):
             out.append((f"{s} {g['t0']:g}-{g['t1']:g} s", g[s], (lo, hi), g[s] is not None and lo <= g[s] <= hi))
     for s in ('ink_rgb', 'paper_rgb'):
@@ -242,6 +256,19 @@ def check(m, pack):
         v = max(abs(c - int(want[2 * i:2 * i + 2], 16)) for i, c in enumerate(m[s]))
         out.append((s, v, (0, pack['palette']['tolerance']), v <= pack['palette']['tolerance']))
     return out
+
+
+def distance(m, pack):
+    """Mean over the checked statistics of |film median - source median| / band half-width: 0 is the source, 1 is
+    a band edge on average. Ranks films that all pass."""
+    d = []
+    for s in pack['check']:
+        lo, hi = pack['bands'][s]
+        v = m[s] if s in m else m['stats'][s]['p50'] if m['stats'].get(s) else None
+        ref = pack['timing'][s] if s in pack['timing'] else pack['stats'][s]['p50']
+        if v is not None:
+            d.append(abs(v - ref) / ((hi - lo) / 2))
+    return float(np.mean(d))
 
 
 def load_pack(p):
@@ -289,7 +316,7 @@ def main(argv=None):
     print(f'\ncheck against {a.pack}\n\n| check | film | band | pass |\n|---|---|---|---|')
     for s, v, (lo, hi), ok in out:
         print(f"| {s} | {'-' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | {'yes' if ok else 'NO'} |")
-    print(f'{sum(r[3] for r in out)}/{len(out)} pass')
+    print(f'{sum(r[3] for r in out)}/{len(out)} pass; distance to source {distance(m, pack):.3f}')
     return 0 if all(r[3] for r in out) else 1
 
 
