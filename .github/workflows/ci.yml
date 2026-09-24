@@ -829,12 +829,14 @@ jobs:
       # The audit that prompted #3712 found the switch below the source in 43 of
       # 43 hooks, and scripts/sync-hook-utils.sh covers the vendored library
       # copies but NOT the entry scripts, so nothing else here would notice the
-      # ordering drifting back. Self-test first so a broken detector cannot mask
-      # a regression.
+      # ordering drifting back. Rule 2 holds every other blocking event to the
+      # same order: a Stop or Notification hook's first early exit comes before
+      # its first source (#4415). Self-test first so a broken detector cannot
+      # mask a regression.
       - name: Test the kill-switch hoist gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-killswitch-hoist.test.sh
-      - name: Check that PreToolUse guards read their kill switch before sourcing
+      - name: Check that hooks exit early before sourcing any library
         id: killswitch_hoist
         continue-on-error: true
         run: scripts/check-killswitch-hoist.sh

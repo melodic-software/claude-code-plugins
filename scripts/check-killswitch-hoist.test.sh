@@ -283,6 +283,110 @@ else
   fail "a PostToolUse launcher's arguments are scanned, the launcher is not (rc=$rc): $out"
 fi
 
+# --- rule 2: every blocking event, first early exit before the first source --
+
+# stop_hook <fixture> <event> <body> [<async>]
+stop_hook() {
+  guard "$1" demo "stop.sh" "$3"
+  jq -n --arg e "$2" --argjson a "${4:-false}" \
+    '{hooks:{($e):[{hooks:[{type:"command",command:"bash stop.sh",async:$a}]}]}}' \
+    >"$1/plugins/demo/hooks/hooks.json"
+}
+
+SOURCE_THEN_EXIT='#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+[[ -n "${DEMO_ARMED:-}" ]] || exit 0
+echo work
+exit 0'
+
+EXIT_THEN_SOURCE='#!/usr/bin/env bash
+[[ -n "${DEMO_ARMED:-}" ]] || exit 0
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+echo work
+exit 0'
+
+new_fixture f
+stop_hook "$f" Stop "$SOURCE_THEN_EXIT"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"stop.sh — first early exit at line 4 is BELOW the source at line 3"* ]]; then
+  ok "a Stop hook that sources before its first early exit FAILS"
+else
+  fail "a Stop hook that sources before its first early exit FAILS (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" Stop "$EXIT_THEN_SOURCE"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"1 blocking hook script(s)"* ]]; then
+  ok "a Stop hook that exits before sourcing passes and is counted"
+else
+  fail "a Stop hook that exits before sourcing passes and is counted (rc=$rc): $out"
+fi
+
+# A clean PreToolUse guard beside it, so the corpus is not empty once the async
+# row is skipped.
+new_fixture f
+stop_hook "$f" Stop "$SOURCE_THEN_EXIT" true
+guard "$f" other "alpha.sh" "$HOISTED"
+hooks_json "$f" other '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "an async Stop hook is exempt"
+else
+  fail "an async Stop hook is exempt (rc=$rc): $out"
+fi
+
+# The hooks reference: async is ignored on UserPromptSubmit, which runs sync.
+new_fixture f
+stop_hook "$f" UserPromptSubmit "$SOURCE_THEN_EXIT" true
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"BELOW the source"* ]]; then
+  ok "async on a sync-only event (UserPromptSubmit) is not an exemption"
+else
+  fail "async on a sync-only event (UserPromptSubmit) is not an exemption (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" SessionStart "$SOURCE_THEN_EXIT"
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"BELOW the source"* ]]; then
+  ok "a SessionStart hook is in scope"
+else
+  fail "a SessionStart hook is in scope (rc=$rc): $out"
+fi
+
+new_fixture f
+stop_hook "$f" Notification '#!/usr/bin/env bash
+# shellcheck source=hook-utils.sh
+source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+hook::check_enabled "DEMO"
+exit 0'
+out="$(run_check "$f")"
+rc=$?
+if ((rc != 0)) && [[ "$out" == *"calls hook::check_enabled below the source"* ]]; then
+  ok "a Notification hook calling hook::check_enabled after its source FAILS"
+else
+  fail "a Notification hook calling hook::check_enabled after its source FAILS (rc=$rc): $out"
+fi
+
+# Only a trailing `exit 0`: nothing exits early, so nothing can be hoisted.
+new_fixture f
+stop_hook "$f" Stop "$NO_SWITCH"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a Stop hook whose only exit is its last line passes"
+else
+  fail "a Stop hook whose only exit is its last line passes (rc=$rc): $out"
+fi
+
 # --- fail closed -------------------------------------------------------------
 
 # No PreToolUse shell guard anywhere is an environment problem, not a clean run:
