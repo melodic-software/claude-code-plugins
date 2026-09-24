@@ -834,10 +834,9 @@ jobs:
       # its first source (#4415). Self-test first so a broken detector cannot
       # mask a regression.
       - name: Test the kill-switch hoist gate
-        if: needs.changes.outputs.run_shell == 'true'
         run: |
           p=0
-          for i in $(seq 1 20); do
+          for _ in $(seq 1 20); do
             if bash scripts/check-killswitch-hoist.test.sh >/tmp/ks.out 2>&1; then p=$((p + 1)); else grep '^FAIL' /tmp/ks.out; fi
           done
           echo "FLAKE-LOOP check-killswitch-hoist.test.sh: $p/20 passed"
@@ -854,10 +853,9 @@ jobs:
       # fire (#4421). Self-test first so a broken detector cannot mask a
       # regression.
       - name: Test the hook slow-shapes gate
-        if: needs.changes.outputs.run_shell == 'true'
         run: |
           p=0
-          for i in $(seq 1 20); do
+          for _ in $(seq 1 20); do
             if bash scripts/check-hook-slow-shapes.test.sh >/tmp/ss.out 2>&1; then p=$((p + 1)); else grep '^FAIL' /tmp/ss.out; fi
           done
           echo "FLAKE-LOOP check-hook-slow-shapes.test.sh: $p/20 passed"
