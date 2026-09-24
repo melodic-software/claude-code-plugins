@@ -835,7 +835,13 @@ jobs:
       # mask a regression.
       - name: Test the kill-switch hoist gate
         if: needs.changes.outputs.run_shell == 'true'
-        run: bash scripts/check-killswitch-hoist.test.sh
+        run: |
+          p=0
+          for i in $(seq 1 20); do
+            if bash scripts/check-killswitch-hoist.test.sh >/tmp/ks.out 2>&1; then p=$((p + 1)); else grep '^FAIL' /tmp/ks.out; fi
+          done
+          echo "FLAKE-LOOP check-killswitch-hoist.test.sh: $p/20 passed"
+          [ "$p" = 20 ]
       - name: Check that hooks exit early before sourcing any library
         id: killswitch_hoist
         continue-on-error: true
@@ -849,7 +855,13 @@ jobs:
       # regression.
       - name: Test the hook slow-shapes gate
         if: needs.changes.outputs.run_shell == 'true'
-        run: bash scripts/check-hook-slow-shapes.test.sh
+        run: |
+          p=0
+          for i in $(seq 1 20); do
+            if bash scripts/check-hook-slow-shapes.test.sh >/tmp/ss.out 2>&1; then p=$((p + 1)); else grep '^FAIL' /tmp/ss.out; fi
+          done
+          echo "FLAKE-LOOP check-hook-slow-shapes.test.sh: $p/20 passed"
+          [ "$p" = 20 ]
       - name: Check hooks for transcript reads and env-shebang registrations
         id: hook_slow_shapes
         continue-on-error: true
