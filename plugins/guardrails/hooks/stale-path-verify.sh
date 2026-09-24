@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+: "$(date)"
 # PostToolUse hook: verify that a repo-relative path cited in newly-written
 # markdown is not one this repository has since removed.
 # Triggered on Write|Edit of *.md files.

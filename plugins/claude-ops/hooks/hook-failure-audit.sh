@@ -284,6 +284,7 @@ scan_lines() { # <first index to test>
 # would need a second process on every Stop.
 warm_read() {
   local LC_ALL=C window body complete line
+  mapfile -s $((CURSOR - 1)) LINES <"$TRANSCRIPT" 2>/dev/null
   { window=$(tail -c "+$((CURSOR - 1))" -- "$TRANSCRIPT"); } 2>/dev/null
   SCANNED=$CURSOR
   if [[ "$window" != ?$'\n'* ]]; then
