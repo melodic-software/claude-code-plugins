@@ -251,10 +251,14 @@ Verify integrity line.
    conversation; never pass the old typed name.
 3. Confirm, once: the resolved game directory, the build change, and that the refresh removes the
    mod, drops the old manifest, and applies again against a fresh snapshot with the manifest's
-   build and tag, proxy, preset key (or bases only), and `-RestoreComputeSignature`, replacing any
-   overlay tuning. Ask for an explicit yes.
+   build, proxy, preset key (or bases only), and `-RestoreComputeSignature`, replacing any overlay
+   tuning. Name the tag that will be installed from that build's `.provisioned.json` under the
+   data directory's `builds` folder: after a pin roll-out it is not the manifest's tag. Ask for an
+   explicit yes.
 4. Run `-Verb remove '<game-dir>' -ConfirmRefresh <token>`, plus the four acknowledgement
-   parameters when the review ran. Before any deletion the script refuses: a token for other drift
+   parameters whenever `acknowledgementRequired` is true: the name the user just typed, and the
+   new research, or on an unchanged review id the manifest's recorded `research` and `sources`.
+   Before any deletion the script refuses: a token for other drift
    (rerun `status` and show the new drift), a change that is not a launcher game update, a build
    that is not provisioned, a missing preset, a refused runtime DLL, or a missing or stale
    acknowledgement. `apply`'s own gates run again after the remove; if one refuses there, the mod
