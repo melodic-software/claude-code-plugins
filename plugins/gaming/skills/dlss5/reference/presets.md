@@ -238,8 +238,11 @@ byte what `apply` wrote, and records the file's hash in the manifest. The preset
 do not matter; the manifest's record does.
 
 1. Without `-ConfirmReset` it prints every value it would discard, as
-   `[Section] Key: now -> stock plus preset`, and writes nothing.
-2. With `-ConfirmReset`, after the user has seen that list and said yes, it writes the file.
+   `[Section] Key: now -> stock plus preset`, and a token (the first 12 hex digits of the current
+   file's SHA-256), and writes nothing.
+2. With `-ConfirmReset <token>`, after the user has seen that list and said yes, it writes the
+   file. A token that no longer matches the file (it was saved again since the preview) refuses,
+   so nothing the user was not shown is discarded.
 
 It refuses, writing nothing, when the manifest has no completed apply, does not own
 `OptiScaler.ini`, predates recorded ini edits or build tags (before 0.5.0), or when the build was

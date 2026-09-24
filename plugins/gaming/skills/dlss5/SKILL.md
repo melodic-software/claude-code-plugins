@@ -54,7 +54,7 @@ pwsh -NoProfile -File "${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mo
 | `-RestoreComputeSignature` | apply | Also sets `[Hotfix] RestoreComputeSignature=true` for a game with no preset; `reference/tuning-guide.md` names the titles that need it |
 | `-AllowUnknownRuntime` | apply | Accepts an NVIDIA-signed runtime whose hash is not the known one. Only on the user's explicit request |
 | `-Finish` | remove | Drops the manifest even when drift remains. Only after the user has seen the drift and asked |
-| `-ConfirmReset` | reset | Writes the reset. Only after the user has seen the printed list of discarded values and said yes |
+| `-ConfirmReset` | reset | The token the preview run printed. Writes the reset, and refuses if `OptiScaler.ini` changed since that preview. Only after the user has seen the printed list of discarded values and said yes |
 | `-Force` | apply | Lifts only the over-2000-files guard. Only when the user confirms the directory is the exe directory. It has no effect on the anti-cheat gate |
 | `-AcceptAntiCheatRisk` | apply | The game name exactly as the user typed it, after the anti-cheat review below. Never filled in by you |
 | `-AntiCheatResearch` | apply | The research summary shown to the user, one paragraph |
@@ -235,8 +235,11 @@ Run `-Verb status '<game-dir>'`. It lists `ADDED` (tagged `manifest`, `byproduct
 
 The last line compares the manifest's `build`, `tag` and `buildSha256` with that build's current
 pin. `installed build is older than the current pin` means this game predates a pin update: offer
-the roll-out steps in `reference/upstream-watch.md`, Updating a pin. `unknown, re-apply to record`
-means the manifest predates recorded build tags. Neither changes the exit code.
+the roll-out steps in `reference/upstream-watch.md`, Updating a pin. `newer than the current pin`
+means the plugin was rolled back since the apply, and `differs from the current pin` means the same
+version under another asset hash, or tags that do not compare as versions: report either and
+recommend nothing until the user says which build they want. `unknown, re-apply to record` means
+the manifest predates recorded build tags. None of them changes the exit code.
 
 | Exit | Meaning |
 |---|---|
@@ -250,10 +253,11 @@ back to the build's stock ini plus the preset recorded in the manifest (`referen
 Reset). Offer `capture` first when the user may want to keep the current tuning.
 
 1. Run `-Verb reset '<game-dir>'` without `-ConfirmReset`. It prints each value it would discard
-   and writes nothing. Stop and relay a refusal as is.
+   and writes nothing, then a `-ConfirmReset <token>` line. Stop and relay a refusal as is.
 2. Show the user that list, the resolved game directory, and the manifest's build and tag, and ask
    for an explicit yes. Ask with the game closed.
-3. On yes, rerun with `-ConfirmReset`. Report the rewrite; the manifest now records the file's
+3. On yes, rerun with `-ConfirmReset <token>` from that preview. If it refuses because the ini
+   changed since the preview, go back to step 1 and show the new list. Report the rewrite; the manifest now records the file's
    hash, so `status` stays clean and `remove` stays byte-exact.
 4. Note the reset in the game's ledger row.
 

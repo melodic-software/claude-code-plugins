@@ -19,7 +19,7 @@ param(
     [switch]$RestoreComputeSignature,
     [switch]$AllowUnknownRuntime,
     [switch]$Finish,
-    [switch]$ConfirmReset,
+    [string]$ConfirmReset,
     [switch]$Force
 )
 $ErrorActionPreference = 'Stop'
@@ -990,13 +990,19 @@ function Get-PinState($mj) {
     $pin = $BuildPins["$($mj.build)"]
     if (-not $mj.tag -or -not $mj.buildSha256) { return "installed build: $($mj.build), tag unknown, re-apply to record" }
     if (-not $pin) { return "installed build: $($mj.build) $($mj.tag), which this plugin version no longer pins" }
-    if ($mj.tag -ne $pin.Tag -or $mj.buildSha256 -ne $pin.Sha256) { return "installed build is older than the current pin: $($mj.build) $($mj.tag) installed, $($pin.Tag) pinned. Update steps: reference/upstream-watch.md" }
-    "installed build: $($mj.build) $($mj.tag), the current pin"
+    if ($mj.tag -eq $pin.Tag -and $mj.buildSha256 -eq $pin.Sha256) { return "installed build: $($mj.build) $($mj.tag), the current pin" }
+    # Tags compare as versions (v0.8.3 < v0.9.0); a same-version tag or a changed asset hash is only "differs".
+    $a = $b = $null
+    $ok = [version]::TryParse(($mj.tag -replace '^v' -replace '-.*$'), [ref]$a) -and [version]::TryParse(($pin.Tag -replace '^v' -replace '-.*$'), [ref]$b) -and $a -ne $b
+    $what = "$($mj.build) $($mj.tag) ($($mj.buildSha256)) installed, $($pin.Tag) ($($pin.Sha256)) pinned"
+    if ($ok -and $a -lt $b) { "installed build is older than the current pin: $what. Update steps: reference/upstream-watch.md" }
+    elseif ($ok) { "installed build is newer than the current pin: $what. This plugin version is older than the one that applied it" }
+    else { "installed build differs from the current pin: $what. Check the pin history before re-applying" }
 }
 
 # Rewrites the game's OptiScaler.ini to the build's stock ini plus the manifest's iniEdits, which is
-# byte for byte what apply wrote, undoing the overlay's Save Settings. Prints what it discards and
-# writes only with -ConfirmReset. OptiScaler.ini is the one game-folder file it writes, and only when
+# byte for byte what apply wrote, undoing the overlay's Save Settings. Prints what it discards and a
+# token, and writes only with -ConfirmReset <token>. OptiScaler.ini is the one game-folder file it writes, and only when
 # the manifest owns it; the manifest's hash for it is updated so remove stays byte-exact.
 function Do-Reset($root) {
     $mj = Load-Manifest $root
@@ -1013,6 +1019,9 @@ function Do-Reset($root) {
         Edit-Ini $tmp $edits
         $hash = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash
         if ((Test-Path -LiteralPath $gi) -and (Get-FileHash -LiteralPath $gi -Algorithm SHA256).Hash -eq $hash) { return 'OptiScaler.ini already matches the stock ini plus the recorded preset; nothing to reset' }
+        # The confirmation names the ini the preview showed, so a file saved again since then refuses.
+        $token = if (Test-Path -LiteralPath $gi) { (Get-FileHash -LiteralPath $gi -Algorithm SHA256).Hash.Substring(0, 12).ToLowerInvariant() } else { 'absent' }
+        if ($ConfirmReset -and $ConfirmReset -ne $token) { throw "OptiScaler.ini changed since the preview (previewed '$ConfirmReset', now '$token'); rerun reset without -ConfirmReset and show the user the new list. Nothing was written" }
         $cur = if (Test-Path -LiteralPath $gi) { Read-Ini $gi } else { @{} }
         $new = Read-Ini $tmp
         'reset discards these OptiScaler.ini values (now -> stock plus preset):'
@@ -1023,7 +1032,7 @@ function Do-Reset($root) {
             }
         }
         if ($diff) { $diff } else { '  (no value changes; comments or formatting only)' }
-        if (-not $ConfirmReset) { return 'nothing written: rerun with -ConfirmReset once the user has confirmed' }
+        if (-not $ConfirmReset) { return "nothing written: rerun with -ConfirmReset $token once the user has confirmed" }
         Copy-Item -LiteralPath $tmp -Destination $gi -Force
         $own[0].Sha256 = $hash
         $mj | Add-Member -Force -NotePropertyName reset -NotePropertyValue (Get-Date).ToString('o')
@@ -1346,8 +1355,13 @@ function Do-Selftest {
         $gm = LoadJson "$sd\manifest.json"
         Assert 'pin state: a manifest on its build''s pin is current' ((Get-PinState $gm) -like '*selftest vtest, the current pin')
         $BuildPins['selftest'].Tag = 'vnext'
-        Assert 'pin state: a manifest behind its build''s pin reads older than the current pin, in assess too' (((Get-PinState $gm) -like 'installed build is older than the current pin: selftest vtest installed, vnext pinned*') -and (((Do-Assess $g) | ConvertFrom-Json).installedBuild -like 'installed build is older than the current pin*'))
-        $BuildPins['selftest'].Tag = 'vtest'
+        Assert 'pin state: a manifest off its build''s pin is reported, in assess too' (((Get-PinState $gm) -like 'installed build differs from the current pin: selftest vtest (AA) installed, vnext (AA) pinned*') -and (((Do-Assess $g) | ConvertFrom-Json).installedBuild -like 'installed build differs from the current pin*'))
+        $pv = { param($tag, $sha) Get-PinState ([pscustomobject]@{ build = 'selftest'; tag = $tag; buildSha256 = $sha }) }
+        $BuildPins['selftest'] = @{ Tag = 'v0.9.0'; Sha256 = 'CC' }
+        Assert 'pin state: a lower version tag is older than the current pin' ((& $pv 'v0.8.3' 'AA') -like 'installed build is older than the current pin: selftest v0.8.3 (AA) installed, v0.9.0 (CC) pinned*')
+        Assert 'pin state: a higher version tag is newer, never older' ((& $pv 'v0.10.1' 'AA') -like 'installed build is newer than the current pin*')
+        Assert 'pin state: the same tag with another hash only differs' ((& $pv 'v0.9.0' 'AA') -like 'installed build differs from the current pin*(AA) installed*(CC) pinned*')
+        $BuildPins['selftest'] = @{ Tag = 'vtest'; Sha256 = 'AA' }
         Assert 'pin state: an empty tag (before 0.5.0) is unknown' ((Get-PinState ([pscustomobject]@{ build = 'wilsjo2'; tag = '' })) -like '*unknown, re-apply to record')
         $gi = "$g\OptiScaler.ini"
         Assert 'proxy dxgi.dll placed' (Test-Path -LiteralPath "$g\dxgi.dll")
@@ -1449,13 +1463,19 @@ function Do-Selftest {
         $h0 = (@((LoadJson $pmf).files) | Where-Object Path -eq 'OptiScaler.ini').Sha256
         $pre = Tree $pg
         $ro = @(Do-Reset $pg)
-        Assert 'reset without -ConfirmReset prints what it discards and writes nothing' ((SameTree (Tree $pg) $pre) -and @($ro | Where-Object { $_ -like '*`[DlssNr`] LocalTone: 0.300000 -> 0.5' }).Count -eq 1 -and @($ro | Where-Object { $_ -like '*`[DlssNr`] AutoCapture: true -> false' }).Count -eq 1 -and $ro[-1] -like 'nothing written*-ConfirmReset*')
+        Assert 'reset without -ConfirmReset prints what it discards and writes nothing' ((SameTree (Tree $pg) $pre) -and @($ro | Where-Object { $_ -like '*`[DlssNr`] LocalTone: 0.300000 -> 0.5' }).Count -eq 1 -and @($ro | Where-Object { $_ -like '*`[DlssNr`] AutoCapture: true -> false' }).Count -eq 1 -and $ro[-1] -like 'nothing written*-ConfirmReset ????????????*')
+        $tok = ($ro[-1] -split ' ')[5]
         Put "$bs\.provisioned.json" '{"tag":"vnext","sha256":"AA"}'
         Assert 'reset refuses when the build was re-provisioned' ((Throws { Do-Reset $pg } "*now 'vnext'*") -and (SameTree (Tree $pg) $pre))
         Put "$bs\.provisioned.json" '{"tag":"vtest","sha256":"AA"}'
-        $script:ConfirmReset = $true
+        $saved = [IO.File]::ReadAllBytes($pgi)
+        Add-Content -LiteralPath $pgi -Value 'SavedAgain=1'
+        $script:ConfirmReset = $tok
+        $pre2 = Tree $pg
+        Assert 'reset refuses a confirmation for an ini saved again since the preview' ((Throws { Do-Reset $pg } '*changed since the preview*') -and (SameTree (Tree $pg) $pre2))
+        [IO.File]::WriteAllBytes($pgi, $saved)
         Do-Reset $pg | Out-Null
-        $script:ConfirmReset = $false
+        $script:ConfirmReset = $null
         $post = Tree $pg
         Assert 'reset restores the stock ini plus the preset byte for byte and records its hash' ((Get-FileHash -LiteralPath $pgi -Algorithm SHA256).Hash -eq $h0 -and (@((LoadJson $pmf).files) | Where-Object Path -eq 'OptiScaler.ini').Sha256 -eq $h0 -and (IniVal $pgi 'DlssNr' 'AutoCapture') -eq 'false')
         $pre.Remove('OptiScaler.ini'); $post.Remove('OptiScaler.ini')

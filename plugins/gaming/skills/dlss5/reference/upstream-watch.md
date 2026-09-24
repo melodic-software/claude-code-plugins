@@ -87,6 +87,8 @@ running by its `DLSS-NR cost` log lines, recorded in the step 2 issue.
 
 **Which games are behind.** Each game's manifest records `build`, `tag` and `buildSha256`. `status`
 and `assess` compare them with the current pin for that build and report
-`installed build is older than the current pin` for a game still on an old one. A manifest written
+`installed build is older than the current pin` for a game still on an old one; the tags compare
+as versions. A newer tag (the plugin was rolled back) reads `newer than the current pin`, and the
+same version under another hash reads `differs from the current pin`. A manifest written
 before 0.5.0 has no tag, and reads `unknown, re-apply to record` until the game is removed and
 applied again.

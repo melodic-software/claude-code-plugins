@@ -151,7 +151,7 @@
       "id": 12,
       "name": "reset-shows-discards-and-asks-first",
       "prompt": "/gaming:dlss5 reset D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - I messed up the overlay settings, put it back how it was after apply.",
-      "expected_output": "Runs -Verb reset without -ConfirmReset first, shows the printed list of values it would discard with the resolved game directory and the manifest's build and tag, offers capture if the user might want to keep the tuning, and asks for an explicit yes. Only after the yes does it rerun with -ConfirmReset. It never edits OptiScaler.ini by hand.",
+      "expected_output": "Runs -Verb reset without -ConfirmReset first, shows the printed list of values it would discard with the resolved game directory and the manifest's build and tag, offers capture if the user might want to keep the tuning, and asks for an explicit yes. Only after the yes does it rerun with -ConfirmReset and the token the preview printed. It never edits OptiScaler.ini by hand.",
       "files": [],
       "expectations": [
         "Runs -Verb reset without -ConfirmReset before any run with it",

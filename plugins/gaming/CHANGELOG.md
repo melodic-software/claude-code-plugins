@@ -9,8 +9,9 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 
 - `reset` verb: rewrites the game's `OptiScaler.ini` to the build's stock ini plus the manifest's
   recorded `iniEdits`, byte for byte what `apply` wrote, undoing the overlay's Save Settings
-  without a remove and apply. It prints every value it discards and writes only with
-  `-ConfirmReset`; the skill asks the user first. It updates the manifest's hash for the file, so
+  without a remove and apply. It prints every value it discards and a token, and writes only with
+  `-ConfirmReset <token>`, refusing when the file changed since that preview; the skill asks the
+  user first. It updates the manifest's hash for the file, so
   `status` stays clean and `remove` stays byte-exact. It writes no other game file, and refuses a
   manifest without a completed apply, ownership of `OptiScaler.ini`, recorded ini edits or build
   tags, or whose build was re-provisioned since.
@@ -25,8 +26,9 @@ All notable changes to the `gaming` plugin are documented here. Format follows
   `ShowSkinMask` and `UnlockPasses` stay off the list.
 <!-- spellchecker:on -->
 - `status` and `assess` (`installedBuild`) report the manifest's build against its build's current
-  pin: `installed build is older than the current pin`, or `unknown, re-apply to record` for a
-  manifest written before 0.5.0.
+  pin: `installed build is older than the current pin` (tags compared as versions), `newer than`,
+  `differs from` (same version, another hash), or `unknown, re-apply to record` for a manifest
+  written before 0.5.0.
 - `reference/upstream-watch.md`, Updating a pin: detect, record in an issue, pin by pull request,
   then roll out one game at a time after `/gaming:setup apply` re-provisions the build. A
   prerelease is never pinned without a live test.
