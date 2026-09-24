@@ -35,7 +35,7 @@ Sources: [How we made claude.ai 3x faster in two weeks](https://claude.dev/blog/
 - **Drift-immune counter.** A count (instructions, spawns, queries, renders) that does not vary
   with host load, so it reproduces where wall-clock time does not. Once two runs on an unchanged
   subject agree, one run suffices. See
-  [`/performance:target`](../skills/target/SKILL.md) "Name the counter" and
+  [`/performance:target`](../skills/target/SKILL.md) "Name the counter, not just the duration" and
   [C](techniques.md#c-lab-measurement-and-rigs).
 - **Feature flag.** A runtime switch that gates a change. Here, short-lived by design, and either a
   kill switch or a ramp. See [H](techniques.md#h-ship-roll-out-read-the-field).

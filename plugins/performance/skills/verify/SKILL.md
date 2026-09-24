@@ -80,7 +80,6 @@ Rules that bind the report:
 - **`Not covered:` is never omitted.** Write `none` only when nothing was left unexercised.
 - **`Cost:` sits beside the gain it buys.** Whether a large diff is worth a small win is the
   human's call; the report makes the trade visible.
-
 - **Never round a miss into a win.** A target missed by 8% is not met.
 - **A correctness regression outranks any speedup** and is stated separately, above the performance
   claim, never folded into it.
@@ -100,8 +99,9 @@ Rules that bind the report:
 
 ## Next
 
-- Target met: `/source-control:pull-request`.
-- Target met on a drift-immune counter, to lock the win in: `/performance:protect`.
+- Target met on a drift-immune counter, to lock the win in: `/performance:protect`, which then
+  hands off to `/source-control:pull-request`.
+- Target met otherwise: `/source-control:pull-request`.
 - Target met with a large realistic-to-ideal gap (re-scan), or not met with another candidate due:
   `/performance:target`.
 - Behavior changed: `/debugging:debug`.

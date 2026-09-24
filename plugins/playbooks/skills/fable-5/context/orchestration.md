@@ -102,7 +102,7 @@ TRIGGER: an improvement effort spans several benchmarks or user journeys.
 - **One named human owner per thread, who steers.** The agent finds, measures, ships, and watches; the owner sets the goal, rules on tradeoffs, approves each change, and decides sequencing: which surfaces come first and which threads merge or close. A productive loop is not an autonomous one; keeping it fast, safe, and on track stays the owner's job.
 - **A standing brief per thread.** State the owned surfaces, the responsibilities as verbs, and the current autonomy limit once, where every later turn can see it. Follow-ups can then be terse ("you know what we want") because the context is already shared; a fresh worker still gets the full contract from "Write worker specs as contracts" above.
 - **A signal the thread can re-run alone.** A thread working for hours or unattended needs a local measurement it can repeat without the owner; without one it waits on a human or guesses.
-- **Run threads in one shared, visible place.** Owners and others can see every thread, join one, and argue a call, which is also how the practice spreads.
+- **Run threads in one shared, visible place.** Owners and others can see every thread, join one, and argue a call, and a new owner can start from an existing thread instead of from nothing.
 - **Plan the reporting cadence before throughput outgrows it.** At high volume nobody can summarize the output by hand, so decide up front what each thread reports and how often.
 
 > Weak: "One session: make the app faster."

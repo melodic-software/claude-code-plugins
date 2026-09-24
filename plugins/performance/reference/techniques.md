@@ -419,7 +419,7 @@ thread.
 
 **Safety mechanisms before pace.** Put review, tests, and flags in place before the fast phase
 starts. When: before a push. Counter: none. Fails when: guardrails are added after the first
-incident. Used by: `/performance:goal` §4 "Done when".
+incident. Used by: `/performance:goal` §4 "What counts as done".
 
 **Guardrails make volume safe.** High change volume with no incident is evidence that the
 guardrails held, not that the changes were safe on their own. Example: more than three thousand

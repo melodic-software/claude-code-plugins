@@ -35,7 +35,7 @@ worse than generating none.
 | `/performance:goal` | Human-gated. The metric and the exact command producing it, a **realistic** target and an **ideal** target held separately, and the **floor** computed before any work. |
 | `/performance:snapshot` | Host qualification, baseline and post capture, interleaved and duet A/B, the drift-immune counter, and the unmeasurable-host refusal. |
 | `/performance:verify` | Fresh-context re-derivation that does not inherit the implementer's numbers, plus the report. |
-| `/performance:protect` | Locks in a proven counter win: a checked-in counter ceiling, a CI check that fails when the counter rises, and a scheduled job that opens a lower-ceiling PR when it falls. Never merges. |
+| `/performance:protect` | Locks in a proven counter win: a checked-in counter ceiling, a CI check that fails when the counter rises, and a lower ceiling when it falls: in the same PR, or through a scheduled draft PR for a counter that can fall without a code change. Never merges. |
 
 Each names its successor. There is no router skill.
 

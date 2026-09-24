@@ -8,8 +8,9 @@ All notable changes to the `performance` plugin are documented here. Format foll
 ### Added
 
 - **`protect`**: a fifth skill that locks in a proven counter win. It proposes a checked-in
-  counter ceilings file, a CI step that fails when a counter rises above its ceiling, and a
-  scheduled job that opens a lower-ceiling PR when the counter falls. It also covers guardrails
+  counter ceilings file, a CI step that fails when a counter rises above its ceiling, and a lower
+  ceiling when the counter falls: in the same PR, or through a scheduled draft PR for a counter
+  that can fall without a code change. It also covers guardrails
   for fragile optimizations and win decay. It never merges.
 - **`scripts/ratchet.py`** with `check`, `propose-tighten`, and `add`, plus `ratchet.test.sh`
   negative controls: a counter above its ceiling fails, at or below passes, and malformed input

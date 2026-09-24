@@ -10,7 +10,8 @@ Subcommands:
     check            Run every counter. Exit 1 naming each counter above its
                      ceiling.
     propose-tighten  Print the lower ceiling for every counter measured below
-                     its own. Writes only with --write, and never raises one.
+                     its own, measured twice like add. Writes only with
+                     --write, and never raises one.
     add              Measure a new counter TWICE and record the agreed value as
                      its ceiling. Two runs that disagree are refused: a ratchet
                      on a counter that moves by itself fails at random
@@ -39,6 +40,7 @@ from typing import NoReturn
 
 DEFAULT_FILE = ".performance/ratchets.json"
 KEYS = ("name", "command", "field", "ceiling", "goal")
+TIMEOUT_SECONDS = 300
 
 
 def fail(message: str) -> NoReturn:
@@ -90,16 +92,24 @@ def save(path: str, counters: list[dict]) -> None:
     try:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as handle:
-            json.dump({"counters": counters}, handle, indent=2)
+            json.dump({"counters": counters}, handle, indent=2, ensure_ascii=False)
             handle.write("\n")
     except OSError as error:
         fail(f"cannot write the ceilings file {path}: {error}")
 
 
 def measure(name: str, command: str, field: str) -> int | float:
-    result = subprocess.run(
-        command, shell=True, capture_output=True, text=True, check=False
-    )
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        fail(f"counter {name!r}: the command ran past {TIMEOUT_SECONDS}s.")
     if result.returncode != 0:
         # A counter whose command failed measured nothing. Reading a field out
         # of whatever it printed first would pass a ratchet on a subject that
@@ -143,12 +153,27 @@ def cmd_check(args: argparse.Namespace) -> int:
     return 1 if above else 0
 
 
+def measure_twice(name: str, command: str, field: str) -> int | float:
+    first = measure(name, command, field)
+    second = measure(name, command, field)
+    if first != second:
+        fail(
+            f"counter {name!r} measured {first} then {second} on an unchanged "
+            f"subject. A ratchet on a counter that moves by itself fails at random; "
+            f"pin whatever varies (a cache, a clock, a temp path) first."
+        )
+    return first
+
+
 def cmd_propose_tighten(args: argparse.Namespace) -> int:
     counters = load(args.file)
+    if not counters:
+        fail(f"{args.file} lists no counters; there is nothing to tighten.")
     changed = 0
     above = 0
     for counter in counters:
-        value = measure(counter["name"], counter["command"], counter["field"])
+        # Two agreeing runs, as in add: one noisy dip must not lower a ceiling.
+        value = measure_twice(counter["name"], counter["command"], counter["field"])
         if value > counter["ceiling"]:
             above += 1
             print(f"ABOVE  {counter['name']}: {value} > ceiling {counter['ceiling']}")
@@ -176,14 +201,7 @@ def cmd_add(args: argparse.Namespace) -> int:
     entry = {key: getattr(args, key) for key in KEYS if key != "ceiling"}
     entry["ceiling"] = 0
     validate(args.file, {"counters": [*counters, entry]})
-    first = measure(args.name, args.command, args.field)
-    second = measure(args.name, args.command, args.field)
-    if first != second:
-        fail(
-            f"counter {args.name!r} measured {first} then {second} on an unchanged "
-            f"subject. A ratchet on a counter that moves by itself fails at random; "
-            f"pin whatever varies (a cache, a clock, a temp path) first."
-        )
+    first = measure_twice(args.name, args.command, args.field)
     entry["ceiling"] = first
     counters.append({key: entry[key] for key in KEYS})
     save(args.file, counters)

@@ -108,6 +108,16 @@ ratchet propose-tighten --file "$F" --write
 assert_eq "propose-tighten over a regression exits 1" "1" "$RUN_RC"
 assert_contains "a regression blocks the write" '"ceiling": 4' "$(<"$F")"
 
+DIP="$WORK/dip"
+ceilings "$F" "n=\$(cat '$DIP' 2>/dev/null || echo 2); echo \$((n + 1)) >'$DIP'; echo spawns=\$n" 4
+ratchet propose-tighten --file "$F" --write
+assert_eq "a dip the second run does not repeat is refused" "2" "$RUN_RC"
+assert_contains "a one-run dip never lowers the ceiling" '"ceiling": 4' "$(<"$F")"
+
+printf '{"counters": []}' >"$F"
+ratchet propose-tighten --file "$F"
+assert_eq "propose-tighten over no counters is refused" "2" "$RUN_RC"
+
 # --- 4. add measures twice and records the agreed value ---
 A="$WORK/new-dir/added.json"
 ratchet add --file "$A" --name hook --field spawns --goal "one spawn" --command 'echo "spawns=1"'

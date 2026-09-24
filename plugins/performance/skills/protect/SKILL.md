@@ -82,19 +82,37 @@ on:
   schedule:
     - cron: "17 6 * * 1"
   workflow_dispatch:
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 jobs:
-  tighten:
+  measure:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      ceilings: ${{ steps.tighten.outputs.ceilings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: tighten
+        run: |
+          python3 .performance/ratchet.py propose-tighten --write
+          git diff --quiet -- .performance/ratchets.json && exit 0
+          echo "ceilings=$(jq -c . .performance/ratchets.json)" >> "$GITHUB_OUTPUT"
+  open-pr:
+    needs: measure
+    if: needs.measure.outputs.ceilings != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - env:
           GH_TOKEN: ${{ github.token }}
+          CEILINGS: ${{ needs.measure.outputs.ceilings }}
         run: |
-          python3 .performance/ratchet.py propose-tighten --write
-          git diff --quiet -- .performance/ratchets.json && exit 0
+          jq . <<<"$CEILINGS" > .performance/ratchets.json
           git switch -c "ratchet/tighten-$GITHUB_RUN_ID"
           git -c user.name="github-actions[bot]" \
             -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
@@ -102,6 +120,9 @@ jobs:
           git push origin HEAD
           gh pr create --draft --fill
 ```
+
+The counter commands run in `measure`, which holds a read-only token and no stored git credentials,
+because a counter can exercise third-party code; only `open-pr`, which runs no counter, can write.
 
 A workflow's `GITHUB_TOKEN` can open that PR only when the repository setting "Allow GitHub Actions
 to create and approve pull requests" is on, and it is off by default for a new personal-account
