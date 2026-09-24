@@ -1391,7 +1391,7 @@ CF_SMOKE=$(printf '%s\n%s\n@@typos-format-split@@\n%s\n' \
   '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' \
   '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' |
   jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null |
-  jq -r '"\(.appliedCount)/\(.residualCount)/\(.applied[0].typo // "-")"' 2>/dev/null)
+  jq -r '"\(.appliedCount)/\(.residualCount)/\((.applied | fromjson)[0].typo // "-")"' 2>/dev/null)
 CF_SMOKE_WANT="1/1/teh"
 # spellchecker:on
 if [[ "$CF_SMOKE" == "$CF_SMOKE_WANT" ]]; then

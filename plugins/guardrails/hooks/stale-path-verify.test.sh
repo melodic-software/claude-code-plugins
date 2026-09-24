@@ -744,7 +744,7 @@ TWIN_CASES=(
   'See `docs/gone.md` and `a b` here' '``x`' 'a`b`c`d' '`unclosed docs/gone.md' '````' '` `'
   $'line one `x.md`\r\nline two `y.md`\r\n' $'\t`tab.md`\t\n   \n\t\n' $'v\vf\f`z.md`'
   'a- ..ab -x x a.b.c 12 1a -- gone-md gone_md' 'Root `gone.md` and `README.md` x' $'\n\n`a`\n\n`b`\n'
-  'a\b `c:\d` "q" (p) [s] {c} $v ~h' "$(printf '%s\n' {1..45} | sed 's/.*/fix `docs\/gone.md` n&/')"
+  'a\b `c:\d` "q" (p) [s] {c} $v ~h' "$(printf '%s\n' {1..45} | sed 's/.*/fix `docs\/gone.md` n&/')" # portability-ok: \b is literal text in a single-quoted test string, not a grep word boundary
 )
 TWIN_OUT=$(
   source "$HOOK_DIR/hook-utils.sh"
@@ -778,6 +778,44 @@ if [[ "$TWIN_OUT" == twins-ok ]]; then
   ok "builtin twins match the grep/sed/sort/head pipelines on ${#TWIN_CASES[@]} texts, and the gate sends other bytes to the pipelines"
 else
   bad "builtin twins differ from the pipelines: $TWIN_OUT"
+fi
+
+# --- The word-anchor split counter answers what the character walk answered --
+# spv_word_occurrences replaced a per-character awk walk for word anchors. The
+# walk is kept here as the reference and run in the hook's locale; the split
+# runs under C. Non-ASCII letters, invalid UTF-8 and CR beside the anchor,
+# underscores, a digit start and a long line are the cases where they could part.
+# spellchecker:off
+OCC_WALK='BEGIN { n = 0; a = ENVIRON["HOOK_ANCHOR"] }
+{ p = 1
+  while (p <= length($0)) {
+    if (substr($0, p, 1) !~ /[A-Za-z0-9_]/) { p++; continue }
+    if (p > 1 && substr($0, p - 1, 1) ~ /[A-Za-z0-9_]/) { p++; continue }
+    end = p
+    while (end <= length($0) && substr($0, end, 1) ~ /[A-Za-z0-9_]/) end++
+    if (substr($0, p, end - p) == a) { n++; p = end; continue }
+    p++ } }
+END { print n + 0 }'
+OCC_FILE="$REPO/occ-cases.txt"
+printf 'foo éfoo fooé foo_bar foo\r\n\xfffoo\xff 9foo foo9 _foo x.foo foo-x\n%s foo\n' \
+  "$(printf 'w%.0s ' {1..6000})" >"$OCC_FILE"
+# spellchecker:on
+OCC_OUT=$(
+  source "$HOOK_DIR/hook-utils.sh"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  for loc in C.UTF-8 C; do
+    for a in foo foo_bar 9foo foo9 _foo x w S3MARKb; do
+      want=$(HOOK_ANCHOR="$a" LC_ALL=$loc awk "$OCC_WALK" "$OCC_FILE" 2>/dev/null)
+      got=$(LC_ALL=$loc spv_word_occurrences "$a" "$OCC_FILE" 2>/dev/null)
+      [[ "$want" == "$got" ]] || printf 'bad %s %s walk=%s split=%s\n' "$loc" "$a" "$want" "$got"
+    done
+  done
+  echo occ-ok
+)
+if [[ "$OCC_OUT" == occ-ok ]]; then
+  ok "word-anchor split counter matches the character walk (non-ASCII, invalid UTF-8, CR, long line)"
+else
+  bad "word-anchor split counter differs from the character walk: $OCC_OUT"
 fi
 
 report

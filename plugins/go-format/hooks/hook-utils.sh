@@ -908,7 +908,9 @@ _HOOK_JSON_OFF=()
 _HOOK_JSON_SK_TEXT=""
 _HOOK_JSON_SK_RC=""
 hook::_json_skeleton() {
-  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top __hu_esc __hu_c
+  local __hu_s="$1" __hu_i __hu_n __hu_part __hu_off=0 __hu_sk="" __hu_rest __hu_tok __hu_stack="" __hu_expect=value __hu_top
+  local __hu_cntrl='[[:cntrl:]]'
+  local __hu_badesc='\\([^/bfnrtu]|$|u(.?.?.?$|[^0-9a-fA-F]|.[^0-9a-fA-F]|..[^0-9a-fA-F]|...[^0-9a-fA-F]))'
   if [[ -n "$_HOOK_JSON_SK_RC" && "$__hu_s" == "$_HOOK_JSON_SK_TEXT" ]]; then
     return "$_HOOK_JSON_SK_RC"
   fi
@@ -923,21 +925,15 @@ hook::_json_skeleton() {
       __hu_sk+=$__hu_part
     else
       _HOOK_JSON_OFF[__hu_i]=$__hu_off
-      [[ "$__hu_part" == *[[:cntrl:]]* ]] && return 1
+      # Both checks are regex searches: on a large body a regex scan runs about
+      # ten times faster than the equivalent `*[...]*` glob match.
+      [[ "$__hu_part" =~ $__hu_cntrl ]] && return 1
       # Every escape must be one jq accepts, or jq rejects the whole text. In
-      # the neutralized part `\\` and `\"` are already `@@`, so a surviving
-      # backslash starts one of the other escapes: `\/ \b \f \n \r \t` or
-      # `\uXXXX`. Delete every well-formed one (literal glob substitution, C
-      # speed); a backslash that survives is an invalid escape.
-      if [[ "$__hu_part" == *\\* ]]; then
-        __hu_esc=${__hu_part//'\u'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]/}
-        # Six literal two-byte replacements: a quoted backslash before a
-        # bracket expression does not survive bash's pattern quoting.
-        for __hu_c in / b f n r t; do
-          __hu_esc=${__hu_esc//"\\$__hu_c"/}
-        done
-        [[ "$__hu_esc" == *\\* ]] && return 1
-      fi
+      # the neutralized part `\\` and `\"` are already `@@`, so every surviving
+      # backslash starts one of the other escapes, `\/ \b \f \n \r \t` or
+      # `\uXXXX`; one followed by anything else, or by `u` and fewer than four
+      # hex digits, is an invalid escape.
+      [[ "$__hu_part" =~ $__hu_badesc ]] && return 1
       __hu_sk+="\"#$__hu_i\""
     fi
     __hu_off=$((__hu_off + ${#__hu_part} + 1))
@@ -1096,7 +1092,13 @@ hook::_fast_file_path_to() {
   for ((__hu_i = 1; __hu_i < __hu_n; __hu_i += 2)); do
     __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
     ((${#__hu_part} <= 60)) || continue
-    __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    # A part with no `@` is its body verbatim (the split rewrote only `\\` and
+    # `\"`, each to `@@`), so it skips a slice that copies the whole payload.
+    if [[ "$__hu_part" == *@* ]]; then
+      __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    else
+      __hu_body=$__hu_part
+    fi
     if [[ "$__hu_body" == *\\* ]]; then
       hook::json_unescape_to __hu_body "$__hu_body" || continue
     fi
@@ -1223,7 +1225,13 @@ hook::_fast_fields() {
   for ((__hu_i = 1; __hu_i < __hu_n; __hu_i += 2)); do
     __hu_part=${_HOOK_JSON_PARTS[__hu_i]}
     ((${#__hu_part} <= __hu_cap)) || continue
-    __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    # A part with no `@` is its body verbatim (the split rewrote only `\\` and
+    # `\"`, each to `@@`), so it skips a slice that copies the whole payload.
+    if [[ "$__hu_part" == *@* ]]; then
+      __hu_body=${__hu_s:${_HOOK_JSON_OFF[__hu_i]}:${#__hu_part}}
+    else
+      __hu_body=$__hu_part
+    fi
     if [[ "$__hu_body" == *\\* ]]; then
       hook::json_unescape_to __hu_body "$__hu_body" || continue
     fi

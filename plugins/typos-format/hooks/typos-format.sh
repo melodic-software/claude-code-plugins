@@ -439,10 +439,10 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
        | add // []
        | sort_by(.line_num // 0)) as $a
     | {
-        appliedCount: ($a | length),
-        residualCount: ($r | length),
-        applied: ($a | map({typo: (.typo // ""), correction: corr1, line: (.line_num // 0)})),
-        findings: ($r | map({typo: (.typo // ""), corrections: .corrections})),
+        appliedCount: ($a | length | tostring),
+        residualCount: ($r | length | tostring),
+        applied: ($a | map({typo: (.typo // ""), correction: corr1, line: (.line_num // 0)}) | tostring),
+        findings: ($r | map({typo: (.typo // ""), corrections: .corrections}) | tostring),
         appliedText: ([limit($max; $a[])] | map("  \"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("\n")),
         appliedInline: ([limit($max; $a[])] | map("\"\(tok)\" -> \"\(corr1)\" (line \(.line_num // 0))") | join("; ")),
         residualText: ([limit($max; $r[])] | map(
@@ -473,8 +473,11 @@ fi
 # had just produced, charged against the handler's 15-second budget on exactly
 # the typo-heavy runs that already spent the most of it. hook::jq_fields exists
 # for this shape and records the cost it removes (three forks over one envelope
-# measured at ~840 ms on Windows Git Bash). The array fields come back
-# via `tostring`, which is the same compact JSON `jq -c` emitted. jq_fields also
+# measured at ~840 ms on Windows Git Bash). The classifier already applies
+# `tostring` to the counts and the arrays (digit strings and compact JSON, the
+# text jq_fields' own `tostring` would give), so every value is a plain string
+# and the library's builtin parser usually answers without that jq process at
+# all. jq_fields also
 # strips every CR (its documented contract): the Windows jq build writes stdout
 # in text mode, so a multi-line value would otherwise arrive with a CR embedded
 # before every newline and carry a literal \r into the emitted context.

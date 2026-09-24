@@ -163,6 +163,22 @@ emit_tokens() {
 # shellcheck disable=SC2329 # reached through hook::_c_locale
 spv__plain() { [[ "$1" != *[![:print:][:space:]]* ]]; }
 spv_plain() { hook::_c_locale spv__plain "$1"; }
+# The occurrence counter's word-anchor test (no space, ASCII word start, then
+# ASCII word characters, dots and dashes).
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__word_anchor() { [[ "$1" != *' '* && "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; }
+# spv_word_occurrences <word-anchor> <file>: how many maximal [A-Za-z0-9_] runs
+# in <file> equal the anchor, bytes under C.
+spv_word_occurrences() {
+  HOOK_ANCHOR="$1" LC_ALL=C awk '
+    BEGIN { a = ENVIRON["HOOK_ANCHOR"]; n = 0 }
+    {
+      k = split($0, w, /[^A-Za-z0-9_]+/)
+      for (j = 1; j <= k; j++) if (w[j] == a) n++
+    }
+    END { print n + 0 }
+  ' "$2"
+}
 
 # spv__lines <text>: SPV_LINES = <text>'s non-empty lines.
 # shellcheck disable=SC2329 # reached through hook::_c_locale
@@ -472,6 +488,22 @@ reconstruct_partial_edit() {
     # The anchor crosses into awk via the environment, not `-v`: `-v` processes
     # escape sequences in the value, so an anchor containing a backslash would
     # be silently transformed before the comparison.
+    #
+    # A word anchor (awk's own `word` test below, decided here under C so its
+    # ranges are ASCII as awk's are) is counted by splitting each line on
+    # non-word bytes: the same maximal [A-Za-z0-9_] runs the character walk
+    # below finds, in one regex pass per line instead of a regex per character
+    # (a 33 KB file costs ~14 ms by the walk, ~2 by the split). Under C a
+    # non-ASCII byte is a separator, as a non-ASCII character is to the walk.
+    # A `.` or `-` can never sit inside such a run, so an anchor carrying one
+    # counts 0 and needs no awk at all.
+    if hook::_c_locale spv__word_anchor "$anchor"; then
+      [[ "$anchor" != *[.-]* ]] || continue
+      occ=$(spv_word_occurrences "$anchor" "$FILE" 2>/dev/null)
+      ((occ == 1)) || continue
+      ctx+="${hits[0]}"$'\n'
+      continue
+    fi
     occ=$(HOOK_ANCHOR="$anchor" awk '
       BEGIN {
         n = 0

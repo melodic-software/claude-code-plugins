@@ -14,6 +14,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 - hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
 - hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
 - hooks.json: the two PostToolUse rows start the script as `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/markdown-format.sh` with `"shell": "bash"`, instead of executing it through its `#!/usr/bin/env bash` line, so each call runs one process fewer (`env`). `bash` is looked up on `PATH` exactly as `env bash` looked it up.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 
 ## [0.11.60] - 2026-09-21
 
