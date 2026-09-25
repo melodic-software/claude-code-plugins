@@ -128,20 +128,20 @@ per-shot columns in the table are for reading, not for the check.
 
 `learn.py` `CHECK` holds twelve statistics; `style.json` `check` lists the ones the source defines
 in at least two parts (all twelve for this pack), and `measured_only` the whole-frame `straight` and
-`sliver`. Source excerpt ranges and bands are in `style.json` `heldout.rule` and `bands`. Round 3
-values for the class rows, `period` and `boil` exist only for round 3 through game.py's filter (the
-one near-miss film this worktree holds); see "The control suite".
+`sliver`. Source excerpt ranges and bands are in `style.json` `heldout.rule` and `bands`.
 
-| Stat | Replica | Round 3 | What it rejects |
+| Stat | Replica | Round 3, every post filter | What it rejects |
 |---|---|---|---|
-| `straight_border` | 0.832 | 0.896 with game.py's filter | a frame ruled too straight: round 3's, flat polygons (0.995) |
-| `straight_caption`, `sliver_border`, `sliver_caption` | 0.476, 4.00, 2.50 | 0.463, 4.02, 1.92 with game.py's filter | nothing measured yet; gated because the source has the class |
+| `straight_border` | 0.832 | 0.895-0.901 without a warp; 0.80-0.84 at warp 0.4-0.5, 0.70 at 0.7, 0.10-0.34 at 1.5-3 | a frame ruled too straight or bent by a warp: round 3's, flat polygons (0.995) |
+| `straight_caption` | 0.476 | 0.46-0.47; 0.34-0.42 with a warp | the attack films (warp 0.4-0.7) |
+| `sliver_border` | 4.00 | 3.63 mostly; 9.6 at blur 1.3 | round 3 at blur 1.3 |
+| `sliver_caption` | 2.50 | 1.67-2.25 | round 3's lettering under most filters, the attack films |
 | `rough` | 0.069 | 0.053-0.056 | round 3 and every filter of it, flat polygons (0.025), the spiral and anime clips |
 | `offstep` | 0.101 | 0.004 (on strict 3s) | round 3, the anime and collage clips |
 | `grain` | 0.689 | 0.44 raw; 0.21-0.32 with noise, 0.48-0.57 with stripes, 0.64 with dry brush, 0.54 at blur 0.6, 0.79 at blur 1.3 | pixel noise, stripes, flat fills made gray by a blur |
-| `period` | 45.4 | 12319 with game.py's filter | fixed-pitch texture, pixel noise |
+| `period` | 45.4 | 5.3 raw; 1.1-13 with noise, 8200-14000 with stripes | fixed-pitch texture, pixel noise |
 | `flat` | 0.537 | 0 with any overlay over all the black | textures laid over every black area |
-| `boil` | 1.44 | 1.04 with game.py's filter | flat polygons (1.79, vertex boil), round 3 through game.py's filter |
+| `boil` | 1.44 | 0.89-1.05 (0.001 with noise 16) | round 3 and every filter of it (its frame barely boils), flat polygons (1.79, vertex boil) |
 | `holes`, `per_second` | pass | pass | flat polygons, the other styles, a noise that changes every frame |
 
 `rough` and `offstep` are drawing and timing structure: a blur, noise, stripe or dry-brush overlay
@@ -165,72 +165,64 @@ alternate between halves within each family: `near` (round 3 through every filte
 calibration half is passed to `learn.py --negative`. Margin is the largest row distance minus 1: a
 control needs a margin above 0.
 
-The content-class change was checked on 2026-09-24 against a partial suite. Round 3 and the other
-styles' clips were not re-measured in this run (their films sit outside this worktree, and access was
-not granted), so those controls are judged on their earlier summaries with `period` and `boil`
-removed (the two statistics whose definition changed): only the rows whose measurement did not change
-(`rough`, `offstep`, `grain`, `flat`, `holes`, `per_second`, palette) can reject them, and the new
-class rows are n/a for them. Everything this worktree holds was re-measured: the polygon family,
-round 3 through game.py's filter, the source's drawings encoded as `capture.mjs` encodes a scene, and
-the replica.
+| Half | Control | Rows failed | Margin | Worst row |
+|---|---|---|---|---|
+| calibration | anime (BiosRiosz) | 11/12 | +119.35 | per_second |
+| calibration | spiral | 7/11 | +12.60 | ink_rgb |
+| calibration | round 3, blur 0.6 | 6/14 | +6.88 | grain |
+| calibration | round 3, blur 0.9 + dry 32 | 9/14 | +5.40 | ink_rgb |
+| calibration | round 3, blur 0.9 + dry 8 | 9/14 | +3.73 | straight_border |
+| calibration | round 3, blur 0.9 + noise 16 | 10/14 | +131.79 | per_second |
+| calibration | round 3, blur 0.9 + noise 4 | 7/14 | +17.91 | grain |
+| calibration | round 3, blur 0.9 + noise 8 + stripes 12 + dry 16 | 10/14 | +144.90 | period |
+| calibration | round 3, blur 0.9 + stripes 6 | 6/14 | +721.61 | period |
+| calibration | round 3 | 6/14 | +11.96 | grain |
+| calibration | round 3, stripes 12 | 6/14 | +1034.78 | period |
+| calibration | round 3, attack with warp 0.4 | 3/14 | +1.86 | boil |
+| calibration | round 3, attack (`ATTACK`, warp 0.5) | 5/14 | +1.86 | boil |
+| calibration | round 3, warp 1.5 + blur 0.9 | 7/14 | +31.96 | straight_border |
+| calibration | polygons, blur 0.9 + noise 8 | 8/11 | +23.19 | grain |
+| calibration | polygons, blur 0.9 + stripes 12 | 7/11 | +1028.39 | period |
+| calibration | polygons | 8/11 | +16.62 | grain |
+| calibration | polygons, warp 3 + blur 0.9 + noise 8 | 9/12 | +46.38 | straight_border |
+| evaluation | collage | 10/12 | +45.97 | per_second |
+| evaluation | round 3, blur 0.9 + dry 16 | 10/14 | +3.55 | straight_border |
+| evaluation | round 3, blur 0.9 + dry 16 on the left half | 5/14 | +4.93 | grain |
+| evaluation | round 3, blur 0.9 + noise 8 | 8/14 | +21.94 | grain |
+| evaluation | round 3, blur 0.9 + stripes 12 (the review's game.py) | 6/14 | +1080.65 | period |
+| evaluation | round 3, blur 0.9 + stripes 24 | 6/14 | +1226.85 | period |
+| evaluation | round 3, blur 0.9 | 6/14 | +3.87 | straight_border |
+| evaluation | round 3, blur 1.3 | 7/14 | +12.44 | sliver_border |
+| evaluation | round 3, noise 8 then blur 0.9 | 7/14 | +5.28 | grain |
+| evaluation | round 3, attack without blur (warp 0.5, rows 0.2, noise 0.6) | 5/14 | +9.77 | grain |
+| evaluation | round 3, attack with warp 0.7 | 5/14 | +8.12 | straight_border |
+| evaluation | round 3, warp 0.7 + blur 0.9 | 7/14 | +8.12 | straight_border |
+| evaluation | round 3, warp 3 + blur 0.9 | 7/14 | +47.12 | straight_border |
+| evaluation | polygons, blur 0.9 + dry 16 | 8/11 | +11.72 | straight_border |
+| evaluation | polygons, blur 0.9 | 8/11 | +11.54 | straight_border |
+| evaluation | polygons, noise 8 then blur 0.9 | 8/11 | +11.57 | straight_border |
 
-| Half | Control | Measured | Rows failed | Margin | Worst row |
-|---|---|---|---|---|---|
-| calibration | polygons, blur 0.9 + noise 8 | now | 8/11 | +23.19 | grain |
-| calibration | polygons, blur 0.9 + stripes 12 | now | 7/11 | +1028.39 | period |
-| calibration | polygons | now | 8/11 | +16.62 | grain |
-| calibration | polygons, warp 3 + blur 0.9 + noise 8 | now | 9/12 | +46.38 | straight_border |
-| evaluation | round 3, blur 0.9 + stripes 12 (the review's game.py) | now | 7/14 | +1082.78 | period |
-| evaluation | polygons, blur 0.9 + dry 16 | now | 8/11 | +11.72 | straight_border |
-| evaluation | polygons, blur 0.9 | now | 8/11 | +11.54 | straight_border |
-| evaluation | polygons, noise 8 then blur 0.9 | now | 8/11 | +11.57 | straight_border |
-| calibration | anime (BiosRiosz) | earlier | 7/8 | +119.35 | per_second |
-| calibration | spiral | earlier | 4/7 | +12.60 | ink_rgb |
-| calibration | round 3, blur 0.6 | earlier | 3/8 | +6.88 | grain |
-| calibration | round 3, blur 0.9 + dry 32 | earlier | 5/8 | +5.40 | ink_rgb |
-| calibration | round 3, blur 0.9 + dry 8 | earlier | 5/8 | +1.58 | grain |
-| calibration | round 3, blur 0.9 + noise 16 | earlier | 5/8 | +131.79 | per_second |
-| calibration | round 3, blur 0.9 + noise 4 | earlier | 4/8 | +17.91 | grain |
-| calibration | round 3, blur 0.9 + noise 8 + stripes 12 + dry 16 | earlier | 5/8 | +10.69 | grain |
-| calibration | round 3, blur 0.9 + stripes 6 | earlier | 3/8 | +5.39 | grain |
-| calibration | round 3 | earlier | 3/8 | +11.96 | grain |
-| calibration | round 3, stripes 12 | earlier | 3/8 | +9.97 | grain |
-| calibration | round 3, attack with warp 0.4 | earlier | 0/8 | -0.02 | rough |
-| calibration | round 3, attack (`ATTACK`, warp 0.5) | earlier | 0/8 | -0.21 | rough |
-| calibration | round 3, warp 1.5 + blur 0.9 | earlier | 2/8 | +0.88 | rough |
-| evaluation | collage | earlier | 6/8 | +45.97 | per_second |
-| evaluation | round 3, blur 0.9 + dry 16 | earlier | 5/8 | +2.20 | ink_rgb |
-| evaluation | round 3, blur 0.9 + dry 16 on the left half | earlier | 3/8 | +4.93 | grain |
-| evaluation | round 3, blur 0.9 + noise 8 | earlier | 4/8 | +21.94 | grain |
-| evaluation | round 3, blur 0.9 + stripes 24 | earlier | 3/8 | +8.98 | grain |
-| evaluation | round 3, blur 0.9 | earlier | 3/8 | +0.47 | offstep |
-| evaluation | round 3, blur 1.3 | earlier | 3/8 | +3.44 | grain |
-| evaluation | round 3, noise 8 then blur 0.9 | earlier | 4/8 | +5.28 | grain |
-| evaluation | round 3, attack without blur (warp 0.5, rows 0.2, noise 0.6) | earlier | 1/8 | +9.77 | grain |
-| evaluation | round 3, attack with warp 0.7 | earlier | 0/8 | -0.56 | holes |
-| evaluation | round 3, warp 0.7 + blur 0.9 | earlier | 1/8 | +0.47 | offstep |
-| evaluation | round 3, warp 3 + blur 0.9 | earlier | 2/8 | +3.25 | rough |
-
-Every re-measured control fails, and every control judged on its earlier summary fails except the
-three attack films. The attack (`controls.py` `ATTACK`) is game.py plus three more filters: a static
-0.5 px contour warp (moves `straight` and `rough` into their bands), one frame held longer every
-3 s (`offstep`), and faint tonal rows 20-40 px apart with fine noise (`period`, `grain`). The only
-row that rejected it was whole-frame `sliver` (+0.14 to +0.23), now measured only. Whether
-`straight_border`, `sliver_border`, the anchored `boil` or the normalized `period` reject it is
-**unverified**: rerun `controls.py measure` with round 3 as `--near` and `controls.py selftest
-<pack dir> --near <round 3>`. `controls.py selftest` without `--near` (game.py's filter on
-synthetic polygons) exits 0: it fails `straight_border`, `rough`, `offstep`, `grain`, `period`,
-`holes`, `boil` and `per_second`.
+All 34 controls fail (`controls.py check` exit 0, 36/36 as required with the source clip passing at
+-1.00 and the replica at -0.20). The attack (`controls.py` `ATTACK`) is game.py plus three more
+filters: a static 0.5 px contour warp (moves `rough` into its band), one frame held longer every 3 s
+(`offstep`), and faint tonal rows 20-40 px apart with fine noise (`period`, `grain`). Whole-frame
+`sliver` used to be its only rejecting row (+0.14 to +0.23). Now the anchored `boil` rejects the warp
+0.4 and 0.5 attacks at +1.86, with `straight_caption` and `sliver_caption` also failing, and the warp
+bends the frame line so `straight_border` rejects the warp 0.7 attack at +8.12. The `boil` catch rests
+on round 3's own frame barely boiling (about 1.03 against the source's 1.28-1.50), not on any filter:
+a round 3 with a livelier frame would lean on the caption rows. `controls.py selftest <pack dir>
+--near <round 3>` exits 0: game.py's filter on polygons fails 8 rows, on round 3 6 rows, and `ATTACK`
+fails `straight_border`, `straight_caption`, `sliver_border`, `sliver_caption` and `boil`.
 
 ## Held-out and out-of-sample results
 
 - Held-out source excerpts: 150/150 calibration and 150/150 evaluation pass every checked row, and
   each band passes 150/150 in both halves.
-- Held out within the clip: the evaluation controls set no band; the re-measured ones fail, and the
-  three attack films are unverified (above). The evaluation excerpts set no band, and all 150 pass.
+- Held out within the clip: the evaluation controls set no band, and all 16 fail. The evaluation
+  excerpts set no band, and all 150 pass.
   None of this is out-of-sample validation: it is the same subject (see "One subject").
 - Replica (its decoded mp4, judged as the source is): 0/14 rows fail, margin -0.20; the source's
-  drawings encoded the same way also pass at -0.20. The closest row for both is the palette (ink 4
+  drawings re-encoded the same way also pass at -0.20. The closest row for both is the palette (ink 4
   levels off against a tolerance of 5).
 
 Five choices were made after seeing evaluation or positive results, so their results are **not out of
@@ -256,8 +248,9 @@ worst row is from the edge. The source scores 0.
 
 ## What the check cannot say
 
-- **The attack is unverified.** Whole-frame `sliver`, the one row that caught it, is measured only
-  now, and round 3 has not been re-measured with the class rows (see "The control suite").
+- **The warp 0.4-0.5 attack is caught by the frame's boil.** Round 3's frame barely boils, which
+  is a trait of that film, not of the filters; `straight_caption` fails it too (distance 1.5-2.4), `sliver_caption`
+  barely (about 1.1). An attack on a film whose frame boils like the source's has not been built.
 - **A film with no border or caption skips their rows.** A class the film lacks is n/a, neither
   pass nor fail, so a scene drawn without a frame line or caption panel is judged on the other rows
   only. The caption detector also misses panels whose boiling outline breaks its seal, and it looks

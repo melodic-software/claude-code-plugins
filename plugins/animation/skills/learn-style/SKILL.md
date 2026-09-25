@@ -52,8 +52,9 @@ numbers live in `style.json` only; STYLE.md and other docs point at its keys.
    excerpts of the source, split by shot, with half the splits held out. The calibration controls
    cap each band's widening so they keep failing.
 3. Prove the check: `controls.py check <out> <pack dir>` must show every control failing (margin
-   above 0) and the source and replica passing, with the evaluation half out of sample. Put the
-   table in `reference/statistics.md`. A control that passes goes under "what the check cannot
+   above 0) and the source and replica passing, with the evaluation half held out. Then
+   `controls.py selftest <pack dir> --near <the near-miss film>` (the pack argument is required)
+   must exit 0. Put the table in `reference/statistics.md`. A control that passes goes under "what the check cannot
    say"; never narrow a band until it fails.
 4. Describe: fill the judgment knobs in `style.json` and write `STYLE.md`.
 5. Validate: author a scene of at least a third of the source's length (bands are learned from
