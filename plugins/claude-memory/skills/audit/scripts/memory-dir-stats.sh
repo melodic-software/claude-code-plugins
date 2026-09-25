@@ -3,6 +3,9 @@
 # `## Pre-computed context` block.
 # Every stat mode prints exactly one integer and exits 0, failures included: the
 # output is injected verbatim into the skill body. Only a bad mode exits non-zero.
+# Keep this a script, not an inline pre-compute line: the worktree-isolation Bash
+# guard refuses a pre-compute command carrying a `$` expansion, so inlining it breaks
+# skill loading from an isolated agent.
 
 set -uo pipefail
 
