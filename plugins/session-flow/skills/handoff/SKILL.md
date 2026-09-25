@@ -155,6 +155,17 @@ artifact (a topic contract, an issue, a PR body) and reference it from there. Th
 itself stays ephemeral and is never committed. Cleanup of the `handoffs/` directory remains
 user-controlled removal. Nothing expires, sweeps, or ages these files out silently.
 
+**Trim a long cumulative section by promoting its resolved entries.** Cumulative sections
+(Constraints, Decisions, Findings, and the other two the structure doc names) are copied forward
+every hop, so a long chain's handoff grows with history it no longer acts on. When one section
+passes about 25 entries (a judgment figure, not a sourced one), move each RESOLVED entry, one that
+is settled and no longer shapes the next action, into the repo's docs or the program's ADR. Then
+replace the entry with a one-line pointer that keeps its tag and quotes its opening words:
+`- [h3] Promoted to docs/adr/0007-migrations.md: Migrations run forward-only;`. The substance then
+lives only in the committed artifact, as the do-not-duplicate rule above requires, and `validate`
+accepts the pointer in place of the dropped entry (structure doc, "Cumulative sections and
+provenance tags"). Commit the artifact before writing the pointer. An open entry stays in full.
+
 ## Produce the save-point
 
 The save-point machinery, destination resolution, locating the position, full-vs-prompt-only
@@ -229,7 +240,8 @@ ticked. Emit the rails block before ending the turn, always.
   present, `new` opened that file from disk THIS turn and copied its `Original goal` quote,
   amendments, cumulative sections, and `Prior sessions` rows over unchanged, never rebuilt from
   the conversation; new cumulative entries carry this hop's `[hN]` tag and nothing carried was
-  deleted (superseded entries moved under `Superseded:`)
+  deleted (superseded entries moved under `Superseded:`, promoted ones replaced by their
+  `Promoted to` pointer)
 - [ ] `Original goal` carries the user's goal in their own words, quoted with its date, not a
   paraphrase and not the process serving it, and the drift-check sentence tying the next action
   back to it is answered (structure doc, "Original goal")

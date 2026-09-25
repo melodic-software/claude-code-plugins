@@ -508,6 +508,54 @@ def test_chain_coverage_full_when_the_walk_saw_everything(tmp_path):
     assert cov == {"requested": 2, "found": 2, "available": 2, "ratio": 1.0}
 
 
+def _write_records(
+    base: Path, session_id: str, uuids: list[str], text: str = ""
+) -> None:
+    events = [{"type": "user", "uuid": u, "message": {"content": text}} for u in uuids]
+    (base / f"{session_id}.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events) + "\n"
+    )
+
+
+def test_fork_sharing_chain_records_is_offered_not_added(tmp_path):
+    """A fork copies its parent's records, so uuid overlap is the only link back."""
+    _write_records(tmp_path, "sid-chain", ["u1", "u2", "u3"])
+    _write_records(tmp_path, "sid-fork", ["u1", "u2", "u9"])
+    _write_records(tmp_path, "sid-other", ["u7"])
+    result = _run_multi(["--sessions", "sid-chain", "--base", str(tmp_path)])
+    result.check_returncode()
+    output = json.loads(result.stdout)
+    assert output["fork_candidates"] == [
+        {"id": "sid-fork", "shared_records": 2, "shares_with": ["sid-chain"]}
+    ]
+    assert [s["id"] for s in output["sessions"]] == ["sid-chain"]
+    assert "1 unchained fork candidate(s)" in output["summary"]
+
+
+def test_chain_from_scopes_available_to_the_handoff_topic(tmp_path):
+    """A $HOME-launched chain shares its project dir with unrelated work."""
+    handoffs = tmp_path / "handoffs"
+    handoffs.mkdir()
+    handoff = handoffs / "20260923T045501Z-handoff-ci-perf.md"
+    handoff.write_text("---\ntype: handoff\nsession_id: sid-chain\n---\nbody\n")
+    base = tmp_path / "session-data"
+    base.mkdir()
+    _write_records(base, "sid-chain", ["u1"])
+    _write_records(base, "sid-unlinked", ["u5"], text="resume the ci-perf program")
+    for i in range(3):
+        _write_records(base, f"sid-unrelated-{i}", [f"x{i}"], text="other work")
+    result = _run_multi(["--chain-from", str(handoff), "--base", str(base)])
+    result.check_returncode()
+    cov = json.loads(result.stdout)["chain_coverage"]
+    assert cov == {
+        "requested": 1,
+        "found": 1,
+        "available": 2,
+        "topic": "ci-perf",
+        "ratio": 0.5,
+    }
+
+
 def test_multi_session_comma_joined(tmp_path):
     """--sessions a,b resolves the same list a space-separated invocation does.
 
