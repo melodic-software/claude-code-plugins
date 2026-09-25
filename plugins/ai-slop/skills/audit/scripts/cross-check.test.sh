@@ -20,7 +20,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=19
+EXPECTED_CASES=22
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -118,8 +118,29 @@ assert_contains "agree: total counts compared files only" "$out" "CrossCheck tot
 
 printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=4 fired=zero-tolerance excerpt=x\n' >>"$D"
 out="$(bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
-assert_contains "disagree: a wrong detector count is reported" "$out" "Disagree: file=plain.md detector=3 cross_check=2"
+assert_contains "disagree: a wrong detector count names the extra line" "$out" \
+  "Disagree: file=plain.md detector=3 cross_check=2 detector_only=4 cross_check_only=-"
 assert_contains "disagree: the total counts it" "$out" "CrossCheck total: files=3 disagreements=1"
+
+# Equal counts over different lines still disagree.
+D2="$TEST_TMPDIR/detector-lines.txt"
+printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=%d fired=zero-tolerance excerpt=x\n' 3 4 >"$D2"
+printf 'plain.md\t%s\n' "$F/plain.md" >"$TEST_TMPDIR/plain.tsv"
+out="$(bash "$CROSS" --targets "$TEST_TMPDIR/plain.tsv" --detector "$D2" 2>&1)"
+rc=$?
+assert_exit "disagree: a line-set mismatch still exits 0" 0 "$rc"
+assert_contains "disagree: equal counts over different lines name both sides" "$out" \
+  "Disagree: file=plain.md detector=2 cross_check=2 detector_only=4 cross_check_only=5"
+
+# The line number comes from the leftmost ` line=N fired=`, not from an excerpt.
+D3="$TEST_TMPDIR/detector-excerpt.txt"
+{
+  printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=3 fired=zero-tolerance excerpt=a line=9 fired=b\n'
+  printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=5 fired=zero-tolerance excerpt=x\n'
+} >"$D3"
+out="$(bash "$CROSS" --targets "$TEST_TMPDIR/plain.tsv" --detector "$D3" 2>&1)"
+assert_contains "disagree: an excerpt holding line= does not move the parsed line" "$out" \
+  "CrossCheck total: files=1 disagreements=0"
 
 # --- config: allowed paths and a disabled rule ---------------------------------------
 

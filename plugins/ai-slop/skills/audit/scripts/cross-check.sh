@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Independent em-dash count for the /ai-slop:audit fix flow's closing step.
 #
-# Reads a `detect.sh --list-targets` file and counts, per file, the lines that
+# Reads a `detect.sh --list-targets` file and finds, per file, the lines that
 # hold an em dash outside fenced code, inline code, and ignore markers. The
 # parse is written separately from detect.sh on purpose: a shared parser would
 # share its blind spots. Given the detector's output, it prints a Disagree row
-# for every file whose count differs from the detector's rule-em-dash findings.
+# for every file whose count or set of line numbers differs from the
+# detector's rule-em-dash findings, naming the lines only one side holds.
 #
 # Output rows use the CrossCheck:/Disagree: prefixes, never Finding:.
 # Exit: 0 on success; 2 on usage errors.
@@ -84,11 +85,11 @@ count_prog='
     if (substr(s, 1, 3) == "~~~") return "~"
     return ""
   }
-  function done_file() { if (cur != "") printf "%s\t%d\n", cur, n }
+  function done_file() { if (cur != "") printf "%s\t%d\t%s\n", cur, n, (ls == "" ? "-" : substr(ls, 2)) }
   BEGIN { em = "\342\200\224" }
-  FNR == 1 { done_file(); cur = FILENAME; n = 0; fence = ""; fcol = 0; block = 0 }
+  FNR == 1 { done_file(); cur = FILENAME; n = 0; ls = ""; fence = ""; fcol = 0; block = 0 }
   { line = $0; sub(/\r$/, "", line) }
-  line ~ /^[ \t]*<!-- ai-slop-ignore-file(:[^>]*)? -->[ \t]*$/ { n = 0; nextfile }
+  line ~ /^[ \t]*<!-- ai-slop-ignore-file(:[^>]*)? -->[ \t]*$/ { n = 0; ls = ""; nextfile }
   {
     # CommonMark fence rules as detect.sh applies them: indentation counts
     # spaces only; an opener sits at most three spaces in, optionally after a
@@ -126,11 +127,11 @@ count_prog='
   {
     gsub(/`[^`]*`/, "", line)
     if (line ~ /<!-- ai-slop-ignore(:[^>]*)? -->/) next
-    if (index(line, em)) n++
+    if (index(line, em)) { n++; ls = ls "," FNR }
   }
   END { done_file() }'
 
-declare -A skip=() count=()
+declare -A skip=() count=() xlines=()
 scan=()
 for i in "${!keys[@]}"; do
   if is_allowed "${keys[$i]}" "${paths[$i]}"; then
@@ -142,34 +143,67 @@ for i in "${!keys[@]}"; do
   fi
 done
 if [[ "${#scan[@]}" -gt 0 ]]; then
-  while IFS=$'\t' read -r p c; do
+  while IFS=$'\t' read -r p c l; do
     count[$p]="$c"
+    xlines[$p]="$l"
   done < <(awk "$count_prog" "${scan[@]}")
 fi
 
-declare -A det=() declined=()
+# Per file: the detector's row count and its set of line numbers, ascending.
+# The file and line come from the leftmost ` line=N fired=`, so an excerpt
+# holding that text changes neither.
+declare -A det=() dlines=() declined=()
 if [[ -n "$DETECTOR" ]]; then
-  while IFS=$'\t' read -r kind k; do
+  while IFS=$'\t' read -r kind l k; do
     if [[ "$kind" == D ]]; then
       declined[$k]=1
     else
       det[$k]="$kind"
+      dlines[$k]="$l"
     fi
   done < <(tr -d '\r' <"$DETECTOR" | awk '
     /^Finding: rule=ai-slop\/audit\/rule-em-dash file=/ {
       s = $0
       sub(/^Finding: rule=ai-slop\/audit\/rule-em-dash file=/, "", s)
-      sub(/ line=[0-9]+ fired=.*$/, "", s)
+      if (match(s, / line=[0-9]+ fired=/)) {
+        n = substr(s, RSTART + 6, RLENGTH - 13) + 0
+        s = substr(s, 1, RSTART - 1)
+        if (!((s, n) in seen)) { seen[s, n] = 1; m[s]++; v[s, m[s]] = n }
+      }
       c[s]++
     }
     /^Declined: file=/ {
       s = $0
       sub(/^Declined: file=/, "", s)
       sub(/ cause=[^ ]*$/, "", s)
-      print "D\t" s
+      print "D\t-\t" s
     }
-    END { for (k in c) printf "%d\t%s\n", c[k], k }')
+    END {
+      for (k in c) {
+        for (i = 2; i <= m[k]; i++) {
+          x = v[k, i]
+          for (j = i - 1; j >= 1 && v[k, j] > x; j--) v[k, j + 1] = v[k, j]
+          v[k, j + 1] = x
+        }
+        out = ""
+        for (i = 1; i <= m[k]; i++) out = out "," v[k, i]
+        printf "%d\t%s\t%s\n", c[k], (out == "" ? "-" : substr(out, 2)), k
+      }
+    }')
 fi
+
+# only_lines <a> <b>: the lines only in a, then only in b, each a comma list
+# or `-`. Both inputs are ascending, so each output is too.
+only_lines() {
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    na = split(a, A, ","); nb = split(b, B, ",")
+    for (i = 1; i <= na; i++) inA[A[i]] = 1
+    for (i = 1; i <= nb; i++) inB[B[i]] = 1
+    for (i = 1; i <= na; i++) if (A[i] != "-" && !(A[i] in inB)) oa = oa "," A[i]
+    for (i = 1; i <= nb; i++) if (B[i] != "-" && !(B[i] in inA)) ob = ob "," B[i]
+    printf "detector_only=%s cross_check_only=%s\n", (oa == "" ? "-" : substr(oa, 2)), (ob == "" ? "-" : substr(ob, 2))
+  }'
+}
 
 files=0
 disagree=0
@@ -184,10 +218,12 @@ for i in "${!keys[@]}"; do
     continue
   fi
   n="${count[${paths[$i]}]:-0}"
+  xl="${xlines[${paths[$i]}]:--}"
+  dl="${dlines[$key]:--}"
   files=$((files + 1))
   echo "CrossCheck: file=$key em_dash_lines=$n"
-  if [[ -n "$DETECTOR" && "${det[$key]:-0}" -ne "$n" ]]; then
-    echo "Disagree: file=$key detector=${det[$key]:-0} cross_check=$n"
+  if [[ -n "$DETECTOR" ]] && [[ "${det[$key]:-0}" -ne "$n" || "$dl" != "$xl" ]]; then
+    echo "Disagree: file=$key detector=${det[$key]:-0} cross_check=$n $(only_lines "$dl" "$xl")"
     disagree=$((disagree + 1))
   fi
 done
