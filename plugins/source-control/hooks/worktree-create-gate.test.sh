@@ -248,4 +248,6 @@ OUT="$(printf '{"name":"feat/gate-order","hook_event_name":"WorktreeCreate","cwd
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
 assert_contains "field order does not matter" "$OUT" "gate-order"
 
+assert_real_worktree_root_clean "$TEST_TMPDIR"
+
 [[ $FAILED -eq 0 ]] || exit 1
