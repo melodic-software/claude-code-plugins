@@ -10,7 +10,8 @@
   and the batch digest now covers the list plus those files' contents.
 - **`rubric-fanout.sh status`** ends every missing and stale row with `digest=<current
   digest>`, which a re-dispatch hands the batch subagent, and reports `stale reason=paths`
-  when a sidecar's length differs from its list's. Complete rows are unchanged.
+  when a sidecar's length differs from its list's or one of its paths cannot be read (a
+  trailing CR on a sidecar line is ignored). Complete rows are unchanged.
 
 ### Changed
 
@@ -18,7 +19,8 @@
   A `Disagree:` row keeps its `file= detector= cross_check=` fields and adds
   `detector_only=` and `cross_check_only=`, the lines only one side counted, or `-`.
 - **Rubric batch subagents** are dispatched with `model: sonnet`, pinned in
-  `context/rubric-fanout.md`, rather than inheriting the session model.
+  `context/rubric-fanout.md`: the session's own model when it is Sonnet-family, otherwise the
+  alias's Sonnet version.
 
 ### Fixed
 
@@ -28,7 +30,9 @@
   stale under that header's reason.
 - **A listed file edited after its batch completed kept the batch complete.** The digest bound
   the result to the list only; it now binds the listed files' contents too, so the batch reads
-  stale. A batch directory planned before 0.9.0 has no sidecars and stays bound to the list.
+  stale, and a listed path that can no longer be read (a moved checkout) reads stale
+  `reason=paths` rather than falling back to the list alone. A batch directory planned before
+  0.9.0 has no sidecars and stays bound to the list.
 - **`cross-check.sh` missed a disagreement with equal counts.** Detector lines {3,4} against
   actual {3,5} printed no `Disagree:` row; it now names line 4 and line 5.
 

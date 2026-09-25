@@ -21,7 +21,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=67
+EXPECTED_CASES=72
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -257,7 +257,7 @@ rc=$?
 assert_exit "contents: merge accepts a complete planned set" 0 "$rc"
 mv "$C/docs/y.md" "$C/away/y.md"
 out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
-assert_contains "contents: a listed file moved away is stale" "$out" "batch=01 status=stale reason=digest digest="
+assert_contains "contents: a listed file moved away is stale" "$out" "batch=01 status=stale reason=paths digest="
 again="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
 assert_eq "contents: the digest without that file is deterministic" "$again" "$out"
 mv "$C/away/y.md" "$C/docs/y.md"
@@ -316,6 +316,39 @@ assert_contains "sidecar: a length mismatch with the list is stale" "$out" "batc
 newd="$(digest_of "$out" 02)"
 assert_eq "sidecar: every listed file missing still differs from the list-only digest" \
   "$([[ -n "$newd" && "$newd" != "$(sha "$SP/batches/batch-02.txt")" ]] && echo differs)" "differs"
+
+# A tree moved after plan leaves every sidecar path unreadable: stale, and a
+# result carrying the printed digest cannot make it complete.
+RL="$TEST_TMPDIR/relocate"
+mkdir -p "$RL/A/docs" "$RL/results"
+printf 'one two\n' >"$RL/A/docs/x.md"
+printf 'x.md\t%s\n' "$RL/A/docs/x.md" >"$RL/targets.tsv"
+bash "$FANOUT" plan --out "$RL/batches" --order mtime "$RL/targets.tsv" >/dev/null 2>&1
+mv "$RL/A" "$RL/B"
+out="$(bash "$FANOUT" status --batches "$RL/batches" --results "$RL/results" 2>&1)"
+printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$(digest_of "$out" 01)" >"$RL/results/rubric-batch-01.md"
+out="$(bash "$FANOUT" status --batches "$RL/batches" --results "$RL/results" 2>&1)"
+assert_contains "sidecar: a relocated tree is stale reason=paths" "$out" "batch=01 status=stale reason=paths digest="
+printf 'edited\n' >>"$RL/B/docs/x.md"
+out="$(bash "$FANOUT" status --batches "$RL/batches" --results "$RL/results" 2>&1)"
+assert_contains "sidecar: and stays stale after an edit in the new tree" "$out" "batch=01 status=stale reason=paths digest="
+
+# A sidecar rewritten with CRLF endings resolves to the same paths.
+CL="$TEST_TMPDIR/crlf"
+mkdir -p "$CL/docs" "$CL/results"
+printf 'one two\n' >"$CL/docs/x.md"
+printf 'x.md\t%s\n' "$CL/docs/x.md" >"$CL/targets.tsv"
+out="$(bash "$FANOUT" plan --out "$CL/batches" --order mtime "$CL/targets.tsv" 2>&1)"
+pd="$(digest_of "$out" 01)"
+printf '%s\r\n' "$(cat "$CL/batches/batch-01.paths")" >"$CL/batches/batch-01.paths"
+out="$(bash "$FANOUT" status --batches "$CL/batches" --results "$CL/results" 2>&1)"
+assert_eq "sidecar: a CRLF sidecar gives plan's digest" "$(digest_of "$out" 01)" "$pd"
+printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$pd" >"$CL/results/rubric-batch-01.md"
+out="$(bash "$FANOUT" status --batches "$CL/batches" --results "$CL/results" 2>&1)"
+assert_eq "sidecar: a CRLF sidecar reads complete" "$out" "batch=01 status=complete"
+printf 'edited\n' >>"$CL/docs/x.md"
+out="$(bash "$FANOUT" status --batches "$CL/batches" --results "$CL/results" 2>&1)"
+assert_contains "sidecar: a CRLF sidecar still detects an edit" "$out" "batch=01 status=stale reason=digest digest="
 
 # --- merge ----------------------------------------------------------------------
 

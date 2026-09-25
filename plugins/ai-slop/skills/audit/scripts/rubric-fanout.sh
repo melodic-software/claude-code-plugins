@@ -50,25 +50,33 @@ sha256() {
   fi
 }
 
+# read_sidecar <sidecar>: SIDECAR holds its non-empty lines, a trailing CR
+# stripped from each.
+read_sidecar() {
+  local p
+  SIDECAR=()
+  while IFS= read -r p || [[ -n "$p" ]]; do
+    p="${p%$'\r'}"
+    [[ -n "$p" ]] && SIDECAR+=("$p")
+  done <"$1"
+}
+
 # batch_digest <list>: with a batch-NN.paths sidecar, the sha256 of the list's
 # bytes, a fixed separator line, then one sha256 call's output over every
-# listed path, so the digest binds the files' contents too. An unreadable file
-# is absent from that output, the same way each time, and the separator keeps
-# an all-unreadable batch from matching the list-only digest. Without the
-# sidecar, the list's sha256.
+# listed path, so the digest binds the files' contents too. The separator keeps
+# an all-unreadable batch from matching the list-only digest; status reports a
+# batch with an unreadable path as stale before its digest is compared.
+# Without the sidecar, the list's sha256.
 # The list is hashed from stdin: given a file name holding a backslash,
 # sha256sum escapes the name and prefixes the hash with `\`.
 batch_digest() {
-  local sidecar="${1%.txt}.paths" p
-  local -a files=()
+  local sidecar="${1%.txt}.paths"
   {
     cat -- "$1"
     if [[ -f "$sidecar" ]]; then
       printf '%s\n' "--- rubric-fanout batch contents ---"
-      while IFS= read -r p; do
-        [[ -n "$p" ]] && files+=("$p")
-      done <"$sidecar"
-      [[ "${#files[@]}" -gt 0 ]] && sha256 -- "${files[@]}" 2>/dev/null
+      read_sidecar "$sidecar"
+      [[ "${#SIDECAR[@]}" -gt 0 ]] && sha256 -- "${SIDECAR[@]}" 2>/dev/null
     fi
   } | sha256 | cut -d' ' -f1
 }
@@ -242,7 +250,7 @@ header() {
 # missing or stale row ends with the batch's current digest; a complete row
 # ends with `status=complete`.
 status_rows() {
-  local batches="$1" results="$2" list nn res d n got
+  local batches="$1" results="$2" list nn res d n got p bad
   for list in "$batches"/batch-*.txt; do
     [[ -f "$list" ]] || continue
     nn="${list##*/batch-}"
@@ -254,9 +262,19 @@ status_rows() {
       continue
     fi
     n="$(awk 'NF' "$list" | wc -l | tr -d ' ')"
-    if [[ -f "${list%.txt}.paths" && "$(awk 'NF' "${list%.txt}.paths" | wc -l | tr -d ' ')" != "$n" ]]; then
-      echo "batch=$nn status=stale reason=paths digest=$d"
-      continue
+    # A sidecar that does not name one readable file per list entry cannot
+    # bind the contents, so the batch is stale until it is planned again.
+    if [[ -f "${list%.txt}.paths" ]]; then
+      read_sidecar "${list%.txt}.paths"
+      bad=0
+      [[ "${#SIDECAR[@]}" == "$n" ]] || bad=1
+      for p in ${SIDECAR[@]+"${SIDECAR[@]}"}; do
+        [[ -r "$p" ]] || bad=1
+      done
+      if [[ "$bad" == 1 ]]; then
+        echo "batch=$nn status=stale reason=paths digest=$d"
+        continue
+      fi
     fi
     if ! got="$(header "$res" batch)" || [[ "$got" != "$d" ]]; then
       echo "batch=$nn status=stale reason=digest digest=$d"
