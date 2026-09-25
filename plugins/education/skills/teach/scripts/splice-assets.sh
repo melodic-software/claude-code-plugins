@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
 # splice-assets.sh: splice the workspace assets library into one HTML lesson, in place.
 #
-# Why the logic lives in a script file rather than in the skill body. The step used to be a
-# recipe the coach retyped: an awk program writing to a sibling `.tmp` file, then a `mv` over
-# the lesson. That shape is a staged move, which the guardrails bypass guard refuses in a Bash
-# tool call, so the documented assembly step failed in any session running that guard. A shipped
-# script takes its place: the command a coach runs is `bash <this script> <lesson> <assets>`,
-# which composes no shell string, carries no redirect, and renames nothing. The redirect and the
-# overwrite live here, inside a file a shell reads as an ordinary script. The build itself is the
-# sibling `splice-assets.awk`, which this script runs once every validation has passed.
+# A shipped script because an inline write-then-`mv` recipe is a staged move the guardrails
+# bypass guard refuses. The build itself is the sibling `splice-assets.awk`.
 #
 # Marker contract:
 #   A line containing `/* SPLICE:STYLE */` is replaced by the content of `<assets-dir>/lesson.css`.

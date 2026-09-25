@@ -108,7 +108,6 @@ run_hook_env() {
   )
 }
 
-# The plain enabled-hook run.
 run_hook() {
   run_hook_env "$1" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true
 }

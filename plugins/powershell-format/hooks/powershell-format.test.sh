@@ -71,8 +71,6 @@ SETTINGS_BODY="@{
     }
 }"
 
-# new_repo <dir> [NO_SETTINGS] -> init a git repo, writing PSScriptAnalyzerSettings.psd1
-# at the root unless the second arg is the literal NO_SETTINGS.
 new_repo() {
   local r="$1" mode="${2:-}"
   mkdir -p "$r"
@@ -99,7 +97,6 @@ run_hook_env() {
   )
 }
 
-# The plain enabled-hook invocation.
 run_hook() {
   run_hook_env "$1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true
 }
@@ -117,7 +114,6 @@ run_hook_session() {
   )
 }
 
-# write_stub <path> <body> -> an executable bash script at <path> running <body>.
 write_stub() {
   {
     printf '#!/usr/bin/env bash\n'
