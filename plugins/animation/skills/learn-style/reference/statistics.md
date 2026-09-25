@@ -80,7 +80,7 @@ and for any film; nothing is declared by the scene:
 | Class | Rule | Source |
 |---|---|---|
 | `border` | the ring within 3% of the frame's short side of its edge (`inkstats.BORDER`, 29 px here), for every border row: the frame stroke and the paper margin outside it. Measured on the source (every drawing, each side with an inner edge, 445 sides): the stroke starts 9 px in (p95 10) and is 19 px wide (median), so it ends by 29 px. The other 511 sides run into a dark field | every drawing |
-| `caption` | a paper rectangle in the top quarter, sealed by a 5 px closing of the ink, not touching the frame edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box, holding ink; its box grown by the border width | detected in 7 of 9 shots, not on every drawing of them (a boiling outline can break the seal) |
+| `caption` | a paper rectangle in the top quarter, sealed by a 5 px closing of the ink, not touching the frame edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box, holding ink; its box grown by 1.3% of the short side (`inkstats.CAPTION`, 13 px here) for every caption row: measured on the source (231 box sides with an outer edge), the outline starts at the paper edge and is 13 px wide (median) | detected in 7 of 9 shots, not on every drawing of them (a boiling outline can break the seal) |
 | interior | everything else: the subject | never gated |
 
 A class row joins `check` only when the source defines it in at least two of its parts
@@ -107,7 +107,7 @@ only; no band was widened.
 |---|---|---|
 | `grain` | The source's blacks are 99.5% within ±1 gray level deep inside; a few hundred stray pixels and codec residue set the ratio. A flat black encoded by h264 scored 0.713, inside the band | measured only: the source shows no visible ink texture for it to measure |
 | `period` | The peak sat at the 32 px cutoff in every film: the tail of smooth tone drift, not a pitch. A flattened source still scored 38 | the peak is now a bin's power over the mean of all bins at the same frequency, at pitches of 3-24 px, so drift scores at the noise level (a flattened source plus 1 level of noise: 1.1). But the source's own peaks then lie exactly on the axes at 2-5 px pitch in every drawing sampled: the pixel grid and codec, and the straight edges of the eroded-ink mask, not a drawn texture. No band from them measures style, so `period` is measured only |
-| `sliver_border`, `boil` | The 2% (20 px) ring let the subject in: 61% of the source's ring edge pixels 15-20 px in moved 4 px or more, against 8-11% within 10 px, and most border islands were subject nicks | for these two rows the caption box grows by 10 px, not 20. `sliver_border` still needs 3 islands in a drawing. The border ring was then set once for all border rows from where the source's stroke lies (see "Content classes") |
+| `sliver_border`, `boil` | The 2% (20 px) ring let the subject in: 61% of the source's ring edge pixels 15-20 px in moved 4 px or more, against 8-11% within 10 px, and most border islands were subject nicks | `sliver_border` still needs 3 islands in a drawing. The border ring was then set once for all border rows from where the source's stroke lies (see "Content classes") |
 | `rough` | the excess in the adjudicated film came from many small contours, a real drawing trait | unchanged and gated; its description now names small marks as well as edge wobble |
 
 ## How a band is set

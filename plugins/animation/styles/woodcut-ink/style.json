@@ -118,7 +118,7 @@
    "roughness": 0.0706,
    "straight_share": 0.5439,
    "boil": {
-    "edge_shift_px": 1.3932,
+    "edge_shift_px": 1.4195,
     "variants": "a new drawing every hold",
     "on_holds": true
    }
@@ -199,9 +199,9 @@
    "p90": 0.8664
   },
   "straight_caption": {
-   "p10": 0.3946,
-   "p50": 0.4554,
-   "p90": 0.6701
+   "p10": 0.3931,
+   "p50": 0.4649,
+   "p90": 0.6562
   },
   "specks": {
    "p10": 4.6235,
@@ -260,13 +260,13 @@
   },
   "sliver_caption": {
    "p10": 1.907,
-   "p50": 2.6875,
+   "p50": 2.6797,
    "p90": 4.4563
   },
   "boil": {
-   "p10": 1.1389,
-   "p50": 1.3932,
-   "p90": 1.7279
+   "p10": 1.1548,
+   "p50": 1.4195,
+   "p90": 1.7272
   }
  },
  "timing": {
@@ -278,7 +278,7 @@
    "on4s+": 0.042
   },
   "offstep": 0.0882,
-  "held": 0.412
+  "held": 0.416
  },
  "heldout": {
   "excerpt_share": [
@@ -599,8 +599,8 @@
    },
    "straight_caption": {
     "raw": [
-     0.4331,
-     0.6478
+     0.4284,
+     0.6264
     ],
     "heldout_max_miss": 0.0,
     "widening": 0.0,
@@ -614,9 +614,9 @@
      "near_blur0.9+stripes6": 0.0,
      "near_none": 0.0,
      "near_stripes12": 0.0,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.027,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.0501,
-     "near_warp1.5+blur0.9": 0.2734
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.0271,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.0471,
+     "near_warp1.5+blur0.9": 0.2668
     },
     "capped_by": [],
     "calibration_pass": "150/150",
@@ -981,15 +981,15 @@
      "near_blur0.6": 0.0204,
      "near_blur0.9+dry32": 0.2704,
      "near_blur0.9+dry8": 0.1295,
-     "near_blur0.9+noise16": 0.1454,
-     "near_blur0.9+noise4": 0.109,
-     "near_blur0.9+noise8+stripes12+dry16": 0.2685,
-     "near_blur0.9+stripes6": 0.109,
+     "near_blur0.9+noise16": 0.1315,
+     "near_blur0.9+noise4": 0.0898,
+     "near_blur0.9+noise8+stripes12+dry16": 0.2571,
+     "near_blur0.9+stripes6": 0.0898,
      "near_none": 0.0,
      "near_stripes12": 0.0,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.1687,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.1492,
-     "near_warp1.5+blur0.9": 0.0562
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.1801,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.1593,
+     "near_warp1.5+blur0.9": 0.0518
     },
     "capped_by": [],
     "calibration_pass": "150/150",
@@ -997,34 +997,32 @@
    },
    "boil": {
     "raw": [
-     1.289,
+     1.2979,
      1.4758
     ],
     "heldout_max_miss": 0.0,
     "widening": 0.0,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 0.0,
-     "kevin_t_ngo-2102171059592241410": 1.2605,
-     "near_blur0.6": 0.1796,
-     "near_blur0.9+dry32": 0.1757,
-     "near_blur0.9+dry8": 0.1485,
-     "near_blur0.9+noise16": 1.2874,
-     "near_blur0.9+noise4": 0.1421,
-     "near_blur0.9+noise8+stripes12+dry16": 0.1586,
-     "near_blur0.9+stripes6": 0.1421,
-     "near_none": 0.1874,
-     "near_stripes12": 0.1874,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.1912,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.1837,
-     "near_warp1.5+blur0.9": 0.2689,
+     "kevin_t_ngo-2102171059592241410": 1.2694,
+     "near_blur0.6": 0.1687,
+     "near_blur0.9+dry32": 0.1634,
+     "near_blur0.9+dry8": 0.1453,
+     "near_blur0.9+noise16": 1.2963,
+     "near_blur0.9+noise4": 0.1467,
+     "near_blur0.9+noise8+stripes12+dry16": 0.1416,
+     "near_blur0.9+stripes6": 0.1467,
+     "near_none": 0.1648,
+     "near_stripes12": 0.1648,
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.1897,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.1694,
+     "near_warp1.5+blur0.9": 0.2512,
      "poly_blur0.9+noise8": 0.5602,
      "poly_blur0.9+stripes12": 0.5602,
      "poly_none": 0.3534,
      "poly_warp3+blur0.9+noise8": 0.1315
     },
-    "capped_by": [
-     "kevin_t_ngo-2102171059592241410"
-    ],
+    "capped_by": [],
     "calibration_pass": "150/150",
     "evaluation_pass": "150/150"
    },
@@ -1057,6 +1055,7 @@
     },
     "capped_by": [
      "BiosRiosz-2102523343253520764",
+     "kevin_t_ngo-2102171059592241410",
      "near_blur0.9+noise16"
     ],
     "calibration_pass": "150/150",
@@ -1105,7 +1104,7 @@
   "rough": 0.0706,
   "straight": 0.5439,
   "straight_border": 0.8301,
-  "straight_caption": 0.4554,
+  "straight_caption": 0.4649,
   "specks": 20.2279,
   "gaps": 65.3072,
   "holes": 0.0212,
@@ -1117,8 +1116,8 @@
   "period": 7.5434,
   "sliver": 2.8836,
   "sliver_border": 3.5,
-  "sliver_caption": 2.6875,
-  "boil": 1.3932,
+  "sliver_caption": 2.6797,
+  "boil": 1.4195,
   "per_second": 7.9187,
   "offstep": 0.0882
  },
@@ -1160,8 +1159,8 @@
    0.8406
   ],
   "straight_caption": [
-   0.4331,
-   0.6478
+   0.4284,
+   0.6264
   ],
   "specks": [
    1.1559,
@@ -1212,7 +1211,7 @@
    3.2781
   ],
   "boil": [
-   1.289,
+   1.2979,
    1.4758
   ],
   "per_second": [

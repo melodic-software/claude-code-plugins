@@ -55,7 +55,9 @@ Content classes, from the ink mask alone, so a source and any film get them the 
             frame stroke with the paper margin outside it. On the woodcut source the stroke starts 9 px in (p95
             10) and is 19 px wide (median), so it ends by 29 px = 3% of the 982 px short side. A drawing has the
             class when the ring is PRESENT (10%) or more ink
-  (the caption box grows by 2% of the short side for straight_caption and by 1% for sliver_caption and boil)
+  (the caption box grows by CAPTION (1.3% of the short side) for every caption row: its hand-drawn outline. On the
+            woodcut source the outline starts at the paper edge and is 13 px wide (median over 231 box sides with an
+            outer edge), 1.3% of the 982 px short side)
   caption   a caption panel: a paper rectangle (after a 5 px closing of the ink) in the top quarter of the frame, not
             touching its edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box
             and holding ink (lettering), outside the border ring
@@ -88,6 +90,7 @@ STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'strai
 FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
 BORDER = 0.03             # border class, every border row: this share of the short side, from each edge (the stroke)
 PRESENT = 0.1             # a drawing has the border class when its ring is at least this share ink
+CAPTION = 0.013           # caption class: each detected box grown by this share of the short side (its outline)
 CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
 
 
@@ -176,11 +179,11 @@ def captions(ink):
     return out
 
 
-def classes(ink, boxes, pad):
-    """Content class per pixel: 0 border (the BORDER ring), 1 caption (each box grown by pad of the short side),
+def classes(ink, boxes):
+    """Content class per pixel: 0 border (the BORDER ring), 1 caption (each box grown by CAPTION),
     2 interior."""
     H, W = ink.shape
-    e, p = round(BORDER * min(H, W)), round(pad * min(H, W))
+    e, p = round(BORDER * min(H, W)), round(CAPTION * min(H, W))
     lab = np.full((H, W), 2, np.uint8)
     for x0, y0, x1, y1 in boxes:
         lab[max(0, y0 - p):y1 + p, max(0, x0 - p):x1 + p] = 1
@@ -268,8 +271,8 @@ def one(rgb):
     mid = int(((g > ink_g + 16) & (g < paper_g - 16)).sum())
     w, pw = ridge_widths(ink), ridge_widths(~ink)
     boxes = captions(ink)
-    cls = classes(ink, boxes, 0.01)   # caption box grown by its outline only, for sliver and boil
-    rough, straight, straight_c = contour_stats(ink, classes(ink, boxes, 0.02))
+    cls = classes(ink, boxes)
+    rough, straight, straight_c = contour_stats(ink, cls)
     sliver_all, sliver_c = sliver(ink, cls)
     grain, period = texture(g, ink.astype(np.uint8))
     k5 = np.ones((5, 5), np.uint8)
