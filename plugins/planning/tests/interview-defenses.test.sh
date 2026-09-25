@@ -557,7 +557,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "0ec0dbeb055639ed4c8dd6e3a9d8a0208db23f0734ac26325a521afc8cd86a06"
+  "176a8702fc9f218acfd0d6a4ea6ef61d0292de5f4730840f3e81fd470dcdf6b5"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "seq": 1,
+  "events": [
+    {"seq": 1, "id": "D1", "kind": "accept", "alt": null, "text": "", "at": "2020-01-01T00:00:00Z", "deliveredAt": "2020-01-01T00:00:00Z"}
+  ],
+  "responses": {
+    "D1": {"decision": "accept", "alt": null, "text": "", "updatedAt": "2020-01-01T00:00:00Z", "seq": 1}
+  },
+  "history": {
+    "D1": [
+      {"at": "2020-01-01T00:00:00Z", "by": "user", "kind": "accept", "alt": null, "text": "", "seq": 1}
+    ]
+  }
+}

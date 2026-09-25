@@ -3,6 +3,63 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-09-24
+
+### Added
+
+- **Interview page surface** under `surface/`: a stdlib server bound to 127.0.0.1 (`server.py`),
+  the single-file page (`index.html`), `round.py` (Claude's only write path to the question file,
+  launched through `round.sh`), the background watcher `watch.sh`, JSON Schemas for the question,
+  response, event, visual and ops files, and the test suites. The user answers each question on
+  the page; every save reaches the live session through the watcher.
+- **`round.py` commands:** `ensure-running` and `stop` for the server's lifecycle, `apply` (every
+  op in one validated write), `archive`, `status --latency`, `validate`, and the sidecar lock
+  `questions.json.lock`. `add` and `add-round` refuse a question without `commits` or with fewer
+  than two alternatives, and `reply --rec` and `revise --rec` require `--affects`.
+- **Exporters:** `export-ledger` (the register rows `check-open-questions.sh` grades),
+  `export-brief` (the PLAN.md `## Brief` sections, unconfirmed commitments as named risks),
+  `export-report` (one self-contained HTML file), and `import-ledger`.
+- **`surface` option:** `terminal` (default) or `page`; applies to `/planning:interview` only, and
+  any other value falls back to `terminal`.
+- **`interview` skill `context/surface.md`:** the page protocol: start and stop, the one-call wake
+  command, the event table, rules R1 to R12 and R-A to R-J, the wording lint, the wrap-up
+  exports, settings layers, the security model and the degrade path.
+- **`meta` on the page:** `add-round`'s file takes a `meta` object and `apply` takes a
+  `{"op": "meta", "set": {...}}` op; both merge `title`, `eyebrow`, `stages` and `next` into
+  `questions.json` and refuse any other key.
+- **`--emoji-markers` value rule:** `ensure-running` accepts any value; `false`, `0`, `no` and
+  `off` (any case) mean false, and anything else, an empty string or an unexpanded token
+  included, means true.
+- **Reconfirm keeps the decision:** on a stale question, choice 1 re-arms the kept decision
+  exactly (kind, alternative, own text and note) and the other choices renumber after it; `a`
+  arms it. Picking again is always available.
+- **File visuals by reference:** a visual with `file` renders on the page and in the exported
+  report through the same format paths as inline content. The server serves it at
+  `GET /api/visual-file?id=<visual id>` (token required) only when the path resolves inside the
+  data dir and a visual in `questions.json` names it; 4 MB cap.
+- **Settings rows** for `port` and `openBrowser`, each naming its layer; `themeTokens` is also
+  read from the user file (data dir `theme.json`, then user, then repo, then built-in).
+- **Limits and errors:** a POST body may be up to 64 KB and the text inside it is never cut;
+  a body that is not a JSON object, or is nested too deeply, is a 400. `watch.sh` refuses a
+  `PORT` that is not all digits. The exported report carries a CSP with no network source.
+- **Opener rule:** the browser opener (`browserCommand`) runs only from a file named by an
+  explicit `--user-settings`; the data dir's session file is never a source for it.
+- **One watcher per interview:** the first watcher holds an in-memory server lease; a second
+  session's `watch.sh` gets a 409 naming the holder and exits 3 instead of competing for events.
+  The lease expires after `leaseTimeout` seconds (default 600, a new setting shown on the
+  Settings tab) with no poll, `round.py lease` prints the holder, and `round.py lease --release`
+  hands it over. The skill tells a second Claude session to coordinate with the holder.
+
+### Changed
+
+- **`interview`:** the question-surface rule replaces the artifact escape hatch. `surface: page`,
+  or the user asking for it, starts the page as the input surface; the read-only decision table
+  stays only as the degrade when the page cannot start. `context/loop.md` "Page surface" replaces
+  "Artifact escape hatch (dense round)".
+- **`use_emoji_question_markers`:** the description covers the page's question title and
+  Recommendation heading as well as inline rounds.
+- `tests/interview-defenses.test.sh`: one section digest re-pinned for the new Action Router paragraph.
+
 ## [0.40.0] - 2026-09-23
 
 ### Changed

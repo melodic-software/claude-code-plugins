@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/surface/responses",
+  "title": "Interview surface responses.json",
+  "description": "Written by the server only. `events` is the source of truth; `responses` and `history` are views derived from it. A file without `schemaVersion` is version 0 and loads unchanged.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "seq": {"type": "integer"},
+    "events": {
+      "type": "array",
+      "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/event"}
+    },
+    "responses": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/response"}
+    },
+    "history": {
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/userLine"}}
+    }
+  },
+  "$defs": {
+    "response": {
+      "type": "object",
+      "required": ["decision"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": {"enum": ["accept", "alt", "own", "defer", null]},
+        "alt": {"type": ["string", "null"]},
+        "text": {"type": "string"},
+        "updatedAt": {"type": "string"},
+        "seq": {"type": "integer"}
+      }
+    },
+    "userLine": {
+      "type": "object",
+      "required": ["at", "by", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "at": {"type": "string"},
+        "by": {"enum": ["user", "user-terminal"]},
+        "kind": {"type": "string"},
+        "alt": {"type": ["string", "null"]},
+        "text": {"type": "string"},
+        "seq": {"type": "integer"},
+        "withdrawn": {"type": "boolean"},
+        "undoSeq": {"type": "integer"}
+      }
+    }
+  }
+}
