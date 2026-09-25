@@ -31,6 +31,9 @@ LEAD = re.compile(r"^\[([^\]\s]+)\]\s*(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
 MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
 QN = re.compile(r"^Q[1-9][0-9]*$")
+# Register statuses that leave a question unresolved; superseded-by-plan is a plan's
+# displacement of a user answer, waiting on the user's explicit reply.
+UNSETTLED = ("open", "superseded-by-plan")
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -98,7 +101,7 @@ def settle(q, responses, events, seed_rows):
     page = responses.get(q["id"])
     if seed and not page:
         term, arch = q.get("terminal") or {}, q.get("archived") or {}
-        untouched = seed["status"] == "open" and not term and not arch
+        untouched = seed["status"] in UNSETTLED and not term and not arch
         if untouched or term.get("seeded") or arch.get("seeded"):
             res = seed.get("resolution", "")
             reserved = seed["status"] == "blocked" or "USER-RESERVED" in res
@@ -193,7 +196,7 @@ def export_ledger(d):
         out += [para(title), ""]
     out += ["**Decision tree:**", ""]
     for r in rows:
-        mark = " " if r["status"] == "open" else "x"
+        mark = " " if r["status"] in UNSETTLED else "x"
         out.append(f"- [{mark}] {r['n']} {clean(r['q'].get('short'))}: {r['status']}")
     out += ["", "## Open-question register", ""]
     out += [row_line(r) for r in rows]
@@ -209,7 +212,7 @@ def export_brief(d):
     title = (doc.get("meta") or {}).get("title") or "Interview decisions"
     count = {
         s: sum(1 for r in rows if r["status"] == s)
-        for s in ("answered", "deferred", "blocked", "withdrawn", "open")
+        for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)
     }
     answered = [r for r in rows if r["status"] == "answered"]
     confirmed = [(r, c) for r in rows for c in r["confirmed"]]
@@ -217,7 +220,8 @@ def export_brief(d):
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
         f"- {len(rows)} questions: {count['answered']} answered, {count['deferred']} deferred, "
-        f"{count['blocked']} blocked, {count['withdrawn']} withdrawn, {count['open']} open"
+        f"{count['blocked']} blocked, {count['withdrawn']} withdrawn, {count['open']} open, "
+        f"{count['superseded-by-plan']} superseded-by-plan"
     )
     out.append(
         f"- {len(confirmed)} commitments confirmed; {len(risks)} unconfirmed, carried as named risks"
@@ -332,7 +336,7 @@ def thread(q, resp):
 def loose_ends(rows, doc, resp):
     ends = []
     for r in rows:
-        if r["status"] in ("open", "deferred", "blocked"):
+        if r["status"] in (*UNSETTLED, "deferred", "blocked"):
             ends.append(
                 f"{r['n']} ({r['q']['id']}) is {r['status']}: {clean(r['q'].get('title'))}"
             )
@@ -497,7 +501,7 @@ def import_ledger(doc, text, ledger, at):
         qid, res = (lead.group(1), lead.group(2)) if lead else (f"Q{n}", res)
         if qid in seeded:
             raise SystemExit(f"refused: duplicate question id in {ledger}: {qid}")
-        if status not in ("open", "answered", "deferred", "withdrawn", "blocked"):
+        if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
         seeded[qid] = {"status": status, "round": rnd, "resolution": res}
         q = {
@@ -533,10 +537,11 @@ def import_ledger(doc, text, ledger, at):
                 res[len("archived:") :].strip() if res.startswith("archived:") else res
             )
             q["archived"] = {"why": why or "withdrawn", "at": at, "seeded": True}
-        by = "claude" if status == "open" else "user-terminal"
-        q["history"] = [
-            {"at": at, "by": by, "kind": "seed", "text": f"{SEED_NOTE}: {status}."}
-        ]
+        by = "claude" if status in UNSETTLED else "user-terminal"
+        note = f"{SEED_NOTE}: {status}."
+        if status == "superseded-by-plan" and res:
+            note += f" {res}"
+        q["history"] = [{"at": at, "by": by, "kind": "seed", "text": note}]
         doc["questions"].append(q)
     meta = doc.setdefault("meta", {})
     meta.setdefault("title", f"Seeded from {Path(ledger).name}")
