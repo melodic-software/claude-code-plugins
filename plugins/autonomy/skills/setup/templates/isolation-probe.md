@@ -228,22 +228,24 @@ test -x <windows-executable> ; test $? -eq 0 || fail "<windows-executable> is no
 ```
 
 `<windows-executable>` is an absolute POSIX path whose basename ends `.exe` (marked example:
-`/mnt/c/Windows/System32/cmd.exe /c ver`). Where the boundary has no Windows drive mount, as in most
-containers, copy a harmless Windows executable into the boundary and launch that copy:
-`outer_executable` then names the original and `executable` the copy; where the drive mount is
-shared, the two are equal.
+`/mnt/c/Windows/System32/cmd.exe`, launched with `/c ver`). Where the boundary has no Windows drive
+mount, as in most containers, copy a harmless Windows executable into the boundary and launch that
+copy: `outer_executable` then names the original and `executable` the copy; where the drive mount
+is shared, the two are equal.
 
-The inner exit code must be non-zero, and three non-zero codes are not a denial: `127` is the
-shell's command-not-found status, which contradicts the presence check, and `124` or `137` is a
-timeout or a kill, and a hung launch is not a denial. A `126` is accepted: with interop disabled
-the kernel refuses the Windows binary format and the shell reports `126`, which is a genuine denial
-once presence and execute permission are proven. Record `launch_outcome` as `launch-denied`; a
-missing file has no passing token.
+The inner `exit_code` must be from 1 to 123, or 126. `124` and `125` are timeout statuses, `127` is
+the shell's command-not-found status, which contradicts the presence check, and 128 or above is
+death by signal; a hung or killed launch is not a denial. A `126` is accepted: with interop
+disabled the kernel refuses the Windows binary format and the shell reports `126`, which is a
+genuine denial once presence and execute permission are proven. Record `launch_outcome` as
+`launch-denied`; a missing file has no passing token.
 
 A recorded interop assertion is validated whatever `host_interop` says, so a recorded launch success
 is never ignored. A binding that ratifies `host_interop: "none"` whose own capture reached a Windows
-drive mount (a `host_expanded` or `workspace_host_path` under `/mnt/<letter>/`) stays unproven: the
-surface is WSL2-hosted, and capture evidence may only tighten the verdict.
+drive mount (a `host_expanded`, `workspace_host_path`, or recorded interop executable under
+`/mnt/<letter>/`, after path normalization) stays unproven: the surface is WSL2-hosted, and capture
+evidence may only tighten the verdict. The signal covers the default `/mnt/<letter>/` automount
+root only; a distribution that moved its `[automount] root` is not detected.
 
 ## Per-substrate-class wrapping
 
@@ -284,7 +286,7 @@ run itself created:
     "egress_denied": { "host": "<well-known-external-host>,<second-target-different-operator>", "exit_code": "<non-zero>,<non-zero>", "outer_exit_code": "0,0", "transport_outcome": "<dns-unresolved|connect-failed|tls-failed|peer-substituted>,<...>", "outer_peer_fingerprint": "<fingerprint|none>,<...>", "inner_peer_fingerprint": "<fingerprint|none>,<...>", "client_ready": "0", "address_families": "<ipv4|ipv6>,<...>", "outcome": "denied" },
     "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "outer_exit_code": "0", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" },
     "workspace_host_write_contained": { "workspace_host_path": "<workspace-host-path>", "canaries": "<randomized-file>,<randomized-dotfile>,.git/<randomized>", "inner_exit_code": "<any>,<any>,<any>", "host_pre_absent": "0,0,0", "host_post_absent": "0,0,0", "git_config_digest_pre": "<digest|absent>", "git_config_digest_post": "<digest|absent>", "checked_after_teardown": true, "outcome": "contained" },
-    "interop_launch_denied": { "executable": "<windows-executable>", "outer_executable": "<outer-windows-executable>", "outer_exit_code": "0", "presence_exit_code": "0", "exit_code": "<non-zero, not 124|127|137>", "launch_outcome": "launch-denied", "outcome": "denied" }
+    "interop_launch_denied": { "executable": "<windows-executable>", "outer_executable": "<outer-windows-executable>", "outer_exit_code": "0", "presence_exit_code": "0", "exit_code": "<1-123 or 126>", "launch_outcome": "launch-denied", "outcome": "denied" }
   },
   "outer_context_networked": true
 }
@@ -299,9 +301,10 @@ and `outer_exit_code` pairs the same way and must be all-`"0"`: the outer contex
 very target the inner probe failed against.
 `credentials_absent.outer_exit_code` is its credential-side mirror, also all-`"0"`: the outer
 context proved the very target the inner read failed against exists on the host.
-`interop_launch_denied` is required where the level binding ratifies `host_interop: "wsl2"` and is
-omitted elsewhere; the level binding states `host_interop` for every `L2`/`L3` entry, and an entry
-without it stays unproven.
+`interop_launch_denied` is required where the level binding ratifies `host_interop: "wsl2"`;
+elsewhere it is optional and, if recorded, still validated. Its `exit_code` is from 1 to 123, or
+126. The level binding states `host_interop` for every `L2`/`L3` entry, and an entry without it
+stays unproven.
 
 The captured transcript is referenced from the level binding's `probe_evidence` field; the
 security-binding check treats a level binding without it as invalid. The level binding also

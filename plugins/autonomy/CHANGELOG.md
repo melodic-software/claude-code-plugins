@@ -11,11 +11,14 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   statement of whether the surface's host can launch host binaries from inside the boundary. With
   `"wsl2"`, `check-security-binding.mjs` requires the probe transcript's fourth assertion,
   `interop_launch_denied`: a present Windows executable (`test -x` succeeded) whose launch
-  succeeded in the outer context and was denied inside, with an inner exit code that is non-zero
-  and not `127`, `124`, or `137`. A recorded interop assertion is validated whatever the binding
-  ratifies, and a `"none"` binding whose capture reached a Windows drive mount (`/mnt/<letter>/`)
-  stays unproven. The WSL2 interop launch check is now checker-enforced instead of confirmed by the
-  reviewing human.
+  succeeded in the outer context and was denied inside, with an inner exit code from 1 to 123, or
+  126 (124 and 125 are timeouts, 127 is command not found, and 128 or above is death by signal). A
+  recorded interop assertion is validated whatever the binding ratifies, and a `"none"` binding
+  whose capture reached a Windows drive mount (the default `/mnt/<letter>/` automount root, matched
+  after path normalization) stays unproven. The WSL2 interop launch check is now checker-enforced
+  instead of confirmed by the reviewing human. Still confirmed by the reviewing human, not the
+  checker: the per-run ephemerality of an `L3` microVM, its `--static-mcp` tool-server mode, and
+  the SSH agent forwarding condition.
 - The level entry gains `base_egress_allowlist`, an informational record of the base egress
   allowlist. The checker checks only its shape: it is never merged into
   `component_reachable_hosts`, never counts as probe coverage, and is never proof that other
@@ -30,12 +33,10 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 - `templates/isolation-probe.md` documents the interop launch probe shape and the capture field;
   `context/windows-surfaces.md` and `context/guardrail-slice.md` describe the enforced check and
   both new fields.
-- `reference/telemetry.md` Pillar 3 records, dated 2026-09-25, that the migration trigger for
-  native inbound trace context was evaluated and not taken: Claude Code reads inbound
-  `TRACEPARENT` only in Agent SDK and `-p` sessions, and its tracing is beta, so the Pillar 2
-  attribute join stays the contract's join.
-- Still confirmed by the reviewing human, not the checker: the per-run ephemerality of an `L3`
-  microVM, its `--static-mcp` tool-server mode, and the SSH agent forwarding condition.
+- `reference/telemetry.md` Pillar 3 records, dated 2026-09-25, that relying on native inbound trace
+  context was evaluated and not adopted: Claude Code reads inbound `TRACEPARENT` only in Agent SDK
+  and `-p` sessions, and its tracing is beta, so the Pillar 2 attribute join stays the contract's
+  join.
 
 ## [0.23.24] - 2026-09-25
 

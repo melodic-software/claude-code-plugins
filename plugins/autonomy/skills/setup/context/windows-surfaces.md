@@ -97,6 +97,8 @@ assertion, `interop_launch_denied` (shape in [`isolation-probe.md`](../templates
 The checker enforces it: a WSL2 `L2` or `L3` binding whose transcript lacks the assertion, or
 records an inner launch that succeeded, stays unproven and is blocked at step 6. A binding that
 ratifies `host_interop: "none"` while its capture reached a Windows drive mount stays unproven too.
+That signal covers the default `/mnt/<letter>/` automount root only; a moved `[automount] root` is
+not detected.
 
 WSL2 probes also look through the Windows drive mount (the automount record above). Credential
 probes and `--credential-roots` include the Windows profile paths the distribution reaches there

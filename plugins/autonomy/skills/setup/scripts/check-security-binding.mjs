@@ -60,7 +60,7 @@
 // promotion_state alone is non-conforming.
 
 import { readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, posix, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
@@ -131,10 +131,11 @@ const WORKSPACE_CANARY_MINIMUM = 3;
 // check a required transcript assertion; "none" is the explicit human claim
 // that no host interop applies. An absent value leaves an L2/L3 level unproven.
 const HOST_INTEROP_TOKENS = ["none", "wsl2"];
-// Inner exit codes that cannot evidence a denied launch: 127 is the shell's
-// command-not-found status (contradicting the presence proof), and 124/137 are
-// a timeout or a kill (a hung launch is not a denial).
-const INTEROP_NON_DENIAL_EXIT_CODES = new Set(["124", "127", "137"]);
+// Inner exit codes that evidence a denied launch: 1-123, or 126 (the kernel
+// refused the binary format). Rejected: 124 and 125 (timeout statuses), 127
+// (command not found, contradicting the presence proof), and 128 or above
+// (death by signal: a hung or killed launch is not a denial).
+const INTEROP_DENIAL_EXIT_CODE = /^(?:[1-9]|[1-9][0-9]|1[01][0-9]|12[0-3]|126)$/;
 // RFC 2606/6761/6762/7686 special-use and reserved TLDs.
 const SPECIAL_USE_TLDS = [
   ".invalid",
@@ -1299,13 +1300,13 @@ function isNonExternalEgressHost(host) {
 // failed-inside assertions (egress, credentials, workspace, and the interop
 // launch denial where the binding ratifies host_interop "wsl2") AND a
 // networked outer context, since a fully-offline outer context would deny
-// egress on its own. This is the capture shape of templates/isolation-probe.md;
-// keep the two in sync. The transcript's own
-// surface/level/substrate/substrate-class identity must match the binding
-// entry it is cited from: a genuine transcript reused under a different
-// surface, level, substrate, or substrate class proves a DIFFERENT boundary,
-// not this one. Returns null when verified, else the reason the entry is
-// unproven.
+// egress on its own. This is the capture shape of
+// templates/isolation-probe.md; keep the two in sync. The transcript's own
+// surface, level, substrate, and substrate-class identity must match the
+// binding entry it is cited from: a genuine transcript reused under a
+// different surface, level, substrate, or substrate class proves a DIFFERENT
+// boundary, not this one. Returns null when verified, else the reason the
+// entry is unproven.
 function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList, credentialRoots, componentReachableHosts, hostInterop) {
   // Evidence verifies ONLY against the configured protected root: without
   // --probe-evidence-root a ref resolves as written — including to an
@@ -1714,8 +1715,8 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
       return `transcript ${path} records assertions.interop_launch_denied.presence_exit_code ${JSON.stringify(interop.presence_exit_code)}: the inner \`test -x\` must succeed (exit "0"), because a failed launch of a missing executable is no evidence of a denied launch`;
     }
     const code = interop.exit_code;
-    if (typeof code !== "string" || !/^[1-9][0-9]*$/.test(code) || INTEROP_NON_DENIAL_EXIT_CODES.has(code)) {
-      return `transcript ${path} records assertions.interop_launch_denied.exit_code ${JSON.stringify(code)}: a denied launch requires a non-zero integer exit code string other than 127 (command not found, which contradicts the presence proof), 124 or 137 (a timeout or kill, and a hung launch is not a denial); exit "0" means the launch reached the Windows host`;
+    if (typeof code !== "string" || !INTEROP_DENIAL_EXIT_CODE.test(code)) {
+      return `transcript ${path} records assertions.interop_launch_denied.exit_code ${JSON.stringify(code)}: a denied launch requires an exit code string from 1 to 123, or 126 (the kernel refused the binary format); 124 and 125 are timeout statuses, 127 is command not found (contradicting the presence proof), and 128 or above is death by signal, none of which is a denial${code === "0" ? `; exit "0" means the launch reached the Windows host` : ""}`;
     }
     if (interop.launch_outcome !== "launch-denied") {
       return `transcript ${path} records assertions.interop_launch_denied.launch_outcome ${JSON.stringify(interop.launch_outcome)}: the only passing token is "launch-denied"; a missing file has no passing token`;
@@ -1725,16 +1726,23 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
     }
   }
   // Tighten-only: a binding that ratifies no host interop, whose own capture
-  // reached through a Windows drive mount, contradicts that ratification.
+  // reached through a Windows drive mount, contradicts that ratification. The
+  // match is on the default automount root only; a moved [automount] root is
+  // not detected. Paths are normalized first so "/mnt//c" or "/x/../mnt/c"
+  // cannot slip past.
   if (hostInterop === "none") {
-    const driveMount = (value) => /^\/mnt\/[a-z](\/|$)/i.test(value);
-    const expandedOnMount = hostExpanded.find(driveMount);
-    if (expandedOnMount !== undefined) {
-      return `transcript ${path} records assertions.credentials_absent.host_expanded entry ${JSON.stringify(expandedOnMount)} sits under a Windows drive mount (/mnt/<letter>/), but the level binding ratifies host_interop "none": a surface that reaches a Windows drive is WSL2-hosted, so ratify host_interop "wsl2" and record the interop launch check`;
-    }
-    const workspacePath = transcript.assertions.workspace_host_write_contained.workspace_host_path;
-    if (driveMount(workspacePath)) {
-      return `transcript ${path} records assertions.workspace_host_write_contained.workspace_host_path ${JSON.stringify(workspacePath)} sits under a Windows drive mount (/mnt/<letter>/), but the level binding ratifies host_interop "none": a surface that reaches a Windows drive is WSL2-hosted, so ratify host_interop "wsl2" and record the interop launch check`;
+    const driveMount = (value) =>
+      typeof value === "string" && /^\/mnt\/[a-z](\/|$)/i.test(posix.normalize(value.trim().replace(/^\/+/, "/")));
+    const interop = transcript.assertions.interop_launch_denied;
+    const candidates = [
+      ...hostExpanded.map((value) => ["credentials_absent.host_expanded entry", value]),
+      ["workspace_host_write_contained.workspace_host_path", transcript.assertions.workspace_host_write_contained.workspace_host_path],
+      ["interop_launch_denied.executable", interop?.executable],
+      ["interop_launch_denied.outer_executable", interop?.outer_executable],
+    ];
+    const hit = candidates.find(([, value]) => driveMount(value));
+    if (hit !== undefined) {
+      return `transcript ${path} records assertions.${hit[0]} ${JSON.stringify(hit[1])} sits under a Windows drive mount (/mnt/<letter>/), but the level binding ratifies host_interop "none": a surface that reaches a Windows drive is WSL2-hosted, so ratify host_interop "wsl2" and record the interop launch check`;
     }
   }
   if (!HOST_INTEROP_TOKENS.includes(hostInterop)) {

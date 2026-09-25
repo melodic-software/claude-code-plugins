@@ -1159,6 +1159,41 @@
         "assertions.workspace_host_write_contained.workspace_host_path \"/mnt/d/src/repo\" sits under a Windows drive mount"
       ],
       "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-exit-143.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.exit_code \"143\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-exit-999.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.exit_code \"999\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-mnt-workspace-double-slash.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.workspace_host_write_contained.workspace_host_path \"/mnt//c/work\" sits under a Windows drive mount"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-mnt-workspace-dotdot.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.workspace_host_write_contained.workspace_host_path \"/home/../mnt/c/work\" sits under a Windows drive mount"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-none-drive-executable.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.interop_launch_denied.executable \"/mnt/c/Windows/System32/cmd.exe\" sits under a Windows drive mount"
+      ],
+      "credential_roots": "/home/runner"
     }
   },
   "quarantined": {},
@@ -1202,8 +1237,11 @@
     "ci-pool-a-l2-interop-exit-124.json",
     "ci-pool-a-l2-interop-exit-127.json",
     "ci-pool-a-l2-interop-exit-137.json",
+    "ci-pool-a-l2-interop-exit-143.json",
+    "ci-pool-a-l2-interop-exit-999.json",
     "ci-pool-a-l2-interop-inner-zero.json",
     "ci-pool-a-l2-interop-launch-outcome.json",
+    "ci-pool-a-l2-interop-none-drive-executable.json",
     "ci-pool-a-l2-interop-none-inner-zero.json",
     "ci-pool-a-l2-interop-null.json",
     "ci-pool-a-l2-interop-outcome.json",
@@ -1224,6 +1262,8 @@
     "ci-pool-a-l2-metadata-route.json",
     "ci-pool-a-l2-metadata-scheme.json",
     "ci-pool-a-l2-mnt-host-expanded.json",
+    "ci-pool-a-l2-mnt-workspace-dotdot.json",
+    "ci-pool-a-l2-mnt-workspace-double-slash.json",
     "ci-pool-a-l2-mnt-workspace.json",
     "ci-pool-a-l2-multi-host-private.json",
     "ci-pool-a-l2-multi-host.json",
