@@ -7,23 +7,19 @@
 #
 # WHY. docs/cloud-sessions.md states the property this repo depends on: this
 # repo dogfoods everything it publishes, so a regression in any plugin
-# surfaces here first. Nothing enforced it. Three plugins reached main with a
-# catalog entry and no `enabledPlugins` key -- ai-slop (#2892), context-budget
-# (#2932) and improvement (#2985) -- while the plugin PRs on either side of
-# them (coupling #2913, overengineering #2961) remembered the settings entry.
-# The failure is silent by construction: a plugin nothing enables is simply
+# surfaces here first. The failure is silent by construction: a plugin nothing enables is simply
 # never installed by .claude/cloud-bootstrap.sh, so the session comes up green
 # with the plugin's skills missing and no line of output naming what is
 # absent. That is the docs/conventions/liveness-assertion/ shape -- a
 # documented guarantee with no gate behind it -- and it costs exactly the
 # dogfooding the directory-source marketplace exists to provide.
 #
-# WHERE ENABLEMENT LIVES NOW. The fleet cloud plugin list in standards
+# WHERE ENABLEMENT LIVES. The fleet cloud plugin list in standards
 # (components/cloud-environment/fleet-plugins.json) is what every cloud
 # snapshot installs, and the bootstrap reads its snapshot copy overlaid with
 # this repo's .claude/settings.json. So a catalogued plugin is covered when
 # the fleet list enables it OR this file carries an explicit key for it, and
-# this file no longer mirrors the whole catalog (that mirror was writing one
+# this file does not mirror the whole catalog (a mirror writes one
 # project-scope install record per plugin per checkout on every local session
 # start). The fleet list is fetched from its published URL at gate time; an
 # unreachable list is a usage error, never a pass.
@@ -41,8 +37,7 @@
 # WHAT IS CHECKED (both directions):
 #   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry that the
 #      fleet list does not enable AND that has no `<name>@<marketplace>` key
-#      in .claude/settings.json `enabledPlugins`. The class that shipped
-#      three times.
+#      in .claude/settings.json `enabledPlugins`.
 #   2. ORPHANED ENTRY    -- an `enabledPlugins` key for this marketplace that
 #      names no catalog entry. What a plugin rename or removal leaves behind;
 #      the id resolves to nothing and the install silently no-ops.
@@ -217,8 +212,7 @@ fi
 # endswith("@" + $n). Rename the marketplace and update both settings keys and
 # the catalog, and the two disagree: `wanted` matches nothing, cloud sessions
 # install none of the catalog, and this lane stays green over it -- a parity
-# gate certifying a set nobody installs. Raised as P2 by the Codex review on
-# #3235. Verifying the constant rather than deriving it keeps the bootstrap's
+# gate certifying a set nobody installs. Verifying the constant rather than deriving it keeps the bootstrap's
 # behavior byte-identical (it must work before anything else does) while making
 # a rename that touches only one of the two impossible to merge.
 bootstrap_name="$(sed -n 's/^marketplace_name="\([^"]*\)".*/\1/p' "$BOOTSTRAP" | head -1)"

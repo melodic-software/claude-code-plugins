@@ -82,9 +82,9 @@ function taxonomyCategories() {
   return values;
 }
 
-// One-way gates existed before this: an unknown category in marketplace.json
-// hard-errors below, but nothing compared CATEGORY_ORDER back to the document
-// that claims sole ownership of the vocabulary. Assert full order equality on
+// An unknown category in marketplace.json hard-errors below, but that gate is
+// one-way: it never compares CATEGORY_ORDER back to the document that claims
+// sole ownership of the vocabulary. Assert full order equality on
 // every run (generate and --check both), so a value added, dropped, renamed,
 // or reordered on either side is loud.
 {
