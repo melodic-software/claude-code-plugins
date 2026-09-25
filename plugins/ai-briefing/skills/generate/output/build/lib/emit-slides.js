@@ -1,6 +1,5 @@
 // Convert parsed briefing buckets → ordered slide objects matching the
-// 11-type schema in lib/schema.js. Implements canonical slide order,
-// per-bucket HIGH→MED→LOW partition, split rules, cross-provider clusters.
+// 11-type schema in lib/schema.js.
 
 // Canonical bucket order. Keys MUST match the H2 headings in briefing markdown
 // (case-insensitive prefix match against parser output).
@@ -57,7 +56,6 @@ function bucketKey(heading) {
   }
   for (const b of BUCKET_ORDER) {
     if (h.startsWith(b.key)) return b.key;
-    // alias matches
     if (b.key === "xai" && /grok/.test(h)) return b.key;
     if (b.key === "meta" && /llama/.test(h)) return b.key;
     if (b.key === "real-world" && /(real.world|robotics|autonomous)/.test(h)) return b.key;
@@ -108,9 +106,8 @@ function tierSlides({ items, tier, providerKey, label }) {
   return slides;
 }
 
-// Buckets that carry synthesis/meta content rather than provider news — excluded
-// from the "how many buckets were active" heuristic below. Kept independent of
-// SPECIAL_BUCKETS: the two sets coincide today but answer different questions.
+// Non-provider buckets, excluded from the active-bucket heuristic below. Deliberately
+// independent of SPECIAL_BUCKETS: the sets coincide today but answer different questions.
 const NON_PROVIDER_BUCKETS = new Set(["patterns", "breaking", "dev-tools", "pace", "trends"]);
 
 /** Synthesize patterns slide from cross-bucket signals. Heuristic — caller can override
@@ -127,7 +124,6 @@ function buildPatternsSlide(buckets) {
     };
   }
 
-  // Heuristic fallback when no authored Patterns section exists.
   const bucketKeys = Object.keys(buckets).filter(
     (k) => !NON_PROVIDER_BUCKETS.has(k) && Object.values(buckets[k] || {}).some((arr) => arr.length > 0),
   );
@@ -178,9 +174,8 @@ function buildPaceSlide(buckets) {
   return null; // No auto-derivation in the first cut — author the section to enable.
 }
 
-/** Build dev-tool slides — per-tool ordered by DEV_TOOL_PRIORITY. Each H3 in the
- *  briefing's `## Dev Tools — Release Walk` section becomes one slide.
- *  Maps tool-name patterns to ordered keys; missing tools are silently skipped. */
+/** Build dev-tool slides in DEV_TOOL_PRIORITY order, one per matching H3 under
+ *  the Dev Tools release-walk H2; tools with no matching H3 are skipped. */
 const DEV_TOOL_PRIORITY = [
   { key: "claude-code",    re: /claude\s*code/i,                          label: "Claude Code",     provider: "anthropic" },
   { key: "cursor",         re: /cursor/i,                                  label: "Cursor",          provider: "cursor" },
@@ -203,7 +198,6 @@ function buildDevToolSlides(buckets) {
       }
     }
   }
-  // Emit in priority order regardless of authoring order
   for (const tool of DEV_TOOL_PRIORITY) {
     const m = matched[tool.key];
     if (!m || !m.items || m.items.length === 0) continue;
@@ -219,9 +213,8 @@ function buildDevToolSlides(buckets) {
   return slides;
 }
 
-/** Stable sort items in each tier by extracted date desc (most recent → oldest).
- *  Undated items stay at top in source order. Uses Array.prototype.sort with
- *  index tracking to remain stable across V8 versions. */
+/** Sort items newest first; undated items stay on top in source order. Index
+ *  tracking keeps the sort stable across V8 versions. */
 function sortItemsByDate(items) {
   if (!items || items.length === 0) return items;
   return items
@@ -255,17 +248,13 @@ function sortTiersByDate(normalized) {
   }
 }
 
-/** Mutate `normalized` to apply tier auto-balance:
- *   - HIGH > 7 → demote weakest (last) item to MED until HIGH ≤ 7
- *   - MED ≥ 5 AND HIGH < 3 → promote first MED item to HIGH until balance */
+/** Mutate `normalized` to rebalance HIGH and MED tier sizes. */
 function balanceTiers(normalized) {
   for (const data of Object.values(normalized)) {
     if (!data) continue;
     const high = data.high || [];
     const med = data.med || [];
-    // Demote weakest from HIGH when over-saturated
     while (high.length > 7) med.unshift(high.pop());
-    // Promote strongest from MED when HIGH is under-saturated
     while (med.length >= 5 && high.length < 3) high.push(med.shift());
     data.high = high;
     data.med = med;
@@ -281,13 +270,11 @@ function balanceTiers(normalized) {
 export function emitSlides(briefing, ctx) {
   const { buckets } = briefing;
 
-  // Normalize bucket keys to canonical
   const normalized = {};
   for (const [heading, tiers] of Object.entries(buckets)) {
     const key = bucketKey(heading);
     if (!key) continue;
     normalized[key] = normalized[key] || {};
-    // Merge tiers (case-insensitive)
     for (const [tier, items] of Object.entries(tiers)) {
       const t = tier.toLowerCase();
       if (t === "_items") {
