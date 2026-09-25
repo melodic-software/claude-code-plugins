@@ -246,12 +246,19 @@ out of scope until such a signal exists.
   as a static default, because neither has a fixed spelling: the scratchpad path
   carries a session id, so it resolves at run time.
 
-  **Exempting it gives up no protection**, which is the only reason a default is
-  defensible here: `hook::read_file_path`, the entry every `Write|Edit` content
-  guard reads its file through, already declines a temp-tree file from a non-temp
-  project, so those targets were never reachable by the gates this guard exists
-  to protect. Before 0.32.0 they blocked anyway, which cost false positives with
-  no true positive.
+  **Exempting it gives up little protection**, which is the only reason a default
+  is defensible here: guardrails' own `Write|Edit` gates decline most temp-tree
+  files reached from a known project root outside the temp tree.
+  `secret-pattern-detection` declines them by its own check, which resolves the
+  target's physical path and applies a gate never wider than this default;
+  `hardcoded-path-check` and `block-windows-drive-tmp` decline them through their
+  project scope. `Write` still scans some temp targets the Bash redirect exempts
+  (a hard-linked file, a `/`-spelled target on Windows, a temp tree spelled with
+  capitals on POSIX); the 0.36.5 changelog entry lists them. Before 0.32.0 these
+  redirects blocked anyway, which cost false positives with no true positive. A
+  target spelled with an 8.3 short name (a component such as `ABCDEF~1`) is
+  scanned on `Write` and blocked for Bash, so a harness scratchpad path spelled
+  that way is covered by neither exemption.
 
   **The memory tier is deliberately NOT a second default.** `<memory_dir>/`
   (default `.work/`) was exempted here during review and removed again, because
@@ -1102,6 +1109,9 @@ repo-specific policy of their own:
   machine-local, not a portable repo artifact, and outside a work tree the
   gitignore allowlist below could never exempt it, while secret scanning
   fails **closed** and scans anyway (secrets are dangerous anywhere).
+  Secret scanning still declines a temp-tree file when the project dir is set
+  and lies outside the temp tree, never wider than `block-hook-bypass`'s temp
+  default.
 - **Gitignore is the allowlist.** `hardcoded-path-check` skips any file
   `git check-ignore` matches against your `$CLAUDE_PROJECT_DIR`. Put
   machine-local files (`settings.local.json`, `.venv/`, …) in your
