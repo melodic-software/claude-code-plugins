@@ -100,9 +100,8 @@ wit_linear_set_assignee "$ISSUE_UUID" "$WIT_LINEAR_VIEWER_ID"
 # `exit` directly rather than returning, and an explicit `exit` inside a function does
 # not run the caller's ERR trap — only its EXIT trap.
 #
-# The rollback CLEARS ONLY IF THE ASSIGNEE IS STILL US. An unconditional clear would
-# reintroduce, from the rollback path, precisely the bug reclaim.sh was fixed for: this
-# trap stays armed across the update-comment write and the arbitration read below, both
+# The rollback CLEARS ONLY IF THE ASSIGNEE IS STILL US. An unconditional clear could
+# strip a live claim from the rollback path: this trap stays armed across the update-comment write and the arbitration read below, both
 # of which exit on failure, and Linear's `assignee` is a SINGLE field (see the header).
 # So a concurrent session can legitimately win the claim inside that window — posting
 # its own lease and overwriting the assignee — and a blind clear would then strip that

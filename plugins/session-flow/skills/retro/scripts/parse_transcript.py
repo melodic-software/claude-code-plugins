@@ -599,21 +599,9 @@ def build_multi_session_output(
             "aggregate": {},
         }
 
-    # One transcript must count ONCE however many times its id was named.
-    # A repeat is easy to produce — pasting a comma-joined list next to a
-    # space-separated one, or a `previous_handoff` chain that loops back —
-    # and every downstream number is a sum over this list: the aggregate
-    # token and turn totals would double, and `transcripts_present` could
-    # exceed `available` (one file, counted twice), publishing a coverage
-    # ratio above 1.0 against a field documented as 0.0-1.0. Deduplicated
-    # HERE rather than at the argument parser: this function owns the rule
-    # for every entry point, so a new caller cannot reintroduce the defect
-    # by skipping a parser-side filter. The `--chain-from` walk still drops
-    # revisits of its own (`seen` in extract_chain_from_handoff, plus the
-    # prepend guard in main) because a cycle must terminate the WALK, not
-    # merely be cleaned up afterwards; those are cheap and independent, not
-    # a second owner of this rule. Order-preserving: the first id is the
-    # current session and the rest are its chain, in order.
+    # Deduplicated here, for every entry point: a repeated id would double the
+    # totals and push coverage above 1.0. Order-preserving: the first id is the
+    # current session.
     session_ids = list(dict.fromkeys(session_ids))
 
     sessions_out: list[dict[str, Any]] = []
@@ -655,16 +643,8 @@ def build_multi_session_output(
             tagged["session_id"] = sid
             agg_subagents.append(tagged)
 
-    # Chain coverage: how much of what this project HAS did the chain cover?
-    # A backward `previous_handoff` walk terminates at the first session that
-    # wrote no handoff file, and a walk that stopped early is indistinguishable
-    # in this output from a genuinely short chain — the reported failure was a
-    # 10-session chain retro authored from 2 sessions with nothing signaling
-    # the gap. `available` counts the transcripts sitting in the same base
-    # directory, which IS the per-project transcript directory, so the ratio
-    # answers "did we look at most of this project's sessions?" without
-    # asserting that every sibling transcript belongs to this chain — some will
-    # not, which is why this is coverage evidence for a reader, not a filter.
+    # A chain walk that stopped early looks like a short chain. `available` counts
+    # the per-project transcripts: coverage evidence for a reader, not a filter.
     try:
         available = len([p for p in base_path.glob("*.jsonl") if p.is_file()])
     except OSError:
@@ -764,16 +744,8 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
     ns = parser.parse_args(argv)
     ns.session_id = None
     if ns.sessions:
-        # `--sessions a,b,c` is the shape a caller reaches for when the ids were
-        # just written into prose, and `nargs="+"` takes the whole comma-joined
-        # string as ONE token. That token matches no transcript file, so the run
-        # reported "0 with transcript" for a chain whose transcripts all exist —
-        # a wrong answer, not an error. A session id never contains a comma, so
-        # splitting on it is unambiguous and cannot change the meaning of a
-        # correctly space-separated invocation. Empty fragments (a trailing
-        # comma, `a,,b`) are dropped rather than passed on as an id that cannot
-        # exist; if every token was empty the list goes falsy and main() reports
-        # the no-session-id usage error.
+        # `nargs="+"` takes `--sessions a,b,c` as one token. A session id never
+        # contains a comma, so split on it and drop empty fragments.
         ns.sessions = [
             sid
             for token in ns.sessions

@@ -175,7 +175,6 @@ USER_JSON="$(read_layer user-global "$USER_LAYER")" || exit $?
 TEAM_JSON="$(read_layer team "$TEAM_LAYER")" || exit $?
 OVERLAY_JSON="$(read_layer overlay "$OVERLAY_LAYER")" || exit $?
 
-# `<key>` present in a layer's file_names object?
 layer_has() {
   [[ -n "$2" ]] || return 1
   printf '%s' "$2" | jqr -e --arg k "$1" '.file_names | has($k)' >/dev/null 2>&1
@@ -195,22 +194,11 @@ append_new() {
   '
 }
 
-# THE POLICY FLOOR NEEDS PER-ENTRY PROVENANCE, AND ONLY `tiers` DOES.
-#
-# Every other additive key is a list of things to EXEMPT or EXCLUDE, so an
-# appended entry can only ever narrow what a rename touches. A tier is the one
-# additive key whose entries carry a verdict, and appending is not monotonic for
-# a verdict: a personal tier naming a deeper path with a looser form would
-# re-classify a file the team froze, which is a removal wearing an addition's
-# clothes.
-#
-# Stamping each entry with the layer that contributed it lets the consumer hold
-# the floor exactly where it belongs, per file: a personal tier may classify a
-# file no team tier claims, and may never re-classify one a team tier did.
+# Only `tiers` entries carry a verdict, so each is stamped with its layer: a personal
+# tier may classify a file no team tier claims, never one a team tier claimed.
 stamp_layer() {
-  # A value that is absent, empty, or not an array is handed back untouched.
-  # Stamping is a refinement of a list that already resolved; it must never be
-  # the step that turns a readable document into a failed one.
+  # A non-array value is handed back untouched: stamping must never turn a
+  # readable document into a failed one.
   case "$1" in
   '' | null) printf '%s' "$1" ;;
   \[*) jqr -n -c --argjson a "$1" --arg l "$2" '$a | map(if type == "object" then . + {_layer: $l} else . end)' ;;
@@ -228,18 +216,8 @@ for key in $KEY_ORDER; do
   [[ "$key" = tiers && "$value" != "null" ]] && value="$(stamp_layer "$value" bundled)"
   contributors='bundled'
 
-  # THE TWO MERGE CLASSES NEED OPPOSITE LAYER ORDERS, so each gets its own.
-  #
-  # A nearest-wins key follows the documented cascade: user-global, then team,
-  # then the overlay, so the NEARER layer lands last and wins. Running team
-  # first here would let a machine-wide `rule` or `regex` overwrite the
-  # repository's, and an audit or an emitted gate would silently enforce
-  # somebody's personal convention.
-  #
-  # An additive key is the other way round: the team layer is the authority and
-  # REPLACES, and a personal layer only appends to what the team decided. That
-  # needs team first, or the team's replacement would discard the personal
-  # additions the floor exists to allow.
+  # Nearest-wins keys apply the nearer layer last so it wins; additive keys apply
+  # team first so its replacement cannot discard personal additions.
   case "$NEAREST_WINS" in
   *" $key "*) layer_order='user-global team overlay' ;;
   *) layer_order='team user-global overlay' ;;

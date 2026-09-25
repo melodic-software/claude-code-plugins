@@ -21,8 +21,7 @@
 # change.
 #
 # It is a contract tripwire, not a semantic proof, and it gates in three layers because
-# each outer layer catches an attack the inner one is blind to. Every layer was added after
-# a fresh-context verifier demonstrated the shape it closes.
+# each outer layer catches an attack the inner one is blind to.
 #
 #   1. Phrase pins (`pin`, `pin_once`, `within`) anchor on a phrase carrying the rule's
 #      MEANING — the halt, the prohibition, the arbiter tag — never on incidental wording,
@@ -42,39 +41,7 @@
 #
 #   3. Digests (`pin_section`, `pin_case_digest`, `pin_case_set`, `pin_file`,
 #      `pin_frontmatter`) hash whole regions. Whole-line pins are blind to anything ADDED
-#      BESIDE a pinned line rather than to it. FOURTEEN such shapes were demonstrated against
-#      earlier revisions of this suite, each passing at FAIL=0:
-#        - a new adjacent paragraph inside Step 1.5 ("**Applying the two rules above.** In
-#          practice a gap counts as \"real\" only when …");
-#        - the same, four lines below the router row inside the Action Router section;
-#        - a criterion ADDED to an eval case contradicting one already pinned ("Recording
-#          the residue under `### Captured assumptions` … is an equally acceptable
-#          outcome");
-#        - a rewritten fixture, so case A's planted gap IS answered by the codebase and
-#          the case grades nothing;
-#        - a SIBLING eval case ADDED, saying the captured assumption is preferred, leaving
-#          15 and 16 byte-identical;
-#        - an existing sibling REWRITTEN in place to say the same, keeping its name and so
-#          the roster hash too;
-#        - a crafted heading that MOVED a digested region's own boundary, so an override
-#          appended after it fell outside the hash (see `section_digest`);
-#        - the adjacent paragraph shifted one line UP, to the end of Step 1, where it reads
-#          as the preamble governing both rules below it;
-#        - a qualifier added to the frontmatter `description`, the always-loaded routing
-#          surface a reader meets before any section;
-#        - a qualifier added to a DIFFERENT frontmatter key (`metadata.summary`), short
-#          enough to clear the cheatsheet's length cap, which pinning `description` alone
-#          did not reach;
-#        - an in-place rewrite of a NON-pinned sibling case that nonetheless rests on the
-#          same fact-vs-decision line (case 8, `facts-looked-up-decisions-asked`);
-#        - an append-only inversion of a defense line carrying only a PHRASE pin, in an
-#          undigested section — the in-round no-silent-resolve rule in Stance, and the
-#          register-binding lines in loop.md's register section;
-#        - a governing preamble in the `## The interview loop` intro, three lines above the
-#          digested Step 1 region;
-#        - an append-only inversion of loop.md's TWIN of a byte-pinned SKILL.md line — the
-#          confirmation-gate exemption in its Step 3, and the `USER-RESERVED` arbiter
-#          guidance in its Step 4 — leaving the pinned original standing.
+#      BESIDE a pinned line rather than to it.
 #      Digests cover thirteen sections, the whole YAML frontmatter, the eight cases that speak
 #      to these rules, the case roster, and the four fixtures. Inside those regions, an
 #      insertion, deletion, or reordering fails. EVERY line this suite phrase-pins as a
@@ -470,20 +437,8 @@ declares_both_fixtures B "$CASE_B"
 #
 # On a BSD userland substitute `shasum -a 256` for `sha256sum`, as `sha256_stdin` does.
 
-# Re-pinned when follow-up F12 dropped the inert `shell: bash` key (planning 0.36.5).
-# That key selects the shell for a `!`-injection in a pre-compute block; this file has no
-# injection and no pre-compute block, so it selected nothing. Both defenses are body
-# prose — the STOP-on-gap halt in Step 1.5 and Step 3, the auto-guard in Step 1.5 and
-# "What this skill does NOT do" — each covered by its own section digest below, and
-# neither is stated or qualified in any frontmatter key. Removing a key adds no qualifier
-# to any other.
-#
-# Re-pinned a second time when this branch merged origin/main, which had rewritten
-# `description:` to add the always-on unwanted-behavior coverage prompt's trigger
-# phrases ("acceptance criteria", "how will we know this is done"). Both changes land in
-# the digested block, and the value below is recomputed over the merged file so each side
-# is graded, not one of them. Added triggers widen when the skill fires; they state no
-# rule and qualify no defense, and every defense stays covered by its section digest.
+# Both defenses are body prose, each covered by its own section digest below; no
+# frontmatter key states or qualifies either.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
   "4b5a32a41e797942dd400feb1a0f45d136de8d1ab5f0ceb490d8455ce04c6cd5"

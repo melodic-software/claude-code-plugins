@@ -143,8 +143,8 @@ printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace # re
 # --- 6c. Equivalent spellings of the SAME registered directory must not be
 #     reported as unregistered. A trailing slash, a doubled slash and a "."
 #     segment all resolve and glob to one directory, so the forward check
-#     accepts them; before canonicalization the inverse check keyed on the
-#     raw string and reported the very directory the catalog registers.
+#     accepts them; an inverse check keyed on the raw string would report the
+#     very directory the catalog registers.
 printf 'alpha\t./plugins/alpha/\nbeta\tplugins/./beta\n' | write_marketplace
 out="$(run)"
 rc=$?

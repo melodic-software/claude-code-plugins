@@ -4,8 +4,7 @@
 # check-shell-portability.sh and check-skill-portability.sh are twins: both load
 # a `<token> <ere>` data file with awk's `FNR == NR` idiom and then scan a file
 # per invocation, passing BOTH as awk operands. That shape has a silent
-# fail-open, fixed once in #1513 and then not propagated -- the divergence
-# #2914 (finding 2) filed:
+# fail-open:
 #
 #   awk parses an operand shaped like identifier=value as a command-line
 #   VARIABLE ASSIGNMENT, not as a file to open. A token list reached through
@@ -16,10 +15,7 @@
 #
 # The fix is one line -- prefix an unrooted operand with `./`, which is never a
 # valid awk identifier lead character, so the operand can only parse as a
-# filename -- and the bug was that one line living in one of the two twins. At
-# extraction time check-shell-portability.sh guarded both its token list and
-# each scanned file, while check-skill-portability.sh guarded only the scanned
-# file and left its token list exposed to exactly the #1513 fail-open.
+# filename -- and it lives here so neither twin can drop it.
 #
 # WHAT IS DELIBERATELY NOT HERE. The mode dispatch (`<base-ref>` / `--all` /
 # `--paths`) and the awk programs stay in the two gates. They are not near-
@@ -28,7 +24,7 @@
 # check-shell-portability.sh consults a skill-markdown baseline. Hoisting a
 # parameterized dispatcher over those differences would trade a real duplicate
 # for a fake abstraction -- so this file owns the one thing the two genuinely
-# share, and the rest of finding 2's remediation is left as filed.
+# share.
 
 # token_scan::awk_operand <path>
 #

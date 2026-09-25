@@ -41,8 +41,8 @@
 # and silently reverts the index. It also matters for the pathspec-limited
 # (`--only`) commit form, which records the WORKTREE mode rather than the index.
 #
-# WHY THE INDEX WRITE IS NOT OPTIONAL: under `core.filemode=false` — the default
-# on Windows/NTFS, and confirmed on the machine this was developed on — git
+# WHY THE INDEX WRITE IS NOT OPTIONAL: under `core.filemode=false` (the default
+# on Windows/NTFS) git
 # ignores worktree permission bits entirely and stages every file 100644. On
 # such a repo `chmod +x` alone NEVER reaches the index, so `git update-index
 # --chmod=+x` is the only thing that can produce a 100755 entry. Both writes are

@@ -6,9 +6,8 @@
 # The NUL-safety cases are the reason this suite exists rather than leaning on
 # the four calling gates' own suites. A pathname Git C-quotes under the default
 # core.quotePath is exactly the input that made check-changed-skills.sh and
-# check-docs-only.sh diverge from the two portability scanners (#2914, finding
-# 1), and no caller suite exercised it -- the divergence was found by reading,
-# not by a red test. Asserting it here means the invariant now has one owner and
+# check-docs-only.sh diverge from the two portability scanners, and no caller
+# suite exercises it. Asserting it here means the invariant has one owner and
 # one failing test if it is ever dropped again.
 set -uo pipefail
 

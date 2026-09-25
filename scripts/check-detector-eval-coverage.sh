@@ -156,10 +156,6 @@
 #     it at the punctuation and armed `PY` / `EOF`. The matcher now uses the
 #     walk's OWN literal-word class, so the delimiter arrives whole.
 #
-# Both halves were found by defeat attempts rather than by a failing run, the
-# second by an adversarial verifier reading the first. The registered detector
-# spells both its heredocs `<<'EOF'` and was never affected by either.
-#
 # THE DELIMITER MUST BE READ WHOLE OR NOT AT ALL. Widening the matcher's
 # character class was itself only half an answer: `match()` does not require
 # its match to END anywhere in particular, so the next delimiter carrying a
@@ -184,11 +180,6 @@
 # direction is not this rule but matching the terminator the way bash matches
 # it -- exactly, and with tabs -- which is what the body-skip rule now does.
 #
-# So the standing lesson is about the claim rather than the rule. A guard that
-# catches one end state is worth having and is not the same thing as a guard
-# that cannot be got around, and writing it up as the latter is what six
-# rounds of review have each had to correct.
-#
 # The guards are the P3b block of the self-test, and they fail against every
 # revision that preceded them. MEASURED at b229834ae by swapping each revision
 # in and running the current suite:
@@ -202,9 +193,7 @@
 # The last four share a count because they differ only in HOW they guessed at
 # an unterminated span, and the current suite asserts that guessing at all is
 # wrong. The revision each count is measured at is named because these go stale
-# on any commit that adds a guard: the previous numbers here (22/18/14/9) were
-# last restated at 48065f840 and a cross-model review caught them, having been
-# left behind by the very rule the next sentence states. Every ARMING
+# on any commit that adds a guard. Every ARMING
 # case asserts arm-AND-CLOSE -- a call site after the terminator must still be
 # SEEN. That is the lesson worth keeping. The first round of guards asserted
 # only that the body's own emit was not counted, which a swallow-to-EOF satisfies
@@ -259,36 +248,27 @@
 #     after the walk -- `<<"E O F"`, or the braced `<<${DELIM}` that strip_pexp
 #     removes -- arms nothing, so its BODY is read as code. An `emit` in prose
 #     there usually resolves to an id, which over-counts and demands coverage,
-#     or does not, which is exit 2. It is NOT unconditionally safe, and a
-#     revision of this bullet said it was: if that body carries a `<<WORD` of
-#     its own, the skip it arms closes on a later WORD line and swallows what
-#     lies between, silently. Arming on a delimiter that cannot be matched has
-#     the same shape, which is why the matcher above reads the delimiter whole
-#     rather than accepting a prefix of it -- but "not arming" buys a smaller
-#     margin than that sentence claimed.
+#     or does not, which is exit 2. It is NOT unconditionally safe: if that
+#     body carries a `<<WORD` of its own, the skip it arms closes on a later
+#     WORD line and swallows what lies between, silently. Arming on a delimiter
+#     that cannot be matched has the same shape, which is why the matcher above
+#     reads the delimiter whole rather than accepting a prefix of it.
 #
-#     `<<$DELIM` was listed here as an expansion that arms nothing. That was
-#     FALSE twice over, and a cross-model review caught it: bash does NOT
-#     expand a heredoc delimiter (`<<$DELIM` is closed by a literal `$DELIM`
-#     line, not by the variable's value), and this scanner agrees with it --
-#     the delimiter arms as the literal `$DELIM` and closes correctly. Only the
-#     BRACED spelling reaches the bullet above, and only because strip_pexp
-#     removed it before the scan. Read as a claim about bash, the old sentence
-#     described a shell that does not exist.
+#     `<<$DELIM` is not such a case: bash does NOT expand a heredoc delimiter
+#     (`<<$DELIM` is closed by a literal `$DELIM` line), and this scanner arms
+#     the literal `$DELIM` and closes correctly. Only the BRACED spelling
+#     reaches the bullet above, because strip_pexp removed it before the scan.
 #   - MISSED, SILENT. THE WALK HAS NO NESTED QUOTING CONTEXT, and that is the
-#     largest hole in this scanner. A revision of this bullet claimed these
-#     shapes were "no longer silent" because the unclosed-at-EOF rule caught
-#     them. That was FALSE, and a cross-model review refuted it by running the
-#     shapes: the skip re-syncs on the file's own next real terminator, so
-#     nothing is outstanding at EOF and the gate exits 0.
+#     largest hole in this scanner. The unclosed-at-EOF rule does NOT catch
+#     these shapes: the skip re-syncs on the file's own next real terminator,
+#     so nothing is outstanding at EOF and the gate exits 0.
 #
 #     The shapes, each verified to EXECUTE under bash while producing no `ID`
 #     and no `UNRESOLVED` here:
 #       * `x="$(emit error P1)"`. A command substitution INSIDE double quotes
 #         collapses to one `@Q@` token, so its call sites never reach the
 #         tokenizer at all. This is one line of ordinary shell -- a detector
-#         that captures its emitter's output is wholly invisible to the gate --
-#         and five rounds of same-model review did not find it.
+#         that captures its emitter's output is wholly invisible to the gate.
 #       * the CLOSING line of a multi-line quoted string, when it carries a
 #         call after the quote (`' ... )" || emit error P2`). Per-line
 #         resolution inverts the quote state there.
@@ -301,8 +281,7 @@
 #       * `trap 'emit error P9' EXIT` and `eval 'emit error P10'`, which look
 #         like command-position gaps and are not: `cmd_position()` names `eval`
 #         and BARE `eval emit error P10` resolves. What is lost is the QUOTED
-#         body, so both belong to the quoting hole above. A cross-model review
-#         corrected that attribution, and it matters because the two have
+#         body, so both belong to the quoting hole above; the two have
 #         different fixes.
 #       * `x=$[ 1 << EOF ]` before a genuine `cat <<EOF` block: deprecated
 #         arithmetic arms `EOF`, and the real block's terminator closes it.
@@ -314,11 +293,7 @@
 #     than by construction. claude-code-plugins#4222 tracks replacing the
 #     extraction with a real parser, which is the only fix for this class.
 #
-#     Five rounds of adversarial review found the shapes above it, and every
-#     enumeration was incomplete -- four rounds found defects introduced by the
-#     previous round's fix, and a different model family then found six more
-#     that all five rounds had missed. So this list is what is KNOWN to be
-#     misread, never what remains.
+#     This list is what is KNOWN to be misread, never what remains.
 #
 # Adjacent and DIFFERENT: scripts/check-detector-findings-crosswalk.sh checks
 # that each severity-crosswalk row in docs/conventions/detector-findings/ argues
@@ -407,8 +382,8 @@ PAIRS_DEFAULT=(
 # the real spelling.
 QUALIFYING_ID_ERE='[A-Z][A-Za-z]*[0-9]+[A-Za-z0-9]*'
 
-# Argv is exact. `--check extra` used to ignore its trailing words, which reads
-# as a mode the gate accepted and did not run.
+# Argv is exact: ignoring trailing words (`--check extra`) reads as a mode the
+# gate accepted and did not run.
 if [[ "$#" -gt 1 ]]; then
   echo "usage: $(basename "$0") [--check]" >&2
   exit 2
@@ -867,8 +842,8 @@ covering_tmp="$(mktemp)" || exit 2
 disclaimed_tmp="$(mktemp)" || exit 2
 scan_tmp="$(mktemp)" || exit 2
 strings_tmp="$(mktemp)" || exit 2
-# Discover-mode stdout is BUFFERED, not streamed: a per-row exit 2 used to leave
-# a partial report on stdout with no denominator trailer under it, and the
+# Discover-mode stdout is BUFFERED, not streamed: a per-row exit 2 must not
+# leave a partial report on stdout with no denominator trailer under it, and the
 # check-script contract says a run that inspected nothing says nothing there.
 report_tmp="$(mktemp)" || exit 2
 # Advisories are BUFFERED for the same reason the discover report is: a per-row
@@ -886,16 +861,6 @@ advisories=0
 # runs (EMIT_SCAN_AWK, under the wider QUALIFYING_ID_ERE rather than a row's
 # own pattern), so a spelling one half of this gate can read is a spelling the
 # other half can read.
-#
-# It did not always. An earlier revision kept a second extractor here, one
-# greedy sed whose `.*` retained only the LAST call site on a line. A new
-# detector spelling two emits as `emit warning Q1 ...; emit error Q2 ...`
-# resolved to ONE id, fell short of the two-distinct-ids bar, and was never
-# reported as unregistered -- the stopping rule that exists so the next
-# detector cannot be silently unenforced, silently defeated by ordinary shell,
-# while the verdict scanner beside it read that same line as two call sites
-# correctly. Two extractors that must agree is how that happened; one
-# extractor with one behavior is why it cannot happen again.
 #
 # Discovery reads the scanner's `ID` lines and NOTHING else. Its UNRESOLVED
 # lines and its candidate count belong to the verdict path: an unreadable call

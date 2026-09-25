@@ -2,22 +2,8 @@
 # Regression guard: the attended lane's "Flip to agent-ready" transition must
 # stay human-floor aware, so resolving a C4/C5 escalation never strands the item.
 #
-# WHY. `list-frontier --autonomous` drops items carrying a human-floor work class
-# (`work-class: structural`, `work-class: untrusted-provenance`) even when the
-# autonomous-eligible role label is present (lib/frontier.sh, lib/labels.sh).
-# `/work-items:attend-queue` builds its attention view from the human-gated role
-# label plus a machine-marked comment, NOT from the frontier. So an unconditional
-# flip on a floor-class row (apply autonomous-eligible, remove human-gated) leaves
-# the item floored out of the autonomous frontier AND matching no attended row
-# condition: reachable by no lane, silently, forever. The transition therefore has
-# to read the work class and either reclassify to C1-C3 in the same edit or leave
-# the human-gated role label in place.
-#
-# The transition is LLM-executed prose, so this guard is a prose invariant in the
-# shape tests/no-hardcoded-priority-scheme.test.sh already uses: (1) synthetic
-# fixtures prove the detector itself discriminates, including the exact pre-fix
-# wording and a near miss that names the floor classes outside the transition,
-# and (2) a real scan proves the shipped skill satisfies it today.
+# An unconditional flip on a floor-class row leaves the item outside the autonomous
+# frontier AND off the attended view (which reads role labels): reachable by no lane.
 # shellcheck disable=SC2016  # fixture bodies are literal prose in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -36,10 +22,8 @@ fail() {
   FAIL=$((FAIL + 1))
 }
 
-# The transition region: the "Flip to agent-ready" bullet through the end of its
-# markdown list (bullets in this list are contiguous, so the next blank line ends
-# it). Scoping to the region is the point: the floor rule has to be stated where
-# the flip is instructed, not merely somewhere in the file.
+# The flip bullet through the next blank line (its list is contiguous). The floor
+# rule must be stated where the flip is instructed, not merely somewhere in the file.
 transition_region() {
   awk '
     /^- \*\*Flip to agent-ready\./ { inside = 1 }

@@ -252,8 +252,8 @@ rm -rf "$f"
 
 # --- --all still scans the tree, and is never base-ref validated -------------
 #
-# The #3377 fix hoists `git rev-parse` into the parent, so the mode dispatch
-# that keeps --all and --paths out of that check is now load-bearing: a fixture
+# The parent runs `git rev-parse` on the base ref, so the mode dispatch that
+# keeps --all and --paths out of that check is load-bearing: a fixture
 # with no git repository at all must still scan.
 new_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Pre-computed context\n\nA: !`git branch --show-current`\nB: !`git status --porcelain`\n\n## Body\n'

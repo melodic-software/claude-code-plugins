@@ -106,9 +106,8 @@ fi
 rm -rf "$f"
 
 # --- a final registry entry with no trailing newline is still loaded -------
-# The hand-rolled reader this replaced used a bare `while IFS= read -r`, whose
-# last iteration returns non-zero even after filling the variable, so an
-# unterminated final entry was dropped and its cluster reported UNREGISTERED.
+# A bare `while IFS= read -r` returns non-zero on an unterminated last line even
+# after filling the variable, dropping the entry and reporting it UNREGISTERED.
 new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "identical"
 plugin_file "$f" beta hooks/shared.sh "identical"
@@ -165,13 +164,8 @@ rm -rf "$f"
 
 # --- a cluster path containing a space iterates ONCE, not once per word ----
 #
-# Pre-#3376 discover mode iterated an UNQUOTED command substitution, so every
-# cluster key was word-split on IFS whitespace and glob-expanded against the
-# working directory; and the cluster accumulator was space-joined, so
-# load_cluster split each entry's path apart again and handed sha256sum a
-# truncated name, which is fatal under this script's `set -e`. A space-bearing
-# path therefore iterated wrongly with no error signal, in the one mode whose
-# job is showing a human the cluster inventory.
+# Guards #3376: an unquoted command substitution over the keys, or a
+# space-joined accumulator, splits a space-bearing path with no error signal.
 new_fixture f
 plugin_file "$f" alpha "hooks/shared file.sh" "same"
 plugin_file "$f" beta "hooks/shared file.sh" "same"
@@ -196,12 +190,10 @@ rm -rf "$f"
 
 # --- discover on a tree with NO clusters at all ----------------------------
 #
-# The empty-array edge the #3376 fix has to get right, and the one the obvious
-# rewrite gets wrong: `printf '%s\n'` with no arguments still prints one blank
+# The empty-array edge: `printf '%s\n'` with no arguments still prints one blank
 # line, so `mapfile -t < <(printf '%s\n' "${!cluster_status[@]}" | sort)` hands
 # the loop a single EMPTY key, which dies on `${cluster_entries[]}` under
-# `set -u`. The old unquoted `$(...)` was accidentally safe here, so a fix that
-# only addressed word-splitting would trade one silent bug for a loud one.
+# `set -u`.
 new_fixture f
 plugin_file "$f" alpha hooks/only-here.sh "content"
 if out="$(run_discover "$f" 2>&1)"; then

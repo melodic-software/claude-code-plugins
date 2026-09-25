@@ -13,13 +13,8 @@ assert_contains "--help mentions lifecycle" "$out" "lifecycle"
 bash "$S" --nope >/dev/null 2>&1
 assert_eq "unknown flag → usage exit 2" "2" "$?"
 
-# Regression guard: the probe must exercise the wayfind labels' declared,
-# colon-SPACE form (`wayfind: research` / `wayfind: task` — Labels.cs and
-# /planning:wayfind both require it verbatim) and never regress to the
-# colon-no-space form (`wayfind:research` / `wayfind:task`), which a probe run
-# would silently create in the sandbox without ever exercising a label value
-# containing a space. The forbidden needles are built, not written literally,
-# so this file itself never contains the very string it bans.
+# The probe must use the wayfind labels' colon-SPACE form, never the no-space form a
+# run would silently create. The banned needles are built, so this file never holds them.
 SRC="$(cat "$S")"
 WAYFIND_PREFIX="wayfind:"
 assert_contains "probe creates wayfind: research (space)" "$SRC" "${WAYFIND_PREFIX} research"

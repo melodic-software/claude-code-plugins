@@ -140,7 +140,7 @@ assert_contains "the second page was requested with the cursor" "$(lin_bodies)" 
 # `Team.labels` is documented only as "Labels associated with the team", while IssueLabel.team
 # says "If null, the label is a workspace-level label available to all teams" — and the ROOT
 # issueLabels query is the one documented to return both. A workspace label is valid on this
-# team's issues, so the old team-scoped lookup refused a label that would have applied.
+# team's issues.
 lin_reset
 lin_data 'issueCreate' '{"issueCreate":{"success":true,"issue":{"id":"uuid-issue-12","number":12,"team":{"key":"ENG"}}}}'
 lin_data 'teams(filter:' "$TEAM_NODE"

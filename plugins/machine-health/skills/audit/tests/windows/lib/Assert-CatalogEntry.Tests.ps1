@@ -153,18 +153,8 @@ Describe 'Catalog integration: catalog/checks.jsonc conforms to schema' -Tag 'in
 }
 
 Describe 'Category vocabulary: schemas and validators agree' -Tag 'lib' {
-    # The category enum lives in five places: checks.schema.json,
-    # check-result.schema.json, Assert-CatalogEntry, Assert-CheckResult, and
-    # New-InvalidCatalogEntryResult. A value present in a schema but missing
-    # from a validator rejects every check declaring it (Assert-CatalogEntry
-    # fails; the orchestrator then synthesizes UNKNOWN rather than
-    # dispatching), and a value present in one validator but not the other
-    # admits an overlay entry whose emitted result is then rejected - so all
-    # five copies are compared exactly, in both directions: the validators'
-    # literal $validCategories sets are extracted from the AST and matched
-    # against the schema enums, and each schema value is also accepted
-    # behaviorally. The synthetic-result helper is included so an entry that
-    # fails on another field does not silently reclassify as reliability.
+    # The category enum lives in five places (two schemas, three validators); a difference in any
+    # direction rejects or wrongly admits entries, so all five are compared exactly both ways.
     BeforeAll {
         . (Join-Path $script:LibRoot 'Assert-CheckResult.ps1')
         . (Join-Path $script:LibRoot 'Write-HealthResult.ps1')

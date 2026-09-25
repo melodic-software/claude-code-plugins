@@ -23,9 +23,8 @@ Pins these fixes:
 #>
 
 BeforeAll {
-    # The reliability wrapper is dot-sourced so Pester can install Mock against
-    # it. Without this, Mock throws CommandNotFoundException -- the function only
-    # exists inside the child script scope otherwise.
+    # The reliability wrapper is dot-sourced so Mock can attach to it; otherwise it exists only
+    # in the child script scope and Mock throws CommandNotFoundException.
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DiskHealth' `
         -AsObject 'Invoke-DiskHealthAsObject' -LibScript 'Get-PhysicalDiskReliability.ps1' -MockHelpers
 }
@@ -232,10 +231,8 @@ Describe 'Test-DiskHealth -- failure modes' -Tag 'check' {
 
         $result = Invoke-DiskHealthAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
-        # Current script design: empty results but ran_successfully = true.
-        # When both data sources fail, we accept either UNKNOWN (preferred)
-        # or OK with an empty detail payload. Pin the weaker invariant so
-        # future hardening can tighten it without breaking this test.
+        # Both data sources failing currently yields empty results with ran_successfully = true;
+        # accept UNKNOWN (preferred) or OK so future hardening can tighten this.
         @($result.detail.volumes).Count | Should -Be 0
         @($result.detail.physical_disks).Count | Should -Be 0
     }

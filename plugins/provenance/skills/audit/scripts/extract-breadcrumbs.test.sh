@@ -2,9 +2,8 @@
 # Self-contained tests for extract-breadcrumbs.sh. Fixtures are built inline in
 # a tmpdir. Per the shell-test-helpers convention, assertion helpers are local.
 #
-# The load-bearing case here is per-directory grouping: spike S1 resolved a real
-# cross-file breadcrumb (a neighbor's citation named an unfenced copy's source),
-# so siblings have to travel together or the resolving step never sees them.
+# The load-bearing case here is per-directory grouping: a neighbor's citation can
+# name an unfenced copy's source, so siblings have to travel together.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -180,25 +179,17 @@ assert_eq "a bare date with no stamp keyword is not a stamp line" \
   "$(echo "$SIB_OUT" | jq -r "$SIB | [.stamp_lines[] | select(.line == 4)] | length")" "0"
 
 # A date that STARTS inside the keyword window but ENDS past it must still make
-# the line a stamp. Slicing the window at exactly its length cut the date and
-# left nothing date-shaped, so the line vanished from the inventory while
-# check-stamps.sh counted it as a candidate. The two scripts promise the same
-# candidate definition, so they have to agree on the boundary.
+# the line a stamp: check-stamps.sh promises the same candidate definition.
 STRADDLE_DIR="$TEST_TMPDIR/straddle"
 mkdir -p "$STRADDLE_DIR"
 {
   printf '# Straddle\n\n'
-  # Taken from docs/cloud-sessions.md:320, which check-stamps.sh counts as a
-  # candidate and this extractor did not. One keyword, and the date sits far
-  # enough from it that the 60-character slice cut the year in half. Note the
-  # line must carry no SECOND keyword: "as-of" beside the date would restart
+  # The line must carry no SECOND keyword: "as-of" beside the date would restart
   # the scan there and mask the truncation entirely.
   # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus; the backticks are
   # literal markdown and part of the character count that puts the date at offset 60.
   printf '  synced set (verified against the `chore: sync standards components` history on 2026-07-30), so\n\n'
-  # Negative control: the same shape with the date pushed to offset 64,
-  # genuinely past the window. The added slack must not admit it, or the fix
-  # trades a false negative for a false positive.
+  # Negative control: the date pushed to offset 64, genuinely past the window.
   # shellcheck disable=SC2016 # same literal fixture text, date shifted past the window.
   printf '  synced set (verified against the `chore: sync standards componentsxxxx` history on 2026-07-30), so\n'
 } >"$STRADDLE_DIR/straddle.md"
@@ -211,11 +202,8 @@ assert_eq "a date starting past the window is still not a stamp" \
 
 # --- The modal "may" -------------------------------------------------------------
 #
-# "may" is a month name and an ordinary English modal verb, so matched bare it made
-# ordinary prose an inventory entry. check-stamps.sh carries the same month list,
-# and the last fix in this area landed in only one script and had to be chased with
-# a follow-up commit, so this fixture is the one both suites use and the agreement
-# between the two candidate definitions is asserted here directly.
+# "may" is a month name and an ordinary English modal verb. check-stamps.sh carries
+# the same month list, so agreement between the two definitions is asserted here.
 
 MAY_DIR="$TEST_TMPDIR/may"
 mkdir -p "$MAY_DIR"
@@ -247,14 +235,8 @@ assert_eq "and they agree on two" "$MAY_CANDIDATES" "2"
 
 # --- A May date with no digit beside it ------------------------------------------
 #
-# Requiring a digit beside "may" kept the modal out and took a real stamp form
-# with it, so "Verified this May" left this inventory entirely. The month is
-# capitalized in edited prose and the modal is not, so the capital is what
-# separates them, tested on the original line rather than the lowered copy.
-# check-stamps.sh carries the same rule at both of its sites; the agreement
-# between the two candidate definitions is asserted here directly, because the
-# last fix in this area landed in one script and had to be chased with a
-# follow-up commit.
+# The capital separates month from modal, tested on the original line rather than
+# the lowered copy; agreement with check-stamps.sh is asserted here directly.
 
 DIGITLESS_DIR="$TEST_TMPDIR/digitless-may"
 mkdir -p "$DIGITLESS_DIR"
@@ -298,13 +280,8 @@ assert_eq "and they agree on five" "$DIGITLESS_CANDIDATES" "5"
 
 # --- A second May signal out in the window's slack --------------------------------
 #
-# may_form() reports two signals through one RSTART, and is_stamp() reads that
-# RSTART to decide whether the match it accepted began inside the window. So the
-# function has to hand back the LEFTMOST of the two: test the digit branch first
-# and return on it, and a digit-adjacent "may" out in the 9 characters of slack
-# keeps a capital "May" sitting inside the window from ever being consulted, so
-# the line leaves this inventory. A weaker second date signal REMOVING the stamp
-# line is the direction this inventory must not move in.
+# may_form() reports two signals through one RSTART, so it has to hand back the
+# LEFTMOST, or a signal out in the slack hides a capital "May" inside the window.
 #
 # Offsets are measured, not eyeballed. The keyword match ends at column 9 of the
 # line, so window offset = column - 8, wlen is 60 and the slice is wlen + 9 = 69

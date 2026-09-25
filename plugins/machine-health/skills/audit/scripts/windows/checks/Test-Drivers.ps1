@@ -35,26 +35,20 @@ function Invoke-DriversCheck {
     )
 
     try {
-        # Inventory + dates come from WMI.
         # spellchecker:ignore-next-line
         $drivers = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop |
                 Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer)
 
-        # Authoritative signature source: driver store via pnputil. An empty
-        # SignerName means the driver has no recorded signer -- the real
-        # "unsigned" condition. WMI IsSigned=false is noise on modern Windows
-        # because cross-signed / attestation-signed / user-mode drivers all
-        # routinely return false.
+        # The driver store (pnputil) is the signature authority: an empty SignerName is truly
+        # unsigned, while WMI IsSigned=false is noise for cross- and attestation-signed drivers.
         $driverStore = @(Get-DriverStoreInventory)
         $unsignedInStore = @($driverStore | Where-Object {
                 -not $_.PSObject.Properties['SignerName'] -or
                 [string]::IsNullOrWhiteSpace($_.SignerName)
             })
 
-        # CodeIntegrity rejections: when the kernel refuses to load a driver
-        # due to signature / catalog violations, it logs event 3001 or 3004
-        # to Microsoft-Windows-CodeIntegrity/Operational. Any such event in
-        # the last 7 days is a real finding.
+        # The kernel logs CodeIntegrity 3001/3004 when it refuses a driver for signature or
+        # catalog violations; any such event in the last 7 days is a real finding.
         $ciCutoff = (Get-Date).AddDays(-7)
         $ciEvents = @()
         try {
@@ -88,9 +82,8 @@ function Invoke-DriversCheck {
             }
         }
 
-        # Admin-gated signals: pnputil /enum-devices /problem and PSWindowsUpdate
-        # driver catalog. Non-elevated runs emit the fields as null with
-        # needs_admin: true in the check result. See elevation-matrix.md.
+        # Admin-gated (pnputil problem devices, PSWindowsUpdate driver catalog): non-elevated
+        # runs emit these fields as null with needs_admin: true. See elevation-matrix.md.
         $elevated = Test-IsElevated
         $adminFields = [System.Collections.Generic.List[string]]::new()
 
@@ -198,11 +191,8 @@ function Invoke-DriversCheck {
     return $result
 }
 
-# Guard: skip main block when dot-sourced for testing. The test file dot-sources
-# this script so Pester mocks of dot-sourced lib functions (Get-DriverStoreInventory,
-# Get-PnpProblemDevice, etc.) apply inside Invoke-DriversCheck; mocks do not
-# propagate through `&`-invoked .ps1 scripts. Without this guard, dot-sourcing
-# would execute the check at import time.
+# Dot-source guard: the tests dot-source this script so Pester mocks of lib functions
+# apply (mocks do not reach `&`-invoked scripts); skip the check body then.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 Invoke-DriversCheck | Write-HealthResult -Human:$Human

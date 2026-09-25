@@ -7,8 +7,7 @@
 # Why: the declared userConfig `default` is unimplemented upstream (#46477 —
 # closed not-planned), so an unset-but-defaulted ${user_config.*} argv token
 # silently drops the ENTIRE hook entry instead of substituting. On a default
-# install the hook never fires — the exact regression disk-hygiene shipped
-# through 0.8.x and #1242 fixed. The channel decision matrix
+# install the hook never fires. The channel decision matrix
 # (docs/conventions/hook-config-delivery/) rules argv out for hooks until
 # upstream implements `default`; this gate pins that rule.
 #

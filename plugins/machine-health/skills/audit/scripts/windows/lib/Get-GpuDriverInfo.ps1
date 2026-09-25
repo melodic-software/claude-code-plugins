@@ -26,15 +26,11 @@ function Get-GpuDriverInfo {
 
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    # NVIDIA via nvidia-smi (only if installed).
     $nvCmd = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     if ($nvCmd) {
         try {
-            # Each flag is ONE token, and the quoting is load-bearing. Written
-            # bare with a space after the comma, PowerShell's argument-mode
-            # comma operator builds an array that spreads into four separate
-            # argv entries, and nvidia-smi rejects the flags ("Option
-            # driver_version is not recognized", exit 2).
+            # Keep each flag one quoted token: unquoted, argument-mode commas split
+            # it into separate argv entries and nvidia-smi rejects it (exit 2).
             $raw = & nvidia-smi '--query-gpu=name,driver_version' `
                 '--format=csv,noheader' 2>$null
             if ($LASTEXITCODE -eq 0 -and $raw) {
@@ -55,8 +51,6 @@ function Get-GpuDriverInfo {
         }
     }
 
-    # spellchecker:ignore-next-line
-    # Intel / AMD via Win32_VideoController (PnP).
     try {
         $vcs = @(Get-CimInstance -ClassName Win32_VideoController -ErrorAction Stop)
         foreach ($vc in $vcs) {

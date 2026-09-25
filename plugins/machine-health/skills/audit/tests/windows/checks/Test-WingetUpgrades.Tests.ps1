@@ -51,11 +51,8 @@ BeforeAll {
             [object[]] $Upgrades = @(),
             [string] $ErrorMessage = $null
         )
-        # The wrapper's contract is a hashtable tuple. Emit it as such; the
-        # comma operator + explicit [hashtable[]] cast would normally be
-        # required to keep a single-hashtable return from being unwrapped,
-        # but since Pester mocks forward the entire return value verbatim,
-        # a bare hashtable works here.
+        # The wrapper's contract is a hashtable tuple. A bare hashtable is enough here: Pester
+        # mocks forward the return value verbatim, so no comma-operator unwrap guard is needed.
         return @{ upgrades = $Upgrades; error = $ErrorMessage }
     }
 

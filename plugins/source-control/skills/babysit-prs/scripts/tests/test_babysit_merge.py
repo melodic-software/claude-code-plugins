@@ -1008,8 +1008,8 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
         self.assertFalse(result["requiredSignatures"]["checked"])
 
     def test_generic_merge_state_line_names_signatures(self) -> None:
-        # The honesty fix: even the coarse mergeStateStatus enumeration may not
-        # misdirect by omission.
+        # Even the coarse mergeStateStatus enumeration may not misdirect by
+        # omission.
         result = self._evaluate(
             rules=self.SIGNED_RULES,
             commits=[self._commit(HEAD, True, "valid")],

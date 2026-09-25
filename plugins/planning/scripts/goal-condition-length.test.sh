@@ -30,47 +30,35 @@ expect_exit() {
   if [[ "$got" -eq "$want" ]]; then pass "$label"; else fail "$label (want exit $want, got $got)"; fi
 }
 
-# 1. --help exits 0.
 expect_exit "--help exits 0" 0 "" --help
 
-# 2. Under limit -> exit 0.
 expect_exit "under limit -> 0" 0 "hello" --limit 50
 
-# 3. Exactly at limit -> exit 0 (inclusive boundary: 'up to N characters').
+# The boundary is inclusive: 'up to N characters'.
 expect_exit "at limit (boundary) -> 0" 0 "abcde" --limit 5
 
-# 4. Over limit -> exit 1.
 expect_exit "over limit -> 1" 1 "abcdef" --limit 5
 
-# 5. Missing --limit -> exit 2.
 expect_exit "missing --limit -> 2" 2 "hello"
 
-# 6. Non-integer limit -> exit 2.
 expect_exit "non-integer limit -> 2" 2 "hello" --limit abc
 
-# 7. Zero limit -> exit 2.
 expect_exit "zero limit -> 2" 2 "hello" --limit 0
 
-# 8. Empty condition -> exit 2.
 expect_exit "empty condition -> 2" 2 "" --limit 50
 
-# 9. Trailing newline is stripped (5 chars, not 6) -> at-limit passes.
 expect_exit "trailing newline stripped -> 0" 0 $'abcde\n' --limit 5
 
-# 10. Reads condition from --file.
 printf 'abcdef' >"$TMP/cond.txt"
 expect_exit "--file over limit -> 1" 1 "" --limit 5 --file "$TMP/cond.txt"
 
-# 11. Missing --file target -> exit 2.
 expect_exit "missing --file -> 2" 2 "" --limit 5 --file "$TMP/nope.txt"
 
-# 12. stdout is greppable and reports the count and status.
 out="$(printf 'abcdef' | bash "$SUT" --limit 5 2>/dev/null)"
 if [[ "$out" == "chars=6 limit=5 status=over" ]]; then pass "stdout reports chars/limit/status"; else fail "stdout wrong: '$out'"; fi
 
-# 13. Multibyte char counts as one code point, not its byte length.
-#     Skipped (optional-tool SKIP convention) when perl is absent and `wc -m`
-#     would fall back to a byte count in a non-UTF-8 locale.
+# A multibyte char counts as one code point, not its byte length. Skipped when
+# perl is absent and `wc -m` would fall back to a byte count in a non-UTF-8 locale.
 if command -v perl >/dev/null 2>&1; then
   # 'héllo' = 5 code points; passes a limit of 5.
   expect_exit "multibyte counts as 1 code point -> 0" 0 $'h\xc3\xa9llo' --limit 5
@@ -78,10 +66,10 @@ else
   printf 'SKIP - multibyte code-point count (perl absent)\n'
 fi
 
-# 14. Counter failure is caught, not silently passed. Shadow BOTH counting
-#     backends (perl and wc) with stubs that emit nothing, so whichever branch
-#     the script takes yields an empty count. The guard must then exit 2 rather
-#     than fall through to a false status=ok on a crashed counter.
+# Counter failure is caught, not silently passed. Shadow BOTH counting
+# backends (perl and wc) with stubs that emit nothing, so whichever branch
+# the script takes yields an empty count. The guard must then exit 2 rather
+# than fall through to a false status=ok on a crashed counter.
 fake_bin="$TMP/fakebin"
 mkdir -p "$fake_bin"
 for stub in perl wc; do

@@ -406,7 +406,7 @@ class ClassifyReviewRequestTests(unittest.TestCase):
         self.assertEqual(result["missing_head_sha"], "")
 
     def test_stale_earlier_head_reaction_does_not_suppress_new_window(self) -> None:
-        # F8: a reviewer reaction left on an earlier head carries no commit SHA,
+        # A reviewer reaction left on an earlier head carries no commit SHA,
         # so it persists onto the new head. With no prior reaction bound to this
         # head it is not current-head-associated and must not block candidacy.
         stale = [_reaction("1")]
@@ -419,7 +419,7 @@ class ClassifyReviewRequestTests(unittest.TestCase):
         self.assertEqual(result["missing_observations"], 1)
 
     def test_current_head_reaction_still_suppresses_candidacy(self) -> None:
-        # Guard on the F8 fix: a reaction newly observed while on THIS head is
+        # A reaction newly observed while on THIS head is
         # current-head-associated and must still block the observation window.
         reaction = [_reaction("9")]
         prior = {"review_trigger": {"reaction_head_sha": HEAD,

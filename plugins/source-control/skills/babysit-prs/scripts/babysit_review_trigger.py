@@ -323,7 +323,7 @@ def review_gate_state(
         if ci_gateway_context and check["name"].casefold() == ci_gateway_context
     ]
     # The gate StatusContext is the one check excluded here -- a gate CheckRun of
-    # the same name is an ordinary check for this rollup, as it always was.
+    # the same name is an ordinary check for this rollup.
     non_review_checks = [
         check for check in all_checks if not is_gate(check, "StatusContext")
     ]

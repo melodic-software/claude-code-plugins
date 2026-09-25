@@ -41,9 +41,8 @@ REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 mkdir -p "$REPO/shimmed" "$REPO/bare" "$REPO/linked" "$REPO/localonly" "$REPO/deep/a/b" "$REPO/vendor/x" "$REPO/node_modules/y"
 printf 'root agents\n' >"$REPO/AGENTS.md" # root-level: not examined
-# The root CLAUDE.md is what makes an unshimmed nested AGENTS.md a finding: with
-# a CLAUDE.md in the working directory or above it, Claude Code reads CLAUDE.md
-# files and never attaches a bare nested AGENTS.md.
+# The root CLAUDE.md is what makes an unshimmed nested AGENTS.md a finding: Claude
+# Code then reads CLAUDE.md files and never attaches a bare nested AGENTS.md.
 printf '@AGENTS.md\n' >"$REPO/CLAUDE.md"
 printf 'shimmed\n' >"$REPO/shimmed/AGENTS.md"
 printf '@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md" # wired by import
@@ -103,9 +102,8 @@ OUT=$(cd "$REPO" && bash "$SCRIPT" --count)
 assert_eq "untracked files are outside discovery" "0" "$OUT"
 
 # --- Case 6a: a root or ancestor CLAUDE.md that imports the file wires it ---
-# The sibling shim is the prescribed layout, but an import from the root
-# CLAUDE.md, the root .claude/CLAUDE.md, or an ancestor directory's CLAUDE.md
-# brings the file into context too. A file that loads is not a finding.
+# An import from the root CLAUDE.md, root .claude/CLAUDE.md, or an ancestor's
+# CLAUDE.md brings the file into context too, so it is not a finding.
 
 ENTRY="$TEST_TMPDIR/entry"
 make_repo "$ENTRY"
@@ -154,9 +152,8 @@ assert_not_contains "a fourth-hop AGENTS.md is wired" "$OUT" "four/AGENTS.md"
 assert_contains "a fifth-hop AGENTS.md is not loaded, so it is a finding" "$OUT" "FAIL [N1]: five/AGENTS.md"
 
 # --- Case 7: no CLAUDE.md above it, so the missing shim is not a finding ---
-# Claude Code attaches a subdirectory's AGENTS.md on a Read there when neither
-# that directory nor any directory above it carries a CLAUDE.md, .claude/CLAUDE.md
-# or CLAUDE.local.md. Nothing blocks it here, so there is nothing to fix.
+# With no CLAUDE.md name on its path Claude Code attaches the AGENTS.md on a Read
+# there, so there is nothing to fix.
 
 NATIVE="$TEST_TMPDIR/native"
 make_repo "$NATIVE"
@@ -180,9 +177,8 @@ rc=0
 assert_eq "--check exits 0 when only unblocked files remain" 0 "$rc"
 
 # --- Case 8: a nested .claude/CLAUDE.md counts, not only the root's ---
-# The memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in
-# your working directory or any directory above it", so a subdirectory's own
-# .claude/CLAUDE.md displaces the AGENTS.md beside it exactly as a plain one does.
+# The memory page counts `.claude/CLAUDE.md` at any level, so a subdirectory's own
+# displaces the AGENTS.md beside it exactly as a plain one does.
 
 DOTC="$TEST_TMPDIR/dotclaude"
 make_repo "$DOTC"

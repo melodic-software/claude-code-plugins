@@ -2,11 +2,10 @@
 # Black-box contract test for pr-body-linkage-gate.sh.
 #
 # Asserts the hook's OWN behavior against expectations transcribed by hand from
-# a reading of the ci-workflows pr-issue-linkage validator — deliberately not a
+# a reading of the ci-workflows pr-issue-linkage validator, deliberately not a
 # claim that the two agree, because nothing here executes the validator. A real
 # mirroring proof needs the validator itself as an oracle, which would mean
-# vendoring a copy of upstream JavaScript into this repo; see the PR that added
-# this file for why that is a separate decision. What these cases DO cover is
+# vendoring a copy of upstream JavaScript into this repo. What these cases DO cover is
 # every shape a hand port gets wrong: comment stripping (terminated and
 # unterminated), a `## Related` section whose content is a deeper subsection,
 # the JavaScript word boundaries that make `#12abc` and `unclosed #5`
@@ -517,9 +516,8 @@ assert_allow "a CRLF body validates" "$GATED" "gh pr create -t T --body-file crl
 assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t T --body-file crlf-bad.md"
 
 # --- Large bodies stay inside the declared hook timeout ----------------------
-# One fork per body line put a 1000-line body past the 15 s hooks.json timeout,
-# where a cancelled hook silently stops gating. The bound below is deliberately
-# loose so a slow CI runner does not flake; the defect it guards was 18 s.
+# A cancelled hook silently stops gating, so a large body must be judged inside
+# the 15 s hooks.json timeout; the bound is loose so a slow CI runner does not flake.
 #
 # A suffix-copy line split is quadratic in the line count: 16k two-character
 # lines (well under GitHub's body-size limit) exceeded 20 s and fail-opened,

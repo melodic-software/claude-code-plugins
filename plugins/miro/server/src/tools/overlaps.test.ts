@@ -52,7 +52,6 @@ describe("detectOverlaps", () => {
   });
 
   it("should detect the v12 reactor row problem (80px y-offset)", () => {
-    // The exact scenario that caused 212 overlaps: primary at y=0, reactor at y=80
     const items = [
       { id: "primary", content: "[DSP] Clocked in", x: 1500, y: 500 },
       { id: "reactor", content: "[DSP] Picked up shift", x: 1500, y: 580 },
@@ -69,7 +68,6 @@ describe("detectOverlaps", () => {
   });
 
   it("should handle many items efficiently", () => {
-    // 100 items in a grid — no overlaps with 250px spacing
     const items = Array.from({ length: 100 }, (_, i) => ({
       id: String(i),
       content: `Item ${i}`,
@@ -95,9 +93,7 @@ describe("detectOverlaps", () => {
       { id: "1", content: "A", x: 0, y: 0 },
       { id: "2", content: "B", x: 100, y: 0 },
     ];
-    // Threshold 50: not overlapping (dx=100 > 50)
     expect(detectOverlaps(items, 50)).toEqual([]);
-    // Threshold 150: overlapping (dx=100 < 150)
     expect(detectOverlaps(items, 150)).toHaveLength(1);
   });
 
@@ -106,7 +102,6 @@ describe("detectOverlaps", () => {
       { id: "1", content: "A", x: 0, y: 0 },
       { id: "2", content: "B", x: 194, y: 0 },
     ];
-    // 194 < 195 = overlap
     expect(detectOverlaps(items, 195)).toHaveLength(1);
   });
 
@@ -115,7 +110,6 @@ describe("detectOverlaps", () => {
       { id: "1", content: "A", x: 0, y: 0 },
       { id: "2", content: "B", x: 195, y: 0 },
     ];
-    // 195 is NOT < 195 = no overlap
     expect(detectOverlaps(items, 195)).toEqual([]);
   });
 });

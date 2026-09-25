@@ -92,12 +92,6 @@ cd "$REPO_ROOT" || exit 1
 ALLOWED_CLASSES="build"
 [[ "$INCLUDE_CACHES" -eq 1 ]] && ALLOWED_CLASSES="build caches"
 
-# No build-system clean driver (e.g. `dotnet clean`): the universal bin/obj/…
-# removal below already deletes everything such a driver would, and running one
-# first is pure overhead (full MSBuild evaluation, minutes on a large solution)
-# that also re-creates obj/ evaluation artifacts. One walk + rm is strictly
-# faster and equally complete.
-
 # --apply with a prebuilt manifest: skip enumeration entirely, just consume it.
 if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
   if [[ ! -r "$MANIFEST_ARG" ]]; then
