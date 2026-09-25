@@ -125,8 +125,3 @@ Never invent a rules file to have something to canary.
 Run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is installed, on the
 finished root `AGENTS.md`: a root file that grew during the migration has moved the cost rather
 than removed it.
-
-**Hand-check its tier and pointer facts before acting on a finding.** That detector currently
-labels a root `AGENTS.md` `tier=invocation` rather than an always-loaded surface, and counts only
-markdown-link pointers, so a backticked path reads as no pointer at all. Both make its verdict on a
-migrated root file unreliable in a direction that looks like a real finding (#4292).

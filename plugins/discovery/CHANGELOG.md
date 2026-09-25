@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.22.1] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+
 ## [0.22.0] - 2026-09-24
 
 ### Added
