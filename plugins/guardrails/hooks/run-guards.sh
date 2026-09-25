@@ -120,8 +120,15 @@ esac
 
 GUARDS=()
 LIBS=()
+RESOLVE_FILE=0
 while (($#)); do
   case "$1" in
+  --resolve-file)
+    # The event's guards resolve the edited file through hook::read_file_path.
+    # See the prime below the field extraction.
+    RESOLVE_FILE=1
+    shift
+    ;;
   --lib)
     # A library several guards source (the PowerShell classifier). Collect
     # the path now; the parse itself waits until tool_name is known. On a
@@ -226,6 +233,27 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
   # abort notice name the event.
   [[ "${RUN_GUARDS_FIELD['.hook_event_name']-}" =~ ^[A-Za-z]+$ ]] &&
     _GAB_EVENT="${RUN_GUARDS_FIELD['.hook_event_name']}"
+fi
+
+# --- the edited file's physical path, once -------------------------------------
+# Each guard reads its file path through `$(… | hook::read_file_path)`, and the
+# library's per-process resolver cache does not survive that subshell: every
+# guard paid its own realpath for the same file, project root and temp roots.
+# Resolving them here, in the shell every guard's subshell forks from, hands
+# each of them a warm cache, so the resolver runs once per event. It is the
+# library's own batch (hook::_physical_prime) with the arguments
+# hook::read_file_path passes it, and that batch stores only answers the
+# per-path resolver would give, so no guard's verdict can change; within one
+# event the guards only read the tree, so the file resolves the same for all
+# of them. `--resolve-file` in hooks.json is the cue, so a row whose guards
+# never resolve a path pays nothing.
+if ((RESOLVE_FILE && RUN_GUARDS_PRIMED)) && [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+  _rg_file="${RUN_GUARDS_FIELD['.tool_input.file_path']-}"
+  if [[ -n "$_rg_file" && -f "$_rg_file" ]]; then
+    hook::_temp_root_candidates
+    hook::_physical_prime "$_rg_file" "$CLAUDE_PROJECT_DIR" ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
+  fi
+  unset _rg_file
 fi
 
 # The cache in front of the library's extractor. The miss path is the

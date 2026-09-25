@@ -128,6 +128,7 @@ pwsh_command_json() {
 #   --hook <path>       guard for this call only
 #   --also <path>       an ADDITIONAL guard for the dispatcher, repeatable
 #   --lib <path>        a `--lib` argument for the dispatcher, repeatable
+#   --resolve-file      pass the dispatcher its `--resolve-file` cue
 #   --via direct|dispatched
 #   --chdir <dir>       working directory of the hook process
 #   --merge-stderr      fold stderr into GUARD_OUT (GUARD_ERR stays empty)
@@ -182,6 +183,10 @@ guard_invoke() {
     --lib)
       _gi_libs+=(--lib "$2")
       shift 2
+      ;;
+    --resolve-file)
+      _gi_libs+=(--resolve-file)
+      shift
       ;;
     --via)
       _gi_via="$2"

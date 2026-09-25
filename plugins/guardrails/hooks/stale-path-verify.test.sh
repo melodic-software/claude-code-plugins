@@ -740,4 +740,15 @@ parity "dispatched parity: surviving path" 'See `docs/real.md` here.' 0 ""
 parity "dispatched parity: renamed-away path" 'Run `tools/legacy-emit.sh` to build.' 0 \
   "STALE_PATH: tools/legacy-emit.sh"
 
+# hooks.json runs this bundle with `--resolve-file`, which resolves the edited
+# file once in the dispatcher so each guard's hook::read_file_path finds it
+# cached. The verdict must be the one the guard reaches without the cue.
+guard_invoke --via dispatched --resolve-file --merge-stderr \
+  --payload "$(write_json "$TARGET" 'See `docs/gone.md` here.')" -- "CLAUDE_PROJECT_DIR=$REPO"
+assert_exit "--resolve-file: exit" 0 "$GUARD_RC"
+assert_contains "--resolve-file: finding survives" "$GUARD_OUT" "STALE_PATH: docs/gone.md"
+guard_invoke --via dispatched --resolve-file --merge-stderr \
+  --payload "$(write_json "$TARGET" 'See `docs/real.md` here.')" -- "CLAUDE_PROJECT_DIR=$REPO"
+assert_silent "--resolve-file: surviving path stays quiet" "$GUARD_OUT"
+
 report

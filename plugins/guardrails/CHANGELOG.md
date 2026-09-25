@@ -17,6 +17,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   - `stale-path-verify` finds code spans, splits lines and tokenizes the edit with bash builtins
     instead of `grep`, `sed`, `sort`, `tr`, `cut` and a `$( )` per candidate. It lists the tracked
     files only when a root-level candidate or a moved-file hint needs them.
+  - `run-guards.sh` takes a `--resolve-file` cue, set on the verify rows in `hooks.json`. It
+    resolves the edited file, the project root and the temp roots with one `realpath` before
+    the guards run, so each guard's `hook::read_file_path` finds them cached instead of
+    resolving them again.
 
 ## [0.36.5] - 2026-09-24
 
