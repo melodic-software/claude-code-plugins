@@ -879,7 +879,11 @@ if ((D1_WIN)); then
   # A drive spelling that names no volume must terminate. timeout 124 is a hang,
   # not a verdict; a loaded Windows host spends tens of seconds on one fire.
   assert_exit "D1 windows: Z:/ root, temp target, terminates → exit 0" 0 \
-    "$(D1_RC=0; timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?; printf '%s' "$D1_RC")"
+    "$(
+      D1_RC=0
+      timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?
+      printf '%s' "$D1_RC"
+    )"
   assert_exit "D1 windows: backslash long spelling, HOME root → exit 0" 0 \
     "$(d1_rc "$D1_HOME" "${D1_TARGET//\//\\}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
   assert_exit "D1 windows: /c/ spelling → exit 2" 2 \
@@ -920,7 +924,13 @@ d1_rc "$D1_ROOT" "$D1_ROOT/src/f.txt" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK=
 assert_eq "D1 non-temp target spawns no resolver" "" "$(cat "$D1_LOG")"
 : >"$D1_LOG"
 d1_rc "$D1_ROOT" "$D1_TARGET" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
-if [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
+if [[ "${OSTYPE:-}" == linux* ]]; then
+  # On Linux hook::physical_path_to resolves an existing absolute path with
+  # builtin `cd -P`, so the temp target starts no resolver either. Show the
+  # shim logs a spawn by calling it directly instead.
+  "$D1_SHIM/realpath" / >/dev/null
+  if [[ -s "$D1_LOG" ]]; then ok "D1 shim logs a resolver spawn"; else bad "D1 shim logged no resolver spawn"; fi
+elif [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
 
 # The dispatcher runs this guard beside the other Write|Edit guards.
 D1_DISPATCH_RC=0
