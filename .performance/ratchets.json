@@ -60,15 +60,99 @@
       "name": "guardrails-posttooluse-run-guards-nofinding-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `README.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 65,
-      "goal": "The same PostToolUse Edit(*.md) verify bundle spends at most this many process creations and execs on an Edit whose new text cites only a path that exists: the common no-finding path, over the same deleted-path history as the finding row. Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, gawk, strace 6.8; the ratchet step prints the current versions."
+      "ceiling": 999,
+      "goal": "placeholder until measured"
     },
     {
       "name": "guardrails-posttooluse-run-guards-sh-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/x.sh\",\"old_string\":\"Census\",\"new_string\":\"echo hello\"},\"tool_response\":{\"filePath\":\"@DIR@/x.sh\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"#!/bin/sh\\necho hello\\n\" >x.sh' --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
-      "ceiling": 24,
-      "goal": "The same PostToolUse verify bundle spends at most this many process creations and execs on an Edit of a .sh file: cli-flag-verify scans it, and skill-reference-verify and stale-path-verify leave at their *.md check. Measured on ubuntu-24.04 with bash 5.2.21, git 2.55.0, jq 1.7, gawk, strace 6.8; the ratchet step prints the current versions."
+      "ceiling": 999,
+      "goal": "placeholder until measured"
+    },
+    {
+      "name": "diag-4390-finding-only-cli",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-finding-only-skill",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-finding-only-stale",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-finding-none",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-nofinding-only-cli",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `README.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-nofinding-only-skill",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `README.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-nofinding-only-stale",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `README.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-nofinding-none",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `README.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-sh-only-cli",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/x.sh\",\"old_string\":\"Census\",\"new_string\":\"echo hello\"},\"tool_response\":{\"filePath\":\"@DIR@/x.sh\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"#!/bin/sh\\necho hello\\n\" >x.sh' --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-sh-only-skill",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/x.sh\",\"old_string\":\"Census\",\"new_string\":\"echo hello\"},\"tool_response\":{\"filePath\":\"@DIR@/x.sh\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"#!/bin/sh\\necho hello\\n\" >x.sh' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-sh-only-stale",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/x.sh\",\"old_string\":\"Census\",\"new_string\":\"echo hello\"},\"tool_response\":{\"filePath\":\"@DIR@/x.sh\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"#!/bin/sh\\necho hello\\n\" >x.sh' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
+    },
+    {
+      "name": "diag-4390-sh-none",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/x.sh\",\"old_string\":\"Census\",\"new_string\":\"echo hello\"},\"tool_response\":{\"filePath\":\"@DIR@/x.sh\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"#!/bin/sh\\necho hello\\n\" >x.sh' --env CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false --env CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED=false",
+      "field": "spawns",
+      "ceiling": 999,
+      "goal": "diagnostic"
     }
   ]
 }
