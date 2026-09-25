@@ -181,7 +181,19 @@
 # it -- exactly, and with tabs -- which is what the body-skip rule now does.
 #
 # The guards are the P3b block of the self-test, and they fail against every
-# revision that preceded them. Every ARMING
+# revision that preceded them. MEASURED at b229834ae by swapping each revision
+# in and running the current suite:
+#
+#   49698a830 the original                              29
+#   bd088bcb4 ordering only                             25
+#   fd633d3af delimiter class                           20
+#   46f80f666 terminator and word                       15
+#   23a90711d / 48065f840 / 134e2dca9 / fe38f250a        6
+#
+# The last four share a count because they differ only in HOW they guessed at
+# an unterminated span, and the current suite asserts that guessing at all is
+# wrong. The revision each count is measured at is named because these go stale
+# on any commit that adds a guard. Every ARMING
 # case asserts arm-AND-CLOSE -- a call site after the terminator must still be
 # SEEN. That is the lesson worth keeping. The first round of guards asserted
 # only that the body's own emit was not counted, which a swallow-to-EOF satisfies

@@ -147,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             duplicates = find_duplicate_keys(text)
         except json.JSONDecodeError:
+            # The schema-validation step reports malformed JSON; skip rather than double-report.
             continue
         if duplicates:
             failed = True

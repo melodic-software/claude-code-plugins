@@ -161,8 +161,10 @@ assert_silent "an illegal name prints no path" "$OUT"
 # Disabled
 #
 # A WorktreeCreate hook that exits 0 without printing a path fails the creation
-# ("Hook failure or missing path fails creation", <https://code.claude.com/docs/en/hooks>),
-# and an exit-0 hook's stderr is dropped, so Disabled refuses out loud instead.
+# (measured on Claude Code 2.1.228; <https://code.claude.com/docs/en/hooks>,
+# fetched 2026-08-11: "Hook failure or missing path fails creation"), and an
+# exit-0 hook's stderr is dropped (measured: the probe marker was absent on
+# exit 0 and present on exit 3), so Disabled refuses out loud instead.
 # Full four-arm probe: skills/worktree/fixtures/README.md.
 # --------------------------------------------------------------------------
 

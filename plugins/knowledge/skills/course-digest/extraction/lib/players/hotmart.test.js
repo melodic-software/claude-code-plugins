@@ -43,6 +43,8 @@ function makeMockPage(url = "https://example.com") {
 function makeDomPage(presentSelector) {
   return {
     evaluate: async (fn, arg) => {
+      // Rebuild the callback from source so it cannot reach any binding in
+      // this module: the same isolation page.evaluate imposes.
       const detached = new Function("document", "arg", `return (${fn.toString()})(arg);`);
       const document = {
         querySelector: (s) => (s === presentSelector ? { tag: "div" } : null),
