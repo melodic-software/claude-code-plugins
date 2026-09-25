@@ -10,7 +10,7 @@
   `~/.claude`, per the `.claude` directory docs page; `memory` adds auto memory and agent
   memory. The new `scripts/user-scope.sh` prints the file list for
   `detect.sh --list-targets --paths-file`, skipping FIFOs, directories, unreadable files and
-  paths holding a newline. A path target such as `~/.claude` is unchanged.
+  paths holding a newline or tab. A path target such as `~/.claude` is unchanged.
 
 ### Fixed
 

@@ -21,7 +21,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=46
+EXPECTED_CASES=47
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -178,6 +178,15 @@ if printf 'text\n' >"$NL/rules/bad"$'\n'"name.md" 2>/dev/null && [[ -f "$NL/rule
 else
   skip "newline: the path is skipped, never split into rows" "file system refuses a newline in a name"
   skip "newline: a warning names the skip" "file system refuses a newline in a name"
+fi
+
+TB="$TEST_TMPDIR/tab"
+mkfile "$TB/rules/ok.md"
+if printf 'text\n' >"$TB/rules/a"$'\t'"b.md" 2>/dev/null && [[ -f "$TB/rules/a"$'\t'"b.md" ]]; then
+  out="$(CLAUDE_CONFIG_DIR="$TB" bash "$US" 2>/dev/null)"
+  assert_eq "tab: a path holding a tab is skipped" "$out" "$TB/rules/ok.md"
+else
+  skip "tab: a path holding a tab is skipped" "file system refuses a tab in a name"
 fi
 
 # --- detect.sh consumes the list -------------------------------------------------

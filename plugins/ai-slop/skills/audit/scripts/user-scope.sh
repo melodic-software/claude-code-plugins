@@ -15,8 +15,8 @@
 # --memory adds projects/*/memory/*.md and agent-memory/*/*.md.
 #
 # Symlinks are followed. Only readable regular files are listed, and none is
-# opened, so a FIFO cannot stall the listing. A path holding a newline is
-# skipped with a warning on stderr.
+# opened, so a FIFO cannot stall the listing. A path holding a newline or a
+# tab is skipped with a warning on stderr.
 #
 # Exit: 0 ok, including an empty list; 2 on a usage error or a missing root.
 set -u
@@ -61,8 +61,9 @@ collect() {
   local p
   [[ -d "$1" ]] || return 0
   while IFS= read -r -d '' p; do
-    if [[ "$p" == *$'\n'* ]]; then
-      printf '%s: skipped a path holding a newline: %q\n' "$ME" "$p" >&2
+    # detect.sh reads one path per line and splits a line at a tab.
+    if [[ "$p" == *[$'\n\t']* ]]; then
+      printf '%s: skipped a path holding a newline or tab: %q\n' "$ME" "$p" >&2
       continue
     fi
     [[ -f "$p" && -r "$p" ]] && printf '%s\n' "$p"

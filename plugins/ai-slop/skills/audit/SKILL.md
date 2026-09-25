@@ -129,7 +129,11 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   [`.claude` directory docs](https://code.claude.com/docs/en/claude-directory) name:
   `CLAUDE.md`, `rules/`, skills that hold `SKILL.md` with their supporting files, `commands/`,
   `agents/`, and top-level `output-styles/*.md`; `memory` adds `projects/*/memory/` and
-  `agent-memory/*/`. The root is `CLAUDE_CONFIG_DIR` when set, else `~/.claude`.
+  `agent-memory/*/`. The root is `CLAUDE_CONFIG_DIR` when set and non-empty, else
+  `~/.claude`. Verified 2026-09-25 against that page: it lists these user-level files and
+  states that with `CLAUDE_CONFIG_DIR` set, every `~/.claude` path on the page lives under that
+  directory instead. Recheck when the page adds, moves, or drops a user-level markdown surface,
+  or changes what `CLAUDE_CONFIG_DIR` relocates.
 - `@path` imports are not followed. Pass an imported file as an explicit path target.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
 - The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
