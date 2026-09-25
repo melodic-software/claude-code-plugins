@@ -79,9 +79,20 @@ agent surface that ignores inbound context does
 not break the tree: the dispatching wrapper's contract-authored span joins the chain, and
 the session's own native emissions attach query-side through the Pillar 2 attribute, which
 both surfaces carry. Where a native surface honors inbound context its spans join the tree
-directly; relying on that is a recorded migration trigger, not an assumption. Interactive contexts are explicitly excluded. The
+directly, but the contract's join stays the Pillar 2 attribute. Interactive contexts are explicitly excluded. The
 contract does not promise inbound trace joining for an interactive session, which
 deliberately ignores ambient context.
+
+**Native trace-context joining, dated record.** *Claim:* the migration trigger for relying on
+native inbound trace context was evaluated on 2026-09-25 and not taken. Claude Code reads inbound
+trace context only in Agent SDK and `-p` sessions: "In Agent SDK and non-interactive sessions
+started with `-p`, Claude Code also reads `TRACEPARENT` and `TRACESTATE` from its own environment
+when starting each interaction span", and "Interactive sessions ignore inbound `TRACEPARENT`". Its
+tracing is beta and "Tracing is off by default.", so the contract keeps the Pillar 2 attribute
+join as its join. *Basis:*
+[Monitoring usage](https://code.claude.com/docs/en/monitoring-usage), section Traces (beta), read
+as raw markdown. *Verified:* 2026-09-25. *Recheck trigger:* the section drops its beta label, or
+interactive sessions start honoring inbound trace context.
 
 ## Sink binding: out of contract
 

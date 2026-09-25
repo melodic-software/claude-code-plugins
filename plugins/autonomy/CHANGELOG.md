@@ -30,6 +30,10 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 - `templates/isolation-probe.md` documents the interop launch probe shape and the capture field;
   `context/windows-surfaces.md` and `context/guardrail-slice.md` describe the enforced check and
   both new fields.
+- `reference/telemetry.md` Pillar 3 records, dated 2026-09-25, that the migration trigger for
+  native inbound trace context was evaluated and not taken: Claude Code reads inbound
+  `TRACEPARENT` only in Agent SDK and `-p` sessions, and its tracing is beta, so the Pillar 2
+  attribute join stays the contract's join.
 - Still confirmed by the reviewing human, not the checker: the per-run ephemerality of an `L3`
   microVM, its `--static-mcp` tool-server mode, and the SSH agent forwarding condition.
 
