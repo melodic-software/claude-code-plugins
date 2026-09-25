@@ -13,17 +13,15 @@ All notable changes to the `planning` plugin are documented here. Format follows
   decided by any answer to the headline.
 - **`interview`:** a hedged reply ("yes?", "I think so") resolves at most the headline of one
   question, is recorded `hedged:`, and leaves its commitment rows open. A hedged
-  accept-shorthand is not an accept-shorthand.
-- **`interview`:** a question that names a mechanism (tool, API, credential, runtime,
-  platform) triggers one question: settle mechanism-level decisions now or at planning. On
-  "at planning", open mechanism rows are deferred.
-- **`interview`:** historical evidence is labeled past, current, or intended when the process
-  changed or its currency is unknown, and past-only evidence never alone grounds a
-  recommendation about the intended process.
-- **`interview`:** the skill names its successors in a `## Next` section.
-- Three section digests in `tests/interview-defenses.test.sh` were re-pinned (SKILL.md
-  Stance, SKILL.md "does NOT do", loop.md open-question register). Each fired on the added
-  text, which narrows the accept-shorthand and resolution rules and qualifies no defense.
+  accept-shorthand is not an accept-shorthand. A hedged terminal reply is mirrored onto the
+  page as `own` text prefixed `hedged:`.
+- **`interview`:** on the page surface, a recommendation's parts are the question's `commits`
+  entries: accepting confirms only ticked parts, and unticked parts reach the Brief as named
+  risks.
+- **`interview`:** the Stance names both question-surface rules (terminal and page).
+- Two section digests in `tests/interview-defenses.test.sh` were re-pinned (SKILL.md Stance,
+  loop.md open-question register). Each fired on added text that narrows what an answer or
+  accept-shorthand resolves and qualifies no defense.
 
 ## [0.41.0] - 2026-09-24
 
