@@ -36,7 +36,8 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 - `reference/telemetry.md` Pillar 3 records, dated 2026-09-25, that relying on native inbound trace
   context was evaluated and not adopted: Claude Code reads inbound `TRACEPARENT` only in Agent SDK
   and `-p` sessions, and its tracing is beta, so the Pillar 2 attribute join stays the contract's
-  join.
+  join. The record names surface classes and points at the vendor records in
+  `context/agent-session-telemetry.md`, which that same read reconfirmed.
 
 ## [0.23.24] - 2026-09-25
 
