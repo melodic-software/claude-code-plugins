@@ -12,6 +12,11 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   `cites` edges to fabricated repositories named `user-attachments/assets` and
   `user-attachments/files`. `user-attachments` joins the reserved-owner list alongside
   `sponsors`, `marketplace`, and the rest of GitHub's own product surfaces.
+- `landscape-record.sh --drift-against` no longer gates on a repository's `remote` fact
+  changing clone transport (`https://` vs `ssh://git@`). The same checkout reports a different
+  origin URL depending on how it happens to be cloned, the same machine-vs-architecture split
+  `path` is already dropped for; `remote` is downgraded to a non-gating note instead, like
+  `last_touched`, since it is still a useful fact worth keeping in the emitted record.
 
 ## [0.10.0] - 2026-09-23
 
