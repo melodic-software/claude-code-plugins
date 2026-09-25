@@ -9,8 +9,7 @@
 # Windows host. Those cases run only where cygpath exists, and where they do not
 # they print a visible NOT EXERCISED line — read that as absence of coverage on
 # this host, never as the conversion passing. CI runs this suite on both a Linux
-# and a Windows runner precisely so the Windows branch is never green-by-absence
-# (the failure mode #2774 recorded for an NT-only allowlist).
+# and a Windows runner precisely so the Windows branch is never green-by-absence.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
