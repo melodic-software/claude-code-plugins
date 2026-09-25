@@ -456,9 +456,15 @@ spd_temp_declines() {
     [[ "$t$r" == *\\* || "$t" != /?* ]] && return 1
     ((BASH_VERSINFO[0] >= 4)) || [[ "$t" != *[[:upper:]]* ]] || return 1
   fi
+  # Only a spelling a Bash redirect could carry as a BARE operand may decline:
+  # block-hook-bypass never exempts a quoted, escaped or opaque target, so a
+  # character that forces quoting (whitespace, quotes, `;`, `&`, `|`, `<`, `>`,
+  # parens, `#`, `$`, a backtick, a glob character) refuses here. An allowlist,
+  # so an unlisted character scans. `~` is refused as block-hook-bypass's
+  # _norm_path refuses it, and unnormalized segments are refused below.
+  [[ "$t" == *[!A-Za-z0-9._/:+,=@%-]* ]] && return 1
   case "$t" in
-  # The characters block-hook-bypass's _norm_path refuses in a redirect target.
-  *'$'* | *'`'* | *'*'* | *'?'* | *'['* | *~* | *//* | */./* | */../* | */. | */..) return 1 ;;
+  *//* | */./* | */../* | */. | */..) return 1 ;;
   *) ;; # a normalized spelling
   esac
   # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a

@@ -796,7 +796,9 @@ assert_exit "D1 root is the temp root → exit 2" 2 "$(d1_rc "$D1_TEMP" "$D1_TAR
 # Target spellings refused before any resolution.
 for D1_T in "$D1_TEMP/spd-d1-$$/../../spd-d1-out/f.txt" "${D1_TEMP}Evil/spd-d1/f.txt" \
   "$D1_TEMP/spd~1/f.txt" "/$D1_TARGET" "$D1_TEMP//spd-d1/f.txt" "tmp/spd-d1/f.txt" \
-  "$D1_TEMP/spd-a\$b/f.txt" "$D1_TEMP/spd-a[1]/f.txt" "$D1_TEMP/spd-a\`b/f.txt"; do
+  "$D1_TEMP/spd-a\$b/f.txt" "$D1_TEMP/spd-a[1]/f.txt" "$D1_TEMP/spd-a\`b/f.txt" \
+  "$D1_TEMP/spd a/f.txt" "$D1_TEMP/spd;a/f.txt" "$D1_TEMP/spd\"a/f.txt" "$D1_TEMP/spd'a/f.txt" \
+  "$D1_TEMP/spd(a)/f.txt" "$D1_TEMP/spd#a/f.txt" "$D1_TEMP/spd&a/f.txt"; do
   assert_exit "D1 target '$D1_T' → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_T")"
 done
 # Root spellings block-hook-bypass would not accept, and a filesystem root.
