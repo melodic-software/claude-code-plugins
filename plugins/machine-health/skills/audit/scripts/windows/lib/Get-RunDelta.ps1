@@ -40,9 +40,8 @@ function Get-RunDelta {
         return 'no prior runs'
     }
 
-    # Read-HistoryJsonl returns Get-Content -Tail output which preserves file
-    # order (oldest -> newest). The most recent prior run is the LAST element.
-    # Using [0] would compare against stale data when there are 2+ entries.
+    # HistoryTail is oldest -> newest (Get-Content -Tail order), so the most recent
+    # prior run is [-1]; [0] would compare against stale data.
     $prior = $HistoryTail[-1]
     if (-not $prior.PSObject.Properties['severity_counts']) {
         return "no comparable data in prior run $($prior.run_id)"

@@ -138,9 +138,8 @@ Describe 'New-InvalidCatalogEntryResult' -Tag 'lib' {
 }
 
 Describe 'Orchestrator invalid-catalog loop contract' -Tag 'lib' {
-    # Mirrors the validation loop in Invoke-MachineHealthCheck.ps1: continue
-    # past bad entries for availability, but collect synthetic UNKNOWN results
-    # for the reporting path.
+    # Mirrors the orchestrator's validation loop: continue past bad entries, but collect
+    # synthetic UNKNOWN results for the reporting path.
     It 'collects UNKNOWN results for invalid entries and keeps valid ones' {
         $valid = New-NearlyValidEntry -Overrides @{
             id       = 'disk-space'
