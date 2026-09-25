@@ -39,6 +39,10 @@
 - **Dispatch references:** the statement that the sub-agents page documents no partial-return
   semantics for `maxTurns` is replaced with the page's current wording as a dated record: output
   at the limit is marked partial on Claude Code v2.1.246 or later.
+- **`explore` dispatch reference:** the "What the harness actually guarantees about a resume"
+  record is re-verified against the sub-agents page as of 2026-09-25. The background-resume and
+  cancelled-subagent quotes use the page's current wording, a subagent stopped with `TaskStop` is
+  named as resumable, and the record gains a recheck trigger.
 
 ## [0.22.1] - 2026-09-25
 
