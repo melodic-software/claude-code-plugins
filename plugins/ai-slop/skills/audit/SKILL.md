@@ -214,7 +214,8 @@ and re-emit the findings file per [`context/persist-findings.md`](context/persis
 non-repository target, which never wrote one. Then run `cross-check.sh --targets <list>
 --detector <detector output>`: it finds em-dash lines with its own parse, so an em dash the
 detector's parse missed still shows up. A `Disagree:` row names the lines only one side
-counted (`detector_only=`, `cross_check_only=`), which is where the two parses differ. It
+counted (`detector_only=`, `cross_check_only=`), which is where the two parses differ; a row
+with both lists `-` differs by count alone, as when the detector reports one line twice. It
 follows the detector's fence rules but not its full parse, so a row is not a proven miss:
 reread those lines. Report every `Disagree:` row, then totals:
 fixed, suppressed, reverted, remaining.

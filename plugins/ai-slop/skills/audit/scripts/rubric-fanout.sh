@@ -51,21 +51,26 @@ sha256() {
 }
 
 # batch_digest <list>: with a batch-NN.paths sidecar, the sha256 of the list's
-# bytes followed by one sha256 call's output over every listed path, so the
-# digest binds the files' contents too. An unreadable file is absent from that
-# output, the same way each time. Without the sidecar, the list's sha256.
+# bytes, a fixed separator line, then one sha256 call's output over every
+# listed path, so the digest binds the files' contents too. An unreadable file
+# is absent from that output, the same way each time, and the separator keeps
+# an all-unreadable batch from matching the list-only digest. Without the
+# sidecar, the list's sha256.
 # The list is hashed from stdin: given a file name holding a backslash,
 # sha256sum escapes the name and prefixes the hash with `\`.
 batch_digest() {
   local sidecar="${1%.txt}.paths" p
   local -a files=()
+  local sep=""
   if [[ -f "$sidecar" ]]; then
+    sep="--- rubric-fanout batch contents ---"
     while IFS= read -r p; do
       [[ -n "$p" ]] && files+=("$p")
     done <"$sidecar"
   fi
   {
     cat -- "$1"
+    [[ -n "$sep" ]] && printf '%s\n' "$sep"
     [[ "${#files[@]}" -gt 0 ]] && sha256 -- "${files[@]}" 2>/dev/null
   } | sha256 | cut -d' ' -f1
 }
@@ -156,11 +161,13 @@ cmd_plan() {
 
   # Pack: add files until the next one would exceed the budget. A file larger
   # than the budget lands alone, because the batch before it is flushed first.
-  # Each file's absolute path goes to the batch's .paths sidecar; a path whose
-  # directory cannot be entered is kept as given. One cd per directory.
+  # Each file's absolute path goes to the batch's .paths sidecar. An absolute
+  # path (POSIX or Windows form) is kept as given; a relative one resolves
+  # against the cwd, one cd per directory, or is kept as given when its
+  # directory cannot be entered.
   local -a lists=() plists=() words=() counts=()
   local -A absdir=()
-  local cur="" cur_p="" cur_w=0 cur_n=0 w dir
+  local cur="" cur_p="" cur_w=0 cur_n=0 w dir ap
   for i in $ordered; do
     w="$(wc -w <"${paths[$i]}" 2>/dev/null | tr -d ' ')"
     [[ -n "$w" ]] || { echo "$ME: plan: cannot read ${paths[$i]}; counted as 0 words" >&2; w=0; }
@@ -168,13 +175,18 @@ cmd_plan() {
       lists+=("$cur"); plists+=("$cur_p"); words+=("$cur_w"); counts+=("$cur_n")
       cur="" cur_p="" cur_w=0 cur_n=0
     fi
-    dir="$(dirname "${paths[$i]}")"
-    [[ -n "${absdir[$dir]+set}" ]] || absdir[$dir]="$(cd "$dir" 2>/dev/null && pwd)"
-    if [[ -n "${absdir[$dir]}" ]]; then
-      cur_p+="${absdir[$dir]}/${paths[$i]##*/}"$'\n'
-    else
-      cur_p+="${paths[$i]}"$'\n'
-    fi
+    ap="${paths[$i]}"
+    case "$ap" in
+    /* | [A-Za-z]:[/\\]*) ;;
+    *)
+      dir="$(dirname "$ap")"
+      [[ -n "${absdir[$dir]+set}" ]] ||
+        absdir[$dir]="$(CDPATH='' cd -P -- "$dir" >/dev/null 2>&1 && pwd)"
+      [[ -n "${absdir[$dir]}" ]] && ap="${absdir[$dir]}/${ap##*/}"
+      ;;
+    esac
+    [[ -r "$ap" ]] || echo "$ME: plan: sidecar path unreadable: $ap" >&2
+    cur_p+="$ap"$'\n'
     cur+="${keys[$i]}"$'\n'
     cur_w=$((cur_w + w))
     cur_n=$((cur_n + 1))
@@ -244,6 +256,10 @@ status_rows() {
       continue
     fi
     n="$(awk 'NF' "$list" | wc -l | tr -d ' ')"
+    if [[ -f "${list%.txt}.paths" && "$(awk 'NF' "${list%.txt}.paths" | wc -l | tr -d ' ')" != "$n" ]]; then
+      echo "batch=$nn status=stale reason=paths digest=$d"
+      continue
+    fi
     if ! got="$(header "$res" batch)" || [[ "$got" != "$d" ]]; then
       echo "batch=$nn status=stale reason=digest digest=$d"
       continue

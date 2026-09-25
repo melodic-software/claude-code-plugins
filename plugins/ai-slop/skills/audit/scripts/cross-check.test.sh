@@ -20,7 +20,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=22
+EXPECTED_CASES=24
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -141,6 +141,22 @@ D3="$TEST_TMPDIR/detector-excerpt.txt"
 out="$(bash "$CROSS" --targets "$TEST_TMPDIR/plain.tsv" --detector "$D3" 2>&1)"
 assert_contains "disagree: an excerpt holding line= does not move the parsed line" "$out" \
   "CrossCheck total: files=1 disagreements=0"
+
+# A line reported twice differs by count alone.
+D4="$TEST_TMPDIR/detector-dup.txt"
+printf 'Finding: rule=ai-slop/audit/rule-em-dash file=plain.md line=%d fired=zero-tolerance excerpt=x\n' 3 3 5 >"$D4"
+out="$(bash "$CROSS" --targets "$TEST_TMPDIR/plain.tsv" --detector "$D4" 2>&1)"
+assert_contains "disagree: a line reported twice differs by count only" "$out" \
+  "Disagree: file=plain.md detector=3 cross_check=2 detector_only=- cross_check_only=-"
+
+# A file marker resets the lines already counted, so a detector finding before
+# the marker is the detector's alone.
+D5="$TEST_TMPDIR/detector-filemark.txt"
+printf 'Finding: rule=ai-slop/audit/rule-em-dash file=filemark.md line=1 fired=zero-tolerance excerpt=x\n' >"$D5"
+printf 'filemark.md\t%s\n' "$F/filemark.md" >"$TEST_TMPDIR/filemark.tsv"
+out="$(bash "$CROSS" --targets "$TEST_TMPDIR/filemark.tsv" --detector "$D5" 2>&1)"
+assert_contains "disagree: a file marker resets the line set" "$out" \
+  "Disagree: file=filemark.md detector=1 cross_check=0 detector_only=1 cross_check_only=-"
 
 # --- config: allowed paths and a disabled rule ---------------------------------------
 

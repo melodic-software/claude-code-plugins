@@ -21,7 +21,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=60
+EXPECTED_CASES=67
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -263,6 +263,59 @@ assert_eq "contents: the digest without that file is deterministic" "$again" "$o
 mv "$C/away/y.md" "$C/docs/y.md"
 out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
 assert_eq "contents: restoring the file reads complete again" "$out" "batch=01 status=complete"
+
+# --- plan: sidecar path resolution ------------------------------------------------
+
+# A relative path resolves against the plan's cwd, never through CDPATH.
+RP="$TEST_TMPDIR/relpaths"
+mkdir -p "$RP/proj/docs" "$RP/decoy/docs" "$RP/results" "$RP/elsewhere"
+printf 'one two\n' >"$RP/proj/docs/x.md"
+printf 'x.md\tdocs/x.md\n' >"$RP/targets.tsv"
+out="$(cd "$RP/proj" && CDPATH="$RP/decoy" bash "$FANOUT" plan --out "$RP/batches" --order mtime "$RP/targets.tsv" 2>&1)"
+assert_eq "paths: a relative path ignores CDPATH and gets one sidecar line" \
+  "$(cat "$RP/batches/batch-01.paths")" "$(cd -P "$RP/proj/docs" && pwd)/x.md"
+printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$(digest_of "$out" 01)" >"$RP/results/rubric-batch-01.md"
+out="$(cd "$RP/elsewhere" && bash "$FANOUT" status --batches "$RP/batches" --results "$RP/results" 2>&1)"
+assert_eq "paths: status from another cwd still reads a relative plan complete" "$out" "batch=01 status=complete"
+
+# An absolute path in Windows form is kept as given.
+if command -v cygpath >/dev/null 2>&1; then
+  WP="$TEST_TMPDIR/winpaths"
+  mkdir -p "$WP/docs" "$WP/results"
+  printf 'one two\n' >"$WP/docs/x.md"
+  wx="$(cygpath -m "$WP/docs/x.md")"
+  printf 'x.md\t%s\n' "$wx" >"$WP/targets.tsv"
+  out="$(bash "$FANOUT" plan --out "$WP/batches" --order mtime "$WP/targets.tsv" 2>&1)"
+  assert_eq "paths: a C:/ absolute path is kept unchanged" "$(cat "$WP/batches/batch-01.paths")" "$wx"
+  printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$(digest_of "$out" 01)" >"$WP/results/rubric-batch-01.md"
+  out="$(bash "$FANOUT" status --batches "$WP/batches" --results "$WP/results" 2>&1)"
+  assert_eq "paths: a C:/ path plan reads complete" "$out" "batch=01 status=complete"
+else
+  skip "paths: a C:/ absolute path is kept unchanged" "no cygpath"
+  skip "paths: a C:/ path plan reads complete" "no cygpath"
+fi
+
+# A listed file plan cannot read is named on stderr.
+UP="$TEST_TMPDIR/unreadable"
+mkdir -p "$UP"
+printf 'gone.md\t%s\n' "$UP/gone.md" >"$UP/targets.tsv"
+out="$(bash "$FANOUT" plan --out "$UP/batches" --order mtime "$UP/targets.tsv" 2>&1 >/dev/null)"
+assert_contains "paths: plan warns about a sidecar path it cannot read" "$out" "sidecar path unreadable: $UP/gone.md"
+
+# A sidecar whose length differs from the list's is stale; a sidecar makes the
+# digest differ from the list-only one even when no listed file is readable.
+SP="$TEST_TMPDIR/sidecar"
+mkdir -p "$SP/batches" "$SP/results"
+printf 'a.md\nb.md\n' >"$SP/batches/batch-01.txt"
+printf '%s\n' "$SP/nowhere/a.md" >"$SP/batches/batch-01.paths"
+printf 'a.md\nb.md\n' >"$SP/batches/batch-02.txt"
+printf '%s\n' "$SP/nowhere/a.md" "$SP/nowhere/b.md" >"$SP/batches/batch-02.paths"
+printf 'batch: x\nfiles_reviewed: 2\nfiles_with_findings: 0\n' >"$SP/results/rubric-batch-01.md"
+out="$(bash "$FANOUT" status --batches "$SP/batches" --results "$SP/results" 2>&1)"
+assert_contains "sidecar: a length mismatch with the list is stale" "$out" "batch=01 status=stale reason=paths digest="
+nd="$(digest_of "$out" 02)"
+assert_eq "sidecar: every listed file missing still differs from the list-only digest" \
+  "$([[ -n "$nd" && "$nd" != "$(sha "$SP/batches/batch-02.txt")" ]] && echo differs)" "differs"
 
 # --- merge ----------------------------------------------------------------------
 

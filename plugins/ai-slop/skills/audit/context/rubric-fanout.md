@@ -75,10 +75,11 @@ per batch:
   batch stale. A batch directory planned before 0.9.0 has no `.paths` sidecars, and its
   digests stay bound to the list only.
 - `status=missing digest=<digest>`, or `status=stale
-  reason=digest|files_reviewed|foreign-heading|files_with_findings digest=<digest>`: dispatch
-  the batch again with that row's `digest=` value and let the subagent overwrite the file. A
-  header line written more than once is stale under that header's reason (`digest` for
-  `batch:`).
+  reason=paths|digest|files_reviewed|foreign-heading|files_with_findings digest=<digest>`:
+  dispatch the batch again with that row's `digest=` value and let the subagent overwrite the
+  file. A header line written more than once is stale under that header's reason (`digest`
+  for `batch:`). `reason=paths` means the `.paths` sidecar's length differs from the list's;
+  re-plan into a fresh directory.
 
 A terminated subagent therefore costs one batch, a rerun after a limit resets dispatches only
 the batches that did not finish, and a run over a changed scope never inherits a result from

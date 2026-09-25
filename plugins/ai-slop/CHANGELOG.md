@@ -5,10 +5,12 @@
 ### Added
 
 - **`rubric-fanout.sh plan`** writes a `batch-NN.paths` sidecar beside each `batch-NN.txt`,
-  one absolute path per listed file, and the batch digest now covers the list plus those
-  files' contents.
+  one absolute path per listed file (an absolute target path is kept as given; a relative one
+  resolves against the cwd, ignoring `CDPATH`), warns on stderr for a path it cannot read,
+  and the batch digest now covers the list plus those files' contents.
 - **`rubric-fanout.sh status`** ends every missing and stale row with `digest=<current
-  digest>`, which a re-dispatch hands the batch subagent. Complete rows are unchanged.
+  digest>`, which a re-dispatch hands the batch subagent, and reports `stale reason=paths`
+  when a sidecar's length differs from its list's. Complete rows are unchanged.
 
 ### Changed
 
