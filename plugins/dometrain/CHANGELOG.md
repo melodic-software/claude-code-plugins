@@ -3,6 +3,26 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-25
+
+### Changed
+
+- **`dometrain_api_key` is optional.** It is no longer `required`, so the plugin enables with the
+  key left blank. That lets a user-scope server at the plugin's URL supply the key instead, with
+  no placeholder value. A consumer who enters a key sees no change.
+- **README section "Reading the key from an environment variable"** documents the env-first
+  override: a user-scope HTTP server at `https://mcp.dometrain.com/mcp` whose `Authorization`
+  header expands `${DOMETRAIN_API_KEY}`, the variable Dometrain's own plugin reads. Claude Code
+  deduplicates plugin servers by endpoint, so the user-scope entry replaces the plugin's server.
+  The plugin's `.mcp.json` is unchanged: the MCP docs define `${VAR:-default}` with a literal
+  default only and do not document nesting `${user_config.*}` inside it.
+- The vault-exec recipe drops its placeholder step, and both override recipes note that Grok
+  loads Claude Code plugin servers and needs its own same-name entry.
+- **`/dometrain:setup` recognizes the override.** It no longer calls the key required, checks tool
+  inventory under both the plugin's own tool-name prefix and the override's, reports `connected`
+  under either, and on a failed override routes the user to `claude mcp list` and the README
+  rather than to `/plugin configure`, which only changes the plugin's own key.
+
 ## [0.3.2] - 2026-09-25
 
 ### Changed
