@@ -254,7 +254,7 @@ out of scope until such a signal exists.
   `hardcoded-path-check` and `block-windows-drive-tmp` decline them through their
   project scope. `Write` still scans some temp targets the Bash redirect exempts
   (a hard-linked file, a `/`-spelled target on Windows, a temp tree spelled with
-  capitals on POSIX); the 0.36.4 changelog entry lists them. Before 0.32.0 these
+  capitals on POSIX); the 0.36.5 changelog entry lists them. Before 0.32.0 these
   redirects blocked anyway, which cost false positives with no true positive. A
   target spelled with an 8.3 short name (a component such as `ABCDEF~1`) is
   scanned on `Write` and blocked for Bash, so a harness scratchpad path spelled
