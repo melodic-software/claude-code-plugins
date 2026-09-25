@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.9.0] - 2026-09-25
+
+### Added
+
+- **`rubric-fanout.sh plan`** writes a `batch-NN.paths` sidecar beside each `batch-NN.txt`,
+  one absolute path per listed file, and the batch digest now covers the list plus those
+  files' contents.
+- **`rubric-fanout.sh status`** ends every missing and stale row with `digest=<current
+  digest>`, which a re-dispatch hands the batch subagent. Complete rows are unchanged.
+
+### Changed
+
+- **`cross-check.sh`** compares the set of em-dash line numbers per file, not only the count.
+  A `Disagree:` row keeps its `file= detector= cross_check=` fields and adds
+  `detector_only=` and `cross_check_only=`, the lines only one side counted, or `-`.
+- **Rubric batch subagents** are dispatched with `model: sonnet`, pinned in
+  `context/rubric-fanout.md`, rather than inheriting the session model.
+
+### Fixed
+
+- **A header written twice could pass `status`.** Copies of `batch:`, `files_reviewed:` or
+  `files_with_findings:` joined into one value, so `files_reviewed: 1` twice read `11` and
+  passed an 11-file batch. Each header must now appear exactly once, and any other count is
+  stale under that header's reason.
+- **A listed file edited after its batch completed kept the batch complete.** The digest bound
+  the result to the list only; it now binds the listed files' contents too, so the batch reads
+  stale. A batch directory planned before 0.9.0 has no sidecars and stays bound to the list.
+- **`cross-check.sh` missed a disagreement with equal counts.** Detector lines {3,4} against
+  actual {3,5} printed no `Disagree:` row; it now names line 4 and line 5.
+
 ## [0.8.0] - 2026-09-23
 
 ### Added

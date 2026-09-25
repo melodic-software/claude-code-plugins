@@ -90,8 +90,9 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    its batch list and writes its result file into the findings home (the scratchpad for a
    non-repository target) before it reports, `status` names the batches that still need a run,
    and `merge` joins the results once every batch is complete. A batch whose result file is
-   bound to its current list is skipped on a re-run, so a rate limit or a crash costs one
-   batch, not the pass, and a leftover result from an earlier scope is never accepted.
+   bound to its current list and the listed files' current contents is skipped on a re-run,
+   so a rate limit or a crash costs one batch, not the pass, and a leftover result from an
+   earlier scope or from before an edit is never accepted.
 4. **Report.** Group findings by file in priority order: for script findings quote the rule id,
    line, and fired condition; for rubric findings quote the offending text and name the catalog
    entry. State the declined counts (marker/config/code-fence exemptions) and any disabled rules
@@ -211,10 +212,11 @@ detector over it with `--paths-file`, redirecting both outputs to files in the r
 and re-emit the findings file per [`context/persist-findings.md`](context/persist-findings.md)
 "Re-running", so no stale findings file survives its own remediation. Skip the re-emit for a
 non-repository target, which never wrote one. Then run `cross-check.sh --targets <list>
---detector <detector output>`: it counts em-dash lines with its own parse, so an em dash the
-detector's parse missed still shows up. It follows the detector's fence rules but not its
-full parse, and compares a count per file, not which lines, so treat a `Disagree:` row as a
-file to reread rather than a proven miss. Report every `Disagree:` row, then totals:
+--detector <detector output>`: it finds em-dash lines with its own parse, so an em dash the
+detector's parse missed still shows up. A `Disagree:` row names the lines only one side
+counted (`detector_only=`, `cross_check_only=`), which is where the two parses differ. It
+follows the detector's fence rules but not its full parse, so a row is not a proven miss:
+reread those lines. Report every `Disagree:` row, then totals:
 fixed, suppressed, reverted, remaining.
 
 ## Configuration
