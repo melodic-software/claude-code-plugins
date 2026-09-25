@@ -10,14 +10,8 @@ readonly WIT_LEASE_MARKER='<!-- work-item-lease v1 '
 # wit_lease_json <marker-line-or-comment-body> — extract the lease JSON from a
 # lease marker; empty output when the input is not a lease marker.
 #
-# Anchored on the FIRST ` -->` after the marker, not on the body ENDING there:
-# a comment carrying the lease may have trailing content appended by whatever
-# posts it — a bot wrapper's attribution footer, a signature, a CI note. An
-# end-anchored match treated every such comment as "not a lease", which is
-# silent and dangerous rather than merely lossy: claim's arbitration would find
-# no incumbent lease and grant, and renew-lease would refuse to renew a lease it
-# had just written. Taking the first ` -->` is also strictly more correct — an
-# HTML comment cannot contain `-->`, so the first occurrence always closes it.
+# Anchored on the FIRST ` -->`, not the body's end: a posted lease may carry a trailing
+# footer, and an end-anchored match reads it as no lease, so claim grants and renew refuses.
 wit_lease_json() {
   local body="$1"
   case "$body" in
@@ -30,8 +24,7 @@ wit_lease_json() {
 }
 
 # wit_iso_to_epoch <ISO-8601-UTC> — echo the Unix epoch for a `YYYY-MM-DDTHH:MM:SSZ`
-# timestamp. Portable across GNU date (Linux, Git Bash) and BSD date (macOS):
-# tries BSD `-j -f` first, falls back to GNU `-d`. Returns 1 if neither parses.
+# timestamp, via BSD or GNU date. Returns 1 if neither parses.
 wit_iso_to_epoch() {
   local iso="$1"
   date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$iso" '+%s' 2>/dev/null ||
@@ -40,12 +33,8 @@ wit_iso_to_epoch() {
     return 1
 }
 
-# wit_select_active_lease <lease-comment-rows-json> — from a JSON array of lease
-# comment rows ({id, body, ...}), select the ACTIVE lease = the newest (highest
-# id) NON-superseded lease, and set WIT_ACTIVE_LEASE_ID / WIT_ACTIVE_LEASE_JSON
-# (both empty when no active lease exists). Not blind `last`: a claim that backs
-# off supersedes its own newer comment, so the highest-id comment can be a
-# superseded back-off while an earlier comment is the still-active lease.
+# wit_select_active_lease <lease-comment-rows-json>: set WIT_ACTIVE_LEASE_ID / _JSON to the
+# newest NON-superseded lease. Not blind `last`: a backed-off claim supersedes its own newer comment.
 WIT_ACTIVE_LEASE_ID=""
 WIT_ACTIVE_LEASE_JSON=""
 wit_select_active_lease() {

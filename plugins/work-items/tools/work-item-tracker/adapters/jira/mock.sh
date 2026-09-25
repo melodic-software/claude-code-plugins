@@ -3,9 +3,7 @@
 # Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
 #
 # Every verb path is exercised against a MOCK curl injected through WIT_JIRA_CURL, so no
-# test in this adapter touches the network. That is not merely convenient: no Jira site
-# is reachable from the environment this adapter was built in, and the alternative to
-# mocked coverage is no coverage.
+# test in this adapter touches the network.
 #
 # The mock answers by CALL COUNT rather than by URL, because this adapter's read verbs
 # issue one request per page in a fixed order: the Nth call gets the seeded
