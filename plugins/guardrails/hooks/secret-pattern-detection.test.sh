@@ -925,14 +925,26 @@ d1_seam_rc() { # <candidate dir> -> spd_temp_declines' status for a file under i
     spd_temp_declines "$3/spd-d1-absent/f.txt"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1"
 }
 # mktemp names carry capitals, so the seam dirs sit under a lowercase name of
-# their own, removed by name in the EXIT trap.
+# their own, removed by name in the EXIT trap. The precondition asks the seam's
+# own resolver: under a forced Linux OSTYPE the library resolves with `cd -P`,
+# which on Git Bash follows the /tmp mount to a capitalized Windows path, so the
+# cases only run where that resolver spells each seam dir as given.
+d1_seam_self() { # <dir> -> 0 when the Linux resolver spells <dir> as given
+  local got
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  got=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null) &&
+    [[ "$got" == "$1" ]]
+}
 D1_SEAM_TRY="/tmp/spd-d1-seam-$$"
-if [[ "$(realpath /tmp 2>/dev/null)" == /tmp ]] && mkdir "$D1_SEAM_TRY" 2>/dev/null &&
-  D1_SEAMDIR="$D1_SEAM_TRY" && mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null; then
+if mkdir "$D1_SEAM_TRY" 2>/dev/null && D1_SEAMDIR="$D1_SEAM_TRY" &&
+  mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null &&
+  d1_seam_self "$D1_SEAMDIR/lowtemp" && d1_seam_self "$D1_SEAMDIR/CapTemp"; then
   assert_eq "D1 seam: posix, lowercase temp root declines" 0 "$(d1_seam_rc "$D1_SEAMDIR/lowtemp")"
   assert_eq "D1 seam: posix, capitalized temp root scans" 1 "$(d1_seam_rc "$D1_SEAMDIR/CapTemp")"
+elif [[ "${OSTYPE:-}" == linux* ]]; then
+  bad "D1 seam: the /tmp seam dirs could not be made or do not resolve to themselves under the library's Linux resolver"
 else
-  echo "SKIP: D1 seam width cases (/tmp does not resolve to itself, or the seam dirs could not be made)"
+  echo "SKIP: D1 seam width cases (under a forced Linux OSTYPE the library resolver does not spell the /tmp seam dirs as given on this host, or the seam dirs could not be made)"
 fi
 
 if ((D1_WIN)); then

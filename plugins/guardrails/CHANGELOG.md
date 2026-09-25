@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.10] - 2026-09-25
+
+### Fixed
+
+- secret-pattern-detection.test.sh: the D1 seam width cases check that the library's Linux resolver (which the seam runs under a forced Linux OSTYPE) spells the /tmp seam dirs as given, instead of checking realpath. On Windows Git Bash that resolver's `cd -P` follows the /tmp mount, so the pair now skips there with a stated reason instead of failing; on Linux a failed check is a failure rather than a skip. Test-only; no hook behavior change.
+
 ## [0.36.9] - 2026-09-25
 
 ### Fixed
