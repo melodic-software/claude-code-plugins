@@ -71,7 +71,9 @@ changed_files::verify_base() {
 # prefix, and that is a correctness requirement rather than a naming style. A
 # nameref resolves its target in the scope where it is USED, so a local declared
 # after the binding and sharing the caller's chosen out-var name shadows that
-# caller's variable for the rest of the function. Prefixing every internal name puts the
+# caller's variable for the rest of the function. Measured on the unprefixed version: an
+# out-var named `tmp` or `path` came back SILENTLY EMPTY, the empty-change-set
+# fail-open this file exists to remove. Prefixing every internal name puts the
 # collision out of a caller's reach; do not introduce an unprefixed local here.
 
 # changed_files::resolve_base <out-var>

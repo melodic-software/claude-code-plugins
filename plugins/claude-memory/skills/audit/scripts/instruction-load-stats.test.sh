@@ -18,7 +18,7 @@ assert_contains() {
 
 # CLAUDE_CONFIG_DIR is pinned to an empty fixture so the host's config never leaks in;
 # the user-scope case sets its own.
-# #
+#
 # HOME is NOT pinned: on Windows the temp tree sits inside the real profile, and a fake
 # HOME would make the real `~/.claude/CLAUDE.md` an ancestor displacer on dev machines.
 mkdir -p "$TEST_TMPDIR/conf"

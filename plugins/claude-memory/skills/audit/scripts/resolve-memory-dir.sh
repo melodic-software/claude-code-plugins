@@ -22,8 +22,9 @@ EOF
   exit 0
 fi
 
-# cygpath -w yields the Windows form Claude Code names project dirs with on Git Bash,
-# falling back to the raw path where cygpath does not exist.
+# tr -d '\r' strips Git Bash CRLF from piped git output. cygpath -w then yields the
+# Windows form Claude Code names project dirs with, falling back to the raw path where
+# cygpath does not exist.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 if [[ -n "$repo_root" ]]; then
   repo_root=$(cygpath -w "$repo_root" 2>/dev/null || printf '%s' "$repo_root")
