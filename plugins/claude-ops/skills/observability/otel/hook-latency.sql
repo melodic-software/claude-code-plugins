@@ -16,7 +16,11 @@ WITH fires AS (
     session_id,
     COALESCE(list_filter(attributes_list, lambda x: x.key = 'claude.lane')[1].value.stringValue, 'unknown') AS lane,
     list_filter(attributes_list, lambda x: x.key = 'hook_event')[1].value.stringValue AS hook_event,
-    TRY_CAST(list_filter(attributes_list, lambda x: x.key = 'total_duration_ms')[1].value.stringValue AS DOUBLE) AS ms
+    -- Observed as stringValue; COALESCE with intValue as cc-otel.sql does for duration_ms.
+    TRY_CAST(COALESCE(
+      list_filter(attributes_list, lambda x: x.key = 'total_duration_ms')[1].value.stringValue,
+      list_filter(attributes_list, lambda x: x.key = 'total_duration_ms')[1].value.intValue
+    ) AS DOUBLE) AS ms
   FROM cc_logs_from(getvariable('src'))
   WHERE event_name = 'hook_execution_complete'
 ),

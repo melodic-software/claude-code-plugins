@@ -81,6 +81,12 @@ if command -v duckdb >/dev/null 2>&1; then
   run "$slow"
   assert_eq "Stop p95 over budget exits 1" 1 "$rc"
   assert_contains "p95 reason is named" "$out" "p95>budget"
+  mixed="$(store mixed '200' 1 5)"
+  rec="$(record sess-1 Stop 250 100)"
+  line "${rec/'{"stringValue":"250"}'/'{"intValue":"250"}'}" >>"$mixed/cc-logs.json"
+  run "$mixed"
+  assert_contains "an intValue total_duration_ms fire is counted" "$out" "Stop                     6"
+
   run "$slow" --budget Stop=5000
   assert_eq "a budget above p95 clears the flag" 0 "$rc"
   run "$slow" --budget Bogus=5
