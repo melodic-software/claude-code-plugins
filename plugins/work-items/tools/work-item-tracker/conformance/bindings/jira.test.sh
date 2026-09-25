@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# Wires the jira conformance run into shell-test discovery (offline, in-CI). Like the
-# local-markdown binding test, this RUNS the full abstract conformance suite through
-# the core CLI against the jira adapter — once normally, once under a PATH shim that
-# makes gh/curl fail. The consume-only jira manifest means every exercised path is
-# pre-network (capabilities cats the manifest; write verbs + list-sub-items exit 6 at
-# the gate; read verbs are never seeded because create-item=false), so the suite must
-# pass even with curl blocked — proving no exercised path reaches Jira.
+# RUNS the full abstract suite against the consume-only jira adapter, once normally and
+# once under a PATH shim that makes gh/curl fail: every exercised path is pre-network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,9 +20,8 @@ assert_eq "consume-only binding leaves CB_REPO empty" "" "$CB_REPO"
 bash "$RUNNER" --binding jira >/dev/null 2>&1
 assert_eq "conformance --binding jira exit 0" "0" "$?"
 
-# Zero-network: a PATH shim makes gh + curl exit 1; the suite must still pass,
-# proving the consume-only adapter never reaches for a network tool on any exercised
-# path (no unshare -n on Git Bash).
+# Zero-network: a PATH shim makes gh + curl exit 1 and the suite must still pass
+# (no unshare -n on Git Bash).
 SHIM="$(mktemp -d)"
 write_blocking_network_shim "$SHIM"
 PATH="$SHIM:$PATH" bash "$RUNNER" --binding jira >/dev/null 2>&1

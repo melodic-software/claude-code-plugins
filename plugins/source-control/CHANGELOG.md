@@ -3,11 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.58.2] - 2026-09-25
+## [0.58.3] - 2026-09-25
 
 ### Fixed
 
 - The shell suites no longer write fixture worktrees into the host's real worktree root. `scripts/test-helpers.sh` points `GIT_CONFIG_GLOBAL` at `/dev/null`, sets `GIT_CONFIG_NOSYSTEM`, and unsets `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT`, so a globally set `worktreeroot.path` no longer places them. The two suites that create worktrees through the root resolver, `scripts/worktree-create.test.sh` and `hooks/worktree-create-gate.test.sh`, end with `assert_real_worktree_root_clean`, which fails if a fixture worktree landed in that root (#4472). Test only; nothing the plugin ships changes.
+
+## [0.58.2] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
 
 ## [0.58.1] - 2026-09-24
 

@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 # legacy-frontier-tier-signal.sh — detect pre-#1716 frontier-tier body stamps.
 #
-# Before the label reader flip, work-loop read frontier tier from triage-briefing
-# body prose. Triage refuses to re-triage already-triaged items, so setup's
-# backfill pass uses these patterns to find items that still carry only the legacy
-# signal. Patterns are conservative: generic "frontier tier" mentions (e.g.
-# security-surface dispatch prose) do not match.
+# Patterns stay narrow: a generic "frontier tier" mention (for example
+# security-surface dispatch prose) must not match.
 
 wit_body_has_legacy_frontier_tier_signal() {
   local body="${1:-}"

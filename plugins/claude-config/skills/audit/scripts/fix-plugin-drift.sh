@@ -213,14 +213,10 @@ findings() {
   jq -r ".[] | select(.status == \"ok\") | $1" "$INPUT_JSON" | sort -u
 }
 
-# Auto-removable orphans: orphans where enabled == false. Output as
-# "<plugin>@<marketplace>" lines.
 auto_remove=$(findings '.orphans[] | select(.enabled == false) | "\(.name)@\(.marketplace)"')
 
-# Manual-review orphans: orphans where enabled == true.
 manual_orphans=$(findings '.orphans[] | select(.enabled == true) | "\(.name)@\(.marketplace)"')
 
-# Auto-add: new upstream plugins.
 auto_add=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"')
 
 # Rename candidates (informational).
@@ -409,8 +405,7 @@ fi
 # That copy also carries a read-only mode, and the normalization below writes to
 # this file. Make the stage writable for the duration and put the restriction
 # back before the replace, so a settings file the operator marked read-only is
-# still applied (as it was before this staging step existed) and comes back
-# read-only. `mv` needs no write bit on the file, only on the directory.
+# still applied and comes back read-only. `mv` needs no write bit on the file, only on the directory.
 SETTINGS_WAS_WRITABLE=1
 [[ -w "$SETTINGS" ]] || SETTINGS_WAS_WRITABLE=0
 if ! chmod u+w "$TMP_EOL"; then

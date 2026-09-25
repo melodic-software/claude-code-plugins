@@ -8,8 +8,7 @@
 #
 # A green run on the current repo tree proves nothing about the gate -- the
 # tree is green by construction once the drift is fixed. These fixtures prove
-# it goes RED on the class that actually shipped (a catalogued plugin with no
-# enabledPlugins key, three times: #2892, #2932, #2985), on the inverse
+# it goes RED on a catalogued plugin with no enabledPlugins key, on the inverse
 # (an enabled id no catalog entry backs), and on unsorted keys; and that an
 # explicit `false` still passes, because an off switch a gate rejects is an
 # off switch nobody can use.
@@ -127,7 +126,7 @@ else
   fail "happy path should pass (rc=$rc): $out"
 fi
 
-# --- 2. The class that shipped: catalogued, enabled nowhere. ----------------
+# --- 2. Catalogued, enabled nowhere. ----------------------------------------
 write_marketplace alpha beta gamma
 printf 'alpha true\ngamma true\n' | write_settings
 out="$(run)"
@@ -138,9 +137,9 @@ else
   fail "plugin enabled nowhere should fail (rc=$rc): $out"
 fi
 
-# --- 2b. The fleet list covers what settings no longer mirrors. -------------
-# This is the post-migration shape: settings carries only deltas (here one
-# opt-out) and the fleet list enables the rest of the catalog.
+# --- 2b. The fleet list covers what settings does not mirror. ---------------
+# Settings carries only deltas (here one opt-out) and the fleet list enables
+# the rest of the catalog.
 write_marketplace alpha beta gamma
 write_fleet alpha@fixture beta@fixture gamma@fixture
 printf 'beta false\n' | write_settings
@@ -237,12 +236,12 @@ else
 fi
 
 # --- 6b. A regex metacharacter in the marketplace name stays literal. -------
-# Suffix stripping must be a literal match, not a pattern. Under the original
-# `sed -n "s/@$MARKET\$//p"` the '.' in 'melodic.software' matched any
-# character, so 'alpha@melodicXsoftware' was accepted as this marketplace's
-# key and the genuine 'alpha@melodic.software' entry went unnoticed -- the
-# gate reporting drift that did not exist while missing the shape it exists
-# to catch. Raised as informational by the security review on #3235.
+# Suffix stripping must be a literal match, not a pattern. Under a pattern such
+# as `sed -n "s/@$MARKET\$//p"` the '.' in 'melodic.software' matches any
+# character, so 'alpha@melodicXsoftware' is accepted as this marketplace's
+# key and the genuine 'alpha@melodic.software' entry goes unnoticed -- the
+# gate reporting drift that does not exist while missing the shape it exists
+# to catch.
 write_marketplace alpha
 write_bootstrap 'melodic.software'
 {
@@ -270,8 +269,7 @@ write_bootstrap fixture
 # install set with endswith("@" + $n), while this gate derives the suffix from
 # extraKnownMarketplaces. A rename that updates settings and catalog but not
 # the bootstrap leaves `wanted` empty -- cloud sessions install none of the
-# catalog -- with this lane green over it. Raised as P2 by the Codex review on
-# #3235.
+# catalog -- with this lane green over it.
 write_marketplace alpha beta
 printf 'alpha true\nbeta true\n' | write_settings
 write_bootstrap old-market-name

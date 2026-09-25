@@ -110,8 +110,7 @@ class CliTests(unittest.TestCase):
 
     def test_catches_the_1492_shaped_duplicate_version_key(self) -> None:
         # Fixture reproducing #1492's actual defect: two "version" members in
-        # a plugin.json. This is the fixture the issue asked for: a real
-        # duplicate key the gate must catch.
+        # a plugin.json.
         manifest = self.write(
             "plugin.json",
             '{\n'

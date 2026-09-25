@@ -159,7 +159,6 @@ assert_contains "case-2: removed listed" "$out" "removed@market1"
 assert_contains "case-2: newcomer listed" "$out" "newcomer@market1"
 assert_contains "case-2: dry-run notice" "$out" "Dry-run only"
 
-# Settings.json untouched in dry-run
 unchanged=$(jq -e '.enabledPlugins["removed@market1"] == false' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
 assert_eq "case-2: settings.json unchanged" "yes" "$unchanged"
 
@@ -192,7 +191,6 @@ out=$(run_fix_apply "$case_dir") || exit_code=$?
 assert_exit "case-3: apply exit 0" 0 "$exit_code"
 assert_contains "case-3: applied msg" "$out" "Applied:"
 
-# Verify settings.json modifications
 removed_absent=$(jq -e '.enabledPlugins | has("removed@market1") | not' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
 newcomer_present=$(jq -e '.enabledPlugins["newcomer@market1"] == false' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
 alpha_preserved=$(jq -e '.enabledPlugins["alpha@market1"] == true' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
@@ -228,7 +226,6 @@ out=$(run_fix_apply "$case_dir") || true
 assert_contains "case-4: MANUAL REVIEW header" "$out" "MANUAL REVIEW"
 assert_contains "case-4: lists the broken plugin" "$out" "broken-but-enabled@market1"
 
-# Settings.json must NOT have removed the true-orphan
 preserved=$(jq -e '.enabledPlugins["broken-but-enabled@market1"] == true' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
 assert_eq "case-4: true-orphan preserved (not auto-removed)" "yes" "$preserved"
 

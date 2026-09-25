@@ -520,7 +520,6 @@ if ($remediationsEnabled) {
     Write-MachineHealthLog "remediations_skipped reason=$reason"
 }
 
-# Discovery: inventory host dimensions vs catalog; propose up to 3 new checks.
 $discoveredChecks = @()
 try {
     $probes = @(Get-WindowsDiscoveryProbe)

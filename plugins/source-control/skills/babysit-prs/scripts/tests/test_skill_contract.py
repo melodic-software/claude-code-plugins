@@ -115,7 +115,7 @@ class SkillContractTests(unittest.TestCase):
     def test_worker_push_path_pins_the_post_push_head_command(self) -> None:
         # Worker tier has no merge tier, so its push paragraph still spells the
         # full pinned merge command inline. Step 6 lives in the runbook spoke
-        # after the line-cap extraction (#2424).
+        # (#2424).
         runbook = _reference("runbook-cycle.md")
         paragraph = _paragraph_containing(
             runbook, "In worker mode, after a worker's fix"
@@ -397,7 +397,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("gh auth switch --user <approver-login>", safety)
         self.assertIn("never the PR author or a lane identity", safety)
 
-        # Review-workflow requiredness enabling precondition (fork 3a).
+        # Review-workflow requiredness enabling precondition.
         self.assertIn("required status context", safety)
         self.assertIn("mergeStateStatus == CLEAN", safety)
         self.assertIn("operator enabling precondition", safety)

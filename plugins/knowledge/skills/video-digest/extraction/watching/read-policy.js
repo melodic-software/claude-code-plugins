@@ -1,5 +1,5 @@
 /**
- * Vision read resolution policy per design-threads T3.
+ * Vision read resolution policy.
  *
  * Contact-sheet triage: 1280×720 canvas (~1229 tok).
  * Detail reads default 1280×720; escalate to native 1920×1080 for text-dense frames.

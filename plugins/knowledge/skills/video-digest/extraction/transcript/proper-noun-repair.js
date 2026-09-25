@@ -1,5 +1,5 @@
 /**
- * Proper-noun repair over platform-ASR captions (T5, the `captions+repair`
+ * Proper-noun repair over platform-ASR captions (the `captions+repair`
  * strategy).
  *
  * Platform ASR corrupts exactly the proper nouns downstream research and

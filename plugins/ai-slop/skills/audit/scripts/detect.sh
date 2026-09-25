@@ -68,8 +68,7 @@ MODEL_PHRASES=("the part most people skip" "(the|my) honest take" "that.s the un
 # whole-word adds grep's POSIX -w: the match must be bounded by non-word
 # characters on both sides. Phrase rules need it — without it "great question"
 # fires on "These are great questions for the reviewer", reporting an
-# IMPORTANT-tier chat-residue finding on ordinary prose (reported in review,
-# reproduced, covered below). GNU's \b would express this inline but is not
+# IMPORTANT-tier chat-residue finding on ordinary prose. GNU's \b would express this inline but is not
 # POSIX, and this script's cross-grep parity claim rests on POSIX ERE only.
 #
 # It is OFF for rules whose match legitimately abuts a word character or is not

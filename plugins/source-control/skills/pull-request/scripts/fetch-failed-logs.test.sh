@@ -2,16 +2,7 @@
 # Regression tests for fetch-failed-logs.sh.
 #
 # Black-box: invokes the script as a subprocess with a stubbed `gh` on PATH
-# that emits fixture data instead of calling the real GitHub API. Covers:
-#
-#   1. Full-run ZIP mode — extracts ##[error] markers per job folder
-#   2. Per-job mode — emits failure markers from plain-text response
-#   3. --raw flag — dumps unfiltered content
-#   4. --keep-zip flag — leaves ZIP under scratch/
-#   5. Size cap (--max-bytes) — aborts with exit 3
-#   6. gh api failure — exits 2
-#   7. Tiny non-ZIP response — exits 2 with diagnostic
-#   8. Missing arguments — exits 1
+# that emits fixture data instead of calling the real GitHub API.
 
 set -uo pipefail
 
@@ -195,7 +186,6 @@ assert_exit "missing run-id and --job exits 1" 1 "$ec"
   printf '2026-05-08T10:02:05.000Z 0 tests passed\n'
   printf '2026-05-08T10:02:06.000Z Retrying download (attempt 2 of 3)\n'
 } >>"$FIXTURE_BUILD/0_build.txt"
-# Rebuild ZIP with extended fixture
 (cd "$FIXTURE_BUILD" && zip -qr "$FIXTURE_ZIP" .)
 
 # Case 9: --errors-only suppresses warnings
@@ -294,6 +284,5 @@ if [[ "${INTEGRATION:-0}" == "1" ]]; then
   fi
 fi
 
-# Final
 [[ $FAILED -eq 0 ]] || exit 1
 exit 0

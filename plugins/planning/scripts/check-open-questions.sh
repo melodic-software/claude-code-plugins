@@ -69,7 +69,6 @@ usage() {
 # counts as whitespace, so a CRLF closer closes). Any other fence-shaped line
 # while a fence is open is content: a four-backtick fence can quote a
 # three-backtick example, and `~~~` inside a backtick fence does not close it.
-# A parity toggle got both wrong and read the quoted example's heading as live.
 fence_awk='
   function fence_line(line,    run, ch, n) {
     if (match(line, /^[[:space:]]*(```+|~~~+)/) == 0) { return 0 }
@@ -371,19 +370,8 @@ elif [[ "$brief_named" -eq 1 ]]; then
   fi
 
   missing=""
-  # The match MUST stay a builtin `[[ =~ ]]`, not `printf | grep -qE`. Under this
-  # script's `set -uo pipefail`, grep -q exits 0 the moment it matches, printf is
-  # then killed by SIGPIPE, and pipefail promotes the whole pipeline to 141 —
-  # which `if !` reads as "id absent" and turns a PRESENT id into a spurious
-  # ungradeable error. It is a RACE against the 64 KB pipe buffer, not a size
-  # threshold: printf only takes SIGPIPE if it still has data to write when grep
-  # exits. Measured on this container, id on the section's first line, 15 runs
-  # per size, counting runs where the pipeline returned nonzero: 2/15 at 64 KB,
-  # 7/15 at 100 KB, then 15/15 at 128 KB and above. So it is intermittent from
-  # roughly the buffer size and deterministic from ~128 KB. The intermittent band
-  # is the dangerous one: a registered question reported missing only sometimes
-  # reads as a transient and invites a re-run instead of an investigation.
-  # The builtin reads the string directly and cannot SIGPIPE.
+  # MUST stay a builtin `[[ =~ ]]`: under pipefail, `printf | grep -qE` on a large
+  # section SIGPIPEs printf, and the 141 reads as a PRESENT id being absent.
   for id in $deferred_ids; do
     if ! [[ "$deferred_section" =~ (^|[^A-Za-z0-9])$id([^0-9]|$) ]]; then
       missing="$missing$id "

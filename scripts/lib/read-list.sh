@@ -1,19 +1,14 @@
 # shellcheck shell=bash
 # Shared reader for the `scripts/*.txt` list files. Sourced, never executed.
 #
-# Fifteen data files under scripts/ share one job -- one active entry per line,
-# with comments and blanks ignored -- and eight parsers implemented it, in four
-# spellings across TWO different comment semantics (#3161):
+# The data files under scripts/ share one job -- one active entry per line,
+# with comments and blanks ignored -- under TWO different comment semantics
+# (#3161):
 #
 #   inline  `sed -E 's/#.*//'` or bash `${line%%#*}`, then trim, then drop empty.
 #           A `#` ANYWHERE on the line starts a comment.
-#           Was: check-docs-only.sh, check-orphaned-fixtures.sh,
-#                check-shell-portability.sh (skill-md baseline),
-#                check-changelog-parity.sh, affected-tests.sh
 #   leading trim, then drop the line only if it is empty or BEGINS with `#`.
 #           An inline `#` is kept as data.
-#           Was: the awk `FNR == NR` token loaders in check-shell-portability.sh
-#                and check-skill-portability.sh, and check-hook-userconfig-argv.sh
 #
 # THE TWO SEMANTICS ARE BOTH CORRECT AND MUST STAY DISTINCT. Token-list entries
 # are EREs, and a regex may legitimately contain `#`; applying the inline rule to
@@ -24,10 +19,6 @@
 # `--include-deleted` an explicit per-call-site decision rather than a default
 # that silently suits one caller and corrupts another.
 #
-# Measured at extraction time: no active line in any of the fifteen files
-# contains a non-leading `#`, so the divergence was LATENT, not live. This
-# library exists so it stays that way once one does.
-#
 # NO ESCAPE SYNTAX, deliberately. A `\#` escape in the inline mode was
 # considered and rejected: no current file needs it, adding it would silently
 # change how an existing entry containing `\#` parses, and the leading mode
@@ -35,10 +26,9 @@
 # belongs in the leading family.
 #
 # CR TOLERANCE is unconditional. `.gitattributes` pins `* text=auto eol=lf`, so a
-# trailing CR should never reach a checkout -- but check-hook-userconfig-argv.sh
-# stripped one anyway and the other seven did not, and a lone CR silently
-# defeats the exact-match every one of these consumers performs. Doing it here
-# costs nothing and removes the last of the four-way divergence.
+# trailing CR should never reach a checkout -- but a lone CR silently defeats
+# the exact-match every one of these consumers performs, and stripping it here
+# costs nothing.
 #
 # Usage:
 #
@@ -61,10 +51,8 @@
 #
 # Every list here is an exemption list, and an exemption must not outlive what
 # it excuses: an entry whose target is gone or fixed would silently re-authorize
-# the next thing that lands on that name. Thirteen gates enforced that
-# themselves, in five consumed-tracking shapes and under eight diagnostic
-# prefixes, so an operator reading CI could not tell one gate's stale entry from
-# another's. The facility is:
+# the next thing that lands on that name. One facility and one diagnostic
+# prefix serve every gate:
 #
 #   read_list::mark_used <entry>...     the entry is still doing its job
 #   read_list::stale_to <out-array> <list-array>
@@ -76,8 +64,7 @@
 #                                       any entry was stale
 #   read_list::reset_used               forget every mark
 #
-# STALE BASELINE is the prefix, because it is the one the most gates already
-# printed. `stale_line` is public so a gate whose entries go stale for DIFFERENT
+# STALE BASELINE is the prefix. `stale_line` is public so a gate whose entries go stale for DIFFERENT
 # reasons (a baseline name that gained a CHANGELOG versus one that never named a
 # plugin) still prints the one prefix instead of re-typing it.
 #
@@ -90,9 +77,8 @@
 # Every local carries the `_rl_` prefix, and that is a correctness requirement
 # rather than a naming style. A bash nameref resolves its target in the scope
 # where it is USED, so an unprefixed local sharing the caller's chosen out-var
-# name shadows that caller's variable for the rest of the call -- measured on
-# scripts/lib/changed-files.sh before #3144, two plausible names came back
-# SILENTLY EMPTY. Do not introduce an unprefixed local here.
+# name shadows that caller's variable for the rest of the call, which comes
+# back SILENTLY EMPTY (#3144). Do not introduce an unprefixed local here.
 
 # _read_list::mode <out-var> <arg>...
 # Resolves the shared `--comments` option for both public readers.
@@ -105,12 +91,10 @@ _read_list::mode() {
     --comments)
       _rl_mode_out="${2-}"
       # Shift only what is actually there. `shift 2` with `--comments` as the
-      # LAST argument shifts nothing and returns non-zero, and the `|| true`
-      # this replaces swallowed that: `$#` stayed at 1 and the loop reprocessed
-      # `--comments` forever (#3363) instead of ever reaching the rc-2 branch
-      # below. Draining to `$# == 0` lets a bare `--comments` fall through to
-      # the existing "mode is required" error, the same answer `--comments ''`
-      # already gave.
+      # LAST argument shifts nothing and returns non-zero; swallowing that
+      # leaves `$#` at 1 and reprocesses `--comments` forever (#3363). Draining
+      # to `$# == 0` lets a bare `--comments` fall through to the "mode is
+      # required" error, the same answer `--comments ''` gives.
       shift $(($# > 1 ? 2 : 1))
       ;;
     *)

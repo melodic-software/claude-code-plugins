@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by sourced tests/lib.sh
-# End-to-end lifecycle probe against a live GitHub sandbox: map → typed sub-items →
-# dependency edge → frontier → claim/lease → renew → resolve+close → graduation →
-# map close. Exercises every seam verb through the core CLI plus the
-# closed-blocker-graduation semantics the frontier depends on. On-demand only.
+# End-to-end lifecycle probe against a live GitHub sandbox: every seam verb through the
+# core CLI, plus closed-blocker graduation. On-demand only.
 # Usage: e2e-probe.sh [--evidence <file>]   (target required: WIT_CONFORMANCE_GITHUB_REPO=owner/name)
 set -uo pipefail
 
@@ -92,10 +90,8 @@ assert_contains "frontier holds item1" "$IDS" "$ITEM1_ID"
 assert_not_contains "frontier hides blocked item2" "$IDS" "$ITEM2_ID"
 assert_not_contains "frontier excludes the unblocked container map" "$IDS" "$MAP_ID"
 
-# 3b. Sub-item enumeration + container-scoped frontier. list-sub-items
-# returns BOTH children (raw enumeration keeps blocked/closed); the scoped
-# frontier applies the same filter as the global one — item1 in, blocked item2
-# out, and the map never its own frontier item.
+# 3b. Sub-item enumeration keeps BOTH children; the container-scoped frontier applies
+# the global filter.
 SUBS="$(wit list-sub-items "$MAP_ID")"
 record "map sub-items" "$SUBS"
 SUB_IDS="$(jq -c '[.items[].id]' <<<"$SUBS")"

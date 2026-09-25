@@ -157,10 +157,8 @@ rm -f "$f" "$BAD_TOKENS"
 # --- a token list with NO active patterns fails closed (#3161) --------------
 #
 # An all-comments list loads zero patterns, so every file scans clean and awk
-# exits 0 — the gate passing while gating nothing, the #1513 shape.
-# check-shell-portability.sh has refused this since #1513; this scanner did not,
-# and was measured returning exit 0 on a file carrying a real violation. Third
-# instance of the same twin asymmetry.
+# exits 0 — the gate passing while gating nothing, the #1513 shape, which
+# check-shell-portability.sh refuses too.
 EMPTY_TOKENS="$(mktemp)"
 printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
 f="$(tmpfile 'diff against origin/main here')"
@@ -334,9 +332,9 @@ fi
 rm -rf "$fx"
 
 # =============================================================================
-# ...and the same for the TOKEN LIST operand, which is the worse half of #1513
-# and the half this gate was missing until #2914 (finding 2). A token path
-# shaped like identifier=value parses as an awk variable assignment, so the
+# ...and the same for the TOKEN LIST operand, the worse half of #1513 (#2914).
+# A token path shaped like identifier=value parses as an awk variable
+# assignment, so the
 # `FNR == NR` loading pass never runs: NO patterns are active, every file
 # reports clean, and awk exits 0. The gate passes while gating nothing, and the
 # scanner-fault check cannot see it because nothing faulted.
@@ -648,9 +646,7 @@ printf '%s\n%s\n' 'origin/(main|master)' "$REMOTE_TOKEN" >"$BOTH_TOKENS"
 # One line, both couplings. `merge-base` is a branch-class guard marker, so
 # the co-located `origin/main` is legitimately excused as a detection-ladder
 # fallback. The `git fetch origin` on the same line is a DIFFERENT coupling
-# with no guard of its own and must still be reported. Before the guard was
-# class-scoped, the branch marker excused the whole line and this hit
-# vanished — a real remote hardcode reported clean.
+# with no guard of its own and must still be reported.
 f="$(tmpfile 'Use `git merge-base origin/main HEAD` for the base, then `git fetch origin` to refresh.')"
 out="$(scan_with "$BOTH_TOKENS" "$f" 2>&1)"
 if echo "$out" | grep -q 'origin/(main|master)'; then

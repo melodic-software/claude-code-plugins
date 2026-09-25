@@ -54,9 +54,6 @@ check_prereqs() {
   local missing=0
   require_tool curl || missing=1
   require_tool jq || missing=1
-  # sha256 is cross-platform: `sha256sum` on Linux/Git Bash, `shasum -a 256`
-  # on stock macOS. Accept either — the `sha256` helper below picks one at
-  # call time. Only fail when neither is available.
   if ! command -v sha256sum >/dev/null 2>&1 &&
     ! command -v shasum >/dev/null 2>&1; then
     err "neither sha256sum nor shasum on PATH — cannot hash upstream"
@@ -82,9 +79,8 @@ current_cli_version() {
   fi
 }
 
-# Latest published CLI version from npm registry (no auth required).
-# `--fail` makes curl return non-zero on HTTP errors (404/5xx) instead of
-# silently saving an error page body as if it were the real response.
+# Latest published CLI version from the npm registry. `--fail` keeps an HTTP
+# error page from being read as the response.
 latest_cli_version() {
   local body
   body=$(curl -sSL --fail --max-time 10 "$NPM_LATEST_URL" 2>/dev/null)
@@ -92,10 +88,8 @@ latest_cli_version() {
   printf '%s' "$body" | jq -r '.version // empty'
 }
 
-# Fetch upstream SKILL.md to TMPDIR_RUN and emit SHA256.
-# `--fail` is critical: without it, an HTTP 404/503 error page body would be
-# saved to $out and hashed as if it were the real SKILL.md, silently poisoning
-# UPSTREAM.md on --apply and masking real drift on --check.
+# `--fail` is critical: an HTTP error page would otherwise be hashed as the real
+# SKILL.md, poisoning UPSTREAM.md on --apply and masking drift on --check.
 fetch_upstream_sha() {
   local out="${TMPDIR_RUN}/upstream-skill.md"
   curl -sSL --fail --max-time 15 "$UPSTREAM_URL" -o "$out" 2>/dev/null || return 1
@@ -204,9 +198,6 @@ run_apply() {
   }
   log "new upstream SHA256: $upstream_sha"
 
-  # Rewrite UPSTREAM.md. Claude does NOT run this section — update.sh writes
-  # the deterministic record. SKILL.md content integration is a separate step
-  # handled by the skill body (Preservation rules).
   rewrite_upstream_md "$upstream_sha" "$current" "$previous_ver"
   log "UPSTREAM.md refreshed"
 

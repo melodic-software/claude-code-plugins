@@ -15,15 +15,7 @@
 # the lane cannot apply them. Inlining is therefore the design, not a defect,
 # and deduplicating into lib/ with a sync script would break exactly the
 # installed-plugin isolation the inlining exists to preserve. What the design
-# needs instead is a CHECK, and until this script there was none: the section
-# claimed "fleet audits check conformance per consumer" and nothing did.
-#
-# The claim's cost was already paid. Two uncoordinated de-slop shards, #3107
-# (work-items) and #3108 (source-control), rewrote two em dashes inside the
-# staleness bullet of all three lane bodies and touched neither the reader
-# contract that owns the block nor the two other copies. The three lanes stayed
-# byte-identical to EACH OTHER, which is the half a reviewer notices, while all
-# three drifted from their source, which is the half nobody did.
+# needs instead is a CHECK.
 #
 # WHY NOT check-cross-plugin-source-drift.sh. That gate is blind here twice
 # over, and neither blindness is a bug in it. It skips SKILL.md by basename
@@ -52,8 +44,6 @@
 # green, and the next contract change strands that seventh copy. That is the
 # same blindness that produced the drift this gate exists for, one level up,
 # and it is the false-green shape docs/conventions/liveness-assertion/ names.
-# It is not hypothetical here: the original report of this coupling listed five
-# copies, and building the registry found six.
 #
 # So before comparing anything, every TRACKED file is scanned for the floor's
 # opening bullet and any carrier outside the registry FAILS. Discovery uses the
@@ -77,7 +67,7 @@
 #
 # DATA CARRIERS ARE LISTED HERE, NEVER SELF-DECLARED, and that is a deliberate
 # departure from the two annotation idioms this gate otherwise mirrors. An
-# in-file `<token>: <reason>` was tried first and is unsafe for a FILE-scoped
+# in-file `<token>: <reason>` is unsafe for a FILE-scoped
 # exemption: `# lane-coverage-ok:` and `# silent-skip-ok:` anchor to a syntactic
 # site (a job key, a guard line) that bounds what the annotation can excuse,
 # while a file has no such site — so any file that carried the token anywhere,

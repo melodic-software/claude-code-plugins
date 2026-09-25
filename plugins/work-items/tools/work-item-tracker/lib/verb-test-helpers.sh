@@ -1,8 +1,6 @@
 # shellcheck shell=bash
 # Shared assertions for adapter verb *.test.sh files. Sourced, never run
-# directly (runner ignores non-*.test.sh). Each verb test asserts the
-# skill-script contract (--help exits 0 with non-empty stdout) plus one
-# offline usage-error path (bad args exit 2 before any provider I/O).
+# directly (runner ignores non-*.test.sh).
 set -uo pipefail
 
 # tests/lib.sh provides the FAILED/CASE_NUM defensive defaults.

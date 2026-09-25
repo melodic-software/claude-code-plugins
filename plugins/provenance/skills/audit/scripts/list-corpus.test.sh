@@ -4,8 +4,8 @@
 # convention, the assertion helpers are local to this suite rather than shared
 # across plugins.
 #
-# The load-bearing case here is "fixture tree is included without config"
-# (the #3041 resolution): an unconditional exclusion inside the script would
+# The load-bearing case here is "fixture tree is included without config":
+# an unconditional exclusion inside the script would
 # blind the eval harness to its own fixtures, so the exclusion has to arrive
 # through the config layer and this suite proves the script ships without it.
 set -uo pipefail
@@ -161,8 +161,6 @@ assert_not_contains "a linguist-vendored path is not listed" \
 assert_contains "the linguist-vendored decline names the attribute" \
   "$(echo "$ATTR_OUT" | jq -r '.declined[].reason')" "linguist-vendored"
 
-# The #3041 invariant. The eval-fixture tree is excluded through config, never
-# unconditionally, so a run with no config layers MUST see the fixtures.
 assert_contains "the eval-fixture tree is included when no config excludes it" \
   "$FILES" "evals/fixtures/golden/case-1/case.md"
 
@@ -200,8 +198,7 @@ assert_not_contains "the local overlay's exclusion applies" \
 assert_contains "the overlay replaces the team value per key" \
   "$(echo "$OVERLAY_OUT" | jq -r '.files[]')" "evals/fixtures/golden/case-1/case.md"
 # Per-key override means a later layer REPLACES the value, and an explicit empty
-# array is a value. Treating "no elements" as "key absent" left the team layer's
-# exclusions in force, so an overlay could add exclusions but never clear them.
+# array is a value.
 printf '%s\n' '{"excluded_paths":["docs/**"]}' >"$CFG_DIR/provenance.json"
 printf '%s\n' '{"excluded_paths":[]}' >"$CFG_DIR/provenance.local.json"
 CLEAR_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$REPO" bash "$LIST_CORPUS" 2>/dev/null)"
@@ -247,9 +244,7 @@ run_default no/such/path >/dev/null 2>&1
 assert_exit "a nonexistent target exits 2" "$?" "2"
 
 # The repository root has several spellings and every one of them means "the
-# whole corpus". `.` reaching the directory-prefix filter as a literal prefix
-# matched nothing and reported an empty corpus with no error, which reads as a
-# clean repository rather than as a broken invocation.
+# whole corpus".
 BASE_FILES="$(run_default 2>/dev/null | jq -r '.counts.included')"
 assert_eq "a '.' target scans the whole repository" \
   "$(run_default . 2>/dev/null | jq -r '.counts.included')" "$BASE_FILES"
@@ -285,11 +280,8 @@ PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"
 assert_contains "a missing entry declines with a reason" \
   "$(echo "$PF_OUT" | jq -r '.declined[].reason')" "does not exist"
 
-# A missing DIRECTORY component, not just a missing leaf. The repo-relative
-# position of an entry is what git can place, and git can place nothing here,
-# so the entry has to survive as written. Reduced to its basename it would name
-# the fixture's root README.md, which exists: the run would report a file the
-# caller never asked for and count it as a hit.
+# A missing DIRECTORY component: git can place nothing, so the entry survives as
+# written; reduced to its basename it would name the fixture's root README.md.
 printf '%s\n' "no-such-dir/README.md" >"$PATHS"
 PF_OUT="$(run_default --paths-file "$PATHS" 2>/dev/null)"
 assert_eq "an entry under a missing directory lists nothing" \

@@ -22,10 +22,7 @@ tools each step applies. Those are cited where they appear.*
      appears in NONE of the four books: 0 hits, wrap-safe, all four. It is the
      title of his *American Songwriter* column, not something he is recorded
      saying, so presenting it as a Pat quotation invented a quotation out of a
-     masthead. Replaced with the two sentences he actually prints. Note for the
-     next sweep: the orchestrator's table records this fabrication as "All
-     fixed" after three sites were repaired. It was not. It survived here, and
-     still survives in two other files plus one template (see HANDOFF). -->
+     masthead. Replaced with the two sentences he actually prints. -->
 <!-- ai-slop-ignore-end -->
 
 The protocol exists because generic LLM defaults directly contradict Pat's

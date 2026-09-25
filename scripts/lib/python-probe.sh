@@ -2,12 +2,6 @@
 # Shared Python-floor interpreter probe for the repo-tooling suites. Sourced,
 # never executed.
 #
-# Three bash wrappers under scripts/ run a Python engine's unittest suite from a
-# bash-only CI step, and each answered the same two questions for itself: what
-# Python does this engine require, and is there an interpreter on this host that
-# meets it. The three copies were byte-identical apart from the engine path, so
-# a fix to either answer had to land three times to be true anywhere.
-#
 # THE FLOOR HAS ONE ORIGIN: `MIN_PYTHON` in the engine itself (needed because
 # `from __future__ import annotations` requires 3.7+). It is parsed out rather
 # than restated here, so the wrappers cannot disagree with the engine they run.
@@ -30,10 +24,8 @@
 #
 # Every local carries the `_pp_` prefix. A bash nameref resolves its target in
 # the scope where it is USED, so an unprefixed local sharing the caller's chosen
-# out-var name shadows that caller's variable for the rest of the call; the same
-# hazard is documented at length in scripts/lib/changed-files.sh, where two
-# plausible out-var names came back silently empty. Do not introduce an
-# unprefixed local here.
+# out-var name shadows that caller's variable for the rest of the call. Do not
+# introduce an unprefixed local here.
 
 # python_probe::require_to <out-var> <engine>
 #
