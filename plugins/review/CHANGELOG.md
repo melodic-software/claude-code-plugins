@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.3] - 2026-09-25
+
+### Changed
+
+- `/review:quality-gate` scopes the review-fix round: a fix changes exactly the lines its finding names, and any other edit needs its own finding first. The `pr` mode's "Fix valid findings" step points at the same rule.
+
 ## [0.30.2] - 2026-09-25
 
 ### Changed

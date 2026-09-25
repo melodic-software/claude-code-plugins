@@ -82,7 +82,10 @@ not model memory, not prior-iteration state, not comment counts (why:
 **Per-PR rescan flow:**
 
 1. **Terminal check:** `gh pr view <N> --json state -q '.state'`. MERGED/CLOSED → skip
-2. **CI check:** `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`
+2. **CI check:** `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`; when more than
+   one worker polls, read the head SHA's REST check-runs instead, per
+   [pull-request monitor.md](../../pull-request/reference/monitor.md) "Polling CI from more than
+   one worker"
 3. **Fetch ALL comments:** run
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <N>` to retrieve every comment
    from all 3 API surfaces (review-thread, issue-level, PR reviews). Full bodies, not counts. The
@@ -127,7 +130,8 @@ For each PR needing attention (oldest first):
 
 Before monitoring work on each PR, arm event delivery, in order:
 
-1. **Cloud check:** `CLAUDE_CODE_REMOTE=true` → no push/watch capability; poll `gh pr checks` +
+1. **Cloud check:** `CLAUDE_CODE_REMOTE=true` → no push/watch capability; poll CI (REST
+   check-runs when more than one worker polls, per the monitor.md section the per-PR rescan flow's CI check cites) +
    the comment fetch on a fixed 60-90s cadence. Skip remaining steps
 2. **Push-channel gate:** when your environment ships a GitHub-events push channel (an MCP
    server delivering webhook events into the session), verify it is healthy and arm its PR

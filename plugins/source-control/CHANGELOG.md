@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.5] - 2026-09-25
+
+### Changed
+
+- CI monitoring polls REST check-runs (`gh api repos/{owner}/{repo}/commits/{sha}/check-runs`) instead of `gh pr checks` or `gh pr view --json` when more than one worker polls under the same token. Both `gh` commands query GraphQL, and concurrent workers hit GraphQL secondary rate limits. The rule and its cited GitHub docs live in `pull-request/reference/monitor.md` "Polling CI from more than one worker"; `babysit-prs/reference/loop.md` points there. A single monitor keeps `gh pr checks`.
+- The PR-comment fix batch (`monitor.md` §3.3.2) changes only the lines each finding names, the review-fix rule `/review:quality-gate` owns.
+
 ## [0.58.4] - 2026-09-25
 
 ### Fixed
