@@ -1,0 +1,11 @@
+{
+  "groups": [
+    {"id": "g9", "title": "New group", "summary": "Two new questions.", "dependsOn": ["judged"]},
+    {"id": "g10", "title": "Later group", "summary": "Opens after New group.", "dependsOn": ["g9"]}
+  ],
+  "questions": [
+    {"id": "N1", "group": "g9", "short": "First new", "title": "Should the first new thing happen?", "recommendation": "Yes. It keeps the flow simple.", "commits": [], "alternatives": [{"key": "a", "text": "No, skip it"}, {"key": "b", "text": "Only on request"}]},
+    {"id": "N2", "group": "g9", "short": "Second new", "title": "Should the second new thing happen?", "dependsOn": ["N1"], "recommendation": "Yes, after the first.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only when the first is skipped"}]},
+    {"id": "N3", "group": "g10", "short": "Third new", "title": "Should the third new thing happen?", "recommendation": "Yes, once the group opens.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later, in its own round"}]}
+  ]
+}

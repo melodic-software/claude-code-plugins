@@ -1,8 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "userConfig": {
+    "surface": {
+      "type": "string",
+      "title": "Question surface for planning:interview",
+      "description": "Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview. Any other value falls back to terminal.",
+      "default": "terminal"
+    },
     "use_ask_user_question": {
       "type": "boolean",
       "title": "Use AskUserQuestion for interview rounds",
@@ -12,7 +18,7 @@
     "use_emoji_question_markers": {
       "type": "boolean",
       "title": "Emoji anchors on interview round questions",
-      "description": "When enabled, each inline interview round question leads with a \u2753 anchor on its Q<N> line and its 'My recommendation:' line leads with \u27a1\ufe0f. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: emoji anchors. Set false for plain text.",
+      "description": "When enabled, each interview round question leads with a \u2753 anchor on its Q<N> line and its 'My recommendation:' line leads with \u27a1\ufe0f, inline in the terminal and, on the page surface, on the question title and the Recommendation heading. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: emoji anchors. Set false for plain text.",
       "default": true
     }
   },
