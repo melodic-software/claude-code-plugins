@@ -457,7 +457,8 @@ spd_temp_declines() {
     ((BASH_VERSINFO[0] >= 4)) || [[ "$t" != *[[:upper:]]* ]] || return 1
   fi
   case "$t" in
-  *~* | *//* | */./* | */../* | */. | */..) return 1 ;;
+  # The characters block-hook-bypass's _norm_path refuses in a redirect target.
+  *'$'* | *'`'* | *'*'* | *'?'* | *'['* | *~* | *//* | */./* | */../* | */. | */..) return 1 ;;
   *) ;; # a normalized spelling
   esac
   # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a
