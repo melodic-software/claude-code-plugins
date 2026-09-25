@@ -8,11 +8,8 @@ SCRIPT="$SCRIPT_DIR/scope-report.sh"
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# Every main-case invocation runs through this so an ambient CLAUDE_CONFIG_DIR from the
-# caller's environment can never relocate the config root out of the isolated HOME:
-# Case 4 resolves a dir and then WRITES to it, so a leaked config root would write into
-# the live user config tree. GIT_DIR and CLAUDE_CODE_DISABLE_AUTO_MEMORY are dropped for
-# the same reason. Case 6 sets CLAUDE_CONFIG_DIR deliberately and calls `env` directly.
+# An ambient CLAUDE_CONFIG_DIR must never relocate the config root out of the isolated
+# HOME: Case 4 WRITES to the resolved dir. Case 6 sets it deliberately via `env`.
 iso_env() {
   env -u CLAUDE_CONFIG_DIR -u CLAUDE_CODE_DISABLE_AUTO_MEMORY -u GIT_DIR HOME="$ISO_HOME" "$@"
 }
@@ -108,9 +105,8 @@ assert_contains "user settings resolved under CLAUDE_CONFIG_DIR" "$OUT" "$CFG/se
 assert_contains "memory dir resolved under CLAUDE_CONFIG_DIR" "$OUT" "$CFG/projects/"
 
 # --- Case 7: an ambient CLAUDE_CONFIG_DIR never leaks into the isolated cases ---
-# Simulates a developer (or hook chain) running this suite with CLAUDE_CONFIG_DIR
-# already exported. The sentinel lives under the suite tmpdir so the check itself stays
-# hermetic; on a real machine the same leak would land in the live config tree.
+# Simulates a suite run with CLAUDE_CONFIG_DIR already exported; the sentinel lives
+# under the suite tmpdir so the check itself stays hermetic.
 
 AMBIENT="$TEST_TMPDIR/ambient-config"
 mkdir -p "$AMBIENT"

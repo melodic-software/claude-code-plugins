@@ -16,16 +16,11 @@ assert_contains() {
   esac
 }
 
-# The whole-set modes add the user-scope layer, so the host's real config dir
-# must never leak into these expectations: CLAUDE_CONFIG_DIR is pinned to an empty
-# fixture root, which is what the scripts resolve the user scope from. The
-# user-scope case below sets its own.
-#
-# HOME is deliberately NOT pinned. The displacement walk in lib/agents-md.sh climbs
-# every ancestor, and on Windows the temp tree these fixtures live in sits INSIDE the
-# real profile; with a fake HOME the machine's own `~/.claude/CLAUDE.md` stops being
-# the user root and starts counting as an ancestor displacer, so every AGENTS.md
-# fixture would report displaced on a developer machine and not on CI.
+# CLAUDE_CONFIG_DIR is pinned to an empty fixture so the host's config never leaks in;
+# the user-scope case sets its own.
+# #
+# HOME is NOT pinned: on Windows the temp tree sits inside the real profile, and a fake
+# HOME would make the real `~/.claude/CLAUDE.md` an ancestor displacer on dev machines.
 mkdir -p "$TEST_TMPDIR/conf"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/conf"
 
@@ -162,9 +157,8 @@ OUT=$(cd "$SET" && bash "$SCRIPT" --tokens)
 assert_eq "--tokens is bytes/4 over the expanded set" "25" "$OUT"
 
 # --- Case: the user-scope layer is part of the always-loaded set ---
-# ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md and its unscoped rules load in
-# every session of every project, so the whole-set modes count them; their
-# imports expand within the config dir; a path-scoped user rule stays out.
+# User-scope CLAUDE.md and unscoped rules load in every session, their imports expand
+# within the config dir, and a path-scoped user rule stays out.
 
 USR="$TEST_TMPDIR/usr"
 make_repo "$USR"

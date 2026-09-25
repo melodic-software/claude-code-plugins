@@ -1,31 +1,10 @@
 #!/usr/bin/env bash
 # Resolve the absolute path to the Claude Code auto-memory dir for the CURRENT project
 # (a git repo, or the current directory outside one).
-#
-# Why this exists: the naive glob `~/.claude/projects/*/memory/` matches EVERY
-# project's memory dir on a multi-project machine and resolves alphabetical-first
-# to the wrong repo. This derives the project-dir slug from the repo root the same
-# way Claude Code names its project dirs (repo-root absolute path, Windows-style on
-# Windows, with `:` `\` `/` `.` -> `-`), then picks the candidate that actually holds
-# MEMORY.md so bare-clone-hub worktrees (memory shared at the hub) resolve correctly.
-#
-# Single source of truth for memory-dir resolution within this plugin — sibling
-# scripts and the audit workflow call this rather than inlining the glob.
-#
-# Config root honors CLAUDE_CONFIG_DIR: per the official .claude-directory doc,
-# setting it relocates every `~/.claude` path (settings AND the projects/ memory
-# tree) under that directory, so the memory dir moves with it.
-#
-# Usage (CWD-independent within the target repo):
-#   MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh")
-#
-# Output: absolute path to the memory dir (the dir containing MEMORY.md) on stdout.
-# Outside a git repo the current directory is the project key, per the memory doc:
-# "Outside a git repo, the project root is used instead."
+# The naive glob `~/.claude/projects/*/memory/` resolves alphabetical-first to the
+# wrong repo on a multi-project machine; siblings call this instead of inlining it.
 
-# `set -e` omitted: resolution does explicit error handling via `||` fallbacks and
-# existence checks; must not crash mid-resolve on an optional git sub-command
-# (e.g. --git-common-dir outside a worktree).
+# No `set -e`: an optional git sub-command failing must not crash mid-resolve.
 set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -43,37 +22,28 @@ EOF
   exit 0
 fi
 
-# tr -d '\r' guards Git Bash CRLF on piped git output. cygpath -w then yields the
-# Windows form on Git Bash (so `C:/...` not `/c/...`, which is how Claude Code names
-# the project dir), falling back to the raw path on macOS/Linux where cygpath does not
-# exist, the same two-step the hub slug below takes. The conversion is guarded on a
-# non-empty root so a non-repo cwd never reaches cygpath at all.
+# cygpath -w yields the Windows form Claude Code names project dirs with on Git Bash,
+# falling back to the raw path where cygpath does not exist.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 if [[ -n "$repo_root" ]]; then
   repo_root=$(cygpath -w "$repo_root" 2>/dev/null || printf '%s' "$repo_root")
 fi
 
-# Outside a git repo the cwd IS the project root Claude Code keys the memory dir on
-# (memory doc: "Outside a git repo, the project root is used instead") — same
-# Windows-form normalization as the repo-root path above. No hub-worktree candidates
-# apply without a repo.
+# Outside a git repo the cwd is the project key (memory doc).
 in_repo=1
 if [[ -z "$repo_root" ]]; then
   in_repo=0
   repo_root=$(cygpath -w "$(pwd)" 2>/dev/null || pwd)
 fi
 
-# Config root: CLAUDE_CONFIG_DIR relocates the whole `~/.claude` tree when set.
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # sed (not tr) for path-char replacement — tr mishandles backslashes on Git Bash.
 project_slug=$(printf '%s' "$repo_root" | sed 's/[:\\/.]/-/g')
 session_data_dir="$config_root/projects/$project_slug"
 
-# Bare-clone-hub worktree: transcripts are keyed by the worktree cwd, but auto-memory
-# is shared at the HUB (keyed by git-common-dir). HUB_SLUG also maps '.' (e.g. a
-# `/.bare` hub dir -> `--bare`). Decide by which candidate actually holds MEMORY.md —
-# never by guessing the slug algorithm. Hub candidates only exist inside a repo.
+# A bare-clone-hub worktree shares auto-memory at the hub (git-common-dir): pick the
+# candidate that actually holds MEMORY.md rather than guessing the slug algorithm.
 memory_dir=""
 if [[ "$in_repo" -eq 1 ]]; then
   git_common=$(cd "$(git rev-parse --git-common-dir 2>/dev/null | tr -d '\r')" 2>/dev/null && pwd)
@@ -88,8 +58,7 @@ if [[ "$in_repo" -eq 1 ]]; then
   done
 fi
 
-# Fresh repo with no memory written yet: emit the normal-clone path so callers have a
-# stable target (MEMORY.md absence is handled downstream by the caller).
+# No memory written yet: emit the normal-clone path so callers have a stable target.
 [[ -z "$memory_dir" ]] && memory_dir="$session_data_dir/memory"
 
 printf '%s\n' "$memory_dir"

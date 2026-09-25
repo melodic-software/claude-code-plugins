@@ -17,10 +17,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# One case builds a throwaway git repository. Under an inherited absolute GIT_DIR
-# (or GIT_WORK_TREE / GIT_CONFIG) `git init` would write into the caller's
-# repository instead of the fixture, so clear the ambient git environment once
-# (scripts/check-fixture-git-isolation.sh).
+# An inherited GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) would point `git init` at the
+# caller's repository (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 del _leaked_git_var
