@@ -660,9 +660,10 @@ fi
 # that no longer matches it was changed by another writer after the plan was
 # computed, and replacing it would discard that change. The compare sits
 # directly before the replace; the window between the two stays open. The path
-# was absent before the open above, so a regular file there now is the backup
-# this run created, holding the snapshot rather than the other writer's bytes.
-# Only that is removed: a symlink or any other non-regular file is left alone.
+# was absent before the open above, so a regular file there is normally the
+# backup this run created, holding the snapshot rather than the other writer's
+# bytes. Only a regular file is removed; a symlink or any other non-regular file
+# is left alone. A regular file swapped in after the open would be removed too.
 if ! cmp -s "$SNAPSHOT" "$SETTINGS"; then
   [[ -f "$BACKUP" && ! -L "$BACKUP" ]] && rm -f "$BACKUP"
   echo "ERROR: $SETTINGS changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup written" >&2

@@ -40,7 +40,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   documented, not closed. Anything already at the backup path (a file, a symlink including a
   dangling one, a FIFO or a device node) is refused before the backup is opened, because bash
   noclobber refuses only an existing regular file; the removal on a refused apply deletes only a
-  regular file this run created, never a link. The stage-equals-current refusal now
+  regular file at the backup path, never a link. The stage-equals-current refusal now
   compares the stage against the snapshot and is defensive only, since the filter leaves no entry
   that would not change the file.
 - **`check-plugin-drift.sh` states the basis of its audit.** Stdout carries
