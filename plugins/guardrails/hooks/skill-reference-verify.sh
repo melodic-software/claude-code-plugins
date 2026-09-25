@@ -67,7 +67,8 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+FILE=""
+hook::read_file_path_to FILE "$INPUT" || exit 0
 case "$FILE" in
 # A CHANGELOG is an append-only historical record: an entry saying a skill was
 # renamed MUST keep naming the old command, so every rename permanently adds an
@@ -82,6 +83,26 @@ case "$FILE" in
 *.md) ;;
 *) exit 0 ;;
 esac
+
+# Parameter expansion, not a `$(dirname …)` subshell, with the same answers:
+# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
+# which hook::repo_root would read as `.`.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
+PLUGINS_DIR="$REPO_ROOT/plugins"
+
+# PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
+# It runs before the payload read below: the structuredPatch filter is one the
+# builtin parser cannot answer, so reading first spent a jq process on every
+# .md edit in a repo this guard then leaves alone.
+[[ -d "$PLUGINS_DIR" ]] || exit 0
+shopt -s nullglob
+manifests=("$PLUGINS_DIR"/*/.claude-plugin/plugin.json)
+shopt -u nullglob
+((${#manifests[@]} > 0)) || exit 0
 
 # Diff-scope: verify only the content THIS tool call wrote, never re-read the
 # whole file from disk.
@@ -172,23 +193,6 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 *) exit 0 ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
-
-# Parameter expansion, not a `$(dirname …)` subshell, with the same answers:
-# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
-# which hook::repo_root would read as `.`.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-PLUGINS_DIR="$REPO_ROOT/plugins"
-
-# PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
-[[ -d "$PLUGINS_DIR" ]] || exit 0
-shopt -s nullglob
-manifests=("$PLUGINS_DIR"/*/.claude-plugin/plugin.json)
-shopt -u nullglob
-((${#manifests[@]} > 0)) || exit 0
 
 # A plugin's command namespace is its manifest `name`, which need not equal its
 # directory name. Build the name → directory map from the manifests themselves so
