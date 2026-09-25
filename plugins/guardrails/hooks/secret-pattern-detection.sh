@@ -88,17 +88,18 @@ hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 
 # Every payload field this hook can need, in ONE jq process (hook::jq_fields),
 # not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
-# runs on every Write/Edit/NotebookEdit. All three per-tool content fields are
-# fetched together because selecting between them would cost a second process;
+# runs on every Write/Edit/NotebookEdit. Every per-tool target and content field
+# is fetched together because selecting between them would cost a second process;
 # jq reads the same envelope either way, and the tool-specific choice happens
-# below in the shell. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-TOOL
-# case did — hook::require_jq above has already made the degraded state visible
-# once per session.
+# below in the shell. NotebookEdit's target is `notebook_path`, appended last so
+# the MCP lane's indices (2, 5) do not move. Failure semantics are unchanged: a
+# missing jq or an unparsable payload yields rc 1 here, which exits 0 exactly as
+# the empty-TOOL case did; hook::require_jq above has already made the degraded
+# state visible once per session.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
-  '.tool_input.path' || exit 0
+  '.tool_input.path' '.tool_input.notebook_path' || exit 0
 
 # A NUL byte in ANY scanned content field is fail-CLOSED (#2136): stripping joins
 # text across the byte, so a clean scan would not reflect the bytes carried. One
@@ -278,7 +279,10 @@ if ((IS_MCP)); then
   exit 0
 fi
 
+# NotebookEdit sends its target as notebook_path; file_path stays the fallback
+# so a payload carrying only that shape scans more, never less.
 FILE="${HOOK_JQ_FIELDS[1]}"
+[[ "$TOOL" == NotebookEdit && -n "${HOOK_JQ_FIELDS[6]}" ]] && FILE="${HOOK_JQ_FIELDS[6]}"
 [[ -n "$FILE" ]] || exit 0
 
 NORM_FILE=""

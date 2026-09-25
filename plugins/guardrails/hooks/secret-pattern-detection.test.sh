@@ -142,6 +142,64 @@ OUT=$(CLAUDE_PROJECT_DIR="${SCOPE_REPO//\//\\}" bash "$HOOK" <<<"$(write_json "$
 RC=$?
 assert_exit "backslash-spelled repo root still scans in-project file → exit 2" 2 "$RC"
 
+# --- NotebookEdit: the payload shape Claude Code sends ------------------------
+# A real NotebookEdit carries tool_input.notebook_path and new_source (a required
+# string, "" on a delete), never file_path; notebook_json above builds a file_path
+# shape. nb_json <notebook_path> <new_source> [edit_mode] [file_path].
+nb_json() {
+  MSYS_NO_PATHCONV=1 jq -n --arg np "$1" --arg s "$2" --arg m "${3:-}" --arg fp "${4:-}" \
+    '{tool_name:"NotebookEdit",tool_input:({notebook_path:$np,new_source:$s}
+      + (if $m == "" then {} else {edit_mode:$m} end)
+      + (if $fp == "" then {} else {file_path:$fp} end))}'
+}
+GUARD_UNDER_TEST="$HOOK"
+NB_ALSO=(--also "$HOOK_DIR/hardcoded-path-check.sh" --also "$HOOK_DIR/block-windows-drive-tmp.sh")
+# nb_both <label> <expected> <payload> [env word...]: alone and in the
+# dispatcher row the Write|Edit|NotebookEdit matcher runs. Paths stay outside
+# any temp tree so block-windows-drive-tmp never decides a dispatched arm.
+nb_both() {
+  local label="$1" expected="$2" payload="$3"
+  shift 3
+  expect_both "$label" "$expected" --merge-stderr --payload "$payload" "${NB_ALSO[@]}" -- "$@"
+}
+if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then NB_BASE="C:/spd-nb-root"; else NB_BASE="/spd-nb-root"; fi
+NB_FILE="$NB_BASE/nb/x.ipynb"
+
+for NB_VIA in direct dispatched; do
+  guard_invoke --via "$NB_VIA" --merge-stderr --payload "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'")" "${NB_ALSO[@]}"
+  assert_exit "NotebookEdit real shape, no root ($NB_VIA) → exit 2" 2 "$GUARD_RC"
+  assert_contains "NotebookEdit real shape ($NB_VIA) → names the pattern" "$GUARD_OUT" "AWS Access Key"
+  assert_contains "NotebookEdit real shape ($NB_VIA) → names the notebook path" "$GUARD_OUT" "$NB_FILE"
+done
+nb_both "NotebookEdit edit_mode insert with a secret → exit 2" 2 \
+  "$(nb_json "$NB_FILE" "token = '$GH_PAT'" insert)"
+nb_both "NotebookEdit clean new_source → exit 0" 0 "$(nb_json "$NB_FILE" "print('hello')")"
+nb_both "NotebookEdit edit_mode delete, empty new_source → exit 0" 0 "$(nb_json "$NB_FILE" "" delete)"
+nb_both "NotebookEdit to an allowlisted path → exit 0" 0 \
+  "$(nb_json "$NB_BASE/tests/fixtures/x.ipynb" "secret = '$AWS_TOKEN'")"
+
+# Scope comes from notebook_path, under a real git root holding the notebook.
+NB_REPO="$TEST_TMPDIR/nbrepo"
+mkdir -p "$NB_REPO"
+git -C "$NB_REPO" init -q
+[[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]] && NB_REPO=$(cygpath -l -m "$NB_REPO")
+nb_both "NotebookEdit in a honored root → exit 2" 2 \
+  "$(nb_json "$NB_REPO/nb/x.ipynb" "secret = '$AWS_TOKEN'")" CLAUDE_PROJECT_DIR="$NB_REPO"
+nb_both "NotebookEdit outside a honored root → exit 0" 0 \
+  "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'")" CLAUDE_PROJECT_DIR="$NB_REPO"
+# notebook_path decides scope even when a file_path rides along.
+nb_both "NotebookEdit in-root notebook_path, out-of-root file_path → exit 2" 2 \
+  "$(nb_json "$NB_REPO/nb/x.ipynb" "secret = '$AWS_TOKEN'" "" "$NB_FILE")" CLAUDE_PROJECT_DIR="$NB_REPO"
+nb_both "NotebookEdit out-of-root notebook_path, in-root file_path → exit 0" 0 \
+  "$(nb_json "$NB_FILE" "secret = '$AWS_TOKEN'" "" "$NB_REPO/nb/x.ipynb")" CLAUDE_PROJECT_DIR="$NB_REPO"
+
+# A NUL inside notebook_path is refused like one in file_path.
+NB_NUL=$(MSYS_NO_PATHCONV=1 jq -nc --arg np "$NB_FILE" --arg tok "$AWS_TOKEN" \
+  '{tool_name:"NotebookEdit",tool_input:{notebook_path:($np + ([0] | implode) + ".ipynb"),new_source:("x = " + $tok)}}')
+guard_invoke --merge-stderr --payload "$NB_NUL"
+assert_exit "NotebookEdit NUL inside notebook_path → exit 2" 2 "$GUARD_RC"
+assert_contains "NotebookEdit NUL in notebook_path → NUL refusal" "$GUARD_OUT" "NUL byte"
+
 # --- A set root that is not a trustworthy scope is treated as unset ----------
 # Claude Code sets CLAUDE_PROJECT_DIR to the launch directory, which can be the
 # home directory or any directory that is not a repository. Honoring such a
@@ -931,5 +989,11 @@ D1_DISPATCH_RC=0
 bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
   <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
 assert_exit "D1 dispatcher: root unset → exit 2" 2 "$D1_DISPATCH_RC"
+
+# A NotebookEdit declines or scans exactly as a Write to the same path does.
+nb_both "D1 NotebookEdit: non-temp non-git root, temp target → exit 0" 0 \
+  "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")" CLAUDE_PROJECT_DIR="$D1_ROOT"
+nb_both "D1 NotebookEdit: root unset, temp target → exit 2" 2 \
+  "$(nb_json "$D1_TARGET" "token = '$GH_PAT'")"
 
 report
