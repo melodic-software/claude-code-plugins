@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.25] - 2026-09-24
+
+### Fixed
+
+- `scripts/statusline-shim.test.sh` (`run_env`) feeds the shim from a payload file instead of a pipe or a here-string. The shim with nothing to run exits before reading stdin, so a pipe writer failed on the closed read end (`pipefail` failed the case intermittently, #4458), and a here-string appends a trailing newline the byte-transparency assertions must not see. Test only; nothing the plugin ships changes.
+
 ## [0.8.24] - 2026-09-24
 
 ### Changed

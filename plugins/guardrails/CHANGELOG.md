@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.4] - 2026-09-24
+
+### Fixed
+
+- `hooks/abort-boundary.test.sh`: `pipe_run` is now `feed_run` and feeds the payload from a file instead of a pipe. It stays off here-strings for the 64 KiB deadlock its comment already cited. The forced-abort and kill-switch cases exit before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
 ## [0.36.3] - 2026-09-24
 
 ### Changed

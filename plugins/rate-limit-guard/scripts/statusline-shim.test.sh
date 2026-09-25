@@ -69,6 +69,8 @@ cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
 INPUT='{"session_id":"sess-42","context_window":{"used_percentage":8}}'
+INPUT_FILE="$WORK/stdin.payload"
+printf '%s' "$INPUT" >"$INPUT_FILE"
 
 # Plant a fake tee that identifies itself, then behaves like the real one:
 # transparent passthrough of stdin, stdout, and exit code.
@@ -138,7 +140,11 @@ ERR=""
 RC=0
 run_env() {
   local errfile="$WORK/stderr.$$"
-  OUT="$(printf '%s' "$INPUT" | env "$@" 2>"$errfile")"
+  # Fed from a file, never a pipe or a here-string: a shim that finds nothing
+  # to run exits before reading stdin, so a pipe writer fails on the closed
+  # read end, and a here-string appends a trailing newline INPUT does not
+  # have, which would defeat the byte-transparency this suite proves.
+  OUT="$(env "$@" <"$INPUT_FILE" 2>"$errfile")"
   RC=$?
   ERR="$(<"$errfile")"
   rm -f "$errfile"
@@ -184,6 +190,13 @@ assert_contains "$ERR" "TEE:v1" "resolves the installed tee (marketplace name no
 assert_contains "$OUT" "stdin:$INPUT" "stdin bytes reach the wrapped command"
 assert_contains "$OUT" "RENDER" "wrapped command owns stdout"
 assert_eq "0" "$RC" "wrapped exit code passes through (0)"
+# $(cat) above strips a trailing newline either way, so it cannot catch one
+# added in transit; cmp against the raw capture can.
+CAP1="$WORK/cap1.raw"
+printf '#!/usr/bin/env bash\ncat >"%s"\necho RENDER\n' "$CAP1" >"$H1/capture.sh"
+chmod +x "$H1/capture.sh"
+run "$H1" bash "$H1/capture.sh"
+if cmp -s "$INPUT_FILE" "$CAP1"; then ok "stdin reaches the wrapped command byte-exact (no added newline)"; else fail "stdin reaches the wrapped command byte-exact (no added newline)"; fi
 
 # --- 2. exit code of the wrapped command is preserved, not swallowed --------
 make_wrapped "$H1/render-fail.sh" 3
