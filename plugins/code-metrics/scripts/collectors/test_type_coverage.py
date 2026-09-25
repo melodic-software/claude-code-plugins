@@ -147,7 +147,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual(len(rows), 2)
-            # The lane row leads: the lane's figure is the first row.
             lane_row, file_row = rows
             self.assertEqual(result.stderr, "")
             self.assertEqual(
