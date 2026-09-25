@@ -1194,6 +1194,55 @@
         "assertions.interop_launch_denied.executable \"/mnt/c/Windows/System32/cmd.exe\" sits under a Windows drive mount"
       ],
       "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-args-differ.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.arguments \"/c ver\" against outer_arguments \"/c dir\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-args-missing.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.arguments undefined"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-sha-mismatch.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.executable_sha256 differs from outer_executable_sha256"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-sha-malformed.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.executable_sha256 \"9F2C1E4B\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-magic-not-mz.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.executable_magic \"7f45\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-mnt-workspace-backslash.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.workspace_host_write_contained.workspace_host_path \"/mnt/d\\\\src\\\\repo\" sits under a Windows drive mount"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-mnt-host-expanded-backslash.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.credentials_absent.host_expanded entry \"/mnt/c\\\\Users\\\\runner\\\\.ssh\\\\id_rsa\" sits under a Windows drive mount"
+      ],
+      "credential_roots": "/mnt/c/Users/runner"
     }
   },
   "quarantined": {},
@@ -1232,6 +1281,8 @@
     "ci-pool-a-l2-host-home-mount.json",
     "ci-pool-a-l2-id-rsa.json",
     "ci-pool-a-l2-imds-http-error.json",
+    "ci-pool-a-l2-interop-args-differ.json",
+    "ci-pool-a-l2-interop-args-missing.json",
     "ci-pool-a-l2-interop-empty-executable.json",
     "ci-pool-a-l2-interop-executable-not-exe.json",
     "ci-pool-a-l2-interop-exit-124.json",
@@ -1241,6 +1292,7 @@
     "ci-pool-a-l2-interop-exit-999.json",
     "ci-pool-a-l2-interop-inner-zero.json",
     "ci-pool-a-l2-interop-launch-outcome.json",
+    "ci-pool-a-l2-interop-magic-not-mz.json",
     "ci-pool-a-l2-interop-none-drive-executable.json",
     "ci-pool-a-l2-interop-none-inner-zero.json",
     "ci-pool-a-l2-interop-null.json",
@@ -1249,6 +1301,8 @@
     "ci-pool-a-l2-interop-outer-nonzero.json",
     "ci-pool-a-l2-interop-presence-nonzero.json",
     "ci-pool-a-l2-interop-relative-executable.json",
+    "ci-pool-a-l2-interop-sha-malformed.json",
+    "ci-pool-a-l2-interop-sha-mismatch.json",
     "ci-pool-a-l2-interop-valid.json",
     "ci-pool-a-l2-invalid-tld.json",
     "ci-pool-a-l2-invented-env-token.json",
@@ -1261,7 +1315,9 @@
     "ci-pool-a-l2-metadata-route-boundary.json",
     "ci-pool-a-l2-metadata-route.json",
     "ci-pool-a-l2-metadata-scheme.json",
+    "ci-pool-a-l2-mnt-host-expanded-backslash.json",
     "ci-pool-a-l2-mnt-host-expanded.json",
+    "ci-pool-a-l2-mnt-workspace-backslash.json",
     "ci-pool-a-l2-mnt-workspace-dotdot.json",
     "ci-pool-a-l2-mnt-workspace-double-slash.json",
     "ci-pool-a-l2-mnt-workspace.json",

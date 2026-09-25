@@ -12,8 +12,10 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
   `"wsl2"`, `check-security-binding.mjs` requires the probe transcript's fourth assertion,
   `interop_launch_denied`: a present Windows executable (`test -x` succeeded) whose launch
   succeeded in the outer context and was denied inside, with an inner exit code from 1 to 123, or
-  126 (124 and 125 are timeouts, 127 is command not found, and 128 or above is death by signal). A
-  recorded interop assertion is validated whatever the binding ratifies, and a `"none"` binding
+  126 (124 and 125 are timeouts, 127 is command not found, and 128 or above is death by signal).
+  The inner launch is bound to the outer control: `arguments` and `outer_arguments` must be
+  byte-identical, `executable_sha256` and `outer_executable_sha256` must be equal, and
+  `executable_magic` must be `4d5a`, the PE `MZ` header. A recorded interop assertion is validated whatever the binding ratifies, and a `"none"` binding
   whose capture reached a Windows drive mount (the default `/mnt/<letter>/` automount root, matched
   after path normalization) stays unproven. The WSL2 interop launch check is now checker-enforced
   instead of confirmed by the reviewing human. Still confirmed by the reviewing human, not the

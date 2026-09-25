@@ -95,7 +95,9 @@ filter is installed is not the evidence; the paired outcomes are. The level bind
 `host_interop: "wsl2"` for a WSL2 surface, and the transcript records the check as the fourth
 assertion, `interop_launch_denied` (shape in [`isolation-probe.md`](../templates/isolation-probe.md)).
 The checker enforces it: a WSL2 `L2` or `L3` binding whose transcript lacks the assertion, or
-records an inner launch that succeeded, stays unproven and is blocked at step 6. A binding that
+records an inner launch that succeeded, stays unproven and is blocked at step 6. The assertion
+binds the inner launch to the outer control: identical arguments, equal SHA-256 digests of both
+files, and a PE `MZ` header on the inner file. A binding that
 ratifies `host_interop: "none"` while its capture reached a Windows drive mount stays unproven too.
 That signal covers the default `/mnt/<letter>/` automount root only; a moved `[automount] root` is
 not detected.

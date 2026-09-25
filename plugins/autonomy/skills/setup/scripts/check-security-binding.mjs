@@ -1708,6 +1708,32 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
         return `transcript ${path} records assertions.interop_launch_denied.${field} ${JSON.stringify(value)}: an absolute POSIX path to a Windows executable (basename ending ".exe") is required, so the launch provably targeted the Windows host`;
       }
     }
+    // An exit code alone cannot tell a denied launch from a program that ran
+    // and exited non-zero. The inner launch must therefore be the SAME
+    // invocation as the outer control, which exited "0", so a non-zero inner
+    // exit means that invocation did not complete on the host.
+    for (const field of ["arguments", "outer_arguments"]) {
+      if (typeof interop[field] !== "string") {
+        return `transcript ${path} records assertions.interop_launch_denied.${field} ${String(JSON.stringify(interop[field]))}: [interop-same-invocation] the launch arguments are recorded on both sides as strings (empty when none), so the inner launch is provably the invocation the outer control ran`;
+      }
+    }
+    if (interop.arguments !== interop.outer_arguments) {
+      return `transcript ${path} records assertions.interop_launch_denied.arguments ${JSON.stringify(interop.arguments)} against outer_arguments ${JSON.stringify(interop.outer_arguments)}: [interop-same-invocation] the inner launch must be byte-identical to the outer control, or a non-zero inner exit may be a different invocation that ran and failed`;
+    }
+    // The inner file must be the Windows executable the outer control ran,
+    // and a PE image, or a look-alike script named ".exe" could exit non-zero
+    // on its own.
+    for (const field of ["executable_sha256", "outer_executable_sha256"]) {
+      if (typeof interop[field] !== "string" || !/^[0-9a-f]{64}$/.test(interop[field])) {
+        return `transcript ${path} records assertions.interop_launch_denied.${field} ${String(JSON.stringify(interop[field]))}: [interop-same-executable] a SHA-256 digest of 64 lowercase hex characters is required on both sides`;
+      }
+    }
+    if (interop.executable_sha256 !== interop.outer_executable_sha256) {
+      return `transcript ${path} records assertions.interop_launch_denied.executable_sha256 differs from outer_executable_sha256: [interop-same-executable] the inner file must be the executable the outer control ran`;
+    }
+    if (interop.executable_magic !== "4d5a") {
+      return `transcript ${path} records assertions.interop_launch_denied.executable_magic ${String(JSON.stringify(interop.executable_magic))}: [interop-pe-magic] the inner file's first two bytes must be "4d5a" (the PE "MZ" header), so the launch targeted a Windows binary`;
+    }
     if (interop.outer_exit_code !== "0") {
       return `transcript ${path} records assertions.interop_launch_denied.outer_exit_code ${JSON.stringify(interop.outer_exit_code)}: the outer-context launch must succeed (exit "0"), or an inner failure cannot be told apart from an executable that fails everywhere`;
     }
@@ -1728,11 +1754,11 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
   // Tighten-only: a binding that ratifies no host interop, whose own capture
   // reached through a Windows drive mount, contradicts that ratification. The
   // match is on the default automount root only; a moved [automount] root is
-  // not detected. Paths are normalized first so "/mnt//c" or "/x/../mnt/c"
-  // cannot slip past.
+  // not detected. Paths are normalized first, backslashes folded to slashes,
+  // so "/mnt//c", "/x/../mnt/c", or "/mnt/c\x" cannot slip past.
   if (hostInterop === "none") {
     const driveMount = (value) =>
-      typeof value === "string" && /^\/mnt\/[a-z](\/|$)/i.test(posix.normalize(value.trim()));
+      typeof value === "string" && /^\/mnt\/[a-z](\/|$)/i.test(posix.normalize(value.trim().replaceAll("\\", "/")));
     const interop = transcript.assertions.interop_launch_denied;
     const candidates = [
       ...hostExpanded.map((value) => ["credentials_absent.host_expanded entry", value]),

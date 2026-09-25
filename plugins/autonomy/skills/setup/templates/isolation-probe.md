@@ -219,13 +219,28 @@ to the Windows host, outside every WSL2 boundary (the record is in
 Which filter is installed is not the evidence; the paired outcomes are:
 
 ```sh
-# outer context: the launch must succeed, the control; record exit as outer_exit_code
+# outer context: digest the executable; record as outer_executable_sha256
+sha256sum <outer-windows-executable>
+# outer context: the launch must succeed, the control; record <harmless-args> as outer_arguments
+# and the exit as outer_exit_code
 <outer-windows-executable> <harmless-args> ; test $? -eq 0 || fail "the outer launch failed; an inner failure could not be told apart from an executable that fails everywhere"
 # inner: the executable must be present and executable; record exit as presence_exit_code
 test -x <windows-executable> ; test $? -eq 0 || fail "<windows-executable> is not present inside the boundary; a failed launch of a missing file is no evidence"
-# inner: the launch must be denied; record exit as exit_code
+# inner: digest the same file and read its header; record as executable_sha256 and executable_magic
+sha256sum <windows-executable>
+head -c2 <windows-executable> | xxd -p    # must be 4d5a, the PE "MZ" header
+# inner: the SAME invocation must be denied; record <harmless-args> as arguments and the exit as exit_code
 <windows-executable> <harmless-args> ; test $? -ne 0 || fail "a Windows binary launched from inside the boundary and ran on the Windows host"
 ```
+
+A non-zero exit code alone cannot tell a denied launch from a program that ran and exited
+non-zero, so the inner launch is bound to the outer control. `arguments` and `outer_arguments` are
+recorded as strings (empty when there are none) and must be byte-identical: the inner launch is the
+invocation that exited `0` outside, so a non-zero exit inside means it did not complete on the
+host. `executable_sha256` and `outer_executable_sha256` (64 lowercase hex characters each) must be
+equal, so the inner file is the executable the outer control ran, and `executable_magic`, the
+inner file's first two bytes in hex, must be `4d5a`, so it is a Windows PE image and not a
+look-alike that fails on its own.
 
 `<windows-executable>` is an absolute POSIX path whose basename ends `.exe` (marked example:
 `/mnt/c/Windows/System32/cmd.exe`, launched with `/c ver`). Where the boundary has no Windows drive
@@ -286,7 +301,7 @@ run itself created:
     "egress_denied": { "host": "<well-known-external-host>,<second-target-different-operator>", "exit_code": "<non-zero>,<non-zero>", "outer_exit_code": "0,0", "transport_outcome": "<dns-unresolved|connect-failed|tls-failed|peer-substituted>,<...>", "outer_peer_fingerprint": "<fingerprint|none>,<...>", "inner_peer_fingerprint": "<fingerprint|none>,<...>", "client_ready": "0", "address_families": "<ipv4|ipv6>,<...>", "outcome": "denied" },
     "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "outer_exit_code": "0", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" },
     "workspace_host_write_contained": { "workspace_host_path": "<workspace-host-path>", "canaries": "<randomized-file>,<randomized-dotfile>,.git/<randomized>", "inner_exit_code": "<any>,<any>,<any>", "host_pre_absent": "0,0,0", "host_post_absent": "0,0,0", "git_config_digest_pre": "<digest|absent>", "git_config_digest_post": "<digest|absent>", "checked_after_teardown": true, "outcome": "contained" },
-    "interop_launch_denied": { "executable": "<windows-executable>", "outer_executable": "<outer-windows-executable>", "outer_exit_code": "0", "presence_exit_code": "0", "exit_code": "<1-123 or 126>", "launch_outcome": "launch-denied", "outcome": "denied" }
+    "interop_launch_denied": { "executable": "<windows-executable>", "outer_executable": "<outer-windows-executable>", "arguments": "<harmless-args>", "outer_arguments": "<harmless-args>", "executable_sha256": "<sha256>", "outer_executable_sha256": "<same sha256>", "executable_magic": "4d5a", "outer_exit_code": "0", "presence_exit_code": "0", "exit_code": "<1-123 or 126>", "launch_outcome": "launch-denied", "outcome": "denied" }
   },
   "outer_context_networked": true
 }
