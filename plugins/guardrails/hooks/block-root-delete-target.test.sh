@@ -460,6 +460,15 @@ expect_both 'chroot --user a:b / blocks' 2 --command 'chroot --user a:b / rm -rf
 expect_both 'chrt --sched-r 5 -d 0 blocks' 2 --command 'chrt --sched-r 5 -d 0 rm -rf /*'
 expect_both 'nsenter --ta 1 ls / allowed' 0 --command 'nsenter --ta 1 ls /'
 expect_both 'nsenter --ta rm -rf / blocks (plain reading)' 2 --command 'nsenter --ta rm -rf /'
+# A short cluster ending in an operand-taking letter takes the next word, as
+# getopt reads it, in the resolved reading.
+expect_both 'flock -nw 1 blocks' 2 --command 'flock -nw 1 /tmp/l rm -rf /'
+expect_both 'chrt -dT 1000 0 blocks' 2 --command 'chrt -dT 1000 0 rm -rf /'
+expect_both 'unshare -fR /mnt blocks' 2 --command 'unshare -fR /mnt rm -rf /'
+expect_both 'flock -xw 5 blocks' 2 --command 'flock -xw 5 /tmp/l rm -rf /*'
+expect_both 'nsenter -at 1 blocks' 2 --command 'nsenter -at 1 rm -rf /*'
+expect_both 'numactl -lN 0 blocks' 2 --command 'numactl -lN 0 rm -rf /*'
+expect_both 'flock -nw 1 ls allowed' 0 --command 'flock -nw 1 /tmp/l ls /'
 # unshare, nsenter and numactl take no positional; only their operand-taking
 # options consume a word.
 expect_both 'unshare rm -rf / blocks' 2 --command 'unshare rm -rf /'

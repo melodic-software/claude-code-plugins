@@ -503,6 +503,40 @@ rdt_su_shell_run() {
   rdt_check_segment "$prog" ${av[@]+"${av[@]:1}"}
 }
 
+# rdt_short_cluster_arg <launcher> <cluster>: true when a short cluster such as
+# `-nw` holds a letter that takes an operand. getopt walks the letters, and the
+# FIRST operand-taking one takes the rest of the cluster, or the next word when
+# it is the last letter; RDT_SC_NEXT is 1 in that second case. A letter whose
+# operand is OPTIONAL (nsenter's `-m`) takes the rest of the cluster and never
+# the next word, so it ends the walk with nothing to report. The letters come
+# from each launcher's getopt string; sudo and doas are a declared gap, and
+# taskset and chroot have no operand-taking short option.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_short_cluster_arg() {
+  local w="$2" ops opt="" k ch
+  RDT_SC_NEXT=0
+  case "$1" in
+  chrt) ops="DPTUX" ;;
+  flock) ops="wE" ;;
+  unshare) ops="RwSGl" ;;
+  nsenter)
+    ops="tNSG"
+    opt="muinpCUTrwW"
+    ;;
+  numactl) ops="iwpPcNCmSfoLMI" ;;
+  *) return 1 ;;
+  esac
+  for ((k = 1; k < ${#w}; k++)); do
+    ch="${w:k:1}"
+    if [[ "$ops" == *"$ch"* ]]; then
+      ((k == ${#w} - 1)) && RDT_SC_NEXT=1
+      return 0
+    fi
+    [[ -n "$opt" && "$opt" == *"$ch"* ]] && return 1
+  done
+  return 1
+}
+
 # rdt_long_takes_arg <launcher> <name>: true when `--<name>`, written without
 # `=`, takes the next word as its operand. getopt_long accepts any unambiguous
 # prefix, so `flock --wa 5` is `flock --wait 5`; an ambiguous prefix is counted
@@ -816,6 +850,19 @@ rdt_check_segment() {
           rdt_long_takes_arg "$base" "${w#--}"; then
           if ((rdt_abbr)); then
             i=$((i + 2))
+            continue
+          fi
+          if ((abbr_forked == 0)); then
+            abbr_forked=1
+            rdt_resolved_walk ${words[@]+"${words[@]}"}
+          fi
+        fi
+        # A short cluster ending in an operand-taking letter (`flock -nw 1`)
+        # takes the next word as that letter's operand. It is judged on the
+        # same two readings, through the same one resolved walk per segment.
+        if [[ "$w" =~ ^-[A-Za-z]+$ && "$optarg" != *" $w "* ]] && rdt_short_cluster_arg "$base" "$w"; then
+          if ((rdt_abbr)); then
+            i=$((i + 1 + RDT_SC_NEXT))
             continue
           fi
           if ((abbr_forked == 0)); then
