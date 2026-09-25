@@ -89,8 +89,10 @@ this entry replaces the plugin's server.
 
 This is a choice you make once, not a per-session fallback. While the entry exists it always wins,
 and if `DOMETRAIN_API_KEY` is unset Claude Code sends the literal `${DOMETRAIN_API_KEY}` text and
-flags a missing-variable warning in `claude mcp list`. Remove the entry
-(`claude mcp remove dometrain --scope user`) to fall back to the stored `dometrain_api_key`.
+flags a missing-variable warning in `claude mcp list`. Removing the entry
+(`claude mcp remove dometrain --scope user`) restores the plugin's own server, not a working
+credential: this section has you leave `dometrain_api_key` blank, so that server has no key to
+fall back to until you set one with `/plugin configure dometrain@<marketplace>`.
 
 The plugin's own `.mcp.json` keeps `${user_config.dometrain_api_key}` rather than a combined
 `${DOMETRAIN_API_KEY:-${user_config.dometrain_api_key}}`. The MCP docs define the `:-` fallback

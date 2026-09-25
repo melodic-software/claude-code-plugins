@@ -1,5 +1,5 @@
 ---
-description: "Verify the Dometrain plugin without reading or exposing its API key. Use when: 'set up Dometrain', 'configure Dometrain', 'Dometrain setup', the Dometrain MCP server is unavailable, or a Dometrain tool reports an authentication error. Actions: check (read-only verification, default and only action). This plugin's entire configuration is native userConfig, so there is nothing an apply could write."
+description: "Verify the Dometrain plugin without reading or exposing its API key. Use when: 'set up Dometrain', 'configure Dometrain', 'Dometrain setup', the Dometrain MCP server is unavailable, or a Dometrain tool reports an authentication error. Actions: check (read-only verification, default and only action). This plugin's own configuration is native userConfig and the key it holds is optional (a user-scope MCP server override can supply it instead, see the README), so there is nothing an apply could write."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -9,12 +9,21 @@ disable-model-invocation: true
 
 Guide the user through Claude Code's native configuration flow and report whether the remote
 Dometrain MCP server is reachable, without reading, printing, or writing the sensitive
-`dometrain_api_key`. Claude Code prompts for the required key when the plugin is enabled and owns
-its secure credential storage.
+`dometrain_api_key`. Claude Code prompts for the key when the plugin is enabled and owns its
+secure credential storage; the key is optional, since a user-scope MCP server registered at the
+plugin's own URL (an environment-variable or vault override, see the README's
+[Reading the key from an environment variable](../../README.md#reading-the-key-from-an-environment-variable))
+can supply it instead.
 
-Check-only per the uniform setup contract's userConfig-only carve-out: this plugin's entire
+Check-only per the uniform setup contract's userConfig-only carve-out: this plugin's own
 configuration surface is the native sensitive `userConfig` key, so `check` (default and only
-action) verifies and reports, and reconfiguration routes through Claude Code's native flow.
+action) verifies and reports, and reconfiguration routes through Claude Code's native flow. The
+env-var/vault override above lives outside `userConfig` entirely (a separate MCP server the user
+registers), so this skill does not manage or configure it directly. The two paths are still
+distinguishable from tool inventory alone, because the override changes the tool-name prefix
+(README [tool names](../../README.md#using-vault-exec-opt-in)): `mcp__plugin_dometrain_dometrain__<tool>`
+means the plugin's own server (and therefore its `userConfig` key) is active; `mcp__dometrain__<tool>`
+means a user-scope override has replaced it.
 
 **Mechanism note (why this skill does not read `/mcp`):** `/mcp` is a human-run interactive
 command. No tool exposes its output to a model turn. The one real, model-visible signal for a
@@ -33,29 +42,43 @@ Official contracts:
 
 ## Task
 
-1. Check whether the `dometrain` plugin is enabled and whether its scoped MCP tools (e.g.
-   `list_courses`, `search_dometrain`) are present in the current tool inventory. Do not inspect
-   settings files, environment variables, process arguments, debug logs, credential stores, or the
-   key itself.
-2. When the plugin is disabled (no `dometrain`-scoped tool was ever attempted), direct the user to
-   enable it through the `/plugin` interface or `claude plugin enable dometrain`. Claude Code's
-   native prompt collects the required key. Do not run either command for the user and do not
-   hand-edit `pluginConfigs`. For a non-interactive install (CI, a fleet bootstrap, a scripted
-   machine setup), point to the headless path below instead.
-3. When the plugin is enabled and a `dometrain`-scoped tool resolves (via direct tool-list
-   presence or a successful `ToolSearch` match), report **connected**: the server started and the
-   key was supplied. Do not claim the key has valid API access beyond that. A connection-layer
-   401/403/429 rejection (per Dometrain's own README Troubleshooting section) would prevent the
-   tool from resolving at all, so resolution itself is the strongest signal this skill can observe.
-4. When the plugin is enabled but no `dometrain`-scoped tool resolves, report **failed or
-   unverified**:
+1. Check whether the `dometrain` plugin is enabled and whether a `dometrain`-scoped tool (e.g.
+   `list_courses`, `search_dometrain`) is present in the current tool inventory under either
+   prefix: `mcp__plugin_dometrain_dometrain__<tool>` (plugin's own server) or
+   `mcp__dometrain__<tool>` (a user-scope override active). Do not inspect settings files,
+   environment variables, process arguments, debug logs, credential stores, or the key itself.
+2. When the plugin is disabled (no `dometrain`-scoped tool under either prefix was ever
+   attempted), direct the user to enable it through the `/plugin` interface or
+   `claude plugin enable dometrain`. Claude Code's native prompt collects the key (optional: leave
+   it blank if a user-scope MCP server override will supply it instead, see the README). Do not
+   run either command for the user and do not hand-edit `pluginConfigs`. For a non-interactive
+   install (CI, a fleet bootstrap, a scripted machine setup), point to the headless path below
+   instead.
+3. When the plugin is enabled and a `dometrain`-scoped tool resolves under either prefix (via
+   direct tool-list presence or a successful `ToolSearch` match), report **connected**, naming
+   which prefix resolved: `mcp__plugin_dometrain_dometrain__*` means the plugin's own key
+   authenticated; `mcp__dometrain__*` means a user-scope override did. Do not claim the credential
+   has valid API access beyond that. A connection-layer 401/403/429 rejection (per Dometrain's own
+   README Troubleshooting section) would prevent the tool from resolving at all, so resolution
+   itself is the strongest signal this skill can observe.
+4. When the plugin is enabled but no `dometrain`-scoped tool resolves under either prefix, report
+   **failed or unverified**:
    - If `ToolSearch` returned a connection error for the `dometrain` server, quote it verbatim.
    - Otherwise do not assert why. Claude Code does not report failed connections to Claude in a
      configuration without tool search, and this skill cannot inspect the environment to tell
      whether tool search is active. Direct the user to run `/mcp` themselves rather than claim
      knowledge it does not have.
-   - After the user reconfigures the key, require `/reload-plugins` or a new session before
-     rechecking tool availability.
+   - The fix depends on which path is in play, and this skill cannot tell from tool absence alone
+     which one the user is on. If the plugin's own `userConfig` key is the credential, after the
+     user reconfigures it require `/reload-plugins` or a new session before rechecking. If a
+     user-scope override is (or should be) active instead, do not send the user to
+     `/plugin configure`: that changes the plugin's own key, which this path leaves blank on
+     purpose. Point them to `claude mcp list` for a missing-variable warning on the `dometrain`
+     entry, and to the README's
+     [environment variable](../../README.md#reading-the-key-from-an-environment-variable) or
+     [vault-exec](../../README.md#using-vault-exec-opt-in) sections; a variable set after Claude
+     Code started needs a new session, since Claude Code expands it from its own environment at
+     connect time.
 
 ## Headless installation
 
@@ -67,6 +90,13 @@ claude plugin marketplace add <source> --scope <scope>
 claude plugin install dometrain@<marketplace> -s <scope> --config dometrain_api_key=<your-key>
 claude plugin enable dometrain -s <scope>
 ```
+
+If the bootstrap resolves the credential from an environment variable or a secret store instead,
+omit `--config dometrain_api_key=<your-key>` from the `install` step, then after `enable` register
+the user-scope override with `claude mcp add-json dometrain … --scope user` per the README's
+[Reading the key from an environment variable](../../README.md#reading-the-key-from-an-environment-variable)
+or [Using vault-exec](../../README.md#using-vault-exec-opt-in) sections. The `enable` step is
+still required either way.
 
 Both placeholders are bootstrap inputs, not lookups: before the first install there is no record
 to read them from. `<marketplace>` is the name the catalog registers under when it is added, and
