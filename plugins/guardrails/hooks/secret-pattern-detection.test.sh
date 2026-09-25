@@ -929,20 +929,23 @@ d1_seam_rc() { # <candidate dir> -> spd_temp_declines' status for a file under i
 # own resolver: under a forced Linux OSTYPE the library resolves with `cd -P`,
 # which on Git Bash follows the /tmp mount to a capitalized Windows path, so the
 # cases only run where that resolver spells each seam dir as given.
-d1_seam_self() { # <dir> -> 0 when the Linux resolver spells <dir> as given
-  local got
+d1_seam_self() { # <dir> -> 0 when the Linux resolver spells <dir> as given; answer left in D1_SEAM_GOT
   # shellcheck disable=SC2016  # the child shell's expansions are literal source text
-  got=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null) &&
-    [[ "$got" == "$1" ]]
+  D1_SEAM_GOT=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null)
+  [[ "$D1_SEAM_GOT" == "$1" ]]
 }
 D1_SEAM_TRY="/tmp/spd-d1-seam-$$"
+D1_SEAM_STEP="mkdir $D1_SEAM_TRY"
 if mkdir "$D1_SEAM_TRY" 2>/dev/null && D1_SEAMDIR="$D1_SEAM_TRY" &&
+  D1_SEAM_STEP="mkdir lowtemp and CapTemp under it" &&
   mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null &&
-  d1_seam_self "$D1_SEAMDIR/lowtemp" && d1_seam_self "$D1_SEAMDIR/CapTemp"; then
+  D1_SEAM_STEP="resolve $D1_SEAMDIR/lowtemp" && d1_seam_self "$D1_SEAMDIR/lowtemp" &&
+  D1_SEAM_STEP="resolve $D1_SEAMDIR/CapTemp" && d1_seam_self "$D1_SEAMDIR/CapTemp"; then
   assert_eq "D1 seam: posix, lowercase temp root declines" 0 "$(d1_seam_rc "$D1_SEAMDIR/lowtemp")"
   assert_eq "D1 seam: posix, capitalized temp root scans" 1 "$(d1_seam_rc "$D1_SEAMDIR/CapTemp")"
 elif [[ "${OSTYPE:-}" == linux* ]]; then
-  bad "D1 seam: the /tmp seam dirs could not be made or do not resolve to themselves under the library's Linux resolver"
+  [[ "$D1_SEAM_STEP" == resolve* ]] && D1_SEAM_STEP+=" under the library's Linux resolver gave '$D1_SEAM_GOT'"
+  bad "D1 seam: precondition failed: $D1_SEAM_STEP"
 else
   echo "SKIP: D1 seam width cases (under a forced Linux OSTYPE the library resolver does not spell the /tmp seam dirs as given on this host, or the seam dirs could not be made)"
 fi
