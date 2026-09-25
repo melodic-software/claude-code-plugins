@@ -21,7 +21,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=43
+EXPECTED_CASES=60
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -81,8 +81,13 @@ assert_contains "plan: an oversize file is its own batch" "$out" "batch=02 list=
 assert_contains "plan: the file after it starts a new batch" "$out" "batch=03 list=$P/batches/batch-03.txt files=1 words=3 "
 assert_eq "plan: batch list holds keys in order" "$(lines "$P/batches/batch-01.txt")" "a.md b.md "
 assert_eq "plan: oversize batch list" "$(lines "$P/batches/batch-02.txt")" "big.md "
-assert_contains "plan: digest is sha256 of the list file" "$out" "files=1 words=30 digest=$(sha "$P/batches/batch-02.txt")"
 assert_eq "plan: digest is 64 hex characters" "$(digest_of "$out" 01 | grep -cE '^[0-9a-f]{64}$')" "1"
+assert_eq "plan: a paths sidecar lists each file's absolute path in list order" \
+  "$(lines "$P/batches/batch-01.paths")" "$P/a.md $P/b.md "
+mkdir -p "$P/none"
+st="$(bash "$FANOUT" status --batches "$P/batches" --results "$P/none" 2>&1)"
+assert_eq "plan: digest equals the one status prints for a missing result" \
+  "$(digest_of "$st" 02)" "$(digest_of "$out" 02)"
 
 # sha256sum escapes a file name holding a backslash and prefixes the hash with
 # `\`, so the digest is taken from stdin.
@@ -197,6 +202,67 @@ assert_contains "status: a result written twice is stale" "$out" "batch=08 statu
 assert_contains "status: a duplicated files_with_findings is stale" "$out" "batch=09 status=stale reason=files_with_findings"
 assert_contains "status: a duplicated batch line is stale" "$out" "batch=10 status=stale reason=digest"
 assert_contains "status: a duplicated files_reviewed is stale" "$out" "batch=11 status=stale reason=files_reviewed"
+assert_contains "status: a missing row carries the current digest" "$out" "batch=02 status=missing digest=$d"
+assert_contains "status: a stale row carries the current digest" "$out" "batch=03 status=stale reason=digest digest=$d"
+assert_not_contains "status: a complete row carries no digest" "$out" "batch=01 status=complete digest"
+
+# A header written twice joins into one value; each must appear exactly once
+# even when the joined value would match.
+H="$TEST_TMPDIR/headers/batches"
+HR="$TEST_TMPDIR/headers/results"
+mkdir -p "$H" "$HR"
+for n in 01 02 03; do
+  for k in a b c d e f g h i j k; do echo "$k.md"; done >"$H/batch-$n.txt"
+done
+hd="$(sha "$H/batch-01.txt")"
+printf 'batch: %s\nfiles_reviewed: 1\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$hd" >"$HR/rubric-batch-01.md"
+{
+  printf 'batch: %s\nfiles_reviewed: 11\nfiles_with_findings: 1\nfiles_with_findings: 1\n\n' "$hd"
+  for k in a b c d e f g h i j k; do echo "## $k.md"; done
+} >"$HR/rubric-batch-02.md"
+printf 'batch: %s\nbatch: %s\nfiles_reviewed: 11\nfiles_with_findings: 0\n' "${hd:0:32}" "${hd:32}" >"$HR/rubric-batch-03.md"
+out="$(bash "$FANOUT" status --batches "$H" --results "$HR" 2>&1)"
+assert_contains "status: files_reviewed 1 twice over 11 files is stale" "$out" "batch=01 status=stale reason=files_reviewed"
+assert_contains "status: files_with_findings 1 twice over 11 headings is stale" "$out" "batch=02 status=stale reason=files_with_findings"
+assert_contains "status: a digest split across two batch lines is stale" "$out" "batch=03 status=stale reason=digest"
+
+# --- status: a planned batch binds the listed files' contents ------------------------
+
+C="$TEST_TMPDIR/content"
+mkdir -p "$C/docs" "$C/results" "$C/away"
+printf 'one two\n' >"$C/docs/x.md"
+printf 'three four\n' >"$C/docs/y.md"
+printf '%s\t%s\n' x.md "$C/docs/x.md" y.md "$C/docs/y.md" >"$C/targets.tsv"
+out="$(bash "$FANOUT" plan --out "$C/batches" --order mtime "$C/targets.tsv" 2>&1)"
+pd="$(digest_of "$out" 01)"
+result() { printf 'batch: %s\nfiles_reviewed: 2\nfiles_with_findings: 0\n' "$1" >"$C/results/rubric-batch-01.md"; }
+result "$pd"
+out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
+rc=$?
+assert_exit "contents: a result with plan's digest exits 0" 0 "$rc"
+assert_eq "contents: and reads complete" "$out" "batch=01 status=complete"
+printf 'one two changed\n' >"$C/docs/x.md"
+out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
+rc=$?
+assert_exit "contents: an edited listed file exits 1" 1 "$rc"
+assert_contains "contents: an edited listed file is stale" "$out" "batch=01 status=stale reason=digest digest="
+nd="$(digest_of "$out" 01)"
+assert_eq "contents: the printed digest is a new 64-hex digest" \
+  "$([[ "$nd" != "$pd" ]] && printf '%s\n' "$nd" | grep -cE '^[0-9a-f]{64}$')" "1"
+result "$nd"
+out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
+assert_eq "contents: a result carrying the printed digest is complete" "$out" "batch=01 status=complete"
+bash "$FANOUT" merge --batches "$C/batches" --results "$C/results" --out "$C/merged.md" >/dev/null 2>&1
+rc=$?
+assert_exit "contents: merge accepts a complete planned set" 0 "$rc"
+mv "$C/docs/y.md" "$C/away/y.md"
+out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
+assert_contains "contents: a listed file moved away is stale" "$out" "batch=01 status=stale reason=digest digest="
+again="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
+assert_eq "contents: the digest without that file is deterministic" "$again" "$out"
+mv "$C/away/y.md" "$C/docs/y.md"
+out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
+assert_eq "contents: restoring the file reads complete again" "$out" "batch=01 status=complete"
 
 # --- merge ----------------------------------------------------------------------
 

@@ -2,9 +2,11 @@
 # Deterministic steps of the rubric fan-out (context/rubric-fanout.md).
 #
 #   plan     order a `detect.sh --list-targets` file, pack it into batches by
-#            `wc -w`, write batch-NN.txt lists, print each list's digest
+#            `wc -w`, write batch-NN.txt lists and batch-NN.paths sidecars,
+#            print each batch's digest (list plus listed files' contents)
 #   extract  the catalog's `v1: rubric` entries plus "Signs of human writing"
-#   status   per batch: complete, missing, or stale with the failed check
+#   status   per batch: complete, or missing or stale (with the failed check)
+#            plus the batch's current digest
 #   merge    one merged rubric file, written only when every batch is complete
 #
 # Exit: 0 ok; 1 when status or merge finds a batch that is not complete;
@@ -40,14 +42,32 @@ die() {
   exit 2
 }
 
-# Hashed from stdin: given a file name holding a backslash, sha256sum escapes
-# the name and prefixes the hash with `\`.
-digest() {
+sha256() {
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum <"$1" | cut -d' ' -f1
+    sha256sum "$@"
   else
-    shasum -a 256 <"$1" | cut -d' ' -f1
+    shasum -a 256 "$@"
   fi
+}
+
+# batch_digest <list>: with a batch-NN.paths sidecar, the sha256 of the list's
+# bytes followed by one sha256 call's output over every listed path, so the
+# digest binds the files' contents too. An unreadable file is absent from that
+# output, the same way each time. Without the sidecar, the list's sha256.
+# The list is hashed from stdin: given a file name holding a backslash,
+# sha256sum escapes the name and prefixes the hash with `\`.
+batch_digest() {
+  local sidecar="${1%.txt}.paths" p
+  local -a files=()
+  if [[ -f "$sidecar" ]]; then
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && files+=("$p")
+    done <"$sidecar"
+  fi
+  {
+    cat -- "$1"
+    [[ "${#files[@]}" -gt 0 ]] && sha256 -- "${files[@]}" 2>/dev/null
+  } | sha256 | cut -d' ' -f1
 }
 
 mtime() {
@@ -136,20 +156,30 @@ cmd_plan() {
 
   # Pack: add files until the next one would exceed the budget. A file larger
   # than the budget lands alone, because the batch before it is flushed first.
-  local -a lists=() words=() counts=()
-  local cur="" cur_w=0 cur_n=0 w
+  # Each file's absolute path goes to the batch's .paths sidecar; a path whose
+  # directory cannot be entered is kept as given. One cd per directory.
+  local -a lists=() plists=() words=() counts=()
+  local -A absdir=()
+  local cur="" cur_p="" cur_w=0 cur_n=0 w dir
   for i in $ordered; do
     w="$(wc -w <"${paths[$i]}" 2>/dev/null | tr -d ' ')"
     [[ -n "$w" ]] || { echo "$ME: plan: cannot read ${paths[$i]}; counted as 0 words" >&2; w=0; }
     if [[ "$cur_n" -gt 0 && $((cur_w + w)) -gt "$budget" ]]; then
-      lists+=("$cur"); words+=("$cur_w"); counts+=("$cur_n")
-      cur="" cur_w=0 cur_n=0
+      lists+=("$cur"); plists+=("$cur_p"); words+=("$cur_w"); counts+=("$cur_n")
+      cur="" cur_p="" cur_w=0 cur_n=0
+    fi
+    dir="$(dirname "${paths[$i]}")"
+    [[ -n "${absdir[$dir]+set}" ]] || absdir[$dir]="$(cd "$dir" 2>/dev/null && pwd)"
+    if [[ -n "${absdir[$dir]}" ]]; then
+      cur_p+="${absdir[$dir]}/${paths[$i]##*/}"$'\n'
+    else
+      cur_p+="${paths[$i]}"$'\n'
     fi
     cur+="${keys[$i]}"$'\n'
     cur_w=$((cur_w + w))
     cur_n=$((cur_n + 1))
   done
-  lists+=("$cur"); words+=("$cur_w"); counts+=("$cur_n")
+  lists+=("$cur"); plists+=("$cur_p"); words+=("$cur_w"); counts+=("$cur_n")
 
   local width=${#lists[@]} b nn list
   width=${#width}
@@ -158,8 +188,9 @@ cmd_plan() {
     nn="$(printf '%0*d' "$width" $((b + 1)))"
     list="$out/batch-$nn.txt"
     printf '%s' "${lists[$b]}" >"$list" || die "plan: cannot write $list"
+    printf '%s' "${plists[$b]}" >"$out/batch-$nn.paths" || die "plan: cannot write $out/batch-$nn.paths"
     printf 'batch=%s list=%s files=%d words=%d digest=%s\n' \
-      "$nn" "$list" "${counts[$b]}" "${words[$b]}" "$(digest "$list")"
+      "$nn" "$list" "${counts[$b]}" "${words[$b]}" "$(batch_digest "$list")"
   done
 }
 
@@ -190,7 +221,16 @@ cmd_extract() {
   fi
 }
 
-# status_rows <batches> <results>: one `batch=NN status=...` row per list.
+# header <result> <name>: the header's value when it appears exactly once;
+# fails otherwise, since merge sums every copy and a joined value can match.
+header() {
+  [[ "$(tr -d '\r' <"$1" | grep -c "^$2:")" == 1 ]] || return 1
+  tr -d '\r' <"$1" | sed -n "s/^$2:[[:space:]]*//p" | tr -d '[:space:]'
+}
+
+# status_rows <batches> <results>: one `batch=NN status=...` row per list. A
+# missing or stale row ends with the batch's current digest; a complete row
+# ends with `status=complete`.
 status_rows() {
   local batches="$1" results="$2" list nn res d n got
   for list in "$batches"/batch-*.txt; do
@@ -198,32 +238,28 @@ status_rows() {
     nn="${list##*/batch-}"
     nn="${nn%.txt}"
     res="$results/rubric-batch-$nn.md"
+    d="$(batch_digest "$list")"
     if [[ ! -f "$res" ]]; then
-      echo "batch=$nn status=missing"
+      echo "batch=$nn status=missing digest=$d"
       continue
     fi
-    d="$(digest "$list")"
     n="$(awk 'NF' "$list" | wc -l | tr -d ' ')"
-    # A header is read whole, not its first line: one written twice joins into
-    # a value that matches nothing, because merge sums every copy.
-    got="$(tr -d '\r' <"$res" | sed -n 's/^batch:[[:space:]]*//p' | tr -d '[:space:]')"
-    if [[ "$got" != "$d" ]]; then
-      echo "batch=$nn status=stale reason=digest"
+    if ! got="$(header "$res" batch)" || [[ "$got" != "$d" ]]; then
+      echo "batch=$nn status=stale reason=digest digest=$d"
       continue
     fi
-    got="$(tr -d '\r' <"$res" | sed -n 's/^files_reviewed:[[:space:]]*//p' | tr -d '[:space:]')"
-    if [[ "$got" != "$n" ]]; then
-      echo "batch=$nn status=stale reason=files_reviewed"
+    if ! got="$(header "$res" files_reviewed)" || [[ "$got" != "$n" ]]; then
+      echo "batch=$nn status=stale reason=files_reviewed digest=$d"
       continue
     fi
     if tr -d '\r' <"$res" | awk 'NR == FNR { if (NF) k[$0] = 1; next }
          /^## / && !(substr($0, 4) in k) { bad = 1 } END { exit !bad }' "$list" -; then
-      echo "batch=$nn status=stale reason=foreign-heading"
+      echo "batch=$nn status=stale reason=foreign-heading digest=$d"
       continue
     fi
-    got="$(tr -d '\r' <"$res" | sed -n 's/^files_with_findings:[[:space:]]*//p' | tr -d '[:space:]')"
-    if [[ "$got" != "$(tr -d '\r' <"$res" | grep -c '^## ')" ]]; then
-      echo "batch=$nn status=stale reason=files_with_findings"
+    if ! got="$(header "$res" files_with_findings)" ||
+      [[ "$got" != "$(tr -d '\r' <"$res" | grep -c '^## ')" ]]; then
+      echo "batch=$nn status=stale reason=files_with_findings digest=$d"
       continue
     fi
     echo "batch=$nn status=complete"
