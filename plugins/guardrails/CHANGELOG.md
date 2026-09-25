@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0] - 2026-09-25
+
+### Added
+
+- **`block-root-delete-target` refuses a recursive `rm` with an empty operand.** `rm -rf ""`, `rm -rf ''` and `rm -rf "" build` now exit 2 (form `empty-operand`). An empty word there is a path that failed to build. `rm -rf` with no operand, and `eval rm -rf ""` (eval joins it to no operand), stay allowed.
+- **It refuses a bare variable operand** (form `bare-variable`): `$X`, `${X}`, `"$X"`, `"$X/"`, `"$X/*"`, `"$X"/*`, a positional or special parameter (`$1`, `"$@"`), and a `${X:-...}`, `${X-...}`, `${X:=...}` or `${X:+...}` expansion, with or without a payload cwd. Unset or empty, such an operand reaches the working directory or a root. `"${X:?}/"` and `"$X/build"` stay allowed. A single-quoted `'$X'` is refused too, because the tokenizer's quoting provenance cannot separate it: a declared overblock.
+- **It refuses a target outside the session's allowed roots** (form `outside-tree`) when the payload carries an absolute `cwd`. A target must resolve under the git toplevel of the directory the delete runs from, or strictly under a temp root (`TMPDIR`, `TMP`, `TEMP`, `/tmp`, `/var/tmp`) or the payload `scratchpad_dir`. A temp root itself, its glob (`/tmp/*`), and the scratchpad itself are refused. `~`, `$HOME` and `${HOME}` prefixes expand from the hook's HOME for this arm. A literal `cd` / `pushd`, `env -C` and `sudo -D` add a directory the delete may run from, so `cd / && rm -rf *` is refused, and a relative operand must stay inside from every such directory. The parent of each target is resolved physically (`realpath -m`, with a lexical fallback), and on Windows the /tmp mount, drive spellings and 8.3 short names compare as one directory.
+
+### Changed
+
+- An operand the guard cannot place is left alone rather than guessed: any expansion other than a leading `~` / `$HOME` / `${HOME}` (`"$X/build"`), a glob before the last component, a brace, `~user`, a drive-relative `C:foo`, and a relative operand after a non-literal directory change (`cd "$d"`, `cd -`, `popd`, a `su -` or `sudo -i` login shell).
+- Without a payload cwd the outside-tree arm is skipped, and a cwd outside any git work tree allows only temp and scratchpad targets. A git that fails leaves the directory with no tree, so relative targets are refused.
+- Past 32 directories from directory changes, or 4,096 targets to judge, the guard refuses rather than judging part of the command.
+- `.cwd` joins this guard's primed payload fields. `.scratchpad_dir` is read in a second extraction only when a target needs judging, so the dispatcher cache still answers every other Bash call.
+- The guard header, the `plugin.json` descriptions and the `hooks.json` status text state the new coverage. PowerShell `Remove-Item -Recurse` is still not covered.
+
 ## [0.36.10] - 2026-09-25
 
 ### Fixed

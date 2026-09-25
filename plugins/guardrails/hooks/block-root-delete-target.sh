@@ -54,27 +54,65 @@
 # tokenizer and is allowed there on its command word. The path question is
 # asked only once a recursive `rm` is already established.
 #
+# THREE MORE TARGET CLASSES, each refused with its own message:
+#   * An EMPTY operand (`rm -rf ""`, `rm -rf "" build`): a path that failed to
+#     build. `rm -rf` with no operand has nothing to judge and stays allowed.
+#   * A BARE VARIABLE operand: after normalization the whole word is `$NAME`,
+#     `${NAME}`, a positional or special parameter, or a `${...}` with a
+#     default or alternative operator (`:-`, `-`, `:=`, `=`, `:+`, `+`). Unset
+#     or empty, it reaches the working directory or a root. `${NAME:?}` aborts
+#     the command instead, so it stays allowed.
+#   * A target OUTSIDE THE SESSION'S ALLOWED ROOTS, judged only when the
+#     payload carries an absolute `cwd`. A target must resolve under the git
+#     toplevel of the directory the delete runs from, or strictly under a temp
+#     root or the payload `scratchpad_dir`; a temp root itself, its glob and
+#     the scratchpad itself are refused. Operands are collected while the
+#     command is parsed and judged once at the end, with one realpath and (on
+#     Windows) one cygpath for the whole command and one git per directory.
+#     An operand this guard cannot place (an expansion other than a leading
+#     HOME, a glob before the last component, a brace, a drive-relative path)
+#     is left alone rather than guessed.
+#
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
 #   * PowerShell. `Remove-Item -Recurse -Force C:\` and `rd /s` are the same
-#     hazard through the other shell and are NOT covered. The guard exits on any
-#     tool_name other than Bash, which also keeps it out of the shared
-#     PowerShell classifier and its sink attempt budget. Tracked separately.
+#     hazard through the other shell and are NOT covered, for any of the target
+#     classes below. The guard exits on any tool_name other than Bash, which
+#     also keeps it out of the shared PowerShell classifier and its sink
+#     attempt budget. Tracked by a separate GitHub issue.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
-#     never evaluates a shell expansion, so `rm -rf "$UNSET/"` is invisible
-#     here, and so is `$(printf 'r%s' 'm') -rf /`, whose substitution body is
-#     parsed (its command word is `printf`) but whose RESULT is not. `$HOME`
-#     and `${HOME}` are matched as the literal text they are written as, not as
-#     what they expand to.
-#   * A target resolving ABOVE the session working directory. Out of scope: it
-#     needs cwd resolution, and refusing `rm -rf ../build` is exactly the
-#     breadth this guard's narrow trigger exists to avoid.
-#   * A home directory named for another user (`rm -rf ~bob`). Only bare `~` is
-#     matched.
-#   * A root reached by MOVING the working directory rather than by naming it:
-#     `cd / && rm -rf *` is allowed, because `*` names nothing on its own and
-#     the guard deliberately does not track cwd.
+#     never evaluates a shell expansion. A bare variable operand is refused
+#     (below), but `rm -rf "$X/build"` is left alone, and so is
+#     `$(printf 'r%s' 'm') -rf /`, whose substitution body is parsed (its
+#     command word is `printf`) but whose RESULT is not. The root arm matches
+#     `$HOME` and `${HOME}` as the literal text they are written as; only the
+#     outside-tree arm expands them, from the hook's own HOME.
+#   * A single-quoted `'$X'` is refused as a bare variable although it names a
+#     literal file: the tokenizer's quoting provenance cannot separate it from
+#     `"$X"`. A declared overblock.
+#   * A home directory named for another user (`rm -rf ~bob`), `~+` and `~-`.
+#     The root arm matches bare `~` only, and the outside-tree arm leaves them
+#     alone.
+#   * Directory changes the outside-tree arm cannot follow. A literal `cd`,
+#     `pushd`, `env -C` or `sudo -D` adds a directory the delete may run from;
+#     `cd "$d"`, `cd -`, `popd`, `pushd +N`, a login shell (`su -`, `su -l`,
+#     `runuser -l`, `sudo -i`) and a CDPATH-resolved relative `cd` are not
+#     followed, and a relative operand after one is left alone. A literal
+#     directory is collapsed lexically, so `cd link/..` is read as `cd .`.
+#   * A relative operand must stay inside from EVERY directory the command may
+#     run it from, because the guard does not assume a `cd` succeeded. So
+#     `cd sub && rm -rf ../x` is refused: from the original directory `../x`
+#     is outside the tree. A declared overblock.
+#   * Differences from the user-level destructive-removal engine, on purpose:
+#     the git toplevel itself, `.git`, another worktree's root and another
+#     session's `<temp>/claude` directory are allowed here when they sit
+#     inside an allowed root, and an unresolvable expansion is left alone
+#     rather than refused. An absolute path into another worktree is refused,
+#     as the engine does, because it is outside the tree the delete runs from.
+#   * Where `realpath -m` is absent (BSD, macOS), a target's parent is
+#     collapsed lexically before its nearest existing ancestor is resolved, so
+#     `link/..` is read as the directory holding `link`.
 #   * A child shell this guard does not recognize as one. `bash -c`, `sh -c`,
 #     their siblings, `su`'s `-c` / `--command` / `--session-command` operand,
 #     and GNU `env`'s `-S` / `--split-string` operand ARE unwrapped and
@@ -102,7 +140,8 @@
 #     right trade here: this guard's threat model is an agent making the
 #     mistake #92593 records, not one deliberately obfuscating a command word.
 #
-# BLOCKING: exits 2 on a recursive delete of a root.
+# BLOCKING: exits 2 on a recursive delete of a root, of an empty or
+# bare-variable operand, or of a target outside the allowed roots.
 
 set -uo pipefail
 
@@ -147,10 +186,12 @@ hook::buffer_stdin_to INPUT || {
 # same posture as the other blocking Bash guards.
 hook::require_jq_blocking "guardrails-block-root-delete-target" "block_root_delete_target_enabled"
 
-# Two fields, one extraction. Never `.tool_input.content` or any write payload:
-# this guard reads a command and nothing else.
+# Three fields, one extraction, all primed by the dispatcher. Never
+# `.tool_input.content` or any write payload: this guard reads a command and
+# where it runs, nothing else. `.scratchpad_dir` is read later, in its own
+# call, and only when a target needs judging.
 jq_rc=0
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || jq_rc=$?
 if ((jq_rc == 2)); then
   echo "BLOCKED: the hook payload could not be parsed." >&2
   exit 2
@@ -168,6 +209,7 @@ fi
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
+PAYLOAD_CWD="${HOOK_JQ_FIELDS[2]:-}"
 
 # The PowerShell lane is a declared gap, and exiting here is what keeps this
 # guard off the classifier's load path entirely.
@@ -272,6 +314,38 @@ rdt_block() {
       'Nesting multiplies the text to tokenize, and a hook the harness cancels on its timeout is cancelled WITHOUT a block, so running past the budget would fail open on exactly the input built to reach it.' \
       'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
     ;;
+  empty-operand)
+    printf '%s\n' \
+      'BLOCKED: this recursive delete has an empty operand ("").' \
+      'An empty word here is almost always a path that failed to build, and the same command with the path filled in deletes something nobody named.' \
+      'Fix: name the directory to remove explicitly, or drop the empty word.' >&2
+    ;;
+  bare-variable)
+    # Single-quoted on purpose: the text shows a literal ${NAME:?}.
+    # shellcheck disable=SC2016
+    printf '%s\n' \
+      "BLOCKED: this recursive delete targets a bare variable ('$target'), whose value is not known until it runs." \
+      'Unset or empty, it reaches the working directory or a filesystem root; holding an unexpected path, it deletes that.' \
+      'Fix: write the path out literally, or use "${NAME:?}/sub" so an unset or empty value aborts the command before rm runs.' >&2
+    ;;
+  outside-tree)
+    printf '%s\n' \
+      "BLOCKED: this recursive delete targets $target, which is outside the working tree, the temp directories and the session scratchpad." \
+      'The working tree is the git toplevel of the directory the delete runs from. A recursive delete outside it is not recoverable from git, and a temp root or the scratchpad itself is refused as a whole.' \
+      'Fix: delete only under the working tree, strictly under a temp directory, or strictly under the session scratchpad. If the target really is meant to go, do it outside the agent session.' >&2
+    ;;
+  too-many-origins)
+    printf '%s\n' \
+      "BLOCKED: too many directory changes to judge every place this delete may run from (more than $MAX_ORIGINS)." \
+      'Each literal cd adds a directory a relative target is judged from, and past the limit a target outside the tree cannot be ruled out.' \
+      'Fix: cd once to an absolute directory, or run the delete as its own command.' >&2
+    ;;
+  too-many-targets)
+    printf '%s\n' \
+      "BLOCKED: too many recursive delete targets to judge (more than $MAX_TARGETS)." \
+      'Each target is resolved against every directory the command may run it from, and past the limit the work outruns the hook timeout.' \
+      'Fix: delete a parent directory, or split the delete into shorter commands.' >&2
+    ;;
   *)
     # Single-quoted on purpose: the Fix line must show a literal $HOME to the
     # agent rather than expanding it in the hook process.
@@ -356,9 +430,9 @@ rdt_normalize_to() {
 }
 
 # rdt_is_root <normalized>: true when the operand names a filesystem root.
-# An operand that normalized to the EMPTY string is NOT a root, which is what
-# keeps `rm -rf ""` allowed while `rm -rf "\\"`, whose single backslash
-# normalizes to `/`, is refused.
+# An operand that normalized to the EMPTY string is NOT a root: `rm -rf ""` is
+# refused by the empty-operand arm ahead of this one, with its own message,
+# while `rm -rf "\\"`, whose single backslash normalizes to `/`, is a root.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_is_root() {
   local s="$1"
@@ -671,6 +745,554 @@ rdt_resolved_walk() {
   HOOK_SEG_WORD_QUOTED=(${saved_q[@]+"${saved_q[@]}"})
 }
 
+# --- Empty, bare-variable and outside-tree targets ---------------------------
+#
+# A bare variable, matched on the NORMALIZED operand (lower case, trailing
+# nameless segments dropped, so `"$X/"`, `"$X/*"` and `"$X"/*` all reduce to
+# `$x`): a name, a positional or special parameter, or a `${...}` whose
+# operator substitutes a default or an alternative. `${NAME:?}` and
+# `${NAME?}` abort on an unset value and do not match.
+# shellcheck disable=SC2016  # the pattern matches a literal dollar sign
+RDT_BARE_VAR_RE='^\$([a-z_][a-z0-9_]*|[0-9]|[@*#?$!-]|\{([a-z_][a-z0-9_]*|[0-9]+|[@*#?$!-])(:?[-=+].*)?\})$'
+
+# The outside-tree arm. RDT_ARM is 1 when the payload carries an absolute cwd;
+# without one the arm is skipped. Operands are recorded while the command is
+# parsed and judged once, after both passes, by rdt_judge_pending.
+#   RDT_ORIGINS    every directory the command may run a delete from: the
+#                  payload cwd, then each literal cd / pushd / env -C / sudo -D
+#                  target, lexically collapsed. Global, never saved or restored
+#                  by the recursion, because a later segment runs where an
+#                  earlier one left the shell.
+#   rdt_cd_unknown 1 once a directory change this guard cannot follow is seen;
+#                  a relative operand recorded after it is left alone.
+#   rdt_in_subst   1 while the substitution scan runs. That scan precedes the
+#                  main parse, so an operand it records is judged against every
+#                  origin the whole command visits.
+MAX_ORIGINS=32
+MAX_TARGETS=4096
+RDT_ARM=0
+RDT_ORIGINS=()
+RDT_ORIGIN_OVERFLOW=0
+rdt_cd_unknown=0
+rdt_in_subst=0
+RDT_P_TEXT=()
+RDT_P_Q=()
+RDT_P_NORIG=()
+RDT_P_UNK=()
+RDT_P_SUB=()
+RDT_WIN=0
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) RDT_WIN=1 ;;
+*) ;;
+esac
+RDT_HOME="${HOME:-}"
+RDT_HOME="${RDT_HOME//\\//}"
+
+# rdt_is_abs <path>: absolute after backslashes became slashes: `/…`, `//…`,
+# or a drive followed by a slash. A drive-relative `C:foo` is not.
+rdt_is_abs() {
+  [[ "$1" == /* || "$1" =~ ^[A-Za-z]:/ ]]
+}
+
+# rdt_lex_to <var> <absolute path>: `.` and `..` collapsed, slashes squeezed.
+# A drive prefix and a UNC `//` lead are kept, and `..` stops at the top.
+rdt_lex_to() {
+  local __rl_p="$2" __rl_pre="" __rl_c __rl_out=""
+  local -a __rl_st=()
+  if [[ "$__rl_p" =~ ^([A-Za-z]:)(.*)$ ]]; then
+    __rl_pre="${BASH_REMATCH[1]}"
+    __rl_p="${BASH_REMATCH[2]}"
+  elif [[ "$__rl_p" == //* && "$__rl_p" != ///* ]]; then
+    __rl_pre="/"
+  fi
+  while :; do
+    __rl_c="${__rl_p%%/*}"
+    case "$__rl_c" in
+    '' | .) ;;
+    ..) ((${#__rl_st[@]})) && __rl_st=("${__rl_st[@]:0:${#__rl_st[@]}-1}") ;;
+    *) __rl_st+=("$__rl_c") ;;
+    esac
+    [[ "$__rl_p" == */* ]] || break
+    __rl_p="${__rl_p#*/}"
+  done
+  for __rl_c in ${__rl_st[@]+"${__rl_st[@]}"}; do __rl_out+="/$__rl_c"; done
+  printf -v "$1" '%s' "$__rl_pre${__rl_out:-/}"
+}
+
+# rdt_join <dir> <rest>: one slash between them, whatever <dir> ends with.
+rdt_join_to() {
+  if [[ -z "$3" ]]; then
+    printf -v "$1" '%s' "$2"
+  elif [[ "$2" == */ ]]; then
+    printf -v "$1" '%s' "$2${3#/}"
+  else
+    printf -v "$1" '%s' "$2/${3#/}"
+  fi
+}
+
+# rdt_canon_to <var> <path>: the spelling two paths are COMPARED in. Slashes
+# squeezed, no trailing slash, a drive folded by hook::normalize_path_to, and
+# on Windows the whole path lower-cased, since that filesystem folds case.
+rdt_canon_to() {
+  local __rc_p="${2//\\//}" __rc_lead=""
+  if [[ "$__rc_p" == //* && "$__rc_p" != ///* ]]; then
+    __rc_lead=/
+    __rc_p="${__rc_p#/}"
+  fi
+  while [[ "$__rc_p" == *//* ]]; do __rc_p="${__rc_p//\/\//\/}"; done
+  __rc_p="$__rc_lead$__rc_p"
+  [[ "$__rc_p" == ?*/ && ! "$__rc_p" =~ ^[A-Za-z]:/$ ]] && __rc_p="${__rc_p%/}"
+  hook::normalize_path_to __rc_p "$__rc_p"
+  ((RDT_WIN)) && __rc_p="${__rc_p,,}"
+  printf -v "$1" '%s' "$__rc_p"
+}
+
+# rdt_root_like <canonical>: a filesystem root, which is never accepted as an
+# allowed root: a tree, temp root or scratchpad there would allow everything.
+rdt_root_like() {
+  [[ "$1" == / || "$1" =~ ^[A-Za-z]:/?$ || "$1" =~ ^/[A-Za-z]$ ]]
+}
+
+# rdt_place_to <var> <operand> <provenance>: the operand as a path this arm
+# can judge, or return 1 to leave it alone. Sets RDT_PL_ABS and RDT_PL_GLOB
+# (the last component is a glob, so its PARENT is what gets judged). A leading
+# `~`, `$HOME` or `${HOME}` expands from the hook's HOME; a fully quoted `~` is
+# a literal name. Any other expansion, a brace, a glob before the last
+# component, `~user` and a drive-relative path are unplaceable.
+# shellcheck disable=SC2016  # `$HOME` here is the literal text of the operand
+rdt_place_to() {
+  local __rp_t="${2//\\//}" __rp_q="$3" __rp_dir="" __rp_last
+  RDT_PL_ABS=0
+  RDT_PL_GLOB=0
+  [[ -n "$__rp_t" ]] || return 1
+  if ((__rp_q != 2)); then
+    # shellcheck disable=SC2088  # matching the literal text, expanded by hand below
+    case "$__rp_t" in
+    '~' | '~/'*)
+      [[ -n "$RDT_HOME" ]] || return 1
+      __rp_t="$RDT_HOME${__rp_t#\~}"
+      ;;
+    '~'*) return 1 ;;
+    *) ;;
+    esac
+  fi
+  case "$__rp_t" in
+  '$HOME' | '$HOME/'*)
+    [[ -n "$RDT_HOME" ]] || return 1
+    __rp_t="$RDT_HOME${__rp_t#\$HOME}"
+    ;;
+  '${HOME}' | '${HOME}/'*)
+    [[ -n "$RDT_HOME" ]] || return 1
+    __rp_t="$RDT_HOME${__rp_t#\$\{HOME\}}"
+    ;;
+  *) ;;
+  esac
+  case "$__rp_t" in
+  *'$'* | *'`'* | *'{'*) return 1 ;;
+  *) ;;
+  esac
+  if rdt_is_abs "$__rp_t"; then
+    RDT_PL_ABS=1
+  elif [[ "$__rp_t" =~ ^[A-Za-z]: ]]; then
+    return 1
+  fi
+  while [[ "$__rp_t" == ?*/ ]]; do __rp_t="${__rp_t%/}"; done
+  __rp_last="$__rp_t"
+  if [[ "$__rp_t" == */* ]]; then
+    __rp_dir="${__rp_t%/*}"
+    __rp_last="${__rp_t##*/}"
+  fi
+  case "$__rp_dir" in
+  *[*?[]*) return 1 ;;
+  *) ;;
+  esac
+  case "$__rp_last" in
+  *[*?[]*) RDT_PL_GLOB=1 ;;
+  *) ;;
+  esac
+  printf -v "$1" '%s' "$__rp_t"
+}
+
+# rdt_add_origin <directory operand> <provenance>: a directory a later delete
+# may run from. A relative one is joined to every origin known so far.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_add_origin() {
+  local t o c k have
+  local -a add=()
+  if ! rdt_place_to t "$1" "$2" || ((RDT_PL_GLOB)); then
+    rdt_cd_unknown=1
+    return 0
+  fi
+  if ((RDT_PL_ABS)); then
+    rdt_lex_to c "$t"
+    add=("$c")
+  else
+    for o in ${RDT_ORIGINS[@]+"${RDT_ORIGINS[@]}"}; do
+      rdt_lex_to c "$o/$t"
+      add+=("$c")
+    done
+  fi
+  for c in ${add[@]+"${add[@]}"}; do
+    have=0
+    for k in ${RDT_ORIGINS[@]+"${RDT_ORIGINS[@]}"}; do
+      [[ "$k" == "$c" ]] && have=1 && break
+    done
+    ((have)) && continue
+    if ((${#RDT_ORIGINS[@]} >= MAX_ORIGINS)); then
+      RDT_ORIGIN_OVERFLOW=1
+      return 0
+    fi
+    RDT_ORIGINS+=("$c")
+  done
+}
+
+# rdt_note_cd <cd|pushd|popd> <offset> <words after it>: follow a directory
+# change. Its options (`-L`, `-P`, `-e`, `-@`, pushd's `-n`) are stepped over;
+# a bare `cd` goes home; `cd -`, `popd`, `pushd` alone and `pushd +N` are
+# not followed.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_note_cd() {
+  local verb="$1" off="$2"
+  shift 2
+  local -a a=("$@")
+  local n=$# k=0 w
+  if [[ "$verb" == popd ]]; then
+    rdt_cd_unknown=1
+    return 0
+  fi
+  while ((k < n)); do
+    w="${a[k]}"
+    if [[ "$w" == -- ]]; then
+      k=$((k + 1))
+      break
+    fi
+    [[ "$w" == -?* && ! "$w" =~ ^-[0-9]+$ ]] || break
+    k=$((k + 1))
+  done
+  if ((k >= n)); then
+    if [[ "$verb" == cd ]]; then
+      rdt_add_origin '~' 0
+    else
+      rdt_cd_unknown=1
+    fi
+    return 0
+  fi
+  w="${a[k]}"
+  case "$w" in
+  - | [+-][0-9]*)
+    rdt_cd_unknown=1
+    return 0
+    ;;
+  *) ;;
+  esac
+  rdt_add_origin "$w" "${HOOK_SEG_WORD_QUOTED[off + k]:-0}"
+}
+
+# rdt_note_login <words after su or runuser>: a login shell starts in the
+# target user's home, so a relative operand inside it is not followed.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_note_login() {
+  local w
+  for w in "$@"; do
+    [[ "$w" == -- ]] && break
+    if [[ "$w" == - || ("$w" == --l* && "login" == "${w#--}"*) ]] ||
+      [[ "$w" =~ ^-[A-Za-z]+$ && "$w" == *l* ]]; then
+      rdt_cd_unknown=1
+      return 0
+    fi
+  done
+}
+
+# rdt_note_launcher_dir <launcher> <word> <has next> <next> <q word> <q next>:
+# env -C / --chdir and sudo -D / --chdir run the command from a directory; an
+# abbreviated env --ch is read the same way. sudo -i / --login runs it from the
+# target user's home.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_note_launcher_dir() {
+  case "$1" in
+  env)
+    case "$2" in
+    -C | --c | --ch | --chd | --chdi | --chdir) (($3)) && rdt_add_origin "$4" "$6" ;;
+    --c=* | --ch=* | --chd=* | --chdi=* | --chdir=*) rdt_add_origin "${2#*=}" "$5" ;;
+    -C?*) rdt_add_origin "${2#-C}" "$5" ;;
+    *) ;;
+    esac
+    ;;
+  sudo)
+    case "$2" in
+    -D | --chdir) (($3)) && rdt_add_origin "$4" "$6" ;;
+    --chdir=*) rdt_add_origin "${2#*=}" "$5" ;;
+    -D?*) rdt_add_origin "${2#-D}" "$5" ;;
+    --login) rdt_cd_unknown=1 ;;
+    *) [[ "$2" =~ ^-[A-Za-z]+$ && "$2" == *i* ]] && rdt_cd_unknown=1 ;;
+    esac
+    ;;
+  *) ;;
+  esac
+  return 0
+}
+
+# RDT_RES maps a path to its resolved spelling for the whole judgment.
+declare -A RDT_RES=()
+
+# rdt_resolve_all <path>...: resolve every path physically in one process
+# where the host allows, into RDT_RES. One `realpath -m` for all of them,
+# which follows a symlink or `..` whether or not the tail exists. Without it
+# (BSD, macOS), each is collapsed lexically and its nearest existing ancestor
+# resolved through hook::physical_path_to. A UNC path, and a drive path on a
+# host with no drives, is never touched on disk: it is collapsed lexically, so
+# no lookup can wait on the network.
+rdt_resolve_all() {
+  local p out i a rem r
+  local -a todo=() res=() lines=()
+  local -A seen=()
+  for p in "$@"; do
+    [[ -n "$p" && -z "${RDT_RES[$p]+x}" && -z "${seen[$p]+x}" ]] || continue
+    seen[$p]=1
+    if [[ "$p" == //* && "$p" != ///* ]] || { ((!RDT_WIN)) && [[ "$p" =~ ^[A-Za-z]: ]]; }; then
+      rdt_lex_to r "$p"
+      RDT_RES[$p]="$r"
+      continue
+    fi
+    todo+=("$p")
+  done
+  ((${#todo[@]})) || return 0
+  local ok=0
+  if [[ "${todo[*]}" != *$'\n'* ]] && out=$(realpath -m -- "${todo[@]}" 2>/dev/null); then
+    out="${out//$'\r'/}"
+    mapfile -t lines <<<"$out"
+    ((${#lines[@]} == ${#todo[@]})) && ok=1
+  fi
+  for ((i = 0; i < ${#todo[@]}; i++)); do
+    if ((ok)) && [[ -n "${lines[i]}" ]]; then
+      res[i]="${lines[i]}"
+      continue
+    fi
+    rdt_lex_to a "${todo[i]}"
+    rem=""
+    rdt_split_existing a rem "$a"
+    if hook::_physical_cached_to r "$a"; then
+      rdt_join_to r "$r" "$rem"
+    else
+      rdt_join_to r "$a" "$rem"
+    fi
+    res[i]="$r"
+  done
+  for ((i = 0; i < ${#todo[@]}; i++)); do RDT_RES[${todo[i]}]="${res[i]}"; done
+}
+
+# RDT_WMAP maps a resolved path to its one Windows long form.
+declare -A RDT_WMAP=()
+
+# rdt_winmap_all <path>...: on Windows, one `cygpath -l -m` over each path's
+# nearest existing ancestor maps the /tmp mount, the /c/... and C:/...
+# spellings and 8.3 short names onto one long form, into RDT_WMAP. The
+# nearest EXISTING ancestor, because cygpath leaves a path whose tail is
+# missing unexpanded. A path it cannot map keeps its own spelling. Elsewhere
+# every path maps to itself.
+rdt_winmap_all() {
+  local p out i a rem r
+  local -a todo=() anc=() rems=() uniq=() lines=()
+  local -A seen=() amap=()
+  for p in "$@"; do
+    [[ -n "$p" && -z "${RDT_WMAP[$p]+x}" && -z "${seen[$p]+x}" ]] || continue
+    seen[$p]=1
+    RDT_WMAP[$p]="$p"
+    ((RDT_WIN)) || continue
+    [[ "$p" == //* && "$p" != ///* ]] && continue
+    todo+=("$p")
+  done
+  ((${#todo[@]})) || return 0
+  command -v cygpath >/dev/null 2>&1 || return 0
+  for ((i = 0; i < ${#todo[@]}; i++)); do
+    rdt_split_existing a rem "${todo[i]}"
+    anc[i]="$a"
+    rems[i]="$rem"
+    if [[ -z "${amap[$a]+x}" ]]; then
+      amap[$a]=""
+      uniq+=("$a")
+    fi
+  done
+  [[ "${uniq[*]}" != *$'\n'* ]] || return 0
+  out=$(cygpath -l -m -- "${uniq[@]}" 2>/dev/null) || return 0
+  out="${out//$'\r'/}"
+  mapfile -t lines <<<"$out"
+  ((${#lines[@]} == ${#uniq[@]})) || return 0
+  for ((i = 0; i < ${#uniq[@]}; i++)); do amap[${uniq[i]}]="${lines[i]}"; done
+  for ((i = 0; i < ${#todo[@]}; i++)); do
+    a="${amap[${anc[i]}]}"
+    [[ -n "$a" ]] || continue
+    rdt_join_to r "$a" "${rems[i]}"
+    RDT_WMAP[${todo[i]}]="$r"
+  done
+}
+
+# rdt_split_existing <anc var> <rest var> <path>: the nearest existing
+# ancestor of <path>, and the tail below it.
+rdt_split_existing() {
+  local __rs_a="$3" __rs_r=""
+  while [[ -n "$__rs_a" && ! -e "$__rs_a" && "$__rs_a" == */* ]]; do
+    __rs_r="/${__rs_a##*/}$__rs_r"
+    __rs_a="${__rs_a%/*}"
+    [[ -z "$__rs_a" ]] && __rs_a=/
+    [[ "$__rs_a" =~ ^[A-Za-z]:$ ]] && __rs_a="$__rs_a/"
+  done
+  printf -v "$1" '%s' "$__rs_a"
+  printf -v "$2" '%s' "$__rs_r"
+}
+
+# rdt_tree_to <var> <origin>: the git toplevel of an origin, or empty. One git
+# per distinct origin, asked from the origin's nearest existing directory
+# (a `mkdir x && cd x` target need not exist yet), with the variables that
+# redirect discovery unset. A git that fails, or is absent, gives no tree, so
+# the failure lands on the refusal side.
+declare -A RDT_TREE=()
+rdt_tree_to() {
+  local o="$2" d out rc=0
+  if [[ -n "${RDT_TREE[$o]+x}" ]]; then
+    printf -v "$1" '%s' "${RDT_TREE[$o]}"
+    return 0
+  fi
+  d="$o"
+  if [[ "$d" == //* && "$d" != ///* ]]; then
+    d=""
+  else
+    while [[ -n "$d" && ! -d "$d" && "$d" == */* ]]; do
+      d="${d%/*}"
+      [[ -z "$d" ]] && d=/
+      [[ "$d" =~ ^[A-Za-z]:$ ]] && d="$d/"
+    done
+    [[ -d "$d" ]] || d=""
+  fi
+  out=""
+  if [[ -n "$d" ]]; then
+    out=$(
+      unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
+      git -C "$d" rev-parse --show-toplevel 2>/dev/null
+    ) || rc=$?
+    out="${out//$'\r'/}"
+    ((rc == 0)) || out=""
+  fi
+  RDT_TREE[$o]="$out"
+  printf -v "$1" '%s' "$out"
+}
+
+# rdt_allowed <canonical target> <canonical tree>: the order the destructive-
+# removal engine uses. The scratchpad itself, then a temp root itself, are
+# refused first; then strictly under the scratchpad or a temp root, or under
+# (or equal to) the tree, is allowed.
+rdt_allowed() {
+  local t="$1" tree="$2" c
+  [[ -n "$RDT_SPC" && "$t" == "$RDT_SPC" ]] && return 1
+  for c in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
+    [[ "$t" == "$c" ]] && return 1
+  done
+  [[ -n "$RDT_SPC" && "$t" == "$RDT_SPC"/* ]] && return 0
+  for c in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
+    [[ "$t" == "$c"/* ]] && return 0
+  done
+  [[ -n "$tree" && ("$t" == "$tree" || "$t" == "$tree"/*) ]] && return 0
+  return 1
+}
+
+# rdt_judge_pending: the outside-tree judgment, once, after both passes.
+rdt_judge_pending() {
+  local np=${#RDT_P_TEXT[@]}
+  ((np)) || return 0
+  ((RDT_ORIGIN_OVERFLOW)) && rdt_block "too-many-origins"
+  local k m no unk t p last sp c
+  local -a tp=() tn=() to=() tw=() trees=()
+  # Every target from every origin it may run from. A glob in the last
+  # component is judged by its parent; a trailing `.` or `..` by the whole
+  # path; anything else by its parent resolved, plus its own name unresolved,
+  # because rm deletes a symlink named last rather than what it points to.
+  for ((k = 0; k < np; k++)); do
+    rdt_place_to t "${RDT_P_TEXT[k]}" "${RDT_P_Q[k]}" || continue
+    if ((RDT_P_SUB[k])); then
+      no=${#RDT_ORIGINS[@]}
+      unk=$rdt_cd_unknown
+    else
+      no=${RDT_P_NORIG[k]}
+      unk=${RDT_P_UNK[k]}
+    fi
+    ((RDT_PL_ABS == 0 && unk)) && continue
+    for ((m = 0; m < no; m++)); do
+      if ((RDT_PL_ABS)); then p="$t"; else rdt_join_to p "${RDT_ORIGINS[m]}" "$t"; fi
+      last="${p##*/}"
+      if ((RDT_PL_GLOB)); then
+        p="${p%/*}"
+        last=""
+      elif [[ "$last" == . || "$last" == .. ]]; then
+        last=""
+      else
+        p="${p%/*}"
+      fi
+      [[ -z "$p" ]] && p=/
+      [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
+      tp+=("$p")
+      tn+=("$last")
+      to+=("$m")
+      tw+=("${RDT_P_TEXT[k]}")
+    done
+    ((${#tp[@]} > MAX_TARGETS)) && rdt_block "too-many-targets"
+  done
+  ((${#tp[@]})) || return 0
+
+  # The scratchpad, read only now so the dispatcher cache answers every other
+  # call. A NUL in it leaves it absent, on the refusal side.
+  sp=""
+  if hook::jq_fields "$INPUT" '.scratchpad_dir' && ((HOOK_JQ_FIELDS_NUL == 0)); then
+    sp="${HOOK_JQ_FIELDS[0]:-}"
+    sp="${sp//\\//}"
+  fi
+  rdt_is_abs "$sp" || sp=""
+  hook::_temp_root_candidates
+  local -a temps=()
+  for c in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do temps+=("${c//\\//}"); done
+  for ((m = 0; m < ${#RDT_ORIGINS[@]}; m++)); do
+    rdt_tree_to t "${RDT_ORIGINS[m]}"
+    trees[m]="$t"
+  done
+
+  # Two passes over everything at once: one realpath over the parents, the
+  # trees, the temp roots and the scratchpad; then, on Windows, one cygpath
+  # over the full targets built from those parents and the rest.
+  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" ${trees[@]+"${trees[@]}"}
+  local -a full=()
+  for ((k = 0; k < ${#tp[@]}; k++)); do
+    rdt_join_to p "${RDT_RES[${tp[k]}]}" "${tn[k]}"
+    full[k]="$p"
+  done
+  local -a others=()
+  for c in ${temps[@]+"${temps[@]}"} "$sp" ${trees[@]+"${trees[@]}"}; do
+    [[ -n "$c" ]] && others+=("${RDT_RES[$c]}")
+  done
+  rdt_winmap_all ${full[@]+"${full[@]}"} ${others[@]+"${others[@]}"}
+  RDT_SPC=""
+  if [[ -n "$sp" ]]; then
+    rdt_canon_to c "${RDT_WMAP[${RDT_RES[$sp]}]}"
+    rdt_root_like "$c" || RDT_SPC="$c"
+  fi
+  RDT_TEMPC=()
+  for c in ${temps[@]+"${temps[@]}"}; do
+    rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+    rdt_root_like "$t" || RDT_TEMPC+=("$t")
+  done
+  local -a treec=()
+  for ((m = 0; m < ${#RDT_ORIGINS[@]}; m++)); do
+    treec[m]=""
+    [[ -n "${trees[m]}" ]] || continue
+    rdt_canon_to t "${RDT_WMAP[${RDT_RES[${trees[m]}]}]}"
+    rdt_root_like "$t" || treec[m]="$t"
+  done
+  for ((k = 0; k < ${#tp[@]}; k++)); do
+    p="${RDT_WMAP[${full[k]}]}"
+    rdt_canon_to c "$p"
+    rdt_allowed "$c" "${treec[to[k]]}" || rdt_block "outside-tree" "'$p' (the operand '${tw[k]}')"
+  done
+  return 0
+}
+
 # rdt_check_segment <argv word>...: one simple command, as the shell would build
 # it. Prefixed because guards share one process under run-guards.sh and two
 # siblings already define a function named check_segment.
@@ -785,6 +1407,7 @@ rdt_check_segment() {
     # is the user and the rest go to the shell, so they get su's scan. The
     # remapped provenance is saved first, because each parse rebuilds it.
     runuser)
+      ((RDT_ARM)) && rdt_note_login ${words[@]+"${words[@]:i+1}"}
       rdt_runuser_argv "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
       local -a ru_cmds=() ru_argv=() ru_quoted=()
       local ru_u="$RDT_RU_U" ru_cmd
@@ -847,6 +1470,12 @@ rdt_check_segment() {
         break
         ;;
       -*)
+        # env -C and sudo -D run the command from another directory, and
+        # sudo -i from the target user's home.
+        if ((RDT_ARM)); then
+          rdt_note_launcher_dir "$base" "$w" "$((i + 1 < n))" "${words[i + 1]-}" \
+            "${HOOK_SEG_WORD_QUOTED[i]:-0}" "${HOOK_SEG_WORD_QUOTED[i + 1]:-0}"
+        fi
         # flock runs a -c / --command operand through a shell, and demands it
         # be the last word, so the operand is the whole command.
         if [[ "$base" == "flock" && ("$w" == "-c" || "$w" == "--command") ]]; then
@@ -954,6 +1583,19 @@ rdt_check_segment() {
   # Lowercased before the suffix strip, for the reason given at the walk above.
   base="${base,,}"
   base="${base%.exe}"
+
+  # A directory change moves where a later relative operand lands. Followed
+  # only for the outside-tree arm, which is off without a payload cwd.
+  if ((RDT_ARM)); then
+    case "$base" in
+    cd | pushd | popd)
+      rdt_note_cd "$base" "$((i + 1))" ${words[@]+"${words[@]:i+1}"}
+      return 0
+      ;;
+    su) rdt_note_login ${words[@]+"${words[@]:i+1}"} ;;
+    *) ;;
+    esac
+  fi
 
   # `su` runs its `-c` operand through the target user's shell, so one process
   # is every command inside it, exactly as `bash -c` is. Resolved here rather
@@ -1097,13 +1739,24 @@ rdt_check_segment() {
     # minus its quotes. The tokenizer cannot represent it (it has no character
     # left to emit), so provenance is what separates it from `rm -rf ""`, whose
     # empty operand comes wholly from a quoted span (provenance 2) and is
-    # correctly allowed.
-    if [[ -z "$w" ]] && ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)); then
-      rdt_block "root-operand" "/"
+    # refused as an empty operand instead.
+    if [[ -z "$w" ]]; then
+      ((${HOOK_SEG_WORD_QUOTED[j]:-0} == 1)) && rdt_block "root-operand" "/"
+      rdt_block "empty-operand"
     fi
     rdt_normalize_to norm "$w"
     if rdt_is_root "$norm"; then
       rdt_block "root-operand" "$norm"
+    fi
+    [[ "$norm" =~ $RDT_BARE_VAR_RE ]] && rdt_block "bare-variable" "$w"
+    # Recorded BY VALUE for the outside-tree judgment at the end, with the
+    # directory-change state as it stands here.
+    if ((RDT_ARM)); then
+      RDT_P_TEXT+=("$w")
+      RDT_P_Q+=("${HOOK_SEG_WORD_QUOTED[j]:-0}")
+      RDT_P_NORIG+=("${#RDT_ORIGINS[@]}")
+      RDT_P_UNK+=("$rdt_cd_unknown")
+      RDT_P_SUB+=("$rdt_in_subst")
     fi
   done
   return 0
@@ -1299,8 +1952,21 @@ rdt_scan_substitutions() {
 # the top-level parse pays for every one of them. Scanning first lets the
 # tokenizing budget refuse such a payload after the cheap character walk alone,
 # instead of after the parse it was built to make expensive.
+#
+# The outside-tree arm starts from the payload cwd, and only an absolute one:
+# a relative cwd names no place this hook can resolve.
+PAYLOAD_CWD="${PAYLOAD_CWD//\\//}"
+if rdt_is_abs "$PAYLOAD_CWD"; then
+  RDT_ARM=1
+  _rdt_origin=""
+  rdt_lex_to _rdt_origin "$PAYLOAD_CWD"
+  RDT_ORIGINS=("$_rdt_origin")
+fi
+rdt_in_subst=1
 rdt_scan_substitutions "$COMMAND"
+rdt_in_subst=0
 hook::bash_parse_segments "$COMMAND" rdt_check_segment
+rdt_judge_pending
 
 rdt_emit_tel "ok" ""
 exit 0
