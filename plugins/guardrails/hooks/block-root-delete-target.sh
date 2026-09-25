@@ -198,11 +198,14 @@ rdt_depth=0
 # The depth cap bounds how deep a reading goes, not how many there are. A
 # launcher read two ways (runuser's -s program and its -u argv) doubles the
 # segments at every level, so 20 levels are a million walks, and a hook the
-# harness cancels on its timeout is cancelled WITHOUT a block. Every judged
-# segment is counted for the whole command, and past the budget the guard
-# REFUSES. 2048 launcher segments cost about 4 s on Git Bash, well inside the
-# hook timeout, while a 16 KB command of ordinary segments holds about 1,500.
-MAX_SEGMENTS=2048
+# harness cancels on its timeout is cancelled WITHOUT a block. Every NESTED
+# segment (one a launcher, child shell, eval or resolved walk re-enters) is
+# counted for the whole command, and past the budget the guard REFUSES.
+# Top-level segments are left out: the command's own length bounds them, and a
+# 16 KB command of substitutions can hold several thousand. 1024 nested
+# launcher segments cost about 2 s on Git Bash, well inside the hook timeout,
+# and a realistic command nests a handful.
+MAX_SEGMENTS=1024
 rdt_segments=0
 
 rdt_emit_tel() {
@@ -680,8 +683,10 @@ rdt_check_segment() {
   # guard REFUSES.
   local rdt_depth=$((rdt_depth + 1))
   ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
-  rdt_segments=$((rdt_segments + 1))
-  ((rdt_segments > MAX_SEGMENTS)) && rdt_block "too-many-readings"
+  if ((rdt_depth > 1)); then
+    rdt_segments=$((rdt_segments + 1))
+    ((rdt_segments > MAX_SEGMENTS)) && rdt_block "too-many-readings"
+  fi
   local -a words=("$@")
   local n=$# i=0 j w base sval optarg consume_bare
   local abbr_forked=0
