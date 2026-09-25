@@ -498,8 +498,9 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # The digest also covers the `Commits you to:` template block, the bundle paragraph
 # (every part of a bundled recommendation is its own row; on the page, its own `commits`
 # entry), the hedged paragraph (a hedged reply resolves only the headline), and the
-# sentence naming both question-surface rules. Each narrows what an answer or an
-# accept-shorthand resolves; none qualifies the no-silent-resolve rule or any other defense here.
+# sentence naming both question-surface rules. The first three narrow what an answer or an
+# accept-shorthand resolves; the surface sentence only names where a round is asked. None
+# qualifies the no-silent-resolve rule or any other defense here.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
