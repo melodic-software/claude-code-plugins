@@ -47,7 +47,8 @@ section, read as raw markdown, and a probe: Claude Code 2.1.281, 2026-09-23, `cl
 `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=console`, `OTEL_TRACES_EXPORTER=none`, no
 beta flag, and `TRACEPARENT` set. 214 of 214 event records carried the inbound trace and span IDs;
 a control run without `TRACEPARENT` gave 214 of 214 with none. The Agent SDK half is documented,
-not measured. *Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog entry touching
+not measured. *Verified:* 2026-09-25 (page re-read; probe as of 2026-09-23). *Recheck trigger:* a
+Claude Code changelog entry touching
 inbound `TRACEPARENT` or event trace correlation, or a read-time fetch of that section that no
 longer matches this record.
 
@@ -58,7 +59,7 @@ longer matches this record.
 tracing (`ENABLE_BETA_TRACING_DETAILED` with `BETA_TRACING_ENDPOINT`) sends logs and traces to that
 endpoint instead. The slice treats spans as optional. *Basis:* the page's
 [Traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta) section, read as
-raw markdown. *Verified:* 2026-09-23. *Recheck trigger:* the page drops the beta label from that
+raw markdown. *Verified:* 2026-09-25. *Recheck trigger:* the page drops the beta label from that
 section or drops the `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` flag.
 
 ## Evidence that a guardrail fired
