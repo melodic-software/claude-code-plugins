@@ -121,6 +121,7 @@ assert_exit "case-1: no drift exits 0" 0 "$exit_code"
 assert_contains "case-1: shows OK" "$out" "OK    no drift"
 assert_not_contains "case-1: no orphan reported" "$out" "ORPHAN"
 assert_not_contains "case-1: no new reported" "$out" "NEW     "
+assert_contains "case-1: states the declared marketplace count" "$out" "Marketplaces declared in the audited file: 1"
 
 # --- Case 2: orphan (false) detected ---------------------------------------------
 
@@ -256,6 +257,7 @@ out=$(run_check "$case_dir") || exit_code=$?
 
 assert_contains "case-7: no marketplaces note" "$out" "no marketplaces declared"
 assert_exit "case-7: exit 0" 0 "$exit_code"
+assert_contains "case-7: states a zero marketplace count" "$out" "Marketplaces declared in the audited file: 0"
 
 # --- Case 8: SETTINGS_AUDIT_OUTPUT_JSON writes structured findings ----------------
 

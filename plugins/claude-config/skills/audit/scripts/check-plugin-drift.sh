@@ -2,8 +2,9 @@
 # Plugin drift audit for the audit skill (Category E).
 #
 # Compares .claude/settings.json `enabledPlugins` against the catalog
-# `marketplace.json` of each registered marketplace. Detects three drift
-# modes that a state-vs-settings bootstrap check misses:
+# `marketplace.json` of each marketplace declared in the audited file's
+# extraKnownMarketplaces. Detects three drift modes that a state-vs-settings
+# bootstrap check misses:
 #
 #   ORPHAN     plugin in enabledPlugins, NOT in upstream catalog (deleted upstream)
 #   NEW        plugin in upstream catalog, NOT in enabledPlugins (added upstream)
@@ -355,7 +356,14 @@ main() {
   fi
 
   local marketplace_keys
-  marketplace_keys=$(jq -r '.extraKnownMarketplaces // {} | keys[]' "$SETTINGS" | tr -d '\r')
+  if ! marketplace_keys=$(jq -r '.extraKnownMarketplaces // {} | keys[]' "$SETTINGS" | tr -d '\r'); then
+    echo "ERROR: cannot read extraKnownMarketplaces from $SETTINGS" >&2
+    exit 2
+  fi
+
+  # The basis of the audit: only these marketplaces are compared, so a plugin
+  # from any other marketplace is outside what this run can report on.
+  printf 'Marketplaces declared in the audited file: %d\n' "$(grep -c . <<<"$marketplace_keys" || true)"
 
   if [[ -z "$marketplace_keys" ]]; then
     printf '\n%sno marketplaces declared in extraKnownMarketplaces%s\n' "$YELLOW" "$RESET"

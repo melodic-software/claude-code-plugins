@@ -3,6 +3,41 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.2] - 2026-09-25
+
+### Fixed
+
+- **`fix-plugin-drift.sh` no longer reports "No drift detected" when no marketplace was audited.**
+  Findings whose blocks were all skipped, or empty findings from the internal check, print
+  "No marketplace was audited, so there is nothing to report." Any block that is not `ok` is listed
+  under `SKIPPED <n> marketplaces not audited:` with its key and reason, above the verdict or the
+  plan, so a partly skipped run says what it did not compare.
+- **`fix-plugin-drift.sh` refuses findings it cannot read.** Findings that are not an array of
+  objects (a top-level object, a string, a zero-byte file, `[1]`) exit 2, and so does any plan list
+  jq fails to extract, naming the list, where a failure used to render a truncated plan and exit 0.
+- **`fix-plugin-drift.sh` filters the plan against the settings file before rendering it.** An
+  addition whose key already exists (as `false` or `true`) and a removal whose key is absent are
+  dropped; a removal whose key is now `true` moves to MANUAL REVIEW. The count prints as
+  `FILTERED <n> plan entries no longer match the settings file`. A plan that filters away prints
+  "Nothing to apply" on a dry run and on `--yes`, with no backup and no edit, where a no-op
+  `--input` used to rewrite a compactly formatted file and report "Applied". A settings file with
+  no `enabledPlugins` filters as an empty map; one whose `enabledPlugins` is not an object, or that
+  is not valid JSON, exits 2 on a dry run too.
+- **`fix-plugin-drift.sh --yes` refuses a settings file that changed under it.** The filter, the
+  edit, the line-ending measurement and the backup all come from one snapshot of the settings file
+  taken at plan time. Just before the backup the live file is compared with that snapshot, and a
+  difference exits 2 with the other writer's bytes left in place and no backup. The window between
+  that compare and the replace is documented, not closed. The stage-equals-current refusal now
+  compares the stage against the snapshot and is defensive only, since the filter leaves no entry
+  that would not change the file.
+- **`check-plugin-drift.sh` states the basis of its audit.** Stdout carries
+  `Marketplaces declared in the audited file: <n>`, including 0, and a failure to read
+  `extraKnownMarketplaces` exits 2.
+- **Two in-place corrections to the released 0.46.12 entry.** Its "Four changes close it" sentence
+  now counts five and names the stage-equals-current refusal it left out, and its claim that a
+  read-only settings file "comes back read-only" is qualified to platforms that honor mode bits,
+  matching the `fix-plugin-drift.sh` header.
+
 ## [0.48.1] - 2026-09-25
 
 ### Changed
@@ -245,10 +280,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   because `cp -p` carried that mode onto the stage and the redirect was then denied. And a signal
   during the apply, because the `INT`/`TERM`/`HUP` trap deleted the temporaries without ending the
   run, after which `cp -p` recreated the stage from the original and the normalization input was
-  gone. Four changes close it: both normalization arms are checked and fatal; the signal traps
+  gone. Five changes close it: both normalization arms are checked and fatal; the signal traps
   clean up and then exit, 130 for `INT` and 143 for `TERM` and `HUP`; the stage is made writable
   after the `cp -p` and has the read-only mode restored before the rename, so a read-only settings
-  file is applied and comes back read-only; and the settings file is read back after the replace
+  file is applied and comes back read-only on platforms that honor mode bits; the
+  stage-equals-current refusal compares the stage against the current file and stops before the backup when the two
+  match; and the settings file is read back after the replace
   and compared against the backup, so "Applied" rests on evidence rather than on the pipeline's
   say-so. The remaining command substitutions in the apply path (the clock for the backup name,
   the line-ending measurement, the plugin-list encoding) are checked too.
