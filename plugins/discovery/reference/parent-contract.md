@@ -29,7 +29,8 @@ Adding a second copy is the defect this file removes.
 
 ## The pre-dispatch envelope
 
-Six shared fields. The agent refuses to guess any of them, which is what makes the envelope safe to
+Six shared fields. The agent refuses to guess any of them (a missing `Memory root:` or
+`Turn budget:` line degrades as described below), which is what makes the envelope safe to
 mandate: an unresolved field surfaces as a failed dispatch instead of a confident answer to a
 question nobody asked.
 
@@ -94,8 +95,9 @@ Under `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` it cannot be passed at all. Dated recor
 for a collision or a parallel fan-out. No one can tell from the path alone which ancestor
 is the configured root, and the root is where the self-ignoring `.gitignore` guard belongs. An agent
 that has to derive it derives-and-flags rather than stopping, so the cost is a recoverable wrong
-guess, not a halt: it is the one envelope field whose absence is degradable. Topic/scope, reason and
-slice path are the hard stop.
+guess, not a halt: it is the one envelope field an agent repairs by deriving a value. The
+`Turn budget:` line is also degradable, but its absence falls back to a fixed default rather than a
+derived guess. Topic/scope, reason and slice path are the hard stop.
 
 ### Capability flags carry what was probed, and nothing else
 
