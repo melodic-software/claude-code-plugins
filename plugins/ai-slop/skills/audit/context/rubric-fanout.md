@@ -33,8 +33,11 @@ Run `rubric-fanout.sh extract --out <rubric file>` once. It writes the catalog's
 entries plus the "Signs of human writing" section to that file.
 
 One fresh-context subagent per batch, all dispatched in one message so they run concurrently.
-Dispatch each with `model: sonnet`, pinned, never inheriting the session model. Each subagent
-receives:
+Dispatch each with `model: sonnet`, pinned, never inheriting the session model. Verified
+2026-09-25 against [the subagents doc](https://code.claude.com/docs/en/sub-agents): the Agent
+tool's per-invocation `model` parameter accepts the `sonnet` alias and takes precedence over the
+agent definition and the session model. Recheck when that page changes the accepted aliases or
+the resolution order. Each subagent receives:
 
 - the path of the extracted rubric file, and nothing else from the catalog;
 - the path of its batch list and the digest the batch's `status` row printed (`status` runs
