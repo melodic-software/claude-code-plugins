@@ -53,9 +53,10 @@ run() {
   local payload
   payload=$(jq -n --arg cwd "$cwd" --arg cmd "$cmd" --arg sid "$sid" \
     '{session_id:$sid,cwd:$cwd,hook_event_name:"PostToolUse",tool_name:"Bash",tool_input:{command:$cmd}}')
-  OUT=$(cd "$UNRELATED" && printf '%s' "$payload" |
-    env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED \
-      "$@" bash "$HOOK" 2>/dev/null)
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  OUT=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED \
+    "$@" bash "$HOOK" <<<"$payload" 2>/dev/null)
   RC=$?
 }
 

@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.4] - 2026-09-24
+## [0.36.5] - 2026-09-24
 
 ### Changed
 
@@ -22,6 +22,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 - stale-path-verify.sh: the Edit reconstruction counts a word anchor's occurrences in the file by splitting each line on non-word bytes (one awk regex pass per line, under C) instead of a per-character walk, and skips the count for a word anchor holding `.` or `-`, which the walk never matched. Same counts; on a 33 KB file the count drops from about 14 ms to 2.
+
+## [0.36.4] - 2026-09-24
+
+### Fixed
+
+- `hooks/abort-boundary.test.sh`: `pipe_run` is now `feed_run` and feeds the payload from a file instead of a pipe. It stays off here-strings for the 64 KiB deadlock its comment already cited. The forced-abort and kill-switch cases exit before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
 
 ## [0.36.3] - 2026-09-24
 

@@ -174,10 +174,12 @@ JSONC
 #   run_hook_session <session> <file> [env...]  payload: + session_id, for a
 #       case that reads a once-per-session notice a shared session would dedupe
 run_hook_env() {
-  local file_path="$1"
+  local file_path="$1" payload
   shift
-  (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$file_path" |
-    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK")
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  printf -v payload '{"tool_input":{"file_path":"%s"}}' "$file_path"
+  (cd "$UNRELATED" && env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK" <<<"$payload")
 }
 
 run_hook_tool() {

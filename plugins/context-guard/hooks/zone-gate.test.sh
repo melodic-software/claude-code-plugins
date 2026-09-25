@@ -64,8 +64,11 @@ D="$WORK/data"
 
 # 1. Advisory mode (default) is inert even on dumb.
 write_snapshot "$H" s1 95
-OUT=$(printf '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write"}' |
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" bash "$HOOK" 2>/dev/null)
+# Here-strings, never a pipe, wherever the hook exits before reading stdin (the
+# advisory gate, the kill switch): a printf still writing would fail on the
+# closed pipe, and pipefail would report it.
+OUT=$(HOME="$H" CLAUDE_PLUGIN_DATA="$D" bash "$HOOK" \
+  <<<'{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write"}' 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "advisory default is inert"; else fail "advisory: rc=$RC out=$OUT"; fi
 adv_trace=$(printf '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write"}' |
@@ -113,9 +116,9 @@ run "$H" "$D" s1 '' blocking 2
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "re-entering dumb starts a fresh grace budget"; else fail "fresh grace: rc=$RC out=$OUT"; fi
 
 # 7. Kill switch wins over blocking mode.
-OUT=$(printf '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write"}' |
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking \
-    CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED=false bash "$HOOK" 2>/dev/null)
+OUT=$(HOME="$H" CLAUDE_PLUGIN_DATA="$D" CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE=blocking \
+  CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED=false bash "$HOOK" \
+  <<<'{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write"}' 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch wins over blocking"; else fail "kill switch: rc=$RC out=$OUT"; fi
 

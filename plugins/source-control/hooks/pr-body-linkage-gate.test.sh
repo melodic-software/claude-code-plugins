@@ -635,8 +635,10 @@ fi
 # --- Kill switch -------------------------------------------------------------
 
 payload=$(mk_payload "$GATED" "$(gh_body "$NO_RELATED")")
-if (cd "$UNRELATED" && printf '%s' "$payload" |
-  CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED=false bash "$HOOK" >/dev/null 2>&1); then
+# A here-string, never a pipe: the kill switch exits before reading stdin, and
+# a printf still writing then fails on the closed pipe, which pipefail reports.
+if (cd "$UNRELATED" &&
+  CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED=false bash "$HOOK" <<<"$payload" >/dev/null 2>&1); then
   ok "kill switch disables the gate"
 else
   fail "kill switch did not disable the gate"

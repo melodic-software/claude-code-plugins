@@ -4022,6 +4022,7 @@ source "$BG_LIB"
 # A stub reader makes the half of hook::begin that runs AFTER a path is
 # admitted reachable for paths no test can create: a file directly under the
 # filesystem root (needs privileges) and a spelling only Windows produces.
+# hook::begin hands it the payload it already buffered, so no pipe feeds it.
 if [[ -n "${BG_STUB_FILE:-}" ]]; then
   hook::read_file_path_to() { printf -v "$1" '%s' "$BG_STUB_FILE"; }
 fi

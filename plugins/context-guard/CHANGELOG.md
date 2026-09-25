@@ -5,7 +5,7 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.70] - 2026-09-24
+## [0.7.71] - 2026-09-24
 
 ### Changed
 
@@ -21,6 +21,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - zone-crossing-inject.sh: exits before sourcing its libraries when `~/.claude/context-guard/context` does not exist and jq is on `PATH`. Without that directory there is no snapshot and no compaction marker, so the hook could only reach `unknown`, which is silent and writes nothing; that is every fire on a machine without the context-guard status line.
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.7.70] - 2026-09-24
+
+### Fixed
+
+- `hooks/zone-gate.test.sh` feeds a here-string instead of a pipe wherever the subject exits before reading stdin: the kill switch and zone-gate's advisory mode. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). `scripts/statusline-shim.test.sh` (`run_env`) feeds the shim from a payload file instead, since a here-string appends a trailing newline the byte-transparency assertions must not see. Test only; nothing the plugin ships changes.
 
 ## [0.7.69] - 2026-09-24
 
