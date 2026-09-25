@@ -988,6 +988,177 @@
       "exit": 0,
       "findings_substrings": [],
       "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-missing.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "does not record assertions.interop_launch_denied"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-inner-zero.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.exit_code \"0\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-presence-nonzero.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.presence_exit_code \"1\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-outer-nonzero.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.outer_exit_code \"1\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-launch-outcome.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.launch_outcome \"file-missing\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-relative-executable.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.executable \"cmd.exe\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-empty-executable.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.executable \"\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-executable-not-exe.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.executable \"/bin/true\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-outer-executable-not-exe.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.outer_executable \"/mnt/c/Windows/System32/cmd\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-exit-127.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.exit_code \"127\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-exit-124.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.exit_code \"124\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-exit-137.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.exit_code \"137\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-outcome.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.outcome \"launched\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-null.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied null"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "interop-wsl2-valid.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-host-interop-absent.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "ratifies no host_interop"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "host-interop-absent-human-gated.json": {
+      "exit": 0,
+      "findings_substrings": [
+        "L2 unproven (the level binding ratifies no host_interop"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "host-interop-bad-enum.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a.L2.host_interop: \"hyperv\" is not one of none | wsl2"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-none-inner-zero.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "interop_launch_denied.exit_code \"0\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "base-egress-allowlist-not-array.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a.L2.base_egress_allowlist: must be an array of non-empty strings"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "base-egress-allowlist-empty-entry.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "isolation_bindings.ci-pool-a.L2.base_egress_allowlist: must be an array of non-empty strings"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-allowlist-uncovered.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "leaving ratified component_reachable_hosts api.github.com unprobed"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "base-egress-allowlist-valid.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-interop-mnt-host-expanded.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.credentials_absent.host_expanded entry \"/mnt/c/Users/runner/.netrc\" sits under a Windows drive mount"
+      ],
+      "credential_roots": "/mnt/c/Users/runner"
+    },
+    "probe-evidence-interop-mnt-workspace.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "assertions.workspace_host_write_contained.workspace_host_path \"/mnt/d/src/repo\" sits under a Windows drive mount"
+      ],
+      "credential_roots": "/home/runner"
     }
   },
   "quarantined": {},
@@ -998,9 +1169,9 @@
     "ci-pool-a-l2-bare-metadata.json",
     "ci-pool-a-l2-benchmarking-v6.json",
     "ci-pool-a-l2-bogus-metadata.json",
+    "ci-pool-a-l2-concrete-dot-traversal.json",
     "ci-pool-a-l2-cred-outer-missing.json",
     "ci-pool-a-l2-cred-outer-nonzero.json",
-    "ci-pool-a-l2-concrete-dot-traversal.json",
     "ci-pool-a-l2-credpath-code-count.json",
     "ci-pool-a-l2-credpath-partial-zero.json",
     "ci-pool-a-l2-discard-only.json",
@@ -1026,6 +1197,21 @@
     "ci-pool-a-l2-host-home-mount.json",
     "ci-pool-a-l2-id-rsa.json",
     "ci-pool-a-l2-imds-http-error.json",
+    "ci-pool-a-l2-interop-empty-executable.json",
+    "ci-pool-a-l2-interop-executable-not-exe.json",
+    "ci-pool-a-l2-interop-exit-124.json",
+    "ci-pool-a-l2-interop-exit-127.json",
+    "ci-pool-a-l2-interop-exit-137.json",
+    "ci-pool-a-l2-interop-inner-zero.json",
+    "ci-pool-a-l2-interop-launch-outcome.json",
+    "ci-pool-a-l2-interop-none-inner-zero.json",
+    "ci-pool-a-l2-interop-null.json",
+    "ci-pool-a-l2-interop-outcome.json",
+    "ci-pool-a-l2-interop-outer-executable-not-exe.json",
+    "ci-pool-a-l2-interop-outer-nonzero.json",
+    "ci-pool-a-l2-interop-presence-nonzero.json",
+    "ci-pool-a-l2-interop-relative-executable.json",
+    "ci-pool-a-l2-interop-valid.json",
     "ci-pool-a-l2-invalid-tld.json",
     "ci-pool-a-l2-invented-env-token.json",
     "ci-pool-a-l2-invented-home-user.json",
@@ -1037,6 +1223,8 @@
     "ci-pool-a-l2-metadata-route-boundary.json",
     "ci-pool-a-l2-metadata-route.json",
     "ci-pool-a-l2-metadata-scheme.json",
+    "ci-pool-a-l2-mnt-host-expanded.json",
+    "ci-pool-a-l2-mnt-workspace.json",
     "ci-pool-a-l2-multi-host-private.json",
     "ci-pool-a-l2-multi-host.json",
     "ci-pool-a-l2-nat64-local.json",

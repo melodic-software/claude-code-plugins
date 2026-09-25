@@ -3,21 +3,25 @@
 Live-validation probe shapes the guardrail slice runs inside a candidate isolation boundary
 before binding it. `<...>` placeholders resolve from the detected substrate at wire time; no
 org, fleet, or vendor value is baked in. Substrate/tool names appear only as marked examples.
-Every recipe runs the same three assertions the [isolation-ladder leaf](../../../reference/guardrails/isolation-ladder.md)
+Every recipe runs the same three core assertions the [isolation-ladder leaf](../../../reference/guardrails/isolation-ladder.md)
 requires of an `L2` boundary, denied egress, absent host credentials, and contained workspace
-host-writes, and all three must fail for the boundary to bind. A probe that any assertion passes
-(data flowed from the origin, a credential was readable, an inner write reached the host) proves the
-boundary is not `L2`; the binding does not land.
+host-writes, and all three must fail for the boundary to bind. Where WSL2 interop applies (the level
+binding ratifies `host_interop: "wsl2"`), a fourth assertion, the interop launch check, must fail
+too. A probe that any assertion passes (data flowed from the origin, a credential was readable, an
+inner write reached the host, a Windows binary launched) proves the boundary is not `L2`; the
+binding does not land.
 
 ## Assertions (all substrate classes)
 
-Three checks, run inside the boundary, all expected to FAIL:
+Three checks, plus a fourth where WSL2 interop applies, run inside the boundary, all expected to
+FAIL:
 
 | Assertion | Runs | Expected result |
 |---|---|---|
 | Denied egress | a TLS fetch of two `<well-known-external-host>` targets under different operators, plus every destination the level binding ratifies as component-reachable | no origin peer answered: non-zero exit, and no in-boundary peer identity matching the outer context's |
 | Absent host credentials | a read of `<host-credential-path>` | file absent, or read denied: non-zero exit |
 | Contained workspace host-writes | randomized canary writes into the workspace mount, re-checked on the host after teardown | every canary still absent on the host, and the VCS control-plane digest unchanged |
+| Denied interop launch (WSL2 only) | a launch of a present Windows executable by absolute path | the outer launch succeeds and the inner launch is denied: non-zero exit |
 
 **Why the egress assertion tests peer identity, not reachability.** Two boundary behaviors defeat an
 exit-code test. A raw TCP `connect()` succeeds
@@ -207,9 +211,43 @@ verified.
 only. It does not measure read exposure, and a clone-mode workspace leaves reads fully open, so
 exfiltration of workspace contents is unaffected by a passing result.
 
+## Interop launch probe shape
+
+Runs where the level binding ratifies `host_interop: "wsl2"`. WSL hands a launch of a Windows binary
+to the Windows host, outside every WSL2 boundary (the record is in
+[`windows-surfaces.md`](../context/windows-surfaces.md)), so the boundary must deny that launch.
+Which filter is installed is not the evidence; the paired outcomes are:
+
+```sh
+# outer context: the launch must succeed, the control; record exit as outer_exit_code
+<outer-windows-executable> <harmless-args> ; test $? -eq 0 || fail "the outer launch failed; an inner failure could not be told apart from an executable that fails everywhere"
+# inner: the executable must be present and executable; record exit as presence_exit_code
+test -x <windows-executable> ; test $? -eq 0 || fail "<windows-executable> is not present inside the boundary; a failed launch of a missing file is no evidence"
+# inner: the launch must be denied; record exit as exit_code
+<windows-executable> <harmless-args> ; test $? -ne 0 || fail "a Windows binary launched from inside the boundary and ran on the Windows host"
+```
+
+`<windows-executable>` is an absolute POSIX path whose basename ends `.exe` (marked example:
+`/mnt/c/Windows/System32/cmd.exe /c ver`). Where the boundary has no Windows drive mount, as in most
+containers, copy a harmless Windows executable into the boundary and launch that copy:
+`outer_executable` then names the original and `executable` the copy; where the drive mount is
+shared, the two are equal.
+
+The inner exit code must be non-zero, and three non-zero codes are not a denial: `127` is the
+shell's command-not-found status, which contradicts the presence check, and `124` or `137` is a
+timeout or a kill, and a hung launch is not a denial. A `126` is accepted: with interop disabled
+the kernel refuses the Windows binary format and the shell reports `126`, which is a genuine denial
+once presence and execute permission are proven. Record `launch_outcome` as `launch-denied`; a
+missing file has no passing token.
+
+A recorded interop assertion is validated whatever `host_interop` says, so a recorded launch success
+is never ignored. A binding that ratifies `host_interop: "none"` whose own capture reached a Windows
+drive mount (a `host_expanded` or `workspace_host_path` under `/mnt/<letter>/`) stays unproven: the
+surface is WSL2-hosted, and capture evidence may only tighten the verdict.
+
 ## Per-substrate-class wrapping
 
-The three assertions are constant; only the wrapper that launches them inside the boundary changes
+The assertions are constant; only the wrapper that launches them inside the boundary changes
 per substrate class. Each wrapper passes no host environment and no host secrets into the
 boundary, and each keeps the outer context normally networked so a passing assertion means the
 inner boundary, and not a broken outer environment, denied egress.
@@ -231,7 +269,8 @@ inner boundary, and not a broken outer environment, denied egress.
 ## Transcript capture shape
 
 Capture the run as the `probe_evidence` the level binding records, enough for a reviewer to
-confirm all three assertions failed inside a boundary the run itself created:
+confirm every assertion (three, or four where WSL2 interop applies) failed inside a boundary the
+run itself created:
 
 ```json
 {
@@ -244,7 +283,8 @@ confirm all three assertions failed inside a boundary the run itself created:
   "assertions": {
     "egress_denied": { "host": "<well-known-external-host>,<second-target-different-operator>", "exit_code": "<non-zero>,<non-zero>", "outer_exit_code": "0,0", "transport_outcome": "<dns-unresolved|connect-failed|tls-failed|peer-substituted>,<...>", "outer_peer_fingerprint": "<fingerprint|none>,<...>", "inner_peer_fingerprint": "<fingerprint|none>,<...>", "client_ready": "0", "address_families": "<ipv4|ipv6>,<...>", "outcome": "denied" },
     "credentials_absent": { "path": "<host-credential-path>", "host_expanded": "<host-expanded-path>", "exit_code": "<non-zero>", "outer_exit_code": "0", "transport_outcome": "<read-denied|connect-failed>", "outcome": "absent-or-denied" },
-    "workspace_host_write_contained": { "workspace_host_path": "<workspace-host-path>", "canaries": "<randomized-file>,<randomized-dotfile>,.git/<randomized>", "inner_exit_code": "<any>,<any>,<any>", "host_pre_absent": "0,0,0", "host_post_absent": "0,0,0", "git_config_digest_pre": "<digest|absent>", "git_config_digest_post": "<digest|absent>", "checked_after_teardown": true, "outcome": "contained" }
+    "workspace_host_write_contained": { "workspace_host_path": "<workspace-host-path>", "canaries": "<randomized-file>,<randomized-dotfile>,.git/<randomized>", "inner_exit_code": "<any>,<any>,<any>", "host_pre_absent": "0,0,0", "host_post_absent": "0,0,0", "git_config_digest_pre": "<digest|absent>", "git_config_digest_post": "<digest|absent>", "checked_after_teardown": true, "outcome": "contained" },
+    "interop_launch_denied": { "executable": "<windows-executable>", "outer_executable": "<outer-windows-executable>", "outer_exit_code": "0", "presence_exit_code": "0", "exit_code": "<non-zero, not 124|127|137>", "launch_outcome": "launch-denied", "outcome": "denied" }
   },
   "outer_context_networked": true
 }
@@ -259,6 +299,9 @@ and `outer_exit_code` pairs the same way and must be all-`"0"`: the outer contex
 very target the inner probe failed against.
 `credentials_absent.outer_exit_code` is its credential-side mirror, also all-`"0"`: the outer
 context proved the very target the inner read failed against exists on the host.
+`interop_launch_denied` is required where the level binding ratifies `host_interop: "wsl2"` and is
+omitted elsewhere; the level binding states `host_interop` for every `L2`/`L3` entry, and an entry
+without it stays unproven.
 
 The captured transcript is referenced from the level binding's `probe_evidence` field; the
 security-binding check treats a level binding without it as invalid. The level binding also

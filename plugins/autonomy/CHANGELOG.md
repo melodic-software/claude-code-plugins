@@ -3,6 +3,36 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-09-25
+
+### Added
+
+- The security-binding level entry gains `host_interop` (`"none"` or `"wsl2"`), the human-ratified
+  statement of whether the surface's host can launch host binaries from inside the boundary. With
+  `"wsl2"`, `check-security-binding.mjs` requires the probe transcript's fourth assertion,
+  `interop_launch_denied`: a present Windows executable (`test -x` succeeded) whose launch
+  succeeded in the outer context and was denied inside, with an inner exit code that is non-zero
+  and not `127`, `124`, or `137`. A recorded interop assertion is validated whatever the binding
+  ratifies, and a `"none"` binding whose capture reached a Windows drive mount (`/mnt/<letter>/`)
+  stays unproven. The WSL2 interop launch check is now checker-enforced instead of confirmed by the
+  reviewing human.
+- The level entry gains `base_egress_allowlist`, an informational record of the base egress
+  allowlist. The checker checks only its shape: it is never merged into
+  `component_reachable_hosts`, never counts as probe coverage, and is never proof that other
+  traffic is denied.
+
+### Changed
+
+- Every existing `L2`/`L3` level binding goes UNPROVEN until it declares `host_interop`, the same
+  fail-closed rule an absent `component_reachable_hosts` follows. Under `autonomous-enabled` that is
+  a finding; add `"host_interop": "none"`, or `"wsl2"` with a re-probed transcript, on the
+  agent-unwritable binding.
+- `templates/isolation-probe.md` documents the interop launch probe shape and the capture field;
+  `context/windows-surfaces.md` and `context/guardrail-slice.md` describe the enforced check and
+  both new fields.
+- Still confirmed by the reviewing human, not the checker: the per-run ephemerality of an `L3`
+  microVM, its `--static-mcp` tool-server mode, and the SSH agent forwarding condition.
+
 ## [0.23.24] - 2026-09-25
 
 ### Changed

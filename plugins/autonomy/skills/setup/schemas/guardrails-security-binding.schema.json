@@ -186,13 +186,22 @@
           "description": "The HUMAN-RATIFIED substrate-class assertion the eligibility decision keys off, living here on the agent-unwritable surface — never resolved from the probe transcript, whose recorded class is capture evidence the executing agent could doctor and must EQUAL this value to verify. An L3 entry ratifying a class outside the kernel-separated pair (vm-microvm, hosted-ephemeral-executor) is an invalid binding, fail-closed.",
           "enum": ["container", "os-sandbox", "vm-microvm", "hosted-ephemeral-executor"]
         },
+        "host_interop": {
+          "description": "The HUMAN-RATIFIED statement of whether the surface's host can launch host binaries from inside the boundary, living here on the agent-unwritable surface because no capture can establish it. \"wsl2\": the surface is WSL2-hosted, so an L2/L3 probe transcript verifies only when it records the interop launch check (assertions.interop_launch_denied: a present Windows executable whose launch succeeds in the outer context and is denied inside). \"none\": no host interop applies; a transcript whose credential expansion or workspace host path sits under a Windows drive mount (/mnt/<letter>/) then leaves the level UNPROVEN, since capture evidence may only tighten the verdict. An ABSENT field leaves an L2/L3 level UNPROVEN and excluded from isolation eligibility, fail-closed.",
+          "enum": ["none", "wsl2"]
+        },
         "component_reachable_hosts": {
           "description": "The HUMAN-RATIFIED set of external destinations this surface's installed components may request — an outer-world fact no capture can establish, so it lives here on the agent-unwritable surface rather than in the transcript. An L2/L3 probe transcript verifies only when its probed egress targets cover this set in FULL: each ratified destination is a separate policy decision, so covering one says nothing about the rest. The EMPTY list is the explicit claim that this surface installs nothing carrying policy rules of its own; an ABSENT field leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed.",
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         },
+        "base_egress_allowlist": {
+          "description": "Informational record of the destinations the surface's base egress policy allows, shown to the reviewing human. Shape-checked only: it is never merged into component_reachable_hosts, never counts as probe coverage of a ratified destination, and is never read as proof that other traffic is denied. The empty array is allowed.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "probe_evidence": {
-          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY (capture shape with all three assertions — denied egress proven by peer identity, absent host credentials, contained workspace host-writes — and a networked outer context) — under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed. A transcript captured before the workspace assertion existed does not verify: the level goes UNPROVEN and the surface re-probes. The transcript must additionally cover every ratified component_reachable_hosts destination.",
+          "description": "Reference to the live-validation probe transcript that proved this boundary; a binding without probe evidence is invalid. For L2/L3 the referenced transcript must VERIFY: the capture shape with the three core assertions (denied egress proven by peer identity, absent host credentials, contained workspace host-writes), a fourth, the interop launch denial, where host_interop is \"wsl2\", and a networked outer context. Under autonomous-enabled an unverifiable transcript leaves the level UNPROVEN and excluded from isolation eligibility, fail-closed. A transcript captured before the workspace assertion existed does not verify: the level goes UNPROVEN and the surface re-probes. The transcript must additionally cover every ratified component_reachable_hosts destination, and a recorded interop assertion is validated whatever host_interop ratifies.",
           "type": "string",
           "minLength": 1
         },

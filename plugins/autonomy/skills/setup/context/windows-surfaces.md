@@ -91,11 +91,12 @@ blocked. The inner run first proves the executable is present inside the boundar
 that succeeds, recorded); where the boundary has no Windows drive mount, as in most containers,
 copy a harmless Windows executable into the boundary and launch that copy. An inner failure that
 reports a missing file is no evidence; only a denied launch of a present executable counts. Which
-filter is installed is not the evidence; the paired outcomes are. Record both commands, exit
-codes, and outputs beside the probe transcript as review evidence in the prepared change, not
-inside `assertions`. The checker does not parse them, so the reviewing human confirms them, and a
-WSL2 `L2` binding with no such record, or with an inner launch that succeeded, is unbound and
-blocked at step 6.
+filter is installed is not the evidence; the paired outcomes are. The level binding ratifies
+`host_interop: "wsl2"` for a WSL2 surface, and the transcript records the check as the fourth
+assertion, `interop_launch_denied` (shape in [`isolation-probe.md`](../templates/isolation-probe.md)).
+The checker enforces it: a WSL2 `L2` or `L3` binding whose transcript lacks the assertion, or
+records an inner launch that succeeded, stays unproven and is blocked at step 6. A binding that
+ratifies `host_interop: "none"` while its capture reached a Windows drive mount stays unproven too.
 
 WSL2 probes also look through the Windows drive mount (the automount record above). Credential
 probes and `--credential-roots` include the Windows profile paths the distribution reaches there
@@ -171,9 +172,10 @@ change for the human to ratify. *Basis:* Docker's
 page (Credential isolation), read as markdown. *Verified:* 2026-09-24. *Recheck trigger:* a
 read-time fetch of that section that no longer matches this record.
 
-The remaining allowlist is shown in the prepared change for the human. It is not
-`component_reachable_hosts`: that field lists destinations the probe must show denied, and the
-security binding has no field for a base allowlist.
+The remaining allowlist is shown in the prepared change for the human and recorded on the level
+binding as `base_egress_allowlist`, an informational field. It is never merged into
+`component_reachable_hosts`, which lists destinations the probe must show denied, and it is never
+proof that other traffic is denied: the checker checks its shape and reads nothing else from it.
 
 *Claim:* tool servers registered on its MCP gateway run on the host: a local stdio command runs as
 a host process, and an OCI-packaged stdio server runs on the host with host Docker isolation, not
