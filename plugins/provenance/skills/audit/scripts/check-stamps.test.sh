@@ -190,12 +190,7 @@ assert_eq "parsed counts every ISO stamp" \
 # --- Window edge -----------------------------------------------------------------
 #
 # The keyword window is a distance from the keyword, not a cut through the text:
-# a date that STARTS inside it has to be read whole. Slicing at exactly the
-# window truncated "As-of 2026-02-28" to "2026-02-", the ISO test failed on the
-# fragment, and the bare-year fallback then claimed the "2026" left behind. The
-# stamp was declined instead of parsed, so its expiry was never checked — the
-# failure this script exists to catch, reported as a decline reason. Found at
-# docs/upstream/aihero-course.md:127 in the 2026-08-28 corpus sweep.
+# a date that STARTS inside it has to be read whole.
 
 OUT="$(run "$DIR/window-edge.md" 2>/dev/null)"
 assert_eq "an ISO date straddling the window end is parsed, not declined" \
@@ -211,17 +206,8 @@ assert_eq "a date starting past the window is still not a candidate" \
 
 # --- The modal "may" -------------------------------------------------------------
 #
-# "may" is a month name and an ordinary English modal verb. Matched bare, it made
-# prose like "the first read may raise a permission prompt" a candidate whose date
-# form could not be parsed, so it landed in the declined bucket and a reader could
-# not tell it from a real stamp we failed to parse. 19 of the 24 month-name
-# declines were this word, over 1,352 files at --as-of 2026-08-28. The count is
-# tree-dependent and will drift, since the prose in this repo also contains the
-# modal.
-#
-# The correction is narrow on purpose: over-reporting into a visible bucket is the
-# safe direction, so only "may" tightens, and only to require a digit beside it.
-# A real "May 2026" stamp still has to be a candidate, which lines 4 and 5 pin.
+# "may" is a month name and an ordinary English modal verb. Only "may" tightens:
+# over-reporting into a visible bucket is the safe direction.
 
 {
   echo '# Modal may'                                             # 1
@@ -250,26 +236,8 @@ assert_eq "no May line becomes a finding" \
 
 # --- A May date with no digit beside it ------------------------------------------
 #
-# Requiring a digit beside "may" kept the modal out, and took a real stamp form
-# with it: "Verified this May" carries no digit, so it stopped being a candidate
-# and vanished from the declined bucket a human reads. That is the one direction
-# this detector must not move in. "Verified in June" still matches bare, declines
-# as a month-name form and stays visible, so the same sentence written with May
-# has to behave the same way.
-#
 # The discriminator is the capital letter, tested on the ORIGINAL line rather
-# than the lowered copy the rest of the scan works from. In edited prose the
-# month is capitalized and the modal is not. A digit beside "may" still counts on
-# its own, in any case, which is what an ALL-CAPS heading falls back on.
-#
-# Two consequences are pinned below rather than left to be rediscovered:
-# a capitalized modal opening a sentence or a table cell ("May the build stay
-# green") reads as a month and over-reports into the visible bucket, which is the
-# safe direction; and an ALL-CAPS "MAY" is unreadable by case, so a digitless
-# ALL-CAPS May date stays invisible. Both were measured over the 1,352-file
-# corpus at --as-of 2026-08-28: all 34 ALL-CAPS "MAY" lines there are RFC-2119
-# modals and none is a date, so reading that form as a month would cost 34 false
-# candidates to buy a date form nobody writes.
+# than the lowered copy; a digit beside "may" still counts on its own, in any case.
 
 {
   echo '# Digitless May'                                    # 1
@@ -308,9 +276,6 @@ assert_eq "five lines in the digitless fixture are candidates" \
 assert_eq "no digitless May line becomes a finding" \
   "$(echo "$OUT" | jq -r '.findings | length')" "0"
 
-# The same sentence with a bare month that carries no modal collision. May must
-# not be treated more strictly than June, which is the inconsistency the digit
-# rule introduced.
 {
   echo '# June'                                    # 1
   echo ''                                          # 2
@@ -324,15 +289,8 @@ assert_eq "a digitless May is treated exactly like a digitless June" \
 
 # --- A second May signal out in the window's slack --------------------------------
 #
-# may_form() reports TWO signals through one RSTART, and the caller reads that
-# RSTART to decide whether the match it accepted began inside the window. So the
-# function has to hand back the LEFTMOST of the two, or a signal the caller would
-# have rejected can hide one it would have taken: test the digit branch first and
-# return on it, and a digit-adjacent "may" out in the 9 characters of slack keeps
-# the caller from ever consulting the capital "May" sitting inside the window, so
-# the line stops being a candidate. A weaker second date signal REMOVING candidacy
-# is the one direction this detector must not move in. Trying the capital first
-# only mirrors that; leftmost is what avoids both.
+# may_form() reports TWO signals through one RSTART, so it has to hand back the
+# LEFTMOST, or a signal out in the slack hides a capital "May" inside the window.
 #
 # The offsets below are measured, not eyeballed. The keyword match ends at column
 # 9 of the line, so window offset = column - 8, wlen is 60 and the slice is
@@ -408,9 +366,7 @@ assert_contains "--show-config prints the trigger-less setting" "$OUT" "trigger_
 assert_contains "a value with no layer is attributed to the defaults" "$OUT" "bundled default"
 
 # The setup skill promises per-value provenance and tells the operator to read it
-# from here rather than parsing the JSON layers by hand. Listing the layers and
-# then the effective values separately does not deliver that: with two layers
-# present, nothing says which one supplied a given value.
+# from here rather than parsing the JSON layers by hand.
 printf '%s\n' '{"stamp_expiry_days": 45}' >"$CLAUDE_PROJECT_DIR/.claude/provenance.json"
 OUT="$(run --show-config 2>&1)"
 assert_contains "--show-config attributes a value to its supplying layer" \
