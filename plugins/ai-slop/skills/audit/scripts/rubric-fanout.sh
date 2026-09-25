@@ -191,7 +191,7 @@ cmd_plan() {
       [[ -n "${absdir[$dir]}" ]] && ap="${absdir[$dir]}/${ap##*/}"
       ;;
     esac
-    [[ -r "$ap" ]] || echo "$ME: plan: sidecar path unreadable: $ap" >&2
+    [[ -f "$ap" && -r "$ap" ]] || echo "$ME: plan: sidecar path unreadable: $ap" >&2
     cur_p+="$ap"$'\n'
     cur+="${keys[$i]}"$'\n'
     cur_w=$((cur_w + w))
@@ -269,7 +269,7 @@ status_rows() {
       bad=0
       [[ "${#SIDECAR[@]}" == "$n" ]] || bad=1
       for p in ${SIDECAR[@]+"${SIDECAR[@]}"}; do
-        [[ -r "$p" ]] || bad=1
+        [[ -f "$p" && -r "$p" ]] || bad=1
       done
       if [[ "$bad" == 1 ]]; then
         echo "batch=$nn status=stale reason=paths digest=$d"

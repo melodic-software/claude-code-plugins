@@ -86,7 +86,7 @@ per batch:
   dispatch the batch again with that row's `digest=` value and let the subagent overwrite the
   file. A header line written more than once is stale under that header's reason (`digest`
   for `batch:`). `reason=paths` means the `.paths` sidecar's length differs from the list's or
-  one of its paths cannot be read (a moved checkout, a deleted file); re-plan into a fresh
+  one of its paths is not a readable file (a moved checkout, a deleted file); re-plan into a fresh
   directory rather than dispatching.
 
 A terminated subagent therefore costs one batch, a rerun after a limit resets dispatches only

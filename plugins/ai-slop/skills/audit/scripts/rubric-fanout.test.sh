@@ -21,7 +21,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=72
+EXPECTED_CASES=73
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -332,6 +332,19 @@ assert_contains "sidecar: a relocated tree is stale reason=paths" "$out" "batch=
 printf 'edited\n' >>"$RL/B/docs/x.md"
 out="$(bash "$FANOUT" status --batches "$RL/batches" --results "$RL/results" 2>&1)"
 assert_contains "sidecar: and stays stale after an edit in the new tree" "$out" "batch=01 status=stale reason=paths digest="
+
+# A directory where a listed file stood is not a readable file.
+DR="$TEST_TMPDIR/dirpath"
+mkdir -p "$DR/docs" "$DR/results"
+printf 'one\n' >"$DR/docs/x.md"
+printf 'x.md\t%s\n' "$DR/docs/x.md" >"$DR/targets.tsv"
+bash "$FANOUT" plan --out "$DR/batches" --order mtime "$DR/targets.tsv" >/dev/null 2>&1
+mv "$DR/docs/x.md" "$DR/x.md.moved"
+mkdir "$DR/docs/x.md"
+out="$(bash "$FANOUT" status --batches "$DR/batches" --results "$DR/results" 2>&1)"
+printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$(digest_of "$out" 01)" >"$DR/results/rubric-batch-01.md"
+out="$(bash "$FANOUT" status --batches "$DR/batches" --results "$DR/results" 2>&1)"
+assert_contains "sidecar: a directory at a listed path is stale reason=paths" "$out" "batch=01 status=stale reason=paths digest="
 
 # A sidecar rewritten with CRLF endings resolves to the same paths.
 CL="$TEST_TMPDIR/crlf"

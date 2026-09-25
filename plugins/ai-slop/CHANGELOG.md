@@ -10,7 +10,7 @@
   and the batch digest now covers the list plus those files' contents.
 - **`rubric-fanout.sh status`** ends every missing and stale row with `digest=<current
   digest>`, which a re-dispatch hands the batch subagent, and reports `stale reason=paths`
-  when a sidecar's length differs from its list's or one of its paths cannot be read (a
+  when a sidecar's length differs from its list's or one of its paths is not a readable file (a
   trailing CR on a sidecar line is ignored). Complete rows are unchanged.
 
 ### Changed
