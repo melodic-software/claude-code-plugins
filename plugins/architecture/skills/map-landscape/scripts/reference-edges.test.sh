@@ -170,6 +170,8 @@ Sponsor us at <https://github.com/sponsors/fixture-owner>.
 A usage example: `git clone https://github.com/owner/repo.git`.
 
 An unrelated third party's bare token, other-org/their-thing, is not a link.
+
+An uploaded screenshot: <https://github.com/user-attachments/assets/deadbeef>.
 MD
 commit_repo "$docs_repo"
 out="$(bash "$SCRIPT" "$docs_repo")"
@@ -181,6 +183,7 @@ assert_not_contains "cites: a docs.github.com path is not an owner" "$out" '"to"
 assert_not_contains "cites: a sponsors URL is not a repository" "$out" '"to":"sponsors/'
 assert_not_contains "cites: a documentation placeholder is not a repository" "$out" '"to":"owner/repo"'
 assert_not_contains "cites: a bare token from another owner is not trusted" "$out" 'other-org/their-thing'
+assert_not_contains "cites: a user-attachments URL is not a repository" "$out" '"to":"user-attachments/'
 
 # --- Case group 5: fixtures and self-references -----------------------------
 noise_repo="$(make_repo charted)"
