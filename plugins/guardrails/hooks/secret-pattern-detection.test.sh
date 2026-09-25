@@ -755,7 +755,7 @@ assert_exit "MCP: disabled guard allows the write" 0 "$RC"
 # project root is known and outside that tree. A Write of the same content to
 # the same path declines here under the same gate, so the two routes agree.
 #
-# Every rc 2 case below is the rc 0 payload (D1_ROOT + D1_TARGET) with ONE input
+# Every spelling case below is the rc 0 payload (D1_ROOT + D1_TARGET) with ONE input
 # changed, so the refusal it pins is the only reason it scans.
 #
 # On a Windows host the Write tool is Node, which resolves `/tmp/x` and `/c/x`

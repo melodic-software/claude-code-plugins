@@ -16,8 +16,8 @@
 # Consumer seams: scoped to $CLAUDE_PROJECT_DIR (files outside it are another
 # repo's concern) only when that root is a git work tree that is not home or an
 # ancestor of home; any other root scans every write, as if unset. A file under
-# a host temp tree is declined when a set root lies outside that tree, at the
-# width of block-hook-bypass's temp default (see spd_temp_declines). A generic
+# a host temp tree is declined when a set root lies outside that tree, no wider
+# than block-hook-bypass's temp default (see spd_temp_declines). A generic
 # allowlist exempts dependency caches, .env examples, test fixtures, and
 # machine-local CC state. Disable entirely with the
 # secret_pattern_detection_enabled userConfig option set to false.
@@ -312,9 +312,9 @@ ALLOW_FILE="${FILE//\\//}"
 #     checkout on the machine. The ancestors walked are those of home as
 #     spelled, not of a symlinked home's resolved target.
 # Every test is a builtin, so the check stays fork-free.
-# A cleared root still gates the temp-tree decline below the allowlist, which
-# reads CLAUDE_PROJECT_DIR as set: a home or non-git root outside temp declines a
-# temp-tree file, as block-hook-bypass exempts the same redirect.
+# The temp-tree decline below reads CLAUDE_PROJECT_DIR directly, so a root
+# cleared here (home, non-git) still declines a temp-tree file outside it,
+# as block-hook-bypass exempts the same redirect.
 spd_scope_root="${CLAUDE_PROJECT_DIR:-}"
 spd_scope_root="${spd_scope_root//\\//}"
 PROJECT_DIR=""
@@ -380,11 +380,9 @@ fi
 #   - CC skill context/completed: research notes; code review is the backstop
 secret_path_allowlisted "$ALLOW_FILE" && exit 0
 
-# --- Temp-tree decline, at the width of block-hook-bypass's temp default ---
+# --- Temp-tree decline, no wider than block-hook-bypass's temp default ---
 # block-hook-bypass exempts a Bash redirect into a host temp tree when the
-# project root is known and outside that tree. Without the same decline here a
-# Write of a secret to that path blocked while the redirect passed. The gate
-# below is never wider than that exemption: root set, spelled as its _norm_path
+# project root is known and outside that tree. The gate below is never wider than that exemption: root set, spelled as its _norm_path
 # accepts, and under temp neither lexically nor physically; target under temp
 # both as spelled and once its nearest existing ancestor is physically resolved,
 # so a link under temp pointing elsewhere is still scanned. Everything up to
@@ -463,7 +461,7 @@ spd_temp_declines() {
   *) ;; # a normalized spelling
   esac
   # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a
-  # temp candidate's spelling. It may over-match (costing one resolver process)
+  # temp candidate's spelling. It may over-match (costing resolver processes)
   # and never decides alone.
   hook::_temp_root_candidates
   shopt -q nocasematch && nocase=1
