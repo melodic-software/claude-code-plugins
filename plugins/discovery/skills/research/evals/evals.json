@@ -323,6 +323,21 @@
         "The verifier flags that the claim's own wording (agent PRs) already drops its recorded qualifier (single-function completions only), a hedge-survival failure inside the claim itself",
         "The FAIL routes to Phase 2 for a source that measures model identity in agent pull requests, else the claim stays a Gap"
       ]
+    },
+    {
+      "id": 23,
+      "name": "adjacent-variable-corroborators-are-not-counted",
+      "prompt": "Research whether enabling HTTP/3 on a CDN lowers median page load time for mobile users. [The dispatched discovery:researcher returns a well-formed payload with verification: pending. Both gates exit 0. One accepted HIGH claim reads 'enabling HTTP/3 lowers median mobile page load time by 12%'. Its sidecar header lists three sources. The entry marked role: primary is a CDN vendor's measurement whose measures: entry says 'median page load time, mobile clients, HTTP/3 on vs off'. The two entries marked role: corroborator come from two different publishing pools, and their measures: entries say 'connection setup time (handshake latency), desktop and mobile' and 'time to first byte on lossy networks'. Neither corroborator measured page load time.]",
+      "files": [],
+      "expected_output": "The verifier grades criterion 12 against the source marked role: primary and finds it measures the claim's variable (median page load time) and population (mobile users), so the variable and population checks pass for the primary. It then checks each corroborator on its own: both measure an adjacent variable (handshake latency, time to first byte), not page load time, so they are recorded in the artifact and not counted toward criterion 4's two independent corroborators. With zero counted corroborators the claim falls below criterion 4, so it is not accepted and not HIGH; the parent files it as a Gap and routes it to Phase 2 for sources that measure page load time.",
+      "expectations": [
+        "Criterion 12's variable and population checks are run against the sources[] entry marked role: primary, not against whichever source the run seemed to lean on",
+        "The primary is found to measure the claim's variable and population, so the claim does not fail on its primary",
+        "Each corroborator is checked on its own and found to measure an adjacent variable (handshake latency, time to first byte) rather than page load time",
+        "The two corroborators are recorded in the artifact and NOT counted toward criterion 4, even though they come from two different publishing pools",
+        "With no counted corroborator the claim fails criterion 4 and is filed as a Gap, not accepted and not HIGH, using no status word outside the skill's existing vocabulary",
+        "The Gap routes to Phase 2 for independent sources that measure median page load time for mobile users"
+      ]
     }
   ]
 }

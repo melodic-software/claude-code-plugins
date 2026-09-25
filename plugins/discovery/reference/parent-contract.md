@@ -43,8 +43,18 @@ Reason: <the decision this feeds, and who the output is for>
 Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
 Memory root: <memory_dir>
 Budget: <the depth this session authorized>
+Turn budget: <turns of gathering before the agent writes and hands back; below its maxTurns>
 Capability flags: nested spawning <available|unavailable>
 ```
+
+**The Budget field is carried on two lines.** `Budget:` states depth in words; `Turn budget:`
+states the turn by which the agent stops gathering, in the same unit as its `maxTurns` (assistant
+turns, where one turn may hold several parallel tool calls). The second line exists because a
+free-text budget such as "thorough single pass" bounded nothing: dispatched runs stopped at the
+40-turn limit with nothing written, while runs whose envelope named a turn to stop gathering and
+write finished inside it. It can only move the agent's stop turn earlier than the default its
+own definition names, never later. It is degradable: an agent that does not receive it stops
+gathering at that default.
 
 **Research adds one more labeled line**, because source breadth is the caller's level and
 the researcher lane is pinned `high` for reasoning:
@@ -444,20 +454,23 @@ slice. Both also usually leave a **live agent**. The order is:
 > discard-first reading would have re-dispatched a finished run at full cost.
 
 The harness supports this, verified against <https://code.claude.com/docs/en/sub-agents> (raw
-markdown, fetched 2026-08-11):
+markdown, fetched 2026-09-25):
 
+- "When the subagent reaches the limit, Claude Code returns its output marked as partial, and
+  Claude can resume it to continue. The partial marking requires Claude Code v2.1.246 or later".
 - "Resumed subagents retain their full conversation history, including all previous tool calls,
-  results, and reasoning. The subagent picks up exactly where it stopped rather than starting
+  results, and reasoning." and "The subagent picks up exactly where it stopped rather than starting
   fresh."
-- "A completed subagent that receives a `SendMessage` auto-resumes in the background without a new
-  `Agent` invocation."
+- "When Claude sends a completed subagent a message with the `SendMessage` tool, the subagent
+  resumes in the background without a new `Agent` invocation."
 - "When a subagent completes, Claude receives its agent ID". Address it by ID, not by name.
 
 **The discard is what happens next, not instead.** Discard the partial slice, clearing it or
 assigning a fresh sub-slice, when the resume is refused, is unavailable, or comes back without a
 usable payload. It stays mandatory there: a half-marked coverage ledger cannot be told apart from a
-complete one by the coverage script, and a half-written artifact set cannot be told apart from a
-complete one by reading it.
+complete one by the coverage script. An index still marked `Run status: in progress` is refused by
+the acceptance gate, so that partial slice is visible; one with no status line, from an inline or
+older run, still cannot be told apart from a complete one by reading it.
 
 **`truncated` still means the turn-budget stop**, and nothing here widens it. That is the invariant
 the `persistence:` axis was built around: a run that finished its work and could not save it is

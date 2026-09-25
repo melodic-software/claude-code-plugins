@@ -172,9 +172,10 @@ for the pointer, and still dispatch the sibling verifier. If the payload comes b
 write, you are on the by-value rung above, not this one.
 
 **A refused resume, or exit 1 again after one.** *Now* discard the slice and re-dispatch with the
-same envelope. A half-written artifact set cannot be told apart from a complete one by reading it,
-so once the resume has failed there is nothing left that could tell you whether the slice is worth
-keeping. **The discard follows the resume; it does not replace it**, including for a
+same envelope. An index still marked `Run status: in progress` is refused by the gate, so that
+partial slice announces itself; one with no status line cannot be told apart from a complete one by
+reading it. Either way, once the resume has failed there is nothing left that could tell you whether
+the slice is worth keeping. **The discard follows the resume; it does not replace it**, including for a
 `status: truncated` return and for a dispatch that returned no payload at all, which are the two
 cases that most often leave a live agent holding a complete artifact set. The ordering is stated
 once in
@@ -213,7 +214,17 @@ Verified 2026-08-08 against <https://code.claude.com/docs/en/sub-agents> (the pa
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "The built-in Explore agent cannot hold this plugin's contract".
 
-The page documents no partial-return semantics for `maxTurns`, defining it only as "Maximum number
-of agentic turns before the subagent stops", which is why the agent writes `status: truncated` with
-a partial payload *before* its budget runs out rather than relying on the harness to say anything on
-its way down.
+What the harness returns at the turn limit:
+
+- **Claim.** A subagent that reaches `maxTurns` returns its output marked as partial, and the
+  parent can resume it. The page: "When the subagent reaches the limit, Claude Code returns its
+  output marked as partial, and Claude can resume it to continue. The partial marking requires
+  Claude Code v2.1.246 or later".
+- **Basis.** <https://code.claude.com/docs/en/sub-agents>, fetched 2026-09-25.
+- **As of.** 2026-09-25.
+- **Recheck trigger.** The page's `maxTurns` row or its "Resume subagents" section changes, or a
+  release note names turn-limit output or partial marking.
+
+A partial marking says the run stopped; it does not put an artifact on disk. That is why the agent
+writes its index skeleton early, marked `Run status: in progress`, and its sidecars as they settle,
+and still emits `status: truncated` with a partial payload before its budget runs out.

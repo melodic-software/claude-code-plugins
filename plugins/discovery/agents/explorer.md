@@ -42,7 +42,10 @@ inventory.
   while a missing reason is invisible. You explore the scope as written, return something
   well-formed, and neither side learns it answered the wrong question. Intent is what decides which
   of several defensible readings of a scope is the one wanted.
-- **The budget**: how much depth the parent authorized.
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+  `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
+  The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
+  reserve your last turns" below).
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
   one a parent can establish before dispatching. In particular **your own ability to write is not a
   flag**. The parent's pre-dispatch `mkdir`/baseline proves the *parent* can write there, not you.
@@ -117,6 +120,11 @@ You carry `Bash` and `Write`, and neither is read-only. This is the **read-only 
 phase**: run read-only Bash (`git log`, `git diff`, `git blame`, version probes) and do not run
 mutating Bash: no writes, moves, deletes, or installs, and no git-state changes.
 
+**A path you may not read stays unread.** A path denied to the `Read` tool, or barred by your
+dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
+includes projecting names or counts out of it rather than values. The denial is the answer. Record
+the gap in `open_questions`: what you did not read, and what barred it.
+
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
 ("The write boundary, stated once"): the artifact files inside the memory-slice path named in your
@@ -190,10 +198,34 @@ working directory when there is no repo root. The outcome gate checks this.
 **Any destination you had to assume rather than read from your dispatch prompt is flagged in your
 return summary**, not silently adopted.
 
+## Write early; reserve your last turns
+
+Your limit is `maxTurns: 40`, from this definition's frontmatter. A run that reaches it stops where
+it stands, and whatever is not on disk by then is invisible to the parent's gate. Count your own
+turns as you go: one assistant turn may hold several parallel tool calls, and it still counts once.
+Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
+turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
+
+Write the artifact as the work settles, not all at the end:
+
+1. As soon as the scope is resolved and preload is confirmed, write the `EXPLORE.md` skeleton into
+   the slice: the task restatement, the line `Run status: in progress` on a line of its own, and the
+   section table naming each sidecar you plan. If the slice root already holds an unrelated
+   `EXPLORE.md`, write nothing over it; the occupancy rule above applies.
+2. Write each `EXPLORE-<section>.md` sidecar as its section settles, and update its row in the
+   index.
+3. The final write, after the outcome gate below, replaces the marker line with
+   `Run status: complete`. Nothing earlier does. The parent's gate refuses an index still carrying
+   the marker, which is how a stop at the limit reaches the parent even when no payload does.
+
+A by-value `EXPLORE.md` body carries `Run status: complete`, because by-value means the work
+finished; the parent writes it and grades it like any other.
+
 ## Run the outcome gate BEFORE you write
 
 The skill's outcome gate is a binary self-check read off the artifact, not a "did I explore
-enough?" recap. Run it before the write, and fix any FAIL at the named dimension first. One
+enough?" recap. Run it before the final write that marks the index complete, and fix any FAIL at
+the named dimension first. One
 criterion is not yours to close: open questions are not "surfaced to the user" by you, because you
 cannot reach one. Carry them into the payload instead, each with a recommended default; the parent
 surfaces them.
@@ -248,11 +280,13 @@ If the scope reached you already carrying something that looks wrong, quote it a
 payload you have. A dispatch that returns no payload at all is read by the parent as
 truncated-without-warning, and the parent's ladder then **resumes you first and decides about the
 slice from what the resume returns**, so a payload you can still produce is worth more than one
-more read.
+more read. The disk carries the same signal without any payload: an index still marked
+`Run status: in progress` tells the parent's gate the run stopped short.
 
-**Do not rely on budgeting a turn at the end for it.** You cannot observe your own remaining turn
-budget, so "leave a turn spare" is a schedule against a limit you cannot see. Instead **emit the
-payload block early and keep it current**: as soon as the scope is resolved, write the block with
+**Emit the payload block early and keep it current, as a second channel.** Text you emit mid-run
+is not what the parent receives at a turn-limit stop in every version, which is why the disk marker
+comes first; the block is cheap and helps whenever it does arrive. As soon as the scope is
+resolved, write the block with
 `status: truncated`, `preload_token` echoed, `preload:` set, `scope_as_received` quoted, and the
 fields you do not have yet left as placeholders; then re-emit it, updated, whenever a section lands.
 A stop at any point after that leaves the parent a well-formed payload instead of silence. Setting

@@ -56,7 +56,10 @@ load-time machinery, no user turn, no unresolved scope.
   while a missing reason is invisible. You research the topic as written, return something
   well-formed, and neither side learns it answered the wrong question. Intent is what decides which
   of several defensible readings of a topic is the one wanted.
-- **The budget**: how much depth the parent authorized.
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+  `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
+  The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
+  reserve your last turns" below).
 - **Source breadth**: `low`, `medium`, `high`, `xhigh`, or `max`. This is the *caller's*
   effort, written by the parent. Your frontmatter pin is `high` so reasoning does not
   degrade; that pin is why a substituted effort in a preloaded skill body is not this
@@ -126,8 +129,14 @@ proceed, which is an `Edit`-shaped operation; denying it would force a full-file
 coverage ledger on every phase boundary. It is scoped by the same instruction as everything else.
 
 So: `Bash`, `Write` and `Edit` all write, and none of them is read-only. `Bash` is for the research
-itself: `gh api` against upstream repos, `curl` into the session scratch dir for artifacts too
-large to fetch in context, local extractors.
+itself: `gh` against upstream repos in the read-only `gh` forms the skill's `discipline.md` names
+("Read-only `gh` forms"), `curl` into the session scratch dir for artifacts too large to fetch in
+context, local extractors.
+
+**A path you may not read stays unread.** A path denied to the `Read` tool, or barred by your
+dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
+includes projecting names or counts out of it rather than values. The denial is the answer. Record
+the gap in `open_questions`: what you did not read, and what barred it.
 
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
@@ -191,9 +200,32 @@ handed that filename must get a readable document.
 into an artifact; every path you record is relative to the repo root, or to the working directory
 when there is no repo root.
 
+## Write early; reserve your last turns
+
+Your limit is `maxTurns: 40`, from this definition's frontmatter. A run that reaches it stops where
+it stands, and whatever is not on disk by then is invisible to the parent's gate. Count your own
+turns as you go: one assistant turn may hold several parallel tool calls, and it still counts once.
+Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
+turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
+
+Write the artifact as the work settles, not all at the end:
+
+1. As soon as the topic is resolved and preload is confirmed, write the `RESEARCH.md` skeleton into
+   the slice: the task restatement, the line `Run status: in progress` on a line of its own, and the
+   section table naming each sidecar you plan. `research-checklist.md` keeps the timing the skill
+   gives it, written in corpus enumeration before any query and marked as phases proceed.
+2. Write each `RESEARCH-<section>.md` sidecar as its section settles, and update its row in the
+   index.
+3. The final write, after the outcome gate below, replaces the marker line with
+   `Run status: complete`. Nothing earlier does. The parent's gate refuses an index still carrying
+   the marker, which is how a stop at the limit reaches the parent even when no payload does.
+
+A by-value `RESEARCH.md` body carries `Run status: complete`, because by-value means the work
+finished; the parent writes it and grades it like any other.
+
 ## The outcome gate is split: you do not grade all of it
 
-Run the skill's outcome gate against your own artifacts before writing. Three criteria are **not
+Run the skill's outcome gate against your own artifacts before the final write. Three criteria are **not
 yours to render a verdict on**, because grading them means judging the quality of your own
 choices, and you are the context that made them:
 
@@ -243,11 +275,14 @@ payload you have. A dispatch that returns no payload at all is read by the paren
 truncated-without-warning, and the parent's ladder then **resumes you first and decides about the
 slice from what the resume returns**, so a payload you can still produce is worth more than one more
 query. The slice is discarded only when that resume does not come back with one, because a
-half-marked ledger cannot be distinguished from a complete one by the coverage script alone.
+half-marked ledger cannot be distinguished from a complete one by the coverage script alone. The
+index carries the stop signal without any payload: one still marked `Run status: in progress` tells
+the parent's gate the run stopped short.
 
-**Do not rely on budgeting a turn at the end for it.** You cannot observe your own remaining turn
-budget, so "leave a turn spare" is a schedule against a limit you cannot see. Instead **emit the
-payload block early and keep it current**: as soon as the topic is resolved, write the block with
+**Emit the payload block early and keep it current, as a second channel.** Text you emit mid-run
+is not what the parent receives at a turn-limit stop in every version, which is why the disk marker
+comes first; the block is cheap and helps whenever it does arrive. As soon as the topic is
+resolved, write the block with
 `status: truncated`, `preload_token` echoed, `preload:` set, `topic_as_received` quoted, and the fields you do not
 have yet left as placeholders; then re-emit it, updated, at each phase boundary. A stop at any point
 after that leaves the parent a well-formed payload instead of silence.
