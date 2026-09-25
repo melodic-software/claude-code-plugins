@@ -62,11 +62,8 @@
 #
 # SURFACES, not just classes: this gate reads FILES IN THE REPO. A count written
 # anywhere else is class A -- derivable from the tree -- and still unguarded,
-# because nothing here can see it. A pull-request description is the case that
-# actually bit: the PR that introduced this gate carried a hand-written
-# version-and-assertion table in its body, and that table went stale within the
-# hour when a merge with main renumbered two plugins. A reviewer caught it. So
-# when prose describing the CURRENT repo lives on GitHub rather than on disk --
+# because nothing here can see it. A pull-request description is the usual
+# case. So when prose describing the CURRENT repo lives on GitHub rather than on disk --
 # a PR or issue body, a wiki page -- derive its counts at write time or expect
 # them to drift, and do not read a green gate as covering them.
 #

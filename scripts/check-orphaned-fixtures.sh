@@ -204,12 +204,9 @@ consumed() {
 }
 
 # Collect every fixture under a **/evals/fixtures/ directory, sorted. One find
-# of every plugin `*.test.*` indexes the test-file graders: consumed() used to
-# `find` the owning skill and then the plugin for each of ~380 fixtures
-# (253 find execs on this tree). Same leftover-process class #3488 removed
-# from the shell-portability scan (979s → 34s) — GNU find is a process;
-# Cygwin's fork is a non-copy-on-write Win32 CreateProcess (Cygwin User's
-# Guide, Process Creation).
+# of every plugin `*.test.*` indexes the test-file graders, rather than a find
+# per fixture: each find is a process, and Cygwin's fork is a non-copy-on-write
+# Win32 CreateProcess (Cygwin User's Guide, Process Creation).
 mapfile -t -d '' fixtures < <(find plugins -type f -path '*/evals/fixtures/*' -print0 2>/dev/null | sort -z)
 mapfile -t -d '' ALL_TEST_FILES < <(find plugins -type f -name '*.test.*' -print0 2>/dev/null)
 
