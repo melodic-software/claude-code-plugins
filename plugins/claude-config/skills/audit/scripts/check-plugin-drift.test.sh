@@ -259,6 +259,23 @@ assert_contains "case-7: no marketplaces note" "$out" "no marketplaces declared"
 assert_exit "case-7: exit 0" 0 "$exit_code"
 assert_contains "case-7: states a zero marketplace count" "$out" "Marketplaces declared in the audited file: 0"
 
+# --- Case 7b: extraKnownMarketplaces that is not an object is fatal ---------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+
+write_settings "$case_dir/settings.json" '{
+  "extraKnownMarketplaces": ["a", "b"],
+  "enabledPlugins": {}
+}'
+
+exit_code=0
+out=$(run_check "$case_dir") || exit_code=$?
+
+assert_exit "case-7b: array extraKnownMarketplaces exits 2" 2 "$exit_code"
+assert_contains "case-7b: names the unreadable key" "$out" "cannot read extraKnownMarketplaces"
+assert_not_contains "case-7b: never counts array indices as marketplaces" "$out" "Marketplaces declared in the audited file: 2"
+
 # --- Case 8: SETTINGS_AUDIT_OUTPUT_JSON writes structured findings ----------------
 
 CASE_NUM=$((CASE_NUM + 1))

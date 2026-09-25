@@ -13,7 +13,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   not `ok` is listed under `SKIPPED <n> marketplaces not audited:` with its key and reason (or
   "no reason given"), above the verdict or the plan, so a partly skipped run says what it did not
   compare. Every displayed entry prints control characters as `?`, so a name or reason from
-  upstream JSON cannot send escape sequences to the terminal; the edit still uses the raw keys.
+  upstream JSON cannot send escape sequences to the terminal; the edit still uses the raw keys. Only
+  the line-ending carriage return a native-Windows jq appends is stripped from each key, so a
+  carriage return inside a plugin name stays part of the key the edit writes or removes.
 - **`fix-plugin-drift.sh` refuses findings it cannot read.** Findings that are not exactly one
   array of objects (a top-level object, a string, a zero-byte file, `[1]`, or a second document
   after the first) exit 2, and so does any plan list jq fails to extract, naming the list, where a
@@ -34,13 +36,17 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   edit, the line-ending measurement and the backup all come from one snapshot of the settings file
   taken at plan time. After the backup is written and just before the replace, the live file is
   compared with that snapshot, and a difference exits 2 with the other writer's bytes left in place
-  and the backup this run just wrote removed. The window between
-  that compare and the replace is documented, not closed. The stage-equals-current refusal now
+  and the backup this run just wrote removed. The window between that compare and the replace is
+  documented, not closed. Anything already at the backup path (a file, a symlink including a
+  dangling one, a FIFO or a device node) is refused before the backup is opened, because bash
+  noclobber refuses only an existing regular file; the removal on a refused apply deletes only a
+  regular file this run created, never a link. The stage-equals-current refusal now
   compares the stage against the snapshot and is defensive only, since the filter leaves no entry
   that would not change the file.
 - **`check-plugin-drift.sh` states the basis of its audit.** Stdout carries
-  `Marketplaces declared in the audited file: <n>`, including 0, and a failure to read
-  `extraKnownMarketplaces` exits 2.
+  `Marketplaces declared in the audited file: <n>`, including 0, and an `extraKnownMarketplaces`
+  that cannot be read or is not an object (an array used to be audited as marketplaces named by
+  its indices) exits 2.
 - **Two in-place corrections to the released 0.46.12 entry.** Its "Four changes close it" sentence
   now counts five and names the stage-equals-current refusal it left out, and its claim that a
   read-only settings file "comes back read-only" is qualified to platforms that honor mode bits,

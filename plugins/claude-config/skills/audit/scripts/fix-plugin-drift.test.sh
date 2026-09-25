@@ -920,6 +920,92 @@ printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
 out=$(run_fix_dry "$case_dir") || true
 assert_contains "case-28: missing reason is named" "$out" "  - market4 (no reason given)"
 
+# --- Cases 29 and 30: a non-regular file at the backup path is never used --------
+
+# date_shim <dir> - a clock that always reads one stamp, so the backup name is
+# known in advance. With SHIM_SETTINGS set it also plays another writer and
+# rewrites that file when the clock is read, which is after the plan is fixed.
+date_shim() {
+  local dir="$1"
+  mkdir -p "$dir"
+  # shellcheck disable=SC2016  # the shim's own source: these must stay literal
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'if [[ -n "${SHIM_SETTINGS:-}" ]]; then\n'
+    printf '  printf %s "{\\"enabledPlugins\\":{\\"removed@market1\\":false,\\"other@market9\\":true}}" >"$SHIM_SETTINGS"\n' "'%s\n'"
+    printf 'fi\n'
+    printf 'printf %s\n' "'20260925T000000Z\n'"
+  } >"$dir/date"
+  chmod +x "$dir/date"
+}
+
+# link_to_null <path> - a symlink to /dev/null, or nothing when this host's ln
+# makes a copy instead (Git Bash without native symlinks). The caller checks -L.
+link_to_null() {
+  MSYS=winsymlinks:nativestrict ln -s /dev/null "$1" 2>/dev/null || ln -s /dev/null "$1" 2>/dev/null || true
+}
+
+for link_case in "29 quiet" "30 concurrent"; do
+  # shellcheck disable=SC2086  # two fixed fields, split on purpose
+  set -- $link_case
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(make_case)
+  printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
+  printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
+  date_shim "$case_dir/shim"
+  bak_link="$case_dir/settings.json.20260925T000000Z.bak"
+  link_to_null "$bak_link"
+  if [[ ! -L "$bak_link" ]]; then
+    skip "case-$1: $2 run with a symlink at the backup path" "ln -s did not make a real symlink on this host"
+    continue
+  fi
+  if [[ "$2" == concurrent ]]; then
+    shim_settings="$case_dir/settings.json"
+  else
+    shim_settings=""
+  fi
+  cp "$case_dir/settings.json" "$case_dir/settings.pre"
+  exit_code=0
+  out=$(PATH="$case_dir/shim:$PATH" \
+    SHIM_SETTINGS="$shim_settings" \
+    NO_COLOR=1 \
+    CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+    bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1) || exit_code=$?
+  assert_exit "case-$1: $2 run refuses with exit 2" 2 "$exit_code"
+  assert_not_contains "case-$1: $2 run never reports an apply" "$out" "Applied"
+  still_link=$([[ -L "$bak_link" ]] && echo yes || echo no)
+  assert_eq "case-$1: $2 run leaves the pre-existing link in place" "yes" "$still_link"
+  if [[ "$2" == concurrent ]]; then
+    concurrent_kept=$(jq -e '.enabledPlugins["other@market9"] == true' "$case_dir/settings.json" >/dev/null 2>&1 && echo yes || echo no)
+    assert_eq "case-$1: $2 run keeps the other writer's bytes" "yes" "$concurrent_kept"
+  else
+    assert_eq "case-$1: $2 run leaves settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
+  fi
+done
+
+# --- Case 31: a carriage return inside a plugin name is part of the key ----------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+cr_name=$'cr\rname'
+jq -n --arg n "$cr_name" '[{key: "market1", status: "ok", skip_reason: "",
+  orphans: [{name: $n, marketplace: "market1", enabled: false}],
+  new_upstream: [{name: ("new" + $n), marketplace: "market1"}], renames: []}]' >"$case_dir/findings.json"
+jq -n --arg n "$cr_name" '{enabledPlugins: {($n + "@market1"): false, "alpha@market1": true}}' >"$case_dir/settings.json"
+
+out=$(run_fix_dry "$case_dir") || true
+assert_contains "case-31: the CR displays as ?" "$out" "cr?name@market1"
+
+exit_code=0
+out=$(run_fix_apply "$case_dir") || exit_code=$?
+assert_exit "case-31: apply exits 0" 0 "$exit_code"
+assert_contains "case-31: both entries applied" "$out" "Applied: 1 removals, 1 additions"
+cr_keys=$(jq -e --arg n "$cr_name" '(.enabledPlugins | has($n + "@market1") | not)
+  and (.enabledPlugins["new" + $n + "@market1"] == false)
+  and (.enabledPlugins | has("newcrname@market1") | not)' \
+  "$case_dir/settings.json" >/dev/null 2>&1 && echo yes || echo no)
+assert_eq "case-31: the removal and the addition use the exact CR-bearing keys" "yes" "$cr_keys"
+
 # --- Final ------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

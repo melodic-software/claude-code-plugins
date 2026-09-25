@@ -356,7 +356,9 @@ main() {
   fi
 
   local marketplace_keys
-  if ! marketplace_keys=$(jq -r '.extraKnownMarketplaces // {} | keys[]' "$SETTINGS" | tr -d '\r'); then
+  # An array would yield its indices as marketplace names, so only an object is read.
+  if ! marketplace_keys=$(jq -r '.extraKnownMarketplaces // {}
+    | if type != "object" then error("not an object") else keys[] end' "$SETTINGS" | tr -d '\r'); then
     echo "ERROR: cannot read extraKnownMarketplaces from $SETTINGS" >&2
     exit 2
   fi

@@ -238,10 +238,20 @@ fi
 # cannot inject.
 #
 # A jq failure is fatal: under pipefail the assignment carries jq's status, and
-# a list that silently came back short would render a truncated plan. The `tr`
-# strips the carriage return a native-Windows jq appends to every line.
+# a list that silently came back short would render a truncated plan.
 findings() {
-  jq -r ".[] | select(.status == \"ok\") | $1" "$INPUT_JSON" | tr -d '\r' | sort -u
+  jq -r ".[] | select(.status == \"ok\") | $1" "$INPUT_JSON" | strip_eol_cr | sort -u
+}
+
+# strip_eol_cr - drop the one carriage return a native-Windows jq appends to
+# each line, and no other. A carriage return inside a plugin name is part of the
+# key, so a blanket `tr -d '\r'` would edit a key the catalog never named. A
+# read loop, not `sed 's/\r$//'`: BSD sed reads \r as a literal r.
+strip_eol_cr() {
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    printf '%s\n' "${line%$'\r'}"
+  done
 }
 
 # findings_failed <label> - the fatal exit for a list jq could not read.
@@ -361,7 +371,7 @@ if [[ "$remove_count" -gt 0 || "$add_count" -gt 0 ]]; then
     | if ($ep | type) != "object" then error("enabledPlugins is not an object") else . end
     | ($rm[] | . as $k | if ($ep | has($k)) then (if $ep[$k] == true then "S " else "R " end) + $k else empty end),
       ($add[] | . as $k | if ($ep | has($k)) then empty else "A " + $k end)
-  ' "$SNAPSHOT" | tr -d '\r'); then
+  ' "$SNAPSHOT" | strip_eol_cr); then
     echo "ERROR: cannot read $SETTINGS to filter the plan against it" >&2
     exit 2
   fi
@@ -611,16 +621,27 @@ if [[ -z "$STAMP" ]]; then
   exit 2
 fi
 BACKUP="$SETTINGS.$STAMP.bak"
+# Anything already at the backup path is refused before the open. Bash
+# noclobber refuses only an existing REGULAR file: a symlink to /dev/null, a
+# FIFO or a device node is opened without O_EXCL, so the backup would go into
+# it and the path would later be mistaken for this run's own file. `-L` covers
+# a dangling symlink, which `-e` reads as absent.
+if [[ -e "$BACKUP" || -L "$BACKUP" ]]; then
+  echo "ERROR: cannot write the backup, settings unchanged: $BACKUP" >&2
+  echo "The path already exists or is a symlink. A second apply within the same second hits this." >&2
+  exit 2
+fi
 # Created and filled through ONE descriptor, under noclobber and a 0077 umask.
-# noclobber opens with O_EXCL, which refuses an existing file AND a symlink,
-# including a dangling one that `[[ -e ]]` reads as absent and that a bare `cp`
-# would follow to whatever it names. Creating it empty and then reopening the
-# path with `cp` would reintroduce that: the name is predictable, so between the
-# two opens it can be unlinked and replaced with a symlink, and the copy follows
-# it. Writing through the descriptor the exclusive open returned leaves no such
-# window. The umask is why this is not `cp -p`: the backup is a verbatim copy of
-# a file that can hold tokens and permission rules, so it is 0600 wherever the
-# platform honors mode bits. Both settings are scoped to the subshell.
+# For a regular file, noclobber opens with O_EXCL, so a file created at the path
+# after the check above is refused rather than overwritten. Creating it empty
+# and then reopening the path with `cp` would reintroduce a window: the name is
+# predictable, so between the two opens it can be unlinked and replaced with a
+# symlink, and the copy follows it. A non-regular file created between the
+# check and the open is the remaining window, and the removal below never
+# touches one. The umask is why this is not `cp -p`: the backup is a verbatim
+# copy of a file that can hold tokens and permission rules, so it is 0600
+# wherever the platform honors mode bits. Both settings are scoped to the
+# subshell.
 #
 # A failure here leaves nothing to clean up in the case that matters: when the
 # open is refused the file is not ours to remove, and the only way to get a
@@ -638,11 +659,12 @@ fi
 # The plan, the edit and the backup all describe the snapshot. A settings file
 # that no longer matches it was changed by another writer after the plan was
 # computed, and replacing it would discard that change. The compare sits
-# directly before the replace; the window between the two stays open. The
-# backup removed here is the one the exclusive open above just created, so it
-# is this run's own file and holds the snapshot, not the other writer's bytes.
+# directly before the replace; the window between the two stays open. The path
+# was absent before the open above, so a regular file there now is the backup
+# this run created, holding the snapshot rather than the other writer's bytes.
+# Only that is removed: a symlink or any other non-regular file is left alone.
 if ! cmp -s "$SNAPSHOT" "$SETTINGS"; then
-  rm -f "$BACKUP"
+  [[ -f "$BACKUP" && ! -L "$BACKUP" ]] && rm -f "$BACKUP"
   echo "ERROR: $SETTINGS changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup written" >&2
   exit 2
 fi
