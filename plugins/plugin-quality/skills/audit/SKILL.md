@@ -106,7 +106,7 @@ Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal pla
 one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and run every seam below.
 
-Two dials now sit over step 5, and they answer different questions. The **zone decides where a seam
+Two dials sit over step 5, and they answer different questions. The **zone decides where a seam
 runs**; effort decides **which seams run at all**. Where they disagree the zone wins, so `low` effort
 never buys an inline review the dumb or unknown row says MUST dispatch, and never trims an evidence
 flush. Effort touches step 5 only. Steps 1 through 4 are the evidence and contract-lock spine and run
@@ -116,7 +116,7 @@ in full at every level:
 |---|---|
 | `low` | `skill-quality:check` only, and only for a skill target. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
 | `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor |
-| `high`, `xhigh`, `max` | every presence-gated seam over every finding, the current behavior |
+| `high`, `xhigh`, `max` | every presence-gated seam over every finding |
 
 The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding
 enters that pass only when its calibrated severity is at or above the floor. An attended run pins

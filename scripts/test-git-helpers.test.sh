@@ -16,8 +16,7 @@
 #
 # A poisoned user.email silently re-authors commits. Such a commit fails this
 # repo's required_signatures rule with `no_user` and CANNOT be force-pushed
-# over — the branch has to be abandoned and the tree rebuilt. That is what
-# happened to #2827 -> #2830.
+# over: the branch has to be abandoned and the tree rebuilt.
 #
 # FOUR SCENARIOS, all live in this repo:
 #   A  plain caller repo, absolute GIT_DIR exported

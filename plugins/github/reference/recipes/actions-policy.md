@@ -5,7 +5,7 @@ govern which actions may run, how the workflow token behaves, what runners and r
 and who may reach them, the compute and cache posture, and the OIDC trust that lets workflows
 exchange short-lived cloud credentials. It is an admin-surface audit, not a workflow-file review:
 linting the YAML *inside* `.github/workflows` stays with `actionlint` and is out of this plugin's
-scope (design decision D9). Every concrete mechanic is resolved at runtime through the
+scope. Every concrete mechanic is resolved at runtime through the
 [method ladder](../method-ladder.md), including the exact settings surface, the current credential
 requirements, and whether a surface is plan-gated today. This recipe ships the audit judgment on
 top of that ladder, never a vendored map of endpoints or scopes. The audit only reads and reports: a finding names drift, it

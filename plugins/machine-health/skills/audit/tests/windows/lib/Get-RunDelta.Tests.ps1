@@ -4,9 +4,8 @@
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-RunDelta.ps1'
 
-    # Builds the JSON-round-tripped history shape Get-RunDelta reads: every
-    # category map is a pscustomobject, because the function walks
-    # severity_counts via PSObject.Properties.
+    # Builds the JSON-round-tripped history shape: category maps are pscustomobjects,
+    # because Get-RunDelta walks severity_counts via PSObject.Properties.
     function New-PriorRun {
         param([string] $RunId, [hashtable] $SeverityCountsByCategory)
         $byCategory = [ordered]@{}
@@ -46,10 +45,8 @@ Describe 'Get-RunDelta' -Tag 'lib' {
     }
 
     It 'uses the most recent (last) history entry as baseline, not the oldest (regression)' {
-        # Read-HistoryJsonl returns oldest -> newest via Get-Content -Tail.
-        # With 2+ entries, the baseline must be the LAST element, not [0].
-        # Here: oldest had WARN=2, newest had WARN=0; current has WARN=0.
-        # Correct: no change (vs newest). Wrong: WARN -2 (vs oldest).
+        # The baseline must be the LAST (newest) entry: oldest WARN=2, newest WARN=0, current
+        # WARN=0 reads no change; comparing to [0] would read WARN -2.
         $oldest = New-PriorRun -RunId '2026-04-20T00:00:00-04:00' -SeverityCountsByCategory @{
             storage = @{ OK = 0; WARN = 2; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }
@@ -62,9 +59,8 @@ Describe 'Get-RunDelta' -Tag 'lib' {
     }
 
     It 'discloses cadence-deferred checks so a skip-driven total drop is not read as a health delta' {
-        # Prior run counted a check (OK) that this weekly run cadence-deferred, so
-        # the OK total drops purely from the skip -- disclose it rather than imply
-        # health changed.
+        # The OK total drops only because this weekly run cadence-deferred a check; disclose
+        # the skip rather than imply health changed.
         $prior = New-PriorRun -RunId '2026-04-22T00:00:00-04:00' -SeverityCountsByCategory @{
             security = @{ OK = 2; WARN = 0; INFO = 0; CRIT = 0; UNKNOWN = 0 }
         }

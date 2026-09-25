@@ -151,8 +151,7 @@ cat >"$TMP/merged.json" <<'EOF'
 ]
 EOF
 
-# Severity classification and ranking edge cases, all three found by review on
-# the PR that added this section:
+# Severity classification and ranking edge cases:
 #   #300 — a P2 whose PROSE says "P1" and "CRITICAL": body-substring matching
 #          falsely promoted it. Only the structured marker counts.
 #   #301 — an unclassified thread beside a P0: "--" sorts before "P0"

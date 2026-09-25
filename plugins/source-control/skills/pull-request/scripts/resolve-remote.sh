@@ -24,8 +24,7 @@
 # Two or more candidate remotes with no way to disambiguate (neither the
 # mode's configured remote nor `origin`) is ambiguous (e.g. a fork clone with
 # `fork` + `upstream` remotes and no `origin`) and fails loudly rather than
-# silently picking one — mirroring the failure mode of the hardcoded-`origin`
-# flow this replaces, instead of risking a silent rebase/push against the wrong
+# silently picking one, instead of risking a silent rebase/push against the wrong
 # base.
 #
 # Usage:

@@ -442,8 +442,8 @@ else
 fi
 
 # --- An unread scope must not summarize as a clean plane ----------------------
-# `findings=0` on a plane where nothing could be opened used to be byte-identical
-# to `findings=0` on a fully-read clean one. status= carries the difference, and
+# `findings=0` on a plane where nothing could be opened is byte-identical to
+# `findings=0` on a fully-read clean one. status= carries the difference, and
 # LINT-NOTE names the scopes so the operator knows what was not linted.
 UNREAD_IN=$(
   cat <<'EOF'

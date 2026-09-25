@@ -1,31 +1,13 @@
 #!/usr/bin/env bash
-# Self-contained tests for dead-code-scan.sh (no external test lib — ships with
-# the plugin). The assertion primitives are duplicated here on purpose: house
-# convention is that a plugin test carries its own harness rather than sourcing
-# a shared one.
-#
-# WHAT IS UNDER TEST: the parsing and adjudication-input layer, exercised
-# HERMETICALLY. Each lane is driven through --lane so it runs in isolation, and
-# each detector is replaced by a replayer on PATH that prints one of the REAL
-# captured tool outputs in evals/fixtures/ (knip-report.json,
-# knip-degraded.stderr.txt, vulture-report.txt, vulture-parse-error.txt,
-# gopls-hints.txt) with a chosen exit status. No knip, vulture, or gopls is
-# installed in CI, so the canned-fixture cases ARE the gate and never skip; only
-# the one live end-to-end smoke case degrades to a bare SKIP.
-#
-# The replayers are not a shortcut around the detectors: every byte they print
-# is a committed capture of the real tool, and the script under test cannot tell
-# the difference — which is the point, because what is graded here is this
-# script's READING of that output, not the detectors themselves.
+# Self-contained tests for dead-code-scan.sh; the assertion primitives are duplicated on
+# purpose (house convention). Each lane runs via --lane against a PATH replayer printing a
+# REAL committed capture from evals/fixtures/, so what is graded is this script's READING
+# of detector output. No detector is installed in CI: these cases are the gate and never
+# skip; only the live smoke case degrades to SKIP.
 set -uo pipefail
 
-# This suite builds throwaway git repositories as fixtures (the cap ordering is
-# git-recency-based, so a fixture needs real commits). An inherited ABSOLUTE
-# GIT_DIR overrides repository discovery and outranks -C, so without this the
-# fixture's `git config user.email` would land in the CALLER's .git/config —
-# shared by every worktree of the clone — instead of in the fixture. Any process
-# can export it (a git hook is one way, an ad-hoc command another), so it is
-# cleared unconditionally rather than conditionally.
+# An inherited ABSOLUTE GIT_DIR outranks -C, so a fixture's `git config user.email` would
+# land in the CALLER's .git/config; clear it unconditionally before building fixtures.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -264,14 +246,9 @@ assert_contains "degraded lane counts zero findings" "$deg_out" "Summary total: 
 assert_contains "degraded-only run is called a scan of nothing" "$deg_out" "Note: no lane ran"
 
 # --- 2b. Per-root OWNERSHIP: a degraded nested root's files appear in NO record ----
-# The contract (SKILL.md): "knip runs per project root … Each root carries its own
-# state — one degraded workspace does not condemn the others." Running knip AT a
-# root does not restrict what it REPORTS: knip walks the whole subtree, nested
-# workspaces included. Measured on this marketplace before the ownership filter,
-# the repo-root run emitted 213 of its 288 candidates for files belonging to roots
-# the SAME scan had declared `degraded` and promised would "emit no records" —
-# findings manufactured by exactly the unrestored run the degraded state exists to
-# withhold. The outer root may only report the files it OWNS.
+# SKILL.md: "one degraded workspace does not condemn the others." Running knip AT a root
+# does not restrict what it REPORTS (it walks nested workspaces), so the outer root may
+# only report the files it OWNS, or it re-emits a degraded root's manufactured findings.
 
 MULTI_DEG="$TEST_TMPDIR/multi-degraded"
 init_repo "$MULTI_DEG"

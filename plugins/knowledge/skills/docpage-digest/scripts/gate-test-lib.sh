@@ -1,15 +1,9 @@
 # shellcheck shell=bash
-# Shared wrapper body for the docpage-digest gate suites. Sourced by
-# check-fences-exact.test.sh and check-snippets.test.sh, each of which stays a
-# *.test.sh file because plugin-gate resolves suites by that filename. This file
-# is sourced, never executed, and holds no test cases of its own.
+# Shared body for the docpage-digest gate suites, sourced by the *.test.sh wrappers
+# (plugin-gate resolves suites by that filename); sourced, never executed.
 
-# gate_test::run_suite <scripts-dir> <suite-file>
-#
-# Resolve an interpreter at or above the MIN_PYTHON floor parsed from
-# digest_fences.py, then run <suite-file> under it with -v. Exits 1 when the
-# floor cannot be parsed and 0 (SKIP) when no interpreter meets it; otherwise
-# the suite's own status is the caller's status.
+# gate_test::run_suite <scripts-dir> <suite-file>: exits 1 on an unparsable
+# MIN_PYTHON floor, 0 (SKIP) when no interpreter meets it, else the suite's status.
 gate_test::run_suite() {
   local dir="$1" suite="$2"
   local engine="$dir/digest_fences.py"

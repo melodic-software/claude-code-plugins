@@ -127,7 +127,7 @@ rm -rf "$f"
 
 # --- a well-formed document followed by trailing garbage is still a failure --
 # jq prints a verdict for the first document and then exits non-zero on the
-# garbage; the gate must read the status, not only the word (Codex, #3764).
+# garbage; the gate must read the status, not only the word.
 new_fixture f
 hooks_file "$f" alpha '{"description":"Formats Go source.","hooks":{}} trailing'
 if out="$(run_check "$f" 2>&1)"; then

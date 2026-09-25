@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Consumer-side front-matter validator for file-based markdown handoff queues
 # (one item per file with YAML front matter). Detects malformed items that make
-# a `grep '^status:'` reconciliation report a false all-clear (#1647).
+# a `grep '^status:'` reconciliation report a false all-clear.
 #
 #   scripts/check-queue-front-matter.sh <queue-dir>
 #
@@ -41,7 +41,6 @@ report_violation() {
   errors=$((errors + 1))
 }
 
-# extract_front_matter <file> — prints front matter body or nothing.
 extract_front_matter() {
   awk '
     NR == 1 && $0 == "---" { in_fm = 1; next }

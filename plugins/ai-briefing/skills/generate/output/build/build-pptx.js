@@ -1,5 +1,4 @@
 // Build ai-meeting-{N}.pptx from slides-data.js using pptxgenjs.
-// Theme: dark navy + electric blue + amber. Strategy: Team All-Hands arc.
 import PptxGenJS from "pptxgenjs";
 import path from "node:path";
 import fs from "node:fs";

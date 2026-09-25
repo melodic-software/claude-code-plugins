@@ -48,13 +48,8 @@ run_raw() {
 # line is what a parent greps, so its shape is part of the contract, not debug
 # output.
 #
-# The exit status is asserted here rather than left to a paired `run_raw` case,
-# because a caller acts on BOTH halves: it branches on the status and then reads
-# the line. An earlier revision checked only the substring, so a mutation that
-# emitted the right line under the wrong status was invisible to every stdout
-# case that had no exit-code twin over the same fixture — and at least one did
-# not. `$?` is captured on the line immediately after the substitution; anything
-# in between overwrites it.
+# The exit status is asserted here too: a caller branches on the status and then reads
+# the line. `$?` is captured right after the substitution; anything between overwrites it.
 #
 # The two halves are reported INDEPENDENTLY rather than as a short-circuiting
 # chain: when both drift at once, an `elif` would hide the exit-status failure

@@ -3,6 +3,33 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.8] - 2026-09-25
+
+### Changed
+
+- hooks.json: the five PostToolUse verifier rows run `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-guards.sh ...` instead of `bash ...`, so a `sh -c` wrapper replaces itself with bash instead of forking it: one process fewer per call where Claude Code runs the row through `sh` (Linux, macOS). Under a bash wrapper nothing changes.
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- skill-reference-verify.sh: the plugins-root gate runs before the payload read, so an Edit or Write outside a marketplace repo no longer starts jq for the `structuredPatch` filter the builtin parser cannot answer. Same output. With the builtin `replace_all` read above, the PostToolUse verifiers start no jq on a `.md` edit there.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- run-guards.sh: the file path and the repository root are resolved once per event and served to every guard from then on (`hook::read_file_path_to` and `hook::repo_root_to` are cached in front of their uncached twins, keyed on the payload, the project dir and the scope setting, or on the working directory and the hint). `cli-flag-verify.sh`, `skill-reference-verify.sh` and `stale-path-verify.sh` read the path with `hook::read_file_path_to` on their buffered payload, so a Markdown Write or Edit runs one realpath and one `git rev-parse` instead of three each. Every guard's verdict is unchanged.
+- run-guards.sh: a field a guard reads outside the primed set is added to the event's field cache once jq has answered it cleanly (status 0, no NUL), so `stale-path-verify.sh` reads `replace_all` from the jq that answered `skill-reference-verify.sh` instead of starting its own.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- stale-path-verify.sh: the code-span scan, the Edit reconstruction's token set, its anchor lines and its recovered context are computed with shell builtins when the text is printable ASCII and whitespace, instead of `grep`, `sed`, `sort` and `head` pipelines (up to nine processes on a Markdown Edit). Text with any other byte still goes through the pipelines. The candidate paths, and so every finding, are unchanged.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+- stale-path-verify.sh: the Edit reconstruction counts a word anchor's occurrences in the file by splitting each line on non-word bytes (one awk regex pass per line, under C) instead of a per-character walk, and skips the count for a word anchor holding `.` or `-`, which the walk never matched. Same counts; on a 33 KB file the count drops from about 14 ms to 2.
+- `hooks/secret-pattern-detection.test.sh`: on Linux the D1 resolver-shim control calls the shim directly, since the temp-target decline now resolves its path with builtin `cd -P` and starts no resolver. Other hosts keep the temp-target spawn check. Test only.
+
+## [0.36.7] - 2026-09-25
+
+### Fixed
+
+- **`secret-pattern-detection` now scans `NotebookEdit` cell source.** It read the target from `tool_input.file_path`, which `NotebookEdit` never sends (it sends `notebook_path`), so every `NotebookEdit` passed unscanned. The notebook path now gets the same project scope, allowlist, and temp-tree decline as a `Write`. The test helper's `NotebookEdit` payload carried `file_path`, which hid the gap; the suite now also builds the real shape. `hardcoded-path-check` has the same omission and is not changed here.
+
 ## [0.36.5] - 2026-09-24
 
 ### Fixed

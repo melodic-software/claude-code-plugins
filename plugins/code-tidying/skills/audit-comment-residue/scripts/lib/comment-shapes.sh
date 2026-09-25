@@ -2,9 +2,6 @@
 # Shared comment-residue detectors for /audit-comment-residue (sourceable; not invoked directly).
 # Shape definitions and treatments: the skill's SKILL.md "Residue shapes and treatments".
 #
-# Residue = comment text that only makes sense outside the code's present state: history
-# narration, plan/session references, conversational antecedents, ticket/PR back-references,
-# origin notes naming where a block came from or when it was added.
 # Detection runs ONLY on the comment portion of a line, so residue-shaped words sitting in
 # code (identifiers, string literals) are not flagged.
 
@@ -32,14 +29,9 @@ cr_line_skipped() {
   [[ "$prev" == *'comment-residue-ignore'* || "$line" == *'comment-residue-ignore'* ]]
 }
 
-# Extract the comment portion of a line, or empty if the line carries no recognized comment
-# leader. A leader (`//`, `/*`, `#`, `--`) only opens a comment when it sits OUTSIDE a string
-# literal, so a `//` inside a URL or a residue-shaped phrase inside a quoted string is not
-# mistaken for a comment. The scan tracks "...", '...', and `...` spans (with `\` escapes) up to
-# the first real leader, then returns the remainder verbatim — apostrophes in comment prose
-# ("it's", "no longer") are never treated as strings because the leader has already been found.
-# Heuristic, not a full per-language lexer: escaped quotes inside single-quoted shell strings and
-# other language-specific quoting quirks are approximated, which is sufficient for a read-only audit.
+# Extract the comment portion of a line, or empty. A leader (`//`, `/*`, `#`, `--`) opens a
+# comment only OUTSIDE a "...", '...', or `...` span, so a URL's `//` or a quoted phrase is
+# not a comment. Heuristic, not a per-language lexer: enough for a read-only audit.
 cr_comment_text() {
   local line="${1//$'\r'/}"
   [[ "$line" =~ ^[[:space:]]*#! ]] && return 0 # shebang, not a comment
@@ -97,10 +89,8 @@ cr_is_comment_line() {
   [[ "$1" =~ ^[[:space:]]*(#|//|/\*|\*|--) ]]
 }
 
-# License or attribution cue, tested against comment TEXT. Narrow on purpose: `copyright` and
-# `(c)` are ordinary words a comment uses ("to satisfy the copyright audit", "the callback
-# signature f(c)"), so each needs corroboration — a year, a (c)/© sign, or the start of the
-# comment — before it exempts anything.
+# License or attribution cue. `copyright` and `(c)` are ordinary words, so each needs a
+# year, a (c)/© sign, or the start of the comment as corroboration.
 cr_has_license_cue() {
   local lc="${1,,}"
   [[ "$lc" =~ (spdx-license-identifier|licensed[[:space:]]+under|license:) ]] && return 0
@@ -110,10 +100,8 @@ cr_has_license_cue() {
   return 1
 }
 
-# Line numbers belonging to a license block: a run of contiguous comment lines in which at
-# least one line carries a license cue. The whole run is exempt from origin-note, because a
-# NOTICE header states its license once and then attributes on a line of its own. The run ends
-# at the first non-comment line, so the same sentence elsewhere in the file is unaffected.
+# A contiguous comment run with any license cue is exempt from origin-note whole: a NOTICE
+# header states its license once and attributes on a separate line.
 cr_license_block_lines() {
   local line n=0 start=0 cue=0 i
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -131,8 +119,7 @@ cr_license_block_lines() {
   return 0
 }
 
-# Emit zero or more shape names (one per line on stdout). Return 1 if any emitted (cosmetic;
-# the caller reads stdout).
+# Emit zero or more shape names, one per line; return 1 if any emitted.
 cr_detect_shapes() {
   local line="$1"
   local in_license_block="${2:-0}"
@@ -168,22 +155,11 @@ cr_detect_shapes() {
   fi
 
   # origin-note (tier 1): the comment names where the block came from or when it was
-  # added. Git history owns both. The cue must open the comment or a clause inside it
-  # and must be a whole word, so an ordinary description ("bytes copied from the source
-  # buffer", "helpers exported from index.ts") is not a finding. An origin VERB is
-  # required, so a bare date matches nothing, and the stamp verbs provenance:audit keys
-  # on (verified, checked, confirmed, as of) are deliberately absent. The cue also has to
-  # END on a boundary, or `from` matches inside `fromage` and a date matches inside a
-  # longer run ("2026-09-011", "2026-09-01x"). An ISO-8601 time is spelled out because
-  # the `T` is alphanumeric, so the boundary alone would reject a timestamped note.
-  #
-  # Tier 1 reads "remove", so two comment classes are exempt whatever verb they open
-  # with: a marker comment, which is tracked work rather than residue, and a license or
-  # attribution header, whose text the reader may be legally required to keep. The
-  # marker test reuses cr_is_sanctioned_todo rather than redefining which markers count.
-  # The license test is BLOCK-scoped and the caller owns it, because a NOTICE header
-  # states its license once and attributes on a separate line; cr_license_block_lines
-  # computes the run and the caller passes the verdict in.
+  # added. The cue must open the comment or a clause, be whole words, and carry an origin
+  # VERB, so a description ("bytes copied from the buffer") or a bare date is not a finding;
+  # provenance:audit's stamp verbs (verified, checked, confirmed, as of) are absent on purpose.
+  # The ISO time is spelled out because `T` is alphanumeric and would fail the end boundary.
+  # Markers and license headers are exempt; the caller passes the block-scoped license verdict.
   if ! cr_is_sanctioned_todo "$ct" && ((!in_license_block)); then
     if [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+|\([[:space:]]*)(ported|copied|migrated|adapted|borrowed|lifted|taken)[[:space:]]+from([^[:alnum:]]|$) ]] ||
       [[ "$lc" =~ (^[[:space:]]*|[,\;:][[:space:]]+)(added|merged|introduced|backported|ported)[[:space:]]+(on[[:space:]]+)?[0-9]{4}-[0-9]{2}-[0-9]{2}(t[0-9:]{4,8}z?)?([^[:alnum:]]|$) ]]; then

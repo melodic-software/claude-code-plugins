@@ -2,14 +2,8 @@
 # changed-code-files.sh — list uncommitted code files for the audit-comment-residue
 # and dissolve-comments skills' `## Pre-computed context` blocks.
 #
-# The awk body this replaces sat inline in each SKILL.md, and skill argument
-# substitution rewrites `$<digit>` placeholders anywhere in a skill's file body
-# (0-based: `$0` is the first argument), so any invocation carrying an argument
-# corrupted the probe's `substr($0, …)` calls before the shell ever ran. A script
-# reached through `${CLAUDE_PLUGIN_ROOT}` keeps the awk outside the substitution
-# surface, and removes the inline `$`-expansion the worktree-isolation guard
-# refuses (#1687). Shared at the plugin level because both callers need the
-# identical listing.
+# Kept out of SKILL.md: skill argument substitution rewrites `$<digit>` anywhere in a
+# skill body, which corrupted this awk's `substr($0, ...)` calls inline.
 #
 # Usage: changed-code-files.sh [max]
 #   max — cap on emitted paths (default 10)

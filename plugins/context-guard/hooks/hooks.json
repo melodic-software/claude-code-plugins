@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
+            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
             "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking for a context-zone crossing..."
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
+            "command": "exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/zone-crossing-inject.sh",
             "shell": "bash",
             "timeout": 60,
             "statusMessage": "Checking for a context-zone crossing..."

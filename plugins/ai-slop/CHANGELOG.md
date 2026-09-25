@@ -36,6 +36,12 @@
 - **`cross-check.sh` missed a disagreement with equal counts.** Detector lines {3,4} against
   actual {3,5} printed no `Disagree:` row; it now names line 4 and line 5.
 
+## [0.8.1] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.8.0] - 2026-09-23
 
 ### Added

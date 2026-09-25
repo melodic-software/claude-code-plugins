@@ -171,12 +171,15 @@ fi
 # `github.com/<first>/<second>` is only an owner/repo pair when <first> is an
 # account. These first segments are GitHub's own product surfaces, so a funding
 # link (`github.com/sponsors/acme`) or a marketplace page is not a repository.
+# `user-attachments` is the attachment-delivery prefix GitHub issues, PRs and
+# comments embed uploads under (`github.com/user-attachments/assets/...`,
+# `.../files/...`); the segment after it is an opaque asset id, never a repo.
 is_reserved_owner() {
   case "$1" in
   sponsors | features | orgs | settings | apps | marketplace | topics | \
     collections | about | pricing | security | login | join | new | notifications | \
     explore | trending | events | site | contact | readme | pulls | issues | \
-    codespaces | enterprise | customer-stories | organizations)
+    codespaces | enterprise | customer-stories | organizations | user-attachments)
     return 0
     ;;
   *) return 1 ;;

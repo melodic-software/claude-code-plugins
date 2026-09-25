@@ -552,7 +552,7 @@ select_shard() {
 # EMPTY spec: `--shard=` with nothing after it is what an environment variable
 # that expanded to nothing produces, and a presence test on the value alone
 # would read it as "no shard requested" and run the whole selection on every leg
-# while exiting 0 (claude-code-plugins#3773, Codex P2).
+# while exiting 0.
 select_shard_eq() {
   (cd "$repo" && bash scripts/affected-tests.sh "--shard=$1" -- "${shard_paths[@]}" 2>/dev/null)
 }
@@ -995,8 +995,7 @@ fi
 # Widening the corpus to four ecosystems introduced an edge that never existed
 # when the reverse lookup was `-- '*.sh'`: a match ACROSS languages. Left
 # uncapped, those coincidental matches chained (js -> ps1 -> sh) and saturated
-# on the far-end hubs — measured at every .js in the repo selecting the same 156
-# of 439 suites. One hop still reaches the suite covering the crossed-to file,
+# on the far-end hubs. One hop still reaches the suite covering the crossed-to file,
 # which is what keeps a .sh wrapper around a .py helper working; what it must
 # NOT do is keep walking from there and drag in that file's own dependents.
 mkdir -p "$repo/eco/hop"
@@ -1342,7 +1341,7 @@ fi
 
 # --- --help reaches the actual end of the header -----------------------------
 # usage() used to extract a hardcoded sed range that stopped mid-header as the
-# comment block grew (#3424). Pin a sentence that lives on the last header
+# comment block grew. Pin a sentence that lives on the last header
 # lines so a drifted range cannot come back unnoticed.
 help_out="$(bash scripts/affected-tests.sh --help)"
 if contains "$help_out" 'Both stages fail loud'; then

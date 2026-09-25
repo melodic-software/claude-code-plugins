@@ -331,8 +331,7 @@ wit_jira_require_ok() {
 readonly WIT_JIRA_FIELDS="status,assignee,labels,issuetype,parent,issuelinks,summary"
 # WIT_JIRA_FIELDS and WIT_JIRA_NORMALIZE_PROGRAM (below) are consumed by the sourcing
 # verb scripts, not within this file; export so a standalone lint of this sourced-only
-# file sees them as intentionally external (mirrors lib/json.sh exporting
-# WIT_SCHEMA_VERSION and local-markdown/common.sh exporting its verb-referenced consts).
+# file sees them as intentionally external.
 export WIT_JIRA_FIELDS
 
 # wit_jira_normalize_program — a jq program that maps one raw Jira IssueBean into the

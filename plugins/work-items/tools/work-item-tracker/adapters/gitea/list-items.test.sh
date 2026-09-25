@@ -129,9 +129,7 @@ assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
 # The number is interpolated into the dependencies request path, into an unquoted JSON
 # number literal in COUNTS, and is the join key of the final envelope pass, so a row
 # whose `number` is not a canonical JSON integer is refused before any of those: exit 1,
-# no envelope, and no request carrying the bad value. This is a behavior change from the
-# per-item accumulator, which walked the same row and emitted an envelope whose id read
-# `gitea:acme/webapp#null` with exit 0.
+# no envelope, and no request carrying the bad value.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json null open 'no number')]"
@@ -145,10 +143,8 @@ else
   pass "no request carried the non-numeric number"
 fi
 
-# A leading-zero digit string is all digits, so the old `^[0-9]+$` guard accepted it, then
-# `printf '{"number":%s,...}'` wrote an invalid JSON number literal (RFC 8259 §6) and the
-# final jq pass failed the whole envelope with the generic normalize message. Refuse it
-# here instead, the same way as null.
+# A leading-zero digit string is all digits but an invalid JSON number literal (RFC 8259
+# §6), so it is refused the same way as null.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 7 open 'padded' | jq -c '.number = "007"')]"
@@ -184,11 +180,8 @@ gitea_run "$S" >/dev/null 2>&1
 assert_contains "the list requests type=issues" "$(gitea_requests)" "type=issues"
 
 # --- X-Total-Count is authoritative when gitea sends it ---
-# gitea clamps `limit` to [api] MAX_RESPONSE_ITEMS (stock 50). On an instance whose cap is
-# below config.gitea.page_size EVERY page comes back short, so "short page means last page"
-# ended the walk after page 1 and returned a truncated list with nothing said — the ceiling
-# guard never fires either. This endpoint's handler calls ctx.SetTotalCountHeader, so the
-# header settles it. Page 1 is deliberately SHORT (1 row) while the count says 2.
+# Under gitea's page clamp every page comes back short, so the header must decide the end.
+# Page 1 is deliberately SHORT (1 row) while the count says 2.
 gitea_reset_routes
 gitea_seed_total "/issues?state=open&type=issues&page=1" 200 \
   '[{"number":1,"title":"one","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/web/issues/1","repository":{"full_name":"acme/web"}}]' 2
@@ -240,10 +233,7 @@ assert_eq "each item carries its own open-blocker count" "3 2 1 0 1" \
 gitea_write_binding
 
 # --- the per-item cost is the dependency request, not a fan-out of jq processes ---
-# Before the rows moved into files, every item cost three jq processes in this script on
-# top of the dependency count's own two: one to read its number, one to normalize it, and
-# one to re-serialize the whole accumulated array with it appended, which also made the
-# walk quadratic. A jq shim on PATH counts spawns. The fixed cost (binding parse, manifest
+# A jq shim on PATH counts spawns. The fixed cost (binding parse, manifest
 # read, envelope) is measured on an empty repository and subtracted, so the assertion is
 # about the per-item share alone: fewer than two jq processes per item, the dependency
 # count's own included. The shim is on PATH only for the runs under measurement, never for
@@ -283,9 +273,7 @@ fi
 # the requested page_size, `PAGE * page_size` clears the ceiling a page BEFORE the rows
 # returned do, so a walk counting that way stops short and announces a ceiling it never
 # reached. Run against a fixture copy of the adapter whose manifest declares a ceiling of 40
-# rather than the shipped 1000: the property is the same at any ceiling, and 40 makes it two
-# pages and 50 dependency requests instead of twenty-one and 1,050 (at 1,050 this was the
-# slowest case in the plugin contract corpus, about 48 s on the hosted runner). The ceiling
+# rather than the shipped 1000: the property is the same at any ceiling. The ceiling
 # is read BACK from the fixture manifest rather than repeated here, so the assertions track
 # the manifest and not a literal. Asking for 100 and answering 25: the requested arithmetic
 # (2 * 100) clears 40 after page one, when only 25 rows have arrived, so a walk counting that

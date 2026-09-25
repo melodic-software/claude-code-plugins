@@ -54,11 +54,6 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-# ---------------------------------------------------------------------------
-# Line model (byte-offset preserving)
-# ---------------------------------------------------------------------------
-
-
 class Line:
     __slots__ = ("start", "end", "text")
 
@@ -84,10 +79,6 @@ def split_lines(data: bytes, base: int) -> list:
     return lines
 
 
-# ---------------------------------------------------------------------------
-# Markdown handler
-# ---------------------------------------------------------------------------
-
 ATX_RE = re.compile(rb"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$")
 ATX_TRAIL_RE = re.compile(rb"[ \t]+#+[ \t]*$")
 FENCE_OPEN_RE = re.compile(rb"^( {0,3})(`{3,}|~{3,})(.*)$")
@@ -107,10 +98,8 @@ def markdown_boundaries(data: bytes):
     - setext-vs-thematic-break ambiguity for `---` resolves to setext whenever
       the previous line is non-blank and not itself a boundary.
     """
-    # A UTF-8 BOM is not content structure: scan lines after it, keeping raw
-    # offsets, so the BOM bytes land in the first node's span. CR-only line
-    # endings would collapse the file to one "line" and silently lose every
-    # heading — fail loudly instead.
+    # Scan past a UTF-8 BOM with raw offsets so its bytes land in the first node.
+    # CR-only line endings would silently lose every heading, so fail loudly.
     base = len(UTF8_BOM) if data.startswith(UTF8_BOM) else 0
     if b"\n" not in data[base:] and b"\r" in data[base:]:
         fail(
@@ -195,10 +184,6 @@ def markdown_boundaries(data: bytes):
     return frontmatter_end, boundaries
 
 
-# ---------------------------------------------------------------------------
-# HTML handler
-# ---------------------------------------------------------------------------
-
 HTML_MASK_RES = [
     re.compile(rb"<!--.*?-->", re.DOTALL),
     re.compile(rb"<script\b.*?</script\s*>", re.DOTALL | re.IGNORECASE),
@@ -244,11 +229,6 @@ def html_boundaries(data: bytes):
         title = WS_RUN_RE.sub(" ", decode_title(HTML_TAG_RE.sub(b" ", inner)))
         boundaries.append((m.start(), level, title.strip()))
     return boundaries
-
-
-# ---------------------------------------------------------------------------
-# Partition assembly (shared)
-# ---------------------------------------------------------------------------
 
 
 def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
@@ -325,12 +305,8 @@ def self_check(nodes, data: bytes) -> None:
         fail(3, f"self-check: partition ends at {cursor}, snapshot is {n} bytes")
 
 
-# ---------------------------------------------------------------------------
-# Format registry — THE extension seam.
-# ---------------------------------------------------------------------------
-# To support a new snapshot format: add a handler returning
+# Format registry: to support a new snapshot format, add a handler returning
 # (frontmatter_end, boundaries, whole_kind) and register its extensions here.
-# Unregistered extensions fail loudly unless --format overrides.
 
 
 def handle_markdown(data: bytes):
@@ -383,11 +359,6 @@ def resolve_format(path: str, override: str) -> str:
             f"run against its text extraction (e.g. source.txt) instead.",
         )
     return fmt
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def main(argv=None) -> int:

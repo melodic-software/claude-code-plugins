@@ -367,10 +367,8 @@ assert_contains "main-local deny carries the DENIED message" "$OUT" "is DENIED"
 assert_eq "main-local deny → exactly one gap" "1" "$(run "$WT16" "$CFG16D" --count --worktree-root "$POSIX_CHILD")"
 
 # --- Main-checkout resolution across git-dir spellings (cases 16e–16j) --------
-# The recovery used to be path arithmetic on the common dir, so any spelling but
-# "<root>/.git" left the main checkout unresolved and its local file dropped from
-# EVERY read, deny included — silently, under a "PREFLIGHT: OK". Each case below
-# plants a real main-local DENY and asserts it is either reported (the layer was
+# An unresolved main checkout silently drops its local file from EVERY read, deny
+# included, under a "PREFLIGHT: OK". Each case below plants a real main-local DENY and asserts it is either reported (the layer was
 # read) or that the run says loudly that the layer was NOT read. Deny is the
 # probe because it is the masking direction: a dropped deny under-reports.
 #

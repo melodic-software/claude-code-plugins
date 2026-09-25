@@ -5,10 +5,10 @@
 # writes its answer into the caller's variable (the repo's `_to` convention)
 # and takes the caller's own override as its next argument, so every script
 # keeps its own test-seam variable name while the ORDER of the fallbacks is
-# shared. An override and an environment value land verbatim, exactly as the
-# inline ladders assigned them; only the git toplevel passes through a command
-# substitution, as it always did. Callers own presentation, normalization
-# (backslash folding, trailing-slash stripping) and exit-code mapping.
+# shared. An override and an environment value land verbatim; only the git
+# toplevel passes through a command substitution. Callers own presentation,
+# normalization (backslash folding, trailing-slash stripping) and exit-code
+# mapping.
 #
 # The write is `printf -v "$1"`, not a `local -n` nameref: namerefs arrived in
 # bash 4.3, and these scripts run in Claude Code's Bash-tool shell on every

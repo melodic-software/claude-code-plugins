@@ -71,7 +71,8 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "guardrails-stale-path-verify" "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+FILE=""
+hook::read_file_path_to FILE "$INPUT" || exit 0
 case "$FILE" in
 # A CHANGELOG is an append-only historical record, and this oracle selects
 # precisely for removed paths — precisely what such a record documents. Mirrors
@@ -150,6 +151,120 @@ emit_tokens() {
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
   printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null |
     sed -E 's/^`+//; s/`+$//'
+}
+
+# Builtin twins of this file's grep/sed/sort pipelines, which cost up to nine
+# processes on a .md Edit. They answer only for text made of printable ASCII
+# and whitespace: there a character is a byte, a line ends at \n, and grep, sed
+# and bash read every bracket class the same way in any locale, so each twin
+# gives the pipeline's answer. Any other byte (non-ASCII, a control character)
+# keeps the pipeline. The twins run under LC_ALL=C (hook::_c_locale), so their
+# ranges are ASCII ranges on every bash. Each fills the SPV_OUT array.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__plain() { [[ "$1" != *[![:print:][:space:]]* ]]; }
+spv_plain() { hook::_c_locale spv__plain "$1"; }
+# The occurrence counter's word-anchor test (no space, ASCII word start, then
+# ASCII word characters, dots and dashes).
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__word_anchor() { [[ "$1" != *' '* && "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; }
+# spv_word_occurrences <word-anchor> <file>: how many maximal [A-Za-z0-9_] runs
+# in <file> equal the anchor, bytes under C.
+spv_word_occurrences() {
+  HOOK_ANCHOR="$1" LC_ALL=C awk '
+    BEGIN { a = ENVIRON["HOOK_ANCHOR"]; n = 0 }
+    {
+      k = split($0, w, /[^A-Za-z0-9_]+/)
+      for (j = 1; j <= k; j++) if (w[j] == a) n++
+    }
+    END { print n + 0 }
+  ' "$2"
+}
+
+# spv__lines <text>: SPV_LINES = <text>'s non-empty lines.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__lines() {
+  local IFS=$'\n' noglob=0
+  [[ $- == *f* ]] && noglob=1
+  set -f
+  # shellcheck disable=SC2206 # splitting on newlines is the intent
+  SPV_LINES=($1)
+  ((noglob)) || set +f
+}
+
+# `grep -oE '`[^`]+`' | sed -E 's/^`+//; s/`+$//'`: per line, the leftmost
+# backtick opens a span when a non-empty run of non-backticks and a closing
+# backtick follow it, and the scan resumes after the closing one; otherwise the
+# next backtick is tried as the opener.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__spans() {
+  SPV_OUT=()
+  local line rest tok
+  [[ "$1" == *'`'*'`'* ]] || return 0
+  spv__lines "$1"
+  for line in ${SPV_LINES[@]+"${SPV_LINES[@]}"}; do
+    rest=$line
+    while [[ "$rest" == *'`'*'`'* ]]; do
+      rest=${rest#*'`'}
+      tok=${rest%%'`'*}
+      [[ -n "$tok" ]] || continue
+      SPV_OUT+=("$tok")
+      rest=${rest#*'`'}
+    done
+  done
+}
+
+# `sed -E 's/`[^`]*`//g' | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | sort -u`,
+# as a set: per line, backtick pairs are removed left to right; in what is left,
+# every maximal run of [A-Za-z0-9._-] yields its text from the first
+# alphanumeric on, when that is at least two characters. Order is not kept; the
+# one caller only tests membership.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__residue_tokens() {
+  SPV_OUT=()
+  local line rest out w
+  local -A seen=()
+  local -a words=()
+  spv__lines "$1"
+  for line in ${SPV_LINES[@]+"${SPV_LINES[@]}"}; do
+    out="" rest=$line
+    while [[ "$rest" == *'`'*'`'* ]]; do
+      out+=${rest%%'`'*}
+      rest=${rest#*'`'}
+      rest=${rest#*'`'}
+    done
+    out+=$rest
+    out=${out//[^A-Za-z0-9._-]/ }
+    IFS=' ' read -r -a words <<<"$out"
+    for w in ${words[@]+"${words[@]}"}; do
+      w=${w#"${w%%[A-Za-z0-9]*}"}
+      ((${#w} >= 2)) || continue
+      [[ -n "${seen[$w]:-}" ]] && continue
+      seen[$w]=1
+      SPV_OUT+=("$w")
+    done
+  done
+}
+
+# `grep -vE '^[[:space:]]*$' | head -<max>`: the non-blank lines, at most <max>.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__nonblank() {
+  SPV_OUT=()
+  local line
+  spv__lines "$1"
+  for line in ${SPV_LINES[@]+"${SPV_LINES[@]}"}; do
+    [[ "$line" == *[![:space:]]* ]] || continue
+    SPV_OUT+=("$line")
+    ((${#SPV_OUT[@]} < ${2:-2147483647})) || break
+  done
+}
+
+# emit_tokens' lines into SPV_OUT.
+spv_tokens() {
+  if spv_plain "$SCAN_CONTENT"; then
+    hook::_c_locale spv__spans "$SCAN_CONTENT"
+  else
+    mapfile -t SPV_OUT < <(emit_tokens)
+  fi
 }
 
 # Tracked-file list, read at most once per run and reused by root-basename
@@ -300,22 +415,33 @@ reconstruct_partial_edit() {
   # complete span is already handled by the direct scan, and leaving it in would
   # contribute its own path segments as tokens — `docs` then passes every citation
   # under that directory. What remains is the genuinely bare edited text.
-  local residue
-  # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
-  residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's/`[^`]*`//g')
+  local residue plain=0
+  spv_plain "$SCAN_CONTENT" && plain=1
   # Minimum token length is two characters. A single-character token carries no
   # filtering power; below two characters the token floor short-circuits (#1455).
   # Path separators are deliberately NOT in the token charset: a prose fragment
   # like `and/or` would then match far more candidates than a bare word does.
   local -a toks=()
-  mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' 2>/dev/null | sort -u)
+  if ((plain)); then
+    hook::_c_locale spv__residue_tokens "$SCAN_CONTENT"
+    toks=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
+  else
+    # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
+    residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's/`[^`]*`//g')
+    mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' 2>/dev/null | sort -u)
+  fi
   ((${#toks[@]})) || return 0
   # Lines are located by the hunk's own lines, never by its tokens. Every line of
   # new_string is on disk verbatim, so it matches the line the edit landed in; a
   # token, being shorter, also matches lines the edit never touched — a bare `docs`
   # in unrelated prose pulls in every citation under docs/.
   local -a anchors=()
-  mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+  if ((plain)); then
+    hook::_c_locale spv__nonblank "$SCAN_CONTENT"
+    anchors=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
+  else
+    mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+  fi
   ((${#anchors[@]})) || return 0
   # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
   # not matching lines. Counting lines is not enough: two occurrences on one
@@ -362,6 +488,22 @@ reconstruct_partial_edit() {
     # The anchor crosses into awk via the environment, not `-v`: `-v` processes
     # escape sequences in the value, so an anchor containing a backslash would
     # be silently transformed before the comparison.
+    #
+    # A word anchor (awk's own `word` test below, decided here under C so its
+    # ranges are ASCII as awk's are) is counted by splitting each line on
+    # non-word bytes: the same maximal [A-Za-z0-9_] runs the character walk
+    # below finds, in one regex pass per line instead of a regex per character
+    # (a 33 KB file costs ~14 ms by the walk, ~2 by the split). Under C a
+    # non-ASCII byte is a separator, as a non-ASCII character is to the walk.
+    # A `.` or `-` can never sit inside such a run, so an anchor carrying one
+    # counts 0 and needs no awk at all.
+    if hook::_c_locale spv__word_anchor "$anchor"; then
+      [[ "$anchor" != *[.-]* ]] || continue
+      occ=$(spv_word_occurrences "$anchor" "$FILE" 2>/dev/null)
+      ((occ == 1)) || continue
+      ctx+="${hits[0]}"$'\n'
+      continue
+    fi
     occ=$(HOOK_ANCHOR="$anchor" awk '
       BEGIN {
         n = 0
@@ -392,10 +534,16 @@ reconstruct_partial_edit() {
     ctx+="${hits[0]}"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
-  local saved="$SCAN_CONTENT"
-  SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
-  local raw cand seg
-  while IFS= read -r raw; do
+  local saved="$SCAN_CONTENT" raw cand seg
+  if spv_plain "$ctx"; then
+    hook::_c_locale spv__nonblank "$ctx" 40
+    SCAN_CONTENT=""
+    for raw in ${SPV_OUT[@]+"${SPV_OUT[@]}"}; do SCAN_CONTENT+=${SCAN_CONTENT:+$'\n'}$raw; done
+  else
+    SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
+  fi
+  spv_tokens
+  for raw in ${SPV_OUT[@]+"${SPV_OUT[@]}"}; do
     [[ -n "$raw" ]] || continue
     cand=$(normalize_candidate "$raw")
     [[ -n "$cand" ]] || continue
@@ -409,7 +557,7 @@ reconstruct_partial_edit() {
         break
       fi
     done
-  done < <(emit_tokens)
+  done
   SCAN_CONTENT="$saved"
 }
 
@@ -477,8 +625,8 @@ declare -A CHECKED=()
 MISSING=()
 ABSENT=0
 
-RAW_TOKENS=()
-mapfile -t RAW_TOKENS < <(emit_tokens)
+spv_tokens
+RAW_TOKENS=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
 # Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
 # hunk can both carry a complete code span and change a substring inside another,
 # so gating on an empty scan would miss the partial half. Duplicates are harmless

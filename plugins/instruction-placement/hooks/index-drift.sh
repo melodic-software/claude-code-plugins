@@ -62,6 +62,7 @@ esac
 # a silent no-op, the exact shape of failure this hook exists to prevent
 # elsewhere. hook::dirname_to answers with builtins rather than a `dirname`
 # subshell: no slash -> `.`, a root-level `/x` -> `/` rather than empty.
+file_dir=""
 hook::dirname_to file_dir "$file_path"
 repo_root=""
 hook::repo_root_to repo_root "$file_dir"
