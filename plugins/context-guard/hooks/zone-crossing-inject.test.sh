@@ -357,10 +357,10 @@ fi
 
 # 6. Kill switch honored.
 write_snapshot "$H" s2 90
-# A here-string, never a pipe: the kill switch exits before reading stdin, and
-# a printf still writing then fails on the closed pipe, which pipefail reports.
-OUT=$(HOME="$H" CLAUDE_PLUGIN_DATA="$D" CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED=false bash "$HOOK" \
-  <<<'{"session_id":"s2","hook_event_name":"PostToolBatch"}' 2>/dev/null)
+# Stdin from a file, not a pipe: the disabled hook exits before it reads, and a
+# writer still feeding a pipe would take EPIPE.
+printf '{"session_id":"s2","hook_event_name":"PostToolBatch"}' >"$WORK/kill-switch.json"
+OUT=$(HOME="$H" CLAUDE_PLUGIN_DATA="$D" CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED=false bash "$HOOK" <"$WORK/kill-switch.json" 2>/dev/null)
 RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "kill switch silences the hook"; else fail "kill switch: rc=$RC out=$OUT"; fi
 

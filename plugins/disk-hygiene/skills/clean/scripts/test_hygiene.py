@@ -4773,6 +4773,13 @@ class GuardTests(unittest.TestCase):
         self.addCleanup(environ_patch.stop)
         os.environ.pop(guard._WATCHDOG_ENV_VAR, None)
         os.environ.pop("CLAUDE_PLUGIN_DATA", None)
+        # Hermetic directory-marketplace channel: the trusted config dir is the
+        # real account home, so every case here sees none unless it opts in.
+        guard._directory_marketplace_install.cache_clear()
+        self.addCleanup(guard._directory_marketplace_install.cache_clear)
+        trusted = mock.patch.object(guard, "_trusted_config_dir", lambda: None)
+        trusted.start()
+        self.addCleanup(trusted.stop)
 
     def decision_records(self, data_root: Path | None = None) -> list[dict]:
         """Every decision record written under a data root, oldest first."""
@@ -9201,6 +9208,13 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.settings = self.config_dir / "settings.json"
         # Managed settings default to absent; managed tests write this file.
         self.managed = self.config_dir / "managed-settings.json"
+        # Hermetic directory-marketplace channel: the trusted config dir is the
+        # real account home, so every case here sees none unless it opts in.
+        guard._directory_marketplace_install.cache_clear()
+        self.addCleanup(guard._directory_marketplace_install.cache_clear)
+        trusted = mock.patch.object(guard, "_trusted_config_dir", lambda: None)
+        trusted.start()
+        self.addCleanup(trusted.stop)
 
     def _toggle_json(self, value: object) -> str:
         return json.dumps(
@@ -9412,6 +9426,466 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.write_managed_dropin("20-second.json", False)
         self.write_toggle(True)
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+
+class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
+    """A plugin loaded in place from a local-directory marketplace.
+
+    Its ``${CLAUDE_PLUGIN_ROOT}`` is the source checkout, which carries no
+    ``plugins/cache`` marker, so the belt (which receives only ``--plugin-root``)
+    derives its data root, user settings, and plugin id from the trusted
+    account-record config dir's ``known_marketplaces.json`` instead. Every case
+    mocks that config dir to a temp fixture; none reads the real one.
+    """
+
+    SCRIPT = str(SCRIPT_DIR / "destructive_guard.py")
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.base = Path(tmp.name).resolve()
+        self.config = self.base / "home" / ".claude"
+        (self.config / "plugins").mkdir(parents=True)
+        self.checkout = self.base / "checkout"
+        self.plugin_root = self.checkout / "plugins" / "disk-hygiene"
+        (self.plugin_root / ".claude-plugin").mkdir(parents=True)
+        (self.checkout / ".claude-plugin").mkdir()
+        self.write_json(
+            self.plugin_root / ".claude-plugin" / "plugin.json",
+            {"name": "disk-hygiene"},
+        )
+        self.write_marketplace(
+            {
+                "name": "acme",
+                "plugins": [
+                    {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"}
+                ],
+            }
+        )
+        self.write_known({"acme": self.directory_entry(self.checkout)})
+        self.expected = self.config / "plugins" / "data" / "disk-hygiene-acme"
+        self.settings = self.config / "settings.json"
+        self.managed = self.base / "managed-settings.json"
+        guard._directory_marketplace_install.cache_clear()
+        self.addCleanup(guard._directory_marketplace_install.cache_clear)
+        trusted = mock.patch.object(guard, "_trusted_config_dir", lambda: self.config)
+        trusted.start()
+        self.addCleanup(trusted.stop)
+        environ_patch = mock.patch.dict(os.environ)
+        environ_patch.start()
+        self.addCleanup(environ_patch.stop)
+        for name in ("CLAUDE_PLUGIN_DATA", guard._WATCHDOG_ENV_VAR):
+            os.environ.pop(name, None)
+
+    @staticmethod
+    def write_json(path: Path, value: object) -> None:
+        path.write_text(json.dumps(value), encoding="utf-8")
+
+    @staticmethod
+    def directory_entry(location: object) -> dict[str, object]:
+        if isinstance(location, Path):
+            location = os.fspath(location)
+        return {
+            "source": {"source": "directory", "path": location},
+            "installLocation": location,
+        }
+
+    def write_known(self, value: object) -> None:
+        self.write_json(self.config / "plugins" / "known_marketplaces.json", value)
+
+    def write_marketplace(self, value: object) -> None:
+        self.write_json(self.checkout / ".claude-plugin" / "marketplace.json", value)
+
+    def write_entries(self, *entries: object) -> None:
+        self.write_marketplace({"name": "acme", "plugins": list(entries)})
+
+    def argv(self, *tail: str) -> list[str]:
+        return [self.SCRIPT, "--plugin-root", os.fspath(self.plugin_root), *tail]
+
+    def resolve(self, *tail: str) -> str | None:
+        guard._directory_marketplace_install.cache_clear()
+        with mock.patch.object(guard.sys, "argv", self.argv(*tail)):
+            return guard.resolve_authorized_data_root()
+
+    def resolve_enabled(self) -> bool:
+        guard._directory_marketplace_install.cache_clear()
+        with (
+            mock.patch.object(guard.sys, "argv", self.argv()),
+            mock.patch.object(
+                guard.killswitch_config, "managed_settings_path", lambda: self.managed
+            ),
+        ):
+            return guard.resolve_disk_hygiene_enabled()
+
+    def engine_command(self, subcommand: str) -> str:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        if subcommand == "scan":
+            tail = "scan --target t --output s"
+        else:
+            tail = (
+                "apply --execute --snapshot s --plan p --confirm-tier high "
+                f"--approval-token {'a' * 24} --report r"
+            )
+        return (
+            f'"{guard._display_python()}" "{script}" {tail} '
+            f'--data-root "{self.expected.as_posix()}"'
+        )
+
+    def run_main(self, command: str, argv: list[str]) -> dict[str, object]:
+        guard._directory_marketplace_install.cache_clear()
+        stdin = io.StringIO(
+            json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.object(
+                guard.killswitch_config, "managed_settings_path", lambda: self.managed
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        return json.loads(stdout.getvalue())["hookSpecificOutput"]
+
+    def assert_fails_closed(self) -> None:
+        self.assertIsNone(self.resolve())
+
+    # --- AC1, AC2, AC11: the directory channel resolves and is honored ------
+
+    def test_directory_install_derives_canonical_data_root(self) -> None:
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+
+    def test_belt_admits_exact_scan_and_asks_apply_like_the_engine_gate(
+        self,
+    ) -> None:
+        gate_argv = [
+            self.SCRIPT,
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            os.fspath(self.plugin_root),
+            "--authorized-data-root",
+            os.fspath(self.expected),
+        ]
+        for subcommand, verdict in (("scan", "allow"), ("apply", "ask")):
+            with self.subTest(subcommand=subcommand):
+                command = self.engine_command(subcommand)
+                belt = self.run_main(command, self.argv())
+                gated = self.run_main(command, gate_argv)
+                self.assertEqual(verdict, belt["permissionDecision"])
+                self.assertEqual(gated["permissionDecision"], belt["permissionDecision"])
+
+    def test_belt_denies_exact_scan_without_the_directory_channel(self) -> None:
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        belt = self.run_main(self.engine_command("scan"), self.argv())
+        self.assertEqual("deny", belt["permissionDecision"])
+
+    def test_directory_install_keeps_any_key_managed_match(self) -> None:
+        # The directory read passes no exact id, so a managed false keyed to
+        # another marketplace still disables, as it did before this channel.
+        self.write_json(
+            self.managed,
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@org-market": {
+                        "options": {"disk_hygiene_enabled": False}
+                    }
+                }
+            },
+        )
+        self.assertFalse(self.resolve_enabled())
+        belt = self.run_main(self.engine_command("apply"), self.argv())
+        self.assertEqual("deny", belt["permissionDecision"])
+        self.assertIn("execution is disabled", belt["permissionDecisionReason"])
+
+    def test_fails_closed_on_a_plugin_other_than_disk_hygiene(self) -> None:
+        self.write_json(
+            self.plugin_root / ".claude-plugin" / "plugin.json", {"name": "foo"}
+        )
+        self.write_entries({"name": "foo", "source": "./plugins/disk-hygiene"})
+        self.assert_fails_closed()
+
+    def test_directory_install_reads_the_kill_switch(self) -> None:
+        self.assertTrue(self.resolve_enabled())
+        self.write_json(
+            self.settings,
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@acme": {"options": {"disk_hygiene_enabled": False}}
+                }
+            },
+        )
+        self.assertFalse(self.resolve_enabled())
+        belt = self.run_main(self.engine_command("apply"), self.argv())
+        self.assertEqual("deny", belt["permissionDecision"])
+        self.assertIn("execution is disabled", belt["permissionDecisionReason"])
+
+    # --- AC3, AC13: every unproven shape fails closed -----------------------
+
+    def test_fails_closed_without_known_marketplaces_file(self) -> None:
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        self.assert_fails_closed()
+
+    def test_fails_closed_on_malformed_or_non_object_known_marketplaces(
+        self,
+    ) -> None:
+        path = self.config / "plugins" / "known_marketplaces.json"
+        for text in ("{not json", "[]", '"acme"', "null"):
+            with self.subTest(text=text):
+                path.write_text(text, encoding="utf-8")
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_non_directory_source(self) -> None:
+        for kind in ("github", "file", "git", None):
+            with self.subTest(kind=kind):
+                entry = self.directory_entry(self.checkout)
+                entry["source"] = {"source": kind, "repo": "acme/plugins"}
+                self.write_known({"acme": entry})
+                self.assert_fails_closed()
+        for source in ("directory", None, ["directory"]):
+            with self.subTest(source=source):
+                entry = self.directory_entry(self.checkout)
+                entry["source"] = source
+                self.write_known({"acme": entry})
+                self.assert_fails_closed()
+
+    def test_fails_closed_when_root_is_outside_every_install_location(
+        self,
+    ) -> None:
+        elsewhere = self.base / "elsewhere"
+        elsewhere.mkdir()
+        # "check" is a string prefix of "checkout" but not a parent directory.
+        sibling = self.base / "check"
+        sibling.mkdir()
+        for location in (elsewhere, sibling):
+            with self.subTest(location=location):
+                self.write_known({"acme": self.directory_entry(location)})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_bad_install_location(self) -> None:
+        for location in (123, None, os.fspath(self.base / "gone"), ""):
+            with self.subTest(location=location):
+                entry = self.directory_entry(self.checkout)
+                entry["installLocation"] = location
+                self.write_known({"acme": entry})
+                self.assert_fails_closed()
+
+    def test_fails_closed_when_two_directory_marketplaces_contain_the_root(
+        self,
+    ) -> None:
+        self.write_known(
+            {
+                "acme": self.directory_entry(self.checkout),
+                "acme-too": self.directory_entry(self.checkout / "plugins"),
+            }
+        )
+        self.assert_fails_closed()
+
+    def test_fails_closed_without_exactly_one_matching_entry(self) -> None:
+        other = self.checkout / "plugins" / "other"
+        other.mkdir()
+        cases = {
+            "none": [{"name": "disk-hygiene", "source": "./plugins/other"}],
+            "two": [
+                {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"},
+                {"name": "disk-hygiene", "source": "./plugins/../plugins/disk-hygiene"},
+            ],
+        }
+        for label, entries in cases.items():
+            with self.subTest(label=label):
+                self.write_entries(*entries)
+                self.assert_fails_closed()
+        for plugins in (None, {}, "disk-hygiene"):
+            with self.subTest(plugins=plugins):
+                self.write_marketplace({"name": "acme", "plugins": plugins})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_bad_entry_name(self) -> None:
+        for name in (123, None, "", "---", "..", "disk/hygiene"):
+            with self.subTest(name=name):
+                self.write_json(
+                    self.plugin_root / ".claude-plugin" / "plugin.json", {"name": name}
+                )
+                self.write_entries({"name": name, "source": "./plugins/disk-hygiene"})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_absolute_or_object_source(self) -> None:
+        for source in (
+            os.fspath(self.plugin_root),
+            self.plugin_root.as_posix(),
+            {"source": "github", "repo": "acme/disk-hygiene"},
+            {"source": "local", "path": "./plugins/disk-hygiene"},
+        ):
+            with self.subTest(source=source):
+                self.write_entries({"name": "disk-hygiene", "source": source})
+                self.assert_fails_closed()
+
+    def test_fails_closed_on_source_outside_install_location(self) -> None:
+        outside = self.base / "elsewhere" / "disk-hygiene"
+        outside.mkdir(parents=True)
+        self.write_entries(
+            {"name": "disk-hygiene", "source": "./../elsewhere/disk-hygiene"}
+        )
+        self.assert_fails_closed()
+
+    def test_fails_closed_when_entry_name_differs_from_plugin_manifest(
+        self,
+    ) -> None:
+        self.write_json(
+            self.plugin_root / ".claude-plugin" / "plugin.json", {"name": "other"}
+        )
+        self.assert_fails_closed()
+        (self.plugin_root / ".claude-plugin" / "plugin.json").unlink()
+        self.assert_fails_closed()
+
+    def test_fails_closed_when_marketplace_name_differs_from_known_key(
+        self,
+    ) -> None:
+        for name in ("not-acme", None, 7):
+            with self.subTest(name=name):
+                self.write_marketplace(
+                    {
+                        "name": name,
+                        "plugins": [
+                            {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"}
+                        ],
+                    }
+                )
+                self.assert_fails_closed()
+        (self.checkout / ".claude-plugin" / "marketplace.json").unlink()
+        self.assert_fails_closed()
+
+    def test_fails_closed_when_trusted_home_is_unresolvable(self) -> None:
+        with mock.patch.object(guard, "_trusted_config_dir", lambda: None):
+            self.assert_fails_closed()
+            self.assertTrue(self.resolve_enabled())
+
+    def test_bare_name_source_resolves_against_metadata_plugin_root(self) -> None:
+        self.write_marketplace(
+            {
+                "name": "acme",
+                "metadata": {"pluginRoot": "./plugins"},
+                "plugins": [{"name": "disk-hygiene", "source": "disk-hygiene"}],
+            }
+        )
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+        self.write_entries({"name": "disk-hygiene", "source": "disk-hygiene"})
+        self.assert_fails_closed()
+
+    # --- AC4, AC5, AC6: provenance and precedence ---------------------------
+
+    def test_environment_cannot_redirect_the_trusted_config_dir(self) -> None:
+        attacker = self.base / "attacker"
+        (attacker / ".claude" / "plugins").mkdir(parents=True)
+        self.write_json(
+            attacker / ".claude" / "plugins" / "known_marketplaces.json",
+            {"evil": self.directory_entry(self.checkout)},
+        )
+        os.environ["HOME"] = os.fspath(attacker)
+        os.environ["USERPROFILE"] = os.fspath(attacker)
+        os.environ["CLAUDE_CONFIG_DIR"] = os.fspath(attacker / ".claude")
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+
+    def test_precedence_argv_then_cache_then_directory_then_env(self) -> None:
+        os.environ["CLAUDE_PLUGIN_DATA"] = os.fspath(self.base / "from-env")
+        self.assertEqual(os.fspath(self.expected), self.resolve())
+        self.assertEqual(
+            "/from-argv", self.resolve("--authorized-data-root", "/from-argv")
+        )
+        # A cache-layout root never consults the directory channel at all
+        # (`_directory_install_for` gates it), so the cache derivation wins.
+        cached = self.checkout / "plugins" / "cache" / "mk" / "disk-hygiene" / "1.0"
+        (cached / ".claude-plugin").mkdir(parents=True)
+        self.write_json(cached / ".claude-plugin" / "plugin.json", {"name": "disk-hygiene"})
+        self.write_entries(
+            {"name": "disk-hygiene", "source": "./plugins/cache/mk/disk-hygiene/1.0"}
+        )
+        guard._directory_marketplace_install.cache_clear()
+        self.assertIsNone(guard._directory_install_for(os.fspath(cached)))
+        with mock.patch.object(
+            guard.sys, "argv", [self.SCRIPT, "--plugin-root", os.fspath(cached)]
+        ):
+            self.assertEqual(
+                os.fspath(self.checkout / "plugins" / "data" / "disk-hygiene-mk"),
+                guard.resolve_authorized_data_root(),
+            )
+        # Without any trusted channel, the environment is the last resort.
+        (self.config / "plugins" / "known_marketplaces.json").unlink()
+        self.assertEqual(os.fspath(self.base / "from-env"), self.resolve())
+
+    def test_data_root_is_built_only_from_trusted_config_and_sanitized_id(
+        self,
+    ) -> None:
+        key = "../../evil"
+        self.write_known({key: self.directory_entry(self.checkout)})
+        self.write_marketplace(
+            {
+                "name": key,
+                "plugins": [
+                    {"name": "disk-hygiene", "source": "./plugins/disk-hygiene"}
+                ],
+            }
+        )
+        derived = self.resolve()
+        assert derived is not None
+        self.assertEqual(self.config / "plugins" / "data", Path(derived).parent)
+        self.assertEqual("disk-hygiene-------evil", Path(derived).name)
+
+    # --- AC7: the no-authority denial names a recovery ----------------------
+
+    def test_no_authority_denial_names_the_launch_env_recovery(self) -> None:
+        belt = guard._bash_denial_guidance(None, mode=guard._MODE_BELT)
+        self.assertIn("known_marketplaces.json", belt)
+        self.assertIn("CLAUDE_PLUGIN_DATA", belt)
+        self.assertIn("<config>/plugins/data/<name>-<marketplace>", belt)
+        self.assertIn("persists until the session ends", belt)
+        self.assertIn("start a new session", belt)
+
+    # --- AC15: memoized per process -----------------------------------------
+
+    def test_directory_lookup_is_memoized_per_plugin_root(self) -> None:
+        calls: list[int] = []
+
+        def counted() -> Path:
+            calls.append(1)
+            return self.config
+
+        guard._directory_marketplace_install.cache_clear()
+        with mock.patch.object(guard, "_trusted_config_dir", counted):
+            first = guard._directory_marketplace_install(os.fspath(self.plugin_root))
+            second = guard._directory_marketplace_install(os.fspath(self.plugin_root))
+        self.assertEqual(first, second)
+        self.assertEqual(1, len(calls))
+        self.assertEqual(1, guard._directory_marketplace_install.cache_info().hits)
+
+
+class TrustedConfigDirTests(unittest.TestCase):
+    """The config-dir anchor comes from the OS account record, never the env.
+
+    Deliberately unmocked: a repo ``settings.json`` ``env`` block reaches hook
+    subprocesses, so HOME, USERPROFILE, and CLAUDE_CONFIG_DIR must not move it.
+    """
+
+    def test_environment_does_not_move_the_account_record_home(self) -> None:
+        baseline = guard._trusted_config_dir()
+        if baseline is None:
+            self.skipTest("no OS account record for this uid")
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                os.environ,
+                {"HOME": tmp, "USERPROFILE": tmp, "CLAUDE_CONFIG_DIR": tmp},
+            ):
+                self.assertEqual(baseline, guard._trusted_config_dir())
+            with mock.patch.dict(os.environ):
+                for name in ("HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR"):
+                    os.environ.pop(name, None)
+                self.assertEqual(baseline, guard._trusted_config_dir())
+
+    def test_account_lookup_failure_yields_no_anchor(self) -> None:
+        # A uid with no password-database entry raises KeyError on POSIX.
+        with mock.patch.object(guard, "_account_home", side_effect=KeyError(1000)):
+            self.assertIsNone(guard._trusted_config_dir())
 
 
 class EngineGrammarTests(unittest.TestCase):

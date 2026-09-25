@@ -3,11 +3,22 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.24] - 2026-09-24
+## [0.8.25] - 2026-09-24
 
 ### Fixed
 
-- `hooks/record-rate-limit-stop.test.sh` (`run`) and `scripts/statusline-shim.test.sh` (`run_env`) feed a here-string instead of a pipe. The kill switch, and the shim with nothing to run, exit before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+- `scripts/statusline-shim.test.sh` (`run_env`) feeds a here-string instead of a pipe. The shim with nothing to run exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.8.24] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/record-rate-limit-stop.sh` through `bash` with `"shell": "bash"`,
+  the #4421 shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang)
+  before bash. Hook behavior is unchanged (#4442).
+- `record-rate-limit-stop.sh` reads its `rate_limit_guard_enabled` switch before it sources
+  `hook-utils.sh`, so a disabled hook exits without parsing the library. Enabled behavior is
+  unchanged.
 
 ## [0.8.23] - 2026-09-23
 

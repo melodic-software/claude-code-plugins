@@ -3,11 +3,19 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.54] - 2026-09-24
+## [0.7.55] - 2026-09-24
 
 ### Fixed
 
 - `hooks/bash-format.test.sh`: `run_hook_env` feeds the hook its payload through a here-string instead of a pipe. On the kill-switch case the hook exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.7.54] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/bash-format.sh` through `bash` with `"shell": "bash"`, the #4421
+  shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before
+  bash. Hook behavior is unchanged (#4442).
 
 ## [0.7.53] - 2026-09-23
 

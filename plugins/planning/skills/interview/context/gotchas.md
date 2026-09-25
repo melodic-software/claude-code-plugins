@@ -28,6 +28,14 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. There is no way to detect non-interactivity, so the caller declares it.
 
+## Page surface
+
+- **A stale `ops.json`:** a file left from an earlier wake re-applies its old replies; write it fresh with the Write tool on every wake.
+
+- **A forgotten `handle`:** the page stays on "Claude is working on Qn" and the event is re-delivered on the next arm; every event ends handled.
+
+- **A server restart:** the restart issues a new token, so the armed watcher exits 2; re-arm it after `ensure-running`.
+
 ## Brief contract
 
 - **`lock` mode with hidden gaps:** if synthesis surfaces a true unknown, stop and ask; do not fudge the Brief.

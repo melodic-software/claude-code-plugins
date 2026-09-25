@@ -3,11 +3,33 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.57.3] - 2026-09-24
+## [0.58.1] - 2026-09-24
 
 ### Fixed
 
 - `hooks/worktree-add-claim-gate.test.sh` and `hooks/worktree-add-containment-gate.test.sh` (`run`) and the kill-switch case in `hooks/pr-body-linkage-gate.test.sh` feed a here-string instead of a pipe. Each gate's kill switch exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.58.0] - 2026-09-24
+
+### Removed
+
+- **BREAKING:** the skill-evidence system. `scripts/skill-evidence.sh` and its suite, the `pr_skill_evidence` config key, the `skill-evidence` PR body block, and the `pr-ready-evidence-gate` and `pr-ready-evidence-mcp-gate` hooks with their `pr_ready_evidence_gate_enabled` and `skill_evidence_store` options are gone. A `.claude/source-control.md` that still declares `pr_skill_evidence` is ignored.
+- The babysit gate no longer reads a PR body: `view_pr` and `evaluate()` drop the `skillEvidence` record, and the snapshot drops the `skill_evidence_gap` worker reason.
+- pull-request create no longer writes `branch.<name>.pr-number` into git config.
+
+### Changed
+
+- pull-request `ready` merges the base, runs the security review over the pull request's diff and the verify gate on the merged head, then flips. It no longer checks or renders evidence.
+- pull-request prep classifies the changed files by a table in `reference/prep.md` instead of reading a config map.
+
+## [0.57.3] - 2026-09-24
+
+### Changed
+
+- Hook registrations run each `hooks/*.sh` gate (the PR-linkage, PR-ready-evidence and worktree
+  gates) through `bash` with `"shell": "bash"`, the #4421 shape, so each fire no longer execs
+  `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged
+  (#4442).
 
 ## [0.57.2]
 

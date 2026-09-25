@@ -7,7 +7,7 @@ invocation carried `full`; every other action routes through the phase table in
 
 Run Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 as a continuous flow. Phase transitions are automatic. Don't pause between phases except at **decision gates** where the outcome could vary, plus one interactive-only checkpoint at the create boundary.
 
-**Phase 2.5 sits between create and monitor.** Phase 2 opens a draft, Phase 2.5 produces the pull request's skill evidence and flips it out of draft ([ready-for-review.md](ready-for-review.md)), and Phase 3 monitors the CI and review activity that flip starts. Reaching monitor without the flip means monitoring a draft that no reviewer has been asked to read.
+**Phase 2.5 sits between create and monitor.** Phase 2 opens a draft, Phase 2.5 reviews and verifies the merged head and flips it out of draft ([ready-for-review.md](ready-for-review.md)), and Phase 3 monitors the CI and review activity that flip starts. Reaching monitor without the flip means monitoring a draft that no reviewer has been asked to read.
 
 **Create→ready checkpoint (`full` only):**
 

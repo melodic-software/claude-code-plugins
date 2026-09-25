@@ -5,11 +5,23 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.69] - 2026-09-24
+## [0.7.70] - 2026-09-24
 
 ### Fixed
 
-- `hooks/post-compact-mark.test.sh`, `hooks/zone-gate.test.sh`, `hooks/zone-crossing-inject.test.sh` and `scripts/statusline-shim.test.sh` feed a here-string instead of a pipe wherever the subject exits before reading stdin: the kill switch, zone-gate's advisory mode, and the shim with nothing to run. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+- `hooks/zone-gate.test.sh` and `scripts/statusline-shim.test.sh` feed a here-string instead of a pipe wherever the subject exits before reading stdin: the kill switch, zone-gate's advisory mode, and the shim with nothing to run. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.7.69] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/zone-gate.sh`, `hooks/zone-crossing-inject.sh` and
+  `hooks/post-compact-mark.sh` through `bash` with `"shell": "bash"`, the #4421 shape, so each fire
+  no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is
+  unchanged (#4442).
+- `zone-crossing-inject.sh` and `post-compact-mark.sh` read the `context_guard_hooks_enabled` switch
+  before they source `hook-utils.sh`, as `zone-gate.sh` already did, so a disabled hook exits
+  without parsing the library. Enabled behavior is unchanged.
 
 ## [0.7.68] - 2026-09-23
 

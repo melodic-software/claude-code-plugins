@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/surface/questions",
+  "title": "Interview surface questions.json",
+  "description": "Claude's file, written only through round.py, which validates every write against this schema. A file without `schemaVersion` is version 0 and loads unchanged. The schema never requires `commits` or a minimum number of alternatives: round.py refuses those on new questions only, so older files keep loading. `state` is derived by the server and never written by Claude.",
+  "type": "object",
+  "required": ["questions"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {"type": "string"},
+    "meta": {"$ref": "#/$defs/meta"},
+    "rev": {"type": "integer"},
+    "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}},
+    "questions": {"type": "array", "items": {"$ref": "#/$defs/question"}},
+    "visuals": {
+      "type": "array",
+      "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/visual"}
+    },
+    "notes": {"type": "array", "items": {"$ref": "#/$defs/line"}},
+    "handled": {"type": "array", "items": {"type": "integer"}},
+    "handledSeq": {"type": "integer"}
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string"},
+        "eyebrow": {"type": "string"},
+        "stages": {"type": "object", "additionalProperties": {"type": "string"}},
+        "next": {"type": "string"},
+        "emojiMarkers": {"type": "boolean"},
+        "displayName": {"type": "string"},
+        "seededFrom": {"$ref": "#/$defs/seededFrom"}
+      }
+    },
+    "seededFrom": {
+      "type": "object",
+      "required": ["at", "rows"],
+      "properties": {
+        "ledger": {"type": "string"},
+        "at": {"type": "string"},
+        "rows": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["status"],
+            "additionalProperties": false,
+            "properties": {
+              "status": {"enum": ["open", "answered", "deferred", "withdrawn", "blocked"]},
+              "round": {"type": "integer"},
+              "resolution": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["id", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
+        "dependsOn": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "alternative": {
+      "type": "object",
+      "required": ["key", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {"type": "string"},
+        "text": {"type": "string"}
+      }
+    },
+    "line": {
+      "type": "object",
+      "required": ["at", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "at": {"type": "string"},
+        "by": {"enum": ["claude", "user", "user-terminal"]},
+        "kind": {"type": ["string", "null"]},
+        "text": {"type": "string"},
+        "replyTo": {"type": "integer"},
+        "affects": {"type": "array", "items": {"type": "string"}},
+        "alt": {"type": ["string", "null"]},
+        "summary": {"type": "string"}
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "required": ["decision"],
+      "additionalProperties": false,
+      "properties": {
+        "decision": {"enum": ["accept", "alt", "own", "defer"]},
+        "alt": {"type": ["string", "null"]},
+        "text": {"type": "string"},
+        "updatedAt": {"type": "string"},
+        "seeded": {"type": "boolean"}
+      }
+    },
+    "archived": {
+      "type": "object",
+      "required": ["why", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "why": {"type": "string"},
+        "at": {"type": "string"},
+        "seeded": {"type": "boolean"}
+      }
+    },
+    "question": {
+      "type": "object",
+      "required": ["id", "short", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "group": {"type": "string"},
+        "round": {"type": "integer"},
+        "stage": {"type": "string"},
+        "short": {"type": "string"},
+        "title": {"type": "string"},
+        "facts": {"type": "string"},
+        "recommendation": {"type": "string"},
+        "basis": {"type": "string"},
+        "commits": {"type": "array", "items": {"type": "string"}},
+        "alternatives": {"type": "array", "items": {"$ref": "#/$defs/alternative"}},
+        "dependsOn": {"type": "array", "items": {"type": "string"}},
+        "followUpOf": {"type": "string"},
+        "supersedes": {"type": "string"},
+        "supersededBy": {"type": "string"},
+        "waiting": {"type": "boolean"},
+        "waitsOn": {"type": "string"},
+        "contentRev": {"type": "integer"},
+        "rev": {"type": "integer"},
+        "visuals": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {"type": "string"},
+              {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/visual"}
+            ]
+          }
+        },
+        "history": {"type": "array", "items": {"$ref": "#/$defs/line"}},
+        "terminal": {"$ref": "#/$defs/terminal"},
+        "previousRecommendation": {"type": "string"},
+        "revised": {"type": "string"},
+        "archived": {"$ref": "#/$defs/archived"},
+        "state": {
+          "enum": ["open", "stale", "upstream-pending", "archived"],
+          "description": "Derived by the server from dependsOn, decision events and archived; never written by Claude"
+        }
+      }
+    }
+  }
+}

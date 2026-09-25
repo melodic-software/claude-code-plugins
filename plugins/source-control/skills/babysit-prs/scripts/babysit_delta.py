@@ -41,7 +41,6 @@ from babysit_util import (
     is_json_object,
     json_array,
     json_object,
-    parse_skill_evidence_block,
     parse_timestamp,
 )
 
@@ -326,34 +325,6 @@ def head_repository_scope(
         "maintainer_can_modify": bool(pr.get("maintainerCanModify")),
         "branch_write_allowed": branch_write_allowed,
     }
-
-
-def skill_evidence_record_gap(record: dict[str, Any], head_sha: str) -> bool:
-    """Is the PR's skill-evidence record a gap for `head_sha`?
-
-    A merge-gate record carries its own `gap` verdict and is believed. The
-    parsed record `view_pr` attaches (the queue-snapshot path) carries only
-    what the body claims, so the freshness question is answered here from the
-    cheapest proof there is: the terminal skill's row must equal the head
-    exactly, so a block with no row at the head at all was rendered for an
-    earlier head and is stale by construction, and a block that does not parse
-    claims nothing. An empty record (a snapshot from before the block existed)
-    proves nothing either way and is not a gap.
-    """
-    if not record:
-        return False
-    if "gap" in record:
-        return bool(record["gap"])
-    if record.get("present") is not True or not record.get("parsed"):
-        return True
-    head = (head_sha or "").lower()
-    rows = record.get("rows")
-    if not head or not isinstance(rows, list):
-        return True
-    return not any(
-        isinstance(row, dict) and str(row.get("sha", "")).lower() == head
-        for row in rows
-    )
 
 
 def _ledgered_comment_ids(prior: dict[str, Any]) -> set[str]:
@@ -981,33 +952,6 @@ def classify_pr(
     worker_checkin_head_unconfirmed = bool(
         prev and last_worker_checkin_head_sha != head_sha
     )
-    # The pull-request body's skill-evidence block, as `view_pr` parsed it (or
-    # as a merge-gate record, which adds the head-freshness verdict the parse
-    # alone cannot make). A gap means the mandatory skills have no visible
-    # claim at this head, which only a worker running
-    # `/source-control:pull-request ready` can fix -- the merge gate neither
-    # runs skills nor edits a body. Bounded to one dispatch per head by the
-    # check-in comparison: a worker that has already looked at this exact head
-    # was given the chance, so a gap it could not close must not re-dispatch
-    # every cycle. A new head re-arms it, which is the head the evidence would
-    # be owed for anyway. Drafts are out of scope: no gate reports on a draft.
-    skill_evidence_record = json_object(pr.get("skillEvidence"))
-    if not skill_evidence_record and isinstance(pr.get("body"), str):
-        skill_evidence_record = parse_skill_evidence_block(pr.get("body"))
-    skill_evidence_gap = bool(
-        not pr.get("isDraft")
-        and skill_evidence_record_gap(skill_evidence_record, head_sha)
-        and last_worker_checkin_head_sha != head_sha
-    )
-    # Closing the gap means committing to the head branch and editing the body:
-    # a worker dispatched where `branch_write_allowed` is false cannot do
-    # either, so the dispatch would burn a cycle and return with the gap
-    # intact. The record below still reports the gap, which is the honest
-    # statement -- the evidence really is absent -- and the trust boundary
-    # decides only whether a worker is routed at it.
-    skill_evidence_gap_actionable = bool(
-        skill_evidence_gap and mutation_policy["branch_write_allowed"]
-    )
     # Computed here (rather than alongside `quiet_recheck_due` below) so
     # `dispatch_pending_unconfirmed` can consult it too.
     last_worker_checkin = parse_timestamp(prev.get("last_worker_checkin_at"))
@@ -1149,19 +1093,11 @@ def classify_pr(
     #   transition regardless of CI cleanliness ("Zero-blocker drafts are
     #   the exception: always route them through a worker"); the merge gate
     #   only re-validates mergeability, never completeness.
-    # - `skill_evidence_gap_actionable`: the mandatory skills have no fresh
-    #   claim at this head, and the merge gate can neither run them nor render
-    #   the block -- only a worker running `/source-control:pull-request ready`
-    #   can. A clean zero-blocker PR is exactly the case that needs it, so
-    #   suppressing it there would leave the gap unrouted on every PR it
-    #   matters for. Gated on `branch_write_allowed`, because the worker's fix
-    #   is a commit to the head branch and an edit to the body.
     unsuppressible_delta = bool(
         new_blocking_feedback
         or new_material_feedback
         or new_human_blocking_feedback
         or became_ready_for_review
-        or skill_evidence_gap_actionable
     )
     worker_actionable_delta = bool(
         (suppressible_delta and not pr_clean_ready_for_direct_gate)
@@ -1256,7 +1192,6 @@ def classify_pr(
                 ("checks_changed", checks_changed, True),
                 ("merge_state_became_actionable", merge_state_became_actionable, True),
                 ("became_ready_for_review", became_ready_for_review, False),
-                ("skill_evidence_gap", skill_evidence_gap_actionable, False),
                 # Not suppressible while a same-head dispatch remains unconfirmed
                 # from a prior cycle -- see `dispatch_pending_unconfirmed` above.
                 (
@@ -1334,12 +1269,6 @@ def classify_pr(
             "matching_prs": [],
             "shared_with": [],
         },
-        # Reported beside the reason so a cycle report can name the gap without
-        # re-deriving it. Never a blocker: during the advisory window a gap
-        # routes a worker, it never holds a merge. The gap itself, not the
-        # routing decision: a PR whose head branch this session may not write
-        # still reports the gap it has, and simply earns no worker for it.
-        "skill_evidence_gap": skill_evidence_gap,
         "updated_at": updated_at,
         "is_draft": bool(pr.get("isDraft")),
         "review_decision": review_decision,

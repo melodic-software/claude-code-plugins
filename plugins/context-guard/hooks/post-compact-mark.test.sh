@@ -35,12 +35,13 @@ H="$WORK/home"
 D="$WORK/data"
 MARK="$H/.claude/context-guard/context"
 
+# Stdin from a file, not a pipe: with the kill switch off the hook exits before
+# it reads, and a writer still feeding a pipe would take EPIPE.
 run() { # <payload> [extra env k=v...]
   local payload="$1"
   shift
-  # A here-string, never a pipe: the kill switch exits before reading stdin, and
-  # a printf still writing then fails on the closed pipe, which pipefail reports.
-  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" env "$@" bash "$HOOK" <<<"$payload" 2>/dev/null
+  printf '%s' "$payload" >"$WORK/stdin.json"
+  HOME="$H" CLAUDE_PLUGIN_DATA="$D" HOOK_TELEMETRY_SINK="" env "$@" bash "$HOOK" <"$WORK/stdin.json" 2>/dev/null
 }
 
 # 1. Auto trigger recorded.

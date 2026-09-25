@@ -3,11 +3,19 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.57] - 2026-09-24
+## [0.3.58] - 2026-09-24
 
 ### Fixed
 
 - `hooks/go-format.test.sh`: `run_hook_env` feeds the hook its payload through a here-string instead of a pipe. On the kill-switch case the hook exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.3.57] - 2026-09-24
+
+### Changed
+
+- Hook registrations run `hooks/go-format.sh` through `bash` with `"shell": "bash"`, the #4421
+  shape, so each fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before
+  bash. Hook behavior is unchanged (#4442).
 
 ## [0.3.56] - 2026-09-23
 

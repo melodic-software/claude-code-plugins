@@ -3,11 +3,19 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.54] - 2026-09-24
+## [0.6.55] - 2026-09-24
 
 ### Fixed
 
 - `hooks/eol-normalizer.test.sh`: `run_hook_env` feeds the hook its payload through a here-string instead of a pipe. On the kill-switch case the hook exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.6.54] - 2026-09-24
+
+### Changed
+
+- The opt-in hook row runs `exec bash` on `hooks/eol-normalizer.sh` instead of executing the script,
+  so an enabled fire no longer execs `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash.
+  Hook behavior is unchanged (#4442).
 
 ## [0.6.53] - 2026-09-24
 
