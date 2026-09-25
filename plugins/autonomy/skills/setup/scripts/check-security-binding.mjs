@@ -1732,7 +1732,7 @@ function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
   // cannot slip past.
   if (hostInterop === "none") {
     const driveMount = (value) =>
-      typeof value === "string" && /^\/mnt\/[a-z](\/|$)/i.test(posix.normalize(value.trim().replace(/^\/+/, "/")));
+      typeof value === "string" && /^\/mnt\/[a-z](\/|$)/i.test(posix.normalize(value.trim()));
     const interop = transcript.assertions.interop_launch_denied;
     const candidates = [
       ...hostExpanded.map((value) => ["credentials_absent.host_expanded entry", value]),
