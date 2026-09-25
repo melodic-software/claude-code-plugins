@@ -7,7 +7,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Fixed
 
-- `scripts/statusline-shim.test.sh` (`run_env`) feeds a here-string instead of a pipe. The shim with nothing to run exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+- `scripts/statusline-shim.test.sh` (`run_env`) feeds the shim from a payload file instead of a pipe or a here-string. The shim with nothing to run exits before reading stdin, so a pipe writer failed on the closed read end (`pipefail` failed the case intermittently, #4458), and a here-string appends a trailing newline the byte-transparency assertions must not see. Test only; nothing the plugin ships changes.
 
 ## [0.8.24] - 2026-09-24
 
