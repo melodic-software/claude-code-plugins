@@ -7,7 +7,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Fixed
 
-- lane-stop-gate.sh and lane-stop-gate-lib.sh: the user settings.json opt-in is found on Windows. Claude Code passes `CLAUDE_PLUGIN_ROOT` with `\` separators there, so the plugin root never matched the `plugins/cache/<marketplace>/<name>/<version>` anchor and only the environment and managed settings could enable the gate or arm a lane. A drive-letter hook path now has `\` folded to `/` before the anchor is matched, by parameter expansion with no added process. POSIX paths are unchanged: a `\` there is a filename byte.
+- `lane-stop-gate.sh` and `lane-stop-gate-lib.sh`: the user `settings.json` opt-in is found on Windows. Claude Code passes `CLAUDE_PLUGIN_ROOT` with `\` separators there, so the plugin root never matched the `plugins/cache/<marketplace>/<name>/<version>` anchor and only the environment and managed settings could enable the gate or arm a lane. A hook path with a drive letter now has `\` folded to `/` before the anchor is matched, by parameter expansion with no added process. POSIX paths are unchanged: a `\` there is a filename byte.
 
 ## [0.23.22] - 2026-09-24
 
