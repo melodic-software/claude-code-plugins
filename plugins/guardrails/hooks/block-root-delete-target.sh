@@ -195,6 +195,16 @@ MAX_SUBST_DEPTH=32
 MAX_SEGMENT_DEPTH=24
 rdt_depth=0
 
+# The depth cap bounds how deep a reading goes, not how many there are. A
+# launcher read two ways (runuser's -s program and its -u argv) doubles the
+# segments at every level, so 20 levels are a million walks, and a hook the
+# harness cancels on its timeout is cancelled WITHOUT a block. Every judged
+# segment is counted for the whole command, and past the budget the guard
+# REFUSES. 2048 launcher segments cost about 4 s on Git Bash, well inside the
+# hook timeout, while a 16 KB command of ordinary segments holds about 1,500.
+MAX_SEGMENTS=2048
+rdt_segments=0
+
 rdt_emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
@@ -234,6 +244,12 @@ rdt_block() {
       'BLOCKED: eval and substitution text exceeds MAX_COMMAND_LEN in total.' \
       'Each eval re-tokenizes the text it runs, so nested evals multiply the work, and a hook the harness cancels on its timeout is cancelled WITHOUT a block.' \
       'Fix: drop the nested evals, or run the inner command on its own.' >&2
+    ;;
+  too-many-readings)
+    printf '%s\n' \
+      'BLOCKED: too many launcher readings to judge every one; flatten the command.' \
+      "Each segment a launcher, child shell or eval can run is judged, and past $MAX_SEGMENTS of them a recursive delete on a later reading cannot be ruled out inside the hook timeout." \
+      'Fix: drop the repeated launchers, or run the inner command on its own.' >&2
     ;;
   nesting-too-deep-launcher)
     printf '%s\n' \
@@ -664,6 +680,8 @@ rdt_check_segment() {
   # guard REFUSES.
   local rdt_depth=$((rdt_depth + 1))
   ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
+  rdt_segments=$((rdt_segments + 1))
+  ((rdt_segments > MAX_SEGMENTS)) && rdt_block "too-many-readings"
   local -a words=("$@")
   local n=$# i=0 j w base sval optarg consume_bare
   local abbr_forked=0

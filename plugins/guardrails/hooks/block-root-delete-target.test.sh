@@ -303,17 +303,34 @@ expect_both 'runuser -u nested 120 deep is refused' 2 --command "$(rdt_rep 'runu
 expect_both 'runuser -u nested 900 deep is refused' 2 --command "$(rdt_rep 'runuser -u bob -- ' 900)rm -rf /"
 expect_both 'su -s /bin/su nested 300 deep is refused' 2 \
   --command "$(rdt_rep 'su root -s /bin/su -- ' 300)root -s /bin/rm -- -rf /"
-rdt_payload="$(command_json "$(rdt_rep 'flock --wa 1 f eval ' 700)rm -rf /")"
-for rdt_via in direct dispatched; do
-  if [[ "$rdt_via" == direct ]]; then
-    rdt_argv=(bash "$HOOK")
-  else
-    rdt_argv=(bash "$GUARD_DISPATCH" "$HOOK")
-  fi
-  rdt_rc=0
-  timeout 20 "${rdt_argv[@]}" <<<"$rdt_payload" >/dev/null 2>&1 || rdt_rc=$?
-  assert_exit "flock/eval nested 700 deep is refused inside the timeout ($rdt_via)" 2 "$rdt_rc"
-done
+# rdt_timed <label> <want> <command>: one case, alone and dispatched, each under
+# a `timeout 20` backstop. A slow path reads as rc 124 rather than as a pass,
+# because a hook the harness cancels on its timeout is cancelled WITHOUT a block.
+rdt_timed() {
+  local label="$1" want="$2" payload via rc
+  local -a argv
+  payload="$(command_json "$3")"
+  for via in direct dispatched; do
+    if [[ "$via" == direct ]]; then
+      argv=(bash "$HOOK")
+    else
+      argv=(bash "$GUARD_DISPATCH" "$HOOK")
+    fi
+    rc=0
+    timeout 20 "${argv[@]}" <<<"$payload" >/dev/null 2>&1 || rc=$?
+    assert_exit "$label ($via)" "$want" "$rc"
+  done
+}
+rdt_timed 'flock/eval nested 700 deep is refused inside the timeout' 2 "$(rdt_rep 'flock --wa 1 f eval ' 700)rm -rf /"
+# runuser with both -u and a non-shell -s is judged two ways at every level, so
+# the readings double per level below the depth cap. Every judged segment is
+# counted, and past the budget the guard refuses inside the timeout.
+rdt_timed 'runuser -u -s env nested 20 deep is refused' 2 "$(rdt_rep 'runuser -u x -s env -- ' 20)rm -rf ./x"
+rdt_timed 'runuser -u -s env nested 25 deep is refused' 2 "$(rdt_rep 'runuser -u x -s env -- ' 25)rm -rf ./x"
+rdt_timed 'runuser -u -s env nested 25 deep with a root delete blocks' 2 \
+  "$(rdt_rep 'runuser -u x -s env -- ' 25)rm -rf /"
+rdt_timed 'six-level mixed nesting with an ordinary delete allowed' 0 \
+  "sudo -u bob bash -c \"runuser -u x -- sh -c 'su root -c \\\"eval nice timeout 5 rm -rf ./build\\\"'\""
 expect_both 'moderate launcher nesting with an ordinary delete allowed' 0 \
   --command "sudo nice timeout 5 runuser -u bob -- bash -c 'rm -rf ./build'"
 expect_both 'moderate launcher nesting with a root delete blocks' 2 \
