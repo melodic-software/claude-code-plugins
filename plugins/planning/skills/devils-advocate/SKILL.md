@@ -69,6 +69,8 @@ Parse `$ARGUMENTS` in this order:
 2. **Mode.** If the next token is `incumbent`, enter **`incumbent` mode** (incumbent-target); the remainder identifies the incumbent. A tool, library, approach, or module. Or is empty to take the incumbent from the current conversation. The keyword selects the mode only as this leading token; a plan that merely contains the word elsewhere is not a mode switch.
 3. **Plan-review mode (default).** Otherwise: if the remainder is a file path (ends in `.md`, `.txt`, or `.json`), read that file; if it is inline text, use it as the plan; if empty, work from the current conversation context. The most recent plan, proposal, or design being discussed.
 
+**Interview answers (optional input).** When the caller supplies an interview ledger (`<memory_dir>/<topic-slug>/interview-checklist.md`) or a Brief, read its `answered` register rows and locked decisions before Round 1. A mitigation that would replace one of them is still a valid finding, but it names the answer it displaces (the `Supersedes` bullet under "Findings"), because the user made that call and the plan may not change it silently.
+
 To review an inline plan whose text legitimately *begins* with `incumbent`, `deep`, or `shallow`, pass it as a file path so the leading word is not consumed as a mode or depth token.
 
 ### Research depth
@@ -201,6 +203,8 @@ For each finding:
 - **Failure scenario**: What breaks
 - **Mitigation**: How to fix
 - **Residual risk**: What remains after mitigation
+- **Supersedes**: interview Q<N> (<displaced answer>). Only when the mitigation replaces a user answer
+- **New external effect**: <remote write, irreversible action, or externally visible artifact>. Only when the mitigation adds one
 
 ### Revised Plan Recommendations
 

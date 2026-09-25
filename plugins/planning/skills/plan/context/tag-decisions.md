@@ -1,12 +1,13 @@
 # Tag unilateral decisions (Step 4.6)
 
-Full taxonomy for `/planning:plan` Step 4.6. Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief. Three categories:
+Full taxonomy for `/planning:plan` Step 4.6. Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief. Four categories:
 
 | Category | Definition | Tag |
 |---|---|---|
 | **Briefed** | The Brief / interview locked this decision (acceptance criteria, constraints, out-of-scope items, deferred questions with `arbiter: /planning:plan`) | (no tag, assumed approved) |
 | **Execution-shape** | /planning:plan's discretion within briefed scope: orchestration shape (parallel/sequential), sub-topic promotion, technique selection, per-phase ordering, sanity-check criteria | **Tag: `[EXEC-SHAPE]`** in the PLAN body |
 | **Fallback-for-edge-case** | A /planning:plan-invented contingency for scenarios the brief did NOT anticipate: follow-up work items, alignment-check protocols between parallel agents, retry mechanisms, mid-flight pivot defaults | **Tag: `[FALLBACK — confirm or override]`** in the PLAN body |
+| **Adopted mitigation** | A `/planning:devils-advocate` mitigation, reviewer fix, or research update the plan took on after the Brief | `[EXEC-SHAPE]` or `[FALLBACK]` by its nature, EXCEPT when it (a) displaces a user answer or (b) adds a remote write, irreversible action, or externally visible artifact: then it never passes the confidence gate and goes to Step 5's "Displaced answers and new external effects" block, with kind (a) setting its register row to `superseded-by-plan` |
 
 ## Confidence gate (decide vs interview)
 
@@ -23,10 +24,10 @@ A tag does NOT license deciding. Each `[EXEC-SHAPE]` / `[FALLBACK]` candidate pa
 
 Surface every decided tag at Step 5 in a "Decisions made (gate-passed)" subsection as a TABLE, not a bulleted label list:
 
-| Decision | What it changes in the plan | Basis (evidence) |
-|---|---|---|
-| <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> |
+| Decision | What it changes in the plan | Basis (evidence) | Source |
+|---|---|---|---|
+| <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> | <user, plan, or stress-test finding> |
 
-The what-it-changes column is mandatory: a label without its plan impact is unreviewable. Write for a cold reader dropping in mid-session: no session-internal shorthand; the row must make sense without scrollback. Interviewed decisions do NOT appear here; they were resolved by the user and are briefed by the time of presentation.
+`Source` says who originated the decision, so a cold reader can tell "user said" from "plan says". The what-it-changes column is mandatory: a label without its plan impact is unreviewable. Write for a cold reader dropping in mid-session: no session-internal shorthand; the row must make sense without scrollback. Interviewed decisions do NOT appear here; they were resolved by the user and are briefed by the time of presentation.
 
 Anti-pattern: bundling unilateral decisions deep in the Handoff section so they read as part of an approved plan. The reviewer must distinguish "user approved this" from "/planning:plan added this" without reading every line.

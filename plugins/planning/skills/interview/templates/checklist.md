@@ -13,7 +13,7 @@ Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; 
 
 ## Open-question register
 
-**Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked`. `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
+**Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked` | `superseded-by-plan` (set by `/planning:plan` when a plan change displaces an answer; not terminal, so the gate exits 1 until the user replies to that row: reconfirm makes it `answered` with `reconfirmed at plan approval: <new>; was: <old>`, reject restores the original answer and the plan drops the change; see `context/loop.md` "Superseded by plan"). `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
 
 Each `Commits you to:` part of a recommendation is a row of its own, numbered after its headline with `(part of Q<N>)` in the question field (resolution rules: `context/loop.md` "Commitment rows"). On the page surface, the parts are the question's `commits` entries instead (see `context/loop.md` "Commitment parts on the page").
 

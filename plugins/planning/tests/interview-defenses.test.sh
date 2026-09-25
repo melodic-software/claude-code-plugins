@@ -471,12 +471,13 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # never widens it: commitment rows add rows the gate grades, a page accept confirms only
 # ticked parts and sends unticked ones to the Brief as named risks, and a hedged reply
 # resolves at most one headline. None qualifies the gap or unattended-blocker bindings,
-# the ladder, or the gate.
+# the ladder, or the gate. The `superseded-by-plan` status, its paragraph, and its
+# drift-check line add a non-terminal status the gate blocks on; they widen nothing.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "8fbeeaf0578468a1a9c5a1d2ec5c3cb102c52b51602fa9d6ea502238803f658e"
+  "86081ef0cf0033532d9de1aa56560eb21df1a9574f735bdefce0933dbfa01d58"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
