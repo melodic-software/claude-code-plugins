@@ -1,25 +1,5 @@
 #!/usr/bin/env bash
 # memory-index-refs-check.sh — deterministic M2 (auto-memory reference integrity).
-#
-# Two directions, both deterministic (no LLM judgment):
-#   FORWARD (missing): a MEMORY.md index link `](topic.md)` whose target file is absent.
-#   REVERSE (orphan):  a `*.md` topic file present in the memory dir but NOT linked from
-#                      MEMORY.md. The standard M2 only catches the forward direction; the
-#                      orphan direction (a topic file that fell out of the index) is the
-#                      reverse-drift gap this adds.
-#
-# Resolves the CURRENT project's memory dir (repo, or the cwd outside one) via the
-# sibling resolver (NOT a cross-project glob). Orphan opt-out: a topic file containing
-# `<!-- memory-index-orphan-ignore -->`
-# (e.g. an intentional staging file not yet indexed) is skipped.
-#
-# WARN-tier / advisory: prints findings, ALWAYS exits 0. Consumed by the audit
-# skill (check M2).
-#
-# Usage:
-#   memory-index-refs-check.sh           # human-readable findings
-#   memory-index-refs-check.sh --count   # integer finding count (missing + orphan)
-#   memory-index-refs-check.sh --help
 
 set -uo pipefail
 
@@ -47,12 +27,10 @@ mode="report"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# No repo guard here: the sibling resolver handles the non-repo case itself (outside a
-# git repo the cwd is the project key, per the memory doc).
+# No repo guard here: the sibling resolver handles the non-repo case itself.
 memory_dir=$(bash "$SCRIPT_DIR/resolve-memory-dir.sh" 2>/dev/null)
 index="$memory_dir/MEMORY.md"
 
-# Fresh repo / no memory yet: nothing to check.
 if [[ ! -f "$index" ]]; then
   if [[ "$mode" == "count" ]]; then
     echo "0"
@@ -62,7 +40,6 @@ if [[ ! -f "$index" ]]; then
   exit 0
 fi
 
-# Build the set of markdown link targets ending in .md from MEMORY.md.
 declare -A linked=()
 while IFS= read -r target; do
   [[ -n "$target" ]] && linked["$target"]=1

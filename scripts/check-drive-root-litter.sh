@@ -25,11 +25,10 @@
 # of projects use a one-character top-level folder deliberately. It becomes the
 # fingerprint of THIS defect only when that letter also names a real drive on the
 # same host, because that is the coincidence the mechanism requires: the phantom
-# path is built from a drive letter the author spelled out. #2594 asked for a
-# drive-root guard against an EXTERNAL writer's `C:\tmp` residue (now
-# plugins/guardrails/hooks/block-windows-drive-tmp.sh, a PreToolUse guard on the
-# command string); this is the same concern pointed at a producer we own, and it
-# looks at the filesystem AFTER a run rather than at a command before it.
+# path is built from a drive letter the author spelled out. The sibling
+# plugins/guardrails/hooks/block-windows-drive-tmp.sh guards an EXTERNAL
+# writer's `C:\tmp` residue on the command string before a run; this script
+# looks at the filesystem AFTER a run, for a producer we own.
 #
 # The TEMP-SINK class is the same mechanism with the literal spelled `/tmp`
 # instead of `/<drive>/...`: Git Bash's real temp is a mount

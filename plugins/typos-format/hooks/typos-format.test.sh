@@ -46,8 +46,6 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# ctx_of <hook-stdout> / sys_of <hook-stdout> -> the one disclosure channel,
-# empty when the key is absent or the document does not parse.
 ctx_of() {
   printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
 }
@@ -1039,8 +1037,6 @@ printf '{"session_id":"row-1","tool_input":{"file_path":"x.txt"},"tool_name":"Wr
 # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
 ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/"$ROWGATE/root"}
 
-# run_opt <case-dir> <value|__unset__> <command...> -> run <command> with the
-# option set to <value> (or unset) and ROWGATE_OUT pointing at <case-dir>.
 run_opt() {
   local out="$1" v="$2"
   shift 2
@@ -1418,7 +1414,6 @@ def timed(f): (now) as $t0 | (f | .appliedCount + .residualCount) as $_ | (now -
 JQ
 } >"$CF_BENCH"
 
-# classify_case <shape> <what this shape gates>
 classify_case() {
   local shape="$1" gates="$2"
   local small="$WORK/classify-$shape-$CF_SMALL_N.jsonl"

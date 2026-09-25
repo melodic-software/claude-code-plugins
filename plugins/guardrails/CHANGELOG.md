@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.6] - 2026-09-24
+## [0.36.8] - 2026-09-25
 
 ### Changed
 
@@ -23,6 +23,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 - stale-path-verify.sh: the Edit reconstruction counts a word anchor's occurrences in the file by splitting each line on non-word bytes (one awk regex pass per line, under C) instead of a per-character walk, and skips the count for a word anchor holding `.` or `-`, which the walk never matched. Same counts; on a 33 KB file the count drops from about 14 ms to 2.
 - `hooks/secret-pattern-detection.test.sh`: on Linux the D1 resolver-shim control calls the shim directly, since the temp-target decline now resolves its path with builtin `cd -P` and starts no resolver. Other hosts keep the temp-target spawn check. Test only.
+
+## [0.36.7] - 2026-09-25
+
+### Fixed
+
+- **`secret-pattern-detection` now scans `NotebookEdit` cell source.** It read the target from `tool_input.file_path`, which `NotebookEdit` never sends (it sends `notebook_path`), so every `NotebookEdit` passed unscanned. The notebook path now gets the same project scope, allowlist, and temp-tree decline as a `Write`. The test helper's `NotebookEdit` payload carried `file_path`, which hid the gap; the suite now also builds the real shape. `hardcoded-path-check` has the same omission and is not changed here.
 
 ## [0.36.5] - 2026-09-24
 

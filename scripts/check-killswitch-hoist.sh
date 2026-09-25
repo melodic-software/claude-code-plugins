@@ -10,20 +10,19 @@
 #
 # Rule 2 exists because the per-turn hooks (Stop, Notification, SessionEnd and
 # the rest) paid the same cost rule 1 removed from the tool hooks: a disabled
-# or unarmed hook parsed hook-utils.sh before its first `exit 0` (#4415, fixed
-# for lane-stop-gate.sh in #4421). Most of those hooks have no `_enabled`
-# switch, so rule 1 cannot hold them; rule 2 asks only that whatever early exit
-# a hook has comes first. Async hooks are exempt (they do not block); see the
+# or unarmed hook parsed hook-utils.sh before its first `exit 0`. Most of those
+# hooks have no `_enabled` switch, so rule 1 cannot hold them; rule 2 asks only
+# that whatever early exit a hook has comes first. Async hooks are exempt (they do not block); see the
 # discovery block below for the documented exceptions.
 #
 # Why: every guard ships a `<name>_enabled` userConfig boolean, and an operator
-# who turns one off is entitled to stop paying for it. Until #3719 all of them
-# read that switch through `hook::check_enabled`, a function that only exists
-# once `lib/hook-utils.sh` has been sourced — so a DISABLED guard parsed the
-# whole 2,684-line library before discovering it had nothing to do. Measured on
-# this repo's Linux CI host: a bare `bash -c 'exit 0'` costs 1.8 ms and the same
-# process with hook-utils sourced costs 5.3 ms, so the library is ~3.5 ms of a
-# disabled standalone guard's ~5.3 ms.
+# who turns one off is entitled to stop paying for it. `hook::check_enabled`
+# only exists once `lib/hook-utils.sh` has been sourced, so a DISABLED guard
+# reading its switch through it parses the whole library before discovering it
+# has nothing to do. Measured on this repo's Linux CI host: a bare
+# `bash -c 'exit 0'` costs 1.8 ms and the same process with hook-utils sourced
+# costs 5.3 ms, so the library is ~3.5 ms of a disabled standalone guard's
+# ~5.3 ms.
 #
 # The saving is UNEVEN, and the honest split matters more than the headline.
 # Four of the fifteen PreToolUse guards run as their own process
@@ -39,9 +38,7 @@
 #
 # Why a gate rather than a convention: `scripts/sync-hook-utils.sh` synchronizes
 # the vendored library copies but does NOT cover the entry scripts, so nothing
-# else in this repo would notice the ordering drifting back. The audit that
-# prompted this found the switch below the source in 43 of 43 hooks — the shape
-# reasserts itself unless something fails.
+# else in this repo would notice the ordering drifting back.
 #
 # The rule, per PreToolUse guard script:
 #   1. it carries a recognized inlined kill-switch line;
@@ -56,10 +53,7 @@
 #
 # Scope of rule 1: hooks registered on PreToolUse or PostToolUse in
 # `plugins/*/hooks/hooks.json` and implemented as shell scripts. Rule 2 covers
-# every event in the same files, with the same token walk. PostToolUse
-# joined the scope with the formatter, normalizer and verifier hoist (the
-# per-tool-call rows the hook budget counts): the same shape, the same pin, one
-# gate. A hook implemented in another language sources no shell library, has no
+# every event in the same files, with the same token walk. A hook implemented in another language sources no shell library, has no
 # `source` line to sit above, and is reported as NOT SCANNED rather than passed
 # silently — today that is disk-hygiene's destructive_guard.py and
 # context-budget's node handler.
@@ -123,7 +117,7 @@ fi
 # guard clears one that was never checked.
 #   run-guards.sh      — guardrails' PreToolUse/PostToolUse dispatcher; sources
 #                        each named guard, and each of those carries its own switch
-#   run-python-hook.sh — disk-hygiene's interpreter resolver (#1504); execs the
+#   run-python-hook.sh — disk-hygiene's interpreter resolver; execs the
 #                        Python guard, whose switch is disk_hygiene_enabled and
 #                        lives in destructive_guard.py
 LAUNCHERS=("run-guards.sh" "run-python-hook.sh")

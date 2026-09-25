@@ -10,10 +10,8 @@
 # Canonical copy: plugins/claude-config/lib/check-retirements.sh (see
 # scripts/cross-plugin-source-registry.txt). Tests live beside the canonical copy only.
 #
-# Every plugin that ships a retirements.yaml enrolls its copy here. Carriers
-# are source-control (Phase 2c), plugin-quality (Phase 2d pilot) and claude-ops
-# (the hook-events.jsonl move). Every mode is a no-op over zero copies rather
-# than a failure, so the gate existed before its first carrier did.
+# Every plugin that ships a retirements.yaml enrolls its copy here. Every mode
+# is a no-op over zero copies rather than a failure.
 #
 # The three modes live in scripts/lib/sync-cluster.sh, shared with the sibling
 # sync-*.sh gates; this file supplies the check-retirements cluster's parameters.

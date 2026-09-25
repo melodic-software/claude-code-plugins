@@ -81,7 +81,6 @@ describe("stickyNoteSchema", () => {
   });
 
   it("should handle EventStorming external system pattern", () => {
-    // The exact use case that motivated the shape parameter
     const externalSystem = stickyNoteSchema.parse({
       content: "Sandata EAS (EVV aggregator)",
       color: "light_pink",
@@ -97,7 +96,7 @@ describe("stickyNoteSchema", () => {
     const notes = [
       { color: "orange", content: "Domain Event", shape: "square", x: 0, y: 0 },
       { color: "light_green", content: "Read Model", shape: "rectangle", x: 0, y: -400 },
-      { color: "blue", content: "Command", x: 400, y: 0 }, // shape defaults to square
+      { color: "blue", content: "Command", x: 400, y: 0 },
     ];
 
     const parsed = notes.map((n) => stickyNoteSchema.parse(n));

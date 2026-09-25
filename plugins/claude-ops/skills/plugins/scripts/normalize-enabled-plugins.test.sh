@@ -113,7 +113,6 @@ assert_exit "semantic-diff refuses the write" 2 "$rc"
 assert_contains "semantic-diff is named" "$out" "semantic-diff"
 assert_eq "semantic-diff leaves the file untouched" "$before_sem" "$(cat "$SEM")"
 
-# A second pass is a no-op.
 rc=0
 out="$(bash "$NORM" --file "$UNSORTED")" || rc=$?
 assert_exit "second pass is already-sorted" 0 "$rc"

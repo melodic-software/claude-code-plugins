@@ -27,9 +27,8 @@ repo=""
 # --detach`, and the DETACHED child outlives the foreground command: it takes
 # `.git/objects/maintenance.lock` before it even evaluates whether any task has
 # work to do, so it keeps writing into the fixture after the test has moved on.
-# That child raced this suite's `rm -rf "$repo"` cleanup on CI ("Directory not
-# empty") and its interference red-lined an unrelated case in the same run
-# (#2918). `maintenance.auto=false` stops the fork at the source; `gc.auto=0`
+# That child races this suite's `rm -rf "$repo"` cleanup ("Directory not
+# empty"). `maintenance.auto=false` stops the fork at the source; `gc.auto=0`
 # is the belt-and-suspenders for the legacy auto-gc path.
 git_q() { git -c user.email=t@t -c user.name=t -c commit.gpgsign=false -c maintenance.auto=false -c gc.auto=0 "$@" >/dev/null 2>&1; }
 
@@ -199,7 +198,7 @@ if ((rc == 2)) && [[ "$out" == *"root-equivalent"* ]]; then ok "root-equivalent 
 rm -rf "$repo"
 
 # --- a slug-less baseline must not abort under set -u -----------------------
-# This is the END state #1419 drives toward, so a crash here would block the
+# This is the END state the baseline burn-down drives toward, so a crash here would block the
 # very cleanup the gate exists to enable.
 mk_repo repo $'# only a comment, no slugs\n'
 out="$(run_check "$repo")"
@@ -385,7 +384,7 @@ rm -rf "$repo"
 # in a cleanup race.
 #
 # The assertion is a NEGATIVE, so it needs a positive control or it passes for
-# exactly the reason it should report nothing (#2982): an absent trace, or a
+# exactly the reason it should report nothing: an absent trace, or a
 # fixture command that failed inside git_q's output suppression, leaves the
 # grep nothing to match and the case reports `ok` while observing nothing. The
 # control is the traced sequence's exit status, a non-empty trace, and both
@@ -411,7 +410,7 @@ rm -rf "$repo"
 #
 # What no control here can prove is that git still SPELLS the fork this way;
 # proving that would mean spawning a real detached maintenance child, i.e.
-# re-creating the very race (#2918) this suite exists to keep out.
+# re-creating the very race this suite exists to keep out.
 mk_repo repo
 trace="$(mktemp)"
 printf 'edit\n' >>"$repo/README.md"

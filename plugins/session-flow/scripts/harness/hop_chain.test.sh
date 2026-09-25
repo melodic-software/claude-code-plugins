@@ -4,7 +4,7 @@
 # nothing; the live hop-chain run is an operator action, never a test.
 #
 # SKIPs (exit 0) when Python 3.10+ is unavailable, matching the repo test-runner
-# convention for optional toolchains (save_point.test.sh is the precedent).
+# convention for optional toolchains.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

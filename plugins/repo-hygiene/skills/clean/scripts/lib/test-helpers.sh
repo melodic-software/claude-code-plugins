@@ -1,15 +1,9 @@
 # shellcheck shell=bash
 # Self-contained assertion helpers for the repo-hygiene clean tests.
-# Sourced by every sibling *.test.sh via a plugin-relative BASH_SOURCE path so
-# the tests stay portable under plugin cache isolation (no reach-out to a
-# repo-level shared lib). Mirrors the per-plugin test-helper precedent in this
-# marketplace (guardrails, source-control).
+# Duplicated across plugins by design: docs/conventions/shell-test-helpers/README.md.
 #
 # Each test file owns its own FAILED / CASE_NUM counters and exits non-zero at
 # the end: `[[ $FAILED -eq 0 ]] || exit 1`.
-#
-# Duplicated across plugins by design, not drift — see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
 
 [[ -n "${_CLEAN_TEST_HELPERS_LOADED:-}" ]] && return 0
 readonly _CLEAN_TEST_HELPERS_LOADED=1

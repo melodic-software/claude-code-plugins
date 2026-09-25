@@ -11,25 +11,11 @@
 # non-interpreter-led AND live. Quoting counts too: an unquoted rule does not
 # match a quoted body path, which is how one grant in this repo shipped dead.
 #
-# This gate requires `${CLAUDE_SKILL_DIR}` in a grant, and that is a repo
-# convention rather than a platform limit. `${CLAUDE_PLUGIN_ROOT}` DOES
-# substitute in a plugin skill's `allowed-tools` Bash rules
-# (<https://code.claude.com/docs/en/skills>, fetched 2026-09-12: "In a plugin
-# skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and
-# `${CLAUDE_PLUGIN_DATA}` in the same two places"; upstream fixed it in
-# v2.1.0), so the older "the token is inert there" reason is stale and is not
-# why this rule exists. The reason it still holds: the docs establish
-# substitution, not that such a rule matches at runtime on every host, and this
-# repo does not ship a grant on docs alone
-# (`plugins/discovery/reference/parent-contract.md`).
+# Requiring `${CLAUDE_SKILL_DIR}` in a grant is a repo convention, not a platform limit: no
+# grant ships on docs alone (`plugins/discovery/reference/parent-contract.md`).
 #
-# Two-form split (decide-lane #2237, DEFER): `SKILL.md` uses the paired
-# `${CLAUDE_SKILL_DIR}/scripts/…` form that matches its grants; bundled
-# `context/*.md` files keep the interpreter-led
-# `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/…` form because substitution
-# of `${CLAUDE_SKILL_DIR}` into on-demand context files is unverified — a wrong
-# conversion expands to `/scripts/…` and fails silently. See
-# `skills/clean/reference/invocation-forms.md`.
+# `SKILL.md` uses the paired `${CLAUDE_SKILL_DIR}/scripts/…` form; bundled `context/*.md`
+# files keep the `bash ${CLAUDE_PLUGIN_ROOT}/…` form. See `skills/clean/reference/invocation-forms.md`.
 #
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those

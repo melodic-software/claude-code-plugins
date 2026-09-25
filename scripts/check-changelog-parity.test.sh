@@ -70,11 +70,11 @@ stale_count="$(printf '%s\n' "$out" | grep -c 'STALE BASELINE')"
 if [[ $rc -ne 0 && "$stale_count" == "1" ]]; then ok "stale baseline entry fails --check (reported exactly once)"; else fail "stale baseline: rc=$rc count=$stale_count out='$out'"; fi
 rm -rf "$repo"
 
-# ------------------- --check reverse parity (#2131) ----------------------
+# ------------------- --check reverse parity ----------------------
 # The direction no other mode covers: a `## [x.y.z]` heading the manifest never
 # reached. --check-bump fires only on a CHANGED manifest version and
 # --check-order is satisfied by a correctly ordered list, so a release note
-# written ahead of its bump reached main unseen.
+# written ahead of its bump would reach main unseen.
 
 # newest heading EQUALS the manifest version -> passes
 mk_repo repo
@@ -91,7 +91,7 @@ printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "manifest above the newest heading passes --check (a bump need not write a note)"; else fail "manifest-ahead wrongly failed"; fi
 rm -rf "$repo"
 
-# SYNTHETIC AHEAD-OF-MANIFEST: the docs-hygiene shape — a `## [0.9.7]` entry
+# SYNTHETIC AHEAD-OF-MANIFEST: a `## [0.9.7]` entry
 # above a 0.9.6 manifest -> fails, naming both versions.
 mk_repo repo
 mk_plugin "$repo" alpha 0.9.6 yes
@@ -210,7 +210,7 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
 rm -rf "$repo"
 
-# ABSORBED HEADING (#2324): merge-forward deletes a predecessor heading.
+# ABSORBED HEADING: merge-forward deletes a predecessor heading.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.8 yes
@@ -225,7 +225,7 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"*"alpha"* && "$out" == *"0.51.8"* ]]; then ok "absorbed predecessor release heading fails --check-bump"; else fail "absorbed heading not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# ABSORBED without manifest bump (#2324 gap 2): only the changelog changed.
+# ABSORBED without manifest bump: only the changelog changed.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 0.51.9 yes
@@ -239,7 +239,7 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"* && "$out" == *"0.51.8"* ]]; then ok "absorbed heading with no manifest bump fails --check-bump"; else fail "absorbed-no-bump not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# LARGE CHANGELOG (SIGPIPE regression, #2130): the new entry sits near the top
+# LARGE CHANGELOG (SIGPIPE): the new entry sits near the top
 # of a changelog far larger than the pipe buffer — the shape every mature
 # changelog has. A has_heading reader that exits on first match kills
 # rendered_lines mid-write with SIGPIPE, and pipefail turns the FOUND heading
@@ -464,7 +464,7 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* ]]; then ok "bump without changelog fails --check-bump (synthetic undocumented bump caught)"; else fail "undocumented bump not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# version unchanged but plugin files changed -> fails (published version reuse, #1559)
+# version unchanged but plugin files changed -> fails (published version reuse)
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -477,7 +477,7 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"PUBLISHED VERSION REUSE"*"alpha"* ]]; then ok "unchanged version with plugin file edits fails --check-bump"; else fail "published version reuse not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# cosmetic manifest touch (no version change) + shipped file edit -> fails (#1559 gap)
+# cosmetic manifest touch (no version change) + shipped file edit -> fails
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -502,7 +502,7 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm noop
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 && "$out" != *"unbound variable"* ]]; then ok "unchanged version with no plugin edits passes --check-bump"; else fail "repo-only edit wrongly failed --check-bump: rc=$rc out='$out'"; fi
-# Same empty touched_changelogs=() path --check-preserved walks first (#3425).
+# Same empty touched_changelogs=() path --check-preserved walks first.
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-preserved "$base" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 && "$out" != *"unbound variable"* ]]; then ok "repo-only edit expands empty touched_changelogs without aborting --check-preserved"; else fail "empty touched_changelogs aborted --check-preserved: rc=$rc out='$out'"; fi
@@ -519,7 +519,7 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm add-beta
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "new plugin skipped by --check-bump"; else fail "new plugin wrongly failed --check-bump"; fi
 rm -rf "$repo"
 
-# =================== --check-bump branch staleness (#693) ================
+# =================== --check-bump branch staleness ================
 
 # BRANCH STALENESS (untouched plugin advanced only on the base ref): main bumps
 # alpha 1.0.0 -> 1.1.0 while the PR branch, forked before that bump, never touches
@@ -594,9 +594,9 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"beta"* && "$out" != *"alpha"* ]]; then ok "a plugin the branch bumped is still checked while the main-only advance is scoped out"; else fail "diff-scoping incorrectly scoped: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# ================ --check-bump version monotonicity (#2056) ==============
+# ================ --check-bump version monotonicity ==============
 
-# VERSION REGRESSION (stale brief, the #1989 fleet shape): the branch, forked at
+# VERSION REGRESSION (stale brief): the branch, forked at
 # 0.21.9, bumps alpha to 0.21.10 WITH a proper new entry, but main has moved to
 # 0.25.0. Parity alone reads the pair as valid; monotonicity must fail it — the
 # merge would move the version backward.
@@ -793,8 +793,8 @@ if [[ $? -eq 2 ]]; then ok "bad mode -> exit 2"; else fail "bad mode did not exi
 rm -rf "$repo"
 
 # --- --check-order -----------------------------------------------------------
-# Regression cover for the defect that shipped: a stale-based entry whose number
-# was already behind by the time it merged, in a file no other mode reads.
+# A stale-based entry whose number is already behind by the time it merges, in
+# a file no other mode reads.
 write_changelog() { # $1 path, $2... headings
   local path="$1"
   shift
@@ -821,8 +821,7 @@ rc=$?
 if [[ $rc -eq 1 && "$out" == *"DUPLICATE CHANGELOG VERSION"* ]]; then ok "two branches staging one version is caught"; else fail "duplicate not caught: rc=$rc $out"; fi
 if [[ "$out" == *"lists 2.0.0 more than once"* ]]; then ok "the duplicated version is named with correct spacing"; else fail "duplicate message malformed: $out"; fi
 
-# The exact shape that shipped, in the exact file class that shipped it: a
-# CONVENTION changelog, which is unversioned by any manifest and therefore
+# A CONVENTION changelog, which is unversioned by any manifest and therefore
 # invisible to --check and --check-bump.
 write_changelog "$repo/plugins/alpha/CHANGELOG.md" '## [1.0.0]'
 write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" \
@@ -854,7 +853,7 @@ write_changelog "$repo/docs/conventions/demo/CHANGELOG.md" '## 1.10 — 2026-02-
 if out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-order 2>&1)"; then ok "two- and three-component versions compare correctly together"; else fail "mixed-width comparison wrong: $out"; fi
 rm -rf "$repo"
 
-# ===================== --check-preserved (#2264) =========================
+# ===================== --check-preserved =========================
 # The gap: every other mode polices what a change set ADDS. A merge-forward that
 # writes the new release under the PREVIOUS release's heading — absorbing it —
 # deletes a released section with no conflict marker left behind, and all three
@@ -1072,7 +1071,7 @@ rc=$?
 if [[ $rc -eq 1 && "$out" == *"docs/conventions/demo/CHANGELOG.md"* && "$out" == *"2.0.0"* ]]; then ok "convention changelogs are in --check-preserved scope"; else fail "convention changelog absorption missed: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# LARGE CHANGELOG under gawk (the #2130 shape, applied to this mode): the heading
+# LARGE CHANGELOG under gawk (the SIGPIPE shape, applied to this mode): the heading
 # lists are read through the same rendered_lines writer, so no reader in this
 # path may exit before EOF. Forced gawk for the same reason as the --check-bump
 # fixture above — mawk survives a closed pipe and would prove nothing.
@@ -1136,7 +1135,7 @@ if [[ $? -eq 2 ]]; then ok "--check-preserved without a base ref -> exit 2"; els
 if [[ $? -eq 2 ]]; then ok "--check-preserved with an unresolvable base ref -> exit 2"; else fail "--check-preserved bad base ref did not exit 2"; fi
 rm -rf "$repo"
 
-# ===================== inline-linked headings (#2392) ======================
+# ===================== inline-linked headings ======================
 # changelog_versions must accept `(` after `]` so linked Keep a Changelog headings
 # are visible to --check, --check-order, and --check-preserved.
 

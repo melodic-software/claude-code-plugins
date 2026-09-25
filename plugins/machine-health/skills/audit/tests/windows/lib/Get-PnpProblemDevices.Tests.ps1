@@ -7,9 +7,7 @@ BeforeAll {
 
 Describe 'Get-PnpProblemDevice' -Tag 'lib' {
     AfterEach {
-        # Cleanup the script-scope pnputil stub that individual tests install.
-        # AfterEach runs even when an assertion failed earlier in the test, so
-        # the stub never leaks into subsequent tests.
+        # Remove the pnputil stub; AfterEach runs even after a failed assertion, so it never leaks.
         Remove-Item function:\pnputil -ErrorAction SilentlyContinue
     }
 
@@ -22,9 +20,8 @@ Describe 'Get-PnpProblemDevice' -Tag 'lib' {
     }
 
     It 'ignores pnputil preamble banner when no devices have problems (regression)' {
-        # Shadow pnputil as a function so the native-command call resolves to
-        # our stub. The call operator dispatches to a function of the same
-        # name if one is defined in scope.
+        # Shadow pnputil as a function: the call operator dispatches to a same-named
+        # function in scope before the native command.
         function script:pnputil {
             # spellchecker:off
             @'

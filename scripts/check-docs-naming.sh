@@ -25,9 +25,8 @@
 # the first, and two of this repository's CI jobs check out the tree on
 # windows-2025.
 #
-# WHY. docs/ carried a mix of UPPER-KEBAB, lower-kebab, and mixed-case names
-# for years, and every reference to a doc had to remember which spelling that
-# one file used. One rule, enforced here, means a new file's name needs no
+# WHY. With a mix of UPPER-KEBAB, lower-kebab, and mixed-case names, every
+# reference to a doc has to remember which spelling that one file uses. One rule, enforced here, means a new file's name needs no
 # lookup and a rename never happens twice. The three uppercase names stay
 # because they are conventions readers already know, and code files stay
 # because their language owns their casing. The ADR that records the decision

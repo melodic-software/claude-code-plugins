@@ -18,11 +18,7 @@
 # Windows-native consumer - PowerShell, cmd, or a native interpreter such as
 # Windows Python - the leading `/` anchors to the root of the CURRENT DRIVE, so
 # the literal becomes `<current-drive>:\d\dir`. Nothing errors: the consumer
-# happily creates the phantom tree and writes there. #2834 is the worked case -
-# a verification harness whose fixtures landed under a phantom drive-root tree,
-# which silently turned two of its own test cases into duplicates of a third.
-# The drive-root litter was the visible symptom; the invalid test results were
-# the actual cost. `docs/conventions/windows-path-emit/README.md` owns the rule
+# happily creates the phantom tree and writes there. `docs/conventions/windows-path-emit/README.md` owns the rule
 # this script implements, including the rule that ranks ABOVE it: prefer a path
 # the native side computes itself from a working directory it already owns, and
 # reach for this conversion only when an absolute path genuinely has to cross.

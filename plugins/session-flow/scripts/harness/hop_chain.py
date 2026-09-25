@@ -68,11 +68,8 @@ HANDOFF_TOUCH_RE = re.compile(r"handoffs[/\\]|save_point\.py\S*\s+new\b")
 # Deleting this set restores the spec's literal "ANY tool_use" wording, at the
 # cost of failing every hop after the first.
 READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep"})
-# A shell can read or write, and the tool name alone does not say which. Live
-# evidence: a resuming hop ran `cat -n <handoff>` through Bash and was scored a
-# free-hand bypass. So for these two tools a `handoffs/` mention is a touch only
-# when the command could WRITE; otherwise it is recorded as a note and the hop
-# still passes.
+# A shell can read or write, so for these two tools a `handoffs/` mention is a
+# touch only when the command could WRITE; otherwise it is a note and the hop passes.
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 CREATION_MARKER_RE = re.compile(r"save_point\.py\S*\s+new\b")
 WRITE_INDICATOR_RE = re.compile(
@@ -96,8 +93,7 @@ INTERPRETER_RE = re.compile(
     r"(?:^|[\s;|&(])(?:python3?|py|node|pwsh|powershell)(?:\.exe)?\s"
 )
 # The two read-only save_point.py subcommands. A resuming hop legitimately runs
-# `validate` over its predecessor before invoking the skill; scoring that as a
-# pre-skill write failed the hop.
+# `validate` over its predecessor before invoking the skill.
 READ_ONLY_SAVE_POINT_RE = re.compile(r"save_point\.py\S*\s+(?:validate|emit)\b")
 
 
@@ -923,14 +919,8 @@ def live_runner(cfg: argparse.Namespace):
             "-p",
             "--output-format",
             "json",
-            # Phase 0 (CLI 2.1.259) ran `--permission-mode dontAsk --allowedTools`.
-            # On 2.1.260 that pair, and the same allow list as project
-            # permission rules, left every mutating tool denied ("Permission to
-            # use Write has been denied because Claude Code is running in
-            # don't ask mode", three hop-1 transcripts, 2026-09-03). The
-            # fixture is a throwaway temp repo with a stripped env, so the
-            # child bypasses prompts and `--tools` pins the same tool surface
-            # the allow list used to grant.
+            # `dontAsk` plus an allow list denies every mutating tool from CLI 2.1.260.
+            # The fixture is a throwaway repo, so bypass prompts and pin tools with `--tools`.
             "--permission-mode",
             "bypassPermissions",
             "--tools",
@@ -1259,10 +1249,8 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
 # assertion, TSV, and cleanup paths under test are the live ones.
 
 
-# Shell tool_use blocks injected before the Skill call. Live evidence: a model
-# resuming a hop runs `cat -n <handoff>` through Bash, which the first
-# classifier scored as a free-hand bypass. A shell command naming handoffs/ is
-# a touch only when it could WRITE.
+# Shell tool_use blocks injected before the Skill call. A shell command naming
+# handoffs/ is a touch only when it could WRITE.
 SHELL_PROBES = {
     "shell_read_before_skill": (
         "Bash",
@@ -1291,9 +1279,8 @@ SHELL_PROBES = {
             "command": 'Set-Content -Path "{handoffs}/free-hand.md" -Value "written by hand"'
         },
     ),
-    # A resuming hop validating its predecessor before invoking the skill. It
-    # names handoffs/ AND runs an interpreter, and used to be scored a
-    # pre-skill write; it writes nothing, so the hop must still pass.
+    # A resuming hop validating its predecessor before invoking the skill: it names
+    # handoffs/ AND runs an interpreter, but writes nothing, so the hop must pass.
     "save_point_validate_before_skill": (
         "Bash",
         {
@@ -1432,10 +1419,8 @@ def make_fake_runner(defects: dict[int, set[str]]):
                 )
             )
         if "write_and_skill_in_one_record" in flags:
-            # Both blocks in ONE assistant message, the Write first. On a bare
-            # record index the two compared equal and the ordering check
-            # passed; the disk fallback cannot catch it either, because the
-            # file is created after this record is logged.
+            # Both blocks in ONE assistant message, the Write first. The disk fallback
+            # cannot catch this: the file is created after this record is logged.
             prelude.append(
                 _record(
                     call.session_id,

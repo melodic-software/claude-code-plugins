@@ -46,8 +46,7 @@ readonly EX_SPEC=3
 # recorded non-executable, and making them executable then fed them to the repo's
 # ShellCheck lane, which cannot parse a file full of @@PLACEHOLDER@@ tokens. Templates
 # carry no shebang, so neither gate claims them; the generated output gets one here,
-# and `emit` marks it executable. Two templates already opened with
-# `# shellcheck shell=bash` instead — this makes the whole set consistent.
+# and `emit` marks it executable.
 SHEBANG='#!/usr/bin/env bash'
 
 # The adapter verb surface (CONTRACT.md "Adapter contract"): the core public set
@@ -194,17 +193,8 @@ SAMPLE_SCOPE="$(sget '.api.sample_scope')"
 # The charset first. sample_scope is substituted LITERALLY into generated shell, and
 # `common.test.sh.tmpl` puts it in a DOUBLE-quoted argument — where `$(…)` still
 # executes and a `"` closes the string outright. quote_safe() below only refuses a
-# single quote, so nothing else stood between the spec and live code in a file whose
-# execution is step 1 of this script's own printed "Next:" instructions. This is the
-# same treatment display_name got above, for the same reason stated there; sample_scope
-# is the one value in this block that never received it, while SAMPLE_HOST, BASE_PATH,
-# SAMPLE_ENV, SAMPLE_ID and PROVIDER all did.
-#
-# Honestly scoped: the spec comes from this skill's own interview, so this is a
-# robustness and supply-chain gap (a hand-edited or shared spec file), not a path a
-# remote attacker reaches. It is worth closing anyway because the generator's stated
-# posture — render() and quote_safe() both say values are inserted literally and
-# nothing downstream escapes them — was not actually true of this one key.
+# single quote, so nothing else stands between the spec and live code in a file whose
+# execution is step 1 of this script's own printed "Next:" instructions.
 #
 # The charset is deliberately wider than any shipped provider needs and still excludes
 # every shell metacharacter: `owner/repo` (gitea `^[A-Za-z0-9][A-Za-z0-9._-]*/…$`,
@@ -341,17 +331,11 @@ check_coherence() {
 }
 check_coherence
 
-# list-items false is coherent but leaves the seam unable to enumerate anything, so
-# list-frontier — the verb every work-selection flow calls — can never succeed. That is
-# a legitimate consume-only posture (the bundled jira adapter is one), but it is a
-# consequence worth naming rather than discovering later.
 if [[ "$(jq -r '.verbs["list-items"]' <<<"$SPEC_JSON")" != "true" ]]; then
   printf 'generate-adapter.sh: note: verbs["list-items"]=false, so list-frontier can never succeed for this provider (exit 6 at the capability gate). Intentional for a consume-only adapter.\n' >&2
 fi
 
 # --- derived values ---
-# (PROVIDER_FUNC / PROVIDER_UPPER / CONFIG_KEY are derived above, where the provider
-# name is validated — the auth-env default needs them during validation.)
 
 # The contract version is the SEAM's, never the spec's — see the header.
 SEAM_JSON_LIB="$SEAM_DIR/lib/json.sh"
@@ -420,10 +404,8 @@ CONFORMANCE_AUTH_EXTRA=""
 
 case "$AUTH_SCHEME" in
 raw)
-  # Some providers take the credential as the bare Authorization value with no scheme
-  # word at all — Linear's personal API keys are the case that added this. Modeled as
-  # its own scheme rather than as an empty prefix, so the generated header cannot come
-  # out with a stray leading space.
+  # The bare Authorization value with no scheme word. Its own scheme rather than an empty
+  # prefix, so the generated header cannot come out with a stray leading space.
   AUTH_DESCRIPTION="a $DISPLAY_NAME API key sent as the bare \`Authorization\` value, with no scheme word"
   AUTH_HEADER_EXPECT="\"Authorization: \$SECRET\""
   AUTH_HELPERS="
@@ -461,14 +443,8 @@ basic)
   AUTH_CONFIG_READ="  WIT_${PROVIDER_UPPER}_AUTH_USER=\"\$(jq -r '.config.$CONFIG_KEY.auth_user // empty' <<<\"\$ejson\")\""
   AUTH_CONFIG_REQUIRE="  [[ -n \"\$WIT_${PROVIDER_UPPER}_AUTH_USER\" ]] || missing+=\" config.$CONFIG_KEY.auth_user\""
   AUTH_EXPORT_EXTRA=" WIT_${PROVIDER_UPPER}_AUTH_USER"
-  # The conformance binding takes the account identity from the environment, the same
-  # way it takes host and scope. Baked as a literal placeholder it would authenticate
-  # as `ci@example.invalid` against a real throwaway instance and 401 with nothing in
-  # the generated file saying why — the one required value with no way to supply it.
-  # Two different consumers, two different values. The offline test fixture wants a
-  # literal (its binding is a temp file that never reaches a real instance), while the
-  # conformance binding must take the identity from the environment — so they cannot
-  # share one key, and collapsing them emitted `$au` into the test's single-quoted JSON.
+  # Two consumers, two values: the offline fixture takes a literal, while the conformance
+  # binding must read the identity from the environment or it 401s against a real instance.
   SAMPLE_AUTH_EXTRA=',"auth_user":"ci@example.invalid"'
   # shellcheck disable=SC2016  # $au is a jq variable bound by --arg in the generated
   # binding, not a shell expansion — it must survive into the emitted file unexpanded.
@@ -729,11 +705,8 @@ readonly RENDER_KEYS=(
 # Sweep every global value through quote_safe HERE, at top level, before the first
 # emit — because a refusal raised from inside render() cannot stop this script. Every
 # render() call is made as `$(render …)`, and `exit` inside a command substitution
-# kills only that subshell. Left to render() alone, a spec whose scope_pattern carried
-# a single quote printed the refusal once per template and then carried on to write a
-# directory of EMPTY, chmod +x scripts, report "Wrote 9 file(s)", print the "Next:"
-# instructions, and exit 0 — the loudest refusal in the script, delivered as success.
-# render() keeps its own per-value call as the backstop for the caller-supplied pairs,
+# kills only that subshell, so a refusal there would still write EMPTY executable
+# scripts and exit 0. render() keeps its own per-value call as the backstop for the caller-supplied pairs,
 # which are generator constants; this sweep is the one that can actually abort.
 for k in "${RENDER_KEYS[@]}"; do
   quote_safe "$k" "${!k-}"
@@ -745,9 +718,7 @@ render() {
   local text
   # `cat` rather than `$(<"$file")`: the redirection form reports a missing
   # template as a bash error carrying THIS script's line number, where `cat`
-  # names only the template path. A prior tidy of this file family was refuted
-  # and reverted for shifting a line number into a diagnostic on a reachable
-  # error path (0.39.24); the saved fork is not worth re-opening that.
+  # names only the template path.
   text="$(cat "$file")"
   local k v
   # Caller-supplied pairs first: they are per-file (verb name, tables) and never

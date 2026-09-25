@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deterministic consumer-repo simulation for the plugin-quality convention-doc
-# pilot (Phase 2d, ADR 0018). Exercises the SHIPPED helper copies
+# pilot (ADR 0018). Exercises the SHIPPED helper copies
 # (plugins/plugin-quality/lib/*) and the plugin's retirements.yaml against a
 # fixture consumer repository:
 #

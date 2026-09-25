@@ -37,11 +37,8 @@ mocks applying in the test scope.
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Drivers' -MockHelpers
 
-    # Dot-source the check script so Invoke-DriversCheck and its dot-sourced
-    # lib functions (Get-DriverStoreInventory, Get-PnpProblemDevice,
-    # Test-IsElevated, etc.) are defined in this test scope. The
-    # `$MyInvocation.InvocationName -eq '.'` guard inside the script skips
-    # the main body so dot-sourcing is side-effect-free.
+    # Dot-source the check script so Invoke-DriversCheck and its lib functions are defined
+    # here; the script's InvocationName guard skips its main body.
     . $script:ScriptPath
 
     function Invoke-DriversAsObject {
@@ -87,14 +84,12 @@ Describe 'Test-Drivers -- healthy baseline' -Tag 'check' {
             )
         }
         Mock Get-WinEvent { @() }
-        # Deterministic admin state: simulate elevated so Get-PnpProblemDevice
-        # runs (returns empty below) instead of being skipped and populating
-        # $adminFields.
+        # Simulate elevated so Get-PnpProblemDevice runs (returns empty below) instead of
+        # being skipped and populating $adminFields.
         Mock Test-IsElevated { $true }
         Mock Get-PnpProblemDevice { @() }
-        # Short-circuit unmocked side-effecting calls in Test-Drivers.ps1 so
-        # tests don't pay for real Win32_VideoController CIM, PATH probe, or
-        # PSWindowsUpdate module enumeration on the windows-latest CI runner.
+        # Short-circuit side-effecting calls (Win32_VideoController CIM, PATH probe,
+        # PSWindowsUpdate enumeration) so tests do not pay for them on CI.
         Mock Get-Module { $null }
         Mock Get-GpuDriverInfo { @() }
         Mock Get-VendorUpdateCli { @() }

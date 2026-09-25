@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# Wires the local-markdown conformance run into shell-test discovery (offline,
-# in-CI). Unlike the GitHub binding test (which only source-checks the binding
-# because its suite is on-demand against a sandbox), this RUNS the full abstract
-# conformance suite through the core CLI against the local-markdown adapter — once
-# normally, once under a PATH shim that makes gh/curl fail, proving the offline
-# reference path touches no network tool.
+# RUNS the full abstract conformance suite offline against the local-markdown adapter,
+# once normally and once under a PATH shim that makes gh/curl fail.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
-# Binding sources cleanly and exposes the cb_setup/cb_teardown contract. The runner
-# defaults CB_REPO="" before sourcing a binding; mirror that so the assertion below
-# tests that this binding leaves it untouched (single-namespace store, no --repo).
+# Mirror the runner's CB_REPO="" default so the assertion below proves this binding
+# leaves it untouched.
 CB_REPO=""
 # shellcheck source=local-markdown.sh
 source "$SCRIPT_DIR/local-markdown.sh"

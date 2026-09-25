@@ -3,7 +3,7 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.57] - 2026-09-24
+## [0.7.58] - 2026-09-25
 
 ### Changed
 
@@ -17,6 +17,12 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
 - hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 - powershell-format.sh: `cygpath` is looked up only on a Windows bash (`OSTYPE` msys, cygwin or win32) when the file and settings paths are converted for pwsh, and the trust gate tests for a drive-letter data path before looking it up. Elsewhere the lookup always missed and probed every `PATH` directory. Windows behavior is unchanged.
+
+## [0.7.57] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
 
 ## [0.7.56] - 2026-09-24
 

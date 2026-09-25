@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # nested-agents-check.sh — does every nested AGENTS.md actually load?
 #
-# A nested CLAUDE.md and a nested AGENTS.md share one trigger: Claude reads a
-# file in that directory with the Read tool. What separates them is that a
-# CLAUDE.md in that directory or any directory above it stops Claude Code
-# reading AGENTS.md at all, and then only an import (`@AGENTS.md`) or a symlink
-# from one of those CLAUDE.md files carries the AGENTS.md into context.
-#
 #   Claim: Claude Code attaches a subdirectory's AGENTS.md when Claude opens a
 #     file there with the Read tool and neither that directory nor any directory
 #     above it carries a CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md;
@@ -17,29 +11,8 @@
 #   Recheck trigger: that section changes which file names count for the check,
 #     or a release note names AGENTS.md or instruction-file loading.
 #
-# So this check flags the case that is a defect either way: a nested AGENTS.md
-# that a CLAUDE.md on its own path blocks and that no CLAUDE.md or
-# CLAUDE.local.md reaches. A nested AGENTS.md with nothing blocking it is not a
-# finding, because the shim would add nothing the loader is not already doing.
-#
-# Discovery is tracked files only (git ls-files), root-level AGENTS.md excluded
-# (that one is the root CLAUDE.md's business, and the audit's C-checks already
-# cover the root), and the `.claude`, `.codex`, `.cursor`, `.github`,
-# `node_modules`, `vendor`, and `.git` trees skipped, so neither vendored
-# upstream material nor another tool's own instruction files are reported as a
-# repo defect. The sibling check reads the filesystem, so a gitignored
-# CLAUDE.local.md shim counts.
-# Reachability uses lib/imports.sh, the same parser instruction-load-stats.sh
-# counts with: import chase to four hops, symlinks resolved.
-#
-# Advisory by default: prints findings, exits 0. `--check` exits 1 when any
-# finding exists, for a CI gate. Consumed by the audit skill (check N1).
-#
-# Usage:
-#   nested-agents-check.sh            # one finding per unwired nested AGENTS.md; exit 0
-#   nested-agents-check.sh --count    # integer finding count only; exit 0
-#   nested-agents-check.sh --check    # findings; exit 1 when there is at least one
-#   nested-agents-check.sh --help
+# AGENTS.md discovery is tracked files only, but the blocking and wiring checks
+# read the filesystem, so a gitignored CLAUDE.local.md shim counts.
 
 set -uo pipefail
 
@@ -104,12 +77,8 @@ nested_agents() {
   ' | LC_ALL=C sort
 }
 
-# Wired = some instruction entry point reaches the file. The sibling CLAUDE.md
-# or CLAUDE.local.md is the prescribed layout, and it is checked first. Any of
-# the three names in any ancestor directory up to the root is also an entry
-# point: the root ones load at launch and an ancestor's loads when Claude reads
-# under it, and an import from either brings the nested AGENTS.md in with it. A
-# file reached that way loads, so it is not a finding, whatever layout it uses.
+# Wired = any of the three names in its own or any ancestor directory reaches the
+# file, since each of those loads and carries its imports in.
 #
 # All three names count at EVERY level, the root's `.claude/CLAUDE.md` included
 # but not alone: the memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or
@@ -132,12 +101,8 @@ is_wired() {
   return 1
 }
 
-# Blocked = a CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md sits on the
-# file's own path, at any level, which is what stops Claude Code reading the
-# AGENTS.md beside it. Only a blocked file needs the import; an unblocked one
-# is read directly wherever AGENTS.md support is available. Nothing here can
-# see a CLAUDE.md above the repository root, so that case is the operator's to
-# know.
+# Blocked = one of the three names sits on the file's own path. A CLAUDE.md
+# above the repository root is invisible here; that case is the operator's to know.
 is_blocked() {
   local agents="$1" dir
   dir="$(dirname "$agents")"
