@@ -26,32 +26,22 @@
 #
 # What made a file expensive was never its line count, which is why the shape
 # was so easy to misread: it was the length of its longest LOGICAL record. A
-# file of ordinary one-line commands scanned linearly before and still does
-# (25,600 such lines, ~1.7s then, ~1.9s now). A file carrying one long
+# file of ordinary one-line commands scanned linearly before and still does.
+# A file carrying one long
 # quote-joined record paid a quadratic price for it. Cost is linear in file
 # length now ONLY while the longest logical record stays bounded: a file that
 # is one enormous record is still superlinear in that record's length, just
 # with a far smaller constant. The residue tracks record LENGTH, not how many
-# hits the record carries. Measured on 2026-08-29 against a synthetic file
-# that is one quote-joined record with no hits in it
-# at all: 1,600 lines 0.11s, 6,400 lines 0.35s, 25,600 lines 6.58s. Holding the
-# record at 6,400 lines and varying hit density instead moved nothing outside
-# the noise: 0.35s with no hits, 0.38s with a hit every eighth line, 0.34s with
-# a hit on every line.
+# hits the record carries.
 #
 # CI still runs the changed-file mode rather than `--all` (see ci.yml's
 # `shell-portability-lint`), and not because of what a sweep costs: a per-PR
 # fleet sweep is runner time spent re-proving files the PR did not touch.
 #
-# `--all` now finishes well inside a 600s command timeout, so an audit no
-# longer has to be run detached. What follows is for a run that DOES outlive
-# its timeout, and it is kept because misreading a long run's outcome has cost
-# real time more than once:
+# What follows is for a run that DOES outlive its command timeout:
 #
 #   - A timeout is not flakiness. Re-running an unchanged command that timed
-#     out is the predicted outcome, not new information; four attempts were
-#     spent on that before it was understood, each recorded as an environment
-#     problem.
+#     out is the predicted outcome, not new information.
 #   - Do NOT wait on it with `pgrep -f 'check-shell-portability'`. That pattern
 #     appears in the waiting shell's OWN command line, so the waiter matches
 #     itself and the condition never clears. Wait on the pid instead.
@@ -106,9 +96,7 @@
 #   This lands on the gate's EXISTING uncovered-platform axis rather than a new
 #   one: macOS — the one platform no runner here covers — ships bash 3.2, while
 #   every runner in this repo ships 5.2 or later, so the same line silently
-#   means two different things on the two platforms. It shipped a real defect
-#   in this repo (#2008): a sentinel restored to itself became a no-op and
-#   produced a live false positive in a guardrails hook, on bash >=5.2 only.
+#   means two different things on the two platforms.
 #
 #   It cannot be an ERE token. Matching runs on the `qline`/`cline` views, and
 #   `neutralize()` replaces every SEPS character — `&` among them — inside a
@@ -296,8 +284,7 @@ if [[ -f "$BASELINE" ]]; then
   # `inline`: baseline entries are repo-relative paths, never regexes, so a `#`
   # anywhere on the line is a comment. This gate's OTHER list — the token file —
   # takes `leading` instead, because its entries are EREs that may contain a
-  # `#`. Those two modes are exactly the divergence #3161 collapsed into one
-  # library; this file is the one that carried both shapes.
+  # `#`.
   read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
 fi
 

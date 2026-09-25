@@ -237,9 +237,8 @@ else
 fi
 
 # A PostToolUse hook is IN scope: the same rule, from both sides. A reversed
-# PostToolUse script fails even when the plugin's PreToolUse guard is hoisted
-# (this case previously asserted the opposite, when the gate scanned PreToolUse
-# only), and a hoisted PostToolUse script passes on its own.
+# PostToolUse script fails even when the plugin's PreToolUse guard is hoisted,
+# and a hoisted PostToolUse script passes on its own.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 guard "$f" demo "post.sh" "$REVERSED"

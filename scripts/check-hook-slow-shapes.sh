@@ -8,9 +8,9 @@
 #     transcript: `mapfile`, `readarray`, `cat`, `grep`, `jq`, `sed` or `awk`
 #     over the transcript variable, or an input redirect from it (`while read
 #     ... done <"$TRANSCRIPT"`), on a line with no `tail -c` / `head -c` bound.
-#     The transcript grows every turn, so the read cost grows with it. #4408 was
-#     `mapfile -s N <"$TRANSCRIPT"`: a bash builtin, zero extra processes, and
-#     11.6 s per fire at a 10 MB transcript, which no spawn counter can see.
+#     The transcript grows every turn, so the read cost grows with it. A builtin
+#     read such as `mapfile -s N <"$TRANSCRIPT"` spawns no process, so no spawn
+#     counter can see it.
 #     The transcript variable is any variable whose name contains
 #     "transcript" (any case) in a script that mentions `.transcript_path`. That
 #     is a naming heuristic, not dataflow: hook-failure-audit.sh takes the path
@@ -29,8 +29,8 @@
 # (b) ENV SHEBANG. A shell-form hook runs a script as its command word, with no
 #     interpreter in front of it, and that script starts `#!/usr/bin/env`. The
 #     kernel then runs /usr/bin/env, which looks up and execs the interpreter:
-#     one extra exec on every fire. A leading `bash` (the #4421 shape,
-#     `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` with `"shell": "bash"`) execs
+#     one extra exec on every fire. A leading `bash`
+#     (`bash "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` with `"shell": "bash"`) execs
 #     bash directly. Each `;`, `&&`, `||` and `|` segment is checked, so an
 #     opt-in row's `exec "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh` counts too. Exec
 #     form (`args` present) is out of scope.
