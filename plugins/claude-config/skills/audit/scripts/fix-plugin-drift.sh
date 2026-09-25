@@ -37,15 +37,20 @@
 #   complete. Findings with no audited marketplace, because none is declared or
 #   every one was skipped, say so instead of reporting no drift, and every
 #   skipped marketplace is listed with its reason.
-#   Findings that are not an array of marketplace blocks, or a list jq cannot
-#   read from them, are fatal.
-#   The plan is filtered against one snapshot of the settings file before it is
-#   rendered: an addition whose key exists and a removal whose key is absent are
-#   dropped, and a removal whose key is now true moves to manual review. The
-#   edit, the line-ending measurement and the backup all come from that
-#   snapshot. An apply is refused when the settings file no longer matches it
-#   just before the backup, because another writer changed it after the plan
-#   was computed. The window between that compare and the replace is not closed.
+#   Findings that are not exactly one array of marketplace blocks, or a list jq
+#   cannot read from them, are fatal. Displayed entries print control
+#   characters as `?`.
+#   Additions and removals are filtered against one snapshot of the settings
+#   file before the plan is rendered (manual-review orphans and renames are
+#   not): an addition whose key exists and a removal whose key is absent are
+#   dropped, and a removal whose key is now true moves to manual review. When a
+#   removal or addition is pending, a settings file that is not valid JSON or
+#   whose enabledPlugins is not an object is fatal, on a dry run too. The edit,
+#   the line-ending measurement and the backup all come from that snapshot. An
+#   apply is refused when the settings file no longer matches it just before
+#   the replace, because another writer changed it after the plan was computed;
+#   the backup this run just wrote is removed. The window between that compare
+#   and the replace is not closed.
 #   The settings file is copied to <settings>.<UTC stamp>.bak before it is
 #   replaced, created under a 0077 umask so it is 0600 wherever the platform
 #   honors mode bits (MSYS does not). Nothing is replaced if that copy cannot be
@@ -214,10 +219,13 @@ if [[ ! -f "$INPUT_JSON" ]]; then
   exit 2
 fi
 
-# An array of marketplace blocks, each an object. `jq -e` fails on a zero-byte
-# file, which yields no value at all. The element test is phrased as `!=` so no
-# jq call before the post-edit validation carries that validation's text.
-if ! jq -e 'type == "array" and (any(.[]; type != "object") | not)' "$INPUT_JSON" >/dev/null 2>&1; then
+# Exactly one document, an array of marketplace blocks, each an object. `-s`
+# gathers every document, because `jq -e` alone judges only the last one and a
+# file holding an object followed by `[]` would pass; a zero-byte file slurps to
+# an empty list. The element test is phrased as `!=` so no jq call before the
+# post-edit validation carries that validation's text.
+if ! jq -s -e 'length == 1 and (.[0] | type == "array" and (any(.[]; type != "object") | not))' \
+  "$INPUT_JSON" >/dev/null 2>&1; then
   echo "ERROR: findings JSON is not an array of marketplace blocks: $INPUT_JSON" >&2
   exit 2
 fi
@@ -247,6 +255,12 @@ count_lines() {
   grep -c . <<<"$1" || true
 }
 
+# encode_list <newline-separated entries> - a JSON array of the non-empty lines,
+# or nothing on stdout when jq fails, so a caller tests for the empty string.
+encode_list() {
+  jq -nR '[inputs | select(. != "")]' <<<"$1" || true
+}
+
 auto_remove=$(findings '.orphans[] | select(.enabled == false) | "\(.name)@\(.marketplace)"') ||
   findings_failed "orphan removals"
 
@@ -264,7 +278,7 @@ rename_candidates=$(findings '.renames[] | "\(.from) -> \(.to)  (\(.marketplace)
 # key and reason are flattened to one line each so a crafted value cannot forge
 # extra entries in the listing.
 skipped=$(jq -r '.[] | select(.status != "ok")
-  | "\(.key // "" | tostring | gsub("[\r\n]"; " ")) (\(.skip_reason // "" | tostring | gsub("[\r\n]"; " ")))"' \
+  | "\(.key // "" | tostring | gsub("[\r\n]"; " ")) (\(.skip_reason // "no reason given" | tostring | gsub("[\r\n]"; " ")))"' \
   "$INPUT_JSON" | tr -d '\r') || findings_failed "marketplace status"
 
 remove_count=$(count_lines "$auto_remove")
@@ -283,7 +297,10 @@ print_entries() {
   local indent="$1" entry
   while IFS= read -r entry; do
     [[ -z "$entry" ]] && continue
-    printf '%s- %s\n' "$indent" "$entry"
+    # Display only: a name or reason from upstream JSON can carry ESC or OSC
+    # sequences, so every control character prints as `?`. The lists the edit
+    # uses are never passed through here.
+    printf '%s- %s\n' "$indent" "${entry//[[:cntrl:]]/?}"
   done <<<"$2"
 }
 
@@ -328,8 +345,8 @@ if [[ "$remove_count" -gt 0 || "$add_count" -gt 0 ]]; then
   fi
 
   # Keys are bound as data with --argjson, never interpolated into the program.
-  raw_remove_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_remove") || raw_remove_json=""
-  raw_add_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_add") || raw_add_json=""
+  raw_remove_json=$(encode_list "$auto_remove")
+  raw_add_json=$(encode_list "$auto_add")
   if [[ -z "$raw_remove_json" || -z "$raw_add_json" ]]; then
     echo "ERROR: cannot encode the plugin lists for the filter, settings unchanged" >&2
     exit 2
@@ -482,8 +499,8 @@ fi
 # Plugin names come from upstream marketplace JSON — pass them to jq as data
 # (--argjson arrays consumed by reduce), never interpolated into the filter
 # program, so a crafted upstream name cannot inject jq code.
-remove_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_remove") || remove_json=""
-add_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_add") || add_json=""
+remove_json=$(encode_list "$auto_remove")
+add_json=$(encode_list "$auto_add")
 if [[ -z "$remove_json" || -z "$add_json" ]]; then
   echo "ERROR: cannot encode the plugin lists for the edit, settings unchanged" >&2
   exit 2
@@ -583,19 +600,11 @@ if [[ "$SETTINGS_WAS_WRITABLE" -eq 0 ]] && ! chmod u-w "$TMP_EOL"; then
   exit 2
 fi
 
-# The plan, the edit and the backup all describe the snapshot. A settings file
-# that no longer matches it was changed by another writer after the plan was
-# computed, and replacing it would discard that change. This is the last point
-# before anything is written; the window from here to the replace stays open.
-if ! cmp -s "$SNAPSHOT" "$SETTINGS"; then
-  echo "ERROR: $SETTINGS changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup written" >&2
-  exit 2
-fi
-
 # The backup is taken last, so a run refused earlier leaves none behind. Once it
-# exists the original is recoverable whatever happens next, so no path here
-# deletes it. Refuse rather than clobber an earlier backup made in the same
-# second.
+# exists the original is recoverable whatever happens next, so the only path
+# that deletes it is the concurrent-change refusal below, which removes the copy
+# this run just created and replaces nothing. Refuse rather than clobber an
+# earlier backup made in the same second.
 STAMP=$(date -u +%Y%m%dT%H%M%SZ) || STAMP=""
 if [[ -z "$STAMP" ]]; then
   echo "ERROR: cannot read the clock for the backup name, settings unchanged" >&2
@@ -623,6 +632,18 @@ if ! (
 ) 2>/dev/null; then
   echo "ERROR: cannot write the backup, settings unchanged: $BACKUP" >&2
   echo "The path already exists, is a symlink, or is not writable. A second apply within the same second hits this." >&2
+  exit 2
+fi
+
+# The plan, the edit and the backup all describe the snapshot. A settings file
+# that no longer matches it was changed by another writer after the plan was
+# computed, and replacing it would discard that change. The compare sits
+# directly before the replace; the window between the two stays open. The
+# backup removed here is the one the exclusive open above just created, so it
+# is this run's own file and holds the snapshot, not the other writer's bytes.
+if ! cmp -s "$SNAPSHOT" "$SETTINGS"; then
+  rm -f "$BACKUP"
+  echo "ERROR: $SETTINGS changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup written" >&2
   exit 2
 fi
 

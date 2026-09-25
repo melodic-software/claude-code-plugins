@@ -763,9 +763,11 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
 printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
 cp "$case_dir/settings.json" "$case_dir/settings.pre"
-for shape in object string empty element; do
+for shape in object string empty element multi; do
   case "$shape" in
   object) printf '{"not":"an array"}\n' >"$case_dir/findings.json" ;;
+  # Two documents: jq -e alone would judge only the trailing array.
+  multi) printf '{"x":%s}\n[]\n' "$(printf '%s' "$DRIFT_FINDINGS" | jq -c '.[0]')" >"$case_dir/findings.json" ;;
   string) printf '"text"\n' >"$case_dir/findings.json" ;;
   element) printf '[1]\n' >"$case_dir/findings.json" ;;
   *) : >"$case_dir/findings.json" ;;
@@ -822,6 +824,7 @@ if [[ ! -e "$case_dir/fired" ]]; then
   skip "case-23: concurrent write during the apply" "the shim never fired, so no concurrent write happened"
 else
   assert_exit "case-23: a changed settings file exits 2" 2 "$exit_code"
+  assert_contains "case-23: names the concurrent change" "$out" "changed after the plan was computed"
   assert_not_contains "case-23: never reports an apply" "$out" "Applied"
   kept=$(cmp -s "$case_dir/concurrent.json" "$case_dir/settings.json" && echo yes || echo no)
   assert_eq "case-23: the other writer's bytes survive" "yes" "$kept"
@@ -883,6 +886,39 @@ assert_contains "case-26: only the removal is applied" "$out" "Applied: 1 remova
 kept_true=$(jq -e '.enabledPlugins["newcomer@market1"] == true and (.enabledPlugins | has("removed@market1") | not)' \
   "$case_dir/settings.json" >/dev/null && echo yes || echo no)
 assert_eq "case-26: the true entry is not flipped to false" "yes" "$kept_true"
+
+# --- Case 27: control characters in a displayed entry never reach the terminal ---
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+esc_name=$'evil\e]0;title\anext'
+jq -n --arg n "$esc_name" '[
+  {key: "market1", status: "ok", skip_reason: "", orphans: [], new_upstream: [{name: $n, marketplace: "market1"}], renames: []},
+  {key: ("mk" + $n), status: "skipped", skip_reason: ("why" + $n), orphans: [], new_upstream: [], renames: []}
+]' >"$case_dir/findings.json"
+printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
+
+out=$(run_fix_dry "$case_dir") || true
+assert_contains "case-27: plan shows the name with ? for control chars" "$out" "evil?]0;title?next@market1"
+assert_contains "case-27: SKIPPED listing shows ? for control chars" "$out" "  - mkevil?]0;title?next (whyevil?]0;title?next)"
+if [[ "$out" == *$'\e'* || "$out" == *$'\a'* ]]; then raw_ctl=yes; else raw_ctl=no; fi
+assert_eq "case-27: no raw ESC or BEL byte in the output" "no" "$raw_ctl"
+
+exit_code=0
+out=$(run_fix_apply "$case_dir") || exit_code=$?
+assert_exit "case-27: apply exits 0" 0 "$exit_code"
+raw_key=$(jq -e --arg k "$esc_name@market1" '.enabledPlugins[$k] == false' "$case_dir/settings.json" >/dev/null && echo yes || echo no)
+assert_eq "case-27: the edit uses the raw key, not the displayed one" "yes" "$raw_key"
+
+# --- Case 28: a skipped block with no reason says so ------------------------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+printf '[{"key":"market4","status":"skipped","orphans":[],"new_upstream":[],"renames":[]}]\n' >"$case_dir/findings.json"
+printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
+
+out=$(run_fix_dry "$case_dir") || true
+assert_contains "case-28: missing reason is named" "$out" "  - market4 (no reason given)"
 
 # --- Final ------------------------------------------------------------------
 
