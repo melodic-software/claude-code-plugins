@@ -43,6 +43,11 @@
 #      which artifact it is asking about, so grade each fan-out run against its
 #      own assigned sub-slice, before synthesis.
 #   2. That index is non-empty.
+#   2a. It does not carry the line `Run status: in progress`. A dispatched
+#      agent writes that marker into its early skeleton and replaces it with
+#      `Run status: complete` in its final write, so a marked index is a run
+#      that stopped before finishing. An index with no status line at all
+#      (inline or legacy) is graded as before.
 #   3. It names at least one `<PREFIX>-<section>.md` sidecar, and every sidecar
 #      it names exists beside it and is non-empty. A mid-stream stub passes a
 #      bare non-empty test; it does not pass this one.
@@ -64,7 +69,8 @@
 #
 # Exit 0 = a usable artifact set is on disk (status=usable)
 # Exit 1 = the slice is readable but its artifact set is NOT usable — no index,
-#          an empty index, an index naming no sidecars, a named sidecar that is
+#          an empty index, an index still marked `Run status: in progress`,
+#          an index naming no sidecars, a named sidecar that is
 #          missing or empty, an index no newer than the baseline, a payload
 #          pointer naming a different file, or a sidecar-count mismatch
 #          (status=unusable). The parent discards the run; it does not proceed.
@@ -240,6 +246,17 @@ fi
 
 if [[ ! -s "$index" ]]; then
   echo "unusable: index is empty: $index" >&2
+  verdict "$index" 0 0 unusable
+  exit 1
+fi
+
+# A dispatched agent writes its index skeleton early with this marker line and
+# replaces it only in its final write, so an index still carrying it is a run
+# that stopped short. Checked before the sidecar scan so a bare skeleton reports
+# this reason rather than "names no sidecar". Exact case, a plain line, with an
+# optional CR for a CRLF file; prose quoting the marker does not match.
+if grep -qE $'^Run status: in progress\r?$' "$index"; then
+  echo "unusable: index is still marked Run status: in progress; the run stopped before its final write: $index" >&2
   verdict "$index" 0 0 unusable
   exit 1
 fi

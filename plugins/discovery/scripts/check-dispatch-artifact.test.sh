@@ -76,6 +76,27 @@ stdout_raw() {
 # Set per suite; the wrappers below PREPEND --index-name so a case that ends in
 # a value-less flag still fails for the reason it names rather than swallowing
 # the injected flag as its value.
+# stderr_raw <expected-exit> <expected-substring> <label> [args...]: the reason
+# a parent reports back is on stderr, so a case about WHICH reason fired reads it.
+stderr_raw() {
+  local expected="$1" needle="$2" label="$3"
+  shift 3
+  local err actual ok=1
+  err="$(bash "$SUT" "$@" 2>&1 >/dev/null)"
+  actual=$?
+  if [[ "$err" != *"$needle"* ]]; then
+    fail "$label: stderr lacked '$needle': $err"
+    ok=0
+  fi
+  if [[ "$actual" -ne "$expected" ]]; then
+    fail "$label: exit was $actual, expected $expected"
+    ok=0
+  fi
+  if [[ "$ok" -eq 1 ]]; then
+    pass "$label"
+  fi
+}
+
 INDEX_NAME=""
 PREFIX=""
 WORK=""
@@ -90,6 +111,12 @@ stdout_has() {
   local expected="$1" needle="$2" label="$3"
   shift 3
   stdout_raw "$expected" "$needle" "$label [$INDEX_NAME]" --index-name "$INDEX_NAME" "$@"
+}
+
+stderr_has() {
+  local expected="$1" needle="$2" label="$3"
+  shift 3
+  stderr_raw "$expected" "$needle" "$label [$INDEX_NAME]" --index-name "$INDEX_NAME" "$@"
 }
 
 # slice <name> — make an empty slice directory and echo its path.
@@ -359,6 +386,69 @@ suite() {
     --newer-than "$old_baseline" --expect-index "$good/$INDEX_NAME" --expect-sidecars 1
   stdout_has 0 'freshness=newer pointer=matches status=usable' "a fully-checked pass reports every field" "$good" \
     --newer-than "$old_baseline" --expect-index "$good/$INDEX_NAME" --expect-sidecars 1
+
+  # --- the in-progress marker -----------------------------------------------
+  # A dispatched agent writes its index skeleton early with the line
+  # `Run status: in progress` and replaces it with `Run status: complete` only in
+  # its final write. An index still carrying the marker is a run that stopped
+  # before that write, however complete its sidecars look.
+
+  local inprog inprog_crlf complete nostatus lookalike trailing skeleton byvalue_inprog
+
+  inprog="$(slice in-progress)"
+  index "$inprog" "# $PREFIX" 'Run status: in progress' "$PREFIX-codebase.md"
+  sidecar "$inprog" "$PREFIX-codebase.md" 'a'
+  run 1 "an index still marked Run status: in progress is unusable" "$inprog"
+  stdout_has 1 'status=unusable' "an in-progress index reports status=unusable" "$inprog"
+  stderr_has 1 'still marked Run status: in progress' \
+    "an in-progress index names the marker reason on stderr" "$inprog"
+
+  inprog_crlf="$(slice in-progress-crlf)"
+  printf '# %s\r\nRun status: in progress\r\n%s-codebase.md\r\n' "$PREFIX" "$PREFIX" \
+    >"$inprog_crlf/$INDEX_NAME"
+  sidecar "$inprog_crlf" "$PREFIX-codebase.md" 'a'
+  run 1 "an in-progress marker with CRLF line endings is unusable" "$inprog_crlf"
+
+  complete="$(slice complete)"
+  index "$complete" "# $PREFIX" 'Run status: complete' "$PREFIX-codebase.md"
+  sidecar "$complete" "$PREFIX-codebase.md" 'a'
+  run 0 "an index marked Run status: complete is usable" "$complete"
+
+  # An index with no status line at all is a legacy or inline artifact and
+  # grades exactly as before; `$good` carries none.
+  nostatus="$(slice no-status)"
+  index "$nostatus" "# $PREFIX" "$PREFIX-codebase.md"
+  sidecar "$nostatus" "$PREFIX-codebase.md" 'a'
+  run 0 "an index with no status line is usable" "$nostatus"
+
+  # The marker is a plain line, exact case. A bolded copy or a line that merely
+  # starts with the words is prose about the marker, not the marker.
+  lookalike="$(slice lookalike)"
+  index "$lookalike" "# $PREFIX" '**Run status: in progress**' "$PREFIX-codebase.md"
+  sidecar "$lookalike" "$PREFIX-codebase.md" 'a'
+  run 0 "a bolded look-alike of the marker does not trigger" "$lookalike"
+
+  trailing="$(slice trailing)"
+  index "$trailing" "# $PREFIX" 'Run status: in progress later' "$PREFIX-codebase.md"
+  sidecar "$trailing" "$PREFIX-codebase.md" 'a'
+  run 0 "a marker line with trailing words does not trigger" "$trailing"
+
+  # A bare skeleton: the run wrote its marker and stopped before planning any
+  # sidecar. The marker reason is the one reported, not the no-sidecar one.
+  skeleton="$(slice skeleton)"
+  index "$skeleton" "# $PREFIX" 'Run status: in progress'
+  run 1 "a bare in-progress skeleton is unusable" "$skeleton"
+  stderr_has 1 'still marked Run status: in progress' \
+    "a bare skeleton reports the in-progress reason" "$skeleton"
+
+  # A by-value body still marked in progress is a partial run however it
+  # reached the disk.
+  byvalue_inprog="$(slice by-value-in-progress)"
+  index "$byvalue_inprog" "# $PREFIX: recovered by value" 'Run status: in progress' \
+    "| codebase | [$PREFIX-codebase.md]($PREFIX-codebase.md#codebase) |"
+  sidecar "$byvalue_inprog" "$PREFIX-codebase.md" '---' 'section: codebase' '---'
+  run 1 "a by-value body still marked in progress is unusable" "$byvalue_inprog" \
+    --newer-than "$old_baseline" --expect-index "$byvalue_inprog/$INDEX_NAME" --expect-sidecars 1
 }
 
 suite EXPLORE.md
