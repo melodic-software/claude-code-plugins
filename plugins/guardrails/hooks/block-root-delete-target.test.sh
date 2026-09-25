@@ -288,6 +288,37 @@ assert_exit "1300 sibling rm-bearing bodies are refused" 2 "$GUARD_RC"
 assert_contains "1300 siblings are refused by the COMMAND ceiling, not the body budget" \
   "$GUARD_ERR" "the command is too long to parse"
 
+# Launcher, child-shell and eval nesting is recursion in the guard. Unbounded,
+# 120 nested runusers exhausted bash's stack inside the block's telemetry, so
+# the BLOCKED message printed and the process still exited 0, and deeper ones
+# died on SIGSEGV. Past MAX_SEGMENT_DEPTH the guard refuses, and nested evals
+# are charged to the tokenizing budget so they refuse fast rather than
+# outrunning the hook timeout.
+rdt_rep() {
+  local s="" k
+  for ((k = 0; k < $2; k++)); do s+="$1"; done
+  printf '%s' "$s"
+}
+expect_both 'runuser -u nested 120 deep is refused' 2 --command "$(rdt_rep 'runuser -u bob -- ' 120)rm -rf /"
+expect_both 'runuser -u nested 900 deep is refused' 2 --command "$(rdt_rep 'runuser -u bob -- ' 900)rm -rf /"
+expect_both 'su -s /bin/su nested 300 deep is refused' 2 \
+  --command "$(rdt_rep 'su root -s /bin/su -- ' 300)root -s /bin/rm -- -rf /"
+rdt_payload="$(command_json "$(rdt_rep 'flock --wa 1 f eval ' 700)rm -rf /")"
+for rdt_via in direct dispatched; do
+  if [[ "$rdt_via" == direct ]]; then
+    rdt_argv=(bash "$HOOK")
+  else
+    rdt_argv=(bash "$GUARD_DISPATCH" "$HOOK")
+  fi
+  rdt_rc=0
+  timeout 20 "${rdt_argv[@]}" <<<"$rdt_payload" >/dev/null 2>&1 || rdt_rc=$?
+  assert_exit "flock/eval nested 700 deep is refused inside the timeout ($rdt_via)" 2 "$rdt_rc"
+done
+expect_both 'moderate launcher nesting with an ordinary delete allowed' 0 \
+  --command "sudo nice timeout 5 runuser -u bob -- bash -c 'rm -rf ./build'"
+expect_both 'moderate launcher nesting with a root delete blocks' 2 \
+  --command "sudo nice timeout 5 runuser -u bob -- bash -c 'rm -rf /'"
+
 expect_both 'substitution nested 3 deep is still parsed' 2 \
   --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
 

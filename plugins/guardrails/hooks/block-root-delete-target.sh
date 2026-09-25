@@ -188,6 +188,13 @@ MAX_COMMAND_LEN=16384
 # allow on exactly the input built to exhaust it.
 MAX_SUBST_DEPTH=32
 
+# Launcher, child-shell and eval nesting is recursion in rdt_check_segment,
+# capped the same way and for the same reason: past the cap the guard REFUSES.
+# 24 is far above any command a person writes and far below the depth where
+# bash exhausts its stack (about 100 levels of runuser on Git Bash).
+MAX_SEGMENT_DEPTH=24
+rdt_depth=0
+
 rdt_emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
@@ -221,6 +228,18 @@ rdt_block() {
       "BLOCKED: substitution nesting deeper than $MAX_SUBST_DEPTH." \
       'Past that depth the scanner stops descending, so a recursive delete inside it cannot be ruled out, and an allow here would be an allow on exactly the input built to exhaust it.' \
       'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
+    ;;
+  eval-too-long)
+    printf '%s\n' \
+      'BLOCKED: eval and substitution text exceeds MAX_COMMAND_LEN in total.' \
+      'Each eval re-tokenizes the text it runs, so nested evals multiply the work, and a hook the harness cancels on its timeout is cancelled WITHOUT a block.' \
+      'Fix: drop the nested evals, or run the inner command on its own.' >&2
+    ;;
+  nesting-too-deep-launcher)
+    printf '%s\n' \
+      "BLOCKED: launcher or eval nesting deeper than $MAX_SEGMENT_DEPTH; flatten the command." \
+      'Each launcher, child shell and eval is judged by re-entering the parser, and past the limit a recursive delete inside it cannot be ruled out.' \
+      'Fix: drop the repeated launchers, or run the inner command on its own.' >&2
     ;;
   too-many-abbreviations)
     printf '%s\n' \
@@ -638,6 +657,13 @@ rdt_resolved_walk() {
 # siblings already define a function named check_segment.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 rdt_check_segment() {
+  # Every launcher, child shell and eval re-enters this function, so nesting
+  # is bash recursion; deep enough, bash exhausts its stack and dies before a
+  # block's `exit 2`. The depth is a dynamic local, so every return restores
+  # the caller's count with no bookkeeping, and past MAX_SEGMENT_DEPTH the
+  # guard REFUSES.
+  local rdt_depth=$((rdt_depth + 1))
+  ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
   local -a words=("$@")
   local n=$# i=0 j w base sval optarg consume_bare
   local abbr_forked=0
@@ -981,7 +1007,13 @@ rdt_check_segment() {
         ev+=("${words[j]}")
       fi
     done
-    hook::bash_parse_segments "${ev[*]}" rdt_check_segment
+    # The joined text is charged to the same tokenizing budget as a
+    # substitution body: nested evals re-tokenize nearly the whole command at
+    # every level, which is the same multiplication the budget exists to stop.
+    local evtext="${ev[*]}"
+    rdt_scanned=$((rdt_scanned + ${#evtext}))
+    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+    hook::bash_parse_segments "$evtext" rdt_check_segment
     return 0
   fi
 
