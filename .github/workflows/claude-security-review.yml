@@ -5,9 +5,9 @@ name: claude-security-review
 # posture). The caller owns the triggers and the GITHUB_TOKEN grant. Every
 # non-draft pull request is reviewed; fork PRs and bot actors are not (ADR
 # 0038). Every check in this file is advisory: `ci-status` is the only
-# required check. Requires `claude-code-plugins` in the
-# CLAUDE_CODE_OAUTH_TOKEN org secret's selected-repositories scope. Public
-# repo: hosted default runner.
+# required check. The CLAUDE_CODE_OAUTH_TOKEN org secret has `all`
+# repository visibility (github-iac README). Public repo: hosted default
+# runner.
 #
 # The `security-review / claude-security-review-status` check goes red and
 # names the cause when the review fails (ci-workflows#619).

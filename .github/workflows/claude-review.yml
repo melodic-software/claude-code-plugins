@@ -4,8 +4,8 @@ name: claude-review
 # owns the triggers + GITHUB_TOKEN permission grant (a called workflow can only
 # downgrade them, never elevate); the reusable workflow owns the action pin and
 # the secret-handling safety model. Fork PRs and bot actors are not reviewed.
-# Requires `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org secret's
-# selected-repositories scope. Public repo: hosted default runner.
+# The CLAUDE_CODE_OAUTH_TOKEN org secret has `all` repository visibility
+# (github-iac README). Public repo: hosted default runner.
 #
 # EVERY PUSH IS REVIEWED; DRAFTS ARE NOT (ADR 0038). `synchronize` lands the
 # review on the head that merges, and on a pull request that conflicted with
