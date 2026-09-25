@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.6] - 2026-09-25
+
+### Changed
+
+- **The PostToolUse `Write|Edit` verify bundle starts fewer processes (#4390).** Findings, output
+  text and exit status are unchanged.
+  - `skill-reference-verify` and `stale-path-verify` read the extension from the payload's
+    `file_path`, which the dispatcher has already extracted, before resolving the path. An edit
+    to a `.sh`, `.bash`, `.ps1` or `.psm1` file now costs them no process.
+  - `skill-reference-verify` checks for a marketplace `plugins/` tree before it reads the edit's
+    content. In a repository without one it no longer runs `jq`.
+  - `stale-path-verify` finds code spans, splits lines and tokenizes the edit with bash builtins
+    instead of `grep`, `sed`, `sort`, `tr`, `cut` and a `$( )` per candidate. It lists the tracked
+    files only when a root-level candidate or a moved-file hint needs them.
+
 ## [0.36.5] - 2026-09-24
 
 ### Fixed
