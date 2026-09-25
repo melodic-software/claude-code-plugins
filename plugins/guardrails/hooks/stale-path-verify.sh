@@ -71,7 +71,16 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "guardrails-stale-path-verify" "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+# The extension is decided on the payload's own file_path BEFORE
+# hook::read_file_path resolves and scopes it: that call costs a capture and a
+# realpath, and a code edit (.sh, .ps1, ...) leaves at the case below anyway.
+# Under run-guards.sh the field is primed, so this spawns nothing. The value is
+# the one hook::read_file_path returns whenever it returns one, trailing
+# newlines trimmed the way it trims them, so a path this case turns away is one
+# the resolved path would have turned away too.
+hook::jq_fields "$INPUT" '.tool_input.file_path' || exit 0
+FILE="${HOOK_JQ_FIELDS[0]}"
+while [[ "$FILE" == *$'\n' ]]; do FILE="${FILE%$'\n'}"; done
 case "$FILE" in
 # A CHANGELOG is an append-only historical record, and this oracle selects
 # precisely for removed paths — precisely what such a record documents. Mirrors
@@ -83,6 +92,7 @@ case "$FILE" in
 # oracle there.
 *) exit 0 ;;
 esac
+FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 
 # Diff-scope: verify only the content THIS tool call wrote, never re-read the
 # whole file from disk. An Edit's pre-existing lines outside the changed hunk are
@@ -143,13 +153,56 @@ REPO_ROOT=""
 hook::repo_root_to REPO_ROOT "$FILE_DIR"
 [[ -d "$REPO_ROOT" ]] || exit 0
 
-# Inline-code spans, backticks stripped. Prose is deliberately NOT scanned: an
-# unquoted `a/b` in a sentence is as likely to be a ratio, a date, or an
-# either/or as a path.
-emit_tokens() {
-  # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
-  printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null |
-    sed -E 's/^`+//; s/`+$//'
+# Everything below runs on builtins where a pipeline used to: each external
+# command is a fork and an exec, two Windows processes under Git Bash, and this
+# hook runs on every markdown Write and Edit. Every helper reproduces the bytes
+# the pipeline it replaced produced; the file-reading `grep` and `awk` in
+# reconstruct_partial_edit stay, since they read the file once per anchor
+# rather than scanning a string bash holds.
+
+# The non-empty lines of <text>, in order, into LINES. Word splitting on a
+# newline-only IFS rather than a `read` loop: a here-string feeds `read` one
+# byte per system call, and splitting is one pass in C. Empty lines drop out,
+# which no caller keeps anyway.
+split_lines() {
+  local IFS=$'\n' glob_was_on=0
+  [[ $- == *f* ]] || glob_was_on=1
+  set -f
+  # shellcheck disable=SC2206  # splitting on newlines is the intent
+  LINES=($1)
+  ((glob_was_on)) && set +f
+  return 0
+}
+
+# Inline-code spans of <line>, backticks stripped, appended to SPANS. These are
+# exactly the matches of `grep -oE '`[^`]+`'`: leftmost first, at least one
+# character between the backticks (an adjacent pair opens nothing, and the
+# search resumes at its second backtick), and the search resumes after each
+# closing backtick. Prose is deliberately NOT scanned: an unquoted `a/b` in a
+# sentence is as likely to be a ratio, a date, or an either/or as a path.
+line_spans() {
+  local rest="$1" pre inner
+  while :; do
+    pre="${rest%%\`*}"
+    [[ "$pre" == "$rest" ]] && return 0
+    rest="${rest:${#pre}+1}"
+    inner="${rest%%\`*}"
+    [[ "$inner" == "$rest" ]] && return 0
+    [[ -n "$inner" ]] || continue
+    SPANS+=("$inner")
+    rest="${rest:${#inner}+1}"
+  done
+}
+
+# Every inline-code span of <text>, into SPANS. Spans never cross a newline.
+code_spans() {
+  SPANS=()
+  local line
+  local -a LINES=()
+  split_lines "$1"
+  for line in ${LINES[@]+"${LINES[@]}"}; do
+    line_spans "$line"
+  done
 }
 
 # Tracked-file list, read at most once per run and reused by root-basename
@@ -199,10 +252,13 @@ root_basename_is_ambiguous() {
   ((${#matches[@]} > 1))
 }
 
-# Reduce a raw token to a repo-relative path candidate, or nothing.
-# Prints the candidate on success; prints nothing when the token is not one.
+# Reduce a raw token to a repo-relative path candidate, or nothing, into CAND:
+# the candidate on success, empty when the token is not one. It writes a global
+# rather than printing so a caller pays no `$( )` fork per token, and so the
+# tracked-file list it may read stays cached in this shell.
 normalize_candidate() {
   local t="$1"
+  CAND=""
 
   # A code span can hold a whole command; take only single-token spans. NOT
   # because a path cannot contain whitespace — git permits spaces in pathnames —
@@ -273,7 +329,7 @@ normalize_candidate() {
     fi
   fi
 
-  printf '%s' "$t"
+  CAND="$t"
 }
 
 # Partial-replacement context reconstruction (Edit only), mirroring
@@ -281,7 +337,7 @@ normalize_candidate() {
 #
 # An Edit may replace an arbitrary substring: swapping `gone` for `real` inside an
 # existing `docs/gone.md` span leaves `docs/real.md` on disk, but the hunk is the
-# bare word `real` with no backtick pair around it, so emit_tokens finds no span
+# bare word `real` with no backtick pair around it, so code_spans finds no span
 # and a newly-stale citation would be silently missed. Write needs none of this —
 # its content is the whole file, already fully scanned.
 #
@@ -300,22 +356,51 @@ reconstruct_partial_edit() {
   # complete span is already handled by the direct scan, and leaving it in would
   # contribute its own path segments as tokens — `docs` then passes every citation
   # under that directory. What remains is the genuinely bare edited text.
-  local residue
-  # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
-  residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's/`[^`]*`//g')
+  #
+  # Per line, as `sed 's/`[^`]*`//g'` removed them: the first backtick pairs with
+  # the next one on its line (an empty pair included), and an unpaired last
+  # backtick stays.
+  #
   # Minimum token length is two characters. A single-character token carries no
   # filtering power; below two characters the token floor short-circuits (#1455).
   # Path separators are deliberately NOT in the token charset: a prose fragment
   # like `and/or` would then match far more candidates than a bare word does.
-  local -a toks=()
-  mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' 2>/dev/null | sort -u)
+  # The tokens are what `grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}'` matched: every
+  # match runs to the end of a run of [A-Za-z0-9._-], so a run yields one token,
+  # itself less any leading `.`, `_` or `-`, when two characters remain. The
+  # class is spelled out, not ranged, so no locale widens it. Order and
+  # duplicates are irrelevant: the only consumer asks whether ANY token matches.
+  local -a toks=() LINES=()
+  local line rest pre after inner residue run
+  local tokch='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-'
+  split_lines "$SCAN_CONTENT"
+  for line in ${LINES[@]+"${LINES[@]}"}; do
+    residue="" rest="$line"
+    while :; do
+      pre="${rest%%\`*}"
+      [[ "$pre" == "$rest" ]] && break
+      after="${rest:${#pre}+1}"
+      inner="${after%%\`*}"
+      [[ "$inner" == "$after" ]] && break
+      residue+="$pre"
+      rest="${after:${#inner}+1}"
+    done
+    residue+="$rest"
+    for run in ${residue//[!$tokch]/ }; do
+      while [[ "$run" == [._-]* ]]; do run="${run:1}"; done
+      ((${#run} >= 2)) && toks+=("$run")
+    done
+  done
   ((${#toks[@]})) || return 0
   # Lines are located by the hunk's own lines, never by its tokens. Every line of
   # new_string is on disk verbatim, so it matches the line the edit landed in; a
   # token, being shorter, also matches lines the edit never touched — a bare `docs`
-  # in unrelated prose pulls in every citation under docs/.
+  # in unrelated prose pulls in every citation under docs/. Blank lines, which
+  # `grep -vE '^[[:space:]]*$'` dropped, are not anchors.
   local -a anchors=()
-  mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+  for line in ${LINES[@]+"${LINES[@]}"}; do
+    [[ "$line" == *[![:space:]]* ]] && anchors+=("$line")
+  done
   ((${#anchors[@]})) || return 0
   # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
   # not matching lines. Counting lines is not enough: two occurrences on one
@@ -332,8 +417,8 @@ reconstruct_partial_edit() {
   # edit lands in text repeating verbatim elsewhere in the file. For a
   # detect-then-judge guard that is the right side of the trade — it is degraded
   # far worse by being wrong when it speaks than by staying quiet.
-  local anchor occ ctx=""
-  local -a hits=()
+  local anchor occ
+  local -a hits=() ctx=()
   for anchor in "${anchors[@]}"; do
     # Single-word anchors use word-boundary matching so a bare fragment like
     # `docs` does not substring-match inside `docs/gone.md` on an untouched line (#1455).
@@ -349,7 +434,7 @@ reconstruct_partial_edit() {
     # that independently contained new_string and was never touched is kept too,
     # since nothing in the payload distinguishes it from an edited one.
     if [[ "$REPLACE_ALL" == "true" ]]; then
-      for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
+      ctx+=("${hits[@]}")
       continue
     fi
     # Count anchor STARTS, including overlapping ones. `grep -o` emits only
@@ -389,28 +474,30 @@ reconstruct_partial_edit() {
       END { print n + 0 }
     ' "$FILE" 2>/dev/null)
     ((occ == 1)) || continue
-    ctx+="${hits[0]}"$'\n'
+    ctx+=("${hits[0]}")
   done
-  [[ -n "$ctx" ]] || return 0
-  local saved="$SCAN_CONTENT"
-  SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
-  local raw cand seg
-  while IFS= read -r raw; do
-    [[ -n "$raw" ]] || continue
-    cand=$(normalize_candidate "$raw")
-    [[ -n "$cand" ]] || continue
+  ((${#ctx[@]})) || return 0
+  # The first 40 recovered lines. Each contains its anchor, which is never blank,
+  # so the blank-line filter that used to run first dropped none of them.
+  SPANS=()
+  for line in "${ctx[@]:0:40}"; do
+    line_spans "$line"
+  done
+  local raw seg
+  for raw in ${SPANS[@]+"${SPANS[@]}"}; do
+    normalize_candidate "$raw"
+    [[ -n "$CAND" ]] || continue
     # SUBSTRING match against the CANDIDATE, not the raw span: an Edit can replace
     # part of a segment (`gone` -> `real` turns `docs/gone.md` into `docs/real.md`),
     # so the hunk token is a substring of the path rather than the whole of it, and
     # the anchor must appear in the thing actually reported.
     for seg in "${toks[@]}"; do
-      if [[ "$cand" == *"$seg"* ]]; then
-        printf '%s\n' "$cand"
+      if [[ "$CAND" == *"$seg"* ]]; then
+        RAW_TOKENS+=("$CAND")
         break
       fi
     done
-  done < <(emit_tokens)
-  SCAN_CONTENT="$saved"
+  done
 }
 
 declare -A DELETED=()
@@ -430,7 +517,9 @@ build_deleted_set() {
 
   # Over truncated history the set is empty and the guard would do nothing while
   # appearing healthy, so the degradation is announced rather than absorbed.
-  if [[ "$(git -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
+  local shallow
+  shallow=$(git -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null)
+  if [[ "${shallow//$'\r'/}" == "true" ]]; then
     SHALLOW=1
     return 0
   fi
@@ -457,49 +546,47 @@ build_deleted_set() {
   fi
 
   local p
-  while IFS= read -r p; do
-    [[ -n "$p" ]] || continue
+  local -a LINES=()
+  split_lines "${walk//$'\r'/}"
+  for p in ${LINES[@]+"${LINES[@]}"}; do
     DELETED["$p"]=1
-  done < <(printf '%s\n' "$walk" | tr -d '\r')
+  done
 }
 
 # "Did you mean" enrichment, only once a finding exists. A basename match is far
 # too weak to trigger on — `README.md` and `SKILL.md` match hundreds of paths —
 # but once history has established the path was removed, a UNIQUE surviving
-# basename is very likely where it went.
+# basename is very likely where it went. Into HINT, empty when there is none.
 moved_hint() {
   local -a matches=()
+  HINT=""
   tracked_basename_matches "${1##*/}" || return 1
-  ((${#matches[@]} == 1)) && printf '%s' "${matches[0]}"
+  ((${#matches[@]} == 1)) && HINT="${matches[0]}"
+  return 0
 }
 
 declare -A CHECKED=()
 MISSING=()
 ABSENT=0
 
-RAW_TOKENS=()
-mapfile -t RAW_TOKENS < <(emit_tokens)
+code_spans "$SCAN_CONTENT"
+RAW_TOKENS=(${SPANS[@]+"${SPANS[@]}"})
 # Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
 # hunk can both carry a complete code span and change a substring inside another,
 # so gating on an empty scan would miss the partial half. Duplicates are harmless
-# — CHECKED dedupes below.
+# — CHECKED dedupes below. It appends to RAW_TOKENS in this shell.
 if [[ "$TOOL" == "Edit" ]]; then
-  mapfile -t -O "${#RAW_TOKENS[@]}" RAW_TOKENS < <(reconstruct_partial_edit)
+  reconstruct_partial_edit
 fi
-# Warm the tracked-file cache in this shell before any `cand=$(normalize_candidate
-# ...)` subshell: assignments inside normalize_candidate would otherwise be
-# discarded and every root-basename probe would re-list the repo (#1446).
-#
-# Only when there is something to adjudicate. `git ls-files` lists the whole
-# index, and a write that cites no inline-code token at all, the common case for
-# this PostToolUse hook, has no candidate for the list to answer about. The warm
-# still happens in THIS shell and still precedes the loop, which is what the
-# subshell-assignment fix requires; it is the unconditional spawn that goes.
-((${#RAW_TOKENS[@]})) && ensure_tracked_files
+# The tracked-file list is read on demand, in this shell, the first time a
+# root-level candidate or a moved-file hint needs it (#1446): normalize_candidate
+# runs here, not in a `$( )` subshell that would discard the cache, so no warm-up
+# listing is spent on a write whose candidates never ask.
 
-for raw in "${RAW_TOKENS[@]}"; do
+for raw in ${RAW_TOKENS[@]+"${RAW_TOKENS[@]}"}; do
   [[ -n "$raw" ]] || continue
-  cand=$(normalize_candidate "$raw")
+  normalize_candidate "$raw"
+  cand="$CAND"
   [[ -n "$cand" ]] || continue
 
   [[ -n "${CHECKED[$cand]:-}" ]] && continue
@@ -537,8 +624,14 @@ for raw in "${RAW_TOKENS[@]}"; do
   # Exempting on presence alone therefore suppressed the finding for a real removal
   # a user had not committed yet. Only the skip-worktree letter, in either case,
   # earns the exemption.
-  ls_tag=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null | tr -d '\r' | cut -c1)
-  [[ "$ls_tag" == [Ss] ]] && continue
+  #
+  # The tag is the first character of the one line ls-files prints, CR removed:
+  # what `tr -d '\r' | cut -c1` reduced it to, which only equals one letter when
+  # the output is a single line.
+  ls_tag=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null)
+  ls_tag="${ls_tag//$'\r'/}"
+  while [[ "$ls_tag" == *$'\n' ]]; do ls_tag="${ls_tag%$'\n'}"; done
+  [[ "$ls_tag" != *$'\n'* && "${ls_tag:0:1}" == [Ss] ]] && continue
 
   MISSING+=("$cand")
 done
@@ -588,9 +681,10 @@ fi
 if ((${#MISSING[@]} > 0)); then
   hook::ctx_append "stale-path-verify: ${#MISSING[@]} cited path(s) were removed from this repo and no longer exist in $FILE"
   for m in "${MISSING[@]}"; do
-    hint=$(moved_hint "$m")
-    if [[ -n "$hint" ]]; then
-      hook::ctx_append "  STALE_PATH: $m (one tracked file now carries that name: $hint)"
+    HINT=""
+    moved_hint "$m"
+    if [[ -n "$HINT" ]]; then
+      hook::ctx_append "  STALE_PATH: $m (one tracked file now carries that name: $HINT)"
     else
       hook::ctx_append "  STALE_PATH: $m"
     fi

@@ -690,9 +690,14 @@ assert_contains "repo root anchor uses parameter expansion" "$HOOK_SRC" 'FILE_DI
 assert_absent "repo root anchor forks no subshell" "$HOOK_SRC" 'hook::repo_root "$(dirname'
 assert_file_dir_seam "$HOOK"
 
-# The whole-index `git ls-files` must not run for a write that cites nothing.
-assert_contains "tracked-file list is warmed only when a candidate exists" "$HOOK_SRC" \
-  '((${#RAW_TOKENS[@]})) && ensure_tracked_files'
+# The whole-index `git ls-files` runs only when a root-level candidate or a
+# moved-file hint asks for it. That holds only while every caller reads the list
+# in THIS shell: a `$( )` around normalize_candidate or moved_hint would drop the
+# cache and re-list the repo per token (#1446).
+assert_absent "tracked-file list is not warmed up front" "$HOOK_SRC" \
+  '&& ensure_tracked_files'
+assert_absent "normalize_candidate runs in this shell" "$HOOK_SRC" '$(normalize_candidate'
+assert_absent "moved_hint runs in this shell" "$HOOK_SRC" '$(moved_hint'
 
 # The behavioral rename case above is the real proof, but pin the flags too: a
 # refactor that drops either one changes the guard's meaning silently.

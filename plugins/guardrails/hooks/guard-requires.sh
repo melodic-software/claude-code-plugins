@@ -63,8 +63,8 @@ declare -A GUARD_FIELDS=(
   ["cli-flag-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
   ["hardcoded-path-check.sh"]='.tool_name .tool_input.file_path .tool_input.content .tool_input.new_string .tool_input.new_source .tool_input.path'
   ["secret-pattern-detection.sh"]='.tool_name .tool_input.file_path .tool_input.content .tool_input.new_string .tool_input.new_source .tool_input.path'
-  ["skill-reference-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
-  ["stale-path-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
+  ["skill-reference-verify.sh"]='.tool_input.file_path .tool_name .tool_input.new_string .tool_input.content'
+  ["stale-path-verify.sh"]='.tool_input.file_path .tool_name .tool_input.new_string .tool_input.content'
 )
 
 # GUARD_FIELDS_UNPRIMED[<file>] — filters the guard reads that the dispatcher

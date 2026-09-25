@@ -67,7 +67,16 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require_jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+# The extension is decided on the payload's own file_path BEFORE
+# hook::read_file_path resolves and scopes it: that call costs a capture and a
+# realpath, and a code edit (.sh, .ps1, ...) leaves at the case below anyway.
+# Under run-guards.sh the field is primed, so this spawns nothing. The value is
+# the one hook::read_file_path returns whenever it returns one, trailing
+# newlines trimmed the way it trims them, so a path this case turns away is one
+# the resolved path would have turned away too.
+hook::jq_fields "$INPUT" '.tool_input.file_path' || exit 0
+FILE="${HOOK_JQ_FIELDS[0]}"
+while [[ "$FILE" == *$'\n' ]]; do FILE="${FILE%$'\n'}"; done
 case "$FILE" in
 # A CHANGELOG is an append-only historical record: an entry saying a skill was
 # renamed MUST keep naming the old command, so every rename permanently adds an
@@ -82,6 +91,28 @@ case "$FILE" in
 *.md) ;;
 *) exit 0 ;;
 esac
+FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+
+# Parameter expansion, not a `$(dirname …)` subshell, with the same answers:
+# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
+# which hook::repo_root would read as `.`.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
+PLUGINS_DIR="$REPO_ROOT/plugins"
+
+# PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
+# Decided before the payload's content fields are read: every exit from here to
+# the reference scan is the same silent `exit 0`, so their order changes no
+# outcome, and a consumer repo, where this gate is the usual exit, never pays
+# the jq process the content read below costs.
+[[ -d "$PLUGINS_DIR" ]] || exit 0
+shopt -s nullglob
+manifests=("$PLUGINS_DIR"/*/.claude-plugin/plugin.json)
+shopt -u nullglob
+((${#manifests[@]} > 0)) || exit 0
 
 # Diff-scope: verify only the content THIS tool call wrote, never re-read the
 # whole file from disk.
@@ -172,23 +203,6 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 *) exit 0 ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
-
-# Parameter expansion, not a `$(dirname …)` subshell, with the same answers:
-# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
-# which hook::repo_root would read as `.`.
-FILE_DIR="${FILE%/*}"
-[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
-[[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
-PLUGINS_DIR="$REPO_ROOT/plugins"
-
-# PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
-[[ -d "$PLUGINS_DIR" ]] || exit 0
-shopt -s nullglob
-manifests=("$PLUGINS_DIR"/*/.claude-plugin/plugin.json)
-shopt -u nullglob
-((${#manifests[@]} > 0)) || exit 0
 
 # A plugin's command namespace is its manifest `name`, which need not equal its
 # directory name. Build the name → directory map from the manifests themselves so
