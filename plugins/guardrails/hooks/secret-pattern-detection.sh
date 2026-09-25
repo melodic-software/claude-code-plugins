@@ -388,7 +388,36 @@ secret_path_allowlisted "$ALLOW_FILE" && exit 0
 # accepts, and under temp neither lexically nor physically; target under temp
 # both as spelled and once its nearest existing ancestor is physically resolved,
 # so a link under temp pointing elsewhere is still scanned. Everything up to
-# the resolve step is a builtin, so a write outside temp spawns no process.
+# the resolve step is a builtin, so a target with no temp-looking component
+# spawns no resolver process.
+
+spd_win=0
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) spd_win=1 ;;
+*) ;; # POSIX host
+esac
+
+# spd_lower_to <var> <text>: <text> lowercased into <var>. Defined through eval
+# and only on Bash 4+, so a 3.2 shell never parses the `,,` expansion.
+if ((BASH_VERSINFO[0] >= 4)); then
+  eval 'spd_lower_to() { printf -v "$1" "%s" "${2,,}"; }'
+fi
+
+# spd_under_temp <path>: hook::under_temp_root, and on a POSIX host also on the
+# lowercased spelling, because block-hook-bypass compares a lowercased target
+# with candidates that keep their case. On Windows the library's normalization
+# already folds case. Below Bash 4 a spelling with a capital is refused instead.
+spd_under_temp() {
+  local lower
+  hook::under_temp_root "$1" || return 1
+  ((spd_win)) && return 0
+  if ((BASH_VERSINFO[0] < 4)); then
+    [[ "$1" != *[[:upper:]]* ]]
+    return
+  fi
+  spd_lower_to lower "$1"
+  hook::under_temp_root "$lower"
+}
 
 # spd_nearest_existing <absolute path>: its nearest existing ancestor in
 # spd_anc and the components below it in spd_sfx; returns 1 when none exists.
@@ -416,64 +445,57 @@ spd_nearest_existing() {
 
 # spd_temp_declines <file_path>: 0 when the write is declined.
 spd_temp_declines() {
-  local t="$1" r="${CLAUDE_PROJECT_DIR:-}" win=0 lt cand norm hit=0 ranc="" rsfx phys
-  case "${OSTYPE:-}" in
-  msys* | cygwin* | win32) win=1 ;;
-  *) ;; # POSIX host
-  esac
+  local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys links
   # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
   # and `/c/x` to other places than Git Bash does, so only a drive spelling may
-  # decline there. On POSIX `\` is a filename byte, never a separator.
-  if ((win)); then
+  # decline there. On POSIX `\` is a filename byte, never a separator, and below
+  # Bash 4 a capital cannot be folded to compare as block-hook-bypass does.
+  if ((spd_win)); then
     t="${t//\\//}"
+    r="${r//\\//}"
     [[ "$t" == [A-Za-z]:/?* ]] || return 1
   else
-    [[ "$t" == *\\* ]] && return 1
-    [[ "$t" == /?* ]] || return 1
+    [[ "$t$r" == *\\* || "$t" != /?* ]] && return 1
+    ((BASH_VERSINFO[0] >= 4)) || [[ "$t" != *[[:upper:]]* ]] || return 1
   fi
   case "$t" in
   *~* | *//* | */./* | */../* | */. | */..) return 1 ;;
   *) ;; # a normalized spelling
   esac
-  # 2. Lexical pre-match on a lowercased copy, used for nothing else. It may
-  # over-match (costing one resolver process) and never decides alone.
-  lt="${t,,}"
-  case "$lt" in
+  # 2. Case-insensitive lexical pre-match on a `/tmp/` or `/temp/` component or a
+  # temp candidate's spelling. It may over-match (costing one resolver process)
+  # and never decides alone.
+  hook::_temp_root_candidates
+  shopt -q nocasematch && nocase=1
+  shopt -s nocasematch
+  case "$t" in
   */tmp/* | */temp/*) hit=1 ;;
-  *) ;; # try the temp spellings below
+  *) ;; # try the candidates' spellings below
   esac
-  if ((hit == 0)); then
-    for cand in "${TMPDIR:-}" "${TMP:-}" "${TEMP:-}" /tmp /var/tmp; do
-      [[ -n "$cand" ]] || continue
-      hook::normalize_path_to norm "$cand"
-      norm="${norm,,}"
-      norm="${norm%/}"
-      [[ -n "$norm" && "$lt" == "$norm"/* ]] && hit=1 && break
-    done
-    ((hit)) || return 1
-  fi
+  for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
+    ((hit)) && break
+    hook::normalize_path_to norm "$cand"
+    norm="${norm%/}"
+    [[ -n "$norm" && "$t" == "$norm"/* ]] && hit=1
+  done
+  ((nocase)) || shopt -u nocasematch
+  ((hit)) || return 1
   # 3. Root gate: the spellings block-hook-bypass's _norm_path accepts, minus the
   # unnormalized ones and a filesystem or drive root.
   [[ -n "$r" ]] || return 1
-  if ((win)); then
-    r="${r//\\//}"
-  else
-    [[ "$r" == *\\* ]] && return 1
-  fi
   case "$r" in
   *'$'* | *'`'* | *~* | *'*'* | *'?'* | *'['* | *//* | */./* | */../* | */. | */..) return 1 ;;
   *) ;; # a normalized spelling
   esac
-  if ((win)); then
+  if ((spd_win)); then
     [[ "$r" == /?* || "$r" == [A-Za-z]:/?* ]] || return 1
   else
     [[ "$r" == /?* ]] || return 1
   fi
   r="${r%/}"
-  ((win)) && [[ "$r" == /[A-Za-z] ]] && return 1
+  ((spd_win)) && [[ "$r" == /[A-Za-z] ]] && return 1
   # 4-5. Root not under temp, as spelled or physically. Only directories enter
   # the resolver cache: the root's existing ancestor and the temp candidates.
-  hook::_temp_root_candidates
   spd_nearest_existing "$r" && ranc="$spd_anc"
   rsfx="$spd_sfx"
   hook::_physical_prime ${ranc:+"$ranc"} ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
@@ -483,12 +505,19 @@ spd_temp_declines() {
     hook::under_temp_root "${phys%/}$rsfx" && return 1
   fi
   # 6. Target under temp as spelled.
-  hook::under_temp_root "$t" || return 1
+  spd_under_temp "$t" || return 1
+  # A hard link resolves to itself, so a temp-tree name for a file stored
+  # elsewhere passes every path test: an existing file with a second link, or
+  # whose link count cannot be read, is scanned.
+  if [[ -f "$t" ]]; then
+    links=$(stat -L -c %h -- "$t" 2>/dev/null) || links=$(stat -L -f %l -- "$t" 2>/dev/null) || return 1
+    [[ "$links" == 1 ]] || return 1
+  fi
   # 7. Target under temp physically, resolved without the cache so the file's
   # own path never enters it.
   spd_nearest_existing "$t" || return 1
   hook::physical_path_to phys "$spd_anc" || return 1
-  hook::under_temp_root "${phys%/}$spd_sfx"
+  spd_under_temp "${phys%/}$spd_sfx"
 }
 spd_temp_declines "$FILE" && exit 0
 

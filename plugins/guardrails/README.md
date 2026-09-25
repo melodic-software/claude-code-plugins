@@ -250,7 +250,7 @@ out of scope until such a signal exists.
   defensible here: guardrails' own `Write|Edit` gates decline a temp-tree file
   reached from a known project root outside the temp tree.
   `secret-pattern-detection` does so since 0.36.4 by its own check, which
-  resolves the target's physical path and applies the same gate as this default;
+  resolves the target's physical path and applies a gate no wider than this default;
   `hardcoded-path-check` and `block-windows-drive-tmp` do so through their project
   scope. Before 0.32.0 these redirects blocked anyway, which cost false positives
   with no true positive. One residual is shared by both routes: a target spelled

@@ -13,11 +13,17 @@ set -uo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/secret-pattern-detection.sh"
 TEST_TMPDIR="$(mktemp -d)"
-# The temp-decline block below makes a directory link in a temp dir of its own,
-# outside TEST_TMPDIR. The link is removed first and without recursion, then the
-# emptied dir, so no recursive delete ever runs over a directory holding a link.
+# The temp-decline block below makes a directory link, hard-linked files and one
+# empty subdirectory in a temp dir of its own, outside TEST_TMPDIR. Each is
+# removed by name and without recursion, then the emptied dir, so no recursive
+# delete ever runs over a directory holding a link.
 D1_LINKDIR=""
+D1_SEAMDIR=""
 d1_cleanup() {
+  if [[ -n "$D1_SEAMDIR" ]]; then
+    rmdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null
+    rmdir "$D1_SEAMDIR" 2>/dev/null
+  fi
   [[ -n "$D1_LINKDIR" ]] || return 0
   if [[ -L "$D1_LINKDIR/ToHooks" ]]; then
     if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
@@ -26,6 +32,8 @@ d1_cleanup() {
       rm -f "$D1_LINKDIR/ToHooks"
     fi
   fi
+  rm -f "$D1_LINKDIR/hl-src.txt" "$D1_LINKDIR/hl.txt" "$D1_LINKDIR/plain.txt"
+  rmdir "$D1_LINKDIR/sub" 2>/dev/null
   rmdir "$D1_LINKDIR" 2>/dev/null
   return 0
 }
@@ -791,31 +799,82 @@ for D1_T in "$D1_TEMP/spd-d1-$$/../../spd-d1-out/f.txt" "${D1_TEMP}Evil/spd-d1/f
   assert_exit "D1 target '$D1_T' → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_T")"
 done
 # Root spellings block-hook-bypass would not accept, and a filesystem root.
-for D1_R in "$D1_ROOT\$x" "${D1_ROOT}*" "${D1_ROOT}~1" "spd-d1-rel-root" "/" "${D1_ROOT%%/*}/"; do
+for D1_R in "$D1_ROOT\$x" "${D1_ROOT}*" "${D1_ROOT}~1" "spd-d1-rel-root" "/"; do
   assert_exit "D1 root '$D1_R' → exit 2" 2 "$(d1_rc "$D1_R" "$D1_TARGET")"
 done
 
-# A link under a temp dir pointing at an existing non-temp directory. The target
-# through it lands outside temp and scans; a genuine sibling declines. The link
-# name carries capitals so a walk over a lowercased copy would miss it on POSIX.
-D1_LINKDIR=$(mktemp -d)
-D1_LINKBASE="$D1_LINKDIR"
-((D1_WIN)) && D1_LINKBASE=$(cygpath -l -m "$D1_LINKDIR")
-if make_dir_link "$HOOK_DIR" "$D1_LINKDIR/ToHooks"; then
-  assert_exit "D1 target through a temp link to a non-temp dir → exit 2" 2 \
-    "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/ToHooks/spd-d1-absent/f.txt")"
-  assert_exit "D1 genuine sibling in the same temp dir → exit 0" 0 \
-    "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/genuine/f.txt")"
+# A test-owned temp dir for the cases that need real files under temp.
+D1_LINKDIR=$(mktemp -d) || D1_LINKDIR=""
+if [[ -n "$D1_LINKDIR" ]]; then
+  D1_LINKBASE="$D1_LINKDIR"
+  ((D1_WIN)) && D1_LINKBASE=$(cygpath -l -m "$D1_LINKDIR")
+  # A link under temp pointing at an existing non-temp directory. The target
+  # through it lands outside temp and scans; a genuine sibling declines. The
+  # link name carries capitals so a walk over a lowercased copy would miss it.
+  if make_dir_link "$HOOK_DIR" "$D1_LINKDIR/ToHooks"; then
+    assert_exit "D1 target through a temp link to a non-temp dir → exit 2" 2 \
+      "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/ToHooks/spd-d1-absent/f.txt")"
+    assert_exit "D1 genuine sibling in the same temp dir → exit 0" 0 \
+      "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/genuine/f.txt")"
+  else
+    echo "SKIP: D1 temp link cases (no directory link could be made on this host)"
+  fi
+  # A hard link resolves to itself, so a temp-tree name for a file stored
+  # elsewhere passes every path test: a link count above 1 scans. A plain file
+  # beside it declines.
+  : >"$D1_LINKDIR/hl-src.txt"
+  : >"$D1_LINKDIR/plain.txt"
+  if ln "$D1_LINKDIR/hl-src.txt" "$D1_LINKDIR/hl.txt" 2>/dev/null; then
+    assert_exit "D1 hard-linked temp file → exit 2" 2 "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/hl.txt")"
+    assert_exit "D1 plain temp file beside it → exit 0" 0 "$(d1_rc "$D1_ROOT" "$D1_LINKBASE/plain.txt")"
+  else
+    echo "SKIP: D1 hard link cases (ln could not make a hard link on this host)"
+  fi
+  # After a decline, the directory the target walk resolved is not in the
+  # resolver cache: the guard is sourced in a child shell whose `exit` is a
+  # function printing the cache keys before the real exit (abort-boundary owns
+  # the EXIT trap, so a trap of our own would be replaced).
+  mkdir "$D1_LINKDIR/sub"
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  D1_PROBE=$(CLAUDE_PROJECT_DIR="$D1_ROOT" bash -c 'exit() { printf "MARK|%s\n" "${_HOOK_PHYS_KEYS[*]-}"; builtin exit "$@"; }; source "$1"' _ "$HOOK" <<<"$(write_json "$D1_LINKBASE/sub/f.txt" "token = '$GH_PAT'")" 2>/dev/null)
+  D1_PROBE_RC=$?
+  assert_exit "D1 probe: sourced guard declines" 0 "$D1_PROBE_RC"
+  D1_KEYS="${D1_PROBE#*MARK|}"
+  if [[ "$D1_PROBE" == *"MARK|"* && -n "$D1_KEYS" ]]; then ok "D1 probe: resolve stage ran"; else bad "D1 probe: no cache keys ($D1_PROBE)"; fi
+  assert_absent "D1 probe: the resolved target directory is not cached" "$D1_KEYS" "$D1_LINKBASE/sub"
 else
-  echo "SKIP: D1 temp link cases (no directory link could be made on this host)"
+  echo "SKIP: D1 temp-file cases (mktemp -d failed)"
 fi
 
-# A drive spelling that names no volume must terminate, as a target and as a
-# root. timeout 124 is a hang, not a verdict; the bound is run_bounded's, since
-# a loaded Windows host spends tens of seconds on one ordinary fire.
-assert_exit "D1 Z:/Temp target with a non-temp root → exit 2" 2 \
-  "$(D1_RC=0; timeout 150 env CLAUDE_PROJECT_DIR="$D1_ROOT" bash "$HOOK" <<<"$(write_json "Z:/Temp/spd/f.txt" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?; printf '%s' "$D1_RC")"
+# Width on POSIX: block-hook-bypass lowercases the target before comparing it
+# with temp candidates that keep their case, so a capitalized temp root never
+# exempts there, and the decline must not either. Lifted seam: the spd functions
+# run with OSTYPE forced to POSIX and the candidate set replaced by one
+# test-owned directory, capitalized or not.
+# shellcheck disable=SC2016  # the sed addresses are literal hook source text
+D1_SEAM=$(sed -n '/^spd_win=0$/,/^spd_temp_declines "\$FILE" && exit 0$/p' "$HOOK" | sed '$d')
+d1_seam_rc() { # <candidate dir> -> spd_temp_declines' status for a file under it
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  CLAUDE_PROJECT_DIR=/spd-d1-nonrepo-root bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; eval "$2"
+    d1_cand="$3"
+    hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("$d1_cand"); }
+    spd_temp_declines "$3/spd-d1-absent/f.txt"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1"
+}
+# mktemp names carry capitals, so the seam dirs sit under a lowercase name of
+# their own, removed by name in the EXIT trap.
+D1_SEAM_TRY="/tmp/spd-d1-seam-$$"
+if [[ "$(realpath /tmp 2>/dev/null)" == /tmp ]] && mkdir "$D1_SEAM_TRY" 2>/dev/null &&
+  D1_SEAMDIR="$D1_SEAM_TRY" && mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null; then
+  assert_eq "D1 seam: posix, lowercase temp root declines" 0 "$(d1_seam_rc "$D1_SEAMDIR/lowtemp")"
+  assert_eq "D1 seam: posix, capitalized temp root scans" 1 "$(d1_seam_rc "$D1_SEAMDIR/CapTemp")"
+else
+  echo "SKIP: D1 seam width cases (/tmp does not resolve to itself, or the seam dirs could not be made)"
+fi
+
 if ((D1_WIN)); then
+  assert_exit "D1 windows: drive root '${D1_ROOT%%/*}/' → exit 2" 2 "$(d1_rc "${D1_ROOT%%/*}/" "$D1_TARGET")"
+  # A drive spelling that names no volume must terminate. timeout 124 is a hang,
+  # not a verdict; a loaded Windows host spends tens of seconds on one fire.
   assert_exit "D1 windows: Z:/ root, temp target, terminates → exit 0" 0 \
     "$(D1_RC=0; timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?; printf '%s' "$D1_RC")"
   assert_exit "D1 windows: backslash long spelling, HOME root → exit 0" 0 \
@@ -859,19 +918,6 @@ assert_eq "D1 non-temp target spawns no resolver" "" "$(cat "$D1_LOG")"
 : >"$D1_LOG"
 d1_rc "$D1_ROOT" "$D1_TARGET" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
 if [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
-
-# After a decline the physical-path vouch stays off and the target never enters
-# the directory cache. Shape: the guard is sourced in a child shell whose `exit`
-# is a function printing both globals before the real exit; abort-boundary owns
-# the EXIT trap, so a trap of our own would be replaced.
-# shellcheck disable=SC2016  # the child shell's expansions are literal source text
-D1_PROBE=$(CLAUDE_PROJECT_DIR="$D1_ROOT" bash -c 'exit() { printf "MARK|%s|%s\n" "$_HOOK_UTR_TARGET_PHYSICAL" "${_HOOK_PHYS_KEYS[*]-}"; builtin exit "$@"; }; source "$1"' _ "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" 2>/dev/null)
-D1_PROBE_RC=$?
-assert_exit "D1 probe: sourced guard declines" 0 "$D1_PROBE_RC"
-assert_contains "D1 probe: exit marker printed" "$D1_PROBE" "MARK|0|"
-D1_KEYS="${D1_PROBE#*MARK|0|}"
-if [[ "$D1_PROBE" == *"MARK|0|"* && -n "$D1_KEYS" ]]; then ok "D1 probe: resolve stage ran"; else bad "D1 probe: no cache keys ($D1_PROBE)"; fi
-assert_absent "D1 probe: target not cached" "$D1_KEYS" "spd-d1-$$/sub"
 
 # The dispatcher runs this guard beside the other Write|Edit guards.
 D1_DISPATCH_RC=0
