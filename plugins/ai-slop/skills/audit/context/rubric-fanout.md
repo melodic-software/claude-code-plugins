@@ -72,8 +72,8 @@ per batch:
   `files_with_findings:` equal to its `## <path>` headings, none of which is outside the
   list. Skip the batch. The digest binds a result to the batch list and to the listed files'
   contents: a file edited, moved or made unreadable after its batch completed turns that
-  batch stale. A batch directory planned before 0.9.0 has no `.paths` sidecars, and its
-  digests stay bound to the list only.
+  batch stale. A batch directory with no `.paths` sidecars keeps its digests bound to the
+  list only.
 - `status=missing digest=<digest>`, or `status=stale
   reason=paths|digest|files_reviewed|foreign-heading|files_with_findings digest=<digest>`:
   dispatch the batch again with that row's `digest=` value and let the subagent overwrite the

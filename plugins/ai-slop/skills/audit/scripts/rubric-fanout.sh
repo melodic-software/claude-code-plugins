@@ -61,17 +61,15 @@ sha256() {
 batch_digest() {
   local sidecar="${1%.txt}.paths" p
   local -a files=()
-  local sep=""
-  if [[ -f "$sidecar" ]]; then
-    sep="--- rubric-fanout batch contents ---"
-    while IFS= read -r p; do
-      [[ -n "$p" ]] && files+=("$p")
-    done <"$sidecar"
-  fi
   {
     cat -- "$1"
-    [[ -n "$sep" ]] && printf '%s\n' "$sep"
-    [[ "${#files[@]}" -gt 0 ]] && sha256 -- "${files[@]}" 2>/dev/null
+    if [[ -f "$sidecar" ]]; then
+      printf '%s\n' "--- rubric-fanout batch contents ---"
+      while IFS= read -r p; do
+        [[ -n "$p" ]] && files+=("$p")
+      done <"$sidecar"
+      [[ "${#files[@]}" -gt 0 ]] && sha256 -- "${files[@]}" 2>/dev/null
+    fi
   } | sha256 | cut -d' ' -f1
 }
 
