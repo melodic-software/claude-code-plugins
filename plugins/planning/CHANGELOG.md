@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.0] - 2026-09-25
+
+### Added
+
+- **`plan`:** a plan change made after the Brief (a Step 3 reviewer fix, a Step 4 research
+  update, or an adopted `devils-advocate` mitigation) that displaces a user's interview answer,
+  or adds a remote write, an irreversible action, or an externally visible artifact, is no
+  longer folded into the plan body. A displaced register row is set to `superseded-by-plan`;
+  every such change is listed at Step 5 under "Displaced answers and new external effects",
+  and only a reply to that row moves it out. Step 4.7 checks the listing against the gate, the
+  decision tables carry a `Source` column, and `tag-decisions.md` adds an "Adopted mitigation"
+  category that never passes the confidence gate for those two kinds.
+- **`devils-advocate`:** reads the interview ledger or Brief when supplied; a finding's
+  mitigation that replaces a user answer carries `Supersedes: interview Q<N>`, and one that adds
+  an external effect carries `New external effect`.
+- **`interview`:** new non-terminal register status `superseded-by-plan`.
+  `check-open-questions.sh` counts it as `superseded=<n>` and exits 1 while any row holds it.
+  The page surface imports, keeps, and counts the status.
+- **`audit-answers`:** a `superseded-by-plan` row is held on the never-auto floor.
+
+### Changed
+
+- The `tests/interview-defenses.test.sh` digest for the `loop.md` open-question register
+  section was re-pinned: the new status row and its paragraph add a status the gate blocks on
+  and weaken no defense.
+
 ## [0.41.2] - 2026-09-25
 
 ### Changed
