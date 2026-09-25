@@ -14,7 +14,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`interview`:** a hedged reply ("yes?", "I think so") resolves at most the headline of one
   question, is recorded `hedged:`, and leaves its commitment rows open. A hedged
   accept-shorthand is not an accept-shorthand. A hedged terminal reply is mirrored onto the
-  page as `own` text prefixed `hedged:`.
+  page as `own` text prefixed `hedged:`; a hedged "Own answer" typed on the page is echoed
+  the same way, and the Step 3 restate relists it from its `free-text:` row.
 - **`interview`:** on the page surface, a recommendation's parts are the question's `commits`
   entries: accepting confirms only ticked parts, and unticked parts reach the Brief as named
   risks. After an alternative, the lead moves those risks to Out-of-scope as withdrawn.

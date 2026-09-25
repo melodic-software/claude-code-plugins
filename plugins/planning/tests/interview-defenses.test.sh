@@ -521,7 +521,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "4d5ee91483fd7538905ea0c04540deb911eb081689ccabac6e36b012f51da857"
+  "8fbeeaf0578468a1a9c5a1d2ec5c3cb102c52b51602fa9d6ea502238803f658e"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -746,7 +746,9 @@ pin "SKILL.md: a hedged accept-shorthand is not an accept-shorthand" "$SKILL" \
 pin "loop.md defines the hedged flag" "$LOOP" \
   "resolves to \`answered\` with \`hedged: <answer>\`"
 pin "loop.md: the confirmation restate lists every hedged row" "$LOOP" \
-  "lists every row carrying \`hedged:\` for explicit confirmation"
+  "lists every row carrying \`hedged:\`, and every \`free-text:\` row whose answer is hedged, for explicit confirmation"
+pin "loop.md: a hedged own answer typed on the page gets the same echo" "$LOOP" \
+  "A hedged \"Own answer\" typed on the page gets the same echo on its wake"
 pin "SKILL.md: the Stance names both question-surface rules" "$SKILL" \
   "The surface follows the two \"Question surface\" rules above"
 pin "SKILL.md: on the page, commitment parts are \`commits\` entries" "$SKILL" \
