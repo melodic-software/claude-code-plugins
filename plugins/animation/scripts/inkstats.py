@@ -51,12 +51,14 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
             touching the frame edge; width = 2 x the largest distance to ink): long thin lines high, chunky cuts low
   sliver_border sliver_caption   the same over the islands whose centroid lies in that content class; None under 3
 Content classes, from the ink mask alone, so a source and any film get them the same way:
-  border    the ring within BORDER (2%) of the short side of the frame edge for straight; for sliver and boil the
-            ring within STROKE (1%), the hand-drawn frame stroke alone, so subject nicks and motion near the frame
-            stay out (and the caption box grows by that width)
+  border    the ring within BORDER (3%) of the short side of the frame edge, for every border row: the hand-drawn
+            frame stroke with the paper margin outside it. On the woodcut source the stroke starts 9 px in (p95
+            10) and is 19 px wide (median), so it ends by 29 px = 3% of the 982 px short side. A drawing has the
+            class when the ring is PRESENT (10%) or more ink
+  (the caption box grows by 2% of the short side for straight_caption and by 1% for sliver_caption and boil)
   caption   a caption panel: a paper rectangle (after a 5 px closing of the ink) in the top quarter of the frame, not
             touching its edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box
-            and holding ink (lettering); its box grown by the border width, outside the border ring
+            and holding ink (lettering), outside the border ring
   interior  everything else: the subject. straight and sliver there and over the whole frame follow what is drawn
   ink_rgb paper_rgb median colours of the ink and paper cores
 Per pair of consecutive drawings:
@@ -84,8 +86,8 @@ STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'strai
          'specks', 'gaps', 'holes', 'ink_sd', 'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver',
          'sliver_border', 'sliver_caption', 'boil')
 FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
-BORDER = 0.02             # border class for straight: this share of the frame's short side, from each edge
-STROKE = 0.01             # border class for sliver and boil: the frame stroke alone
+BORDER = 0.03             # border class, every border row: this share of the short side, from each edge (the stroke)
+PRESENT = 0.1             # a drawing has the border class when its ring is at least this share ink
 CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
 
 
@@ -174,13 +176,14 @@ def captions(ink):
     return out
 
 
-def classes(ink, boxes, frac):
-    """Content class per pixel with a border ring of frac of the short side: 0 border, 1 caption, 2 interior."""
+def classes(ink, boxes, pad):
+    """Content class per pixel: 0 border (the BORDER ring), 1 caption (each box grown by pad of the short side),
+    2 interior."""
     H, W = ink.shape
-    e = round(frac * min(H, W))
+    e, p = round(BORDER * min(H, W)), round(pad * min(H, W))
     lab = np.full((H, W), 2, np.uint8)
     for x0, y0, x1, y1 in boxes:
-        lab[max(0, y0 - e):y1 + e, max(0, x0 - e):x1 + e] = 1
+        lab[max(0, y0 - p):y1 + p, max(0, x0 - p):x1 + p] = 1
     lab[:e], lab[-e:], lab[:, :e], lab[:, -e:] = 0, 0, 0, 0
     return lab
 
@@ -265,8 +268,8 @@ def one(rgb):
     mid = int(((g > ink_g + 16) & (g < paper_g - 16)).sum())
     w, pw = ridge_widths(ink), ridge_widths(~ink)
     boxes = captions(ink)
-    cls = classes(ink, boxes, STROKE)   # tight: the frame stroke and caption outline, for sliver and boil
-    rough, straight, straight_c = contour_stats(ink, classes(ink, boxes, BORDER))
+    cls = classes(ink, boxes, 0.01)   # caption box grown by its outline only, for sliver and boil
+    rough, straight, straight_c = contour_stats(ink, classes(ink, boxes, 0.02))
     sliver_all, sliver_c = sliver(ink, cls)
     grain, period = texture(g, ink.astype(np.uint8))
     k5 = np.ones((5, 5), np.uint8)
@@ -301,7 +304,8 @@ def one(rgb):
                 ink_sd=sd(core_i), paper_sd=sd(core_p), field_sd=sd(field), flat=flat, grain=grain, period=period,
                 sliver=sliver_all, **{f'straight_{c}': v for c, v in straight_c.items()},
                 **{f'sliver_{c}': v for c, v in sliver_c.items()},
-                ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, mask=ink, anchor=cls < 2)
+                ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, mask=ink, anchor=cls < 2,
+                has_border=bool(ink[cls == 0].mean() >= PRESENT), has_caption=bool(boxes))
 
 
 def boil(a, b):
@@ -383,6 +387,7 @@ def summary(rows, cuts=None, seg=SEG):
                 **{k: ([int(c) for c in np.median(v, 0)] if (v := [r[k] for r in rows if r[k]]) else None)
                    for k in ('ink_rgb', 'paper_rgb')},
                 T=float(np.median([r['T'] for r in rows])),
+                present={c: round(float(np.mean([r[f'has_{c}'] for r in rows])), 3) for c in CLASSES},
                 segments=[dict(t0=round(a, 3), t1=round(b, 3), n=len(sr), per_second=round(len(sr) / (b - a), 3),
                                **{s: median(sr, s) for s in STATS})
                           for (a, b), sr in zip(zip(e, e[1:]), segment(rows, e)) if sr])
@@ -403,12 +408,18 @@ def distance(v, ref, lo, hi):
 def check(m, pack):
     """Rows (name, value, band, distance): each `check` statistic's film value against its band and the source value
     `ref`, then the largest ink or paper RGB channel difference from the palette (distance = difference / tolerance).
-    A row passes at distance <= 1; distance None (n/a) is a statistic the film leaves undefined."""
+    A row passes at distance <= 1; distance None (n/a) is a statistic the film leaves undefined. A content-class row
+    the film leaves undefined although it has that class (boil: border or caption) fails at distance inf: the class
+    is there but shows none of what the source's does."""
     out = []
     for s in pack['check']:
         lo, hi = pack['bands'][s]
         v = film_value(m, s)
-        out.append((s, v, (lo, hi), distance(v, pack['ref'][s], lo, hi)))
+        d = distance(v, pack['ref'][s], lo, hi)
+        cs = CLASSES if s == 'boil' else [c for c in CLASSES if s.endswith('_' + c)]
+        if v is None and any(m.get('present', {}).get(c) for c in cs):
+            d = float('inf')
+        out.append((s, v, (lo, hi), d))
     for s in ('ink_rgb', 'paper_rgb'):
         want, tol = pack['palette'][s[:-4]].lstrip('#'), pack['palette']['tolerance']
         v = max(abs(c - int(want[2 * i:2 * i + 2], 16)) for i, c in enumerate(m[s])) if m[s] else None

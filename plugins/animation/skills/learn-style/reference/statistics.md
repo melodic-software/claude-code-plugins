@@ -60,7 +60,11 @@ distance, and exits 1 on any failing row.
 **Undefined is n/a.** A statistic with nothing to measure is n/a, never 0: `flat` with no dark
 drawings, `boil` with no held pairs, `grain` and `period` with no ink interior, `rough` and
 `straight` with no contour over 50 px, and so on. An n/a row neither passes nor fails, the distance
-averages only the defined rows, and a film with no defined row exits 1.
+averages only the defined rows, and a film with no defined row exits 1. One exception: a
+content-class row (`*_border`, `*_caption`, and `boil` on border or caption) that the film leaves
+undefined although it has the class fails at distance inf. A frame ring that is 10% or more ink
+(`inkstats.PRESENT`) in any drawing, or any detected caption panel, is the class; a frame with no
+slivers, too little contour or no held anchor pairs is then a miss, not a free pass.
 
 ## Content classes
 
@@ -75,7 +79,7 @@ and for any film; nothing is declared by the scene:
 
 | Class | Rule | Source |
 |---|---|---|
-| `border` | for `straight_border`, the ring within 2% of the frame's short side of its edge (`inkstats.BORDER`, 20 px here); for `sliver_border` and `boil`, the ring within 1% (`inkstats.STROKE`, 10 px): the frame stroke alone | every drawing |
+| `border` | the ring within 3% of the frame's short side of its edge (`inkstats.BORDER`, 29 px here), for every border row: the frame stroke and the paper margin outside it. Measured on the source (every drawing, each side with an inner edge, 445 sides): the stroke starts 9 px in (p95 10) and is 19 px wide (median), so it ends by 29 px. The other 511 sides run into a dark field | every drawing |
 | `caption` | a paper rectangle in the top quarter, sealed by a 5 px closing of the ink, not touching the frame edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box, holding ink; its box grown by the border width | detected in 7 of 9 shots, not on every drawing of them (a boiling outline can break the seal) |
 | interior | everything else: the subject | never gated |
 
@@ -103,7 +107,7 @@ only; no band was widened.
 |---|---|---|
 | `grain` | The source's blacks are 99.5% within ±1 gray level deep inside; a few hundred stray pixels and codec residue set the ratio. A flat black encoded by h264 scored 0.713, inside the band | measured only: the source shows no visible ink texture for it to measure |
 | `period` | The peak sat at the 32 px cutoff in every film: the tail of smooth tone drift, not a pitch. A flattened source still scored 38 | the peak is now a bin's power over the mean of all bins at the same frequency, at pitches of 3-24 px, so drift scores at the noise level (a flattened source plus 1 level of noise: 1.1). But the source's own peaks then lie exactly on the axes at 2-5 px pitch in every drawing sampled: the pixel grid and codec, and the straight edges of the eroded-ink mask, not a drawn texture. No band from them measures style, so `period` is measured only |
-| `sliver_border`, `boil` | The 2% (20 px) ring let the subject in: 61% of the source's ring edge pixels 15-20 px in moved 4 px or more, against 8-11% within 10 px, and most border islands were subject nicks | for these two rows the border class is the 1% (10 px) ring, the frame stroke, and the caption box grows by 10 px, not 20. `sliver_border` still needs 3 islands in a drawing. `straight_border` keeps the 2% ring: on the 1% ring the replica missed its band by 0.0006 (0.8935 against 0.8941), and the band was not widened to fit |
+| `sliver_border`, `boil` | The 2% (20 px) ring let the subject in: 61% of the source's ring edge pixels 15-20 px in moved 4 px or more, against 8-11% within 10 px, and most border islands were subject nicks | for these two rows the caption box grows by 10 px, not 20. `sliver_border` still needs 3 islands in a drawing. The border ring was then set once for all border rows from where the source's stroke lies (see "Content classes") |
 | `rough` | the excess in the adjudicated film came from many small contours, a real drawing trait | unchanged and gated; its description now names small marks as well as edge wobble |
 
 ## How a band is set
@@ -144,14 +148,14 @@ in at least two parts (all ten for this pack), and `measured_only` the whole-fra
 |---|---|---|---|
 | `straight_border` | 0.832 | 0.895-0.901 without a warp; 0.80-0.84 at warp 0.4-0.5, 0.70 at 0.7, 0.10-0.34 at 1.5-3 | a frame ruled too straight or bent by a warp: round 3's, flat polygons (0.995) |
 | `straight_caption` | 0.476 | 0.46-0.47; 0.34-0.42 with a warp | the attack films (warp 0.4-0.7) |
-| `sliver_border` | - | on the 1% stroke ring; see `style.json` | gated because the source has it; no control depends on it alone |
+| `sliver_border` | 3.53 | 1.49-1.88 | round 3's frame and every filter of it, flat polygons (none: inf) |
 | `sliver_caption` | 2.50 | 1.67-2.25 | round 3's lettering under most filters, the attack films |
 | `rough` | 0.069 | 0.053-0.056 | round 3 and every filter of it, flat polygons (0.025), the spiral and anime clips |
 | `offstep` | 0.101 | 0.004 (on strict 3s) | round 3, the anime and collage clips |
 | `grain` | 0.689 | 0.44 raw; 0.21-0.32 with noise, 0.48-0.57 with stripes, 0.64 with dry brush, 0.54 at blur 0.6, 0.79 at blur 1.3 | measured only (see "Second adjudication") |
 | `period` | measured only | | measured only (see "Second adjudication") |
 | `flat` | 0.537 | 0 with any overlay over all the black | textures laid over every black area |
-| `boil` | 1.22 | 0.72 raw (1% stroke ring) | round 3 and every filter of it (its frame barely boils), flat polygons (1.79, vertex boil) |
+| `boil` | 1.45 | 1.08-1.13 | round 3 and every filter of it (its frame barely boils), flat polygons (1.79, vertex boil) |
 | `holes`, `per_second` | pass | pass | flat polygons, the other styles, a noise that changes every frame |
 
 `rough` and `offstep` are drawing and timing structure: a blur, noise, stripe or dry-brush overlay
@@ -178,51 +182,53 @@ control needs a margin above 0.
 | Half | Control | Rows failed | Margin | Worst row |
 |---|---|---|---|---|
 | calibration | BiosRiosz-2102523343253520764 | 8/10 | +119.35 | per_second |
-| calibration | kevin_t_ngo-2102171059592241410 | 6/9 | +12.60 | ink_rgb |
-| calibration | near_blur0.6 | 5/11 | +3.54 | straight_border |
-| calibration | near_blur0.9+dry32 | 7/11 | +5.40 | ink_rgb |
-| calibration | near_blur0.9+dry8 | 7/11 | +3.73 | straight_border |
-| calibration | near_blur0.9+noise16 | 7/11 | +131.79 | per_second |
-| calibration | near_blur0.9+noise4 | 6/11 | +3.87 | straight_border |
-| calibration | near_blur0.9+noise8+stripes12+dry16 | 7/11 | +3.55 | straight_border |
-| calibration | near_blur0.9+stripes6 | 5/11 | +3.87 | straight_border |
-| calibration | near_none | 4/11 | +3.70 | straight_border |
-| calibration | near_stripes12 | 4/11 | +3.70 | straight_border |
-| calibration | near_warp0.4+blur0.9+rows0.15+noise0.4+retime72 | 3/11 | +2.10 | boil |
-| calibration | near_warp0.5+blur0.9+rows0.15+noise0.4+retime72 | 4/11 | +2.14 | boil |
-| calibration | near_warp1.5+blur0.9 | 7/12 | +31.96 | straight_border |
-| calibration | poly_blur0.9+noise8 | 6/9 | +11.54 | straight_border |
-| calibration | poly_blur0.9+stripes12 | 5/9 | +11.54 | straight_border |
-| calibration | poly_none | 6/9 | +11.81 | straight_border |
-| calibration | poly_warp3+blur0.9+noise8 | 7/10 | +46.38 | straight_border |
-| evaluation | kevin_t_ngo-2102437977435893771 | 7/10 | +45.97 | per_second |
-| evaluation | near_blur0.9+dry16 | 7/11 | +3.55 | straight_border |
-| evaluation | near_blur0.9+dryhalf16 | 5/11 | +3.87 | straight_border |
-| evaluation | near_blur0.9+noise8 | 6/11 | +3.87 | straight_border |
-| evaluation | near_blur0.9+stripes12 | 5/11 | +3.87 | straight_border |
-| evaluation | near_blur0.9+stripes24 | 5/11 | +3.87 | straight_border |
-| evaluation | near_blur0.9 | 5/11 | +3.87 | straight_border |
-| evaluation | near_blur1.3 | 5/11 | +3.37 | straight_border |
-| evaluation | near_noise8+blur0.9 | 6/11 | +3.78 | straight_border |
-| evaluation | near_warp0.5+rows0.2+noise0.6+retime72 | 4/11 | +2.15 | straight_border |
-| evaluation | near_warp0.7+blur0.9+rows0.15+noise0.4+retime72 | 4/11 | +8.12 | straight_border |
-| evaluation | near_warp0.7+blur0.9 | 5/11 | +8.12 | straight_border |
-| evaluation | near_warp3+blur0.9 | 7/12 | +47.12 | straight_border |
-| evaluation | poly_blur0.9+dry16 | 7/9 | +11.72 | straight_border |
-| evaluation | poly_blur0.9 | 6/9 | +11.54 | straight_border |
-| evaluation | poly_noise8+blur0.9 | 6/9 | +11.57 | straight_border |
+| calibration | kevin_t_ngo-2102171059592241410 | 7/9 | +12.60 | ink_rgb |
+| calibration | near_blur0.6 | 6/12 | +4.73 | sliver_border |
+| calibration | near_blur0.9+dry32 | 8/12 | +5.40 | ink_rgb |
+| calibration | near_blur0.9+dry8 | 8/12 | +5.05 | sliver_border |
+| calibration | near_blur0.9+noise16 | 8/12 | +131.79 | per_second |
+| calibration | near_blur0.9+noise4 | 7/12 | +5.02 | sliver_border |
+| calibration | near_blur0.9+noise8+stripes12+dry16 | 8/12 | +4.86 | sliver_border |
+| calibration | near_blur0.9+stripes6 | 6/12 | +5.02 | sliver_border |
+| calibration | near_none | 5/12 | +4.86 | straight_border |
+| calibration | near_stripes12 | 5/12 | +4.86 | straight_border |
+| calibration | near_warp0.4+blur0.9+rows0.15+noise0.4+retime72 | 4/12 | +4.80 | sliver_border |
+| calibration | near_warp0.5+blur0.9+rows0.15+noise0.4+retime72 | 5/12 | +4.42 | sliver_border |
+| calibration | near_warp1.5+blur0.9 | 7/12 | +40.43 | straight_border |
+| calibration | poly_blur0.9+noise8 | 7/10 | +inf | sliver_border |
+| calibration | poly_blur0.9+stripes12 | 6/10 | +inf | sliver_border |
+| calibration | poly_none | 7/10 | +inf | sliver_border |
+| calibration | poly_warp3+blur0.9+noise8 | 7/10 | +58.36 | straight_border |
+| evaluation | kevin_t_ngo-2102437977435893771 | 7/10 | +49.59 | straight_border |
+| evaluation | near_blur0.9+dry16 | 8/12 | +4.85 | sliver_border |
+| evaluation | near_blur0.9+dryhalf16 | 6/12 | +5.02 | sliver_border |
+| evaluation | near_blur0.9+noise8 | 7/12 | +5.02 | sliver_border |
+| evaluation | near_blur0.9+stripes12 | 6/12 | +5.02 | sliver_border |
+| evaluation | near_blur0.9+stripes24 | 6/12 | +5.02 | sliver_border |
+| evaluation | near_blur0.9 | 6/12 | +5.02 | sliver_border |
+| evaluation | near_blur1.3 | 6/12 | +5.09 | sliver_border |
+| evaluation | near_noise8+blur0.9 | 7/12 | +4.98 | sliver_border |
+| evaluation | near_warp0.5+rows0.2+noise0.6+retime72 | 5/12 | +4.57 | sliver_border |
+| evaluation | near_warp0.7+blur0.9+rows0.15+noise0.4+retime72 | 5/12 | +11.77 | straight_border |
+| evaluation | near_warp0.7+blur0.9 | 6/12 | +11.77 | straight_border |
+| evaluation | near_warp3+blur0.9 | 7/12 | +58.52 | straight_border |
+| evaluation | poly_blur0.9+dry16 | 8/10 | +inf | sliver_border |
+| evaluation | poly_blur0.9 | 7/10 | +inf | sliver_border |
+| evaluation | poly_noise8+blur0.9 | 7/10 | +inf | sliver_border |
 
 All 34 controls fail (`controls.py check` exit 0, 36/36 as required; the source clip passes at -1.00
-and the replica at -0.20). Control names are `controls.py`'s: `near_` is round 3 through the named
-filters, `poly_` the synthetic polygons. The attack (`ATTACK`) is game.py plus a static 0.5 px contour
-warp, one frame held longer every 3 s, and faint tonal rows 20-40 px apart with fine noise. Whole-frame
-`sliver` used to be its only rejecting row (+0.14 to +0.23). Now the anchored `boil` rejects the warp
-0.4 and 0.5 attacks at +2.10 and +2.14, with `straight_border`, `straight_caption` and
-`sliver_caption` also failing, and `straight_border` rejects the warp 0.7 attack at +8.12. The `boil`
-catch rests on round 3's own frame barely boiling (0.72 on the frame stroke against the
-source's band of 1.02-1.28), not on any filter. `controls.py selftest <pack dir> --near <round 3>`
-exits 0: game.py's filter fails 6 rows on polygons and 5 on round 3, and `ATTACK` fails
-`straight_border`, `straight_caption`, `sliver_caption` and `boil`.
+and the replica at -0.18). Control names are `controls.py`'s: `near_` is round 3 through the named
+filters, `poly_` the synthetic polygons. The polygons' dark field reaches the frame edge, so they
+have the border class, show no slivers there, and fail `sliver_border` at distance inf. The attack
+(`ATTACK`) is game.py plus a static 0.5 px contour warp, one frame held longer every 3 s, and faint
+tonal rows 20-40 px apart with fine noise. Whole-frame `sliver` used to be its only rejecting row
+(+0.14 to +0.23). On the 3% ring `sliver_border` rejects the warp 0.4 and 0.5 attacks at +4.80 and
++4.42 (round 3's frame carves 1.58-1.71 against the source's band of 3.17-4.13), with
+`straight_border`, `straight_caption`, `sliver_caption` and `boil` (about 1.10 against 1.29-1.48)
+also failing; `straight_border` rejects the warp 0.7 attack at +11.77. `controls.py selftest
+<pack dir> --near <round 3>` exits 0: game.py's filter fails 7 rows on polygons and 6 on round 3,
+and `ATTACK` fails `straight_border`, `straight_caption`, `sliver_border`, `sliver_caption` and
+`boil`.
 
 ## Held-out and out-of-sample results
 
@@ -244,8 +250,7 @@ sample**:
 | `offstep` changed to the pair form | an evaluation excerpt and the replica (0.23) failed the per-drawing form |
 | the cap counts each control only at its strongest row | an evaluation excerpt failed under the per-row cap |
 | `sliver` added to `CHECK` | chosen to catch the attack, after it passed |
-| content classes, the `period` normalization and the anchored `boil` | proposed by the adjudication of a scene on another subject; the 2% border width was picked from per-shot source values, not from any control |
-| `straight_border` kept on the 2% ring while `sliver_border` and `boil` moved to 1% | the replica failed `straight_border` on the 1% ring |
+| content classes, the `period` normalization and the anchored `boil` | proposed by the adjudication of a scene on another subject; the 3% border ring was set from where the source's frame stroke lies, not from any control or positive |
 
 Every other choice was made on calibration data.
 
@@ -259,12 +264,14 @@ worst row is from the edge. The source scores 0.
 
 ## What the check cannot say
 
-- **The warp 0.4-0.5 attack is caught mainly by the frame's boil.** Round 3's frame barely boils, which
-  is a trait of that film, not of the filters; `straight_caption` fails it too (distance 1.5-2.4), `sliver_caption`
-  barely (about 1.1). An attack on a film whose frame boils like the source's has not been built.
+- **The attack is caught by round 3's own frame.** `sliver_border` and `boil` reject it because round
+  3's frame stroke carves and boils less than the source's, a trait of that film, not of the filters.
+  An attack on a film whose frame matches the source's has not been built.
+- **Border presence is ink, not a stroke.** Any ring that is 10% ink counts, so a dark field reaching
+  the edge (the polygons) has the class; its rows then fail rather than read n/a.
 - **A film with no border or caption skips their rows.** A class the film lacks is n/a, neither
   pass nor fail, so a scene drawn without a frame line or caption panel is judged on the other rows
-  only. The caption detector also misses panels whose boiling outline breaks its seal, and it looks
+  only. A film that has the class but shows none of the measured thing fails the row. The caption detector also misses panels whose boiling outline breaks its seal, and it looks
   only in the top quarter, where the source puts them.
 - **Subject still leaks into the interior rows.** `flat` and `holes` are measured
   over the whole ink, which is mostly the subject; only `straight`, `sliver` and `boil` moved to

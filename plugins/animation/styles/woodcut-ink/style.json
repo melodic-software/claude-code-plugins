@@ -118,7 +118,7 @@
    "roughness": 0.0706,
    "straight_share": 0.5439,
    "boil": {
-    "edge_shift_px": 1.1632,
+    "edge_shift_px": 1.3932,
     "variants": "a new drawing every hold",
     "on_holds": true
    }
@@ -194,13 +194,13 @@
    "p90": 0.6846
   },
   "straight_border": {
-   "p10": 0.8003,
-   "p50": 0.8429,
-   "p90": 0.881
+   "p10": 0.791,
+   "p50": 0.8301,
+   "p90": 0.8664
   },
   "straight_caption": {
-   "p10": 0.3931,
-   "p50": 0.4521,
+   "p10": 0.3946,
+   "p50": 0.4554,
    "p90": 0.6701
   },
   "specks": {
@@ -254,9 +254,9 @@
    "p90": 3.7535
   },
   "sliver_border": {
-   "p10": 3.0,
-   "p50": 4.75,
-   "p90": 8.0
+   "p10": 2.4714,
+   "p50": 3.5,
+   "p90": 4.9954
   },
   "sliver_caption": {
    "p10": 1.907,
@@ -264,9 +264,9 @@
    "p90": 4.4563
   },
   "boil": {
-   "p10": 0.8929,
-   "p50": 1.1632,
-   "p90": 1.4063
+   "p10": 1.1389,
+   "p50": 1.3932,
+   "p90": 1.7279
   }
  },
  "timing": {
@@ -278,7 +278,7 @@
    "on4s+": 0.042
   },
   "offstep": 0.0882,
-  "held": 0.277
+  "held": 0.412
  },
  "heldout": {
   "excerpt_share": [
@@ -562,40 +562,32 @@
    },
    "straight_border": {
     "raw": [
-     0.8286,
-     0.8537
+     0.8196,
+     0.8389
     ],
-    "heldout_max_miss": 0.0011,
-    "widening": 0.0011,
+    "heldout_max_miss": 0.0017,
+    "widening": 0.0017,
     "control_margins": {
-     "BiosRiosz-2102523343253520764": 0.7658,
-     "kevin_t_ngo-2102171059592241410": 0.0,
-     "near_blur0.6": 0.0432,
-     "near_blur0.9+dry32": 0.045,
-     "near_blur0.9+dry8": 0.0455,
+     "BiosRiosz-2102523343253520764": 0.7388,
+     "kevin_t_ngo-2102171059592241410": 0.0116,
+     "near_blur0.6": 0.0502,
+     "near_blur0.9+dry32": 0.0442,
+     "near_blur0.9+dry8": 0.041,
      "near_blur0.9+noise16": 0.0428,
-     "near_blur0.9+noise4": 0.0472,
-     "near_blur0.9+noise8+stripes12+dry16": 0.0433,
-     "near_blur0.9+stripes6": 0.0472,
-     "near_none": 0.0451,
-     "near_stripes12": 0.0451,
+     "near_blur0.9+noise4": 0.0435,
+     "near_blur0.9+noise8+stripes12+dry16": 0.0444,
+     "near_blur0.9+stripes6": 0.0435,
+     "near_none": 0.0527,
+     "near_stripes12": 0.0527,
      "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.0,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.0258,
-     "near_warp1.5+blur0.9": 0.4933,
-     "poly_blur0.9+noise8": 0.1384,
-     "poly_blur0.9+stripes12": 0.1384,
-     "poly_none": 0.1416,
-     "poly_warp3+blur0.9+noise8": 0.7153
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.0421,
+     "near_warp1.5+blur0.9": 0.495,
+     "poly_blur0.9+noise8": 0.1536,
+     "poly_blur0.9+stripes12": 0.1536,
+     "poly_none": 0.1565,
+     "poly_warp3+blur0.9+noise8": 0.7137
     },
     "capped_by": [
-     "near_blur0.6",
-     "near_blur0.9+dry32",
-     "near_blur0.9+dry8",
-     "near_blur0.9+noise4",
-     "near_blur0.9+noise8+stripes12+dry16",
-     "near_blur0.9+stripes6",
-     "near_none",
-     "near_stripes12",
      "near_warp1.5+blur0.9",
      "poly_blur0.9+noise8",
      "poly_blur0.9+stripes12",
@@ -607,7 +599,7 @@
    },
    "straight_caption": {
     "raw": [
-     0.4277,
+     0.4331,
      0.6478
     ],
     "heldout_max_miss": 0.0,
@@ -622,9 +614,9 @@
      "near_blur0.9+stripes6": 0.0,
      "near_none": 0.0,
      "near_stripes12": 0.0,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.0119,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.0348,
-     "near_warp1.5+blur0.9": 0.2611
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.027,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.0501,
+     "near_warp1.5+blur0.9": 0.2734
     },
     "capped_by": [],
     "calibration_pass": "150/150",
@@ -941,18 +933,40 @@
    },
    "sliver_border": {
     "raw": [
-     3.9062,
-     6.6875
+     3.2945,
+     4.0
     ],
     "heldout_max_miss": 0.125,
     "widening": 0.125,
     "control_margins": {
-     "BiosRiosz-2102523343253520764": 2.4062,
-     "kevin_t_ngo-2102171059592241410": 1.8807,
-     "near_warp1.5+blur0.9": 1.4062,
-     "poly_warp3+blur0.9+noise8": 1.4062
+     "BiosRiosz-2102523343253520764": 1.7639,
+     "kevin_t_ngo-2102171059592241410": 0.7007,
+     "near_blur0.6": 1.6873,
+     "near_blur0.9+dry32": 1.7945,
+     "near_blur0.9+dry8": 1.7945,
+     "near_blur0.9+noise16": 1.7486,
+     "near_blur0.9+noise4": 1.7855,
+     "near_blur0.9+noise8+stripes12+dry16": 1.732,
+     "near_blur0.9+stripes6": 1.7855,
+     "near_none": 1.4106,
+     "near_stripes12": 1.4106,
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 1.7112,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 1.586,
+     "near_warp1.5+blur0.9": 1.4491,
+     "poly_warp3+blur0.9+noise8": 0.7945
     },
-    "capped_by": [],
+    "capped_by": [
+     "near_blur0.6",
+     "near_blur0.9+dry32",
+     "near_blur0.9+dry8",
+     "near_blur0.9+noise4",
+     "near_blur0.9+noise8+stripes12+dry16",
+     "near_blur0.9+stripes6",
+     "near_none",
+     "near_stripes12",
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72",
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72"
+    ],
     "calibration_pass": "150/150",
     "evaluation_pass": "150/150"
    },
@@ -975,7 +989,7 @@
      "near_stripes12": 0.0,
      "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.1687,
      "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.1492,
-     "near_warp1.5+blur0.9": 0.0752
+     "near_warp1.5+blur0.9": 0.0562
     },
     "capped_by": [],
     "calibration_pass": "150/150",
@@ -983,34 +997,33 @@
    },
    "boil": {
     "raw": [
-     1.0381,
-     1.2623
+     1.289,
+     1.4758
     ],
-    "heldout_max_miss": 0.0176,
-    "widening": 0.0176,
+    "heldout_max_miss": 0.0,
+    "widening": 0.0,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 0.0,
-     "kevin_t_ngo-2102171059592241410": 1.0139,
-     "near_blur0.6": 0.3131,
-     "near_blur0.9+dry32": 0.3173,
-     "near_blur0.9+dry8": 0.3148,
-     "near_blur0.9+noise16": 1.0367,
-     "near_blur0.9+noise4": 0.3031,
-     "near_blur0.9+noise8+stripes12+dry16": 0.3143,
-     "near_blur0.9+stripes6": 0.3031,
-     "near_none": 0.3176,
-     "near_stripes12": 0.3176,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.3172,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.3236,
-     "near_warp1.5+blur0.9": 0.3234,
-     "poly_blur0.9+noise8": 1.1299,
-     "poly_blur0.9+stripes12": 1.1299,
-     "poly_none": 0.3651,
-     "poly_warp3+blur0.9+noise8": 0.272
+     "kevin_t_ngo-2102171059592241410": 1.2605,
+     "near_blur0.6": 0.1796,
+     "near_blur0.9+dry32": 0.1757,
+     "near_blur0.9+dry8": 0.1485,
+     "near_blur0.9+noise16": 1.2874,
+     "near_blur0.9+noise4": 0.1421,
+     "near_blur0.9+noise8+stripes12+dry16": 0.1586,
+     "near_blur0.9+stripes6": 0.1421,
+     "near_none": 0.1874,
+     "near_stripes12": 0.1874,
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.1912,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.1837,
+     "near_warp1.5+blur0.9": 0.2689,
+     "poly_blur0.9+noise8": 0.5602,
+     "poly_blur0.9+stripes12": 0.5602,
+     "poly_none": 0.3534,
+     "poly_warp3+blur0.9+noise8": 0.1315
     },
     "capped_by": [
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72",
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72"
+     "kevin_t_ngo-2102171059592241410"
     ],
     "calibration_pass": "150/150",
     "evaluation_pass": "150/150"
@@ -1044,7 +1057,6 @@
     },
     "capped_by": [
      "BiosRiosz-2102523343253520764",
-     "kevin_t_ngo-2102171059592241410",
      "near_blur0.9+noise16"
     ],
     "calibration_pass": "150/150",
@@ -1092,8 +1104,8 @@
   "pw50": 8.0,
   "rough": 0.0706,
   "straight": 0.5439,
-  "straight_border": 0.8429,
-  "straight_caption": 0.4521,
+  "straight_border": 0.8301,
+  "straight_caption": 0.4554,
   "specks": 20.2279,
   "gaps": 65.3072,
   "holes": 0.0212,
@@ -1104,9 +1116,9 @@
   "grain": 0.6932,
   "period": 7.5434,
   "sliver": 2.8836,
-  "sliver_border": 4.75,
+  "sliver_border": 3.5,
   "sliver_caption": 2.6875,
-  "boil": 1.1632,
+  "boil": 1.3932,
   "per_second": 7.9187,
   "offstep": 0.0882
  },
@@ -1144,11 +1156,11 @@
    0.6445
   ],
   "straight_border": [
-   0.8275,
-   0.8548
+   0.8179,
+   0.8406
   ],
   "straight_caption": [
-   0.4277,
+   0.4331,
    0.6478
   ],
   "specks": [
@@ -1192,16 +1204,16 @@
    3.4232
   ],
   "sliver_border": [
-   3.7812,
-   6.8125
+   3.1695,
+   4.125
   ],
   "sliver_caption": [
    2.0204,
    3.2781
   ],
   "boil": [
-   1.0205,
-   1.2799
+   1.289,
+   1.4758
   ],
   "per_second": [
    7.7838,
