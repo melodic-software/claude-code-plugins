@@ -351,7 +351,5 @@ else
   assert_eq "posix: only the forward slash strips from a mixed tail" "x/link\\" "$(normalize_candidate "x/link\\/")"
 fi
 
-assert_real_worktree_root_clean "$TEST_TMPDIR"
-
 [[ $FAILED -eq 0 ]] || exit 1
 printf '\nAll %d cases passed.\n' "$CASE_NUM"

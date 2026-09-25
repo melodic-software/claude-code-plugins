@@ -160,6 +160,4 @@ for gate in "$CONTAIN" "$CLAIM" "$CREATE"; do
   fi
 done
 
-assert_real_worktree_root_clean "$TEST_TMPDIR"
-
 [[ $FAILED -eq 0 ]] || exit 1

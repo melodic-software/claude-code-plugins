@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- The shell suites no longer write fixture worktrees into the host's real worktree root. `scripts/test-helpers.sh` points `GIT_CONFIG_GLOBAL` at `/dev/null`, sets `GIT_CONFIG_NOSYSTEM`, and unsets `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT`, so a globally set `worktreeroot.path` no longer places them. The six suites that create worktrees end with `assert_real_worktree_root_clean`, which fails if a fixture worktree landed in that root (#4472). Test only; nothing the plugin ships changes.
+- The shell suites no longer write fixture worktrees into the host's real worktree root. `scripts/test-helpers.sh` points `GIT_CONFIG_GLOBAL` at `/dev/null`, sets `GIT_CONFIG_NOSYSTEM`, and unsets `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT`, so a globally set `worktreeroot.path` no longer places them. The two suites that create worktrees through the root resolver, `scripts/worktree-create.test.sh` and `hooks/worktree-create-gate.test.sh`, end with `assert_real_worktree_root_clean`, which fails if a fixture worktree landed in that root (#4472). Test only; nothing the plugin ships changes.
 
 ## [0.58.1] - 2026-09-24
 

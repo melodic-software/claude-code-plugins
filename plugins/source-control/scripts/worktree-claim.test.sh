@@ -264,6 +264,4 @@ run_claim claim "$EXT/wt-s10" --repo-dir "$REPO" --session-id s10
 run_claim check-enter "$EXT/wt-s10" --repo-dir "$REPO" --session-id s1
 assert_exit "session s1 does not own a session-s10 claim" 4 "$?"
 
-assert_real_worktree_root_clean "$TEST_TMPDIR"
-
 [[ $FAILED -eq 0 ]] || exit 1
