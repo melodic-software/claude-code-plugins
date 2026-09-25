@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Black-box contract tests for hook-latency.sh against tiny OTLP/JSON fixture stores
+# (CC_OTEL_STORE points at a temp dir; the real store is never read). The cases need the real
+# duckdb query, so they gate on `command -v duckdb` (CI installs it in ci.yml test-linux).
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT="$SCRIPT_DIR/hook-latency.sh"
+
+FAILED=0
+CASE_NUM=0
+pass() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
+}
+fail() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'FAIL: [%d] %s — expected %q got %q\n' "$CASE_NUM" "$1" "$2" "$3" >&2
+  FAILED=$((FAILED + 1))
+}
+skip_case() { printf 'SKIP: %s\n' "$1" >&2; }
+assert_eq() { if [[ "$3" == "$2" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
+assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
+assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+# Shape of a real Collector record; cc_logs_from binds intValue, traceId and spanId, so the
+# fixture must carry them.
+record() { # <session> <hook_event> <ms> <seconds-ago>
+  printf '{"timeUnixNano":"%s000000000","body":{"stringValue":"claude_code.hook_execution_complete"},"attributes":[{"key":"claude.lane","value":{"stringValue":"windows"}},{"key":"session.id","value":{"stringValue":"%s"}},{"key":"event.name","value":{"stringValue":"hook_execution_complete"}},{"key":"event.sequence","value":{"intValue":"7"}},{"key":"hook_event","value":{"stringValue":"%s"}},{"key":"total_duration_ms","value":{"stringValue":"%s"}}],"traceId":"","spanId":""}' \
+    "$((EPOCHSECONDS - $4))" "$1" "$2" "$3"
+}
+line() { # <records...>: one Collector batch line
+  local IFS=,
+  printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[%s]}]}]}\n' "$*"
+}
+store() { # <name> <ms-expression in pos> <sessions> <fires>: Stop fires only
+  local d="$TMP/$1" s p recs
+  mkdir -p "$d"
+  for ((s = 1; s <= $3; s++)); do
+    recs=()
+    for ((p = 1; p <= $4; p++)); do recs+=("$(record "sess-$s" Stop "$(($2))" "$((3600 - p))")"); done
+    line "${recs[@]}" >>"$d/cc-logs.json"
+  done
+  printf '%s' "$d"
+}
+run() { # <store> <args...>
+  out="$(CC_OTEL_STORE="$1" bash "$SCRIPT" "${@:2}" 2>&1)"
+  rc=$?
+}
+flagged() { grep '^!' <<<"$out"; } # rows the script marked
+
+out="$(bash "$SCRIPT" --help)"
+assert_contains "--help prints usage" "$out" "--min-sessions"
+run "$TMP" --budget nope
+assert_eq "bad --budget exits 2" 2 "$rc"
+
+if command -v duckdb >/dev/null 2>&1; then
+  rising="$(store rising '100 + 40 * p' 6 25)"
+  run "$rising"
+  assert_eq "rising Stop latency exits 1" 1 "$rc"
+  assert_contains "rising Stop row is slope-flagged" "$(flagged)" "Stop"
+  assert_contains "the flag names the slope reason" "$(flagged)" "slope"
+  assert_not_contains "rising Stop p95 is within the default budget" "$out" "p95>budget"
+  assert_contains "budgets are labeled as judgment" "$out" "judgment, derived from docs/conventions/hook-budget/README.md"
+
+  run "$rising" --budget Stop=99999
+  assert_eq "a loose budget does not hide the slope" 1 "$rc"
+
+  flat="$(store flat '200' 6 25)"
+  run "$flat"
+  assert_eq "flat Stop latency exits 0" 0 "$rc"
+  assert_eq "flat Stop row is not flagged" "" "$(flagged)"
+
+  slow="$(store slow '3000' 1 5)"
+  run "$slow"
+  assert_eq "Stop p95 over budget exits 1" 1 "$rc"
+  assert_contains "p95 reason is named" "$out" "p95>budget"
+
+  empty="$TMP/empty"
+  mkdir -p "$empty"
+  : >"$empty/cc-logs.json"
+  run "$empty"
+  assert_eq "empty store exits 2" 2 "$rc"
+else
+  skip_case "duckdb not found — skipping fixture-store cases"
+fi
+
+run "$TMP/missing"
+assert_eq "missing store exits 2" 2 "$rc"
+
+printf '\n%d case(s), %d failed\n' "$CASE_NUM" "$FAILED"
+((FAILED == 0))

@@ -1602,6 +1602,21 @@ jobs:
             --requirement .github/requirements-ci.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # The claude-ops observability suites (prune-otel-store, hook-latency) query
+      # fixture stores with the DuckDB CLI and skip those cases without it.
+      - name: Install DuckDB CLI
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          DUCKDB_VERSION: v1.5.5
+          DUCKDB_SHA256: c61f21485e6e41d3a0c28ce9904ea18346309cf427b4cf9479bc3564348dc885
+        run: |
+          mkdir -p "$RUNNER_TEMP/duckdb"
+          curl -fsSL -o "$RUNNER_TEMP/duckdb/duckdb.gz" \
+            "https://github.com/duckdb/duckdb/releases/download/$DUCKDB_VERSION/duckdb_cli-linux-amd64.gz"
+          echo "$DUCKDB_SHA256  $RUNNER_TEMP/duckdb/duckdb.gz" | sha256sum -c -
+          gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
+          chmod +x "$RUNNER_TEMP/duckdb/duckdb"
+          echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
       # ON A PULL REQUEST, ONLY THE SUITES THE DIFF AFFECTS. affected-tests.sh
       # derives the covering suites from the changed files and runs them; the
       # full corpus still runs on every push to main. Its exit contract decides
