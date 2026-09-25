@@ -505,7 +505,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "613016b62130bc20d427fa69dcb47ea5d5010c19acb0bf5a313111ce16b09660"
+  "3b9542af04fdaa3f2f5fd80a5b9f93acae3ba7879388cfcbb4e4b8cdc2a1c497"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -521,7 +521,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "ea3f524aef0fab54d673200ffebb0e079a3fa736085c663eeb7e909ce0c7f8df"
+  "4d5ee91483fd7538905ea0c04540deb911eb081689ccabac6e36b012f51da857"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -728,7 +728,11 @@ pin "SKILL.md per-question template carries the commitment block" "$SKILL" \
 pin "SKILL.md: an unlisted sub-decision is not decided by the headline" "$SKILL" \
   "is not decided by any answer to the headline"
 pin "SKILL.md: an accept-shorthand that resolved commitment rows names them" "$SKILL" \
-  "lists those \`Q<N>\` ids in one line"
+  "When an accept-shorthand resolves commitment rows, name their \`Q<N>\` ids in one line."
+pin "SKILL.md: a page accept resolves only ticked parts" "$SKILL" \
+  "(on the page, only the parts the user ticks)"
+pin "loop.md: parts of a page question answered with an alternative leave the risks" "$LOOP" \
+  "move those risks to the Brief's \`### Out-of-scope\` as withdrawn"
 pin "loop.md defines commitment rows" "$LOOP" \
   "**Commitment rows.**"
 pin "loop.md: an alternative or rejection withdraws the commitment rows" "$LOOP" \

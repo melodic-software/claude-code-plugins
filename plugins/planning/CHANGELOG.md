@@ -17,7 +17,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   page as `own` text prefixed `hedged:`.
 - **`interview`:** on the page surface, a recommendation's parts are the question's `commits`
   entries: accepting confirms only ticked parts, and unticked parts reach the Brief as named
-  risks.
+  risks. After an alternative, the lead moves those risks to Out-of-scope as withdrawn.
 - **`interview`:** the Stance names both question-surface rules (terminal and page).
 - Two section digests in `tests/interview-defenses.test.sh` were re-pinned (SKILL.md Stance,
   loop.md open-question register). Each fired on added text that narrows what an answer or
