@@ -937,6 +937,24 @@ compact_refuses "unterminated string" '{"a":"x}'
 compact_refuses "invalid escape" '{"a":"x\qy"}'
 compact_refuses "trailing backslash escape" '{"a":"x\\\"}'
 compact_refuses "bad \\u hex digits" '{"a":"\uZZZZ"}'
+# The grammar rewrites: each case breaks exactly one production.
+compact_is "nested containers" '{"a":[1,"s",{"b":[]},[[]]],"c":{"d":{}}}' '{"a":[1,"s",{"b":[]},[[]]],"c":{"d":{}}}'
+compact_refuses "two scalars" '{"a":1 2}'
+compact_refuses "key without colon" '{"a" "b"}'
+compact_refuses "array trailing comma" '{"a":[1,]}'
+compact_refuses "array leading comma" '{"a":[,1]}'
+compact_refuses "two objects in a value" '{"a":{"b":1}{"c":2}}'
+compact_refuses "number key" '{1:2}'
+compact_refuses "extra close" '{"a":1}}'
+compact_refuses "colon in array" '{"a":[1:2]}'
+compact_refuses "chained colon" '{"a":"b":"c"}'
+compact_refuses "member without value" '{"a":1,"b"}'
+compact_refuses "mismatched close" '{"a":[1}]'
+compact_refuses "two roots" '{"a":1}{"b":2}'
+compact_refuses "root member list" '1,"x":1'
+compact_refuses "root closes early" '1},{'
+big14c=$(printf '0,%.0s' {1..5000})
+compact_refuses "structure past the grammar cap" "{\"a\":[${big14c}0]}"
 
 # --- Test 3b: builtin envelope is jq's compact rendering, byte for byte -------
 # The sink receives exactly one line, and re-rendering it with jq -c yields the
@@ -1082,6 +1100,65 @@ else
   fail "fast file_path: ${#big12g}-byte payload rc=$rc12g got=[${got12g:-}] (want 0/big.md)"
 fi
 unset got12g rc12g big12g pad12g
+
+# --- Test 12g2: the parse runs in the C locale and restores the caller's -------
+# Raw C1 characters and emoji are legal unescaped JSON string data, and jq
+# passes them through; under C they are ordinary bytes, so the fast path proves
+# them rather than falling back.
+fast_is_jq "raw C1 characters (U+0085, U+009F)" $'{"tool_input":{"file_path":"c1\xc2\x85x.md","content":"\xc2\x9f"}}'
+fast_is_jq "emoji and a space in the value" '{"tool_input":{"file_path":"😀/a b.md","content":"🎉"}}'
+rc12g2=0
+got12g2=""
+hook::_fast_file_path_to got12g2 $'{"tool_input":{"file_path":"c1\xc2\x85x.md"}}' || rc12g2=$?
+if ((rc12g2 == 0)) && [[ "$got12g2" == $'c1\xc2\x85x.md' ]]; then
+  ok "fast file_path: a raw C1 character is proven, not handed to jq"
+else
+  fail "fast file_path: raw C1 rc=$rc12g2 got=[$(printf '%q' "${got12g2:-}")] (want 0)"
+fi
+# Each entry point hands back the caller's LC_ALL exactly: unset stays unset,
+# a set value keeps its value and its export flag, on success and on the
+# early not-proven return alike. `${#mb}` counts characters in the caller's
+# locale, so it moving would mean the caller was left in C.
+lc12g2_check() { # <label> <command...>
+  local label="$1" before_len mb='é日' st=0
+  shift
+  before_len=${#mb}
+  "$@" >/dev/null 2>&1 || st=$?
+  if ((st == 127)); then
+    fail "C locale check $label: command not run"
+  elif [[ "${#mb}" == "$before_len" ]]; then
+    ok "C locale restored after $label (rc $st)"
+  else
+    fail "C locale leaked after $label: \${#mb} $before_len -> ${#mb}"
+  fi
+}
+lc12g2_ok='{"tool_name":"Edit","tool_input":{"file_path":"a.md","new_string":"é"}}'
+lc12g2_bad='{"tool_input":{"file_path":"a.md"},"z":"a\qb"}'
+lc12g2_run() {
+  lc12g2_check "_fast_file_path_to (proven)" hook::_fast_file_path_to got12g2 "$lc12g2_ok"
+  lc12g2_check "_fast_file_path_to (not proven)" hook::_fast_file_path_to got12g2 "$lc12g2_bad"
+  if hook::_fast_fields_supported; then
+    lc12g2_check "_fast_fields (proven)" hook::_fast_fields "$lc12g2_ok" '.tool_name'
+    lc12g2_check "_fast_fields (not proven)" hook::_fast_fields "$lc12g2_bad" '.tool_name'
+  fi
+  lc12g2_check "json_compact_to" hook::json_compact_to got12g2 '{"a":"é"}'
+  lc12g2_check "_json_object_proven" hook::_json_object_proven "$lc12g2_ok"
+}
+(
+  unset LC_ALL
+  lc12g2_run
+  if [[ -z "${LC_ALL+x}" ]]; then ok "C locale: an unset LC_ALL stays unset"; else fail "C locale: LC_ALL left set to [$LC_ALL]"; fi
+)
+(
+  export LC_ALL=C.UTF-8
+  lc12g2_run
+  if [[ "$LC_ALL" == C.UTF-8 && "$(declare -p LC_ALL)" == 'declare -x LC_ALL='* ]]; then
+    ok "C locale: an exported LC_ALL keeps its value and export flag"
+  else
+    fail "C locale: LC_ALL came back as [$(declare -p LC_ALL 2>&1)]"
+  fi
+)
+unset rc12g2 got12g2 lc12g2_ok lc12g2_bad
 
 # --- Test 12h: hook::dirname_to, the builtin dirname of a resolver answer -----
 dirname_is() { # <path> <want>
@@ -3098,6 +3175,7 @@ physical_path_unresolved() {
   cat >"$no_canon" <<'EOF'
 realpath() { return 1; }
 readlink() { return 1; }
+enable -n cd
 EOF
   probe_lib hook::physical_path HOOK_PHYSICAL_PATH_UNRESOLVED "$target" "$no_canon"
   rm -f "$no_canon"
@@ -3113,6 +3191,46 @@ printf 'probe' >"$PP_TARGET"
 physical_path_resolved "$PP_TARGET"
 physical_path_unresolved "$PP_TARGET"
 rm -f "$PP_TARGET"
+
+# hook::_physical_builtin_to answers exactly what realpath answers, or declines
+# (status 1) so the caller runs realpath. Linux only; elsewhere it always declines.
+PB="$(mktemp -d)"
+pb_linux=0
+[[ "$(uname -s)" == Linux ]] && pb_linux=1
+mkdir -p "$PB/real/sub" "$PB/a"
+: >"$PB/real/f.md"
+ln -s real "$PB/ln"
+ln -s ../real "$PB/a/rel"
+ln -s "$PB/real/f.md" "$PB/flink.md"
+# shellcheck disable=SC2016  # the child's script is literal, expanded by the child
+PB_OUT=$(bash -c '
+  source "$1"
+  PB=$2 pb_linux=$3
+  for p in "$PB/ln/f.md" "$PB/ln/sub/../f.md" "$PB/a/rel/sub" "$PB/a/rel/../a" "$PB/real/sub/" /tmp/ /; do
+    v=""
+    if hook::_physical_builtin_to v "$p"; then
+      ((pb_linux)) || echo "answered off Linux: $p"
+      [[ "$v" == "$(realpath -- "$p")" ]] || echo "differs from realpath: $p = $v"
+    elif ((pb_linux)); then
+      echo "declined on Linux: $p"
+    fi
+  done
+  for p in "$PB/flink.md" "$PB/missing.md" "real/f.md" "$PB//real/f.md" "$PB/real/f.md/"; do
+    v=""
+    hook::_physical_builtin_to v "$p" && echo "answered a declined shape: $p = $v"
+  done
+  v=""
+  if hook::_physical_builtin_to v "$PB/ln/f.md" "$PB/ln" /tmp; then
+    [[ "$v" == "$(realpath -- "$PB/ln/f.md" "$PB/ln" /tmp)" ]] || echo "batch differs: $v"
+  fi
+  echo pb-ok
+' _ "$HOOK_DIR/hook-utils.sh" "$PB" "$pb_linux")
+rm -rf "$PB"
+if [[ "$PB_OUT" == pb-ok ]]; then
+  ok "physical_builtin: realpath's answer or a decline, per shape"
+else
+  fail "physical_builtin: $PB_OUT"
+fi
 
 repo_root_resolved() {
   local hint="$1"
@@ -3188,27 +3306,41 @@ CYGEOF
 chmod +x "$RRP_DIR/cyg/cygpath"
 
 # rrp_case <mode> <label> <file> <root> <expected-out> <expected-degraded>
-#   mode nocyg → no cygpath on PATH, helper takes the direct-strip arm
-#   mode cyg   → stub cygpath on PATH, helper takes the normalization arm
+#   mode nocyg    → no cygpath on PATH, helper takes the direct-strip arm
+#   mode cyg      → stub cygpath on PATH and a Git Bash OSTYPE (msys), helper
+#                   takes the normalization arm
+#   mode cygposix → the same stub on PATH under a Linux OSTYPE: the helper only
+#                   looks for cygpath on a Windows bash, so it strips directly
 # One call answers all three channels: the helper writes _out in the child's own
 # shell, so the return code and the degraded global are readable right after it.
 # Only shell builtins are used inside, because PATH is deliberately near-empty.
 rrp_case() {
   local mode="$1" label="$2" file="$3" root="$4" want="$5" want_deg="$6" probe
+  # shellcheck disable=SC2031  # this shell's own OSTYPE; only the child below overrides it
+  local bin="$mode" ostype="$OSTYPE"
+  case "$mode" in
+  cyg) ostype=msys ;;
+  cygposix)
+    bin=cyg
+    ostype=linux-gnu
+    ;;
+  *) ;;
+  esac
   probe=$(
     # $BASH, not a bare `bash`: the PATH below is deliberately near-empty, so a
     # bare name could not be resolved. shellcheck cannot see that the quoted
     # argument is a bash script, so it reads the (correctly) unexpanded $1/$2/$3
     # as a mistake; they are the child's own positional parameters.
     # shellcheck disable=SC2016
-    PATH="$RRP_DIR/$mode" "$BASH" -c '
+    PATH="$RRP_DIR/$bin" "$BASH" -c '
+      OSTYPE="$4"
       # shellcheck source=hook-utils.sh
       source "$1"
       _out=""
       hook::repo_relative_path_to _out "$2" "$3"
       _rc=$?
       printf "%s\n%s\n%s\n" "$_rc" "$HOOK_REPO_RELATIVE_DEGRADED" "$_out"
-    ' _ "$HOOK_DIR/hook-utils.sh" "$file" "$root"
+    ' _ "$HOOK_DIR/hook-utils.sh" "$file" "$root" "$ostype"
   )
   local rc flag out
   {
@@ -3248,6 +3380,10 @@ rrp_case nocyg "...and the same inputs degrade without cygpath (control)" /c/rep
 rrp_case cyg "both sides already mixed form" 'C:/repo/a/b.md' 'C:/repo' a/b.md 0
 rrp_case cyg "a root mismatch still redacts through the cygpath arm" /c/elsewhere/b.md 'C:/repo' b.md 1
 rrp_case cyg "an empty root redacts through the cygpath arm" /c/repo/a/b.md "" b.md 1
+# The OSTYPE gate: the same stub on PATH is not consulted off Windows, so the
+# drive-letter case degrades exactly as the nocyg control does.
+rrp_case cygposix "a cygpath on PATH is ignored under a Linux OSTYPE" /c/repo/a/b.md 'C:/repo' b.md 1
+rrp_case cygposix "...and a POSIX strip still succeeds there" /repo/a/b.md /repo a/b.md 0
 rm -rf "$RRP_DIR"
 
 # --- hook::bash_parse_segments: unquoted # comments to EOL --------------------
@@ -3886,14 +4022,9 @@ source "$BG_LIB"
 # A stub reader makes the half of hook::begin that runs AFTER a path is
 # admitted reachable for paths no test can create: a file directly under the
 # filesystem root (needs privileges) and a spelling only Windows produces.
-# It drains stdin as the real reader does: hook::begin pipes the payload into it
-# under pipefail, and a stub that returned first would leave that printf writing
-# to a closed pipe, failing the pipeline and sending hook::begin down its exit 0.
+# hook::begin hands it the payload it already buffered, so no pipe feeds it.
 if [[ -n "${BG_STUB_FILE:-}" ]]; then
-  hook::read_file_path() {
-    cat >/dev/null
-    printf '%s' "$BG_STUB_FILE"
-  }
+  hook::read_file_path_to() { printf -v "$1" '%s' "$BG_STUB_FILE"; }
 fi
 # A repo-root resolver whose answer is NOT an ancestor of the file, which is
 # what makes hook::repo_relative_path_to degrade to the basename.
@@ -4101,22 +4232,26 @@ fi
 rm -rf "$BG_DATA" "$BG_NOJQ"
 
 # Spawn census on the same two payloads: a non-matching edit must not spend a
-# jq beyond hook::buffer_stdin_to's own payload validation, and the unwired
-# path must not spend one to build a telemetry value nothing will read.
+# jq on payload validation, and the unwired path must not spend one to build a
+# telemetry value nothing will read.
 BG_SHIM="$(mktemp -d)"
 if make_logging_shim "$BG_SHIM" jq; then
   bg_jq_count() {
     : >"$BG_SHIM/log"
     bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" PATH="$BG_SHIM:$PATH")
     bg_run "$@" >/dev/null 2>&1
-    grep -c . "$BG_SHIM/log" 2>/dev/null || printf 0
+    local bg_n
+    bg_n=$(grep -c . "$BG_SHIM/log" 2>/dev/null)
+    printf '%s' "${bg_n:-0}"
   }
   bg_n_skip=$(bg_jq_count "$(bg_payload "$BG_REPO/sub/a.txt")" sample PostToolUse '*.sh')
   bg_n_run=$(bg_jq_count "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse '*.sh')
-  if ((bg_n_skip <= 1)); then
-    ok "begin: a non-matching edit spends $bg_n_skip jq (payload validation only)"
+  # Payload validation of an ordinary object payload is builtin
+  # (hook::_json_object_proven), so neither edit spawns jq at all.
+  if ((bg_n_skip == 0)); then
+    ok "begin: a non-matching edit spends no jq (payload validation is builtin)"
   else
-    fail "begin: a non-matching edit spent $bg_n_skip jq processes, ceiling 1"
+    fail "begin: a non-matching edit spent $bg_n_skip jq processes, want 0"
   fi
   if ((bg_n_run <= bg_n_skip)); then
     ok "begin: an accepted edit with no sink spends no jq beyond that ($bg_n_run)"
@@ -4701,6 +4836,21 @@ for ((ff_i = 0; ff_i < ${#ff_name}; ff_i++)); do
 done
 ff_pair_check "fast fields: a key spelled entirely with \\u escapes is recognized" \
   "{\"$ff_esc\":\"PreToolUse\",\"tool_name\":\"Bash\"}" ".$ff_name" "PreToolUse"
+# The guards' `replace_all` read: ` // false | tostring` turns absent and null
+# into `false` and proves a boolean.
+ff_ra='.tool_input.replace_all // false | tostring'
+ff_pair_check "fast fields: // false | tostring on false" '{"tool_input":{"replace_all":false}}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on true" '{"tool_input":{"replace_all":true}}' "$ff_ra" "true"
+ff_pair_check "fast fields: // false | tostring on an absent key" '{"tool_input":{"new_string":"x"}}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on a null parent" '{"tool_input":null}' "$ff_ra" "false"
+ff_pair_check "fast fields: // false | tostring on an empty string" '{"tool_input":{"replace_all":""}}' "$ff_ra" ""
+ff_pair_check "fast fields: // false | tostring at the root" '{"replace_all":true}' '.replace_all // false | tostring' "true"
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"replace_all":1}}' "$ff_ra" || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: // false | tostring on a number falls back to jq"; else fail "fast fields: number rc=$ff_rc"; fi
+ff_rc=0
+hook::_fast_fields '{"tool_input":{"replace_all":true}}' '.tool_input.replace_all' || ff_rc=$?
+if ((ff_rc == 2)); then ok "fast fields: a bare boolean read still falls back to jq"; else fail "fast fields: bare boolean rc=$ff_rc"; fi
 
 # The Bash 4.0 floor. hook::_fast_fields indexes with an associative array, so
 # below 4.0 the call site must skip the whole fast path and let jq answer.
