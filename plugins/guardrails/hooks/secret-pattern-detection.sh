@@ -279,8 +279,8 @@ if ((IS_MCP)); then
   exit 0
 fi
 
-# NotebookEdit sends its target as notebook_path; file_path stays the fallback
-# so a payload carrying only that shape scans more, never less.
+# NotebookEdit sends its target as notebook_path; file_path is read only when
+# notebook_path is empty.
 FILE="${HOOK_JQ_FIELDS[1]}"
 [[ "$TOOL" == NotebookEdit && -n "${HOOK_JQ_FIELDS[6]}" ]] && FILE="${HOOK_JQ_FIELDS[6]}"
 [[ -n "$FILE" ]] || exit 0
