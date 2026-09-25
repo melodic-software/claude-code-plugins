@@ -34,6 +34,7 @@ QN = re.compile(r"^Q[1-9][0-9]*$")
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
+PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$")
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -217,11 +218,12 @@ def export_brief(d):
     answered = [r for r in rows if r["status"] == "answered"]
     confirmed = [(r, c) for r in rows for c in r["confirmed"]]
     risks = [(r, c) for r in answered for c in r["unconfirmed"]]
+    superseded = count["superseded-by-plan"]
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
         f"- {len(rows)} questions: {count['answered']} answered, {count['deferred']} deferred, "
-        f"{count['blocked']} blocked, {count['withdrawn']} withdrawn, {count['open']} open, "
-        f"{count['superseded-by-plan']} superseded-by-plan"
+        f"{count['blocked']} blocked, {count['withdrawn']} withdrawn, {count['open']} open"
+        + (f", {superseded} superseded-by-plan" if superseded else "")
     )
     out.append(
         f"- {len(confirmed)} commitments confirmed; {len(risks)} unconfirmed, carried as named risks"
@@ -537,6 +539,9 @@ def import_ledger(doc, text, ledger, at):
                 res[len("archived:") :].strip() if res.startswith("archived:") else res
             )
             q["archived"] = {"why": why or "withdrawn", "at": at, "seeded": True}
+        elif status == "superseded-by-plan" and (m := PROPOSES.match(res)):
+            q["recommendation"] = m.group(1)
+            q["alternatives"] = [{"key": "was", "text": m.group(2)}]
         by = "claude" if status in UNSETTLED else "user-terminal"
         note = f"{SEED_NOTE}: {status}."
         if status == "superseded-by-plan" and res:
