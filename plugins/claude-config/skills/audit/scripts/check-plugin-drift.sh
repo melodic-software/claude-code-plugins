@@ -254,7 +254,6 @@ audit_marketplace() {
   local local_names
   local_names=$(awk '{print $1}' <<<"$local_pairs" | sort -u)
 
-  # Compute deltas
   local orphans new_upstream
   orphans=$(comm -23 <(echo "$local_names") <(echo "$upstream_names") | grep -v '^$' || true)
   new_upstream=$(comm -13 <(echo "$local_names") <(echo "$upstream_names") | grep -v '^$' || true)
@@ -368,7 +367,6 @@ main() {
     audit_marketplace "$key"
   done <<<"$marketplace_keys"
 
-  # Summary
   printf '\n%sSummary%s\n' "$CYAN" "$RESET"
   if [[ "$DRIFT_FOUND" -eq 0 && "${#SKIPPED_MARKETS[@]}" -eq 0 ]]; then
     printf '  %sOK%s    no drift detected\n' "$GREEN" "$RESET"

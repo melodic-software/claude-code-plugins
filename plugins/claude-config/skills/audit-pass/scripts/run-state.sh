@@ -98,9 +98,8 @@ EXIT_FENCED=3
 # values its writer committed to, so `classify` reads them from the artifact
 # instead of assuming its own.
 #
-# 1800s, not the 300s the prose carried before this script existed. That number
-# was derived from a 60-second wall-clock heartbeat, and a skill-driven run has
-# no timer: it acts between tool calls, so it can only refresh at boundaries it
+# 1800s, not 300s: 300s assumes a 60-second wall-clock heartbeat, and a
+# skill-driven run has no timer: it acts between tool calls, so it can only refresh at boundaries it
 # actually reaches — acquire, each lane's persistence point, release. A single
 # delegated lane can outlast five minutes, and a threshold shorter than a lane
 # makes a *running* pass classify as abandoned, which is the one direction that
