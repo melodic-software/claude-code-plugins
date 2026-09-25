@@ -246,10 +246,10 @@ out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)
 rc=$?
 assert_exit "contents: an edited listed file exits 1" 1 "$rc"
 assert_contains "contents: an edited listed file is stale" "$out" "batch=01 status=stale reason=digest digest="
-nd="$(digest_of "$out" 01)"
+newd="$(digest_of "$out" 01)"
 assert_eq "contents: the printed digest is a new 64-hex digest" \
-  "$([[ "$nd" != "$pd" ]] && printf '%s\n' "$nd" | grep -cE '^[0-9a-f]{64}$')" "1"
-result "$nd"
+  "$([[ "$newd" != "$pd" ]] && printf '%s\n' "$newd" | grep -cE '^[0-9a-f]{64}$')" "1"
+result "$newd"
 out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
 assert_eq "contents: a result carrying the printed digest is complete" "$out" "batch=01 status=complete"
 bash "$FANOUT" merge --batches "$C/batches" --results "$C/results" --out "$C/merged.md" >/dev/null 2>&1
@@ -313,9 +313,9 @@ printf '%s\n' "$SP/nowhere/a.md" "$SP/nowhere/b.md" >"$SP/batches/batch-02.paths
 printf 'batch: x\nfiles_reviewed: 2\nfiles_with_findings: 0\n' >"$SP/results/rubric-batch-01.md"
 out="$(bash "$FANOUT" status --batches "$SP/batches" --results "$SP/results" 2>&1)"
 assert_contains "sidecar: a length mismatch with the list is stale" "$out" "batch=01 status=stale reason=paths digest="
-nd="$(digest_of "$out" 02)"
+newd="$(digest_of "$out" 02)"
 assert_eq "sidecar: every listed file missing still differs from the list-only digest" \
-  "$([[ -n "$nd" && "$nd" != "$(sha "$SP/batches/batch-02.txt")" ]] && echo differs)" "differs"
+  "$([[ -n "$newd" && "$newd" != "$(sha "$SP/batches/batch-02.txt")" ]] && echo differs)" "differs"
 
 # --- merge ----------------------------------------------------------------------
 
