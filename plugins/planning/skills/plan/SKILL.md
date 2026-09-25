@@ -188,8 +188,8 @@ Applies to every change made after the Brief locked: Step 3 reviewer fixes, Step
 
 - **Kind (a), ledger exists**: set that register row to `superseded-by-plan`, resolution `plan proposes: <new>; was: <old>`. A Brief-only interview has no register; list the change at Step 5 only.
 - **Both kinds**: list the change at Step 5 in the "Displaced answers and new external effects" block.
-- **Leaving the status**: only an explicit reply to that row; a blanket "approve" does not. Reconfirm sets `answered` with `reconfirmed at plan approval: <new>; was: <old>`; reject restores the original answer and the plan drops the change.
-- **Unattended run**: leave the rows `superseded-by-plan`, report each as **USER-RESERVED**, and report the plan as unapproved.
+- **Clearing a listed change**: every row of that block, superseded or not, needs an explicit reply to that row; a blanket "approve" clears none of them. For a superseded row, reconfirm sets `answered` with `reconfirmed at plan approval: <new>; was: <old>`; reject restores the original answer and the plan drops the change.
+- **Unattended run**: leave every listed change uncleared (superseded rows stay `superseded-by-plan`), report each as **USER-RESERVED**, and report the plan as unapproved.
 
 ### Step 4.5: Execution-Shape Analysis (parallelism. Default ON for multi-phase plans)
 
@@ -220,7 +220,7 @@ After the phase plan is locked but before Step 5 approval, compute the execution
 
 Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief: `[EXEC-SHAPE]` (your discretion within briefed scope) or `[FALLBACK — confirm or override]` (an invented contingency the brief didn't anticipate); briefed decisions get no tag. **Then apply the confidence gate**: DECIDE only when the basis is evidence captured this session (a codebase pattern read, a research finding, or a directly-on-point project convention) with no surviving reasonable alternative; everything below the bar, judgment calls, sizing guesses, either-would-work placements, routes to an interview round BEFORE the plan locks; hard-to-reverse decisions escalate EARLY regardless of confidence. Full gate, taxonomy, and presentation contract: [context/tag-decisions.md](context/tag-decisions.md). Surface every gate-passed decision at Step 5 in the "Decisions made (gate-passed)" TABLE (Decision | What it changes in the plan | Basis) so the user can override before implementation.
 
-The table also carries a `Source` column (user, plan, or stress-test finding). An adopted mitigation that displaces a user answer or adds an external effect never passes the gate; it goes to the Step 5 "Displaced answers and new external effects" block.
+The table also carries a `Source` column (`plan`, `reviewer fix`, `research update`, or `stress-test finding`). An adopted mitigation that displaces a user answer or adds an external effect never passes the gate; it goes to the Step 5 "Displaced answers and new external effects" block.
 
 ### Step 4.7: Outcome gate (before Step 5. Verify the PLAN, not a recap)
 
@@ -231,7 +231,7 @@ Before presenting at Step 5, persist the composed plan as a **draft** to `<contr
 - **Every brief scope-item maps to a phase**. Walk the Brief's scope list against the phases; no scope-item silently dropped, no in-scope phase missing.
 - **Every unilateral decision is surfaced**. Each `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6 appears in the "Decisions made (gate-passed)" table (with its what-it-changes column filled), not left only in the plan body; below-bar decisions were interviewed, not decided.
 - **Blast radius assessed**. A Blast-radius line exists (from Step 3b), not omitted.
-- **Displaced answers are reopened, not folded**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and all N superseded ids appear in the Step 5 "Displaced answers and new external effects" block.
+- **Displaced answers are reopened, not folded**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 
 This is the cheap binary self-check on the artifact; it does NOT replace the human approval at Step 5. The user is the terminal gate (deterministic check → human). It catches a satisficed or incomplete plan before the user has to.
 
@@ -245,7 +245,7 @@ Present the final plan to the user. The plan is a proposal, not a commitment. Th
 2. Blast-radius assessment (from Step 3b)
 3. Stress-test summary (from Step 4, if run). Or "Skipped: blast radius LOW, no triggers matched"
 4. **Execution shape** (from Step 4.5). Parallelism shape AND per-phase routing table. Skipped for single-phase plans
-5. **Displaced answers and new external effects** (from "Plan changes after the Brief"). One row per change: `Q<N>` or `none`, what the user said, what the plan now proposes, the new external effect, and the source (reviewer fix, research update, or stress-test finding). Omit the block when empty. The approval request names each superseded row as needing its own reply
+5. **Displaced answers and new external effects** (from "Plan changes after the Brief"). One row per change: `Q<N>` or `none`, what the user said, what the plan now proposes, the new external effect, and the source (`reviewer fix`, `research update`, or `stress-test finding`). Omit the block when empty. The approval request names every row as needing its own reply
 6. **Decisions made (gate-passed)** (from Step 4.6). TABLE per [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract": `Decision | What it changes in the plan | Basis (evidence) | Source`, one row per gate-passed `[EXEC-SHAPE]` / `[FALLBACK]` tag, written for a cold reader (no session shorthand). Below-bar decisions never appear here. They were interviewed before the plan locked. An empty section ("no unilateral decisions. Every PLAN item traces to brief") is also valid output
 7. **Explicit approval request**: "Approve this plan to proceed to execution, or provide feedback to revise. Anything tagged `[EXEC-SHAPE]` or `[FALLBACK]` above is /planning:plan's discretion. Flag any you want changed."
 8. **Highest-leverage replies**: close with 2-4 pre-drafted one-line revision replies, one per flagged close call or gate-passed decision, each a copyable sentence that flips exactly that decision (e.g. "Switch phase 2 to the queue-based alternative"). The user's cheapest possible reaction is pasting one back; a presentation whose flagged decisions have no pre-drafted flip line makes the user compose the revision themselves

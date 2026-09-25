@@ -27,7 +27,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - The `tests/interview-defenses.test.sh` digest for the `loop.md` open-question register
   section was re-pinned: the new status row and its paragraph add a status the gate blocks on
-  and weaken no defense.
+  and weaken no defense. The interview `SKILL.md` Stance and Step 3 digests were re-pinned too:
+  the out-of-band check covers superseded rows, and exit 1 no longer lets an agent retire one.
 
 ## [0.41.2] - 2026-09-25
 

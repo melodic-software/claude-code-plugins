@@ -455,12 +455,13 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # entry), the hedged paragraph (a hedged reply resolves only the headline), and the
 # sentence naming both question-surface rules. The first three narrow what an answer or an
 # accept-shorthand resolves; the surface sentence only names where a round is asked. None
-# qualifies the no-silent-resolve rule or any other defense here.
+# qualifies the no-silent-resolve rule or any other defense here. The out-of-band check
+# also covers `superseded-by-plan` rows, which it restates and never resolves.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "3b9542af04fdaa3f2f5fd80a5b9f93acae3ba7879388cfcbb4e4b8cdc2a1c497"
+  "23d3d27238c34ac5e687167b3cf19efbd47838c0d8d0cd6fa1b727e283b0955c"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -477,7 +478,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "86081ef0cf0033532d9de1aa56560eb21df1a9574f735bdefce0933dbfa01d58"
+  "637901f5c261faee632a201620295afca03c1c29fe7800394431428185193f75"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -531,7 +532,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "70a31635b8c538f3f3838b56d7f731c9a73f61f452c43a9f9d8d3815ab772b83"
+  "2d102b7a9f56349e6f105d5eab1e31581d577b06fd39834ad1a01a899784e4c3"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \

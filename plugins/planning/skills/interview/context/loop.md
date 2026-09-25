@@ -240,7 +240,7 @@ Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when t
 
 The drift check above fires on a user reply. A round can also be overtaken by output the user did not write: a dispatched sub-agent's return, a background task notification, an agent-team member's report, a Monitor firing, a permission prompt raised by a sub-agent. The list is open, because the test is *non-user content reaching the transcript while a round is open*, not membership of a named set. This is the ordinary consequence of the non-blocking dispatch rule ("Codebase gate per frontier question" above, and "Branch out to ground a recommendation"), so it is expected traffic, never an anomaly.
 
-**When such output lands, check it against the register's `open` rows before continuing.** The trigger is RELEVANCE, not arrival. Three outcomes, and most returns take the first:
+**When such output lands, check it against the register's `open` and `superseded-by-plan` rows before continuing.** A `superseded-by-plan` row it touches is restated, never resolved by the return. The trigger is RELEVANCE, not arrival. Three outcomes, and most returns take the first:
 
 1. **It touches no open row.** Say so in one line and leave the round alone. The questions stand as asked.
 2. **It contradicts a recommendation under a question already asked.** Restate that question, naming the superseded recommendation as superseded and giving the replacement its own basis. A recommendation the session has since disproved is worse than no recommendation, because the user is answering against it.
@@ -289,7 +289,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 
-Exit 0 = clean; exit 1 = a question is still `open` or `superseded-by-plan` (do not lock the contract, do not hand off; resolve or explicitly retire it); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records), which is treated as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
+Exit 0 = clean; exit 1 = a row is `open` or `superseded-by-plan` (do not lock the contract, do not hand off; resolve or explicitly retire an `open` row; a `superseded-by-plan` row leaves only on the user's reply to it, see "Superseded by plan"); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records), which is treated as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
 
 **The acceptance-criteria coverage prompt is not a registered question, and not a gap in the record either.** It carries no decision, so it writes no row and never reaches this gate; a run whose only question was that prompt has no register and skips the gate rather than failing it ungradeable. The exemption is that one prompt and no other: a real question asked alongside it registers at ask-time and brings the gate into scope exactly as it always did. Step 4's "Acceptance criteria" guidance owns the prompt itself.
 

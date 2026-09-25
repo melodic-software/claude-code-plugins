@@ -26,8 +26,8 @@ Surface every decided tag at Step 5 in a "Decisions made (gate-passed)" subsecti
 
 | Decision | What it changes in the plan | Basis (evidence) | Source |
 |---|---|---|---|
-| <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> | <user, plan, or stress-test finding> |
+| <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> | <`plan`, `reviewer fix`, `research update`, or `stress-test finding`> |
 
-`Source` says who originated the decision, so a cold reader can tell "user said" from "plan says". The what-it-changes column is mandatory: a label without its plan impact is unreviewable. Write for a cold reader dropping in mid-session: no session-internal shorthand; the row must make sense without scrollback. Interviewed decisions do NOT appear here; they were resolved by the user and are briefed by the time of presentation.
+`Source` says what originated the decision, so a cold reader never mistakes "plan says" for "user said". The what-it-changes column is mandatory: a label without its plan impact is unreviewable. Write for a cold reader dropping in mid-session: no session-internal shorthand; the row must make sense without scrollback. Interviewed decisions do NOT appear here; they were resolved by the user and are briefed by the time of presentation.
 
 Anti-pattern: bundling unilateral decisions deep in the Handoff section so they read as part of an approved plan. The reviewer must distinguish "user approved this" from "/planning:plan added this" without reading every line.

@@ -203,8 +203,8 @@ For each finding:
 - **Failure scenario**: What breaks
 - **Mitigation**: How to fix
 - **Residual risk**: What remains after mitigation
-- **Supersedes**: interview Q<N> (<displaced answer>). Only when the mitigation replaces a user answer
-- **New external effect**: <remote write, irreversible action, or externally visible artifact>. Only when the mitigation adds one
+- **Supersedes**: interview Q<N> (<displaced answer>) (only when the mitigation replaces a user answer)
+- **New external effect**: <remote write, irreversible action, or externally visible artifact> (only when the mitigation adds one)
 
 ### Revised Plan Recommendations
 
