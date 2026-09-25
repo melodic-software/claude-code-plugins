@@ -34,8 +34,18 @@
 #
 # Apply behavior:
 #   A check that fails is fatal. The run never reports an audit it did not
-#   complete. A check that completes with no marketplace to audit says so
-#   instead of reporting no drift.
+#   complete. Findings with no audited marketplace, because none is declared or
+#   every one was skipped, say so instead of reporting no drift, and every
+#   skipped marketplace is listed with its reason.
+#   Findings that are not an array of marketplace blocks, or a list jq cannot
+#   read from them, are fatal.
+#   The plan is filtered against one snapshot of the settings file before it is
+#   rendered: an addition whose key exists and a removal whose key is absent are
+#   dropped, and a removal whose key is now true moves to manual review. The
+#   edit, the line-ending measurement and the backup all come from that
+#   snapshot. An apply is refused when the settings file no longer matches it
+#   just before the backup, because another writer changed it after the plan
+#   was computed. The window between that compare and the replace is not closed.
 #   The settings file is copied to <settings>.<UTC stamp>.bak before it is
 #   replaced, created under a 0077 umask so it is 0600 wherever the platform
 #   honors mode bits (MSYS does not). Nothing is replaced if that copy cannot be
@@ -46,7 +56,10 @@
 #   user settings file. Set CLAUDE_SETTINGS_FILE to write that file on purpose.
 #   An apply is refused when the settings path is a symlink, because the
 #   replacement is a rename and would replace the link itself.
-#   A read-only settings file is still applied, and comes back read-only.
+#   A read-only settings file is still applied, and comes back read-only on
+#   platforms that honor mode bits.
+#   A staged replacement identical to the snapshot is refused. The filter
+#   leaves only entries that change the file, so this refusal is defensive.
 #   "Applied" is printed only after the settings file is read back and found to
 #   hold the edit. Any failure before that is fatal, and an interrupting signal
 #   ends the run rather than letting it continue with its temporaries deleted.
@@ -141,6 +154,7 @@ fi
 TMP_JSON=""
 TMP_SETTINGS=""
 TMP_EOL=""
+SNAPSHOT=""
 
 # One cleanup, installed once, for every temp this run can create. `rm -f ""` is
 # a silent no-op, so an unset path costs nothing.
@@ -151,15 +165,12 @@ TMP_EOL=""
 # printed "Applied" and changed nothing.
 # shellcheck disable=SC2329  # invoked by the traps installed immediately below
 cleanup_temps() {
-  rm -f "${TMP_JSON:-}" "${TMP_SETTINGS:-}" "${TMP_EOL:-}"
+  rm -f "${TMP_JSON:-}" "${TMP_SETTINGS:-}" "${TMP_EOL:-}" "${SNAPSHOT:-}"
 }
 trap cleanup_temps EXIT
 trap 'cleanup_temps; exit 130' INT
 trap 'cleanup_temps; exit 143' TERM HUP
 
-# Set when the internal check completed with no marketplace to compare, so the
-# no-drift branch below can say that instead of claiming a clean audit.
-NOTHING_AUDITED=0
 if [[ -z "$INPUT_JSON" ]]; then
   # Positional absolute template with trailing Xs — the one mktemp form both
   # GNU and BSD accept (see docs/conventions/topic-docs ephemeral tier, #1709).
@@ -184,11 +195,16 @@ if [[ -z "$INPUT_JSON" ]]; then
   # cannot separate a truncated write from the check's legitimate status-0 exit
   # when the settings file declares no extraKnownMarketplaces. That case is a
   # pass, but it is not an audit, so it must not borrow the wording of one. The
-  # check's own explanation went to the /dev/null above, so say it here and
-  # again on stdout where the plan is rendered.
+  # check's own explanation went to the /dev/null above, so say it here, and
+  # record it as an empty findings array so the zero-audited decision below,
+  # which also covers a run whose every marketplace was skipped, says it on
+  # stdout where the plan is rendered.
   if [[ ! -s "$TMP_JSON" ]]; then
-    NOTHING_AUDITED=1
     echo "NOTE: check-plugin-drift.sh produced no findings document, so no marketplace was audited" >&2
+    if ! printf '[]\n' >"$TMP_JSON"; then
+      echo "ERROR: cannot write the empty findings document: $TMP_JSON" >&2
+      exit 2
+    fi
   fi
   INPUT_JSON="$TMP_JSON"
 fi
@@ -198,8 +214,11 @@ if [[ ! -f "$INPUT_JSON" ]]; then
   exit 2
 fi
 
-if ! jq empty "$INPUT_JSON" 2>/dev/null; then
-  echo "ERROR: findings JSON is not valid: $INPUT_JSON" >&2
+# An array of marketplace blocks, each an object. `jq -e` fails on a zero-byte
+# file, which yields no value at all. The element test is phrased as `!=` so no
+# jq call before the post-edit validation carries that validation's text.
+if ! jq -e 'type == "array" and (any(.[]; type != "object") | not)' "$INPUT_JSON" >/dev/null 2>&1; then
+  echo "ERROR: findings JSON is not an array of marketplace blocks: $INPUT_JSON" >&2
   exit 2
 fi
 
@@ -209,23 +228,52 @@ fi
 # marketplace block. The suffix is always a static literal from this file, never
 # data (plugin names stay --argjson-bound below), so composing the filter here
 # cannot inject.
+#
+# A jq failure is fatal: under pipefail the assignment carries jq's status, and
+# a list that silently came back short would render a truncated plan. The `tr`
+# strips the carriage return a native-Windows jq appends to every line.
 findings() {
-  jq -r ".[] | select(.status == \"ok\") | $1" "$INPUT_JSON" | sort -u
+  jq -r ".[] | select(.status == \"ok\") | $1" "$INPUT_JSON" | tr -d '\r' | sort -u
 }
 
-auto_remove=$(findings '.orphans[] | select(.enabled == false) | "\(.name)@\(.marketplace)"')
+# findings_failed <label> - the fatal exit for a list jq could not read.
+findings_failed() {
+  echo "ERROR: cannot read the $1 list from the findings JSON: $INPUT_JSON" >&2
+  exit 2
+}
 
-manual_orphans=$(findings '.orphans[] | select(.enabled == true) | "\(.name)@\(.marketplace)"')
+# count_lines <newline-separated entries> - how many non-empty lines.
+count_lines() {
+  grep -c . <<<"$1" || true
+}
 
-auto_add=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"')
+auto_remove=$(findings '.orphans[] | select(.enabled == false) | "\(.name)@\(.marketplace)"') ||
+  findings_failed "orphan removals"
+
+manual_orphans=$(findings '.orphans[] | select(.enabled == true) | "\(.name)@\(.marketplace)"') ||
+  findings_failed "enabled orphans"
+
+auto_add=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"') ||
+  findings_failed "new upstream"
 
 # Rename candidates (informational).
-rename_candidates=$(findings '.renames[] | "\(.from) -> \(.to)  (\(.marketplace))"')
+rename_candidates=$(findings '.renames[] | "\(.from) -> \(.to)  (\(.marketplace))"') ||
+  findings_failed "renames"
 
-remove_count=$(echo "$auto_remove" | grep -c . || true)
-add_count=$(echo "$auto_add" | grep -c . || true)
-manual_count=$(echo "$manual_orphans" | grep -c . || true)
-rename_count=$(echo "$rename_candidates" | grep -c . || true)
+# Every block that is not "ok" was not compared, whatever its status says. The
+# key and reason are flattened to one line each so a crafted value cannot forge
+# extra entries in the listing.
+skipped=$(jq -r '.[] | select(.status != "ok")
+  | "\(.key // "" | tostring | gsub("[\r\n]"; " ")) (\(.skip_reason // "" | tostring | gsub("[\r\n]"; " ")))"' \
+  "$INPUT_JSON" | tr -d '\r') || findings_failed "marketplace status"
+
+remove_count=$(count_lines "$auto_remove")
+add_count=$(count_lines "$auto_add")
+manual_count=$(count_lines "$manual_orphans")
+rename_count=$(count_lines "$rename_candidates")
+skipped_count=$(count_lines "$skipped")
+ok_count=$(jq '[.[] | select(.status == "ok")] | length' "$INPUT_JSON" | tr -d '\r') ||
+  findings_failed "marketplace status"
 
 # --- Render plan -------------------------------------------------------------
 
@@ -241,6 +289,76 @@ print_entries() {
 
 printf '\n%sPlugin drift fix plan%s (mode: %s)\n' "$CYAN" "$RESET" "$MODE"
 printf 'Settings file: %s\n\n' "$SETTINGS"
+
+if [[ "$skipped_count" -gt 0 ]]; then
+  printf '%sSKIPPED%s %d marketplaces not audited:\n' "$YELLOW" "$RESET" "$skipped_count"
+  print_entries '  ' "$skipped"
+  echo
+fi
+
+# "Nothing found" and "nothing looked at" are different statements, and stderr
+# is routinely discarded, so the distinction is made here on stdout too.
+if [[ "$ok_count" -eq 0 ]]; then
+  printf '%sNo marketplace was audited, so there is nothing to report.%s\n' "$YELLOW" "$RESET"
+  exit 0
+fi
+
+if [[ "$remove_count" -eq 0 && "$add_count" -eq 0 && "$manual_count" -eq 0 && "$rename_count" -eq 0 ]]; then
+  printf '%sNo drift detected, nothing to do.%s\n' "$GREEN" "$RESET"
+  exit 0
+fi
+
+# --- Filter the plan against the settings file -------------------------------
+
+# The findings can be older than the settings file, and a --input document can
+# describe any file at all. So the plan is checked against ONE snapshot of the
+# settings file, and the apply below edits, measures and backs up that same
+# snapshot rather than rereading the live path.
+filtered_count=0
+if [[ "$remove_count" -gt 0 || "$add_count" -gt 0 ]]; then
+  # Same portable mktemp form as TMP_JSON above (#1709).
+  SNAPSHOT=$(mktemp "${TMPDIR:-/tmp}/settings-snapshot-XXXXXX") || SNAPSHOT=""
+  if [[ -z "$SNAPSHOT" ]]; then
+    echo "ERROR: cannot create a snapshot under ${TMPDIR:-/tmp}, settings unchanged" >&2
+    exit 2
+  fi
+  if ! cat "$SETTINGS" >"$SNAPSHOT"; then
+    echo "ERROR: cannot snapshot $SETTINGS, settings unchanged" >&2
+    exit 2
+  fi
+
+  # Keys are bound as data with --argjson, never interpolated into the program.
+  raw_remove_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_remove") || raw_remove_json=""
+  raw_add_json=$(jq -nR '[inputs | select(. != "")]' <<<"$auto_add") || raw_add_json=""
+  if [[ -z "$raw_remove_json" || -z "$raw_add_json" ]]; then
+    echo "ERROR: cannot encode the plugin lists for the filter, settings unchanged" >&2
+    exit 2
+  fi
+
+  # One line per surviving entry: R keeps a removal, A keeps an addition, S
+  # moves a removal whose key is now true to manual review. A removal whose key
+  # is absent and an addition whose key exists emit nothing.
+  if ! plan=$(jq -r --argjson rm "$raw_remove_json" --argjson add "$raw_add_json" '
+    if type != "object" then error("the settings file is not a JSON object") else . end
+    | (.enabledPlugins // {}) as $ep
+    | if ($ep | type) != "object" then error("enabledPlugins is not an object") else . end
+    | ($rm[] | . as $k | if ($ep | has($k)) then (if $ep[$k] == true then "S " else "R " end) + $k else empty end),
+      ($add[] | . as $k | if ($ep | has($k)) then empty else "A " + $k end)
+  ' "$SNAPSHOT" | tr -d '\r'); then
+    echo "ERROR: cannot read $SETTINGS to filter the plan against it" >&2
+    exit 2
+  fi
+
+  planned=$((remove_count + add_count))
+  auto_remove=$(sed -n 's/^R //p' <<<"$plan")
+  auto_add=$(sed -n 's/^A //p' <<<"$plan")
+  stale_true=$(sed -n 's/^S //p' <<<"$plan")
+  manual_orphans=$(printf '%s\n%s\n' "$manual_orphans" "$stale_true" | sort -u)
+  remove_count=$(count_lines "$auto_remove")
+  add_count=$(count_lines "$auto_add")
+  manual_count=$(count_lines "$manual_orphans")
+  filtered_count=$((planned - remove_count - add_count))
+fi
 
 if [[ "$remove_count" -gt 0 ]]; then
   printf '%sAUTO-REMOVE%s %d orphan entries (enabled=false):\n' "$YELLOW" "$RESET" "$remove_count"
@@ -269,14 +387,12 @@ if [[ "$rename_count" -gt 0 ]]; then
   echo
 fi
 
-if [[ "$remove_count" -eq 0 && "$add_count" -eq 0 && "$manual_count" -eq 0 && "$rename_count" -eq 0 ]]; then
-  # "Nothing found" and "nothing looked at" are different statements, and stderr
-  # is routinely discarded, so the distinction is made here on stdout too.
-  if [[ "$NOTHING_AUDITED" -eq 1 ]]; then
-    printf '%sNo marketplace was audited, so there is nothing to report.%s\n' "$YELLOW" "$RESET"
-  else
-    printf '%sNo drift detected, nothing to do.%s\n' "$GREEN" "$RESET"
-  fi
+if [[ "$filtered_count" -gt 0 ]]; then
+  printf '%sFILTERED%s %d plan entries no longer match the settings file\n\n' "$YELLOW" "$RESET" "$filtered_count"
+fi
+
+if [[ "$remove_count" -eq 0 && "$add_count" -eq 0 ]]; then
+  printf '%sNothing to apply%s (no pending removal or addition).\n' "$YELLOW" "$RESET"
   exit 0
 fi
 
@@ -285,11 +401,6 @@ fi
 if [[ "$MODE" != "apply" ]]; then
   printf '%sDry-run only.%s Re-run with %s--yes%s to apply auto-fixes.\n' \
     "$YELLOW" "$RESET" "$CYAN" "$RESET"
-  exit 0
-fi
-
-if [[ "$remove_count" -eq 0 && "$add_count" -eq 0 ]]; then
-  printf '%sNothing to apply%s (manual review items only).\n' "$YELLOW" "$RESET"
   exit 0
 fi
 
@@ -381,7 +492,7 @@ fi
 if ! jq --argjson rm "$remove_json" --argjson add "$add_json" '
   reduce $rm[] as $k (.; del(.enabledPlugins[$k])) |
   reduce $add[] as $k (.; .enabledPlugins[$k] = false)
-' "$SETTINGS" >"$TMP_SETTINGS"; then
+' "$SNAPSHOT" >"$TMP_SETTINGS"; then
   echo "ERROR: jq filter failed — settings unchanged" >&2
   exit 2
 fi
@@ -419,8 +530,8 @@ fi
 # document is normalized back to the style the original carried. `tr`, not
 # grep, because Git Bash grep never matches a carriage return; arithmetic
 # comparison, never string equality, because BSD `wc -c` pads with spaces.
-cr=$(tr -dc '\r' <"$SETTINGS" | wc -c) || cr=""
-lf=$(tr -dc '\n' <"$SETTINGS" | wc -c) || lf=""
+cr=$(tr -dc '\r' <"$SNAPSHOT" | wc -c) || cr=""
+lf=$(tr -dc '\n' <"$SNAPSHOT" | wc -c) || lf=""
 if [[ -z "$cr" || -z "$lf" ]]; then
   echo "ERROR: cannot measure the settings file's line endings, settings unchanged" >&2
   exit 2
@@ -458,10 +569,10 @@ if ! jq -e 'type == "object"' "$TMP_EOL" >/dev/null 2>&1; then
 fi
 
 # The last guard on the class, and the one that does not depend on predicting
-# which step failed: at least one removal or addition is pending by now, so a
-# stage identical to the current file means the edit never reached it.
-if cmp -s "$SETTINGS" "$TMP_EOL"; then
-  echo "ERROR: the staged replacement is identical to the current settings file, so the edit did not reach it; settings unchanged" >&2
+# which step failed: the filter left only entries that change the snapshot, so
+# a stage identical to it means the edit never reached the stage. Defensive.
+if cmp -s "$SNAPSHOT" "$TMP_EOL"; then
+  echo "ERROR: the staged replacement is identical to the settings file as read for the plan, so the edit did not reach it; settings unchanged" >&2
   exit 2
 fi
 
@@ -469,6 +580,15 @@ fi
 # operator gets is the one they had, edited.
 if [[ "$SETTINGS_WAS_WRITABLE" -eq 0 ]] && ! chmod u-w "$TMP_EOL"; then
   echo "ERROR: cannot restore the read-only mode on the staged replacement, settings unchanged: $TMP_EOL" >&2
+  exit 2
+fi
+
+# The plan, the edit and the backup all describe the snapshot. A settings file
+# that no longer matches it was changed by another writer after the plan was
+# computed, and replacing it would discard that change. This is the last point
+# before anything is written; the window from here to the replace stays open.
+if ! cmp -s "$SNAPSHOT" "$SETTINGS"; then
+  echo "ERROR: $SETTINGS changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup written" >&2
   exit 2
 fi
 
@@ -499,7 +619,7 @@ BACKUP="$SETTINGS.$STAMP.bak"
 if ! (
   set -C
   umask 077
-  cat "$SETTINGS" >"$BACKUP"
+  cat "$SNAPSHOT" >"$BACKUP"
 ) 2>/dev/null; then
   echo "ERROR: cannot write the backup, settings unchanged: $BACKUP" >&2
   echo "The path already exists, is a symlink, or is not writable. A second apply within the same second hits this." >&2
