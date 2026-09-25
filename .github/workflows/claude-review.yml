@@ -3,87 +3,45 @@ name: claude-review
 # Automated PR code review via the ci-workflows reusable workflow. The caller
 # owns the triggers + GITHUB_TOKEN permission grant (a called workflow can only
 # downgrade them, never elevate); the reusable workflow owns the action pin and
-# the secret-handling safety model.
+# the secret-handling safety model. Fork PRs and bot actors are not reviewed.
+# Requires `claude-code-plugins` in the CLAUDE_CODE_OAUTH_TOKEN org secret's
+# selected-repositories scope. Public repo: hosted default runner.
 #
-# Fork PRs receive no secrets and a read-only token, so they are simply not
-# reviewed by design (no token-exfiltration surface). Requires `claude-code-plugins` to be
-# in the CLAUDE_CODE_OAUTH_TOKEN org secret's selected-repositories scope.
-# Public repo: runs on the reusable's hosted default runner.
+# EVERY PUSH IS REVIEWED; DRAFTS ARE NOT (ADR 0038). `synchronize` lands the
+# review on the head that merges, and on a pull request that conflicted with
+# main when it opened (GitHub runs no pull_request workflow while it
+# conflicts). A newer push cancels the older run.
 #
-# EVERY PUSH IS REVIEWED; DRAFTS ARE NOT (ADR 0038). `synchronize` is what
-# makes the review land on the head that merges, and on a pull request that
-# conflicted with main when it opened: GitHub runs no pull_request workflow
-# while a pull request conflicts, so the push that resolves the conflict is
-# the first event this lane can see. A newer push cancels the older run (the
-# workflow-level group below). `workflow_dispatch` with the pull request's
-# number re-reviews on demand.
-#
-# The `review / claude-review-status` check this lane publishes goes red and
-# names the cause when the review fails (ci-workflows#619). It is advisory:
-# never add it, or any check in this file, to required status checks.
+# The `review / claude-review-status` check goes red and names the cause when
+# the review fails (ci-workflows#619). It is advisory: never add it, or any
+# check in this file, to required status checks.
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-  workflow_dispatch:
-    inputs:
-      pr-number:
-        description: Pull request number to re-review
-        required: true
-        type: string
 
 permissions:
   contents: read
 
-# Per-PR supersede: a newer push cancels the older run so per-push reviews do
-# not stack against the shared subscription seat. Distinct from the job-level
-# queue group below (`queue:` cannot share a block with `cancel-in-progress`)
-# and from the reusable's per-(PR, head) inner group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr-number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   review:
-    # A draft is work in progress and does not spend a review; the
-    # ready_for_review trigger above is what delivers one when it is ready. The
-    # event_name clause is load-bearing: a dispatched run has no
-    # `github.event.pull_request` at all, so a bare draft comparison would
-    # never run the review the operator asked for.
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review + track_progress tracking comment
       id-token: write        # OIDC — mints the Claude GitHub App token
-    # Repo-wide review queue: serializes reviews so parallel PRs queue for the
-    # shared Claude seat instead of contending for it. Job-scoped and repo-wide
-    # by design, and deliberately distinct from the reusable's own inner group
-    # (keyed per PR and head SHA) — a caller group sharing that name would
-    # deadlock the call against itself. `queue: max` admits no
-    # `cancel-in-progress`, which the two cannot be combined with anyway
+    # Repo-wide review queue: parallel PRs queue for the shared Claude seat
+    # instead of contending for it. `queue: max` admits no `cancel-in-progress`
     # (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency).
     concurrency:
       group: claude-review-${{ github.repository }}
       queue: max
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@39390344a0fef0671d3e5a7546dd03af7a36b8f5 # v0.28.0
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@6567856ef6070a4a1c9c2691f610278a7f2de153 # v0.29.0
     with:
       runner: ubuntu-24.04
-      # Empty on a pull_request event, where the payload supplies the number
-      # and head SHA; on a dispatch it is the number the operator typed, and
-      # the reusable resolves the live head from the API.
-      pr-number: ${{ inputs.pr-number }}
-      # Below the reusable's own 30-minute default, which is sized for two
-      # 11-minute attempts plus backoff. This lane is advisory and its runs are
-      # the largest single line in this repository's Actions bill, so it is
-      # capped: a review that has not landed in fifteen minutes is retired
-      # rather than paid for.
-      timeout-minutes: 15
-      # No per-PR cap: every push is reviewed (ADR 0038). The reusable's
-      # default of 5 would stop reviewing a busy pull request silently.
-      max-reviews-per-pr: 0
-      # Publishes `review / claude-review-status`, red with the failure class
-      # when the review fails (ci-workflows#619). Advisory, never required.
-      status-check: true
-    # Pass only the one named secret (least privilege) rather than `secrets:
-    # inherit`, which would forward every parent secret to the called workflow.
+    # One named secret (least privilege), never `secrets: inherit`.
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
