@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
-# this hands off to the table-driven Node graded-fixture suite. SKIPs (exit 0)
-# when Node is unavailable, matching the optional-tool skip idiom the other
-# plugin contract tests use.
+# this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

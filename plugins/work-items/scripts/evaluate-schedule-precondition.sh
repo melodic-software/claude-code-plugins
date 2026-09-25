@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # evaluate-schedule-precondition.sh — evaluate a recurring schedule row precondition.
 #
-# Usage:
-#   evaluate-schedule-precondition.sh <schedule.json> <item-id> [--operator-confirmed]
-#
 # Prints: met | unmet | needs-confirmation | no-precondition
 # Exit: 0 met/no-precondition; 1 unmet; 2 needs-confirmation
 
@@ -57,11 +54,8 @@ requires_confirm="$(jq -r '.precondition.requires_operator_confirmation // false
 case "$precond_id" in
 frontier-release-since-last-checked)
   if [[ "$requires_confirm" == "true" && "$OPERATOR_CONFIRMED" -eq 0 ]]; then
-    # The printf wrapper is load-bearing, not redundant: command substitution
-    # collapses trailing newlines to one, so a prompt authored with a trailing
-    # blank line prints the same single separator as any other. Emitting jq's
-    # output directly passes those newlines through and puts a blank line before
-    # the marker below. Measured over 7 prompt shapes, 2 diverge.
+    # Keep the printf wrapper: command substitution strips the prompt's trailing
+    # newlines, so a blank line never lands before the marker below.
     printf '%s\n' "$(jq -r '.precondition.prompt // "precondition unmet"' <<<"$row")"
     echo "needs-confirmation"
     exit 2

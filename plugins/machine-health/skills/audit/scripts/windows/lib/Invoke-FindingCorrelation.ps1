@@ -73,7 +73,6 @@ function Invoke-FindingCorrelation {
         $match = & $rule.Apply $CheckResults
         if ($null -eq $match) { continue }
 
-        # Upgrade severity only (never downgrade).
         if ($match.upgrade_primary_to) {
             $currentSev = $match.target.severity
             $newSev = $match.upgrade_primary_to
@@ -82,7 +81,6 @@ function Invoke-FindingCorrelation {
             }
         }
 
-        # Cross-link notes: additive.
         if ($match.note_primary) {
             $existing = $match.target.notes
             $match.target.notes = $existing ? "$existing; $($match.note_primary)" : $match.note_primary

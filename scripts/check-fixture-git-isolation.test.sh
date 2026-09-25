@@ -9,7 +9,7 @@
 set -uo pipefail
 
 # This suite builds git fixtures itself, so it clears the inherited git
-# environment for the same reason the gate exists (#2840): under an exported
+# environment for the same reason the gate exists: under an exported
 # ABSOLUTE GIT_DIR, `git init` and `git config` follow repository discovery
 # rather than `-C` or the working directory, and the fixture identity lands in
 # the caller's repository. GIT_CONFIG is cleared as a distinct path — it
@@ -105,7 +105,7 @@ else
   fail "self-clearing suite: rc=$rc out='$out'"
 fi
 
-# --- clearing only the discovery pair is NOT enough (#2889) ------------------
+# --- clearing only the discovery pair is NOT enough ------------------
 # GIT_CONFIG is a second leak path (git-config ENVIRONMENT: used as --file),
 # so a suite that only unsets GIT_DIR and GIT_WORK_TREE still writes through
 # an inherited GIT_CONFIG.
@@ -380,10 +380,9 @@ else
 fi
 
 # --- PYTHON: a fixture-building suite with no isolation is a VIOLATION -------
-# The file that caused the #2827 incident is Python, so Python coverage is the
-# load-bearing half of this gate rather than an extension of it. The argv here
-# is the exact shape of that incident: a list-literal `git -C <dir> config
-# user.email`, which no shell-word pattern matches.
+# Python suites leak the same way, so Python coverage is a load-bearing half of
+# this gate rather than an extension of it. The argv here is a list-literal
+# `git -C <dir> config user.email`, which no shell-word pattern matches.
 new_repo
 r="$REPO"
 cat >"$r/test_leaky.py" <<'PY'
@@ -680,7 +679,7 @@ else
   fail "shell commented unset: rc=$rc out='$out'"
 fi
 
-# --- SHELL: a backslash-continued git command is still SEEN (#2893) ----------
+# --- SHELL: a backslash-continued git command is still SEEN ----------
 # A per-physical-line scan never has `git` and `init` on one line here, so the
 # suite would not merely get the wrong verdict — it would be invisible to the
 # gate. The Python arm already joined on open brackets; the shell arm now
@@ -705,7 +704,7 @@ else
   fail "shell continued fixture: rc=$rc out='$out'"
 fi
 
-# --- SHELL: a backslash-continued unset of all three PASSES (#2893) ----------
+# --- SHELL: a backslash-continued unset of all three PASSES ----------
 new_repo
 r="$REPO"
 cat >"$r/continued-unset.test.sh" <<'SH'
@@ -726,7 +725,7 @@ else
   fail "shell continued unset: rc=$rc out='$out'"
 fi
 
-# --- SHELL: env -u naming all three is a clear (#2893) -----------------------
+# --- SHELL: env -u naming all three is a clear -----------------------
 # Use `$d` rather than `"$(mktemp -d)"` as the -C argument: the latter embeds a
 # space, and the fixture matcher (option-and-argument pairs) would then miss
 # `init` — the suite would not be a fixture at all, so both this case and the
@@ -821,7 +820,7 @@ else
   fail "shell env -u discovery-only: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a module-level constant iterated into pop PASSES (#2893) --------
+# --- PYTHON: a module-level constant iterated into pop PASSES --------
 new_repo
 r="$REPO"
 cat >"$r/test_const_clear.py" <<'PY'
@@ -948,7 +947,7 @@ else
   fail "scope mention: rc=$rc out='$out'"
 fi
 
-# --- HEREDOC: a body is DATA, so it cannot grant credit (#3109) --------------
+# --- HEREDOC: a body is DATA, so it cannot grant credit --------------
 # Every case below asserts an EXACT rc, not merely a non-zero one: a
 # violation is rc 1 and a usage error is rc 2, so `rc != 0` would pass just as
 # happily if the gate crashed on its own arguments and never judged the file.

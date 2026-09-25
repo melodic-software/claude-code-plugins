@@ -391,9 +391,8 @@ else
 fi
 
 # --- Case 8: the guardrails bypass guard allows the documented invocation ---
-# The point of the change: the command a coach runs carries no redirect and no
-# staged move, so block-hook-bypass.sh lets it through, while the recipe it
-# replaces is still refused.
+# The command a coach runs carries no redirect and no staged move, so
+# block-hook-bypass.sh lets it through, while the write-then-mv recipe is refused.
 
 GUARDRAILS_DIR="$SCRIPT_DIR/../../../../guardrails"
 HOOK="$GUARDRAILS_DIR/hooks/block-hook-bypass.sh"

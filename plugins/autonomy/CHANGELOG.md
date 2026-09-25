@@ -3,11 +3,17 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.23] - 2026-09-25
+## [0.23.24] - 2026-09-25
 
 ### Fixed
 
 - `lane-stop-gate.sh` and `lane-stop-gate-lib.sh`: the user `settings.json` opt-in is found on Windows. Claude Code passes `CLAUDE_PLUGIN_ROOT` with `\` separators there, so the plugin root never matched the `plugins/cache/<marketplace>/<name>/<version>` anchor and only the environment and managed settings could enable the gate or arm a lane. A hook path with a drive letter now has `\` folded to `/` before the anchor is matched, by parameter expansion with no added process. POSIX paths are unchanged: a `\` there is a filename byte.
+
+## [0.23.23] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
 
 ## [0.23.22] - 2026-09-24
 

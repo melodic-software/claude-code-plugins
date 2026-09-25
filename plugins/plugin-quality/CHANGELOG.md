@@ -5,6 +5,13 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.23] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
 ## [0.7.22] - 2026-09-21
 
 ### Changed

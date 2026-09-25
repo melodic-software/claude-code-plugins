@@ -1398,7 +1398,7 @@ emit_marketplace_block() {
   jq_to checkout -r '.catalog_source // ""' <<<"$extras"
   source_checkout checkout "$checkout"
   monitor_rows monitors "$mp"
-  # The two Action-needed sources the report used to take from CLI scrollback.
+  # The two Action-needed sources.
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
   # A field that could not be computed becomes an empty object, never an empty

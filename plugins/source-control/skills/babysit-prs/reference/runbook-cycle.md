@@ -28,7 +28,7 @@ instead of this runbook.
    `babysit_intended_write_identity` is set and not a literal unexpanded token, append
    `--intended-write-identity <intended-write-identity>` so a wrong-self-login write surfaces as
    attribution drift; append review-trigger flags only when configured; `--pr owner/repo#N` (single PR)
-   or `--repo <owner/repo-csv>` (sharded); drop `--author` only to widen, since self-suppression no longer rides on it).
+   or `--repo <owner/repo-csv>` (sharded); drop `--author` only to widen, since self-suppression does not depend on it).
    Capture the prior cycle's `generated_at` per [cadence.md](cadence.md) before writing new state.
 
 4. Decide per PR from the snapshot's `classification`, `needs_worker`, `recommended_cadence`, and

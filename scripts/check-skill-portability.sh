@@ -16,9 +16,9 @@
 # and rollout stages one token-class at a time. HOW a legitimate hit is excused
 # is this script's job.
 #
-# Scope declaration, resolved per the ratified declaration-first plan: no new
-# frontmatter field. A skill is agnostic by default — the Design boundary already
-# binds every plugin — so the gated set is "the skill files a change touches",
+# Scope declaration: no new frontmatter field. A skill is agnostic by default
+# (the Design boundary already binds every plugin), so the gated set is "the
+# skill files a change touches",
 # exactly as the skill-quality gate scopes itself. A skill with an inherent,
 # declared narrower scope (a genuinely forge- or ecosystem-locked capability
 # under a neutral name) opts out with a reviewer-visible comment, reusing the
@@ -77,7 +77,7 @@ cd "$SCRIPT_DIR/.." || exit 2
 # disambiguation that keeps a path shaped like `tokens=custom.txt` from parsing
 # as a variable assignment is applied below, to the active-pattern file that is
 # what actually reaches awk. Both live in the library shared with the twin
-# scanner, which is what stops the two diverging again.
+# scanner, so the two cannot diverge.
 TOKENS_SRC="${SKILL_PORTABILITY_TOKENS:-scripts/skill-portability-tokens.txt}"
 if ! token_scan::require_token_file "$TOKENS_SRC"; then
   exit 2
@@ -90,10 +90,7 @@ fi
 #
 # The empty-set guard is the point of doing it here. A token list that loads no
 # active patterns makes every file report clean while awk exits 0 — the gate
-# passing while gating nothing, the #1513 shape. check-shell-portability.sh has
-# refused that since #1513; this scanner did NOT, and an all-comments list was
-# measured returning exit 0 with a violation present. Same twin asymmetry, third
-# instance.
+# passing while gating nothing, the #1513 shape.
 token_patterns=()
 read_list::into token_patterns "$TOKENS_SRC" --comments leading || exit 2
 if ((${#token_patterns[@]} == 0)); then
@@ -198,7 +195,7 @@ scan_file() {
   # awk operand disambiguation: a bare relative operand shaped like
   # identifier=value (e.g. a top-level file literally named FOO=bar.md) is
   # parsed by awk as a command-line variable assignment, not opened as a
-  # file — silently dropping it from the scan. See #1513, #1531; the rule now
+  # file — silently dropping it from the scan. See #1513, #1531; the rule
   # lives in scripts/lib/token-scan.sh, shared with the twin scanner.
   local awk_file
   awk_file="$(token_scan::awk_operand "$file")"

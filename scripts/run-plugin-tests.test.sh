@@ -4,7 +4,7 @@
 #
 # Fixtures are throwaway suites under a mktemp root handed to the runner with
 # --root, so the repository's own corpus is never discovered here. No git state
-# is created (claude-code-plugins#2839).
+# is created.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -253,8 +253,8 @@ assert_output_lacks "nothing ran before the stale guard fired" "=== plugins/"
 
 # --- capture keys survive colliding path shapes -------------------------------
 #
-# The capture used to be keyed on the suite path with slashes rewritten to a
-# double underscore, which collides the moment a path segment already contains
+# A capture keyed on the suite path with slashes rewritten to a double
+# underscore collides the moment a path segment already contains
 # one: plugins/a__b/c.test.sh and plugins/a/b__c.test.sh flatten to the same
 # name. Two colliding suites in one parallel batch then overwrite each other's
 # output and exit status, so one real failure can be reported as a pass. Both

@@ -41,10 +41,6 @@ const HLS_FIELDS = [
   "hasHlsJs",
 ];
 
-// ---------------------------------------------------------------------------
-// Module-level state
-// ---------------------------------------------------------------------------
-
 /**
  * Captured HLS master URL and subtitle manifest, keyed by Page.
  *
@@ -340,10 +336,6 @@ async function storeSubtitleManifest(hotmartFrame, hlsData, page) {
   return segCount;
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 /**
  * Install page.on("request") and page.on("response") interceptors for
  * HLS master URL and subtitle manifest capture.
@@ -605,9 +597,7 @@ export async function hasHotmartPlayer(page, videoPlayerSelector = DEFAULT_VIDEO
   return hasPlayerElement(page, videoPlayerSelector);
 }
 
-// ---------------------------------------------------------------------------
 // Test helpers (exported for unit tests only)
-// ---------------------------------------------------------------------------
 
 /**
  * @param {import('playwright').Page} page

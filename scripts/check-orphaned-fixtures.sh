@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # Detect eval fixtures that no grader consumes: a file under a skill's
 # evals/fixtures/ that no eval case references and no test asserts on. An
-# ungraded fixture is dead weight that reads as tested — the "looks-tested"
-# trap a merged-PR audit caught (autonomy shipped a large security-binding
-# fixture corpus with no eval or test consuming any of it).
+# ungraded fixture is dead weight that reads as tested.
 #
 #   scripts/check-orphaned-fixtures.sh          discover: list every fixture
 #                                                under **/evals/fixtures/ and
@@ -14,8 +12,7 @@
 #
 # A fixture at <skill>/evals/fixtures/<sub> is CONSUMED when any of:
 #   * its skill-relative path (evals/fixtures/<sub>) appears in the sibling
-#     grader <skill>/evals/evals.json — an eval `files[]` entry, the issue's
-#     primary consumption path;
+#     grader <skill>/evals/evals.json — an eval `files[]` entry;
 #   * its basename appears as a whole token in that evals.json (a files[] form
 #     that spells the path differently still names the file);
 #   * its basename appears as a whole token in any *.test.* file in the plugin
@@ -90,12 +87,9 @@ plugin_root_of_to() {
 }
 
 # ere_escape_to <var> <string>
-# Write the ERE-escaped form into <var> in THIS shell. The previous
-# `esc=$(printf '%s' "$base" | sed -E 's/[][\\.|$(){}?+*^]/\\&/g')` paid a
-# printf+sed pipeline per fixture (380 on this tree). GNU Bash runs command
+# Write the ERE-escaped form into <var> in THIS shell. GNU Bash runs command
 # substitution in a subshell even for builtins (Command Substitution, Bash
-# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution). Same
-# metacharacter class as that sed.
+# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution).
 ere_escape_to() {
   local __s="$2" __out="" __c
   local -i __i
@@ -116,8 +110,7 @@ ere_escape_to() {
   printf -v "$1" '%s' "$__out"
 }
 
-# jq files[] extract, once per evals.json. autonomy/setup alone has 238
-# fixtures sharing one grader; a per-fixture jq was 378 execs for 26 files.
+# jq files[] extract, once per evals.json: many fixtures share one grader.
 declare -A EVAL_FILES_VALUES
 eval_files_values_to() {
   local __dest="$1" __path="$2"
@@ -180,7 +173,7 @@ consumed() {
   # the OWNING skill, so same-named fixtures in sibling skills are never
   # conflated. A test elsewhere in the plugin must name the fixture by its
   # plugin-relative path (fixed string), which is unambiguous across skills.
-  # ALL_TEST_FILES is indexed once below — not `find` per fixture (#3488 class).
+  # ALL_TEST_FILES is indexed once below — not `find` per fixture.
   plugin_root_of_to plugin "$fixture"
   plugin_rel="${fixture#"$plugin"/}"
   skill_tests=()
@@ -204,12 +197,9 @@ consumed() {
 }
 
 # Collect every fixture under a **/evals/fixtures/ directory, sorted. One find
-# of every plugin `*.test.*` indexes the test-file graders: consumed() used to
-# `find` the owning skill and then the plugin for each of ~380 fixtures
-# (253 find execs on this tree). Same leftover-process class #3488 removed
-# from the shell-portability scan (979s → 34s) — GNU find is a process;
-# Cygwin's fork is a non-copy-on-write Win32 CreateProcess (Cygwin User's
-# Guide, Process Creation).
+# of every plugin `*.test.*` indexes the test-file graders, rather than a find
+# per fixture: each find is a process, and Cygwin's fork is a non-copy-on-write
+# Win32 CreateProcess (Cygwin User's Guide, Process Creation).
 mapfile -t -d '' fixtures < <(find plugins -type f -path '*/evals/fixtures/*' -print0 2>/dev/null | sort -z)
 mapfile -t -d '' ALL_TEST_FILES < <(find plugins -type f -name '*.test.*' -print0 2>/dev/null)
 

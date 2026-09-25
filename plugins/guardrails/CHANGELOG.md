@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.7] - 2026-09-25
+
+### Fixed
+
+- **`secret-pattern-detection` now scans `NotebookEdit` cell source.** It read the target from `tool_input.file_path`, which `NotebookEdit` never sends (it sends `notebook_path`), so every `NotebookEdit` passed unscanned. The notebook path now gets the same project scope, allowlist, and temp-tree decline as a `Write`. The test helper's `NotebookEdit` payload carried `file_path`, which hid the gap; the suite now also builds the real shape. `hardcoded-path-check` has the same omission and is not changed here.
+
 ## [0.36.5] - 2026-09-24
 
 ### Fixed

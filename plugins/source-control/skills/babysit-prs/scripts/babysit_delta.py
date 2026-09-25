@@ -1070,8 +1070,6 @@ def classify_pr(
     # a blocker/check/merge-state/human-review delta just resolved into this
     # same clean state (that resolution is exactly what makes
     # `pr_clean_ready_for_direct_gate` newly true this cycle).
-    # `worker_checkin_head_unconfirmed` was already suppressed here before
-    # this fan-out was split into two groups; it stays.
     suppressible_delta = bool(
         new_to_state
         or head_sha_changed

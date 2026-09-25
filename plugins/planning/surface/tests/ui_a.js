@@ -19,7 +19,7 @@ async page => {
   ok("independent group not locked", !(await page.$('.sec[data-key="g:g9"] .lock')));
   ok("needs connector on N2", /needs N1/.test(await page.textContent('.qbtn[data-q="N2"]')));
 
-  // history label fix
+  // history labels
   await page.click('.qbtn[data-q="W1"]').catch(async () => { await page.click('.sec[data-key="g:wrap"] .sec-h'); await page.click('.qbtn[data-q="W1"]'); });
   await page.waitForTimeout(200);
   const hist = await page.$$eval("#thread .hl", els => els.map(e => e.innerText.replace(/\s+/g, " ").trim()));

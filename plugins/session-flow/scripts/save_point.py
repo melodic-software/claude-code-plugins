@@ -626,9 +626,8 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
                 f"Resume prompt: 'Next:' has {len(headlines)} headline lines (max {NEXT_MAX})"
             )
         for line in headlines:
-            # Headlines are bare lines. A bullet reads as a list in the pasted
-            # prompt and the contract refuses it, but nothing applied
-            # BULLET_RE here, so a bulleted headline validated and was emitted.
+            # Headlines are bare lines: a bullet reads as a list in the pasted
+            # prompt, and the contract refuses it.
             if BULLET_RE.match(line):
                 f.fail(
                     f"Resume prompt: 'Next:' headline must not be a bullet (got {line!r})"
@@ -879,11 +878,8 @@ def validate_doc(
                 f"headings: extra section(s) after '## Resume prompt': {titles[len(SECTIONS_17) :]}"
             )
 
-    # Every section is always present AND says something: a section with
-    # nothing to report reads 'None.' plus a half-line of reason, so a cold
-    # reader can tell "nothing to report" from "the author forgot"
-    # (reference/structure.md). The heading walk above only checks names and
-    # order, so an empty body used to validate clean.
+    # A section with nothing to report reads 'None.' plus a half-line of reason,
+    # so a cold reader can tell it from a forgotten one (reference/structure.md).
     for title, start, end in doc.sections:
         if title in SECTIONS_17 and not any(
             line.strip() for line in doc.lines[start + 1 : end]

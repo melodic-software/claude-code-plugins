@@ -189,10 +189,8 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
     }
 
     It 'emits UNKNOWN when Get-Service returns zero entries (catastrophic SCM/RPC failure)' {
-        # A healthy SCM always exposes hundreds of services; a
-        # zero-result return is itself an UNKNOWN signal. If the
-        # count-zero check reverts to bare SilentlyContinue, this
-        # test fires.
+        # A healthy SCM always exposes hundreds of services, so zero returned is an UNKNOWN
+        # signal; this fires if the count-zero check reverts to bare SilentlyContinue.
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
@@ -206,11 +204,8 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
     }
 
     It 'completes enumeration when Get-Service returns partial results (WaaSMedicSvc ACL class)' {
-        # Documents the -ErrorAction SilentlyContinue contract:
-        # services that deny query (e.g. WaaSMedicSvc with non-SYSTEM
-        # caller) are silently skipped by the cmdlet, so a populated
-        # but partial result must still produce a structured WARN/OK
-        # outcome -- not UNKNOWN.
+        # Services that deny query (WaaSMedicSvc to non-SYSTEM) are silently skipped, so a
+        # populated but partial result must still produce WARN/OK, not UNKNOWN.
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }

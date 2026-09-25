@@ -5,14 +5,12 @@
 #
 #   scripts/check-plugin-manifest-presence.sh   run the gate (no flags)
 #
-# Why: #1547 -- a routine `git merge origin/main` silently dropped
-# plugins/guardrails/.claude-plugin/plugin.json for ~14 minutes on a branch
-# while .claude-plugin/marketplace.json still pointed the "guardrails" catalog
-# key at that directory. No conflict markers, nothing to alert the author; it
-# was caught by an AI reviewer reading the diff, not by CI. Consequences of a
-# missing manifest are otherwise all deferred to install time: a fresh
-# install or marketplace update cannot load the plugin, and the version the
-# CHANGELOG claims is never published.
+# Why: #1547 -- a routine merge can silently drop a plugin's
+# .claude-plugin/plugin.json, with no conflict markers, while
+# .claude-plugin/marketplace.json still points the catalog key at that
+# directory. Consequences of a missing manifest are otherwise all deferred to
+# install time: a fresh install or marketplace update cannot load the plugin,
+# and the version the CHANGELOG claims is never published.
 #
 # Not covered by scripts/check-manifest-duplicate-keys.py (#1506/#1498): that
 # validates the CONTENTS of a manifest that exists. This is about one that
@@ -139,9 +137,7 @@ while IFS=$'\t' read -r name source; do
 done <<<"$entries"
 
 # Inverse check: every plugins/*/ directory must be named by some catalog
-# entry's source. Lower severity than the forward check (an orphaned
-# directory is dead weight, not a broken install) but the same class of
-# catalog/filesystem drift, so it is checked here too.
+# entry's source.
 if [[ -d "$PLUGINS_ROOT" ]]; then
   for plugin_dir in "$PLUGINS_ROOT"/*/; do
     [[ -d "$plugin_dir" ]] || continue

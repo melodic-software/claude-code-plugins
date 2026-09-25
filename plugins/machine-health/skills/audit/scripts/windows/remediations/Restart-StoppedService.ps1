@@ -49,9 +49,8 @@ function Get-ServiceState {
 }
 
 function Get-PropertyValue {
-    # Strict-mode-safe property accessor: returns $null when the property
-    # is absent instead of throwing. Works for PSCustomObject, hashtable,
-    # and ordered dictionary values returned by ConvertFrom-Json.
+    # Returns $null for an absent property instead of throwing under StrictMode;
+    # works for PSCustomObject, hashtable and ordered dictionary values.
     [CmdletBinding()]
     param(
         $InputObject,
@@ -75,10 +74,8 @@ function Resolve-FindingTarget {
 
     if ($null -eq $FindingData) { return @() }
 
-    # Any badly-shaped finding -- unparsable JSON, or valid JSON missing
-    # .detail / .stopped_auto_services -- yields an empty target list rather
-    # than crashing. Property reads go through Get-PropertyValue because under
-    # Set-StrictMode 3.0 a bare `$obj.detail` on an absent property throws.
+    # A badly shaped finding yields an empty target list, never a crash; read properties
+    # through Get-PropertyValue, since StrictMode 3.0 throws on an absent one.
     $obj = $FindingData
     if ($FindingData -is [string]) {
         try {

@@ -8,14 +8,9 @@
 # caught the drop. CI stays green because the reverting squash deletes those
 # tests in the same commit.
 #
-# SCOPE — the stale-BASE class only, and only that class. The
-# claude-code-plugins#2691 audit surfaced two distinct classes; this gate covers
-# the one where the merge-base is genuinely behind the target tip. It does NOT
-# cover the 2026-08-15 incidents (#2633, #2639, #2641), which were stale in
-# CONTENT while up to date in HISTORY: `git merge-base --is-ancestor f603880d
-# refs/pull/2641/head` is true, yet that tree carried none of #2639's work. Run
-# against those exact branches this check exits 0 ("fresh"). That class belongs
-# to scripts/check-silent-revert.sh. The two cover disjoint classes and neither
+# SCOPE: the stale-BASE class only, where the merge-base is genuinely behind
+# the target tip. A branch stale in CONTENT while up to date in HISTORY exits 0
+# here ("fresh"); that class belongs to scripts/check-silent-revert.sh. The two cover disjoint classes and neither
 # subsumes the other, so a green run here is not evidence about the other class.
 #
 # Agreement is established by comparing path lists only:

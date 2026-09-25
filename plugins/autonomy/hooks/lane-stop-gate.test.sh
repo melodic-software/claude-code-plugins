@@ -1216,7 +1216,7 @@ OUT="$(cd "$STAGED_DIR/.." && build_input Stop "no token" false |
 if is_block "$OUT"; then ok "relative invocation: the pre-filter resolves the anchor and the lane blocks"; else fail "relative invocation lost the enabled lane's block: $OUT"; fi
 
 # A drive path spelled with `\`, as Claude Code passes CLAUDE_PLUGIN_ROOT on
-# Windows, must still resolve the anchor (#4420). On Windows the staged install
+# Windows, must still resolve the anchor. On Windows the staged install
 # itself is spelled that way. On a POSIX host a drive path resolves against the
 # cwd, so `C:` links to the staged root and the backslashed spelling, a single
 # filename there, links to the version directory beneath it.

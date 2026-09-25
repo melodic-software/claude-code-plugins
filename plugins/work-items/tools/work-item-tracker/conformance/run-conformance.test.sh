@@ -16,9 +16,8 @@ assert_eq "no --binding → usage exit 2" "2" "$?"
 bash "$S" --binding no-such-binding >/dev/null 2>&1
 assert_eq "unknown binding → exit 2" "2" "$?"
 
-# The not-found diagnostic names the search, not just one path — a consumer whose
-# generated binding did not land where the runner looks needs to see that both
-# roots were tried.
+# The not-found diagnostic names the search, not just one path, so a consumer sees
+# both roots were tried.
 err="$(bash "$S" --binding no-such-binding 2>&1 >/dev/null)"
 assert_contains "unknown binding names the search order" "$err" "consumer-local then plugin-bundled"
 
@@ -35,17 +34,14 @@ assert_contains "traversing name rejected as invalid, not as not-found" \
   "$traverse_err" "invalid binding name"
 
 # --- WIT_CONFORMANCE_BINDINGS_DIR override ---
-# An explicit bindings root replaces the search outright (the sibling of
-# WIT_ADAPTERS_DIR). Proven by pointing it at a temp root holding a marker
-# binding whose cb_setup aborts the run with a recognizable code: reaching it at
-# all proves the override root was the one sourced.
+# An explicit bindings root replaces the search outright; a marker binding in it
+# proves it was the root sourced.
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 mkdir -p "$TMP_ROOT/bindings"
 
 # write_marker_binding <file> <marker> <exit-code>: a stub binding whose cb_setup
-# announces itself on stderr and exits, so reaching it at all proves which bindings
-# root the runner sourced.
+# announces itself on stderr and exits.
 write_marker_binding() {
   printf '# shellcheck shell=bash\ncb_setup() {\n  echo "%s" >&2\n  exit %s\n}\ncb_teardown() { :; }\n' \
     "$2" "$3" >"$1"
@@ -64,10 +60,8 @@ WIT_CONFORMANCE_BINDINGS_DIR="$TMP_ROOT/bindings" bash "$S" --binding local-mark
 assert_eq "override root does not fall back to bundled" "2" "$?"
 
 # --- consumer-local-first resolution ---
-# With no override, a bindings file under <repo root>/tools/work-item-tracker/
-# conformance/bindings wins over the plugin-bundled copy. CLAUDE_PROJECT_DIR is
-# the repo-root anchor wit_project_root reads first, so a temp root stands in for
-# a consuming repo without needing a git fixture.
+# A consumer-local binding wins over the bundled copy. CLAUDE_PROJECT_DIR lets a temp
+# root stand in for a consuming repo without a git fixture.
 CONSUMER_ROOT="$TMP_ROOT/consumer"
 mkdir -p "$CONSUMER_ROOT/tools/work-item-tracker/conformance/bindings"
 write_marker_binding \
@@ -79,9 +73,8 @@ shadow_rc=$?
 assert_contains "consumer-local binding shadows the bundled one" "$shadow_err" "CONSUMER-LOCAL-SHADOW"
 assert_eq "shadowing binding's own exit propagates" "43" "$shadow_rc"
 
-# A consuming repo with no local bindings dir still resolves the bundled set —
-# the fallback leg. Proven by the not-found path naming the BUNDLED directory for
-# a name that exists in neither root.
+# With no local bindings dir the bundled set is the fallback: the not-found path names
+# the BUNDLED directory.
 EMPTY_ROOT="$TMP_ROOT/empty"
 mkdir -p "$EMPTY_ROOT"
 fallback_err="$(CLAUDE_PROJECT_DIR="$EMPTY_ROOT" bash "$S" --binding no-such-binding 2>&1 >/dev/null)"

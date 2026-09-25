@@ -296,9 +296,9 @@ For each security finding:
 
 **Rule: no edit without research.** For each failed check:
 
-1. **Read full failure context (MANDATORY):** the prioritized chain in §3.1 above (annotations → full ZIP → last-resort CLI view). Never broad keyword grep
-2. **Explore (MANDATORY):** read source files, check similar code, review the project's own rules, check `git log`
-3. **Research (MANDATORY, HARD GATE):** research the specific error in the exact framework/version, via your environment's research skill when one exists, otherwise direct doc lookups. Require multi-source consensus (aim for 3 sources). Non-optional
+1. **Read full failure context:** the prioritized chain in §3.1 above (annotations → full ZIP → last-resort CLI view). Never broad keyword grep
+2. **Explore:** read source files, check similar code, review the project's own rules, check `git log`
+3. **Research:** research the specific error in the exact framework/version, via your environment's research skill when one exists, otherwise direct doc lookups. Require multi-source consensus (aim for 3 sources)
 4. **Present the proposed fix with evidence:** error, root cause, proposed fix, sources with URLs, confidence level (HIGH/MEDIUM/LOW). If LOW, escalate. If MEDIUM, present trade-offs
 5. **Implement** (only after 1-4): make the change, re-run the project's build/test/lint gate, commit, push
 6. **Loop restarts:** new push triggers 3.1 again. Track iteration count

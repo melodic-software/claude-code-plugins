@@ -3,14 +3,8 @@
 # Contract tests for generate-adapter.sh — the deterministic half of
 # /work-items:onboard-adapter.
 #
-# The spec-validation cases are the bulk, and deliberately so: this script's job is
-# to REFUSE a spec that would produce a lying manifest or an unguarded credential
-# path, and a refusal that silently stopped working would be invisible from the
-# generated output (which would look fine — it would just be wrong).
-#
-# The last section runs the GENERATED test suite. That is the load-bearing case:
-# it proves the security skeleton this generator emits is not merely present but
-# passing, which is what #2950's second acceptance criterion actually claims.
+# Spec-validation cases are the bulk: a refusal that silently stopped working would
+# be invisible in the generated output, which would look fine and be wrong.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,10 +47,8 @@ BASE_SPEC='{
 # into a FRESH out-root, and echo its exit code. A fresh root per case keeps
 # no-clobber behavior from leaking between cases.
 #
-# gen is called as $(gen ...), so it runs in a subshell and a variable assignment
-# would not survive it. The root is handed back through a file instead, read by
-# last_root — which is why every case that inspects generated files calls that
-# rather than reading a variable gen appeared to set.
+# gen runs in a $(…) subshell, so it hands the root back through a file: read it with
+# last_root, never a variable gen appears to set.
 gen() {
   local spec="$1"
   shift
@@ -107,10 +99,8 @@ assert_eq "missing spec file → usage exit 2" "2" "$?"
 bash "$S" --spec "$S" --nope >/dev/null 2>&1
 assert_eq "unknown argument → usage exit 2" "2" "$?"
 
-# An EMPTY --out-root must be refused, not treated as "not given". Silently falling
-# back to the repo-root default would make a caller whose variable failed to expand
-# generate into the current repository — which is how a stray tools/ tree once
-# appeared at this repo's root.
+# An EMPTY --out-root must be refused, not treated as "not given", or a caller whose
+# variable failed to expand generates into the current repository.
 bash "$S" --spec "$S" --out-root "" >/dev/null 2>&1
 assert_eq "empty --out-root → usage exit 2" "2" "$?"
 bash "$S" --spec "" --out-root "$OUT" >/dev/null 2>&1
@@ -146,11 +136,8 @@ for f in claim.sh renew-lease.sh reclaim.sh link-blocks.sh add-sub-item.sh list-
   fi
 done
 
-# NO generated file may still contain a placeholder. render() walks its key list once,
-# so a value that itself carried an @@…@@ token would never be revisited and would reach
-# the output verbatim — which is exactly how the self-hosted host-pin sentence once
-# shipped reading "@@DISPLAY_NAME@@ is self-hosted". Checked across every generated
-# file and both host postures, because the leak is per-value, not per-template.
+# NO generated file may still contain a placeholder: render() walks its keys once, so an
+# @@…@@ token inside a value leaks verbatim. Checked per value, across both host postures.
 assert_unrendered() {
   local label="$1" dir="$2" binding="$3" leaked=""
   local f
@@ -183,17 +170,13 @@ assert_eq "manifest keeps a declared-true verb" "true" "$(jq -r '.verbs["get-ite
 assert_eq "manifest keeps a declared-false verb" "false" "$(jq -r '.verbs.claim' "$A/capabilities.json")"
 assert_eq "manifest carries limits" "1000" "$(jq -r '.limits.list_items_max' "$A/capabilities.json")"
 
-# The provider name reaches the generated code in three spellings, and the
-# global/env one is UPPER-cased. A derivation that skipped the fold would emit
-# WIT_acmetracker_* globals and an auth env var no operator would guess, yet
-# every generated file would still agree with itself, so nothing else here
-# would notice.
+# The global/env spelling of the provider name is UPPER-cased. A skipped fold stays
+# self-consistent across generated files, so nothing else here would notice it.
 assert_contains "generated globals carry the upper-cased provider" \
   "$(cat "$A/common.sh")" "WIT_ACMETRACKER_"
 
-# The version is the SEAM's, read from lib/json.sh — never a value the spec supplies.
-# A generated adapter that versioned itself could be born already skewed from the
-# engine that will dispatch it. Proven against a stand-in seam declaring 9.9.
+# The version is the SEAM's, read from lib/json.sh, never the spec's; proven against a
+# stand-in seam declaring 9.9.
 SEAM_VERSION="$(bash -c 'source "$1/lib/json.sh"; printf "%s" "$WIT_SCHEMA_VERSION"' _ "$SEAM")"
 assert_eq "manifest stamps the seam's contract version" "$SEAM_VERSION" \
   "$(jq -r '.schema_version' "$A/capabilities.json")"
@@ -240,11 +223,8 @@ fi
 assert_eq "wrong spec_version → exit 3" "3" "$(gen "$(with '.spec_version = "2.0"')")"
 assert_eq "missing display_name → exit 3" "3" "$(gen "$(with 'del(.display_name)')")"
 
-# display_name is substituted literally into generated shell in three distinct
-# contexts, so its charset is the guard — each case below is one of those contexts.
-# An apostrophe ends the single-quoted printf format in common.sh.tmpl; `$(…)` executes
-# inside the DOUBLE-quoted ${VAR:?…} in conformance-binding.sh.tmpl with no quote to
-# break at all; a newline ends a `#` comment line and makes the rest live shell.
+# One case per context display_name reaches literally: an apostrophe in a single-quoted
+# printf, `$(…)` in a double-quoted ${VAR:?…}, a newline ending a `#` line.
 assert_eq "display_name with an apostrophe → exit 3" "3" \
   "$(gen "$(with '.display_name = "Bobs'\'' Tracker"')")"
 # shellcheck disable=SC2016  # the payload must reach the generator UNEXPANDED — an
@@ -285,12 +265,8 @@ assert_eq "half-anchored scope_pattern → exit 3" "3" "$(gen "$(with '.api.scop
 anchor_err="$(gen_err "$(with '.api.scope_pattern = "[a-z]+"')")"
 assert_contains "unanchored pattern names the risk" "$anchor_err" "conforming prefix"
 
-# scope_pattern carries a regex, so it cannot be charset-bounded the way its
-# neighbors are; quote_safe() is its only guard, and it must ABORT. It did not:
-# every render() call is made as `$(render …)`, and an `exit` inside a command
-# substitution kills only that subshell — so the refusal printed once per template
-# while the generator went on to write a directory of empty executable scripts and
-# exit 0. The exit code and the empty-tree assertion are two halves of one case.
+# quote_safe() is scope_pattern's only guard and must ABORT the run, not one $(render)
+# subshell. The exit code and the empty-tree assertion are two halves of one case.
 assert_eq "single-quoted scope_pattern → exit 3" "3" \
   "$(gen "$(with '.api.scope_pattern = "^[A-Za-z0-9'\''][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"')")"
 if [[ -d "$(last_root)/tools/work-item-tracker/adapters/acmetracker" ]]; then
@@ -304,13 +280,8 @@ fi
 assert_eq "sample_scope violating its own pattern → exit 3" "3" \
   "$(gen "$(with '.api.sample_scope = "no-slash-here"')")"
 
-# sample_scope has its OWN anchored charset, independent of scope_pattern — because
-# scope_pattern comes from the same spec and can be written to permit anything
-# (`^.*$` is anchored at both ends and so passes the check above). Without the charset,
-# `sample_scope` landed unescaped in the DOUBLE-quoted argument at
-# common.test.sh.tmpl:72, where `$(…)` executes and a `"` breaks out — and running that
-# generated file is step 1 of this generator's own printed "Next:" instructions.
-# Each case below pins one escape route, mirroring the display_name cases above.
+# sample_scope has its OWN charset because scope_pattern can permit anything (`^.*$`).
+# Each case pins one escape route from the double-quoted argument it lands in.
 SCOPE_ANY='.api.scope_pattern = "^.*$"'
 assert_eq "sample_scope with a double quote → exit 3" "3" \
   "$(gen "$(with "$SCOPE_ANY | .api.sample_scope = \"acme/web\\\"x\" | .api.sample_id = \"acmetracker:acme/webapp#12\"")")"
@@ -373,11 +344,8 @@ assert_eq "negative limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max
 assert_eq "fractional limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max = 1.5')")"
 assert_eq "non-numeric limit → exit 3" "3" "$(gen "$(with '.limits.list_items_max = "lots"')")"
 
-# `null` is a THIRD limit value, distinct from 0: the capability is supported and the
-# provider enforces no ceiling. Without it, a ceiling-free provider has to invent a
-# plausible number, and a caller branching on it sees a ceiling that does not exist.
-# (Gitea's issue dependencies are the worked case — it rejects only duplicate and
-# circular edges and caps nothing.)
+# `null` is a THIRD limit value, distinct from 0: supported with no provider ceiling,
+# so a ceiling-free provider need not invent a number.
 assert_eq "null limit on a supported capability is accepted" "0" \
   "$(gen "$(with '.verbs["link-blocks"] = true | .limits.dependencies_per_type = null')")"
 assert_eq "null limit survives into the manifest" "null" \
@@ -417,8 +385,7 @@ assert_eq "link-blocks=true with zero dependency ceiling → exit 3" "3" \
   "$(gen "$(with '.verbs["link-blocks"] = true')")"
 
 # --- the generated security skeleton actually passes its own tests ---
-# This is #2950's second acceptance criterion made executable: the guards are
-# generated, so their proof is generated with them and runs here.
+# The guards are generated, so their proof is generated with them and runs here.
 
 # gen_adapter <label> <spec>: generate <spec> and set GEN_ADAPTER to the generated
 # adapter directory, or record a generation FAIL and clear GEN_ADAPTER. Written into a
@@ -492,15 +459,8 @@ for v in create-item get-item claim renew-lease reclaim link-blocks add-sub-item
 done
 
 SC_RC="$SCRIPT_DIR/../../../../../.shellcheckrc"
-# `--rcfile` landed in ShellCheck 0.10.0, and the repo's rc file declares itself
-# 0.11.0+. An older ShellCheck rejects the flag outright and exits 3 — "invoked with
-# bad syntax", NOT "issues found" (that is 1) — so asserting on the exit status alone
-# reads a version mismatch as a lint failure. That is exactly what happened here: the
-# case passed under every local condition and failed only on a CI runner whose job
-# installs no tooling and therefore gets the distro's older ShellCheck.
-#
-# Probe the flag rather than the version string: the question is whether THIS binary
-# accepts it, which is what a version number is only a proxy for.
+# ShellCheck before 0.10.0 rejects `--rcfile` with exit 3 (bad syntax, not issues found),
+# so probe whether THIS binary accepts the flag rather than trusting the exit status.
 if ! command -v shellcheck >/dev/null 2>&1; then
   printf 'SKIP: shellcheck not available — generated-shell lint case not run\n' >&2
 elif ! shellcheck --rcfile="$SC_RC" /dev/null >/dev/null 2>&1; then
@@ -519,14 +479,11 @@ else
   printf 'SKIP: shfmt not available — generated-shell format case not run\n' >&2
 fi
 
-# Generated verb scaffolds honor the contract's argument surface before any mapping
-# exists: --help is offline and exit 0, bad arguments are exit 2, and a scaffold that
-# reaches its unwritten mapping is exit 1 — never 6, which would launder unfinished
-# work as a provider limitation.
+# An unmapped scaffold exits 1, never 6, which would launder unfinished work as a
+# provider limitation.
 #
-# WIT_SEAM_LIB_DIR is what the dispatcher exports before invoking a verb. These cases
-# invoke the scripts directly, so they must supply it themselves — a generated adapter
-# in a consumer repo has no ../../lib of its own to fall back to.
+# These cases call verbs directly, so they export WIT_SEAM_LIB_DIR as the dispatcher
+# would; a generated adapter has no ../../lib to fall back to.
 verb() {
   WIT_SEAM_LIB_DIR="$SEAM/lib" bash "$@" >/dev/null 2>&1
 }

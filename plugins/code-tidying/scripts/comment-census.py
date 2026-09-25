@@ -119,9 +119,8 @@ def scc_counts(files: list[Path]) -> dict[str, dict] | None:
     exe = shutil.which("scc")
     if not exe or not files:
         return None
-    # The file list comes from `git ls-files`, so a tracked name such as
-    # `-o=evil.json` is attacker-chosen. `--` ends scc's flag parsing, and the
-    # `./` prefix keeps a bare relative name from ever reading as a flag.
+    # `git ls-files` names are attacker-chosen (`-o=evil.json`): `--` ends scc's flag
+    # parsing, and the `./` prefix keeps a bare relative name from reading as a flag.
     proc = subprocess.run(
         [
             exe,
@@ -275,14 +274,9 @@ def census(files: list[Path], layer: str) -> tuple[list[dict], dict]:
                 unread=True,
             )
         records.append(rec)
-    # An empty scope and a missing analyzer both yield zero records, and reporting
-    # the second as a clean zero is the worse error: every later count reads as an
-    # improvement against a baseline that was never measured. Probe each layer for
-    # INSTALLED-ness directly. Neither `sources["lines"]` nor the `scc` result can
-    # answer that here: the first stays None when there was simply nothing to read,
-    # and `scc_counts` returns None on an empty file list even when the binary is
-    # present, so using either as the proxy reports an installed analyzer as
-    # missing and turns an empty scope into a false hard stop.
+    # Probe each layer for INSTALLED-ness directly: a missing analyzer reported as a clean
+    # zero makes every later count read as an improvement. Neither `sources["lines"]` nor
+    # `scc_counts` can tell, since both come back None on an empty scope too.
     have_layer = (use_scc and scc_available()) or (
         use_pygments and pygments_available()
     )
@@ -315,9 +309,8 @@ def totals(records: list[dict], dedupe: bool) -> dict:
         "comment_ratio": round(cl / lines, 4) if lines else 0.0,
         "comment_bytes": cb,
         "approx_tokens": cb // 4,
-        # Files no analyzer could read count 0 comments and 0 lines, which is
-        # indistinguishable from a genuinely comment-free file in every total
-        # above. Carry the count so the report can say the coverage is partial.
+        # Unreadable files count 0, indistinguishable from comment-free ones in the totals,
+        # so carry the count and let the report say coverage is partial.
         "unread_files": sum(1 for r in chosen if r.get("unread")),
     }
 
