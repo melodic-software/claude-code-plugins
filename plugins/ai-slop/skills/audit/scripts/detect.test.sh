@@ -187,7 +187,7 @@ EOF
 # form on the same line. The guard mirrors the line-marker pattern exactly rather
 # than matching any string starting with the marker prefix: when it matched the
 # prefix, this line's genuine suppression was rejected and the operator's own
-# marker was quoted back in the excerpt (reported by review, reproduced here).
+# marker was quoted back in the excerpt.
 MIXEDMARK="$TEST_TMPDIR/mixedmark.md"
 cat >"$MIXEDMARK" <<EOF
 # Mentions one form, uses another
@@ -233,9 +233,8 @@ keep diffs stable.
 EOF
 
 # Prefix-match false positives: ordinary prose whose words merely BEGIN with a
-# listed phrase. Reported in review against rule-chatbot-artifacts and
-# reproduced before fixing — an IMPORTANT-tier finding on prose containing no
-# chat residue at all. The fix is the registry's whole-word flag; these cases
+# listed phrase, which drew an IMPORTANT-tier rule-chatbot-artifacts finding on
+# prose containing no chat residue at all. The fix is the registry's whole-word flag; these cases
 # are what keeps it.
 WORDBOUND="$TEST_TMPDIR/wordbound.md"
 cat >"$WORDBOUND" <<'EOF'
@@ -1457,7 +1456,7 @@ assert_tier() {
 for slug in $EXPECTED_IMPORTANT; do assert_tier "$slug" IMPORTANT; done
 for slug in $EXPECTED_SUGGESTION; do assert_tier "$slug" SUGGESTION; done
 
-# F5 regression guard: both owner docs say this producer omits `tier:`.
+# Both owner docs say this producer omits `tier:`.
 assert_not_contains "frontmatter: no uncomputed tier: field" "$tier_content" "tier:"
 assert_contains "action: filler-phrases carries its substitution, not the generic judgment string" \
   "$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TIEROUT")" 'in order to'
@@ -1524,9 +1523,8 @@ out="$(CLAUDE_PROJECT_DIR="$RAP" bash "$DETECT" "$RAP/quirks/doc.md" 2>&1)"
 assert_contains "split declined: a rule_allowed_paths exemption counts under config" "$out" "rule=ai-slop/audit/rule-filler-phrases findings=0 declined=1 declined_marker=0 declined_quote=0 declined_config=1"
 
 # --- Marker declines are charged per rule ------------------------------------------
-# Every rule used to be charged the raw count of exempted prose lines, so a rule
-# whose expression cannot match the exempted text still reported a decline it
-# never had a candidate for. A rule is now charged only what its own expression
+# A rule whose expression cannot match the exempted text must not report a
+# decline it never had a candidate for. A rule is charged only what its own expression
 # matches: a pattern rule counts exempted LINES, the unit it emits findings in,
 # and a density rule counts OCCURRENCES, the unit its quote accounting already
 # uses.

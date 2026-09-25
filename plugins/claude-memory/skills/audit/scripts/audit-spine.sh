@@ -1,23 +1,7 @@
 #!/usr/bin/env bash
 # audit-spine.sh — the audit's deterministic spine in one run.
-#
-# The spine is every check a script can decide: the expanded C1 count, the M1
-# index size, the M2 index integrity, the RD1 orphan rules, the N1 nested
-# AGENTS.md reachability, and the estimated cost of the always-loaded set. Each
-# has its own script; this one runs them in a fixed order and prints one block,
-# so the skill's pre-computed header and the report's spine rows come from the
-# same invocation and cannot disagree with each other.
-#
-# OUTPUT: a `Label: value` block (the header), then a `Findings:` block with one
-# line per finding in the producing script's own format. `--summary` prints the
-# header only. Every line is safe to inject verbatim into the skill body: no
-# script here exits non-zero on a finding, and a script that fails to run
-# reports `?` for its value rather than aborting the block.
-#
-# Usage:
-#   audit-spine.sh              header + findings
-#   audit-spine.sh --summary    header only
-#   audit-spine.sh --help
+# One invocation feeds both the skill's header and the report's spine rows, so they
+# cannot disagree. A check that fails to run reports `?` rather than aborting the block.
 
 set -uo pipefail
 
@@ -64,8 +48,7 @@ for f in CLAUDE.md .claude/CLAUDE.md; do
   }
 done
 # Same fallback instruction-load-stats.sh applies, so the header's name and its
-# line count are about the same file. Where both AGENTS.md names load, the first
-# is named here and `--breakdown` lists them all.
+# line count are about the same file.
 if [[ "$root_file" == "none" ]]; then
   agents_root="$(agents_md_native_files | head -1)"
   [[ -n "$agents_root" ]] && root_file="$agents_root"

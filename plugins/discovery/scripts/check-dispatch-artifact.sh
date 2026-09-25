@@ -230,12 +230,6 @@ verdict() {
     "$1" "$2" "$3" "$freshness" "$pointer" "$4"
 }
 
-# Exactly the given path, no candidate scan. The parent assigned this slice
-# path before dispatching — the collision sub-slice included — so the index
-# either sits at its root or the run did not persist a usable artifact. An
-# index anywhere else under the slice is some other run's artifact, and
-# scanning for it is how a prior run's output gets accepted as evidence that
-# THIS dispatch succeeded.
 index="$slice/$index_name"
 
 if [[ ! -f "$index" ]]; then
@@ -293,14 +287,6 @@ done
 count=${#referenced[@]}
 unusable=$((missing > 0 ? 1 : 0))
 
-# Freshness. Existence proves an artifact is there, not that THIS dispatch put
-# it there — a slice that already held a complete set from an earlier
-# exploration satisfies every check above even when the run just failed without
-# writing a byte, and the sidecar count would match too, because both runs write
-# the same sections. Planning then proceeds against a stale snapshot with the
-# gate reporting success. So the parent touches a baseline file immediately
-# before dispatching, and the index has to be strictly newer than it.
-#
 # `-nt` compares mtimes without `stat`, whose flags differ across platforms. It
 # is strict, so an index written inside the filesystem's mtime granularity of
 # the baseline reads as stale — a false halt, which is the safe direction, and

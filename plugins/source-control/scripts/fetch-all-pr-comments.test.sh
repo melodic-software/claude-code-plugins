@@ -2,16 +2,6 @@
 # Regression tests for fetch-all-pr-comments.sh.
 #
 # Black-box: invokes the script as a subprocess with a stubbed `gh` on PATH.
-# Covers:
-#
-#   1. All 3 surfaces appear in output (general, review, inline)
-#   2. Output is sorted by created_at
-#   3. Missing PR number — exits 1
-#   4. gh api failure — exits 2
-#   5. Output schema — every object has required fields
-#   6. Empty PR (no comments) — exits 0 with empty array
-#   13. Final jq merge failure — exits 2 (not masked by a trailing exit 0)
-#   14. Successful merge of a subset (INLINE empty) — still exits 0
 
 set -uo pipefail
 

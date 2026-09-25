@@ -5,19 +5,9 @@
 # a COUNT TABLE and never a row dump. An all-scope enumerator that emitted one
 # line per hook would spend more of the window than the audit it feeds.
 #
-# WHAT CHANGED AND WHY. The previous revision read only
-# .claude/hooks, .claude/skills and .claude/agents, so on a repository carrying
-# 77 plugins, 271 SKILL.md files and 137 hook files it reported 3 hook scripts, 0
-# skills, 0 agents and 1 plugin. Every number was a zero produced by not looking,
-# and a zero produced by not looking reads exactly like a real absence. The skill
-# body's own Phase 1.1 already instructs the model to read user, project and local
-# settings, managed policy, every enabled plugin's hooks/hooks.json, and skill and
-# subagent frontmatter; the script was behind its own skill's spec.
-#
-# THE SAME ZERO, THROUGH FIVE OTHER DOORS. A review of that rewrite found it
-# reproducing the defect it existed to remove, so every walk and every count in
-# this file now goes through one of four helpers, and none of them can answer 0
-# for a scope it did not actually read:
+# A zero produced by not looking reads exactly like a real absence, so every
+# walk and every count in this file goes through one of four helpers, and none
+# of them can answer 0 for a scope it did not actually read:
 #   find0        the only tree walk. Passes -H so a SYMLINKED .claude/skills,
 #                .claude/agents or .claude/hooks is descended instead of silently
 #                yielding nothing; prunes .git and node_modules so .git/hooks/*
@@ -29,8 +19,7 @@
 #                unreadable, never absent and never 0. All four directory scopes
 #                go through it, .claude/skills, .claude/agents, .claude/hooks and
 #                managed-settings.d, and each carries the status word the whole
-#                way out through count_dir or scope_count. Wiring one scope and
-#                not its siblings is how this class survived the first pass.
+#                way out through count_dir or scope_count.
 #   jq_num       FAILS instead of printing 0 when jq fails. A hooks or
 #                enabledPlugins key holding a string, a number or an array is
 #                reported invalid-json, because the wrong type is not "no hooks".
@@ -149,8 +138,7 @@ command -v "$jq_bin" >/dev/null 2>&1 && have_jq=1
 
 # Plugin root resolution mirrors permission-state.sh: parameter expansion plus
 # builtins, so a missing external tool cannot silently turn managed policy into
-# an absence. A reader that reports no policy because it could not load its own
-# library is the exact failure this rewrite exists to remove.
+# an absence.
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
 managed_lib="$plugin_root/lib/managed-scope.sh"
 have_managed_lib=0
@@ -284,10 +272,8 @@ PLUGIN_HANDLERS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_ent
 
 # Runs one jq program over one file and prints its number. A jq that could not
 # run, or a program whose result is not a plain non-negative integer, prints
-# NOTHING and returns 1. Printing 0 there was the defect: a hooks key holding a
-# string, a number, a boolean or an array made every query fail or return
-# nothing, and the row then said "present, no hooks" about a file whose hook
-# block is malformed.
+# NOTHING and returns 1, so a hooks key holding a string, a number, a boolean
+# or an array never reads as "present, no hooks".
 jq_num() {
   local program="$1" file="$2" out
   out="$("$jq_bin" -r "$program" "$file" 2>/dev/null)" || return 1
@@ -433,10 +419,8 @@ settings_row() {
 
 # The managed-policy row covers managed-settings.json TOGETHER WITH the readable
 # managed-settings.d drop-ins, because those drop-ins merge on top of the base
-# file rather than sitting beside it. Counting only the base file published an
-# exact-looking handler figure for a policy whose standing hooks may live
-# entirely in the drop-ins, which is the same confident wrong number this script
-# exists to stop printing. A drop-in that could not be read contributes its
+# file rather than sitting beside it; the policy's standing hooks may live
+# entirely in the drop-ins. A drop-in that could not be read contributes its
 # status word instead of a count, so the figures render in the add_counts floor
 # form rather than as a total nobody measured.
 #
@@ -633,9 +617,8 @@ hook_tests="$(add_counts \
   "$(count_dir "$hooks_dir_status" .claude/hooks -type f -name '*.test.sh')")"
 # Every .mcp.json this run will look at. The project-root file is emitted
 # whenever anything is THERE, a directory or a dangling symlink included, so
-# json_status gets to call it unreadable: the -f test that used to gate it
-# dropped such a file before any status could be assigned, and the row then
-# reported the absence of a configuration that exists.
+# json_status gets to call it unreadable rather than the row reporting the
+# absence of a configuration that exists.
 mcp_candidates() {
   [[ -e .mcp.json || -L .mcp.json ]] && printf '%s\0' .mcp.json
   find0_plugin_roots -maxdepth 1 -type f -name '.mcp.json'
@@ -644,9 +627,7 @@ mcp_candidates() {
 # mcp_files counts the .mcp.json files this run EXAMINED, readable or not, and
 # mcp_floor carries the status word of the first one it could not measure. A
 # file that exists and could not be parsed therefore leaves the server figure in
-# the add_counts floor form rather than at a numeric 0: "0 across 0 .mcp.json
-# file(s)" for a repository that ships an MCP configuration was the same
-# confident wrong number the directory scopes already stopped printing.
+# the add_counts floor form rather than at a numeric 0.
 mcp_servers=0
 mcp_files=0
 mcp_floor=""

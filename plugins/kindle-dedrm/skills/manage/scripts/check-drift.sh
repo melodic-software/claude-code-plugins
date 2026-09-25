@@ -91,11 +91,8 @@ fi
 echo
 
 # --- Source 3: Kindle_Key_Finder zip — HEAD the pinned direct URL ---
-# Roll-forward auto-discovery via the tutorial article body is dead: the
-# article moved and is now subscriber-gated (see reference/sources.md), so its
-# public body carries no zip link. HEAD the pinned direct URL as the
-# authoritative signal — a non-200 means the author revoked or rolled it, at
-# which point a subscriber must read the current article and re-pin by hand.
+# The subscriber-gated article body carries no zip link (reference/sources.md). A non-200
+# here means the author revoked or rolled the zip; a subscriber must re-pin by hand.
 echo "Kindle_Key_Finder zip (pinned direct URL — article-body discovery paywalled):"
 KKF_HTTP=$(http_status "${PINNED_KKF_URL}")
 case "${KKF_HTTP}" in
@@ -110,9 +107,8 @@ esac
 echo
 
 # --- Source 4: Tutorial article reachability (informational) ---
-# The article is subscriber-gated, so no body diff is possible; a HEAD probe
-# just confirms the current slug still resolves. A 404 here means the author
-# moved or unpublished the page again — re-discover via the site sitemap.
+# Subscriber-gated, so only a HEAD probe that the slug resolves. A 404 means the
+# page moved or was unpublished again; re-discover via the site sitemap.
 echo "Tutorial article (techy-notes.com — subscriber-gated):"
 ART_HTTP=$(http_status "${PINNED_TUTORIAL_URL}")
 case "${ART_HTTP}" in

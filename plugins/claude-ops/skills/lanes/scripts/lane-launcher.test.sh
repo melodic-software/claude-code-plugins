@@ -365,7 +365,6 @@ assert_eq "settings:null launches the lane" 0 "$rcnull"
 assert_contains "settings:null still launches work" "$outnull" "claude --bg -n work"
 assert_not_contains "settings:null passes no --settings flag" "$outnull" "--settings"
 
-# refresh step present by default; suppressible
 assert_contains "start pulls by default" "$out" "git -C $REPO pull --ff-only"
 assert_contains "start updates marketplace" "$out" "plugin marketplace update"
 out2="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
@@ -685,7 +684,6 @@ assert_eq "marker: skipped (already-running) lane keeps its existing marker" "pr
 marker="$(cat "$DATA_DIR2/lanes/$REPO_KEY/babysit-launch-commit" 2>/dev/null)"
 assert_eq "marker: a lane that DID launch this run still gets one" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
-# restart re-records the marker for the restarted lane.
 DATA_DIR3="$TMP/data3"
 out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR3" 2>&1)"
 marker="$(cat "$DATA_DIR3/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
@@ -740,7 +738,6 @@ out="$(STUB_GIT_REVPARSE_RC=1 run_launcher restart work --repo "$REPO" --config 
 marker="$(cat "$DATA_DIR5D/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"
 assert_eq "marker: dry-run leaves an existing marker untouched" "previouslaunchsha" "$marker"
 
-# CLAUDE_PLUGIN_DATA env var is honored when --data-dir is not passed.
 DATA_DIR6="$TMP/data6"
 out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
 marker="$(cat "$DATA_DIR6/lanes/$REPO_KEY/work-launch-commit" 2>/dev/null)"

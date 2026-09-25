@@ -241,7 +241,7 @@ fi
 
 # 7g. The FAIL text for a zero-skill plugin on the minus-one basis must not
 #     contradict itself. `expected` is clamped at zero there, so reconstructing
-#     the real count as `expected + 1` reported "has one" directly above "should
+#     the real count as `expected + 1` reports "has one" directly above "should
 #     be zero".
 out_check="$(run --check)"
 if grep -q 'plugin zeta has zero' <<<"$out_check" &&

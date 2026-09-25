@@ -135,7 +135,7 @@ Return a SINGLE markdown ledger with this exact shape (one row per finding):
 | 2 | IMPORTANT | path/to/file.cs:73 | <one-line summary> | INCORRECT: code already does X | <counter-evidence> | INCORRECT |
 | 3 | SUGGESTION | path/to/file.md:12 | <one-line summary> | UNCERTAIN: behavior depends on Y | <what's missing> | UNCERTAIN |
 
-CRITICAL constraints on the ledger:
+Ledger constraints:
 - Severity column MUST match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
 - Validation status MUST come from your own code reading, not a paraphrase of the bot claim
 - Evidence MUST cite line numbers + verbatim snippets (≤3 lines) OR direct command output

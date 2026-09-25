@@ -169,24 +169,10 @@ fi
 CANDIDATES=()
 
 rel_to_root() {
-  # Repo-relative spelling of a path given relative to the cwd or absolute.
-  #
-  # The repository root has several spellings and every one means "the whole
-  # corpus", so each normalizes to the EMPTY prefix. Without that, `.` reached
-  # the directory filter as a literal prefix, matched no tracked path, and the
-  # run reported an empty corpus with no error — indistinguishable from a
-  # repository with nothing to scan.
-  #
-  # Git answers this, rather than string arithmetic against $ROOT, because one
-  # directory has SEVERAL absolute spellings under Git for Windows and they
-  # share no prefix: `rev-parse --show-toplevel` says `C:/Users/<user>/.../repo`,
-  # `$PWD` under a `mktemp -d` says `/tmp/repo`, and `cd` plus `pwd` on that
-  # same place says `/c/Users/<user>/.../repo`. Subtracting a root in one spelling
-  # from a target in another left every prefix unusable, so EVERY target form,
-  # a directory, a file, `.`, and each `--paths-file` entry, silently produced
-  # an empty corpus. `rev-parse --show-prefix` reports the repo-relative
-  # position directly, which has a single spelling on every platform, and
-  # answers the empty string at the root.
+  # Repo-relative spelling of a path given relative to the cwd or absolute; every
+  # spelling of the repository root normalizes to the EMPTY prefix. Git answers
+  # this, not string arithmetic against $ROOT: under Git for Windows one directory
+  # has several absolute spellings sharing no prefix, and `--show-prefix` has one.
   local p="$1" dir base placed pfx top
   if [[ -d "$p" ]]; then
     dir="$p"

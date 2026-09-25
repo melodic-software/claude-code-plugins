@@ -1,12 +1,6 @@
 # shellcheck shell=bash
-# GitHub CLI version helpers. Sourced by the dispatcher (fail-loud gate on
-# native-surface flags) and the GitHub adapter (omit 2.94+ --json fields on
-# older gh so get-item and a plain create-item still emit).
-#
-# Floor: gh 2.94.0 introduced issue types, sub-issues, and dependencies
-# (`--parent`, `--blocked-by`, `--add-blocked-by`, and the issueType / parent /
-# subIssues / blockedBy --json fields). Official changelog:
-# https://github.blog/changelog/2026-06-10-manage-sub-issues-types-and-dependencies-from-github-cli/
+# GitHub CLI version helpers. gh 2.94.0 introduced issue types, sub-issues, and dependency flags
+# and --json fields: https://github.blog/changelog/2026-06-10-manage-sub-issues-types-and-dependencies-from-github-cli/
 
 [[ -n "${_WIT_GH_VERSION_LOADED:-}" ]] && return 0
 readonly _WIT_GH_VERSION_LOADED=1

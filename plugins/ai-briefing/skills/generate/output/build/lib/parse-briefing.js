@@ -74,7 +74,6 @@ function parseBulletParagraph(paragraph) {
     bodyStart = 1;
   }
 
-  // Reconstruct remaining as text — links replaced by their URL inline
   let rest = "";
   for (let i = bodyStart; i < segs.length; i++) {
     const s = segs[i];
@@ -114,7 +113,6 @@ function parseBulletParagraph(paragraph) {
     body = body.slice(0, BODY_CAP).replace(/\s+\S*$/, "") + "…";
   }
 
-  // If headline empty, use first sentence of body
   if (!headline) {
     const firstSent = body.split(/(?<=\.)\s+/)[0];
     headline = firstSent.replace(/[.!?]+$/, "").slice(0, 80);

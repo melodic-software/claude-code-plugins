@@ -146,9 +146,9 @@ if grep -qi 'may have measured something other than what' <<<"$OUT"; then
 else
   fail "failure output should flag the run's results as suspect: $OUT"
 fi
-# A phantom tree can hold a REGISTERED worktree — that is what the first real
-# hit on this machine was (#2870). Deleting it first strands the registry entry,
-# so the remediation text must send the reader to deregistration before removal.
+# A phantom tree can hold a REGISTERED worktree. Deleting it first strands the
+# registry entry, so the remediation text must send the reader to
+# deregistration before removal.
 if grep -qi 'registered git worktree' <<<"$OUT"; then
   ok "the remediation warns that the tree may hold a registered worktree"
 else

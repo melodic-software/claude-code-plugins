@@ -10,11 +10,10 @@
 - [Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice)
 
 Everything the **parent** owes a dispatched `discovery:explorer`, `discovery:researcher` or
-`discovery:intent-tracer` run that is **identical across all three families**. It exists because it
-did not: five statements below were previously carried in two to six copies each, and every one of
-them had drifted apart by the time the drift was audited. The five are the envelope's field list,
-the pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and
-what to do with a partial slice.
+`discovery:intent-tracer` run that is **identical across all three families**. Five statements
+live here and nowhere else, because copies of them drift apart: the envelope's field list, the
+pre-dispatch baseline command, the claim about `$ARGUMENTS`, the agents' write boundary, and what to
+do with a partial slice.
 
 Four files answer "what does the parent owe", and the split is deliberate:
 
@@ -423,8 +422,8 @@ adds a direct-path rule for the script paths (and, if useful, the coverage `.py`
 
 ### What this gate does not grade
 
-The memory root's self-ignoring `.gitignore` guard. Stated here because "an obligation nobody
-grades" was previously left implicit, and an unstated gap reads as a covered one:
+The memory root's self-ignoring `.gitignore` guard. Stated here because an unstated gap reads as a
+covered one:
 
 - **`/discovery:setup` owns verify-or-create** for the guard at enable time, and owns the standing
   rule that the consumer's root `.gitignore` is never edited.

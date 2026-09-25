@@ -13,11 +13,8 @@ BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Assert-CheckResult.ps1' -MockHelpers
     . (Join-Path $script:TestsRoot 'helpers\Invoke-FixtureRedaction.ps1')
 
-    # USERNAME/COMPUTERNAME are usually unset on non-Windows hosts. The
-    # redaction tests build their payloads from these variables and the
-    # helper reads the same ones, so pin stable values when empty (and
-    # restore after) instead of changing the helper. Windows keeps its
-    # real values.
+    # USERNAME/COMPUTERNAME are usually unset off Windows, and the redaction tests and helper
+    # both read them, so pin stable values when empty (restored after).
     $script:SavedUserName = $env:USERNAME
     $script:SavedComputerName = $env:COMPUTERNAME
     if (-not $env:USERNAME) { $env:USERNAME = 'scaffolduser' }

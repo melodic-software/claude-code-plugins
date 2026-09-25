@@ -104,8 +104,7 @@ fi
 # which is the form Claude Code records. `$PWD` there is a POSIX mount path and
 # an inherited value can also carry an 8.3 short component (`ALICE~1` where the
 # directory is really `AliceExample`), which compares unequal to the long form
-# the CLI writes. That mismatch is what made an early probe of this behavior
-# read as a null. Resolve, never compare raw.
+# the CLI writes. Resolve, never compare raw.
 native_pwd() {
   local p
   p="$(pwd -W 2>/dev/null)" || p=""

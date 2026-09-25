@@ -59,9 +59,8 @@ OUT=$(cd "$REPO" && bash "$SCRIPT")
 assert_contains "clean repo reports no orphans" "$OUT" "No orphan"
 
 # --- Case 6: topic-docs `memory_dir` override moves the excluded tier ---------------
-# A consumer that overrides memory_dir must have THAT tier excluded (refs there don't
-# count) AND `.work/` must stop being excluded (refs there now count) — the additive
-# bug (exclude both) fails the .work assertion below.
+# The overridden tier must be excluded AND `.work/` must stop being excluded; the
+# additive bug (exclude both) fails the .work assertion below.
 
 OVR="$TEST_TMPDIR/override"
 make_repo "$OVR"
@@ -93,9 +92,8 @@ OUT=$(cd "$FB" && bash "$SCRIPT")
 assert_contains "fallback: .work ref excluded by default => c.md orphan" "$OUT" "c.md"
 
 # --- Case 8: interior whitespace in a quoted memory_dir is preserved -----------------
-# A collapsing strip (${seam//[[:space:]]/}) turns `.scratch dir` into `.scratchdir`, so
-# the real tier is NOT excluded and its ref counts — masking the orphan. Trailing-trim
-# preserves the interior space: the tier IS excluded and the rule stays an orphan.
+# A collapsing strip (${seam//[[:space:]]/}) turns `.scratch dir` into `.scratchdir`,
+# so the real tier's ref would count and mask the orphan.
 
 WS="$TEST_TMPDIR/whitespace"
 make_repo "$WS"
@@ -110,9 +108,8 @@ OUT=$(cd "$WS" && bash "$SCRIPT")
 assert_contains "whitespace: ref in quoted '.scratch dir' tier is excluded => d.md orphan" "$OUT" "d.md"
 
 # --- Case 9: `#` inside a quoted memory_dir is preserved, not truncated ---------------
-# A naive `${seam%%#*}` truncates `.scratch#dir` to `.scratch`, so the REAL tier is not
-# excluded and its ref counts — masking the orphan. Quote-aware parsing keeps the `#`:
-# the full tier IS excluded and the rule stays an orphan.
+# A naive `${seam%%#*}` truncates `.scratch#dir` to `.scratch`, so the real tier's
+# ref would count and mask the orphan.
 
 HASH="$TEST_TMPDIR/hash"
 make_repo "$HASH"
@@ -127,9 +124,8 @@ OUT=$(cd "$HASH" && bash "$SCRIPT")
 assert_contains "hash: ref in quoted '.scratch#dir' tier is excluded => e.md orphan" "$OUT" "e.md"
 
 # --- Case 10: a self-describing rule is never an orphan --------------------------------
-# An always-loaded rule is in context every session by construction, and the
-# always-loaded rules index deliberately omits unscoped rules, so "unreferenced"
-# alone proves nothing. A `description:` line is the rule naming its own purpose.
+# The rendered rules index omits unscoped rules, so unreferenced alone proves nothing;
+# a `description:` line is the rule naming its own purpose.
 
 DESC="$TEST_TMPDIR/described"
 make_repo "$DESC"

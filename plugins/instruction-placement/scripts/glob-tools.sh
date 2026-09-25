@@ -19,28 +19,6 @@
 # Brace expansion is implemented by hand rather than by shell `eval`, because the
 # input is repository content: eval on a `paths:` value read off disk would let a
 # crafted rule file run commands.
-#
-# Subcommands:
-#   validate  validate one or more globs handed in on the command line
-#   rules     validate every `paths:` glob in a repository's .claude/rules tree
-#
-# Output is deterministic TSV on stdout: sorted, no timestamps, no absolute
-# paths. Facts only — the caller adjudicates.
-#
-# Usage:
-#   glob-tools.sh validate --glob <pattern> [--glob <pattern>...] [options]
-#   glob-tools.sh rules [options]
-#   glob-tools.sh --help
-#
-# Options:
-#   --root <dir>          repository root to match against (default: cwd)
-#   --breadth-max <pct>   integer percent of tracked files above which a pattern
-#                         is reported over-broad (default: 75)
-#   --help                this message
-#
-# Exit: 0 all patterns valid (over-broad is a warning, not a failure)
-#       1 at least one pattern invalid (zero-match, bad bracket, over budget)
-#       2 usage error or unusable --root
 
 set -uo pipefail
 
@@ -310,11 +288,8 @@ validate | rules)
 esac
 
 ROOT="$PWD"
-# Declared userConfig reaches a script process as the native
-# $CLAUDE_PLUGIN_OPTION_<KEY> mirror. Without reading it, a consumer can set the
-# advertised option and silently keep the default — an option that does nothing
-# is worse than one that does not exist, because it is documented.
-# An explicit --breadth-max still wins over the configured value.
+# Declared userConfig reaches a script as $CLAUDE_PLUGIN_OPTION_<KEY>; an explicit
+# --breadth-max still wins over the configured value.
 BREADTH_MAX="${CLAUDE_PLUGIN_OPTION_BREADTH_MAX:-75}"
 [[ "$BREADTH_MAX" =~ ^[0-9]+$ ]] || BREADTH_MAX=75
 declare -a CLI_GLOBS=()
@@ -368,15 +343,8 @@ else
 fi
 TRACKED_TOTAL=$(wc -l <"$TRACKED_FILE" | tr -d ' ')
 
-# Build the (source, budget key, pattern) work list.
-#
-# BUDGET_KEY is deliberately NOT the displayed source. The budget belongs to a
-# rule's whole `paths:` list, and a standalone `--glob` is not part of anyone's
-# list -- each is its own unit of one. Tagging every CLI glob with the same
-# `<cli>` source made them share one budget, so two independently-legal
-# 512-expansion globs in one invocation reported the first `over-budget`. The
-# key carries the index for validate; for `rules` it is the rule path, which is
-# what groups a real `paths:` list.
+# BUDGET_KEY is deliberately NOT the displayed source: the budget belongs to a
+# rule's whole `paths:` list, so each standalone `--glob` is its own unit of one.
 declare -a SOURCES=() BUDGET_KEYS=() PATTERNS=()
 if [[ "$SUBCOMMAND" == "validate" ]]; then
   cli_i=0
@@ -401,16 +369,8 @@ fi
 INVALID=0
 OVERBROAD=0
 
-# The brace budget belongs to a RULE'S WHOLE `paths:` LIST, not to each pattern
-# in it — "a rule's whole `paths:` list shares one budget of 1,000 expanded
-# patterns and 4 MiB". Charging each pattern its own budget lets a rule with two
-# 512-expansion globs pass while its combined 1,024 expansions exceed what the
-# loader will expand, so the gate reports green for a rule whose patterns Claude
-# Code silently leaves unexpanded.
-#
-# Tracked with a running counter rather than an associative array: `declare -A`
-# is bash 4+, and macOS still ships 3.2. The work list groups every pattern of a
-# rule contiguously, so resetting on a source change is equivalent and portable.
+# A running counter, not `declare -A` (bash 4+; macOS ships 3.2): a rule's
+# patterns are contiguous in the work list, so resetting on a key change suffices.
 PREV_BUDGET_KEY=""
 RUNNING_EXPANDED=0
 

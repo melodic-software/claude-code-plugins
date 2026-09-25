@@ -5,43 +5,32 @@
 #
 # Every scenario builds a throwaway detector and eval suite and points the gate
 # at them through DETECTOR_EVAL_COVERAGE_PAIRS, so no assertion here depends on
-# the state of the real audit-permission-grants surfaces -- which are being
-# backfilled in the same change set this gate landed in, and would otherwise
-# make this suite red for someone else's in-flight work.
+# the state of the real audit-permission-grants surfaces.
 #
 # The negative cases are the synthetic proof the gate catches each direction:
 # an emitted id no case covers, and a case naming an id the detector cannot
-# emit. The second is the one that matters most, because it is the shape
-# claude-code-plugins#4149 found already merged (an eval asserting a scope two
-# checks out of date) and the shape a coverage-only check reads as green.
+# emit. The second is the one that matters most: an eval asserting a scope that
+# is out of date is the shape a coverage-only check reads as green.
 #
-# THE N BLOCKS. Sections marked N1 and N2 are regression tests for two defects
-# an independent verifier reproduced against c7f71c36, where the gate had
-# over-corrected in both of the directions a coverage check can: the negation
-# screen read ordinary covering prose as a disclaimer and FAILED a correct
-# suite, and the emit-site accounting called ordinary shell (quoted arguments,
-# a line-continued call, a wrapper definition, an `emit`-prefixed variable) a
-# partial extraction loss and exited 2 on a well-formed detector. Each N case
-# fails against c7f71c36 and passes against this revision.
+# THE N BLOCKS. Sections marked N1 and N2 guard against over-correcting in both
+# of the directions a coverage check can: the negation screen reading ordinary
+# covering prose as a disclaimer and FAILING a correct suite, and the emit-site
+# accounting calling ordinary shell (quoted arguments, a line-continued call, a
+# wrapper definition, an `emit`-prefixed variable) a partial extraction loss and
+# exiting 2 on a well-formed detector.
 #
-# THE P BLOCKS. Sections marked P1..P6 below are regression tests for
-# defects an independent verifier reproduced against the gate as first
-# committed (0273b5b3), where it verified MENTION rather than coverage, lost
-# emit call sites silently, counted its own prose as call sites, had no
-# stopping rule for an unregistered pair, streamed a partial discover report
-# before an exit 2, and ignored trailing argv. Each of those cases FAILS
-# against that revision and passes against this one; that is what makes them
-# regression tests rather than restatements of current behavior.
+# THE P BLOCKS. Sections marked P1..P6 below guard against verifying MENTION
+# rather than coverage, losing emit call sites silently, counting the gate's own
+# prose as call sites, having no stopping rule for an unregistered pair,
+# streaming a partial discover report before an exit 2, and ignoring trailing
+# argv.
 #
-# P7 is the same shape one revision later: the stopping rule had an extractor of
-# its own, and its greedy `.*` kept only the LAST id on a line, so a detector
-# spelling two emits as `emit warning Q1 ...; emit error Q2 ...` never reached
-# the two-distinct-ids bar and was silently unenforced -- the same defect class
-# (a fix applied at one call site and missed at its sibling) the verdict scanner
-# beside it had already been hardened against. Its first case FAILS against
-# adcbb777; the two beside it are preservation guards that keep the wider
-# extraction from being bought with a false positive or a lowered threshold, and
-# pass on both sides.
+# P7 guards the stopping rule's extractor: a greedy `.*` keeps only the LAST id
+# on a line, so a detector spelling two emits as
+# `emit warning Q1 ...; emit error Q2 ...` never reaches the two-distinct-ids bar
+# and is silently unenforced. Its first case is that defect; the two beside it
+# are preservation guards that keep the wider extraction from being bought with
+# a false positive or a lowered threshold.
 # shellcheck disable=SC2016  # fixture bodies are literal detector source in single quotes; expansion would destroy the shape under test
 set -uo pipefail
 
@@ -306,8 +295,8 @@ fi
 rm -rf "$root"
 
 # ======= P1: coverage means an eval case, in a coverage-bearing field ======
-# Each case below passed the first revision at rc 0 while covering nothing,
-# because an id counted as covered if the string appeared ANYWHERE in the file.
+# Each case below covers nothing, and passes at rc 0 if an id counts as covered
+# whenever the string appears ANYWHERE in the file.
 
 # A NEGATIVE assertion is the opposite of coverage: the suite is grading the
 # model for NOT exercising the check. It is reported as a DISCLAIMED advisory
@@ -376,7 +365,7 @@ else
 fi
 rm -rf "$root"
 
-# A BARE JSON STRING parses. Parseability was the only shape check there was.
+# A BARE JSON STRING parses, so parseability alone is not a shape check.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
 mk_evals evals.json '"P1 P4"'
@@ -401,11 +390,10 @@ fi
 rm -rf "$root"
 
 # ===== N1: the negation screen may not fail a suite on ordinary prose ======
-# Reproduced against c7f71c36: the screen scanned 80 characters back to the
-# previous `.`/`;`/`:` for a cue, so any cue ANYWHERE in that span disclaimed
-# the id. Ordinary covering prose carries cues, and the gate exited 1 on a
-# correct suite -- a false FAILURE with no remedy but editing the gate. Each
-# case below exits 1 against that revision and 0 against this one.
+# A screen that scans 80 characters back to the previous `.`/`;`/`:` for a cue
+# disclaims the id on any cue ANYWHERE in that span. Ordinary covering prose
+# carries cues, so such a gate exits 1 on a correct suite: a false FAILURE with
+# no remedy but editing the gate.
 
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error P4 SRC "message"'
@@ -471,8 +459,8 @@ fi
 rm -rf "$root"
 
 # ============ P2: every emit call site is accounted for, or exit 2 =========
-# Each shape below dropped an id from the emitted set while leaving the count
-# non-zero, so the first revision's only guard (zero ids) never fired.
+# Each shape below can drop an id from the emitted set while leaving the count
+# non-zero, so a zero-ids guard alone never fires.
 
 # VARIABLE SEVERITY.
 mk_tree
@@ -513,8 +501,8 @@ else
 fi
 rm -rf "$root"
 
-# TWO CALL SITES ON ONE LINE. The first revision's greedy `.*` kept only the
-# last, so the FIRST id disappeared; the suite here covers only the second.
+# TWO CALL SITES ON ONE LINE. A greedy `.*` keeps only the last, so the FIRST
+# id disappears; the suite here covers only the second.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "m"; emit error P2 SRC "m"'
 mk_evals evals.json "$(evals_json 'exercises P2 classification')"
@@ -583,8 +571,8 @@ fi
 rm -rf "$root"
 
 # ===== P3b: a `<<` that is not a heredoc operator arms no heredoc body =====
-# The defect this section is the regression guard for, found by a defeat attempt
-# against the merged gate. The opening scan read the RAW line, so a `<<` inside
+# The defect this section is the regression guard for: the opening scan read the
+# RAW line, so a `<<` inside
 # a quoted string or an arithmetic left shift armed a body whose delimiter no
 # later line could close, and the skip ran to EOF. Every call site below the
 # line disappeared from the extraction AND from the candidate count at once, so
@@ -623,18 +611,15 @@ p3b_case 'a `<<` inside a parameter expansion' 'x=${v//y/<<EOF}'
 
 # AN UNTERMINATED `${`/`((` WHOSE TAIL CARRIES A `<<` IS UNDECIDABLE, and must
 # answer exit 2 rather than guess. All four fixtures below are valid bash and
-# all four were SILENT LOSSES under one revision or another, in both
-# directions:
-#   - `x=${unset:-$(cat <<EOF` really does open a heredoc; the revision that
-#     returned the bare head threw that opener away.
-#   - `hint=${HINT:-<<EOF ...` and `mask=$(( (1 << SHIFT) -` do NOT; the
-#     revision that kept the whole tail armed on that data, and the junk skip
-#     then closed on the file's own later terminator.
-#   - the revision that tried to split the difference (keep the tail after the
-#     last unclosed `$(`) popped that `$(` on any `)` and lost the opener
-#     again, and could not see a backtick substitution at all.
-# Three attempts, three silent losses, each found by the round after the one
-# that shipped it. Refusing a verdict is the answer that cannot be wrong
+# each is a SILENT LOSS under some resolution strategy, in both directions:
+#   - `x=${unset:-$(cat <<EOF` really does open a heredoc; returning the bare
+#     head throws that opener away.
+#   - `hint=${HINT:-<<EOF ...` and `mask=$(( (1 << SHIFT) -` do NOT; keeping
+#     the whole tail arms on that data, and the junk skip then closes on the
+#     file's own later terminator.
+#   - keeping the tail after the last unclosed `$(` pops that `$(` on any `)`
+#     and loses the opener again, and cannot see a backtick substitution.
+# Refusing a verdict is the answer that cannot be wrong
 # invisibly, so these assert exit 2 and nothing finer.
 undecidable_case() {
   local label="$1"
@@ -664,9 +649,8 @@ undecidable_case 'a `<<` that is data inside an unterminated `${`' \
 undecidable_case 'a left shift inside an unterminated `$((`' \
   'mask=$(( (1 << SHIFT) -' '         1 ))' 'emit error P4 SRC "message"' \
   'cat <<SHIFT' 'usage text' 'SHIFT' 'emit warning P1 SRC "message"'
-# A `)` that is not a command-substitution closer, which defeated the
-# last-unclosed-`$(` attempt, and a backtick substitution, which it could not
-# see at all.
+# A `)` that is not a command-substitution closer, which defeats the
+# last-unclosed-`$(` strategy, and a backtick substitution, which it cannot see.
 undecidable_case 'an unterminated `${` whose tail holds a subshell `)`' \
   'usage=${U:-$( (echo banner) && cat <<HELP' '  prog <<DATA' 'HELP' ')}' \
   'emit error P4 SRC "message"' "cat <<'DATA'" 'fixture text' 'DATA'
@@ -696,10 +680,9 @@ p3b_case 'a comment opened after `(`' 'f() (#<<EOF'
 # The other direction: a REAL heredoc must still arm, in every delimiter
 # spelling, or the fix above trades a false pass for a false failure. The
 # quoted-delimiter form is already covered by the P3 case above; these are the
-# spellings the rewritten delimiter matcher had to keep reading.
-# ARM **AND CLOSE**. An earlier version of this helper asserted only that the
-# body's `emit error P9` was not counted, and that is the assertion that let
-# four regressions through: a heredoc armed on a delimiter no line can match
+# other spellings the delimiter matcher must keep reading.
+# ARM **AND CLOSE**. Asserting only that the body's `emit error P9` is not
+# counted is not enough: a heredoc armed on a delimiter no line can match
 # hides the body AND everything after it, so "P9 is not counted" passes exactly
 # when the gate is most broken. Every case therefore also puts a call site
 # AFTER the terminator and requires it to be SEEN, which only a body that
@@ -738,9 +721,8 @@ p3b_arms 'a backslash-escaped delimiter' 'usage() { cat <<\USAGE' \
   'emit error P9 SRC "someday"' 'USAGE' '}'
 p3b_arms 'a backslash-escaped `<<-` delimiter' 'usage() { cat <<-\USAGE' \
   'emit error P9 SRC "someday"' '	USAGE' '}'
-# A delimiter carrying punctuation is a delimiter. These were written as `arms
-# nothing` cases when the matcher used a character class and refused whatever
-# fell outside it. bash accepts all of them, and REFUSING is not safe: the body
+# A delimiter carrying punctuation is a delimiter. bash accepts all of these,
+# and REFUSING one is not safe: the body
 # is then read as code and a `<<` inside it arms and swallows. They assert the
 # whole delimiter is read, which is what stops that cascade.
 p3b_arms 'a delimiter carrying `@`' 'usage() { cat <<USAGE@1' \
@@ -800,7 +782,7 @@ early_close_case 'a plain `<<` terminator indented by a tab' '	USAGE' 'USAGE' '<
 # prints `a#tag`. Reading it as one truncates the line and loses what followed,
 # so the call site has to be ON THE SAME LINE, after the `#`. With it on the
 # next line the fixture proves nothing: truncating a line that carries no emit
-# costs nothing, and the guard passes against the revision that has the bug.
+# costs nothing, and the guard passes even when the bug is present.
 p3b_samecase() {
   local label="$1" shape="$2"
   mk_tree
@@ -817,7 +799,7 @@ p3b_samecase() {
 p3b_samecase 'a `#` after a command substitution `)`' 'echo $(printf a)#tag; emit error P4 SRC "x"'
 p3b_samecase 'a `#` after a backtick' 'echo `printf a`#tag; emit error P4 SRC "x"'
 
-# THE STRUCTURAL GUARD. Every heredoc defect this scanner has had ends in one
+# THE STRUCTURAL GUARD. Every heredoc defect in this scanner ends in one
 # observable state -- a body skip that never closes -- so an unclosed state at
 # EOF must be exit 2, whatever shape of shell produced it. These two assert
 # that directly, and they are the cases that hold when the enumeration above
@@ -867,9 +849,8 @@ rm -rf "$root"
 p3b_case 'a here-string (`<<<`) opens no body, by either mechanism' 'grep x <<<"$v"'
 
 # ====== N2: ordinary shell is not a partial extraction loss (exit 2) ======
-# Reproduced against c7f71c36: each shape below made a well-formed detector
-# un-gateable, because the site counter and the id extractor disagreed and any
-# disagreement is exit 2 ("cannot determine"). Where the id IS readable the
+# Each shape below can make a well-formed detector un-gateable, when the site
+# counter and the id extractor disagree, and any disagreement is exit 2 ("cannot determine"). Where the id IS readable the
 # assertion is exit 1 naming it, which proves the site was EXTRACTED rather
 # than merely skipped; where the line is not a call site at all the assertion
 # is a clean exit 0.
@@ -977,9 +958,7 @@ rm -rf "$root"
 # loss. That is the specific risk of reading quoted words at all: `@L@` makes a
 # quoted argument resolvable, and this asserts resolvable is not the same as
 # resolved. It must differ from the P2 block above, which covers the `"$sev"`
-# EXPANSION shape -- this guard was a byte-identical copy of that fixture until
-# an audit caught it, a duplicate masquerading as a second dimension of
-# coverage. (`P1x` would NOT do: it matches the pattern and resolves.)
+# EXPANSION shape. (`P1x` would NOT do: it matches the pattern and resolves.)
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"' 'emit error "P2ab" SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P1 classification')"
@@ -1079,12 +1058,10 @@ fi
 rm -rf "$root"
 
 # ===== P7: the stopping rule scans EVERY emit call site on a line ==========
-# The discovery half kept a greedy sed of its own, which retained only the LAST
-# id on a line. A detector spelling its two emits as
-# `emit warning Q1 ...; emit error Q2 ...` therefore resolved to one id, fell
-# short of the two-distinct-ids bar, and was silently unenforced -- while the
-# verdict scanner beside it read that same line as two call sites correctly.
-# Discovery now runs that same scanner, so the two cannot disagree.
+# A greedy sed retains only the LAST id on a line, so a detector spelling its
+# two emits as `emit warning Q1 ...; emit error Q2 ...` would resolve to one id,
+# fall short of the two-distinct-ids bar, and go silently unenforced. Discovery
+# runs the verdict scanner, so the two halves cannot disagree.
 
 mk_tree
 mkdir -p "$root/plugins/demo/skills/oneline/scripts" "$root/plugins/demo/skills/oneline/evals"
@@ -1162,7 +1139,7 @@ fi
 rm -rf "$root"
 
 # ===== P5: discover stdout is buffered, so an exit 2 emits nothing there ====
-# With two rows, a per-row exit 2 used to leave the FIRST row's report on
+# With two rows, a per-row exit 2 must not leave the FIRST row's report on
 # stdout with no denominator trailer under it.
 
 mk_tree
@@ -1205,8 +1182,8 @@ else
 fi
 rm -rf "$root"
 
-# P6: trailing argv was silently ignored, which reads as a mode the gate
-# accepted and did not run.
+# P6: silently ignored trailing argv reads as a mode the gate accepted and did
+# not run.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'exercises P1 classification')"
