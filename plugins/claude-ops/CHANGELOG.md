@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.0] - 2026-09-24
+
+### Added
+
+- `/claude-ops:observability latency` (`scripts/hook-latency.sh`, `otel/hook-latency.sql`) reports hook latency per lane and hook event from `hook_execution_complete` in the OTEL store: p50/p95 against a p95 budget (defaults Stop 2000 ms; PostToolBatch, UserPromptSubmit and SubagentStop 1500 ms; judgment, derived from the hook-budget convention's 'after at S=80 ms' table) and a within-session slope flag for latency that grows across a session. It reads the hot store only and warns when the window reaches past the oldest hot fire. Flags `--days` (default 7), `--since`, `--budget EVENT=MS`, `--min-fires`, `--min-sessions`; exit 0 none flagged, 1 flagged, 2 cannot evaluate (#4443).
+
 ## [0.61.0] - 2026-09-24
 
 ### Removed
