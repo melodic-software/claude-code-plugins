@@ -45,7 +45,8 @@ inventory.
 - **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
   `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
   The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
-  reserve your last turns" below).
+  reserve your last turns" below). A value above that default is ignored and noted in
+  `open_questions`.
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
   one a parent can establish before dispatching. In particular **your own ability to write is not a
   flag**. The parent's pre-dispatch `mkdir`/baseline proves the *parent* can write there, not you.
@@ -122,8 +123,8 @@ mutating Bash: no writes, moves, deletes, or installs, and no git-state changes.
 
 **A path you may not read stays unread.** A path denied to the `Read` tool, or barred by your
 dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
-includes projecting names or counts out of it rather than values. The denial is the answer. Record
-the gap in `open_questions`: what you did not read, and what barred it.
+includes projecting names or counts out of it rather than values. Record the gap in
+`open_questions`: what you did not read, and what barred it.
 
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
@@ -206,7 +207,7 @@ turns as you go: one assistant turn may hold several parallel tool calls, and it
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
 turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
 
-Write the artifact as the work settles, not all at the end:
+Write the artifact in stages:
 
 1. As soon as the scope is resolved and preload is confirmed, write the `EXPLORE.md` skeleton into
    the slice: the task restatement, the line `Run status: in progress` on a line of its own, and the
@@ -221,14 +222,13 @@ Write the artifact as the work settles, not all at the end:
 A by-value `EXPLORE.md` body carries `Run status: complete`, because by-value means the work
 finished; the parent writes it and grades it like any other.
 
-## Run the outcome gate BEFORE you write
+## Run the outcome gate before the final write
 
 The skill's outcome gate is a binary self-check read off the artifact, not a "did I explore
 enough?" recap. Run it before the final write that marks the index complete, and fix any FAIL at
-the named dimension first. One
-criterion is not yours to close: open questions are not "surfaced to the user" by you, because you
-cannot reach one. Carry them into the payload instead, each with a recommended default; the parent
-surfaces them.
+the named dimension first. One criterion is not yours to close: open questions are not "surfaced
+to the user" by you, because you cannot reach one. Carry them into the payload instead, each with a
+recommended default; the parent surfaces them.
 
 Two dimension-level notes where the preloaded text assumes a human turn or a main-context session:
 
@@ -285,10 +285,9 @@ more read. The disk carries the same signal without any payload: an index still 
 
 **Emit the payload block early and keep it current, as a second channel.** Text you emit mid-run
 is not what the parent receives at a turn-limit stop in every version, which is why the disk marker
-comes first; the block is cheap and helps whenever it does arrive. As soon as the scope is
-resolved, write the block with
-`status: truncated`, `preload_token` echoed, `preload:` set, `scope_as_received` quoted, and the
-fields you do not have yet left as placeholders; then re-emit it, updated, whenever a section lands.
+comes first. As soon as the scope is resolved, write the block with `status: truncated`,
+`preload_token` echoed, `preload:` set, `scope_as_received` quoted, and the fields you do not have
+yet left as placeholders; then re-emit it, updated, whenever a section lands.
 A stop at any point after that leaves the parent a well-formed payload instead of silence. Setting
 `preload:` in the early block matters most on the fallback path: an interrupted recovery that
 copied the template's default would report `fired` for a body it Read from disk.

@@ -161,8 +161,10 @@ So the parent does the writing, which it can: this is the checkout-not-process b
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to
 take. It is not an acceptance value, and treating it as one would let a run be believed on the
-agent's own word, the exact thing the gate exists to refuse. Why the mode exists and where its
-boundary sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+agent's own word, the exact thing the gate exists to refuse. An index body written back must carry
+`Run status: complete` or no marker; one still marked `Run status: in progress` fails the gate and
+is a failed dispatch. Why the mode exists and where its boundary sits:
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 **Exit 1 with the agent still live: resume it, do not re-dispatch it.** A resume costs one message;
 a re-dispatch pays the full six dimensions over again. Address the agent by the **agent ID**, not by
@@ -173,12 +175,12 @@ write, you are on the by-value rung above, not this one.
 
 **A refused resume, or exit 1 again after one.** *Now* discard the slice and re-dispatch with the
 same envelope. An index still marked `Run status: in progress` is refused by the gate, so that
-partial slice announces itself; one with no status line cannot be told apart from a complete one by
-reading it. Either way, once the resume has failed there is nothing left that could tell you whether
-the slice is worth keeping. **The discard follows the resume; it does not replace it**, including for a
-`status: truncated` return and for a dispatch that returned no payload at all, which are the two
-cases that most often leave a live agent holding a complete artifact set. The ordering is stated
-once in
+partial slice is visible to the gate; one with no status line cannot be told apart from a complete
+one by reading it. Either way, once the resume has failed there is nothing left that could tell you
+whether the slice is worth keeping. **The discard follows the resume; it does not replace it**,
+including for a `status: truncated` return and for a dispatch that returned no payload at all,
+which are the two cases that most often leave a live agent holding a complete artifact set. The
+ordering is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
 ("Resume first, then decide about the slice").
 

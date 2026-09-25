@@ -253,9 +253,10 @@ fi
 # A dispatched agent writes its index skeleton early with this marker line and
 # replaces it only in its final write, so an index still carrying it is a run
 # that stopped short. Checked before the sidecar scan so a bare skeleton reports
-# this reason rather than "names no sidecar". Exact case, a plain line, with an
-# optional CR for a CRLF file; prose quoting the marker does not match.
-if grep -qE $'^Run status: in progress\r?$' "$index"; then
+# this reason rather than "names no sidecar". Exact case, a plain line; trailing
+# whitespace, including a CRLF file's CR, is allowed. Prose quoting the marker
+# does not match.
+if grep -qE '^Run status: in progress[[:space:]]*$' "$index"; then
   echo "unusable: index is still marked Run status: in progress; the run stopped before its final write: $index" >&2
   verdict "$index" 0 0 unusable
   exit 1

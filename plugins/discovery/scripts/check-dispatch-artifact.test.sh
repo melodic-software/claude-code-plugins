@@ -409,6 +409,14 @@ suite() {
   sidecar "$inprog_crlf" "$PREFIX-codebase.md" 'a'
   run 1 "an in-progress marker with CRLF line endings is unusable" "$inprog_crlf"
 
+  # Trailing whitespace an editor leaves behind does not hide the marker.
+  local inprog_ws
+  inprog_ws="$(slice in-progress-trailing-ws)"
+  printf '# %s\nRun status: in progress \t\r\n%s-codebase.md\n' "$PREFIX" "$PREFIX" \
+    >"$inprog_ws/$INDEX_NAME"
+  sidecar "$inprog_ws" "$PREFIX-codebase.md" 'a'
+  run 1 "an in-progress marker with trailing whitespace is unusable" "$inprog_ws"
+
   complete="$(slice complete)"
   index "$complete" "# $PREFIX" 'Run status: complete' "$PREFIX-codebase.md"
   sidecar "$complete" "$PREFIX-codebase.md" 'a'

@@ -130,7 +130,8 @@ Two conditions bind that write:
 - **The bodies must be the artifact.** A by-value payload carrying a summary of findings rather than
   the full artifact bodies is a **failed dispatch**, not a fallback. Nothing in the payload is
   accepted *in place of* the gate passing; `persistence: by-value` routes the parent, and grades
-  nothing.
+  nothing. An `INTENT.md` body written back must carry `Run status: complete` or no marker; one
+  still marked `Run status: in progress` fails the gate and is a failed dispatch.
 
 Why the mode exists and where its boundary sits:
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)

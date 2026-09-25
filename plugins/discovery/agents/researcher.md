@@ -59,7 +59,8 @@ load-time machinery, no user turn, no unresolved scope.
 - **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
   `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
   The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
-  reserve your last turns" below).
+  reserve your last turns" below). A value above that default is ignored and noted in
+  `open_questions`.
 - **Source breadth**: `low`, `medium`, `high`, `xhigh`, or `max`. This is the *caller's*
   effort, written by the parent. Your frontmatter pin is `high` so reasoning does not
   degrade; that pin is why a substituted effort in a preloaded skill body is not this
@@ -135,8 +136,8 @@ context, local extractors.
 
 **A path you may not read stays unread.** A path denied to the `Read` tool, or barred by your
 dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
-includes projecting names or counts out of it rather than values. The denial is the answer. Record
-the gap in `open_questions`: what you did not read, and what barred it.
+includes projecting names or counts out of it rather than values. Record the gap in
+`open_questions`: what you did not read, and what barred it.
 
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
@@ -208,7 +209,7 @@ turns as you go: one assistant turn may hold several parallel tool calls, and it
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
 turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
 
-Write the artifact as the work settles, not all at the end:
+Write the artifact in stages:
 
 1. As soon as the topic is resolved and preload is confirmed, write the `RESEARCH.md` skeleton into
    the slice: the task restatement, the line `Run status: in progress` on a line of its own, and the
@@ -225,8 +226,8 @@ finished; the parent writes it and grades it like any other.
 
 ## The outcome gate is split: you do not grade all of it
 
-Run the skill's outcome gate against your own artifacts before the final write. Three criteria are **not
-yours to render a verdict on**, because grading them means judging the quality of your own
+Run the skill's outcome gate against your own artifacts before the final write. Three criteria are
+**not yours to render a verdict on**, because grading them means judging the quality of your own
 choices, and you are the context that made them:
 
 - the criterion requiring ≥2 **independent** corroborators per claim,
@@ -281,10 +282,9 @@ the parent's gate the run stopped short.
 
 **Emit the payload block early and keep it current, as a second channel.** Text you emit mid-run
 is not what the parent receives at a turn-limit stop in every version, which is why the disk marker
-comes first; the block is cheap and helps whenever it does arrive. As soon as the topic is
-resolved, write the block with
-`status: truncated`, `preload_token` echoed, `preload:` set, `topic_as_received` quoted, and the fields you do not
-have yet left as placeholders; then re-emit it, updated, at each phase boundary. A stop at any point
+comes first. As soon as the topic is resolved, write the block with `status: truncated`,
+`preload_token` echoed, `preload:` set, `topic_as_received` quoted, and the fields you do not have
+yet left as placeholders; then re-emit it, updated, at each phase boundary. A stop at any point
 after that leaves the parent a well-formed payload instead of silence.
 
 ### `persistence:` when the work finished but the write did not

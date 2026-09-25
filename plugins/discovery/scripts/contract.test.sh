@@ -398,9 +398,8 @@ assert_absent 'no evals entry counts the gate criteria' \
 # ---------------------------------------------------------------------------
 # 13. Dispatched agents write early and reserve their last turns
 #
-# Four dispatched runs stopped at the 40-turn limit with nothing on disk and no
-# payload, while runs whose envelope named a turn to stop gathering finished.
-# Each agent states its limit as its own frontmatter number, names a stop turn
+# A free-text budget bounds no turn count; a named stop turn leaves the agent
+# turns to write before its limit. Each agent states its limit as its own frontmatter number, names a stop turn
 # below it, writes an index skeleton marked `Run status: in progress` early, and
 # replaces the marker only in its final write. The envelope carries the stop
 # turn as a second Budget line. The research side also names a claim's primary
@@ -423,6 +422,14 @@ for agent in explorer researcher intent-tracer; do
   else
     fail "$file names a stop-gathering turn (${stop:-unset}) below its limit (${limit:-unset})"
   fi
+  default="$(grep -m1 -oE 'absent, use turn [0-9]+' "$PLUGIN_ROOT/$file" | tr -dc '0-9')"
+  if [[ -n "$stop" && "$stop" == "$default" ]]; then
+    pass "$file stop turn ($stop) equals its Budget-bullet default ($default)"
+  else
+    fail "$file stop turn (${stop:-unset}) equals its Budget-bullet default (${default:-unset})"
+  fi
+  assert_present "$file ignores a Turn budget above its default and notes it" \
+    "$file" 'A value above that default is ignored and noted in'
   assert_present "$file writes the index skeleton marked in progress" \
     "$file" 'Run status: in progress'
   assert_present "$file replaces the marker in its final write" \
@@ -475,6 +482,17 @@ for file in reference/parent-contract.md skills/explore/reference/dispatch.md \
   assert_present "$file names the in-progress marker where it discusses a partial slice" \
     "$file" 'Run status: in progress'
 done
+for file in reference/parent-contract.md skills/research-deep/SKILL.md; do
+  assert_present "$file bounds the Turn budget placeholder by the default stop turn" \
+    "$file" "Turn budget: <.*at or below the agent's default stop turn \(30\)"
+done
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file refuses a by-value body still marked in progress" \
+    "$file" '`Run status: complete` or no marker; one'
+done
+assert_absent 'no file narrates the 40-turn incidents as the Turn budget rationale' \
+  'bounded nothing: dispatched runs stopped'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

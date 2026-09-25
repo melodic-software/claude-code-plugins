@@ -43,18 +43,17 @@ Reason: <the decision this feeds, and who the output is for>
 Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
 Memory root: <memory_dir>
 Budget: <the depth this session authorized>
-Turn budget: <turns of gathering before the agent writes and hands back; below its maxTurns>
+Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
 Capability flags: nested spawning <available|unavailable>
 ```
 
 **The Budget field is carried on two lines.** `Budget:` states depth in words; `Turn budget:`
 states the turn by which the agent stops gathering, in the same unit as its `maxTurns` (assistant
-turns, where one turn may hold several parallel tool calls). The second line exists because a
-free-text budget such as "thorough single pass" bounded nothing: dispatched runs stopped at the
-40-turn limit with nothing written, while runs whose envelope named a turn to stop gathering and
-write finished inside it. It can only move the agent's stop turn earlier than the default its
-own definition names, never later. It is degradable: an agent that does not receive it stops
-gathering at that default.
+turns, where one turn may hold several parallel tool calls). A free-text budget such as "thorough
+single pass" bounds no turn count; a named stop turn leaves the agent turns to write before its
+limit. It can only move the agent's stop turn earlier than the default its own definition names:
+an agent ignores a higher value and notes it in `open_questions`. It is degradable: an agent that
+does not receive it stops gathering at that default.
 
 **Research adds one more labeled line**, because source breadth is the caller's level and
 the researcher lane is pinned `high` for reasoning:

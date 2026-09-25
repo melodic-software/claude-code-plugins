@@ -224,8 +224,10 @@ draws:
 
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.
-It is not an acceptance value. Letting the gate grade a claim the agent makes about its own research,
-in place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids, arriving
+It is not an acceptance value. An index body written back must carry
+`Run status: complete` or no marker; one still marked `Run status: in progress` fails the gate and
+is a failed dispatch. Letting the gate grade a claim the agent makes about its own research, in
+place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids, arriving
 through the recovery path instead of the front door. Why the mode exists and where its boundary
 sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
@@ -275,7 +277,7 @@ A partial marking says the run stopped; it does not say what reached disk. Becau
 sidecars are written incrementally, a turn-limit stop leaves a half-marked ledger and sidecars for
 the sections that settled, and an older harness may return no payload at all.
 
-Hence two channels. On disk, the agent writes its index skeleton early with the line
+The run therefore reports through two channels. On disk, the agent writes its index skeleton early with the line
 `Run status: in progress` and replaces it only in its final write, so the artifact gate refuses a
 stopped run's index. In the payload, the agent emits its block early and keeps it current, marked
 `status: truncated` until the run finishes, and a dispatch that returns no payload is treated as
