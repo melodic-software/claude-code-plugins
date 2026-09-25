@@ -37,12 +37,12 @@ line() { # <records...>: one Collector batch line
   local IFS=,
   printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[%s]}]}]}\n' "$*"
 }
-store() { # <name> <ms-expression in pos> <sessions> <fires>: Stop fires only
-  local d="$TMP/$1" s p recs
+store() { # <name> <ms-expression in pos> <sessions> <fires> [age-seconds]: Stop fires only
+  local d="$TMP/$1" s p recs age="${5:-3600}"
   mkdir -p "$d"
   for ((s = 1; s <= $3; s++)); do
     recs=()
-    for ((p = 1; p <= $4; p++)); do recs+=("$(record "sess-$s" Stop "$(($2))" "$((3600 - p))")"); done
+    for ((p = 1; p <= $4; p++)); do recs+=("$(record "sess-$s" Stop "$(($2))" "$((age - p))")"); done
     line "${recs[@]}" >>"$d/cc-logs.json"
   done
   printf '%s' "$d"
@@ -57,6 +57,8 @@ out="$(bash "$SCRIPT" --help)"
 assert_contains "--help prints usage" "$out" "--min-sessions"
 run "$TMP" --budget nope
 assert_eq "bad --budget exits 2" 2 "$rc"
+run "$TMP" --min-sessions 2
+assert_eq "--min-sessions below 3 exits 2" 2 "$rc"
 
 if command -v duckdb >/dev/null 2>&1; then
   rising="$(store rising '100 + 40 * p' 6 25)"
@@ -79,6 +81,26 @@ if command -v duckdb >/dev/null 2>&1; then
   run "$slow"
   assert_eq "Stop p95 over budget exits 1" 1 "$rc"
   assert_contains "p95 reason is named" "$out" "p95>budget"
+  run "$slow" --budget Stop=5000
+  assert_eq "a budget above p95 clears the flag" 0 "$rc"
+  run "$slow" --budget Bogus=5
+  assert_contains "an unknown --budget event warns" "$out" "Bogus is not a known hook event"
+
+  # The gates: each fixture rises, but fails exactly one slope condition.
+  run "$(store few-sessions '100 + 40 * p' 4 25)"
+  assert_eq "rising over 4 sessions is below --min-sessions" 0 "$rc"
+  run "$(store few-fires '100 + 40 * p' 6 19)"
+  assert_eq "19 fires per session is below --min-fires" 0 "$rc"
+  run "$(store shallow '200 + p' 6 25)"
+  assert_eq "a slope under the 100 ms floor is not flagged" 0 "$rc"
+
+  old="$(store old '200' 1 5 $((2 * 86400)))"
+  run "$old" --days 1
+  assert_eq "fires before --days are excluded" 2 "$rc"
+  assert_contains "the exclusion says why" "$out" "no hook_execution_complete rows"
+  run "$old" --since 2000-01-01
+  assert_eq "--since before the fires includes them" 0 "$rc"
+  assert_contains "a window older than the hot store warns about the cold tier" "$out" "cold tier"
 
   empty="$TMP/empty"
   mkdir -p "$empty"
