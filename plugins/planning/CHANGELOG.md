@@ -3,6 +3,27 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.1] - 2026-09-24
+
+### Fixed
+
+- **`interview`:** a recommendation that fixes more than one decision lists each part under
+  `Commits you to:`, and each part is its own register row. Accepting the headline resolves
+  the listed parts; an alternative or rejection withdraws them; an unlisted part is not
+  decided by any answer to the headline.
+- **`interview`:** a hedged reply ("yes?", "I think so") resolves at most the headline of one
+  question, is recorded `hedged:`, and leaves its commitment rows open. A hedged
+  accept-shorthand is not an accept-shorthand. A hedged terminal reply is mirrored onto the
+  page as `own` text prefixed `hedged:`; a hedged "Own answer" typed on the page is echoed
+  the same way, and the Step 3 restate relists it from its `free-text:` row.
+- **`interview`:** on the page surface, a recommendation's parts are the question's `commits`
+  entries: accepting confirms only ticked parts, and unticked parts reach the Brief as named
+  risks. After an alternative, the lead moves those risks to Out-of-scope as withdrawn.
+- **`interview`:** the Stance names both question-surface rules (terminal and page).
+- Two section digests in `tests/interview-defenses.test.sh` were re-pinned (SKILL.md Stance,
+  loop.md open-question register). Each fired on added text that narrows what an answer or
+  accept-shorthand resolves and qualifies no defense.
+
 ## [0.41.0] - 2026-09-24
 
 ### Added
