@@ -118,7 +118,7 @@
    "roughness": 0.0706,
    "straight_share": 0.5439,
    "boil": {
-    "edge_shift_px": 1.4145,
+    "edge_shift_px": 1.1632,
     "variants": "a new drawing every hold",
     "on_holds": true
    }
@@ -141,7 +141,7 @@
    "field_gray_sd": 3.9121,
    "paper_gray_sd": 2.5225,
    "grain": 0.6932,
-   "period": 51.6723,
+   "period": 7.5434,
    "gaps_per_mpx": 65.3072,
    "specks_per_mpx": 20.2279,
    "holes": 0.0212,
@@ -244,9 +244,9 @@
    "p90": 0.7404
   },
   "period": {
-   "p10": 27.5027,
-   "p50": 51.6723,
-   "p90": 103.0604
+   "p10": 4.3131,
+   "p50": 7.5434,
+   "p90": 13.4787
   },
   "sliver": {
    "p10": 2.0,
@@ -254,19 +254,19 @@
    "p90": 3.7535
   },
   "sliver_border": {
-   "p10": 2.75,
-   "p50": 3.875,
-   "p90": 5.5
+   "p10": 3.0,
+   "p50": 4.75,
+   "p90": 8.0
   },
   "sliver_caption": {
-   "p10": 1.7901,
-   "p50": 2.4931,
-   "p90": 4.0862
+   "p10": 1.907,
+   "p50": 2.6875,
+   "p90": 4.4563
   },
   "boil": {
-   "p10": 1.1888,
-   "p50": 1.4145,
-   "p90": 1.7419
+   "p10": 0.8929,
+   "p50": 1.1632,
+   "p90": 1.4063
   }
  },
  "timing": {
@@ -278,7 +278,7 @@
    "on4s+": 0.042
   },
   "offstep": 0.0882,
-  "held": 0.357
+  "held": 0.277
  },
  "heldout": {
   "excerpt_share": [
@@ -588,9 +588,18 @@
      "poly_warp3+blur0.9+noise8": 0.7153
     },
     "capped_by": [
+     "near_blur0.6",
      "near_blur0.9+dry32",
      "near_blur0.9+dry8",
+     "near_blur0.9+noise4",
+     "near_blur0.9+noise8+stripes12+dry16",
+     "near_blur0.9+stripes6",
+     "near_none",
+     "near_stripes12",
      "near_warp1.5+blur0.9",
+     "poly_blur0.9+noise8",
+     "poly_blur0.9+stripes12",
+     "poly_none",
      "poly_warp3+blur0.9+noise8"
     ],
     "calibration_pass": "150/150",
@@ -864,49 +873,38 @@
      "poly_none": 0.3283,
      "poly_warp3+blur0.9+noise8": 0.4604
     },
-    "capped_by": [
-     "near_blur0.6",
-     "near_blur0.9+noise4",
-     "near_none",
-     "poly_blur0.9+noise8",
-     "poly_none"
-    ],
+    "capped_by": [],
     "calibration_pass": "150/150",
     "evaluation_pass": "150/150"
    },
    "period": {
     "raw": [
-     40.8537,
-     60.757
+     6.4759,
+     9.2708
     ],
-    "heldout_max_miss": 2.2347,
-    "widening": 2.2347,
+    "heldout_max_miss": 0.1537,
+    "widening": 0.1537,
     "control_margins": {
-     "BiosRiosz-2102523343253520764": 167.1324,
-     "kevin_t_ngo-2102171059592241410": 18.411,
-     "near_blur0.6": 31.6173,
-     "near_blur0.9+dry32": 2.759,
-     "near_blur0.9+dry8": 5.0708,
-     "near_blur0.9+noise16": 39.7436,
-     "near_blur0.9+noise4": 35.0403,
-     "near_blur0.9+noise8+stripes12+dry16": 1642.4234,
-     "near_blur0.9+stripes6": 8170.4652,
-     "near_none": 35.5457,
-     "near_stripes12": 11715.3693,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.0,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.0,
-     "near_warp1.5+blur0.9": 16.5732,
-     "poly_blur0.9+noise8": 39.2377,
-     "poly_blur0.9+stripes12": 11643.0172,
-     "poly_none": 32.6374,
-     "poly_warp3+blur0.9+noise8": 39.7243
+     "BiosRiosz-2102523343253520764": 0.5924,
+     "kevin_t_ngo-2102171059592241410": 4.8292,
+     "near_blur0.6": 4.767,
+     "near_blur0.9+dry32": 2.2522,
+     "near_blur0.9+dry8": 2.6504,
+     "near_blur0.9+noise16": 5.4863,
+     "near_blur0.9+noise4": 4.9679,
+     "near_blur0.9+noise8+stripes12+dry16": 56.0605,
+     "near_blur0.9+stripes6": 57.8884,
+     "near_none": 5.3447,
+     "near_stripes12": 58.0387,
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 3.6797,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 3.8482,
+     "near_warp1.5+blur0.9": 4.9099,
+     "poly_blur0.9+noise8": 5.1766,
+     "poly_blur0.9+stripes12": 30.3448,
+     "poly_none": 0.0,
+     "poly_warp3+blur0.9+noise8": 5.4951
     },
-    "capped_by": [
-     "near_blur0.9+noise8+stripes12+dry16",
-     "near_blur0.9+stripes6",
-     "near_stripes12",
-     "poly_blur0.9+stripes12"
-    ],
+    "capped_by": [],
     "calibration_pass": "150/150",
     "evaluation_pass": "150/150"
    },
@@ -943,54 +941,41 @@
    },
    "sliver_border": {
     "raw": [
-     3.6875,
-     4.1875
+     3.9062,
+     6.6875
     ],
-    "heldout_max_miss": 0.1154,
-    "widening": 0.1154,
+    "heldout_max_miss": 0.125,
+    "widening": 0.125,
     "control_margins": {
-     "BiosRiosz-2102523343253520764": 2.1719,
-     "kevin_t_ngo-2102171059592241410": 1.1875,
-     "near_blur0.6": 0.0,
-     "near_blur0.9+dry32": 0.0625,
-     "near_blur0.9+dry8": 0.0,
-     "near_blur0.9+noise16": 0.4063,
-     "near_blur0.9+noise4": 0.0625,
-     "near_blur0.9+noise8+stripes12+dry16": 0.8125,
-     "near_blur0.9+stripes6": 0.0625,
-     "near_none": 0.0625,
-     "near_stripes12": 0.0625,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.0,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.5625,
-     "near_warp1.5+blur0.9": 0.8225,
-     "poly_warp3+blur0.9+noise8": 1.1875
+     "BiosRiosz-2102523343253520764": 2.4062,
+     "kevin_t_ngo-2102171059592241410": 1.8807,
+     "near_warp1.5+blur0.9": 1.4062,
+     "poly_warp3+blur0.9+noise8": 1.4062
     },
-    "capped_by": [
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72"
-    ],
+    "capped_by": [],
     "calibration_pass": "150/150",
     "evaluation_pass": "150/150"
    },
    "sliver_caption": {
     "raw": [
-     1.9452,
-     3.2917
+     2.0204,
+     3.2781
     ],
-    "heldout_max_miss": 0.0136,
-    "widening": 0.0136,
+    "heldout_max_miss": 0.0,
+    "widening": 0.0,
     "control_margins": {
-     "near_blur0.6": 0.0,
-     "near_blur0.9+dry32": 0.1952,
-     "near_blur0.9+dry8": 0.0282,
-     "near_blur0.9+noise16": 0.0563,
-     "near_blur0.9+noise4": 0.0045,
-     "near_blur0.9+noise8+stripes12+dry16": 0.1436,
-     "near_blur0.9+stripes6": 0.0045,
+     "near_blur0.6": 0.0204,
+     "near_blur0.9+dry32": 0.2704,
+     "near_blur0.9+dry8": 0.1295,
+     "near_blur0.9+noise16": 0.1454,
+     "near_blur0.9+noise4": 0.109,
+     "near_blur0.9+noise8+stripes12+dry16": 0.2685,
+     "near_blur0.9+stripes6": 0.109,
      "near_none": 0.0,
      "near_stripes12": 0.0,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.0866,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.074,
-     "near_warp1.5+blur0.9": 0.0
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.1687,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.1492,
+     "near_warp1.5+blur0.9": 0.0752
     },
     "capped_by": [],
     "calibration_pass": "150/150",
@@ -998,34 +983,34 @@
    },
    "boil": {
     "raw": [
-     1.3023,
-     1.4786
+     1.0381,
+     1.2623
     ],
-    "heldout_max_miss": 0.0221,
-    "widening": 0.0221,
+    "heldout_max_miss": 0.0176,
+    "widening": 0.0176,
     "control_margins": {
-     "BiosRiosz-2102523343253520764": 0.0818,
-     "kevin_t_ngo-2102171059592241410": 1.2744,
-     "near_blur0.6": 0.2645,
-     "near_blur0.9+dry32": 0.2694,
-     "near_blur0.9+dry8": 0.2629,
-     "near_blur0.9+noise16": 1.3009,
-     "near_blur0.9+noise4": 0.2598,
-     "near_blur0.9+noise8+stripes12+dry16": 0.2724,
-     "near_blur0.9+stripes6": 0.2598,
-     "near_none": 0.2803,
-     "near_stripes12": 0.2803,
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.2713,
-     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.2723,
-     "near_warp1.5+blur0.9": 0.2982,
-     "poly_blur0.9+noise8": 0.5249,
-     "poly_blur0.9+stripes12": 0.5249,
-     "poly_none": 0.3075,
-     "poly_warp3+blur0.9+noise8": 0.0952
+     "BiosRiosz-2102523343253520764": 0.0,
+     "kevin_t_ngo-2102171059592241410": 1.0139,
+     "near_blur0.6": 0.3131,
+     "near_blur0.9+dry32": 0.3173,
+     "near_blur0.9+dry8": 0.3148,
+     "near_blur0.9+noise16": 1.0367,
+     "near_blur0.9+noise4": 0.3031,
+     "near_blur0.9+noise8+stripes12+dry16": 0.3143,
+     "near_blur0.9+stripes6": 0.3031,
+     "near_none": 0.3176,
+     "near_stripes12": 0.3176,
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72": 0.3172,
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72": 0.3236,
+     "near_warp1.5+blur0.9": 0.3234,
+     "poly_blur0.9+noise8": 1.1299,
+     "poly_blur0.9+stripes12": 1.1299,
+     "poly_none": 0.3651,
+     "poly_warp3+blur0.9+noise8": 0.272
     },
     "capped_by": [
-     "kevin_t_ngo-2102171059592241410",
-     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72"
+     "near_warp0.4+blur0.9+rows0.15+noise0.4+retime72",
+     "near_warp0.5+blur0.9+rows0.15+noise0.4+retime72"
     ],
     "calibration_pass": "150/150",
     "evaluation_pass": "150/150"
@@ -1059,6 +1044,7 @@
     },
     "capped_by": [
      "BiosRiosz-2102523343253520764",
+     "kevin_t_ngo-2102171059592241410",
      "near_blur0.9+noise16"
     ],
     "calibration_pass": "150/150",
@@ -1116,11 +1102,11 @@
   "field_sd": 3.9121,
   "flat": 0.5367,
   "grain": 0.6932,
-  "period": 51.6723,
+  "period": 7.5434,
   "sliver": 2.8836,
-  "sliver_border": 3.875,
-  "sliver_caption": 2.4931,
-  "boil": 1.4145,
+  "sliver_border": 4.75,
+  "sliver_caption": 2.6875,
+  "boil": 1.1632,
   "per_second": 7.9187,
   "offstep": 0.0882
  },
@@ -1198,24 +1184,24 @@
    0.7154
   ],
   "period": [
-   38.619,
-   62.9917
+   6.3222,
+   9.4245
   ],
   "sliver": [
    2.132,
    3.4232
   ],
   "sliver_border": [
-   3.5721,
-   4.3029
+   3.7812,
+   6.8125
   ],
   "sliver_caption": [
-   1.9316,
-   3.3053
+   2.0204,
+   3.2781
   ],
   "boil": [
-   1.2802,
-   1.5007
+   1.0205,
+   1.2799
   ],
   "per_second": [
    7.7838,
@@ -1233,8 +1219,6 @@
   "offstep",
   "sliver_border",
   "sliver_caption",
-  "grain",
-  "period",
   "flat",
   "holes",
   "boil",
@@ -1242,7 +1226,9 @@
  ],
  "measured_only": [
   "straight",
-  "sliver"
+  "sliver",
+  "grain",
+  "period"
  ],
  "brush": {
   "why": "Starting values for ink.js (its arguments where one exists), from a scene that passed an earlier check which a blur and ruled stripes could satisfy. Not validated against the current check; see STYLE.md, Validation.",

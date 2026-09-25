@@ -37,13 +37,14 @@ import controls  # noqa: E402
 import inkstats  # noqa: E402
 
 # Checked statistics, each chosen for what it separates (reference/statistics.md, "Which statistics separate"):
-# straight, rough, offstep and sliver are drawing, timing and carving structure a post filter barely moves; grain,
-# period and flat reject texture overlays; the rest reject other styles. straight and sliver follow the subject, so
+# straight, rough, offstep and sliver are drawing, timing and carving structure a post filter barely moves; flat
+# rejects texture laid over all the black; the rest reject other styles. grain and period are measured only: on
+# the source they follow codec residue and the pixel grid, not a drawn texture. straight and sliver follow the subject, so
 # they are checked only inside the content classes every film of the style has (inkstats.CLASSES), and only where
 # the source defines the class in at least two parts; over the whole frame they are MEASURED_ONLY.
-CHECK = ['straight_border', 'straight_caption', 'rough', 'offstep', 'sliver_border', 'sliver_caption', 'grain',
-         'period', 'flat', 'holes', 'boil', 'per_second']
-MEASURED_ONLY = ['straight', 'sliver']
+CHECK = ['straight_border', 'straight_caption', 'rough', 'offstep', 'sliver_border', 'sliver_caption',
+         'flat', 'holes', 'boil', 'per_second']
+MEASURED_ONLY = ['straight', 'sliver', 'grain', 'period']
 CLEAR = 0.5
 # Shortest excerpt: a third of the source, about 10 s of a 30 s clip, the length SKILL.md asks a validation scene to be.
 FLOOR = 1 / 3

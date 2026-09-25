@@ -1,5 +1,5 @@
 ---
-description: "Learn a drawn animation style from a rotoscoped clip into a style pack: measure its traces and source drawings into knob values and statistic bands (edge straightness and roughness, texture scale and periodicity, solid black, boil of the frame and caption, the hold mix on 1s/2s/3s, palette), prove the bands against adversarial controls, then prove the pack by authoring a new scene with ink.js and checking its render against it. Use when: 'learn this style', 'make a style pack', 'extract the style from this clip', 'does my film match the style', 'check this scene against the woodcut pack', 'which statistics separate styles'. Needs a rotoscope work dir; not for copying a clip one to one."
+description: "Learn a drawn animation style from a rotoscoped clip into a style pack: measure its traces and source drawings into knob values and statistic bands (edge straightness and roughness, solid black, boil of the frame and caption, the hold mix on 1s/2s/3s, palette), prove the bands against adversarial controls, then prove the pack by authoring a new scene with ink.js and checking its render against it. Use when: 'learn this style', 'make a style pack', 'extract the style from this clip', 'does my film match the style', 'check this scene against the woodcut pack', 'which statistics separate styles'. Needs a rotoscope work dir; not for copying a clip one to one."
 argument-hint: "<rotoscope work dir> <pack dir> [--cuts T,T,..] [--credit TEXT] [--negative SUMMARY.json ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -79,9 +79,10 @@ check, never the check against the scene. `inkstats.py` also measures any film w
 
 - A post filter must not be what passes the check. Blur, noise, stripes and dry-brush overlays move
   edge softness and the amount of gray inside the ink, so those rows are measured but not checked.
-  The checked texture rows `grain` and `period` reject overlays, `flat` rejects texture laid over
-  all the black, and `rough` and `offstep` do not move under blur, noise, stripes or dry brush at
-  all. `controls.py selftest <pack dir> [--near <film>]` exits 1 if the review's blur-and-stripes
+  `grain` and `period` are measured only: on the woodcut source they follow codec residue and the
+  pixel grid, and a flat black through h264 lands in `grain`'s band. `flat` rejects texture laid
+  over all the black, and `rough` and `offstep` do not move under blur, noise, stripes or dry brush
+  at all. `controls.py selftest <pack dir> [--near <film>]` exits 1 if the review's blur-and-stripes
   filter (and, with `--near`, the warped, retimed `ATTACK`) gets a synthetic or near-miss film
   through; rerun it with `--near` after changing a statistic.
 - `straight` and `sliver` follow the subject, so they are checked only inside the content classes

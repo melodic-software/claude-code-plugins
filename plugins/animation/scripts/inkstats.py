@@ -28,6 +28,7 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
   w10 w50 w90   ink stroke width percentiles, px: 2 x the distance transform on its ridge
   pw50      paper width median, px: the same on paper (slivers and gaps between strokes)
   rough     raw contour length / length after approxPolyDP(4 px) - 1, contours over 50 px: edge wobble
+            plus the share of small marks (nicks, dashes, specks), each rough by construction under a 4 px fit
   straight  share of contour length in straight runs of 30 px or more (approxPolyDP 1.5 px): ruled lines
   straight_border straight_caption   the same over the contour segments whose midpoint lies in that content class,
             leaving out segments that run along the frame edge; None under 200 px of such contour
@@ -38,16 +39,21 @@ Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and
   flat      dark drawings only (ink >= 0.5): share of mostly-ink 32 px blocks that lie fully inside eroded ink
             with gray sd under 2: the balance of flat black to textured ink
   grain     inside the ink interior (ink eroded 5 px), sd of the 5x5 box-mean gray over sd of the gray: near 1 for
-            texture in patches wider than 5 px, near 0.2 for pixel noise, lower for 1-2 px stripes
-  period    inside the eroded ink, the highest spatial power at periods under 32 px over the mean power there,
-            divided by ln(eroded ink pixels): large for a texture at one fixed pitch (ruled stripes, combed dry
-            brush), small for irregular texture. An irregular texture's peak-to-mean is the largest of about that
-            many independent bins, so it grows as the log of the ink area; the division takes the area out
+            texture in patches wider than 5 px, near 0.2 for pixel noise, lower for 1-2 px stripes. On a near-flat
+            black a few stray pixels and codec residue set it, not visible texture
+  period    inside the eroded ink, over spatial frequencies at pitches of 3-24 px, the largest ratio of a bin's
+            power to the mean power of all bins at the same frequency (every direction), divided by ln(eroded ink
+            pixels): large for a texture at one fixed pitch and direction (ruled stripes, combed dry brush), near
+            the noise level for irregular texture and for smooth tone drift, whose power falls with frequency
+            alike in every direction. The largest of many such ratios grows as the log of the ink area; the
+            division takes the area out
   sliver    median area / width^2 of the paper islands inside the ink (carved slivers and gouges, 6-20000 px, not
             touching the frame edge; width = 2 x the largest distance to ink): long thin lines high, chunky cuts low
   sliver_border sliver_caption   the same over the islands whose centroid lies in that content class; None under 3
 Content classes, from the ink mask alone, so a source and any film get them the same way:
-  border    the ring within BORDER (2%) of the short side of the frame edge: the hand-drawn frame
+  border    the ring within BORDER (2%) of the short side of the frame edge for straight; for sliver and boil the
+            ring within STROKE (1%), the hand-drawn frame stroke alone, so subject nicks and motion near the frame
+            stay out (and the caption box grows by that width)
   caption   a caption panel: a paper rectangle (after a 5 px closing of the ink) in the top quarter of the frame, not
             touching its edge, 0.2-6% of the frame, at least 1.5x as wide as tall, filling 80% of its rotated box
             and holding ink (lettering); its box grown by the border width, outside the border ring
@@ -78,7 +84,8 @@ STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'strai
          'specks', 'gaps', 'holes', 'ink_sd', 'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver',
          'sliver_border', 'sliver_caption', 'boil')
 FLAT_B, FLAT_SD = 32, 2   # flat black: a 32 px block fully inside eroded ink with gray sd under 2
-BORDER = 0.02             # border class: this share of the frame's short side, from each edge
+BORDER = 0.02             # border class for straight: this share of the frame's short side, from each edge
+STROKE = 0.01             # border class for sliver and boil: the frame stroke alone
 CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
 
 
@@ -167,12 +174,12 @@ def captions(ink):
     return out
 
 
-def classes(ink):
-    """Content class per pixel: 0 border, 1 caption, 2 interior."""
+def classes(ink, boxes, frac):
+    """Content class per pixel with a border ring of frac of the short side: 0 border, 1 caption, 2 interior."""
     H, W = ink.shape
-    e = round(BORDER * min(H, W))
+    e = round(frac * min(H, W))
     lab = np.full((H, W), 2, np.uint8)
-    for x0, y0, x1, y1 in captions(ink):
+    for x0, y0, x1, y1 in boxes:
         lab[max(0, y0 - e):y1 + e, max(0, x0 - e):x1 + e] = 1
     lab[:e], lab[-e:], lab[:, :e], lab[:, -e:] = 0, 0, 0, 0
     return lab
@@ -222,9 +229,11 @@ def texture(g, ink):
     if core.sum() < 5000:
         return grain, None
     p = np.abs(np.fft.rfft2(np.where(core, gf - gf[core].mean(), 0))) ** 2
-    short = np.hypot(np.fft.rfftfreq(g.shape[1])[None, :], np.fft.fftfreq(g.shape[0])[:, None]) > 1 / 32
-    mean = p[short].mean()
-    return grain, float(p[short].max() / mean / np.log(core.sum())) if mean > 0 else None
+    f = np.hypot(np.fft.rfftfreq(g.shape[1])[None, :], np.fft.fftfreq(g.shape[0])[:, None])
+    ring = np.round(f * max(g.shape)).astype(int)   # bins at one spatial frequency, every direction
+    level = (np.bincount(ring.ravel(), p.ravel()) / np.maximum(np.bincount(ring.ravel()), 1))[ring]
+    ok = (f > 1 / 24) & (f < 0.35) & (level > 0)   # pitch 3-24 px: clear of the cutoff and the 2 px codec grid
+    return grain, float((p[ok] / level[ok]).max() / np.log(core.sum())) if ok.any() else None
 
 
 def sliver(ink, cls):
@@ -255,8 +264,9 @@ def one(rgb):
     edge = int((ink[:, 1:] != ink[:, :-1]).sum() + (ink[1:] != ink[:-1]).sum())
     mid = int(((g > ink_g + 16) & (g < paper_g - 16)).sum())
     w, pw = ridge_widths(ink), ridge_widths(~ink)
-    cls = classes(ink)
-    rough, straight, straight_c = contour_stats(ink, cls)
+    boxes = captions(ink)
+    cls = classes(ink, boxes, STROKE)   # tight: the frame stroke and caption outline, for sliver and boil
+    rough, straight, straight_c = contour_stats(ink, classes(ink, boxes, BORDER))
     sliver_all, sliver_c = sliver(ink, cls)
     grain, period = texture(g, ink.astype(np.uint8))
     k5 = np.ones((5, 5), np.uint8)
