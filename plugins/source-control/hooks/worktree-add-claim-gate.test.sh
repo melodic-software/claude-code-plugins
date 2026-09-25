@@ -85,7 +85,6 @@ assert_contains "the hook reason names the session" "$stanza" "sess-hook-one"
 assert_contains "the hook reason uses the claim prefix" "$stanza" "worktree-claim.sh"
 assert_contains "the hook tells the agent it claimed" "$OUT" "claimed unlocked worktree"
 
-# Re-running does not rewrite.
 run "$REPO" "git worktree add $EXT/wt-hook -b feat/hook" "sess-hook-two"
 assert_exit "second hook pass is still exit 0" 0 "$RC"
 stanza2=$(wt_stanza "$REPO" wt-hook)
