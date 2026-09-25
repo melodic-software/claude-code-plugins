@@ -14,11 +14,13 @@ unlike `miro`'s locally-run, self-contained Node server.
 
 The plugin **installs disabled** (`defaultEnabled: false`). A remote MCP server that connects
 to an external, credentialed service is opt-in, not on by default. Enable it with
-`claude plugin enable dometrain` or the `/plugin` interface, and provide a key:
+`claude plugin enable dometrain` or the `/plugin` interface, and provide a key, either at the
+prompt or from an environment variable (see
+[Reading the key from an environment variable](#reading-the-key-from-an-environment-variable)):
 
 | Option | Storage | Purpose |
 |---|---|---|
-| `dometrain_api_key` | Claude Code secure credential storage (never `settings.json`) | Dometrain account API key. Required. The server rejects requests without it. |
+| `dometrain_api_key` | Claude Code secure credential storage (never `settings.json`) | Dometrain account API key. Optional, so you can leave it blank when an override supplies the key. The server rejects requests that carry no key. |
 
 Get a key from <https://dometrain.com/dashboard/account/> ("MCP API keys" section). Claude Code
 prompts for it at enable time (masked input). Sensitive values use the macOS Keychain, or
@@ -68,6 +70,39 @@ entry, resetting every option in the Options reference table below to its manife
 default. The verified-version record lives in the
 [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
+## Reading the key from an environment variable
+
+To take the key from `DOMETRAIN_API_KEY`, the variable Dometrain's own plugin reads, leave
+`dometrain_api_key` blank at the enable prompt and add a **user-scope** HTTP server at the
+plugin's exact URL:
+
+```shell
+claude mcp add-json dometrain \
+  '{"type":"http","url":"https://mcp.dometrain.com/mcp","headers":{"Authorization":"Bearer ${DOMETRAIN_API_KEY}"}}' \
+  --scope user
+```
+
+The single quotes keep your shell from expanding the variable, so the stored config holds the
+reference, not the key. Claude Code expands `${DOMETRAIN_API_KEY}` from its own environment each
+time it connects. Plugin servers are deduplicated by endpoint and user scope outranks them, so
+this entry replaces the plugin's server.
+
+This is a choice you make once, not a per-session fallback. While the entry exists it always wins,
+and if `DOMETRAIN_API_KEY` is unset Claude Code sends the literal `${DOMETRAIN_API_KEY}` text and
+flags a missing-variable warning in `claude mcp list`. Remove the entry
+(`claude mcp remove dometrain --scope user`) to fall back to the stored `dometrain_api_key`.
+
+The plugin's own `.mcp.json` keeps `${user_config.dometrain_api_key}` rather than a combined
+`${DOMETRAIN_API_KEY:-${user_config.dometrain_api_key}}`. The MCP docs define the `:-` fallback
+with a literal default and do not document a `${user_config.*}` reference inside it, so this
+plugin does not rely on one.
+
+The notes under [Using vault-exec](#using-vault-exec-opt-in) on tool-name prefixes and Grok apply
+here too.
+
+Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Environment variable
+expansion in `.mcp.json`" and "Scope hierarchy and precedence," verified 2026-09-25.
+
 ## Using vault-exec (opt-in)
 
 If your machine resolves vendor API keys from a secret store at launch time instead of typing
@@ -77,12 +112,8 @@ you can keep `dometrain_api_key` out of Claude Code's secure credential storage 
 `vault-exec` mint the `Authorization` header at connect time instead. This is entirely opt-in.
 Skip it and the plugin behaves exactly as described above.
 
-`dometrain_api_key` is `required: true`, so the plugin still needs *some* value to enable it.
-Enter a non-secret placeholder (for example, `vault-exec-managed`) at the enable-time prompt; it
-is never sent, because the recipe below replaces the plugin's server with one at the identical
-URL.
-
-1. Enable the plugin with the placeholder, as above.
+1. Enable the plugin and leave `dometrain_api_key` blank. It is optional, and the recipe below
+   replaces the plugin's server with one at the identical URL.
 2. Add a **user-scope** HTTP MCP server at the *same URL* this plugin uses
    (`https://mcp.dometrain.com/mcp`) with a `headersHelper` that resolves the key through
    `vault-exec` and prints the `Authorization` header as JSON:
@@ -126,6 +157,11 @@ Notes:
 - Tool names move from `mcp__plugin_dometrain_dometrain__<tool>` (plugin-provided) to
   `mcp__dometrain__<tool>` (directly configured) once the override is active. Update any
   permission rule written against the old prefix.
+- Grok CLI also loads Claude Code plugin servers, without Claude Code's substitution of
+  `${user_config.*}`, and ranks its own config above them. Give it a `dometrain` entry of its own
+  in `~/.grok/config.toml`, as
+  [ADR 0005](https://github.com/melodic-software/dotfiles/blob/main/docs/adr/0005-adopt-vault-exec-as-the-secret-resolver.md)
+  records.
 
 Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Headers helper," "Plugin
 MCP tool names," and "Server deduplication," verified 2026-09-23.
@@ -154,8 +190,8 @@ this README does not hardcode them. Call `get_usage()`, or check your own
 
 Unlike `miro`'s bundled local `stdio` server, Dometrain's server is hosted and closed-source.
 There is no artifact to bundle. The plugin wires Claude Code's `http`-type MCP transport
-directly at `https://mcp.dometrain.com/mcp` with a Bearer header sourced from `userConfig`,
-never a locally-run process.
+directly at `https://mcp.dometrain.com/mcp` with a Bearer header sourced from `userConfig` (or
+from a user-scope override at the same URL), never a locally-run process.
 
 ## Dometrain's own official plugin, and why this one exists too
 
@@ -170,8 +206,9 @@ claude plugin install dometrain@dometrain
 That plugin's `.mcp.json` authenticates via a shell environment variable
 (`${DOMETRAIN_API_KEY}`). It declares no `userConfig` field at all. This plugin exists
 specifically to provide the alternative: the key entered once through Claude Code's **native
-masked `userConfig` prompt**, stored in secure credential storage, never a shell environment
-variable you have to export yourself.
+masked `userConfig` prompt**, stored in secure credential storage, with no shell environment
+variable to export. The environment variable route stays available as an override (see
+[Reading the key from an environment variable](#reading-the-key-from-an-environment-variable)).
 
 **Do not enable both plugins simultaneously.** Both share the identical plugin name
 (`"dometrain"`) in their respective `plugin.json` manifests. Install identity is
@@ -227,7 +264,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `dometrain_api_key` | string<br>*required* | *(none)* | `CLAUDE_PLUGIN_OPTION_DOMETRAIN_API_KEY` | **Sensitive**: stored in the OS keychain or protected credentials file. Dometrain account API key from https://dometrain.com/dashboard/account/ (MCP API keys section). Required, since the remote MCP server rejects requests without it. Stored by Claude Code in secure credential storage, never settings.json. |
+| `dometrain_api_key` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_DOMETRAIN_API_KEY` | **Sensitive**: stored in the OS keychain or protected credentials file. Dometrain account API key from https://dometrain.com/dashboard/account/ (MCP API keys section). Optional: leave it blank when a user-scope MCP server at the same URL supplies the key from DOMETRAIN_API_KEY or a secret store (see the README). The remote server rejects requests that carry no key. Stored by Claude Code in secure credential storage, never settings.json. |
 
 ### How to set these
 
