@@ -8,9 +8,7 @@
 #
 # The cases that earn their keep are the ones proving the gate goes RED. A
 # drift check nobody has watched fail is the false-green shape
-# docs/conventions/liveness-assertion/ names, and this gate's whole reason for
-# existing is that the prose claim it replaces ("fleet audits check conformance
-# per consumer") was exactly that. So every failure class gets a case: exact
+# docs/conventions/liveness-assertion/ names. So every failure class gets a case: exact
 # drift, values drift, a consumer that stopped inlining the floor, a
 # registration pointing at nothing, a COPY NOBODY REGISTERED, and the two ways
 # the extractor could go blind and pass everything forever.
@@ -18,7 +16,7 @@
 # The fixture root is a throwaway git repository, because the SUT enumerates
 # the corpus with git the way every sibling gate in scripts/ does. It is built
 # through scripts/test-git-helpers.sh, which clears the ambient git environment
-# so a fixture's identity can never land in the caller's checkout (#2840).
+# so a fixture's identity can never land in the caller's checkout.
 #
 # The fixture heredocs below open with the floor's marker line as stand-in test
 # data, so the SUT's repo-wide scan sees THIS file as a carrier. It is listed in
@@ -213,8 +211,6 @@ else
 fi
 
 # --- 5. Exact drift in one lane body fails ---------------------------------
-# This is the historical defect: two de-slop shards rewrote punctuation inside
-# the staleness bullet of the lane bodies and left the source untouched.
 
 seed_tree
 mutate "$TMP/plugins/work-items/skills/work-loop/SKILL.md" 's/is stale\. Treat the/is stale, treat the/'
@@ -373,8 +369,6 @@ fi
 # --- 17. An unregistered file carrying the floor fails ---------------------
 # The registry alone only ever looks where it is told, so a seventh consumer
 # would inline the floor, pass CI, and go stale at the next contract change.
-# That is the class that produced the original drift: the general copy-drift
-# gate could not see these files either.
 
 seed_tree
 write_file "plugins/some-new-plugin/skills/new-lane/SKILL.md" floor_block
