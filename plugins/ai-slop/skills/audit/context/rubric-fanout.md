@@ -17,8 +17,10 @@ by hand.
    then 90-day change count, then key inside a repository; newest modification time first,
    then key, outside one; `--order repo|mtime` overrides the choice), packs them into batches
    of up to 50,000 words by `wc -w` (`--budget N` changes it; a larger file is its own
-   batch), and writes `batch-NN.txt`, one key per line. It prints one line per batch:
-   `batch=NN list=<path> files=N words=W digest=<sha256 of the list>`.
+   batch), and writes `batch-NN.txt`, one key per line, beside `batch-NN.paths`, each listed
+   file's absolute path in the same order. It prints one line per batch:
+   `batch=NN list=<path> files=N words=W digest=<digest>`, where the digest covers the list
+   and the contents of the files its `.paths` sidecar names.
 3. The batch directory is `<findings home>/rubric-lists-<TS>/`, so a later session can resume
    from it; a non-repository target puts it in the session scratchpad. `plan` refuses a
    directory that already holds batch lists, so a new scope gets a new batch directory. A
@@ -31,11 +33,19 @@ Run `rubric-fanout.sh extract --out <rubric file>` once. It writes the catalog's
 entries plus the "Signs of human writing" section to that file.
 
 One fresh-context subagent per batch, all dispatched in one message so they run concurrently.
-Each subagent receives:
+Dispatch each with `model: sonnet`. When the main conversation already runs a Sonnet-family
+model, the alias resolves to that exact model, including any `[1m]` suffix; otherwise it
+resolves to the version the `sonnet` alias points to. Verified 2026-09-25 against
+[the subagents doc](https://code.claude.com/docs/en/sub-agents), "Choose a model": the Agent
+tool's per-invocation `model` parameter accepts the `sonnet` alias, takes precedence over the
+agent definition and the session model, and a family alias resolves to the main
+conversation's exact model when that model belongs to the family. Recheck when that section
+changes the accepted aliases, the resolution order, or the family-alias rule. Each subagent
+receives:
 
 - the path of the extracted rubric file, and nothing else from the catalog;
-- the path of its batch list and the digest `plan` printed for it, which the subagent copies
-  verbatim into its result;
+- the path of its batch list and the digest the batch's `status` row printed (`status` runs
+  before every dispatch, below), which the subagent copies verbatim into its result;
 - the result path it must write to (below);
 - the finding shape: `- L<line> rule-<id>: "<verbatim quote, max 25 words>" -- <reason, max 20
   words>`, grouped under `## <path>` headings in the batch list's spelling, files without
@@ -65,13 +75,19 @@ write. Before dispatching, and on every resume, run
 per batch:
 
 - `status=complete`: the result carries exactly one of each header line: `batch:` equal to
-  the list's digest, `files_reviewed:` equal to the list's length, and `files_with_findings:`
-  equal to its `## <path>` headings, none of which is outside the list. Skip the batch.
-  The digest binds a result to the batch list, not to the listed files' contents: a file
-  edited after its batch completed keeps that batch complete.
-- `status=missing`, or `status=stale
-  reason=digest|files_reviewed|foreign-heading|files_with_findings`: dispatch
-  the batch again and let the subagent overwrite the file.
+  the batch's current digest, `files_reviewed:` equal to the list's length, and
+  `files_with_findings:` equal to its `## <path>` headings, none of which is outside the
+  list. Skip the batch. The digest binds a result to the batch list and to the listed files'
+  contents: a file edited after its batch completed turns that batch stale, and a listed
+  path that can no longer be read keeps it stale until the batch is planned again. A batch
+  directory with no `.paths` sidecars keeps its digests bound to the list only.
+- `status=missing digest=<digest>`, or `status=stale
+  reason=paths|digest|files_reviewed|foreign-heading|files_with_findings digest=<digest>`:
+  dispatch the batch again with that row's `digest=` value and let the subagent overwrite the
+  file. A header line written more than once is stale under that header's reason (`digest`
+  for `batch:`). `reason=paths` means the `.paths` sidecar's length differs from the list's or
+  one of its paths is not a readable file (a moved checkout, a deleted file); re-plan into a fresh
+  directory rather than dispatching.
 
 A terminated subagent therefore costs one batch, a rerun after a limit resets dispatches only
 the batches that did not finish, and a run over a changed scope never inherits a result from
