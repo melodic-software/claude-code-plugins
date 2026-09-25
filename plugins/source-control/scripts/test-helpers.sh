@@ -20,6 +20,15 @@ readonly _TESTS_LIB_LOADED=1
 # resolve to the real repo when a test runs under a git hook chain.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
+# Isolate the host's global and system git config and the worktree_root plugin
+# option. The worktree resolver reads worktreeroot.path from git config, so a
+# host that sets it globally would otherwise place fixture worktrees in the
+# operator's real root (#4472). The real root is captured first so
+# assert_real_worktree_root_clean can prove nothing landed there.
+_REAL_WORKTREE_ROOT="$(git config --global --type=path --get worktreeroot.path 2>/dev/null || true)"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+unset CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT
+
 : "${FAILED:=0}"
 : "${CASE_NUM:=0}"
 : "${SKIP_CASES:=0}"
@@ -156,5 +165,25 @@ assert_file_absent() {
     printf 'FAIL: [%d] %s — expected absent, found %s\n' \
       "$CASE_NUM" "$label" "$path" >&2
     FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_real_worktree_root_clean <test-tmpdir>
+# Fails if any entry in the host's real worktree root (captured above, before
+# isolation) is a worktree of a fixture repo under <test-tmpdir>. Matching on
+# the tmpdir's unique name, not a before/after listing, keeps the check exact
+# while other sessions create worktrees in the same root.
+assert_real_worktree_root_clean() {
+  local marker leaked
+  marker="$(basename "$1")"
+  if [[ -z "$_REAL_WORKTREE_ROOT" || ! -d "$_REAL_WORKTREE_ROOT" ]]; then
+    pass "no real worktree root on this host to leak into"
+    return
+  fi
+  leaked="$(grep -lsF "$marker" "$_REAL_WORKTREE_ROOT"/*/.git 2>/dev/null)"
+  if [[ -z "$leaked" ]]; then
+    pass "no fixture worktree leaked into the real root $_REAL_WORKTREE_ROOT"
+  else
+    fail "no fixture worktree leaked into the real root" "" "$leaked"
   fi
 }

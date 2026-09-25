@@ -1088,4 +1088,6 @@ assert_contains "rung-4 refuse is remedy-first (worktreeroot.path)" "$err" "work
 assert_contains "rung-4 refuse names EXDEV" "$err" "EXDEV"
 assert_contains "rung-4 refuse names Improper link" "$err" "Improper link"
 
+assert_real_worktree_root_clean "$TEST_TMPDIR"
+
 [[ $FAILED -eq 0 ]] || exit 1

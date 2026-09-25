@@ -144,4 +144,6 @@ dashc=$(wt_stanza "$REPO_B" wt-dashc)
 assert_not_contains "payload-cwd unclaimed tree is not claimed by git -C" "$cwd_u" "locked"
 assert_contains "git -C add target is claimed in the other repo" "$dashc" "dashc-sess"
 
+assert_real_worktree_root_clean "$TEST_TMPDIR"
+
 [[ $FAILED -eq 0 ]] || exit 1
