@@ -729,6 +729,8 @@ exit_code=0
 out=$(run_fix_apply "$case_dir") || exit_code=$?
 assert_exit "case-20: apply exits 0" 0 "$exit_code"
 assert_contains "case-20: stale-true remove counted as filtered" "$out" "FILTERED 1 plan entries no longer match the settings file"
+assert_contains "case-20: MANUAL REVIEW section present" "$out" "MANUAL REVIEW"
+assert_not_contains "case-20: the moved removal leaves no AUTO-REMOVE section" "$out" "AUTO-REMOVE"
 manual_section="${out#*MANUAL REVIEW}"
 assert_contains "case-20: stale-true remove listed under MANUAL REVIEW" "$manual_section" "removed@market1"
 assert_contains "case-20: only the addition is applied" "$out" "Applied: 0 removals, 1 additions"

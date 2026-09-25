@@ -8,9 +8,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 ### Fixed
 
 - **`fix-plugin-drift.sh` no longer reports "No drift detected" when no marketplace was audited.**
-  Findings whose blocks were all skipped, or empty findings from the internal check, print
-  "No marketplace was audited, so there is nothing to report." Any block that is not `ok` is listed
-  under `SKIPPED <n> marketplaces not audited:` with its key and reason, above the verdict or the
+  Findings whose blocks were all skipped, an `--input` of `[]`, and empty findings from the internal
+  check all print "No marketplace was audited, so there is nothing to report." Any block that is
+  not `ok` is listed under `SKIPPED <n> marketplaces not audited:` with its key and reason, above the verdict or the
   plan, so a partly skipped run says what it did not compare.
 - **`fix-plugin-drift.sh` refuses findings it cannot read.** Findings that are not an array of
   objects (a top-level object, a string, a zero-byte file, `[1]`) exit 2, and so does any plan list
@@ -20,9 +20,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   dropped; a removal whose key is now `true` moves to MANUAL REVIEW. The count prints as
   `FILTERED <n> plan entries no longer match the settings file`. A plan that filters away prints
   "Nothing to apply" on a dry run and on `--yes`, with no backup and no edit, where a no-op
-  `--input` used to rewrite a compactly formatted file and report "Applied". A settings file with
-  no `enabledPlugins` filters as an empty map; one whose `enabledPlugins` is not an object, or that
-  is not valid JSON, exits 2 on a dry run too.
+  `--input` used to rewrite a compactly formatted file and report "Applied". A dry run whose plan
+  holds only manual-review or rename items also prints "Nothing to apply (no pending removal or
+  addition)." instead of asking for `--yes`, and that line replaces the apply-only "(manual review
+  items only)" wording. A settings file with no `enabledPlugins` filters as an empty map; one whose
+  `enabledPlugins` is not an object, or that is not valid JSON, exits 2 on a dry run too.
 - **`fix-plugin-drift.sh --yes` refuses a settings file that changed under it.** The filter, the
   edit, the line-ending measurement and the backup all come from one snapshot of the settings file
   taken at plan time. Just before the backup the live file is compared with that snapshot, and a
