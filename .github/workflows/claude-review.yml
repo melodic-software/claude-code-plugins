@@ -39,7 +39,7 @@ jobs:
     concurrency:
       group: claude-review-${{ github.repository }}
       queue: max
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@6567856ef6070a4a1c9c2691f610278a7f2de153 # v0.29.0
+    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@0d3e6a6f3851cf678f82fa9a8a17f10faa909ac9 # v0.29.1
     with:
       runner: ubuntu-24.04
     # One named secret (least privilege), never `secrets: inherit`.
