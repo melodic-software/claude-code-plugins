@@ -25,7 +25,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 # host that sets it globally would otherwise place fixture worktrees in the
 # operator's real root (#4472). The real root is captured first so
 # assert_real_worktree_root_clean can prove nothing landed there.
-_REAL_WORKTREE_ROOT="$(git config --global --type=path --get worktreeroot.path 2>/dev/null || true)"
+_REAL_WORKTREE_ROOT="$(git config --global --includes --type=path --get worktreeroot.path 2>/dev/null || true)"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 unset CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT
 
