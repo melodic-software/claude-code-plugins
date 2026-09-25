@@ -418,19 +418,19 @@ spd_under_temp() {
 }
 
 # spd_nearest_existing <absolute path>: its nearest existing ancestor in
-# spd_anc and the components below it in spd_sfx; returns 1 when none exists.
+# spd_ancestor and the components below it in spd_sfx; returns 1 when none exists.
 # A strip that does not shorten the string ends the walk, so a spelling such as
 # `Z:` terminates. `-e` on a disconnected mapped drive may stall; it is reached
 # only after the lexical pre-match hit.
-spd_anc=""
+spd_ancestor=""
 spd_sfx=""
 spd_nearest_existing() {
   local p="$1" prev=""
-  spd_anc=""
+  spd_ancestor=""
   spd_sfx=""
   while [[ -n "$p" && "$p" != "$prev" ]]; do
     if [[ -e "$p" || -L "$p" ]]; then
-      spd_anc="$p"
+      spd_ancestor="$p"
       return 0
     fi
     prev="$p"
@@ -495,7 +495,7 @@ spd_temp_declines() {
   ((spd_win)) && [[ "$r" == /[A-Za-z] ]] && return 1
   # 4-5. Root not under temp, as spelled or physically. Only directories enter
   # the resolver cache: the root's existing ancestor and the temp candidates.
-  spd_nearest_existing "$r" && ranc="$spd_anc"
+  spd_nearest_existing "$r" && ranc="$spd_ancestor"
   rsfx="$spd_sfx"
   hook::_physical_prime ${ranc:+"$ranc"} ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}
   hook::under_temp_root "$r" && return 1
@@ -515,7 +515,7 @@ spd_temp_declines() {
   # 7. Target under temp physically, resolved without the cache so the file's
   # own path never enters it.
   spd_nearest_existing "$t" || return 1
-  hook::physical_path_to phys "$spd_anc" || return 1
+  hook::physical_path_to phys "$spd_ancestor" || return 1
   spd_under_temp "${phys%/}$spd_sfx"
 }
 spd_temp_declines "$FILE" && exit 0
