@@ -728,7 +728,7 @@ defs=$(sed -n "/^JQ_DEFS='/,/'\$/p" "$SCRIPT")
 unbound=""
 while IFS= read -r var; do
   [[ -z "$var" ]] && continue
-  if ! grep -Eq "def [a-z_]+\([^)]*\\${var}[;)]|as \\${var}\b" <<<"$defs"; then
+  if ! grep -Eq "def [a-z_]+\([^)]*\\${var}[;)]|as \\${var}([^A-Za-z0-9_]|$)" <<<"$defs"; then
     unbound+="$var "
   fi
 done < <(grep -oE '\$[A-Za-z_]+' <<<"$defs" | sort -u)
