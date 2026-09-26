@@ -430,7 +430,7 @@ No adapter exists, so no detection or notice code ships. `[EXEC-SHAPE]`
 - [x] `test -f plugins/animation/reference/backends.md` and `grep -c "license_notice" plugins/animation/reference/backends.md` ≥ 1.
 - [x] `grep -ni "remotion\|hyperframes" plugins/animation/reference/backends.md` returns nothing.
 
-### Phase 9: open the `produce` sub-topic (T13, T5) [TODO]
+### Phase 9: open the `produce` sub-topic (T13, T5) [DONE]
 
 `produce` is promoted to its own topic `[EXEC-SHAPE]`: it has more than five work items (brief,
 boards, approval gate, shot list, render manifest wiring, review), more than 300 LOC, its own
@@ -449,7 +449,7 @@ phase only opens it.
 - [ ] `test -f docs/topics/animation-produce/PLAN.md` and `grep -c "## Brief" docs/topics/animation-produce/PLAN.md` is 1.
 - [ ] `grep -n "film\`" plugins/animation/README.md` returns nothing; `grep -c "produce" plugins/animation/README.md` ≥ 1.
 
-### Phase 10: pixel-art routing descriptions (T22) [TODO]
+### Phase 10: pixel-art routing descriptions (T22) [DONE]
 
 - `plugins/pixel-art/skills/animate/SKILL.md` and `scene/SKILL.md` descriptions: qualify the
   generic triggers (`'make it move'`, `'make it a little movie'`, `'pixel-art short'`) as pixel-art
@@ -467,7 +467,7 @@ phase only opens it.
 - [ ] `grep -rn "/animation:" plugins/pixel-art` returns nothing.
 - [ ] `bash scripts/check-changed-skills.sh main` exits 0 (includes the listing-budget and line caps).
 
-### Phase 11: plugin-philosophy rules (T24) [TODO]
+### Phase 11: plugin-philosophy rules (T24) [DONE]
 
 Written last, so each rule states what this plugin now does. `docs/plugin-philosophy.md`:
 
