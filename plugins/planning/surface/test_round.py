@@ -723,6 +723,8 @@ class TestClaudeActivity(DirCase):
     def test_add_round_without_a_round_names_the_ids(self):
         self.apply({"op": "add-round", "questions": [question("Q4")]})
         self.assertEqual(self.entries()[-1]["text"], "Added Q4")
+        self.apply({"op": "add-round", "groups": [{"id": "g3", "title": "T"}]})
+        self.assertEqual(self.entries()[-1]["text"], "Added 1 groups, 0 visuals")
 
     def test_ops_the_user_does_not_see_write_no_entry(self):
         self.apply(

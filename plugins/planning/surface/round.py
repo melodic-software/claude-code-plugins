@@ -358,7 +358,12 @@ def op_add_round(d, doc, a):
             sys.exit(f"a visual needs a new id: {v.get('id')}")
         doc["visuals"].append(v)
         ids.add(v["id"])
-    ids = ", ".join(q["id"] for q in a.questions or []) or "no questions"
+    ids = ", ".join(q["id"] for q in a.questions or [])
+    if not ids:
+        return (
+            touched,
+            f"added {len(a.groups or [])} groups, {len(a.visuals or [])} visuals",
+        )
     return touched, (f"round {a.round} added: " if a.round else "added ") + ids
 
 
