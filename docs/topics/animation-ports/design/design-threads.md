@@ -133,7 +133,7 @@ Resolved 2026-09-24: user approved recommendation.
 
 Blocks: T15.
 
-## T7. Licence surfacing mechanics (directional)
+## T7. Licence surfacing mechanics (resolved 2026-09-25)
 
 Settled: the Remotion adapter surfaces its terms and does not judge who qualifies. Open mechanics:
 
@@ -147,6 +147,10 @@ Recommendation: **B**, plus the four-part record in `backends.md` (contracts.md 
 one-time confirmation before the first call in a session, as pixel-art does for paid adapters
 (`plugins/pixel-art/reference/backends.md`, Selection rule 4), applies to paid remote services,
 not to a locally installed licensed library. Blocked by: T2, T3.
+
+Resolved 2026-09-25: user approved recommendation B. Why: the notice comes from the licence the
+user actually installed and travels with the output in `render.json`, without blocking
+unattended runs.
 
 ## T8. Test-seam posture (R1, resolved 2026-09-24)
 
@@ -165,7 +169,7 @@ Resolved 2026-09-24: user approved recommendation.
 
 Blocked by: T10 (the fixture calls `render.py`).
 
-## T9. Measure: one "compare" port or two operations? (directional)
+## T9. Measure: one "compare" port or two operations? (resolved 2026-09-25)
 
 `measure.py` compares a replica to its source drawing by drawing (XOR against a floor, SSIM).
 `inkstats.py` profiles one film and checks the profile against a pack's bands. Different inputs,
@@ -173,12 +177,19 @@ outputs and questions; no external tool computes either. Recommendation: **two c
 no port**. What they genuinely share (frame loading, repeat-drawing rule, gray modes) moves to
 `scripts/decode.py` (T14). Blocked by: T3.
 
-## T10. Composition root location (directional)
+Resolved 2026-09-25: user approved recommendation. Why: a port needs two adapters (T3), and no
+external tool computes either operation; only the decode path is shared.
+
+## T10. Composition root location (resolved 2026-09-25)
 
 Recommendation: a shared `scripts/render.py` absorbs `measure.py:40-58`, serves the scene's dir and
 `scripts/` as two roots (no more copying plugin files into the work dir), chooses the adapter,
 encodes, writes `render.json` (contracts.md section 3). Fixes D16 (no serve step for novel scenes)
 and D18 (zero-frame exit 0). Blocked by: T1, T3. Blocks: T8, T16.
+
+Resolved 2026-09-25: user approved recommendation. Why: rotoscope, learn-style and produce all
+render; one entry point is the only place adapter choice, encode and the render record can live
+once.
 
 ## T11. `post` extraction mechanics (deferred)
 
@@ -194,20 +205,27 @@ Tag: `trigger: pixel-art asks for mp4 or frame export`. Shape in module-boundary
 replay adapter plus a seeded-RNG rule in `scene-canvas.md`; render code shared as a registered
 synced copy. Blocked by: T1.
 
-## T13. `produce` stage artifacts (directional)
+## T13. `produce` stage artifacts (resolved 2026-09-25)
 
 Schemas sketched in domain-model.md section 2.2 (brief, boards, storyboard, shot list, render
 manifest). Settled in the `produce` design session, not here. One decision worth taking now: the
 shot list owns shot cuts, so `inkstats.py --cuts` reads `shots.json` rather than a typed list.
 Blocked by: T1, T5.
 
-## T14. Source-in consolidation (directional)
+Resolved 2026-09-25: user approved recommendation: the sketched schemas are the starting shape,
+and `shots.json` owns shot cuts. Why: one owner per value (T16); the cut list is a shot-list fact.
+Field-level schema detail is decided while building `produce`, inside the plan.
+
+## T14. Source-in consolidation (resolved 2026-09-25)
 
 The decode path exists twice (`extract.py:35-68`, `inkstats.py:58-80`) with the same ffprobe and
 ffmpeg argument lists and the same repeat-drawing rule. Recommendation: one `scripts/decode.py`,
 imported by both. Blocked by: T3. Blocks: T16, T17.
 
-## T15. Prerequisite handling (fix needed)
+Resolved 2026-09-25: user approved recommendation. Why: the same code twice is the duplication the
+user ruled out; the two copies already drift risk on the repeat-drawing rule.
+
+## T15. Prerequisite handling (resolved 2026-09-25)
 
 From dependency-inventory.md: D1, D3, D5 (ffmpeg, ffprobe, node absent: traceback, no remedy), D2
 (ffmpeg version unstated), D4 (encode is a comment), D7 (`PW_CORE` is a custom env channel), D8
@@ -217,6 +235,9 @@ Recommendation: one prerequisite probe shared by `setup` check and the entry poi
 `decode.py`); a pinned `requirements.txt`; replace `PW_CORE` with a `userConfig` `directory` option
 or an install into `${CLAUDE_PLUGIN_DATA}` (research tag: whether a SessionStart install hook is
 worth it for a node package); scan `PATH` in JS instead of `/bin/sh`. Blocked by: T6.
+
+Resolved 2026-09-25: user approved recommendation. Why: a missing tool today ends in a traceback
+with no remedy; one probe gives `setup` and every entry point the same message.
 
 ## T16. SSOT: one owner per value (rule is R1, resolved 2026-09-24; the table is mechanical)
 
@@ -252,7 +273,7 @@ Owner decisions, from dependency-inventory.md section 2:
 
 Blocked by: T10, T14.
 
-## T17. Resolution and frame-rate assumptions (fix needed)
+## T17. Resolution and frame-rate assumptions (resolved 2026-09-25)
 
 D24, D25 (holds counted at 24 fps; pack writes a literal 24), D26 (1/8 s fallback), D34 (repeat
 rule in absolute pixels), D35 (tint thresholds in absolute pixels), D37 (pack check ignores the
@@ -262,12 +283,19 @@ when a film's size differs from `measured_from.size`; state the two-tone scope i
 statistics.md. Research tag for the scaling: `validate on a second clip at another resolution`.
 Blocked by: T14.
 
-## T18. Correctness fixes (fix needed, mechanical)
+Resolved 2026-09-25: user approved recommendation. Why: every absolute pixel and 24 fps constant
+is calibrated on one 1762x982 clip; scaling and a size warning keep a different film from being
+judged on the wrong scale.
+
+## T18. Correctness fixes (resolved 2026-09-25, mechanical)
 
 D18 (missing `DURATION` exits 0 with zero frames), D22 (layout strings in eight files; with T16),
 D23 (lexicographic frame sort breaks past 9,999 frames), D28 (2576 unrecorded), D29 (worker
 defaults), D41 (engine ink colour differs from the pack), D48 (Windows and macOS unverified; text
 files opened without `encoding=`). Recommendation: fix in the same PR as T10. No decision needed.
+
+Resolved 2026-09-25: user approved recommendation. Why: each is a defect with one correct fix, and
+most touch `render.py` or its callers, which T10 rewrites anyway.
 
 ## T19. Per-clip acceptance target (deferred)
 
@@ -279,6 +307,10 @@ every per-clip decision.
 
 Decision: `animation` remains the one craft plugin.
 
+Why: animation is a production technique and video a delivery format. The research behind it: the
+Academy's animated-feature rule (75% animated running time), O*NET's separate occupations for
+animators (27-1014) and video editors (27-4032), and the Emmys' separate motion-design category.
+
 Resolved 2026-09-24: user approved recommendation.
 
 ## T21. Rendering location and delivery-plugin naming (resolved 2026-09-24)
@@ -287,6 +319,9 @@ Decision: rendering stays inside `animation` until a second producer needs mp4 o
 trigger fires, extraction goes to a delivery plugin named `post`, never `video`. See T11 for the
 extraction mechanics themselves, which stay deferred until the trigger fires.
 
+Why: a delivery plugin with one producer is a speculative split; `post` names the delivery stage,
+while `video` would re-open the craft-versus-format confusion T20 settled.
+
 Resolved 2026-09-24: user approved recommendation.
 
 ## T22. pixel-art routing descriptions fixed on this branch (resolved 2026-09-24)
@@ -294,12 +329,18 @@ Resolved 2026-09-24: user approved recommendation.
 Decision: the pixel-art skill routing descriptions are fixed on this branch. `"animate this"` and
 `"make me a video"` must stop landing on `pixel-art:animate` and `pixel-art:scene`.
 
+Why: with `animation` installed, pixel-art's descriptions claim general animation and video
+requests, so the wrong skill fires. The fix belongs on the branch that introduces the overlap.
+
 Resolved 2026-09-24: user approved recommendation.
 
 ## T23. Fix-needed items form one cleanup phase (resolved 2026-09-24)
 
 Decision: the fix-needed items (22 fixes, plus the two bugs; see T15, T17, T18) form one cleanup
 phase on this branch.
+
+Why: the fixes share files (`render.py`, `decode.py`, the SSOT owners), so splitting them would
+edit the same code twice; one phase lands them behind one verification.
 
 Resolved 2026-09-24: user approved recommendation.
 
@@ -309,12 +350,19 @@ Decision: two plugin-philosophy rules are missing and are written after this des
 skill-as-process with outputs and tools behind ports and adapters, and one owner per value inside
 a plugin.
 
+Why: the user set both as fleet-wide rules (2026-09-24), and the capability matrix found neither in
+`docs/plugin-philosophy.md`; writing them after this design settles means they state rules already
+proven on one plugin.
+
 Resolved 2026-09-24: user approved recommendation.
 
 ## T25. Generalized plugin-alignment audit skill (resolved 2026-09-24)
 
 Decision: a generalized plugin-alignment audit skill is designed properly, in its own design
 session, before anything is built.
+
+Why: the user ruled that nothing is implemented twice in this repo; several existing checks already
+cover parts of alignment (capability-matrix.md), so the audit must be designed to compose them.
 
 Resolved 2026-09-24: user approved recommendation.
 
