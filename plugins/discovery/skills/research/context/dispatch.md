@@ -277,8 +277,9 @@ A partial marking says the run stopped; it does not say what reached disk. Becau
 sidecars are written incrementally, a turn-limit stop leaves a half-marked ledger and sidecars for
 the sections that settled, and an older harness may return no payload at all.
 
-The run therefore reports through two channels. On disk, the agent writes its index skeleton early with the line
-`Run status: in progress` and replaces it only in its final write, so the artifact gate refuses a
+The run therefore reports through two channels. On disk, the agent writes its index skeleton early
+with the line `Run status: in progress` directly under the title heading, and replaces it only in
+its final write, so the artifact gate, which reads only the first `Run status:` line, refuses a
 stopped run's index. In the payload, the agent emits its block early and keeps it current, marked
 `status: truncated` until the run finishes, and a dispatch that returns no payload is treated as
 truncated-without-warning.

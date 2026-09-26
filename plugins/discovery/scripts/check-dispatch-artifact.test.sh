@@ -422,6 +422,22 @@ suite() {
   sidecar "$complete" "$PREFIX-codebase.md" 'a'
   run 0 "an index marked Run status: complete is usable" "$complete"
 
+  # Only the first status line is the marker slot. A finished index whose
+  # restated task or quoted source text later carries the marker's literal line
+  # is still finished.
+  local quoted_later inprog_then_text
+  quoted_later="$(slice complete-then-quoted)"
+  index "$quoted_later" "# $PREFIX" 'Run status: complete' 'The agent writes:' \
+    'Run status: in progress' "$PREFIX-codebase.md"
+  sidecar "$quoted_later" "$PREFIX-codebase.md" 'a'
+  run 0 "a quoted in-progress line after the complete marker does not trigger" "$quoted_later"
+
+  inprog_then_text="$(slice in-progress-then-complete-text)"
+  index "$inprog_then_text" "# $PREFIX" 'Run status: in progress' 'The final write sets:' \
+    'Run status: complete' "$PREFIX-codebase.md"
+  sidecar "$inprog_then_text" "$PREFIX-codebase.md" 'a'
+  run 1 "an in-progress marker followed by later complete text is unusable" "$inprog_then_text"
+
   # An index with no status line at all is a legacy or inline artifact and
   # grades exactly as before; `$good` carries none.
   nostatus="$(slice no-status)"

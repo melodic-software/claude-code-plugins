@@ -210,8 +210,10 @@ turn, and spend the turns after that writing and handing back. The reserve also 
 Write the artifact in stages:
 
 1. As soon as the scope is resolved and preload is confirmed, write the `EXPLORE.md` skeleton into
-   the slice: the task restatement, the line `Run status: in progress` on a line of its own, and the
-   section table naming each sidecar you plan. If the slice root already holds an unrelated
+   the slice: the line `Run status: in progress` on a line of its own, placed
+   directly under the title heading, before the task restatement, so no restated or quoted text
+   precedes it; then the task restatement and the section table naming each sidecar you plan. The
+   gate reads only the first `Run status:` line. If the slice root already holds an unrelated
    `EXPLORE.md`, write nothing over it; the occupancy rule above applies.
 2. Write each `EXPLORE-<section>.md` sidecar as its section settles, and update its row in the
    index.

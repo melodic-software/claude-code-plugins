@@ -43,11 +43,13 @@
 #      which artifact it is asking about, so grade each fan-out run against its
 #      own assigned sub-slice, before synthesis.
 #   2. That index is non-empty.
-#   2a. It does not carry the line `Run status: in progress`. A dispatched
-#      agent writes that marker into its early skeleton and replaces it with
+#   2a. Its first `Run status:` line is not `Run status: in progress`. A
+#      dispatched agent writes that marker directly under the index's title
+#      heading in its early skeleton and replaces it with
 #      `Run status: complete` in its final write, so a marked index is a run
-#      that stopped before finishing. An index with no status line at all
-#      (inline or legacy) is graded as before.
+#      that stopped before finishing. Only the first status line is read, so
+#      a later line quoting the marker does not trigger. An index with no
+#      status line at all (inline or legacy) is graded as before.
 #   3. It names at least one `<PREFIX>-<section>.md` sidecar, and every sidecar
 #      it names exists beside it and is non-empty. A mid-stream stub passes a
 #      bare non-empty test; it does not pass this one.
@@ -253,10 +255,13 @@ fi
 # A dispatched agent writes its index skeleton early with this marker line and
 # replaces it only in its final write, so an index still carrying it is a run
 # that stopped short. Checked before the sidecar scan so a bare skeleton reports
-# this reason rather than "names no sidecar". Exact case, a plain line; trailing
-# whitespace, including a CRLF file's CR, is allowed. Prose quoting the marker
-# does not match.
-if grep -qE '^Run status: in progress[[:space:]]*$' "$index"; then
+# this reason rather than "names no sidecar". Only the FIRST line starting
+# `Run status:` is the marker slot; the agent puts it directly under the title
+# heading, so a later line quoting the marker (a restated task, a source
+# excerpt) is content and is never read here. Exact case, a plain line;
+# trailing whitespace, including a CRLF file's CR, is allowed.
+status_line="$(grep -m1 -E '^Run status:' "$index")"
+if [[ "$status_line" =~ ^Run\ status:\ in\ progress[[:space:]]*$ ]]; then
   echo "unusable: index is still marked Run status: in progress; the run stopped before its final write: $index" >&2
   verdict "$index" 0 0 unusable
   exit 1

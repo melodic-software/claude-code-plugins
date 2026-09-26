@@ -432,6 +432,8 @@ for agent in explorer researcher intent-tracer; do
     "$file" 'A value above that default is ignored and noted in'
   assert_present "$file writes the index skeleton marked in progress" \
     "$file" 'Run status: in progress'
+  assert_present "$file places the marker directly under the title heading" \
+    "$file" 'directly under the title heading'
   assert_present "$file replaces the marker in its final write" \
     "$file" 'Run status: complete'
   assert_present "$file reads the envelope's Turn budget line" \
@@ -481,6 +483,10 @@ for file in reference/parent-contract.md skills/explore/reference/dispatch.md \
   skills/research/context/dispatch.md; do
   assert_present "$file names the in-progress marker where it discusses a partial slice" \
     "$file" 'Run status: in progress'
+done
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md; do
+  assert_present "$file places the marker directly under the title heading" \
+    "$file" 'directly under the title heading'
 done
 for file in reference/parent-contract.md skills/research-deep/SKILL.md; do
   assert_present "$file bounds the Turn budget placeholder by the default stop turn" \
