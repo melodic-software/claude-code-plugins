@@ -35,6 +35,7 @@ Usage:
 from __future__ import annotations
 
 import datetime
+import fnmatch
 import re
 import sys
 from pathlib import Path
@@ -292,7 +293,13 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
     index = slice_dir / "RESEARCH.md"
     if not index.is_file():
         raise Ungradeable(f"no index: {index}")
-    sidecars = sorted(p for p in slice_dir.glob("RESEARCH-*.md") if p.is_file())
+    # fnmatchcase, not glob: pathlib's glob is case-insensitive on Windows and
+    # would take the lowercase research-checklist.md ledger for a sidecar.
+    sidecars = sorted(
+        p
+        for p in slice_dir.iterdir()
+        if fnmatch.fnmatchcase(p.name, "RESEARCH-*.md") and p.is_file()
+    )
     if not sidecars:
         raise Ungradeable(f"no RESEARCH-*.md sidecar in {slice_dir}")
 

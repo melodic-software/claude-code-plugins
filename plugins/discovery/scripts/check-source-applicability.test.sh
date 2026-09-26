@@ -106,6 +106,15 @@ clean_pub="$(mkslice clean-pub publish "$(claim "$V9" "$PRIMARY
 $(src corroborator 2024 'ExampleLib 9' current)")")"
 run 0 "clean slice, publish" "$clean_pub"
 
+# The coverage ledger lives in the same slice and has no front matter. A
+# case-insensitive sidecar match (pathlib's glob on Windows) would read it as a
+# RESEARCH-*.md sidecar and grade every bounded-corpus run ungradeable.
+with_ledger="$(mkslice with-ledger - "$(claim "$V9" "$PRIMARY
+$(src corroborator 2024-06 'ExampleLib 8-10' current)")")"
+printf '%s\n' '| # | Corpus item | Depth criterion | Done |' '|---|---|---|---|' \
+  '| 1 | alpha | its reference read end to end | [x] |' >"$with_ledger/research-checklist.md"
+run 0 "a lowercase research-checklist.md ledger is not a sidecar" "$with_ledger"
+
 # --- published (R2) ---------------------------------------------------------
 
 PUB_BAD='source 2: published missing, invalid or in the future'
