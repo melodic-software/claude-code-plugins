@@ -1,0 +1,89 @@
+{
+  "skill_name": "scene",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triggers-on-pixel-art-cutscene",
+      "prompt": "make a pixel-art cutscene: night forest, the hero walks up to a campfire and says 'we rest here', 320x180",
+      "expected_output": "Fires /pixel-art:scene. Pins beats, cast and set, keeps the 320x180 logical resolution with integer scaling, embeds character sprite specs rather than redrawing them, drives beats from a fixed 60 Hz step with 8 to 12 fps sprite cadence, steps light and fades through palette colors or Bayer dither, inlines embeds with embed.py into one self-contained HTML file, and delivers the HTML path and gallery as clickable links.",
+      "files": [],
+      "expectations": [
+        "Invokes the scene skill, not sprite or animate",
+        "Produces one self-contained HTML file using Canvas 2D with no libraries or external assets",
+        "Keeps the requested 320x180 logical resolution",
+        "Uses palette steps or dither for light and fades, never alpha, gradients or blur",
+        "Inlines embeds with embed.py before delivering"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "triggers-on-ambient-loop-with-audio",
+      "prompt": "animated pixel background, an ambient loop of rain on a city street, use ./audio/rain.wav for sound",
+      "expected_output": "Fires /pixel-art:scene. Loads the named WAV with WebAudio, starts it on the first click because browsers block autoplay, and ties cues to the same timeline as the visuals. The scene loops.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Invokes the scene skill for an animated background",
+        "Loads audio from the path the user named with WebAudio",
+        "Starts audio on the first click, not on page load",
+        "Makes the scene loop"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reviews-over-localhost-or-states-unreviewed",
+      "prompt": "title screen for my game 'Moss Knight' with a parallax forest and falling leaves",
+      "expected_output": "Fires /pixel-art:scene. With a browser automation tool present it serves the output directory over 127.0.0.1 in the background and captures screenshots at several timeline points, because browser tools may refuse file: URLs. Without one it says the scene is unreviewed visually, checks the script parses, and asks the user to open it and describe what they see.",
+      "files": [],
+      "expectations": [
+        "Reviews through a localhost server, not a file: URL, when a browser tool is present",
+        "Captures and reads screenshots at more than one timeline point",
+        "When no browser tool is present, says the scene is visually unreviewed instead of claiming it looks right"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "near-miss-engine-sprite-sheet-routes-to-animate",
+      "prompt": "I need a sprite sheet of my character's run cycle for Godot",
+      "expected_output": "Does not fire /pixel-art:scene: an engine sprite sheet is /pixel-art:animate's job. Routes to /pixel-art:animate instead of building an HTML scene.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the scene skill for an engine sprite sheet",
+        "Routes to /pixel-art:animate"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "near-miss-single-sprite-routes-to-sprite",
+      "prompt": "pixel art of a treasure chest item icon, 16x16",
+      "expected_output": "Does not fire /pixel-art:scene: a single sprite is /pixel-art:sprite's job. Routes to /pixel-art:sprite instead of wrapping one icon in an HTML scene.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the scene skill for a single sprite",
+        "Routes to /pixel-art:sprite"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "near-miss-make-me-a-video",
+      "prompt": "make me a video, a 30-second mp4 intro for my YouTube channel",
+      "expected_output": "Does not fire /pixel-art:scene: a rendered video file belongs to the separate animation plugin. This skill produces an HTML scene and no video export; it does not hand back an HTML file in place of the requested MP4.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the scene skill for a video file request",
+        "Does not deliver an HTML scene as a substitute for the requested video"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "near-miss-hand-drawn-ink-short",
+      "prompt": "make a short hand-drawn ink-style animated film of a paper boat in the rain",
+      "expected_output": "Does not fire /pixel-art:scene: hand-drawn or ink-style animation belongs to the separate animation plugin, even though 'short film' overlaps this skill's trigger wording. Does not convert it into a pixel-art scene.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the scene skill for hand-drawn or ink-style animation",
+        "Does not turn the request into a pixel-art scene"
+      ]
+    }
+  ]
+}

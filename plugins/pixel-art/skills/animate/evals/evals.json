@@ -1,0 +1,88 @@
+{
+  "skill_name": "animate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "triggers-on-rpg-maker-walking-character",
+      "prompt": "make me an RPG Maker character sheet: a 4-direction walking character, a blacksmith with a leather apron",
+      "expected_output": "Fires /pixel-art:animate. Reads engine-layouts.md and follows the RPG Maker MZ layout (3 patterns x 4 directions at 48x48, walk played 0-1-2-1), writes a cycle plan table before drawing, authors one draw(direction, pose) generator, renders the sheet, frame data and GIFs with render.py, reviews motion from preview.png, and delivers naming the MZ `$` prefix rule for a single-character sheet.",
+      "files": [],
+      "expectations": [
+        "Invokes the animate skill, not sprite or scene",
+        "Uses the RPG Maker MZ layout from engine-layouts.md: 3 patterns x 4 directions at 48x48",
+        "Writes the cycle plan as a table before drawing",
+        "Uses one parameterised generator so every frame stays on-model",
+        "Names the `$` file-name prefix for a single-character MZ sheet"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "triggers-on-attack-and-idle-cycles",
+      "prompt": "animate this sprite: I need an idle and an attack animation for the slime enemy, side-scroller",
+      "expected_output": "Fires /pixel-art:animate with one direction. Plans each cycle's key poses, frame count and durations; because the slime is an enemy it may use anticipation on the attack and holds the impact frame. Exports a sprite strip with Aseprite-shaped frame data and one looping GIF per cycle.",
+      "files": [],
+      "expectations": [
+        "Invokes the animate skill for idle and attack cycles",
+        "Plans a single direction for a side-scroller",
+        "Holds the impact frame on the attack",
+        "Delivers sheet.png, sheet.json with per-frame durations, and one GIF per cycle"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reviews-motion-from-sheet-not-gif",
+      "prompt": "walk cycle for my 24x24 hero, 8 directions, plain strip PNG",
+      "expected_output": "Fires /pixel-art:animate and, in the review loop, judges motion from preview.png (every frame side by side) because the Read tool shows only a GIF's first frame. Checks distinct contact and passing poses in every direction, consistent body bob, limb separation and constant volumes, then fixes the generator and re-renders.",
+      "files": [],
+      "expectations": [
+        "Reviews motion from preview.png rather than claiming to have watched the GIF",
+        "Checks contact and passing poses in every one of the 8 directions",
+        "Fixes the generator, not individual frames, then re-renders"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "near-miss-single-still-routes-to-sprite",
+      "prompt": "draw a pixel-art portrait of my knight, just one still image",
+      "expected_output": "Does not fire /pixel-art:animate: a single still image is /pixel-art:sprite's job. Routes to /pixel-art:sprite instead of building a one-frame animation.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the animate skill for a single still",
+        "Routes to /pixel-art:sprite"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "near-miss-cutscene-routes-to-scene",
+      "prompt": "make a short pixel-art cutscene where the hero walks into the tavern and talks to the barkeep",
+      "expected_output": "Does not fire /pixel-art:animate as the handler: a cutscene with a set, beats and dialogue is /pixel-art:scene's job. Routes to /pixel-art:scene; animate is used only if the scene needs a walk cycle that does not exist yet.",
+      "files": [],
+      "expectations": [
+        "Does not treat a cutscene as a sprite-sheet task",
+        "Routes to /pixel-art:scene"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "near-miss-hand-drawn-ink-animation",
+      "prompt": "animate a hand-drawn ink-style character doing a walk, like a pencil test with rough linework",
+      "expected_output": "Does not fire /pixel-art:animate: hand-drawn or ink-style frame animation belongs to the separate animation plugin, not to pixel sprite sheets. Does not convert the request into a palette-locked pixel sprite sheet.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the animate skill for hand-drawn or ink-style animation",
+        "Does not turn the request into a pixel-art sprite sheet"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "near-miss-make-me-a-video",
+      "prompt": "make me a video of a bouncing ball, mp4 please",
+      "expected_output": "Does not fire /pixel-art:animate: a video file is the separate animation plugin's job, and this skill exports sprite sheets and GIF previews, not MP4. Does not answer with a sprite sheet in place of the video.",
+      "files": [],
+      "expectations": [
+        "Does not invoke the animate skill for a video request",
+        "Does not deliver a sprite sheet or GIF as a substitute for the requested video"
+      ]
+    }
+  ]
+}

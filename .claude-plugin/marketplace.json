@@ -338,6 +338,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "pixel-art",
+      "source": "./plugins/pixel-art",
+      "category": "visual-arts",
+      "tags": ["pixel-art", "sprites", "sprite-sheet", "animation", "rpg-maker", "cutscene", "game-assets", "skill"],
+      "defaultEnabled": false
+    },
+    {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",

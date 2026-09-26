@@ -53,6 +53,7 @@ const CATEGORY_ORDER = [
   "project-management",
   "operations",
   "learning",
+  "visual-arts",
   "music",
   "personal",
 ];
