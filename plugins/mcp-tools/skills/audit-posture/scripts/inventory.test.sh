@@ -94,9 +94,11 @@ cat >"$FIX/claude.json" <<'JSON'
         "shared": {"command": "npx", "args": ["shared-local@1.0.0"]},
         "localonly": {"command": "npx", "args": ["localonly@1.0.0"]}
       },
-      "disabledMcpServers": ["dis"],
-      "disabledMcpjsonServers": ["rejected"]
+      "disabledMcpServers": ["dis", "projdis", "override"],
+      "disabledMcpjsonServers": ["rejected"],
+      "enabledMcpjsonServers": ["pu", "projdis"]
     },
+    "D:\u005cAll": {"enableAllProjectMcpServers": true},
     "/other/project": {
       "mcpServers": {"otherproj": {"command": "npx", "args": ["other@1.0.0"]}}
     }
@@ -110,7 +112,8 @@ cat >"$FIX/proj/.mcp.json" <<'JSON'
     "shared": {"command": "npx", "args": ["shared-project@1.0.0"]},
     "pu": {"command": "npx", "args": ["pu-project@1.0.0"]},
     "projonly": {"command": "npx", "args": ["projonly@1.0.0"]},
-    "rejected": {"command": "npx", "args": ["rejected@1.0.0"]}
+    "rejected": {"command": "npx", "args": ["rejected@1.0.0"]},
+    "projdis": {"command": "npx", "args": ["projdis@1.0.0"]}
   }
 }
 JSON
@@ -151,6 +154,8 @@ cat >"$FIX/servers a.json" <<'JSON'
     "bash-wrap": {"command": "bash", "args": ["-c", "npx -y b-mcp@latest --api-key SECRETBASH1"]},
     "npm-exec": {"command": "npm", "args": ["exec", "--yes", "--", "ne-mcp@1.0.0"]},
     "pnpm-dlx": {"command": "pnpm", "args": ["dlx", "pd-mcp@^2.0.0"]},
+    "pnpx-bare": {"command": "pnpx", "args": ["px-mcp"]},
+    "pnpx-exact": {"command": "pnpx", "args": ["px-mcp@1.0.0"]},
     "yarn-dlx": {"command": "yarn", "args": ["dlx", "yd-mcp"]},
     "bunx": {"command": "bunx", "args": ["bx-mcp@1.0.0"]},
     "uvx-bare": {"command": "uvx", "args": ["mcp-server-fetch"]},
@@ -270,7 +275,10 @@ assert_eq "project pu wins over user" "yes" "$(cell project pu 3)"
 assert_eq "user pu shadowed by project" "shadowed-by:project" "$(cell user pu 3)"
 assert_eq "disabledMcpServers marks a user server disabled" "disabled" "$(cell user dis 3)"
 assert_eq "disabledMcpjsonServers marks a project server disabled" "disabled" "$(cell project rejected 3)"
-assert_eq "project-only server effective" "yes" "$(cell project projonly 3)"
+assert_eq "unapproved project server is approval-unknown" "approval-unknown" "$(cell project projonly 3)"
+assert_eq "enabledMcpjsonServers approves a project server" "yes" "$(cell project pu 3)"
+assert_eq "disabledMcpServers does not disable a project server" "yes" "$(cell project projdis 3)"
+assert_eq "disabledMcpServers disables a managed-settings server" "disabled" "$(cell managed-settings override 3)"
 assert_eq "user-only server effective" "yes" "$(cell user useronly 3)"
 assert_eq "file server effective without managed-mcp.json" "yes" "$(cell file npx-bare 3)"
 assert_eq "managed-settings server effective" "yes" "$(cell managed-settings corp 3)"
@@ -299,7 +307,9 @@ assert_contains "not read: claude.ai connectors" "$OUT" "# not read: claude.ai c
 assert_contains "not read: --mcp-config" "$OUT" "# not read: --mcp-config"
 assert_contains "not read: plugin servers" "$OUT" "# not read: plugin servers not passed as --config"
 assert_contains "not evaluated line" "$OUT" \
-  "# not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)"
+  "# not evaluated: allowedMcpServers/deniedMcpServers (see /claude-config:audit)"
+assert_contains "project approval not evaluated line" "$OUT" \
+  "# not evaluated: project approval in settings files (enabledMcpjsonServers, enableAllProjectMcpServers); only the ~/.claude.json project entry is read, so an unapproved project row shows approval-unknown"
 assert_contains "file-scope precedence not evaluated line" "$OUT" \
   "# not evaluated: file-scope rows are not checked for precedence against other scopes"
 
@@ -375,6 +385,8 @@ check_row npx-cmd npx c-mcp@1.0.0 exact unscoped
 check_row bash-wrap npx b-mcp@latest floating-tag unscoped
 check_row npm-exec npm-exec ne-mcp@1.0.0 exact unscoped
 check_row pnpm-dlx pnpm-dlx 'pd-mcp@^2.0.0' floating-range unscoped
+check_row pnpx-bare pnpx px-mcp floating-unversioned unscoped
+check_row pnpx-exact pnpx px-mcp@1.0.0 exact unscoped
 check_row yarn-dlx yarn-dlx yd-mcp floating-unversioned unscoped
 check_row bunx bunx bx-mcp@1.0.0 exact unscoped
 check_row uvx-bare uvx mcp-server-fetch floating-unversioned pypi
@@ -430,6 +442,12 @@ printf '%s\n' '{"managedMcpServers": {"corp": {"type": "http", "url": "https://c
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
   --managed-dir "$FIX/managed three" --date 2026-01-02
 assert_eq "managedMcpServers not suppressed by managed-mcp.json" "yes" "$(cell managed-settings corp 3)"
+
+# --- Run 2c: enableAllProjectMcpServers approves every project server ----------
+
+run_inv --claude-json "$FIX/claude.json" --project "d:/all" --mcp-json "$FIX/proj/.mcp.json" \
+  --managed-dir "$FIX/no managed" --date 2026-01-02
+assert_eq "enableAllProjectMcpServers approves a project server" "yes" "$(cell project projonly 3)"
 
 # --- Run 3: path-keyed local scope with a space and a trailing slash ---------
 

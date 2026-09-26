@@ -112,7 +112,7 @@ SOURCES=""
 ROWS=""
 STATUS=""
 MANAGED_PRESENT=false
-META_LOCAL='{"matched": false, "disabled": [], "disabledJson": []}'
+META_LOCAL='{"matched": false, "disabled": [], "disabledJson": [], "enabledJson": [], "enableAll": false}'
 SKIPPED_TEXT="skipped (mcpServers is a path; pass that file as --config)"
 
 clean_text() {
@@ -175,7 +175,9 @@ if add_file_source user "$CLAUDE_JSON" '.mcpServers'; then
     | def names: if type == "array" then map(tostring) else [] end;
     {matched: ($v != null),
      disabled: ($v.disabledMcpServers // [] | names),
-     disabledJson: ($v.disabledMcpjsonServers // [] | names)}' <"$CLAUDE_JSON" 2>/dev/null | tr -d '\r')" ||
+     disabledJson: ($v.disabledMcpjsonServers // [] | names),
+     enabledJson: ($v.enabledMcpjsonServers // [] | names),
+     enableAll: ($v.enableAllProjectMcpServers == true)}' <"$CLAUDE_JSON" 2>/dev/null | tr -d '\r')" ||
     die_json "non-object projects map" "$CLAUDE_JSON"
   if [[ "$META_LOCAL" == '{"matched":true'* ]]; then
     add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers"
@@ -366,6 +368,7 @@ def stdio_row:
   | if $b == "npx" then pkgrow("npx"; $t[1:] | npm_pkg; npm_shape; npm_class)
     elif $b == "npm" and ($a1 == "exec" or $a1 == "x") then pkgrow("npm-exec"; $t[2:] | npm_pkg; npm_shape; npm_class)
     elif $b == "pnpm" and $a1 == "dlx" then pkgrow("pnpm-dlx"; $t[2:] | npm_pkg; npm_shape; npm_class)
+    elif $b == "pnpx" then pkgrow("pnpx"; $t[1:] | npm_pkg; npm_shape; npm_class)
     elif $b == "yarn" and $a1 == "dlx" then pkgrow("yarn-dlx"; $t[2:] | npm_pkg; npm_shape; npm_class)
     elif $b == "bunx" then pkgrow("bunx"; $t[1:] | npm_pkg; npm_shape; npm_class)
     elif $b == "bun" and $a1 == "x" then pkgrow("bunx"; $t[2:] | npm_pkg; npm_shape; npm_class)
@@ -402,6 +405,7 @@ def classify:
   | . + {transport: $transport};
 def rank: {local: 3, project: 2, user: 1}[.] // 0;
 def overridable: IN(.; "user", "local", "project", "file");
+def opt_out: IN(.; "user", "local", "file", "managed-settings");
 
 ([.[] | select(.scope != "managed-settings")]
  + (reduce (.[] | select(.scope == "managed-settings")) as $r ({}; .[$r.name] = $r) | [.[]])) as $rows
@@ -410,9 +414,11 @@ def overridable: IN(.; "user", "local", "project", "file");
 | ($r.scope | rank) as $rk
 | ([$rows[] | select(.name == $r.name and (.scope | rank) > $rk)] | max_by(.scope | rank) | .scope) as $winner
 | (if $managed and ($r.scope | overridable) then "suppressed-by-managed"
-   elif ($r.scope | overridable) and any($meta.disabled[]; . == $r.name) then "disabled"
+   elif ($r.scope | opt_out) and any($meta.disabled[]; . == $r.name) then "disabled"
    elif $r.scope == "project" and any($meta.disabledJson[]; . == $r.name) then "disabled"
    elif $rk > 0 and $winner != null then "shadowed-by:" + $winner
+   elif $r.scope == "project" and ($meta.enableAll | not) and (any($meta.enabledJson[]; . == $r.name) | not)
+     then "approval-unknown"
    else "yes" end) as $effective
 | ($r | classify) as $k
 | [$r.scope, $r.name, $effective, $k.transport, $k.launcher, $k.package, $k.pin, $k.publisher, $k.sandboxed]
@@ -435,6 +441,7 @@ printf '%s\n' \
   '# not read: claude.ai connectors' \
   '# not read: --mcp-config servers' \
   '# not read: plugin servers not passed as --config' \
-  '# not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)' \
+  '# not evaluated: allowedMcpServers/deniedMcpServers (see /claude-config:audit)' \
+  '# not evaluated: project approval in settings files (enabledMcpjsonServers, enableAllProjectMcpServers); only the ~/.claude.json project entry is read, so an unapproved project row shows approval-unknown' \
   '# not evaluated: file-scope rows are not checked for precedence against other scopes'
 exit 0
