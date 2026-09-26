@@ -12,7 +12,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
   or adds a remote write, an irreversible action, or an externally visible artifact, is no
   longer folded into the plan body. A displaced register row is set to `superseded-by-plan`;
   every such change is listed at Step 5 under "Displaced answers and new external effects",
-  and only a reply to that row moves it out. Step 4.7 checks the listing against the gate, the
+  and only a reply to that row moves it out. The plan does not hand off while a listed change
+  lacks its reply; when a ledger exists, the gate must exit 0 first. Step 4.7 checks the listing against the gate, the
   decision tables carry a `Source` column, and `tag-decisions.md` adds an "Adopted mitigation"
   category that never passes the confidence gate for those two kinds.
 - **`devils-advocate`:** reads the interview ledger or Brief when supplied; a finding's
@@ -20,7 +21,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
   an external effect carries `New external effect`.
 - **`interview`:** new non-terminal register status `superseded-by-plan`.
   `check-open-questions.sh` counts it as `superseded=<n>` and exits 1 while any row holds it.
-  The page surface imports, keeps, and counts the status.
+  The page surface imports, keeps, and counts the status; a page defer keeps the row
+  superseded, and a page accept records `reconfirmed at plan approval: <new>; was: <old>`.
 - **`audit-answers`:** a `superseded-by-plan` row is held on the never-auto floor.
 
 ### Changed
