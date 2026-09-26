@@ -15,7 +15,8 @@ Two eligible D7.5 dispositions (`reference/review-discipline.md`) leave a thread
 construction, so neither can ever satisfy either guard:
 
 - `INCORRECT` with counter-evidence: a disproved finding ships no fix, so nothing moves the anchor.
-- `VALID (defer)` grounded per D4.6: the fix is deliberately not in this PR.
+- `VALID (defer)` grounded per D4.6: the fix is deliberately not in this PR, because the finding
+  is structural, urgent but unable to land here, or blocked on research.
 
 A prose fix does it a third way: rewriting elsewhere in the file addresses the finding without
 moving the anchored lines.
@@ -76,7 +77,9 @@ each one the disposition plus its evidence:
 
 - `VALID (fix now)`: the pushed commit SHA that fixes it, verified present on the live PR head, and
   the D7 follow-up citing it.
-- `VALID (defer)`: grounded per D4.6. The provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
+- `VALID (defer)`: grounded per D4.6. The scope test passed (the finding is structural, urgent
+  but unable to land in this PR, or blocked on research this lane cannot do; a small or medium
+  finding is fixed here instead, never deferred). The provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
   branch), and the tracker item exists, carries the finding's own evidence, and its cited id
   re-queries successfully. <!-- contract-restatement-end: D4.6-deferral-grounding -->
 - `INCORRECT`: the counter-evidence, read from the code or docs at the live head rather than
