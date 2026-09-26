@@ -56,16 +56,24 @@ limit. It can only move the agent's stop turn earlier than the default its own d
 an agent ignores a higher value and notes it in `open_questions`. It is degradable: an agent that
 does not receive it stops gathering at that default.
 
-**Research adds one more labeled line**, because source breadth is the caller's level and
-the researcher lane is pinned `high` for reasoning:
+**Research adds two more labeled lines.** `Source breadth:` because source breadth is the
+caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
+only the caller knows whether the answer will be quoted outside the session:
 
 ```text
 Source breadth: <low|medium|high|xhigh|max>
+Evidence use: <internal|publish>
 ```
+
+Write `publish` when the output will be quoted outside this session: a pull-request review reply,
+an issue, a design document, a message to a third party. Otherwise `internal`. The line is
+degradable: a research worker that does not receive it records `internal` in the index and says
+so. What `publish` tightens, and why the value is copied into the index rather than trusted from
+the envelope: the research dispatch contract's `Evidence use` row.
 
 The parent resolves that value from `${CLAUDE_EFFORT}` in the parent skill load before
 dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
-and trace-intent do not write this line. A research worker that does not receive it treats
+and trace-intent write neither line. A research worker that does not receive it treats
 the run as `high` and names that default in the artifact, the same fallback as an
 unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "`${CLAUDE_EFFORT}` is the loading context's level".
@@ -361,15 +369,16 @@ and exits 0:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" --help   # any dispatched route
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" --help   # research only (dispatch or inline); .py twin below
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" --help   # research only (dispatch or inline)
 ```
 
 - **Dispatched route (explore, research or trace-intent):** probe `check-dispatch-artifact.sh`
-  before dispatching. Research also probes the coverage checker; trace-intent owes no ledger and so
-  probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
+  before dispatching. Research also probes the coverage and source-applicability checkers;
+  trace-intent owes no ledger and so probes only the artifact checker. A denied, declined, or errored probe is the same FAIL
   as a non-zero gate exit: **halt**. Do not take the inline escape hatch to dodge an un-runnable
   post-dispatch gate.
-- **Inline research:** still owes criterion 11's coverage-script exit status. Probe the coverage
-  checker before spending the run; a denied probe **halts**. Reading the ledger instead is the
+- **Inline research:** still owes the coverage-script exit status for criterion 11 and the
+  source-applicability exit status for criterion 13. Probe both checkers before spending the run; a denied probe **halts**. Reading the ledger instead is the
   silent self-grade the gate exists to prevent.
 - **Inline explore:** no script verdict to self-grade. The three escape-hatch reasons (tight
   iteration, cost, already-a-subagent) remain valid; do **not** halt an otherwise-legitimate inline
@@ -383,7 +392,12 @@ gate itself rather than an interpreter wrapping it:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <slice> --index-name <NAME.md> …
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh" <ledger>   # or the .py twin
+"${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" <slice> --expect-evidence-use <mode>
 ```
+
+The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
+`python3` does not resolve (common on Windows), run it as `python "…/check-source-applicability.py"`
+from any open lane; a session that can run no Python interpreter halts on criterion 13.
 
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/…"` remains valid where a direct exec is awkward. On a session
 whose Bash tool is blocked by another skill's PreToolUse belt but whose PowerShell lane (or another

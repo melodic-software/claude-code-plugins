@@ -39,6 +39,14 @@ outcome gate's artifact-grounded criteria, or not at all.
   claim rests on a source that measured a different variable or population, or drops the qualifier
   the source attached. Criterion 12 asks whether the claim follows, and the dispatch contract briefs
   the verifier on it by number.
+- **A real quote from the wrong era, counted as a corroborator.** A book written for a runtime's
+  predecessor framework, quoted accurately and generic about the primitive involved, was accepted
+  as a corroborator for a claim about a specific retry loop on a current major; two verifiers found
+  the quote at its link and passed it. The recency gate never saw it, because it dates claims, not
+  sources. Every source now records `published:` and `applies_to:`, criterion 13's script derives
+  whether it is `current` or `historical`, and criterion 12's era and scenario checks ask whether
+  it covers the claim's product line and situation. A `historical` source is labelled and never
+  counted.
 - **Reading the coverage ledger instead of running the gate.** A model cannot reliably audit its own
   checklist, and the context most motivated to call it finished is the one reading it. Criterion 11
   cites the script's exit status. Exit 2, a ledger the script could not parse, is a FAIL, never a
