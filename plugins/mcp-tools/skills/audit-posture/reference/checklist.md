@@ -23,7 +23,9 @@ each as a four-part record (claim, basis, as-of date, recheck trigger).
 - **PASS**. Criterion met.
 - **n/a**. The criterion has no subject for this row (for example, P1 on a remote server).
 
-Only rows with `effective = yes` are scored. Rows reading `shadowed-by:<scope>`,
+Rows with `effective = yes` or `approval-unknown` are scored. `approval-unknown` is a project
+`.mcp.json` server whose approval lives in a settings file the script does not read, so it may
+load; mark its findings "if approved". Rows reading `shadowed-by:<scope>`,
 `suppressed-by-managed`, or `disabled` stay in the inventory table and get no findings, because
 Claude Code does not launch them from that entry.
 

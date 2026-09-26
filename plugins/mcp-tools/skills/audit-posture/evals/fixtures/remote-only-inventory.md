@@ -8,7 +8,7 @@ run the script.
 | scope | name | effective | transport | launcher | package | pin | publisher | sandboxed |
 |---|---|---|---|---|---|---|---|---|
 | managed-settings | docs | yes | http | remote | `https://docs.example.com` | n/a | docs.example.com | n/a |
-| project | tracker | yes | http | remote | `https://mcp.tracker.example.com` | n/a | mcp.tracker.example.com | n/a |
+| project | tracker | approval-unknown | http | remote | `https://mcp.tracker.example.com` | n/a | mcp.tracker.example.com | n/a |
 | user | events | yes | sse | remote | `https://events.example.com:8443` | n/a | events.example.com | n/a |
 
 Footer lines:
@@ -24,6 +24,7 @@ Footer lines:
 # not read: claude.ai connectors
 # not read: --mcp-config servers
 # not read: plugin servers not passed as --config
-# not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)
+# not evaluated: allowedMcpServers/deniedMcpServers (see /claude-config:audit)
+# not evaluated: project approval in settings files (enabledMcpjsonServers, enableAllProjectMcpServers); only the ~/.claude.json project entry is read, so an unapproved project row shows approval-unknown
 # not evaluated: file-scope rows are not checked for precedence against other scopes
 ```
