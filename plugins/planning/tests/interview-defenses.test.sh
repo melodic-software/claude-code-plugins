@@ -42,8 +42,8 @@
 #   3. Digests (`pin_section`, `pin_case_digest`, `pin_case_set`, `pin_file`,
 #      `pin_frontmatter`) hash whole regions. Whole-line pins are blind to anything ADDED
 #      BESIDE a pinned line rather than to it.
-#      Digests cover thirteen sections, the whole YAML frontmatter, the eight cases that speak
-#      to these rules, the case roster, and the four fixtures. Inside those regions, an
+#      Digests cover eighteen sections, the whole YAML frontmatter, the eight cases that speak
+#      to these rules, the case roster, the four fixtures, and context/assumption-sweep.md. Inside those regions, an
 #      insertion, deletion, or reordering fails. EVERY line this suite phrase-pins as a
 #      defense, and every loop.md TWIN of a byte-pinned SKILL.md line, now sits inside a
 #      digested region — that is the invariant to preserve when adding a pin: a phrase pin
@@ -51,7 +51,7 @@
 #
 # WHAT IS STILL NOT GATED, so nobody reads more into a green run than is there:
 #   - Prose OUTSIDE the digested regions. Among them — not an exhaustive list — SKILL.md's
-#     Purpose, Emit-checklist, Step 2, Step 5, session-config and composition sections, the
+#     Purpose, Emit-checklist, Step 5, session-config and composition sections, the
 #     undigested parts of `context/loop.md`, `context/gotchas.md`,
 #     `templates/checklist.md`, and the plugin README. The digested set covers the rules'
 #     own homes, every line the suite phrase-pins, and every placement a weakening has
@@ -92,6 +92,8 @@ set -uo pipefail
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL="$PLUGIN_DIR/skills/interview/SKILL.md"
 LOOP="$PLUGIN_DIR/skills/interview/context/loop.md"
+SWEEP="$PLUGIN_DIR/skills/interview/context/assumption-sweep.md"
+AUDIT="$PLUGIN_DIR/skills/audit-answers/SKILL.md"
 EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
@@ -113,7 +115,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-for f in "$SKILL" "$LOOP" "$EVALS"; do
+for f in "$SKILL" "$LOOP" "$SWEEP" "$AUDIT" "$EVALS"; do
   if [[ ! -f "$f" ]]; then
     echo "FAIL: missing required file: $f" >&2
     exit 1
@@ -539,11 +541,50 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "## Composition with other skills" \
   "02754ea58401497b72a653ee4d5bfe1c8a069e464bb3420f189e6d23e63c26ee"
 
+# Step 2 and its loop.md twins house the rules that stop an assumption from locking
+# unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
+# the mechanism tripwire, the assumption sweep, and late commitment-row numbering. Each adds
+# a question, a row, or a label; none resolves a row or relaxes a defense above.
+pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
+  "$SKILL" \
+  "### Step 2. Drive the frontier-rounds loop" \
+  "### Step 3. Recognize the stop condition" \
+  "59495d3b2e640489f7f866ebc88c633a4fca7c950c5787c04f9669f0ffa011f2"
+pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, candidates, currency labels)" \
+  "$LOOP" \
+  "## Step 2. Drive the decision tree" \
+  "## Relentless \`me\` mode mechanics" \
+  "6e100d215715fc766a0796ebdf7e9f355ad74cde2f6332cf962a5a4087c439c8"
+pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
+  "$LOOP" \
+  "## Relentless \`me\` mode mechanics" \
+  "## The open-question register" \
+  "ef6106326f8d2765e546048b6b51d24eb0e61ccd531ff4fc567ea6e2e8648579"
+pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
+  "$SWEEP" \
+  "576d70978472cf719da7862dda4f6c79848a5afaf0763a331bf68fa51b019d25"
+# audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
+# human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
+# appended beside either line.
+pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, hedged rows included)" \
+  "$AUDIT" \
+  "### Step 1. Assemble the answer set, holding the never-auto floor" \
+  "### Step 2. Dispatch fresh-context validators" \
+  "4ac90f63d046510f8744728ca5c7e46feaaf5c703eefa596e14f8546d190b242"
+pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
+  "$AUDIT" \
+  "### Step 4. Merge and triage" \
+  "### Step 5. Human confirmation" \
+  "8fc756831ac1789cb62df067b1f35b257f9fb55ddddc67b641ee160fa6006492"
+
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
   "dea5a9d5a6f66d93954ad3bc715d2910ea8c2237c9b085fc58107969d66eca68"
+# Re-pinned for cases 19 to 22 (mechanism tripwire, assumption sweep, evidence currency,
+# inherited constraint). Each adds a question, a row, or a label before the contract locks;
+# none licenses a silent capture or a fudged gap, so none contradicts case 15 or 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "fdbb142efd47995f1a517ed50ec99e25d7f9cfcb3f70688352680b3f893ab36d"
+  "8ff6f0415b61a8a6d5943b3e8245a724d837daa52a17e982ce85491aa105cbb8"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -720,6 +761,57 @@ pin "loop.md: a hedged reply is never mirrored as accept" "$LOOP" \
   "never as \`accept\`, which records accept-all"
 pin "loop.md: the read-only decision table numbers each part" "$LOOP" \
   "The read-only decision table gives each part its own row number"
+
+# A7d. Assumptions the user never saw. Each rule below adds a row, a label, or a question
+#      before the contract locks; none resolves anything on the user's behalf.
+pin "SKILL.md keeps a running constraint ledger" "$SKILL" \
+  "**Keep a running constraint ledger.**"
+pin "SKILL.md: a stated constraint is written at once as confirmed" "$SKILL" \
+  "Every constraint the user states is written at once as \`confirmed\`"
+pin "SKILL.md: an upstream constraint is inherited" "$SKILL" \
+  "a constraint taken from an upstream artifact is \`inherited\`"
+pin "SKILL.md: every recommendation names the constraints it was checked against" "$SKILL" \
+  "\`Checked against: C1, C3\` or \`Checked against: none\`"
+pin "SKILL.md: a relied-on inherited constraint is asked in every mode" "$SKILL" \
+  "An \`inherited\` constraint the contract relies on is asked as a register row at ask-time, in every mode, including \`lock\` and \`auto\` synthesis"
+pin "SKILL.md: composed artifacts are candidates" "$SKILL" \
+  "is a candidate, never a recommendation, until re-derived against the constraint ledger"
+pin "SKILL.md: a mid-interview research brief carries the constraint ledger" "$SKILL" \
+  "dispatched mid-interview carries the constraint ledger verbatim"
+pin "SKILL.md labels evidence by when it was true" "$SKILL" \
+  "**Label evidence by when it was true.**"
+pin "SKILL.md: past-only evidence never alone grounds a recommendation" "$SKILL" \
+  "past-only evidence never alone grounds a recommendation"
+pin "SKILL.md defines a process change" "$SKILL" \
+  "(a changelog, commit, ticket, or user statement dated after the evidence window) or cannot rule out"
+pin "SKILL.md carries the mechanism tripwire" "$SKILL" \
+  "**What, not how: the mechanism tripwire.**"
+pin "SKILL.md: \"at planning\" defers open mechanism rows" "$SKILL" \
+  "every still-\`open\` mechanism row, commitment rows included, becomes \`deferred\`"
+pin "SKILL.md: \"now\" is recorded in the Brief's Constraints" "$SKILL" \
+  "the Brief's Constraints records that this topic overrides \"does not plan implementation\""
+pin "SKILL.md sweeps for assumptions before Step 3" "$SKILL" \
+  "**Sweep for assumptions before Step 3.**"
+pin "SKILL.md: a sweep that adds an open row returns the run to Step 2" "$SKILL" \
+  "Step 3 is reached when a sweep adds no \`open\` row"
+pin "loop.md defines the constraint ledger row shape" "$LOOP" \
+  "\`- C<N> | confirmed|inherited | <constraint> | <source>\`"
+pin "loop.md: composed artifacts are candidates" "$LOOP" \
+  "is a candidate, never a recommendation, until re-derived against the constraint ledger"
+pin "loop.md: past-only evidence never alone grounds a recommendation" "$LOOP" \
+  "Past-only evidence never alone grounds a recommendation"
+pin "loop.md: a late commitment row takes the next free id" "$LOOP" \
+  "takes the next free \`Q<N>\` and names its headline in the question field"
+pin "assumption-sweep.md: sweep ids never reach the register" "$SWEEP" \
+  "\`S<N>\` never reaches the register"
+pin "assumption-sweep.md: an open row returns the run to Step 2" "$SWEEP" \
+  "Any \`open\` row it adds returns the run to Step 2"
+pin "assumption-sweep.md points the hedged relist at loop.md" "$SWEEP" \
+  "loop.md \"Hedged flag\""
+pin "audit-answers: a hedged row never closes on CONFIRMED" "$AUDIT" \
+  "never closes on a CONFIRMED verdict"
+pin "audit-answers: a free-text row is validated and flagged" "$AUDIT" \
+  "A \`free-text:\` row is validated like any answer and flagged"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of
