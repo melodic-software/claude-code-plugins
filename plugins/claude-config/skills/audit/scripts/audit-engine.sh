@@ -860,7 +860,7 @@ check_keys() {
 # when an undocumented top-level key exists; a missing or invalid file is one
 # not-inspectable row and every key keeps its undocumented-key finding.
 CR_STATE=unread CR_WHY=""
-CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=()
+CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=() CR_AMB=()
 cr_load() {
   local i crj scopes_json why="" f=() n
   for i in "${!KP_KEY[@]}"; do
@@ -879,22 +879,29 @@ cr_load() {
       } | ejq -c -s '{user: .[0], project: .[1], local: .[2]}'
     )"
     while IFS= read -r -d '' n; do f+=("$n"); done < <(printf '%s\n%s\n' "${crj:-null}" "${scopes_json:-null}" | ejq -j -s "${E_ARGS[@]}" "$E_DEFS"'
+      # A control character (U+0000-U+001F) in any field could shift the
+      # NUL-separated fields below, so such a record makes the file invalid.
+      def plain: type == "string" and length > 0 and (explode | all(. >= 32));
       def rec: type == "object"
-        and all(("key", "meaning", "basis", "as_of", "recheck") as $f | .[$f]; type == "string" and length > 0)
+        and all(("key", "meaning", "basis", "as_of", "recheck") as $f | .[$f]; plain)
         and (.scopes | type) == "array" and (.scopes | length) > 0
         and all(.scopes[]; . == "user" or . == "project" or . == "local");
       def valid: type == "object" and (.consentReceipt | type) == "object"
-        and all(.consentReceipt | to_entries[]; (.key == "claude-code" or (.key | test("^[^@]+@[^@]+$")))
+        and all(.consentReceipt | to_entries[]; (.key | plain) and (.key == "claude-code" or (.key | test("^[^@]+@[^@]+$")))
           and (.value | type) == "array" and all(.value[]; rec));
+      # nkeys($s; $k): how many keys of scope $s read as $k once carriage
+      # returns are removed, the way check_keys reads them.
+      def nkeys($s; $k): [$s | obj | keys[] | select(gsub("\r"; "") == $k)] | length;
       if length == 2 and (.[0] | valid) and (.[1] | type) == "object" then
         .[1] as $c | ($c | enabled) as $en
         | ("ok", (.[0].consentReceipt | to_entries[] | .key as $o | .value[] | .key as $k
             | ($k, $o, (.scopes | join(",")), .meaning,
                (if $o == "claude-code" then "-" elif ($en | index([$o])) != null then "yes" else "no" end),
-               ([("user", "project", "local") as $l | select($c[$l] | obj | has($k)) | $l] | join(",")))))
+               ([("user", "project", "local") as $l | select(($c[$l] | obj | has($k)) and nkeys($c[$l]; $k) == 1) | $l] | join(",")),
+               ([("user", "project", "local") as $l | select(nkeys($c[$l]; $k) > 1) | $l] | join(",")))))
         | (., "\u0000")
       else empty end')
-    if [[ "${f[0]:-}" != "ok" || $(((${#f[@]} - 1) % 6)) -ne 0 ]]; then
+    if [[ "${f[0]:-}" != "ok" || $(((${#f[@]} - 1) % 7)) -ne 0 ]]; then
       why="is not valid JSON in the {\"consentReceipt\": {\"<owner>\": [records]}} shape"
     fi
   fi
@@ -904,8 +911,8 @@ cr_load() {
     return 0
   fi
   CR_STATE=ok
-  for ((i = 1; i < ${#f[@]}; i += 6)); do
-    CR_KEY+=("${f[i]}") CR_OWNER+=("${f[i + 1]}") CR_SCOPES+=("${f[i + 2]}") CR_MEANING+=("${f[i + 3]}") CR_ON+=("${f[i + 4]}") CR_IN+=("${f[i + 5]}")
+  for ((i = 1; i < ${#f[@]}; i += 7)); do
+    CR_KEY+=("${f[i]}") CR_OWNER+=("${f[i + 1]}") CR_SCOPES+=("${f[i + 2]}") CR_MEANING+=("${f[i + 3]}") CR_ON+=("${f[i + 4]}") CR_IN+=("${f[i + 5]}") CR_AMB+=("${f[i + 6]}")
   done
 }
 
@@ -924,9 +931,15 @@ cr_match() {
   esac
   has="${BIN_HAS[$leaf]:-}"
   for j in "${!CR_KEY[@]}"; do
-    # The file must hold the record's key exactly, compared in jq: a key read
-    # through check_keys has lost any carriage return it carried.
-    [[ "${CR_KEY[$j]}" == "$k" && ",${CR_IN[$j]}," == *",$scope,"* ]] || continue
+    # The file must hold the record's key exactly and no carriage-return
+    # variant of it, compared in jq: a key read through check_keys has lost
+    # any carriage return it carried.
+    [[ "${CR_KEY[$j]}" == "$k" ]] || continue
+    if [[ ",${CR_AMB[$j]}," == *",$scope,"* ]]; then
+      CR_WHY+="${CR_WHY:+; }a carriage-return variant of $k is also present in this file"
+      continue
+    fi
+    [[ ",${CR_IN[$j]}," == *",$scope,"* ]] || continue
     owner="${CR_OWNER[$j]}" why="" note=""
     if [[ ",${CR_SCOPES[$j]}," != *",$scope,"* ]]; then
       why="the $owner record declares scope ${CR_SCOPES[$j]//,/, }, not $scope"

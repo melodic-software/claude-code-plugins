@@ -14,7 +14,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   one the record declares, a plugin owner is enabled in the merged `enabledPlugins`, and for
   `claude-code` a searched binary still carries the name. Otherwise the `undocumented-key` finding
   stays and names the failed gate ("stale consent receipt, recheck" for a binary that lacks the
-  name). A missing or invalid record file is one `not-inspectable` row. An existing
+  name). A key is never labeled when the same file also holds a carriage-return variant of it. A
+  missing or invalid record file, including one whose record fields hold a control character, is
+  one `not-inspectable` row. An existing
   `.claude/audit-pass.md` suppression of `undocumented-key:<key>` stops matching once that key is
   labeled; the row it retired is no longer a finding.
 
