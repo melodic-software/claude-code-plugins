@@ -118,12 +118,15 @@ SKIPPED_TEXT="skipped (mcpServers is a path; pass that file as --config)"
 
 # Value filter applied to every emitted package, publisher, name, and drop-in file name:
 # split on / @ : = # . _ - [ ] and space; reject a value over 100 characters, a segment over
-# 40, a known secret prefix anywhere, or a segment of 20+ characters holding at least three
-# digits and three letters. A segment that is exactly a 64-hex digest or 40-hex commit passes.
+# 40, a known secret prefix at the start or after a non-alphanumeric character, or a segment
+# of 20+ characters holding at least three digits and three letters. A segment that is
+# exactly a 64-hex digest or 40-hex commit passes. AWS key prefixes (AKIA, ASIA) match only
+# in upper case, since AWS key ids are upper case and lower-case "asia" is an ordinary word.
 # shellcheck disable=SC2016
 JQ_VF='def vf:
   (length <= 100)
-  and (test("sk-|ghp_|gho_|ghs_|ghu_|github_pat_|xox[abprs]-|akia|asia|aiza|eyj|glpat-"; "i") | not)
+  and (test("(^|[^A-Za-z0-9])(sk-|sk_|ghp_|gho_|ghs_|ghu_|github_pat_|xox[abprs]-|aiza|eyj|glpat-)"; "i") | not)
+  and (test("(^|[^A-Za-z0-9])(AKIA|ASIA)") | not)
   and ([splits("[/@:=#._\\[\\] -]")]
        | all(.[]; test("^([0-9a-f]{64}|[0-9a-f]{40})$")
                   or (length <= 40
