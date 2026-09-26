@@ -220,6 +220,9 @@ else
   for subfield in tool file findings; do
     fail "envelope shape: data.$subfield not verifiable (no envelope)"
   done
+  for value in schema_version hook hook_event status; do
+    fail "envelope: $value value not verifiable (no envelope)"
+  done
 fi
 
 # --- Test 4: timestamp is UTC RFC3339 with Z suffix --------------------------
@@ -3819,6 +3822,10 @@ if [[ -s "$corr_sink" ]]; then
   if [[ "$(jq -r '.data.session_id // "absent"' "$corr_sink")" == "absent" ]]; then ok "corr (builtin): data untouched"; else fail "corr (builtin): data gained a key"; fi
 else
   fail "corr (builtin): sink empty"
+  for key in session_id prompt_id tool_use_id agent_id; do
+    fail "corr (builtin): $key not verifiable (no envelope)"
+  done
+  fail "corr (builtin): key order not verifiable (no envelope)"
 fi
 rm -f "$corr_sink"
 # jq path: pretty-printed data the compactor declines, same keys.
@@ -3839,6 +3846,7 @@ if [[ -s "$corr_sink" ]]; then
   fi
 else
   fail "corr (jq path): sink empty"
+  fail "corr (jq path): key order not verifiable (no envelope)"
 fi
 rm -f "$corr_sink"
 # Partial and malformed: only well-formed keys appear; a value with a quote,
