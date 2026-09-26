@@ -395,6 +395,18 @@ fi
 assert_eq "case-10: backup holds the pre-apply bytes" "yes" "$bak_match"
 assert_eq "case-10: backup is named settings.json.bak.<stamp>.<random>" "yes" "$(backup_shaped "$bak")"
 assert_contains "case-10: summary names the backup" "$out" "(backup: $bak)"
+# 0600 only where this host honors mode bits: a probe made under the same umask
+# shows whether it does (MSYS reports every file as -rw-r--r--).
+(
+  umask 077
+  : >"$case_dir/mode.probe"
+)
+# find -perm with a bare mode matches that exact mode.
+if [[ -z "$(find "$case_dir/mode.probe" -perm 600)" ]]; then
+  skip "case-10: backup is 0600" "this host does not honor mode bits"
+else
+  assert_eq "case-10: backup is 0600" "$bak" "$(find "$bak" -perm 600)"
+fi
 
 # --- Case 11: the ladder resolving to the user settings file is refused -----------
 
@@ -1293,6 +1305,77 @@ else
 fi
 # Restored so the harness's recursive delete can enter it.
 chmod u+rwx "$case_dir/locked"
+
+# --- Case 41: a link planted at the generated backup name is never written through --
+
+# mktemp_shim <dir> - an mktemp that plants a link at the backup name it
+# generates, playing a writer in the settings directory that raced the name.
+# Every other call goes to the real mktemp. SHIM_LINK picks the link: a hard
+# link or a symlink to the decoy, or a dangling symlink.
+mktemp_shim() {
+  mkdir -p "$1"
+  cat >"$1/mktemp" <<'EOF'
+#!/usr/bin/env bash
+name=$("$REAL_MKTEMP" "$@") || exit $?
+case "$name" in
+*/settings.json.bak.*)
+  [[ -f "$name" && ! -L "$name" ]] && rm -f -- "$name"
+  case "$SHIM_LINK" in
+  hard) ln "$SHIM_DECOY" "$name" ;;
+  sym) MSYS=winsymlinks:nativestrict ln -s "$SHIM_DECOY" "$name" ;;
+  *) MSYS=winsymlinks:nativestrict ln -s "$SHIM_DECOY.absent" "$name" ;;
+  esac
+  printf '%s\n' "$name" >"$SHIM_MARKER"
+  ;;
+esac
+printf '%s\n' "$name"
+EOF
+  chmod +x "$1/mktemp"
+}
+
+CASE_NUM=$((CASE_NUM + 1))
+real_mktemp=$(command -v mktemp)
+for link in hard sym dangling; do
+  case_dir="$(make_case)/$link"
+  mkdir -p "$case_dir"
+  printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
+  printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
+  cp "$case_dir/settings.json" "$case_dir/settings.pre"
+  printf 'decoy\n' >"$case_dir/decoy"
+  cp "$case_dir/decoy" "$case_dir/decoy.ref"
+  mktemp_shim "$case_dir/shim"
+  exit_code=0
+  out=$(PATH="$case_dir/shim:$PATH" \
+    REAL_MKTEMP="$real_mktemp" \
+    SHIM_LINK="$link" \
+    SHIM_DECOY="$case_dir/decoy" \
+    SHIM_MARKER="$case_dir/planted" \
+    NO_COLOR=1 \
+    CLAUDE_SETTINGS_FILE="$case_dir/settings.json" \
+    bash "$SCRIPT" --input "$case_dir/findings.json" --yes 2>&1) || exit_code=$?
+  label="case-41: a $link link at the generated backup name"
+  planted=$(cat "$case_dir/planted" 2>/dev/null || true)
+  if [[ -z "$planted" ]]; then
+    skip "$label" "the shim never saw a backup name, so nothing was planted"
+    continue
+  fi
+  if [[ "$link" != hard && ! -L "$planted" ]]; then
+    skip "$label" "ln -s did not make a real symlink on this host"
+    continue
+  fi
+  assert_exit "$label refuses with exit 2" 2 "$exit_code"
+  assert_not_contains "$label never reports an apply" "$out" "Applied"
+  assert_eq "$label leaves settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
+  decoy_same=$(cmp -s "$case_dir/decoy.ref" "$case_dir/decoy" && echo yes || echo no)
+  assert_eq "$label is never written through" "yes" "$decoy_same"
+  if [[ "$link" == hard ]]; then
+    kept=$([[ -f "$planted" ]] && cmp -s "$case_dir/decoy.ref" "$planted" && echo yes || echo no)
+  else
+    kept=$([[ -L "$planted" ]] && echo yes || echo no)
+  fi
+  assert_eq "$label is left in place" "yes" "$kept"
+  assert_eq "$label is the only backup-shaped name" "1" "$(backup_count "$case_dir")"
+done
 
 # --- Final ------------------------------------------------------------------
 

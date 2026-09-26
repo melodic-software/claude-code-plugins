@@ -136,6 +136,23 @@ out=$(PATH="$nestbin:$PATH" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" bash "$SCRIPT" --
 assert_exit "case 8: the nested page is fetched and checked" 0 "$rc"
 assert_contains "case 8: OK for the nested slug" "$out" "OK    plugins/install: a nested span"
 
+# --- Case 9: a slug that could leave the page directory is refused --------------
+# A page sits beside the fixture directory, so a slug that climbed out of it
+# would read that page and pass.
+fx="$TEST_TMPDIR/slugs/pages"
+mkdir -p "$fx"
+printf '%s\n' 'an escaped span' >"$TEST_TMPDIR/slugs/escape.md"
+printf '%s\n' 'an escaped span' >"$fx/alpha.md"
+for bad in '../escape' '/escape' 'alpha/../../escape' 'Alpha'; do
+  man="$TEST_TMPDIR/manifest-badslug.tsv"
+  printf 'alpha\tan escaped span\n%s\tan escaped span\n' "$bad" >"$man"
+  rc=0
+  out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+  assert_exit "case 9: slug '$bad' exits 2" 2 "$rc"
+  assert_contains "case 9: slug '$bad' is named with its row" "$out" "ERROR: manifest row 2 has an invalid page slug: $bad"
+  assert_not_contains "case 9: slug '$bad' checks no row" "$out" "OK "
+done
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

@@ -66,10 +66,14 @@
 #   regular file. The window between that compare and the replace is not
 #   closed.
 #   The settings file is copied to a new file named
-#   <settings>.bak.<UTC stamp>.<random>, created by mktemp, which makes a new
-#   name exclusively and 0600 wherever the platform honors mode bits (MSYS does
-#   not). No existing path of any type is written through. Nothing is replaced
-#   unless that copy is a regular non-symlink file equal to the snapshot.
+#   <settings>.bak.<UTC stamp>.<random>. The name comes from mktemp -u, is
+#   refused when anything already exists there, and is written on one exclusive
+#   open (bash noclobber, O_CREAT|O_EXCL) under umask 077, so 0600 wherever the
+#   platform honors mode bits (MSYS does not). Nothing is written until the
+#   open descriptor is a regular file that is the one at the name, so no link
+#   planted there, before or after the check, is written through. Nothing is
+#   replaced unless that copy is a regular non-symlink file equal to the
+#   snapshot.
 #   The file's own line-ending style survives the jq round trip.
 #   An apply is refused when the project-root ladder resolved the path to the
 #   user settings file. Set CLAUDE_SETTINGS_FILE to write that file on purpose.
@@ -718,30 +722,48 @@ if [[ -z "$STAMP" ]]; then
 fi
 
 # remove_own_backup - delete the backup only while it is still a regular,
-# non-symlink file. mktemp created the name exclusively, so that file is this
-# run's; anything else found there is left alone.
+# non-symlink file. This run created the name on an exclusive open, so that
+# file is this run's; anything else found there is left alone.
 remove_own_backup() {
   [[ -f "$BACKUP" && ! -L "$BACKUP" ]] && rm -f "$BACKUP"
 }
 
-# mktemp creates a NEW name exclusively (O_EXCL) with mode 0600, so no path that
-# already exists, of any type (file, FIFO, symlink, directory), is written
-# through or reused, and two applies in the same second each get their own.
+# The name is unpredictable (mktemp -u, nothing created) and refused when
+# anything already sits there. The copy is then written on ONE open, under
+# noclobber and umask 077: bash opens a missing name with O_CREAT|O_EXCL, which
+# fails on a symlink or file planted after the check instead of following it.
+# Before any byte is written, the open descriptor must be a regular file that is
+# the one at the name, which also refuses a symlink to a non-regular target that
+# noclobber would open. Two applies in the same second each get their own name.
 # 0600 because the backup is a verbatim copy of a file that can hold tokens and
 # permission rules.
-BACKUP=$(mktemp "$SETTINGS.bak.$STAMP.XXXXXX") || BACKUP=""
+BACKUP=$(mktemp -u "$SETTINGS.bak.$STAMP.XXXXXX") || BACKUP=""
 if [[ -z "$BACKUP" ]]; then
-  echo "ERROR: cannot create a backup beside $SETTINGS_SHOW, settings unchanged" >&2
+  echo "ERROR: cannot name a backup beside $SETTINGS_SHOW, settings unchanged" >&2
   exit 2
 fi
 BACKUP_SHOW="${BACKUP//[[:cntrl:]]/?}"
-if ! cat "$SNAPSHOT" >"$BACKUP"; then
-  remove_own_backup
-  echo "ERROR: cannot write the backup, settings unchanged: $BACKUP_SHOW" >&2
+if [[ -e "$BACKUP" || -L "$BACKUP" ]]; then
+  echo "ERROR: something already exists at the backup name, settings unchanged: $BACKUP_SHOW" >&2
   exit 2
 fi
-# The name is opened a second time for the copy, so what is there now is
-# checked rather than assumed: a regular non-symlink file holding the snapshot.
+# Status 4 is the only one after this run created the file; any other failure
+# leaves what is at the name alone, because it is not this run's.
+write_rc=0
+(
+  set -C
+  umask 077
+  exec 3>"$BACKUP" || exit 3
+  [[ -f /dev/fd/3 && ! -L "$BACKUP" && /dev/fd/3 -ef "$BACKUP" ]] || exit 3
+  cat "$SNAPSHOT" >&3 || exit 4
+) 2>/dev/null || write_rc=$?
+if [[ "$write_rc" -ne 0 ]]; then
+  [[ "$write_rc" -eq 4 ]] && remove_own_backup
+  echo "ERROR: cannot write the backup on an exclusive open, settings unchanged: $BACKUP_SHOW" >&2
+  exit 2
+fi
+# What is at the name now is checked rather than assumed: a regular non-symlink
+# file holding the snapshot.
 if [[ ! -f "$BACKUP" || -L "$BACKUP" ]] || ! cmp -s "$SNAPSHOT" "$BACKUP"; then
   echo "ERROR: the backup at $BACKUP_SHOW is not a regular file holding the settings as read for the plan; settings unchanged" >&2
   exit 2

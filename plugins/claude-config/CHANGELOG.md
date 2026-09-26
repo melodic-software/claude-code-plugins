@@ -48,7 +48,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   local files as an `E/drift` `skip` row, `drift-coverage:<file>`; a key whose marketplace no scope
   registers stays under `unknown-marketplace`.
 - **The fix backup has a new name.** `fix-plugin-drift.sh --yes` writes
-  `<settings>.bak.<UTC stamp>.<random>`, created exclusively by `mktemp`, in place of
+  `<settings>.bak.<UTC stamp>.<random>`, with the random part from `mktemp -u`, in place of
   `<settings>.<UTC stamp>.bak`. Two applies in the same second each get a backup instead of the
   second being refused. An ignore rule for `.claude/*.bak` needs to become `.claude/*.bak.*`.
 - **`check-doc-citations.sh` accepts a nested page slug** such as `plugins/install`, creating the
@@ -62,10 +62,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   carriage return used to be stripped before the lookup and skipped; `fix-plugin-drift.sh` now
   removes the carriage-return key and leaves a same-named key without it untouched. The engine's
   category E rows compare keys in jq as well.
-- **No existing path is written through at the backup name.** `mktemp` creates the backup name
-  exclusively, so a pre-existing file, FIFO, symlink or directory there is never opened. The apply
-  is refused unless the backup is a regular non-symlink file equal to the snapshot, and the
-  refusal on a concurrent change removes the backup only when it is still a regular file.
+- **No existing path is written through at the backup name.** The apply is refused when anything
+  already exists at the generated name, and the copy is written on one exclusive open (bash
+  noclobber, which opens a missing name with `O_CREAT|O_EXCL`) under `umask 077`, so a file or
+  symlink planted after that check makes the open fail instead of being followed. No byte is
+  written until the open descriptor is a regular file that is the one at the name. The apply is
+  refused unless the backup is a regular non-symlink file equal to the snapshot, and the refusal on
+  a concurrent change removes the backup only when it is still a regular file.
+- **`check-doc-citations.sh` refuses a manifest slug that could leave its page directory.** Every
+  slug must be lower-case segments joined by `/` (`^[a-z0-9_-]+(/[a-z0-9_-]+)*$`); a `..`
+  segment, a leading `/` or any other shape exits 2 naming the row, before any page is read.
 - **The drift test suites pass on Git Bash with a Windows-form `TMPDIR`.**
   `check-plugin-drift.test.sh` and `fix-plugin-drift.test.sh` derive a POSIX base with `cygpath -u`
   when available and export `TMPDIR` under their own guarded temp directory, and both suites point

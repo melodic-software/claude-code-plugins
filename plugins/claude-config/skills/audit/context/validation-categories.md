@@ -170,9 +170,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
 ```
 
 **What `--yes` leaves behind:** each apply writes a `<settings>.bak.<UTC stamp>.<random>` sibling
-before it replaces the file, and never prunes one. `mktemp` creates that name exclusively, so no
-existing path of any type is written through, and two applies in the same second each get their
-own. The backup is 0600 where the platform honors mode bits (Linux, macOS; Git Bash does not). A
+before it replaces the file, and never prunes one. The random part comes from `mktemp -u`; the
+apply is refused when anything already exists at that name, and the copy is written on one
+exclusive open (bash noclobber, `O_CREAT|O_EXCL`), so no file or link at the name, planted before
+or after the check, is written through. Two applies in the same second each get their own. The
+backup is written under `umask 077`, so 0600 where the platform honors mode bits (Linux, macOS;
+Git Bash does not). A
 project that tracks `.claude/` may want `.claude/*.bak.*` ignored.
 
 **What `--yes` refuses:** a settings path that is a symlink, because the replacement is a rename

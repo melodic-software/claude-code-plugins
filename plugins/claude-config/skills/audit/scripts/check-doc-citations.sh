@@ -18,7 +18,8 @@
 # Exit codes:
 #   0  every fetched page carries every span it is cited for (skips allowed)
 #   1  at least one fetched page lacks a cited span
-#   2  fatal (manifest missing, curl missing with nothing on disk, bad arguments)
+#   2  fatal (manifest missing, a row whose slug is not lower-case `/`-joined
+#      segments, curl missing with nothing on disk, bad arguments)
 #
 # Env overrides (the test seam):
 #   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of <slug>.md files; when set no fetch happens
@@ -101,6 +102,24 @@ page_file() {
   [[ -s "$f" ]] && printf '%s' "$f"
   return 0
 }
+
+# Every slug becomes a path under the fetch, docs and fixture directories, so
+# the whole manifest is checked before any page is read: a slug is lower-case
+# segments joined by `/`, never `.`, `..` or a leading `/`.
+# The C locale keeps `a-z` an ASCII range.
+slug_ok() {
+  local LC_ALL=C re='^[a-z0-9_-]+(/[a-z0-9_-]+)*$'
+  [[ "$1" =~ $re ]]
+}
+row=0
+while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
+  row=$((row + 1))
+  [[ -n "$slug" && "${slug:0:1}" != "#" && -n "$span" ]] || continue
+  if ! slug_ok "$slug"; then
+    printf 'ERROR: manifest row %d has an invalid page slug: %s\n' "$row" "${slug//[[:cntrl:]]/?}" >&2
+    exit 2
+  fi
+done <"$MANIFEST"
 
 MISSING=0
 SKIPPED=0
