@@ -121,7 +121,7 @@ Q36 settled: skill name `repo-sweep`; catalogs are named files under `<root>/cat
 `hygiene.md` ships; commits carry `Playbook: <name>` beside `Playbook-Step`; the checklist marker
 names the playbook. No `--catalog` argument until a second catalog exists.
 
-### Phase 1: Catalog parser and version lookup [TODO]
+### Phase 1: Catalog parser and version lookup [DONE]
 
 Red-green per script.
 
@@ -141,7 +141,7 @@ Red-green per script.
 
 **Sanity Check:** `bash <root>/scripts/catalog.test.sh && bash <root>/scripts/skill-version.test.sh`
 exits 0 (the duplicate-id fixture case asserts a non-zero exit); `bash
-scripts/check-shell-portability.sh --paths <root>/scripts` exits 0.
+scripts/check-shell-portability.sh --paths <root>/scripts/*.sh` exits 0.
 
 ### Phase 2: Hygiene catalog [TODO]
 
@@ -203,7 +203,7 @@ the phase commit's author, against the Brief list); `bash <root>/scripts/catalog
 history, render, state, tick, guard tests); `render.test.sh` asserts the checklist output of a
 fixture selection byte-equals a golden file; `state.test.sh` covers the other-branch discovery,
 the reconcile, and the `[~]` resume cases; `bash scripts/check-fixture-git-isolation.sh` and `bash
-scripts/check-shell-portability.sh --paths <root>/scripts` exit 0.
+scripts/check-shell-portability.sh --paths <root>/scripts/*.sh` exit 0.
 
 ### Phase 4: Selection page [TODO]
 
