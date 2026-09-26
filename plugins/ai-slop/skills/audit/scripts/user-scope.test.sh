@@ -9,12 +9,14 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 US="$SCRIPT_DIR/user-scope.sh"
 DETECT="$SCRIPT_DIR/detect.sh"
-TEST_TMPDIR="$(mktemp -d)" || { echo "mktemp failed" >&2; exit 2; }
-[[ -n "$TEST_TMPDIR" && -d "$TEST_TMPDIR" ]] || { echo "mktemp gave no directory: $TEST_TMPDIR" >&2; exit 2; }
-trap 'rm -rf "$TEST_TMPDIR"' EXIT
+RAW_TMPDIR="$(mktemp -d)" || { echo "mktemp failed" >&2; exit 2; }
+[[ -n "$RAW_TMPDIR" && -d "$RAW_TMPDIR" ]] || { echo "mktemp gave no directory: $RAW_TMPDIR" >&2; exit 2; }
 # The script prints Windows form under MSYS (`pwd -W`), plain pwd elsewhere;
-# expected paths are built the same way.
-TEST_TMPDIR="$(cd -P "$TEST_TMPDIR" && { pwd -W 2>/dev/null || pwd; })"
+# expected paths are built the same way. The result is checked again before
+# the trap is armed and before any fixture is written.
+TEST_TMPDIR="$(cd -P "$RAW_TMPDIR" && { pwd -W 2>/dev/null || pwd; })"
+[[ -n "$TEST_TMPDIR" && -d "$TEST_TMPDIR" ]] || { echo "cannot canonicalize $RAW_TMPDIR" >&2; exit 2; }
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
 unset CLAUDE_CONFIG_DIR
