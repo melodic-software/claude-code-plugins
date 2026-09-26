@@ -70,9 +70,13 @@ Per pair of consecutive drawings:
             anchor edge pixel, the mean edge displacement in px of the frame and caption between two drawings. The
             anchor holds still in every film of the style, so boil does not depend on what the subject does
   held      share of pairs boil is measured on
-Per drawing duration: hold in 24 fps frames (on 1s, 2s, 3s, 4+), drawings per second, and offstep: the share of
-consecutive drawing pairs whose two holds do not add up to twice the most common hold. It is 0 for a film strictly on
-3s, and it ignores a drawing that re-timing onto a 24 fps grid moves one frame early or late (a 2 then a 4 on 3s).
+Per drawing duration: hold in frames at the base rate (on 1s, 2s, 3s, 4+), drawings per second, and offstep: the
+share of consecutive drawing pairs whose two holds do not add up to twice the most common hold. It is 0 for a film
+strictly on 3s, and it ignores a drawing that re-timing onto the base-rate grid moves one frame early or late (a 2 then
+a 4 on 3s). The base rate is the pack's knobs.frame_rate.base_fps with --pack, else the film's fps.
+With --pack, a film whose frame size differs from the pack's measured_from.size prints a warning (the statistics are
+in pixels). A drawing whose ink or paper mode holds under WEAK_PEAK of the frame is counted in a printed note: every
+statistic assumes two flat tones.
 """
 import argparse
 import json
@@ -93,6 +97,7 @@ BORDER = 0.03             # border class, every border row: this share of the sh
 PRESENT = 0.1             # a drawing has the border class when its ring is at least this share ink
 CAPTION = 0.013           # caption class: each detected box grown by this share of the short side (its outline)
 CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
+WEAK_PEAK = 0.005         # judgment: a mode gray level holding under 0.5% of the frame is no flat tone
 
 
 def drawings(film, fps, region=None, window=None):
@@ -231,7 +236,7 @@ def sliver(ink, cls):
 
 def one(rgb):
     g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    ink_g, paper_g, T = decode.modes(g)
+    ink_g, paper_g, T, ink_peak, paper_peak = decode.mode_peaks(g)
     ink = g < T
     edge = int((ink[:, 1:] != ink[:, :-1]).sum() + (ink[1:] != ink[:-1]).sum())
     mid = int(((g > ink_g + decode.MID) & (g < paper_g - decode.MID)).sum())
@@ -274,7 +279,8 @@ def one(rgb):
                 sliver=sliver_all, **{f'straight_{c}': v for c, v in straight_c.items()},
                 **{f'sliver_{c}': v for c, v in sliver_c.items()},
                 ink_rgb=med(core_i), paper_rgb=med(core_p), edge=edge, T=T, mask=ink, anchor=cls < 2,
-                has_border=bool(ink[cls == 0].mean() >= PRESENT), has_caption=bool(boxes))
+                has_border=bool(ink[cls == 0].mean() >= PRESENT), has_caption=bool(boxes),
+                size=[g.shape[1], g.shape[0]], peak=float(min(ink_peak, paper_peak)))
 
 
 def boil(a, b):
@@ -330,27 +336,28 @@ def median(rows, s):
     return round(float(np.median(v)), 4) if v else None
 
 
-def frames24(rows):
-    return np.array([max(1, round(r['hold'] * 24)) for r in rows])
+def hold_frames(rows, base_fps=24):
+    """Each drawing's hold in frames at the base rate (a style pack's knobs.frame_rate.base_fps)."""
+    return np.array([max(1, round(r['hold'] * base_fps)) for r in rows])
 
 
-def offstep(rows):
+def offstep(rows, base_fps=24):
     """Share of consecutive drawing pairs whose holds do not add up to twice the most common hold."""
-    f = frames24(rows)
+    f = hold_frames(rows, base_fps)
     return round(float((f[:-1] + f[1:] != 2 * np.bincount(f).argmax()).mean()), 4) if len(f) > 1 else None
 
 
-def summary(rows, cuts=None, seg=SEG):
+def summary(rows, cuts=None, seg=SEG, base_fps=24):
     def pcts(v):
         v = [x for x in v if x is not None]
         return dict(zip(('p10', 'p50', 'p90'), (round(float(np.percentile(v, q)), 4) for q in (10, 50, 90)))) if v \
             else None
     dur = rows[-1]['t'] + rows[-1]['hold'] - rows[0]['t']
-    f24 = frames24(rows)
+    f = hold_frames(rows, base_fps)
     e = edges(rows, cuts, seg)
     return dict(drawings=len(rows), duration=round(dur, 3), per_second=round(len(rows) / dur, 3),
-                holds={f'on{n}s': round(float((f24 == n).mean()), 3) for n in (1, 2, 3)} |
-                {'on4s+': round(float((f24 >= 4).mean()), 3)}, offstep=offstep(rows),
+                holds={f'on{n}s': round(float((f == n).mean()), 3) for n in (1, 2, 3)} |
+                {'on4s+': round(float((f >= 4).mean()), 3)}, offstep=offstep(rows, base_fps),
                 held=round(float(np.mean([r['boil'] is not None for r in rows[1:]])), 3) if len(rows) > 1 else 0,
                 stats={s: pcts([r[s] for r in rows]) for s in STATS},
                 **{k: ([int(c) for c in np.median(v, 0)] if (v := [r[k] for r in rows if r[k]]) else None)
@@ -408,10 +415,15 @@ def nums(s, n=None):
     return v
 
 
-def report(m, pack, name):
+def report(m, pack, name, size=None):
     """Print the check table; return (rows, film distance, margin): margin is the largest row distance minus 1, so a
-    film passes at margin <= 0."""
+    film passes at margin <= 0. size, the film's [w, h], warns when it differs from the pack's measured_from.size:
+    every statistic is in pixels, so a film at another size is judged partly on scale."""
     out = check(m, pack)
+    want = pack.get('measured_from', {}).get('size')
+    if size and want and list(size) != list(want):
+        print(f'\nwarning: the film is {size[0]}x{size[1]}, the pack was measured at {want[0]}x{want[1]}; its pixel '
+              f'statistics shift with scale, so a row can pass or fail on size alone')
     print(f'\ncheck against {name}\n\n| check | film | band | distance | pass |\n|---|---|---|---|---|')
     for s, v, (lo, hi), d in out:
         print(f"| {s} | {'n/a' if v is None else f'{v:.4g}'} | {lo:.4g}-{hi:.4g} | "
@@ -446,7 +458,8 @@ def main(argv=None):
     meta = Path(a.film) / 'render.json'
     fps = a.fps or (json.load(open(meta, encoding='utf-8'))['fps'] if meta.is_file() else None) or 24
     rows = measure(a.film, fps, region, nums(a.t, 2))
-    m = summary(rows, nums(a.cuts), a.seg)
+    base = pack['knobs']['frame_rate']['base_fps'] if pack else fps   # holds are counted on the style's rate
+    m = summary(rows, nums(a.cuts), a.seg, base)
     if a.json:
         a.json.write_text(json.dumps(m, indent=1) + '\n', encoding='utf-8')
     if a.rows:
@@ -458,9 +471,13 @@ def main(argv=None):
     for s, v in m['stats'].items():
         print(f'| {s} | ' + (' | '.join(f'{v[q]:.4g}' for q in ('p10', 'p50', 'p90')) if v else '- | - | -') + ' | '
               + ' | '.join('-' if g[s] is None else f'{g[s]:.4g}' for g in m['segments']) + ' |')
+    weak = sum(r['peak'] < WEAK_PEAK for r in rows)
+    if weak:
+        print(f'note: {weak}/{len(rows)} drawings have a weak ink or paper mode (under {WEAK_PEAK:.1%} of the frame at '
+              f'the modal gray); every statistic assumes two flat tones, so these may be measured wrong')
     if not pack:
         return 0
-    _, _, margin = report(m, pack, a.pack)
+    _, _, margin = report(m, pack, a.pack, None if region else rows[0]['size'])
     return 1 if margin is None or margin > 0 else 0
 
 

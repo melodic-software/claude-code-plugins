@@ -8,7 +8,9 @@ the gray modes every measure reads.
   is_repeat(prev, rgb) a frame repeats the previous drawing when fewer than dup_px pixels changed by more than 64
                        gray levels (prev is the previous kept frame as int16, or None)
   modes(gray)          (ink mode, paper mode, T): the gray histogram modes below and above 128 and their midpoint;
-                       MID gray levels either side of a mode count as that tone, the band between is mid-gray
+                       MID gray levels either side of a mode count as that tone, the band between is mid-gray.
+                       Two-tone by construction: a low-contrast, coloured or tonal film measures wrong silently;
+                       mode_peaks adds each mode's share of the frame so a caller can say so
 """
 import json
 import subprocess
@@ -34,6 +36,14 @@ def probe(video):
     pts = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=pts_time',
                           '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout
     return w, h, [float(t) for t in pts.replace(',', ' ').split()]
+
+
+def end(video):
+    """When the first video stream ends: its last frame's pts plus that frame's duration."""
+    pts = probe(video)[2]
+    dur = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=duration_time',
+                          '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout.split()
+    return pts[-1] + float(dur[-1].strip(','))
 
 
 def frames(film, fps):
@@ -68,7 +78,13 @@ def is_repeat(prev, rgb, dup_px=DUP_PX):
     return prev is not None and (np.abs(rgb.astype(np.int16) - prev) > 64).sum() < dup_px
 
 
-def modes(gray):
+def mode_peaks(gray):
+    """modes() plus the share of the frame at each mode's exact gray level: a low share means no flat ink or paper
+    tone, which the two-tone measures assume."""
     h = np.bincount(gray.ravel(), minlength=256)
     ink_g, paper_g = int(np.argmax(h[:128])), 128 + int(np.argmax(h[128:]))
-    return ink_g, paper_g, (ink_g + paper_g) / 2
+    return ink_g, paper_g, (ink_g + paper_g) / 2, h[ink_g] / gray.size, h[paper_g] / gray.size
+
+
+def modes(gray):
+    return mode_peaks(gray)[:3]

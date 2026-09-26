@@ -130,3 +130,21 @@ Append-only. Each entry: plan said / found / chose / revisit.
   None`, and `main` rejects a non-positive `--fps`. Remaining basedpyright errors are not defects:
   implicit sibling imports, `log_message`'s override signature, and `cv2` not installed in the
   checker's environment.
+
+## Phase 7
+
+- **plan-confirmed: D26 red first.** A one-drawing 1 s scene decoded to 0.125 s before the fix and
+  1.0 s after. The lone drawing now lasts until the clip ends: `decode.end` (last frame pts plus its
+  ffprobe `duration_time`); a clip with two or more drawings is unchanged (median hold).
+- **choice: D34/D35 scaling is `extract.per_area`** over `CAL_SIZE = (1762, 982)`, applied to the
+  repeat count (`is_repeat(..., dup)`) and the tint region counts (`TINT_MIN_PX`, `TINT_SIGN_PX`);
+  exact at 1762x982 (50.0, 300.0, 15000.0). Kernel sizes stay: they are lengths, not counts.
+- **choice: D37/D40 data rides on the per-drawing rows** (`size`, `peak`), never on `summary()`;
+  `report(..., size)` prints the warning, `main` prints the weak-mode note. `WEAK_PEAK = 0.005` is
+  judgment, labelled in code. On BiosRiosz (1920x1080) both lines print (152/821 drawings weak);
+  on the shfred0 work dir neither does.
+- **choice: `learn.py --base-fps` threads through `value()` and `summary()`**, so excerpt holds and
+  `offstep` use the same rate as the pack; parsed to an int when integral so the default and
+  `--base-fps 24` write identical JSON (cmp equal; both cmp equal to the committed pack).
+- **not done: the palette-tolerance encode in `learn.py` still holds drawings on a 24 fps grid**
+  (`controls.held`); it measures colour shift only, and changing it would move `encode_shift`.

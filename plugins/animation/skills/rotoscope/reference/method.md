@@ -23,6 +23,12 @@ laws: a new source with a different codec, scale or ink can move them, and the r
 - Gray is RGB2GRAY. T is the midpoint of the ink and paper gray modes (shfred0: 17 and 234, so
   T = 125.5 on every drawing).
 - Soft edges: shfred0 is blurred by about sigma 0.85 px, isotropic.
+- Scope: two tones. The method assumes a dark ink mode below gray 128 and a light paper mode above
+  it (`scripts/decode.py`, `modes`). A low-contrast, coloured or mostly-ink-with-light-lines source
+  traces and measures wrong without an error; `inkstats.py` prints a note when a drawing's ink or
+  paper mode is weak.
+- Pixel counts are tuned on shfred0's 1762x982 frame: `extract.py` scales its repeat and tint counts
+  by frame area (`per_area`), which leaves them unchanged at that size.
 
 ## Tracing
 

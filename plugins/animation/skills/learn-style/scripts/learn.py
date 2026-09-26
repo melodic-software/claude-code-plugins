@@ -2,6 +2,7 @@
 """Measure a rotoscope work dir (traces plus source drawings) into a style pack's style.json.
 
 usage: learn.py <work> <pack dir> [--cuts T,T,.. | --seg S] [--credit TEXT] [--negative SUMMARY.json ...]
+                [--base-fps N]
 Reads <work>/d/dNNN.json (palette, tone levels, fitted brush) and <work>/src/dNNN.png timed by d/index.json
 (inkstats.py statistics), and writes <pack dir>/style.json. Keys it does not measure (`credit`, `brush`, and the
 judgment knobs `movement`, `camera`, `backgrounds`) are kept from an existing style.json, so a re-run refreshes the
@@ -74,14 +75,14 @@ def duration(p):
     return p[-1]['t'] + p[-1]['hold'] - p[0]['t']
 
 
-def value(parts, s):
+def value(parts, s, base_fps=24):
     """A statistic over some parts: drawings per second over their summed durations, offstep over their drawings,
     else the median over their drawings."""
     rows = [r for p in parts for r in p]
     if s == 'per_second':
         return len(rows) / sum(map(duration, parts))
     if s == 'offstep':
-        return inkstats.offstep(rows)
+        return inkstats.offstep(rows, base_fps)
     return inkstats.median(rows, s)
 
 
@@ -114,6 +115,9 @@ def main(argv=None):
     ap.add_argument('--credit')
     ap.add_argument('--cuts', help='the source\'s shot boundaries in seconds; each shot is a part')
     ap.add_argument('--seg', type=float, default=inkstats.SEG, help='part length in seconds when there are no cuts')
+    ap.add_argument('--base-fps', type=lambda v: int(v) if float(v).is_integer() else float(v), default=24,
+                    help='the frame rate holds are counted on (the style\'s animation grid), written to '
+                         'knobs.frame_rate.base_fps')
     ap.add_argument('--negative', nargs='*', default=[], type=Path,
                     help='inkstats --json summaries of films in other styles or near misses (negative controls)')
     a = ap.parse_args(argv)
@@ -121,7 +125,7 @@ def main(argv=None):
     old = json.load(open(f, encoding='utf-8')) if f.exists() else {}
     tr, rows = traces(a.work), inkstats.measure(a.work)
     cuts = inkstats.nums(a.cuts)
-    m = inkstats.summary(rows, cuts, a.seg)
+    m = inkstats.summary(rows, cuts, a.seg, a.base_fps)
     parts = [p for p in inkstats.segment(rows, inkstats.edges(rows, cuts, a.seg)) if p]
     ps = pairs(parts)
     if len(ps) < 4:
@@ -131,11 +135,11 @@ def main(argv=None):
 
     def vals(group, s):   # both directions: the excerpt and its complement
         return [(i, v) for i, pair in enumerate(group) for side in pair
-                if (v := value([parts[j] for j in side], s)) is not None]
+                if (v := value([parts[j] for j in side], s, a.base_fps)) is not None]
     rule, bands, ref, raw = {}, {}, {}, {}
     for s in [*inkstats.STATS, 'per_second', 'offstep']:
         cv = vals(calib, s)
-        ref[s] = value(parts, s)
+        ref[s] = value(parts, s, a.base_fps)
         if not cv or ref[s] is None:
             continue
         lo, hi = min(min(v for _, v in cv), ref[s]), max(max(v for _, v in cv), ref[s])
@@ -162,12 +166,12 @@ def main(argv=None):
                        capped_by=sorted(n for n in margins if best[n] == s and margins[n] > 0),
                        calibration_pass=rate(calib), evaluation_pass=rate(evals))
         ref[s] = round(ref[s], 4)
-    check = [s for s in CHECK if s in bands and sum(value([p], s) is not None for p in parts) >= 2]
+    check = [s for s in CHECK if s in bands and sum(value([p], s, a.base_fps) is not None for p in parts) >= 2]
 
     def whole(group):   # excerpts passing every checked row
         sides = [side for pair in group for side in pair]
         ok = sum(all(v is None or bands[s][0] <= v <= bands[s][1]
-                     for s in check for v in [value([parts[j] for j in side], s)]) for side in sides)
+                     for s in check for v in [value([parts[j] for j in side], s, a.base_fps)]) for side in sides)
         return f'{ok}/{len(sides)}'
     def colour(rs, k):
         return np.median([r[k] for r in rs if r[k]], 0)
@@ -186,7 +190,7 @@ def main(argv=None):
         line=dict(weight_px=st['w50'], weight_p90_px=st['w90'], paper_gap_px=st['pw50']['p50'],
                   roughness=st['rough']['p50'], straight_share=st['straight']['p50'],
                   boil=dict(edge_shift_px=st['boil']['p50'], variants='a new drawing every hold', on_holds=True)),
-        frame_rate=dict(base_fps=24, step=int(step[2]) if step[2].isdigit() else 4, drawings_per_second=m['per_second'],
+        frame_rate=dict(base_fps=a.base_fps, step=int(step[2]) if step[2].isdigit() else 4, drawings_per_second=m['per_second'],
                         holds=m['holds'], offstep=m['offstep']),
         texture=dict(edge_ramp_px=st['soft']['p50'], ink_gray_sd=st['ink_sd']['p50'], field_gray_sd=st['field_sd']['p50'],
                      paper_gray_sd=st['paper_sd']['p50'], grain=st['grain']['p50'], period=st['period']['p50'],

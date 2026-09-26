@@ -11,7 +11,7 @@ shfred0  exit 0 only when every drawing meets the measure.py target (239/239 on 
          replica's fidelity table is printed and kept, not asserted: at the default brush the synthetic scene does
          not reach the measure.py target (design O5, fallback b).
          Regression cases: a scene without DURATION makes render.py exit 1 (D18); frames past f9999 and traces
-         past d999 read in numeric order (D23).
+         past d999 read in numeric order (D23); a one-drawing clip keeps its full duration (D26).
 """
 import json
 import shutil
@@ -66,6 +66,25 @@ def numeric_order(d):
     return seen == [0, 1, 2] and [f.stem for f in workdir.traces(d)] == ['d998', 'd999', 'd1000']
 
 
+ONE_DRAWING = """const cv = document.getElementById('c'), c = cv.getContext('2d');
+cv.width = 160; cv.height = 90;
+window.DURATION = 1;
+window.renderFrame = async () => {
+  c.fillStyle = '#efe9e0'; c.fillRect(0, 0, 160, 90); c.fillStyle = '#141211'; c.fillRect(40, 20, 80, 50);
+};
+"""
+
+
+def one_drawing(d):
+    """A 1 s scene holding one drawing, rendered to mp4 at 24 fps and decoded, lasts 1 s, not a guessed hold."""
+    (d / 'scene').mkdir(parents=True)
+    (d / 'scene/scene.js').write_text(ONE_DRAWING, encoding='utf-8')
+    if render_cli(d / 'scene/scene.js', d / 'frames', '--encode', 'mp4'):
+        return False
+    ix = extract.decode(d / 'frames.mp4', d / 'work')
+    return len(ix['drawings']) == 1 and abs(ix['duration'] - 1) < 1e-3
+
+
 def synthetic(work):
     work, bad = empty(work), []
 
@@ -98,6 +117,7 @@ def synthetic(work):
     case('D18: a scene without DURATION makes render.py exit 1',
          cut != src and render_cli(scene, work / 'no-duration/frames') == 1)
     case('D23: frames past f9999 and traces past d999 read in numeric order', numeric_order(work / 'd23'))
+    case('D26: a one-drawing 1 s clip decodes to a 1 s drawing', one_drawing(work / 'd26'))
     print(f"synthetic: {len(bad)} case(s) failed" + (f": {', '.join(bad)}" if bad else ''))
     return 1 if bad else 0
 

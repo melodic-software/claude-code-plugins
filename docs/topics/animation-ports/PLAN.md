@@ -379,7 +379,7 @@ D18, D22, D28 and D29 land in Phases 1 and 5; this phase takes the rest.
 - [x] `grep -rnE "open\([^)]*\)|write_text\(|read_text\(" plugins/animation --include=*.py | grep -v "encoding=\|'rb'\|'wb'\|imread\|Popen"` returns nothing.
 - [x] C1 239/239; C3 `compare` exits 0; C5.
 
-### Phase 7: resolution and frame-rate scaling (T17; D24-D26, D34, D35, D37, D40) [TODO]
+### Phase 7: resolution and frame-rate scaling (T17; D24-D26, D34, D35, D37, D40) [DONE]
 
 O1 and O2 are resolved: scale only in `extract.py`; the base rate is a `--base-fps` argument
 defaulting to 24. Every item is identity-preserving on the frozen check.
@@ -402,15 +402,15 @@ defaulting to 24. Every item is identity-preserving on the frozen check.
 
 **Sanity Check:**
 
-- [ ] `regress.py --synthetic` exits 0 including the D26 case.
-- [ ] `inkstats.py <a 1920x1080 film> --pack plugins/animation/styles/woodcut-ink` prints the size
+- [x] `regress.py --synthetic` exits 0 including the D26 case.
+- [x] `inkstats.py <a 1920x1080 film> --pack plugins/animation/styles/woodcut-ink` prints the size
   warning line; the same on the shfred0 work dir prints none.
-- [ ] `learn.py <work> <tmp>/woodcut-ink --base-fps 24 ...` output `cmp`s equal to the default
+- [x] `learn.py <work> <tmp>/woodcut-ink --base-fps 24 ...` output `cmp`s equal to the default
   run; `grep -n '"base_fps": 24' <tmp>/woodcut-ink/style.json` matches; with `--base-fps 12`,
   `base_fps` reads 12.
-- [ ] `grep -n "size" <any controls summary written this phase>` shows no new top-level `size`
+- [x] `grep -n "size" <any controls summary written this phase>` shows no new top-level `size`
   key (C3 covers it; this names the D37 trap).
-- [ ] C1 239/239; C2 green (36/36, selftest 0, 150/150); C3 `compare` exits 0 (mandatory); C5.
+- [x] C1 239/239; C2 green (36/36, selftest 0, 150/150); C3 `compare` exits 0 (mandatory); C5.
 
 ### Phase 8: licence notice mechanics, what ships now (T7) [TODO]
 

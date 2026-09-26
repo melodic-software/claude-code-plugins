@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
-from decode import MID, frames, is_repeat, modes, probe  # noqa: E402
+from decode import DUP_PX, MID, end, frames, is_repeat, modes, probe  # noqa: E402
 import workdir  # noqa: E402
 from render import WORKERS  # noqa: E402
 
@@ -32,6 +32,13 @@ S, EPS, INTERP = 4, 0.25, 'cubic'   # supersample, approxPolyDP epsilon (source 
 SHARP = (2.0, 0.9)                   # (amount, sigma) unsharp mask before tracing, or None
 LEVELS = (50, 90, 165, 205)          # extra gray isolines traced as tone layers
 TINT_RG, TINT_SIGN_RG, TINT_SIGN_PX = 4, 6, 15000   # warm paper: median R-G >= 4; a 'sign' is one >15k px region at >= 6
+TINT_MIN_PX = 300                    # smallest paper region a tint is read from
+CAL_SIZE = (1762, 982)               # the shfred0 frame every pixel count here was tuned on
+
+
+def per_area(px, shape):
+    """A pixel count tuned at CAL_SIZE, scaled by area to a frame of this (h, w) shape; unchanged at CAL_SIZE."""
+    return px * shape[0] * shape[1] / (CAL_SIZE[0] * CAL_SIZE[1])
 
 
 def decode(video, work):
@@ -39,15 +46,15 @@ def decode(video, work):
     w, h, pts = probe(video)
     workdir.src(work).mkdir(parents=True, exist_ok=True)
     workdir.traces_dir(work).mkdir(exist_ok=True)
-    ts, prev = [], None
+    ts, prev, dup = [], None, per_area(DUP_PX, (h, w))
     for rgb, t in frames(video, None):
-        if is_repeat(prev, rgb):
+        if is_repeat(prev, rgb, dup):
             continue
         prev = rgb.astype(np.int16)
         cv2.imwrite(str(workdir.source(work, len(ts))), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
         ts.append(t)
-    gap = float(np.median(np.diff(ts))) if len(ts) > 1 else 1 / 8
-    t1 = ts[1:] + [round(ts[-1] + gap, 6)]
+    # the last drawing holds for the median hold; a lone drawing lasts until the clip ends
+    t1 = ts[1:] + [round(ts[-1] + float(np.median(np.diff(ts))), 6) if len(ts) > 1 else round(end(video), 6)]
     ix = dict(w=w, h=h, duration=t1[-1], drawings=[[k, t, e] for k, (t, e) in enumerate(zip(ts, t1))])
     json.dump(ix, open(workdir.index(work), 'w', encoding='utf-8'))
     print(f'{len(ts)} drawings from {len(pts)} frames, {w}x{h}')
@@ -135,11 +142,11 @@ def tint(rgb, g, T):
     rg = rgb[..., 0].astype(np.float32) - rgb[..., 1]
     groups = {}
     for i in range(1, n):
-        if st[i, 4] < 300:
+        if st[i, 4] < per_area(TINT_MIN_PX, g.shape):
             continue
         v = float(np.median(rg[lab == i]))
         if v >= TINT_RG:
-            groups.setdefault('sign' if v >= TINT_SIGN_RG and st[i, 4] > TINT_SIGN_PX else 'warm', []).append(i)
+            groups.setdefault('sign' if v >= TINT_SIGN_RG and st[i, 4] > per_area(TINT_SIGN_PX, g.shape) else 'warm', []).append(i)
     out = []
     for lv, (name, ids) in zip((252, 251), sorted(groups.items())):
         mk = np.isin(lab, ids)

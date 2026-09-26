@@ -9,6 +9,12 @@ clips in other styles (a kevin_t_ngo spiral engraving, a kevin_t_ngo torn-paper 
 anime duel), and synthetic flat-polygon films. Treat the bands as this pack's, not as laws: a new
 pack gets its own from its own source.
 
+**Two tones.** Every statistic below splits each drawing at T, the midpoint of an ink mode below
+gray 128 and a paper mode above it (`scripts/decode.py`, `modes`). A low-contrast, coloured or
+tonal style has no such pair and measures wrong without an error; `inkstats.py` prints a note when a
+drawing's ink or paper mode is weak. The statistics are also in pixels: with `--pack`, a film whose
+size differs from the pack's `measured_from.size` prints a warning.
+
 **One subject.** The source is one 30 s clip about one subject (a writer, a library, a city). Every
 band, every held-out excerpt and the replica come from that subject, and round 3 replicates its
 shots. So no result on this page is out-of-sample validation on a new subject: held-out here means
