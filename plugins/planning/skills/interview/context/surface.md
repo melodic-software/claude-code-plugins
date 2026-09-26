@@ -59,7 +59,7 @@ When the first wake prompts for permission, offer the user one allow rule per co
 
 | `op` | Fields | Use |
 |---|---|---|
-| `handle` | `seqs` | Plain accepts, `reopen`, `confirm`, `undo`, `wrapup`: no reply (R9) |
+| `handle` | `seqs` | Plain accepts (no new note text), `reopen`, `confirm`, `undo`, `wrapup`: no reply (R9) |
 | `reply` | `id`, `text`, `seq`, `kind` (`reply`, `rephrase`, `note`), `rec` + `why` + `affects`, `handled`, `force` | Answer an ask or rephrase; `rec` revises the recommendation |
 | `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `seq`, `affects`, `force` | Reword a question |
 | `note-reply` | `text`, `seq` | Answer a note in Notes to Claude; with no `seq`, post a closing probe there |
@@ -67,6 +67,9 @@ When the first wake prompts for permission, offer the user one allow rule per co
 | `meta` | `set` (`title`, `eyebrow`, `stages`, `next`) | Merge into `meta`; other meta keys stay |
 | `archive` | `ids`, `why` | Take off-path questions out of the open count |
 | `record-terminal` | `id`, `decision`, `alt`, `text` | Mirror a terminal answer |
+| `set-status` | `text`, or `clear` | Set or clear the page's Claude line |
+| `wait` | `id`, then `waitsOn` or `clear` | Put a question on hold, or take it off |
+| `activity` | `text`, `ids` | Log off-page work in the Activity panel |
 
 A `rec` needs `affects`: question ids, or `"none"` (R2). `reply` with `rec` and `revise` with `rec` refuse when the question has a live user event newer than `seq` (an undo or a withdrawn event does not count); read that event before passing `"force": true`. `reply`'s `handled: N` marks every event with seq at or below N handled, including other questions' events; prefer `handle` with explicit seqs.
 
@@ -77,11 +80,31 @@ A `rec` needs `affects`: question ids, or `"none"` (R2). `reply` with `rec` and 
 ]}
 ```
 
+### Status and waits-on
+
+The page header shows a Claude line: the `set-status` text with its age while one is set, else the newest Activity entry. The Activity panel lists entries newest first. Each `apply` whose ops reply, revise, add, archive, record or set a wait writes one summary entry on its own; `handle`, `meta`, `group` and `set-status` write none. Add an `activity` op for work the page cannot see: a ledger update, a gate run, research dispatched or returned. A status stays until it is replaced or cleared. The page also cues every Claude-side change (a new round, a reply, a Notes reply, a revision) with an in-page notice that goes to it, so the user sees it without a reload.
+
+When a question must wait on off-thread work (research, a subagent, a long check):
+
+1. In that wake's `ops.json`, `reply` to or `handle` the triggering seq, post `wait` on the question with what it waits on, and post `set-status` with what Claude is doing.
+2. Dispatch the work.
+3. Run the single apply-and-re-arm call.
+
+```json
+{"ops": [
+  {"op": "reply", "id": "Q10", "seq": 12, "text": "Checking both tools before I recommend one."},
+  {"op": "wait", "id": "Q10", "waitsOn": "research on ghq and mise"},
+  {"op": "set-status", "text": "Researching ghq and mise for Q10"}
+]}
+```
+
+When the work returns, clear both (`wait` with `"clear": true`, `set-status` with `"clear": true`) and post the result as a `reply` on the question. While the watcher is still armed, run `round.sh apply --file '<data_dir>/ops.json'` alone; when a wake is pending, fold the clears into that wake's `ops.json`. Never arm a second watcher. The page words a held question as "Waits on" and "on hold"; "Waiting on Claude" names only a stalled event (see [Receipts](#receipts-and-handled-state)).
+
 ## Events
 
 | `kind` | `id` | Records a decision | Handling |
 |---|---|---|---|
-| `accept` | question | yes | Record in the ledger; `handle`, no reply |
+| `accept` | question | yes | Record in the ledger. No `text`, or the note already recorded for that question: `handle`, no reply. New non-empty `text`: `reply` with its `seq`, answering the note |
 | `alt` | question | yes (`alt` is the key) | Record; reply only when the choice changes other questions |
 | `own` | question | yes (`text` required) | Record; read back a dictated answer in one line (R-D) |
 | `defer` | question | yes | Record as deferred |
@@ -92,6 +115,10 @@ A `rec` needs `affects`: question ids, or `"none"` (R2). `reply` with `rec` and 
 | `undo` | question, `undoSeq` | withdraws `undoSeq` | Drop that decision from the ledger; `handle` both seqs |
 | `wrapup` | none | no | Run [Wrap-up](#wrap-up), then `handle` |
 | `confirm` | question, `alt` is the commitment index | no; ticks one commitment | `handle` |
+
+An accept whose note conditions the acceptance ("before we lock it in") is recorded as hedged, headline only, per SKILL.md "A hedged reply resolves only the headline". Accept all, per group and per round section in the Rounds view, arrives as one `accept` event per question, each with its own note `text`, usually in one wake; treat each as a single accept.
+
+A conditional `own` answer ("yes, but explain X before I lock it") is not closed: record the decision, answer the condition with a `reply`, and post `wait` on the question (`waitsOn` such as "your confirmation after the explanation") until the user confirms, then clear it. A waiting question counts as open in `round.sh status`, `export-ledger` and the page meter even with a decision.
 
 A challenge to a commitment arrives as an `ask` whose text leads with the commitment. A changed answer marks its direct dependents `stale` and their descendants `upstream-pending`; triage each stale dependent: a small impact gets a proposed answer the user reconfirms with `a`, a large one is re-asked or archived and replaced. Nothing carries over silently.
 
@@ -113,7 +140,7 @@ Rules R1 to R12:
 | R6 | Decomposition output is local files; tracker skills are offered, never run | skill |
 | R7 | Answer every ask; for decisions, the latest per question wins | skill |
 | R8 | One tool call per wake, the re-arm included | skill, `apply` |
-| R9 | No "Recorded." replies to plain accepts | skill |
+| R9 | No "Recorded." replies to plain accepts; an accept with new note `text` gets a `reply` carrying its `seq` that answers the note | skill |
 | R10 | Open a wake on an ask, own or rephrase with a one-line status | skill |
 | R11 | Offer "What am I assuming?" as a premortem action | skill (the page button is deferred) |
 | R12 | A recommendation stays one line and its basis 2-3 sentences | skill; `add`, `add-round`, `apply` warn |

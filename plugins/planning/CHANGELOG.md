@@ -3,6 +3,56 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0] - 2026-09-26
+
+### Added
+
+- **`interview` page:** an Activity panel (fly-out tab, strip button with an unseen-count badge,
+  and a single-key shortcut) lists what Claude did, newest first. Each `apply` or CLI write that
+  replies, revises, adds, archives, records or sets a wait logs one summary entry; the newest
+  200 are kept.
+- **`interview` page:** a header Claude line shows the current status with its age, else the
+  newest Activity entry.
+- **`interview` surface:** three `apply` ops: `set-status` (set or clear the Claude line),
+  `wait` (put a question on hold with what it waits on, or clear it) and `activity` (log
+  off-page work such as a ledger update, a gate run, or research dispatched or returned).
+  `context/surface.md` says when to post and clear them around off-thread work, with one
+  watcher only.
+- **`interview` page:** a question on hold shows `Waits on: <text>` on its rail item and as a
+  banner, counts in the meter as `on hold`, and blocks all-answered until cleared.
+- **`interview` page:** Claude's latest reply on a question is previewed on its rail item and
+  shown above the recommendation.
+- **`interview` page:** an Accept saved with new note text is labelled `Save: Accept with note`
+  and stays on the question; the skill replies to the note.
+- **`interview` page:** Accept all per round section in the Rounds view, beside the per-group
+  action. Each accept carries that question's note; notes with a challenge or a hedge are left
+  out, and the dialog names what it leaves out.
+- **`interview` surface:** the watcher waits for a 300 ms quiet window (capped at 2 s) so a
+  burst of saves, such as an Accept all, arrives as one wake.
+- **`interview` page:** every Claude-side change (a new round, a reply, a Notes reply, a
+  revision) shows an in-page notice with a button that goes to it, and the changed rail rows are
+  marked, with no reload.
+- **`interview` evals:** case 19 checks that a `page` surface starts the page before the first
+  round.
+
+### Changed
+
+- `use_emoji_question_markers` now defaults to `false`, and a user instruction against emoji
+  wins over it. `--emoji-markers` records true only for `true`, `1`, `yes` or `on` (any case);
+  an absent flag keeps the recorded value and a new file records false.
+- **`interview`:** SKILL.md's page paragraph opens with the configured surface value in bold
+  and says a `page` value starts the page before the first round, with no round asked inline.
+- **`interview`:** R9 is narrowed: an accept with new note text gets a reply answering the
+  note; a note that conditions the acceptance is recorded as hedged, headline only.
+- **`interview`:** a question on hold counts as open even with a recorded decision, in
+  `round.sh status`, `export-ledger` and the page meter. A conditional `own` answer ("yes, but
+  explain X first") is recorded, answered with a reply, and held with `wait` until the user
+  confirms.
+- Three digests in `tests/interview-defenses.test.sh` were re-pinned, none weakening a
+  defense: the SKILL.md Action Router section (the configured-surface wording), the SKILL.md
+  Stance section (the emoji paragraph), and the eval-case roster (case 19 added, which does
+  not contradict cases 15 and 16).
+
 ## [0.42.0] - 2026-09-25
 
 ### Added

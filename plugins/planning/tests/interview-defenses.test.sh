@@ -456,12 +456,14 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
 # sentence naming both question-surface rules. The first three narrow what an answer or an
 # accept-shorthand resolves; the surface sentence only names where a round is asked. None
 # qualifies the no-silent-resolve rule or any other defense here. The out-of-band check
-# also covers `superseded-by-plan` rows, which it restates and never resolves.
+# also covers `superseded-by-plan` rows, which it restates and never resolves. The emoji
+# paragraph now defaults the anchors off and lets a user instruction against emoji win over
+# the option; it changes presentation only and weakens no defense.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "23d3d27238c34ac5e687167b3cf19efbd47838c0d8d0cd6fa1b727e283b0955c"
+  "9b3151c647219a2e1d278963bc0e108514393a7d87013afd6d9a38bad200691e"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -523,11 +525,14 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
   "2f9db80a10e17b2c37e8623680755b5857fadefa87fdf8a0e54af1e145548c2e"
+# The page paragraph now opens with the configured surface value in bold and says a `page`
+# value starts the page before the first round, with no round asked inline. It only names
+# where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "176a8702fc9f218acfd0d6a4ea6ef61d0292de5f4730840f3e81fd470dcdf6b5"
+  "e3e842fd0e3b7852a5bdd29d994674c3d6357ece723a3ed07f3cd5ee6d2c41ea"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
@@ -542,8 +547,11 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
   "dea5a9d5a6f66d93954ad3bc715d2910ea8c2237c9b085fc58107969d66eca68"
+# Case 19 (page-surface-starts-page-before-first-round) was added: it grades only where the
+# first round is asked when the surface is `page`. It licenses no silent capture and no
+# fudged gap, so it does not contradict cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "fdbb142efd47995f1a517ed50ec99e25d7f9cfcb3f70688352680b3f893ab36d"
+  "fc2bd7b58c739c115b422142019c9d2e98ead70181f60b4fb0046174131fc3c0"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

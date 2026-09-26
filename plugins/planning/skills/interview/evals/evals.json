@@ -254,6 +254,19 @@
         "`/architecture:record-decision` is NOT invoked and is not presented as something this session can call",
         "The run does not stall or report itself blocked on a missing plugin: absence degrades to the hand-written path"
       ]
+    },
+    {
+      "id": 19,
+      "name": "page-surface-starts-page-before-first-round",
+      "prompt": "/planning:interview me about the retry policy for our outbound webhook sender. The planning plugin's `surface` option is configured as `page`, and Python, curl and bash are all available on this machine.",
+      "expected_output": "Because the configured surface is `page`, the first action on the question surface is starting the page with `round.sh ... ensure-running` (carrying `--emoji-markers`), before any question is asked. The first round is then written to the page with `add-round` and the watcher is armed. No round is printed inline in the terminal before the page starts; the terminal only carries the page URL and short status lines.",
+      "files": [],
+      "expectations": [
+        "The first question-surface action is a `round.sh ... ensure-running` call that passes `--emoji-markers`, made before any round question is shown",
+        "The first round is written to the page with `round.sh ... add-round`, not rendered as a numbered prose round in the terminal",
+        "No round question with a recommendation is printed inline in the terminal before `ensure-running` runs",
+        "The configured value `page` is read as the active setting, not as a description of the available options, so the run does not fall back to the terminal surface"
+      ]
     }
   ]
 }
