@@ -32,8 +32,8 @@ bash "$dir/catalog.sh" "$1" >"$tmp/rows"
 
 # Last-run lines, "<skill>@<version>", newest and highest-priority source first.
 if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 1000 \
-  --json headRefName,body,mergedAt 2>/dev/null); then
-  jq -r '[.[] | select(.headRefName | startswith("chore/repo-sweep-"))]
+  --json headRefName,body,mergedAt,isCrossRepository 2>/dev/null); then
+  jq -r '[.[] | select((.isCrossRepository | not) and (.headRefName | startswith("chore/repo-sweep-")))]
     | sort_by(.mergedAt) | reverse | .[].body' <<<"$prs" | awk '
     { sub(/\r$/, "") }
     /^<!-- repo-sweep:begin / { inb = 1; next }
@@ -49,6 +49,9 @@ fi
 ref=HEAD
 git rev-parse -q --verify origin/HEAD >/dev/null && ref=origin/HEAD
 git log --format='%(trailers:key=Playbook-Step,valueonly)' "$ref" | awk 'NF' >>"$tmp/last"
+# PR bodies and trailers are editable text that ends up in the agent's context and a new PR body.
+grep -E '^[a-z0-9-]+(:[a-z0-9-]+)?@[A-Za-z0-9._+-]+$' "$tmp/last" >"$tmp/safe" || true
+mv "$tmp/safe" "$tmp/last"
 
 skills=()
 while IFS= read -r s; do skills+=("$s"); done < <(awk -F'\t' '{

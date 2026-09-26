@@ -16,7 +16,9 @@ every branch name, step id, and playbook name you put in a command.
    - 11: the sweep PR is merged or closed. Refuse to continue and point to `plan`. Stop.
    - 12: the tree is dirty and no step is in progress. Show `git status --short`, ask the user
      what to do with the changes. Stop.
-   - 13: every step is done. Go to section 5.
+   - 13: no step is pending. If `state.sh` printed any `done-unverified` line, stop: ask the
+     user to confirm each such step really ran, or untick it so it runs. Otherwise go to
+     section 5.
    - 14: the open sweep is on another branch. Find its worktree in `git worktree list
      --porcelain`; if there is none, `git fetch origin <branch>` and `git worktree add <path>
      <branch>` at the sibling path `/source-control:worktree` uses. Ask the user to open a
@@ -37,7 +39,7 @@ every branch name, step id, and playbook name you put in a command.
 2. Read the entry: its row from `bash S/catalog.sh C`, `bash S/catalog.sh --override <id> C`,
    and `bash S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
-3. `bash S/tick.sh <id> in-progress`.
+3. `mkdir -p W`, then `bash S/tick.sh <id> in-progress`.
 4. Unless resuming, record `base=$(git rev-parse HEAD)` and write
    `gh pr list --author @me --limit 1000 --json number` to `W/pr-snapshot.json`. When resuming,
    use the commit the step started from: the last commit before any `[~]`-step work, normally

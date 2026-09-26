@@ -51,13 +51,17 @@ body() { # <done lines...>
   printf '%s\r\n' "$@"
   printf '<!-- repo-sweep:end -->\r\n'
 }
+# shellcheck disable=SC2016 # literal payload, never expanded
 jq -n --arg old "$(body '- [x] e-rerun: a:x@0.5, committed 1111111' '- [ ] e-run: new:x')" \
   --arg new "$(body '- [x] e-rerun: a:x@1.0, committed 2222222' '- [x] e-unknown: gone:x@3.0, no findings' \
     '- [x] e-multi: c:x@2.0, d:x, no findings' '- [x] e-bare: d:x')" \
-  --arg decoy "$(body '- [x] e-run: new:x@9.0, no findings')" '[
+  --arg decoy "$(body '- [x] e-run: new:x@9.0, no findings')" \
+  --arg unsafe "$(body '- [x] e-same: b:x@$(touch pwned), no findings')" '[
   {headRefName: "chore/repo-sweep-fixture-20260101", mergedAt: "2026-01-01T00:00:00Z", body: $old},
   {headRefName: "chore/repo-sweep-fixture-20260201", mergedAt: "2026-02-01T00:00:00Z", body: $new},
-  {headRefName: "fix/chore/repo-sweep-x", mergedAt: "2026-03-01T00:00:00Z", body: $decoy}]' >"$TMP/gh/merged.json"
+  {headRefName: "fix/chore/repo-sweep-x", mergedAt: "2026-03-01T00:00:00Z", body: $decoy},
+  {headRefName: "chore/repo-sweep-fork", mergedAt: "2026-04-01T00:00:00Z", body: $decoy, isCrossRepository: true},
+  {headRefName: "chore/repo-sweep-fixture-20260501", mergedAt: "2026-05-01T00:00:00Z", body: $unsafe}]' >"$TMP/gh/merged.json"
 
 printf '%s\n' '# Playbook: fixture' '## Phase 1: x' \
   '### e-run' '- skill: new:x' '### e-rerun' '- skill: a:x' '### e-same' '- skill: b:x' \
@@ -73,7 +77,7 @@ run() {
 T=$'\t'
 out=$(run "$TMP/cat.md" 2>"$TMP/err")
 assert_eq "exit 0" "0" "$?"
-assert_eq "recommendations: PR markers beat trailers, newest merge wins, decoy branch and HEAD-only trailer ignored" \
+assert_eq "recommendations: PR markers beat trailers, newest merge wins, decoy branch, fork PR, unsafe version, and HEAD-only trailer ignored" \
   "e-run${T}run${T}never ran: new:x
 e-rerun${T}rerun${T}version changed: a:x 1.0 -> 2.0
 e-same${T}rerun-optional${T}same version ran: b:x@1.0
@@ -82,7 +86,7 @@ e-unknown${T}rerun-optional${T}same version ran: gone:x@3.0 (current version unk
 e-multi${T}run${T}never ran: d:x" "$out"
 assert_eq "no warning when gh works" "" "$(cat "$TMP/err")"
 case "$(cat "$TMP/gh.log")" in
-*"--limit 1000"*"--json headRefName,body,mergedAt"*) pass "gh called with --limit 1000" ;;
+*"--limit 1000"*"--json headRefName,body,mergedAt,isCrossRepository"*) pass "gh called with --limit 1000" ;;
 *) fail "gh called with --limit 1000" "--limit 1000" "$(cat "$TMP/gh.log")" ;;
 esac
 
