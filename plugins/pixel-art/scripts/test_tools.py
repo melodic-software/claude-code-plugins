@@ -19,6 +19,14 @@ class ToolsTest(unittest.TestCase):
             self.assertEqual(embed.embed(d / "t.html", d / "out" / "s.html"), 2)
             self.assertIn('const A = {"k":[1,2]};', (d / "out" / "s.html").read_text())
 
+    def test_embed_cannot_close_the_script(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / "a.json").write_text(json.dumps({"k": "</script><b>"}))
+            (d / "t.html").write_text("<script>const A = /*EMBED:a.json*/null;</script>")
+            embed.embed(d / "t.html", d / "s.html")
+            self.assertEqual((d / "s.html").read_text().count("</script>"), 1)
+
     def test_gallery_lists_media_and_skips_engine_sheet(self):
         with tempfile.TemporaryDirectory() as tmp:
             d = pathlib.Path(tmp)

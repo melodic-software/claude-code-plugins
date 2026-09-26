@@ -114,6 +114,10 @@ class RenderTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "is not 2x2"):
             render.validate(dict(SPEC, frames={"a": ["k.", "r"], "b": ["gr", ".k"]}))
 
+    def test_rejects_animation_name_that_leaves_out_dir(self):
+        with self.assertRaisesRegex(ValueError, "names the GIF file"):
+            render.validate(dict(SPEC, animations={"../x": {"frames": ["a"], "fps": 4}}))
+
     def test_cli_exit_code_on_bad_spec(self):
         with tempfile.TemporaryDirectory() as tmp:
             spec = pathlib.Path(tmp) / "s.json"

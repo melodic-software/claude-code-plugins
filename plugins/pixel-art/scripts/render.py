@@ -16,6 +16,7 @@ Outputs in --out:
 import argparse
 import json
 import pathlib
+import re
 import struct
 import sys
 import zlib
@@ -47,6 +48,8 @@ def validate(spec):
         if unknown:
             raise ValueError(f"frame {name!r} uses colours not in the palette: {sorted(unknown)}")
     for name, anim in spec.get("animations", {}).items():
+        if not re.fullmatch(r"[\w-]+", name):
+            raise ValueError(f"animation name {name!r} must be letters, digits, _ or - (it names the GIF file)")
         missing = [f for f in anim["frames"] if f not in frames]
         if missing:
             raise ValueError(f"animation {name!r} names unknown frames {missing}")
