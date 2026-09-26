@@ -3,6 +3,30 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-09-26
+
+### Added
+
+- `audit-posture` skill: a consumer-side supply-chain audit of the MCP servers configured in Claude
+  Code. Its `scripts/inventory.sh` reads user, local, project, managed, and passed-in config
+  statically and emits a dated, sorted TSV inventory (scope, effective, transport, launcher,
+  package, pin, publisher, sandboxed) with a coverage footer naming the sources it cannot read. It
+  never prints `env` or `headers` values or any argument other than the package spec, and never
+  runs, installs, or connects to a server.
+- `skills/audit-posture/reference/checklist.md`: criteria P1-P5 (floating version, local stdio
+  where the vendor offers a remote endpoint, publisher provenance, OCI image available but unused,
+  inventory) with severities and a four-part source record for each factual claim.
+- Evals for `audit-posture`: floating-version detection, routing a tool-design question to
+  `/mcp-tools:audit`, refusal to print secrets or start a server, and no invented FAIL on a
+  remote-only configuration.
+
+### Changed
+
+- `audit`'s description routes "is it safe to run" questions to `/mcp-tools:audit-posture` instead
+  of disclaiming MCP server configuration, and its "What this skill does NOT do" list points there.
+- The README and manifest description present the plugin as two audits: author-side design quality
+  and consumer-side supply-chain posture.
+
 ## [0.4.1] - 2026-09-25
 
 ### Changed

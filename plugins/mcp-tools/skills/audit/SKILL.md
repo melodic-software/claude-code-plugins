@@ -1,5 +1,5 @@
 ---
-description: "Audit MCP server tool definitions against design quality criteria. Use when: 'audit MCP tools', 'check MCP tool descriptions', 'review MCP server quality', 'tool annotations', 'readOnlyHint missing', 'parameter descriptions missing', 'check the _meta annotations', 'maxResultSizeChars', 'requiresUserInteraction', 'alwaysLoad', 'are my server instructions too long', 'mcp audit', or before shipping MCP server changes. Optional path argument targets a single server directory; omit to audit the whole project. Produces per-tool PASS/WARN/FAIL scorecard covering description completeness, parameters, naming, annotations, and the Claude Code `_meta` annotations, plus a server-level result for the server `instructions` size budget. Language-agnostic: Python (`mcp`), TypeScript, .NET. Not for: MCP server configuration or connection issues."
+description: "Audit MCP server tool definitions against design quality criteria. Use when: 'audit MCP tools', 'check MCP tool descriptions', 'review MCP server quality', 'tool annotations', 'readOnlyHint missing', 'parameter descriptions missing', 'check the _meta annotations', 'maxResultSizeChars', 'requiresUserInteraction', 'alwaysLoad', 'are my server instructions too long', 'mcp audit', or before shipping MCP server changes. Optional path argument targets a single server directory; omit to audit the whole project. Produces per-tool PASS/WARN/FAIL scorecard covering description completeness, parameters, naming, annotations, and the Claude Code `_meta` annotations, plus a server-level result for the server `instructions` size budget. Language-agnostic: Python (`mcp`), TypeScript, .NET. Not for: whether configured MCP servers are safe to run (/mcp-tools:audit-posture), or MCP config correctness and connection issues (/claude-config:audit)."
 argument-hint: "[path]. A directory to scope the audit to (e.g. a single server dir), or omit for the whole project"
 user-invocable: true
 disable-model-invocation: false
@@ -129,3 +129,5 @@ Claude Code silently ignores can FAIL (C18).
 - Does not modify tool definitions. It reports. Use findings to guide manual improvements.
 - Does not test tool functionality. Use MCP Inspector for that.
 - Does not evaluate MCP resources. Only tools.
+- Does not judge whether the servers in your Claude Code configuration are safe to run (floating
+  versions, publisher provenance, local stdio versus remote). Use `/mcp-tools:audit-posture` for that.

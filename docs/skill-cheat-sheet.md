@@ -113,6 +113,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/code-tidying:batch-simplify`](../plugins/code-tidying/skills/batch-simplify/SKILL.md) | `code-tidying` | Batch-run simplification across changed files, or a whole repository, by ecosystem |
 | [`/code-tidying:dissolve-comments`](../plugins/code-tidying/skills/dissolve-comments/SKILL.md) | `code-tidying` | Dissolve comments into expressive code via triage. Delete, refactor-then-delete, or keep |
 | [`/mcp-tools:audit`](../plugins/mcp-tools/skills/audit/SKILL.md) | `mcp-tools` | Audit MCP tool definitions against design quality criteria |
+| [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
 | [`/review:audit-enforceability`](../plugins/review/skills/audit-enforceability/SKILL.md) | `review` | Propose the cheapest deterministic rung for each review finding |
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |

@@ -323,8 +323,8 @@ plugins/knowledge/skills/map-corpus/verification/*.md
 plugins/mcp-tools/README.md
 plugins/mcp-tools/CHANGELOG.md
 plugins/mcp-tools/skills/*/SKILL.md
-plugins/mcp-tools/skills/audit/reference/*.md
-plugins/mcp-tools/skills/audit/evals/fixtures/*.md
+plugins/mcp-tools/skills/*/reference/*.md
+plugins/mcp-tools/skills/*/evals/fixtures/*.md
 plugins/machine-health/*.md
 plugins/machine-health/skills/*/SKILL.md
 plugins/machine-health/skills/audit/*.md
