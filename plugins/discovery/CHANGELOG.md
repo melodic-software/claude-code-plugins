@@ -7,7 +7,7 @@
 - **`research`:** each `sources[]` entry records `published:` (a date or `undated`), `applies_to:`
   (`<product> <range>` with dotted versions, `<v>-<v>` or `<v>+`, or `version-independent`) and
   `standing: current | historical`; each claim records its target `applies_to:`. A source that does
-  not cover the claim's product and whole version range, or is undated, is `historical`: labelled
+  not cover the claim's product and whole version range, or is undated, is `historical`: labeled
   wherever shown and never counted toward criterion 4. The primary is always dated and `current`.
 - **`research`:** outcome-gate criterion 13, run-owned with a script verdict:
   `scripts/check-source-applicability.py <slice>` derives each source's standing from its fields,
@@ -23,7 +23,7 @@
   cited source for applicability rather than quote presence. The parent passes the value to the
   checker as `--expect-evidence-use`. The envelope keeps six shared fields.
 - **`researcher`:** the return payload carries `applicability: pass | fail`.
-- Two eval cases: an old-era verbatim quote labelled historical and not counted, and publish mode
+- Two eval cases: an old-era verbatim quote labeled historical and not counted, and publish mode
   grading applicability rather than quote presence.
 
 ### Changed

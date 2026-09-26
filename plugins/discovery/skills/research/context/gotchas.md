@@ -45,7 +45,7 @@ outcome gate's artifact-grounded criteria, or not at all.
   cannot see it, because it dates claims, not sources. Criterion 13's script derives `current` or
   `historical` from each source's `published:` and `applies_to:`, and criterion 12's era and
   scenario checks ask whether the source covers the claim's product line and situation. A
-  `historical` source is labelled and never counted.
+  `historical` source is labeled and never counted.
 - **Reading the coverage ledger instead of running the gate.** A model cannot reliably audit its own
   checklist, and the context most motivated to call it finished is the one reading it. Criterion 11
   cites the script's exit status. Exit 2, a ledger the script could not parse, is a FAIL, never a
