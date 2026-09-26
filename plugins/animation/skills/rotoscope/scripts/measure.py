@@ -2,7 +2,7 @@
 """Render traced drawings and measure each against its source drawing, at 1:1.
 
 usage: measure.py <work> [--only K0-K1] [--tag name] [--mode a|b] [--brush JSON] [--brushes FILE]
-                  [--no-render] [--workers N]
+                  [--no-render] [--workers N] [--playwright-core DIR]
 Renders roto.js through scripts/render.py (with <work> served as an extra root for its JSON), then writes to <work>/out/<tag>/ (tag defaults to the mode):
   rep/   the replica drawings         heat/  XOR heatmaps: red = replica-only ink, blue = source-only ink
   ab/    source above replica, 1:1    table-K0-K1.md one row per drawing       (layout: scripts/workdir.py)
@@ -35,9 +35,10 @@ FLOOR_GRAY, FLOOR_X, SSIM_MIN, SSIME_MIN = 4, 1.2, 0.980, 0.980
 BRUSH = json.load(open(HERE / 'brush.json', encoding='utf-8'))   # roto.js's mode (b) defaults: bias, blur, grain
 
 
-def replicas(work, ks, rep_dir, query='', workers=render.WORKERS):
+def replicas(work, ks, rep_dir, query='', workers=render.WORKERS, playwright_core=None):
     """Render drawings ks through roto.js into rep_dir, with work served for its JSON."""
-    render.render(HERE / 'roto.js', rep_dir, drawings=ks, query=query, roots=[work], workers=workers)
+    render.render(HERE / 'roto.js', rep_dir, drawings=ks, query=query, roots=[work], workers=workers,
+                  playwright_core=playwright_core)
 
 
 def ssim_map(a, b):
@@ -114,6 +115,7 @@ def main(argv=None):
     ap.add_argument('--brushes', help='JSON file {"k": {brush}} inside <work>')
     ap.add_argument('--no-render', action='store_true')
     ap.add_argument('--workers', type=int, default=render.WORKERS)
+    ap.add_argument('--playwright-core', type=render.prereq.playwright_dir)
     a = ap.parse_args(argv)
     work = a.work.resolve()
     ks = [k for k, *_ in json.load(open(workdir.index(work), encoding='utf-8'))['drawings']]
@@ -128,7 +130,7 @@ def main(argv=None):
         (out / sub).mkdir(parents=True, exist_ok=True)
     if not a.no_render:
         q = f'mode={a.mode}' + (f'&brush={a.brush}' if a.brush else '') + (f'&brushes={a.brushes}' if a.brushes else '')
-        replicas(work, ks, out / 'rep', q, a.workers)
+        replicas(work, ks, out / 'rep', q, a.workers, a.playwright_core)
     rows = [measure(k, work, out) for k in ks]
     lines = table(tag, rows)
     (out / f'table-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')

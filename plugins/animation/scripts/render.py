@@ -68,6 +68,9 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
     """Capture a scene into out; return the render.json dict. Exits 1 when the scene fails, 2 when a tool is missing."""
     prereq.require(['node'])
     scene, out = Path(scene).resolve(), Path(out)
+    # stale images from an earlier render would be read (or encoded) as this one's: a film owns every fNNNN.png
+    for f in workdir.frames(out) if drawings is None else [workdir.drawing(out, k) for k in drawings]:
+        f.unlink(missing_ok=True)
     served = [str(scene.parent), str(HERE), *map(str, roots)]
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Roots, roots=served))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -103,10 +106,14 @@ def encode(frames, fmt, fps, out):
                           '-framerate', f'{fps:g}', '-i', '-', *FORMATS[fmt], str(out)], stdin=subprocess.PIPE)
     pipe = p.stdin
     assert pipe is not None   # stdin=PIPE always opens it
-    pipe.write(first.tobytes())
-    for img in frames:
-        pipe.write(img.tobytes())
-    pipe.close()
+    try:
+        pipe.write(first.tobytes())
+        for img in frames:
+            pipe.write(img.tobytes())
+        pipe.close()
+    except BrokenPipeError:
+        p.wait()
+        sys.exit(f'render: ffmpeg exited {p.returncode} while encoding {out}')
     if p.wait():
         sys.exit(f'render: ffmpeg failed encoding {out}')
     return out

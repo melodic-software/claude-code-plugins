@@ -55,10 +55,11 @@ this file; a fix that needs hand-edited paths is a finding to report, not an ove
 
 1. Extract: `$R/extract.py <work> --video <clip>`. After an override change,
    `$R/extract.py <work> --apply` retraces only drawings whose `sharp` or `levels` changed.
-2. Measure: `$R/measure.py <work> [--only K0-K1] [--tag name]`. It exits 0 only when every
+2. Measure: `$R/measure.py <work> [--only K0-K1] [--tag name] --playwright-core
+   '${user_config.playwright_core}'`. It exits 0 only when every
    drawing meets the `measure.py` target (`reference/method.md`, Target).
    Run long ranges in the background.
-3. Fit: `$R/fit.py <work> [--only K0-K1]` bisects `bias` per drawing from the replica-only /
+3. Fit: `$R/fit.py <work> [--only K0-K1] --playwright-core '${user_config.playwright_core}'` bisects `bias` per drawing from the replica-only /
    source-only balance, then appends the result to `overrides.json`; apply it with `--apply`. It
    fits bias only: blur, sharpening and tone levels are yours, guided by the diagnostics in
    `method.md`. On shfred0, fitting every drawing from the default bias passes them all at a mean

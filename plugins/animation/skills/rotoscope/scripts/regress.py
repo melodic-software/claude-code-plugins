@@ -11,9 +11,11 @@ shfred0  exit 0 only when every drawing meets the measure.py target (239/239 on 
          replica's fidelity table is printed and kept, not asserted: at the default brush the synthetic scene does
          not reach the measure.py target (design O5, fallback b).
          Regression cases: a scene without DURATION makes render.py exit 1 (D18); frames past f9999 and traces
-         past d999 read in numeric order (D23); a one-drawing clip keeps its full duration (D26).
+         past d999 read in numeric order (D23); a one-drawing clip keeps its full duration (D26); decode and
+         encode exit with a message when ffmpeg dies; measure.py and fit.py forward --playwright-core.
 """
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -23,7 +25,9 @@ import cv2
 import numpy as np
 
 import extract
+import fit
 import measure
+from measure import render
 
 HERE = Path(__file__).resolve().parent
 PLUGIN = HERE.parents[2]
@@ -85,6 +89,48 @@ def one_drawing(d):
     return len(ix['drawings']) == 1 and abs(ix['duration'] - 1) < 1e-3
 
 
+DYING_FFMPEG = """#!/bin/sh
+case " $* " in *" -version "*|*" -encoders "*) exec "{real}" "$@";; esac
+exit 1
+"""
+
+
+def dying_ffmpeg(d, mp4):
+    """With an ffmpeg that dies on every decode and encode, decode.frames and render.encode each exit non-zero with
+    their one-line message: no silent short read, no BrokenPipeError traceback."""
+    d.mkdir(parents=True)
+    fake = d / 'ffmpeg'
+    fake.write_text(DYING_FFMPEG.format(real=shutil.which('ffmpeg')), encoding='utf-8')
+    fake.chmod(0o755)
+    env = {**os.environ, 'PATH': f"{d}{os.pathsep}{os.environ['PATH']}", 'PYTHONPATH': str(PLUGIN / 'scripts')}
+    runs = {'decode: ffmpeg': f'import decode; print(sum(1 for _ in decode.frames({str(mp4)!r}, 24)))',
+            'render: ffmpeg': 'import numpy as np, render; '
+                              'render.encode([np.zeros((1080, 1920, 3), np.uint8)] * 8, "mp4", 24, "x.mp4")'}
+    ok = True
+    for prefix, code in runs.items():
+        r = subprocess.run([sys.executable, '-c', code], cwd=d, env=env, capture_output=True, text=True)
+        ok &= r.returncode != 0 and r.stderr.startswith(prefix) and 'Traceback' not in r.stderr
+    return ok
+
+
+def forwards_playwright_core(work):
+    """measure.py and fit.py hand --playwright-core to every render (a missing directory still falls back to
+    capture.mjs's other lookups, so the renders themselves succeed)."""
+    real, seen, pw = render.render, [], '/nonexistent/playwright-core'
+
+    def spy(*a, **kw):
+        seen.append(kw.get('playwright_core'))
+        return real(*a, **kw)
+    render.render = spy
+    try:
+        measure.main([str(work), '--only', '0-1', '--tag', 'pw', '--playwright-core', pw])
+        fit.main([str(work), '--only', '0-1', '--rounds', '1', '--out', str(work / 'pw-overrides.json'),
+                  '--playwright-core', pw])
+    finally:
+        render.render = real
+    return len(seen) == 2 and set(seen) == {pw}
+
+
 def synthetic(work):
     work, bad = empty(work), []
 
@@ -118,6 +164,8 @@ def synthetic(work):
          cut != src and render_cli(scene, work / 'no-duration/frames') == 1)
     case('D23: frames past f9999 and traces past d999 read in numeric order', numeric_order(work / 'd23'))
     case('D26: a one-drawing 1 s clip decodes to a 1 s drawing', one_drawing(work / 'd26'))
+    case('decode and encode fail loudly when ffmpeg dies', dying_ffmpeg(work / 'ffmpeg-dies', mp4))
+    case('measure.py and fit.py forward --playwright-core to render.py', forwards_playwright_core(work / 'work'))
     print(f"synthetic: {len(bad)} case(s) failed" + (f": {', '.join(bad)}" if bad else ''))
     return 1 if bad else 0
 

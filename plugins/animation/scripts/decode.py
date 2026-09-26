@@ -14,6 +14,7 @@ the gray modes every measure reads.
 """
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import prereq
@@ -64,11 +65,14 @@ def frames(film, fps):
         p = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(film), '-map', '0:v:0', '-fps_mode', 'passthrough',
                               '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
         try:
-            for t in pts:
+            for i, t in enumerate(pts):
                 buf = p.stdout.read(w * h * 3)
                 if len(buf) < w * h * 3:
-                    break
+                    sys.exit(f'decode: ffmpeg stopped after {i} of {len(pts)} frames of {film} (exit {p.wait()})')
                 yield np.frombuffer(buf, np.uint8).reshape(h, w, 3), t
+            p.stdout.read()   # drain, so a wait cannot block on a full pipe
+            if p.wait():
+                sys.exit(f'decode: ffmpeg failed decoding {film} (exit {p.returncode})')
         finally:   # a caller that stops early (--t) must not leave ffmpeg writing into a closed pipe
             p.kill()
             p.wait()

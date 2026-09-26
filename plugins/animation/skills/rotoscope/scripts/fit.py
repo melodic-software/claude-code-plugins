@@ -2,6 +2,7 @@
 """Fit the brush bias per drawing from the balance of replica-only and source-only XOR, and write the override file.
 
 usage: fit.py <work> [--only K0-K1] [--start BIAS] [--step 0.04] [--ratio 1.3] [--rounds 6] [--out FILE]
+                  [--workers N] [--playwright-core DIR]
 Start at each drawing's current bias (or --start). Render, read r = source-only / replica-only. While r > RATIO the
 replica is too thin: bias + STEP; below 1 / RATIO too fat: bias - STEP. Once two biases bracket r = 1, bisect them
 (0.01 grid). Stop when r is inside the band, the bracket is one grid step wide, or ROUNDS run out. Keep the tried bias
@@ -53,6 +54,7 @@ def main(argv=None):
     ap.add_argument('--rounds', type=int, default=6)
     ap.add_argument('--out', type=Path)
     ap.add_argument('--workers', type=int, default=render.WORKERS)
+    ap.add_argument('--playwright-core', type=render.prereq.playwright_dir)
     a = ap.parse_args(argv)
     work = a.work.resolve()
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
@@ -66,7 +68,8 @@ def main(argv=None):
         if not cand:
             break
         (work / 'fit-brushes.json').write_text(json.dumps({k: {'bias': b} for k, b in cand.items()}), encoding='utf-8')
-        measure.replicas(work, list(cand), workdir.rep(work, 'fit'), 'brushes=fit-brushes.json', a.workers)
+        measure.replicas(work, list(cand), workdir.rep(work, 'fit'), 'brushes=fit-brushes.json', a.workers,
+                          a.playwright_core)
         nxt = {}
         for k, b in cand.items():
             tried[k][b] = measure.measure(k, work, out, images=False)
