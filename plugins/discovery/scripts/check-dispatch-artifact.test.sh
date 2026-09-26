@@ -466,13 +466,20 @@ suite() {
   # slotted <expected-exit> <label> <slice-name> <printf-format>: write the
   # index from a printf format (so a case can carry a BOM, a tab or a CR), give
   # it one sidecar, and grade it. `%s` in the format is the family prefix.
+  # `--` keeps a format that opens with `---` from being read as an option,
+  # which would write an empty index. A refuse case also asserts the marker
+  # reason, so an exit 1 for any other cause (an empty index, no sidecar)
+  # cannot pass for a slot read.
   slotted() {
     local expected="$1" label="$2" dir
     dir="$(slice "$3")"
     # shellcheck disable=SC2059
-    printf "$4" "$PREFIX" "$PREFIX" >"$dir/$INDEX_NAME"
+    printf -- "$4" "$PREFIX" "$PREFIX" >"$dir/$INDEX_NAME"
     sidecar "$dir" "$PREFIX-codebase.md" 'a'
     run "$expected" "$label" "$dir"
+    if [[ "$expected" -eq 1 ]]; then
+      stderr_has 1 'still marked Run status: in progress' "$label, for the marker reason" "$dir"
+    fi
   }
 
   # Only the slot is read. With no marker, the literal line elsewhere is text.
@@ -512,6 +519,31 @@ suite() {
     drift-hyphen '# %s\nRun status: in-progress\n%s-codebase.md\n'
   slotted 1 "the marker spelled in_progress is unusable" \
     drift-underscore '# %s\nRun status: in_progress\n%s-codebase.md\n'
+
+  # A closing fence uses the opening fence's character and is at least as
+  # long (CommonMark). A tilde line inside a backtick fence closes nothing.
+  # shellcheck disable=SC2016
+  slotted 1 "a tilde line does not close a backtick fence" \
+    fence-mixed-close '```\n~~~\n```\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  # shellcheck disable=SC2016
+  slotted 1 "a shorter backtick line does not close a longer fence" \
+    fence-short-close '````\n```\n# not a title\n````\n# %s\nRun status: in progress\n%s-codebase.md\n'
+
+  # Line 1 `---` opens front matter only when a `---` or `...` closer exists
+  # and every line between is YAML-shaped. Otherwise it is a horizontal rule
+  # and the slot is read from line 1.
+  slotted 1 "an unclosed front-matter opener is a rule, and the marker counts" \
+    fm-unclosed '---\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "an unclosed opener with a key line is a rule, and the marker counts" \
+    fm-unclosed-title '---\ntitle: x\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "front matter closed with dots, then the marker, is unusable" \
+    fm-dots-close '---\ntitle: x\n...\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 0 "a rule-bounded block holding a non-YAML line is not front matter" \
+    hr-false '---\n# %s\nRun status: complete\n%s-codebase.md\n\n---\n# Appendix\nRun status: in progress\n'
+  slotted 0 "a hash line inside real front matter is a YAML comment, not the title" \
+    fm-title-inside '---\n# %s\nRun status: in progress\n---\n# Title\nRun status: complete\n%s-codebase.md\n'
+  slotted 1 "front matter with a comment line, then the title and the marker, is unusable" \
+    fm-title-inside-ip '---\ntitle: x\n# not a title\n---\n# %s\nRun status: in progress\n%s-codebase.md\n'
 
   # A bare skeleton: the run wrote its marker and stopped before planning any
   # sidecar. The marker reason is the one reported, not the no-sidecar one.

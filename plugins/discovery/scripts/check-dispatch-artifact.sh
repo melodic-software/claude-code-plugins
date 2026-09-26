@@ -44,9 +44,11 @@
 #      own assigned sub-slice, before synthesis.
 #   2. That index is non-empty.
 #   2a. Its marker slot does not hold `Run status: in progress`. The slot is
-#      the first non-blank line after the index's first `# ` title heading
-#      (past any BOM, CR and YAML front matter, and never a `# ` line inside a
-#      code fence). A dispatched agent writes the marker there in its early
+#      the first non-blank line after the index's first level-1 title heading
+#      (past any BOM and CR, never a heading-shaped line inside a CommonMark
+#      code fence, and past YAML front matter: line 1 `---` counts as front
+#      matter only when a `---` or `...` closer follows and every line between
+#      is YAML-shaped; otherwise it is a horizontal rule). A dispatched agent writes the marker there in its early
 #      skeleton and replaces it with `Run status: complete` in its final
 #      write, so a marked slot is a run that stopped before finishing. Only
 #      the slot is read: a later line quoting the marker does not trigger, and
@@ -258,28 +260,68 @@ fi
 # still holds it is a run that stopped short. Checked before the sidecar scan
 # so a bare skeleton reports this reason rather than "names no sidecar".
 #
-# The slot is the first non-blank line after the first `# ` title heading,
-# after dropping a UTF-8 BOM, every CR, and leading YAML front matter, and
-# ignoring any `# ` line inside a ``` or ~~~ fence. Nothing else is read, so a
-# restated task or quoted source text carrying the marker's literal line is
-# content, and an index with no marker in its slot grades as before. The match
-# tolerates case, spacing, a tab, and `in-progress` / `in_progress`; words
-# after the marker, or markdown around it, make it prose.
-# Plain awk (tolower, index, substr) so it runs in any POSIX awk.
+# The slot is the first non-blank line after the first level-1 title heading
+# (a line starting with one hash and a space), after dropping a UTF-8 BOM and
+# every CR, skipping leading YAML front matter, and ignoring heading-shaped
+# lines inside a code fence. Nothing else is read, so a restated task or quoted
+# source text carrying the marker's literal line is content, and an index with
+# no marker in its slot grades as before. The match tolerates case, spacing, a
+# tab, and `in-progress` / `in_progress`; words after the marker, or markdown
+# around it, make it prose.
+#
+# Front matter: line 1 `---` opens it only when a `---` or `...` closer exists
+# and every line between is YAML-shaped (blank, indented, a hash comment, a
+# list item, or a `key:` line). Otherwise line 1 is a horizontal rule and the
+# parse starts there. That needs a look ahead, so awk reads the file twice:
+# the first pass finds the closer, the second reads the slot.
+#
+# Fences follow CommonMark: an opener is three or more backticks or tildes
+# after at most three spaces; only a run of the SAME character, at least as
+# long and followed by nothing but whitespace, closes it.
+#
+# Plain awk (tolower, index, substr, match) so it runs in any POSIX awk.
 slot_state="$(awk '
+  function norm(s) {
+    sub(/\r+$/, "", s)
+    if (FNR == 1 && index(s, bom) == 1) s = substr(s, length(bom) + 1)
+    return s
+  }
+  function yamlish(s) {
+    return s ~ /^[ \t]*$/ || s ~ /^[ \t]/ || s ~ /^#/ || s == "-" || s ~ /^- / ||
+      s ~ /^[^:[:space:]][^:]*:([ \t]|$)/
+  }
   BEGIN { bom = "\357\273\277" }
-  { sub(/\r+$/, "") }
-  NR == 1 && index($0, bom) == 1 { $0 = substr($0, length(bom) + 1) }
-  NR == 1 && $0 == "---" { frontmatter = 1; next }
-  frontmatter { if ($0 == "---") frontmatter = 0; next }
+  NR == FNR {
+    line = norm($0)
+    if (FNR == 1) { opened = (line == "---"); next }
+    if (opened && !fm_end) {
+      if (line == "---" || line == "...") fm_end = FNR
+      else if (!yamlish(line)) opened = 0
+    }
+    next
+  }
+  FNR <= fm_end { next }
+  { line = norm($0) }
   titled {
-    if ($0 ~ /^[ \t]*$/) next
-    if (tolower($0) ~ /^run[ \t]+status[ \t]*:[ \t]*in[ \t_-]*progress[ \t]*$/) print "in-progress"
+    if (line ~ /^[ \t]*$/) next
+    if (tolower(line) ~ /^run[ \t]+status[ \t]*:[ \t]*in[ \t_-]*progress[ \t]*$/) print "in-progress"
     exit
   }
-  /^[ \t]*(```|~~~)/ { fenced = !fenced; next }
-  !fenced && /^# / { titled = 1 }
-' "$index")"
+  {
+    match(line, /^ */)
+    if (RLENGTH <= 3) {
+      rest = substr(line, RLENGTH + 1)
+      c = substr(rest, 1, 1)
+      if (c == "`" || c == "~") {
+        n = 0
+        while (substr(rest, n + 1, 1) == c) n++
+        if (n >= 3 && !fenced) { fenced = 1; fchar = c; flen = n; next }
+        if (n >= 3 && c == fchar && n >= flen && substr(rest, n + 1) ~ /^[ \t]*$/) { fenced = 0; next }
+      }
+    }
+  }
+  !fenced && line ~ /^# / { titled = 1 }
+' "$index" "$index")"
 if [[ "$slot_state" == "in-progress" ]]; then
   echo "unusable: index is still marked Run status: in progress; the run stopped before its final write: $index" >&2
   verdict "$index" 0 0 unusable
