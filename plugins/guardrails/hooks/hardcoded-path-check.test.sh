@@ -147,7 +147,7 @@ for DSEG in -foo -e --help; do
     bash "$HOOK" <<<"$(write_json "$DREPO/notes.txt" "clean text")" 2>&1)
   RC=$?
   assert_exit "dash root $DSEG, clean content → exit 0" 0 "$RC"
-  [[ -z "$OUT" ]] && ok "dash root $DSEG, clean content → silent" || fail "dash root $DSEG, clean content → output: $OUT"
+  if [[ -z "$OUT" ]]; then ok "dash root $DSEG, clean content → silent"; else fail "dash root $DSEG, clean content → output: $OUT"; fi
 done
 
 # Caller states the lib's pre-gate must survive: a readonly LC_ALL cannot take
