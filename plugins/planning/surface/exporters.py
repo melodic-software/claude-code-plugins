@@ -181,6 +181,7 @@ def register(doc, resp):
         if not contiguous:
             res = f"[{q['id']}]" + (f" {res}" if res else "")
         confirmed, unconfirmed = commitments(q, events)
+        decided = latest_decision(q, responses) or {}
         rows.append(
             {
                 "n": f"Q{i}",
@@ -191,6 +192,9 @@ def register(doc, resp):
                 "reserved": reserved,
                 "confirmed": confirmed,
                 "unconfirmed": unconfirmed,
+                # Accept and own carry the recommendation's commitments; an alternative
+                # withdraws them and a defer's open row covers them.
+                "carries": decided.get("decision") in ("accept", "own"),
             }
         )
     return rows
@@ -230,7 +234,7 @@ def export_brief(d):
     }
     answered = [r for r in rows if r["status"] == "answered"]
     confirmed = [(r, c) for r in rows for c in r["confirmed"]]
-    risks = [(r, c) for r in answered for c in r["unconfirmed"]]
+    risks = [(r, c) for r in answered if r["carries"] for c in r["unconfirmed"]]
     superseded = count["superseded-by-plan"]
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
@@ -459,7 +463,10 @@ def export_report(d):
     ]
     out.append("</ul><h2>Named risks</h2><ul>")
     risks = [
-        (r, c) for r in rows if r["status"] == "answered" for c in r["unconfirmed"]
+        (r, c)
+        for r in rows
+        if r["status"] == "answered" and r["carries"]
+        for c in r["unconfirmed"]
     ]
     out += [f"<li>{esc(r['n'])}: {esc(c)} (unconfirmed)</li>" for r, c in risks] or [
         "<li>none</li>"

@@ -307,6 +307,30 @@ class TestConfirmedInTheTerminal(SessionCase):
         self.assertIn("confirmed: One writer only; No network", row)
 
 
+class TestCommitmentsCarriedByAnswerKind(SessionCase):
+    """Q24: accept and own carry a recommendation's commitments; alt and defer carry none."""
+
+    def test_only_accept_and_own_carry_risks(self):
+        qs = [question(f"Q{i}", commits=[f"Part of Q{i}"]) for i in range(1, 5)]
+        events = [
+            event(1, "Q1", "accept"),
+            event(2, "Q2", "alt", alt="a"),
+            event(3, "Q3", "own", text="My words."),
+            event(4, "Q4", "defer"),
+        ]
+        self.session(qs, events)
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- 0 commitments confirmed; 2 unconfirmed", brief)
+        self.assertIn("- risk: Part of Q1 (unconfirmed); from Q1", brief)
+        self.assertIn("- risk: Part of Q3 (unconfirmed); from Q3", brief)
+        self.assertNotIn("Part of Q2", brief)
+        self.assertNotIn("Part of Q4", brief)
+        report = self.export("report").read_text(encoding="utf-8")
+        risks = report.split("<h2>Named risks</h2>", 1)[1]
+        self.assertIn("Part of Q1", risks)
+        self.assertNotIn("Part of Q2", risks)
+
+
 class TestExportReport(SessionCase):
     def test_report_is_self_contained_html(self):
         svg = "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
