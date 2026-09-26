@@ -3,6 +3,42 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0] - 2026-09-26
+
+### Added
+
+- **`interview`:** a running constraint ledger (`## Constraint ledger` in the checklist, rows
+  `- C<N> | confirmed|inherited | <constraint> | <source>`). A constraint the user states is
+  written at once as `confirmed`; one from an upstream artifact is `inherited`, and one the
+  contract relies on is asked as a register row in every mode. Every recommendation carries a
+  `Checked against:` line.
+- **`interview`:** a design from explore or research output, or from an existing
+  implementation, is a candidate until re-derived against the constraint ledger; a research
+  brief dispatched mid-interview carries the ledger verbatim.
+- **`interview`:** historical evidence is labeled `past`, `current`, or `intended` when the
+  survey finds a process change or cannot rule one out; past-only evidence never alone grounds
+  a recommendation.
+- **`interview`:** the mechanism tripwire. The first mechanism-naming question brings one
+  now-or-at-planning question; "at planning" defers open mechanism rows, "now" is recorded in
+  the Brief's Constraints.
+- **`interview`:** a fresh-context assumption sweep runs in `me` and `auto` once the frontier
+  is empty and before Step 3. Its items become register rows or stated facts, and an `open`
+  row returns the run to Step 2 (`context/assumption-sweep.md`).
+- **`interview`:** eval cases 19 to 22 cover the tripwire, the sweep, evidence currency, and
+  inherited constraints.
+- **`audit-answers`:** a `hedged:` row never closes on a CONFIRMED verdict and always reaches
+  the human; a `free-text:` row is validated and flagged.
+
+### Changed
+
+- **`interview`:** a commitment row registered after later ids exist takes the next free id
+  and names its headline in the question field.
+- `tests/interview-defenses.test.sh` adds digests over the interview `SKILL.md` Step 2
+  section, the `loop.md` Step 2 and relentless-mechanics sections,
+  `context/assumption-sweep.md`, and the `audit-answers` Step 1 and Step 4 sections, plus
+  phrase pins for each new rule. The eval-case roster digest was re-pinned for cases 19 to
+  22, none of which contradicts case 15 or 16. No existing section digest changed.
+
 ## [0.42.0] - 2026-09-25
 
 ### Added
