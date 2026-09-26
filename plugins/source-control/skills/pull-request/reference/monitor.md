@@ -80,22 +80,30 @@ Establish a baseline poll: `gh pr checks <N>` (REST check-runs when more than on
    last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
    while true; do
-     # Terminal state check — exit watch if PR closed/merged
-     state=$(gh pr view "$PR_NUMBER" --json state -q '.state' 2>/dev/null | tr -d '\r')
+     # Terminal state check — exit watch if PR closed/merged. REST, like the
+     # CI read below (§3.1 "Polling CI from more than one worker").
+     read -r state head_sha < <(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" \
+       --jq '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"' \
+       2>/dev/null | tr -d '\r')
      if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
        echo "PR #$PR_NUMBER $state — watch complete"
        exit 0
      fi
 
-     # CI check-run changes (emit on any new terminal bucket). With more than
-     # one worker polling, use REST check-runs (§3.1 "Polling CI from more
-     # than one worker").
-     cur_checks=$(gh pr checks "$PR_NUMBER" --json name,bucket \
-       --jq '.[] | select(.bucket != "pending") | "\(.name): \(.bucket)"' \
-       2>/dev/null | tr -d '\r' | sort || true)
+     # CI changes: one "name: bucket" line per check, the same rows and
+     # buckets `gh pr checks` reports, read over REST. Check runs are
+     # deduplicated as gh does (latest start per name/workflow/event);
+     # commit statuses are always read, since check-runs omit them.
+     b='def b: ascii_upcase | if . == "SUCCESS" then "pass" elif . == "SKIPPED" or . == "NEUTRAL" then "skipping" elif . == "CANCELLED" then "cancel" elif . == "ERROR" or . == "FAILURE" or . == "TIMED_OUT" or . == "ACTION_REQUIRED" then "fail" else "pending" end;'
+     wf=$(gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
+       --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}' 2>/dev/null | jq -s -c 'add // {}')
+     cur_checks=$({ gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" \
+         | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"'
+       gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
+         --jq "$b"' .statuses[] | "\(.context): \(.state | b)"'
+     } 2>/dev/null | tr -d '\r' | grep -v ': pending$' | sort || true)
      if [ "$cur_checks" != "$prev_checks" ]; then
-       # gh pr checks --json bucket values are: pass|fail|pending|skipping|cancel
-       # (per the gh manual) — match those, not check-run conclusion strings.
+       # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.
        comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
          grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \
          || true
@@ -230,33 +238,30 @@ After each push, run this loop until convergence (**every** check in a terminal 
 ### Polling CI from more than one worker
 
 When more than one worker polls CI under the same token (parallel PR monitors, babysit-prs workers,
-subagents each watching a PR), poll the head commit's check runs over REST instead of
-`gh pr checks` (including `--watch`) or `gh pr view --json`:
+subagents each watching a PR), read the PR and its checks over REST instead of `gh pr checks`
+(including `--watch`) or `gh pr view --json`. The §3.0.1 poll script is that REST read: its state
+check and CI block (the `head_sha` read through `cur_checks`) run standalone with `OWNER`, `REPO`,
+and `PR_NUMBER` set. They emit one `name: bucket` line per check with the same rows and
+`pass|fail|pending|skipping|cancel` buckets `gh pr checks` reports (the mapping and the
+latest-per-name/workflow/event dedupe follow gh's `pkg/cmd/pr/checks/aggregate.go`), and they
+always read commit statuses, which the check-runs endpoint omits. So every predicate above that
+keys on a bucket works unchanged. The Monitor watch always uses this read, since babysit-prs arms
+one watch per PR; a one-off read in a single session may keep `gh pr checks`.
 
-```bash
-head_sha=$(gh api "repos/<owner>/<repo>/pulls/<N>" --jq .head.sha)
-gh api --paginate "repos/<owner>/<repo>/commits/$head_sha/check-runs?per_page=100" \
-  --jq '.check_runs[] | "\(.name): \(.status) \(.conclusion)"'
-```
-
-Terminal means `status == "completed"`; read `conclusion` for the outcome. The check-runs endpoint
-does not return legacy commit statuses, so when the expected actors include a status-posting app,
-also read `repos/<owner>/<repo>/commits/$head_sha/status`. Keep `gh pr checks` for a single
-monitor; its `bucket` field is what the loop above and the readiness checklist key on.
-
-Why: both `gh` commands query GraphQL (`GH_DEBUG=api gh pr checks` shows `POST /graphql`), and
+Why: both `gh` commands query GraphQL (`GH_DEBUG=api` shows `POST /graphql` for `gh pr checks`
+and for `gh pr view --json state`), and
 concurrent workers under one token have hit GraphQL secondary rate limits. GraphQL and REST draw on
 separate per-minute point budgets (2,000 and 900 points per minute) and separate primary limits
 (5,000 points per hour for GraphQL, 5,000 requests per hour for REST), and a REST `GET` costs 1
 point, so moving the polling to REST leaves the GraphQL budget for the calls that have no REST
 equivalent, such as review-thread resolution. The 100-concurrent-request ceiling is shared by
-both APIs, so REST polling does not raise it. Verified 2026-09-25 against
+both APIs, so REST polling does not raise it. Verified 2026-09-25, and 2026-09-26 with gh 2.97.0 for the `gh` behavior, against
 [List check runs for a Git reference](https://docs.github.com/en/rest/checks/runs),
 [Get the combined status for a specific reference](https://docs.github.com/en/rest/commits/statuses),
 [Rate limits for the REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
 and [Rate limits for the GraphQL API](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
 Recheck when either rate-limits page changes its secondary-limit figures, or when a `gh` release
-note says `pr checks` or `pr view` moved off GraphQL.
+note says `pr checks` or `pr view` moved off GraphQL or changes the `pr checks` bucket mapping.
 
 Compare triggered workflows against the expected set from Phase 2.5. Flag mismatches.
 

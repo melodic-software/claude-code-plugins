@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- CI monitoring polls REST check-runs (`gh api repos/{owner}/{repo}/commits/{sha}/check-runs`) instead of `gh pr checks` or `gh pr view --json` when more than one worker polls under the same token. Both `gh` commands query GraphQL, and concurrent workers hit GraphQL secondary rate limits. The rule and its cited GitHub docs live in `pull-request/reference/monitor.md` "Polling CI from more than one worker"; `babysit-prs/reference/loop.md` points there. A single monitor keeps `gh pr checks`.
+- CI monitoring polls REST check-runs (`gh api repos/{owner}/{repo}/commits/{sha}/check-runs`) instead of `gh pr checks` or `gh pr view --json` when more than one worker polls under the same token. Both `gh` commands query GraphQL, and concurrent workers hit GraphQL secondary rate limits. The rule and its cited GitHub docs live in `pull-request/reference/monitor.md` "Polling CI from more than one worker"; `babysit-prs/reference/loop.md` points there. The §3.0.1 Monitor poll script now makes that read itself: PR state from `pulls/{n}`, and check runs plus commit statuses mapped to the same `pass|fail|pending|skipping|cancel` buckets and deduplicated the way `gh pr checks` does. A one-off read in a single session may keep `gh pr checks`.
 - The PR-comment fix batch (`monitor.md` §3.3.2) changes only the lines each finding names, the review-fix rule `/review:quality-gate` owns.
 
 ## [0.58.4] - 2026-09-25
