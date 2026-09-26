@@ -9,6 +9,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 - Filing rule: a small or medium finding is fixed in the current PR as its own commit, even when unrelated to the task. Only a structural finding (needs its own planning pass) or an urgent, real problem that cannot land in the PR is filed as an issue. Applies to `/work-items:work`'s post-green review pass, the shared self-observation filing contract, and the tracker seam's "Default = fix, not file" rule.
 - `/work-items:attend-queue` points the operator to the loop-lane convention's "Operator steering through GitHub state" section for skipping an issue, holding a PR, and pausing or stopping a lane.
+- A finding blocked on research the lane is not positioned to do is also filed, alongside structural and urgent-real findings.
 
 ## [0.40.26] - 2026-09-25
 

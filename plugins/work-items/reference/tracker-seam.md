@@ -120,8 +120,9 @@ Do NOT reflexively suggest `/work-items:track add` or `/work-items:scan-todos` f
 discovered while working. Boy Scout scope (cosmetic, stale counts, broken links, single-line
 corrections, one-paragraph clarifications) and other small or medium fixes belong in the current
 change as their own commit, even when unrelated to the task. File NEW items only when the work is
-structural (large enough to need its own `/planning:plan` pass) or an urgent, real problem that
-cannot land in the current change. Auto-suggesting
+structural (large enough to need its own `/planning:plan` pass), an urgent, real problem that
+cannot land in the current change, or blocked on research the current session isn't positioned to
+do. Auto-suggesting
 `add` for fixable scope is the failure mode this rule prevents. When in doubt, fix in-place and
 surface what was fixed in the commit message / PR description.
 
