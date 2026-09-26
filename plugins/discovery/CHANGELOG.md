@@ -7,17 +7,20 @@
 - **Agents (`explorer`, `researcher`, `intent-tracer`):** a "Write early; reserve your last turns"
   section. Each states its limit as its own `maxTurns: 40`, counts its turns, stops gathering by
   turn 30 (or the envelope's lower `Turn budget:`; a higher one is ignored and noted in
-  `open_questions`), writes the index skeleton with the line `Run status: in progress` directly
-  under the title heading as soon as its input is resolved, writes each sidecar as its section
-  settles, and replaces the marker with `Run status: complete` only in the final write.
+  `open_questions`), writes the index skeleton with `Run status: in progress` as the first
+  non-blank line after the `# ` title heading as soon as its input is resolved, writes each sidecar
+  as its section settles, and replaces the marker with `Run status: complete` only in the final
+  write.
 - **Envelope:** a `Turn budget:` line directly under `Budget:` in the parent-contract template and
   the `research-deep` dispatch block, in the same unit as `maxTurns` and degradable when absent. It
   is a second line of the Budget field, so the envelope keeps six shared fields.
 - **`check-dispatch-artifact.sh`:** exits 1 (`status=unusable`, reason on stderr) when the index's
-  first `Run status:` line is `Run status: in progress`, trailing whitespace and CRLF included. A
-  later line quoting the marker does not trigger. An index marked complete, or with no status line,
-  grades as before. A by-value index body written back
-  must carry `Run status: complete` or no marker.
+  marker slot holds `Run status: in progress`. The slot is the first non-blank line after the first
+  `# ` title heading, read past a BOM, CRs and YAML front matter and never from inside a code
+  fence. The match tolerates case, spacing, a tab and `in-progress` / `in_progress`. Nothing
+  outside the slot is read, so a quoted marker elsewhere does not trigger, and an index with no
+  marker grades as before. A by-value index body written back must carry `Run status: complete` or
+  no marker.
 - **`research`:** each `sources[]` entry carries `role: primary | corroborator`, with exactly one
   primary per accepted claim; criterion 12's variable and population checks run against it. New
   eval case where two corroborators measure an adjacent variable, are not counted, and the claim

@@ -43,13 +43,14 @@
 #      which artifact it is asking about, so grade each fan-out run against its
 #      own assigned sub-slice, before synthesis.
 #   2. That index is non-empty.
-#   2a. Its first `Run status:` line is not `Run status: in progress`. A
-#      dispatched agent writes that marker directly under the index's title
-#      heading in its early skeleton and replaces it with
-#      `Run status: complete` in its final write, so a marked index is a run
-#      that stopped before finishing. Only the first status line is read, so
-#      a later line quoting the marker does not trigger. An index with no
-#      status line at all (inline or legacy) is graded as before.
+#   2a. Its marker slot does not hold `Run status: in progress`. The slot is
+#      the first non-blank line after the index's first `# ` title heading
+#      (past any BOM, CR and YAML front matter, and never a `# ` line inside a
+#      code fence). A dispatched agent writes the marker there in its early
+#      skeleton and replaces it with `Run status: complete` in its final
+#      write, so a marked slot is a run that stopped before finishing. Only
+#      the slot is read: a later line quoting the marker does not trigger, and
+#      an index with no marker in its slot (inline or legacy) grades as before.
 #   3. It names at least one `<PREFIX>-<section>.md` sidecar, and every sidecar
 #      it names exists beside it and is non-empty. A mid-stream stub passes a
 #      bare non-empty test; it does not pass this one.
@@ -252,16 +253,34 @@ if [[ ! -s "$index" ]]; then
   exit 1
 fi
 
-# A dispatched agent writes its index skeleton early with this marker line and
-# replaces it only in its final write, so an index still carrying it is a run
-# that stopped short. Checked before the sidecar scan so a bare skeleton reports
-# this reason rather than "names no sidecar". Only the FIRST line starting
-# `Run status:` is the marker slot; the agent puts it directly under the title
-# heading, so a later line quoting the marker (a restated task, a source
-# excerpt) is content and is never read here. Exact case, a plain line;
-# trailing whitespace, including a CRLF file's CR, is allowed.
-status_line="$(grep -m1 -E '^Run status:' "$index")"
-if [[ "$status_line" =~ ^Run\ status:\ in\ progress[[:space:]]*$ ]]; then
+# A dispatched agent writes its index skeleton early with the marker in a
+# reserved slot and replaces it only in its final write, so an index whose slot
+# still holds it is a run that stopped short. Checked before the sidecar scan
+# so a bare skeleton reports this reason rather than "names no sidecar".
+#
+# The slot is the first non-blank line after the first `# ` title heading,
+# after dropping a UTF-8 BOM, every CR, and leading YAML front matter, and
+# ignoring any `# ` line inside a ``` or ~~~ fence. Nothing else is read, so a
+# restated task or quoted source text carrying the marker's literal line is
+# content, and an index with no marker in its slot grades as before. The match
+# tolerates case, spacing, a tab, and `in-progress` / `in_progress`; words
+# after the marker, or markdown around it, make it prose.
+# Plain awk (tolower, index, substr) so it runs in any POSIX awk.
+slot_state="$(awk '
+  BEGIN { bom = "\357\273\277" }
+  { sub(/\r+$/, "") }
+  NR == 1 && index($0, bom) == 1 { $0 = substr($0, length(bom) + 1) }
+  NR == 1 && $0 == "---" { frontmatter = 1; next }
+  frontmatter { if ($0 == "---") frontmatter = 0; next }
+  titled {
+    if ($0 ~ /^[ \t]*$/) next
+    if (tolower($0) ~ /^run[ \t]+status[ \t]*:[ \t]*in[ \t_-]*progress[ \t]*$/) print "in-progress"
+    exit
+  }
+  /^[ \t]*(```|~~~)/ { fenced = !fenced; next }
+  !fenced && /^# / { titled = 1 }
+' "$index")"
+if [[ "$slot_state" == "in-progress" ]]; then
   echo "unusable: index is still marked Run status: in progress; the run stopped before its final write: $index" >&2
   verdict "$index" 0 0 unusable
   exit 1

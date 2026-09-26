@@ -432,8 +432,10 @@ for agent in explorer researcher intent-tracer; do
     "$file" 'A value above that default is ignored and noted in'
   assert_present "$file writes the index skeleton marked in progress" \
     "$file" 'Run status: in progress'
-  assert_present "$file places the marker directly under the title heading" \
-    "$file" 'directly under the title heading'
+  assert_present "$file places the marker in the slot after the title heading" \
+    "$file" 'first non-blank line after the `# ` title'
+  assert_present "$file says the gate reads only that slot" \
+    "$file" 'gate reads only that slot'
   assert_present "$file replaces the marker in its final write" \
     "$file" 'Run status: complete'
   assert_present "$file reads the envelope's Turn budget line" \
@@ -484,10 +486,15 @@ for file in reference/parent-contract.md skills/explore/reference/dispatch.md \
   assert_present "$file names the in-progress marker where it discusses a partial slice" \
     "$file" 'Run status: in progress'
 done
-for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md; do
-  assert_present "$file places the marker directly under the title heading" \
-    "$file" 'directly under the title heading'
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file places the marker in the slot after the title heading" \
+    "$file" 'first non-blank line after the `# ` title'
+  assert_present "$file says the gate reads only that slot" \
+    "$file" 'gate reads only that slot'
 done
+assert_absent 'no file says the gate reads the first Run status: line' \
+  'first `Run status:` line'
 for file in reference/parent-contract.md skills/research-deep/SKILL.md; do
   assert_present "$file bounds the Turn budget placeholder by the default stop turn" \
     "$file" "Turn budget: <.*at or below the agent's default stop turn \(30\)"

@@ -219,11 +219,11 @@ turn, and spend the turns after that writing and handing back. The reserve also 
 Write the artifact in stages:
 
 1. As soon as the target is resolved and preload is confirmed, write the `INTENT.md` skeleton into
-   the slice: the line `Run status: in progress` on a line of its own, placed
-   directly under the title heading, before the why-question restated with its code anchor, so no
-   restated or quoted text precedes it; then that restatement, the section table naming each sidecar you plan, and the
-   **Sources consulted** map with a row per evidence category still open. The gate reads only the
-   first `Run status:` line.
+   the slice. Its marker is the line `Run status: in progress`, written as the
+   first non-blank line after the `# ` title heading, before the restated why-question;
+   the gate reads only that slot, so restated or quoted text elsewhere never counts. Then write the
+   why-question restated with its code anchor, the section table naming each sidecar you plan, and
+   the **Sources consulted** map with a row per evidence category still open.
 2. Update each category's row in that map as the category resolves, and write each
    `INTENT-<section>.md` sidecar as its section settles, updating its row in the index.
 3. The final write, after the outcome gate below, replaces the marker line with

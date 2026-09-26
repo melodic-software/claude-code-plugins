@@ -212,10 +212,10 @@ turn, and spend the turns after that writing and handing back. The reserve also 
 Write the artifact in stages:
 
 1. As soon as the topic is resolved and preload is confirmed, write the `RESEARCH.md` skeleton into
-   the slice: the line `Run status: in progress` on a line of its own, placed
-   directly under the title heading, before the task restatement, so no restated or quoted text
-   precedes it; then the task restatement and the section table naming each sidecar you plan. The
-   gate reads only the first `Run status:` line. `research-checklist.md` keeps the timing the skill
+   the slice. Its marker is the line `Run status: in progress`, written as the
+   first non-blank line after the `# ` title heading, before the task restatement;
+   the gate reads only that slot, so restated or quoted text elsewhere never counts. Then write the
+   task restatement and the section table naming each sidecar you plan. `research-checklist.md` keeps the timing the skill
    gives it, written in corpus enumeration before any query and marked as phases proceed.
 2. Write each `RESEARCH-<section>.md` sidecar as its section settles, and update its row in the
    index.

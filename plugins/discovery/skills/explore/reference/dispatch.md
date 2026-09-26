@@ -232,6 +232,7 @@ What the harness returns at the turn limit:
   release note names turn-limit output or partial marking.
 
 A partial marking says the run stopped; it does not put an artifact on disk. That is why the agent
-writes its index skeleton early, marked `Run status: in progress` on the line
-directly under the title heading, and its sidecars as they settle, and still emits
-`status: truncated` with a partial payload before its budget runs out.
+writes its index skeleton early, with `Run status: in progress` as the
+first non-blank line after the `# ` title heading, and its sidecars as they settle; the
+gate reads only that slot, so a quoted marker elsewhere in the index never counts. The agent
+still emits `status: truncated` with a partial payload before its budget runs out.

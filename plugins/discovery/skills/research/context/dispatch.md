@@ -278,9 +278,10 @@ sidecars are written incrementally, a turn-limit stop leaves a half-marked ledge
 the sections that settled, and an older harness may return no payload at all.
 
 The run therefore reports through two channels. On disk, the agent writes its index skeleton early
-with the line `Run status: in progress` directly under the title heading, and replaces it only in
-its final write, so the artifact gate, which reads only the first `Run status:` line, refuses a
-stopped run's index. In the payload, the agent emits its block early and keeps it current, marked
+with `Run status: in progress` as the
+first non-blank line after the `# ` title heading, and replaces it only in its final write. The
+gate reads only that slot, so it refuses a stopped run's index and ignores a quoted marker
+elsewhere. In the payload, the agent emits its block early and keeps it current, marked
 `status: truncated` until the run finishes, and a dispatch that returns no payload is treated as
 truncated-without-warning.
 

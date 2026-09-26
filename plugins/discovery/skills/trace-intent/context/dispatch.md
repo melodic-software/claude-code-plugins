@@ -98,9 +98,10 @@ happen. Proceeding is the damage a silently-empty return causes; the missing art
 starts.
 
 The resume-before-discard ordering for a truncated run or a silent return is in the parent contract
-and applies here unchanged. An `INTENT.md` still marked `Run status: in progress` is a run that
-stopped before its final write, and the gate refuses it with exit 1, which routes to that same
-ladder.
+and applies here unchanged. The agent writes `Run status: in progress` as the
+first non-blank line after the `# ` title heading of `INTENT.md`, and the
+gate reads only that slot. An `INTENT.md` whose slot still holds the marker is a run that stopped
+before its final write, and the gate refuses it with exit 1, which routes to that same ladder.
 
 What the harness returns at the turn limit:
 

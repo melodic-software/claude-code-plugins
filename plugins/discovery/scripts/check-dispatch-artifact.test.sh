@@ -422,9 +422,9 @@ suite() {
   sidecar "$complete" "$PREFIX-codebase.md" 'a'
   run 0 "an index marked Run status: complete is usable" "$complete"
 
-  # Only the first status line is the marker slot. A finished index whose
-  # restated task or quoted source text later carries the marker's literal line
-  # is still finished.
+  # The marker slot is the first non-blank line after the `# ` title. A
+  # finished index whose restated task or quoted source text later carries the
+  # marker's literal line is still finished.
   local quoted_later inprog_then_text
   quoted_later="$(slice complete-then-quoted)"
   index "$quoted_later" "# $PREFIX" 'Run status: complete' 'The agent writes:' \
@@ -445,8 +445,8 @@ suite() {
   sidecar "$nostatus" "$PREFIX-codebase.md" 'a'
   run 0 "an index with no status line is usable" "$nostatus"
 
-  # The marker is a plain line, exact case. A bolded copy or a line that merely
-  # starts with the words is prose about the marker, not the marker.
+  # The marker is a plain line. A bolded copy or a line that merely starts with
+  # the words is prose about the marker, not the marker.
   lookalike="$(slice lookalike)"
   index "$lookalike" "# $PREFIX" '**Run status: in progress**' "$PREFIX-codebase.md"
   sidecar "$lookalike" "$PREFIX-codebase.md" 'a'
@@ -456,6 +456,62 @@ suite() {
   index "$trailing" "# $PREFIX" 'Run status: in progress later' "$PREFIX-codebase.md"
   sidecar "$trailing" "$PREFIX-codebase.md" 'a'
   run 0 "a marker line with trailing words does not trigger" "$trailing"
+
+  local until_done
+  until_done="$(slice until-done)"
+  index "$until_done" "# $PREFIX" 'Run status: in progress until done' "$PREFIX-codebase.md"
+  sidecar "$until_done" "$PREFIX-codebase.md" 'a'
+  run 0 "a slot line with words after the marker does not trigger" "$until_done"
+
+  # slotted <expected-exit> <label> <slice-name> <printf-format>: write the
+  # index from a printf format (so a case can carry a BOM, a tab or a CR), give
+  # it one sidecar, and grade it. `%s` in the format is the family prefix.
+  slotted() {
+    local expected="$1" label="$2" dir
+    dir="$(slice "$3")"
+    # shellcheck disable=SC2059
+    printf "$4" "$PREFIX" "$PREFIX" >"$dir/$INDEX_NAME"
+    sidecar "$dir" "$PREFIX-codebase.md" 'a'
+    run "$expected" "$label" "$dir"
+  }
+
+  # Only the slot is read. With no marker, the literal line elsewhere is text.
+  slotted 0 "no marker, the in-progress line quoted in the restated task, is usable" \
+    quoted-no-marker '# %s\n\nTask: the agent writes\nRun status: in progress\n%s-codebase.md\n'
+  # shellcheck disable=SC2016
+  slotted 0 "no marker, the in-progress line inside a fence, is usable" \
+    fenced-no-marker '# %s\n\n```text\nRun status: in progress\n```\n%s-codebase.md\n'
+  # A `# ` line inside a fence is a shell comment, not the title, so the line
+  # after it is not the slot.
+  # shellcheck disable=SC2016
+  slotted 0 "a hash line inside a backtick fence is not the title" \
+    fenced-hash-backtick '```sh\n# %s\nRun status: in progress\n```\n%s-codebase.md\n'
+  slotted 0 "a hash line inside a tilde fence is not the title" \
+    fenced-hash-tilde '~~~sh\n# %s\nRun status: in progress\n~~~\n%s-codebase.md\n'
+  slotted 0 "complete in the slot with a later in-progress quote is usable" \
+    complete-slot-quoted '# %s\nRun status: complete\n\nRun status: in progress\n%s-codebase.md\n'
+
+  # The slot survives the shapes a real index takes.
+  slotted 1 "front matter, then the title, then the marker, is unusable" \
+    frontmatter-marker '---\nabstract: one line\n---\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "a BOM before the title, then the marker, is unusable" \
+    bom-marker '\357\273\277# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "a blank line between the title and the marker is unusable" \
+    blank-then-marker '# %s\n\n   \nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "a CRLF title and marker are unusable" \
+    crlf-slot '# %s\r\n\r\nRun status: in progress\r\n%s-codebase.md\r\n'
+
+  # Spelling drift in the marker still reads as the marker.
+  slotted 1 "the marker in other case is unusable" \
+    drift-case '# %s\nrun status: IN PROGRESS\n%s-codebase.md\n'
+  slotted 1 "the marker with doubled spaces is unusable" \
+    drift-spaces '# %s\nRun  status:  in progress\n%s-codebase.md\n'
+  slotted 1 "the marker with a tab after the colon is unusable" \
+    drift-tab '# %s\nRun status:\tin progress\n%s-codebase.md\n'
+  slotted 1 "the marker spelled in-progress is unusable" \
+    drift-hyphen '# %s\nRun status: in-progress\n%s-codebase.md\n'
+  slotted 1 "the marker spelled in_progress is unusable" \
+    drift-underscore '# %s\nRun status: in_progress\n%s-codebase.md\n'
 
   # A bare skeleton: the run wrote its marker and stopped before planning any
   # sidecar. The marker reason is the one reported, not the no-sidecar one.
