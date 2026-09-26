@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
-from decode import DUP_PX, MID, end, frames, is_repeat, modes, probe  # noqa: E402
+from decode import MID, end, frames, is_repeat, modes, per_area, probe  # noqa: E402
 import workdir  # noqa: E402
 from render import WORKERS  # noqa: E402
 
@@ -32,13 +32,7 @@ S, EPS, INTERP = 4, 0.25, 'cubic'   # supersample, approxPolyDP epsilon (source 
 SHARP = (2.0, 0.9)                   # (amount, sigma) unsharp mask before tracing, or None
 LEVELS = (50, 90, 165, 205)          # extra gray isolines traced as tone layers
 TINT_RG, TINT_SIGN_RG, TINT_SIGN_PX = 4, 6, 15000   # warm paper: median R-G >= 4; a 'sign' is one >15k px region at >= 6
-TINT_MIN_PX = 300                    # smallest paper region a tint is read from
-CAL_SIZE = (1762, 982)               # the shfred0 frame every pixel count here was tuned on
-
-
-def per_area(px, shape):
-    """A pixel count tuned at CAL_SIZE, scaled by area to a frame of this (h, w) shape; unchanged at CAL_SIZE."""
-    return px * shape[0] * shape[1] / (CAL_SIZE[0] * CAL_SIZE[1])
+TINT_MIN_PX = 300                    # smallest paper region a tint is read from (pixel counts scale by decode.per_area)
 
 
 def decode(video, work):
@@ -46,9 +40,9 @@ def decode(video, work):
     w, h, pts = probe(video)
     workdir.src(work).mkdir(parents=True, exist_ok=True)
     workdir.traces_dir(work).mkdir(exist_ok=True)
-    ts, prev, dup = [], None, per_area(DUP_PX, (h, w))
+    ts, prev = [], None
     for rgb, t in frames(video, None):
-        if is_repeat(prev, rgb, dup):
+        if is_repeat(prev, rgb):
             continue
         prev = rgb.astype(np.int16)
         cv2.imwrite(str(workdir.source(work, len(ts))), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))

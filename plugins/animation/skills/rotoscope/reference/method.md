@@ -27,8 +27,9 @@ laws: a new source with a different codec, scale or ink can move them, and the r
   it (`scripts/decode.py`, `modes`). A low-contrast, coloured or mostly-ink-with-light-lines source
   traces and measures wrong without an error; `inkstats.py` prints a note when a drawing's ink or
   paper mode is weak.
-- Pixel counts are tuned on shfred0's 1762x982 frame: `extract.py` scales its repeat and tint counts
-  by frame area (`per_area`), which leaves them unchanged at that size.
+- Pixel counts are tuned on shfred0's 1762x982 frame: the repeat rule (`decode.is_repeat`,
+  shared by `extract.py` and `inkstats.py`) and `extract.py`'s tint counts scale by frame area
+  (`decode.per_area`), which leaves them unchanged at that size.
 
 ## Tracing
 

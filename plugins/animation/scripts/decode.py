@@ -5,8 +5,9 @@ the gray modes every measure reads.
   probe(video)         -> (w, h, [pts_time, ...]) of the first video stream
   frames(film, fps)    yield (rgb, t) for every stored frame (a video, a frame folder played at fps, a work dir's
                        src/dNNN.png timed by d/index.json, or any iterable of (rgb, t) passed through)
-  is_repeat(prev, rgb) a frame repeats the previous drawing when fewer than dup_px pixels changed by more than 64
-                       gray levels (prev is the previous kept frame as int16, or None)
+  is_repeat(prev, rgb) a frame repeats the previous drawing when fewer than DUP_PX pixels (per_area of the frame)
+                       changed by more than 64 gray levels (prev is the previous kept frame as int16, or None)
+  per_area(px, shape)  a pixel count tuned at CAL_SIZE, scaled to a frame's area
   modes(gray)          (ink mode, paper mode, T): the gray histogram modes below and above 128 and their midpoint;
                        MID gray levels either side of a mode count as that tone, the band between is mid-gray.
                        Two-tone by construction: a low-contrast, coloured or tonal film measures wrong silently;
@@ -24,7 +25,8 @@ prereq.require(['numpy', 'opencv'])
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
-DUP_PX = 50
+DUP_PX = 50                 # at CAL_SIZE; is_repeat scales it by each frame's area
+CAL_SIZE = (1762, 982)      # the shfred0 frame every pixel count here and in extract.py was tuned on
 MID = 16
 TOOLS = ['ffmpeg', 'ffprobe', 'ffmpeg-version']   # what decoding a video needs
 
@@ -78,8 +80,13 @@ def frames(film, fps):
             p.wait()
 
 
-def is_repeat(prev, rgb, dup_px=DUP_PX):
-    return prev is not None and (np.abs(rgb.astype(np.int16) - prev) > 64).sum() < dup_px
+def per_area(px, shape):
+    """A pixel count tuned at CAL_SIZE, scaled by area to a frame of this (h, w) shape; unchanged at CAL_SIZE."""
+    return px * shape[0] * shape[1] / (CAL_SIZE[0] * CAL_SIZE[1])
+
+
+def is_repeat(prev, rgb):
+    return prev is not None and (np.abs(rgb.astype(np.int16) - prev) > 64).sum() < per_area(DUP_PX, rgb.shape[:2])
 
 
 def mode_peaks(gray):

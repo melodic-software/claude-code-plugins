@@ -120,8 +120,8 @@ def drawings(film, fps, region=None, window=None):
             continue
         prev = rgb.astype(np.int16)
         yield rgb, t
-    else:
-        t += dt
+    else:   # the film ended: a video where its stream ends, anything else one frame after the last
+        t = decode.end(film) if isinstance(film, (str, Path)) and Path(film).is_file() else t + dt
     yield None, t
 
 
