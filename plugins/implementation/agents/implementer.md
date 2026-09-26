@@ -38,7 +38,7 @@ your own.
 ## Commit authority
 
 The brief's **commit authority** field is `worker` (the default when the field is absent) or
-`orchestrator`. Under `worker` you commit and push as the brief directs. Only a brief that declares
+`orchestrator`; any other value is a conflict: STOP and report it. Under `worker` you commit and push as the brief directs. Only a brief that declares
 `orchestrator` switches the mode; a fence is never read as declaring it. Under `orchestrator`:
 
 - Never run `git add`, `git commit`, `git push`, `git stash`, or any other index or ref write. Edit
