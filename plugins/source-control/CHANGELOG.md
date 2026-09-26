@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- The babysit merge gate takes `--auto` (with `--merge` and `--expected-head`). When the PR is ready except for running checks, both AI review lanes (`claude-review`, `claude-security-review`) completed successfully on the live head, and no review thread is open, it runs `gh pr merge --auto --squash --match-head-commit <pin>` instead of holding. A missing, skipped, or running review lane holds. Its JSON gains `autoMerge.ready`, `autoMerge.blockers`, and `autoMergeEnabled`. `ci-status` is the only required check and does not wait on the review workflows, so auto-merge armed earlier could merge before AI review posts.
+- The babysit merge gate takes `--auto` (with `--merge` and `--expected-head`). When the PR is ready except for running checks, both AI review lanes (`claude-review`, `claude-security-review`) completed successfully on the live head, and no review thread is open, it runs `gh pr merge --auto --squash --match-head-commit <pin>` instead of holding. A missing, skipped, or running review lane holds. Its JSON gains `autoMerge.ready`, `autoMerge.blockers`, and `autoMergeEnabled`; an arm reports `"action": "auto-merge"` with `merged: false`, so the PR stays queued. `ci-status` is the only required check and does not wait on the review workflows, so auto-merge armed earlier could merge before AI review posts.
 
 ### Changed
 

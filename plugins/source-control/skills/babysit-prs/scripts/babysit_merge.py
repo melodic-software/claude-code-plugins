@@ -1602,6 +1602,9 @@ def main() -> int:
         result["merge"] = {"attempted": False, "reason": "not ready"}
         print(json.dumps(result, indent=2))
         return 10
+    if arm_auto:
+        # Consumers treat `action: merge` as a performed merge; an arm is not one.
+        result["action"] = "auto-merge"
 
     try:
         method = allowed_method(repo, "squash" if arm_auto else args.method)

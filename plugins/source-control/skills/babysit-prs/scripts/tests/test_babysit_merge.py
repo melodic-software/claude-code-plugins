@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import pathlib
 import sys
 import unittest
@@ -25,6 +26,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_gh as gh
 import babysit_merge as merge
+import refresh_pr_branch as refresh
 
 HEAD = "a" * 40
 STALE = "b" * 40
@@ -1284,13 +1286,18 @@ class AutoMergeArming(unittest.TestCase):
             mock.patch.object(merge, "evaluate", return_value=result),
             mock.patch.object(merge, "allowed_method", return_value="squash"),
             mock.patch.object(merge, "gh_capture", side_effect=capture),
-            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()) as out,
         ):
-            return merge.main(), calls
+            code = merge.main()
+        self.output = json.loads(out.getvalue()) if out.getvalue() else {}
+        return code, calls
 
     def test_auto_arms_squash_pinned_to_head(self) -> None:
         code, calls = self._main(True, "--merge", "--expected-head", HEAD, "--auto")
         self.assertEqual(code, 0)
+        self.assertEqual(self.output["action"], "auto-merge")
+        self.assertFalse(self.output["merged"])
+        self.assertTrue(self.output["autoMergeEnabled"])
         [cmd] = calls
         self.assertIn("--auto", cmd)
         self.assertIn("--squash", cmd)
@@ -1307,6 +1314,38 @@ class AutoMergeArming(unittest.TestCase):
     def test_auto_without_merge_and_pin_is_refused(self) -> None:
         self.assertEqual(self._main(True, "--auto")[0], 2)
         self.assertEqual(self._main(True, "--merge", "--auto")[0], 2)
+
+
+class RefreshDisarmsAutoMerge(unittest.TestCase):
+    """A branch refresh disables an armed auto-merge first, and fails closed."""
+
+    def _disarm(self, armed: bool, disable_error: bool = False) -> list[list[str]]:
+        calls: list[list[str]] = []
+
+        def run_gh(cmd: list[str]) -> str:
+            calls.append(cmd)
+            if disable_error:
+                raise RuntimeError("gh failed")
+            return ""
+
+        pull = {"auto_merge": {"merge_method": "squash"} if armed else None}
+        with (
+            mock.patch.object(refresh, "gh_json", return_value=pull),
+            mock.patch.object(refresh, "run_gh", side_effect=run_gh),
+        ):
+            refresh.disarm_auto_merge("owner/repo", PR_NUMBER)
+        return calls
+
+    def test_armed_pr_is_disarmed(self) -> None:
+        [cmd] = self._disarm(armed=True)
+        self.assertIn("--disable-auto", cmd)
+
+    def test_unarmed_pr_makes_no_call(self) -> None:
+        self.assertEqual(self._disarm(armed=False), [])
+
+    def test_disarm_failure_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self._disarm(armed=True, disable_error=True)
 
 
 if __name__ == "__main__":

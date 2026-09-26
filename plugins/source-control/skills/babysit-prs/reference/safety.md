@@ -614,7 +614,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   failed), but exit `0` is not by itself proof of success for a given thread. It also covers
   list mode and a multi-thread run where some other thread resolved while this one did not.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
-  performed only when the merge output's `action` field says so. The resolve action vocabulary is
+  performed only when the merge output's `action` field says so and `merged` is true;
+  `"action": "auto-merge"` means armed, not merged. The resolve action vocabulary is
   `resolved` against `skipped-*`, the `refused-*` family (`refused-stale-pin` and the evidence
   refusals above), and `resolve-failed`; read the run's `resolvedCount`/`eligibleCount` summary
   alongside the per-thread entries before reporting or re-checking the merge gate.
@@ -649,9 +650,11 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 The reason: `ci-status` is the only required check and does not wait on the review workflows, so
 auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges
 synchronously. The gate's JSON reports `autoMerge.ready` and `autoMerge.blockers`; a successful
-arm exits `0` with `autoMergeEnabled: true` and `merged: false`, so it is reported as armed, not
-merged. Nothing else enables auto-merge: not a worker, not a standalone invocation, not
-`/source-control:pull-request`.
+arm exits `0` with `"action": "auto-merge"`, `autoMergeEnabled: true` and `merged: false`, so it
+is reported as armed, not merged, and the PR stays in the queue with its worktree kept. Nothing
+else enables auto-merge: not a Worker Contract subagent (`orchestration.md`), not a work-items
+worker lane, not a standalone invocation, not `/source-control:pull-request`. The `worker` tier
+name is unrelated: a lane-pinned invocation at that tier is the merge lane.
 
 A push by a writer leaves auto-merge armed, and the new head would merge on `ci-status` alone.
 `refresh_pr_branch.py` therefore disarms it before updating the branch, and before dispatching a
