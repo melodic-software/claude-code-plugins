@@ -117,7 +117,7 @@ user). Managed-scope `enabledPlugins` is not merged.
   dependencies are not checked. The manifest is optional, so an install path with no `plugin.json`
   declares no dependencies. An enabled plugin whose install path did not resolve, whose
   `plugin.json` is not valid JSON, or whose `dependencies` is not an array is one `not-inspectable`
-  row (`dependencies-unread:<key>`), never a silent pass. Basis: the
+  row (`dependencies-unread:<key>`). Basis: the
   [install page](https://code.claude.com/docs/en/plugins/install) "Plugins with dependencies" says
   disabling a plugin another enabled plugin still needs is refused, and the
   [dependencies page](https://code.claude.com/docs/en/plugins/dependencies) says a plugin whose
@@ -138,7 +138,7 @@ checks miss:
 | **NEW** | Plugin in upstream catalog with no entry in the audited file | REPORT ONLY. `fix-plugin-drift.sh` never adds a key. The engine reports catalog plugins with no entry in any scope as one `ok` inventory row per marketplace (check `E/drift-new`) |
 | **RENAME?** | Heuristic match between an ORPHAN and a NEW within the same marketplace | REPORT ONLY. Flag for human review, no automation |
 
-`check-plugin-drift.sh` exits 1 only when it finds an orphan or a rename candidate; a run that finds
+`check-plugin-drift.sh` exits 1 only when it finds an orphan (a rename pair always holds one); a run that finds
 only NEW plugins exits 0.
 
 **Coverage:** a marketplace the audited file does not declare is not diffed. Every

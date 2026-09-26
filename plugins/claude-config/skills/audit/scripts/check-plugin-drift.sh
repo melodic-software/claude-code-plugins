@@ -42,7 +42,7 @@
 #
 # Exit codes:
 #   0  no orphan (NEW entries alone, which are report only, exit 0)
-#   1  an orphan or a rename candidate was found (advisory, the invoker
+#   1  an orphan was found (advisory, the invoker
 #      decides whether to fix)
 #   2  fatal (settings.json missing/invalid, jq missing). A missing curl is
 #      not fatal: directory-sourced catalogs still audit, and each

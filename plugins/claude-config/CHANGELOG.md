@@ -32,15 +32,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   those rows are inventory now and carry no finding id. The new finding id to suppress, if wanted,
   is `dependency-disabled:*`.
 - **`fix-plugin-drift.sh --yes` never adds a key.** NEW upstream plugins print as a
-  `NEW (report only)` list, and the AUTO-ADD plan section is gone. The script header and the docs
-  no longer describe an absent entry and a `false` entry as equivalent.
+  `NEW (report only)` list, and the AUTO-ADD plan section is gone.
 - **`fix-plugin-drift.sh` holds an orphan-`false` removal that would expose a `true`.** When the
   user settings file (or, for an audited `settings.local.json`, its sibling `settings.json`) holds
   `true` for the key, the removal moves to MANUAL REVIEW, on a dry run too. A lower-precedence file
   that cannot be read, is not valid JSON, or whose `enabledPlugins` is not an object sends every
   removal to manual review. A plan with a pending removal says that other developers' user scopes
   and managed settings were not checked.
-- **`check-plugin-drift.sh` exits 1 only for an orphan or a rename candidate.** A run that finds
+- **`check-plugin-drift.sh` exits 1 only when it finds an orphan.** A run that finds
   only NEW plugins exits 0, and the summary names `fix-plugin-drift.sh` only when an orphan exists.
   The orphan-`false` label reads `(false, removal candidate)`.
 - **The drift check reports what it did not diff.** Every `check-plugin-drift.sh` run prints a

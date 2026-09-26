@@ -1354,7 +1354,7 @@ if [[ -n "$E_CTX" ]]; then
           | holder($S; $k) as $h
           | if $h == $i and ($D | has($k)) then
               ["dependency-disabled", "finding", "warning", $x.surface, "dependency-disabled:" + $k,
-               "\($k) is disabled (\($x.label)) but enabled plugin(s) \($D[$k] | join(", ")) declare it as a dependency; a plugin whose dependency is disabled does not load", "/enabledPlugins/" + $k]
+               "\($k) is disabled (\($x.label)) but enabled plugin(s) \($D[$k] | join(", ")) declare it as a dependency; a plugin whose dependency is disabled is itself disabled at the next plugin load", "/enabledPlugins/" + $k]
             else
               ["disabled-plugin", "ok", "none", $x.surface, "disabled-plugin:" + $k,
                "\($k) is false in \($x.label)" + (if $h > $i and $S[$h].e[$k] == true then "; shadowed by true at \($S[$h].label)" else "" end), "-"]
