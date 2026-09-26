@@ -210,9 +210,12 @@ Every block above slurps (`-s`): the prelude's `map` and the `.[]` walk need one
 JSONL file read without `-s` hands jq one object at a time.
 
 Group by `agent_id` to separate subagent fires from the main thread; group by `prompt_id` for
-per-turn counts; `tool_use_id` joins a `PostToolBatch` or `PostToolUseFailure` row to the OTEL
-`tool_result` event for that call. Empty when `session_event_log_enabled` is off: say so, and point at
-`/claude-ops:setup` rather than at the shared file.
+per-turn counts. `tool_use_id` joins a `PostToolUseFailure` row to the OTEL `tool_result` event
+for that call. A `PostToolBatch` row joins only for the batch's first call, and only when that
+call's input carries no `tool_use_id` key of its own and the key falls inside the first 64 KB the
+logger reads; the other calls in the batch have no row to join. Empty when
+`session_event_log_enabled` is off: say so, and point at `/claude-ops:setup` rather than at the
+shared file.
 
 ## 2.6 Toggles and retention in effect
 
