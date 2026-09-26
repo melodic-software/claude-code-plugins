@@ -914,7 +914,11 @@ cat >"$FIX/prefix cases.json" <<'JSON'
   "u-npm-uuid": {"command": "npx", "args": ["pkg@5f3c9a2e-8b1d-4e7a-9c6f-2d8b0a1e4f7c"]},
   "u-img-hex": {"command": "docker", "args": ["run", "ghcr.io/o/img:0123456789abcdef0123456789abcdef01234567"]},
   "5f3c9a2e-8b1d-4e7a-9c6f-2d8b0a1e4f7c": {"command": "npx", "args": ["uuidname@1.0.0"]},
-  "u-ok": {"command": "npx", "args": ["pkg@1.2.3"]}
+  "u-ok": {"command": "npx", "args": ["pkg@1.2.3"]},
+  "pw-Env": {"command": "pwsh", "args": ["-Command", "$Env:K='LEAKPW1'; npx -y pkg@1.0.0"]},
+  "pw-ENV": {"command": "pwsh", "args": ["-COMMAND", "$ENV:K=LEAKPW2; npx -y pkg@1.0.0"]},
+  "pw-brace": {"command": "pwsh", "args": ["-command", "${env:K}='LEAKPW3'; npx -y pkg@1.0.0"]},
+  "cmd-upper": {"command": "cmd", "args": ["/C", "SET K=LEAKPW4&& npx -y pkg@1.0.0"]}
 }}
 JSON
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
@@ -931,6 +935,11 @@ check_row u-npm-uuid npx - unparsed -
 check_row u-img-hex docker - unparsed -
 assert_eq "UUID name redacted" "uuidname@1.0.0" "$(cell file 'redacted-name(36)' 6)"
 check_row u-ok npx pkg@1.2.3 exact unscoped
+# PowerShell env assignments, -Command, cmd /C and SET are matched case-insensitively.
+check_row pw-Env npx pkg@1.0.0 exact unscoped
+check_row pw-ENV npx pkg@1.0.0 exact unscoped
+check_row pw-brace npx pkg@1.0.0 exact unscoped
+check_row cmd-upper npx pkg@1.0.0 exact unscoped
 
 mkdir -p "$FIX/managed seven/managed-settings.d"
 printf '%s\n' '{"managedMcpServers": {}}' >"$FIX/managed seven/managed-settings.d/ZQXdrop0123456789abcdefghij.json"
