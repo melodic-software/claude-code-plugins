@@ -18,7 +18,7 @@
     "use_emoji_question_markers": {
       "type": "boolean",
       "title": "Emoji anchors on interview round questions",
-      "description": "When enabled, each interview round question leads with a \u2753 anchor on its Q<N> line and its 'My recommendation:' line leads with \u27a1\ufe0f, inline in the terminal and, on the page surface, on the question title and the Recommendation heading. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: plain text. A user instruction against emoji wins over this option.",
+      "description": "When enabled, each interview round question leads with a \u2753 anchor on its Q<N> line and its 'My recommendation:' line leads with \u27a1\ufe0f, inline in the terminal and, on the page surface, on the question title and the Recommendation heading. Purely presentational. Q<N> numbering stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the emoji. Default: plain text. A user instruction against emoji wins over this option, and the page is then started with --emoji-markers false so it matches the terminal.",
       "default": false
     }
   },
