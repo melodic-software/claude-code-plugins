@@ -93,9 +93,10 @@
 # KNOWN FALSE POSITIVES. These are refused although harmless, because the
 # guard cannot tell them apart from a harmful spelling: a single-quoted `'$X'`
 # (read as a bare variable), `~-` (read as `~name`), `cd sub && rm -rf ../x`
-# and `(cd ..) ; rm -rf build` (a relative operand must stay inside from every
-# directory the command may run it from, because the guard does not assume a
-# cd succeeded or that it moved this shell), `cd <worktree> && rm -rf .work/x`
+# and `(cd ..) ; rm -rf build` and `env -C /opt true; rm -rf build` (a
+# relative operand must stay inside from every directory the command may run
+# it from, because the guard does not assume a cd succeeded or which command a
+# directory change applies to), `cd <worktree> && rm -rf .work/x`
 # from a different checkout's cwd (every target is judged against the payload
 # cwd's tree), a glob over a directory of many files (every entry counts toward
 # the glob cap), a backslash-escaped brace (it reads as partly quoted), and
