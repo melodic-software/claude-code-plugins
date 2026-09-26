@@ -317,6 +317,8 @@ assert_contains "project approval not evaluated line" "$OUT" \
   "# not evaluated: project approval in settings files (enabledMcpjsonServers, enableAllProjectMcpServers); only the ~/.claude.json project entry is read, so an unapproved project row shows approval-unknown"
 assert_contains "file-scope precedence not evaluated line" "$OUT" \
   "# not evaluated: file-scope rows are not checked for precedence against other scopes"
+assert_contains "drop-in merge not evaluated line" "$OUT" \
+  "# not evaluated: managed-settings.d drop-ins are merged by whole entry per name; key-level merging is not modeled"
 
 # Review probe classifications.
 check_row a-bash-env npx p@1.0.0 exact unscoped
@@ -332,10 +334,10 @@ check_row i-cmd-dsc npx floaty@latest floating-tag unscoped
 check_row j-env npx floaty floating-unversioned unscoped
 check_row k-docker-mem docker mcp/x floating-unversioned mcp
 check_row l-bash-quoted npx q@1.0.0 exact unscoped
-check_row m-args-obj npx - not-a-package -
-check_row n-bidi npx x@1.0.0 exact unscoped
+check_row m-args-obj npx - unparsed -
+check_row n-bidi npx - unparsed -
 check_row o-pwsh npx floaty floating-unversioned unscoped
-check_row p-docker-sha-only docker img@sha256:abc mutable-tag library
+check_row p-docker-sha-only docker - unparsed -
 check_row q-uvx-star uvx 'pkg==1.*' floating-range pypi
 check_row r-npx-v npx pkg@v1.2.3 exact unscoped
 check_row s-py-eq3 uvx pkg===1.0 exact pypi
@@ -344,13 +346,13 @@ check_row u-bash-combined npx u@1.0.0 exact unscoped
 check_row v-local-wrapped local - wrapped local
 check_row w-npx-assign npx - unparsed -
 check_row x-docker-assign docker - unparsed -
-assert_eq "bidi format char stripped from name" "bidi@1.0.0" "$(cell file bidiname 6)"
+assert_eq "format-char name redacted by raw length" "bidi@1.0.0" "$(cell file 'redacted-name(9)' 6)"
 assert_not_contains "no RLO char in output" "$OUT" $'\xe2\x80\xae'
 assert_contains "source with a server map is found" "$OUT" "# source file $FIX/probe cases.json found"
 
-# Control characters in a server name are neutralized.
+# Control characters in a server name are never printed; the name is redacted.
 assert_not_contains "no ESC byte in output" "$OUT" $'\e'
-assert_eq "control chars stripped from name" "ctl@1.0.0" "$(cell user 'evilname[31m' 6)"
+assert_eq "control-char name redacted by raw length" "ctl@1.0.0" "$(cell user 'redacted-name(15)' 6)"
 
 # Transport and sandboxed columns.
 assert_eq "stdio transport" "stdio" "$(cell file npx-bare 4)"
@@ -383,7 +385,7 @@ check_row npx-file npx file:../pkg local-path local
 check_row npx-github npx github:owner/repo git-ref github:owner
 check_row npx-userrepo npx owner/repo git-ref github:owner
 check_row npx-gitcommit npx git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567 git-commit github.com
-check_row npx-tarball npx https://host.example.com/x.tgz tarball host.example.com
+check_row npx-tarball npx - unparsed -
 check_row cmd-wrap npx w-mcp@1.0.0 exact unscoped
 check_row cmdexe-wrap npx w-mcp@latest floating-tag unscoped
 check_row npx-cmd npx c-mcp@1.0.0 exact unscoped
@@ -418,7 +420,7 @@ check_row docker-port-untagged docker localhost:5000/img floating-unversioned lo
 check_row podman podman quay.io/org/img:2 mutable-tag quay.io/org
 check_row nerdctl nerdctl img:latest floating-tag library
 check_row local local my-server not-a-package local
-check_row remote-http remote https://mcp.example.com:8443 n/a mcp.example.com
+check_row remote-http remote - unparsed -
 check_row remote-sse remote https://sse.example.com n/a sse.example.com
 check_row remote-oauth remote https://o.example.com n/a o.example.com
 
@@ -545,25 +547,25 @@ check_row cmd-with-spaces local - unparsed -
 check_row cmd-env-path local - unparsed -
 check_row cmd-win-path local - unparsed -
 check_row cmd-multiline local - unparsed -
-check_row url-at-in-pass remote https://host.example.com n/a host.example.com
+check_row url-at-in-pass remote - unparsed -
 check_row url-slash-in-pass remote - unparsed -
 check_row url-hash-in-pass remote - unparsed -
 check_row url-query-in-pass remote - unparsed -
-check_row git-at-in-pass npx git+https://github.com/o/r.git git-ref github.com
-check_row uvx-from-at uvx git+https://gh.com/o/r git-ref gh.com
+check_row git-at-in-pass npx - unparsed -
+check_row uvx-from-at uvx - unparsed -
 check_row hdr remote https://h.example.com n/a h.example.com
 check_row env npx p@1.0.0 exact unscoped
 check_row 'redacted-name(18)' npx p@1.0.0 exact unscoped
 check_row 'redacted-name(36)' npx long@1.0.0 exact unscoped
 check_row argsecret npx - unparsed -
 check_row argsecret2 npx pkg@1.0.0 exact unscoped
-check_row unicode npx pkg@1.0.0 exact unscoped
+check_row unicode npx - unparsed -
 check_row pwsh npx pkg@1.0.0 exact unscoped
 check_row pwsh-bare npx pkg@1.0.0 exact unscoped
 check_row cmdc npx pkg@1.0.0 exact unscoped
 check_row cmdc-space npx pkg@1.0.0 exact unscoped
 check_row cmdc-quoted npx pkg@1.0.0 exact unscoped
-check_row wrapped-unsafe local - wrapped local
+check_row wrapped-unsafe local - unparsed -
 check_row latest npx @scope/pkg@latest floating-tag @scope
 check_row scoped npx @scope/pkg floating-unversioned @scope
 check_row scopedexact npx @scope/pkg@1.2.3 exact @scope
@@ -583,6 +585,181 @@ check_row dockerenvinline docker img:1 mutable-tag library
 check_row npxcmdwin npx pkg floating-unversioned unscoped
 check_row npmexec npm-exec pkg@2 floating-range unscoped
 check_row yarn yarn-dlx pkg@1.0.0 exact unscoped
+
+# --- Run 7: re-attack fixture (every ZQX token must stay out of all output) ------
+# One server per case; ZQX062 is a managed-settings.d drop-in.
+
+mkdir -p "$FIX/managed five/managed-settings.d"
+cat >"$FIX/managed five/managed-settings.d/50-x.json" <<'JSON'
+{"managedMcpServers": {"s": {"type":"http","url":"https://u:ZQX062@h.example.com/mcp?k=ZQX062#ZQX062","headers":{"X":"ZQX062"},"oauth":{"clientSecret":"ZQX062"}}}}
+JSON
+cat >"$FIX/reattack cases.json" <<'JSON'
+{"mcpServers": {
+  "r001":{"type":"http","url":"https://user%40x:ZQX001@h.example.com/mcp"},
+  "r002":{"type":"http","url":"https://u:ZQX002@[::1]:8443/mcp"},
+  "r003":{"type":"http","url":"HTTPS://ZQX003:x@H.EXAMPLE.COM:444/m"},
+  "r004":{"command":"npx","args":["-y","git+ssh://git:ZQX004@github.com/o/r.git"]},
+  "r005":{"command":"npx","args":["-y","ssh://ZQX005@github.com/o/r"]},
+  "r006":{"command":"npx","args":["-y","ZQX006@github.com:o/r"]},
+  "r007":{"command":"npx","args":["-y","git+ssh:ZQX007@github.com:o/r"]},
+  "r008":{"command":"npx","args":["-y","file://ZQX008:p@host/share/pkg.tgz"]},
+  "r009":{"command":"npx","args":["-y","foo@npm:bar@https://u:ZQX009@h.example.com/x.tgz"]},
+  "r010":{"command":"npx","args":["-y","https://h.example.com/p@ZQX010/x.tgz"]},
+  "r011":{"type":"http","url":"https:\u005c\u005cu:ZQX011@h.example.com\u005cmcp"},
+  "r071":{"type":"http","url":"https://h.example.com\u005cZQX071\u005cmcp"},
+  "r012":{"type":"http","url":"https://h.example.com ?token=ZQX012"},
+  "r072":{"type":"http","url":"https://h.example.com token=ZQX072"},
+  "r013":{"command":"npx","args":["-y","git+https://github.com/o/r#ZQX013#0123456789abcdef0123456789abcdef01234567"]},
+  "r014":{"command":"npx","args":["-y","git+https://github.com/o/r?t=ZQX014#0123456789abcdef0123456789abcdef01234567"]},
+  "r015":{"type":"http","url":"u:ZQX015@h.example.com/mcp"},
+  "r016":{"type":"http","url":"//u:ZQX016@h.example.com/mcp"},
+  "r017":{"type":"http","url":"https://h.example.com;token=ZQX017/mcp"},
+  "r018":{"command":"bash","args":["-c","env X=1 sh -c 'npx pkg --token ZQX018'"]},
+  "r019":{"command":"cmd","args":["/v","/c","set T=ZQX019&& npx -y pkg"]},
+  "r020":{"command":"powershell","args":["-EncodedCommand","ZQX020base64"]},
+  "r021":{"command":"pwsh","args":["-c","& { $env:X='ZQX021'; npx pkg }"]},
+  "r022":{"command":"cmd","args":["/c","set /p T=ZQX022 && npx pkg"]},
+  "r023":{"command":"bash","args":["-c","export T=ZQX023; npx pkg"]},
+  "r024":{"command":"T=ZQX024","args":["npx","pkg"]},
+  "r073":{"command":"bash","args":["-c","T=ZQX073 npx pkg"]},
+  "r025":{"command":"sudo","args":["-E","npx","pkg","--key","ZQX025"]},
+  "r026":{"command":"npx","args":["--node-options=--x=ZQX026","pkg"]},
+  "r027":{"command":"npm","args":["exec","--","pkg","--token","ZQX027"]},
+  "r028":{"command":"yarn","args":["dlx","-p","pkg","bin","--token=ZQX028"]},
+  "r029":{"command":"bash","args":["-c","API_KEY='abc ZQX029' ./server"]},
+  "r030":{"command":"bash","args":["-c","npx -y pkg@1.0.0;curl${IFS}-H${IFS}Auth:ZQX030"]},
+  "r031":{"command":"pwsh","args":["-c","npx pkg@1;$env:T='ZQX031'"]},
+  "r032":{"command":"cmd","args":["/c","npx pkg@1&&set T=ZQX032"]},
+  "r033":{"command":"bash","args":["-c","uvx mcp-x==1.0\u00a0--token\u00a0ZQX033"]},
+  "r034":{"command":"docker","args":["run","--env=K=ZQX034","img"]},
+  "r035":{"command":"docker","args":["run","-e=K=ZQX035","img"]},
+  "r036":{"command":"docker","args":["run","--label","k=ZQX036","img"]},
+  "r037":{"command":"docker","args":["run","--secret","id=ZQX037","img"]},
+  "r038":{"command":"docker","args":["run","--build-arg","T=ZQX038","img"]},
+  "r039":{"command":"docker","args":["run","-v","/ZQX039:/d","img"]},
+  "r040":{"command":"docker","args":["run","--entrypoint","/bin/ZQX040","img","arg"]},
+  "r041":{"command":"docker","args":["run","img","--token","ZQX041"]},
+  "r042":{"command":"uvx","args":["--with","ZQX042pkg","mcp-x"]},
+  "r043":{"command":"uvx","args":["--index-url","https://u:ZQX043@h.example.com/simple","mcp-x"]},
+  "r044":{"command":"pipx","args":["run","--spec","https://u:ZQX044@h.example.com/x.whl?t=1","mcp-x"]},
+  "r045":{"command":"uvx","args":["mcp-x==1.0 --api-key ZQX045"]},
+  "r046":{"command":"uvx","args":["mcp-x==1.0\rZQX046"]},
+  "r047":{"command":"npx","args":[123,null,{"t":"ZQX047"},["ZQX047b"],"pkg"]},
+  "r048":{"command":"docker","args":["run","-p",8080,"-v","ZQX048:/data","img"]},
+  "r049":{"command":{"x":"ZQX049"},"args":["ZQX049b"]},
+  "\u0455k-ZQX050":{"type":"http","url":"https://h.example.com"},
+  "Sk-ZQX051":{"type":"http","url":"https://h.example.com"},
+  "ASIAZQX052ABCDEFGHIJ":{"type":"http","url":"https://h.example.com"},
+  "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ.ZQX053sig":{"type":"http","url":"https://h.example.com"},
+  "s\u00adk-ZQX054":{"type":"http","url":"https://h.example.com"},
+  "r055":{"command":"npx","args":["pkg","--token","ZQX055AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"]},
+  "r056":{"command":"\u001b]0;ZQX056\u0007server","args":[]},
+  "r057":{"command":"bash","args":["-c","npx pkg\u2028ZQX057"]},
+  "r058":{"command":"uvx","args":["mcp-x==1\u0000ZQX058"]},
+  "r059":{"type":"stdio","url":"https://u:ZQX059@h.example.com/mcp"},
+  "r060":{"type":"http","url":"https://h.example.com/mcp","command":"bash","args":["-c","ZQX060"]},
+  "r061":{"type":"ZQX061","url":"https://h.example.com/mcp"},
+  "r063":{"command":"npx","args":["pkg"],"env":{"K":"ZQX063"},"headers":{"A":"ZQX063"},"oauth":{"clientId":"ZQX063"},"headersHelper":"/bin/ZQX063"},
+  "r065":{"command":"uvx","args":["mcp-x[ZQX065 secret]"]},
+  "r066":{"command":"npx","args":["pkg@1.0.0 ZQX066"]},
+  "r067":{"type":"http","url":"https://h.example.com/mcp?k=ZQX067#ZQX067"},
+  "r068":{"command":"env","args":["-S","X=ZQX068 npx pkg"]},
+  "r069":{"command":"env","args":["-S","X='a ZQX069' npx pkg"]},
+  "r070":{"command":"cmd","args":["/c","set \"T=a ZQX070\" && npx pkg"]},
+  "r074":{"command":"bash","args":["-c","X=\"a ZQX074\" npx -y pkg"]},
+  "r075":{"command":"uvx","args":["mcp-x==1.0;ZQX075"]},
+  "r076":{"command":"npx","args":["-y","pkg@1.0.0&&curl${IFS}ZQX076"]},
+  "r077":{"command":"docker","args":["run","ZQX077@r:t"]},
+  "r078":{"command":"bash","args":["-c","sudo -E npx pkg --token ZQX078"]},
+  "r079":{"command":"npx","args":["-y","pkg@git+https://github.com/o/r?#ZQX079"]},
+  "r080":{"type":"sse","url":"wss://ZQX080@h.example.com"},
+  "r081":{"command":"uvx","args":["--from","mcp-x @ git+https://u:ZQX081@github.com/o/r","mcp-x"]},
+  "r082":{"command":"npx","args":["-y","@scope/pkg@1.0.0\u200bZQX082"]},
+  "r083":{"command":"C:\u005cProgram Files\u005cnode\u005cnpx.cmd","args":["-y","pkg@latest","--api-key=ZQX083"]},
+  "r084":{"command":"npx","args":["-y","github:ZQX084@o/r"]}
+}}
+JSON
+
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/managed five" --config "$FIX/reattack cases.json" --date 2026-01-02
+assert_eq "run 7 exits 0" 0 "$RC"
+assert_eq "run 7 prints one row per case" 83 \
+  "$(printf '%s\n' "$OUT" | sed -n '3,$p' | grep -vc '^#')"
+check_row r001 remote https://h.example.com n/a h.example.com
+check_row r002 remote 'https://[::1]:8443' n/a '[::1]'
+check_row r003 remote - unparsed -
+check_row r004 npx git+ssh://github.com/o/r.git git-ref github.com
+check_row r018 npx pkg floating-unversioned unscoped
+check_row r022 local - unparsed -
+check_row r029 local server not-a-package local
+check_row r030 local - unparsed -
+check_row r047 npx - unparsed -
+check_row r061 - - unparsed -
+check_row r074 npx pkg floating-unversioned unscoped
+check_row r081 uvx 'mcp-x @ git+https://github.com/o/r' git-ref github.com
+assert_eq "unknown type prints transport unknown" "unknown" "$(cell file r061 4)"
+assert_eq "valid drop-in managedMcpServers entry loads" "yes" "$(cell managed-settings s 3)"
+assert_eq "drop-in url with a query is unparsed" "unparsed" "$(cell managed-settings s 7)"
+assert_eq "non-ASCII name redacted by raw length" "https://h.example.com" "$(cell file 'redacted-name(10)' 6)"
+
+# --- Run 8: managed validity, conditional shadowing, names, transports ---------
+
+mkdir -p "$FIX/managed four" "$FIX/seven"
+cat >"$FIX/managed four/managed-settings.json" <<'JSON'
+{"managedMcpServers": {
+  "ok-entry": {"type": "http", "url": "https://ok.example.com/mcp"},
+  "bad-cmd": {"type": "http", "url": "https://x.example.com/mcp", "command": "npx"},
+  "bad-http": {"type": "http", "url": "http://x.example.com/mcp"},
+  "bad-var": {"type": "http", "url": "https://x.example.com/${TOKEN}"},
+  "bad.name": {"type": "http", "url": "https://x.example.com/mcp"},
+  "bad-env": {"type": "http", "url": "https://x.example.com/mcp", "env": {"A": "b"}}
+}}
+JSON
+cat >"$FIX/seven/claude.json" <<'JSON'
+{"mcpServers": {
+  "pua": {"command": "npx", "args": ["pua-user@1.0.0"]},
+  "bad-cmd": {"command": "npx", "args": ["bc-user@1.0.0"]}
+}}
+JSON
+cat >"$FIX/seven/.mcp.json" <<'JSON'
+{"mcpServers": {"pua": {"command": "npx", "args": ["pua-project@1.0.0"]}}}
+JSON
+cat >"$FIX/seven/names.json" <<'JSON'
+{"mcpServers": {
+  "my server 1": {"command": "npx", "args": ["n1@1.0.0"]},
+  "abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd ": {"command": "npx", "args": ["n65@1.0.0"]},
+  "a.b.c": {"command": "npx", "args": ["dots@1.0.0"]},
+  "has:colon1": {"command": "npx", "args": ["colon@1.0.0"]},
+  "AIzaKey": {"command": "npx", "args": ["aiza@1.0.0"]},
+  "eyJx": {"command": "npx", "args": ["eyj@1.0.0"]},
+  "t-unknown": {"type": "websocket", "url": "https://x.example.com"},
+  "t-sdk": {"type": "sdk"}
+}}
+JSON
+
+run_inv --claude-json "$FIX/seven/claude.json" --project "$FIX/seven" --mcp-json "$FIX/seven/.mcp.json" \
+  --managed-dir "$FIX/managed four" --config "$FIX/seven/names.json" --date 2026-01-02
+assert_eq "run 8 exits 0" 0 "$RC"
+assert_eq "unapproved project row" "approval-unknown" "$(cell project pua 3)"
+assert_eq "user row behind an unapproved project row" "shadowed-by:project-if-approved" "$(cell user pua 3)"
+assert_eq "valid managedMcpServers entry" "yes" "$(cell managed-settings ok-entry 3)"
+assert_eq "managedMcpServers entry with command rejected" "rejected-by-client" "$(cell managed-settings bad-cmd 3)"
+assert_eq "managedMcpServers entry with http url rejected" "rejected-by-client" "$(cell managed-settings bad-http 3)"
+assert_eq "managedMcpServers entry with a variable rejected" "rejected-by-client" "$(cell managed-settings bad-var 3)"
+assert_eq "managedMcpServers entry with a dotted name rejected" "rejected-by-client" \
+  "$(cell managed-settings bad.name 3)"
+assert_eq "managedMcpServers entry with env rejected" "rejected-by-client" "$(cell managed-settings bad-env 3)"
+assert_eq "rejected managed entry shadows nothing" "yes" "$(cell user bad-cmd 3)"
+assert_eq "plain name with spaces printed" "n1@1.0.0" "$(cell file 'my server 1' 6)"
+assert_eq "name over 64 characters redacted" "n65@1.0.0" "$(cell file 'redacted-name(65)' 6)"
+assert_eq "dotted base64url name redacted" "dots@1.0.0" "$(cell file 'redacted-name(5)' 6)"
+assert_eq "name outside the charset redacted" "colon@1.0.0" "$(cell file 'redacted-name(10)' 6)"
+assert_eq "AIza name redacted" "aiza@1.0.0" "$(cell file 'redacted-name(7)' 6)"
+assert_eq "eyJ name redacted" "eyj@1.0.0" "$(cell file 'redacted-name(4)' 6)"
+assert_eq "unrecognized type prints transport unknown" "unknown" "$(cell file t-unknown 4)"
+assert_eq "unrecognized type row is unparsed" "unparsed" "$(cell file t-unknown 7)"
+assert_eq "sdk transport" "sdk" "$(cell file t-sdk 4)"
+assert_eq "sdk launcher" "sdk" "$(cell file t-sdk 5)"
 
 # --- Exit 2 cases --------------------------------------------------------------
 
@@ -632,11 +809,12 @@ assert_eq "jq missing exits 2" 2 "$RC"
 assert_contains "jq missing names jq" "$ERR" "jq"
 
 # --- Planted secrets never reach stdout or stderr of any run -------------------
-# Every LEAK*/SECRET* token planted in any fixture is checked against the combined
-# stdout and stderr of every run above.
+# Every LEAK*/SECRET* token and every ZQXnnn id planted in any fixture is checked
+# against the combined stdout and stderr of every run above.
 
-planted="$(grep -rhoE '(LEAK|SECRET)[A-Z0-9_]*' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
+planted="$(grep -rhoE '(LEAK|SECRET)[A-Z0-9_]*|ZQX[0-9]{3}' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
 assert_eq "planted secret tokens were collected" "yes" "$([[ -n "$planted" ]] && echo yes)"
+assert_eq "all 83 re-attack ids were collected" 83 "$(printf '%s\n' "$planted" | grep -c '^ZQX')"
 while IFS= read -r secret; do
   [[ -z "$secret" ]] && continue
   assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
