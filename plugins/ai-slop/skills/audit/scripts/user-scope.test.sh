@@ -11,7 +11,9 @@ US="$SCRIPT_DIR/user-scope.sh"
 DETECT="$SCRIPT_DIR/detect.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-TEST_TMPDIR="$(cd -P "$TEST_TMPDIR" && pwd)"
+# The script prints Windows form under MSYS (`pwd -W`), plain pwd elsewhere;
+# expected paths are built the same way.
+TEST_TMPDIR="$(cd -P "$TEST_TMPDIR" && { pwd -W 2>/dev/null || pwd; })"
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
 unset CLAUDE_CONFIG_DIR
@@ -21,7 +23,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=47
+EXPECTED_CASES=58
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -85,6 +87,7 @@ decoys=(
   output-styles/sub/x.md
   skills/s1/notes.txt
   rules/r.txt
+  skills/group/s/SKILL.md
 )
 memory=(
   projects/p1/memory/MEMORY.md
@@ -187,6 +190,55 @@ if printf 'text\n' >"$TB/rules/a"$'\t'"b.md" 2>/dev/null && [[ -f "$TB/rules/a"$
   assert_eq "tab: a path holding a tab is skipped" "$out" "$TB/rules/ok.md"
 else
   skip "tab: a path holding a tab is skipped" "file system refuses a tab in a name"
+fi
+
+# --- symlinks --------------------------------------------------------------------
+
+SL="$TEST_TMPDIR/links"
+link_cases=(
+  "links: the listing returns within the timeout"
+  "links: a symlinked skill directory is not walked"
+  "links: a symlinked skill directory is named on stderr"
+  "links: the plain file is listed"
+  "links: an in-root link to a listed file is deduplicated"
+  "links: an in-root link to another .md file is listed"
+  "links: a link to a file outside the root is not listed"
+  "links: the outside link is named on stderr"
+  "links: a .md link to a .json file is not listed"
+  "links: a self-referencing link is not listed"
+)
+mkdir -p "$SL/probe"
+if command -v timeout >/dev/null 2>&1 && ln -s target "$SL/probe/link" 2>/dev/null && [[ -L "$SL/probe/link" ]]; then
+  mkfile "$SL/skills/real/SKILL.md"
+  mkfile "$SL/elsewhere/s2/SKILL.md"
+  mkfile "$SL/elsewhere/s2/x.md"
+  mkfile "$SL/rules/a.md"
+  mkfile "$SL/notes/target.md"
+  mkfile "$SL/secret.json"
+  mkfile "$TEST_TMPDIR/outside.md"
+  ln -s ../elsewhere/s2 "$SL/skills/linked"
+  ln -s a.md "$SL/rules/alias.md"
+  ln -s ../notes/target.md "$SL/rules/only.md"
+  ln -s "$TEST_TMPDIR/outside.md" "$SL/rules/out.md"
+  ln -s ../secret.json "$SL/rules/creds.md"
+  ln -s loop.md "$SL/rules/loop.md"
+  ln -s . "$SL/rules/loopdir"
+  CLAUDE_CONFIG_DIR="$SL" timeout 10 bash "$US" >"$TEST_TMPDIR/links-out" 2>"$TEST_TMPDIR/links-err"
+  rc=$?
+  out="$(cat "$TEST_TMPDIR/links-out")"
+  err="$(cat "$TEST_TMPDIR/links-err")"
+  assert_exit "${link_cases[0]}" 0 "$rc"
+  assert_no_line "${link_cases[1]}" "$out" "$SL/skills/linked/x.md"
+  assert_contains "${link_cases[2]}" "$err" "symlinked directory not followed: $SL/skills/linked"
+  assert_line "${link_cases[3]}" "$out" "$SL/rules/a.md"
+  assert_no_line "${link_cases[4]}" "$out" "$SL/rules/alias.md"
+  assert_line "${link_cases[5]}" "$out" "$SL/rules/only.md"
+  assert_no_line "${link_cases[6]}" "$out" "$SL/rules/out.md"
+  assert_contains "${link_cases[7]}" "$err" "skipped symlink: $SL/rules/out.md"
+  assert_no_line "${link_cases[8]}" "$out" "$SL/rules/creds.md"
+  assert_no_line "${link_cases[9]}" "$out" "$SL/rules/loop.md"
+else
+  for c in "${link_cases[@]}"; do skip "$c" "no ln -s or timeout"; done
 fi
 
 # --- detect.sh consumes the list -------------------------------------------------

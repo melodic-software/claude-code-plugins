@@ -126,7 +126,7 @@ cmd_plan() {
   done
   [[ -n "$out" && -n "$targets" ]] || die "plan needs --out <dir> and a targets file"
   [[ "$budget" =~ ^[1-9][0-9]*$ ]] || die "plan: --budget must be a positive integer"
-  [[ -r "$targets" ]] || die "plan: cannot read targets file: $targets"
+  [[ -f "$targets" && -r "$targets" ]] || die "plan: cannot read targets file: $targets"
   mkdir -p "$out" || die "plan: cannot create $out"
   if compgen -G "$out/batch-*.txt" >/dev/null; then
     die "plan: $out already holds batch lists; plan into a fresh directory, or run status to resume"

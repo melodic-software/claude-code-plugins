@@ -135,6 +135,9 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   directory instead. Recheck when the page adds, moves, or drops a user-level markdown surface,
   or changes what `CLAUDE_CONFIG_DIR` relocates.
 - `@path` imports are not followed. Pass an imported file as an explicit path target.
+- A symlink is followed only to a readable regular `.md` file inside the config root, and
+  that file is listed once. A symlinked directory is not walked, and a link pointing outside
+  the root is skipped; the script names each on stderr. Pass anything else explicitly.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
 - The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
   `CLAUDE_CONFIG_DIR` is set, and its project layers come from the session's project directory.

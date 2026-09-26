@@ -21,7 +21,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=82
+EXPECTED_CASES=86
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -53,6 +53,10 @@ assert_not_contains() {
 }
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
+}
+# assert_line_in <name> <file> <line>: the file holds that exact line.
+assert_line_in() {
+  if grep -qxF -- "$3" "$2" 2>/dev/null; then pass "$1"; else fail "$1" "line: $3" "$(cat "$2" 2>&1)"; fi
 }
 
 sha() { sha256sum <"$1" | cut -d' ' -f1; }
@@ -381,6 +385,19 @@ out="$(bash "$FANOUT" status --batches "$MS/bad" --results "$MS/results" 2>&1)"
 assert_contains "missing: a sidecar length mismatch says reason=paths" "$out" "batch=01 status=missing reason=paths digest="
 assert_contains "missing: an all-missing sidecar says reason=paths" "$out" "batch=02 status=missing reason=paths digest="
 
+# The digest, computed here without batch_digest: the list, the separator
+# line, then sha256sum over the regular file only; the missing and directory
+# entries add nothing.
+MX="$TEST_TMPDIR/mixed"
+mkdir -p "$MX/b" "$MX/results" "$MX/docs/d.md"
+printf 'one\n' >"$MX/docs/r.md"
+printf 'r.md\nm.md\nd.md\n' >"$MX/b/batch-01.txt"
+printf '%s\n' "$MX/docs/r.md" "$MX/docs/m.md" "$MX/docs/d.md" >"$MX/b/batch-01.paths"
+want="$({ cat "$MX/b/batch-01.txt"; printf -- '--- rubric-fanout batch contents ---\n'; sha256sum -- "$MX/docs/r.md"; } | sha256sum | cut -d' ' -f1)"
+out="$(bash "$FANOUT" status --batches "$MX/b" --results "$MX/results" 2>&1)"
+assert_eq "digest: regular, missing and directory entries match an independent computation" \
+  "$(digest_of "$out" 01)" "$want"
+
 # A FIFO at a listed path, or as the sidecar itself, is never opened. A stuck
 # reader left by a regression is released by opening the FIFO read-write.
 FF="$TEST_TMPDIR/fifo"
@@ -392,6 +409,9 @@ fifo_cases=(
   "fifo: an all-FIFO batch says reason=paths"
   "fifo: a FIFO as the sidecar itself says reason=paths"
   "fifo: plan with a FIFO target exits 0 within the timeout"
+  "fifo: plan counts the FIFO target as 0 words, with a warning"
+  "fifo: plan still names the FIFO path in the sidecar"
+  "fifo: plan with a FIFO targets file exits 2 within the timeout"
 )
 if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
   mkdir -p "$FF/docs" "$FF/b1" "$FF/b2" "$FF/b3" "$FF/results" && mkfifo "$FF/docs/p.md" "$FF/docs/q.md" "$FF/b3/batch-01.paths"; then
@@ -419,6 +439,13 @@ if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
   rc=$?
   release "$FF/docs/p.md"
   assert_exit "${fifo_cases[5]}" 0 "$rc"
+  assert_contains "${fifo_cases[6]}" "$(cat "$FF/out4")" "cannot read $FF/docs/p.md; counted as 0 words"
+  assert_line_in "${fifo_cases[7]}" "$FF/planned/batch-01.paths" "$FF/docs/p.md"
+  mkfifo "$FF/targets-fifo.tsv"
+  timeout 10 bash "$FANOUT" plan --out "$FF/planned-2" "$FF/targets-fifo.tsv" >/dev/null 2>&1
+  rc=$?
+  release "$FF/targets-fifo.tsv"
+  assert_exit "${fifo_cases[8]}" 2 "$rc"
 else
   for c in "${fifo_cases[@]}"; do skip "$c" "no mkfifo or timeout"; done
 fi
