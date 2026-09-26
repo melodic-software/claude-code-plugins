@@ -5,7 +5,7 @@
       "id": 1,
       "name": "triggers-on-pixel-art-cutscene",
       "prompt": "make a pixel-art cutscene: night forest, the hero walks up to a campfire and says 'we rest here', 320x180",
-      "expected_output": "Fires /pixel-art:scene. Pins beats, cast and set, keeps the 320x180 logical resolution with integer scaling, embeds character sprite specs rather than redrawing them, drives beats from a fixed 60 Hz step with 8 to 12 fps sprite cadence, steps light and fades through palette colours or Bayer dither, inlines embeds with embed.py into one self-contained HTML file, and delivers the HTML path and gallery as clickable links.",
+      "expected_output": "Fires /pixel-art:scene. Pins beats, cast and set, keeps the 320x180 logical resolution with integer scaling, embeds character sprite specs rather than redrawing them, drives beats from a fixed 60 Hz step with 8 to 12 fps sprite cadence, steps light and fades through palette colors or Bayer dither, inlines embeds with embed.py into one self-contained HTML file, and delivers the HTML path and gallery as clickable links.",
       "files": [],
       "expectations": [
         "Invokes the scene skill, not sprite or animate",

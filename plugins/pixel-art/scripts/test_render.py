@@ -107,7 +107,7 @@ class RenderTest(unittest.TestCase):
         body = render.lzw_encode(indices, 4)
         self.assertEqual(lzw_decode(body, 4), indices)
 
-    def test_rejects_unknown_colour_and_ragged_frame(self):
+    def test_rejects_unknown_color_and_ragged_frame(self):
         bad = dict(SPEC, frames={"a": ["kx", "rg"], "b": ["gr", ".k"]})
         with self.assertRaisesRegex(ValueError, "not in the palette"):
             render.validate(bad)

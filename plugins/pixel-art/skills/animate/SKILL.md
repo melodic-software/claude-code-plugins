@@ -80,5 +80,5 @@ target, name the file-naming rule the engine needs (MZ: `$` prefix for a single-
 - GIF delays are whole hundredths of a second; `render.py` rounds each duration and floors at 20 ms.
 - The Read tool shows a GIF's first frame only. Review motion from `preview.png`, or from browser
   screenshots when a browser automation tool is present.
-- Sub-pixel animation and smear frames depend on palette shades between colours; plan ramps before
+- Sub-pixel animation and smear frames depend on palette shades between colors; plan ramps before
   animating.

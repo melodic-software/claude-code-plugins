@@ -17,13 +17,13 @@ Sources: [Saint11](https://saint11.art/blog/pixel-art-tutorials/) tutorial image
 - Squint test: a few large clusters of light and dark must still emerge. [Derek Yu 1]
 - Prefer clusters over orphan pixels; an orphan pixel is noise unless it is a deliberate detail.
   [Saint11 Fundamentals]
-- Check the silhouette filled with one colour before shading (judgment, follows Saint11).
+- Check the silhouette filled with one color before shading (judgment, follows Saint11).
 
 ## Outlines
 
 - Full dark outline: cartoony, separates shapes, but segments harshly. [Derek Yu 1; Saint11 Outlines]
-- Selective outline (sel-out): colour the outline by the light, lighter toward the light, removed
-  where the sprite meets lit negative space; use dark shadow colours, not black, for interior lines.
+- Selective outline (sel-out): color the outline by the light, lighter toward the light, removed
+  where the sprite meets lit negative space; use dark shadow colors, not black, for interior lines.
   [Derek Yu 1; Pixel Logic; Saint11 Outlines]
 - Sel-out is the most common outline type. [Pixel Logic]
 - Inner borders can be lighter than the outer outline. [Saint11 Outlines]
@@ -42,13 +42,13 @@ Sources: [Saint11](https://saint11.art/blog/pixel-art-tutorials/) tutorial image
 ## Ramps and hue shifting
 
 - Shift hue as well as value along a ramp. [Saint11 Shading; Pixel Logic]
-- Shift toward warmer hues as colours brighten ("positive hue shift"). [Slynyrd 1]
+- Shift toward warmer hues as colors brighten ("positive hue shift"). [Slynyrd 1]
 - Saturation peaks mid-ramp and never reaches 0 or 100; brightness rises steadily and rarely
   starts at 0. [Slynyrd 1]
 - Never combine high saturation with high brightness. [Slynyrd 1]
-- Faces of flat surfaces are mostly one solid colour; compress bands so steps are hard to see.
+- Faces of flat surfaces are mostly one solid color; compress bands so steps are hard to see.
   [Saint11 Shading]
-- Ramp length 3-5 colours per material for sprites up to 32px (judgment).
+- Ramp length 3-5 colors per material for sprites up to 32px (judgment).
 
 ## Pillow shading (avoid)
 
@@ -71,7 +71,7 @@ Sources: [Saint11](https://saint11.art/blog/pixel-art-tutorials/) tutorial image
 
 ## Manual anti-aliasing
 
-- Place in-between colours at the corners where two segments meet. [Derek Yu 1]
+- Place in-between colors at the corners where two segments meet. [Derek Yu 1]
 - Longer segment, longer AA run. [Lux AA]
 - Never AA the outer edge of a game sprite drawn over an unknown background. [Derek Yu 1]
 - Ask whether each AA pixel is necessary; keep AA inside the sprite. [Lux AA]
@@ -79,7 +79,7 @@ Sources: [Saint11](https://saint11.art/blog/pixel-art-tutorials/) tutorial image
 
 ## Dithering
 
-- Use on large flat areas, rough textures, and 1-bit or low-colour work. [Derek Yu 1; Lux dithering]
+- Use on large flat areas, rough textures, and 1-bit or low-color work. [Derek Yu 1; Lux dithering]
 - Avoid on small or animated character sprites; it shimmers and reads as noise. [Lux dithering;
   Saint11 Fundamentals]
 - Excess dithering makes a surface look rough. [Pixel Logic]
@@ -88,11 +88,11 @@ Sources: [Saint11](https://saint11.art/blog/pixel-art-tutorials/) tutorial image
 
 ## Palette
 
-- 32 colours is popular, 16 also common; beginners pick an existing palette. [Derek Yu 1]
-- Every colour needs its own identity; near-duplicates blend and get lost. [Derek Yu 2]
-- [Lospec palette list](https://lospec.com/palette-list) filters by colour count; start there.
-- Lock the palette per project; every asset uses only its colours (judgment).
-- Budget: 4-8 colours per small sprite including outline, drawn from the project palette
+- 32 colors is popular, 16 also common; beginners pick an existing palette. [Derek Yu 1]
+- Every color needs its own identity; near-duplicates blend and get lost. [Derek Yu 2]
+- [Lospec palette list](https://lospec.com/palette-list) filters by color count; start there.
+- Lock the palette per project; every asset uses only its colors (judgment).
+- Budget: 4-8 colors per small sprite including outline, drawn from the project palette
   (judgment).
 
 ## Grid size

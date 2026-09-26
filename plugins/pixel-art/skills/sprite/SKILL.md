@@ -18,7 +18,7 @@ Pin down, from the request or by asking (ask only for what changes the output):
 
 - **Subject and design**: what it is, key features, mood, reference styles.
 - **Size**: grid per frame (16, 24, 32, 48, 64). Engine layouts dictate it when named.
-- **Palette**: a named retro palette, a colour count, or free choice. Fewer colours read better.
+- **Palette**: a named retro palette, a color count, or free choice. Fewer colors read better.
 - **View**: front, side, three-quarter, top-down, isometric.
 - **Target**: engine or format (RPG Maker MZ, Godot, Aseprite, plain PNG) from
   [`engine-layouts.md`](${CLAUDE_PLUGIN_ROOT}/reference/engine-layouts.md).
@@ -28,8 +28,8 @@ Vague request → pick defaults, state them in one line, proceed. Iteration beat
 ## 2. Choose the backend
 
 Read [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md). `native` is the default and
-always available. Honour `${user_config.backend}` when it names another backend and that backend
-is present; when it is absent, say so and fall back to `native`. Every backend honours the same
+always available. Honor `${user_config.backend}` when it names another backend and that backend
+is present; when it is absent, say so and fall back to `native`. Every backend honors the same
 artifact contract: the spec and the files in step 4.
 
 ## 3. Author
@@ -39,8 +39,8 @@ Write the spec that `render.py` reads (its docstring is the format). Two authori
 - **Hand-authored grid**: small sprites (up to about 24x24), icons, faces. Write rows directly.
 - **Procedural generator**: larger sprites or families of variants. Write a short Python script
   that draws with primitives (rects, ellipses, lines) onto a material grid, then applies shading
-  and outlining passes and emits the spec JSON. Materials map to colour ramps (highlight, base,
-  shadow, line), which keeps the palette locked and makes recolours one-line edits.
+  and outlining passes and emits the spec JSON. Materials map to color ramps (highlight, base,
+  shadow, line), which keeps the palette locked and makes recolors one-line edits.
 
 Apply [`craft-static.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-static.md): readable silhouette
 first, one light direction, hue-shifted ramps, selective outline, no pillow shading, no banding,

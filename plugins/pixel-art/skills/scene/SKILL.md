@@ -20,7 +20,7 @@ Pin down, from the request or by asking (defaults stated in one line when unspec
 - **Cast and set**: characters (existing sprite specs or new ones), location, time of day, mood.
 - **Resolution**: a fixed logical size such as 160x144, 240x160, 320x180; everything is drawn
   there and integer-scaled.
-- **Palette**: locked, typically 16 to 32 colours.
+- **Palette**: locked, typically 16 to 32 colors.
 - **Audio**: none, or a WAV path / audio artifact from another tool, passed in explicitly.
 
 ## 2. Author
@@ -33,7 +33,7 @@ file beside the output:
   Missing characters: author them first with `/pixel-art:sprite` or `/pixel-art:animate`.
 - Beats are a timeline or state machine driven by a fixed 60 Hz step; sprite cadence stays 8 to 12
   fps; every draw lands on integer coordinates.
-- Light and fades step through palette colours or Bayer-dither patterns; never alpha, gradients or
+- Light and fades step through palette colors or Bayer-dither patterns; never alpha, gradients or
   blur.
 - Audio, when given: load it from the path the user named with WebAudio, started on the first click
   (browsers block autoplay), cues tied to the same timeline.
@@ -78,7 +78,7 @@ scene is code; offer screen recording in the browser when the user needs a video
 
 - `image-rendering: pixelated` plus `imageSmoothingEnabled = false` both matter; either alone
   smooths somewhere.
-- Per-pixel dithered relighting over a whole scene tends to look washed out; flat colours per tile
+- Per-pixel dithered relighting over a whole scene tends to look washed out; flat colors per tile
   with a highlight and a shadow edge read better.
 - The WebAudio square oscillator is fixed at 50% duty; chip-style duties need a `PeriodicWave` or
   sample buffers.

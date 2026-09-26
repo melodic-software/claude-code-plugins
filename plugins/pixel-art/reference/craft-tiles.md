@@ -12,10 +12,10 @@ Sources: [Saint11 Tiles](https://saint11.art/img/pixel-tutorials/Tiles.gif),
 ## Seamless tiling (single source: Saint11 Tiles)
 
 - Draw one master tile that wraps on all 4 edges: draw rough, offset 50% both ways, rework the
-  centre, offset back.
+  center, offset back.
 - Then draw the main edge tiles (top, middle, bottom); other shapes (tubes, corners) depend on the
   engine.
-- Variants change only the tile centre, so every variant still wraps.
+- Variants change only the tile center, so every variant still wraps.
 - Verify by rendering a 3x3 repeat and checking the seams at 1x and upscaled (judgment).
 - Avoid a single standout feature in a repeating tile; it exposes the grid (judgment).
 
@@ -31,7 +31,7 @@ The "Use when" column's Godot pairings are judgment; the Godot 3 bitmask mapping
 
 | Set | Drawn tiles | Covers | Use when |
 |---|---|---|---|
-| Blob | 47 full tiles | every edge + corner case | engine uses 8-neighbour bitmasks (Godot Match Corners and Sides, Tiled "blob") |
+| Blob | 47 full tiles | every edge + corner case | engine uses 8-neighbor bitmasks (Godot Match Corners and Sides, Tiled "blob") |
 | Corner (Wang 2-corner) | 16 full tiles | corner-only transitions | engine matches corners only (Godot Match Corners) |
 | RPG Maker quarter-tile | one 2x3 (floor) or 2x2 (wall) block | 48 floor / 16 wall shapes, composed by the engine | RPG Maker MV/MZ A1-A4 |
 
@@ -59,7 +59,7 @@ The "Use when" column's Godot pairings are judgment; the Godot 3 bitmask mapping
 - Layer position = (position - camera) x scroll factor + offset; UI factor 0; a foreground layer
   above 1 adds depth. [Saint11 Parallax]
 - Far layers: slower, darker, less saturated, lower contrast, cooler, fewer details, fading toward
-  the sky colour. Near layers: faster, brighter, saturated, warmer, detailed. [Saint11 Parallax;
+  the sky color. Near layers: faster, brighter, saturated, warmer, detailed. [Saint11 Parallax;
   Slynyrd 23]
 - Pixel-perfect loops: farthest layer 1px per frame, each nearer layer the next integer rate; the
   per-frame step must divide the loop width (96px: 1, 2, 3, 4, 6, 8...). [Slynyrd 23]
