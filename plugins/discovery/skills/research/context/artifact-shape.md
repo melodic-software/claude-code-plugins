@@ -24,7 +24,8 @@ naming what the run covered; the same one-line rule the sidecar headers already 
 topic-docs contract's indexable-artifact mini-schema hook: a slice whose sole artifact is this index
 is an index-less leaf, and the parent slice's `INDEX.md` regeneration mirrors this header's abstract
 verbatim, so the header is part of the artifact's public shape, not decoration. It applies to all
-three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`).
+three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`). `RESEARCH.md`
+also carries `evidence_use:` (see the sidecar header below).
 
 Body sections, after the frontmatter:
 
@@ -58,12 +59,16 @@ claims:
   - claim: "<one-line claim>"
     confidence: HIGH          # HIGH | MEDIUM | LOW
     tiers: [0, 1]             # source tiers backing this claim
+    applies_to: "<product> <version range>"   # the claim's target, or version-independent
     sources:                  # what makes gate criterion 4 gradeable off the artifact
       - url: "<url fetched this turn>"
         tier: 1
         pool: "<publisher/org — two sources sharing a pool are NOT independent>"
-        measures: "<variable, population, and era or question this source measured>"
+        measures: "<variable, population, era, and the claim's scenario or only the general mechanism>"
         role: primary          # primary | corroborator
+        published: 2025-11-11  # YYYY, YYYY-MM or YYYY-MM-DD, or undated
+        applies_to: "<product> <version range>"   # or version-independent
+        standing: current      # current | historical, derived as below
     inference: "<one line: why the claim follows from its sources jointly>"
     qualifiers: []            # every hedge, scope limit, or population qualifier a source records
 produced_by: <phase id>
@@ -93,6 +98,32 @@ entry in `sources[]`; every other entry is a `corroborator`. The primary is the 
 12's variable and population checks run against, so a verifier reads it off the header instead of
 guessing which source the run leaned on. A corroborator that does not measure the claim's variable
 is recorded and not counted toward criterion 4's two independent corroborators.
+
+**`published:`, `applies_to:`, and `standing:` make criterion 13 gradeable by a script.** A quote
+can sit at its link word for word and still come from a book written for a runtime ten majors
+older than the one the claim is about. Quote presence cannot show that, and the recency gate
+compares claims, not sources, with the latest release. So every source records when it was
+published (`undated` when the page carries no date) and which product and versions it describes,
+and every claim records its own target the same way.
+
+`applies_to` is `version-independent` or `<product> <range>`, where the range is `<v>`,
+`<v>-<v>`, or `<v>+` and `<v>` is dotted integers. A shorter version is a prefix: `9` is every
+`9.x`, `2.1` every `2.1.x`. `standing:` is derived, not chosen. A source is `current` when two
+things hold. It covers the claim: it names the claim's product and its range covers the claim's
+whole range, or the claim is `version-independent`; a `version-independent` source does not cover a
+versioned claim. And it is dated; an undated corroborator may be `current` only for a
+`version-independent` claim outside publish mode. Everything else is `historical`, which here
+means "does not cover the claim's target": an older major, another product line, a newer major, or
+part of the claim's range. Split a claim that spans ranges no single source covers. The primary is
+always dated and `current`. A `historical` source is recorded, labelled wherever the artifact shows
+it, and never counted toward criterion 4. `scripts/check-source-applicability.py` recomputes each
+`standing:` and fails any mismatch, so the label is never the run's own word. Whether the product
+string names the right product line, and whether a source describes the claim's scenario, stays
+with the verifier under criterion 12.
+
+**The index frontmatter carries `evidence_use: internal | publish`**, copied from the envelope's
+`Evidence use:` line; when the line is absent the run writes `internal` and says the default was
+taken. The verifier holds no envelope, so this field is how it learns the stricter bar applies.
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does, so keep the header small enough that widening it stays cheap.

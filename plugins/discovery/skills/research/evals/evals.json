@@ -131,7 +131,7 @@
         "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4, 7 or 12; the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
         "Open questions come back as text in the payload for the parent to surface, rather than being resolved silently or surfaced with AskUserQuestion, which is unavailable to a non-fork subagent",
         "Choosing the inline escape hatch instead is acceptable ONLY when the run names the condition that justifies it — tight turn-by-turn iteration, cost on a trivially small lookup, or an invoking context that is itself a subagent — and running inline relaxes no discipline",
-        "An un-runnable research gate is NOT an escape-hatch reason: before dispatching, probe --help on the artifact and coverage checkers; before an inline research run, probe the coverage checker (criterion 11). A denied or errored probe HALTS rather than taking inline to dodge the gate or self-grading the coverage ledger"
+        "An un-runnable research gate is NOT an escape-hatch reason: before dispatching, probe --help on the artifact, coverage and source-applicability checkers; before an inline research run, probe the coverage and source-applicability checkers (criteria 11 and 13). A denied or errored probe HALTS rather than taking inline to dodge the gate or self-grading the coverage ledger"
       ]
     },
     {
@@ -187,11 +187,11 @@
       "name": "complete-but-unpersisted-routes-by-value-not-discard",
       "prompt": "Research whether our pinned version of the HTTP client still has the connection-pool leak, then tell me whether to upgrade. [The dispatched discovery:researcher returns a well-formed payload: preload_token matching the sentinel, topic_as_received matching what you sent, status: complete, persistence: by-value, coverage: complete, artifact: <the slice>/RESEARCH.md, sidecars: 3 — followed by the full RESEARCH.md body, three RESEARCH-<section>.md bodies with their YAML headers, and research-checklist.md, all verbatim, plus one line saying every Write call was refused by the environment. check-dispatch-artifact.sh exits 1 against the slice.]",
       "files": [],
-      "expected_output": "Reads persistence: by-value as a routing value, not an acceptance value. The parent writes the returned bodies into the memory-slice path it resolved before dispatch, then re-runs BOTH the artifact gate and the coverage-ledger gate, proceeding only when both exit 0. It does not treat the run as truncated, does not discard the slice, does not re-dispatch, and does not answer the upgrade question on the payload alone.",
+      "expected_output": "Reads persistence: by-value as a routing value, not an acceptance value. The parent writes the returned bodies into the memory-slice path it resolved before dispatch, then re-runs the artifact gate, the source-applicability gate and the coverage-ledger gate, proceeding only when all three exit 0. It does not treat the run as truncated, does not discard the slice, does not re-dispatch, and does not answer the upgrade question on the payload alone.",
       "expectations": [
         "The run is NOT graded as truncated and the completed research is NOT discarded; status: complete plus persistence: by-value is recognized as finished work that could not be saved",
         "The parent writes the payload's verbatim RESEARCH.md, sidecar and research-checklist.md bodies into the memory-slice path IT resolved before dispatch, under those filenames — the payload's artifact: value on this path is a destination, not a claim that a file exists",
-        "BOTH gates are re-run against the now-written slice — check-dispatch-artifact.sh and check-coverage-complete.sh over the supplied ledger — and the workflow proceeds only when both exit 0; a non-zero re-run keeps the halt in force",
+        "Every gate is re-run against the now-written slice (check-dispatch-artifact.sh, check-source-applicability.py, and check-coverage-complete.sh over the supplied ledger) and the workflow proceeds only when all three exit 0; a non-zero re-run keeps the halt in force",
         "The exception is applied to the halt, never to the gate: the coverage claim is still graded from the ledger rather than from the payload, and the upgrade recommendation does not issue on the payload alone",
         "The parent does NOT resume or re-dispatch the agent first — a resume asks the worker to redo the write it just proved it cannot do, and a re-dispatch pays for every phase again to reproduce the same refusal",
         "The sibling verifier is still dispatched against the recovered artifact; verification: pending is not waived by the recovery path"
@@ -232,7 +232,7 @@
       "expectations": [
         "The absent research-checklist.md is recognized as correct rather than as a missing file, because the recovered index records the corpus as unbounded — the same rule that governs a run which wrote its own slice",
         "check-coverage-complete.sh is NOT run against the recovered slice, and its absence from the sequence is stated rather than silently skipped",
-        "The artifact gate IS still re-run and must exit 0 before anything proceeds",
+        "The artifact gate and the source-applicability gate ARE still re-run and must exit 0 before anything proceeds",
         "A ledger is not synthesized from the payload to satisfy the gate — that would fabricate a coverage claim out of a recovery path",
         "The run is not halted on the strength of a check that did not apply to it"
       ]
@@ -337,6 +337,36 @@
         "The two corroborators are recorded in the artifact and NOT counted toward criterion 4, even though they come from two different publishing pools",
         "With no counted corroborator the claim fails criterion 4 and is filed as a Gap, not accepted and not HIGH, using no status word outside the skill's existing vocabulary",
         "The Gap routes to Phase 2 for independent sources that measure median page load time for mobile users"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "old-era-verbatim-quote-is-historical-and-not-counted",
+      "prompt": "Research whether ExampleRuntime 10's atomic compare-and-swap retry loop keeps the latest timestamp under contention. [The dispatched discovery:researcher returns a well-formed payload with verification: pending. The claim's header records applies_to: 'ExampleRuntime 10'. One corroborator is a book chapter whose quote re-fetches word for word; its header entry records published: 2011, applies_to: 'ExampleRuntime Classic 4', standing: current, and measures: 'nonblocking primitives in general, no retry loop'. A second corroborator from another pool records applies_to: 'ExampleRuntime 8+', standing: current, and measures the same retry-loop scenario.]",
+      "files": [],
+      "expected_output": "Runs check-source-applicability.py on the slice and cites its exit status: the book chapter names another product line and derives historical, so its stored standing: current is a mismatch and the script exits 1, failing criterion 13. The run relabels it historical, keeps it in the artifact labelled historical, and does not count it toward criterion 4. The verifier, briefed on criterion 12's era and scenario checks, also finds the chapter describes only the general mechanism, not the retry loop. With one counted corroborator the claim falls below criterion 4 and is filed as a Gap routed to Phase 2, however exactly the quote matches its link.",
+      "expectations": [
+        "Criterion 13 cites the exit status of check-source-applicability.py rather than a reading of the headers, and treats exit 1 as a FAIL",
+        "The book chapter is recognized as historical because its applies_to names a different product line from the claim's target, not because of its age alone",
+        "The chapter stays in the artifact labelled historical rather than being deleted, and is NOT counted toward criterion 4",
+        "A verbatim quote found at its link is NOT treated as evidence that the source applies to the claim's version or scenario",
+        "The verifier's scenario check finds the chapter describes only the general mechanism, not the specific retry loop",
+        "With one counted corroborator the claim is filed as a Gap routed to Phase 2, using no status word outside the skill's existing vocabulary"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "publish-mode-grades-applicability-not-quote-presence",
+      "prompt": "Research whether ExampleLib 9's connection pool reuses sockets across tenants, because I will quote the answer in a pull-request review reply. [Resolve the envelope yourself before dispatching. The returned slice's index records evidence_use: publish. One accepted claim's corroborator is an undated vendor forum post recorded as standing: current on a claim whose applies_to is version-independent; another corroborator is an ExampleLib 9 reference page that states how pooling works in general but says nothing about tenants.]",
+      "files": [],
+      "expected_output": "Writes Evidence use: publish in the dispatch envelope because the answer will be quoted in a pull-request reply, and passes --expect-evidence-use publish to check-source-applicability.py. Under publish an undated source is always historical, so the forum post's stored standing: current fails criterion 13. The verifier is briefed that the index records evidence_use: publish and grades every cited source for applicability, product line, version range and scenario, rather than quote presence: the reference page states only the general mechanism, so it is recorded and not counted. The answer quotes only current sources as support, with any historical source confined to a note labelled historical.",
+      "expectations": [
+        "The dispatch envelope carries Evidence use: publish because the output will be quoted outside the session",
+        "The parent runs check-source-applicability.py with --expect-evidence-use publish and cites its exit status",
+        "The undated forum post is treated as historical under publish, even though the claim is version-independent, and its stored standing: current fails criterion 13",
+        "The verifier brief says the index records evidence_use: publish and asks for applicability grading of every cited source, not only whether each quote sits at its link",
+        "The general-mechanism reference page is recorded and not counted, because it does not describe the tenant scenario the claim is about",
+        "The published answer quotes only current sources as support; a historical source appears only in a note that labels it historical"
       ]
     }
   ]
