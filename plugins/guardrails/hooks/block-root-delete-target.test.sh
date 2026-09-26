@@ -906,12 +906,14 @@ expect_both 'glob: */.. climbing out blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf
 expect_both 'glob: .. inside a glob component blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .g?t/../../x'
 expect_both 'glob: .. before the glob stays judged, inside the tree allowed' 0 "${RDT_CWD[@]}" \
   --command 'rm -rf plugins/../plugins/*/build'
-# The judgment is time-bounded in the parse too: a command that parses slowly
-# refuses rather than outrunning the hook timeout. Pinned in the source, since
-# no payload under MAX_COMMAND_LEN parses for twelve seconds on a fast host.
+# The judgment is time-bounded in the parse too, but only once this arm has
+# work: a command with nothing to judge is never timed, so a slow but harmless
+# parse (the 900 sibling bodies above, near twelve seconds on a loaded runner)
+# behaves as it does without the arm. Pinned in the source, since no payload
+# under MAX_COMMAND_LEN parses that slowly on a fast host.
 assert_contains "the deadline is twelve seconds" "$(grep -n '^RDT_DEADLINE=' "$HOOK")" "RDT_DEADLINE=12"
-assert_contains "the parse callback checks the deadline" \
-  "$(sed -n '/^rdt_check_segment() {/,/^}/p' "$HOOK")" "rdt_deadline"
+assert_contains "the parse callback checks the deadline only once the arm has work" \
+  "$(sed -n '/^rdt_check_segment() {/,/^}/p' "$HOOK")" "((RDT_T0 >= 0)) && rdt_deadline"
 # Every directory a cd reaches is judged against the PAYLOAD cwd's tree, never
 # a tree of its own. The stub git answers every directory as its own toplevel,
 # so a per-directory tree would allow this delete in the home directory.
@@ -1107,11 +1109,11 @@ expect_both 'glob: */x over real directories under temp allowed' 0 --cwd "$TEST_
 expect_both 'glob: */* over real directories under temp allowed' 0 --cwd "$TEST_TMPDIR/g4ok" --command 'rm -rf */*'
 # A cd to a glob with exactly one match follows it; none or several leaves
 # the directory unknown, and a relative delete after it is refused.
-mkdir -p "$TEST_TMPDIR/g4cd/real" "$TEST_TMPDIR/g4cd/rea2" "$TEST_TMPDIR/g4cd/only"
+mkdir -p "$TEST_TMPDIR/g4cd/real" "$TEST_TMPDIR/g4cd/rea2" "$TEST_TMPDIR/g4cd/solo"
 expect_both 'cd glob: one match is followed, a delete under it allowed' 0 --cwd "$TEST_TMPDIR/g4cd" \
-  --command 'cd onl? && rm -rf x'
+  --command 'cd sol* && rm -rf x'
 expect_both 'cd glob: one match is followed, an escape from it blocks' 2 --cwd "$TEST_TMPDIR/g4cd" \
-  --command 'cd onl? && rm -rf ../../../../../../../../../../x'
+  --command 'cd sol* && rm -rf ../../../../../../../../../../x'
 expect_both 'cd glob: several matches refuse a relative delete' 2 --cwd "$TEST_TMPDIR/g4cd" \
   --command 'cd rea? && rm -rf x'
 expect_both 'cd glob: no match refuses a relative delete' 2 --cwd "$TEST_TMPDIR/g4cd" --command 'cd zz? && rm -rf x'
@@ -1269,7 +1271,6 @@ done <<'EOF'
 2|rm -rf /c*
 2|rm -rf ~*
 2|rm -rf //server/share/dir
-2|rm -rf \\server\share
 0|bash -c "rm -rf ./build"
 0|eval "rm -rf ./build"
 0|echo "$(rm -rf ./build)"
@@ -1285,6 +1286,9 @@ done <<'EOF'
 0|git rm -rf src
 0|rm -rf
 EOF
+# The escapes collapse to `\servershare`, a root-level name outside the tree.
+# portability-ok: a literal backslash pair in a command string fed to the guard, not a grep -E escape
+expect_both 'with cwd: rm -rf \\server\share' 2 "${RDT_CWD[@]}" --command 'rm -rf \\server\share'
 
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'

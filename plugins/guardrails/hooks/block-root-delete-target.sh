@@ -83,8 +83,9 @@
 #     the end, with one realpath, (on Windows) one cygpath and one git for the
 #     whole command. Past 32 directories (counting the starting one), 512
 #     directory-and-target pairs, 256 glob entries in total across the levels
-#     of one glob, or 12 seconds of wall time since the hook started, counted
-#     through the parse and the judgment, the guard refuses rather than risk
+#     of one glob, 12 seconds of wall time from this arm's first work (through
+#     the rest of the parse and the judgment), or 40 seconds of the hook's
+#     whole run once that work has begun, the guard refuses rather than risk
 #     the hook timeout, and an unexpected error while judging refuses too. An
 #     operand this guard cannot place (an expansion other than a leading HOME,
 #     a drive-relative path) is left alone rather than guessed.
@@ -105,8 +106,7 @@
 #     hazard through the other shell and are NOT covered, for any of the target
 #     classes above. The guard exits on any tool_name other than Bash, which
 #     also keeps it out of the shared PowerShell classifier and its sink
-#     attempt budget. Tracked in issue #4516
-#     (https://github.com/melodic-software/claude-code-plugins/issues/4516).
+#     attempt budget. PowerShell is tracked separately.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
@@ -855,15 +855,21 @@ rdt_bare_var() {
 #                  recorded after it is REFUSED rather than left alone.
 # MAX_ORIGINS counts the starting directory among its 32. MAX_TARGETS bounds
 # directory-and-target pairs, MAX_GLOB the entries one glob reads across all
-# its levels, and RDT_DEADLINE bounds the wall time since the hook started
-# (bash's SECONDS), counted through the parse and the judgment: the harness
-# cancels a hook past its timeout WITHOUT a block, so running long would fail
-# open, and the dispatcher shares one 60 s timeout across every guard it runs.
-# Past any of them the guard refuses.
+# its levels. RDT_DEADLINE bounds the wall time (bash's SECONDS) of this arm's
+# own work, from the moment it first has work to do (an operand to record, a
+# brace or glob to expand) through the parse that follows and the judgment,
+# and RDT_DEADLINE_ABS bounds the hook's whole run once that work has begun:
+# the harness cancels a hook past its timeout WITHOUT a block, so running long
+# would fail open, and the dispatcher shares one 60 s timeout across every
+# guard it runs. A command this arm has nothing to do for is never timed, so a
+# slow but harmless parse behaves as it did before the arm existed. Past any
+# of them the guard refuses.
 MAX_ORIGINS=32
 MAX_TARGETS=512
 MAX_GLOB=256
 RDT_DEADLINE=12
+RDT_DEADLINE_ABS=40
+RDT_T0=-1
 rdt_cdpath=0
 [[ -n "${CDPATH:-}" ]] && rdt_cdpath=1
 rdt_cd_refuse=0
@@ -886,10 +892,11 @@ esac
 RDT_HOME="${HOME:-}"
 RDT_HOME="${RDT_HOME//\\//}"
 
-# rdt_deadline: refuse once the parse and the judgment together have run past
-# RDT_DEADLINE seconds of wall time.
+# rdt_deadline: start this arm's clock on the first call, and refuse once its
+# work has run past RDT_DEADLINE seconds, or the hook past RDT_DEADLINE_ABS.
 rdt_deadline() {
-  ((SECONDS < RDT_DEADLINE)) || rdt_block "too-slow"
+  ((RDT_T0 >= 0)) || RDT_T0=$SECONDS
+  ((SECONDS - RDT_T0 < RDT_DEADLINE && SECONDS < RDT_DEADLINE_ABS)) || rdt_block "too-slow"
 }
 
 # rdt_is_unc <path>: a `//host/...` path, which is never touched on disk, so
@@ -1357,7 +1364,7 @@ declare -A RDT_WMAP=()
 # every path maps to itself.
 rdt_winmap_all() {
   local p i a rem r
-  local -a todo=() anc=() rems=() uniq=() lines=()
+  local -a todo=() ancestors=() rems=() uniq=() lines=()
   local -A seen=() amap=()
   for p in "$@"; do
     [[ -n "$p" && -z "${RDT_WMAP[$p]+x}" && -z "${seen[$p]+x}" ]] || continue
@@ -1368,6 +1375,12 @@ rdt_winmap_all() {
     todo+=("$p")
   done
   ((${#todo[@]})) || return 0
+  # silent-skip-ok: cygpath is part of the Git Bash, MSYS2 and Cygwin runtime
+  # this branch runs under, so its absence is not a real install. Without it
+  # every path keeps the spelling realpath gave it, which refuses more (a short
+  # or drive spelling no longer matches the tree); the one allow it can add is
+  # the scratchpad itself named through the /tmp mount, which then reads as a
+  # path strictly under /tmp.
   command -v cygpath >/dev/null 2>&1 || return 0
   for ((i = 0; i < ${#todo[@]}; i++)); do
     rdt_deadline
@@ -1379,7 +1392,7 @@ rdt_winmap_all() {
       rem="/${a##*/}"
       rdt_parent_to a "$a"
     fi
-    anc[i]="$a"
+    ancestors[i]="$a"
     rems[i]="$rem"
     if [[ -z "${amap[$a]+x}" ]]; then
       amap[$a]=""
@@ -1390,14 +1403,14 @@ rdt_winmap_all() {
   rdt_lines_to lines "${#uniq[@]}" cygpath -l -m -- "${uniq[@]}" || return 0
   for ((i = 0; i < ${#uniq[@]}; i++)); do amap[${uniq[i]}]="${lines[i]}"; done
   for ((i = 0; i < ${#todo[@]}; i++)); do
-    a="${amap[${anc[i]}]}"
+    a="${amap[${ancestors[i]}]}"
     [[ -n "$a" ]] || continue
     rdt_join_to r "$a" "${rems[i]}"
     RDT_WMAP[${todo[i]}]="$r"
   done
 }
 
-# rdt_split_existing <anc var> <rest var> <path>: the nearest existing
+# rdt_split_existing <ancestor var> <rest var> <path>: the nearest existing
 # ancestor of <path>, and the tail below it.
 rdt_split_existing() {
   local __rs_a __rs_r
@@ -1733,8 +1746,8 @@ rdt_check_segment() {
   # guard REFUSES.
   local rdt_depth=$((rdt_depth + 1))
   ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
-  # The parse counts against the same deadline as the judgment.
-  rdt_deadline
+  # Once this arm has work, the rest of the parse counts against its deadline.
+  ((RDT_T0 >= 0)) && rdt_deadline
   if ((rdt_depth > 1)); then
     rdt_segments=$((rdt_segments + 1))
     ((rdt_segments > MAX_SEGMENTS)) && rdt_block "too-many-readings"
@@ -2227,6 +2240,7 @@ rdt_check_operand() {
     rdt_block "bare-variable" "$w"
   fi
   if ((RDT_ARM)); then
+    rdt_deadline
     RDT_P_TEXT+=("$w")
     RDT_P_Q+=("$2")
     RDT_P_NORIG+=("${#RDT_ORIGINS[@]}")
