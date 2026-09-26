@@ -112,8 +112,10 @@ Return a markdown report in this shape:
 **Servers configured:** N (M effective)
 **Overall:** X fail, Y warn, Z info (U unverified)
 
-Server names, package specs, tags, hosts, and paths below are printed as configured, after a
-best-effort secret-shape filter. Check them before sharing this report.
+Never printed: `env` and `headers` values, arguments other than the package spec, URL userinfo,
+query, and fragment. A value that does not match a strict pattern for its kind prints as `-`
+with pin `unparsed`. Server names, package specs, tags, hosts, and paths are printed as
+configured after a best-effort secret-shape filter, so check them before sharing this report.
 
 ## Inventory
 

@@ -29,9 +29,11 @@ load; mark its findings "if approved". A user row reading `shadowed-by:project-i
 also scored, marked "if the project entry is not approved". Rows reading `shadowed-by:<scope>`,
 `suppressed-by-managed`, `disabled`, or `rejected-by-client` stay in the inventory table and get
 no findings, because Claude Code does not launch them from that entry. `rejected-by-client` is a
-`managedMcpServers` entry that fails the managed-mcp page's entry checks (an `https://` URL, no
-`command`, `args`, `env`, or `headersHelper`, no `${VAR}`, a name of letters, numbers, hyphens,
-and underscores), so Claude Code does not load it; see the managed precedence record.
+`managedMcpServers` entry that fails the managed-mcp page's entry checks (`type` of `http`, `sse`,
+or `streamable-http`, an `https://` URL, no `command`, `args`, `env`, or `headersHelper`, no
+`${VAR}`, a name of letters, numbers, hyphens, and underscores, and no control or invisible
+formatting character in any key or value), so Claude Code does not load it; see the managed
+precedence record.
 
 P2, P3, and P4 depend on facts outside the config. A result reached without a lookup the operator
 asked for carries the label `unverified`.
@@ -86,7 +88,10 @@ Label the result `unverified` unless the operator asked for a vendor lookup in t
 
 ## P3 Publisher provenance
 
-Reads `package` and `publisher`. Applies to rows with a package spec.
+Reads `package` and `publisher`. Applies to rows with a package spec. A publisher of
+`index:<host>` means the Python package comes from a custom index rather than PyPI; judge the
+index host as well as the package name. A publisher of `-` next to a parsed spec means a custom
+index was set but its URL could not be shown safely.
 
 - **WARN** when the package name suggests a vendor (it contains a company or product name) but the
   publisher is not that vendor: an unscoped npm name, or a scope the vendor does not use.
@@ -199,9 +204,13 @@ Its value is the diff between runs: a new server, a changed package, or a pin th
   over a server with the same name in local, project, or user scope", and "If you also deploy
   `managed-mcp.json`, Claude Code loads its servers and the provided servers together, and the
   file's entry takes precedence when both define a name." The same page lists the checks a
-  `managedMcpServers` entry must pass, including that `url` "is an `https://` URL" and that the
-  entry "has no `command`, `args`, `env`, or `headersHelper` member"; an entry failing one reads
-  `rejected-by-client`.
+  `managedMcpServers` entry must pass: "`type` is `http` or `sse`. As in `.mcp.json`,
+  `streamable-http` is accepted as an alias for `http`"; `url` "is an `https://` URL"; the entry
+  "has no `command`, `args`, `env`, or `headersHelper` member"; "No value contains a `${VAR}`
+  reference"; and "The server name contains only letters, numbers, hyphens, and underscores, and
+  no key or value contains control or invisible formatting characters". An entry failing one
+  reads `rejected-by-client`.
 - **As of**: 2026-09-26.
-- **Recheck trigger**: a re-fetch of the managed-mcp page no longer carrying both quoted
-  sentences, or a Claude Code release note naming `managedMcpServers` precedence.
+- **Recheck trigger**: a re-fetch of the managed-mcp page no longer carrying these quoted
+  sentences, or a Claude Code release note naming `managedMcpServers` precedence or its entry
+  checks.
