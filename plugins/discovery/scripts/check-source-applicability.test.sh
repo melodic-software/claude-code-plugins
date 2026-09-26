@@ -119,15 +119,15 @@ run 1 "future published" --err "$PUB_BAD: 2999-01-01" "$(one_source pub-future c
 
 # --- applies_to (R1, R3) ----------------------------------------------------
 
-run 1 "missing claim applies_to" --err 'claim 1: applies_to missing or unparseable: None' \
+run 1 "missing claim applies_to" --err 'claim 1: applies_to missing or unparsable: None' \
   "$(mkslice claim-at-missing - "$(claim - "$PRIMARY")")"
-run 1 "unparseable claim applies_to" --err 'claim 1: applies_to missing or unparseable: ExampleLib' \
+run 1 "unparsable claim applies_to" --err 'claim 1: applies_to missing or unparsable: ExampleLib' \
   "$(mkslice claim-at-bad - "$(claim 'ExampleLib' "$PRIMARY")")"
-run 1 "missing source applies_to" --err 'source 2: applies_to missing or unparseable: None' \
+run 1 "missing source applies_to" --err 'source 2: applies_to missing or unparsable: None' \
   "$(one_source src-at-missing corroborator 2025-01-01 - current)"
-run 1 "unparseable source applies_to" --err 'source 2: applies_to missing or unparseable: ExampleLib ten' \
+run 1 "unparsable source applies_to" --err 'source 2: applies_to missing or unparsable: ExampleLib ten' \
   "$(one_source src-at-bad corroborator 2025-01-01 'ExampleLib ten' current)"
-run 1 "inverted source range" --err 'source 2: applies_to missing or unparseable: ExampleLib 10-8' \
+run 1 "inverted source range" --err 'source 2: applies_to missing or unparsable: ExampleLib 10-8' \
   "$(one_source src-at-inverted corroborator 2025-01-01 'ExampleLib 10-8' historical)"
 
 # --- standing and role (R4, R5) ---------------------------------------------

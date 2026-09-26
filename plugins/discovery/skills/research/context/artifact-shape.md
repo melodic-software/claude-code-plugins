@@ -118,7 +118,7 @@ versioned claim. And it is dated; an undated corroborator may be `current` only 
 `version-independent` claim outside publish mode. Everything else is `historical`, which here
 means "does not cover the claim's target": an older major, another product line, a newer major, or
 part of the claim's range. Split a claim that spans ranges no single source covers. The primary is
-always dated and `current`. A `historical` source is recorded, labelled wherever the artifact shows
+always dated and `current`. A `historical` source is recorded, labeled wherever the artifact shows
 it, and never counted toward criterion 4. `scripts/check-source-applicability.py` recomputes each
 `standing:` and fails any mismatch, so the label is never the run's own word. Whether the product
 string names the right product line, and whether a source describes the claim's scenario, stays

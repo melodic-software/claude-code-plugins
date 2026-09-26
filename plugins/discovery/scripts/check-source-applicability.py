@@ -229,7 +229,7 @@ def pad(v: tuple[int, ...], width: int, fill: float) -> tuple[float, ...]:
 
 
 def applies_to(value: str | None) -> tuple | None:
-    """None when unparseable, "vi" for version-independent, else a range."""
+    """None when unparsable, "vi" for version-independent, else a range."""
     if value is None:
         return None
     value = value.strip()
@@ -314,7 +314,7 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
             claim_at = applies_to(claim.get("applies_to"))
             if claim_at is None:
                 violations.append(
-                    f"{here}: applies_to missing or unparseable: {claim.get('applies_to')}"
+                    f"{here}: applies_to missing or unparsable: {claim.get('applies_to')}"
                 )
             roles = [s.get("role") for s in claim["sources"]]
             if roles.count("primary") != 1:
@@ -333,7 +333,7 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
                     )
                 if src_at is None:
                     violations.append(
-                        f"{at}: applies_to missing or unparseable: {src.get('applies_to')}"
+                        f"{at}: applies_to missing or unparsable: {src.get('applies_to')}"
                     )
                 if stored not in ("current", "historical"):
                     violations.append(
