@@ -57,7 +57,7 @@ declare -A GUARD_FIELDS=(
   ["block-hook-bypass.sh"]='.tool_input.command .tool_name .cwd'
   ["block-no-verify.sh"]='.tool_input.command .tool_name'
   ["block-noncanonical-commit.sh"]='.tool_input.command .cwd .tool_name'
-  ["block-root-delete-target.sh"]='.tool_input.command .tool_name'
+  ["block-root-delete-target.sh"]='.tool_input.command .tool_name .cwd'
   ["block-windows-drive-tmp.sh"]='.tool_input.command .tool_name .tool_input.file_path .tool_input.notebook_path'
   ["flag-commit-pr-skill-bypass.sh"]='.tool_input.command .tool_name'
   ["cli-flag-verify.sh"]='.tool_name .tool_input.new_string .tool_input.content'
@@ -75,10 +75,13 @@ declare -A GUARD_FIELDS=(
 # `.tool_input.files | length` walks an array whose per-element filters name an
 # index the dispatcher cannot know, so the call it belongs to misses the cache
 # whatever is primed. `.tool_input.replace_all // false | tostring` is read by
-# the two Edit verifiers on the PostToolUse lane.
+# the two Edit verifiers on the PostToolUse lane. `.scratchpad_dir` is read by
+# block-root-delete-target in its own call, only when a recursive delete has a
+# target to judge, so the Bash lane does not pay for it on every command.
 #
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS_UNPRIMED=(
+  ["block-root-delete-target.sh"]='.scratchpad_dir'
   ["hardcoded-path-check.sh"]='.tool_input.files | length'
   ["secret-pattern-detection.sh"]='.tool_input.files | length'
   ["skill-reference-verify.sh"]='.tool_input.replace_all // false | tostring'

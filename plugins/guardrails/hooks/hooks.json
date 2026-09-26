@@ -1,5 +1,5 @@
 {
-  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses and commit conventions on Bash and PowerShell; recursive deletes aimed at a filesystem root on Bash; and verifies CLI flags, skill references and cited paths after a write.",
+  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses and commit conventions on Bash and PowerShell; recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad on Bash; and verifies CLI flags, skill references and cited paths after a write.",
   "hooks": {
     "PreToolUse": [
       {
