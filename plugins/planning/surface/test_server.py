@@ -1150,6 +1150,78 @@ class TestConfirm(WaitCase):
         self.assertEqual(code, 400)
 
 
+def seed_restatement(d, rev):
+    doc = json.loads((Path(d) / "questions.json").read_text(encoding="utf-8"))
+    doc["restatement"] = {"rev": rev, "at": "t", "sections": {"goal": "Ship it."}}
+    (Path(d) / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+
+
+class TestConfirmUnderstanding(WaitCase):
+    """The `confirm-understanding` event: free, `alt` confirm or off, keyed to restatement.rev."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+        seed_restatement(cls.dir, 2)
+
+    def test_1_confirm_is_saved_free_with_its_rev_and_wakes_the_watcher(self):
+        code, data = self.post(
+            {
+                "id": "A",
+                "kind": "confirm-understanding",
+                "alt": "confirm",
+                "contentRev": 2,
+            }
+        )
+        self.assertEqual(code, 200, data)
+        e = self.state()["responses"]["events"][-1]
+        self.assertEqual(
+            (e["id"], e["kind"], e["alt"], e["contentRev"]),
+            (None, "confirm-understanding", "confirm", 2),
+        )
+        self.assertNotIn("A", self.state()["responses"]["responses"])
+        code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
+        self.assertIn(data["seq"], seqs(body["events"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+    def test_2_off_needs_text(self):
+        body = {"kind": "confirm-understanding", "alt": "off", "contentRev": 2}
+        code, data = self.post(body)
+        self.assertEqual(code, 400, data)
+        code, data = self.post({**body, "text": "The goal is wrong."})
+        self.assertEqual(code, 200, data)
+
+    def test_3_alt_must_be_confirm_or_off(self):
+        for alt in (None, "yes", "0"):
+            code, data = self.post(
+                {"kind": "confirm-understanding", "alt": alt, "contentRev": 2}
+            )
+            self.assertEqual(code, 400, (alt, data))
+
+    def test_4_an_old_rev_is_409_stale(self):
+        code, data = self.post(
+            {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 1}
+        )
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data, {"error": "stale", "contentRev": 2})
+        code, data = self.post({"kind": "confirm-understanding", "alt": "confirm"})
+        self.assertEqual(code, 400, data)
+
+
+class TestConfirmUnderstandingNeedsARestatement(WaitCase):
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_no_restatement_is_400(self):
+        code, data = self.post(
+            {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 1}
+        )
+        self.assertEqual(code, 400, data)
+        self.assertIn("restatement", data["error"])
+
+
 def settings_env(**extra):
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
     env.update(extra)

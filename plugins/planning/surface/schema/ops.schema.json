@@ -25,7 +25,8 @@
           {"$ref": "#/$defs/set-status"},
           {"$ref": "#/$defs/wait"},
           {"$ref": "#/$defs/activity"},
-          {"$ref": "#/$defs/confirm-commitments"}
+          {"$ref": "#/$defs/confirm-commitments"},
+          {"$ref": "#/$defs/restate"}
         ]
       }
     }
@@ -223,6 +224,16 @@
         "id": {"type": "string"},
         "indices": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
         "reason": {"type": "string"}
+      }
+    },
+    "restate": {
+      "description": "Post the shared-understanding restatement the page's confirmation gate shows. Each section is markdown; at least one must be non-empty. Replaces the previous restatement and increments `restatement.rev`.",
+      "type": "object",
+      "required": ["op", "sections"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["restate"]},
+        "sections": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/questions#/$defs/sections"}
       }
     }
   }

@@ -105,6 +105,28 @@ class TestShippedSchemas(unittest.TestCase):
         e = {"seq": 1, "id": "Q1", "kind": "confirm", "alt": "0", "at": "t"}
         self.assertIsNone(schema.first_error(e, schema.load("event")))
 
+    def test_event_kinds_include_confirm_understanding(self):
+        e = {
+            "seq": 1,
+            "id": None,
+            "kind": "confirm-understanding",
+            "alt": "off",
+            "text": "Goal is wrong",
+            "at": "t",
+            "contentRev": 2,
+        }
+        self.assertIsNone(schema.first_error(e, schema.load("event")))
+
+    def test_question_holds_and_restatement_fields(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        q = doc["questions"][0]
+        q.update(waiting=True, waitsOn="x", waitingBy="user", setAsideAt="t")
+        q["commitsConfirmed"] = [{"index": 0, "reason": "r", "at": "t"}]
+        doc["restatement"] = {"rev": 1, "at": "t", "sections": {"goal": "g"}}
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["restatement"]["sections"]["other"] = "o"
+        self.assertIn("other", schema.first_error(doc, schema.load("questions")))
+
 
 if __name__ == "__main__":
     unittest.main()

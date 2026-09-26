@@ -87,6 +87,7 @@ LOGGED_OPS = {
     "note-reply",
     "wait",
     "confirm-commitments",
+    "restate",
 }
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
@@ -590,6 +591,33 @@ def op_confirm_commitments(d, doc, a):
     return [q], f"confirmed {what} on {a.id}: {reason}"
 
 
+RESTATE_SECTIONS = (
+    "goal",
+    "constraints",
+    "decisions",
+    "acceptance",
+    "deferred",
+    "planningOwned",
+)
+
+
+def op_restate(d, doc, a):
+    """Replace the shared-understanding restatement; its rev increments so an old confirm is stale."""
+    s = a.sections
+    if not isinstance(s, dict):
+        sys.exit("refused: restate needs a sections object")
+    extra = sorted(set(s) - set(RESTATE_SECTIONS))
+    if extra:
+        sys.exit(
+            f"refused: unknown restate sections {extra} (known: {', '.join(RESTATE_SECTIONS)})"
+        )
+    if not any(isinstance(v, str) and v.strip() for v in s.values()):
+        sys.exit("refused: restate needs at least one non-empty section")
+    rev = (doc.get("restatement") or {}).get("rev", 0) + 1
+    doc["restatement"] = {"rev": rev, "at": now(), "sections": dict(s)}
+    return [], "restated the shared understanding"
+
+
 def op_activity(d, doc, a):
     text = (a.text or "").strip()
     if not text:
@@ -750,6 +778,7 @@ OP_ARGS = {
         op_confirm_commitments,
         {"id": None, "indices": None, "reason": None},
     ),
+    "restate": (op_restate, {"sections": None}),
 }
 
 

@@ -846,6 +846,42 @@ class TestClaudeActivity(DirCase):
             with self.subTest(op=op):
                 self.refused({"op": "confirm-commitments", **op})
 
+    def test_restate_writes_the_restatement_with_a_new_rev(self):
+        self.apply(
+            {
+                "op": "restate",
+                "sections": {"goal": "Ship it.", "planningOwned": "- file layout"},
+            }
+        )
+        r = self.doc()["restatement"]
+        self.assertEqual(r["rev"], 1)
+        self.assertTrue(r["at"])
+        self.assertEqual(
+            r["sections"], {"goal": "Ship it.", "planningOwned": "- file layout"}
+        )
+        [e] = self.entries()
+        self.assertEqual(e["text"], "Restated the shared understanding")
+        self.assertNotIn("ids", e)
+        self.apply({"op": "restate", "sections": {"constraints": "Stdlib only."}})
+        r = self.doc()["restatement"]
+        self.assertEqual(
+            (r["rev"], r["sections"]), (2, {"constraints": "Stdlib only."})
+        )
+
+    def test_restate_refusals(self):
+        for sections in (
+            {},
+            {"goal": "  ", "deferred": ""},
+            {"goal": "x", "extra": "y"},
+            {"goal": 3},
+            None,
+        ):
+            with self.subTest(sections=sections):
+                op = {"op": "restate"}
+                if sections is not None:
+                    op["sections"] = sections
+                self.refused(op)
+
     def test_activity_refusals(self):
         self.refused({"op": "activity", "text": "x", "ids": ["Q9"]})
         self.refused({"op": "activity", "text": " "})

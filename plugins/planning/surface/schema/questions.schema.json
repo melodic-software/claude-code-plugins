@@ -41,9 +41,33 @@
           "notes": {"type": "boolean"}
         }
       }
+    },
+    "restatement": {
+      "description": "The shared-understanding restatement, written by the restate op. `rev` increments per restate; a page `confirm-understanding` event carries the rev it confirms.",
+      "type": "object",
+      "required": ["rev", "at", "sections"],
+      "additionalProperties": false,
+      "properties": {
+        "rev": {"type": "integer"},
+        "at": {"type": "string"},
+        "sections": {"$ref": "#/$defs/sections"}
+      }
     }
   },
   "$defs": {
+    "sections": {
+      "description": "Restatement sections, each markdown. `planningOwned` lists the decisions the interview hands to /planning:plan to make.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "goal": {"type": "string"},
+        "constraints": {"type": "string"},
+        "decisions": {"type": "string"},
+        "acceptance": {"type": "string"},
+        "deferred": {"type": "string"},
+        "planningOwned": {"type": "string"}
+      }
+    },
     "meta": {
       "type": "object",
       "properties": {

@@ -40,9 +40,12 @@ EMPTY_RESPONSES = {
 }
 DECISIONS = {"accept", "alt", "own", "defer", "reopen"}
 REQUESTS = {"ask", "rephrase"}
-FREE = {"note", "wrapup"}  # events not tied to a question
-# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision.
-WITH_ALT = {"alt", "confirm"}
+# Events not tied to a question; `confirm-understanding` answers the restatement.
+FREE = {"note", "wrapup", "confirm-understanding"}
+# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision, and
+# `confirm-understanding` carries `confirm` or `off`.
+WITH_ALT = {"alt", "confirm", "confirm-understanding"}
+UNDERSTANDING = ("confirm", "off")
 API = 2
 MAX_BODY = 64 * 1024
 # A file visual larger than this is neither served nor inlined.
@@ -529,6 +532,21 @@ def check_alt(q, kind, alt):
             )
 
 
+def check_understanding(doc, alt, text, rev):
+    """ValueError (400) or Conflict (409 stale) for a confirm-understanding event."""
+    if alt not in UNDERSTANDING:
+        raise ValueError("confirm-understanding needs alt: confirm or off")
+    if alt == "off" and not text.strip():
+        raise ValueError("text required: say what is off")
+    current = (doc.get("restatement") or {}).get("rev")
+    if not isinstance(current, int):
+        raise ValueError("there is no restatement to confirm")
+    if rev is None:
+        raise ValueError("confirm-understanding needs contentRev: the restatement rev")
+    if rev != current:
+        raise Conflict({"error": "stale", "contentRev": current})
+
+
 class Conflict(Exception):
     """A 409; the payload goes back to the page as-is."""
 
@@ -715,6 +733,8 @@ class Hub:
             raise ValueError("unknown question")
         if kind in ("own", "ask", "note") and not text.strip():
             raise ValueError("text required")
+        if kind == "confirm-understanding":
+            check_understanding(doc, alt, text, msg.get("contentRev"))
         now = now_iso()
         with self.cond:
             r = load_json(self.responses, EMPTY_RESPONSES)
@@ -731,6 +751,8 @@ class Hub:
             if kind == "undo":
                 self._undo(r, doc, msg, event)
                 qid = event["id"]
+            elif kind == "confirm-understanding":
+                event["contentRev"] = msg["contentRev"]
             elif kind in DECISIONS and msg.get("contentRev") is not None:
                 current = content_rev(qs[qid], r["events"])
                 if msg.get("contentRev") != current:
@@ -753,7 +775,7 @@ class Hub:
                         }
                     )
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
-            if kind in WITH_ALT:
+            if kind in WITH_ALT and qid:
                 check_alt(qs[qid], kind, alt)
             r["seq"] = seq = event["seq"]
             prev = r["responses"].get(qid, {}) if qid else {}
