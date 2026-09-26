@@ -78,6 +78,20 @@ printf '__REPO_SWEEP_DATA__ __REPO_SWEEP_DATA__\n' >"$TMP/twotoken.html"
 REPO_SWEEP_PAGE_TEMPLATE="$TMP/twotoken.html" assert_err "page: template with two tokens" 1 "exactly one" --page "$CATALOG" "$recs"
 REPO_SWEEP_PAGE_TEMPLATE="$TMP/absent.html" assert_err "page: missing template" 1 "page template not found" --page "$CATALOG" "$recs"
 
+real_catalog="$HERE/../catalogs/hygiene.md"
+real_recs="$TMP/real-recs.tsv"
+bash "$HERE/catalog.sh" "$real_catalog" | cut -f1 | while IFS= read -r id; do
+  printf '%s\trun\tverification pass\n' "$id"
+done >"$real_recs"
+real_page=$(bash "$SCRIPT" --page "$real_catalog" "$real_recs")
+assert_eq "real page: exit 0" "0" "$?"
+missing=$(bash "$HERE/catalog.sh" "$real_catalog" | cut -f1 | while IFS= read -r id; do
+  grep -qw -- "$id" <<<"$real_page" || printf '%s\n' "$id"
+done)
+assert_eq "real page: every hygiene.md id present" "" "$missing"
+assert_eq "real page: no external src=http/href=http" "0" \
+  "$(grep -c 'src="http\|href="http' <<<"$real_page")"
+
 if ((FAILED)); then
   printf '%d FAILED\n' "$FAILED" >&2
   exit 1

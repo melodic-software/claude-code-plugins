@@ -205,7 +205,7 @@ fixture selection byte-equals a golden file; `state.test.sh` covers the other-br
 the reconcile, and the `[~]` resume cases; `bash scripts/check-fixture-git-isolation.sh` and `bash
 scripts/check-shell-portability.sh --paths <root>/scripts/*.sh` exit 0.
 
-### Phase 4: Selection page [TODO]
+### Phase 4: Selection page [DONE]
 
 - `plugins/playbooks/reference/repo-sweep-plan-page.html`: static template, no network. The
   user chose a bundled template over `/playgrounds:use` so the page is identical every run.
