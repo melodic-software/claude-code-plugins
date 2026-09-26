@@ -788,7 +788,7 @@ cat >"$FIX/reattack2 cases.cfg" <<'JSON'
   "N10-file-path":{"command":"npx","args":["-y","file:RSDsecret0123456789"]},
   "N11-home-path":{"command":"uvx","args":["~/RSDsecret"]},
   "N12-gh-spec":{"command":"npx","args":["-y","ZQXowner/ZQXghpAbcDef0123456789"]},
-  "N13-uvx-name":{"command":"uvx","args":["ZQXghp_AbcDef0123456789abcdef0123456789ABCDEF"]},
+  "N13-uvx-name":{"command":"uvx","args":["ZQXghp_AbcDef0123456789abcdef01234567"]},
   "N14-uvx-ver":{"command":"uvx","args":["pkg==RSDsecret0123456789"]},
   "N15-uvx-at":{"command":"uvx","args":["pkg@RSDsecret0123456789"]},
   "N16-basename":{"command":"ZQXsk-proj-AbcDef0123456789abcdef0123456789","args":[]},
