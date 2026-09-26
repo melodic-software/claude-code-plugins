@@ -118,6 +118,8 @@ def settle(q, responses, events, seed_rows):
         )
     if q.get("supersededBy"):
         return "withdrawn", f"superseded by {q['supersededBy']}" + tail, "", False
+    if q.get("waiting"):
+        return "open", f"waiting on: {q.get('waitsOn') or 'a lookup'}" + tail, "", False
     rec = latest_decision(q, responses)
     decision = rec.get("decision") if rec else None
     text = clean((rec or {}).get("text"))
@@ -154,10 +156,7 @@ def settle(q, responses, events, seed_rows):
     if decision == "defer":
         res = "deferred" + (f": {text}" if text else "") + "; arbiter: USER-RESERVED"
         return "deferred", res + tail, text, True
-    waiting = (
-        f"waiting on: {q.get('waitsOn') or 'a lookup'}" if q.get("waiting") else ""
-    )
-    return "open", waiting + tail, "", False
+    return "open", tail, "", False
 
 
 def register(doc, resp):

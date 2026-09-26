@@ -63,6 +63,7 @@ def runtime_path(rel):
 WAIT_MAX = 120
 QUIET_SECONDS = 0.3  # a found event waits this long for more before the watcher wakes
 BURST_SECONDS = 2.0  # never holding it longer than this in all
+PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
 READING_WINDOW = 180  # seconds Claude is shown as reading after an answer was delivered
 DISCONNECTS = (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
@@ -1078,8 +1079,8 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     self.wfile.flush()
                     last_sig, last_beat = sig, time.time()
-                elif time.time() - last_beat > 15:
-                    self.wfile.write(b": keepalive\n\n")
+                elif time.time() - last_beat >= PING_SECONDS:
+                    self.wfile.write(b"event: ping\ndata: {}\n\n")
                     self.wfile.flush()
                     last_beat = time.time()
                 time.sleep(0.3)

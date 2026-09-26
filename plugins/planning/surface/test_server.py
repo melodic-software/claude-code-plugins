@@ -933,6 +933,27 @@ class TestBurst(WaitCase):
         self.assertEqual([e["seq"] for e in events if e.get("deliveredAt")], posted)
 
 
+class TestEventStreamPing(ServerCase):
+    """An idle event stream carries a ping frame at least every PING_SECONDS."""
+
+    def test_idle_stream_gets_a_ping(self):
+        from server import PING_SECONDS
+
+        conn = http.client.HTTPConnection(
+            "127.0.0.1", self.port, timeout=PING_SECONDS + 5
+        )
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            started = time.monotonic()
+            while not (line := resp.fp.readline()).startswith(b"event: ping"):
+                self.assertTrue(line, "the stream closed before a ping")
+            self.assertLess(time.monotonic() - started, PING_SECONDS + 2)
+            self.assertEqual(resp.fp.readline(), b"data: {}\n")
+        finally:
+            conn.close()
+
+
 class TestListener(WaitCase):
     """listener.idleFor (AC26 server side): null before any wait, 0 while one waits, then counting.
 

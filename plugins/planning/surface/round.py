@@ -550,19 +550,22 @@ def op_activity(d, doc, a):
     return [], "logged"
 
 
-def log_activity(doc, text, ids):
+def log_activity(doc, text, ids, notes=False):
     """Append one feed entry, keeping the newest ACTIVITY_CAP."""
     entry = {"at": now(), "text": text}
     if ids:
         entry["ids"] = ids
+    if notes:
+        entry["notes"] = True
     doc["activity"] = (doc.get("activity") or [])[1 - ACTIVITY_CAP :] + [entry]
 
 
-def summarize(doc, msgs, touched):
+def summarize(doc, msgs, touched, notes):
     """One feed entry for the user-visible ops of one write; none when there are none."""
     if msgs:
         text = "; ".join(msgs)
-        log_activity(doc, text[0].upper() + text[1:], [q["id"] for q in touched])
+        ids = [q["id"] for q in touched]
+        log_activity(doc, text[0].upper() + text[1:], ids, notes)
 
 
 def write_op(fn, logged=False):
@@ -573,7 +576,7 @@ def write_op(fn, logged=False):
             doc = load(d)
             touched, msg = fn(d, doc, a)
             if logged:
-                summarize(doc, [msg], touched)
+                summarize(doc, [msg], touched, fn is op_note_reply)
             save(d, doc, touched)
         print(f"{msg} (rev {doc['rev']})")
 
@@ -746,7 +749,8 @@ def cmd_apply(d, a):
             lines.append(f"{op['op']}: {msg}")
             if op["op"] in LOGGED_OPS:
                 seen.append(msg)
-        summarize(doc, seen, touched)
+        notes = any(op["op"] == "note-reply" for op in spec["ops"])
+        summarize(doc, seen, touched, notes)
         lint_questions(doc, added)
         save(d, doc, touched)
     for line in lines:
@@ -775,28 +779,32 @@ def cmd_status(d, a):
         state = (
             "archived"
             if q.get("archived")
-            else dec
-            or (
-                "superseded"
-                if q.get("supersededBy")
-                else "waiting"
-                if q.get("waiting")
-                else "open"
-            )
+            else "waiting"
+            if q.get("waiting") and not q.get("supersededBy")
+            else dec or ("superseded" if q.get("supersededBy") else "open")
         )
-        rows.setdefault(q.get("group"), []).append((q["id"], q.get("short", ""), state))
+        rows.setdefault(q.get("group"), []).append(
+            (q["id"], q.get("short", ""), state, q.get("waitsOn", ""))
+        )
     for gid in order:
         if gid not in rows:
             continue
         items = rows[gid]
-        opened = [f"{i} {s}" for i, s, st in items if st == "open"]
-        archived = [i for i, _, st in items if st == "archived"]
+        opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
+        archived = [i for i, _, st, _ in items if st == "archived"]
+        waits = [
+            f"  {i} {s} waits on: {json.dumps(w)}"
+            for i, s, st, w in items
+            if st == "waiting"
+        ]
         title = groups.get(gid, {}).get("title", "Ungrouped")
         print(
-            f"{title}: {len(items) - len(opened)} of {len(items)} closed"
+            f"{title}: {len(items) - len(opened) - len(waits)} of {len(items)} closed"
             + (f"; open: {', '.join(opened)}" if opened else "")
             + (f"; archived: {', '.join(archived)}" if archived else "")
         )
+        for line in waits:
+            print(line)
     hs = doc.get("handledSeq") or 0
     pending = [
         e

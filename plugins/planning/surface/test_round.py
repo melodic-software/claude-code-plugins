@@ -444,6 +444,34 @@ class TestStatus(DirCase):
         self.assertEqual(lines[head + 2], "  #3 - note: " + json.dumps(text))
         self.assertEqual(len(lines), head + 3, out)
 
+    def test_a_waiting_question_is_open_on_its_own_line(self):
+        doc = base_doc()
+        doc["questions"][0].update(waiting=True, waitsOn='your "confirmation" of X')
+        doc["questions"][2].update(waiting=True, waitsOn="research")
+        self.write_doc(doc)
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "alt": None,
+                    "text": "Yes if X holds.",
+                    "at": at,
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        lines = out.splitlines()
+        self.assertIn("First group: 0 of 2 closed; open: Q2 Short Q2", lines)
+        self.assertIn(
+            "  Q1 Short Q1 waits on: " + json.dumps('your "confirmation" of X'), lines
+        )
+        self.assertIn("Second group: 0 of 1 closed", lines)
+        self.assertIn('  Q3 Short Q3 waits on: "research"', lines)
+
 
 class TestDirRequired(unittest.TestCase):
     def test_no_dir_is_refused(self):
@@ -718,6 +746,20 @@ class TestClaudeActivity(DirCase):
         self.assertEqual(rc, 0, out + err)
         [e] = self.entries()
         self.assertEqual((e["text"], e["ids"]), ("Replied on Q1", ["Q1"]))
+        self.assertNotIn("notes", e)
+
+    def test_a_note_reply_marks_the_entry(self):
+        self.apply(
+            {"op": "note-reply", "text": "Thanks."},
+            {"op": "reply", "id": "Q1", "text": "Yes."},
+        )
+        [e] = self.entries()
+        self.assertEqual((e["ids"], e.get("notes")), (["Q1"], True))
+        rc, out, err = self.rp("note-reply", "--text", "Again.")
+        self.assertEqual(rc, 0, out + err)
+        e = self.entries()[-1]
+        self.assertIs(e.get("notes"), True)
+        self.assertNotIn("ids", e)
 
     def test_newest_200_are_kept(self):
         doc = base_doc()
