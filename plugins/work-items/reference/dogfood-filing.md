@@ -15,11 +15,12 @@ policy that binds them into one sequence.
 ## When it applies: file what you will not fix, nothing else
 
 The default posture is **fix, not file** ([`tracker-seam.md`](tracker-seam.md) "Default = fix, not
-file"): Boy-Scout-scope drift discovered while working belongs in the current change, not the
-tracker. Self-observation filing is the **narrow exception**. A problem is filed only when it is
-genuinely orthogonal to the current item, large enough to need its own planning pass, or needs
-research this lane is not positioned to do. `work`'s post-green review already draws this line for a
-VALID-but-deferred finding ([`../skills/work/SKILL.md`](../skills/work/SKILL.md) "Post-green review
+file"): a small or medium problem discovered while working is fixed in the current change as its
+own commit, even when it is unrelated to the current item. Self-observation filing is the **narrow
+exception**. A problem is filed only when it is structural (large enough to need its own planning
+pass), urgent and real but unable to land in the current change, or blocked on research this lane
+is not positioned to do. No nits, no speculative items.
+`work`'s post-green review already draws this line for a deferred review finding ([`../skills/work/SKILL.md`](../skills/work/SKILL.md) "Post-green review
 pass"); the same test governs every lane.
 
 ## The sequence

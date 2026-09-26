@@ -24,6 +24,6 @@ The agent reads the project's own architecture docs first, then checks dependenc
 ## After the review
 
 - **Dependency violations**: fix before proceeding; they cascade into hard-to-diagnose problems
-- **Pattern issues**: fix when touching that code anyway; defer when unrelated to the current task
+- **Pattern issues**: fix small or medium ones in this change as their own commit, even when unrelated to the current task; file only a structural one that needs its own planning pass
 - **Missing abstractions**: evaluate whether this is a real extensibility need or speculative (YAGNI)
 - **Structural rules under test**: when the project has architecture tests (e.g. dependency-rule test suites), run them; they catch structural rules mechanically
