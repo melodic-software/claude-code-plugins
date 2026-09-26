@@ -1,0 +1,8 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>render</title>
+<style>body{margin:0;background:#222}canvas{display:block}</style>
+<canvas id="c" width="16" height="16"></canvas>
+<!-- ?scene=<module>.js (default scene.js), served from this folder. The module sizes canvas#c and defines
+     window.renderFrame(t) -> Promise and window.DURATION (s); a per-drawing scene also defines window.renderDrawing(k). -->
+<script type="module">import('./' + (new URLSearchParams(location.search).get('scene') || 'scene.js'));</script>

@@ -4,10 +4,12 @@
 
 - [Design boundary](#design-boundary)
 - [Naming](#naming)
+- [Skills are processes](#skills-are-processes)
 - [Native-first](#native-first)
 - [Component stances](#component-stances)
 - [Two-lane convention posture](#two-lane-convention-posture)
 - [Configuration ownership and scope](#configuration-ownership-and-scope)
+- [One owner per value](#one-owner-per-value)
 - [Setup is explicit and repeatable](#setup-is-explicit-and-repeatable)
 - [Prerequisites and failure behavior](#prerequisites-and-failure-behavior)
 - [Convention registry](#convention-registry)
@@ -215,6 +217,23 @@ across plugins is unambiguous to *invoke* and to *read*: its prefix distinguishe
 columns. Never rename to buy display uniqueness; spend the effort on the description's first clause
 carrying the distinguishing object, since that column is what a reader actually scans.
 
+## Skills are processes
+
+A skill is a process: what to do, in what order, and when to stop. It is named for its verb
+([naming](#naming)). The artifacts it writes and the external tools it drives sit behind
+ports and adapters: the skill body names the step (render the frames, encode the film), and an
+adapter does the work. Every port has a native default adapter, one the plugin ships, so the skill
+works with nothing else installed; any other adapter is optional collaboration, presence-gated per
+the [design boundary](#design-boundary).
+
+An interface, a contract several adapters implement, exists only where two adapters exist or are
+named. Until then the port is one function with one home and one signature, which is enough to add
+the interface later without a rewrite.
+
+Worked example: in `animation`, render is the one port with an interface (`render.py --backend`,
+`native` by default, the adapter recorded in `render.json`), because HyperFrames and Remotion are
+named second adapters. Decode and encode each have one home and one signature, and no interface.
+
 ## Native-first
 
 Prefer a built-in native mechanism over any custom extensibility point: `userConfig`, a native
@@ -417,6 +436,23 @@ renaming one is exactly the refactor a skill must stay free to make.
 
 The full public-surface contract this narrows is
 `/docs-hygiene:audit-encapsulation`'s, which audits against it.
+
+## One owner per value
+
+Inside a plugin, code reads each value (a threshold, a default, a path, a frame rate, a package pin)
+from one owner. [Configuration ownership](#configuration-ownership-and-scope) settles which surface
+a consumer sets a value through; this rule settles where the plugin's own values live.
+
+- Code reads the owner and never repeats the literal.
+- Docs cite the owner and do not restate the number. A copy generated from the owner is not a second
+  owner.
+- Measurement records keep their numbers: a recorded result is data about one run, not a restatement.
+- A volatile external specific restated in a skill body carries the four-part record of the
+  [upstream-drift convention](conventions/upstream-drift/README.md).
+- A value read from two languages lives in a JSON file both read.
+
+Worked example: `animation`'s brush defaults live in `skills/rotoscope/scripts/brush.json`, read by
+both `roto.js` and `measure.py`.
 
 ## Setup is explicit and repeatable
 

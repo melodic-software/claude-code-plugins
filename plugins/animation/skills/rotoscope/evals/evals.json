@@ -1,0 +1,66 @@
+{
+  "skill_name": "rotoscope",
+  "evals": [
+    {
+      "id": 1,
+      "name": "rotoscope-a-clip-runs-the-extract-measure-fit-review-loop",
+      "prompt": "Rotoscope this clip one to one: ~/clips/ink-short.mp4. Use ~/roto/ink-short as the work dir.",
+      "expected_output": "Reads reference/method.md, runs extract.py --video into the work dir, then measure.py, fit.py and review.py through uv run --with-requirements, and reports the measure table against the measure.py target.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs $R/extract.py <work> --video <clip> before measuring",
+        "Runs the scripts through uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt",
+        "Passes --playwright-core '${user_config.playwright_core}' to measure.py and fit.py",
+        "Keeps the work dir outside the plugin",
+        "Does NOT embed or replay source bitmaps in the replica"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "hand-decisions-go-in-the-override-file",
+      "prompt": "Drawings 40 to 55 of my rotoscope replica are too thin. Fix just those.",
+      "expected_output": "Adds an overrides.json entry for k [40, 55] (a brush bias, or runs fit.py --only 40-55), applies it with extract.py --apply where needed, re-measures that range, and records the change in learnings.md.",
+      "files": [],
+      "expectations": [
+        "Records the change as an overrides.json entry or through fit.py, not by editing traced paths",
+        "Re-measures only the affected range with --only",
+        "Appends what changed and the before and after numbers to learnings.md"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "review-reads-every-crop-at-one-to-one",
+      "prompt": "The measure table passes. Is the replica done?",
+      "expected_output": "Runs review.py and reads every 1:1 crop, not only flagged ones, since a passing number can hide a visible defect such as a tint; never downscales a crop or reviews a GIF.",
+      "files": [],
+      "expectations": [
+        "Runs review.py before calling the replica done",
+        "Reads every crop, not only the flagged ones",
+        "Does NOT downscale a crop or review a GIF"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "near-miss-pixel-art-sprite-animation-does-not-trigger",
+      "prompt": "Make a 4-direction walk cycle for my 32x32 pixel-art knight as an RPG Maker sprite sheet.",
+      "expected_output": "Does not use the rotoscope skill: there is no reference clip to copy; this is pixel-art sprite animation.",
+      "files": [],
+      "expectations": [
+        "Does NOT invoke rotoscope or run extract.py",
+        "Treats the request as pixel-art sprite animation, not a traced replica"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "near-miss-generic-video-editing-does-not-trigger",
+      "prompt": "Trim the first 3 seconds off my vlog, add a crossfade between the two scenes and export it at 1080p.",
+      "expected_output": "Does not use the rotoscope skill: this is general video editing, not tracing a drawn animation into a replica.",
+      "files": [],
+      "expectations": [
+        "Does NOT invoke rotoscope or run extract.py",
+        "Does NOT trace the vlog into vector paths"
+      ]
+    }
+  ]
+}
