@@ -81,13 +81,14 @@ assert_not_contains "no markers" "$(cat "$r/$P/CHANGELOG.md")" "<<<<<<<"
 GIT_EDITOR=true git -C "$r" merge --continue >/dev/null 2>&1
 assert_exit "merge concludes" 0 "$?"
 
-# 2. PR minor-bumps (1.3.0), main patch-bumps (1.2.1): the higher (1.3.0) plus
-#    one minor. The PR's unrelated description edit survives the merge.
+# 2. PR minor-bumps (1.3.0), main patch-bumps (1.2.1): main's version plus one
+#    minor, 1.3.0, skipping nothing. The PR's unrelated description edit
+#    survives the merge.
 r=$(mkfixture 1.3.0 'new desc' '' 1.2.1)
 git -C "$r" merge -q main >/dev/null 2>&1
 out=$(run "$r")
 assert_exit "mixed levels exit 0" 0 "$?"
-assert_eq "higher version plus the PR's level" 1.4.0 "$(jq -r .version "$r/$P/.claude-plugin/plugin.json")"
+assert_eq "main's version plus the PR's level" 1.3.0 "$(jq -r .version "$r/$P/.claude-plugin/plugin.json")"
 assert_eq "PR's other manifest edit kept" "new desc" "$(jq -r .description "$r/$P/.claude-plugin/plugin.json")"
 assert_eq "no unmerged paths left" "" "$(git -C "$r" diff --name-only --diff-filter=U)"
 

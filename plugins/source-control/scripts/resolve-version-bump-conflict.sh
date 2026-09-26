@@ -4,8 +4,9 @@
 # <plugin>/CHANGELOG.md, during a merge of main into the PR branch or a
 # rebase/cherry-pick of the PR onto main that stopped on conflicts.
 #
-# Rule: the new version is the higher of main's and the PR's version, bumped
-# once at the level the PR used (major, minor or patch against the merge base).
+# Rule: the new version is main's current version bumped once at the level the
+# PR used (major, minor or patch against the merge base), so no version number
+# is skipped.
 # Main's changelog entries are kept; the PR's one new entry is re-headed under
 # the new version and placed above main's newest version heading, so
 # check-changelog-parity.sh stays green. Every other edit either side made to
@@ -41,7 +42,7 @@ set_version() { awk -v v="$1" '!done && sub(/"version"[ \t]*:[ \t]*"[^"]*"/, "\"
 
 resolve() {
   local dir=$1 manifest=$1/.claude-plugin/plugin.json changelog=$1/CHANGELOG.md
-  local b p m hM hm hp new added side
+  local b p m new added side
   b=$(version_at "$base" "$manifest") p=$(version_at "$pr" "$manifest") m=$(version_at "$main" "$manifest")
   semver "$b" || return 1
   local bM=${BASH_REMATCH[1]} bm=${BASH_REMATCH[2]} bp=${BASH_REMATCH[3]}
@@ -49,14 +50,9 @@ resolve() {
   local pM=${BASH_REMATCH[1]} pm=${BASH_REMATCH[2]} pp=${BASH_REMATCH[3]}
   semver "$m" || return 1
   local mM=${BASH_REMATCH[1]} mm=${BASH_REMATCH[2]} mp=${BASH_REMATCH[3]}
-  if ((mM > pM || (mM == pM && (mm > pm || (mm == pm && mp >= pp))))); then
-    hM=$mM hm=$mm hp=$mp
-  else
-    hM=$pM hm=$pm hp=$pp
-  fi
-  if ((pM != bM)); then new="$((hM + 1)).0.0"
-  elif ((pm != bm)); then new="$hM.$((hm + 1)).0"
-  elif ((pp != bp)); then new="$hM.$hm.$((hp + 1))"
+  if ((pM != bM)); then new="$((mM + 1)).0.0"
+  elif ((pm != bm)); then new="$mM.$((mm + 1)).0"
+  elif ((pp != bp)); then new="$mM.$mm.$((mp + 1))"
   else return 1; fi
 
   for side in base pr main; do
