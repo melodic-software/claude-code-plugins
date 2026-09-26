@@ -83,6 +83,9 @@ async page => { // AC27: the user journey J1 to J15 in order on one page, no rel
   if (PHASE === 2) {
     await page.waitForTimeout(900); // SSE brings the reply on Q4, then the holds and the status
 
+    // J2 receipts: phase 1's watcher poll delivered Q1's accept and the shell handled it (Q1 is selected)
+    ok("J2: Q1's receipt shows Saved, Delivered and Handled", /Saved \d.*Delivered \d.*Handled/.test(await text("#cur")), await text("#cur"));
+
     // UX3 seen marker, the notice and J5's reply
     ok("UX3: two unseen entries badge Activity and dot the rows they name", await badge() === 2 && await dot("Q4") && await dot("Q3") && await dot("Q5"), "badge " + await badge());
     ok("AC19: the notice digests the newest unseen entry and is not a live region", /Q3 pending research/.test(await text("#notice")) && /\+1 more/.test(await text("#notice")) && !(await page.$eval("#notice", el => el.getAttribute("aria-live"))), await text("#notice"));
@@ -246,6 +249,16 @@ async page => { // AC27: the user journey J1 to J15 in order on one page, no rel
     await page.click("[data-wrapup]"); await page.waitForTimeout(700);
     const wr = await events();
     ok("J14: Wrap up posts one wrapup event", wr.length === w0 + 1 && wr[wr.length - 1].kind === "wrapup");
+  }
+  if (PHASE === 6) { // the shell settled Q5 and Q7 in the terminal, held Q3 on research again, and made Release depend on Build
+    await page.waitForTimeout(900);
+    ok("UX4: with only pending research left the summary says your part is done", (await text("#dscroll .done-h")) === "Your part is done for now. Claude is researching Q3.", await text("#dscroll .done-h"));
+    ok("AC7: a research hold keeps the dependent group locked", /opens after Build/.test(await text('.sec[data-key="g:g3"] .lock')), await text('.sec[data-key="g:g3"]'));
+  }
+  if (PHASE === 7) { // the shell cleared Q3's hold
+    await page.waitForTimeout(900);
+    ok("AC7: clearing the hold unlocks the dependent group", !(await page.$('.sec[data-key="g:g3"] .lock')) && !(await page.$eval('.sec[data-key="g:g3"]', el => el.classList.contains("locked"))));
+    ok("the summary reads All answered once the research returns", (await text("#dscroll .done-h")) === "All answered", await text("#dscroll .done-h"));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));

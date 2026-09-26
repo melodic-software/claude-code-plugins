@@ -173,13 +173,13 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_c4.js")" >"$tmp/ui_c4.out" 2>&1
 
   # The journey (AC27) runs against a fifth server seeded with an empty interview. It walks
-  # J1 to J15 on one page in five phases; the shell writes as Claude between them.
+  # J1 to J15 on one page in seven phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
   cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
   bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
   bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
   jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')
-  for n in 1 2 3 4 5; do
+  for n in 1 2 3 4 5 6 7; do
     sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
   done
   jseqs() { "$py" "$here/round.py" --dir "$j" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
@@ -221,13 +221,22 @@ if command -v playwright-cli >/dev/null 2>&1; then
   japply f '{"ops": [{"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
     "constraints": "Builds stop at ten minutes."}}]}'
   jrun 5
+  jhandle
+  japply g '{"ops": [{"op": "wait", "id": "Q5", "clear": true},
+    {"op": "record-terminal", "id": "Q5", "decision": "own", "text": "Pin it to the lock file."},
+    {"op": "record-terminal", "id": "Q7", "decision": "accept"},
+    {"op": "wait", "id": "Q3", "waitsOn": "a second benchmark", "by": "claude"},
+    {"op": "group", "id": "g3", "title": "Release", "dependsOn": ["g2"]}]}'
+  jrun 6
+  japply h '{"ops": [{"op": "wait", "id": "Q3", "clear": true}]}'
+  jrun 7
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
-  for n in 1 2 3 4 5; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
+  for n in 1 2 3 4 5 6 7; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 229 browser checks not run, 75 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 229))
+  echo "SKIP: 236 browser checks not run, 82 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 236))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"
