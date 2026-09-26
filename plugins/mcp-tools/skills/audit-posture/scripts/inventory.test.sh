@@ -65,16 +65,38 @@ run_inv() {
   ERR="$(<"$FIX/stderr.txt")"
   ALL+="$OUT$ERR"
 }
+# find_row <scope> <name>: set FIELDS to the tab-split fields of the first row matching scope
+# and name (empty when none). Pure parameter expansion: no subshell or external process, which
+# keeps the suite fast where process creation is slow (Git Bash on Windows).
+FIELDS=()
+find_row() {
+  local rest="$OUT"$'\n' line
+  FIELDS=()
+  while [[ -n "$rest" ]]; do
+    line="${rest%%$'\n'*}"
+    rest="${rest#*$'\n'}"
+    if [[ "$line" == "$1"$'\t'"$2"$'\t'* ]]; then
+      line+=$'\t'
+      while [[ -n "$line" ]]; do
+        FIELDS+=("${line%%$'\t'*}")
+        line="${line#*$'\t'}"
+      done
+      return 0
+    fi
+  done
+}
 # cell <scope> <name> <column>: one field of the first row matching scope and name.
 cell() {
-  printf '%s\n' "$OUT" | awk -F'\t' -v s="$1" -v n="$2" -v c="$3" '$1 == s && $2 == n { print $c; exit }'
+  find_row "$1" "$2"
+  printf '%s' "${FIELDS[$(($3 - 1))]:-}"
 }
 # check_row <name> <launcher> <package> <pin> <publisher>: a file-scope row's classification.
 check_row() {
-  assert_eq "$1 launcher" "$2" "$(cell file "$1" 5)"
-  assert_eq "$1 package" "$3" "$(cell file "$1" 6)"
-  assert_eq "$1 pin" "$4" "$(cell file "$1" 7)"
-  assert_eq "$1 publisher" "$5" "$(cell file "$1" 8)"
+  find_row file "$1"
+  assert_eq "$1 launcher" "$2" "${FIELDS[4]:-}"
+  assert_eq "$1 package" "$3" "${FIELDS[5]:-}"
+  assert_eq "$1 pin" "$4" "${FIELDS[6]:-}"
+  assert_eq "$1 publisher" "$5" "${FIELDS[7]:-}"
 }
 
 # --- Fixtures ---------------------------------------------------------------
@@ -826,14 +848,16 @@ cat >"$FIX/reattack2 cases.cfg" <<'JSON'
   "legit-py":{"command":"uvx","args":["mcp-server-fetch==2025.4.7"]},
   "legit-img":{"command":"docker","args":["run","ghcr.io/github/github-mcp-server:0.4.0"]},
   "legit-digest":{"command":"docker","args":["run","docker.io/mcp/notes@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]},
-  "legit-git":{"command":"npx","args":["git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567"]}
+  "legit-git":{"command":"npx","args":["git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567"]},
+  "N04-lower":{"command":"docker","args":["run","rsdtoken0123456789.registry.example.com:5000/o/img:1"]},
+  "N43-lower":{"command":"docker","args":["run","rsdns/img@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]}
 }}
 JSON
 
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
   --managed-dir "$FIX/managed six" --config "$FIX/reattack2 cases.cfg" --date 2026-01-02
 assert_eq "run 9 exits 0" 0 "$RC"
-assert_eq "run 9 prints one row per case" 52 "$(printf '%s\n' "$OUT" | sed -n '3,$p' | grep -vc '^#')"
+assert_eq "run 9 prints one row per case" 54 "$(printf '%s\n' "$OUT" | sed -n '3,$p' | grep -vc '^#')"
 check_row N01-npm-longtag npx - unparsed -
 check_row N05-git-path npx - unparsed -
 check_row N06-tarball-path npx https://h.example.com/.../pkg.tgz tarball h.example.com
@@ -860,6 +884,10 @@ assert_eq "AKIA glued to a letter prints (accepted residual)" "node" \
 check_row N08-py-url uvx 'pkg @ git+https://h.example.com/RSDsecret/r.git' git-ref h.example.com
 check_row N14-uvx-ver uvx pkg==RSDsecret0123456789 exact pypi
 check_row N17-bash-c-basename local RSDsecret_token_0123456789abcdef not-a-package local
+check_row N04-lower docker rsdtoken0123456789.registry.example.com:5000/o/img:1 mutable-tag \
+  rsdtoken0123456789.registry.example.com:5000/o
+check_row N43-lower docker \
+  rsdns/img@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef digest rsdns
 assert_eq "dictionary-word name prints (accepted residual)" "node" "$(cell file 'RSD correct horse battery staple' 6)"
 assert_eq "short drop-in entry name prints (accepted residual)" "yes" "$(cell managed-settings RSDsecret123 3)"
 
