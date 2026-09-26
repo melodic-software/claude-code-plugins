@@ -74,8 +74,9 @@ full output is in hand.
 ### Phase 2: Evaluate P1-P5
 
 Load [reference/checklist.md](reference/checklist.md) and evaluate each row whose `effective` is
-`yes`. Rows that are shadowed, suppressed by managed config, or disabled appear in the inventory
-but are not scored.
+`yes` or `approval-unknown` (a project server whose approval sits in settings the script does not
+read; qualify its findings "if approved"). Rows that are shadowed, suppressed by managed config,
+or disabled appear in the inventory but are not scored.
 
 - **P1 floating version** is mechanical: the severity follows from the `pin` and `launcher`
   columns by the checklist's table. Do not second-guess the script's classification.
@@ -88,7 +89,7 @@ but are not scored.
 
 Never run, install, fetch, or connect to a server to answer any criterion, including with
 `npx --help`, `uvx --version`, `docker pull`, or an HTTP request to a server URL. Phase 2 is done
-when every `effective = yes` row has a result for P1 through P4.
+when every scored row has a result for P1 through P4.
 
 ### Phase 3: Report
 
