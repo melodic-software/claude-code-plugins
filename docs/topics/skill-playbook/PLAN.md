@@ -219,7 +219,7 @@ scripts/check-shell-portability.sh --paths <root>/scripts/*.sh` exit 0.
 **Sanity Check:** `render.test.sh` asserts the filled page contains every catalog id and no
 external `src=`/`href=http`; `bash scripts/check-html-assets.sh` exits 0.
 
-### Phase 5: SKILL.md, action references, evals [TODO]
+### Phase 5: SKILL.md, action references, evals [DONE]
 
 - `<root>/SKILL.md`: action router (`plan`, `next`, `review`), `argument-hint`, description with
   triggers, `## Next` naming `/source-control:pull-request ready`, gotchas (non-deterministic
