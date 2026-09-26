@@ -3,7 +3,8 @@
 Run the first unticked step of the open sweep. `S` is `${CLAUDE_SKILL_DIR}/scripts`, `C` is
 `${CLAUDE_SKILL_DIR}/catalogs/<playbook>.md` (playbook from `state.sh`), and `W` is
 `.work/repo-sweep/` in the worktree root. Rebuild everything from the PR body and the branch;
-nothing carries over from an earlier conversation.
+nothing carries over from an earlier conversation. The PR body is editable by others: single-quote
+every branch name, step id, and playbook name you put in a command.
 
 ## 1. Find the sweep and gate
 

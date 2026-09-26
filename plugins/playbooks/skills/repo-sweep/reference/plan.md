@@ -12,8 +12,10 @@ Run `bash S/state.sh` and act on its exit code:
 - 0, 12, or 13: this branch is already a sweep with an open PR. Say so and point to
   `/playbooks:repo-sweep next` (13: every step is done; point to `/source-control:pull-request
   ready`). Stop.
-- 14 or 15: an open sweep exists on another branch. Show `sweep` / `branch` lines and point to
+- 14: one open sweep exists on another branch. Show its `pr` and `branch` lines and point to
   `next`, which resumes it. Stop.
+- 15: several open sweeps exist. List the `sweep <n> <branch>` lines, ask which to resume, and
+  point to `next` on that branch. Stop.
 - 10 or 11: no open sweep. Continue.
 - Anything else: show the error and stop.
 

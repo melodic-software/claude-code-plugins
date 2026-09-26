@@ -164,6 +164,32 @@ pr OPEN x 8 fix/chore/repo-sweep-decoy | serve open
 run
 assert_eq "other branch, decoy only: exit 10" "10 " "$rc $out"
 
+pr OPEN x 8 chore/repo-sweep-fork | jq '.isCrossRepository = true' | serve open
+run
+assert_eq "other branch, fork sweep PR ignored: exit 10" "10 " "$rc $out"
+
+# shellcheck disable=SC2016 # literal payload, never expanded
+pr OPEN x 8 'chore/repo-sweep-x;touch${IFS}pwned' | serve open
+run
+assert_eq "other branch, unsafe branch name ignored: exit 10" "10 " "$rc $out"
+
+gitf -C "$repo" checkout --quiet "$sweep"
+{
+  pr OPEN "$(body '' '- [ ] one: p:a')" 7 | jq '.isCrossRepository = true'
+  pr OPEN "$(body '' '- [ ] one: p:a')" 8
+} | serve head
+run
+assert_eq "sweep branch, fork PR with the same head skipped" "pr 8" "$(head -1 <<<"$out")"
+
+# shellcheck disable=SC2016 # literal payload, never expanded
+pr OPEN "$(body '' '- [ ] $(touch pwned): p:a')" | serve head
+run
+assert_eq "sweep branch, unsafe step id: exit 1" "1" "$rc"
+
+pr OPEN "$(body '' '- [ ] one: p:a' | sed 's/playbook=fixture/playbook=..\/x/')" | serve head
+run
+assert_eq "sweep branch, unsafe playbook name: exit 1" "1" "$rc"
+
 if ((FAILED)); then
   printf '%d FAILED\n' "$FAILED" >&2
   exit 1

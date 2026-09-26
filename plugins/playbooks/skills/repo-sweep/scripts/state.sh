@@ -36,7 +36,10 @@
 set -euo pipefail
 
 prefix=chore/repo-sweep-
-fields=number,state,headRefName,baseRefName,body
+fields=number,state,headRefName,baseRefName,body,isCrossRepository
+# Branch names, playbook names, and step ids reach commands the agent builds, so all three are
+# restricted to safe characters, and fork PRs never count as a sweep.
+safe_branch='^chore/repo-sweep-[A-Za-z0-9._-]+$'
 top=$(git rev-parse --show-toplevel)
 cd "$top"
 tmp=$(mktemp -d)
@@ -45,10 +48,12 @@ trap 'rm -rf "$tmp"' EXIT
 branch=$(git symbolic-ref -q --short HEAD || true)
 if [[ $branch == "$prefix"* ]]; then
   gh pr list --state all --head "$branch" --limit 1000 --json "$fields" >"$tmp/prs"
-  jq '(map(select(.state == "OPEN")) + .)[0] // empty' "$tmp/prs" >"$tmp/pr"
+  jq '[.[] | select(.isCrossRepository | not)] | (map(select(.state == "OPEN")) + .)[0] // empty' \
+    "$tmp/prs" >"$tmp/pr"
 else
   gh pr list --state open --search "head:$prefix" --limit 1000 --json "$fields" >"$tmp/prs"
-  jq -r --arg p "$prefix" '.[] | select(.headRefName | startswith($p)) | "sweep \(.number) \(.headRefName)"' \
+  jq -r --arg re "$safe_branch" \
+    '.[] | select((.isCrossRepository | not) and (.headRefName | test($re))) | "sweep \(.number) \(.headRefName)"' \
     "$tmp/prs" >"$tmp/open"
   case $(wc -l <"$tmp/open" | tr -d ' ') in
   0) exit 10 ;;
@@ -70,7 +75,7 @@ jq -r '"pr \(.number)\nbranch \(.headRefName)\npr-state \(.state)"' "$tmp/pr"
 jq -r .body "$tmp/pr" | tr -d '\r' | awk '
   /^<!-- repo-sweep:end -->/ { if (inb) exit; next }
   inb { print; next }
-  match($0, /^<!-- repo-sweep:begin playbook=[^ ]+ -->/) { inb = 1; print }' >"$tmp/block"
+  match($0, /^<!-- repo-sweep:begin playbook=[a-z0-9-]+ -->/) { inb = 1; print }' >"$tmp/block"
 if [[ ! -s $tmp/block ]]; then
   printf 'state.sh: no repo-sweep markers in the body of PR #%s\n' "$(jq -r .number "$tmp/pr")" >&2
   exit 1
@@ -102,6 +107,7 @@ awk -v logf="$tmp/log" '
     mark = substr($0, 4, 1); rest = substr($0, 7); i = index(rest, ": ")
     if (!i) next
     id = substr(rest, 1, i - 1); tail = substr(rest, i + 2)
+    if (id !~ /^[a-z0-9-]+$/) { print "state.sh: unsafe step id: " id > "/dev/stderr"; bad = 1; exit }
     if (mark ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings)$/) next
     n = split(tail, s, /, */)
     for (c = 1; c <= nc; c++) {
@@ -115,6 +121,7 @@ awk -v logf="$tmp/log" '
     if (mark == " " && !pend) pend = id
   }
   END {
+    if (bad) exit 1
     if (prog) print "next " prog " in-progress"
     else if (pend) print "next " pend " pending"
   }' "$tmp/block" >"$tmp/out"
