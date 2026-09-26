@@ -233,6 +233,12 @@ def env_rest:
   elif IN(.[0]; "-S", "--split-string") then (((.[1] // "") | shell_split) + .[2:])
   elif (.[0] | startswith("-")) then (.[1:] | env_rest)
   else . end;
+def drop_pwsh_env:
+  sub("^[[:space:]]*\\$env:[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*(\u0027[^\u0027]*\u0027|\"[^\"]*\"|[^;]*);?"; "") as $n
+  | if $n == . then . else ($n | drop_pwsh_env) end;
+def drop_cmd_set:
+  sub("^[[:space:]]*set[[:space:]]+(\"[A-Za-z_][A-Za-z0-9_]*=[^\"]*\"|[A-Za-z_][A-Za-z0-9_]*=[^&]*)[[:space:]]*(&&?)?"; ""; "i") as $n
+  | if $n == . then . else ($n | drop_cmd_set) end;
 def rest_after($opts):
   ([to_entries[] | select(.value | ascii_downcase | IN(.; $opts[])) | .key] | first) as $i
   | if $i == null then null else .[$i + 1:] end;
@@ -243,14 +249,19 @@ def unwrap:
     | .[1:] as $a
     | if IN($b; "cmd", "pwsh", "powershell") then
         (($a | rest_after(if $b == "cmd" then ["/c", "/k"] else ["-command", "-c", "-commandwithargs", "-cwa"] end)) as $r
-         | if $r == null then . else ($r | join(" ") | shell_split | unwrap) end)
+         | if $r == null then .
+           else ($r | join(" ") | if $b == "cmd" then drop_cmd_set else drop_pwsh_env end | shell_split | unwrap) end)
       elif IN($b; "bash", "sh", "zsh", "dash", "ash", "ksh") then
         (($a | shell_c_string) as $s | if $s == null then . else ($s | shell_split | unwrap) end)
       elif $b == "env" then ($a | env_rest | unwrap)
       else . end
     end;
+# Userinfo is everything through the LAST @ of the authority. Any @ left after the scheme
+# means the authority or path is ambiguous, so the spec is reported unparsed.
+def strip_userinfo: gsub("://[^/?#]*@"; "://");
+def url_ambiguous: test("://[^@]*@");
 def strip_url:
-  gsub("://[^/@?#[:space:]]*@"; "://")
+  strip_userinfo
   | if test("#[0-9a-f]{40}$")
     then ((capture("^(?<a>[^?#]*)[^#]*(?<h>#[0-9a-f]{40})$") | .a + .h) // .)
     else sub("[?#].*$"; "") end;
@@ -264,7 +275,15 @@ def git_pub:
   if is_url then url_host
   elif test("^[a-z]+:") then ((capture("^(?<p>[a-z]+):(?<o>[^/]+)") | "\(.p):\(.o)") // "-")
   else "github:" + (split("/") | .[0]) end;
-def ref_class: if is_local_path then {pin: "local-path", pub: "local"} else {pin: git_pin, pub: git_pub} end;
+def is_tarball: test("^https?://") and (sub("[?#].*$"; "") | test("\\.(tgz|tar\\.gz)$"));
+def tarball_pin:
+  if url_host == "registry.npmjs.org"
+     and (sub("[?#].*$"; "") | test("-[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?\\.tgz$"))
+  then "exact" else "tarball" end;
+def ref_class:
+  if is_local_path then {pin: "local-path", pub: "local"}
+  elif is_tarball then {pin: tarball_pin, pub: url_host}
+  else {pin: git_pin, pub: git_pub} end;
 def npm_shape:
   (test("[[:space:]]") | not) and (is_assign | not)
   and (is_ref or test("^[A-Za-z0-9._~-]+/[^[:space:]@=]+$") or test("^(@[A-Za-z0-9._~-]+/)?[A-Za-z0-9._~-]+(@.*)?$"));
@@ -316,6 +335,8 @@ def parse_args($pkgflags; $vals; $bools):
       elif any($pkgflags[]; . as $f | $t | startswith($f + "=")) then (($t | sub("^[^=]*="; "")) as $v | .[1:] | go($v))
       elif IN($t; $vals[]) then (.[2:] | go($p))
       elif $t == "--" or IN($t; $bools[]) then (.[1:] | go($p))
+      elif ($t | test("^-[A-Za-z].")) and any($vals[]; test("^-[A-Za-z]$") and (. as $v | $t | startswith($v)))
+        then (.[1:] | go($p))
       elif ($t | startswith("-")) then
         (if ($t | test("^--[^=]+=")) or ((.[1] // "-") | startswith("-")) then (.[1:] | go($p))
          elif $p != null then $p
@@ -357,7 +378,7 @@ def img_of:
 def pkgrow($l; $spec; shape; cls):
   if $spec == null or $spec == "" then {launcher: $l, package: "-", pin: "not-a-package", publisher: "-"}
   else ($spec | strip_url) as $s
-  | if ($s | shape | not) then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
+  | if ($s | url_ambiguous) or ($s | shape | not) then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
     else ($s | cls) as $k | {launcher: $l, package: $s, pin: $k.pin, publisher: $k.pub}
     end
   end;
@@ -381,8 +402,11 @@ def stdio_row:
         img_shape; img_class)
     else
       ($t[1:] | map(shell_split[] | lc_base) | any(.[]; IN(.; runners[]))) as $wrapped
-      | {launcher: "local", package: ((($t[0] // "") | basename_of) as $n | if $n == "" then "-" else $n end),
-         pin: (if $wrapped then "wrapped" else "not-a-package" end), publisher: "local"}
+      | (($t[0] // "") | basename_of) as $n
+      | if $n == "" then {launcher: "local", package: "-", pin: "not-a-package", publisher: "local"}
+        elif ($n | test("^[A-Za-z0-9._+-]+$") | not) then {launcher: "local", package: "-", pin: "unparsed", publisher: "-"}
+        elif $wrapped then {launcher: "local", package: "-", pin: "wrapped", publisher: "local"}
+        else {launcher: "local", package: $n, pin: "not-a-package", publisher: "local"} end
     end;
 def classify:
   (.cfg | if type == "object" then . else {} end) as $c
@@ -391,19 +415,29 @@ def classify:
      elif ($c.url | type) == "string" then "http"
      else "stdio" end) as $transport
   | if $transport != "stdio" then
-      ((($c.url // "") | tostring | capture("^(?<s>[A-Za-z][A-Za-z0-9+.-]*://)([^/@?#]*@)?(?<h>[^/?#]*)")) // null) as $m
-      | {launcher: "remote",
-         package: (if $m then $m.s + $m.h else "-" end),
-         pin: "n/a",
-         publisher: (if $m then ($m.h | sub(":[0-9]+$"; "")) else "-" end),
-         sandboxed: "n/a"}
+      (($c.url // "") | tostring | strip_userinfo) as $u
+      | (if ($u | url_ambiguous) then null
+         else (($u | capture("^(?<s>[A-Za-z][A-Za-z0-9+.-]*://)(?<h>[^/?#]*)")) // null) end) as $m
+      | if $m == null then {launcher: "remote", package: "-", pin: "unparsed", publisher: "-", sandboxed: "n/a"}
+        else {launcher: "remote", package: ($m.s + $m.h), pin: "n/a",
+              publisher: ($m.h | sub(":[0-9]+$"; "")), sandboxed: "n/a"} end
     else
-      ([$c.command // "" | if type == "string" then . else "" end]
-       + ($c.args // [] | if type == "array" then map(select(type == "string")) else [] end))
-      | map(strip_fmt) | unwrap | stdio_row | . + {sandboxed: "no"}
+      # A command whose final path segment holds whitespace or any control character is
+      # a command line, not a program path: never print it.
+      ($c.command // "" | if type == "string" then . else "" end
+       | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")) as $cmd
+      | if ($cmd | test("[[:cntrl:]]")) or ($cmd | basename_of | test("[[:space:]]")) then
+          {launcher: "local", package: "-", pin: "unparsed", publisher: "-", sandboxed: "no"}
+        else
+          ([$cmd] + ($c.args // [] | if type == "array" then map(select(type == "string")) else [] end))
+          | map(strip_fmt) | unwrap | stdio_row | . + {sandboxed: "no"}
+        end
     end
   | . + {transport: $transport};
-def rank: {local: 3, project: 2, user: 1}[.] // 0;
+def rank: {managed: 5, "managed-settings": 4, local: 3, project: 2, user: 1}[.] // 0;
+def secret_name:
+  test("^(sk-|sk_|ghp_|gho_|ghs_|ghu_|github_pat_|xox[abprs]-|akia|glpat-)"; "i") or test("[A-Za-z0-9_-]{32,}");
+def shown_name: clean | if secret_name then "redacted-name(\(length))" else . end;
 def overridable: IN(.; "user", "local", "project", "file");
 def opt_out: IN(.; "user", "local", "file", "managed-settings");
 
@@ -421,7 +455,7 @@ def opt_out: IN(.; "user", "local", "file", "managed-settings");
      then "approval-unknown"
    else "yes" end) as $effective
 | ($r | classify) as $k
-| [$r.scope, $r.name, $effective, $k.transport, $k.launcher, $k.package, $k.pin, $k.publisher, $k.sandboxed]
+| [$r.scope, ($r.name | shown_name), $effective, $k.transport, $k.launcher, $k.package, $k.pin, $k.publisher, $k.sandboxed]
 | map(clean)
 '
 
