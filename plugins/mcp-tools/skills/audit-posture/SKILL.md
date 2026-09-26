@@ -36,8 +36,12 @@ command, a lookup, a config edit, or a change to a severity.
 Read MCP configuration ONLY through the inventory script. Never open `~/.claude.json`,
 `.mcp.json`, `managed-mcp.json`, or `managed-settings.json` with Read, `cat`, `jq`, or any other
 tool: `~/.claude.json` holds account data and per-project state, and server entries carry `env`
-and `headers` values that are often tokens. The script emits only the columns the audit needs and
-never prints an `env` value, a `headers` value, or any argument other than the package spec.
+and `headers` values that are often tokens. The script emits only the columns the audit needs. It
+is built to withhold `env` and `headers` values, URL userinfo and query strings, raw command text,
+and every argument other than the package spec, printing `-` with pin `unparsed` when it cannot
+separate them safely, and a secret-shaped server name as `redacted-name(<length>)`. A static
+parser cannot rule out every shape: when a row looks wrong, report it rather than reading the
+file to check.
 
 ## Arguments
 

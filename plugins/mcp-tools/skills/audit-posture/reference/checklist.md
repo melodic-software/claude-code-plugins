@@ -39,7 +39,7 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
 | `pin` | Launcher that fetches a package at start (`npx`, `npm-exec`, `pnpm-dlx`, `yarn-dlx`, `bunx`, `uvx`, `uv-tool-run`, `pipx`) | Container launcher (`docker`, `podman`, `nerdctl`) |
 |---|---|---|
 | `floating-unversioned`, `floating-tag` | FAIL | WARN |
-| `floating-range`, `mutable-tag`, `git-ref` | WARN | WARN |
+| `floating-range`, `mutable-tag`, `git-ref`, `tarball` | WARN | WARN |
 | `unparsed` | WARN | WARN |
 | `exact`, `digest`, `git-commit` | PASS | PASS |
 | `local-path`, `not-a-package` | n/a | n/a |
@@ -52,8 +52,14 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
 - `local` launchers (`pin` = `local-path` or `not-a-package`) and `remote` rows (`pin` = `n/a`)
   are `n/a` for P1. Name a `local-path` row in the details so the operator knows the code on disk
   is theirs to track.
+- `tarball` is an `http(s)://` spec ending in `.tgz` or `.tar.gz` on a host other than the npm
+  registry: the URL is fixed, but the bytes behind it can change. A `registry.npmjs.org` tarball
+  whose file name ends in `-<version>.tgz` reads `exact`, because the npm registry does not
+  republish a version.
 - `unparsed` means the script could not isolate a package spec without risking printing an
-  argument that may be a secret, so the package column reads `-`. It is WARN because the pin is
+  argument that may be a secret, so the package column reads `-`. It also covers a `command`
+  field holding a whole command line, and a URL whose userinfo cannot be separated from the host
+  unambiguously. It is WARN because the pin is
   unknown; ask the operator to check that entry by hand.
 - `wrapped` appears on a `local` row whose arguments still name a package runner or container
   tool after the script unwrapped the shells it knows (`bash -c`, `cmd /c`, `env`,
@@ -177,3 +183,18 @@ Its value is the diff between runs: a new server, a changed package, or a pin th
 - **As of**: 2026-09-26.
 - **Recheck trigger**: a Claude Code release note naming an MCP scope, `managed-mcp.json`, or
   `managedMcpServers`, or a re-fetch of any of the three pages diverging from this record.
+
+### Managed precedence
+
+- **Claim**: A `managedMcpServers` entry wins over a server of the same name at local, project,
+  or user scope, so those rows read `shadowed-by:managed-settings`. When `managed-mcp.json` defines
+  the same name, its entry wins over `managedMcpServers`, so the managed-settings row reads
+  `shadowed-by:managed`. When `managed-mcp.json` is present, local, project, and user rows read
+  `suppressed-by-managed` instead, because the file takes exclusive control.
+- **Basis**: <https://code.claude.com/docs/en/managed-mcp>: "A provided server takes precedence
+  over a server with the same name in local, project, or user scope", and "If you also deploy
+  `managed-mcp.json`, Claude Code loads its servers and the provided servers together, and the
+  file's entry takes precedence when both define a name."
+- **As of**: 2026-09-26.
+- **Recheck trigger**: a re-fetch of the managed-mcp page no longer carrying both quoted
+  sentences, or a Claude Code release note naming `managedMcpServers` precedence.
