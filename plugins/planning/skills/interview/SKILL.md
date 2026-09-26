@@ -328,6 +328,8 @@ Run rounds: restate working understanding → compute the frontier (every open q
 
 Full surfacing-question taxonomy + categorization heuristics in [`context/loop.md`](context/loop.md).
 
+On the page surface, Step 3's confirmation gate runs on the page: post the restatement with a `restate` op and wait for the user's `confirm-understanding` event, per [`context/surface.md`](context/surface.md) "Confirmation gate".
+
 **`me` mode** maintains a **decision-tree ledger**. One live checkbox per branch, ticked on resolve, remaining-open surfaced periodically (not every turn. Keeps the flow clean like the inline format). Persist each answer the moment it locks in (Step 4), loop until zero open consequential branches. Ask via the inline format (Stance "Relentless mode"). Ledger shape + per-round mechanics + reversibility-lens question shape in [`context/loop.md`](context/loop.md) "Decision-tree ledger".
 
 ### Step 3. Recognize the stop condition
