@@ -823,6 +823,10 @@ expect_both 'tree: cd into a subdirectory then ../x blocks (declared overblock)'
 # The same overblock for a cd inside a subshell, which cannot move the parent.
 expect_both 'tree: a subshell cd .. then a delete blocks (declared overblock)' 2 "${RDT_CWD[@]}" \
   --command '(cd ..) ; rm -rf build'
+# The same overblock for a launcher's directory, which applies only to the
+# command it launches.
+expect_both 'tree: env -C on another command then a delete blocks (declared overblock)' 2 "${RDT_CWD[@]}" \
+  --command 'env -C /opt true; rm -rf build'
 # CDPATH can send a relative cd anywhere the command itself names, so a
 # relative delete after such a cd is refused rather than guessed; a cd spelled
 # with ./ ignores CDPATH and is still followed. A non-literal cd "$d" still
