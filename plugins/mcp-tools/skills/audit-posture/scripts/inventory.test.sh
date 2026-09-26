@@ -420,7 +420,7 @@ check_row docker-port-untagged docker localhost:5000/img floating-unversioned lo
 check_row podman podman quay.io/org/img:2 mutable-tag quay.io/org
 check_row nerdctl nerdctl img:latest floating-tag library
 check_row local local my-server not-a-package local
-check_row remote-http remote - unparsed -
+check_row remote-http remote https://mcp.example.com:8443 n/a mcp.example.com
 check_row remote-sse remote https://sse.example.com n/a sse.example.com
 check_row remote-oauth remote https://o.example.com n/a o.example.com
 
@@ -699,7 +699,7 @@ check_row r074 npx pkg floating-unversioned unscoped
 check_row r081 uvx 'mcp-x @ git+https://github.com/o/r' git-ref github.com
 assert_eq "unknown type prints transport unknown" "unknown" "$(cell file r061 4)"
 assert_eq "valid drop-in managedMcpServers entry loads" "yes" "$(cell managed-settings s 3)"
-assert_eq "drop-in url with a query is unparsed" "unparsed" "$(cell managed-settings s 7)"
+assert_eq "drop-in remote url prints host only" "https://h.example.com" "$(cell managed-settings s 6)"
 assert_eq "non-ASCII name redacted by raw length" "https://h.example.com" "$(cell file 'redacted-name(10)' 6)"
 
 # --- Run 8: managed validity, conditional shadowing, names, transports ---------
@@ -733,7 +733,9 @@ cat >"$FIX/seven/names.json" <<'JSON'
   "AIzaKey": {"command": "npx", "args": ["aiza@1.0.0"]},
   "eyJx": {"command": "npx", "args": ["eyj@1.0.0"]},
   "t-unknown": {"type": "websocket", "url": "https://x.example.com"},
-  "t-sdk": {"type": "sdk"}
+  "t-sdk": {"type": "sdk"},
+  "q-key": {"type": "http", "url": "https://h.example.com/mcp?api_key=ZQX901"},
+  "q-userinfo": {"type": "http", "url": "https://u:p@h.example.com/mcp?x=ZQX902"}
 }}
 JSON
 
@@ -760,6 +762,8 @@ assert_eq "unrecognized type prints transport unknown" "unknown" "$(cell file t-
 assert_eq "unrecognized type row is unparsed" "unparsed" "$(cell file t-unknown 7)"
 assert_eq "sdk transport" "sdk" "$(cell file t-sdk 4)"
 assert_eq "sdk launcher" "sdk" "$(cell file t-sdk 5)"
+check_row q-key remote https://h.example.com n/a h.example.com
+check_row q-userinfo remote https://h.example.com n/a h.example.com
 
 # --- Exit 2 cases --------------------------------------------------------------
 
@@ -814,7 +818,7 @@ assert_contains "jq missing names jq" "$ERR" "jq"
 
 planted="$(grep -rhoE '(LEAK|SECRET)[A-Z0-9_]*|ZQX[0-9]{3}' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
 assert_eq "planted secret tokens were collected" "yes" "$([[ -n "$planted" ]] && echo yes)"
-assert_eq "all 83 re-attack ids were collected" 83 "$(printf '%s\n' "$planted" | grep -c '^ZQX')"
+assert_eq "all 85 re-attack ids were collected" 85 "$(printf '%s\n' "$planted" | grep -c '^ZQX')"
 while IFS= read -r secret; do
   [[ -z "$secret" ]] && continue
   assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
