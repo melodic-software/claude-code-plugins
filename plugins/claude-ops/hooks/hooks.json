@@ -1,5 +1,5 @@
 {
-  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts, plus the default-off per-session hook event log on every observable documented event and its SessionEnd retention.",
+  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts, plus the default-off per-session hook event log on every documented event that neither changes behavior nor fires per tool call, and its SessionEnd retention.",
   "hooks": {
     "StopFailure": [
       {
@@ -132,17 +132,6 @@
             "shell": "bash",
             "timeout": 5,
             "statusMessage": "Recording skill-usage telemetry..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
-            "shell": "bash",
-            "timeout": 5,
-            "statusMessage": "Logging the PostToolUse event..."
           }
         ]
       }
@@ -350,19 +339,6 @@
         ]
       }
     ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-event-log.sh",
-            "shell": "bash",
-            "timeout": 5,
-            "statusMessage": "Logging the PreToolUse event..."
-          }
-        ]
-      }
-    ],
     "SessionEnd": [
       {
         "hooks": [
@@ -379,7 +355,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-retention.sh",
+            "command": "[ \"$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED\" = true ] || exit 0; exec bash \"${CLAUDE_PLUGIN_ROOT}\"/hooks/session-retention.sh",
             "shell": "bash",
             "statusMessage": "Pruning the session event log..."
           }

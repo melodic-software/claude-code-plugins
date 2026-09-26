@@ -3,6 +3,13 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.3] - 2026-09-26
+
+### Changed
+
+- The per-session event log no longer registers producer rows on `PreToolUse` and `PostToolUse`. Both fire on every tool call, so a disabled install paid one process creation per call for them; it now pays none. An enabled log loses its per-tool `PreToolUse` and `PostToolUse` lines and still records tool activity through `PostToolBatch` (one line per batch) and `PostToolUseFailure`. The generated registry marks both events excluded with that reason, and the log now covers 28 events.
+- The `SessionEnd` retention row reads the `session_event_log_enabled` switch in shell form before it starts bash, so a disabled install starts no bash at session end. Behavior with the log on is unchanged.
+
 ## [0.62.2] - 2026-09-25
 
 ### Changed

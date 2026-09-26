@@ -188,8 +188,11 @@ hook cost is `map(select(.source == "envelope") | .duration_ms) | add`. Per-hook
 available only for producers that emit `data.session_id` (the nine claude-ops audit hooks
 today); a hook that does not still appears in the whole-root §2 tables through the shared file.
 
-**Event timeline** (the per-session event log, opt-in): every hook event the session saw, in
-order, with the correlation keys that were present.
+**Event timeline** (the per-session event log, opt-in): every registered hook event the session
+saw, in order, with the correlation keys that were present. The log registers no `PreToolUse` or
+`PostToolUse` row (both fire on every tool call); tool activity arrives as one `PostToolBatch`
+line per batch, carrying the first call's `tool_name` and `tool_use_id`, and one
+`PostToolUseFailure` line per failed call.
 
 ```bash
 jq -sr '.[] | select(.source == "event-log")
@@ -201,8 +204,8 @@ Every block above slurps (`-s`): the prelude's `map` and the `.[]` walk need one
 JSONL file read without `-s` hands jq one object at a time.
 
 Group by `agent_id` to separate subagent fires from the main thread; group by `prompt_id` for
-per-turn counts; `tool_use_id` joins a `PreToolUse` row to its `PostToolUse` (and to the OTEL
-`tool_result` event). Empty when `session_event_log_enabled` is off: say so, and point at
+per-turn counts; `tool_use_id` joins a `PostToolBatch` or `PostToolUseFailure` row to the OTEL
+`tool_result` event for that call. Empty when `session_event_log_enabled` is off: say so, and point at
 `/claude-ops:setup` rather than at the shared file.
 
 ## 2.6 Toggles and retention in effect

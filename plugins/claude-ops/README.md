@@ -56,7 +56,7 @@ boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
 
 Three scripts serve those nine rows. `hooks/audit-event-emitter.sh` carries
 seven of them and picks the row from the payload's `hook_event_name`, the way
-`session-event-log.sh` next to it serves about thirty events from one file; the
+`session-event-log.sh` next to it serves 28 events from one file; the
 seven events are distinct, so the event alone selects the row. Each row still
 reads its own `<name>_enabled` switch and emits the same telemetry `hook` id,
 `hook_event`, `status` and `data` fields it emitted as a standalone script, so
@@ -259,9 +259,13 @@ audit-of-record.
 ### The per-session hook event log (off by default)
 
 Independently of any sink, `session_event_log_enabled=true` turns on one
-producer row per observable hook event (30 events; the generated
+producer row per observable hook event (28 events; the generated
 `hooks/hook-events.registry.json` says which, and why `WorktreeCreate`,
-`MessageDisplay` and `FileChanged` are left out). Each fire appends one line to
+`MessageDisplay` and `FileChanged` are left out). `PreToolUse` and
+`PostToolUse` are left out too: they fire on every tool call, so even a
+disabled row would cost a process creation per call. Tool activity is still
+recorded through `PostToolBatch` (one line per batch, carrying the first call's
+`tool_name` and `tool_use_id`) and `PostToolUseFailure`. Each fire appends one line to
 `<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
 (`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
 and a repo-relative file path when present. Each row is SHELL FORM and reads
@@ -276,7 +280,7 @@ the same three creations as before (median 117 ms); a 2 KB payload costs about
 hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
 is still owed, and the default stays off until it is taken.
 `session_event_log_categories` narrows the set. At
-`SessionEnd` the retention hook keeps the newest `session_log_keep_sessions`
+`SessionEnd` the retention hook, gated by the same switch in shell form, keeps the newest `session_log_keep_sessions`
 or the last `session_log_keep_days` days, and `session_log_pre_prune_command`
 hands an archiver the files about to go. The root carries its own `*`
 `.gitignore`, so nothing under it reaches `git status`; `/claude-ops:setup`
