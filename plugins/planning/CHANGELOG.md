@@ -101,6 +101,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
   defense: the SKILL.md Action Router section (the configured-surface wording), the SKILL.md
   Stance section (the emoji paragraph), and the eval-case roster (case 19 added, which does
   not contradict cases 15 and 16).
+- The `loop.md` open-question register section digest was re-pinned: its "Commitment parts on
+  the page" paragraph now says an alternative withdraws the parts, `own` and accept keep
+  unticked parts as Brief risks, and `confirm-commitments` ticks parts confirmed in the
+  terminal. Parts still never become rows the gate grades, so no defense is weakened. The phrase
+  pin on the old alternative wording was replaced by one on the new wording.
 
 ## [0.42.0] - 2026-09-25
 

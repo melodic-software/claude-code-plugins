@@ -476,11 +476,15 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # resolves at most one headline. None qualifies the gap or unattended-blocker bindings,
 # the ladder, or the gate. The `superseded-by-plan` status, its paragraph, and its
 # drift-check line add a non-terminal status the gate blocks on; they widen nothing.
+# The page-parts paragraph states which decisions carry parts (accept and own keep unticked
+# parts as Brief risks; an alternative withdraws them, as the terminal rule does; a defer's
+# open row covers them) and names `confirm-commitments` for parts confirmed in the terminal.
+# Parts still never become rows the gate grades, so no binding or gate is loosened.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "637901f5c261faee632a201620295afca03c1c29fe7800394431428185193f75"
+  "208d7359e732ab49d6db93cd94f4245f468a06821768a53658fa177db110901c"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -696,8 +700,8 @@ pin "SKILL.md: an accept-shorthand that resolved commitment rows names them" "$S
   "When an accept-shorthand resolves commitment rows, name their \`Q<N>\` ids in one line."
 pin "SKILL.md: a page accept resolves only ticked parts" "$SKILL" \
   "(on the page, only the parts the user ticks)"
-pin "loop.md: parts of a page question answered with an alternative leave the risks" "$LOOP" \
-  "move those risks to the Brief's \`### Out-of-scope\` as withdrawn"
+pin "loop.md: parts of a page question answered with an alternative are withdrawn" "$LOOP" \
+  "An alternative withdraws the parts, so they do not reach the Brief"
 pin "loop.md defines commitment rows" "$LOOP" \
   "**Commitment rows.**"
 pin "loop.md: an alternative or rejection withdraws the commitment rows" "$LOOP" \
