@@ -28,6 +28,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2] / 'scripts'))
 import render  # noqa: E402
+from decode import MID  # noqa: E402
 
 FLOOR_GRAY, FLOOR_X, SSIM_MIN, SSIME_MIN = 4, 1.2, 0.980, 0.980
 BRUSH_BIAS = 0.12   # roto.js BRUSH.bias
@@ -51,7 +52,7 @@ def ssim_map(a, b):
 
 def paper(src, rep, T):
     """Mean abs and mean signed replica-source RGB over source paper (BGR images in)."""
-    pm = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY) > T + 16
+    pm = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY) > T + MID
     if not pm.any():
         return 0.0, np.zeros(3)
     pd = rep[pm].astype(float)[:, ::-1] - src[pm].astype(float)[:, ::-1]

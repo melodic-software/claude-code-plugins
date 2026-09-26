@@ -42,3 +42,12 @@ Append-only. Each entry: plan said / found / chose / revisit.
 - **discovery: stale docs outside the file list.** The phase verifier found `README.md:29,37` and
   `learn-style/reference/statistics.md:6,133` still name `capture.mjs` as the render or encode
   path. Left for Phase 3 (README) and Phase 5 (docs cite owners). Revisit: at those phases.
+
+## Phase 2
+
+- **choice: the mid band is `decode.MID = 16`.** Plan named `modes(gray)` as owning "the plus-or-minus
+  16 mid band". `modes()` returns `(ink mode, paper mode, T)`; the 16 is `decode.MID`, read by
+  `inkstats.one`, `extract.stats` and `measure.paper` (`T + MID`).
+- **choice: `extract.decode` keeps its name** and imports `probe, frames, is_repeat, modes, MID`
+  from `decode`; it probes once for `w, h, pts` (for `index.json` and its summary line) and
+  `decode.frames` probes again. Two extra ffprobe runs per extract; output identical.

@@ -16,7 +16,6 @@ approxPolyDP(eps * S); map an upsampled pixel centre u to (u + 0.5) / S.
 """
 import argparse
 import json
-import subprocess
 import sys
 from multiprocessing import Pool
 from pathlib import Path
@@ -25,22 +24,13 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
+from decode import MID, frames, is_repeat, modes, probe  # noqa: E402
 from render import WORKERS  # noqa: E402
 
 S, EPS, INTERP = 4, 0.25, 'cubic'   # supersample, approxPolyDP epsilon (source px), upsampler
 SHARP = (2.0, 0.9)                   # (amount, sigma) unsharp mask before tracing, or None
 LEVELS = (50, 90, 165, 205)          # extra gray isolines traced as tone layers
-DUP_PX = 50                          # fewer pixels changed by >64 gray levels than this: repeat of the previous drawing
 TINT_RG, TINT_SIGN_RG, TINT_SIGN_PX = 4, 6, 15000   # warm paper: median R-G >= 4; a 'sign' is one >15k px region at >= 6
-
-
-def probe(video):
-    out = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
-                          '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout
-    w, h = map(int, out.strip().split(',')[:2])
-    pts = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'frame=pts_time',
-                          '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout
-    return w, h, [float(t) for t in pts.replace(',', ' ').split()]
 
 
 def decode(video, work):
@@ -48,20 +38,13 @@ def decode(video, work):
     w, h, pts = probe(video)
     (work / 'src').mkdir(parents=True, exist_ok=True)
     (work / 'd').mkdir(exist_ok=True)
-    p = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(video), '-map', '0:v:0', '-fps_mode', 'passthrough',
-                          '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
     ts, prev = [], None
-    for t in pts:
-        buf = p.stdout.read(w * h * 3)
-        if len(buf) < w * h * 3:
-            break
-        rgb = np.frombuffer(buf, np.uint8).reshape(h, w, 3)
-        if prev is not None and (np.abs(rgb.astype(np.int16) - prev) > 64).sum() < DUP_PX:
+    for rgb, t in frames(video, None):
+        if is_repeat(prev, rgb):
             continue
         prev = rgb.astype(np.int16)
         cv2.imwrite(str(work / f'src/d{len(ts):03d}.png'), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
         ts.append(t)
-    p.wait()
     gap = float(np.median(np.diff(ts))) if len(ts) > 1 else 1 / 8
     t1 = ts[1:] + [round(ts[-1] + gap, 6)]
     ix = dict(w=w, h=h, duration=t1[-1], drawings=[[k, t, e] for k, (t, e) in enumerate(zip(ts, t1))])
@@ -92,16 +75,14 @@ def hexcol(v):
 
 
 def stats(rgb, g):
-    h = np.bincount(g.ravel(), minlength=256)
-    ink_g, paper_g = int(np.argmax(h[:128])), 128 + int(np.argmax(h[128:]))
-    T = (ink_g + paper_g) / 2
+    ink_g, paper_g, T = modes(g)
     ink, paper = g < T, g >= T
     core_i, core_p = np.abs(g.astype(int) - ink_g) <= 8, np.abs(g.astype(int) - paper_g) <= 8
     return dict(ink=hexcol(np.median(rgb[core_i], 0)), paper=hexcol(np.median(rgb[core_p], 0)), T=T, gray=dict(
         ink_mode=ink_g, paper_mode=paper_g,
         ink_mean=round(float(g[ink].mean()), 2), ink_sd=round(float(g[ink].std()), 2),
         paper_mean=round(float(g[paper].mean()), 2), paper_sd=round(float(g[paper].std()), 2),
-        edge_frac=round(float(((g > ink_g + 16) & (g < paper_g - 16)).mean()), 5),
+        edge_frac=round(float(((g > ink_g + MID) & (g < paper_g - MID)).mean()), 5),
         ink_frac=round(float(ink.mean()), 5)))
 
 

@@ -33,6 +33,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
+import decode  # noqa: E402
 import inkstats  # noqa: E402
 import render  # noqa: E402
 
@@ -145,7 +146,7 @@ def replica(work, tag, out):
 
 def run(job):
     path, film, spec = job
-    frames = post(spec, poly() if film == 'poly' else inkstats.frames(film, 24))
+    frames = post(spec, poly() if film == 'poly' else decode.frames(film, 24))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(inkstats.summary(inkstats.measure(frames, 24))) + '\n')
     return path
@@ -190,7 +191,7 @@ def check(a):
 
 def selftest(a):
     pack, bad = inkstats.load_pack(a.pack), []
-    cases = [('poly', GAME, poly(seconds=10))] + ([('near', s, inkstats.frames(a.near, 24)) for s in (GAME, ATTACK)]
+    cases = [('poly', GAME, poly(seconds=10))] + ([('near', s, decode.frames(a.near, 24)) for s in (GAME, ATTACK)]
                                                   if a.near else [])
     for name, spec, frames in cases:
         rows = inkstats.check(inkstats.summary(inkstats.measure(post(spec, frames), 24)), pack)

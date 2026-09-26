@@ -20,7 +20,7 @@ usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H]
             Distance of a row: |film - source| / |band edge - source| on the film's side of the source value, so 0 is
             the source and 1 is the band edge on either side; a row fails above 1. The film's distance is the mean
             over the rows it defines, and ranks films that all pass.
-Frames that repeat a drawing (fewer than DUP_PX pixels changed by more than 64 gray levels) are dropped, so a 24 fps
+Frames that repeat a drawing (decode.is_repeat) are dropped, so a 24 fps
 capture and a variable-rate source both reduce to distinct drawings with their hold times.
 
 Per drawing (gray = RGB2GRAY; ink and paper = the gray histogram modes below and above 128; T = their midpoint):
@@ -76,14 +76,14 @@ consecutive drawing pairs whose two holds do not add up to twice the most common
 """
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-DUP_PX = 50
+import decode
+
 SEG = 3.35
 STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'straight_border', 'straight_caption',
          'specks', 'gaps', 'holes', 'ink_sd', 'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver',
@@ -95,43 +95,11 @@ CAPTION = 0.013           # caption class: each detected box grown by this share
 CLASSES = ('border', 'caption')   # labels 0 and 1; label 2 is the interior
 
 
-def frames(film, fps):
-    """Yield (rgb, t) for every stored frame of a video, frame folder or rotoscope work dir; any other iterable of
-    (rgb, t) passes through (filtered or synthetic frames)."""
-    if not isinstance(film, (str, Path)):
-        yield from film
-        return
-    film = Path(film)
-    if (film / 'src').is_dir():
-        for k, t, *_ in json.load(open(film / 'd/index.json'))['drawings']:
-            yield cv2.cvtColor(cv2.imread(str(film / f'src/d{k:03d}.png')), cv2.COLOR_BGR2RGB), t
-    elif film.is_dir():
-        for i, f in enumerate(sorted(film.glob('f*.png'))):
-            yield cv2.cvtColor(cv2.imread(str(f)), cv2.COLOR_BGR2RGB), i / fps
-    else:
-        def probe(entries):
-            return subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', entries,
-                                   '-of', 'csv=p=0', str(film)], capture_output=True, text=True, check=True).stdout
-        w, h = map(int, probe('stream=width,height').strip().split(',')[:2])
-        pts = [float(t) for t in probe('frame=pts_time').replace(',', ' ').split()]
-        p = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(film), '-map', '0:v:0', '-fps_mode', 'passthrough',
-                              '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
-        try:
-            for t in pts:
-                buf = p.stdout.read(w * h * 3)
-                if len(buf) < w * h * 3:
-                    break
-                yield np.frombuffer(buf, np.uint8).reshape(h, w, 3), t
-        finally:   # a caller that stops early (--t) must not leave ffmpeg writing into a closed pipe
-            p.kill()
-            p.wait()
-
-
 def drawings(film, fps, region=None, window=None):
     """Yield (rgb, t0) for each distinct drawing (cropped to region, inside window), and finally (None, end time)."""
     prev, t, dt = None, 0.0, 1 / fps
     t0, t1 = window or (-1e9, 1e9)
-    for rgb, t in frames(film, fps):
+    for rgb, t in decode.frames(film, fps):
         if t < t0:
             continue
         if t >= t1:
@@ -142,10 +110,9 @@ def drawings(film, fps, region=None, window=None):
             if x < 0 or y < 0 or w < 1 or h < 1 or x + w > rgb.shape[1] or y + h > rgb.shape[0]:
                 sys.exit(f'inkstats: --region {x},{y},{w},{h} is not inside the {rgb.shape[1]}x{rgb.shape[0]} frame')
             rgb = rgb[y:y + h, x:x + w]
-        g = rgb.astype(np.int16)
-        if prev is not None and (np.abs(g - prev) > 64).sum() < DUP_PX:
+        if decode.is_repeat(prev, rgb):
             continue
-        prev = g
+        prev = rgb.astype(np.int16)
         yield rgb, t
     else:
         t += dt
@@ -264,12 +231,10 @@ def sliver(ink, cls):
 
 def one(rgb):
     g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    h = np.bincount(g.ravel(), minlength=256)
-    ink_g, paper_g = int(np.argmax(h[:128])), 128 + int(np.argmax(h[128:]))
-    T = (ink_g + paper_g) / 2
+    ink_g, paper_g, T = decode.modes(g)
     ink = g < T
     edge = int((ink[:, 1:] != ink[:, :-1]).sum() + (ink[1:] != ink[:-1]).sum())
-    mid = int(((g > ink_g + 16) & (g < paper_g - 16)).sum())
+    mid = int(((g > ink_g + decode.MID) & (g < paper_g - decode.MID)).sum())
     w, pw = ridge_widths(ink), ridge_widths(~ink)
     boxes = captions(ink)
     cls = classes(ink, boxes)

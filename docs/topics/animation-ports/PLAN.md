@@ -187,7 +187,7 @@ and learn-style `SKILL.md` film steps, README.
 - [x] `grep -rnE "Pool\(\)|default=8|workers=8" plugins/animation --include=*.py` returns nothing.
 - [x] C1 239/239; C3 `compare` exits 0; C5.
 
-### Phase 2: `scripts/decode.py` source-in (T14; V8, V9, V10) [TODO]
+### Phase 2: `scripts/decode.py` source-in (T14; V8, V9, V10) [DONE]
 
 - Create `plugins/animation/scripts/decode.py`: `probe(video)`, `frames(film, fps)` (video, frame
   folder, work dir, or any iterable of `(rgb, t)`; today `inkstats.py:97-126`),
@@ -204,9 +204,9 @@ and learn-style `SKILL.md` film steps, README.
 
 **Sanity Check:**
 
-- [ ] `grep -rn "fps_mode\|'ffprobe'" plugins/animation --include=*.py` matches only `scripts/decode.py`.
-- [ ] `grep -rn "> 64" plugins/animation --include=*.py` matches only `scripts/decode.py`.
-- [ ] C1 239/239; C3 `compare` exits 0; C5.
+- [x] `grep -rn "fps_mode\|'ffprobe'" plugins/animation --include=*.py` matches only `scripts/decode.py`.
+- [x] `grep -rn "> 64" plugins/animation --include=*.py` matches only `scripts/decode.py`.
+- [x] C1 239/239; C3 `compare` exits 0; C5.
 
 ### Phase 3: prerequisite probe, pinned requirements, check-only `setup` (T15, T6; D1-D5, D7, D8, D11-D13, V19, V21) [TODO]
 
