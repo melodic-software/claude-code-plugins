@@ -28,6 +28,18 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Assuming an answer because nobody was there to give one:** unattended, a genuine user decision becomes a named `blocked` row and a `USER-RESERVED` deferred question, never a quietly captured assumption. There is no way to detect non-interactivity, so the caller declares it.
 
+- **A bundled recommendation locked by accepting its headline:** a design that also picks a platform, a runtime, and a credential reads as one answer, so a "yes" records one row and locks every part the user never saw. List each part under `Commits you to:` with its own row; a part left unlisted is not decided (SKILL.md "A recommendation that fixes more than one decision lists every part").
+
+- **A hedged reply read as accept-all:** "yes?" or "I think so" signals doubt, so it cannot lock a bundle or a round (SKILL.md "A hedged reply resolves only the headline").
+
+## Page surface
+
+- **A stale `ops.json`:** a file left from an earlier wake re-applies its old replies; write it fresh with the Write tool on every wake.
+
+- **A forgotten `handle`:** the page stays on "Claude is working on Qn" and the event is re-delivered on the next arm; every event ends handled.
+
+- **A server restart:** the restart issues a new token, so the armed watcher exits 2; re-arm it after `ensure-running`.
+
 ## Brief contract
 
 - **`lock` mode with hidden gaps:** if synthesis surfaces a true unknown, stop and ask; do not fudge the Brief.

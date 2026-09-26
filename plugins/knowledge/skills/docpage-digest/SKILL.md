@@ -107,10 +107,15 @@ note the rename in the checklist, and continue. Never re-inventory over it.
 1. **Resume guard:** if any `source.*` snapshot already exists at the work root (an interrupted
    run's fetch landed before its checklist tick), that snapshot IS the immutable original. Do
    not fetch again over it, whatever the checklist says. Complete means the CHANNEL'S full file
-   set: a markdown/rendered channel needs a non-empty `source.md`; a PDF channel needs both
+   set: a markdown/rendered channel needs a non-empty `source.md`, plus `source.html` where the
+   profile requires the raw HTML (below); a PDF channel needs both
    `source.pdf` and a non-empty `source.txt`. Set complete → tick Phase 1 with a
    resumed-snapshot note and continue. `source.pdf` present but `source.txt` missing/empty →
    keep the PDF (it is the original) and produce the extraction from it now, never re-download.
+   `source.md` present but a profile-required `source.html` missing (a work root from before
+   the HTML requirement) → keep `source.md` unchanged, fetch `source.html` beside it now, and
+   note in the checklist that the HTML was fetched later, so the two may reflect different
+   revisions of the page.
    A provably corrupt or empty snapshot is reconciled explicitly, never silently replaced: move
    it aside with a dated suffix, record the move in the checklist, then fetch fresh.
 2. Select the publisher profile: match the URL's host against the profiles under `context/`
@@ -122,7 +127,9 @@ note the rename in the checklist, and continue. Never re-inventory over it.
    the channel works for THIS page. Profiles record channels as previously-verified, not
    guaranteed. Fallback: fetch the rendered page and note the channel degradation.
 4. Snapshot the unaltered original to `<work-root>/source.<ext>`, naming the extension for what
-   was actually fetched: `source.md` for a markdown or rendered-text channel; a remote PDF
+   was actually fetched: `source.md` for a markdown or rendered-text channel, plus the raw
+   `source.html` where the profile requires it (the Anthropic profile does for blog posts, whose
+   chart, diagram, alt, and caption text only the HTML carries); a remote PDF
    (system and model cards) lands as **both** the binary `source.pdf` and its text extraction
    `source.txt`, which are equally originals. Every `source.*` file is immutable from this point:
    corrections and commentary never touch one.

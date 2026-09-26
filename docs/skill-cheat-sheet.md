@@ -128,6 +128,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/performance:protect`](../plugins/performance/skills/protect/SKILL.md) | `performance` | Hold a verified counter win with a CI ceiling a human merges |
 | [`/performance:snapshot`](../plugins/performance/skills/snapshot/SKILL.md) | `performance` | Capture a snapshot only from a host proven measurable |
 | [`/performance:verify`](../plugins/performance/skills/verify/SKILL.md) | `performance` | Re-derive the result in fresh context and report it honestly |
 | [`/toolchain:check`](../plugins/toolchain/skills/check/SKILL.md) | `toolchain` | Build, test, and lint changed files across detected ecosystems |
@@ -227,6 +228,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/overengineering:justify`](../plugins/overengineering/skills/justify/SKILL.md) | `overengineering` | Make one artifact you point at justify its own existence, on evidence |
 | [`/playbooks:boris`](../plugins/playbooks/skills/boris/SKILL.md) | `playbooks` | Boris Cherny's Claude Code workflow tips across 115 sections |
 | [`/playbooks:fable-5`](../plugins/playbooks/skills/fable-5/SKILL.md) | `playbooks` | Fable 5's operating doctrine loaded as standing session instructions |
+| [`/playbooks:repo-sweep`](../plugins/playbooks/skills/repo-sweep/SKILL.md) | `playbooks` | Run the hygiene skill catalog through one repo, one PR, one commit per step |
 | [`/playbooks:skill-authoring`](../plugins/playbooks/skills/skill-authoring/SKILL.md) | `playbooks` | Anthropic's internal skill-authoring playbook and patterns |
 | [`/playgrounds:use`](../plugins/playgrounds/skills/use/SKILL.md) | `playgrounds` | Route playground requests to the first-party plugin, or install it, with recipes and guidance |
 | [`/provenance:audit`](../plugins/provenance/skills/audit/SKILL.md) | `provenance` | Find prose copied from external sources and convert it into pointers |

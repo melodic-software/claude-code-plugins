@@ -32,9 +32,13 @@ outcome gate's artifact-grounded criteria, or not at all.
   clean surface leaves the rung **unresolved**, not absent; `probed-and-not-existing` needs the
   sweep across every surface that class plausibly uses, or the publisher's own completeness
   declaration.
-- **Self-grading the verifier rows.** Criteria 4 and 7 ask the run to judge the quality of its own
-  choices. They belong to a fresh context whatever the execution posture: a dispatched run returns
+- **Self-grading the verifier rows.** Criteria 4, 7 and 12 ask the run to judge the quality of its
+  own choices. They belong to a fresh context whatever the execution posture: a dispatched run returns
   `verification: pending`, and an inline run hands them off rather than answering them.
+- **Verbatim quotes do not make a claim follow.** Every quote can re-fetch word for word while the
+  claim rests on a source that measured a different variable or population, or drops the qualifier
+  the source attached. Criterion 12 asks whether the claim follows, and the dispatch contract briefs
+  the verifier on it by number.
 - **Reading the coverage ledger instead of running the gate.** A model cannot reliably audit its own
   checklist, and the context most motivated to call it finished is the one reading it. Criterion 11
   cites the script's exit status. Exit 2, a ledger the script could not parse, is a FAIL, never a

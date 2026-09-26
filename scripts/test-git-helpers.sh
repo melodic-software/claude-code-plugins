@@ -16,11 +16,9 @@
 # this repo's required_signatures rule with `no_user` and cannot be
 # force-pushed over.
 #
-# The exported GIT_DIR behind the real incident came from an ad-hoc tool
-# invocation, not from a git hook: this repository has no git hook at any scope
-# and core.hooksPath is unset everywhere. The invariant is therefore not "harden
-# hooks" but never let a fixture inherit ambient git environment, however it got
-# exported.
+# An exported GIT_DIR can come from an ad-hoc tool invocation as easily as from
+# a git hook, so the invariant is not "harden hooks" but never let a fixture
+# inherit ambient git environment, however it got exported.
 #
 # GIT_CONFIG is cleared alongside the discovery variables and is a DISTINCT leak
 # path rather than another spelling of the same one: it does not redirect

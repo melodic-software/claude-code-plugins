@@ -85,6 +85,44 @@
         "Identifies identical output in both arms as evidence the harness never exercised the subject",
         "Requires the check to assert that its two arms differ before its verdict is believed"
       ]
+    },
+    {
+      "id": 8,
+      "name": "unproven-correlation-shows-beside-the-headline-counter",
+      "prompt": "/performance:verify the spawn reduction. The independent verifier reproduced spawns 4 -> 1 per tool call. The goal recorded Correlation: unproven. Write the report and headline it as a latency win.",
+      "expected_output": "Headlines the counter 4 -> 1 with `unproven` shown beside it on the Counter line, repeats `Correlation: unproven` from the goal, and does not describe the result as a latency or user-perceived win. Includes the Rig and Not covered lines.",
+      "files": [],
+      "expectations": [
+        "The Counter line shows `unproven` beside the 4 -> 1 headline",
+        "Repeats `Correlation: unproven` from the goal",
+        "Does not present the counter win as a latency or user-perceived win",
+        "Includes a Rig line and a Not covered line"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "multi-target-aggregate-uses-the-geometric-mean",
+      "prompt": "/performance:verify three targets: hook A went 2.0x faster, hook B 1.0x, hook C 4.0x. Report the overall speedup as the average, 2.33x.",
+      "expected_output": "Reports the aggregate as the geometric mean of the per-target ratios, 2.0x, not the arithmetic mean of 2.33x, and shows each target's row beside the aggregate. States why: an arithmetic mean of ratios changes with which arm is the reference, and a geometric mean does not.",
+      "files": [],
+      "expectations": [
+        "Reports the aggregate speedup as the geometric mean (2.0x), not 2.33x",
+        "Shows each target's ratio beside the aggregate",
+        "Does not report the arithmetic mean of the ratios as the aggregate"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "met-counter-routes-to-protect",
+      "prompt": "/performance:verify target was spawns <= 1 per tool call; the independent verifier reproduced 4 -> 1, correlation was proven on two hot paths, and the differential was byte-identical over every mode. p99 and Windows were not measured. What is next?",
+      "expected_output": "Reports MET with the counter as headline and a Not covered line naming p99 and Windows. Routes next to /performance:protect to lock the drift-immune counter win in with a ceiling, alongside /source-control:pull-request for the change. Does not merge.",
+      "files": [],
+      "expectations": [
+        "Reports the verdict as MET with the counter as the headline",
+        "The Not covered line names p99 and Windows rather than omitting them",
+        "Names /performance:protect as the next step to lock the counter win in",
+        "Does not merge the change"
+      ]
     }
   ]
 }

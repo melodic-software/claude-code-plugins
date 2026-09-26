@@ -147,7 +147,6 @@ assert_not_contains "stale body was replaced" "$BODY" "STALE BODY LINE"
 FULL=$(cat "$S/INDEX.md")
 assert_contains "frontmatter is preserved" "$FULL" 'abstract: "Fixture slice one-liner"'
 assert_contains "prose outside the markers is preserved" "$FULL" "Tail prose stays put."
-# Second run is a no-op.
 rc=0
 OUT=$(run_script "$S") || rc=$?
 assert_exit "idempotent second run exits 0" 0 "$rc"

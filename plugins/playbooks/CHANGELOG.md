@@ -4,6 +4,47 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.0] - 2026-09-26
+
+### Added
+
+- **`repo-sweep`**: `/playbooks:repo-sweep` runs a catalog of hygiene skills through one
+  repository per sweep: one branch, one draft PR whose body holds the step checklist, one commit
+  per step with `Playbook-Step` trailers, resumable after `/clear` on any machine. `plan`
+  recommends run, rerun, or not-applicable per catalog entry and opens a bundled selection page;
+  `next` runs the first unticked step; `review` files skill and catalog defects after approval.
+  The `hygiene` catalog ships 31 entries in six phases, 22 checked by default.
+
+## [0.12.3] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.12.2] - 2026-09-24
+
+### Fixed
+
+- **`skill-authoring`**: the authoring guidance points the hook budget at
+  `docs/conventions/hook-budget/README.md`, which owns it; the rule file it named no longer exists.
+
+## [0.12.1] - 2026-09-23
+
+### Changed
+
+- **`fable-5`**: the orchestration chapter gains "Narrow threads per benchmark or journey", marked
+  as inference: one thread per benchmark or journey, scaling a loop horizontally only after it
+  works on one thread, merging threads that collide, judgment criteria for closing a thread at
+  diminishing returns, room for agent-proposed work with no share stated, one named human owner
+  who steers each thread, a standing brief per thread, a signal the thread can re-run alone, one
+  shared visible place for threads, and a reporting cadence planned ahead of throughput.
+- **`fable-5`**: the execution chapter's feature-flag rule names a kill switch as its rollback
+  case and a ramp or staged exposure as the same case at partial scale, each removed as soon as
+  it is safe. The rule is not loosened.
+- The Opus 5.5 chapter gains "Scope: bolder when the guardrails are named": a careful-on-scope
+  default observed on a comparable unreleased model and unverified on Opus 5.5, with its
+  verification record, and the correction to name the guardrails when asking for a bolder step.
+
 ## [0.12.0] - 2026-09-23
 
 ### Added

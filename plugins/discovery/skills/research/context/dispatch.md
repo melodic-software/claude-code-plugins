@@ -29,7 +29,7 @@ also owes `Source breadth:`. This table says why each is the parent's to supply.
 | Reason the topic is being researched, meaning the decision it feeds and who the output is for | Same blindness as the topic, with a worse failure mode: a missing topic is silence the agent can report, while a missing reason is invisible. The agent researches the topic as written, returns something well-formed, and neither side learns it answered the wrong question. Intent is what decides which of several defensible readings of a topic is the one wanted |
 | Memory-slice path | Resolved against the consuming repo's topic-docs binding, which is a parent-side lookup |
 | Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root, but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labeled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
-| Budget | How much depth was authorized is the caller's decision, never the worker's |
+| Budget | How much depth was authorized is the caller's decision, never the worker's. Carried on two lines: `Budget:` for depth and `Turn budget:` for the turn by which the worker stops gathering (degradable; absent, the worker uses its own default) |
 | Source breadth | The caller effort that scales the phase table. The researcher lane is pinned `high` for reasoning, so the worker's own `${CLAUDE_EFFORT}` is the pin (or a literal placeholder on disk fallback). The parent writes this line from its own load |
 | Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag, because the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
 
@@ -51,6 +51,11 @@ against a run that produced none):
    verifier that reads the artifact off disk has never seen the producing context, whoever spawned
    it, which is why nested spawning stays an optimization here rather than a correctness
    prerequisite.
+
+   **Brief the verifier on every row the gate's Owner column marks verifier, by number** (currently
+   rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
+   verifier asked only about corroboration and confidence re-fetches the quotes and never asks
+   whether the claim follows from them.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
@@ -134,6 +139,12 @@ obligation is the parent's, not the script's. Grade each run against the sub-sli
 and grade before synthesis. A slice-root invocation grades only the synthesized index, never any
 dispatched run.
 
+**The synthesis is itself unverified, so it goes to a fresh verifier for criterion 12** before it
+is surfaced. Every `qualifiers:` entry and scope limit a sub-slice recorded stays attached wherever
+the synthesized index uses that claim, and a claim the synthesis adds that no sub-slice accepted,
+such as a cross-topic conclusion, gets the full joint-inference check or is filed as a Gap. Either
+failure sends the synthesis back for rewriting, not the sub-slice for re-dispatch.
+
 ## The coverage ledger is graded separately, and its freshness is not bound
 
 Outcome-gate criterion 11 already makes the *run* cite `check-coverage-complete.sh`'s exit status
@@ -213,8 +224,10 @@ draws:
 
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to take.
-It is not an acceptance value. Letting the gate grade a claim the agent makes about its own research,
-in place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids, arriving
+It is not an acceptance value. An index body written back must carry
+`Run status: complete` or no marker; one still marked `Run status: in progress` fails the gate and
+is a failed dispatch. Letting the gate grade a claim the agent makes about its own research, in
+place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids, arriving
 through the recovery path instead of the front door. Why the mode exists and where its boundary
 sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
@@ -249,19 +262,35 @@ instead, one level up, where gate step 1 has already put the payload in the pare
 
 ## Truncation
 
-`maxTurns` has no documented partial-return semantics; the docs define it only as the point at which
-the subagent stops. Because the ledger and sidecars are written incrementally, a turn-limit stop
-would otherwise leave a half-marked ledger, orphan sidecars, and an index naming files that were
-never written, with no payload at all, so the parent never learns the run died.
+What the harness returns at the turn limit:
 
-Hence: the agent emits its payload block early and keeps it current, marked `status: truncated`
-until the run finishes, and a dispatch that returns no payload is treated as
+- **Claim.** A subagent that reaches `maxTurns` returns its output marked as partial, and the
+  parent can resume it. The page: "When the subagent reaches the limit, Claude Code returns its
+  output marked as partial, and Claude can resume it to continue. The partial marking requires
+  Claude Code v2.1.246 or later".
+- **Basis.** <https://code.claude.com/docs/en/sub-agents>, fetched 2026-09-25.
+- **As of.** 2026-09-25.
+- **Recheck trigger.** The page's `maxTurns` row or its "Resume subagents" section changes, or a
+  release note names turn-limit output or partial marking.
+
+A partial marking says the run stopped; it does not say what reached disk. Because the ledger and
+sidecars are written incrementally, a turn-limit stop leaves a half-marked ledger and sidecars for
+the sections that settled, and an older harness may return no payload at all.
+
+The run therefore reports through two channels. On disk, the agent writes its index skeleton early
+with `Run status: in progress` as the
+first non-blank line after the level-1 title heading (the first line starting with a single `#`
+and a space, outside a code fence), and replaces it only in its final write. The
+gate reads only that slot, so it refuses a stopped run's index and ignores a quoted marker
+elsewhere. In the payload, the agent emits its block early and keeps it current, marked
+`status: truncated` until the run finishes, and a dispatch that returns no payload is treated as
 truncated-without-warning.
 
 **In both cases the parent takes the ladder above in order: resume first where the agent is still
 live, then decide about the slice from what the resume returns.** The resume is what tells you
-whether the slice is worth keeping. A half-run ledger cannot be distinguished from a complete one
-by the coverage script alone, but a resumed agent can say which rows it actually marked, and has
+whether the slice is worth keeping. An index still marked in progress is refused by the gate, but
+a half-run ledger cannot be distinguished from a complete one by the coverage script alone, and a
+resumed agent can say which rows it actually marked, and has
 recovered a complete artifact set from retained context. **Discarding the partial slice is what
 happens when the resume is refused, unavailable, or comes back without a usable payload**, and
 there it is mandatory, with the clear-the-slice rule above, because that is exactly the state the

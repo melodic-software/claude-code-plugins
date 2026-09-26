@@ -56,7 +56,7 @@
 #   {run_dir, cwd, mode, allow_downgrade, install_new, install_new_invalid,
 #    timings:{total,resolution}, marketplaces:[…], errors:[…]}
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
-#    auto_update, refresh:{rc,output,predicted}, project_root,
+#    source_checkout, auto_update, refresh:{rc,output,predicted}, project_root,
 #    in_repo:{updated,failed,would_update},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, install_gap, installed, installed_with_unset_user_config,
@@ -72,7 +72,10 @@
 #   `in_repo_records` counts the project/local records belonging to the repo the
 #   run stands in, whether or not any of them moved; `stale_project_records` is
 #   `{total, by_path:[{path,count}]}`; `cache_content.stale[]` is
-#   `{id, version, files_differ}` per stale install.
+#   `{id, version, files_differ}` per stale install. `source_checkout` is null
+#   unless the source is `directory`; then it is `{path, state, branch, upstream,
+#   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
+#   not_a_repo, and the counts as of the checkout's last fetch (never fetched here).
 #   `enable_gap` is the gap the step FOUND; `enabled` is what it filled at user and
 #   local scope, and `project_enable_rows` is what it reports rather than writes.
 #   `updated` carries forward moves and unreadable-direction moves (flagged
@@ -1258,6 +1261,50 @@ report_extras() {
        divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
 }
 
+# --- a directory source's checkout, read without changing it -----------------------
+# `claude plugin marketplace update` on a `directory` source validates the
+# directory as it is ("Validating local marketplace") and fetches nothing, so the
+# catalog is only as fresh as that checkout. This reads the checkout's branch,
+# upstream, ahead/behind counts against the upstream as of its last fetch, and
+# whether tracked files are modified. It never fetches, pulls, or writes:
+# `--no-optional-locks` keeps `status` from refreshing the index. `null` for any
+# other source kind, whose installLocation clone Claude Code itself manages.
+# `catalog_source` is `directory:<path>` with the path as recorded (native form
+# on Windows), folded to forward slashes the way fleet-state.sh folds
+# installLocation.
+source_checkout() {
+  local __var="$1" src="$2" path state="tracking" branch="" upstream="" counts="0 0" dirty=""
+  if [[ "$src" != directory:* ]]; then
+    printf -v "$__var" '%s' null
+    return 0
+  fi
+  path="${src#directory:}"
+  path="${path//\\//}"
+  local g=(git --no-optional-locks -C "$path")
+  if [[ "$("${g[@]}" rev-parse --is-inside-work-tree 2>/dev/null)" != "true" ]]; then
+    state="not_a_repo"
+  else
+    dirty=$("${g[@]}" status --porcelain --untracked-files=no 2>/dev/null | head -n 1)
+    if ! branch=$("${g[@]}" symbolic-ref -q --short HEAD 2>/dev/null); then
+      state="detached"
+    elif ! upstream=$("${g[@]}" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null) ||
+      ! counts=$("${g[@]}" rev-list --left-right --count 'HEAD...@{u}' 2>/dev/null); then
+      state="no_upstream"
+      counts="0 0"
+    fi
+  fi
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to "$__var" -c -n --arg path "$path" --arg state "$state" --arg branch "$branch" \
+    --arg upstream "$upstream" --arg counts "$counts" --arg dirty "$dirty" '
+    [$counts | splits("[ \t]+") | tonumber? // 0] as $c
+    | {path: $path, state: $state,
+       branch: (if $branch == "" then null else $branch end),
+       upstream: (if $state == "tracking" then $upstream else null end),
+       ahead: (if $state == "tracking" then $c[0] else null end),
+       behind: (if $state == "tracking" then $c[1] else null end),
+       dirty: (if $state == "not_a_repo" then null else $dirty != "" end)}'
+}
+
 # --- monitors in the plugins this run moved ---------------------------------------
 # A plugin updated mid-session keeps running its previous version, and the
 # reload command does not cover monitors, so the report names every moved
@@ -1330,7 +1377,7 @@ emit_marketplace_block() {
   if ((ONLY_INSTALL_MODE == 0)); then
     persist_first_pass_rows "$mp"
   fi
-  local reg_interval reg_rows div extras block
+  local reg_interval reg_rows div extras block checkout
 
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
@@ -1348,8 +1395,10 @@ emit_marketplace_block() {
   catalog_regression_rows reg_interval reg_rows "$mp"
   divergence_block div "$mp"
   report_extras extras "$mp"
+  jq_to checkout -r '.catalog_source // ""' <<<"$extras"
+  source_checkout checkout "$checkout"
   monitor_rows monitors "$mp"
-  # The two Action-needed sources the report used to take from CLI scrollback.
+  # The two Action-needed sources.
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
   # A field that could not be computed becomes an empty object, never an empty
@@ -1375,7 +1424,7 @@ emit_marketplace_block() {
     --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
     --argjson div "$div" --argjson self_updated "$SELF_UPDATED" \
-    --argjson extras "$extras" \
+    --argjson extras "$extras" --argjson checkout "${checkout:-null}" \
     --argjson unset_cfg "${unset_cfg:-[]}" --argjson monitors "${monitors:-[]}" \
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
     --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
@@ -1407,6 +1456,7 @@ emit_marketplace_block() {
                total: dur_up($t_mp_s; $t_mp_e),
                resolution: $resolution},
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
+     source_checkout: $checkout,
      refresh: {rc: $refresh_rc, output: $refresh_out, predicted: $refresh_predicted},
      project_root: $project_root,
      in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w},

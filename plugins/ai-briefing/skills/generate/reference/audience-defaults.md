@@ -40,8 +40,9 @@ Heuristic: if removing the political angle leaves a clear AI-industry impact sto
 
 ## Profile-provided impact lens (optional)
 
-When the active profile supplies a tech-stack lens, Step 4.5 enrichment annotates each HIGH
-item with `impact: high|medium|low|none + 1-line reason`, cross-checked against that stack.
+When the active profile supplies a tech-stack lens, the ranking step (Default run step 6)
+annotates each HIGH item with `impact: high|medium|low|none + 1-line reason`, cross-checked
+against that stack.
 With **no** profile stack lens (the default, unprofiled run), the impact tag is omitted.
 
 A profile declares its stack as a short list an engineer recognizes. For example, a web-app

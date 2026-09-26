@@ -3,6 +3,80 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.5] - 2026-09-25
+
+### Changed
+
+- CI monitoring polls REST check-runs (`gh api repos/{owner}/{repo}/commits/{sha}/check-runs`) instead of `gh pr checks` or `gh pr view --json` when more than one worker polls under the same token. Both `gh` commands query GraphQL, and concurrent workers hit GraphQL secondary rate limits. The rule and its cited GitHub docs live in `pull-request/reference/monitor.md` "Polling CI from more than one worker"; `babysit-prs/reference/loop.md` points there. The §3.0.1 Monitor poll script now makes that read itself: PR state from `pulls/{n}`, and check runs plus commit statuses mapped to the same `pass|fail|pending|skipping|cancel` buckets and deduplicated the way `gh pr checks` does. A one-off read in a single session may keep `gh pr checks`.
+- The PR-comment fix batch (`monitor.md` §3.3.2) changes only the lines each finding names, the review-fix rule `/review:quality-gate` owns.
+
+## [0.58.4] - 2026-09-25
+
+### Fixed
+
+- The shell suites no longer write fixture worktrees into the host's real worktree root. `scripts/test-helpers.sh` points `GIT_CONFIG_GLOBAL` at `/dev/null`, sets `GIT_CONFIG_NOSYSTEM`, and unsets `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT`, so a globally set `worktreeroot.path` no longer places them. The two suites that create worktrees through the root resolver, `scripts/worktree-create.test.sh` and `hooks/worktree-create-gate.test.sh`, end with `assert_real_worktree_root_clean`, which fails if a fixture worktree landed in that root (#4472). Test only; nothing the plugin ships changes.
+
+## [0.58.3] - 2026-09-25
+
+### Changed
+
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
+
+## [0.58.2] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.58.1] - 2026-09-24
+
+### Fixed
+
+- `hooks/worktree-add-claim-gate.test.sh` and `hooks/worktree-add-containment-gate.test.sh` (`run`) and the kill-switch case in `hooks/pr-body-linkage-gate.test.sh` feed a here-string instead of a pipe. Each gate's kill switch exits before reading stdin. A `printf` still writing then failed on the closed pipe, and `pipefail` failed the case intermittently (#4458). Test only; nothing the plugin ships changes.
+
+## [0.58.0] - 2026-09-24
+
+### Removed
+
+- **BREAKING:** the skill-evidence system. `scripts/skill-evidence.sh` and its suite, the `pr_skill_evidence` config key, the `skill-evidence` PR body block, and the `pr-ready-evidence-gate` and `pr-ready-evidence-mcp-gate` hooks with their `pr_ready_evidence_gate_enabled` and `skill_evidence_store` options are gone. A `.claude/source-control.md` that still declares `pr_skill_evidence` is ignored.
+- The babysit gate no longer reads a PR body: `view_pr` and `evaluate()` drop the `skillEvidence` record, and the snapshot drops the `skill_evidence_gap` worker reason.
+- pull-request create no longer writes `branch.<name>.pr-number` into git config.
+
+### Changed
+
+- pull-request `ready` merges the base, runs the security review over the pull request's diff and the verify gate on the merged head, then flips. It no longer checks or renders evidence.
+- pull-request prep classifies the changed files by a table in `reference/prep.md` instead of reading a config map.
+
+## [0.57.3] - 2026-09-24
+
+### Changed
+
+- Hook registrations run each `hooks/*.sh` gate (the PR-linkage, PR-ready-evidence and worktree
+  gates) through `bash` with `"shell": "bash"`, the #4421 shape, so each fire no longer execs
+  `/usr/bin/env` (the `#!/usr/bin/env bash` shebang) before bash. Hook behavior is unchanged
+  (#4442).
+
+## [0.57.2]
+
+### Fixed
+
+- `hooks/pr-linkage-spawn-budget.test.sh` points its budget at `docs/conventions/hook-budget/README.md`, which owns it, and states that budget in multiples of S; the rule file it named no longer exists.
+
+## [0.57.1] - 2026-09-23
+
+### Fixed
+
+- hook-utils.sh: `hook::under_temp_root` normalizes its target the way it already normalized its candidates, on Windows Git Bash hosts only. A target spelled `/c/...` was compared against candidates spelled `C:/...` and never matched, so a caller passing the Git Bash drive spelling never saw a path as under the host temp tree. POSIX hosts are unchanged: a `\` there is a filename byte, not a separator, and is not folded. No behavior change in this plugin's hooks: they reach this function through `hook::read_file_path`, whose target is already normalized; the shared library is re-synced.
+
 ## [0.57.0]
 
 ### Added

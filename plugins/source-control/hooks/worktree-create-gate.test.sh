@@ -40,9 +40,8 @@ mkrepo() {
     # Repo-local, on a throwaway repo this function just created. A machine with
     # commit.gpgsign=true globally has no secret key for the fixture identity, so
     # without this every `git commit` below fails and the suite reports its
-    # SUCCESS cases as failures while its refusal cases still pass — a shape that
-    # reads as a real regression. Same line the sibling suites already carry
-    # (scripts/landed-work.test.sh, skills/commit/scripts/exec-bit-check.test.sh).
+    # SUCCESS cases as failures while its refusal cases still pass, a shape that
+    # reads as a real regression.
     git -C "$repo" config commit.gpgsign false
     printf 'seed\n' >"$repo/README.md"
     git -C "$repo" add README.md
@@ -161,24 +160,11 @@ assert_silent "an illegal name prints no path" "$OUT"
 # --------------------------------------------------------------------------
 # Disabled
 #
-# The previous contract asserted here — "exit 0 so Claude Code uses its own
-# default" — is FALSE, measured on Claude Code 2.1.228. A WorktreeCreate hook
-# that exits 0 without printing a path fails the creation:
-#
-#   $ claude -p '…' --worktree probe1 --settings <hook: exit 0, no stdout>
-#   Error creating worktree: WorktreeCreate hook failed: hook succeeded but
-#   returned no worktree path (command: echo the path to stdout; http/callback:
-#   return hookSpecificOutput.worktreePath)
-#   # exit 1, and `git worktree list` shows nothing was created
-#
-# Confirmed verbatim at <https://code.claude.com/docs/en/hooks> (raw markdown,
-# fetched 2026-08-11): "Hook failure or missing path fails creation", and "If the
-# hook fails or produces no path, worktree creation fails with an error."
-#
-# So the exit-0 path produced the SAME outcome as a refusal — creation fails —
-# while suppressing every explanation, because an exit-0 hook's stderr is dropped
-# (measured: the probe marker was absent from harness output on exit 0 and
-# present, in full, on exit 3). Disabled therefore refuses out loud instead.
+# A WorktreeCreate hook that exits 0 without printing a path fails the creation
+# (measured on Claude Code 2.1.228; <https://code.claude.com/docs/en/hooks>,
+# fetched 2026-08-11: "Hook failure or missing path fails creation"), and an
+# exit-0 hook's stderr is dropped (measured: the probe marker was absent on
+# exit 0 and present on exit 3), so Disabled refuses out loud instead.
 # Full four-arm probe: skills/worktree/fixtures/README.md.
 # --------------------------------------------------------------------------
 
@@ -211,7 +197,7 @@ assert_eq "the remedy leads — a reader acts on the first line, so it must not 
 # with something the reader can do.
 # --------------------------------------------------------------------------
 
-# exit 4 — not a git repository. The old message reported a constant "exited 0".
+# exit 4: not a git repository.
 NOTREPO="$(mktemp -d "$TEST_TMPDIR/notrepoXXXXXX")"
 ERR="$(payload "feat/gate-nonrepo" "$NOTREPO" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>&1 >/dev/null)"
@@ -261,5 +247,7 @@ REPO7="$(mkrepo)"
 OUT="$(printf '{"name":"feat/gate-order","hook_event_name":"WorktreeCreate","cwd":"%s","transcript_path":"x-name-cwd-y"}' "$REPO7" |
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$ROOT" bash "$HOOK" 2>/dev/null)"
 assert_contains "field order does not matter" "$OUT" "gate-order"
+
+assert_real_worktree_root_clean "$TEST_TMPDIR"
 
 [[ $FAILED -eq 0 ]] || exit 1

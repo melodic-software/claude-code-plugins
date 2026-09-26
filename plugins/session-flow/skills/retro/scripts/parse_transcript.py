@@ -33,9 +33,15 @@ Output:
           "chain_coverage": {
             "requested": N,   # session-ids this run was asked to parse
             "found": N,       # of those, how many had a transcript
-            "available": N,   # transcripts present in <base> (null if unreadable)
+            "available": N,   # transcripts present in <base> (null if unreadable); with
+                              # --chain-from, only the found chain plus the other
+                              # transcripts that mention the handoff topic
+            "topic": "<slug>",# the topic that scoped `available` (--chain-from only)
             "ratio": 0.0-1.0, # found / available; omitted when available is 0/null
           },
+          "fork_candidates": [  # unrequested transcripts sharing record uuids with a
+            {"id": "<UUID>", "shared_records": N, "shares_with": ["<UUID>", ...]},
+          ],                    # requested one: forks to offer, never auto-added
           "sessions": [
             {"id": "<UUID>", "role": "current"|"previous",
              "transcript_present": true|false, "subagents_present": true|false,
@@ -65,6 +71,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from datetime import datetime
@@ -402,8 +409,10 @@ def _emit_and_exit(
     sys.exit(code)
 
 
-def _emit_multi_and_exit(session_ids: list[str], base_path: Path) -> NoReturn:
-    output = build_multi_session_output(session_ids, base_path)
+def _emit_multi_and_exit(
+    session_ids: list[str], base_path: Path, topic: str | None = None
+) -> NoReturn:
+    output = build_multi_session_output(session_ids, base_path, topic)
     print(json.dumps(output, indent=2))
     sys.exit(0 if output["status"] in {"pass", "warning"} else 2)
 
@@ -587,8 +596,59 @@ def extract_chain_from_handoff(
     return sids
 
 
+UUID_RE = re.compile(r'"uuid"\s*:\s*"([^"]+)"')
+HANDOFF_TOPIC_RE = re.compile(r"-handoff-(.+)\.md$")
+
+
+def _scan_project(
+    base_path: Path, session_ids: list[str], topic: str | None
+) -> tuple[int | None, list[dict[str, Any]]]:
+    """One pass over <base>/*.jsonl for the coverage denominator and fork candidates.
+
+    A fork copies its parent's records, uuids included, into a new transcript that
+    no handoff points at, so uuid overlap is the only link back to the chain."""
+    try:
+        paths = sorted(p for p in base_path.glob("*.jsonl") if p.is_file())
+    except OSError:
+        return None, []
+    requested = set(session_ids)
+    chained: dict[str, set[str]] = {}
+    others: list[Path] = []
+    for path in paths:
+        if path.stem in requested:
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue  # already reported per session by parse_one_session
+            chained[path.stem] = set(UUID_RE.findall(text))
+        else:
+            others.append(path)
+    available = len(chained) if topic else len(paths)
+    forks: list[dict[str, Any]] = []
+    for path in others:
+        # ponytail: whole-file read per transcript; stream lines if project dirs outgrow memory
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue  # vanished or unreadable: coverage evidence, not a reason to fail
+        if topic and topic in text:
+            available += 1
+        uuids = set(UUID_RE.findall(text))
+        shares = {sid: n for sid, own in chained.items() if (n := len(uuids & own))}
+        if shares:
+            forks.append(
+                {
+                    "id": path.stem,
+                    "shared_records": max(shares.values()),
+                    "shares_with": sorted(shares),
+                }
+            )
+    forks.sort(key=lambda f: (-f["shared_records"], f["id"]))
+    return available, forks
+
+
 def build_multi_session_output(
-    session_ids: list[str], base_path: Path
+    session_ids: list[str], base_path: Path, topic: str | None = None
 ) -> dict[str, Any]:
     """Parse each session-id and aggregate."""
     if not session_ids:
@@ -599,21 +659,9 @@ def build_multi_session_output(
             "aggregate": {},
         }
 
-    # One transcript must count ONCE however many times its id was named.
-    # A repeat is easy to produce — pasting a comma-joined list next to a
-    # space-separated one, or a `previous_handoff` chain that loops back —
-    # and every downstream number is a sum over this list: the aggregate
-    # token and turn totals would double, and `transcripts_present` could
-    # exceed `available` (one file, counted twice), publishing a coverage
-    # ratio above 1.0 against a field documented as 0.0-1.0. Deduplicated
-    # HERE rather than at the argument parser: this function owns the rule
-    # for every entry point, so a new caller cannot reintroduce the defect
-    # by skipping a parser-side filter. The `--chain-from` walk still drops
-    # revisits of its own (`seen` in extract_chain_from_handoff, plus the
-    # prepend guard in main) because a cycle must terminate the WALK, not
-    # merely be cleaned up afterwards; those are cheap and independent, not
-    # a second owner of this rule. Order-preserving: the first id is the
-    # current session and the rest are its chain, in order.
+    # Deduplicated here, for every entry point: a repeated id would double the
+    # totals and push coverage above 1.0. Order-preserving: the first id is the
+    # current session.
     session_ids = list(dict.fromkeys(session_ids))
 
     sessions_out: list[dict[str, Any]] = []
@@ -655,33 +703,28 @@ def build_multi_session_output(
             tagged["session_id"] = sid
             agg_subagents.append(tagged)
 
-    # Chain coverage: how much of what this project HAS did the chain cover?
-    # A backward `previous_handoff` walk terminates at the first session that
-    # wrote no handoff file, and a walk that stopped early is indistinguishable
-    # in this output from a genuinely short chain — the reported failure was a
-    # 10-session chain retro authored from 2 sessions with nothing signaling
-    # the gap. `available` counts the transcripts sitting in the same base
-    # directory, which IS the per-project transcript directory, so the ratio
-    # answers "did we look at most of this project's sessions?" without
-    # asserting that every sibling transcript belongs to this chain — some will
-    # not, which is why this is coverage evidence for a reader, not a filter.
-    try:
-        available = len([p for p in base_path.glob("*.jsonl") if p.is_file()])
-    except OSError:
-        # An unreadable base directory is already reported per session; coverage
-        # is diagnostic, so degrade to "unknown" rather than fail the parse.
-        available = None
+    # A chain walk that stopped early looks like a short chain. `available` is
+    # coverage evidence for a reader, not a filter; an unreadable base directory
+    # degrades it to null rather than failing the parse.
+    available, fork_candidates = _scan_project(base_path, session_ids, topic)
     chain_coverage: dict[str, Any] = {
         "requested": len(session_ids),
         "found": transcripts_present,
         "available": available,
     }
+    if topic:
+        chain_coverage["topic"] = topic
     coverage_note = ""
     if available:
         chain_coverage["ratio"] = round(transcripts_present / available, 3)
+        scope = f"mentioning '{topic}'" if topic else "present for this project"
         coverage_note = (
-            f", covering {transcripts_present} of {available} transcript(s) "
-            "present for this project"
+            f", covering {transcripts_present} of {available} transcript(s) {scope}"
+        )
+    if fork_candidates:
+        coverage_note += (
+            f"; {len(fork_candidates)} unchained fork candidate(s) share records "
+            "with the chain"
         )
 
     if transcripts_present == len(session_ids):
@@ -706,6 +749,7 @@ def build_multi_session_output(
         "status": status,
         "summary": summary,
         "chain_coverage": chain_coverage,
+        "fork_candidates": fork_candidates,
         "sessions": sessions_out,
         "aggregate": {
             "total_assistant_turns": total_assistant,
@@ -764,16 +808,8 @@ def _parse_legacy_or_argparse(argv: list[str]) -> argparse.Namespace:
     ns = parser.parse_args(argv)
     ns.session_id = None
     if ns.sessions:
-        # `--sessions a,b,c` is the shape a caller reaches for when the ids were
-        # just written into prose, and `nargs="+"` takes the whole comma-joined
-        # string as ONE token. That token matches no transcript file, so the run
-        # reported "0 with transcript" for a chain whose transcripts all exist —
-        # a wrong answer, not an error. A session id never contains a comma, so
-        # splitting on it is unambiguous and cannot change the meaning of a
-        # correctly space-separated invocation. Empty fragments (a trailing
-        # comma, `a,,b`) are dropped rather than passed on as an id that cannot
-        # exist; if every token was empty the list goes falsy and main() reports
-        # the no-session-id usage error.
+        # `nargs="+"` takes `--sessions a,b,c` as one token. A session id never
+        # contains a comma, so split on it and drop empty fragments.
         ns.sessions = [
             sid
             for token in ns.sessions
@@ -820,7 +856,8 @@ def main() -> None:
         if ns.current_session and ns.current_session not in chain_sids:
             all_sids.append(ns.current_session)
         all_sids.extend(chain_sids)
-        _emit_multi_and_exit(all_sids, ns.base)
+        m = HANDOFF_TOPIC_RE.search(ns.chain_from.name)
+        _emit_multi_and_exit(all_sids, ns.base, m.group(1) if m else None)
 
     # Multi-session: --sessions
     if ns.sessions:

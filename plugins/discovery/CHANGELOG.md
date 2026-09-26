@@ -1,5 +1,97 @@
 # Changelog: discovery plugin
 
+## [0.23.0] - 2026-09-25
+
+### Added
+
+- **Agents (`explorer`, `researcher`, `intent-tracer`):** a "Write early; reserve your last turns"
+  section. Each states its limit as its own `maxTurns: 40`, counts its turns, stops gathering by
+  turn 30 (or the envelope's lower `Turn budget:`; a higher one is ignored and noted in
+  `open_questions`), writes the index skeleton with `Run status: in progress` as the first
+  non-blank line after the level-1 title heading as soon as its input is resolved, writes each sidecar
+  as its section settles, and replaces the marker with `Run status: complete` only in the final
+  write.
+- **Envelope:** a `Turn budget:` line directly under `Budget:` in the parent-contract template and
+  the `research-deep` dispatch block, in the same unit as `maxTurns` and degradable when absent. It
+  is a second line of the Budget field, so the envelope keeps six shared fields.
+- **`check-dispatch-artifact.sh`:** exits 1 (`status=unusable`, reason on stderr) when the index's
+  marker slot holds `Run status: in progress`. The slot is the first non-blank line after the first
+  level-1 title heading (a single `#` and a space), read past a BOM, CRs and YAML front matter and
+  never from inside a code fence. Line 1 `---` is front matter only when a `---` or `...` closer
+  follows and every line between is YAML-shaped (blank, indented, a hash comment, a `-` list item,
+  or a `key:` line); otherwise it is a horizontal rule. A fence opens on 3 or more backticks or
+  tildes after at most 3 spaces of indent and closes only on a run of the same character, at least
+  as long as the opener and followed by whitespace only, per CommonMark. The match tolerates case, spacing, a tab and `in-progress` / `in_progress`. Nothing
+  outside the slot is read, so a quoted marker elsewhere does not trigger, and an index with no
+  marker grades as before. A by-value index body written back must carry `Run status: complete` or
+  no marker.
+- **`research`:** each `sources[]` entry carries `role: primary | corroborator`, with exactly one
+  primary per accepted claim; criterion 12's variable and population checks run against it. New
+  eval case where two corroborators measure an adjacent variable, are not counted, and the claim
+  is filed as a Gap.
+- **`research`:** `discipline.md` names the read-only `gh` forms and why the `-X`/`-f` forms
+  prompt under ask rules written to catch API writes.
+
+### Changed
+
+- **Agents:** a path denied to the `Read` tool, or barred by the dispatch prompt, is not reached
+  through `Bash`, a script, `Grep`, or any other tool; the gap goes into `open_questions`.
+- **Agents:** the early payload block is kept as a second channel; the `status: truncated`
+  paragraphs name the disk marker. The claim that an agent cannot observe its own turn budget is
+  removed.
+- **Parent contract and dispatch references:** "Resume first" and the explore, research and
+  trace-intent dispatch references say an index still marked in progress is refused by the gate,
+  and only an index with no status line cannot be told apart from a complete one. The resume
+  citation is refreshed against the sub-agents page as of 2026-09-25.
+
+### Fixed
+
+- **Dispatch references:** the statement that the sub-agents page documents no partial-return
+  semantics for `maxTurns` is replaced with the page's current wording as a dated record: output
+  at the limit is marked partial on Claude Code v2.1.246 or later.
+- **`explore` dispatch reference:** the "What the harness actually guarantees about a resume"
+  record is re-verified against the sub-agents page as of 2026-09-25. The background-resume and
+  cancelled-subagent quotes use the page's current wording, a subagent stopped with `TaskStop` is
+  named as resumable, and the record gains a recheck trigger.
+
+## [0.22.1] - 2026-09-25
+
+### Changed
+
+- Prompt audit for Claude Fable 5.1 and Opus 5.5: removed dated prompt patterns (history narration, migration-relative phrasing, stale references, stacked emphasis) from model-read reference text. Behavior and contracts are unchanged.
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.22.0] - 2026-09-24
+
+### Added
+
+- **`research`:** outcome-gate criterion 12, owned by the verifier, asks whether every accepted
+  claim follows jointly from its cited sources, and discipline 15 points at its recipe, the new
+  "Joint-inference check" in `context/discipline.md`: variable, population, and hedge-survival
+  sub-tests, plus counter-evidence already read resolved in the artifact. The pass bar is one
+  rule: the claim's primary source measures the claim's variable and population; a corroborator
+  that does not is recorded, not counted toward criterion 4. A failing claim is a Gap or a
+  Conflicts entry.
+- **`research`:** the sidecar header carries per-source `measures:` and per-claim `inference:` and
+  `qualifiers:`, so a verifier can grade criterion 12 off disk.
+- **`research`:** on a fan-out, the synthesized slice-root index goes to a fresh verifier for
+  criterion 12 before it is surfaced: sub-slice qualifiers survive, and a claim the synthesis adds
+  gets the full check.
+- **`research`:** an eval case where a verbatim-quoted source backs a claim about a variable it
+  never measured.
+
+### Changed
+
+- **`research`:** the parent briefs the verifier on every verifier-owned row by number (4, 7 and
+  12), whatever the payload's `verification_request.criterion` string names. Gotchas and evals name
+  criterion 12 among the verifier rows, and one eval no longer counts the gate's criteria.
+- **`research`:** the gate states that its Owner column governs over any enumeration of the
+  verifier rows in an agent definition or sibling skill.
+- **`researcher` agent:** withholds three criteria from its own verdict, joint inference added,
+  and its `verification_request.criterion` names joint-inference validity.
+- **`research-deep`:** names joint inference among the verifier-owned rows and points at the
+  synthesis criterion-12 check on the N-topic path.
+
 ## [0.21.0] - 2026-09-23
 
 ### Changed

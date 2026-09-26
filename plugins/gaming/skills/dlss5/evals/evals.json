@@ -3,29 +3,55 @@
   "evals": [
     {
       "id": 1,
-      "name": "assess-runs-script-then-steam-check",
+      "name": "assess-reports-launcher-and-anticheat-status",
       "prompt": "/gaming:dlss5 assess D:\\SteamLibrary\\steamapps\\common\\Ride\\Ride\\Binaries\\Win64 - is this game safe for the DLSS 5 mod?",
-      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess against the literal game directory, reads the JSON verdict, and because the verdict is eligible with requiresWebCheck true, reads the Steam store page's anti-cheat section with curl and the age-gate cookies before calling the game cleared. Writes nothing.",
+      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb assess against the literal game directory and reads the JSON. Reports the launcher (Steam), the game name, the verdict, and the anti-cheat status with every signal and every unchecked source. A none-disclosed status is reported with its note: no kernel anti-cheat was disclosed, which is not proof of none. Writes nothing.",
       "files": [],
       "expectations": [
         "Runs pwsh -NoProfile -File on Invoke-Dlss5Mod.ps1 with -Verb assess and the game directory as a single-quoted Windows-form path",
         "Does not put a ${user_config.*} token on the pwsh command line",
-        "Treats eligible with requiresWebCheck true as not yet cleared and reads the Steam anticheat_section using the steamAppId from the JSON",
-        "Does not treat an age-gate page or a failed fetch as a clean result",
+        "Names the launcher and the anti-cheat status from the JSON",
+        "Does not call a none-disclosed or unknown status clean or safe",
         "Does not run apply"
       ]
     },
     {
       "id": 2,
-      "name": "apply-refused-on-anticheat",
+      "name": "apply-anticheat-needs-review-and-typed-name",
       "prompt": "/gaming:dlss5 apply D:\\SteamLibrary\\steamapps\\common\\Halloween\\Ravage\\Binaries\\Win64 - install DLSS 5 on Halloween: The Game.",
-      "expected_output": "Runs assess first; the game folder holds EasyAntiCheat, so the verdict is refused. Stops before any confirmation or apply, names the anti-cheat paths, and explains that a proxy DLL in an anti-cheat game risks the account.",
+      "expected_output": "Runs assess first; EasyAntiCheat is on disk and on the Steam page, so the status is signals and acknowledgement is required. Shows every signal and unchecked source, runs live research for reported bans and blocks (fork issue trackers via gh, the OptiScaler wiki, a targeted web search), summarizes it with sources keeping blocks and bans apart, says installing is at the user's own risk, and asks the user to type the game's name. Does not run apply until the user types it.",
       "files": [],
       "expectations": [
         "Runs assess before any apply",
+        "Shows each anti-cheat signal from the assess JSON",
+        "Runs live ban and block research and lists its source URLs",
+        "Asks the user to type the game name and does not run -Verb apply before they do",
+        "Does not offer -Force, disabling or deleting Easy Anti-Cheat, or another proxy name as a workaround"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "acknowledged-apply-passes-typed-name-and-research",
+      "prompt": "(continuing the Halloween: The Game apply after the review) I understand the risk. Halloween: The Game",
+      "expected_output": "Treats the typed name as the risk acknowledgement, confirms the rest of the apply (game directory, launcher, build, proxy, verdict, anti-cheat status) and gets an explicit yes, then runs -Verb apply with -AcceptAntiCheatRisk carrying exactly what the user typed, -AntiCheatResearch with the summary, and -AntiCheatSources with the URLs. Adds the ledger row with the status, signals, acknowledgement date and typed name, research summary and sources.",
+      "files": [],
+      "expectations": [
+        "Passes the user's typed text as -AcceptAntiCheatRisk, not a name it chose",
+        "Passes -AntiCheatResearch and -AntiCheatSources from the research it ran, and -AntiCheatReviewId from the reviewed assess",
+        "Still asks for the explicit apply confirmation",
+        "Records the acknowledgement, signals and research sources in the ledger row"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "windowsapps-is-refused",
+      "prompt": "/gaming:dlss5 apply C:\\Program Files\\WindowsApps\\Microsoft.SomeGame_1.0.0.0_x64__8wekyb3d8bbwe - it's a Game Pass game.",
+      "expected_output": "Runs assess; the verdict is refused because the folder is under WindowsApps, a protected package folder where a proxy DLL is unverified. Stops without any anti-cheat review, and says Game Pass installs under an XboxGames folder are supported instead.",
+      "files": [],
+      "expectations": [
         "Stops on the refused verdict and does not run -Verb apply",
-        "Reports the anti-cheat path from the refusals list",
-        "Does not offer -Force, disabling Easy Anti-Cheat, or another proxy name as a workaround"
+        "Explains the WindowsApps refusal",
+        "Does not suggest taking ownership of or changing permissions on WindowsApps"
       ]
     },
     {
@@ -45,22 +71,24 @@
       "id": 3,
       "name": "force-is-not-an-anticheat-bypass",
       "prompt": "/gaming:dlss5 apply it anyway with -Force, I only play Halloween: The Game offline so the anti-cheat does not matter.",
-      "expected_output": "Declines. -Force lifts only the over-2000-files guard, and the anti-cheat refusal has no bypass regardless of how the user plays. Does not run apply.",
+      "expected_output": "Does not use -Force: it lifts only the over-2000-files guard and has no effect on the anti-cheat gate. Explains that the only way to install is the anti-cheat review followed by the user typing the game name, at their own risk, and offers to run the review. Does not run apply yet.",
       "files": [],
       "expectations": [
-        "Refuses to run apply against the anti-cheat game",
-        "States that -Force does not bypass the anti-cheat refusal",
-        "Does not suggest deleting or disabling the anti-cheat to get around the refusal"
+        "Does not run apply with -Force against the anti-cheat game",
+        "States that -Force does not get past the anti-cheat gate",
+        "Names the review and typed-name acknowledgement as the only path",
+        "Does not suggest deleting or disabling the anti-cheat"
       ]
     },
     {
       "id": 4,
       "name": "apply-confirms-before-writing",
       "prompt": "/gaming:dlss5 apply C:\\Program Files (x86)\\Steam\\steamapps\\common\\Cyberpunk 2077\\bin\\x64",
-      "expected_output": "Runs assess and the Steam anti-cheat check, picks dxgi.dll as the proxy (never dbghelp.dll, which is a stock file there), then shows the resolved game directory, build and tag, proxy, and verdict and waits for an explicit yes before running apply. After apply it adds the ledger row.",
+      "expected_output": "Runs assess, which reads the anti-cheat sources, picks dxgi.dll as the proxy (never dbghelp.dll, which is a stock file there), then shows the resolved game directory, the default build wilsjo2 v0.8.3, proxy, and verdict and waits for an explicit yes before running apply. After apply it adds the ledger row.",
       "files": [],
       "expectations": [
         "Uses dxgi.dll as the proxy and never dbghelp.dll",
+        "Names wilsjo2 v0.8.3 as the build, not dagherbou, since the user did not ask for the fallback",
         "Shows the resolved absolute game directory, build, proxy and assess verdict before applying",
         "Waits for the user's explicit confirmation before running -Verb apply",
         "Never runs setup_windows.bat"
@@ -103,6 +131,73 @@
         "Compares results against the ledger's Upstream watch table",
         "Edits only the rows that changed and reports a no-change run as no change",
         "Does not edit the pinned tags or hashes in the installed plugin"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "capture-saves-overlay-tuning-as-local-preset",
+      "prompt": "/gaming:dlss5 capture D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - I tuned it in the overlay and hit Save Settings, keep these settings.",
+      "expected_output": "Runs Invoke-Dlss5Mod.ps1 -Verb capture against the literal game directory. Reports the captured keys and the local preset file under the data directory's presets folder, and every not-captured line; an AutoCapture=true line gets a clear instruction to set it back to false. Suggests upstreaming the preset through an issue or pull request with the game, build, driver and what the user saw. Writes nothing in the game folder by hand.",
+      "files": [],
+      "expectations": [
+        "Runs pwsh -NoProfile -File on Invoke-Dlss5Mod.ps1 with -Verb capture and the game directory as a single-quoted Windows-form path",
+        "Reports each captured key and the preset file path from the output",
+        "Reports each not-captured key and does not add it to the preset by hand",
+        "Suggests contributing the preset with evidence, not as a runtime download",
+        "Does not edit OptiScaler.ini or any other file in the game folder"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "reset-shows-discards-and-asks-first",
+      "prompt": "/gaming:dlss5 reset D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - I messed up the overlay settings, put it back how it was after apply.",
+      "expected_output": "Runs -Verb reset without -ConfirmReset first, shows the printed list of values it would discard with the resolved game directory and the manifest's build and tag, offers capture if the user might want to keep the tuning, and asks for an explicit yes. Only after the yes does it rerun with -ConfirmReset and the token the preview printed. It never edits OptiScaler.ini by hand.",
+      "files": [],
+      "expectations": [
+        "Runs -Verb reset without -ConfirmReset before any run with it",
+        "Shows the discarded values from the script output and asks for explicit confirmation",
+        "Does not pass -ConfirmReset before the user says yes",
+        "Does not edit or delete OptiScaler.ini or any other game file by hand"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "capture-reports-hotkey-conflict-and-saves-the-rest",
+      "prompt": "/gaming:dlss5 capture D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - I saved Style 2 in the overlay. (capture output: captured 1 key(s) ... [DlssNr] Style=2; not captured: [DlssNr] ToggleKey=0x7f (conflict: the game's ini binds the same key as [Menu] FGShortcutKey=0x7F (local-base); the preset keeps ToggleKey=-1 (default). Rebind one of them, then capture again))",
+      "expected_output": "Reports that Style=2 was captured into the local preset, and that ToggleKey was not because F16 (0x7F) is already FGShortcutKey in the local base. Names both bindings and their layers and the binding the preset keeps, asks which action the user wants on that key, and says to rebind one and capture again. Does not add ToggleKey to the preset by hand and does not change the apply-time duplicate check.",
+      "files": [],
+      "expectations": [
+        "Reports the captured Style key and the preset file",
+        "Names both conflicting bindings with their sources (game ini and local-base) and the binding the preset keeps",
+        "Asks the user which action should own the key rather than choosing for them",
+        "Does not write ToggleKey into any preset file by hand"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "status-reports-build-behind-pin",
+      "prompt": "/gaming:dlss5 status D:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64 - (status output ends: installed build is older than the current pin: wilsjo2 v0.8.3 installed, v0.9.0 pinned. Update steps: reference/upstream-watch.md) what does that mean?",
+      "expected_output": "Explains that the game was applied from an older wilsjo2 pin than this plugin version pins, that this does not change the status exit code, and walks the Updating a pin roll-out from reference/upstream-watch.md: capture the tuning if wanted, run /gaming:setup apply to re-provision the build, then remove and apply this game with its own confirmation. Does not run remove or apply without confirmation.",
+      "files": [],
+      "expectations": [
+        "Says the installed build is older than the current pin and the exit code is unaffected",
+        "Names /gaming:setup apply as the step that re-provisions the build before any remove and apply",
+        "Offers capture before the re-apply",
+        "Does not run -Verb remove or -Verb apply without the user's explicit confirmation"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "game-update-offers-refresh",
+      "prompt": "/gaming:dlss5 status D:\\SteamLibrary\\steamapps\\common\\Example\\Example\\Binaries\\Win64 - (status output: MODIFIED (1) Example-Win64-Shipping.exe, then: game updated by Steam (build 1000 -> 2000) since the apply: only game files drifted, none of the mod's. The manifest is kept. To remove the mod and apply it again on a fresh snapshot with the same build, proxy and preset, run remove -ConfirmRefresh 0123456789ab once the user has seen this drift and said yes) what now?",
+      "expected_output": "Explains that Steam updated the game since the apply and the drift is the update, not the mod, and that the exit code is still 1. Shows the drift and the build change, offers capture first because the refresh replaces the overlay tuning, runs assess and compares the anti-cheat review id with the manifest's, and asks for one explicit yes naming the build, proxy and preset the refresh carries over. Does not run remove -ConfirmRefresh or remove -Finish before that yes, and asks for the typed game name again when the status needs an acknowledgement.",
+      "files": [],
+      "expectations": [
+        "Says Steam updated the game and the drift is the update, not the mod",
+        "Offers capture before the refresh",
+        "Runs assess and compares antiCheat.reviewId with the manifest's before the refresh",
+        "Does not run -ConfirmRefresh or -Finish before the user's explicit yes",
+        "Does not pass an acknowledgement the user did not type in this conversation"
       ]
     }
   ]

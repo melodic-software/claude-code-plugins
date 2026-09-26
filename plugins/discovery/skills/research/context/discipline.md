@@ -136,6 +136,10 @@ When no preferred-source author covers the topic's domain (typical for tool-ecos
 2. **Upstream repo changelog or releases**: `gh api repos/<owner>/<repo>/releases` OR a raw `CHANGELOG.md` fetch this turn
 3. **One recognized industry authority**: a top-voted community post or well-known practitioner blog with the author named
 
+## Read-only `gh` forms
+
+Search and read GitHub with forms that cannot write: `gh search issues`, `gh search prs`, `gh search code`, `gh search repos`, `gh issue view`, `gh pr view`, and `gh api` with the query in the URL and no `-X`, `-f` or `-F` flag (`gh api 'search/issues?q=<terms>'`, `gh api repos/<owner>/<repo>/releases`). The reason is the operator's permission list, not the API: `gh api -X GET search/issues -f q=...` reads nothing more than the URL form does, but it matches ask rules such as `Bash(gh api -X *)` and `Bash(gh api * -f *)` written to catch API writes, so every search prompts the operator.
+
 ## Primary-source-first protocol
 
 The "top of Google" is a ranking artifact, not an authority signal. SEO content farms outrank authoritative sources. The defense: never let the SERP BE the source. Three steps per claim.
@@ -235,6 +239,24 @@ The evidence-table `Confidence` column must be set per claim:
 - **LOW**: fewer than 3 sources; OR sources conflict; OR Tier 2-only consensus; OR primary source > 90d old
 
 Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
+
+## Joint-inference check
+
+Every other criterion grades provenance or process. This one grades whether the claim follows from its sources. A claim can have a Tier 0/1 primary fetched this turn, two independent corroborators, a confirmed changelog, and quotes that match their sources word for word, and still assert something none of those sources measured. A quote can match its source exactly while the claim does not follow from it: re-fetching the quotes grades the first, and only this check grades the second.
+
+**The pass bar, one rule: the claim's primary source measures the claim's variable and population.** The primary is the one `sources[]` entry marked `role: primary` in the sidecar header, and there is exactly one per accepted claim. Every cited source is checked on its own, not only when sources conflict. A corroborator that measured a different variable or population is recorded, not counted toward criterion 4's two independent corroborators; if that leaves fewer than two, the claim fails criterion 4 as well.
+
+For each accepted claim, name what each cited source actually measures: the variable it manipulated or observed, the population it measured, and the era or question it answered. Then state in one line why the claim follows from those sources **jointly**. Record both in the sidecar header (`measures:` per source, `inference:` and `qualifiers:` per claim, per the artifact-shape file) so the check can be graded off disk.
+
+- **Variable check.** Does the primary manipulate or observe the variable the claim is about? Papers that varied context or generation order do not support a claim about model identity, however authoritative each is.
+- **Population check.** Is the primary's measured population the one the claim generalizes to? Single-function completions with no security prompting do not describe guardrailed agent pull requests.
+- **Hedge-survival check.** Every MEDIUM, "unmeasured", scope limit, or population qualifier a source or sub-slice records stays attached wherever the claim is used. The failure shape is a figure repeated without the qualifier its source attached.
+
+**Counter-evidence already read is resolved in the artifact, not omitted from it.** That includes a source's own headline or aggregate result. Citing a study's demographics table while its aggregate result runs the other way is a claim the study contradicts. Promoting a free-text comment over the result the source itself reports is the same failure.
+
+A claim whose primary measures a different variable, a different population, or a different question, or whose qualifier did not survive, is a Gap or a Conflicts entry. It is not accepted and not HIGH.
+
+**Why the run cannot grade this itself.** Judging whether its own inference holds is judging the quality of its own choices, the same reason the corroboration and HIGH-confidence rows go to a verifier. Outcome-gate criterion 12 is verifier-owned: a fresh context reads the header's `measures:`, `inference:`, and `qualifiers:` against the cited sources and grades each accepted claim.
 
 ## Observed failure patterns
 

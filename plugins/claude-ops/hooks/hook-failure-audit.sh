@@ -23,15 +23,16 @@
 # time the turn ends, so once-per-turn cadence catches it as promptly as
 # once-per-tool-call would at a fraction of the invocation count.
 #
-# The scan is INCREMENTAL, keyed on a per-session cursor holding the number of
-# transcript lines already audited. The transcript is the session's own JSONL
-# and grows every turn, so no mtime or size sentinel on the FILE can mean
-# "nothing new to audit" — the cheap signal has to be about the appended
-# content. A Stop reads only the lines past the cursor, with `mapfile` and the
-# shell's own pattern match, and a turn whose new lines carry no candidate exits
-# having spawned no process at all. The cold scan (first Stop of a session, or a
-# reset) keeps the tail cap so that one unbounded read stays O(cap). See the
-# cursor block below for the file's shape and its failure modes.
+# The scan is INCREMENTAL, keyed on a per-session cursor holding the byte offset
+# already audited. The transcript is the session's own JSONL and grows every
+# turn, so no mtime or size sentinel on the FILE can mean "nothing new to audit"
+# — the cheap signal has to be about the appended content. A Stop reads only the
+# bytes past the cursor, with one `tail` and the shell's own pattern match, so
+# its cost follows what the turn appended, not the transcript's size; a turn
+# whose new bytes carry no candidate exits having spawned only that `tail`. The
+# cold scan (first Stop of a session, or a reset) keeps the tail cap so that one
+# unbounded read stays O(cap). See the cursor block below for the file's shape
+# and its failure modes.
 #
 # Matching is STRUCTURAL, never substring: a record counts only when the
 # top-level `.type == "attachment"` and `.attachment.type ==
@@ -65,9 +66,15 @@ set -uo pipefail
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
+# Kill switch FIRST, above every source: a disabled hook must not pay to parse
+# hook-utils.sh before finding out it is off. Inlined rather than read through
+# hook::is_enabled because the library IS the cost the hoist avoids;
+# scripts/check-killswitch-hoist.sh fails a hook whose first early exit sits
+# below a source.
+[[ "${CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED:-true}" == "true" ]] || exit 0
+
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-hook::check_enabled "HOOK_FAILURE_AUDIT"
 
 START=${EPOCHREALTIME:-}
 
@@ -101,28 +108,36 @@ SESSION_ID=""
 SESSION="${SESSION//[^A-Za-z0-9_-]/-}"
 
 # `mapfile` is Bash 4.0+ and these hooks document 3.2+ support (hook-utils.sh).
-# Without it there is no builtin line reader, so the cursor is simply not
-# available and every Stop takes the cold path's grep pre-filter — the work this
-# hook has always done, never a silent skip.
+# Only the cold path's uncapped read uses it; without it that read takes the
+# grep pre-filter — the work this hook has always done, never a silent skip.
 HAVE_MAPFILE=0
 ((BASH_VERSINFO[0] >= 4)) && HAVE_MAPFILE=1
 
-# CURSOR: how many transcript lines this session has already audited. The file
-# is "<lines>\n<transcript_path>\n", beside the warning marker, under the same
-# ${CLAUDE_PLUGIN_DATA} home and swept by the same 7-day prune.
+# CURSOR: the byte offset this session has audited up to, always the end of a
+# complete line, so the byte just before it is a newline. The file is
+# "b<offset>\n<transcript_path>\n", beside the warning marker, under the same
+# ${CLAUDE_PLUGIN_DATA} home and swept by the same 7-day prune. The `b` marks
+# the unit: a cursor that counted lines has no prefix and reads as malformed.
 #
 # Every failure mode resolves toward RESCANNING, never toward silence — the same
 # doctrine the marker follows:
 #   - no marker home, an unreadable or malformed cursor -> 0, a full scan
+#   - a line-count cursor with no `b` prefix -> 0
 #   - a different transcript_path -> 0, this session was handed another file
-#   - fewer lines present than the cursor -> 0, the transcript shrank or was
-#     replaced
-#   - a cursor pruned mid-session, or a Bash without `mapfile` -> 0
-#   - a non-canonical decimal (a leading zero, or over 15 digits) -> 0
+#   - under C-1 bytes present, or no newline at byte C-1 -> 0, the transcript
+#     shrank or was replaced
+#   - a cursor pruned mid-session -> 0
+#   - a non-canonical decimal (a leading zero, or over 15 digits), or an offset
+#     below 2, too short to hold the anchor the warm read checks -> 0
 # Rescanning cannot re-warn: the (hookName, command) marker below is what
 # decides that, and it is unchanged.
 #
-# The cursor counts COMPLETE lines only. A final line with no newline is still
+# Two cases get past the anchor. A file cut to exactly C-1 bytes reads as
+# "nothing new" until the next append. A same-path replacement with a newline
+# at byte C-1 is accepted, and its first C bytes are never read; the line
+# cursor had the same gap. Catching either needs a second process per Stop.
+#
+# The cursor covers COMPLETE lines only. A final line with no newline is still
 # scanned this turn — skipping it could hide a record the full scan would have
 # surfaced — but it is not counted, so the next Stop reads it again once the
 # harness has finished writing it.
@@ -136,31 +151,30 @@ if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
   # directory that exists but is unwritable reaches the writes below and fails
   # there, which is the degrade-toward-rescanning path.
   if [[ -d "$MARKER_DIR" ]] || mkdir -p "$MARKER_DIR" 2>/dev/null; then
-    if ((HAVE_MAPFILE)); then
-      CURSOR_FILE="$MARKER_DIR/${SESSION}.cursor"
-      CURSOR_LINES=""
-      CURSOR_PATH=""
-      # Group redirect, not `$(<file)` twice: two builtin reads share one open
-      # file and the group forks nothing. `2>/dev/null` is written BEFORE the
-      # input redirect because redirections apply left to right — after it, a
-      # failed open still prints its diagnostic, and a Stop hook's stderr is
-      # user-visible output.
-      [[ -f "$CURSOR_FILE" ]] &&
-        {
-          IFS= read -r CURSOR_LINES
-          IFS= read -r CURSOR_PATH
-        } 2>/dev/null <"$CURSOR_FILE"
-      CURSOR_LINES="${CURSOR_LINES%$'\r'}"
-      CURSOR_PATH="${CURSOR_PATH%$'\r'}"
-      # Canonical decimal only, capped at 15 digits (far below 2^63): a leading
-      # zero such as "08" passes a bare `[0-9]+` test but bash's `((...))`
-      # reads a leading zero as octal and errors on 8/9, and an uncapped digit
-      # string can wrap in arithmetic. Both are rejected here, not coerced with
-      # `10#`. A rejected value falls through to the CURSOR=0 cold path below,
-      # the same outcome every other malformed cursor already gets.
-      [[ "$CURSOR_LINES" =~ ^(0|[1-9][0-9]{0,14})$ && "$CURSOR_PATH" == "$TRANSCRIPT" ]] &&
-        CURSOR="$CURSOR_LINES"
-    fi
+    CURSOR_FILE="$MARKER_DIR/${SESSION}.cursor"
+    CURSOR_BYTES=""
+    CURSOR_PATH=""
+    # Group redirect, not `$(<file)` twice: two builtin reads share one open
+    # file and the group forks nothing. `2>/dev/null` is written BEFORE the
+    # input redirect because redirections apply left to right — after it, a
+    # failed open still prints its diagnostic, and a Stop hook's stderr is
+    # user-visible output.
+    [[ -f "$CURSOR_FILE" ]] &&
+      {
+        IFS= read -r CURSOR_BYTES
+        IFS= read -r CURSOR_PATH
+      } 2>/dev/null <"$CURSOR_FILE"
+    CURSOR_BYTES="${CURSOR_BYTES%$'\r'}"
+    CURSOR_PATH="${CURSOR_PATH%$'\r'}"
+    # Canonical decimal only, capped at 15 digits (far below 2^63): a leading
+    # zero such as "08" passes a bare `[0-9]+` test but bash's `((...))`
+    # reads a leading zero as octal and errors on 8/9, and an uncapped digit
+    # string can wrap in arithmetic. Both are rejected here, not coerced with
+    # `10#`. A rejected value falls through to the CURSOR=0 cold path below,
+    # the same outcome every other malformed cursor already gets.
+    [[ "$CURSOR_BYTES" =~ ^b([1-9][0-9]{0,14})$ && "$CURSOR_PATH" == "$TRANSCRIPT" ]] &&
+      CURSOR="${BASH_REMATCH[1]}"
+    ((CURSOR >= 2)) || CURSOR=0
   else
     MARKER_DIR=""
   fi
@@ -174,7 +188,7 @@ fi
 SCANNED=0
 cursor_advance() {
   [[ -n "$CURSOR_FILE" ]] || return 0
-  printf '%s\n%s\n' "$SCANNED" "$TRANSCRIPT" 2>/dev/null >"$CURSOR_FILE" || :
+  printf 'b%s\n%s\n' "$SCANNED" "$TRANSCRIPT" 2>/dev/null >"$CURSOR_FILE" || :
 }
 
 # Bounded COLD read: the first Stop of a session (or a reset) is the one read
@@ -241,8 +255,7 @@ TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
 # `[[ $line == *needle* ]]` is `grep -F` on one line, and it is the same fixed
 # string: identical selection, no process. `mapfile` is read WITHOUT `-t` so
 # every line keeps its newline, which makes the joined candidates byte-identical
-# to what `$(grep …)` produced — and makes a final line with no newline visible,
-# the one line the cursor must not count.
+# to what `$(grep …)` produced.
 NEEDLE='"hook_non_blocking_error"'
 RECORDS=""
 LINES=()
@@ -255,36 +268,71 @@ scan_lines() { # <first index to test>
   RECORDS="${RECORDS%$'\n'}"
 }
 
-if ((CURSOR > 0)); then
-  # One line BEFORE the cursor is read as an anchor, so the same read that
-  # fetches the new lines also proves the transcript still HAS that many: an
-  # empty result means it shrank or was replaced, and no second pass over the
-  # file is needed to find that out. `-s` discards the skipped lines rather than
-  # storing them, and `mapfile` is a builtin — no subshell, no exec.
-  mapfile -s $((CURSOR - 1)) LINES <"$TRANSCRIPT" 2>/dev/null
-  N=${#LINES[@]}
-  if ((N == 0)); then
-    CURSOR=0
-  else
-    SCANNED=$((CURSOR - 1 + N))
-    [[ "${LINES[N - 1]}" == *$'\n' ]] || SCANNED=$((SCANNED - 1))
-    scan_lines 1
+# WARM read: only the bytes past the cursor. Bash has no builtin seek, and a
+# builtin that skips to the offset (`mapfile -s`, `read -N`) still reads every
+# earlier byte, so one `tail -c +N` is the cheapest read whose cost follows what
+# was appended rather than the transcript's size. The substitution carries no
+# redirection of its own, which keeps it one process (#3779); the group silences
+# its stderr, and with it bash's own warning should a NUL byte be dropped.
+#
+# The read starts TWO bytes before the cursor: the last byte of the last audited
+# line and the newline that ended it. That anchor proves in the same read that
+# the transcript still has at least that many bytes and a line boundary where
+# the cursor says; anything else means it shrank or was replaced. Two bytes, not
+# one, because the substitution strips trailing newlines: a lone anchor newline
+# would come back empty, the same result as a file cut short of it.
+#
+# That stripping also hides whether the final line ended with a newline, so the
+# final line is scanned but never counted — the next Stop reads it again.
+# `LC_ALL=C` makes every length and offset here count bytes, not characters.
+# ponytail: re-reading the final line costs two jq and one find on the Stop
+# after one whose last line is itself a failure record; counting it exactly
+# would need a second process on every Stop.
+warm_read() {
+  local LC_ALL=C window body complete line
+  { window=$(tail -c "+$((CURSOR - 1))" -- "$TRANSCRIPT"); } 2>/dev/null
+  SCANNED=$CURSOR
+  if [[ "$window" != ?$'\n'* ]]; then
+    # Only the anchor's first byte: nothing but newlines past the cursor.
+    [[ ${#window} == 1 ]]
+    return
   fi
+  body="${window:2}"
+  if [[ "$body" == *$'\n'* ]]; then
+    complete="${body%$'\n'*}"
+    SCANNED=$((CURSOR + ${#complete} + 1))
+  fi
+  [[ "$body" == *"$NEEDLE"* ]] || return 0
+  # Newline-only IFS splits on lines and drops empty ones, which never match;
+  # `set -f` keeps a line from globbing.
+  local IFS=$'\n'
+  set -f
+  for line in $body; do
+    [[ "$line" == *"$NEEDLE"* ]] && RECORDS+="$line"$'\n'
+  done
+  set +f
+  RECORDS="${RECORDS%$'\n'}"
+}
+
+if ((CURSOR > 0)); then
+  warm_read || CURSOR=0
 fi
 
 if ((CURSOR == 0)); then
-  # `wc -lc -- <file>` answers BOTH cold-path questions in one process: the byte
-  # count the cap decision needs, and the line count the cursor starts from
-  # (newlines, so a trailing partial line is excluded for free). Naming the file
-  # rather than `< file` is what keeps it one process: bash runs the command of
-  # a command substitution in the substitution's own subshell and skips the
-  # extra fork ONLY when that command carries no redirection of its own (#3779).
+  # `wc -c -- <file>` gives the byte count the cap decision needs and the offset
+  # the cursor starts from. Should the file end mid-line, that offset has no
+  # newline before it, and the next Stop's anchor check sends it back here, so
+  # the partial line is read again rather than skipped. Naming the file rather
+  # than `< file` is what keeps it one process: bash runs the command of a
+  # command substitution in the substitution's own subshell and skips the extra
+  # fork ONLY when that command carries no redirection of its own (#3779).
   # `read` drops the filename column along with the leading padding some `wc`
   # builds emit, and the `2>/dev/null` rides on the surrounding single-command
   # group, where it silences the same stream without re-arming that fork.
   SIZE=""
-  { read -r SCANNED SIZE _ < <(wc -lc -- "$TRANSCRIPT"); } 2>/dev/null
-  [[ "$SCANNED" =~ ^[0-9]+$ && -n "$SIZE" ]] || exit 0
+  { read -r SIZE _ < <(wc -c -- "$TRANSCRIPT"); } 2>/dev/null
+  [[ "$SIZE" =~ ^[0-9]+$ ]] || exit 0
+  SCANNED=$SIZE
   if ((SIZE > TAIL_BYTES)); then
     # Over the cap the pipeline is unchanged — the truncated first in-window
     # line is likely partial and `sed '1d'` drops it, as guard_launch_monitor.py
@@ -296,6 +344,7 @@ if ((CURSOR == 0)); then
     RECORDS=$(tail -c "$TAIL_BYTES" -- "$TRANSCRIPT" 2>/dev/null | sed '1d' |
       grep -F "$NEEDLE")
   elif ((HAVE_MAPFILE)); then
+    # slow-shape-ok: SIZE <= TAIL_BYTES on this branch, so the whole file is at most the cap
     mapfile LINES <"$TRANSCRIPT" 2>/dev/null
     N=${#LINES[@]}
     scan_lines 0
@@ -303,6 +352,7 @@ if ((CURSOR == 0)); then
     # Group-scoped redirect: `grep … 2>/dev/null` inside the substitution would
     # cost the extra fork the file-argument form just saved (#3779). The group
     # holds one command, so nothing beyond grep's own stderr is silenced.
+    # slow-shape-ok: SIZE <= TAIL_BYTES on this branch, so the whole file is at most the cap
     { RECORDS=$(grep -F "$NEEDLE" -- "$TRANSCRIPT"); } 2>/dev/null
   fi
 fi
@@ -417,11 +467,13 @@ DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
 # All three flags come from ONE jq process over the same document rather than
 # three: a jq spawn is ~140 ms of fork() emulation on Windows Git Bash. `read`
 # assigns every name it is given even when the stream is short, so all three
-# stay defined under `set -u`.
+# stay defined under `set -u`. A Windows jq build ends the line with CRLF, and
+# the carriage return lands on the last name.
 read -r HAS_LAUNCH HAS_AMBIGUOUS HAS_COMPLETED < <(jq -rn --argjson new "$NEW" '
   [([$new[] | .launchCount > 0]    | any),
    ([$new[] | .ambiguousCount > 0] | any),
    ([$new[] | .completedCount > 0] | any)] | @tsv')
+HAS_COMPLETED="${HAS_COMPLETED%$'\r'}"
 
 # The diagnosis and the remedy are per-class, so several sentences can appear
 # when one warning batches records of different classes; the per-registration

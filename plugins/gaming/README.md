@@ -4,8 +4,12 @@ A Claude Code plugin that applies the community DLSS 5 Neural Rendering mod to P
 what it changed, and removes it again byte for byte. The mod is an OptiScaler fork that loads
 NVIDIA's DLSS 5 runtime (`nvngx_dlssnr.dll`) into games that do not ship it natively.
 
-Invoke it with `/gaming:dlss5` and an action: `assess`, `apply`, `remove`, `status`, `tune`, or
-`refetch`. Run `/gaming:setup` first.
+Invoke it with `/gaming:dlss5` and an action: `assess`, `apply`, `remove`, `status`, `reset`,
+`tune`, `capture`, or `refetch`. Run `/gaming:setup` first.
+
+The default build is wilsjo2's fork (`v0.8.3`); Dagherbou's (`v0.2.0-patch1`) is the fallback.
+`skills/dlss5/reference/fork-comparison.md` has the A/B evidence behind that choice, and
+`skills/dlss5/reference/upstream-watch.md` the process that moves a pin.
 
 ## Windows only
 
@@ -28,9 +32,23 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
 
 ## Safety
 
-- The mod is never applied to a game with anti-cheat on disk, and `assess` asks for the Steam
-  store page's anti-cheat section before a first apply. Injecting a DLL into an online game with
-  anti-cheat risks an account ban.
+- `assess` names the launcher each game came from (Steam, Epic Games Launcher, EA app or Origin,
+  Battle.net, GOG Galaxy, Ubisoft Connect, Xbox app) and reads every anti-cheat source it has: the
+  files on disk, the community AreWeAntiCheatYet list (fetched live, its commit recorded), and for
+  Steam the store page's anti-cheat section. Battle.net titles count as a signal on Blizzard's
+  EULA. Only a Steam game with nothing on disk, no store-page disclosure, and an AreWeAntiCheatYet
+  entry under its app id listing no anti-cheat installs without an acknowledgement;
+  every other launcher has no first-party anti-cheat disclosure, so its best case is `unknown`.
+- On any anti-cheat signal, or an `unknown` status, `apply` refuses by default. The skill shows
+  every signal and every source it could not check, researches reported bans and blocks for the
+  title with sources, and installs only if you type the game's name to accept the risk. A blocked
+  game will not start with the DLL; a banned account is flagged. Either can happen, and the risk is
+  yours. The acknowledgement, the signals and the research are recorded in the manifest and the
+  ledger.
+- The plugin never disables, bypasses, deletes or tampers with any anti-cheat, and never suggests
+  doing so. The mod goes in beside it.
+- Xbox app and Game Pass games under `XboxGames` are supported after a write probe. A folder under
+  `WindowsApps` is refused.
 - `apply` refuses a game with no DLSS, FSR 2+ or XeSS of its own (verdict `not-a-candidate`): the
   mod hooks the game's upscaler, so without one it changes nothing.
 - `apply` never overwrites an existing game file. It refuses before copying on any collision.
@@ -38,8 +56,16 @@ builds are downloaded from their public GitHub releases by pinned URL and pinned
   leaves the game folder as it was.
 - The forks' `setup_windows.bat` is interactive and never run; the plugin renames the proxy DLL
   itself.
-- A per-game preset sets only three allow-listed `OptiScaler.ini` keys and never `AutoCapture`.
-  Shipped presets are reviewed by pull request; local overrides in the data directory win.
+- Presets set only allow-listed `OptiScaler.ini` keys (compatibility fixes, hotkeys, and picture
+  controls) and never `AutoCapture`. A base preset applies to every game; the shipped one binds no
+  hotkey. Shipped presets are reviewed by pull request, local ones in the data directory win, and
+  the plugin never downloads a preset. The allow-list is per build: wilsjo2's extra controls
+  (`Passes`, per-pass model controls, skin and environment protection, the pre-SR modes,
+  `WorkingScale`) are refused on Dagherbou. `capture` saves overlay tuning as a local preset without
+  writing to the game folder, and reports a captured hotkey that collides with another preset layer
+  instead of saving it.
+- `reset` rewrites only the game's `OptiScaler.ini`, back to what `apply` wrote, and only after it
+  has shown what it discards and the user has confirmed.
 
 ## Configuration
 

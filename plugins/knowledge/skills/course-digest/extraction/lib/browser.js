@@ -41,9 +41,8 @@ export function checkAuthAge(storageStatePath, platformCfg) {
  * @returns {Promise<{browser: import('playwright').Browser, context: import('playwright').BrowserContext, page: import('playwright').Page, cookieCount: number}>}
  */
 export async function launchBrowser({ headless = true, storageStatePath } = {}) {
-  // Use browser.launch + newContext instead of launchPersistentContext.
-  // Persistent contexts handle cross-origin iframe events differently —
-  // page.on("request"/"response") may not fire for iframe sub-resources.
+  // Not launchPersistentContext: persistent contexts may not fire
+  // page.on("request"/"response") for cross-origin iframe sub-resources.
   const browser = await chromium.launch({
     headless,
     timeout: 60000,

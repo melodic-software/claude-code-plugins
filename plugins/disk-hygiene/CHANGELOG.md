@@ -3,6 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.15] - 2026-09-24
+
+### Fixed
+
+- **The `clean` belt no longer denies every engine call on a local-directory marketplace install.** A plugin loaded in place from a local-directory marketplace gets a `${CLAUDE_PLUGIN_ROOT}` that is its source checkout, with no `plugins/cache` segment, so the belt resolved no data root and denied the skill's exact scan, preview, and apply for the rest of the session. The guard now proves such an install against `<config>/plugins/known_marketplaces.json` and the marketplace's own `marketplace.json` and `plugin.json`, and builds the data root only from `<config>` plus the sanitized `disk-hygiene@<marketplace>` id; the marketplace entry must be named `disk-hygiene`. Any unproven step still fails closed.
+- `<config>` is `<account home>/.claude`, with the home read from the OS account record (`pwd` on POSIX, the Profile known folder on Windows), never from `HOME`, `USERPROFILE`, or `CLAUDE_CONFIG_DIR`, which a repo `env` block can set. A `--plugin-dir` session has no derived authority unless its root lies inside a registered directory marketplace, where it derives that marketplace's canonical data root. A config relocated with `CLAUDE_CONFIG_DIR` derives authority only if the account home's `.claude` still lists the marketplace, and then only inside `<home>/.claude/plugins/data/`.
+- Data-root precedence is `--authorized-data-root`, the cache layout, the directory marketplace, then `CLAUDE_PLUGIN_DATA`, so on a directory install a differing environment value no longer wins.
+- The no-authority denial now names the recovery: start Claude Code from a shell with `CLAUDE_PLUGIN_DATA` set to `<config>/plugins/data/<name>-<marketplace>`.
+
+### Security
+
+- The kill switch is now read on a directory install: the same proof locates `<config>/settings.json`, so a configured `disk_hygiene_enabled: false` denies `apply` there. The read matches any `disk-hygiene` `pluginConfigs` key, as broad as the managed read was before, so a managed `false` keyed to another marketplace still disables.
+
+## [0.23.14] - 2026-09-23
+
+### Changed
+
+- **The `Stop` guard-launch monitor costs less per turn (#4416).** Measured under bash on Windows, one `bash -c` per fire with the harness `Stop` payload, 20 interleaved runs, two passes, p50: the skipped path went from 108 / 68 ms to 71 / 49 ms against a no-op `bash -c` floor of 35 / 23 ms; the run path on a 10 MB transcript with one line appended per turn went from 297 / 241 ms to 199 / 156 ms.
+- Every `hooks.json` row and the `clean` skill's frontmatter belt now read `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-python-hook.sh ...`, so no `env` process runs for the launcher's `#!/usr/bin/env bash` shebang. The rows stay in shell form: the Git Bash running the string looks `bash` up on its own PATH, the same lookup `env` did. The WSL `System32\bash.exe` hazard applies to exec form only.
+- The interpreter cache no longer compares `PATH` verbatim. fnm puts a per-shell `fnm_multishells/<pid>_<ts>` directory on `PATH`, so every new shell missed the cache and re-probed Python. The record (schema 2) now keeps, for each name resolution tried, the path bash's own `hash` lookup found; the hot path repeats that builtin lookup and hits when the same files win. A different or missing `python3`, a lookup file newer than the record, or a removed interpreter re-probes.
+- The cache now stores the probe's `sys.executable`, not the file `PATH` found, so a uv trampoline or version-manager shim no longer spends a second process on every launch. The probe writes that path as filesystem-encoded bytes, so an interpreter under a directory outside the Windows ANSI code page still resolves. The `py -3` branch probes in one spawn instead of two, and the path it reports must pass the same executable, non-empty and interpreter-name checks as the other branches. The launcher runs `set -h`, so a `BASH_ENV` that turned command hashing off cannot blind the lookups.
+- The monitor reads the transcript incrementally: a per-session cursor (`<data root>/guard-launch-monitor/<session>.cursor`, holding `b<offset>` and the transcript path) records how far a clean scan got, and the next `Stop` reads only the bytes appended since. The first scan of a session reads the whole file, as before, so a failure anywhere still warns (#1514). A missing, malformed or legacy cursor, a different transcript path, a shorter file, or no newline before the offset falls back to that whole-file scan. The cursor stops before an unterminated final line and advances only past a scan that found no failure, so a warning whose marker could not be written repeats with the same count, as before. Lines without `hook_non_blocking_error` skip the JSON parse. The `systemMessage` text for the same records is unchanged. The module docstring no longer claims an O(cap) tail read, which the head-plus-tail read had not been since #1514.
+- Cursor files, like the markers, are never removed; the data root gains one small file per session that launched a guard.
+
 ## [0.23.13] - 2026-09-21
 
 ### Changed

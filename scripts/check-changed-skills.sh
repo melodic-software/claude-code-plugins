@@ -13,9 +13,7 @@
 # scripts/evals-warrant-exemptions.txt (the warrant policy's explicit skip
 # classes — #3135). Untouched legacy skills and non-SKILL.md-only touches keep
 # the legacy WARN-only posture.
-# Any FAIL fails this gate. It replaces the work lane's manual high-blast-radius
-# skill-diff read with a deterministic check, and is the first lane to invoke the
-# otherwise-uninvoked skill-quality checker.
+# Any FAIL fails this gate.
 #
 # <base-ref> (e.g. origin/main) is BOTH the changed-file diff base and
 # CHECK_SKILL_BASE_REF, so the checker's git-backed checks compare the PR head
@@ -116,8 +114,8 @@ evals_warrant_skip() {
 # The skill that was deleted OUTRIGHT is handled below by the SKILL.md guard.
 #
 # The mapping runs in bash rather than through `sed` because the shared resolver
-# hands back NUL-safe paths; piping them into a line-oriented sed would give
-# back exactly the C-quoting bug this gate had before #2914.
+# hands back NUL-safe paths; piping them into a line-oriented sed would C-quote
+# them.
 changed_paths=()
 changed_files::into changed_paths "$BASE" --include-deleted -- 'plugins/' || exit 2
 changed=()

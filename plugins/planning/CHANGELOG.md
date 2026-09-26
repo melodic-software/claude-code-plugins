@@ -3,6 +3,119 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.0] - 2026-09-25
+
+### Added
+
+- **`plan`:** a plan change made after the Brief (a Step 3 reviewer fix, a Step 4 research
+  update, or an adopted `devils-advocate` mitigation) that displaces a user's interview answer,
+  or adds a remote write, an irreversible action, or an externally visible artifact, is no
+  longer folded into the plan body. A displaced register row is set to `superseded-by-plan`;
+  every such change is listed at Step 5 under "Displaced answers and new external effects",
+  and only a reply to that row moves it out. The plan does not hand off while a listed change
+  lacks its reply; when a ledger exists, the gate must exit 0 first. Step 4.7 checks the listing against the gate, the
+  decision tables carry a `Source` column, and `tag-decisions.md` adds an "Adopted mitigation"
+  category that never passes the confidence gate for those two kinds.
+- **`devils-advocate`:** reads the interview ledger or Brief when supplied; a finding's
+  mitigation that replaces a user answer carries `Supersedes: interview Q<N>`, and one that adds
+  an external effect carries `New external effect`.
+- **`interview`:** new non-terminal register status `superseded-by-plan`.
+  `check-open-questions.sh` counts it as `superseded=<n>` and exits 1 while any row holds it.
+  The page surface imports, keeps, and counts the status; a page defer keeps the row
+  superseded, and a page accept records `reconfirmed at plan approval: <new>; was: <old>`.
+- **`audit-answers`:** a `superseded-by-plan` row is held on the never-auto floor.
+
+### Changed
+
+- The `tests/interview-defenses.test.sh` digest for the `loop.md` open-question register
+  section was re-pinned: the new status row and its paragraph add a status the gate blocks on
+  and weaken no defense. The interview `SKILL.md` Stance and Step 3 digests were re-pinned too:
+  the out-of-band check covers superseded rows, and exit 1 no longer lets an agent retire one.
+
+## [0.41.2] - 2026-09-25
+
+### Changed
+
+- Comment-only pass with /code-tidying:dissolve-comments: restating comments, history narration and ticket back-references removed from scripts and tests, over-budget rationale shortened. Every edit is certified comment-only by a token-level proof, so behavior is unchanged; the removed text is recorded in the commit bodies.
+
+## [0.41.1] - 2026-09-24
+
+### Fixed
+
+- **`interview`:** a recommendation that fixes more than one decision lists each part under
+  `Commits you to:`, and each part is its own register row. Accepting the headline resolves
+  the listed parts; an alternative or rejection withdraws them; an unlisted part is not
+  decided by any answer to the headline.
+- **`interview`:** a hedged reply ("yes?", "I think so") resolves at most the headline of one
+  question, is recorded `hedged:`, and leaves its commitment rows open. A hedged
+  accept-shorthand is not an accept-shorthand. A hedged terminal reply is mirrored onto the
+  page as `own` text prefixed `hedged:`; a hedged "Own answer" typed on the page is echoed
+  the same way, and the Step 3 restate relists it from its `free-text:` row.
+- **`interview`:** on the page surface, a recommendation's parts are the question's `commits`
+  entries: accepting confirms only ticked parts, and unticked parts reach the Brief as named
+  risks. After an alternative, the lead moves those risks to Out-of-scope as withdrawn.
+- **`interview`:** the Stance names both question-surface rules (terminal and page).
+- Two section digests in `tests/interview-defenses.test.sh` were re-pinned (SKILL.md Stance,
+  loop.md open-question register). Each fired on added text that narrows what an answer or
+  accept-shorthand resolves and qualifies no defense.
+
+## [0.41.0] - 2026-09-24
+
+### Added
+
+- **Interview page surface** under `surface/`: a stdlib server bound to 127.0.0.1 (`server.py`),
+  the single-file page (`index.html`), `round.py` (Claude's only write path to the question file,
+  launched through `round.sh`), the background watcher `watch.sh`, JSON Schemas for the question,
+  response, event, visual and ops files, and the test suites. The user answers each question on
+  the page; every save reaches the live session through the watcher.
+- **`round.py` commands:** `ensure-running` and `stop` for the server's lifecycle, `apply` (every
+  op in one validated write), `archive`, `status --latency`, `validate`, and the sidecar lock
+  `questions.json.lock`. `add` and `add-round` refuse a question without `commits` or with fewer
+  than two alternatives, and `reply --rec` and `revise --rec` require `--affects`.
+- **Exporters:** `export-ledger` (the register rows `check-open-questions.sh` grades),
+  `export-brief` (the PLAN.md `## Brief` sections, unconfirmed commitments as named risks),
+  `export-report` (one self-contained HTML file), and `import-ledger`.
+- **`surface` option:** `terminal` (default) or `page`; applies to `/planning:interview` only, and
+  any other value falls back to `terminal`.
+- **`interview` skill `context/surface.md`:** the page protocol: start and stop, the one-call wake
+  command, the event table, rules R1 to R12 and R-A to R-J, the wording lint, the wrap-up
+  exports, settings layers, the security model and the degrade path.
+- **`meta` on the page:** `add-round`'s file takes a `meta` object and `apply` takes a
+  `{"op": "meta", "set": {...}}` op; both merge `title`, `eyebrow`, `stages` and `next` into
+  `questions.json` and refuse any other key.
+- **`--emoji-markers` value rule:** `ensure-running` accepts any value; `false`, `0`, `no` and
+  `off` (any case) mean false, and anything else, an empty string or an unexpanded token
+  included, means true.
+- **Reconfirm keeps the decision:** on a stale question, choice 1 re-arms the kept decision
+  exactly (kind, alternative, own text and note) and the other choices renumber after it; `a`
+  arms it. Picking again is always available.
+- **File visuals by reference:** a visual with `file` renders on the page and in the exported
+  report through the same format paths as inline content. The server serves it at
+  `GET /api/visual-file?id=<visual id>` (token required) only when the path resolves inside the
+  data dir and a visual in `questions.json` names it; 4 MB cap.
+- **Settings rows** for `port` and `openBrowser`, each naming its layer; `themeTokens` is also
+  read from the user file (data dir `theme.json`, then user, then repo, then built-in).
+- **Limits and errors:** a POST body may be up to 64 KB and the text inside it is never cut;
+  a body that is not a JSON object, or is nested too deeply, is a 400. `watch.sh` refuses a
+  `PORT` that is not all digits. The exported report carries a CSP with no network source.
+- **Opener rule:** the browser opener (`browserCommand`) runs only from a file named by an
+  explicit `--user-settings`; the data dir's session file is never a source for it.
+- **One watcher per interview:** the first watcher holds an in-memory server lease; a second
+  session's `watch.sh` gets a 409 naming the holder and exits 3 instead of competing for events.
+  The lease expires after `leaseTimeout` seconds (default 600, a new setting shown on the
+  Settings tab) with no poll, `round.py lease` prints the holder, and `round.py lease --release`
+  hands it over. The skill tells a second Claude session to coordinate with the holder.
+
+### Changed
+
+- **`interview`:** the question-surface rule replaces the artifact escape hatch. `surface: page`,
+  or the user asking for it, starts the page as the input surface; the read-only decision table
+  stays only as the degrade when the page cannot start. `context/loop.md` "Page surface" replaces
+  "Artifact escape hatch (dense round)".
+- **`use_emoji_question_markers`:** the description covers the page's question title and
+  Recommendation heading as well as inline rounds.
+- `tests/interview-defenses.test.sh`: one section digest re-pinned for the new Action Router paragraph.
+
 ## [0.40.0] - 2026-09-23
 
 ### Changed

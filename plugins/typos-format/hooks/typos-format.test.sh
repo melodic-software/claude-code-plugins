@@ -46,8 +46,6 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# ctx_of <hook-stdout> / sys_of <hook-stdout> -> the one disclosure channel,
-# empty when the key is absent or the document does not parse.
 ctx_of() {
   printf '%s' "$1" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
 }
@@ -101,12 +99,14 @@ new_typos_repo() {
 # membership guard is disabled (not part of the fire gate); this isolates
 # gate/fix behavior from path-form mismatch in the guard.
 run_hook_env() {
-  local file_path="$1"
+  local file_path="$1" payload
   shift
+  # A here-string, never a pipe: the kill switch exits before reading stdin, and
+  # a printf still writing then fails on the closed pipe, which pipefail reports.
+  printf -v payload '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path"
   (
     cd "$UNRELATED" || return 1
-    printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$file_path" |
-      env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK"
+    env -u CLAUDE_PROJECT_DIR "$@" bash "$HOOK" <<<"$payload"
   )
 }
 
@@ -1037,8 +1037,6 @@ printf '{"session_id":"row-1","tool_input":{"file_path":"x.txt"},"tool_name":"Wr
 # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
 ROW_CMD_RUN=${ROW_CMD//'${CLAUDE_PLUGIN_ROOT}'/"$ROWGATE/root"}
 
-# run_opt <case-dir> <value|__unset__> <command...> -> run <command> with the
-# option set to <value> (or unset) and ROWGATE_OUT pointing at <case-dir>.
 run_opt() {
   local out="$1" v="$2"
   shift 2
@@ -1056,8 +1054,8 @@ for v in "${ROW_VALUES[@]}"; do
   label="'$v'"
   [[ "$v" == "__unset__" ]] && label="unset"
   case "$v" in
-    __unset__ | "" | true) want=started ;;
-    *) want=skipped ;;
+  __unset__ | "" | true) want=started ;;
+  *) want=skipped ;;
   esac
   case_dir="$ROWGATE/case$i"
   mkdir -p "$case_dir"
@@ -1391,7 +1389,7 @@ CF_SMOKE=$(printf '%s\n%s\n@@typos-format-split@@\n%s\n' \
   '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' \
   '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"wnat","corrections":["want","what"]}' |
   jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null |
-  jq -r '"\(.appliedCount)/\(.residualCount)/\(.applied[0].typo // "-")"' 2>/dev/null)
+  jq -r '"\(.appliedCount)/\(.residualCount)/\((.applied | fromjson)[0].typo // "-")"' 2>/dev/null)
 CF_SMOKE_WANT="1/1/teh"
 # spellchecker:on
 if [[ "$CF_SMOKE" == "$CF_SMOKE_WANT" ]]; then
@@ -1416,7 +1414,6 @@ def timed(f): (now) as $t0 | (f | .appliedCount + .residualCount) as $_ | (now -
 JQ
 } >"$CF_BENCH"
 
-# classify_case <shape> <what this shape gates>
 classify_case() {
   local shape="$1" gates="$2"
   local small="$WORK/classify-$shape-$CF_SMALL_N.jsonl"
@@ -1975,10 +1972,10 @@ for banned in dirname basename; do
   fi
 done
 N_JQ="$(trace_execs jq "$TRACE")"
-if [[ "$N_JQ" == "1" ]]; then
-  ok "traced benign: exactly 1 jq (the shared payload validation)"
+if [[ "$N_JQ" == "0" ]]; then
+  ok "traced benign: no jq (payload validation and the path read are builtin)"
 else
-  fail "traced benign: jq spawned $N_JQ time(s), expected 1"
+  fail "traced benign: jq spawned $N_JQ time(s), expected 0"
 fi
 
 # One external, the typos binary, which is the point of the hook. The two
@@ -2034,6 +2031,41 @@ else
     fi
   done
 fi
+
+# The report-only builtin classifier writes jq's CLASSIFIED text byte for byte,
+# or declines. Both are lifted out of the hook; each case either matches the jq
+# program's output or is declined, and the ASCII cases must be answered.
+# spellchecker:off
+RO_FN=$(awk '/^typos_classify_report_only\(\) \{/ { cap = 1 } cap { print } cap && /^}/ { exit }' "$HOOK")
+ro_case() { # <desc> <must-answer 0|1> <scan output>
+  local desc="$1" must="$2" got want
+  got=$(
+    # shellcheck source=hook-utils.sh
+    source "$HOOK_DIR/hook-utils.sh"
+    eval "$RO_FN"
+    # shellcheck disable=SC2034 # read by the eval'd function
+    SCAN_OUTPUT=$3 MAX_REPORT=10 WRITE_CHANGES=false CLASSIFIED=""
+    hook::_c_locale typos_classify_report_only || exit 3
+    printf '%s' "$CLASSIFIED"
+  ) || {
+    if ((must)); then fail "report-only builtin: $desc was declined"; else ok "report-only builtin: $desc goes to jq"; fi
+    return
+  }
+  want=$(printf '%s\n@@typos-format-split@@\n%s\n' "$3" "$3" | jq -R -s -c --argjson max 10 -f "$CF_FILTER" 2>/dev/null)
+  if [[ "$got" == "$want" ]]; then ok "report-only builtin: $desc equals jq"; else fail "report-only builtin: $desc: got $got want $want"; fi
+}
+ro_long=$(printf 'x%.0s' {1..70})
+ro_case "one finding" 1 '{"type":"typo","path":"a.md","line_num":427,"byte_offset":65,"typo":"doin","corrections":["doing"]}'
+ro_case "ambiguous, disallowed, empty and elided" 1 "$(printf '%s\n' \
+  '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"wich","corrections":["which","witch"]}' \
+  '{"type":"typo","path":"a","line_num":2,"byte_offset":0,"typo":"teh","corrections":null}' \
+  '{"type":"typo","path":"a","line_num":3,"byte_offset":0,"typo":"nd","corrections":[]}' \
+  "{\"type\":\"typo\",\"path\":\"a\",\"line_num\":4,\"byte_offset\":0,\"typo\":\"$ro_long\",\"corrections\":[\"$ro_long\"]}")"
+ro_case "more findings than the report cap" 1 "$(for i in {1..12}; do printf '{"type":"typo","path":"a","line_num":%d,"byte_offset":0,"typo":"teh","corrections":["the"]}\n' "$i"; done)"
+ro_case "a quote in a token" 0 '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"a\"b","corrections":["ab"]}'
+ro_case "a non-ASCII token" 0 '{"type":"typo","path":"a","line_num":1,"byte_offset":0,"typo":"é","corrections":["e"]}'
+ro_case "a stderr line" 0 'warning: something'
+# spellchecker:on
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

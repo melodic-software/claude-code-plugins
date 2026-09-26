@@ -144,14 +144,26 @@ set -uo pipefail
 # zone-crossing-inject.test.sh, which counts commands in COMMAND POSITION: a
 # fork that never execs never reaches one. The strace-based counterpart there
 # is what holds this rule, and #3520 is the regression it was added for.
+# NO CONTEXT DIRECTORY, NOTHING TO SAY. Without
+# $HOME/.claude/context-guard/context there is no snapshot and no compaction
+# marker for any session, so every path below ends at `unknown`, which is
+# silent and writes nothing. That is every fire on a machine without the
+# context-guard status line, so the check runs before the libraries are
+# sourced, which cost more than the rest of such a fire. jq must be on PATH for
+# the skip: without it the full path owes its once-per-session notice.
+if [[ ! -e "${HOME:-}/.claude/context-guard/context" ]] && command -v jq >/dev/null 2>&1; then
+  exit 0
+fi
+
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
+# Kill switch FIRST, above every source, as in zone-gate.sh: a disabled hook
+# must not pay to parse hook-utils.sh before finding out it is off.
+[[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
 # shellcheck source=hook-utils.sh
 source "$CG_DIR/hook-utils.sh"
 # shellcheck source=payload.sh
 source "$CG_DIR/payload.sh"
-
-hook::check_enabled "CONTEXT_GUARD_HOOKS"
 
 START_EPOCH=${EPOCHREALTIME:-0}
 # Not absolutized through `cd … && pwd`: this path is only ever handed to
@@ -336,7 +348,16 @@ zones_seen=0
 # one process, and `$(bash … 2>/dev/null)` billed two for it. Same suppression
 # (the resolver's zones.json notices stay hidden from this caller, as before),
 # same captured word, and `||` still sees the resolver's status.
-{ zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
+#
+# With no readable snapshot the resolver's answer is already known: it prints
+# `unknown` at its `[[ -r "$snap" ]]` check, before reading anything else, and
+# so it does for an empty HOME. That check is made here instead, which saves
+# starting a second bash on every batch of a session that never wrote a
+# snapshot (no context-guard status line, or a headless `claude -p` run).
+zone="unknown"
+if [[ -n "${HOME:-}" && -r "$HOME/.claude/context-guard/context/$SESSION.json" ]]; then
+  { zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
+fi
 
 # Evidence-degraded marker (reader contract): a compacted session is treated
 # as dumb regardless of the resolved word — including a green post-compaction

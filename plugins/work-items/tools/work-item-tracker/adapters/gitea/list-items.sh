@@ -59,14 +59,8 @@ wit_gitea_scope_parts "$REPO"
 # Gitea's `state` query parameter takes open|closed|all — the seam's own vocabulary, so
 # it passes through. STATE is already constrained to those three by the parse above.
 #
-# Rows travel through FILES, not shell variables. The earlier shape kept the accumulated
-# array in a variable and re-serialized the whole of it through jq once per page and
-# once per item, which is quadratic in the repository size, and it fed that variable to
-# jq as a here-string, which on Git Bash blocks the shell forever once the payload
-# reaches the pipe capacity (65536 bytes; see lib/hook-utils.sh hook::json_complete).
-# Appending each page's issues to a file as one JSON object per line is linear, keeps
-# every jq input off the command line (ARG_MAX) and out of here-strings, and lets the
-# whole list be normalized in a single jq pass at the end.
+# Rows travel through FILES, never a variable re-fed to jq: that is quadratic, and a
+# here-string past pipe capacity (65536 bytes) blocks Git Bash forever.
 if ! { ROWS="$(mktemp)" && COUNTS="$(mktemp)"; }; then
   printf 'list-items.sh: could not create temp files for the item walk\n' >&2
   exit "$EX_INTERNAL"
@@ -115,10 +109,8 @@ while :; do
   PAGE=$((PAGE + 1))
   # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED truncation, not
   # an error (CONTRACT.md "Adapter contract") — but it is never silent. Measured against rows
-  # ACTUALLY RETURNED, not against `PAGE * page_size`: under the clamp this whole change is
-  # about, those two diverge. With page_size 100 against a server capping at 50, the requested
-  # arithmetic reaches 1000 after ten pages that returned only 500 issues, so the walk stopped
-  # half way and announced it had hit a ceiling it never reached.
+  # ACTUALLY RETURNED, not `PAGE * page_size`: under the server clamp those diverge and the
+  # walk would announce a ceiling it never reached.
   if ((SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
     printf 'list-items.sh: reached the declared ceiling of %s items for %s; results are truncated\n' \
       "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" >&2

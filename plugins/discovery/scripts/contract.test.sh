@@ -313,6 +313,202 @@ assert_present 'trace-intent dispatch contract forbids inferring fired from the 
 assert_present 'trace-intent evals grade matching-token-is-not-preload-proof' \
   'skills/trace-intent/evals/evals.json' 'matching-token-is-file-identity-not-preload-proof'
 
+# ---------------------------------------------------------------------------
+# 12. Joint-inference validity is a verifier-owned gate row
+#
+# Every other gate row grades provenance or process. A claim can pass all of
+# them behind verbatim quotes and still not follow from its sources. Row 12
+# asks whether it does, and a verifier grades it off disk, so the sidecar
+# header carries what each source measures and each claim's inference and
+# qualifiers. Failing claims use the existing vocabulary, a Gap or a Conflicts
+# entry; no new status words.
+# ---------------------------------------------------------------------------
+assert_present 'gate row 12 is owned by the verifier' \
+  'skills/research/SKILL.md' '^\| 12 \|.*jointly.*\| \*\*verifier\*\* \|'
+assert_present 'gate row 12 routes a FAIL to Phase 2, else a Gap or Conflicts entry' \
+  'skills/research/SKILL.md' '^\| 12 \|.*\| Phase 2\..*else a Gap or Conflicts entry \|$'
+assert_present 'discipline 15 points at the joint-inference recipe' \
+  'skills/research/SKILL.md' '^15\. \*\*.*"Joint-inference check"'
+assert_present 'discipline.md carries the joint-inference section' \
+  'skills/research/context/discipline.md' '^## Joint-inference check$'
+assert_present 'the joint-inference check names the variable sub-test' \
+  'skills/research/context/discipline.md' '\*\*Variable check\.\*\*'
+assert_present 'the joint-inference check names the population sub-test' \
+  'skills/research/context/discipline.md' '\*\*Population check\.\*\*'
+assert_present 'the joint-inference check names the hedge-survival sub-test' \
+  'skills/research/context/discipline.md' '\*\*Hedge-survival check\.\*\*'
+assert_present 'counter-evidence already read is resolved in the artifact' \
+  'skills/research/context/discipline.md' '^\*\*Counter-evidence already read'
+assert_present 'a failing claim is a Gap or a Conflicts entry' \
+  'skills/research/context/discipline.md' 'is a Gap or a Conflicts entry'
+assert_present 'the sidecar header carries per-source measures' \
+  'skills/research/context/artifact-shape.md' '^ +measures: '
+assert_present 'the sidecar header carries per-claim inference' \
+  'skills/research/context/artifact-shape.md' '^ +inference: '
+assert_present 'the sidecar header carries per-claim qualifiers' \
+  'skills/research/context/artifact-shape.md' '^ +qualifiers: '
+assert_present 'an improvised header costs criterion 12 its evidence too' \
+  'skills/research/SKILL.md' 'costs criteria 4, 6, 9 and 12 their evidence'
+assert_present 'the carry-forward line lists the new header fields' \
+  'skills/research/SKILL.md' 'Carry this much into the read:.*measures.*inference.*qualifiers'
+assert_present 'the fan-out obligation sends the synthesis to a criterion-12 verifier' \
+  'skills/research/context/dispatch.md' '^\*\*The synthesis .*fresh verifier for criterion 12'
+assert_present 'the synthesis verifier also checks claims the synthesis adds' \
+  'skills/research/context/dispatch.md' 'a claim the synthesis adds'
+assert_present 'the SKILL.md fan-out paragraph points at the synthesis criterion-12 check' \
+  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*verifier for criterion 12'
+assert_present 'the verifier is briefed on rows 4, 7 and 12 by number' \
+  'skills/research/context/dispatch.md' 'rows 4, 7 and 12'
+assert_present 'the verifier brief overrides the payload criterion string' \
+  'skills/research/context/dispatch.md' 'verification_request\.criterion'
+assert_present 'gotchas name criterion 12 among the verifier rows' \
+  'skills/research/context/gotchas.md' 'Criteria 4, 7 and 12'
+assert_present 'evals name criterion 12 among the verifier rows' \
+  'skills/research/evals/evals.json' 'criteria 4, 7 or 12'
+assert_present 'evals grade a verbatim quote attached to a claim it does not support' \
+  'skills/research/evals/evals.json' 'verbatim-quote-is-not-joint-inference'
+status_words="$(grep -rnE -- 'CONFLICTED|UNSUPPORTED|CONFIRMED' "$PLUGIN_ROOT/skills/research" 2>/dev/null)"
+if [[ -z "$status_words" ]]; then
+  pass 'the research skill adds no status vocabulary for a failing claim'
+else
+  fail 'the research skill adds no status vocabulary for a failing claim'
+  printf '%s\n' "$status_words" >&2
+fi
+assert_absent 'no stale two-row verifier count' \
+  '([Cc]riteri(a|on)|rows) 4 (and|or) 7([^,0-9]|$)|[Tt]wo criteria are'
+assert_present 'the gate states the Owner column governs over any other enumeration' \
+  'skills/research/SKILL.md' 'Owner column governs over any enumeration'
+assert_present 'researcher withholds three criteria' \
+  'agents/researcher.md' 'Three criteria are'
+assert_present 'researcher lists joint inference as a withheld criterion' \
+  'agents/researcher.md' '^- the criterion requiring every accepted claim to follow jointly'
+assert_present 'researcher verification request names joint-inference validity' \
+  'agents/researcher.md' '^  criterion: ".*joint-inference validity'
+assert_present 'research-deep lists joint inference among the verifier rows' \
+  'skills/research-deep/SKILL.md' 'verifier-owned rows \(independent corroboration, HIGH confidence, joint inference\)'
+assert_present 'research-deep points at the synthesis criterion-12 check' \
+  'skills/research-deep/SKILL.md' 'synthesized root index also goes to a fresh verifier for criterion 12'
+assert_present 'row 12 has one pass bar: the primary measures the variable and population' \
+  'skills/research/SKILL.md' "^\| 12 \|.*the claim's primary source measures the claim's variable and population"
+assert_present 'a non-measuring corroborator is recorded, not counted' \
+  'skills/research/context/discipline.md' 'recorded, not counted toward'
+assert_absent 'no evals entry counts the gate criteria' \
+  'all [0-9]+ binary criteria'
+
+# ---------------------------------------------------------------------------
+# 13. Dispatched agents write early and reserve their last turns
+#
+# A free-text budget bounds no turn count; a named stop turn leaves the agent
+# turns to write before its limit. Each agent states its limit as its own frontmatter number, names a stop turn
+# below it, writes an index skeleton marked `Run status: in progress` early, and
+# replaces the marker only in its final write. The envelope carries the stop
+# turn as a second Budget line. The research side also names a claim's primary
+# source in the sidecar header and the read-only `gh` forms.
+# ---------------------------------------------------------------------------
+
+# line_after <file> <extended-regex>: the line directly after the first match.
+line_after() {
+  awk -v pat="$2" 'found { print; exit } $0 ~ pat { found = 1 }' "$PLUGIN_ROOT/$1"
+}
+
+for agent in explorer researcher intent-tracer; do
+  file="agents/$agent.md"
+  limit="$(turns_of "$agent")"
+  assert_present "$file states its limit as its own frontmatter maxTurns ($limit)" \
+    "$file" "Your limit is \`maxTurns: ${limit}\`"
+  stop="$(grep -m1 -oiE 'stop gathering by turn [0-9]+' "$PLUGIN_ROOT/$file" | tr -dc '0-9')"
+  if [[ -n "$stop" && -n "$limit" && "$stop" -gt 0 && "$stop" -lt "$limit" ]]; then
+    pass "$file names a stop-gathering turn ($stop) below its limit ($limit)"
+  else
+    fail "$file names a stop-gathering turn (${stop:-unset}) below its limit (${limit:-unset})"
+  fi
+  default="$(grep -m1 -oE 'absent, use turn [0-9]+' "$PLUGIN_ROOT/$file" | tr -dc '0-9')"
+  if [[ -n "$stop" && "$stop" == "$default" ]]; then
+    pass "$file stop turn ($stop) equals its Budget-bullet default ($default)"
+  else
+    fail "$file stop turn (${stop:-unset}) equals its Budget-bullet default (${default:-unset})"
+  fi
+  assert_present "$file ignores a Turn budget above its default and notes it" \
+    "$file" 'A value above that default is ignored and noted in'
+  assert_present "$file writes the index skeleton marked in progress" \
+    "$file" 'Run status: in progress'
+  assert_present "$file places the marker in the slot after the title heading" \
+    "$file" 'first non-blank line after the level-1 title heading'
+  assert_present "$file says the gate reads only that slot" \
+    "$file" 'gate reads only that slot'
+  assert_present "$file replaces the marker in its final write" \
+    "$file" 'Run status: complete'
+  assert_present "$file reads the envelope's Turn budget line" \
+    "$file" 'Turn budget:'
+  assert_present "$file keeps a denied path unread by every other tool" \
+    "$file" 'is not reached through `Bash`, a script, `Grep`, or any other tool'
+done
+assert_absent 'no agent says it cannot observe its own turn budget' \
+  'cannot observe your own remaining turn'
+
+if [[ "$(line_after reference/parent-contract.md '^Budget: ')" == 'Turn budget: '* ]]; then
+  pass 'the parent-contract envelope carries Turn budget: directly under Budget:'
+else
+  fail 'the parent-contract envelope carries Turn budget: directly under Budget:'
+fi
+if [[ "$(line_after skills/research-deep/SKILL.md '^ +Budget: ')" =~ ^\ +Turn\ budget:\  ]]; then
+  pass 'the research-deep envelope carries Turn budget: directly under Budget:'
+else
+  fail 'the research-deep envelope carries Turn budget: directly under Budget:'
+fi
+
+assert_present 'discipline.md names the read-only gh search forms' \
+  'skills/research/context/discipline.md' 'gh search issues'
+assert_present 'discipline.md says why the -X and -f forms prompt' \
+  'skills/research/context/discipline.md' 'Bash\(gh api -X \*\)'
+assert_present 'researcher points at the read-only gh guidance' \
+  'agents/researcher.md' 'read-only `gh`'
+
+assert_present 'the sources[] schema carries role: primary' \
+  'skills/research/context/artifact-shape.md' '^ +role: primary +# primary \| corroborator'
+assert_present 'artifact-shape requires exactly one primary per accepted claim' \
+  'skills/research/context/artifact-shape.md' 'exactly one `primary`'
+assert_present 'the joint-inference check ties the primary to role: primary' \
+  'skills/research/context/discipline.md' '`role: primary`'
+
+assert_absent 'no file says the sub-agents page has no partial-return semantics' \
+  'partial-return semantics'
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md reference/parent-contract.md; do
+  assert_present "$file quotes the current partial-marking behavior" \
+    "$file" 'returns its output marked as partial'
+done
+
+assert_absent 'no file says a half-written artifact set cannot be told apart without the marker' \
+  'half-written artifact set cannot be told apart'
+for file in reference/parent-contract.md skills/explore/reference/dispatch.md \
+  skills/research/context/dispatch.md; do
+  assert_present "$file names the in-progress marker where it discusses a partial slice" \
+    "$file" 'Run status: in progress'
+done
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file places the marker in the slot after the title heading" \
+    "$file" 'first non-blank line after the level-1 title heading'
+  assert_present "$file says the gate reads only that slot" \
+    "$file" 'gate reads only that slot'
+done
+assert_absent 'no markdown puts a space inside a heading-marker code span (MD038)' \
+  '`# `'
+assert_absent 'no file says the gate reads the first Run status: line' \
+  'first `Run status:` line'
+for file in reference/parent-contract.md skills/research-deep/SKILL.md; do
+  assert_present "$file bounds the Turn budget placeholder by the default stop turn" \
+    "$file" "Turn budget: <.*at or below the agent's default stop turn \(30\)"
+done
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file refuses a by-value body still marked in progress" \
+    "$file" '`Run status: complete` or no marker; one'
+done
+assert_absent 'no file narrates the 40-turn incidents as the Turn budget rationale' \
+  'bounded nothing: dispatched runs stopped'
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'

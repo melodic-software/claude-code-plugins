@@ -173,6 +173,14 @@ out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/time-drift.json")"
 assert_equals "drift: a newer HEAD does not fail the check" "$?" "0"
 assert_contains "drift: but it is still reported" "$out" "moved on hub: last_touched"
 
+# The same checkout reports a different origin URL depending on whether it was
+# cloned over https or ssh; that is the clone's transport, not the system's.
+sed 's|"remote":"[^"]*"|"remote":"ssh://git@github.com/fixture-owner/hub"|' \
+  "$TEST_TMPDIR/committed.json" >"$TEST_TMPDIR/remote-transport-drift.json"
+out="$(bash "$SCRIPT" "$repo" --drift-against "$TEST_TMPDIR/remote-transport-drift.json")"
+assert_equals "drift: a different clone transport does not fail the check" "$?" "0"
+assert_contains "drift: but it is still reported" "$out" "remote transport differs on hub: remote"
+
 # A repository that left the record, and one that joined it.
 out="$(bash "$SCRIPT" "$repo" "$quiet" --edges-from "$repo" \
   --drift-against "$TEST_TMPDIR/committed.json")"

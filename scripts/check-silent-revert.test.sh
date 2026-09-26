@@ -42,9 +42,7 @@ repo=""
 # the caller just gets "" and carries on. And "" is not inert: `git -C ""`
 # operates on the CALLER's repository, so the very next `add -A` + `commit`
 # stages and commits whatever the developer happened to be working on, authored
-# as `test <t@t.test>`. That is not hypothetical -- it happened during #2837's
-# development when mktemp transiently failed under load, and the resulting
-# commit cannot be pushed here because it fails required_signatures.
+# as `test <t@t.test>`.
 #
 # So a failure yields a path that does not exist. Every git call against it then
 # fails loudly and the assertions go red, which is the correct fail-closed
@@ -117,11 +115,10 @@ filler() {
 # not exist makes the subshell exit 1 -- which is BYTE-IDENTICAL to the detector
 # firing. Every `expect_rc=1` case (the false-positive-resistance ones, the
 # cases that must FIRE) would then report `ok` while testing nothing, which is
-# the fail-open the whole suite exists to prevent. mktemp really did fail
-# transiently during #2837's development, so this is a measured mode, not a
-# hypothetical one. RC=99 is outside the detector's contract (0/1/2), so no
-# assertion can mistake it for an expected status, and the case is also counted
-# as a failure here so the reason is named rather than inferred.
+# the fail-open the whole suite exists to prevent. RC=99 is outside the
+# detector's contract (0/1/2), so no assertion can mistake it for an expected
+# status, and the case is also counted as a failure here so the reason is named
+# rather than inferred.
 RC=0
 OUT=""
 run_canary() {
@@ -259,8 +256,8 @@ t_rename_is_not_a_removal() {
 
 # The attribution counts must not depend on the CALLER'S GIT CONFIG. They are
 # what the replay's recorded expectations assert on, so a developer's ambient
-# settings deciding them means a red build on a clean tree -- which is exactly
-# what #2843's first CI run hit, from `diff.algorithm = histogram`.
+# settings deciding them means a red build on a clean tree, for example under
+# `diff.algorithm = histogram`.
 #
 # This case is the anchor for the claim attribute_file's pin table makes, and
 # it is deliberately the SAME claim: identical counts regardless of the
@@ -1600,7 +1597,7 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
   # Write both files with printf directly. A `$(printf '...\n')` assignment
   # would strip the trailing newline (command substitution does), so both
   # files would be the no-newline case and this pin would not be testing
-  # what it claims (#3081 review).
+  # what it claims.
   local line1 line2
   line1="fires $sha [$culprit=40] row 1 correct"
   line2="fires $sha [$culprit=1] row 2 wrong count"

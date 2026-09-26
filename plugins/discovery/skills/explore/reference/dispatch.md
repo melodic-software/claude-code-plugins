@@ -161,8 +161,10 @@ So the parent does the writing, which it can: this is the checkout-not-process b
 **A by-value payload that returns findings instead of artifact bodies is a failed dispatch, not a
 fallback.** The value of the third outcome is *routing*: it tells the parent which recovery to
 take. It is not an acceptance value, and treating it as one would let a run be believed on the
-agent's own word, the exact thing the gate exists to refuse. Why the mode exists and where its
-boundary sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+agent's own word, the exact thing the gate exists to refuse. An index body written back must carry
+`Run status: complete` or no marker; one still marked `Run status: in progress` fails the gate and
+is a failed dispatch. Why the mode exists and where its boundary sits:
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 **Exit 1 with the agent still live: resume it, do not re-dispatch it.** A resume costs one message;
 a re-dispatch pays the full six dimensions over again. Address the agent by the **agent ID**, not by
@@ -172,12 +174,13 @@ for the pointer, and still dispatch the sibling verifier. If the payload comes b
 write, you are on the by-value rung above, not this one.
 
 **A refused resume, or exit 1 again after one.** *Now* discard the slice and re-dispatch with the
-same envelope. A half-written artifact set cannot be told apart from a complete one by reading it,
-so once the resume has failed there is nothing left that could tell you whether the slice is worth
-keeping. **The discard follows the resume; it does not replace it**, including for a
-`status: truncated` return and for a dispatch that returned no payload at all, which are the two
-cases that most often leave a live agent holding a complete artifact set. The ordering is stated
-once in
+same envelope. An index still marked `Run status: in progress` is refused by the gate, so that
+partial slice is visible to the gate; one with no status line cannot be told apart from a complete
+one by reading it. Either way, once the resume has failed there is nothing left that could tell you
+whether the slice is worth keeping. **The discard follows the resume; it does not replace it**,
+including for a `status: truncated` return and for a dispatch that returned no payload at all,
+which are the two cases that most often leave a live agent holding a complete artifact set. The
+ordering is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
 ("Resume first, then decide about the slice").
 
@@ -190,30 +193,47 @@ here instead, one level up, where gate step 1 has already put the payload in the
 
 ### What the harness actually guarantees about a resume
 
-Verified 2026-08-08 against <https://code.claude.com/docs/en/sub-agents> (the page
+Verified 2026-09-25 against <https://code.claude.com/docs/en/sub-agents> (raw markdown; the page
 `docs/official-docs.md` indexes for subagents), quoting it:
 
 - The parent has the identifier it needs: "When a subagent completes, Claude receives its agent ID."
 - The mechanism: "Claude uses the `SendMessage` tool with the agent's ID or name as the `to` field
   to resume it", and it "doesn't require agent teams to be enabled".
 - Why resuming is cheaper than re-dispatching: "Resumed subagents retain their full conversation
-  history, including all previous tool calls, results, and reasoning. The subagent picks up exactly
-  where it stopped rather than starting fresh." A finished agent needs no new spawn: "A completed
-  subagent that receives a `SendMessage` auto-resumes in the background without a new `Agent`
-  invocation."
+  history, including all previous tool calls, results, and reasoning." and "The subagent picks up
+  exactly where it stopped rather than starting fresh." A finished agent needs no new spawn: "When
+  Claude sends a completed subagent a message with the `SendMessage` tool, the subagent resumes in
+  the background without a new `Agent` invocation."
 - Why the ID and not the name: "As of v2.1.199, `SendMessage` checks that a name still refers to the
   same agent it reached earlier in the conversation" and refuses the send when a newer agent has
   taken the name. The ID is unambiguous.
-- The one case that is not retryable: "As of v2.1.191, a subagent you stopped yourself, with `x` in
-  `/tasks` or an SDK `stop_task` request, doesn't auto-resume. The `SendMessage` call returns a
-  refusal telling Claude the agent was cancelled." Re-dispatch instead.
+- The one case the parent cannot retry: "A subagent you stopped yourself, with `x` in `/tasks` or an
+  SDK `stop_task` request, doesn't auto-resume. If Claude sends it a message, the message is refused
+  and Claude is told the agent was cancelled." Re-dispatch instead. A subagent Claude stopped with
+  the `TaskStop` tool is not this case: the page says the same background resume "applies to a
+  subagent that Claude stopped with the `TaskStop` tool, once its stopped run has exited".
+- **Recheck trigger.** The page's "Resume subagents" section changes, or a release note names
+  `SendMessage` resume, stopped-subagent handling, or agent-ID addressing.
 - This ladder covers `discovery:explorer` because it is a **custom** subagent. It does not extend to
   the built-in Explore agent `SKILL.md` names as the fan-out scout, which is one-shot and returns no
   agent ID. Dated record, with the quoted basis:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "The built-in Explore agent cannot hold this plugin's contract".
 
-The page documents no partial-return semantics for `maxTurns`, defining it only as "Maximum number
-of agentic turns before the subagent stops", which is why the agent writes `status: truncated` with
-a partial payload *before* its budget runs out rather than relying on the harness to say anything on
-its way down.
+What the harness returns at the turn limit:
+
+- **Claim.** A subagent that reaches `maxTurns` returns its output marked as partial, and the
+  parent can resume it. The page: "When the subagent reaches the limit, Claude Code returns its
+  output marked as partial, and Claude can resume it to continue. The partial marking requires
+  Claude Code v2.1.246 or later".
+- **Basis.** <https://code.claude.com/docs/en/sub-agents>, fetched 2026-09-25.
+- **As of.** 2026-09-25.
+- **Recheck trigger.** The page's `maxTurns` row or its "Resume subagents" section changes, or a
+  release note names turn-limit output or partial marking.
+
+A partial marking says the run stopped; it does not put an artifact on disk. That is why the agent
+writes its index skeleton early, with `Run status: in progress` as the
+first non-blank line after the level-1 title heading (the first line starting with a single `#`
+and a space, outside a code fence), and its sidecars as they settle; the
+gate reads only that slot, so a quoted marker elsewhere in the index never counts. The agent
+still emits `status: truncated` with a partial payload before its budget runs out.

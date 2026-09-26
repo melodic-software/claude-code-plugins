@@ -2,6 +2,11 @@
 
 - Status: accepted
 - Date: 2026-09-19
+- Superseded in part by ADR 0038 (2026-09-24): decision 2 (both OAuth lanes retire) and the
+  consequences and revisit triggers that follow from it. Both lanes are restored and run on every
+  push; the seat layer in the other decisions stands as a second layer.
+- Superseded in part by the 2026-09-24 removal addendum below: the evidence system of decisions
+  1, 3, 4, 5, 6 and 8 is removed. Decision 7 and the ready step's merge-then-flip shape stand.
 - Supersedes, for this repository: the lane wiring, the skip-actor exception, and the once-per-PR
   trigger set recorded in ADR 0002. ADR 0002's posture of advisory before blocking and earned
   promotion still stands and this record applies it.
@@ -139,3 +144,35 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
   warning step.
 - A forged row or block is observed → the readers stop being advisory on trust alone; revisit the
   App-authored check.
+
+## Addendum (2026-09-24): the skill-evidence system is removed
+
+The operator approved removing the evidence system this record introduced. With both lanes
+restored on every push (ADR 0038), the review signal is the lanes' own status checks, and the
+seat-side bookkeeping is no longer kept.
+
+Removed:
+
+- The `pr_skill_evidence` map in `.claude/source-control.md` and its grammar in the
+  source-control config reference (decision 1's map).
+- `plugins/source-control/scripts/skill-evidence.sh`, the `skill-evidence` body block, and the
+  babysit gate's parser and `skillEvidence` record (decisions 3, 4 and 6).
+- The `sha` and `pr` fields of claude-ops skill-usage rows, and the `branch.<name>.pr-number`
+  git config key the create step wrote for them: no other reader used either.
+- The `pr-ready-evidence-*` hooks and their `pr_ready_evidence_gate_enabled` and
+  `skill_evidence_store` options (decision 6).
+- The `ci-status` reporter step and the `needs-skill-evidence` comment and label (decision 6).
+- The promotion window of decision 8, which had nothing left to measure.
+- `.github/claude-security-paths`, whose only readers were the map's `security` class and the
+  reporter.
+
+What stands:
+
+- Decision 7, the ai-slop warnings on changed markdown in the lint job.
+- Every pull request opens as a draft, and `/source-control:pull-request ready` still merges the
+  base (never a rebase), runs the security review over the pull request's diff and the verify
+  gate on the merged head, and then flips. Prep's per-class routing (decision 1's skill set) is a
+  table in the pull-request skill's prep reference instead of a config key.
+
+The Consequences and Revisit triggers above that concern the ledger, the block, the readers or the
+promotion window no longer apply.

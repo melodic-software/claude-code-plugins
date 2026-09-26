@@ -24,7 +24,8 @@ Each delta carries a Claude-Code-applicability tag, as in the sibling chapters:
 
 "Guide" below is the live "Prompting Claude Opus 5.5" page, the owning source. "Blog" is the
 vendor's usage article, which corroborates it; a claim resting on the blog alone says so. Both
-were read 2026-09-23.
+were read 2026-09-23. "The performance post" is a different vendor blog post, the only basis for
+the scope section below.
 
 ## Thinking: always on, and effort is the only depth knob
 
@@ -105,6 +106,22 @@ so check its evidence before accepting it, and finish a fan-out with one consoli
 Coordination strength is not verification. `[CC: direct]` For multi-agent harnesses you author, an
 elapsed-time line against a budget speeds teams up; the budget is advisory, so keep a hard timeout
 of your own (guide, "Time signals for multi-agent harnesses"). `[CC: API-side]`
+
+## Scope: bolder when the guardrails are named
+
+**Your default:** observed on an unreleased model roughly comparable to Opus 5.5 (vendor blog,
+2026-09-23); unverified on Opus 5.5. The performance post says "By default, Claude is careful
+about scope. It tickets findings, hedges on feasibility, and pads its estimates." Its model is "an
+internal research model roughly comparable to Opus 5.5". Record: the claim is that
+careful-on-scope default; the basis is the performance post alone, with no guide or system-card
+statement behind it; as of 2026-09-23; recheck trigger: the Opus 5.5 guide or a system card
+addresses scope hedging or estimate padding, or the post's model is identified.
+
+**Correction:** when the work's guardrails are strong, tell the model to be bolder, and name the
+guardrails in the same instruction: the review every change passes, the tests that run before it
+merges, the flag that turns it off. Where the guardrails are weak, leave the careful default
+alone. Boldness never relaxes the trust-and-authority chapter's consent gate. `[CC:
+prompt-authoring]`
 
 ## Review: strong at low effort, and the bar you set is the bar you get
 
@@ -231,6 +248,9 @@ carries none. `[CC: API-side]`
 - "Getting the most out of Opus 5.5 in Claude and Claude Code", the vendor's usage article
   (claude.dev blog, published 2026-09-22, read 2026-09-23). Corroboration, and the only basis for
   the claims marked "blog".
+- <https://claude.dev/blog/how-we-made-claude-ai-faster>, "the performance post" (claude.dev
+  blog, published and read 2026-09-23). Sole basis for the scope section; it describes an internal
+  research model, not Opus 5.5.
 
 Recheck trigger: a re-fetch of the guide or the model-config page diverging from any claim above,
 or a later Opus release. Behavioral claims decay with model and doc revisions, so re-verify them

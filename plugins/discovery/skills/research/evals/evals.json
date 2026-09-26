@@ -111,7 +111,7 @@
         "Evidence table tracks Tier + tool-diversity + confidence per claim; rejects any claim whose sources are all Tier 2 or all from one tool category",
         "Source-tier ratio enforced — every accepted claim has >=1 Tier 0/1 source plus >=2 independent corroborators; three citations of the same secondary pool count as one source, not three",
         "Confidence calibration applied — every comparison claim marked HIGH/MEDIUM/LOW; LOW-confidence claims are not used as the basis for a recommendation",
-        "Runs the outcome gate before presenting — all 10 binary criteria checked against the evidence table, written gap lists, and fetch log; reports pass or the failing criterion and what was re-run",
+        "Runs the outcome gate before presenting: every run-owned binary criterion checked against the evidence table, written gap lists, and fetch log, and the verifier and parent rows handed to their owners; reports pass or the failing criterion and what was re-run",
         "Walks the artifact ladder per tool rather than stopping at an announcement or landing page — the fetch log accounts for every rung ABOVE the one each accepted claim came from, each recorded as probed-and-not-existing, as fetched-and-lacking-the-claim, or as unreachable-and-enumerated as a Gap. Nominating a landing page as topmost without probing deeper fails criterion 9; so does recording a rung that exists as lacking the claim on a title, index entry, or snippet rather than fetching and searching the artifact; and so does logging a deeper artifact as discovered while still sourcing the claim from a shallower rung.",
         "Answers the does-NOT-meet / does-NOT-document clause explicitly for each of the three tools rather than silently omitting a tool that meets both requirements, and every absence it reports — an unmet requirement, or a requirement the official docs do not cover — names both the sources checked and the sources left unchecked. A bare 'not found' fails criterion 10; so does an unanswered clause. A tool the evidence shows meets both is reported as such against the sources checked — the expectation never demands an invented negative",
         "Output names an explicit per-tool comparison conclusion, or explicitly reports insufficient evidence as a Gap, rather than picking a favorite without evidence backing"
@@ -128,7 +128,7 @@
         "Passes the resolved topic and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which a dispatched run may depend on",
         "The main conversation receives an artifact pointer and a short summary, NOT the phase-by-phase research transcript",
         "The returned payload echoes the token discovery-research-preload-4c1f9a verbatim as preload_token (file-identity that the discipline body reached the agent) and carries preload: fired or fallback; a missing or mismatched token is a hard failure that discards the run rather than downgrading or accepting it; a matching token is NOT treated as proof preload fired",
-        "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4 or 7 — the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
+        "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4, 7 or 12; the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
         "Open questions come back as text in the payload for the parent to surface, rather than being resolved silently or surfaced with AskUserQuestion, which is unavailable to a non-fork subagent",
         "Choosing the inline escape hatch instead is acceptable ONLY when the run names the condition that justifies it — tight turn-by-turn iteration, cost on a trivially small lookup, or an invoking context that is itself a subagent — and running inline relaxes no discipline",
         "An un-runnable research gate is NOT an escape-hatch reason: before dispatching, probe --help on the artifact and coverage checkers; before an inline research run, probe the coverage checker (criterion 11). A denied or errored probe HALTS rather than taking inline to dodge the gate or self-grading the coverage ledger"
@@ -306,6 +306,37 @@
         "Does NOT expand Phase 2 to 6+ queries: Phase 2 is the one falsification query",
         "Does NOT run Phase 3 or Phase 4, even though discipline 8 would otherwise double every phase",
         "Names the skipped phases in the artifact or report"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "verbatim-quote-is-not-joint-inference",
+      "prompt": "Research whether agents write safer pull requests when a second, different model reviews them. [The dispatched discovery:researcher returns a well-formed payload with verification: pending and verification_request.criterion: 'independent corroboration and HIGH confidence per accepted claim'. Both gates exit 0. One accepted HIGH claim reads 'a reviewer model different from the author model cuts security defects in agent PRs by 40%'. Its three sources re-fetch verbatim, but their measures: entries say two varied prompt context and one varied generation order, all on single-function completions with no security prompting; none varied model identity. The source sidecar records the 40% figure with qualifiers: ['single-function completions only'].]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on every verifier-owned row by number, 4, 7 and 12, not only on the corroboration-and-confidence string the payload named. The verifier grades criterion 12 off the sidecar header: no cited source measured the claim's variable (model identity) or population (agent pull requests), so the claim fails the variable and population checks despite verbatim quotes. The parent files it as a Gap, not an accepted or HIGH claim, keeps the single-function qualifier attached wherever the figure appears, and routes the FAIL to Phase 2 for a source that measures the variable and population.",
+      "expectations": [
+        "The verifier is briefed on criteria 4, 7 and 12 by number, whatever the payload's verification_request.criterion string names",
+        "Verbatim re-fetched quotes are NOT treated as evidence that the claim follows from its sources",
+        "Criterion 12 is graded by the verifier, not the producing run, from the header's measures:, inference: and qualifiers: fields",
+        "The claim is filed as a Gap (or a Conflicts entry), not accepted and not HIGH, and uses no status word outside the skill's existing vocabulary",
+        "The single-function-completions qualifier is preserved wherever the 40% figure is used rather than dropped from the answer",
+        "The verifier flags that the claim's own wording (agent PRs) already drops its recorded qualifier (single-function completions only), a hedge-survival failure inside the claim itself",
+        "The FAIL routes to Phase 2 for a source that measures model identity in agent pull requests, else the claim stays a Gap"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "adjacent-variable-corroborators-are-not-counted",
+      "prompt": "Research whether enabling HTTP/3 on a CDN lowers median page load time for mobile users. [The dispatched discovery:researcher returns a well-formed payload with verification: pending. Both gates exit 0. One accepted HIGH claim reads 'enabling HTTP/3 lowers median mobile page load time by 12%'. Its sidecar header lists three sources. The entry marked role: primary is a CDN vendor's measurement whose measures: entry says 'median page load time, mobile clients, HTTP/3 on vs off'. The two entries marked role: corroborator come from two different publishing pools, and their measures: entries say 'connection setup time (handshake latency), desktop and mobile' and 'time to first byte on lossy networks'. Neither corroborator measured page load time.]",
+      "files": [],
+      "expected_output": "The verifier grades criterion 12 against the source marked role: primary and finds it measures the claim's variable (median page load time) and population (mobile users), so the variable and population checks pass for the primary. It then checks each corroborator on its own: both measure an adjacent variable (handshake latency, time to first byte), not page load time, so they are recorded in the artifact and not counted toward criterion 4's two independent corroborators. With zero counted corroborators the claim falls below criterion 4, so it is not accepted and not HIGH; the parent files it as a Gap and routes it to Phase 2 for sources that measure page load time.",
+      "expectations": [
+        "Criterion 12's variable and population checks are run against the sources[] entry marked role: primary, not against whichever source the run seemed to lean on",
+        "The primary is found to measure the claim's variable and population, so the claim does not fail on its primary",
+        "Each corroborator is checked on its own and found to measure an adjacent variable (handshake latency, time to first byte) rather than page load time",
+        "The two corroborators are recorded in the artifact and NOT counted toward criterion 4, even though they come from two different publishing pools",
+        "With no counted corroborator the claim fails criterion 4 and is filed as a Gap, not accepted and not HIGH, using no status word outside the skill's existing vocabulary",
+        "The Gap routes to Phase 2 for independent sources that measure median page load time for mobile users"
       ]
     }
   ]

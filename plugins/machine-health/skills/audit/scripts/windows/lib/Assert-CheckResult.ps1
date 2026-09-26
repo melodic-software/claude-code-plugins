@@ -34,10 +34,8 @@ function Assert-CheckResult {
 
     $ctx = if ($Because) { " ($Because)" } else { '' }
 
-    # Flatten both accepted shapes into one case-insensitive field map so every
-    # rule below is a plain lookup instead of a shape-conditional accessor.
-    # A hashtable/ordered dictionary and a pscustomobject's property bag both
-    # key case-insensitively, so the map keys the same way either source did.
+    # Flatten both accepted shapes into one case-insensitive field map; a hashtable
+    # and a pscustomobject property bag both key case-insensitively.
     $fields = @{}
     if ($Result -is [System.Collections.IDictionary]) {
         foreach ($k in $Result.Keys) { $fields[$k] = $Result[$k] }
@@ -112,9 +110,8 @@ function Assert-CheckResult {
         }
     }
 
-    # trend is object-or-null with additionalProperties:false in the schema.
-    # Enforce the sub-shape here so an emitter drift (e.g. a stray last_severity)
-    # fails loudly instead of silently diverging from check-result.schema.json.
+    # Enforce trend's additionalProperties:false here so a stray key (for example
+    # last_severity) fails loudly instead of silently diverging from the schema.
     $trend = $fields['trend']
     if ($null -ne $trend) {
         $allowedTrendKeys = @('last_run', 'delta', 'adjusted_from')

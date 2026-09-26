@@ -115,7 +115,7 @@ class SkillContractTests(unittest.TestCase):
     def test_worker_push_path_pins_the_post_push_head_command(self) -> None:
         # Worker tier has no merge tier, so its push paragraph still spells the
         # full pinned merge command inline. Step 6 lives in the runbook spoke
-        # after the line-cap extraction (#2424).
+        # (#2424).
         runbook = _reference("runbook-cycle.md")
         paragraph = _paragraph_containing(
             runbook, "In worker mode, after a worker's fix"
@@ -397,7 +397,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("gh auth switch --user <approver-login>", safety)
         self.assertIn("never the PR author or a lane identity", safety)
 
-        # Review-workflow requiredness enabling precondition (fork 3a).
+        # Review-workflow requiredness enabling precondition.
         self.assertIn("required status context", safety)
         self.assertIn("mergeStateStatus == CLEAN", safety)
         self.assertIn("operator enabling precondition", safety)
@@ -473,8 +473,8 @@ class SkillContractTests(unittest.TestCase):
 
     def test_autopilot_draft_flip_runs_the_pull_request_ready_step(self) -> None:
         # A bare `gh pr ready` flips the draft and nothing else; the ready step
-        # is what merges the base, runs the skills the diff owes, and renders
-        # the evidence block, so the flip must go through it in both homes.
+        # is what merges the base first, so the flip must go through it in both
+        # homes.
         drafts = _paragraph_containing(
             _reference("autopilot.md"), "**Draft PRs** are in scope"
         )
@@ -488,43 +488,6 @@ class SkillContractTests(unittest.TestCase):
                 self.assertIn("/source-control:pull-request ready", text)
         self.assertNotIn("marked ready with `gh pr ready`", zero_blocker)
         self.assertIn("rather than a bare `gh pr ready`", policy)
-
-    def test_skill_evidence_routing_paragraph_is_stated(self) -> None:
-        paragraph = _paragraph_containing(
-            self.skill_text, "**Skill-evidence routing (per tier).**"
-        )
-
-        for marker in (
-            "`skillEvidence` record for every",
-            "missing or stale",
-            "`skill_evidence_gap`",
-            "worker whose brief is to run\n`/source-control:pull-request ready`",
-            "The safe tier reports the record",
-            "No tier holds a merge on it",
-        ):
-            with self.subTest(marker=marker):
-                self.assertIn(" ".join(marker.split()), paragraph)
-
-    def test_safety_md_states_the_advisory_skill_evidence_contract(self) -> None:
-        safety = _reference("safety.md")
-        self.assertIn("## Skill-Evidence Record", safety)
-        opening = _paragraph_containing(safety, "judges nothing by it")
-        freshness = _paragraph_containing(safety, "The record answers what the block")
-        routing = _paragraph_containing(safety, "A gap **routes**, it does not hold")
-
-        for marker, paragraph in (
-            ("never a merge input", opening),
-            ("Nothing in `blockers` comes from it", opening),
-            ("equals the live head exactly", freshness),
-            ("sit on the head's history", freshness),
-            ("`skill_evidence_gap` worker reason", routing),
-            ("/source-control:pull-request ready", routing),
-            ("The safe tier reports the record and dispatches nothing", routing),
-            ("still merges with a gap outstanding, in every tier", routing),
-            ("never fatal", routing),
-        ):
-            with self.subTest(marker=marker):
-                self.assertIn(marker, paragraph)
 
 
 if __name__ == "__main__":

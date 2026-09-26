@@ -98,7 +98,22 @@ happen. Proceeding is the damage a silently-empty return causes; the missing art
 starts.
 
 The resume-before-discard ordering for a truncated run or a silent return is in the parent contract
-and applies here unchanged.
+and applies here unchanged. The agent writes `Run status: in progress` as the
+first non-blank line after the level-1 title heading of `INTENT.md` (the first line starting with
+a single `#` and a space, outside a code fence), and the
+gate reads only that slot. An `INTENT.md` whose slot still holds the marker is a run that stopped
+before its final write, and the gate refuses it with exit 1, which routes to that same ladder.
+
+What the harness returns at the turn limit:
+
+- **Claim.** A subagent that reaches `maxTurns` returns its output marked as partial, and the
+  parent can resume it. The page: "When the subagent reaches the limit, Claude Code returns its
+  output marked as partial, and Claude can resume it to continue. The partial marking requires
+  Claude Code v2.1.246 or later".
+- **Basis.** <https://code.claude.com/docs/en/sub-agents>, fetched 2026-09-25.
+- **As of.** 2026-09-25.
+- **Recheck trigger.** The page's `maxTurns` row or its "Resume subagents" section changes, or a
+  release note names turn-limit output or partial marking.
 
 ## The by-value rung is an exception to the halt, not to the gate
 
@@ -117,7 +132,8 @@ Two conditions bind that write:
 - **The bodies must be the artifact.** A by-value payload carrying a summary of findings rather than
   the full artifact bodies is a **failed dispatch**, not a fallback. Nothing in the payload is
   accepted *in place of* the gate passing; `persistence: by-value` routes the parent, and grades
-  nothing.
+  nothing. An `INTENT.md` body written back must carry `Run status: complete` or no marker; one
+  still marked `Run status: in progress` fails the gate and is a failed dispatch.
 
 Why the mode exists and where its boundary sits:
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)

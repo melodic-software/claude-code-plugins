@@ -146,6 +146,10 @@ REWRITTEN = {
         "remaining item, or 'None. Remaining work runs inline'",
     ),
 }
+# A resolved entry moved into a committed doc leaves `- [hN] Promoted to <ref>: <its leading text>`.
+PROMOTED_PREFIX = "Promoted to "
+PROMOTED_MIN_QUOTE = 20
+
 CUMULATIVE_SLOT = {
     "Constraints that must hold": "constraints",
     "Side effects already applied": "side-effects",
@@ -626,9 +630,8 @@ def _check_rails_block(doc: Doc, f: Findings, session_id: str) -> None:
                 f"Resume prompt: 'Next:' has {len(headlines)} headline lines (max {NEXT_MAX})"
             )
         for line in headlines:
-            # Headlines are bare lines. A bullet reads as a list in the pasted
-            # prompt and the contract refuses it, but nothing applied
-            # BULLET_RE here, so a bulleted headline validated and was emitted.
+            # Headlines are bare lines: a bullet reads as a list in the pasted
+            # prompt, and the contract refuses it.
             if BULLET_RE.match(line):
                 f.fail(
                     f"Resume prompt: 'Next:' headline must not be a bullet (got {line!r})"
@@ -730,10 +733,29 @@ def _check_cumulative(
         if pred_body is None:
             continue
         have = {entry.normalized for entry in entries}
+        pointers = []
+        for entry in entries:
+            head, _, rest = entry.normalized.partition(": ")
+            ref = head[len(PROMOTED_PREFIX) :].strip()
+            if head.startswith(PROMOTED_PREFIX) and ref and rest:
+                pointers.append((entry.tag, rest))
         for entry in parse_entries(pred_body):
-            if entry.exempt:
+            if entry.exempt or entry.normalized in have:
                 continue
-            if entry.normalized not in have:
+            # Each pointer stands in for one dropped entry only.
+            match = next(
+                (
+                    i
+                    for i, (tag, rest) in enumerate(pointers)
+                    if tag == entry.tag
+                    and len(rest) >= min(PROMOTED_MIN_QUOTE, len(entry.normalized))
+                    and entry.normalized.startswith(rest)
+                ),
+                None,
+            )
+            if match is not None:
+                pointers.pop(match)
+            else:
                 message = (
                     f"{title}: predecessor entry dropped (keep it in place or under "
                     f"'Superseded:', never delete): {entry.text[:60]!r}"
@@ -879,11 +901,8 @@ def validate_doc(
                 f"headings: extra section(s) after '## Resume prompt': {titles[len(SECTIONS_17) :]}"
             )
 
-    # Every section is always present AND says something: a section with
-    # nothing to report reads 'None.' plus a half-line of reason, so a cold
-    # reader can tell "nothing to report" from "the author forgot"
-    # (reference/structure.md). The heading walk above only checks names and
-    # order, so an empty body used to validate clean.
+    # A section with nothing to report reads 'None.' plus a half-line of reason,
+    # so a cold reader can tell it from a forgotten one (reference/structure.md).
     for title, start, end in doc.sections:
         if title in SECTIONS_17 and not any(
             line.strip() for line in doc.lines[start + 1 : end]

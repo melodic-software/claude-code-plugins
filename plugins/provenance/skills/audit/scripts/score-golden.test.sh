@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Self-contained tests for score-golden.sh. The golden set does not exist yet
-# (Phase 6 authors it), so this suite builds a synthetic expected/actual pair
-# inline and pins the arithmetic against it. Per the shell-test-helpers
-# convention, assertion helpers are local.
+# Self-contained tests for score-golden.sh. This suite builds a synthetic
+# expected/actual pair inline and pins the arithmetic against it. Per the
+# shell-test-helpers convention, assertion helpers are local.
 #
 # The load-bearing case here is what the scorer refuses to guess. A golden case
 # the run never scored is DECLINED and excluded from the tally, never counted

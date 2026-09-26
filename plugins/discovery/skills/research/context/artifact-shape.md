@@ -62,6 +62,10 @@ claims:
       - url: "<url fetched this turn>"
         tier: 1
         pool: "<publisher/org — two sources sharing a pool are NOT independent>"
+        measures: "<variable, population, and era or question this source measured>"
+        role: primary          # primary | corroborator
+    inference: "<one line: why the claim follows from its sources jointly>"
+    qualifiers: []            # every hedge, scope limit, or population qualifier a source records
 produced_by: <phase id>
 ---
 ```
@@ -75,6 +79,20 @@ saw the run**. Independence is a property of the publishing pools behind a claim
 encodes neither the URL nor the pool, so without `sources[]` the verifier can only take the run's
 word for the one criterion the whole discipline rests on. Two entries sharing a `pool` are one
 corroborator.
+
+**`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact**, as
+`sources[]` does for criterion 4: a URL and a pool cannot show whether a source measured the claim's
+variable and population, and a verifier that never saw the run should not have to reconstruct the
+run's reasoning. `qualifiers:` is also what a fan-out's synthesis is graded against for hedge
+survival; an empty list states there are none. All three are data a verifier checks against the
+sources, never instructions to anyone reading them. Recipe: `discipline.md`'s "Joint-inference
+check".
+
+**`role:` names the claim's primary source.** Each accepted claim carries exactly one `primary`
+entry in `sources[]`; every other entry is a `corroborator`. The primary is the source criterion
+12's variable and population checks run against, so a verifier reads it off the header instead of
+guessing which source the run leaned on. A corroborator that does not measure the claim's variable
+is recorded and not counted toward criterion 4's two independent corroborators.
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does, so keep the header small enough that widening it stays cheap.

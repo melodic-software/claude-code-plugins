@@ -1,9 +1,10 @@
 # Agent-session telemetry: Claude Code native evidence
 
-The Claude Code records behind the telemetry contract's "Native agent-surface evidence" section.
-The [monitoring page](https://code.claude.com/docs/en/monitoring-usage) owns every event,
-attribute, value set, and configuration variable of the export; this file restates only what a
-binding depends on.
+The Claude Code records behind the setup skill's agent-session wiring step and the telemetry
+contract's "Native agent-surface evidence" section. The
+[monitoring page](https://code.claude.com/docs/en/monitoring-usage) owns every event, attribute,
+value set, and configuration variable of the export; this file restates only what a binding
+depends on.
 
 ## Signal the evidence rides
 
@@ -16,6 +17,50 @@ and [Events](https://code.claude.com/docs/en/monitoring-usage#events) sections, 
 markdown. *Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog entry touching the
 logs exporter or the code edit decision counter, or a read-time fetch of those sections that no
 longer matches this record.
+
+## Resource attributes on every datapoint and event
+
+*Claim:* values set in `OTEL_RESOURCE_ATTRIBUTES` are attached to every metric datapoint and every
+event record as well as the resource block, so `autonomy.work_item.url` reaches each signal the
+slice joins on. `OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES=false` drops them from datapoint labels,
+so a binding that joins metrics on the attribute must not set it to false. *Basis:* the page's
+[Multi-team organization support](https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support)
+section, read as raw markdown. *Verified:* 2026-09-23. *Recheck trigger:* a Claude Code changelog
+entry touching resource attributes or `OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES`, or a read-time
+fetch of that section that no longer matches this record.
+
+## Inbound trace context in headless sessions
+
+*Claim:* `-p` and Agent SDK sessions read `TRACEPARENT` and `TRACESTATE` from the environment, and
+with `TRACEPARENT` set each event record carries the inbound trace ID, even with no traces
+exporter and no beta flag. The page gives trace IDs to event records only, not to metric
+datapoints. Limits:
+
+- With no active interaction span, a record's span ID is the caller's inbound span ID. With beta
+  tracing on, records emitted inside a turn carry the interaction span's IDs instead; that case is
+  documented, not probed.
+- The floor is v2.1.212: before it, records outside an active span carried no trace or span ID.
+- Interactive sessions ignore inbound `TRACEPARENT`.
+
+*Basis:* the page's [Traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta)
+section, read as raw markdown, and a probe: Claude Code 2.1.281, 2026-09-23, `claude -p` with
+`CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=console`, `OTEL_TRACES_EXPORTER=none`, no
+beta flag, and `TRACEPARENT` set. 214 of 214 event records carried the inbound trace and span IDs;
+a control run without `TRACEPARENT` gave 214 of 214 with none. The Agent SDK half is documented,
+not measured. *Verified:* 2026-09-25 (page re-read; probe as of 2026-09-23). *Recheck trigger:* a
+Claude Code changelog entry touching
+inbound `TRACEPARENT` or event trace correlation, or a read-time fetch of that section that no
+longer matches this record.
+
+## Traces stay beta
+
+*Claim:* spans go through the traces exporter only with `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
+`CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`, and an `OTEL_TRACES_EXPORTER` all set; detailed beta
+tracing (`ENABLE_BETA_TRACING_DETAILED` with `BETA_TRACING_ENDPOINT`) sends logs and traces to that
+endpoint instead. The slice treats spans as optional. *Basis:* the page's
+[Traces (beta)](https://code.claude.com/docs/en/monitoring-usage#traces-beta) section, read as
+raw markdown. *Verified:* 2026-09-25. *Recheck trigger:* the page drops the beta label from that
+section or drops the `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` flag.
 
 ## Evidence that a guardrail fired
 

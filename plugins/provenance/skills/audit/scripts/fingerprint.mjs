@@ -97,17 +97,8 @@ function blankSpan(span) {
 }
 
 /**
- * Index of the closing mark, skipping apostrophes that sit inside a word.
- *
- * The opening mark already carries this guard; the closing scan needs it for
- * the same reason and did not have it. A single-quoted excerpt containing a
- * contraction closed at the apostrophe in "doesn't", leaving the rest of the
- * excerpt in the token stream — the false positive the quote stripper exists to
- * prevent. It only became reachable once pairing widened past a single line,
- * because before that an excerpt had to open and close on one line to pair at
- * all. Measured on a five-line fixture: ten words of quoted upstream text
- * survived, close enough to the 15-word floor that a slightly longer excerpt
- * would have fired the separation rule.
+ * Index of the closing mark, skipping apostrophes that sit inside a word, so a
+ * single-quoted excerpt does not close at the apostrophe in "doesn't".
  *
  * The predicate is word chars on BOTH sides, not the opening guard's
  * preceded-by-a-word-char alone. A closing mark legitimately follows a word
@@ -144,17 +135,9 @@ function stripInlineQuotes(block) {
 
     // An apostrophe-family mark OPENS a quotation only where a quotation can
     // start: at the beginning of the paragraph, after whitespace, or after an
-    // opening bracket. Anything else before it makes it an apostrophe.
-    //
-    // This tests the position rather than just "is the previous character a
-    // word char". The narrower test catches don't and teams' but not a
-    // possessive following markup — `Location`'s, (FILE.md)'s, forms this
-    // repository's own prose is full of — so those open a phantom quotation.
-    // With the closing scan below skipping word-internal apostrophes, such a
-    // phantom runs to the next stray mark and blanks whole paragraphs of
-    // original prose, measured at 16,031 characters in one tracked file.
-    // Over-stripping hides real copies, which is the worse direction for a
-    // detector.
+    // opening bracket. Anything else before it makes it an apostrophe, including
+    // a possessive after markup (`Location`'s, (FILE.md)'s), which a previous-char
+    // word test misses and which would open a phantom quotation that hides copies.
     if (char === "'" || char === "‘") {
       const prev = block[i - 1];
       if (prev !== undefined && !/[\s([{<]/.test(prev)) {

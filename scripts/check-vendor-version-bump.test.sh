@@ -233,10 +233,9 @@ fi
 rm -rf "$f"
 
 # --- a malformed BASE manifest is a loud exit, not an exemption -------------
-# The old single-pipeline read (`git show | jq ... || true`) collapsed a jq
-# parse error into the same empty base_version the new-plugin carve-out keys
-# on, so a manifest that was malformed at the base ref silently exempted its
-# plugin from the bump check.
+# A single-pipeline read (`git show | jq ... || true`) collapses a jq parse
+# error into the same empty base_version the new-plugin carve-out keys on, so a
+# manifest malformed at the base ref would silently exempt its plugin.
 base_fixture f
 printf '{"name":"alpha","version":\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 git -C "$f" add -A
@@ -259,7 +258,7 @@ rm -rf "$f"
 # the base tree actually holds. Reading through a file keeps the stored bytes
 # intact, which is what makes this a parse error rather than a version.
 # The head manifest is left valid and bumped, which is what makes this the
-# fail-open shape rather than a merely wrong diagnostic: pre-fix the gate
+# fail-open shape rather than a merely wrong diagnostic: a `$(...)` read
 # compares a repaired "1.0.0" against a real "1.0.1", finds a difference, and
 # reports "Every plugin ... bumped" -- exit 0 over a base ref it never read.
 base_fixture f
@@ -312,10 +311,9 @@ fi
 rm -rf "$f"
 
 # --- a failed sort is a loud exit, not "nothing changed" --------------------
-# The old plugin-list command substitution discarded its pipeline's status
-# (pipefail cannot cross a substitution boundary), so a failed sort drained to
-# an empty list and the gate reported "No plugin vendor/ tree changed" over a
-# tree carrying a real violation. The shared resolver stages and checks the
+# A command substitution discards its pipeline's status (pipefail cannot cross
+# a substitution boundary), so a failed sort would drain to an empty list and
+# report "No plugin vendor/ tree changed" over a tree carrying a real violation. The shared resolver stages and checks the
 # sort itself; the gate must surface that failure as exit 2.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
@@ -334,8 +332,8 @@ rm -rf "$f"
 # --- a non-ASCII vendor path is seen, not silently dropped ------------------
 # Under the default core.quotePath a line-wise read of `git diff --name-only`
 # gets the path C-quoted ("plugins/.../caf\303\251.js", literal quotes
-# included), which matches no plugins/*/vendor/* pattern, so the change was
-# invisible and the gate passed. The NUL-delimited resolver hands the name
+# included), which matches no plugins/*/vendor/* pattern, so the change would
+# be invisible. The NUL-delimited resolver hands the name
 # over verbatim.
 base_fixture f
 quoted_name='café.js'

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-create.sh (Phase A).
+# Regression tests for worktree-create.sh.
 # Black-box: build throwaway git fixtures under a mktemp dir, exercise path
 # computation, the refuse-when-unconfigured contract, slug sanitization,
 # base-ref resolution, and the .worktreeinclude copy intersection. No network.
@@ -1087,5 +1087,7 @@ assert_contains "rung-4 refuse names the foreign drive" "$err" "drive D:"
 assert_contains "rung-4 refuse is remedy-first (worktreeroot.path)" "$err" "worktreeroot.path"
 assert_contains "rung-4 refuse names EXDEV" "$err" "EXDEV"
 assert_contains "rung-4 refuse names Improper link" "$err" "Improper link"
+
+assert_real_worktree_root_clean "$TEST_TMPDIR"
 
 [[ $FAILED -eq 0 ]] || exit 1

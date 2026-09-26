@@ -1,6 +1,6 @@
 /**
  * Shared caption preference ladder, parameterized by the adapter's declared
- * caption provenance class (T12: the ladder is shared and editable; the
+ * caption provenance class (the ladder is shared and editable; the
  * declaration keeps source knowledge out of it):
  *
  * - `manual-and-auto` (e.g. YouTube): manual EN → auto EN → auto-translate EN

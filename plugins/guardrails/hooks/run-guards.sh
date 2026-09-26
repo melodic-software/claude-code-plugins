@@ -250,7 +250,69 @@ hook::jq_fields() {
       return 0
     fi
   fi
-  hook::jq_fields_uncached "$input" "$@"
+  hook::jq_fields_uncached "$input" "$@" || return
+  # A miss on the event's own payload joins the cache, so a later guard asking
+  # for the same unprimed filter (stale-path-verify's `replace_all` after
+  # skill-reference-verify's) is answered without a second jq. Only a clean
+  # answer is kept: status 0 and no NUL in the values.
+  if ((RUN_GUARDS_PRIMED && HOOK_JQ_FIELDS_NUL == 0)) && [[ "$input" == "$RUN_GUARDS_INPUT" ]]; then
+    local __rg_i=0 __rg_f
+    for __rg_f in "$@"; do
+      RUN_GUARDS_FIELD["$__rg_f"]="${HOOK_JQ_FIELDS[__rg_i]}"
+      __rg_i=$((__rg_i + 1))
+    done
+  fi
+  return 0
+}
+
+# The file path and the repository root, each resolved once per event. The
+# PostToolUse verifiers all read `.tool_input.file_path` through
+# hook::read_file_path_to and then ask hook::repo_root_to about its directory:
+# three payload parses, three realpath processes and up to three git processes
+# for one answer each. The first call resolves through the library's uncached
+# twin and the rest are served from here, with the same status and the same
+# HOOK_REPO_ROOT_UNRESOLVED. Nothing a guard does between those calls moves
+# the file, the project dir or the repository (the verifiers read, never
+# write). A payload other than the event's own, or a changed scope setting,
+# misses and takes the uncached path.
+RUN_GUARDS_RFP_KEY=""
+RUN_GUARDS_RFP_RC=""
+RUN_GUARDS_RFP_VAL=""
+# shellcheck disable=SC2329  # invoked by every guard sourced below
+hook::read_file_path_to() {
+  local __rg_key="${CLAUDE_PROJECT_DIR-}|${HOOK_READ_FILE_PATH_UNSCOPED:-0}" __rg_val="" __rg_rc=0
+  if (($# != 2)) || [[ "$2" != "$RUN_GUARDS_INPUT" ]]; then
+    hook::read_file_path_uncached_to "$@"
+    return
+  fi
+  if [[ -z "$RUN_GUARDS_RFP_RC" || "$__rg_key" != "$RUN_GUARDS_RFP_KEY" ]]; then
+    hook::read_file_path_uncached_to __rg_val "$2" || __rg_rc=$?
+    RUN_GUARDS_RFP_KEY=$__rg_key
+    RUN_GUARDS_RFP_RC=$__rg_rc
+    RUN_GUARDS_RFP_VAL=$__rg_val
+  fi
+  ((RUN_GUARDS_RFP_RC == 0)) || return "$RUN_GUARDS_RFP_RC"
+  printf -v "$1" '%s' "$RUN_GUARDS_RFP_VAL"
+}
+
+RUN_GUARDS_RR_KEY=""
+RUN_GUARDS_RR_RC=""
+RUN_GUARDS_RR_VAL=""
+RUN_GUARDS_RR_UNRESOLVED=""
+# shellcheck disable=SC2329,SC2034  # invoked by the guards; HOOK_REPO_ROOT_UNRESOLVED is their contract
+hook::repo_root_to() {
+  # The working directory is part of the key: a relative hint resolves against it.
+  local __rg_hint="${2:-.}" __rg_key="$PWD|${2:-.}" __rg_val="" __rg_rc=0
+  if [[ -z "$RUN_GUARDS_RR_RC" || "$__rg_key" != "$RUN_GUARDS_RR_KEY" ]]; then
+    hook::repo_root_uncached_to __rg_val "$__rg_hint" || __rg_rc=$?
+    RUN_GUARDS_RR_KEY=$__rg_key
+    RUN_GUARDS_RR_RC=$__rg_rc
+    RUN_GUARDS_RR_VAL=$__rg_val
+    RUN_GUARDS_RR_UNRESOLVED=$HOOK_REPO_ROOT_UNRESOLVED
+  fi
+  HOOK_REPO_ROOT_UNRESOLVED=$RUN_GUARDS_RR_UNRESOLVED
+  printf -v "$1" '%s' "$RUN_GUARDS_RR_VAL"
+  return "$RUN_GUARDS_RR_RC"
 }
 
 # --- PowerShell classifier, once, and only on that tool -----------------------

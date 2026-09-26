@@ -223,10 +223,8 @@ fi
 chmod a-w "$admin" 2>/dev/null || true
 # Probe whether that chmod actually took. uid 0 writes through a cleared write
 # bit, and some filesystems do not enforce it at all; asserting on a fixture
-# that did not take reports a product defect which does not exist, which is how
-# this case became red noise in root containers. Skip with the reason named
-# instead — the posture the sibling suites already use (repo-fleet-hygiene
-# audit-fleet, testing cant-fail-scan).
+# that did not take reports a product defect which does not exist, so skip
+# with the reason named instead.
 # discriminating-skip-ok: the stub-git arm directly above covers lock-failure
 # exit-code propagation on every platform and uid, so this skip vacates no
 # discriminating coverage — only the redundant permission-bits fixture.

@@ -10,7 +10,7 @@ settings.
 | The game ships its own temporal upscaler: DLSS 2+, FSR 2+ or XeSS. Neural Rendering hooks that upscaler call, and the color, depth and motion vectors it runs on come from it. With no upscaler there is nothing to hook | Upstream OptiScaler README ("already support DLSS2+ / FSR2+ / XeSS"); Dagherbou `v0.2.0-dlssnr` notes ("A game that already uses an upscaler"); wilsjo2 `v0.8.3` notes ("An unreadable depth/motion frame is skipped") |
 | A DX11 game runs NR only with `Dx11Upscaler=dlss_12`, the dx11on12 bridge | wilsjo2 `OptiScaler.ini`; Dagherbou `v0.2.0-dlssnr` notes. Upstream README puts the bridge's cost at "up to 10-ish %" |
 | GeForce driver 616.56 or later | Dagherbou `v0.2.0-dlssnr` notes; wilsjo2 `INSTALL-DLSSNR.md` |
-| No anti-cheat. Online games: solo or offline play only | `reference/anticheat-posture.md`; upstream README ("Do not use this mod with online games") |
+| No anti-cheat signal, or the user's typed at-own-risk acknowledgement after the anti-cheat review. Online games: solo or offline play only | `reference/anticheat-posture.md`; upstream README ("Do not use this mod with online games") |
 
 Single-source note, not a check: wilsjo2's README asks for "a supported 64-bit game". Neither
 Dagherbou nor upstream states a bitness requirement, and `assess` does not test for one.

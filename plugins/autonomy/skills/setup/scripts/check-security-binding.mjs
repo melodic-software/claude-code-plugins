@@ -60,7 +60,7 @@
 // promotion_state alone is non-conforming.
 
 import { readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, posix, relative, resolve, sep } from "node:path";
 import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
@@ -127,6 +127,15 @@ const ADDRESS_FAMILIES = new Set(["ipv4", "ipv6"]);
 // VCS-control-plane path (.git/ is a command key ring — core.fsmonitor
 // executes host code on a read-only-looking `git status`).
 const WORKSPACE_CANARY_MINIMUM = 3;
+// Host interop the level binding ratifies: "wsl2" makes the interop launch
+// check a required transcript assertion; "none" is the explicit human claim
+// that no host interop applies. An absent value leaves an L2/L3 level unproven.
+const HOST_INTEROP_TOKENS = ["none", "wsl2"];
+// Inner exit codes that evidence a denied launch: 1-123, or 126 (the kernel
+// refused the binary format). Rejected: 124 and 125 (timeout statuses), 127
+// (command not found, contradicting the presence proof), and 128 or above
+// (death by signal: a hung or killed launch is not a denial).
+const INTEROP_DENIAL_EXIT_CODE = /^(?:[1-9]|[1-9][0-9]|1[01][0-9]|12[0-3]|126)$/;
 // RFC 2606/6761/6762/7686 special-use and reserved TLDs.
 const SPECIAL_USE_TLDS = [
   ".invalid",
@@ -575,7 +584,24 @@ function validateStructure(binding) {
             findings.push(`${where}: must be an object`);
             continue;
           }
-          checkAllowedKeys(entry, ["substrate", "substrate_class", "component_reachable_hosts", "probe_evidence", "runtime_markers"], where);
+          checkAllowedKeys(
+            entry,
+            ["substrate", "substrate_class", "host_interop", "component_reachable_hosts", "base_egress_allowlist", "probe_evidence", "runtime_markers"],
+            where,
+          );
+          if (Object.hasOwn(entry, "host_interop")) {
+            checkEnum(entry.host_interop, HOST_INTEROP_TOKENS, `${where}.host_interop`);
+          }
+          // Informational only: shape-checked here and never passed to
+          // verifyProbeTranscript, so it can neither cover a ratified
+          // destination nor stand as evidence that other traffic is denied.
+          if (
+            Object.hasOwn(entry, "base_egress_allowlist") &&
+            (!Array.isArray(entry.base_egress_allowlist) ||
+              entry.base_egress_allowlist.some((host) => !isNonEmptyString(host)))
+          ) {
+            findings.push(`${where}.base_egress_allowlist: must be an array of non-empty strings (the empty array is allowed); it records the base allowlist for the reviewing human and is never probe coverage`);
+          }
           if (
             Object.hasOwn(entry, "component_reachable_hosts") &&
             (!Array.isArray(entry.component_reachable_hosts) ||
@@ -1270,16 +1296,18 @@ function isNonExternalEgressHost(host) {
   return name.length > 253 || labels.length < 2 || !labels.every(validLabel);
 }
 
-// A probe transcript proves an L2/L3 boundary only when it records both
-// failed-inside assertions AND a networked outer context (a fully-offline
-// outer context would deny egress on its own) — the capture shape of
+// A probe transcript proves an L2/L3 boundary only when it records the
+// failed-inside assertions (egress, credentials, workspace, and the interop
+// launch denial where the binding ratifies host_interop "wsl2") AND a
+// networked outer context, since a fully-offline outer context would deny
+// egress on its own. This is the capture shape of
 // templates/isolation-probe.md; keep the two in sync. The transcript's own
-// surface/level/substrate/substrate-class identity must match the binding
-// entry it is cited from: a genuine transcript reused under a different
-// surface, level, substrate, or substrate class proves a DIFFERENT boundary,
-// not this one. Returns null when verified, else the reason the entry is
-// unproven.
-function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList, credentialRoots, componentReachableHosts) {
+// surface, level, substrate, and substrate-class identity must match the
+// binding entry it is cited from: a genuine transcript reused under a
+// different surface, level, substrate, or substrate class proves a DIFFERENT
+// boundary, not this one. Returns null when verified, else the reason the
+// entry is unproven.
+function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList, credentialRoots, componentReachableHosts, hostInterop) {
   // Evidence verifies ONLY against the configured protected root: without
   // --probe-evidence-root a ref resolves as written — including to an
   // agent-writable file swapped after the human ratified the binding — so no
@@ -1652,6 +1680,100 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   if (uncoveredRatified.length > 0) {
     return `transcript ${path} probes ${[...distinctEgressHosts].join(", ")}, leaving ratified component_reachable_hosts ${uncoveredRatified.join(", ")} unprobed — each ratified destination is a separate policy decision, so covering one says nothing about the rest; probe every ratified component-reachable destination in the configuration the run will actually use`;
   }
+  // Host interop runs after coverage for the same first-problem reason.
+  return verifyHostInterop(transcript, path, hostInterop, hostExpanded);
+}
+
+// WSL hands a Windows binary launch to the Windows host, outside every WSL2
+// boundary, so a WSL2-hosted level proves its boundary only with a denied
+// launch of a present Windows executable. Whether a surface is WSL2-hosted is
+// ratified on the binding (host_interop), never read from the transcript:
+// capture evidence is agent-writable and may only ever tighten the verdict.
+function verifyHostInterop(transcript, path, hostInterop, hostExpanded) {
+  const recorded = Object.hasOwn(transcript.assertions, "interop_launch_denied");
+  if (hostInterop === "wsl2" && !recorded) {
+    return `transcript ${path} does not record assertions.interop_launch_denied, which the level binding requires by ratifying host_interop "wsl2": a Windows binary launched from inside a WSL2 boundary runs on the Windows host, so only a denied launch of a present executable proves the boundary`;
+  }
+  // Validated whenever recorded, whatever the binding ratifies: a recorded
+  // launch success is never ignored, and a null or non-object is a finding.
+  if (recorded) {
+    const interop = transcript.assertions.interop_launch_denied;
+    if (!isPlainObject(interop)) {
+      return `transcript ${path} records assertions.interop_launch_denied ${JSON.stringify(interop)}: the interop launch check must be recorded as an object with every field, never skipped`;
+    }
+    for (const field of ["executable", "outer_executable"]) {
+      const value = interop[field];
+      const base = typeof value === "string" ? value.split("/").pop() : "";
+      if (!isNonEmptyString(value) || !value.startsWith("/") || value.includes("\\") || !/.\.exe$/i.test(base)) {
+        return `transcript ${path} records assertions.interop_launch_denied.${field} ${JSON.stringify(value)}: an absolute POSIX path to a Windows executable (basename ending ".exe") is required, so the launch provably targeted the Windows host`;
+      }
+    }
+    // An exit code alone cannot tell a denied launch from a program that ran
+    // and exited non-zero. The inner launch must therefore be the SAME
+    // invocation as the outer control, which exited "0", so a non-zero inner
+    // exit means that invocation did not complete on the host.
+    for (const field of ["arguments", "outer_arguments"]) {
+      if (typeof interop[field] !== "string") {
+        return `transcript ${path} records assertions.interop_launch_denied.${field} ${String(JSON.stringify(interop[field]))}: [interop-same-invocation] the launch arguments are recorded on both sides as strings (empty when none), so the inner launch is provably the invocation the outer control ran`;
+      }
+    }
+    if (interop.arguments !== interop.outer_arguments) {
+      return `transcript ${path} records assertions.interop_launch_denied.arguments ${JSON.stringify(interop.arguments)} against outer_arguments ${JSON.stringify(interop.outer_arguments)}: [interop-same-invocation] the inner launch must be byte-identical to the outer control, or a non-zero inner exit may be a different invocation that ran and failed`;
+    }
+    // The inner file must be the Windows executable the outer control ran,
+    // and a PE image, or a look-alike script named ".exe" could exit non-zero
+    // on its own.
+    for (const field of ["executable_sha256", "outer_executable_sha256"]) {
+      if (typeof interop[field] !== "string" || !/^[0-9a-f]{64}$/.test(interop[field])) {
+        return `transcript ${path} records assertions.interop_launch_denied.${field} ${String(JSON.stringify(interop[field]))}: [interop-same-executable] a SHA-256 digest of 64 lowercase hex characters is required on both sides`;
+      }
+    }
+    if (interop.executable_sha256 !== interop.outer_executable_sha256) {
+      return `transcript ${path} records assertions.interop_launch_denied.executable_sha256 differs from outer_executable_sha256: [interop-same-executable] the inner file must be the executable the outer control ran`;
+    }
+    if (interop.executable_magic !== "4d5a") {
+      return `transcript ${path} records assertions.interop_launch_denied.executable_magic ${String(JSON.stringify(interop.executable_magic))}: [interop-pe-magic] the inner file's first two bytes must be "4d5a" (the PE "MZ" header), so the launch targeted a Windows binary`;
+    }
+    if (interop.outer_exit_code !== "0") {
+      return `transcript ${path} records assertions.interop_launch_denied.outer_exit_code ${JSON.stringify(interop.outer_exit_code)}: the outer-context launch must succeed (exit "0"), or an inner failure cannot be told apart from an executable that fails everywhere`;
+    }
+    if (interop.presence_exit_code !== "0") {
+      return `transcript ${path} records assertions.interop_launch_denied.presence_exit_code ${JSON.stringify(interop.presence_exit_code)}: the inner \`test -x\` must succeed (exit "0"), because a failed launch of a missing executable is no evidence of a denied launch`;
+    }
+    const code = interop.exit_code;
+    if (typeof code !== "string" || !INTEROP_DENIAL_EXIT_CODE.test(code)) {
+      return `transcript ${path} records assertions.interop_launch_denied.exit_code ${JSON.stringify(code)}: a denied launch requires an exit code string from 1 to 123, or 126 (the kernel refused the binary format); 124 and 125 are timeout statuses, 127 is command not found (contradicting the presence proof), and 128 or above is death by signal, none of which is a denial${code === "0" ? `; exit "0" means the launch reached the Windows host` : ""}`;
+    }
+    if (interop.launch_outcome !== "launch-denied") {
+      return `transcript ${path} records assertions.interop_launch_denied.launch_outcome ${JSON.stringify(interop.launch_outcome)}: the only passing token is "launch-denied"; a missing file has no passing token`;
+    }
+    if (interop.outcome !== "denied") {
+      return `transcript ${path} records assertions.interop_launch_denied.outcome ${JSON.stringify(interop.outcome)}: a proven interop denial records outcome "denied"`;
+    }
+  }
+  // Tighten-only: a binding that ratifies no host interop, whose own capture
+  // reached through a Windows drive mount, contradicts that ratification. The
+  // match is on the default automount root only; a moved [automount] root is
+  // not detected. Paths are normalized first, backslashes folded to slashes,
+  // so "/mnt//c", "/x/../mnt/c", or "/mnt/c\x" cannot slip past.
+  if (hostInterop === "none") {
+    const driveMount = (value) =>
+      typeof value === "string" && /^\/mnt\/[a-z](\/|$)/i.test(posix.normalize(value.trim().replaceAll("\\", "/")));
+    const interop = transcript.assertions.interop_launch_denied;
+    const candidates = [
+      ...hostExpanded.map((value) => ["credentials_absent.host_expanded entry", value]),
+      ["workspace_host_write_contained.workspace_host_path", transcript.assertions.workspace_host_write_contained.workspace_host_path],
+      ["interop_launch_denied.executable", interop?.executable],
+      ["interop_launch_denied.outer_executable", interop?.outer_executable],
+    ];
+    const hit = candidates.find(([, value]) => driveMount(value));
+    if (hit !== undefined) {
+      return `transcript ${path} records assertions.${hit[0]} ${JSON.stringify(hit[1])} sits under a Windows drive mount (/mnt/<letter>/), but the level binding ratifies host_interop "none": a surface that reaches a Windows drive is WSL2-hosted, so ratify host_interop "wsl2" and record the interop launch check`;
+    }
+  }
+  if (!HOST_INTEROP_TOKENS.includes(hostInterop)) {
+    return `the level binding ratifies no host_interop${hostInterop === undefined ? "" : ` token (${JSON.stringify(hostInterop)} is not one of ${HOST_INTEROP_TOKENS.join(" | ")})`}: whether the surface's host can launch host binaries from inside the boundary is an outer-world fact no capture can establish, so an L2/L3 level states it on the agent-unwritable binding as "wsl2" (the transcript must then record the interop launch check) or "none"`;
+  }
   return null;
 }
 
@@ -1842,7 +1964,7 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
         continue;
       }
       const reason = isNonEmptyString(entry.probe_evidence)
-        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, entry.substrate_class, egressAllowList, credentialRoots, entry.component_reachable_hosts)
+        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, entry.substrate_class, egressAllowList, credentialRoots, entry.component_reachable_hosts, entry.host_interop)
         : "probe_evidence missing";
       if (reason === null) {
         provenMax = Math.max(provenMax, levelNo);
