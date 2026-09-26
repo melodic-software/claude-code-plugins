@@ -272,7 +272,7 @@ header() {
 # missing or stale row ends with the batch's current digest; a complete row
 # ends with `status=complete`.
 status_rows() {
-  local batches="$1" results="$2" list nn res d n got bad
+  local batches="$1" results="$2" list nn res d n got reason
   for list in "$batches"/batch-*.txt; do
     [[ -f "$list" ]] || continue
     nn="${list##*/batch-}"
@@ -282,18 +282,14 @@ status_rows() {
     n="$(awk 'NF' "$list" | wc -l | tr -d ' ')"
     # A sidecar that does not name one readable file per list entry cannot
     # bind the contents, so the batch needs planning again, not a dispatch.
-    bad=0
-    sidecar_bad "$list" "$n" && bad=1
+    reason=""
+    sidecar_bad "$list" "$n" && reason=" reason=paths"
     if [[ ! -f "$res" ]]; then
-      if [[ "$bad" == 1 ]]; then
-        echo "batch=$nn status=missing reason=paths digest=$d"
-      else
-        echo "batch=$nn status=missing digest=$d"
-      fi
+      echo "batch=$nn status=missing$reason digest=$d"
       continue
     fi
-    if [[ "$bad" == 1 ]]; then
-      echo "batch=$nn status=stale reason=paths digest=$d"
+    if [[ -n "$reason" ]]; then
+      echo "batch=$nn status=stale$reason digest=$d"
       continue
     fi
     if ! got="$(header "$res" batch)" || [[ "$got" != "$d" ]]; then

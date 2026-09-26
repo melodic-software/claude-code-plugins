@@ -119,8 +119,8 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
 
 ### User-scope target
 
-The target `user-scope` audits the user-level markdown Claude Code loads, not a directory walk.
-Run `${CLAUDE_SKILL_DIR}/scripts/user-scope.sh` (add `--memory` when the argument carries
+The target `user-scope` audits the user-level markdown files Claude Code loads, listed by
+`user-scope.sh`. Run `${CLAUDE_SKILL_DIR}/scripts/user-scope.sh` (add `--memory` when the argument carries
 `memory`) with its stdout redirected to a list file in the session scratchpad, and feed that
 list to step 2 as `detect.sh --list-targets --paths-file <list>`. Run the rest of the audit, or
 the fix flow, under [Non-repository targets](#non-repository-targets).
@@ -137,11 +137,12 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
 - `@path` imports are not followed. Pass an imported file as an explicit path target.
 - A symlink is followed only to a readable regular `.md` file inside the config root, and
   that file is listed once. A symlinked directory is not walked, and a link pointing outside
-  the root is skipped; the script names each on stderr. Pass anything else explicitly.
+  the root is skipped; the script names each on stderr. Pass a skipped link's target as an
+  explicit path.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
 - The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
   `CLAUDE_CONFIG_DIR` is set, and its project layers come from the session's project directory.
-- A path target such as `~/.claude` keeps its existing meaning: every `*.md` beneath it.
+- A path target such as `~/.claude` covers every `*.md` beneath it.
 
 ### Non-repository targets
 
