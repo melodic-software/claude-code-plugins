@@ -168,6 +168,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the Claude line opens Activity, newest first with times and question links, and clears the badge", panel.open && panel.title === "Activity" && panel.first.includes(all[all.length - 1].text) && panel.times === all.length && panel.refs > 0 && panel.badge, JSON.stringify(panel).slice(0, 200));
     const seen = await page.evaluate(() => Object.keys(localStorage).filter(k => /:actSeen$/.test(k)).map(k => localStorage.getItem(k)).join(""));
     ok("the seen marker stores no entry text", seen.length > 0 && !seen.includes("Round 2 added"), seen.slice(0, 120));
+    ok("the seen marker keys each entry by its seq", all.every(e => Number.isInteger(e.seq)) && all.every(e => JSON.parse(seen).includes("s" + e.seq)), seen.slice(0, 120));
     await page.click("#flyClose"); await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(200);
     const byKey = await page.evaluate(() => document.getElementById("fly").classList.contains("open") && document.getElementById("flyTitle").textContent === "Activity");
     await page.keyboard.press("?"); await page.waitForTimeout(150);

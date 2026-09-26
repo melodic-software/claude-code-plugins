@@ -662,6 +662,7 @@ class TestClaudeActivity(DirCase):
             [
                 {
                     "at": self.entries()[0]["at"],
+                    "seq": 1,
                     "text": "Q3 pending research: research on ghq",
                     "ids": ["Q3"],
                 }
@@ -787,6 +788,18 @@ class TestClaudeActivity(DirCase):
         rc, out, err = self.rp("status")
         self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
 
+    def test_a_terminal_answer_in_the_second_of_a_hold_counts_after_it(self):
+        self.apply({"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"})
+        self.apply({"op": "record-terminal", "id": "Q1", "decision": "accept"})
+        self.apply({"op": "wait", "id": "Q1", "clear": True})
+        doc = self.doc()
+        q = doc["questions"][0]
+        self.assertLess(q["setAsideRev"], q["terminal"]["rev"])
+        q["terminal"]["updatedAt"] = q["setAsideAt"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
     def test_wait_by_claude_drops_a_user_hold(self):
         self.apply({"op": "wait", "id": "Q3", "by": "user", "waitsOn": "x"})
         stamp = self.q("Q3")["setAsideAt"]
@@ -808,6 +821,11 @@ class TestClaudeActivity(DirCase):
         ):
             with self.subTest(op=op):
                 self.refused({"op": "wait", **op})
+
+    def test_same_text_entries_in_one_second_get_distinct_seqs(self):
+        self.apply({"op": "activity", "text": "Same"}, {"op": "activity", "text": "Same"})
+        self.apply({"op": "activity", "text": "Same"})
+        self.assertEqual([e["seq"] for e in self.entries()], [1, 2, 3])
 
     def test_activity_op_appends_its_own_entry(self):
         self.apply({"op": "activity", "text": "Ledger updated", "ids": ["Q1"]})

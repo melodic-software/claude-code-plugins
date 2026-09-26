@@ -480,6 +480,7 @@ def op_record_terminal(d, doc, a):
         "alt": a.alt if a.decision == "alt" else None,
         "text": a.text or "",
         "updatedAt": at,
+        "rev": doc["rev"] + 1,
     }
     q["contentRev"] = (q.get("contentRev") or 0) + 1
     label = {
@@ -535,8 +536,8 @@ HOLD_LABELS = {"claude": "pending research", "user": "needs your answer"}
 
 def op_wait(d, doc, a):
     """Hold a question on Claude's research (by claude) or on the user's answer (by user).
-    A user hold stamps setAsideAt and setAsideSeq (the page's seq then), which outlive the hold:
-    decisions up to them stop counting."""
+    A user hold stamps setAsideAt, setAsideSeq (the page's seq then) and setAsideRev (the rev this
+    write produces), which outlive the hold: decisions up to them stop counting."""
     q = find(doc, a.id)
     waits = (a.waitsOn or "").strip()
     if bool(waits) == bool(a.clear):
@@ -556,7 +557,12 @@ def op_wait(d, doc, a):
         q.pop("waitingBy", None)
         if by == "user":
             seq = load_json(d / "responses.json", EMPTY_RESPONSES).get("seq", 0)
-            q.update(waitingBy="user", setAsideAt=now(), setAsideSeq=seq)
+            q.update(
+                waitingBy="user",
+                setAsideAt=now(),
+                setAsideSeq=seq,
+                setAsideRev=doc["rev"] + 1,
+            )
         label = HOLD_LABELS[by]
         line, msg = (
             f"{label[0].upper()}{label[1:]}: {waits}",
@@ -630,12 +636,15 @@ def op_activity(d, doc, a):
 
 
 def log_activity(doc, text, ids, **marks):
-    """Append one feed entry, keeping the newest ACTIVITY_CAP; a falsy mark is left out."""
-    entry = {"at": now(), "text": text}
+    """Append one feed entry, keeping the newest ACTIVITY_CAP; a falsy mark is left out. `seq`
+    is one above the highest kept, so it names the entry even when time and text repeat."""
+    kept = doc.get("activity") or []
+    seq = max((e.get("seq", 0) for e in kept), default=0) + 1
+    entry = {"at": now(), "seq": seq, "text": text}
     if ids:
         entry["ids"] = ids
     entry.update((k, v) for k, v in marks.items() if v)
-    doc["activity"] = (doc.get("activity") or [])[1 - ACTIVITY_CAP :] + [entry]
+    doc["activity"] = kept[1 - ACTIVITY_CAP :] + [entry]
 
 
 def summarize(doc, logged):

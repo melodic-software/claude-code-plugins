@@ -74,9 +74,12 @@ def hold_label(q):
 
 def set_aside(q, x):
     """A `wait` with `by: user` sets aside a page decision (it has a seq) up to the question's
-    setAsideSeq, and a terminal one stamped no later than its setAsideAt."""
+    setAsideSeq, a terminal one with a rev up to its setAsideRev, and an older terminal one
+    stamped no later than its setAsideAt."""
     if "seq" in x and q.get("setAsideSeq") is not None:
         return x["seq"] <= q["setAsideSeq"]
+    if "rev" in x and q.get("setAsideRev") is not None:
+        return x["rev"] <= q["setAsideRev"]
     return x["updatedAt"] <= (q.get("setAsideAt") or "")
 
 

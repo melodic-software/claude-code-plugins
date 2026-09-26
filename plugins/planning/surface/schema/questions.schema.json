@@ -36,6 +36,10 @@
         "additionalProperties": false,
         "properties": {
           "at": {"type": "string"},
+          "seq": {
+            "type": "integer",
+            "description": "One above the highest seq kept when the entry was written; the page keys seen state by it. Entries written before it existed have none."
+          },
           "text": {"type": "string"},
           "ids": {"type": "array", "items": {"type": "string"}},
           "notes": {"type": "boolean"},
@@ -147,6 +151,10 @@
         "alt": {"type": ["string", "null"]},
         "text": {"type": "string"},
         "updatedAt": {"type": "string"},
+        "rev": {
+          "type": "integer",
+          "description": "The questions.json rev the record-terminal write produced; compared with setAsideRev when both are present."
+        },
         "seeded": {"type": "boolean"}
       }
     },
@@ -202,7 +210,11 @@
         },
         "setAsideAt": {
           "type": "string",
-          "description": "When a `wait` with `by: user` landed. A terminal decision whose updatedAt is not later than this does not count as an answer, even after the hold clears."
+          "description": "When a `wait` with `by: user` landed. A terminal decision without a rev whose updatedAt is not later than this does not count as an answer, even after the hold clears."
+        },
+        "setAsideRev": {
+          "type": "integer",
+          "description": "The questions.json rev of the write that landed a `wait` with `by: user`. A terminal decision whose rev is not above this does not count as an answer, even after the hold clears."
         },
         "setAsideSeq": {
           "type": "integer",

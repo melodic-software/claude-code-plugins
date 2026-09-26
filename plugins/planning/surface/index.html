@@ -482,8 +482,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const page = S.resp.responses[q.id], term = q.terminal;
     const c = [page && Object.assign({src: "page"}, page), term && Object.assign({src: "terminal"}, term)].filter(x => x && x.updatedAt);
     c.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    const d = c[0] || null; // a decision recorded before Claude set it aside no longer counts: a page one by seq, a terminal one by time
-    if (d && (d.seq != null && q.setAsideSeq != null ? d.seq <= q.setAsideSeq : q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt))) d.aside = true;
+    const d = c[0] || null; // a decision recorded before Claude set it aside no longer counts: a page one by seq, a terminal one by rev, an older terminal one by time
+    if (d && (d.seq != null && q.setAsideSeq != null ? d.seq <= q.setAsideSeq : d.rev != null && q.setAsideRev != null ? d.rev <= q.setAsideRev : q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt))) d.aside = true;
     return d;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
@@ -562,7 +562,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- activity: one seen set per browser drives the notice, rail dots and badge ----------
   const acts = () => S.doc.activity || [];
-  const actKey = e => { let h = 5381; for (const ch of String(e.text)) h = (h * 33 + ch.charCodeAt(0)) | 0; return e.at + "|" + (h >>> 0).toString(36); }; // the time and a hash, never the text
+  const actKey = e => { if (e.seq != null) return "s" + e.seq; let h = 5381; for (const ch of String(e.text)) h = (h * 33 + ch.charCodeAt(0)) | 0; return e.at + "|" + (h >>> 0).toString(36); }; // the entry's seq, else the time and a hash; never the text
   function unseenActs(){ const s = new Set(lsGet("actSeen", [])); return acts().filter(e => !s.has(actKey(e))); }
   function markSeen(pred){
     const s = new Set(lsGet("actSeen", [])), keys = new Set(acts().map(actKey));

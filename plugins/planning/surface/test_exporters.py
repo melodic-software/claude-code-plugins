@@ -213,6 +213,13 @@ class TestExportLedger(SessionCase):
         term = {"decision": "accept", "updatedAt": AT}
         self.assertIsNone(exporters.latest_decision({**q, "terminal": term}, {}))
 
+    def test_a_terminal_decision_with_a_rev_is_set_aside_by_rev(self):
+        q = {"id": "Q1", "setAsideAt": AT, "setAsideRev": 5}
+        term = {"decision": "accept", "updatedAt": AT, "rev": 6}
+        self.assertIs(exporters.latest_decision({**q, "terminal": term}, {}), term)
+        held = {**term, "rev": 5}
+        self.assertIsNone(exporters.latest_decision({**q, "terminal": held}, {}))
+
     def test_non_contiguous_ids_are_renumbered_with_the_original_id(self):
         self.session(
             [question("J2"), question("J1"), question("Q7")],
