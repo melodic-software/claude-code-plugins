@@ -2,7 +2,7 @@
 """Render a pixel-art spec to engine-ready files using only the Python standard library.
 
 Spec (JSON):
-  palette     {"k": "#1a1c2c", ...}   one character per colour; "." is always transparent
+  palette     {"k": "#1a1c2c", ...}   one character per color; "." is always transparent
   frames      {"name": ["row", ...]}  every frame the same width and height
   animations  {"name": {"frames": ["f0", "f1"], "fps": 8, "durations_ms": [..optional..]}}
   sheet       {"columns": 3, "order": ["f0", ...]}   optional; defaults to one row of all frames
@@ -10,7 +10,7 @@ Spec (JSON):
 Outputs in --out:
   sheet.png          1x sprite sheet (the engine asset)
   sheet.json         frame rects, durations and animation tags (Aseprite json-hash shape)
-  preview.png        sheet upscaled by --scale with nearest-neighbour, for review
+  preview.png        sheet upscaled by --scale with nearest-neighbor, for review
   <animation>.gif    looping preview per animation, upscaled by --scale
 """
 import argparse
@@ -27,7 +27,7 @@ TRANSPARENT = "."
 def hex_rgb(value):
     value = value.lstrip("#")
     if len(value) != 6:
-        raise ValueError(f"colour {value!r} is not #rrggbb")
+        raise ValueError(f"color {value!r} is not #rrggbb")
     return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
 
 
@@ -35,10 +35,10 @@ def validate(spec):
     palette, frames = spec.get("palette"), spec.get("frames")
     if not palette or not frames:
         raise ValueError("spec needs non-empty 'palette' and 'frames'")
-    for key, colour in palette.items():
+    for key, color in palette.items():
         if len(key) != 1 or key == TRANSPARENT:
             raise ValueError(f"palette key {key!r} must be one character other than '.'")
-        hex_rgb(colour)
+        hex_rgb(color)
     first = next(iter(frames.values()))
     h, w = len(first), len(first[0])
     for name, rows in frames.items():
@@ -46,7 +46,7 @@ def validate(spec):
             raise ValueError(f"frame {name!r} is not {w}x{h}")
         unknown = {c for r in rows for c in r if c != TRANSPARENT and c not in palette}
         if unknown:
-            raise ValueError(f"frame {name!r} uses colours not in the palette: {sorted(unknown)}")
+            raise ValueError(f"frame {name!r} uses colors not in the palette: {sorted(unknown)}")
     for name, anim in spec.get("animations", {}).items():
         if not re.fullmatch(r"[\w-]+", name):
             raise ValueError(f"animation name {name!r} must be letters, digits, _ or - (it names the GIF file)")
@@ -118,15 +118,15 @@ def lzw_encode(indices, min_code_size):
     return bytes(out)
 
 
-def write_gif(path, width, height, colours, frames, delays_cs):
-    """colours: list of (r, g, b); index 0 of every frame is transparent. frames: flat index lists."""
+def write_gif(path, width, height, colors, frames, delays_cs):
+    """colors: list of (r, g, b); index 0 of every frame is transparent. frames: flat index lists."""
     bits = 2
-    while (1 << bits) < len(colours) + 1:
+    while (1 << bits) < len(colors) + 1:
         bits += 1
     if bits > 8:
-        raise ValueError("GIF allows at most 255 colours plus transparency")
+        raise ValueError("GIF allows at most 255 colors plus transparency")
     table = bytearray(3 * (1 << bits))
-    for i, rgb in enumerate(colours, 1):
+    for i, rgb in enumerate(colors, 1):
         table[3 * i:3 * i + 3] = bytes(rgb)
     data = bytearray(b"GIF89a" + struct.pack("<HHBBB", width, height, 0x80 | (bits - 1), 0, 0) + table)
     data += b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"  # loop forever
