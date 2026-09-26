@@ -262,8 +262,12 @@ def qsplit:
   else [scan("(?:[^[:space:]" + SQ + DQ + "]+|" + quoted_re + ")+")] end;
 def unquote:
   gsub(SQ + "(?<a>[^" + SQ + "]*)" + SQ; "\(.a)") | gsub(DQ + "(?<a>[^" + DQ + "]*)" + DQ; "\(.a)");
+# A wrapper string holding a backslash, or any character other than printable ASCII, space,
+# and tab (NBSP, U+2028, VT, FF, CR, LF, ...), splits differently in the real shell than here,
+# so it is unparsed before any assignment is dropped.
+def wrap_bad: contains("\\") or test("[^ -~\t]");
 def wrap_tokens:
-  if length > 4096 or test("[\n\r]") then [unparsed_mark]
+  if length > 4096 or wrap_bad then [unparsed_mark]
   else qsplit as $raw
   | if $raw == null then [unparsed_mark]
     else ($raw | drop_assign) as $rest
@@ -303,7 +307,10 @@ def unwrap:
     | if IN($b; "cmd", "pwsh", "powershell") then
         (($a | rest_after(if $b == "cmd" then ["/c", "/k"] else ["-command", "-c", "-commandwithargs", "-cwa"] end)) as $r
          | if $r == null then .
-           else ($r | join(" ") | if $b == "cmd" then drop_cmd_set else drop_pwsh_env end | wrap_tokens | unwrap) end)
+           else ($r | join(" ")
+                 | if length > 4096 or wrap_bad then [unparsed_mark]
+                   else (if $b == "cmd" then drop_cmd_set else drop_pwsh_env end | wrap_tokens) end
+                 | unwrap) end)
       elif IN($b; "bash", "sh", "zsh", "dash", "ash", "ksh") then
         (($a | shell_c_string) as $s | if $s == null then . else ($s | wrap_tokens | unwrap) end)
       elif $b == "env" then ($a | env_rest | unwrap)
@@ -311,9 +318,12 @@ def unwrap:
     end;
 # $tail is what may follow the path: a 40-hex commit for package specs, or any query or
 # fragment for remote rows, which print only scheme://host[:port].
+# Any backslash in a URL means unparsed: parsers disagree on whether it separates the host.
 def url_parts($prefix; $schemes; $tail):
+  if contains("\\") then null else
   (capture("^(?<s>" + $prefix + "(" + $schemes + ")://)([^/?#@]*@)?(?<h>[A-Za-z0-9.-]+|\\[[0-9A-Fa-f:.]+\\])(?<p>:[0-9]+)?(?<path>/[A-Za-z0-9._~/+-]*)?(?<c>" + $tail + ")?$")
-   | {scheme: .s, host: .h, port: (.p // ""), path: (.path // ""), commit: (.c // "")}) // null;
+   | {scheme: .s, host: .h, port: (.p // ""), path: (.path // ""), commit: (.c // "")}) // null
+  end;
 # A git spec prints only its first two path segments (owner/repo); a tarball prints only its
 # file name, with "/..." standing in for any directories before it.
 def url_spec:
@@ -441,6 +451,27 @@ def pkgrow($l; $spec; allow):
   | if $k == null then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
     else {launcher: $l, package: $k.package, pin: $k.pin, publisher: $k.pub} end
   end;
+# py_index_url: the first custom Python index URL in a uv/uvx/pipx argument list, or null.
+# uv takes --index-url, -i, --index (optionally name=url), --extra-index-url, --default-index;
+# pipx passes an index flag inside --pip-args.
+def py_index_url:
+  . as $a
+  | [range(0; length) as $i | $a[$i] as $t
+     | if IN($t; "--index-url", "-i", "--index", "--extra-index-url", "--default-index") then ($a[$i + 1] // empty)
+       elif ($t | test("^--(index-url|index|extra-index-url|default-index)=")) then ($t | sub("^[^=]*="; ""))
+       elif $t == "--pip-args" or ($t | startswith("--pip-args=")) then
+         ((if $t == "--pip-args" then ($a[$i + 1] // "") else ($t | sub("^--pip-args="; "")) end)
+          | (capture("(^|[[:space:]])(--index-url|--extra-index-url|--index|-i)[= ]+(?<u>[^[:space:]]+)") | .u) // empty)
+       else empty end
+     | if test("^[A-Za-z0-9_.-]+=") then sub("^[^=]*="; "") else . end]
+  | first;
+# with_index($args): a custom index replaces the pypi publisher with index:<host>, or "-" when
+# the index URL does not parse. The index userinfo, path, and query never print.
+def with_index($args):
+  ($args | py_index_url) as $u
+  | if $u == null or .package == "-" then .
+    else . + {publisher: (($u | url_parts(""; "https?"; "[?#].*")) as $m
+                          | if $m == null then "-" else "index:" + $m.host end)} end;
 def stdio_row:
   . as $t
   | (($t[0] // "") | lc_base) as $b
@@ -453,9 +484,10 @@ def stdio_row:
     elif $b == "yarn" and $a1 == "dlx" then pkgrow("yarn-dlx"; $t[2:] | npm_pkg; npm_spec)
     elif $b == "bunx" then pkgrow("bunx"; $t[1:] | npm_pkg; npm_spec)
     elif $b == "bun" and $a1 == "x" then pkgrow("bunx"; $t[2:] | npm_pkg; npm_spec)
-    elif $b == "uvx" then pkgrow("uvx"; $t[1:] | py_pkg; py_spec)
-    elif $b == "uv" and $a1 == "tool" and ($t[2] // "") == "run" then pkgrow("uv-tool-run"; $t[3:] | py_pkg; py_spec)
-    elif $b == "pipx" and $a1 == "run" then pkgrow("pipx"; $t[2:] | pipx_pkg; py_spec)
+    elif $b == "uvx" then pkgrow("uvx"; $t[1:] | py_pkg; py_spec) | with_index($t[1:])
+    elif $b == "uv" and $a1 == "tool" and ($t[2] // "") == "run" then
+      pkgrow("uv-tool-run"; $t[3:] | py_pkg; py_spec) | with_index($t[3:])
+    elif $b == "pipx" and $a1 == "run" then pkgrow("pipx"; $t[2:] | pipx_pkg; py_spec) | with_index($t[2:])
     elif IN($b; "docker", "podman", "nerdctl") then
       pkgrow($b; ($t[1:] | (indices("run") | first) as $i | if $i == null then null else .[$i + 1:] | img_of end);
         img_spec)
@@ -511,9 +543,19 @@ def withhold:
   if (.package != "-" and (.package | vf | not))
      or ((.publisher | IN("-", "local", "unscoped", "pypi", "library") | not) and (.publisher | vf | not))
   then . + {package: "-", pin: "unparsed", publisher: "-"} else . end;
+# Control characters (C0, DEL, C1) and invisible formatting characters (soft hyphen, U+200B-
+# U+200F, U+202A-U+202E, U+2060-U+2064, U+2066-U+2069, U+FEFF), built from code points so
+# the script stays ASCII.
+def invisible_re:
+  "[[:cntrl:]" + ([128] | implode) + "-" + ([159] | implode) + ([173] | implode)
+  + ([8203] | implode) + "-" + ([8207] | implode) + ([8234] | implode) + "-" + ([8238] | implode)
+  + ([8288] | implode) + "-" + ([8292] | implode) + ([8294] | implode) + "-" + ([8297] | implode)
+  + ([65279] | implode) + "]";
 def ms_valid:
   if (.cfg | type) != "object" then false
   else (.name | test("^[A-Za-z0-9_-]+$"))
+    and IN(.cfg.type; "http", "sse", "streamable-http")
+    and (any((.cfg | .. | strings), (.cfg | .. | objects | keys[]); test(invisible_re)) | not)
     and ((.cfg.url | type) == "string")
     and ((.cfg.url // "") | tostring | startswith("https://"))
     and (any(.cfg | keys[]; IN(.; "command", "args", "env", "headersHelper")) | not)

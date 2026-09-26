@@ -350,7 +350,7 @@ check_row d-npm-tgzurl npx p@https://host/x.tgz tarball host
 check_row e-pep508 uvx 'mcp-x @ git+https://github.com/o/r' git-ref github.com
 check_row f-docker-logopt docker img:1 mutable-tag library
 check_row f2-docker-unknown docker - unparsed -
-check_row g-uvx-i uvx pkg==1.0 exact pypi
+check_row g-uvx-i uvx pkg==1.0 exact index:pypi.example.com
 check_row h-bash-lc npx floaty@latest floating-tag unscoped
 check_row i-cmd-dsc npx floaty@latest floating-tag unscoped
 check_row j-env npx floaty floating-unversioned unscoped
@@ -426,7 +426,7 @@ check_row uvx-range uvx 'mcp-server-fetch>=1.0' floating-range pypi
 check_row uvx-extras uvx 'mcp-x[cli]==1.0.0' exact pypi
 check_row uvx-from uvx git+https://git.example.com/x.git git-ref git.example.com
 check_row uvx-from-exact uvx fx==2.0.0 exact pypi
-check_row uvx-index uvx ix==1.0.0 exact pypi
+check_row uvx-index uvx ix==1.0.0 exact index:pypi.example.com
 check_row uv-tool-run uv-tool-run ut==1.0.0 exact pypi
 check_row pipx-spec pipx px==1.0.0 exact pypi
 check_row pipx-bare pipx pxb floating-unversioned pypi
