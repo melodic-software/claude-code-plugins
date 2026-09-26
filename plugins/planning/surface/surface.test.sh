@@ -78,9 +78,8 @@ grade() { # suite output-file
 }
 
 if command -v playwright-cli >/dev/null 2>&1; then
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX") || tmp=""
   # No fixture write or trap before the scratch dir is proven to exist.
-  if [[ -z "$tmp" || ! -d "$tmp" ]]; then
+  if ! tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX") || [[ ! -d "$tmp" ]]; then
     echo "FAIL: mktemp gave no scratch dir"
     exit 1
   fi
@@ -145,7 +144,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
   py=$(command -v python3 || command -v python)
-  unhandled() { "$py" "$here/round.py" --dir "$c" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
+  unhandled() { "$py" "$here/round.py" --dir "${1:-$c}" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
   read -r -a seqs <<<"$(unhandled)"
   [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$c" handle --seq "${seqs[@]}" >/dev/null
   # Phase 3 posts a fresh wrapup and watches the freeze lift inside its 10 s window, so the
@@ -172,8 +171,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   sed "s/__PORT__/$eport/; s/__PHASE__/4/" tests/ui_c.js >"$tmp/ui_c4.js"
   pw run-code --filename "$(script_path "$tmp/ui_c4.js")" >"$tmp/ui_c4.out" 2>&1
 
-  # The journey (AC27) runs against a fifth server seeded with an empty interview. It walks
-  # J1 to J15 on one page in seven phases; the shell writes as Claude between them.
+  # The journey runs against a fifth server seeded with an empty interview. It walks the whole
+  # flow on one page in seven phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
   cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
   bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
@@ -182,10 +181,9 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4 5 6 7; do
     sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
   done
-  jseqs() { "$py" "$here/round.py" --dir "$j" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
   jhandle() {
     local s
-    read -r -a s <<<"$(jseqs)"
+    read -r -a s <<<"$(unhandled "$j")"
     [[ "${#s[@]}" -eq 0 ]] || bash "$here/round.sh" --dir "$j" handle --seq "${s[@]}" >/dev/null
   }
   japply() { # name ops-json
@@ -201,10 +199,11 @@ if command -v playwright-cli >/dev/null 2>&1; then
     {"op": "set-status", "text": "Researching the retry benchmark for Q3"}]}'
   jrun 2
   # Phase 2 leaves its Answer anyway on Q3, then a note: the note gets the Notes reply.
-  read -r -a js <<<"$(jseqs)"
+  read -r -a js <<<"$(unhandled "$j")"
   note=${js[${#js[@]} - 1]}
   [[ "${#js[@]}" -lt 2 ]] || bash "$here/round.sh" --dir "$j" handle --seq "${js[@]:0:${#js[@]}-1}" >/dev/null
-  japply c '{"ops": [{"op": "wait", "id": "Q3", "clear": true}, {"op": "set-status", "clear": true},
+  japply c '{"ops": [{"op": "activity", "text": "Added a retry note to Q1", "ids": ["Q1"]},
+    {"op": "wait", "id": "Q3", "clear": true}, {"op": "set-status", "clear": true},
     {"op": "reply", "id": "Q3", "text": "The benchmark settles it: three retries."}]}'
   bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round2.json --round 2 >/dev/null
   japply d '{"ops": [{"op": "note-reply", "seq": '"$note"', "text": "Yes, on track."}]}'
@@ -235,8 +234,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 236 browser checks not run, 82 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 236))
+  echo "SKIP: 240 browser checks not run, 86 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 240))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

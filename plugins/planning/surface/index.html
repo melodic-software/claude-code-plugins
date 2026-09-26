@@ -482,8 +482,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const page = S.resp.responses[q.id], term = q.terminal;
     const c = [page && Object.assign({src: "page"}, page), term && Object.assign({src: "terminal"}, term)].filter(x => x && x.updatedAt);
     c.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    const d = c[0] || null; // a decision recorded before Claude set it aside no longer counts
-    if (d && q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt)) d.aside = true;
+    const d = c[0] || null; // a decision recorded before Claude set it aside no longer counts: a page one by seq, a terminal one by time
+    if (d && (d.seq != null && q.setAsideSeq != null ? d.seq <= q.setAsideSeq : q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt))) d.aside = true;
     return d;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
@@ -525,7 +525,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return s;
   }
   const byClaude = (q, i) => (q.commitsConfirmed || []).find(c => String(c.index) === String(i));
-  const accepted = q => { const d = counted(q); return !!d && ["accept", "own"].includes(d.decision) && stateOf(q) !== "arch"; }; // alt and defer carry none
+  const accepted = q => ["accept", "own"].includes(stateOf(q)); // alt and defer carry none, and neither does a held question
   function commitRows(){ // commitments carried by accept (or reconfirmed accept) and own decisions
     const out = [];
     S.doc.questions.slice().sort(byIdCmp).forEach(q => { if (!accepted(q)) return; const cf = confirmed(q); (q.commits || []).forEach((c, i) => out.push({q, i, c, on: cf.has(String(i))})); });
@@ -562,7 +562,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- activity: one seen set per browser drives the notice, rail dots and badge ----------
   const acts = () => S.doc.activity || [];
-  const actKey = e => e.at + "|" + e.text;
+  const actKey = e => { let h = 5381; for (const ch of String(e.text)) h = (h * 33 + ch.charCodeAt(0)) | 0; return e.at + "|" + (h >>> 0).toString(36); }; // the time and a hash, never the text
   function unseenActs(){ const s = new Set(lsGet("actSeen", [])); return acts().filter(e => !s.has(actKey(e))); }
   function markSeen(pred){
     const s = new Set(lsGet("actSeen", [])), keys = new Set(acts().map(actKey));
@@ -570,7 +570,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     lsSet("actSeen", [...s].filter(k => keys.has(k)));
   }
   const unseenIds = () => new Set(unseenActs().flatMap(e => e.ids || []));
-  const landedIds = () => new Set(unseenActs().filter(e => /\badded\b/i.test(e.text)).flatMap(e => e.ids || []));
+  const landedIds = () => new Set(unseenActs().filter(e => e.added).flatMap(e => e.ids || []));
   function latestClaude(q){ const h = historyOf(q)[0]; return h && h.by === "claude" && String(h.text).trim() !== "Asked." ? h : null; }
   const upOf = q => (q.dependsOn || []).filter(p => Q[p]);
 
@@ -590,13 +590,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       keys.sort((a, b) => { const [sa, ra] = a.split(":"), [sb, rb] = b.split(":"); return (stages.indexOf(sa) - stages.indexOf(sb)) || (ra - rb); });
       keys.forEach(k => { const items = rest.filter(q => (q.stage || "") + ":" + (q.round || 1) === k); secs.push({key: "r:" + k, round: k, title: roundLabel(items[0]), items, lock: []}); });
     }
-    const fresh = unseenIds(), landed = landedIds();
-    secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds
+    const landed = landedIds();
+    secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds; a new round's section opens
       s.open = s.items.filter(q => ["open", "wait", "need"].includes(stateOf(q))).length;
       s.done = s.items.length > 0 && s.open === 0;
       s.fresh = s.items.some(q => landed.has(q.id));
       const o = lsGet("col:" + s.key, null), dflt = s.done;
-      s.collapsed = s.items.some(q => fresh.has(q.id)) ? false : o && o.d === dflt ? o.c : dflt;
+      s.collapsed = s.fresh ? false : o && o.d === dflt ? o.c : dflt;
     });
     return {secs, carry};
   }
@@ -632,7 +632,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const needs = upOf(q).map(p => '<span class="needs' + (isAnswered(stateOf(Q[p])) ? "" : " unmet") + '">needs ' + esc(p) + "</span>").join("");
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
-    return '<button class="qbtn st-' + st + (st === "sup" || q.offPath || up ? " dim" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
+    return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath || up ? " dim" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
       '<span class="qid">' + esc(q.id) + '</span><span class="qtitle">' + esc(q.short || q.title) + "</span>" + needs +
       '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") +
       (dot ? '<span class="newdot" title="Changed by Claude"></span><span class="vh">, updated</span>' : "") + "</button>";
@@ -760,7 +760,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (tgt ? '<button class="tbtn small" data-go="' + esc(tgt) + '">' + (e.notes ? "Open" : "Go") + "</button>" : "") +
       '<button class="tbtn small" data-allact="1">All activity</button>');
   }
-  const isRestate = e => !!S.doc.restatement && !(e.ids || []).length && !e.notes && e.at === S.doc.restatement.at;
+  const isRestate = e => !!S.doc.restatement && e.restate === S.doc.restatement.rev;
   const actTarget = e => e.notes ? "notes" : (e.ids || []).find(id => Q[id]) || (isRestate(e) ? SUMMARY : null);
 
   // ---------- history thread ----------
@@ -1000,9 +1000,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return '<section class="blk" id="restate"><h4>Shared understanding, restated ' + esc(fmt(r.at)) + "</h4>" + body + foot + "</section>";
   }
   function cBoxHtml(){ // only what is still to confirm; Claude's confirmations are listed with their reasons below it
-    const all = commitRows(), rows = all.filter(r => !r.on), ids = [...new Set(rows.map(r => r.q.id))];
+    const all = commitRows(); if (!all.length) return "";
+    const rows = all.filter(r => !r.on), ids = [...new Set(rows.map(r => r.q.id))];
     const claude = [...new Set(all.filter(r => byClaude(r.q, r.i)).map(r => r.q))];
-    if (!all.length) return "";
     return '<section class="blk" id="toConfirm"><h4>To confirm</h4><p class="kbd">Things your answers commit you to</p>' + ids.map(id => '<div class="crows"><div>' + refHtml(id) + "</div>" +
       rows.filter(r => r.q.id === id).map(r => { const k = "sc-" + esc(id) + "-" + r.i;
         return '<div class="crow"><input type="checkbox" id="' + k + '" data-confirm="' + r.i + '" data-cq="' + esc(id) + '"><label for="' + k + '">' + inline(r.c) + "</label><span></span></div>"; }).join("") + "</div>").join("") +
@@ -1026,7 +1026,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     h += '<section class="blk"><h4>Loose ends</h4>' + (le.length ? '<ul class="loose">' + le.map(x => "<li>" + x + "</li>").join("") + "</ul>" : '<p class="empty">None.</p>') + "</section>";
     const next = (S.doc.meta || {}).next || "Claude records your decisions in the ledger and answers any loose ends. Wrap-up then exports the decisions, and this session can be discarded.";
     h += '<section class="blk"><h4>What Claude does next</h4>' + (p.length ? "<p>" + esc(st) + ".</p>" : "") + md(next) + "</section>";
-    const unconf = S.doc.restatement && !(uState() && uState().alt === "confirm");
+    const u = uState(), unconf = S.doc.restatement && !(u && u.alt === "confirm");
     h += '<section class="blk"><div class="arow"><button class="act primary" data-wrapup="1" data-submit="1"' + (S.api >= 2 && !S.busy ? "" : " disabled") + ">Wrap up</button>" +
       (unconf ? '<span class="kbd" id="unconfWarn" style="color:var(--chg)">Understanding not confirmed yet.</span>' : "") +
       (S.api < 2 ? '<span class="kbd">' + RESTART + "</span>" : lastWrap ? '<span class="kbd">Wrap-up sent ' + esc(fmt(lastWrap.at)) + "</span>" + receipts(lastWrap.seq) : '<span class="kbd">Tells Claude you are done. Nothing is locked.</span>') + "</div>" +
@@ -1182,7 +1182,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("keysBody").innerHTML = KEYS.map(([k, t]) => "<kbd>" + esc(k) + "</kbd><span>" + esc(t) + "</span>").join("");
     $("keysDlg").showModal();
   }
-  function openPanel(p){ S.fly = S.fly === p ? null : p; lsSet("fly", S.fly); renderFly(); renderHeader(); }
+  function showFly(p){ S.fly = p; lsSet("fly", p); renderFly(); renderHeader(); }
+  const openPanel = p => showFly(S.fly === p ? null : p);
+  function focusHead(){ const h = $("qhead"); if (h) { h.tabIndex = -1; h.focus(); } }
 
   // ---------- full-screen visual ----------
   const FS = {z: 1, x: 0, y: 0, drag: null};
@@ -1234,8 +1236,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     renderRail(); fillNote(); renderDetail(Object.assign({top: true}, opts)); renderHeader(); if (S.fly) renderFly(); revealInRail(id);
   }
   function goTo(t){ // from the notice: reveal the target however it is hidden, then focus its heading
-    if (t === "notes") { markSeen(e => e.notes); S.fly = "notes"; lsSet("fly", S.fly); renderFly(); renderHeader(); return; }
-    if (t === SUMMARY) { markSeen(isRestate); select(SUMMARY, {animate: true}); const r = $("restate"); if (r) r.scrollIntoView({block: "start"}); const h = $("qhead"); if (h) { h.tabIndex = -1; h.focus(); } return; }
+    if (t === "notes") { markSeen(e => e.notes); showFly("notes"); return; }
+    if (t === SUMMARY) { markSeen(isRestate); select(SUMMARY, {animate: true}); const r = $("restate"); if (r) r.scrollIntoView({block: "start"}); focusHead(); return; }
     if (!Q[t]) return;
     const hidden = !passes(Q[t]) || S.railHidden;
     if (!passes(Q[t])) { S.filter = "all"; lsSet("filter", "all"); }
@@ -1244,9 +1246,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (s) lsSet("col:" + s.key, {c: false, d: s.done});
     select(t, {animate: true}); renderFly();
     if (hidden) toast("Showing all to reveal " + t + ".");
-    const h = $("qhead"); if (h) { h.tabIndex = -1; h.focus(); }
+    focusHead();
   }
-  function openActivity(){ S.fly = "activity"; lsSet("fly", S.fly); renderFly(); renderHeader(); }
   function step(dir){
     const order = railOrder(); if (!order.length) return;
     const i = order.indexOf(S.sel);
@@ -1416,7 +1417,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function carried(q){ // what a single Accept would send: the draft, else the kept note
     const dr = lsGet("draft:" + q.id, null), d = decisionOf(q);
-    return String(dr !== null ? dr : (d && d.text) || "").trim();
+    return String(dr !== null ? dr : (d && !d.aside && d.text) || "").trim();
   }
   function acceptAllDialog(pool, where){ // one accept event per eligible question, each carrying its note
     const op = opened(), elig = pool.filter(q => op.has(q.id) && eligible(q)).sort(byIdCmp);
@@ -1516,7 +1517,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     es.onerror = () => { setOnline(false); startPoll(); };
   }
   function catchUp(){ refresh().then(() => setOnline(true)).catch(() => setOnline(false)); if (!es || es.readyState === 2) connect(); }
-  function startPoll(){ if (pollTimer) return; pollTimer = setInterval(() => refresh().then(() => { setOnline(true); if (!es) connect(); }).catch(() => setOnline(false)), 3000); }
+  function startPoll(){ if (pollTimer) return; pollTimer = setInterval(() => refresh().then(() => { setOnline(true); if (!es || es.readyState === 2) connect(); }).catch(() => setOnline(false)), 3000); }
   function stopPoll(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   setInterval(() => { if (es && Date.now() - lastFrame > SILENT_MS) { es.close(); es = null; startPoll(); } }, 5000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") catchUp(); });
@@ -1528,7 +1529,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
-    if (t.closest("[data-allact], #claudeLine")) { openActivity(); return; }
+    if (t.closest("[data-allact], #claudeLine")) { showFly("activity"); return; }
     if (t.closest("#meterText")) { const n = nextNeeding(1); if (n) select(n, {animate: true}); else select(SUMMARY, {animate: true}); return; }
     if (t.closest("#pendBtn")) { S.filter = "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
     if (t.closest("#assumeCount")) { select(SUMMARY, {animate: true}); const c = $("toConfirm"); if (c) c.scrollIntoView({block: "start"}); return; }
@@ -1555,10 +1556,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     if (t.closest("[data-wrapup]")) { sendFree("wrapup", "").then(ok => { if (ok) { toast("Wrapping up. Claude exports the decisions; saves pause until it handles the wrap-up."); renderDetail(); } }); return; }
     if (t.closest("[data-sendnote]")) { sendNote(); return; }
-    const p = t.closest("[data-panel]"); if (p) { if (p.closest("#tabs") || p.closest(".loose")) { S.fly = p.dataset.panel; lsSet("fly", S.fly); renderFly(); renderHeader(); } else openPanel(p.dataset.panel); return; }
+    const p = t.closest("[data-panel]"); if (p) { if (p.closest("#tabs") || p.closest(".loose")) showFly(p.dataset.panel); else openPanel(p.dataset.panel); return; }
     if (t.closest("#railBtn")) { S.railHidden = !S.railHidden; lsSet("railHidden", S.railHidden); renderFly(); return; }
     if (t.closest("#sumBtn")) { select(SUMMARY, {animate: true}); return; }
-    if (t.closest("#flyClose")) { S.fly = null; lsSet("fly", null); renderFly(); renderHeader(); return; }
+    if (t.closest("#flyClose")) { showFly(null); return; }
     if (t.closest("#pinBtn")) { S.pinned = !S.pinned; lsSet("pinned", S.pinned); renderFly(); return; }
     const vt = t.closest("[data-vtab]"); if (vt) { S.vtab = vt.dataset.vtab; renderFly(); return; }
     if (t.closest("[data-replay]")) { renderFly(); return; }
@@ -1601,7 +1602,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (fullScreen) { fsClose(); e.preventDefault(); return; }
       if (modal) return;
       if (inText) { document.activeElement.blur(); e.preventDefault(); return; }
-      if (S.fly && !S.pinned) { S.fly = null; lsSet("fly", null); renderFly(); renderHeader(); }
+      if (S.fly && !S.pinned) showFly(null);
       return;
     }
     if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && e.target.closest && e.target.closest("[data-submit]")) { e.preventDefault(); return; } // dictation: plain Enter never submits
