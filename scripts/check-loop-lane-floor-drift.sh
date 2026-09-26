@@ -295,7 +295,7 @@ SRC_NORM="$(printf '%s\n' "$SRC_BLOCK" | norm)"
 # broken, not because the corpus is clean.
 
 CARRIERS="$(discover_carriers)"
-if ! printf '%s\n' "$CARRIERS" | grep -Fxq "$SOURCE"; then
+if ! grep -Fxq "$SOURCE" <<<"$CARRIERS"; then
   echo "check-loop-lane-floor-drift: the repo-wide scan did not find $SOURCE, which carries the floor by definition; the scan is not working and its result cannot be believed" >&2
   exit 2
 fi

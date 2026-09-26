@@ -76,7 +76,7 @@ commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 printf 'unrelated\n' >"$r/README.md" # non-skill change
 if out="$(run "$r" "$b" 2>&1)"; then
-  if echo "$out" | grep -q "nothing to gate" && [[ "$out" != *"unbound variable"* ]]; then
+  if grep -q "nothing to gate" <<<"$out" && [[ "$out" != *"unbound variable"* ]]; then
     ok "no changed skills passes"
   else
     fail "expected nothing-to-gate message without unbound-variable, got: $out"
@@ -93,7 +93,7 @@ commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 add_skill "$r" p1 alpha SKILL.md # modify
 if out="$(run "$r" "$b" 2>&1)"; then
-  if echo "$out" | grep -q "1 skill(s) checked, 0 failed"; then
+  if grep -q "1 skill(s) checked, 0 failed" <<<"$out"; then
     ok "one passing skill passes"
   else
     fail "expected 1 checked 0 failed, got: $out"
@@ -154,7 +154,7 @@ commit_all "$r" base >/dev/null
 b="$(base_sha "$r")"
 rm -rf "$r/plugins/p1/skills/gone"
 if out="$(run "$r" "$b" 2>&1)"; then
-  if echo "$out" | grep -q "nothing to gate"; then
+  if grep -q "nothing to gate" <<<"$out"; then
     ok "deleted skill is filtered out"
   else
     fail "deleted-only change should gate nothing, got: $out"

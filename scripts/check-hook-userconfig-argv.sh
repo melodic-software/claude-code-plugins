@@ -103,7 +103,7 @@ scan_file() {
     while IFS= read -r line; do
       flag "$file" "${line%%:*}"
     done <<<"$hits"
-  elif jq -c . "$file" 2>/dev/null | grep -qF "$TOKEN"; then
+  elif grep -qF "$TOKEN" < <(jq -c . "$file" 2>/dev/null); then
     flag "$file" "escaped token in decoded JSON"
   fi
 }
@@ -129,7 +129,7 @@ for plugin in plugins/*/; do
     done < <(jq -r '.hooks[] | select(type == "string")' "$manifest" 2>/dev/null || true)
     ;;
   object)
-    if jq -c '.hooks' "$manifest" 2>/dev/null | grep -qF "$TOKEN"; then
+    if grep -qF "$TOKEN" < <(jq -c '.hooks' "$manifest" 2>/dev/null); then
       flag "$manifest" "inline hooks object"
     fi
     ;;

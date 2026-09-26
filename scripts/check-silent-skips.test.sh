@@ -46,7 +46,7 @@ hook_file "$f" alpha check.sh 'command -v jq >/dev/null 2>&1 || exit 0'
 if out="$(run_check "$f" 2>&1)"; then
   fail "same-line silent skip should fail, got success: $out"
 else
-  if echo "$out" | grep -q "SILENT SKIP: plugins/alpha/hooks/check.sh:1"; then
+  if grep -q "SILENT SKIP: plugins/alpha/hooks/check.sh:1" <<<"$out"; then
     ok "same-line silent skip fails with file:line"
   else
     fail "expected SILENT SKIP with file:line, got: $out"
@@ -96,7 +96,7 @@ command -v gh >/dev/null 2>&1 || exit 0'
 if out="$(run_check "$f" 2>&1)"; then
   fail "annotation should not sanction a later guard, got success: $out"
 else
-  if echo "$out" | grep -q "check.sh:4"; then
+  if grep -q "check.sh:4" <<<"$out"; then
     ok "annotation does not leak past intervening code"
   else
     fail "expected only line 4 flagged, got: $out"
@@ -122,7 +122,7 @@ fi'
 if out="$(run_check "$f" 2>&1)"; then
   fail "silent block skip should fail, got success: $out"
 else
-  if echo "$out" | grep -q "silent block skip"; then
+  if grep -q "silent block skip" <<<"$out"; then
     ok "silent block skip fails"
   else
     fail "expected silent block skip message, got: $out"
@@ -141,7 +141,7 @@ fi'
 if out="$(run_check "$f" 2>&1)"; then
   fail "block skip with bare stderr notice should fail, got success: $out"
 else
-  if echo "$out" | grep -q "silent block skip"; then
+  if grep -q "silent block skip" <<<"$out"; then
     ok "block skip with bare stderr notice fails"
   else
     fail "expected silent block skip message, got: $out"
@@ -221,8 +221,8 @@ script_test_file "$f" demo.test.sh 'ok "skip historical proof (deadbeef not in t
 if out="$(run_check "$f" 2>&1)"; then
   fail "ok skip-scored-as-pass should fail, got success: $out"
 else
-  if echo "$out" | grep -q "SILENT SKIP: scripts/demo.test.sh:1" &&
-    echo "$out" | grep -q "skip scored as PASS"; then
+  if grep -q "SILENT SKIP: scripts/demo.test.sh:1" <<<"$out" &&
+    grep -q "skip scored as PASS" <<<"$out"; then
     ok "scripts/*.test.sh ok \"skip ...\" fails with file:line"
   else
     fail "expected SILENT SKIP skip-scored-as-pass, got: $out"
@@ -236,8 +236,8 @@ script_test_file "$f" demo.test.sh 'if anchor_missing; then ok "skip historical 
 if out="$(run_check "$f" 2>&1)"; then
   fail "inline then ok skip should fail, got success: $out"
 else
-  if echo "$out" | grep -q "SILENT SKIP: scripts/demo.test.sh:1" &&
-    echo "$out" | grep -q "skip scored as PASS"; then
+  if grep -q "SILENT SKIP: scripts/demo.test.sh:1" <<<"$out" &&
+    grep -q "skip scored as PASS" <<<"$out"; then
     ok "inline then ok \"skip ...\" fails with file:line"
   else
     fail "expected SILENT SKIP for inline then ok skip, got: $out"
