@@ -193,7 +193,12 @@ saw, in order, with the correlation keys that were present. The log registers no
 `PostToolUse` row (both fire on every tool call); tool activity arrives as one
 `PostToolUseFailure` line per failed call and one `PostToolBatch` line per batch. The batch line
 is not a per-call record: it carries the first `tool_name` and `tool_use_id` the payload text
-holds, normally the first call's.
+holds, normally the first call's. Claim: `PostToolBatch` fires once after every call in a batch
+resolves, with a `tool_calls` array whose entries carry `tool_name`, `tool_input`, `tool_use_id`
+and `tool_response` in that order. Basis: <https://code.claude.com/docs/en/hooks#posttoolbatch>
+("PostToolBatch input"). Verified 2026-09-26 against that page as fetched that day; recheck on
+each `/claude-ops:changelog` ingest whose notes touch hooks, or when a batch line's `tool_name`
+stops matching the transcript's first call of that batch.
 
 ```bash
 jq -sr '.[] | select(.source == "event-log")
