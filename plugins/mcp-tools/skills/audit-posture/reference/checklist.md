@@ -38,7 +38,9 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
 |---|---|---|
 | `floating-unversioned`, `floating-tag` | FAIL | WARN |
 | `floating-range`, `mutable-tag`, `git-ref` | WARN | WARN |
+| `unparsed` | WARN | WARN |
 | `exact`, `digest`, `git-commit` | PASS | PASS |
+| `local-path`, `not-a-package` | n/a | n/a |
 
 - A package runner resolves the spec each time the server starts, so an unversioned or
   `@latest` spec runs whatever the registry serves that day. That is the highest-value single
@@ -48,6 +50,12 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
 - `local` launchers (`pin` = `local-path` or `not-a-package`) and `remote` rows (`pin` = `n/a`)
   are `n/a` for P1. Name a `local-path` row in the details so the operator knows the code on disk
   is theirs to track.
+- `unparsed` means the script could not isolate a package spec without risking printing an
+  argument that may be a secret, so the package column reads `-`. It is WARN because the pin is
+  unknown; ask the operator to check that entry by hand.
+- `wrapped` appears on a `local` row whose arguments still name a package runner or container
+  tool after the script unwrapped the shells it knows (`bash -c`, `cmd /c`, `env`,
+  `pwsh -Command`). It is WARN because a floating runner may sit behind the wrapper.
 
 ## P2 Local stdio where the vendor offers a remote endpoint
 
