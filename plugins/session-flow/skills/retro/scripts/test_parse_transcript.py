@@ -550,6 +550,7 @@ def test_unreadable_unrelated_transcript_is_skipped(tmp_path, monkeypatch):
 
     monkeypatch.setattr(Path, "read_text", read_text)
     assert module._scan_project(tmp_path, ["sid-chain"], "topic") == (1, [])
+    assert module._scan_project(tmp_path, ["sid-gone"], None) == (2, [])
 
 
 def test_chain_from_scopes_available_to_the_handoff_topic(tmp_path):

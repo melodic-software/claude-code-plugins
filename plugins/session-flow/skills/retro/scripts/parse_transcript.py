@@ -616,7 +616,10 @@ def _scan_project(
     others: list[Path] = []
     for path in paths:
         if path.stem in requested:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue  # already reported per session by parse_one_session
             chained[path.stem] = set(UUID_RE.findall(text))
         else:
             others.append(path)
