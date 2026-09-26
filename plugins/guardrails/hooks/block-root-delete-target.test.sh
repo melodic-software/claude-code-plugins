@@ -729,7 +729,17 @@ expect_both 'sudo rm -rf $X blocks' 2 --command 'sudo rm -rf $X'
 expect_both "rm -rf '\$X' blocks (declared overblock)" 2 --command "rm -rf '\$X'"
 expect_both 'rm -rf "$X/build" allowed' 0 --command 'rm -rf "$X/build"'
 expect_both 'rm -rf "${X:?}/" allowed (SC2115 idiom)' 0 --command 'rm -rf "${X:?}/"'
-expect_both 'rm -rf "${X?}" allowed' 0 --command 'rm -rf "${X?}"'
+# Only `${NAME:?...}` aborts on an empty value as well as an unset one, so it
+# is the one whole-operand `${...}` form that passes. Every other form, and an
+# operand built from expansions alone, is refused.
+expect_both 'rm -rf "${X:?unset}/" allowed' 0 --command 'rm -rf "${X:?unset}/"'
+expect_both 'rm -rf "${X?}" blocks (empty passes ?)' 2 --command 'rm -rf "${X?}"'
+expect_both 'rm -rf "${X?}/"* blocks' 2 --command 'rm -rf "${X?}/"*'
+expect_both 'rm -rf "${X%/}" blocks' 2 --command 'rm -rf "${X%/}"'
+expect_both 'rm -rf "${!X}" blocks' 2 --command 'rm -rf "${!X}"'
+expect_both 'rm -rf "${X:1}" blocks' 2 --command 'rm -rf "${X:1}"'
+expect_both 'rm -rf "$X$Y" blocks (expansions only)' 2 --command 'rm -rf "$X$Y"'
+expect_both 'rm -rf "${X:?}${Y}" blocks' 2 --command 'rm -rf "${X:?}${Y}"'
 
 # The tree cases pass the checkout's own toplevel as the payload cwd and use
 # relative operands, so an allow is proof of the TREE arm only if the checkout
@@ -794,6 +804,30 @@ expect_both 'tree: cd into the checkout then a relative delete allowed' 0 "${RDT
 # and the guard does not assume the cd succeeded.
 expect_both 'tree: cd into a subdirectory then ../x blocks (declared overblock)' 2 "${RDT_CWD[@]}" \
   --command 'cd plugins && rm -rf ../x'
+# The same overblock for a cd inside a subshell, which cannot move the parent.
+expect_both 'tree: a subshell cd .. then a delete blocks (declared overblock)' 2 "${RDT_CWD[@]}" \
+  --command '(cd ..) ; rm -rf build'
+# CDPATH can send a relative cd anywhere, so a relative delete after one is
+# left alone; a cd spelled with ./ ignores CDPATH and is still followed.
+expect_both 'cdpath: an inline CDPATH prefix leaves the delete alone' 0 "${RDT_CWD[@]}" \
+  --command 'CDPATH=/opt cd sub && rm -rf ../y'
+expect_both 'cdpath: a CDPATH assignment segment leaves the delete alone' 0 "${RDT_CWD[@]}" \
+  --command 'CDPATH=/opt; cd sub && rm -rf ../y'
+expect_both 'cdpath: export CDPATH leaves the delete alone' 0 "${RDT_CWD[@]}" \
+  --command 'export CDPATH=/opt; cd sub && rm -rf ../y'
+expect_both 'cdpath: cd ./sub ignores CDPATH, so the delete is judged' 2 "${RDT_CWD[@]}" \
+  --command 'CDPATH=/opt cd ./sub && rm -rf ../y'
+# Every directory a cd reaches is judged against the PAYLOAD cwd's tree, never
+# a tree of its own. The stub git answers every directory as its own toplevel,
+# so a per-directory tree would allow this delete in the home directory.
+mkdir -p "$TEST_TMPDIR/bin-git-any"
+printf '#!/usr/bin/env bash\nd=.\nwhile (($#)); do [[ "$1" == -C ]] && { d="$2"; shift; }; shift; done\nprintf "%%s\\n" "$d"\n' \
+  >"$TEST_TMPDIR/bin-git-any/git"
+chmod +x "$TEST_TMPDIR/bin-git-any/git"
+expect_both 'tree: a cd into another repository is judged against the cwd tree' 2 "${RDT_CWD[@]}" \
+  --command 'cd ~ && rm -rf rdt-x' -- "PATH=$TEST_TMPDIR/bin-git-any:$PATH"
+expect_both 'tree: the stub still allows the cwd tree itself' 0 "${RDT_CWD[@]}" \
+  --command 'rm -rf build' -- "PATH=$TEST_TMPDIR/bin-git-any:$PATH"
 
 # Temp roots: strictly under one is allowed, the root itself and its glob are not.
 expect_both 'temp: a path under /tmp allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf /tmp/rdt-x'
@@ -813,28 +847,42 @@ rdt_pl() {
     MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}'
   fi
 }
-# The scratchpad here is outside temp and tree and does not exist, so the
-# scratchpad arm is the only one that can allow.
+# The scratchpad counts only when it sits strictly under a temp root, so one
+# outside temp (here, nonexistent under /opt) is ignored. Inside temp, the
+# scratchpad itself and its glob are still refused ahead of the temp arm.
 RDT_SP=/opt/rdt-scratch-1
-expect_both 'scratchpad: a path under it allowed' 0 --payload "$(rdt_pl "rm -rf $RDT_SP/x" "$RDT_TOP" "$RDT_SP")"
-expect_both 'scratchpad: a glob under a subdirectory allowed' 0 --payload "$(rdt_pl "rm -rf $RDT_SP/sub/*" "$RDT_TOP" "$RDT_SP")"
-expect_both 'scratchpad: the scratchpad itself blocks' 2 --payload "$(rdt_pl "rm -rf $RDT_SP" "$RDT_TOP" "$RDT_SP")"
-expect_both 'scratchpad: its glob blocks' 2 --payload "$(rdt_pl "rm -rf $RDT_SP/*" "$RDT_TOP" "$RDT_SP")"
-expect_both 'scratchpad: without the field the same path blocks' 2 --payload "$(rdt_pl "rm -rf $RDT_SP/x" "$RDT_TOP")"
-expect_both 'scratchpad: in backslash form allowed' 0 --payload "$(rdt_pl "rm -rf $RDT_SP/x" "$RDT_TOP" "${RDT_SP//\//\\}")"
+expect_both 'scratchpad: one outside temp is ignored' 2 --payload "$(rdt_pl "rm -rf $RDT_SP/x" "$RDT_TOP" "$RDT_SP")"
+expect_both 'scratchpad: one outside temp is ignored (no tree)' 2 --payload "$(rdt_pl "rm -rf $RDT_SP/x" / "$RDT_SP")"
+RDT_SPT="$TEST_TMPDIR/rdt-scratch"
+expect_both 'scratchpad: a path under it allowed' 0 --payload "$(rdt_pl "rm -rf '$RDT_SPT/x'" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'scratchpad: a glob under a subdirectory allowed' 0 --payload "$(rdt_pl "rm -rf '$RDT_SPT/sub/'*" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'scratchpad: the scratchpad itself blocks' 2 --payload "$(rdt_pl "rm -rf '$RDT_SPT'" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'scratchpad: its glob blocks' 2 --payload "$(rdt_pl "rm -rf '$RDT_SPT/'*" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'scratchpad: in backslash form, itself blocks' 2 --payload "$(rdt_pl "rm -rf '$RDT_SPT'" "$RDT_TOP" "${RDT_SPT//\//\\}")"
 
 # A cwd outside any git work tree: only temp and the scratchpad are allowed.
 expect_both 'no tree: a relative operand blocks' 2 --cwd / --command 'rm -rf build'
 expect_both 'no tree: a temp path allowed' 0 --cwd / --command 'rm -rf /tmp/rdt-x'
-expect_both 'no tree: a scratchpad path allowed' 0 --payload "$(rdt_pl 'rm -rf /opt/rdt-scratch-2/x' / /opt/rdt-scratch-2)"
+expect_both 'no tree: a scratchpad path allowed' 0 --payload "$(rdt_pl "rm -rf '$RDT_SPT/x'" / "$RDT_SPT")"
 expect_both 'no tree: a relative cwd skips the arm' 0 --cwd 'relative/dir' --command 'rm -rf ../../x'
+
+# A glob or brace is judged by the literal directory in front of it: outside
+# the allowed roots, it is refused whatever it would match.
+expect_both 'glob: a glob before the last component outside blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /opt/*/x'
+expect_both 'glob: a ? in a middle component blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /opt/rdt-hom?/.claude'
+expect_both 'glob: a bracket in a middle component blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /op[t]/rdt/.claude'
+expect_both 'glob: a brace blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /opt/{a,b}'
+expect_both 'glob: a brace in a middle component blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /opt/{a,b}/.claude'
+expect_both 'glob: a glob under a HOME prefix blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ~/rdt-*/x'
+expect_both 'glob: a glob inside the tree allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf plugins/*/build'
+expect_both 'glob: a brace inside the tree allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf {a,b}/x'
+expect_both 'glob: a glob deeper under a temp root allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf /tmp/rdt-*/x'
+expect_both '~user blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf ~rdtnosuchuser/.claude'
+expect_both '~+ is the working directory, allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf ~+/x'
+expect_both 'a \\?\ device path is read as its drive path' 2 "${RDT_CWD[@]}" --command "rm -rf '\\\\?\\C:\\rdt-x'"
 
 # What the guard cannot place, it leaves alone.
 expect_both 'defer: an expansion other than HOME' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X/build"'
-expect_both 'defer: a glob before the last component' 0 "${RDT_CWD[@]}" --command 'rm -rf /opt/*/x'
-expect_both 'defer: a brace' 0 "${RDT_CWD[@]}" --command 'rm -rf /opt/{a,b}'
-expect_both 'defer: ~user' 0 "${RDT_CWD[@]}" --command 'rm -rf ~bob/x'
-expect_both 'defer: ~+' 0 "${RDT_CWD[@]}" --command 'rm -rf ~+/x'
 expect_both 'defer: a drive-relative path' 0 "${RDT_CWD[@]}" --command 'rm -rf C:rel'
 expect_both 'defer: relative after cd "$d"' 0 "${RDT_CWD[@]}" --command 'cd "$d" && rm -rf ../x'
 expect_both 'defer: relative after cd -' 0 "${RDT_CWD[@]}" --command 'cd - && rm -rf ../x'
@@ -869,6 +917,38 @@ expect_both 'git failing: a relative operand blocks' 2 "${RDT_CWD[@]}" --command
 expect_both 'git failing: a temp path allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf /tmp/rdt-x' \
   -- "PATH=$TEST_TMPDIR/bin-git:$PATH"
 
+# A trailing slash makes rm follow a symlink named last, so such an operand is
+# resolved whole: `link/` and a `*/` glob that matches a link are judged by
+# where the link points. Without the slash the link itself is the target.
+# On Git Bash `winsymlinks:lnk` makes a shortcut the runtime reads as a
+# symlink; its default mode copies instead. The dangling link is made first,
+# so where `ln -s` would copy it fails or makes no link and the group is
+# skipped before anything is copied. The links are unlinked, never recursed.
+rdt_ln="$TEST_TMPDIR/links"
+mkdir -p "$rdt_ln"
+if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$rdt_ln/dang" 2>/dev/null && [[ -L "$rdt_ln/dang" ]]; then
+  expect_both 'symlink: link/ to a path outside blocks' 2 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/dang/'"
+  expect_both 'symlink: link/. to a path outside blocks' 2 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/dang/.'"
+  expect_both 'symlink: the link itself under temp allowed' 0 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/dang'"
+  if MSYS=winsymlinks:lnk ln -s "$RDT_TOP/.." "$rdt_ln/up" 2>/dev/null && [[ -L "$rdt_ln/up" ]]; then
+    expect_both 'symlink: */ matching a link to outside blocks' 2 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/'*/"
+    expect_both 'symlink: * without the slash allowed (links are removed, not followed)' 0 "${RDT_CWD[@]}" \
+      --command "rm -rf '$rdt_ln/'*"
+    rm -f "$rdt_ln/up"
+  else
+    rdt_skip "ln -s made no link to an existing directory (2 cases)"
+  fi
+  rm -f "$rdt_ln/dang"
+else
+  rdt_skip "ln -s makes no real symlink on this host (5 cases)"
+fi
+
+# An unexpected error inside the judgment refuses rather than exiting 1, which
+# the abort boundary would pass. The exported function stands in for any such
+# error: it shadows a builtin the judgment calls and reads an unset variable.
+expect_both 'an error inside the judgment refuses' 2 "${RDT_CWD[@]}" --command 'rm -rf build' \
+  -- 'BASH_FUNC_mapfile%%=() { : "$RDT_NO_SUCH_VARIABLE"; }'
+
 # A host with no `realpath -m` (BSD, macOS) takes the lexical fallback.
 rdt_realpath=$(command -v realpath || true)
 if [[ -n "$rdt_realpath" ]]; then
@@ -881,9 +961,11 @@ if [[ -n "$rdt_realpath" ]]; then
   expect_both 'no realpath -m: a temp path allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf /tmp/rdt-x' "${rdt_rp[@]}"
   expect_both 'no realpath -m: /tmp itself blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /tmp' "${rdt_rp[@]}"
   expect_both 'no realpath -m: the scratchpad arm allows' 0 \
-    --payload "$(rdt_pl "rm -rf $RDT_SP/x" "$RDT_TOP" "$RDT_SP")" "${rdt_rp[@]}"
+    --payload "$(rdt_pl "rm -rf '$RDT_SPT/x'" "$RDT_TOP" "$RDT_SPT")" "${rdt_rp[@]}"
+  expect_both 'no realpath -m: the scratchpad itself blocks' 2 \
+    --payload "$(rdt_pl "rm -rf '$RDT_SPT'" "$RDT_TOP" "$RDT_SPT")" "${rdt_rp[@]}"
 else
-  rdt_skip "no realpath on PATH, so the no-realpath -m stub cannot wrap one (5 cases)"
+  rdt_skip "no realpath on PATH, so the no-realpath -m stub cannot wrap one (6 cases)"
 fi
 
 # Windows: a short (8.3) and a long spelling of one scratchpad are the same
@@ -931,8 +1013,33 @@ rdt_timed_payload() { # <label> <want> <payload>
   done
 }
 rdt_many="rm -rf"
+for ((rdt_d = 0; rdt_d < 500; rdt_d++)); do rdt_many+=" d$rdt_d/x"; done
+rdt_timed_payload '500 distinct in-tree targets are allowed in time' 0 "$(rdt_pl "$rdt_many" "$RDT_TOP")"
+rdt_many="rm -rf"
 for ((rdt_d = 0; ${#rdt_many} < 15900; rdt_d++)); do rdt_many+=" d$rdt_d/x"; done
-rdt_timed_payload 'a 16 KB delete of distinct in-tree targets is allowed in time' 0 "$(rdt_pl "$rdt_many" "$RDT_TOP")"
+rdt_timed_payload 'a 16 KB delete of distinct targets is refused at the target cap' 2 "$(rdt_pl "$rdt_many" "$RDT_TOP")"
+# The shape that outran the hook timeout: 31 directory changes times 126 deep
+# operands, the last one outside. Past 512 directory-and-target pairs the guard
+# refuses at once, and the time is asserted, not just the verdict.
+rdt_big=""
+for ((rdt_d = 0; rdt_d < 31; rdt_d++)); do rdt_big+="cd '$RDT_TOP/nx$rdt_d'; "; done
+rdt_big+="rm -rf"
+for ((rdt_d = 0; rdt_d < 125; rdt_d++)); do rdt_big+=" a$rdt_d/b/c/d/e/f/g/h"; done
+rdt_big+=" C:/Windows/x"
+rdt_t0=${EPOCHREALTIME/./}
+guard_invoke --payload "$(rdt_pl "$rdt_big" "$RDT_TOP")"
+rdt_ms=$(((${EPOCHREALTIME/./} - rdt_t0) / 1000))
+assert_exit "31 cd lines x 126 deep operands is refused" 2 "$GUARD_RC"
+assert_contains "the refusal names the target cap" "$GUARD_ERR" "too many recursive delete targets"
+echo "timing: the cap case took ${rdt_ms} ms"
+if ((rdt_ms < 15000)); then
+  ok "the cap case refuses well under the hook timeout (${rdt_ms} ms)"
+else
+  bad "the cap case took ${rdt_ms} ms"
+fi
+rdt_timed_payload 'the cap case under the dispatcher is refused in time' 2 "$(rdt_pl "$rdt_big" "$RDT_TOP")"
+# An operand carrying a newline cannot be resolved faithfully, so it refuses.
+expect_both 'an operand with a newline blocks' 2 "${RDT_CWD[@]}" --command $'rm -rf "a\nb"'
 rdt_cds=""
 for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_cds+="cd d$rdt_d && "; done
 rdt_timed_payload 'a chain of 40 relative cd lines is refused in time' 2 "$(rdt_pl "${rdt_cds}rm -rf x" "$RDT_TOP")"
@@ -963,8 +1070,8 @@ esac
 # --- 2c. The allow corpus again, with a payload cwd ---------------------------
 # A subset of section 2 re-run from the checkout toplevel. The expected flips
 # are the targets outside the tree and temp: HOME, a drive, a root-level glob,
-# and a UNC path. Everything under the tree, under temp, or unplaceable keeps
-# its allow.
+# a UNC path, and a `~name` prefix. Everything under the tree, under temp, or
+# unplaceable keeps its allow.
 while IFS='|' read -r rdt_want rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "with cwd: $rdt_cmd" "$rdt_want" "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -983,7 +1090,7 @@ done <<'EOF'
 2|rm -rf /_
 0|rm -rf *
 2|rm -rf /c*
-0|rm -rf ~*
+2|rm -rf ~*
 2|rm -rf //server/share/dir
 2|rm -rf \\server\share
 0|bash -c "rm -rf ./build"
