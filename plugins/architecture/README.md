@@ -51,6 +51,11 @@ module path, or a plain citation. Anything no probe could derive stays `unknown`
 rather than becoming a plausible guess, and a repository nobody names produces no
 edge.
 
+A landscape that draws at most two systems or no arrows is reported as thin. The
+report says why and names the tool that answers what it cannot:
+`/architecture:improve` or `/discovery:explore` for how one repository is built
+inside.
+
 The answer is committed, not just printed. `landscape.json` holds the facts and
 edges; `landscape.md` (mermaid `C4Context`) or `landscape.dsl` (Structurizr
 `systemLandscape`) and `portfolio.md` are rendered from it, so two runs on the

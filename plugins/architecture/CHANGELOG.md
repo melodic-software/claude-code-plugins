@@ -3,6 +3,28 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-09-26
+
+### Added
+
+- `render-landscape.sh` prints one summary line on stdout after writing the artifacts:
+  `landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n> drawn_edges=<d>
+  unresolved_edges=<u> thin=<yes|no>`. A landscape is thin when it draws at most two systems or no
+  edges. The artifacts are unchanged byte for byte.
+- `map-landscape`'s closing report gains a `Thin result` line that says why a thin landscape came
+  back thin and names the remedy that fits: the edge-supplying repository first in `--repos`, a
+  larger `--top-external`, `--root` for more nodes, or `/architecture:improve` and
+  `/discovery:explore` when the question was how one repository is built inside.
+- `## Next` routes a thin result to `/discovery:explore`.
+
+### Fixed
+
+- `reference-edges.sh` treats `<owner>/<repository name of the github.com origin remote>` as a
+  self-reference, not only `<owner>/<directory name>`. A worktree or a renamed clone no longer
+  charts its own citations as an edge to a phantom second system.
+- `map-landscape` no longer says `--repos` takes edges from every path. Edges come from the first
+  path.
+
 ## [0.10.1] - 2026-09-25
 
 ### Fixed
