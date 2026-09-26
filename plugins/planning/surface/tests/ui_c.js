@@ -17,17 +17,17 @@ async page => {
   const focused = async () => page.evaluate(() => document.activeElement.id || document.activeElement.tagName);
   const Q_MARK = "❓", R_MARK = "➡️";
   const recHead = async () => page.evaluate(() => { const h = [...document.querySelectorAll("#dscroll section.blk > h4")].find(x => /Recommendation/.test(x.textContent)); return h ? h.textContent : ""; });
-  const openAssumptions = s => {
+  const openAssumptions = s => { // unconfirmed commitments on accepted questions (Q20)
     let n = 0;
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
-      if (!dec || q.archived || !(q.commits || []).length) continue;
-      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)));
+      if (dec !== "accept" || q.archived || !(q.commits || []).length) continue;
+      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
       n += q.commits.filter((c, i) => !cf.has(String(i))).length;
     }
     return n;
   };
-  const open = n => n + (n === 1 ? " assumption open" : " assumptions open");
+  const open = n => n + " to confirm";
   const counter = async () => page.evaluate(() => { const el = document.getElementById("assumeCount"); return el && !el.hidden ? el.textContent : ""; });
   try {
   if (PHASE === 1) {
@@ -38,7 +38,7 @@ async page => {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
 
     // AC26: no watcher has ever polled, so the rung 5 message shows 30 s after load
-    const rung5 = await page.waitForFunction(() => /Claude is not listening: type next in the terminal/.test(document.getElementById("pill").textContent), null, {timeout: 40000}).then(() => true).catch(() => false);
+    const rung5 = await page.waitForFunction(() => /^Not listening: type next$/.test(document.getElementById("pill").textContent), null, {timeout: 40000}).then(() => true).catch(() => false);
     ok("AC26: rung 5 message with no watcher", rung5, await page.textContent("#pill"));
 
     // AC17: number order within a group, whatever the insertion order
@@ -134,7 +134,7 @@ async page => {
     await page.click("main.detail h3"); await page.keyboard.press("a");
     ok("a arms Reconfirm, choice 1, on a stale question", /^1\s*Reconfirm/.test((await armed()).trim()), await armed());
     ok("stale chip in the rail", /Stale/.test(await page.textContent('.qbtn[data-q="P2"]')));
-    ok("upstream-pending dimmed with its chip", await page.$eval('.qbtn[data-q="P3"]', el => el.classList.contains("dim") && /upstream pending/.test(el.textContent)));
+    ok("upstream-pending dimmed with its Waiting on chip", await page.$eval('.qbtn[data-q="P3"]', el => el.classList.contains("dim") && /Waiting on P2/.test(el.textContent)));
     await pick("P1"); await page.click("main.detail h3");
     await page.keyboard.press("n");
     ok("AC16: n goes to the next item needing you (stale P2)", await sel() === "P2", await sel());
@@ -315,9 +315,9 @@ async page => {
   if (PHASE === 4) { // its own server: D1's one event was delivered in 2020 and never handled, and no watcher has polled
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
-    await page.waitForFunction(() => /Waiting on Claude/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
-    const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent}; });
-    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Waiting on Claude: D1. Type next in the terminal" && pill.code === "next" && pill.cls === "pill idle", JSON.stringify(pill));
+    await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
+    const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("claudeLine").textContent}; });
+    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Not listening: type next" && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));

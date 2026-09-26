@@ -77,7 +77,12 @@ grade() { # suite output-file
 }
 
 if command -v playwright-cli >/dev/null 2>&1; then
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX")
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX") || tmp=""
+  # No fixture write or trap before the scratch dir is proven to exist.
+  if [[ -z "$tmp" || ! -d "$tmp" ]]; then
+    echo "FAIL: mktemp gave no scratch dir"
+    exit 1
+  fi
   d="$tmp/d3"
   c="$tmp/c3"
   e="$tmp/e3"
