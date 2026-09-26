@@ -76,6 +76,27 @@ stdout_raw() {
 # Set per suite; the wrappers below PREPEND --index-name so a case that ends in
 # a value-less flag still fails for the reason it names rather than swallowing
 # the injected flag as its value.
+# stderr_raw <expected-exit> <expected-substring> <label> [args...]: the reason
+# a parent reports back is on stderr, so a case about WHICH reason fired reads it.
+stderr_raw() {
+  local expected="$1" needle="$2" label="$3"
+  shift 3
+  local err actual ok=1
+  err="$(bash "$SUT" "$@" 2>&1 >/dev/null)"
+  actual=$?
+  if [[ "$err" != *"$needle"* ]]; then
+    fail "$label: stderr lacked '$needle': $err"
+    ok=0
+  fi
+  if [[ "$actual" -ne "$expected" ]]; then
+    fail "$label: exit was $actual, expected $expected"
+    ok=0
+  fi
+  if [[ "$ok" -eq 1 ]]; then
+    pass "$label"
+  fi
+}
+
 INDEX_NAME=""
 PREFIX=""
 WORK=""
@@ -90,6 +111,12 @@ stdout_has() {
   local expected="$1" needle="$2" label="$3"
   shift 3
   stdout_raw "$expected" "$needle" "$label [$INDEX_NAME]" --index-name "$INDEX_NAME" "$@"
+}
+
+stderr_has() {
+  local expected="$1" needle="$2" label="$3"
+  shift 3
+  stderr_raw "$expected" "$needle" "$label [$INDEX_NAME]" --index-name "$INDEX_NAME" "$@"
 }
 
 # slice <name> — make an empty slice directory and echo its path.
@@ -359,6 +386,181 @@ suite() {
     --newer-than "$old_baseline" --expect-index "$good/$INDEX_NAME" --expect-sidecars 1
   stdout_has 0 'freshness=newer pointer=matches status=usable' "a fully-checked pass reports every field" "$good" \
     --newer-than "$old_baseline" --expect-index "$good/$INDEX_NAME" --expect-sidecars 1
+
+  # --- the in-progress marker -----------------------------------------------
+  # A dispatched agent writes its index skeleton early with the line
+  # `Run status: in progress` and replaces it with `Run status: complete` only in
+  # its final write. An index still carrying the marker is a run that stopped
+  # before that write, however complete its sidecars look.
+
+  local inprog inprog_crlf complete nostatus lookalike trailing skeleton byvalue_inprog
+
+  inprog="$(slice in-progress)"
+  index "$inprog" "# $PREFIX" 'Run status: in progress' "$PREFIX-codebase.md"
+  sidecar "$inprog" "$PREFIX-codebase.md" 'a'
+  run 1 "an index still marked Run status: in progress is unusable" "$inprog"
+  stdout_has 1 'status=unusable' "an in-progress index reports status=unusable" "$inprog"
+  stderr_has 1 'still marked Run status: in progress' \
+    "an in-progress index names the marker reason on stderr" "$inprog"
+
+  inprog_crlf="$(slice in-progress-crlf)"
+  printf '# %s\r\nRun status: in progress\r\n%s-codebase.md\r\n' "$PREFIX" "$PREFIX" \
+    >"$inprog_crlf/$INDEX_NAME"
+  sidecar "$inprog_crlf" "$PREFIX-codebase.md" 'a'
+  run 1 "an in-progress marker with CRLF line endings is unusable" "$inprog_crlf"
+
+  # Trailing whitespace an editor leaves behind does not hide the marker.
+  local inprog_ws
+  inprog_ws="$(slice in-progress-trailing-ws)"
+  printf '# %s\nRun status: in progress \t\r\n%s-codebase.md\n' "$PREFIX" "$PREFIX" \
+    >"$inprog_ws/$INDEX_NAME"
+  sidecar "$inprog_ws" "$PREFIX-codebase.md" 'a'
+  run 1 "an in-progress marker with trailing whitespace is unusable" "$inprog_ws"
+
+  complete="$(slice complete)"
+  index "$complete" "# $PREFIX" 'Run status: complete' "$PREFIX-codebase.md"
+  sidecar "$complete" "$PREFIX-codebase.md" 'a'
+  run 0 "an index marked Run status: complete is usable" "$complete"
+
+  # The marker slot is the first non-blank line after the `# ` title. A
+  # finished index whose restated task or quoted source text later carries the
+  # marker's literal line is still finished.
+  local quoted_later inprog_then_text
+  quoted_later="$(slice complete-then-quoted)"
+  index "$quoted_later" "# $PREFIX" 'Run status: complete' 'The agent writes:' \
+    'Run status: in progress' "$PREFIX-codebase.md"
+  sidecar "$quoted_later" "$PREFIX-codebase.md" 'a'
+  run 0 "a quoted in-progress line after the complete marker does not trigger" "$quoted_later"
+
+  inprog_then_text="$(slice in-progress-then-complete-text)"
+  index "$inprog_then_text" "# $PREFIX" 'Run status: in progress' 'The final write sets:' \
+    'Run status: complete' "$PREFIX-codebase.md"
+  sidecar "$inprog_then_text" "$PREFIX-codebase.md" 'a'
+  run 1 "an in-progress marker followed by later complete text is unusable" "$inprog_then_text"
+
+  # An index with no status line at all is a legacy or inline artifact and
+  # grades exactly as before; `$good` carries none.
+  nostatus="$(slice no-status)"
+  index "$nostatus" "# $PREFIX" "$PREFIX-codebase.md"
+  sidecar "$nostatus" "$PREFIX-codebase.md" 'a'
+  run 0 "an index with no status line is usable" "$nostatus"
+
+  # The marker is a plain line. A bolded copy or a line that merely starts with
+  # the words is prose about the marker, not the marker.
+  lookalike="$(slice lookalike)"
+  index "$lookalike" "# $PREFIX" '**Run status: in progress**' "$PREFIX-codebase.md"
+  sidecar "$lookalike" "$PREFIX-codebase.md" 'a'
+  run 0 "a bolded look-alike of the marker does not trigger" "$lookalike"
+
+  trailing="$(slice trailing)"
+  index "$trailing" "# $PREFIX" 'Run status: in progress later' "$PREFIX-codebase.md"
+  sidecar "$trailing" "$PREFIX-codebase.md" 'a'
+  run 0 "a marker line with trailing words does not trigger" "$trailing"
+
+  local until_done
+  until_done="$(slice until-done)"
+  index "$until_done" "# $PREFIX" 'Run status: in progress until done' "$PREFIX-codebase.md"
+  sidecar "$until_done" "$PREFIX-codebase.md" 'a'
+  run 0 "a slot line with words after the marker does not trigger" "$until_done"
+
+  # slotted <expected-exit> <label> <slice-name> <printf-format>: write the
+  # index from a printf format (so a case can carry a BOM, a tab or a CR), give
+  # it one sidecar, and grade it. `%s` in the format is the family prefix.
+  # `--` keeps a format that opens with `---` from being read as an option,
+  # which would write an empty index. A refuse case also asserts the marker
+  # reason, so an exit 1 for any other cause (an empty index, no sidecar)
+  # cannot pass for a slot read.
+  slotted() {
+    local expected="$1" label="$2" dir
+    dir="$(slice "$3")"
+    # shellcheck disable=SC2059
+    printf -- "$4" "$PREFIX" "$PREFIX" >"$dir/$INDEX_NAME"
+    sidecar "$dir" "$PREFIX-codebase.md" 'a'
+    run "$expected" "$label" "$dir"
+    if [[ "$expected" -eq 1 ]]; then
+      stderr_has 1 'still marked Run status: in progress' "$label, for the marker reason" "$dir"
+    fi
+  }
+
+  # Only the slot is read. With no marker, the literal line elsewhere is text.
+  slotted 0 "no marker, the in-progress line quoted in the restated task, is usable" \
+    quoted-no-marker '# %s\n\nTask: the agent writes\nRun status: in progress\n%s-codebase.md\n'
+  # shellcheck disable=SC2016
+  slotted 0 "no marker, the in-progress line inside a fence, is usable" \
+    fenced-no-marker '# %s\n\n```text\nRun status: in progress\n```\n%s-codebase.md\n'
+  # A `# ` line inside a fence is a shell comment, not the title, so the line
+  # after it is not the slot.
+  # shellcheck disable=SC2016
+  slotted 0 "a hash line inside a backtick fence is not the title" \
+    fenced-hash-backtick '```sh\n# %s\nRun status: in progress\n```\n%s-codebase.md\n'
+  slotted 0 "a hash line inside a tilde fence is not the title" \
+    fenced-hash-tilde '~~~sh\n# %s\nRun status: in progress\n~~~\n%s-codebase.md\n'
+  slotted 0 "complete in the slot with a later in-progress quote is usable" \
+    complete-slot-quoted '# %s\nRun status: complete\n\nRun status: in progress\n%s-codebase.md\n'
+
+  # The slot survives the shapes a real index takes.
+  slotted 1 "front matter, then the title, then the marker, is unusable" \
+    frontmatter-marker '---\nabstract: one line\n---\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "a BOM before the title, then the marker, is unusable" \
+    bom-marker '\357\273\277# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "a blank line between the title and the marker is unusable" \
+    blank-then-marker '# %s\n\n   \nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "a CRLF title and marker are unusable" \
+    crlf-slot '# %s\r\n\r\nRun status: in progress\r\n%s-codebase.md\r\n'
+
+  # Spelling drift in the marker still reads as the marker.
+  slotted 1 "the marker in other case is unusable" \
+    drift-case '# %s\nrun status: IN PROGRESS\n%s-codebase.md\n'
+  slotted 1 "the marker with doubled spaces is unusable" \
+    drift-spaces '# %s\nRun  status:  in progress\n%s-codebase.md\n'
+  slotted 1 "the marker with a tab after the colon is unusable" \
+    drift-tab '# %s\nRun status:\tin progress\n%s-codebase.md\n'
+  slotted 1 "the marker spelled in-progress is unusable" \
+    drift-hyphen '# %s\nRun status: in-progress\n%s-codebase.md\n'
+  slotted 1 "the marker spelled in_progress is unusable" \
+    drift-underscore '# %s\nRun status: in_progress\n%s-codebase.md\n'
+
+  # A closing fence uses the opening fence's character and is at least as
+  # long (CommonMark). A tilde line inside a backtick fence closes nothing.
+  # shellcheck disable=SC2016
+  slotted 1 "a tilde line does not close a backtick fence" \
+    fence-mixed-close '```\n~~~\n```\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  # shellcheck disable=SC2016
+  slotted 1 "a shorter backtick line does not close a longer fence" \
+    fence-short-close '````\n```\n# not a title\n````\n# %s\nRun status: in progress\n%s-codebase.md\n'
+
+  # Line 1 `---` opens front matter only when a `---` or `...` closer exists
+  # and every line between is YAML-shaped. Otherwise it is a horizontal rule
+  # and the slot is read from line 1.
+  slotted 1 "an unclosed front-matter opener is a rule, and the marker counts" \
+    fm-unclosed '---\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "an unclosed opener with a key line is a rule, and the marker counts" \
+    fm-unclosed-title '---\ntitle: x\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 1 "front matter closed with dots, then the marker, is unusable" \
+    fm-dots-close '---\ntitle: x\n...\n# %s\nRun status: in progress\n%s-codebase.md\n'
+  slotted 0 "a rule-bounded block holding a non-YAML line is not front matter" \
+    hr-false '---\n# %s\nRun status: complete\n%s-codebase.md\n\n---\n# Appendix\nRun status: in progress\n'
+  slotted 0 "a hash line inside real front matter is a YAML comment, not the title" \
+    fm-title-inside '---\n# %s\nRun status: in progress\n---\n# Title\nRun status: complete\n%s-codebase.md\n'
+  slotted 1 "front matter with a comment line, then the title and the marker, is unusable" \
+    fm-title-inside-ip '---\ntitle: x\n# not a title\n---\n# %s\nRun status: in progress\n%s-codebase.md\n'
+
+  # A bare skeleton: the run wrote its marker and stopped before planning any
+  # sidecar. The marker reason is the one reported, not the no-sidecar one.
+  skeleton="$(slice skeleton)"
+  index "$skeleton" "# $PREFIX" 'Run status: in progress'
+  run 1 "a bare in-progress skeleton is unusable" "$skeleton"
+  stderr_has 1 'still marked Run status: in progress' \
+    "a bare skeleton reports the in-progress reason" "$skeleton"
+
+  # A by-value body still marked in progress is a partial run however it
+  # reached the disk.
+  byvalue_inprog="$(slice by-value-in-progress)"
+  index "$byvalue_inprog" "# $PREFIX: recovered by value" 'Run status: in progress' \
+    "| codebase | [$PREFIX-codebase.md]($PREFIX-codebase.md#codebase) |"
+  sidecar "$byvalue_inprog" "$PREFIX-codebase.md" '---' 'section: codebase' '---'
+  run 1 "a by-value body still marked in progress is unusable" "$byvalue_inprog" \
+    --newer-than "$old_baseline" --expect-index "$byvalue_inprog/$INDEX_NAME" --expect-sidecars 1
 }
 
 suite EXPLORE.md
