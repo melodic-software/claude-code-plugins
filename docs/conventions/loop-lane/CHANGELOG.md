@@ -5,6 +5,18 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [9.2.0] - 2026-09-26
+
+Additive, minor. New §7 documents how the attended operator steers a lane through GitHub state. No
+topology, escalation-contract, tier-vocabulary or loop-layer invariant changed.
+
+- **§7 gives the `gh` commands** to read a lane's telemetry, skip an issue (human-gated role label
+  plus a plain operator comment), and hold a PR (`do-not-merge`, in §2's freshness, hold, explain
+  order).
+- **§7 states two gaps.** No GitHub state pauses or stops a lane: `paused_until` is lane-written
+  liveness, and a hand-edited value trips the instance-collision stop. Stopping is
+  `/claude-ops:lanes stop` on the lane's host.
+
 ## [9.1.0] - 2026-08-28
 
 Additive, minor. §6 replaces an unbacked conformance claim with the name of a real check. No
