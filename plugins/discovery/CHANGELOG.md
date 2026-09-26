@@ -12,7 +12,9 @@
 - **`research`:** outcome-gate criterion 13, run-owned with a script verdict:
   `scripts/check-source-applicability.py <slice>` derives each source's standing from its fields,
   fails any stored label that disagrees, and exits 0 / 1 / 2. It applies to every run with claims,
-  inline included, and the parent re-runs it post-dispatch and on the by-value path.
+  inline included, and the parent re-runs it post-dispatch and on the by-value path. It matches
+  `RESEARCH-*.md` sidecars case-sensitively on every OS, so the lowercase `research-checklist.md`
+  ledger in the same slice is never read as a sidecar, and it needs no Python 3.12 glob flag.
 - **`research`:** criterion 12's joint-inference check runs the variable, population, era and
   scenario checks on every cited source. The scenario check asks whether a source describes the
   claim's specific situation or only the general mechanism; a general-mechanism source is recorded
