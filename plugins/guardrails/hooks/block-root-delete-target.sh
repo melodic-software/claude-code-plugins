@@ -78,7 +78,7 @@
 #     hazard through the other shell and are NOT covered, for any of the target
 #     classes below. The guard exits on any tool_name other than Bash, which
 #     also keeps it out of the shared PowerShell classifier and its sink
-#     attempt budget. Tracked by a separate GitHub issue.
+#     attempt budget. A separate GitHub issue is to be filed for it.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
@@ -98,7 +98,8 @@
 #     `pushd`, `env -C` or `sudo -D` adds a directory the delete may run from;
 #     `cd "$d"`, `cd -`, `popd`, `pushd +N`, a login shell (`su -`, `su -l`,
 #     `runuser -l`, `sudo -i`) and a CDPATH-resolved relative `cd` are not
-#     followed, and a relative operand after one is left alone. A literal
+#     followed, and a relative operand after one is left alone. `builtin cd`
+#     is not seen at all, because `builtin` is not in the launcher table. A literal
 #     directory is collapsed lexically, so `cd link/..` is read as `cd .`.
 #   * A relative operand must stay inside from EVERY directory the command may
 #     run it from, because the guard does not assume a `cd` succeeded. So
@@ -1131,7 +1132,9 @@ rdt_winmap_all() {
 # ancestor of <path>, and the tail below it.
 rdt_split_existing() {
   local __rs_a="$3" __rs_r=""
-  while [[ -n "$__rs_a" && ! -e "$__rs_a" && "$__rs_a" == */* ]]; do
+  # Stops at a root: an unmapped drive (`Q:/`) never exists, and stripping it
+  # again would give `Q:` back and loop forever.
+  while [[ -n "$__rs_a" && ! -e "$__rs_a" && "$__rs_a" == */* && "$__rs_a" != / && ! "$__rs_a" =~ ^[A-Za-z]:/$ ]]; do
     __rs_r="/${__rs_a##*/}$__rs_r"
     __rs_a="${__rs_a%/*}"
     [[ -z "$__rs_a" ]] && __rs_a=/
@@ -1157,7 +1160,7 @@ rdt_tree_to() {
   if [[ "$d" == //* && "$d" != ///* ]]; then
     d=""
   else
-    while [[ -n "$d" && ! -d "$d" && "$d" == */* ]]; do
+    while [[ -n "$d" && ! -d "$d" && "$d" == */* && "$d" != / && ! "$d" =~ ^[A-Za-z]:/$ ]]; do
       d="${d%/*}"
       [[ -z "$d" ]] && d=/
       [[ "$d" =~ ^[A-Za-z]:$ ]] && d="$d/"

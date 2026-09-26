@@ -938,6 +938,27 @@ for ((rdt_d = 0; rdt_d < 40; rdt_d++)); do rdt_cds+="cd d$rdt_d && "; done
 rdt_timed_payload 'a chain of 40 relative cd lines is refused in time' 2 "$(rdt_pl "${rdt_cds}rm -rf x" "$RDT_TOP")"
 guard_invoke --payload "$(rdt_pl "${rdt_cds}rm -rf x" "$RDT_TOP")"
 assert_contains "the cd chain refusal names the directory cap" "$GUARD_ERR" "too many directory changes"
+# An unmapped drive never exists, so a walk up to the nearest existing
+# directory must stop at its root rather than spin until the hook timeout.
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32)
+  rdt_free=""
+  for rdt_l in Q R S T U V W X Y Z; do
+    [[ -e "$rdt_l:/" ]] || {
+      rdt_free="$rdt_l"
+      break
+    }
+  done
+  if [[ -n "$rdt_free" ]]; then
+    rdt_timed_payload 'an unmapped drive target is refused in time' 2 "$(rdt_pl "rm -rf $rdt_free:/rdt-x" "$RDT_TOP")"
+    rdt_timed_payload 'a cd to an unmapped drive then a delete is refused in time' 2 \
+      "$(rdt_pl "cd $rdt_free:/ && rm -rf x" "$RDT_TOP")"
+  else
+    rdt_skip "every drive letter Q to Z is mapped (2 cases)"
+  fi
+  ;;
+*) rdt_skip "unmapped drive cases need a Windows host (2 cases)" ;;
+esac
 
 # --- 2c. The allow corpus again, with a payload cwd ---------------------------
 # A subset of section 2 re-run from the checkout toplevel. The expected flips
