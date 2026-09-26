@@ -290,6 +290,23 @@ class TestExportBrief(SessionCase):
         self.assertIn("Off the chosen path.", scope)
 
 
+class TestConfirmedInTheTerminal(SessionCase):
+    def test_commits_confirmed_by_claude_count_as_confirmed(self):
+        qs = [
+            question(
+                "Q1",
+                commits=["One writer only", "No network"],
+                commitsConfirmed=[{"index": 1, "reason": "said in chat", "at": AT}],
+            )
+        ]
+        self.session(qs, [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")])
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- 2 commitments confirmed; 0 unconfirmed", brief)
+        self.assertIn("- No network: confirmed on Q1", brief)
+        [row] = register_rows(self.export("ledger"))
+        self.assertIn("confirmed: One writer only; No network", row)
+
+
 class TestExportReport(SessionCase):
     def test_report_is_self_contained_html(self):
         svg = "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"

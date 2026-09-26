@@ -149,6 +149,20 @@
         "recommendation": {"type": "string"},
         "basis": {"type": "string"},
         "commits": {"type": "array", "items": {"type": "string"}},
+        "commitsConfirmed": {
+          "description": "Commitments confirmed outside the page, written by the confirm-commitments op, one entry per commitment index.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "reason", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "index": {"type": "integer"},
+              "reason": {"type": "string"},
+              "at": {"type": "string"}
+            }
+          }
+        },
         "alternatives": {"type": "array", "items": {"$ref": "#/$defs/alternative"}},
         "dependsOn": {"type": "array", "items": {"type": "string"}},
         "followUpOf": {"type": "string"},

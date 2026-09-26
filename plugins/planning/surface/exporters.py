@@ -82,9 +82,10 @@ def latest_decision(q, responses):
 
 
 def commitments(q, events):
-    """(confirmed, unconfirmed) commitment texts; a live `confirm` event ticks one by index."""
+    """(confirmed, unconfirmed) commitment texts; a live `confirm` event ticks one by index, and
+    so does a `commitsConfirmed` record from the confirm-commitments op."""
     commits = q.get("commits") or []
-    ticked = set()
+    ticked = {c.get("index") for c in q.get("commitsConfirmed") or []}
     for e in events:
         if (
             e.get("id") == q["id"]

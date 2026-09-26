@@ -802,6 +802,50 @@ class TestClaudeActivity(DirCase):
             ["Research returned", "Replied on Q1"],
         )
 
+    def test_confirm_commitments_records_each_index_once(self):
+        doc = base_doc()
+        doc["questions"][2]["commits"] = ["First", "Second", "Third"]
+        self.write_doc(doc)
+        self.apply(
+            {"op": "confirm-commitments", "id": "Q1", "reason": "Said so in chat"}
+        )
+        [c] = self.q("Q1")["commitsConfirmed"]
+        self.assertEqual((c["index"], c["reason"]), (0, "Said so in chat"))
+        self.assertTrue(c["at"])
+        self.assertEqual(self.q("Q1")["history"][-1]["by"], "claude")
+        self.assertEqual(
+            (self.entries()[-1]["text"], self.entries()[-1]["ids"]),
+            ("Confirmed 1 commitment on Q1: Said so in chat", ["Q1"]),
+        )
+        self.apply(
+            {
+                "op": "confirm-commitments",
+                "id": "Q3",
+                "indices": [2, 0, 2],
+                "reason": "r",
+            }
+        )
+        self.assertEqual([c["index"] for c in self.q("Q3")["commitsConfirmed"]], [0, 2])
+        self.assertEqual(self.entries()[-1]["text"], "Confirmed 2 commitments on Q3: r")
+        self.apply({"op": "confirm-commitments", "id": "Q3", "reason": "all now"})
+        confirmed = self.q("Q3")["commitsConfirmed"]
+        self.assertEqual([c["index"] for c in confirmed], [0, 1, 2])
+        self.assertEqual([c["reason"] for c in confirmed], ["r", "all now", "r"])
+        self.assertIsNone(self.q("Q3").get("contentRev"))
+
+    def test_confirm_commitments_refusals(self):
+        for op in (
+            {"id": "Q9", "reason": "r"},
+            {"id": "Q1", "indices": [1], "reason": "r"},
+            {"id": "Q1", "indices": [-1], "reason": "r"},
+            {"id": "Q1", "indices": [], "reason": "r"},
+            {"id": "Q1", "reason": " "},
+            {"id": "Q1"},
+            {"id": "Q2", "reason": "r"},
+        ):
+            with self.subTest(op=op):
+                self.refused({"op": "confirm-commitments", **op})
+
     def test_activity_refusals(self):
         self.refused({"op": "activity", "text": "x", "ids": ["Q9"]})
         self.refused({"op": "activity", "text": " "})

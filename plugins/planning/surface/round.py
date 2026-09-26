@@ -86,6 +86,7 @@ LOGGED_OPS = {
     "record-terminal",
     "note-reply",
     "wait",
+    "confirm-commitments",
 }
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
@@ -562,6 +563,33 @@ def op_wait(d, doc, a):
     return [q], msg
 
 
+def op_confirm_commitments(d, doc, a):
+    """Record commitments the user confirmed outside the page; an index keeps its first record."""
+    q = find(doc, a.id)
+    reason = (a.reason or "").strip()
+    if not reason:
+        sys.exit(f"refused: confirm-commitments on {a.id} needs a reason")
+    n = len(q.get("commits") or [])
+    if not n:
+        sys.exit(f"refused: {a.id} has no commitments to confirm")
+    wanted = sorted(set(range(n) if a.indices is None else a.indices))
+    bad = [i for i in wanted if not 0 <= i < n]
+    if bad or not wanted:
+        sys.exit(
+            f"refused: {a.id} commitment indices must be 0 to {n - 1}, got {bad or '[]'}"
+        )
+    at = now()
+    kept = {c["index"]: c for c in q.get("commitsConfirmed") or []}
+    for i in wanted:
+        kept.setdefault(i, {"index": i, "reason": reason, "at": at})
+    q["commitsConfirmed"] = [kept[i] for i in sorted(kept)]
+    what = f"{len(wanted)} commitment{'s' if len(wanted) != 1 else ''}"
+    q.setdefault("history", []).append(
+        {"at": at, "by": "claude", "text": f"Confirmed {what}: {reason}"}
+    )
+    return [q], f"confirmed {what} on {a.id}: {reason}"
+
+
 def op_activity(d, doc, a):
     text = (a.text or "").strip()
     if not text:
@@ -718,6 +746,10 @@ OP_ARGS = {
     "set-status": (op_set_status, {"text": None, "clear": False}),
     "wait": (op_wait, {"id": None, "waitsOn": None, "by": None, "clear": False}),
     "activity": (op_activity, {"text": None, "ids": None}),
+    "confirm-commitments": (
+        op_confirm_commitments,
+        {"id": None, "indices": None, "reason": None},
+    ),
 }
 
 

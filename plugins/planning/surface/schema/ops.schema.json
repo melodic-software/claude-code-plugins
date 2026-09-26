@@ -24,7 +24,8 @@
           {"$ref": "#/$defs/record-terminal"},
           {"$ref": "#/$defs/set-status"},
           {"$ref": "#/$defs/wait"},
-          {"$ref": "#/$defs/activity"}
+          {"$ref": "#/$defs/activity"},
+          {"$ref": "#/$defs/confirm-commitments"}
         ]
       }
     }
@@ -210,6 +211,18 @@
         "op": {"enum": ["activity"]},
         "text": {"type": "string"},
         "ids": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "confirm-commitments": {
+      "description": "Record that the user confirmed commitments of question `id` outside the page, such as in the terminal. `indices` are commitment indices (all when absent); `reason` says how they were confirmed. An index already confirmed keeps its first record.",
+      "type": "object",
+      "required": ["op", "id", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["confirm-commitments"]},
+        "id": {"type": "string"},
+        "indices": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
+        "reason": {"type": "string"}
       }
     }
   }
