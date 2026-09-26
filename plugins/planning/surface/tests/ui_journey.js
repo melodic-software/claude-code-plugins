@@ -147,6 +147,20 @@ async page => { // AC27: the user journey J1 to J15 in order on one page, no rel
     await page.click('#toConfirm [data-cq="Q1"][data-confirm="0"]'); await page.waitForTimeout(700);
     const ev = await events(), cf = ev[ev.length - 1];
     ok("AC23: a tick posts one confirm and lowers the count", ev.length === n0 + 1 && cf.kind === "confirm" && cf.id === "Q1" && cf.alt === "0" && (await text("#assumeCount")) === "4 to confirm", JSON.stringify(cf) + " " + await text("#assumeCount"));
+    await page.focus("#sc-Q6-1"); await page.evaluate(() => { document.getElementById("sc-Q6-1").__mark = 1; });
+    await post({kind: "note", text: "A note while a tick has focus"}); await page.waitForTimeout(900);
+    ok("UX1: a state push keeps the focused commitment tick", await page.evaluate(() => { const t = document.getElementById("sc-Q6-1"); return !!t && t.__mark === 1 && document.activeElement === t; }));
+
+    // AC5 and AC6: the Activity panel from the Claude line, the l key and the sheet
+    await page.click("#claudeLine"); await page.waitForTimeout(300);
+    const all = (await state()).questions.activity;
+    const panel = await page.evaluate(() => { const lis = [...document.querySelectorAll("#fbody .act-list li")]; return {open: document.getElementById("fly").classList.contains("open"), title: document.getElementById("flyTitle").textContent, first: lis.length ? lis[0].innerText : "", times: lis.filter(li => li.querySelector("time")).length, refs: document.querySelectorAll("#fbody .act-list .ref[data-q]").length, badge: document.getElementById("actBadge").hidden}; });
+    ok("AC5/AC6: the Claude line opens Activity, newest first with times and question links, and clears the badge", panel.open && panel.title === "Activity" && panel.first.includes(all[all.length - 1].text) && panel.times === all.length && panel.refs > 0 && panel.badge, JSON.stringify(panel).slice(0, 200));
+    await page.click("#flyClose"); await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(200);
+    const byKey = await page.evaluate(() => document.getElementById("fly").classList.contains("open") && document.getElementById("flyTitle").textContent === "Activity");
+    await page.keyboard.press("?"); await page.waitForTimeout(150);
+    ok("AC6: l opens Activity and the shortcut sheet lists it", byKey && /Activity/.test(await page.evaluate(() => document.getElementById("keysBody").innerText)), String(byKey));
+    await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.waitForTimeout(150);
   }
   if (PHASE === 4) {
     await page.waitForTimeout(900); // SSE brings Claude's confirm-commitments and the restatement
@@ -196,6 +210,14 @@ async page => { // AC27: the user journey J1 to J15 in order on one page, no rel
     const ro = await last();
     ok("UX10: Reopen records a reopen", ro.kind === "reopen" && ro.id === "Q7", JSON.stringify(ro));
 
+    // AC16: Accept all per round in the Rounds view carries the kept note
+    await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(200);
+    const rb = await text('[data-acceptround="interview:2"]');
+    await page.click('[data-acceptround="interview:2"]'); await page.waitForTimeout(200);
+    const rd = await page.evaluate(() => document.getElementById("dlg").open ? document.getElementById("dlgBody").innerText : "");
+    ok("AC16: Accept all per round lists Q7 with its kept note", rb === "Accept all (1)" && /Q7/.test(rd) && /Note: My own take/.test(rd), rb + " / " + rd.replace(/\s+/g, " ").slice(0, 160));
+    await page.click("#dlgCancel"); await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(200);
+
     // UX10 offline, then J15 catch-up when the tab becomes visible
     await page.context().setOffline(true);
     await page.evaluate(() => { Object.defineProperty(document, "visibilityState", {configurable: true, get: () => "visible"}); document.dispatchEvent(new Event("visibilitychange")); });
@@ -213,6 +235,10 @@ async page => { // AC27: the user journey J1 to J15 in order on one page, no rel
     // J13 after a new restate, then J14
     await page.click("#sumBtn"); await page.waitForTimeout(300);
     ok("UX10: a new restate resets the summary to unconfirmed", !!(await page.$('[data-understand="confirm"]')) && /Understanding not confirmed yet/.test(await text("#unconfWarn")) && /linked issues in the release notes/.test(await text("#restate")), (await text("#restate")).slice(0, 160));
+    const u0 = (await events()).length;
+    await page.route("**/api/answer", r => r.fulfill({status: 409, contentType: "application/json", body: '{"error": "stale", "contentRev": 9}'}), {times: 1});
+    await page.click('[data-understand="confirm"]'); await page.waitForTimeout(800);
+    ok("AC22: a stale Confirm tells the user the restatement changed and records nothing", /restated the understanding while you read it/.test(await text("#restate")) && (await events()).length === u0, (await text("#restate")).slice(-120));
     await page.click('[data-understand="confirm"]'); await page.waitForTimeout(800);
     const cu = await last();
     ok("AC22: Confirm posts confirm-understanding and the summary reads Confirmed with its time", cu.kind === "confirm-understanding" && cu.alt === "confirm" && cu.contentRev === 2 && /^Confirmed \S/.test(await text("#uDone")) && !(await page.$("#unconfWarn")), JSON.stringify(cu) + " " + await text("#uDone"));

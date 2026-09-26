@@ -53,6 +53,7 @@ header.top{display:grid;gap:8px;border-bottom:1px solid var(--line-strong);paddi
 #pendBtn{color:var(--res)}
 .cline{flex:1;min-width:0;text-align:left;border:0;background:none;padding:2px 0;cursor:pointer;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cline .age{color:var(--faint);font:12px var(--mono);margin-left:6px}
+.cline .age:empty{display:none}
 .notice{display:flex;gap:8px;align-items:center;margin-left:auto;border:1px solid var(--chg);background:var(--chg-soft);border-radius:6px;padding:3px 8px;max-width:55%;white-space:nowrap}
 .notice[hidden]{display:none}
 .notice span{overflow:hidden;text-overflow:ellipsis}
@@ -335,7 +336,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     </div>
     <div class="hrow2">
       <span class="pill offline" id="pill" aria-live="off">Connecting</span>
-      <button class="cline" id="claudeLine" aria-live="polite" title="Open the Activity panel (l)" hidden></button>
+      <button class="cline" id="claudeLine" aria-live="polite" title="Open the Activity panel (l)" hidden><span id="clText"></span><span class="age" id="clAge" aria-hidden="true"></span></button>
       <div class="notice" id="notice" hidden></div>
     </div>
   </header>
@@ -735,8 +736,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
     pill.title = cls === "idle" ? "Claude is not listening: type next in the terminal" : "";
-    const [ct, age] = claudeLine(), cl = $("claudeLine");
-    cl.hidden = !ct; setHtml(cl, esc(ct) + (age ? '<span class="age" aria-hidden="true">' + esc(age) + "</span>" : ""));
+    const [ct, age] = claudeLine(); // text and age update apart, so a new age is never announced
+    $("claudeLine").hidden = !ct;
+    if ($("clText").textContent !== ct) $("clText").textContent = ct;
+    if ($("clAge").textContent !== age) $("clAge").textContent = age;
     renderNotice();
     const na = openAssumptions(), ac = $("assumeCount");
     ac.hidden = !na; ac.textContent = na + " to confirm"; ac.title = na + (na === 1 ? " commitment" : " commitments") + " unconfirmed: open the list";
