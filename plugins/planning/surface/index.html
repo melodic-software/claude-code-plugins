@@ -524,8 +524,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return s;
   }
   const byClaude = (q, i) => (q.commitsConfirmed || []).find(c => String(c.index) === String(i));
-  const accepted = q => { const d = counted(q); return !!d && d.decision === "accept" && stateOf(q) !== "arch"; };
-  function commitRows(){ // commitments carried by accepted questions only
+  const accepted = q => { const d = counted(q); return !!d && ["accept", "own"].includes(d.decision) && stateOf(q) !== "arch"; }; // alt and defer carry none
+  function commitRows(){ // commitments carried by accept (or reconfirmed accept) and own decisions
     const out = [];
     S.doc.questions.slice().sort(byIdCmp).forEach(q => { if (!accepted(q)) return; const cf = confirmed(q); (q.commits || []).forEach((c, i) => out.push({q, i, c, on: cf.has(String(i))})); });
     return out;
@@ -708,7 +708,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function working(){ // what Claude is doing with the user's events, else ""
     if (!S.online) return "";
     const p = pending(), more = p.length > 1 ? " (+" + (p.length - 1) + ")" : "";
-    if (!p.length) return S.listener.state === "reading" ? "Claude is reading" : "";
+    if (!p.length) return ""; // everything handled: the newest entry says more than the watcher's state
     const d = p.find(delivered);
     if (!d) return "Sent to Claude: " + subject(p[0]) + more;
     return stalled() ? "Claude has not handled " + subject(d) + more + " yet" : "Claude is working on " + subject(d) + more;
@@ -996,14 +996,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         '<div class="arow"><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>";
     return '<section class="blk" id="restate"><h4>Shared understanding, restated ' + esc(fmt(r.at)) + "</h4>" + body + foot + "</section>";
   }
-  function cBoxHtml(){
-    const rows = commitRows(); if (!rows.length) return "";
-    const n = rows.filter(r => !r.on).length, ids = [...new Set(rows.map(r => r.q.id))];
+  function cBoxHtml(){ // only what is still to confirm; Claude's confirmations are listed with their reasons below it
+    const all = commitRows(), rows = all.filter(r => !r.on), ids = [...new Set(rows.map(r => r.q.id))];
+    const claude = [...new Set(all.filter(r => byClaude(r.q, r.i)).map(r => r.q))];
+    if (!all.length) return "";
     return '<section class="blk" id="toConfirm"><h4>To confirm</h4><p class="kbd">Things your answers commit you to</p>' + ids.map(id => '<div class="crows"><div>' + refHtml(id) + "</div>" +
-      rows.filter(r => r.q.id === id).map(r => { const k = "sc-" + esc(id) + "-" + r.i, by = byClaude(r.q, r.i);
-        return '<div class="crow' + (r.on ? " ok" : "") + '"><input type="checkbox" id="' + k + '" data-confirm="' + r.i + '" data-cq="' + esc(id) + '"' + (r.on ? " checked" : "") + '><label for="' + k + '">' + inline(r.c) +
-          (by ? ' <span class="kbd">Confirmed by Claude: ' + esc(by.reason) + "</span>" : "") + "</label><span></span></div>"; }).join("") + "</div>").join("") +
-      (n ? '<div class="arow"><button class="act" data-confirmall="1" data-submit="1">Confirm all (' + n + ")</button></div>" : '<p class="empty">All confirmed.</p>') + "</section>";
+      rows.filter(r => r.q.id === id).map(r => { const k = "sc-" + esc(id) + "-" + r.i;
+        return '<div class="crow"><input type="checkbox" id="' + k + '" data-confirm="' + r.i + '" data-cq="' + esc(id) + '"><label for="' + k + '">' + inline(r.c) + "</label><span></span></div>"; }).join("") + "</div>").join("") +
+      (rows.length ? '<div class="arow"><button class="act" data-confirmall="1" data-submit="1">Confirm all (' + rows.length + ")</button></div>" : '<p class="empty">All confirmed.</p>') + "</section>" +
+      (claude.length ? '<p class="kbd" id="byClaude">Confirmed by Claude: ' + claude.map(q => esc(q.id) + " (" + esc(q.commitsConfirmed[0].reason) + ")").join(", ") + "</p>" : "");
   }
   function renderSummary(){ // regions rebuild only when their markup changes
     const el = $("dscroll"), l = S.doc.questions.filter(live).sort(byIdCmp), waits = l.filter(q => stateOf(q) === "wait"), open = l.filter(q => !isAnswered(stateOf(q)) && stateOf(q) !== "wait");
