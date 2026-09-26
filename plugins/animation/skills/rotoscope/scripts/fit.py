@@ -15,7 +15,8 @@ import json
 from pathlib import Path
 
 import measure
-from measure import BRUSH_BIAS, ok, render
+import workdir
+from measure import BRUSH, ok, render
 
 
 def ratio(r):
@@ -55,17 +56,17 @@ def main(argv=None):
     a = ap.parse_args(argv)
     work = a.work.resolve()
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
-    ks = [k for k, *_ in json.load(open(work / 'd/index.json'))['drawings'] if k0 <= k <= k1]
+    ks = [k for k, *_ in json.load(open(workdir.index(work)))['drawings'] if k0 <= k <= k1]
     start = {k: a.start if a.start is not None else
-             json.load(open(work / f'd/d{k:03d}.json')).get('brush', {}).get('bias', BRUSH_BIAS) for k in ks}
+             json.load(open(workdir.trace(work, k))).get('brush', {}).get('bias', BRUSH['bias']) for k in ks}
     tried, cand = {k: {} for k in ks}, dict(start)
-    out = work / 'out' / 'fit'
-    (out / 'rep').mkdir(parents=True, exist_ok=True)
+    out = workdir.out(work, 'fit')
+    workdir.rep(work, 'fit').mkdir(parents=True, exist_ok=True)
     for rnd in range(a.rounds):
         if not cand:
             break
         (work / 'fit-brushes.json').write_text(json.dumps({k: {'bias': b} for k, b in cand.items()}))
-        measure.replicas(work, list(cand), out / 'rep', 'brushes=fit-brushes.json', a.workers)
+        measure.replicas(work, list(cand), workdir.rep(work, 'fit'), 'brushes=fit-brushes.json', a.workers)
         nxt = {}
         for k, b in cand.items():
             tried[k][b] = measure.measure(k, work, out, images=False)
@@ -83,7 +84,7 @@ def main(argv=None):
                      f"{r['ssim_e']:.4f} | {'yes' if ok(r) else 'NO'} | {' '.join(f'{x:.2f}' for x in sorted(tried[k]))} |")
     (out / f'fit-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n')
     print('\n'.join(lines))
-    path = a.out or work / 'overrides.json'
+    path = a.out or workdir.overrides(work)
     doc = json.load(open(path)) if path.exists() else {'overrides': []}
     run = [ks[0]]
     for k in ks[1:] + [None]:

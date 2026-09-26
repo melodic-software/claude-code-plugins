@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import controls  # noqa: E402
 import inkstats  # noqa: E402
 import render  # noqa: E402
+import workdir  # noqa: E402
 
 # Checked statistics, each chosen for what it separates (reference/statistics.md, "Which statistics separate"):
 # straight, rough, offstep and sliver are drawing, timing and carving structure a post filter barely moves; flat
@@ -53,9 +54,9 @@ MAX_SUBSETS = 4096
 
 
 def traces(work):
-    ds = [json.load(open(f)) for f in sorted((work / 'd').glob('d[0-9]*.json'))]
+    ds = [json.load(open(f)) for f in workdir.traces(work)]
     if not ds:
-        sys.exit(f'learn: no traces in {work / "d"}; run the rotoscope extract.py first')
+        sys.exit(f'learn: no traces in {workdir.traces_dir(work)}; run the rotoscope extract.py first')
     tones, common = {}, Counter(tuple(d['levels']) for d in ds).most_common(1)[0][0]   # skip per-shot level overrides
     for d in (d for d in ds if tuple(d['levels']) == common):
         for t in d['tones']:
@@ -172,7 +173,7 @@ def main(argv=None):
         return np.median([r[k] for r in rs if r[k]], 0)
     # palette tolerance = what encoding does to the colours + how far a source excerpt's colours stray from the clip's
     with tempfile.TemporaryDirectory() as tmp:
-        enc = inkstats.measure(str(render.encode(controls.held(a.work, 'src'), 'mp4', 24, Path(tmp) / 'source.mp4')))
+        enc = inkstats.measure(str(render.encode(controls.held(a.work, workdir.src(a.work)), 'mp4', 24, Path(tmp) / 'source.mp4')))
     shift = max(float(np.abs(colour(enc, k) - m[k]).max()) for k in ('ink_rgb', 'paper_rgb'))
     stray = max(float(np.abs(colour([r for j in side for r in parts[j]], k) - m[k]).max())
                 for pair in ps for side in pair for k in ('ink_rgb', 'paper_rgb'))

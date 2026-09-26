@@ -48,8 +48,8 @@ dir, with `--pack` to check it against a style pack).
 
 ## Regression
 
-The shfred0 study is the calibration target: 239 drawings, each within 1.2x its codec-noise floor
-on XOR and at least 0.980 SSIM. Its per-shot override file ships as a fixture (parameters only; the
+The shfred0 study is the calibration target: every drawing within the `measure.py` target (rotoscope
+[`reference/method.md`](skills/rotoscope/reference/method.md), Target). Its per-shot override file ships as a fixture (parameters only; the
 clip and traces are not shipped). With the clip and an empty directory:
 
 ```bash
@@ -57,4 +57,6 @@ uv run --with-requirements plugins/animation/requirements.txt python \
   plugins/animation/skills/rotoscope/scripts/regress.py <shfred0.mp4> <empty work dir>
 ```
 
-It exits 0 only on 239/239.
+It exits 0 only when every drawing passes and the encoded replica passes the woodcut-ink pack.
+`regress.py --synthetic <empty dir>` needs no unshipped input: it renders, encodes and re-traces the
+committed `fixtures/synthetic.js`.

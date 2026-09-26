@@ -24,9 +24,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from measure import paper, render
+from measure import paper, render, workdir
 
-CROP = (500, 400)          # w, h of each panel; three panels side by side stay under 2576 px
+LONG_EDGE = 2576           # the image long-edge limit: reference/method.md, "Reviewing images"
+CROP = (min(500, LONG_EDGE // 3), 400)   # w, h of each panel; three panels side by side stay within LONG_EDGE
 TILE, TILE_BLUR, TILE_MAX = 32, 3, 8
 PAPER_MAX = 5.0            # judgment: the reviewed 239/239 shfred0 replica runs 0.2-5.0
 EDGE = 2
@@ -34,8 +35,8 @@ EDGE = 2
 
 def one(job):
     work, out, k = job
-    d = json.load(open(work / f'd/d{k:03d}.json'))
-    src, rep = cv2.imread(str(work / f'src/d{k:03d}.png')), cv2.imread(str(out / f'rep/d{k:03d}.png'))
+    d = json.load(open(workdir.trace(work, k)))
+    src, rep = cv2.imread(str(workdir.source(work, k))), cv2.imread(str(workdir.drawing(out / 'rep', k)))
     gs, gr = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY), cv2.cvtColor(rep, cv2.COLOR_BGR2GRAY)
     ms, mr = gs < d['T'], gr < d['T']
     red, blue = mr & ~ms, ms & ~mr
@@ -68,7 +69,7 @@ def one(job):
     heat[blue] = (255, 0, 0)
     win = np.s_[y0:y0 + ch, x0:x0 + cw]
     (out / 'crops').mkdir(exist_ok=True)
-    cv2.imwrite(str(out / f'crops/d{k:03d}.png'), np.hstack([src[win], rep[win], heat[win]]))
+    cv2.imwrite(str(workdir.drawing(out / 'crops', k)), np.hstack([src[win], rep[win], heat[win]]))
     flags = [f for f, on in (('blob', blob[1] > 0), ('tone', tile > TILE_MAX), ('paper', pe > PAPER_MAX)) if on]
     return (f"| {k} | {largest[0]} {largest[1]} {largest[2]} | {blob[0]} {blob[1]} | {int((x & border).sum())} | {tile:.1f} | "
             f"{pe:.2f} | {','.join(f'{c:+.2f}' for c in pd)} | ({int(x0)},{int(y0)}) | {' '.join(flags)} |"), bool(flags)
@@ -81,10 +82,10 @@ def main(argv=None):
     ap.add_argument('--only', help='K0-K1')
     a = ap.parse_args(argv)
     work = a.work.resolve()
-    out = work / 'out' / a.tag
+    out = workdir.out(work, a.tag)
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
-    ks = [k for k, *_ in json.load(open(work / 'd/index.json'))['drawings']
-          if k0 <= k <= k1 and (out / f'rep/d{k:03d}.png').exists()]
+    ks = [k for k, *_ in json.load(open(workdir.index(work)))['drawings']
+          if k0 <= k <= k1 and workdir.drawing(out / 'rep', k).exists()]
     if not ks:
         sys.exit(f'review: no rendered drawings in {out / "rep"}' + (f' for {a.only}' if a.only else ''))
     with Pool(render.WORKERS) as p:

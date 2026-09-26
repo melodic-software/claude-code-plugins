@@ -14,12 +14,13 @@ cv.width = ix.w; cv.height = ix.h;
 const cache = new Map();
 const load = k => cache.get(k) || cache.set(k, fetch(`${DIR}/d${String(k).padStart(3, '0')}.json`).then(r => r.json())).get(k);
 
-// Mode (b) defaults (reference/method.md). A drawing's `brush` (from the override file) overrides any key.
+// Mode (b) defaults live in brush.json (read by measure.py and fit.py too; reference/method.md says why).
+// A drawing's `brush` (from the override file) overrides any key.
 //   bias  px of ink added along every T edge (negative thins): a ring of ink.js capsules of width 2|bias| on the contour
 //   blur  gaussian sigma in px over the finished drawing: the source's edge softness (codec + scaling)
 //   grain 0 = off; else paperGrain opacity (uncorrelated grain lowers SSIM, so it stays off for a copy)
 //   tones 0 = two-tone only (T layer in the ink colour)
-export const BRUSH = { bias: 0.12, blur: 0.6, grain: 0, ...JSON.parse(q.get('brush') || '{}') };
+export const BRUSH = { ...await (await fetch('brush.json')).json(), ...JSON.parse(q.get('brush') || '{}') };
 
 function rings(d) {
   const out = [];
@@ -63,7 +64,7 @@ function draw(d) {
     if (isT && b.bias < 0) edgeRing(o, L, b.bias, above);
     above = L.color;
   }
-  if (b.grain) { o.globalAlpha = b.grain; paperGrain(o, cv.width, cv.height, { seed: 999, step: d.k }); o.globalAlpha = 1; }
+  if (b.grain) { o.globalAlpha = b.grain; paperGrain(o, cv.width, cv.height, { step: d.k }); o.globalAlpha = 1; }
   ctx.drawImage(off, 0, 0);
   if (b.blur) gauss(ctx, b.blur);
 }

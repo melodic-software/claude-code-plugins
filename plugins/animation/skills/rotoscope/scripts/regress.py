@@ -32,6 +32,7 @@ EXPECTED = 239   # distinct drawings in shfred0; a decode change that drops one 
 sys.path.insert(0, str(PLUGIN / 'skills/learn-style/scripts'))
 import controls  # noqa: E402
 import inkstats  # noqa: E402
+import workdir  # noqa: E402
 
 
 def empty(work):
@@ -60,13 +61,13 @@ def synthetic(work):
     n = sum(SYN_HOLDS)
     case(f'render.json: fps 24, {n} frames, 480x270, {n / 24} s',
          (meta.get('fps'), meta.get('frames'), meta.get('size'), meta.get('duration')) == (24, n, [480, 270], n / 24))
-    case(f'{n} fNNNN.png frames', len(list(frames.glob('f*.png'))) == n)
+    case(f'{n} fNNNN.png frames', len(workdir.frames(frames)) == n)
     mp4 = work / 'frames.mp4'
     case('frames.mp4 written', mp4.is_file())
     if not mp4.is_file():
         return 1
     extract.main([str(work / 'work'), '--video', str(mp4)])
-    ds = json.load(open(work / 'work/d/index.json'))['drawings']
+    ds = json.load(open(workdir.index(work / 'work')))['drawings']
     starts = [sum(SYN_HOLDS[:k]) / 24 for k in range(len(SYN_HOLDS))]
     case(f'decode: {len(SYN_HOLDS)} drawings at their first frames',
          len(ds) == len(starts) and all(abs(t - s) < 1e-3 for (_, t, _), s in zip(ds, starts)))
@@ -84,13 +85,13 @@ def synthetic(work):
 
 def main(video, work):
     work = empty(work)
-    shutil.copy(FIXTURE, work / 'overrides.json')
+    shutil.copy(FIXTURE, workdir.overrides(work))
     extract.main([str(work), '--video', str(video)])
-    n = len(json.load(open(work / 'd/index.json'))['drawings'])
+    n = len(json.load(open(workdir.index(work)))['drawings'])
     if n != EXPECTED:
         sys.exit(f'decoded {n} drawings, expected {EXPECTED}')
     rc = measure.main([str(work), '--tag', 'regress'])
-    rep = controls.replica(work, 'regress', work / 'out/regress')
+    rep = controls.replica(work, 'regress', workdir.out(work, 'regress'))
     pack_rc = inkstats.main([str(rep), '--pack', str(PACK)])
     print(f"pack control: the replica {'passes' if pack_rc == 0 else 'FAILS'} {PACK.name}")
     return rc or pack_rc

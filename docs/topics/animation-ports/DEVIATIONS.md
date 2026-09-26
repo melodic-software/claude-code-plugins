@@ -94,6 +94,24 @@ Append-only. Each entry: plan said / found / chose / revisit.
   line into the work dir and runs `render.py` as a subprocess; `./ink.js` resolves from `scripts/`.
   The drawing starts are checked against `SYN_HOLDS` in `regress.py`, a copy of the fixture's
   `HOLDS` (two sites, one test pair).
-- **choice: pack control output.** `regress.py <shfred0>` writes the replica mp4 to
+- **choice: pack control output (Phase 4).** `regress.py <shfred0>` writes the replica mp4 to
   `<work>/out/regress/replica.mp4` and prints `pack control: the replica passes woodcut-ink`; its
   exit is 1 when either the measure or the pack check fails.
+
+## Phase 5
+
+- **deviation: `inkstats.py` does not import `workdir`.** Plan lists it among the importers; the
+  work-dir reading moved to `decode.frames` in Phase 2, so `decode.py` and `render.py` import it
+  instead.
+- **choice: `measure.py` loads `brush.json` as `measure.BRUSH`**; `fit.py` reads `BRUSH['bias']`
+  from it (one Python load site; `roto.js` fetches the same file).
+- **choice: `fit-brushes.json`, table and review file names stay in their scripts.** They are
+  per-run outputs of one script each, not layout two scripts share.
+- **discovery: V17 origin found.** 2576 px is the long-edge limit in the Claude vision guide's
+  "Resolution and token cost" table (Claude 4.7 and later; 1568 px before). Recorded as a four-part
+  record in `method.md`, Reviewing images; `review.py` has `LONG_EDGE` and `CROP = (min(500,
+  LONG_EDGE // 3), 400)`, value unchanged.
+- **choice: SKILL.md render rates.** The rotoscope film step says `--fps <the source's frame
+  rate>`, learn-style's validate step `--fps <the pack's knobs.frame_rate.base_fps>` (V12).
+- **plan-confirmed: `padStart` sites (V22).** `capture.mjs:74-75` (captured `fNNNN`/`dNNN` names)
+  and `roto.js:15` (trace fetch under `?dir=`); nothing else.

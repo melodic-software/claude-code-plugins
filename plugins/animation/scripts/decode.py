@@ -15,6 +15,7 @@ import subprocess
 from pathlib import Path
 
 import prereq
+import workdir
 
 prereq.require(['numpy', 'opencv'])
 import cv2  # noqa: E402
@@ -42,11 +43,11 @@ def frames(film, fps):
         yield from film
         return
     film = Path(film)
-    if (film / 'src').is_dir():
-        for k, t, *_ in json.load(open(film / 'd/index.json'))['drawings']:
-            yield cv2.cvtColor(cv2.imread(str(film / f'src/d{k:03d}.png')), cv2.COLOR_BGR2RGB), t
+    if workdir.src(film).is_dir():
+        for k, t, *_ in json.load(open(workdir.index(film)))['drawings']:
+            yield cv2.cvtColor(cv2.imread(str(workdir.source(film, k))), cv2.COLOR_BGR2RGB), t
     elif film.is_dir():
-        for i, f in enumerate(sorted(film.glob('f*.png'))):
+        for i, f in enumerate(workdir.frames(film)):
             yield cv2.cvtColor(cv2.imread(str(f)), cv2.COLOR_BGR2RGB), i / fps
     else:
         w, h, pts = probe(film)

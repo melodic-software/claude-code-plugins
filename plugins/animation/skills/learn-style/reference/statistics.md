@@ -3,7 +3,7 @@
 The bands, source values, widenings and pass rates live in the pack's `style.json` (`bands`, `ref`,
 `heldout`); this page explains them and keeps the measurement records they came from. Every record
 here comes from `inkstats.py`, `learn.py` and `controls.py` runs on 2026-09-24 over the shfred0
-source (239 drawings, nine shots), its rotoscoped replica (encoded to mp4 the way `capture.mjs`
+source (239 drawings, nine shots), its rotoscoped replica (encoded to mp4 the way `render.py`
 encodes a scene), round 3 (a hand-authored replica of the same shots that the user rejected), three
 clips in other styles (a kevin_t_ngo spiral engraving, a kevin_t_ngo torn-paper collage, a BiosRiosz
 anime duel), and synthetic flat-polygon films. Treat the bands as this pack's, not as laws: a new
@@ -50,7 +50,7 @@ Per drawing, with ink and paper at the gray histogram modes and T at their midpo
 | `period` | inside the eroded ink, at periods under 32 px, the largest ratio of one spectral bin's power to the mean power of every bin at the same frequency, divided by ln(eroded ink pixels): large for a texture at one fixed pitch and direction (ruled stripes, a combed dry brush), near the noise level for irregular texture and smooth tone drift | texture |
 | `ink` | ink coverage | color |
 | `boil` | over the border and caption classes (the anchor), on pairs whose anchor ink share changes under 1 point with 500 or more anchor edge pixels: ink/paper disagreement per anchor edge pixel, the mean edge displacement of the frame and caption between two drawings | line, movement |
-| holds | each drawing's duration in 24 fps frames, on 1s/2s/3s/4+; drawings per second | frame rate |
+| holds | each drawing's duration in frames at the pack's base rate (`knobs.frame_rate.base_fps`), on 1s/2s/3s/4+; drawings per second | frame rate |
 | `offstep` | share of consecutive drawing pairs whose two holds do not add up to twice the most common hold: 0 on strict 3s; a drawing that re-timing to 24 fps moves one frame (a 2 then a 4) does not count | frame rate |
 
 `--region X,Y,W,H --t T0-T1` measures one box over a time window (a box outside the frame is an
@@ -113,7 +113,8 @@ only; no band was widened.
 ## How a band is set
 
 The check judges a whole film, so `learn.py` learns bands from film-sized excerpts of the source,
-never from single shots or fixed segments. It cuts the source at its shots (`--cuts`). An excerpt is
+never from single shots or fixed segments. It cuts the source at its shots (`--cuts`; without them, at
+`--seg`-second segments, default `inkstats.py` `SEG`). An excerpt is
 a set of shots holding a third to two thirds of the duration, paired with its complement. A third of
 30 s is about 10 s, the length SKILL.md asks a validation scene to be. On the nine shfred0 shots
 that gives 150 pairs: every split by shot, in both directions. Alternate pairs form a calibration
@@ -130,7 +131,7 @@ evaluation pass rates.
 
 The palette tolerance (`palette.tolerance`) adds two measured terms and rounds up.
 `palette.encode_shift` is the largest channel change in the clip's median ink or paper colour when
-all its drawings are encoded as `capture.mjs` encodes a scene and decoded again. `palette.excerpt_stray`
+all its drawings are encoded as `render.py` encodes a scene and decoded again. `palette.excerpt_stray`
 is the largest channel difference between an excerpt's median colour and the clip's. Encoding moves
 the woodcut ink by 4 levels on its blue channel (15 to 11), which is also what it does to the replica.
 

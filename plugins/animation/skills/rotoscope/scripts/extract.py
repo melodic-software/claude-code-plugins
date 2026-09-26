@@ -25,6 +25,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 from decode import MID, frames, is_repeat, modes, probe  # noqa: E402
+import workdir  # noqa: E402
 from render import WORKERS  # noqa: E402
 
 S, EPS, INTERP = 4, 0.25, 'cubic'   # supersample, approxPolyDP epsilon (source px), upsampler
@@ -36,19 +37,19 @@ TINT_RG, TINT_SIGN_RG, TINT_SIGN_PX = 4, 6, 15000   # warm paper: median R-G >= 
 def decode(video, work):
     """Write src/dNNN.png for every distinct drawing and d/index.json {w, h, duration, drawings: [[k, pts, t1], ...]}."""
     w, h, pts = probe(video)
-    (work / 'src').mkdir(parents=True, exist_ok=True)
-    (work / 'd').mkdir(exist_ok=True)
+    workdir.src(work).mkdir(parents=True, exist_ok=True)
+    workdir.traces_dir(work).mkdir(exist_ok=True)
     ts, prev = [], None
     for rgb, t in frames(video, None):
         if is_repeat(prev, rgb):
             continue
         prev = rgb.astype(np.int16)
-        cv2.imwrite(str(work / f'src/d{len(ts):03d}.png'), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(str(workdir.source(work, len(ts))), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
         ts.append(t)
     gap = float(np.median(np.diff(ts))) if len(ts) > 1 else 1 / 8
     t1 = ts[1:] + [round(ts[-1] + gap, 6)]
     ix = dict(w=w, h=h, duration=t1[-1], drawings=[[k, t, e] for k, (t, e) in enumerate(zip(ts, t1))])
-    json.dump(ix, open(work / 'd/index.json', 'w'))
+    json.dump(ix, open(workdir.index(work), 'w'))
     print(f'{len(ts)} drawings from {len(pts)} frames, {w}x{h}')
     return ix
 
@@ -158,13 +159,13 @@ def npoints(paths):
 def one(job):
     """Trace (or, with apply, reuse) drawing k and apply its overrides. Returns a summary line."""
     work, k, t, t1, ov, apply = job
-    f = work / f'd/d{k:03d}.json'
+    f = workdir.trace(work, k)
     sharp = tuple(ov['sharp']) if ov.get('sharp') else (None if 'sharp' in ov else SHARP)
     levels = list(ov.get('levels', LEVELS))
     d = json.load(open(f)) if apply and f.exists() else None
     rgb = g = None
     if d is None or (tuple(d['sharp']) if d['sharp'] else None) != sharp or d.get('levels') != levels:
-        rgb = cv2.cvtColor(cv2.imread(str(work / f'src/d{k:03d}.png')), cv2.COLOR_BGR2RGB)
+        rgb = cv2.cvtColor(cv2.imread(str(workdir.source(work, k))), cv2.COLOR_BGR2RGB)
         g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         st = stats(rgb, g)
         kw = dict(s=S, eps=EPS, interp=INTERP, sharp=sharp)
@@ -174,14 +175,14 @@ def one(job):
     d['tones'] = [x for x in d['tones'] if 'tint' not in x]
     if ov.get('tint'):
         if rgb is None:
-            rgb = cv2.cvtColor(cv2.imread(str(work / f'src/d{k:03d}.png')), cv2.COLOR_BGR2RGB)
+            rgb = cv2.cvtColor(cv2.imread(str(workdir.source(work, k))), cv2.COLOR_BGR2RGB)
             g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         d['tones'] += tint(rgb, g, d['T'])
     d.pop('brush', None)
     if ov.get('brush'):
         d['brush'] = ov['brush']
     json.dump(d, open(f, 'w'), separators=(',', ':'))
-    return f'd{k:03d} T={d["T"]} points={npoints(d["paths"])} ' + (json.dumps(ov) if ov else '')
+    return f'{workdir.name(k)} T={d["T"]} points={npoints(d["paths"])} ' + (json.dumps(ov) if ov else '')
 
 
 def main(argv=None):
@@ -194,8 +195,8 @@ def main(argv=None):
     ap.add_argument('--jobs', type=int, default=WORKERS)
     a = ap.parse_args(argv)
     work = a.work.resolve()
-    ix = decode(a.video, work) if a.video else json.load(open(work / 'd/index.json'))
-    ovr = load_overrides(a.overrides or work / 'overrides.json')
+    ix = decode(a.video, work) if a.video else json.load(open(workdir.index(work)))
+    ovr = load_overrides(a.overrides or workdir.overrides(work))
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
     jobs = [(work, k, t, t1, overrides_for(ovr, k), a.apply) for k, t, t1 in ix['drawings'] if k0 <= k <= k1]
     with Pool(a.jobs) as p:

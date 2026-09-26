@@ -12,13 +12,14 @@ laws: a new source with a different codec, scale or ink can move them, and the r
 - Rendering (mode b)
 - Target and what limits it
 - Diagnostics, in the order to read them
+- Reviewing images
 - Known limits
 
 ## Source analysis
 
-- Drawings, not frames: a stored frame with fewer than 50 pixels changed by more than 64 gray
-  levels repeats the previous drawing. A mean-difference dedup wrongly drops real drawings such as
-  a small caption change of about 1,000 pixels.
+- Drawings, not frames: a stored frame that changes too few pixels by a large gray step repeats
+  the previous drawing (`scripts/decode.py`, `is_repeat`, holds the counts). A mean-difference
+  dedup wrongly drops real drawings such as a small caption change of about 1,000 pixels.
 - Gray is RGB2GRAY. T is the midpoint of the ink and paper gray modes (shfred0: 17 and 234, so
   T = 125.5 on every drawing).
 - Soft edges: shfred0 is blurred by about sigma 0.85 px, isotropic.
@@ -26,11 +27,11 @@ laws: a new source with a different codec, scale or ink can move them, and the r
 ## Tracing
 
 - `findContours` returns boundary-pixel centres, so a polygon through them sits 0.5/S px inside
-  the true edge, and a 1 px line has zero area at S=1. Supersample 4x (cubic) before thresholding,
-  then correct the leftover inset with render-side `bias`.
-- `approxPolyDP` epsilon 0.25 source px. Epsilon 0 is worse: the raw staircase plus the bias ring
+  the true edge, and a 1 px line has zero area at S=1. Supersample (`extract.py` `S`, `INTERP`) before
+  thresholding, then correct the leftover inset with render-side `bias`.
+- `approxPolyDP` epsilon `EPS` (`extract.py`, in source px). Epsilon 0 is worse: the raw staircase plus the bias ring
   over-fattens. S=8 gains nothing over S=4 and doubles the point count.
-- Unsharp mask (amount 2, sigma 0.9) before tracing undoes the source blur, so render-side blur
+- Unsharp mask (`extract.py` `SHARP`: amount, sigma) before tracing undoes the source blur, so render-side blur
   puts thin lines back at the right darkness. It is only correct together with render blur.
 - The unsharp mask keeps the raw gray on the outer 1 px frame border. Otherwise the blur reflects
   the dark row 1 onto row 0 and pushes a near-T border row (gray about 110-120) past T, which
@@ -42,12 +43,15 @@ laws: a new source with a different codec, scale or ink can move them, and the r
 
 ## Rendering (mode b)
 
-- Tone layers: the same tracer runs at gray levels 50, 90, 165 and 205, and each layer is filled
-  with its band's median RGB. This captures dry-brush streaks and the soft edge ramp. Six levels
-  add about 0.001 SSIM for about 1.4x the points.
-- `bias` 0.12 px: a ring of ink.js `capsule` dabs of width 2 x bias on the T contour.
-- `blur` 0.6 px, a JS separable gaussian. Chromium's `ctx.filter = 'blur()'` silently does nothing
-  below about 0.8 px.
+- Tone layers: the same tracer runs at the gray levels `extract.py` `LEVELS` lists, and each layer
+  is filled with its band's median RGB. This captures dry-brush streaks and the soft edge ramp. Six
+  levels add about 0.001 SSIM for about 1.4x the points.
+- The brush defaults are in `scripts/brush.json`, which `roto.js`, `measure.py` and `fit.py` all
+  read. `bias` (px): a ring of ink.js `capsule` dabs of width 2 x bias on the T contour. `blur`
+  (sigma, px): a JS separable gaussian, because of the floor below.
+- Chromium's canvas blur floor. Claim: `ctx.filter = 'blur()'` silently does nothing below about
+  0.8 px. Basis: a Playwright capture of a blurred two-tone canvas. As of: 2026-09-24, Chromium
+  build 1246. Recheck trigger: the Chromium build `render.json` records changes.
 - Brush texture does not help a traced copy: an `inkStroke` ring, wobble and dry-brush all
   measured slightly worse than capsules, and `paperGrain` lowers SSIM (uncorrelated grain). The
   source's texture is already in the traced geometry.
@@ -64,8 +68,9 @@ quantized tone ramp.
 ## Diagnostics, in the order to read them
 
 1. **Replica-only / source-only ratio** (measure table), before any image. Far from 1:1 across a
-   whole shot means the bias is wrong for that shot, not that one drawing is broken. Above 1.3
-   re-render at bias + 0.04, below 1/1.3 at bias - 0.04; `fit.py` automates this. Bias moves
+   whole shot means the bias is wrong for that shot, not that one drawing is broken. Above the
+   ratio band re-render at a larger bias, below it at a smaller one; `fit.py` automates this (its
+   `--ratio` and `--step` hold the band and the step). Bias moves
    pixels between the two error colours and barely changes total XOR when the real problem is blur
    or sharpening.
 2. **Ratio stuck near 2 while a bias sweep does nothing**: suspect over-sharpening on dense dashes.
@@ -85,6 +90,15 @@ quantized tone ramp.
    layers.
 8. **Crops**, at 1:1 on the hottest window, for every drawing. Some defects (dash-tip fattening,
    corner rounding) only show zoomed in; scale a crop up, never down.
+
+## Reviewing images
+
+- Long-edge limit for any image read in review (crops, tiled frames). Claim: 2576 px on the long
+  edge is the largest image Claude sees without downscaling (Claude 4.7 and later; earlier models
+  1568 px), so a wider tile loses the 1:1 detail review needs. Basis: the Claude vision guide,
+  "Resolution and token cost" table (<https://platform.claude.com/docs/en/build-with-claude/vision>).
+  As of: 2026-09-26. Recheck trigger: that table changes, or review runs on a model outside it.
+  `review.py` sizes `CROP` from it (`LONG_EDGE`).
 
 ## Known limits
 

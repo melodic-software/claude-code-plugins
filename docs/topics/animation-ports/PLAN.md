@@ -304,7 +304,7 @@ fall back to count plus contracts.
 - [x] C1 239/239 and its new pack-control line reports the replica passing; C3 `compare` exits 0
   (it compares `table-*.md` and the summary JSONs, not raw regress stdout, which gains this line); C5.
 
-### Phase 5: SSOT owner table (T16; V1-V7, V11, V12 docs, V14, V15, V17/D28, V20/V22/D22, V26; D32) [TODO]
+### Phase 5: SSOT owner table (T16; V1-V7, V11, V12 docs, V14, V15, V17/D28, V20/V22/D22, V26; D32) [DONE]
 
 Pre-flight: grep each value's sites from design/dependency-inventory.md section 2 again (line
 numbers drifted since `f0bd01ed0`; `inkstats.py` and `learn.py` changed afterwards).
@@ -328,35 +328,35 @@ numbers drifted since `f0bd01ed0`; `inkstats.py` and `learn.py` changed afterwar
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/animation/scripts/workdir.py` | CREATE | V20, V22 |
-| [ ] `plugins/animation/skills/rotoscope/scripts/brush.json` | CREATE | V3 |
-| [ ] `plugins/animation/scripts/inkstats.py` | MODIFY | workdir paths |
-| [ ] `plugins/animation/skills/rotoscope/scripts/extract.py` | MODIFY | workdir paths |
-| [ ] `plugins/animation/skills/rotoscope/scripts/measure.py` | MODIFY | workdir, brush.json |
-| [ ] `plugins/animation/skills/rotoscope/scripts/fit.py` | MODIFY | workdir, brush.json |
-| [ ] `plugins/animation/skills/rotoscope/scripts/review.py` | MODIFY | workdir, CROP constant |
-| [ ] `plugins/animation/skills/rotoscope/scripts/regress.py` | MODIFY | workdir |
-| [ ] `plugins/animation/skills/rotoscope/scripts/roto.js` | MODIFY | brush.json fetch, V14 |
-| [ ] `plugins/animation/skills/learn-style/scripts/learn.py` | MODIFY | workdir |
-| [ ] `plugins/animation/skills/learn-style/scripts/controls.py` | MODIFY | workdir |
-| [ ] `plugins/animation/skills/rotoscope/reference/method.md` | MODIFY | V11, V17 records; cite owners |
-| [ ] `plugins/animation/skills/learn-style/reference/statistics.md` | MODIFY | cite `SEG`, base rate |
-| [ ] `plugins/animation/skills/rotoscope/SKILL.md` | MODIFY | V1, V2, V11 pointers |
-| [ ] `plugins/animation/skills/learn-style/SKILL.md` | MODIFY | V11, V17, V12 pointers |
-| [ ] `plugins/animation/README.md` | MODIFY | V1, V2, V26 |
-| [ ] `plugins/animation/.claude-plugin/plugin.json` | MODIFY | V2 |
-| [ ] `plugins/animation/styles/woodcut-ink/STYLE.md` | KEEP | measurement record (V26 owner) |
-| [ ] `plugins/animation/CHANGELOG.md` | KEEP | history |
-| [ ] `plugins/animation/skills/rotoscope/fixtures/shfred0.overrides.json` | KEEP | record |
+| [x] `plugins/animation/scripts/workdir.py` | CREATE | V20, V22 |
+| [x] `plugins/animation/skills/rotoscope/scripts/brush.json` | CREATE | V3 |
+| [x] `plugins/animation/scripts/inkstats.py` | MODIFY | workdir paths |
+| [x] `plugins/animation/skills/rotoscope/scripts/extract.py` | MODIFY | workdir paths |
+| [x] `plugins/animation/skills/rotoscope/scripts/measure.py` | MODIFY | workdir, brush.json |
+| [x] `plugins/animation/skills/rotoscope/scripts/fit.py` | MODIFY | workdir, brush.json |
+| [x] `plugins/animation/skills/rotoscope/scripts/review.py` | MODIFY | workdir, CROP constant |
+| [x] `plugins/animation/skills/rotoscope/scripts/regress.py` | MODIFY | workdir |
+| [x] `plugins/animation/skills/rotoscope/scripts/roto.js` | MODIFY | brush.json fetch, V14 |
+| [x] `plugins/animation/skills/learn-style/scripts/learn.py` | MODIFY | workdir |
+| [x] `plugins/animation/skills/learn-style/scripts/controls.py` | MODIFY | workdir |
+| [x] `plugins/animation/skills/rotoscope/reference/method.md` | MODIFY | V11, V17 records; cite owners |
+| [x] `plugins/animation/skills/learn-style/reference/statistics.md` | MODIFY | cite `SEG`, base rate |
+| [x] `plugins/animation/skills/rotoscope/SKILL.md` | MODIFY | V1, V2, V11 pointers |
+| [x] `plugins/animation/skills/learn-style/SKILL.md` | MODIFY | V11, V17, V12 pointers |
+| [x] `plugins/animation/README.md` | MODIFY | V1, V2, V26 |
+| [x] `plugins/animation/.claude-plugin/plugin.json` | MODIFY | V2 |
+| [x] `plugins/animation/styles/woodcut-ink/STYLE.md` | KEEP | measurement record (V26 owner) |
+| [x] `plugins/animation/CHANGELOG.md` | KEEP | history |
+| [x] `plugins/animation/skills/rotoscope/fixtures/shfred0.overrides.json` | KEEP | record |
 
 **Sanity Check:**
 
-- [ ] `grep -rnE "'d/index.json'|f'src/d\{|f'd/d\{|/d\{k:03d\}|rep/d|heat/d" plugins/animation --include=*.py` matches only `scripts/workdir.py` (covers `controls.py`'s `f'{folder}/d{k:03d}.png'`).
-- [ ] `grep -rn "padStart" plugins/animation --include=*.js --include=*.mjs` lists only the naming sites `capture.mjs` owns for captured names and `roto.js`'s trace fetch (V22), each listed in the phase notes.
-- [ ] `grep -rn "0\.12" plugins/animation/skills/rotoscope/scripts/*.py plugins/animation/skills/rotoscope/scripts/roto.js` returns nothing.
-- [ ] `grep -c "239" plugins/animation/README.md plugins/animation/skills/rotoscope/SKILL.md` is 0 for both.
-- [ ] `grep -n "2576" plugins/animation/skills/learn-style/SKILL.md plugins/animation/skills/rotoscope/scripts/review.py` shows no bare number without a pointer to method.md.
-- [ ] C1 239/239; C3 `compare` exits 0; C5.
+- [x] `grep -rnE "'d/index.json'|f'src/d\{|f'd/d\{|/d\{k:03d\}|rep/d|heat/d" plugins/animation --include=*.py` matches only `scripts/workdir.py` (covers `controls.py`'s `f'{folder}/d{k:03d}.png'`).
+- [x] `grep -rn "padStart" plugins/animation --include=*.js --include=*.mjs` lists only the naming sites `capture.mjs` owns for captured names and `roto.js`'s trace fetch (V22), each listed in the phase notes.
+- [x] `grep -rn "0\.12" plugins/animation/skills/rotoscope/scripts/*.py plugins/animation/skills/rotoscope/scripts/roto.js` returns nothing.
+- [x] `grep -c "239" plugins/animation/README.md plugins/animation/skills/rotoscope/SKILL.md` is 0 for both.
+- [x] `grep -n "2576" plugins/animation/skills/learn-style/SKILL.md plugins/animation/skills/rotoscope/scripts/review.py` shows no bare number without a pointer to method.md.
+- [x] C1 239/239; C3 `compare` exits 0; C5.
 
 ### Phase 6: correctness fixes (T18; D23, D41/V13, D48) [TODO]
 

@@ -4,8 +4,8 @@
 usage: measure.py <work> [--only K0-K1] [--tag name] [--mode a|b] [--brush JSON] [--brushes FILE]
                   [--no-render] [--workers N]
 Renders roto.js through scripts/render.py (with <work> served as an extra root for its JSON), then writes to <work>/out/<tag>/ (tag defaults to the mode):
-  rep/dNNN.png   the replica         heat/dNNN.png  XOR heatmap: red = replica-only ink, blue = source-only ink
-  ab/dNNN.png    source above replica, 1:1            table-K0-K1.md one row per drawing
+  rep/   the replica drawings         heat/  XOR heatmaps: red = replica-only ink, blue = source-only ink
+  ab/    source above replica, 1:1    table-K0-K1.md one row per drawing       (layout: scripts/workdir.py)
 and appends a one-line summary to <work>/learnings.md.
 Metrics (gray = RGB2GRAY of both images; T = the drawing's threshold):
   xor      % of frame pixels whose ink/paper state (gray < T) disagrees
@@ -28,10 +28,11 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2] / 'scripts'))
 import render  # noqa: E402
+import workdir  # noqa: E402
 from decode import MID  # noqa: E402
 
 FLOOR_GRAY, FLOOR_X, SSIM_MIN, SSIME_MIN = 4, 1.2, 0.980, 0.980
-BRUSH_BIAS = 0.12   # roto.js BRUSH.bias
+BRUSH = json.load(open(HERE / 'brush.json'))   # roto.js's mode (b) defaults: bias, blur, grain
 
 
 def replicas(work, ks, rep_dir, query='', workers=render.WORKERS):
@@ -60,8 +61,8 @@ def paper(src, rep, T):
 
 
 def measure(k, work, out, images=True):
-    d = json.load(open(work / f'd/d{k:03d}.json'))
-    src, rep = cv2.imread(str(work / f'src/d{k:03d}.png')), cv2.imread(str(out / f'rep/d{k:03d}.png'))
+    d = json.load(open(workdir.trace(work, k)))
+    src, rep = cv2.imread(str(workdir.source(work, k))), cv2.imread(str(workdir.drawing(out / 'rep', k)))
     gs, gr = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY), cv2.cvtColor(rep, cv2.COLOR_BGR2GRAY)
     ms, mr = gs < d['T'], gr < d['T']
     x = ms ^ mr
@@ -73,8 +74,8 @@ def measure(k, work, out, images=True):
         heat[ms & mr] = (200, 200, 200)                               # agreed ink, light gray
         heat[mr & ~ms] = (0, 0, 255)                                  # BGR: red replica-only
         heat[ms & ~mr] = (255, 0, 0)                                  # blue source-only
-        cv2.imwrite(str(out / f'heat/d{k:03d}.png'), heat)
-        cv2.imwrite(str(out / f'ab/d{k:03d}.png'), np.vstack([src, rep]))
+        cv2.imwrite(str(workdir.drawing(out / 'heat', k)), heat)
+        cv2.imwrite(str(workdir.drawing(out / 'ab', k)), np.vstack([src, rep]))
     pe, pd = paper(src, rep, d['T'])
     return dict(k=k, pts=d['pts'], xor=x.mean() * 100, floor=(np.abs(gs.astype(float) - d['T']) < FLOOR_GRAY).mean() * 100,
                 rep_only=int((mr & ~ms).sum()), src_only=int((ms & ~mr).sum()), paper_err=pe, paper_d=pd,
@@ -115,14 +116,14 @@ def main(argv=None):
     ap.add_argument('--workers', type=int, default=render.WORKERS)
     a = ap.parse_args(argv)
     work = a.work.resolve()
-    ks = [k for k, *_ in json.load(open(work / 'd/index.json'))['drawings']]
+    ks = [k for k, *_ in json.load(open(workdir.index(work)))['drawings']]
     if a.only and '-' in a.only:
         k0, k1 = map(int, a.only.split('-'))
         ks = [k for k in ks if k0 <= k <= k1]
     elif a.only:
         ks = [int(k) for k in a.only.split(',')]
     tag = a.tag or a.mode
-    out = work / 'out' / tag
+    out = workdir.out(work, tag)
     for sub in ('rep', 'heat', 'ab'):
         (out / sub).mkdir(parents=True, exist_ok=True)
     if not a.no_render:
@@ -133,7 +134,7 @@ def main(argv=None):
     (out / f'table-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n')
     print('\n'.join(lines))
     worst = sorted(rows, key=lambda r: -r['xor'] / max(r['floor'], 1e-9))[:3]
-    with open(work / 'learnings.md', 'a') as f:
+    with open(workdir.learnings(work), 'a') as f:
         f.write(f"- {datetime.date.today()} measure {tag} d{ks[0]:03d}-d{ks[-1]:03d}: {sum(map(ok, rows))}/{len(rows)} pass; "
                 f"mean xor {np.mean([r['xor'] for r in rows]):.3f}%, ssim {np.mean([r['ssim'] for r in rows]):.4f}; worst xor/floor "
                 + ', '.join(f"d{r['k']:03d} {r['xor'] / max(r['floor'], 1e-9):.2f}" for r in worst) + '\n')

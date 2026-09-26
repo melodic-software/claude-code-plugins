@@ -26,6 +26,7 @@ import threading
 from pathlib import Path
 
 import prereq
+import workdir
 
 HERE = Path(__file__).resolve().parent
 WORKERS = min(8, os.cpu_count() or 1)   # pages capture.mjs renders in parallel; every worker default routes here
@@ -112,7 +113,7 @@ def encode(frames, fmt, fps, out):
 def folder(out):
     """The frame folder's fNNNN.png images in frame order, read as BGR."""
     import cv2
-    for f in sorted(Path(out).glob('f*.png'), key=lambda f: int(f.stem[1:])):
+    for f in sorted(workdir.frames(out), key=lambda f: int(f.stem[1:])):
         yield cv2.imread(str(f))
 
 

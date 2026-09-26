@@ -9,8 +9,8 @@ measure  writes an inkstats --json summary per film into <out>/calibration, <out
            near/<filter>   the near-miss film (round 3) through every post filter below, alone and combined
            poly/<filter>   synthetic flat ink polygons with vertex boil and the source's hold mix, through filters
            other/<name>    each --other film (clips in other styles), unfiltered
-           source, replica the --source clip, and the rotoscope replica (<work>/out/<tag>/rep/dNNN.png timed by
-                           <work>/d/index.json) encoded as render.py encodes a scene
+           source, replica the --source clip, and the rotoscope replica (the run <tag>'s replica drawings, timed
+                           by the work dir's index; scripts/workdir.py) encoded as render.py encodes a scene
          Pass <out>/calibration/*.json to learn.py --negative; the evaluation half never sets a band.
 check    prints every film's rows failed and margin (largest row distance - 1: a control needs a margin above 0, a
          positive at or below 0); exit 1 if any control passes or any positive fails.
@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import decode  # noqa: E402
 import inkstats  # noqa: E402
 import render  # noqa: E402
+import workdir  # noqa: E402
 
 GAME = 'blur0.9+stripes12'
 # game plus: a sub-pixel contour warp (straight, rough), a few holds lengthened (offstep), and faint tonal rows at the
@@ -128,12 +129,12 @@ def post(spec, frames):
 
 
 def held(work, folder):
-    """A work dir's drawings <folder>/dNNN.png as 24 fps frames, each repeated for its hold from d/index.json."""
-    work = Path(work)
-    ds = json.load(open(work / 'd/index.json'))['drawings']
+    """A work dir's drawings in folder (its src, or a run's rep) as 24 fps frames, each repeated for its hold from
+    d/index.json."""
+    ds = json.load(open(workdir.index(work)))['drawings']
     fi = 0
     for (k, *_), nxt in zip(ds, [*ds[1:], [None, ds[-1][2]]]):
-        img = cv2.imread(str(work / f'{folder}/d{k:03d}.png'))
+        img = cv2.imread(str(workdir.drawing(folder, k)))
         while fi / 24 < nxt[1] - 1e-6:
             yield img
             fi += 1
@@ -141,7 +142,7 @@ def held(work, folder):
 
 def replica(work, tag, out):
     """The rotoscope replica's drawings encoded as a scene is; return the mp4."""
-    return render.encode(held(work, f'out/{tag}/rep'), 'mp4', 24, Path(out) / 'replica.mp4')
+    return render.encode(held(work, workdir.rep(work, tag)), 'mp4', 24, Path(out) / 'replica.mp4')
 
 
 def run(job):

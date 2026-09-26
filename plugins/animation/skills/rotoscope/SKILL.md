@@ -56,12 +56,12 @@ this file; a fix that needs hand-edited paths is a finding to report, not an ove
 1. Extract: `$R/extract.py <work> --video <clip>`. After an override change,
    `$R/extract.py <work> --apply` retraces only drawings whose `sharp` or `levels` changed.
 2. Measure: `$R/measure.py <work> [--only K0-K1] [--tag name]`. It exits 0 only when every
-   drawing meets the target (XOR at most 1.2 x its floor, SSIM and edge-band SSIM at least 0.980).
+   drawing meets the `measure.py` target (`reference/method.md`, Target).
    Run long ranges in the background.
 3. Fit: `$R/fit.py <work> [--only K0-K1]` bisects `bias` per drawing from the replica-only /
    source-only balance, then appends the result to `overrides.json`; apply it with `--apply`. It
    fits bias only: blur, sharpening and tone levels are yours, guided by the diagnostics in
-   `method.md`. On shfred0, fitting all 239 drawings from the default bias passes 239/239 at a mean
+   `method.md`. On shfred0, fitting every drawing from the default bias passes them all at a mean
    XOR 0.3% below the hand fits.
 4. Review: `$R/review.py <work> <tag>` adds the manual checks as columns (largest one-colour
    cluster and whether it is a blob, frame-edge XOR, tone-tile difference, paper colour) and writes
@@ -73,8 +73,8 @@ this file; a fix that needs hand-edited paths is a finding to report, not an ove
 Repeat 2-5 by shot or drawing range until the table passes and the crops show no one-colour
 cluster.
 
-A film of the replica: `${CLAUDE_PLUGIN_ROOT}/scripts/render.py $R/roto.js <frames dir> --fps 24
---root <work> --encode mp4 --playwright-core '${user_config.playwright_core}'` writes the frames,
+A film of the replica: `${CLAUDE_PLUGIN_ROOT}/scripts/render.py $R/roto.js <frames dir> --fps <the
+source's frame rate> --root <work> --encode mp4 --playwright-core '${user_config.playwright_core}'` writes the frames,
 `render.json` and `<frames dir>.mp4` beside them.
 
 ## Retro
@@ -90,7 +90,10 @@ the clip's override file.
 The shfred0 study ships as a fixture (`fixtures/shfred0.overrides.json`, parameters only; the clip
 is not shipped). Given that clip and an empty work directory,
 `$R/regress.py <shfred0.mp4> <work>` extracts with the fixture, renders and measures every
-drawing, and exits 0 only on 239/239. Run it after any change to the scripts.
+drawing, checks the encoded replica against the woodcut-ink pack, and exits 0 only when every
+drawing passes and so does the replica. `$R/regress.py --synthetic <work>` needs no clip: it
+renders, encodes and re-traces `fixtures/synthetic.js` and checks the render, encode and decode
+contracts. Run both after any change to the scripts.
 
 ## Next
 
@@ -101,9 +104,8 @@ drawings into a style pack.
 
 - `renderFrame(t)` and `renderDrawing(k)` return Promises; a capture that does not await them
   saves the canvas before the drawing lands.
-- Chromium's canvas `blur()` filter does nothing below about 0.8 px (measured 2026-09-24 on
-  Playwright's Chromium build 1246; recheck when that build changes), which is why `roto.js` blurs
-  in JS; `gauss()` must not add 0.5 before writing to a `Uint8ClampedArray`, which already rounds.
+- Chromium's canvas `blur()` filter has a floor below which it does nothing (`reference/method.md`,
+  Rendering, holds the dated record), which is why `roto.js` blurs in JS; `gauss()` must not add 0.5 before writing to a `Uint8ClampedArray`, which already rounds.
 - A drawing JSON is one line of 1-4 MB. Change parameters through the override file and `--apply`,
   never by editing the JSON.
 - Gray XOR and SSIM cannot see colour. Read `paper_err` and the crops for tints.
