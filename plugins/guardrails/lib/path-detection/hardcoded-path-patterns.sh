@@ -109,29 +109,50 @@ hpp::scan_text() {
     gate_root="${gate_root%/}"
     gate_root="${gate_root##*/}"
   fi
-  LC_ALL=C
-  case $content in
-  *Users* | */home/* | *repos* | *Repos* | *projects* | *Projects* | *dev* | *Dev*) hpp_gate=scan ;;
-  *$hpp_non_ascii*) ;;
-  *)
-    case $gate_root in
-    *$hpp_non_ascii_nl*) ;;
-    "") hpp_gate=clean ;;
+  # Assigning a readonly LC_ALL would abort this function, so a readonly one
+  # skips the pre-gate and the greps decide. So does bash before 4.4, which has
+  # no ${var@a}; eval keeps that expansion out of such a bash's parse. The
+  # expansion trips `set -u` on an unset LC_ALL, so nounset is lifted around it.
+  local hpp_attr=r
+  if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
+    case $- in
+    *u*)
+      set +u
+      eval 'hpp_attr=${LC_ALL@a}'
+      set -u
+      ;;
+    *) eval 'hpp_attr=${LC_ALL@a}' ;;
+    esac
+  fi
+  if [[ $hpp_attr != *r* ]]; then
+    LC_ALL=C
+    case $content in
+    *Users* | */home/* | *repos* | *Repos* | *projects* | *Projects* | *dev* | *Dev*) hpp_gate=scan ;;
+    *$hpp_non_ascii*) ;;
     *)
-      shopt -q nocasematch && hpp_nc=1
-      shopt -s nocasematch
-      hpp_gate=clean
-      [[ $content == *"$gate_root"* ]] && hpp_gate=scan
-      ((hpp_nc)) || shopt -u nocasematch
+      case $gate_root in
+      *$hpp_non_ascii_nl*) ;;
+      "") hpp_gate=clean ;;
+      *)
+        shopt -q nocasematch && hpp_nc=1
+        shopt -s nocasematch
+        hpp_gate=clean
+        [[ $content == *"$gate_root"* ]] && hpp_gate=scan
+        ((hpp_nc)) || shopt -u nocasematch
+        ;;
+      esac
       ;;
     esac
-    ;;
-  esac
-  if [[ -n "$hpp_lc_set" ]]; then LC_ALL=$hpp_lc; else unset LC_ALL; fi
+    # Restoring an LC_ALL that names a locale this host lacks makes bash warn
+    # "setlocale: cannot change locale"; only the restore is silenced.
+    { if [[ -n "$hpp_lc_set" ]]; then LC_ALL=$hpp_lc; else unset LC_ALL; fi; } 2>/dev/null
+  fi
   [[ $hpp_gate == clean ]] && return 0
-  if [[ $hpp_gate == grep ]] && ! grep -qE 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' < <(printf '%s' "$content") 2>/dev/null; then
+  # `--` on every grep whose pattern comes from the project root: a root whose
+  # last segment starts with `-` (`-e`, `--help`) is a pattern, not an option.
+  if [[ $hpp_gate == grep ]] && ! grep -qE -- 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' < <(printf '%s' "$content") 2>/dev/null; then
     # Process substitution for the same two reasons as the gate above.
-    if [[ -z "$gate_root" ]] || ! grep -qFi "$gate_root" < <(printf '%s' "$content") 2>/dev/null; then
+    if [[ -z "$gate_root" ]] || ! grep -qFi -- "$gate_root" < <(printf '%s' "$content") 2>/dev/null; then
       return 0
     fi
   fi
@@ -286,7 +307,7 @@ hpp::scan_text() {
 
     for candidate in "$root_fwd" "$root_bslash" "$root_escaped"; do
       [[ -n "$candidate" ]] || continue
-      match=$(printf '%s' "$content" | grep -nFi "$candidate" 2>/dev/null | head -3)
+      match=$(printf '%s' "$content" | grep -nFi -- "$candidate" 2>/dev/null | head -3)
       [[ -n "$match" ]] && violations="${violations}Machine-specific repo path detected:${nl}${match}${nl}${nl}"
     done
   fi
