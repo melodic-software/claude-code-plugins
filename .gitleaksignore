@@ -4,3 +4,9 @@
 #
 # Remove each line when the commit it names is no longer reachable (its branch
 # squash-merged or deleted); the entry is dead config from that point on.
+
+# mcp-tools-supply-chain-posture-audit branch: token-shaped test fixture for
+# the audit-posture inventory suite. CI's gitleaks step scans every origin/*
+# branch (--log-opts=--all), so this fixture flags on every push until the
+# branch above is squash-merged or deleted.
+00df0e6e0439405b459f226d29e07bf1e34349c8:plugins/mcp-tools/skills/audit-posture/scripts/inventory.test.sh:github-pat:791
