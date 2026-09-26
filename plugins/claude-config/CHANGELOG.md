@@ -5,6 +5,19 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ## [0.49.0] - 2026-09-26
 
+### Added
+
+- **The audit engine labels consent receipts.** An undocumented top-level key recorded in
+  `skills/audit/reference/consent-receipts.json` (keyed by `plugin@marketplace` owner, or
+  `claude-code` for keys the CLI writes; first entry `skipWorkflowUsageWarning`, user scope) is an
+  `ok` row under check `A/consent-receipt`, claim `consent-receipt:<key>`, when the file's scope is
+  one the record declares, a plugin owner is enabled in the merged `enabledPlugins`, and for
+  `claude-code` a searched binary still carries the name. Otherwise the `undocumented-key` finding
+  stays and names the failed gate ("stale consent receipt, recheck" for a binary that lacks the
+  name). A missing or invalid record file is one `not-inspectable` row. An existing
+  `.claude/audit-pass.md` suppression of `undocumented-key:<key>` stops matching once that key is
+  labeled; the row it retired is no longer a finding.
+
 ### Changed
 
 - **The audit engine no longer asks for an explicit `true` or `false` on catalog plugins.** The

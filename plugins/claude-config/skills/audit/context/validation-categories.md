@@ -11,6 +11,22 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 - `$schema` present and points to `https://json.schemastore.org/claude-code-settings.json`
 - No unknown top-level keys (cross-reference against official docs schema)
 - `settings.local.json` does NOT contain `mcpServers` (wrong file, use `.mcp.json`)
+- **Consent receipts.** Some undocumented keys are written by the CLI or a plugin when the user
+  accepts a prompt. [consent-receipts.json](../reference/consent-receipts.json) records them as
+  `{"consentReceipt": {"<owner>": [records]}}`, where the owner is a `plugin@marketplace` id or
+  the reserved id `claude-code` (no `@`, so no plugin id collides with it) for keys the CLI
+  writes. Each record carries `key`, `scopes` (`user`, `project`, `local`) and `meaning`, plus the
+  four-part record in `key`/`meaning` (claim), `basis`, `as_of` and `recheck`. The engine reads it
+  only for an undocumented top-level key, never a `permissions.*` leaf, and never relabels a
+  documented key. It emits `A/consent-receipt` `ok` (claim `consent-receipt:<key>`) in place of the
+  `undocumented-key` finding only when the file's scope (`user:settings.json` is `user`,
+  `.claude/settings.json` is `project`, `.claude/settings.local.json` is `local`) is in the
+  record's `scopes`, a `plugin@marketplace` owner is `true` in the merged `enabledPlugins` (local
+  over project over user), and, for `claude-code`, the binary search did not come back absent (a
+  binary that was not searched labels with "binary not checked"). Otherwise the finding stays and
+  its detail says which gate failed; a searched binary without the name reads "stale consent
+  receipt, recheck". The file is read only when an undocumented top-level key exists; a missing or
+  invalid one is then one `not-inspectable` row, and every key keeps its `undocumented-key` finding
 
 ## Category B: Permissions
 

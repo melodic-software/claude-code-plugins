@@ -1004,6 +1004,53 @@ e_rows <<<"$(enc s ok none surf claim detail)"
 assert_contains "case 45: a short row is a not-inspectable row" "${SEEN[0]:-none}" "E|plugin-state|not-inspectable|"
 unset -f row enc
 
+# --- Case 46: consent receipts are labeled from the per-owner record ------------
+m="$(make_machine consent)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {skipWorkflowUsageWarning:true}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"skipWorkflowUsageWarning":true,"permissions":{"skipWorkflowUsageWarning":[]}}' >"$m/user/settings.json"
+make_cli "$m/claude" "2.1.281 (Claude Code)" enabledPlugins permissions skipWorkflowUsageWarning
+out=$(CLI_BIN="$m/claude" run "$m" --json 2>&1) || true
+cr='.rows[] | select(.claim=="consent-receipt:skipWorkflowUsageWarning")'
+assert_eq "case 46: the user-scope receipt is labeled" "claude-config/audit/A/consent-receipt ok user:settings.json" "$(jq -r "$cr | \"\(.check) \(.status) \(.surface)\"" <<<"$out")"
+assert_contains "case 46: the label names the owner and meaning" "$(jq -r "$cr | .detail" <<<"$out")" "claude-code"
+assert_eq "case 46: the labeled key is no undocumented-key finding at user scope" "0" "$(jq '[.rows[] | select(.claim=="undocumented-key:skipWorkflowUsageWarning" and .surface=="user:settings.json")] | length' <<<"$out")"
+pd="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:skipWorkflowUsageWarning") | "\(.identity.sites[0].surface) \(.detail)"' <<<"$out")"
+assert_contains "case 46: the same key in project settings stays a finding" "$pd" ".claude/settings.json"
+assert_contains "case 46: and names the scope the record does not declare" "$pd" "declares scope user, not project"
+assert_eq "case 46: a permissions leaf of the same name is never labeled" "0" "$(jq '[.rows[] | select(.claim | startswith("consent-receipt:permissions."))] | length' <<<"$out")"
+assert_eq "case 46: it stays an undocumented-key finding" "1" "$(jq '[.findings[] | select(.identity.claim=="undocumented-key:permissions.skipWorkflowUsageWarning")] | length' <<<"$out")"
+make_cli "$m/claude-lacks" "2.1.281 (Claude Code)" enabledPlugins permissions
+out=$(CLI_BIN="$m/claude-lacks" run "$m" --json 2>&1) || true
+assert_eq "case 46: a searched binary lacking the name leaves no label" "0" "$(jq "[$cr] | length" <<<"$out")"
+stale='.findings[] | select(.identity.claim=="undocumented-key:skipWorkflowUsageWarning" and .identity.sites[0].surface=="user:settings.json")'
+assert_contains "case 46: and the finding says the receipt is stale" "$(jq -r "$stale | .detail" <<<"$out")" "stale consent receipt, recheck"
+assert_eq "case 46: the stale receipt is a warning" "warning" "$(jq -r "$stale | .severity" <<<"$out")"
+make_cli "$m/claude-shim" "2.1.281 (Claude Code)"
+out=$(CLI_BIN="$m/claude-shim" run "$m" --json 2>&1) || true
+assert_contains "case 46: an unsearched binary labels with binary not checked" "$(jq -r "$cr | .detail" <<<"$out")" "binary not checked"
+# A plugin-owned receipt is labeled only while its owner is enabled.
+printf '%s\n' '{"consentReceipt":{"own@mkt":[{"key":"ownAccepted","scopes":["project"],"meaning":"the user accepted own","basis":"fixture","as_of":"2026-09-26","recheck":"never"}],"claude-code":[{"key":"disableAllHooks","scopes":["project"],"meaning":"documented","basis":"fixture","as_of":"2026-09-26","recheck":"never"}]}}' >"$m/receipts.json"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {ownAccepted:true,disableAllHooks:false,enabledPlugins:{"own@mkt":true}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{}' >"$m/user/settings.json"
+out=$(SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts.json" run "$m" --json 2>&1) || true
+assert_eq "case 46: an enabled owner's receipt is labeled" "ok" "$(jq -r '.rows[] | select(.claim=="consent-receipt:ownAccepted") | .status' <<<"$out")"
+assert_eq "case 46: a documented key is never relabeled" "ok 0" "$(jq -r '"\(.rows[] | select(.claim=="documented-key:disableAllHooks") | .status) \([.rows[] | select(.claim=="consent-receipt:disableAllHooks")] | length)"' <<<"$out")"
+printf '%s\n' '{"enabledPlugins":{"own@mkt":false}}' >"$m/project/.claude/settings.local.json"
+out=$(SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts.json" run "$m" --json 2>&1) || true
+assert_eq "case 46: a disabled owner's receipt is not labeled" "0" "$(jq '[.rows[] | select(.claim=="consent-receipt:ownAccepted")] | length' <<<"$out")"
+assert_contains "case 46: and the finding says the owner is not enabled" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:ownAccepted") | .detail' <<<"$out")" "own@mkt is not enabled"
+printf '%s\n' '{}' >"$m/project/.claude/settings.local.json"
+printf '%s\n' '{"consentReceipt":' >"$m/receipts-invalid.json"
+for bad in missing invalid; do
+  out=$(SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts-$bad.json" run "$m" --json 2>&1) || true
+  assert_eq "case 46: a $bad record file is one not-inspectable row" "1" "$(jq '[.rows[] | select(.check=="claude-config/audit/A/consent-receipt" and .status=="not-inspectable")] | length' <<<"$out")"
+  assert_eq "case 46: and a $bad record file falls back to the finding" "1" "$(jq '[.findings[] | select(.identity.claim=="undocumented-key:ownAccepted")] | length' <<<"$out")"
+done
+# A key that only differs by a carriage return is not the record's key.
+printf '%s\n' '{"skipWorkflowUsageWarning\r":true}' >"$m/user/settings.json"
+out=$(CLI_BIN="$m/claude" run "$m" --json 2>&1) || true
+assert_eq "case 46: a carriage-return twin of the key is never labeled" "0" "$(jq '[.rows[] | select(.claim | startswith("consent-receipt:"))] | length' <<<"$out")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

@@ -57,6 +57,7 @@
 #   SETTINGS_AUDIT_ENGINE_USER_DIR      user config dir (else CLAUDE_CONFIG_DIR, else $HOME/.claude)
 #   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON path to installed_plugins.json
 #   SETTINGS_AUDIT_ENGINE_BASELINE_FILE  required-permissions.md to read the baseline from
+#   SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE  consent-receipts.json to read the receipt records from
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
 #   SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR  directory holding llms.txt and <slug>.md; when set,
@@ -290,6 +291,7 @@ INSTALLED_JSON=""
 scopes::installed_registry_to INSTALLED_JSON "${SETTINGS_AUDIT_ENGINE_INSTALLED_JSON:-}" "$USER_DIR"
 
 BASELINE_FILE="${SETTINGS_AUDIT_ENGINE_BASELINE_FILE:-$PLUGIN_ROOT/skills/audit/reference/required-permissions.md}"
+CR_FILE="${SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE:-$PLUGIN_ROOT/skills/audit/reference/consent-receipts.json}"
 
 SETTINGS="$PROJECT_ROOT/.claude/settings.json"
 LOCAL="$PROJECT_ROOT/.claude/settings.local.json"
@@ -394,6 +396,37 @@ jqf() {
   local f="$1"
   shift
   tr -d '\r' <"$f" | jqs "$@"
+}
+
+# ejq <jq args>: jq with Git Bash argument conversion off, so a program or
+# value holding `=/` reaches jq unrewritten; CRLF is stripped from compact or
+# base64 output only, where a CR can only be a line ending.
+ejq() { MSYS2_ARG_CONV_EXCL='*' jq "$@" 2>/dev/null | tr -d '\r'; }
+
+# Shared jq definitions over the user, project and local scopes (category A's
+# consent receipts and category E's plugin rows); `enabled` is the merged
+# enabledPlugins, local over project over user.
+E_DEFS='
+def obj: if type == "object" then . else {} end;
+def mk: split("@") | last // "";
+def disp: gsub("[[:cntrl:]]"; "?");
+def scopes: [{label: "user", surface: $su, s: .user}, {label: "project", surface: $sp, s: .project}, {label: "local", surface: $sl, s: .local}]
+  | map(select(.s != null) | {label, surface, e: (.s | obj | .enabledPlugins | obj)});
+def enabled: [(reduce scopes[] as $x ({}; . + $x.e)) | to_entries[] | select(.value == true) | .key] | sort;
+def holder($S; $k): [range(0; $S | length) | select($S[.].e | has($k))] | last;
+def depkey($k):
+  if type == "string" then (if index("@") then . else . + "@" + ($k | mk) end)
+  elif type == "object" and (.name | type) == "string" then .name + "@" + ((.marketplace | select(type == "string")) // ($k | mk))
+  else null end;
+def emit: map(@base64 | if . == "" then "-" else . end) | join(" ");
+'
+E_ARGS=(--arg su "$SURF_USER" --arg sp "$SURF_SETTINGS" --arg sl "$SURF_LOCAL")
+
+# e_scope <ok> <file>: the scope's JSON, or null when it was not read.
+e_scope() {
+  local j=""
+  [[ "$1" -eq 1 ]] && j="$(jqf "$2" -c '.')"
+  printf '%s\n' "${j:-null}"
 }
 
 case "${SCOPE_STATE[project]}" in
@@ -821,6 +854,102 @@ check_keys() {
 # characters is searched; a shorter or odd-shaped one would match too much to
 # prove anything and is reported as not searched. A hit shows the CLI carries
 # the name as a standalone identifier or string, not that it reads the key.
+# Consent receipts: reference/consent-receipts.json records, per owner (a
+# plugin@marketplace id, or `claude-code` for keys the CLI writes), the
+# undocumented top-level keys written when the user accepts a prompt. Read only
+# when an undocumented top-level key exists; a missing or invalid file is one
+# not-inspectable row and every key keeps its undocumented-key finding.
+CR_STATE=unread CR_WHY=""
+CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=()
+cr_load() {
+  local i crj scopes_json why="" f=() n
+  for i in "${!KP_KEY[@]}"; do
+    [[ "${KP_KEY[$i]}" == "${KP_LEAF[$i]}" ]] && { CR_STATE=wanted; break; }
+  done
+  [[ "$CR_STATE" == wanted ]] || return 0
+  if [[ ! -f "$CR_FILE" || ! -r "$CR_FILE" ]]; then
+    why="is missing or unreadable"
+  else
+    crj="$(tr -d '\r' <"$CR_FILE" | ejq -c -s 'if length == 1 then .[0] else empty end')"
+    scopes_json="$(
+      {
+        e_scope "$USER_OK" "$USER_SETTINGS"
+        e_scope "$PROJECT_OK" "$SETTINGS"
+        e_scope "$LOCAL_OK" "$LOCAL"
+      } | ejq -c -s '{user: .[0], project: .[1], local: .[2]}'
+    )"
+    while IFS= read -r -d '' n; do f+=("$n"); done < <(printf '%s\n%s\n' "${crj:-null}" "${scopes_json:-null}" | ejq -j -s "${E_ARGS[@]}" "$E_DEFS"'
+      def rec: type == "object"
+        and all(("key", "meaning", "basis", "as_of", "recheck") as $f | .[$f]; type == "string" and length > 0)
+        and (.scopes | type) == "array" and (.scopes | length) > 0
+        and all(.scopes[]; . == "user" or . == "project" or . == "local");
+      def valid: type == "object" and (.consentReceipt | type) == "object"
+        and all(.consentReceipt | to_entries[]; (.key == "claude-code" or (.key | test("^[^@]+@[^@]+$")))
+          and (.value | type) == "array" and all(.value[]; rec));
+      if length == 2 and (.[0] | valid) and (.[1] | type) == "object" then
+        .[1] as $c | ($c | enabled) as $en
+        | ("ok", (.[0].consentReceipt | to_entries[] | .key as $o | .value[] | .key as $k
+            | ($k, $o, (.scopes | join(",")), .meaning,
+               (if $o == "claude-code" then "-" elif ($en | index([$o])) != null then "yes" else "no" end),
+               ([("user", "project", "local") as $l | select($c[$l] | obj | has($k)) | $l] | join(",")))))
+        | (., "\u0000")
+      else empty end')
+    if [[ "${f[0]:-}" != "ok" || $(((${#f[@]} - 1) % 6)) -ne 0 ]]; then
+      why="is not valid JSON in the {\"consentReceipt\": {\"<owner>\": [records]}} shape"
+    fi
+  fi
+  if [[ -n "$why" ]]; then
+    CR_STATE=unread
+    row A consent-receipt not-inspectable none "settings" "consent-receipts-unread" "reference/consent-receipts.json $why; no key is labeled a consent receipt and every undocumented key keeps its undocumented-key finding" -
+    return 0
+  fi
+  CR_STATE=ok
+  for ((i = 1; i < ${#f[@]}; i += 6)); do
+    CR_KEY+=("${f[i]}") CR_OWNER+=("${f[i + 1]}") CR_SCOPES+=("${f[i + 2]}") CR_MEANING+=("${f[i + 3]}") CR_ON+=("${f[i + 4]}") CR_IN+=("${f[i + 5]}")
+  done
+}
+
+# cr_match <surface> <key> <leaf>: emit the consent-receipt row and return 0
+# when a record for this top-level key passes every gate; otherwise return 1
+# with CR_WHY naming each gate that failed.
+cr_match() {
+  local surface="$1" k="$2" leaf="$3" scope j owner why note has
+  CR_WHY=""
+  [[ "$CR_STATE" == ok && "$k" == "$leaf" ]] || return 1
+  case "$surface" in
+  "$SURF_USER") scope=user ;;
+  "$SURF_SETTINGS") scope=project ;;
+  "$SURF_LOCAL") scope=local ;;
+  *) return 1 ;;
+  esac
+  has="${BIN_HAS[$leaf]:-}"
+  for j in "${!CR_KEY[@]}"; do
+    # The file must hold the record's key exactly, compared in jq: a key read
+    # through check_keys has lost any carriage return it carried.
+    [[ "${CR_KEY[$j]}" == "$k" && ",${CR_IN[$j]}," == *",$scope,"* ]] || continue
+    owner="${CR_OWNER[$j]}" why="" note=""
+    if [[ ",${CR_SCOPES[$j]}," != *",$scope,"* ]]; then
+      why="the $owner record declares scope ${CR_SCOPES[$j]//,/, }, not $scope"
+    elif [[ "$owner" == "claude-code" ]]; then
+      if [[ "$BIN_SEARCH" == "searched" && "$has" == "no" ]]; then
+        why="stale consent receipt, recheck: the claude-code record names $k but the installed claude binary does not carry it"
+      elif [[ "$BIN_SEARCH" == "searched" && "$has" == "yes" ]]; then
+        note="the installed claude binary carries the name"
+      else
+        note="binary not checked"
+      fi
+    elif [[ "${CR_ON[$j]}" != "yes" ]]; then
+      why="its owner $owner is not enabled in the merged enabledPlugins"
+    fi
+    if [[ -z "$why" ]]; then
+      row A consent-receipt ok none "$surface" "consent-receipt:$k" "$k is a consent receipt owned by $owner: ${CR_MEANING[$j]}; settings-reference does not document it (record: reference/consent-receipts.json${note:+; $note})" -
+      return 0
+    fi
+    CR_WHY+="${CR_WHY:+; }$why"
+  done
+  return 1
+}
+
 BIN_SEARCH=not-needed
 BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
 declare -A BIN_HAS=()
@@ -840,16 +969,19 @@ if [[ ${#KP_KEY[@]} -gt 0 ]]; then
       fi
     done
   fi
+  cr_load
   for i in "${!KP_KEY[@]}"; do
     surface="${KP_SURF[$i]}" k="${KP_KEY[$i]}" leaf="${KP_LEAF[$i]}" ptr="${KP_PTR[$i]}"
+    cr_match "$surface" "$k" "$leaf" && continue
+    cr_note="${CR_WHY:+; not labeled a consent receipt: $CR_WHY}"
     if [[ "$BIN_SEARCH" != "searched" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known" "$ptr"
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary was not searched, so whether the CLI reads it is not known$cr_note" "$ptr"
     elif [[ "${BIN_HAS[$leaf]}" == "unsearchable" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known" "$ptr"
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known$cr_note" "$ptr"
     elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)" "$ptr"
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)$cr_note" "$ptr"
     else
-      row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it" "$ptr"
+      row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it$cr_note" "$ptr"
     fi
   done
 fi
@@ -1265,32 +1397,6 @@ e_rows() {
   done
 }
 
-# ejq <jq args>: jq with Git Bash argument conversion off, so a program or
-# value holding `=/` reaches jq unrewritten; CRLF is stripped from compact or
-# base64 output only, where a CR can only be a line ending.
-ejq() { MSYS2_ARG_CONV_EXCL='*' jq "$@" 2>/dev/null | tr -d '\r'; }
-
-E_DEFS='
-def obj: if type == "object" then . else {} end;
-def mk: split("@") | last // "";
-def disp: gsub("[[:cntrl:]]"; "?");
-def scopes: [{label: "user", surface: $su, s: .user}, {label: "project", surface: $sp, s: .project}, {label: "local", surface: $sl, s: .local}]
-  | map(select(.s != null) | {label, surface, e: (.s | obj | .enabledPlugins | obj)});
-def enabled: [(reduce scopes[] as $x ({}; . + $x.e)) | to_entries[] | select(.value == true) | .key] | sort;
-def holder($S; $k): [range(0; $S | length) | select($S[.].e | has($k))] | last;
-def depkey($k):
-  if type == "string" then (if index("@") then . else . + "@" + ($k | mk) end)
-  elif type == "object" and (.name | type) == "string" then .name + "@" + ((.marketplace | select(type == "string")) // ($k | mk))
-  else null end;
-def emit: map(@base64 | if . == "" then "-" else . end) | join(" ");
-'
-
-# e_scope <ok> <file>: the scope's JSON, or null when it was not read.
-e_scope() {
-  local j=""
-  [[ "$1" -eq 1 ]] && j="$(jqf "$2" -c '.')"
-  printf '%s\n' "${j:-null}"
-}
 KNOWN_MK_JSON=null
 if [[ -n "$USER_DIR" && -f "$USER_DIR/plugins/known_marketplaces.json" ]]; then
   KNOWN_MK_JSON="$(tr -d '\r' <"$USER_DIR/plugins/known_marketplaces.json" | ejq -c '.')"
@@ -1304,7 +1410,6 @@ E_CTX="$(
     printf '%s\n' "$KNOWN_MK_JSON" "$INVENTORY_JSON"
   } | ejq -c -s '{user: .[0], project: .[1], local: .[2], known: .[3], inv: .[4]}'
 )"
-E_ARGS=(--arg su "$SURF_USER" --arg sp "$SURF_SETTINGS" --arg sl "$SURF_LOCAL")
 
 if [[ -n "$E_CTX" ]]; then
   # Each enabled plugin's direct dependencies come from the plugin.json at the
