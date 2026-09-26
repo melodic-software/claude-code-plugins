@@ -45,10 +45,14 @@
 #   2. That index is non-empty.
 #   2a. Its marker slot does not hold `Run status: in progress`. The slot is
 #      the first non-blank line after the index's first level-1 title heading
-#      (past any BOM and CR, never a heading-shaped line inside a CommonMark
-#      code fence, and past YAML front matter: line 1 `---` counts as front
-#      matter only when a `---` or `...` closer follows and every line between
-#      is YAML-shaped; otherwise it is a horizontal rule). A dispatched agent writes the marker there in its early
+#      (past any BOM and CR, and never a heading-shaped line inside a code
+#      fence: a fence opens on 3+ backticks or tildes after at most 3 spaces
+#      of indent and closes only on a run of the same character, at least as
+#      long, followed by whitespace only). YAML front matter is skipped: line 1
+#      `---` counts as front matter only when a `---` or `...` closer follows
+#      and every line between is YAML-shaped (blank, indented, a hash comment,
+#      a `-` list item, or a `key:` line); otherwise it is a horizontal rule.
+#      A dispatched agent writes the marker there in its early
 #      skeleton and replaces it with `Run status: complete` in its final
 #      write, so a marked slot is a run that stopped before finishing. Only
 #      the slot is read: a later line quoting the marker does not trigger, and

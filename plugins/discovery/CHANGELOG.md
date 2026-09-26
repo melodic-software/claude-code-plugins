@@ -18,9 +18,10 @@
   marker slot holds `Run status: in progress`. The slot is the first non-blank line after the first
   level-1 title heading (a single `#` and a space), read past a BOM, CRs and YAML front matter and
   never from inside a code fence. Line 1 `---` is front matter only when a `---` or `...` closer
-  follows and every line between is YAML-shaped; otherwise it is a horizontal rule. A fence closes
-  only on a run of its own character (backtick or tilde) at least as long as the opener, per
-  CommonMark. The match tolerates case, spacing, a tab and `in-progress` / `in_progress`. Nothing
+  follows and every line between is YAML-shaped (blank, indented, a hash comment, a `-` list item,
+  or a `key:` line); otherwise it is a horizontal rule. A fence opens on 3 or more backticks or
+  tildes after at most 3 spaces of indent and closes only on a run of the same character, at least
+  as long as the opener and followed by whitespace only, per CommonMark. The match tolerates case, spacing, a tab and `in-progress` / `in_progress`. Nothing
   outside the slot is read, so a quoted marker elsewhere does not trigger, and an index with no
   marker grades as before. A by-value index body written back must carry `Run status: complete` or
   no marker.
