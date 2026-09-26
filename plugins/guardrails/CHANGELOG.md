@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.11] - 2026-09-26
+
+### Changed
+
+- hooks.json: the Write/Edit and Bash/PowerShell PreToolUse rows run `exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/run-guards.sh ...` instead of `bash ...`, as the PostToolUse rows already do: under a `sh -c` wrapper (Linux, macOS) bash replaces the shell instead of running as its child, one process fewer per call.
+- hardcoded-path-check.sh: one `git rev-parse --is-inside-work-tree --show-toplevel` answers both the work-tree test and the toplevel the repo-path branch needs, instead of two git processes. Same verdicts inside and outside a work tree, in a bare repo and inside `.git`.
+- hardcoded-path-patterns.sh: `hpp::scan_text`'s pre-filter first checks the content in the shell, under the C locale, and starts its two `grep` processes only when that check cannot decide. It answers "clean" only where the greps would: the OS-path literals are a byte-substring test, and the project-root segment is compared with ASCII case folding only when the content and the segment are both ASCII and the segment holds no newline. Non-ASCII content still goes to `grep -Fi`, whose locale folding is wider. On a clean ASCII Write or Edit the guard starts no `grep`. A readonly `LC_ALL` skips this check and the greps decide, and restoring a caller's `LC_ALL` that names a locale the host lacks no longer prints a setlocale warning.
+
+### Fixed
+
+- hardcoded-path-patterns.sh: a project root whose last path segment starts with `-` (`-foo`, `-e`, `--help`) was handed to `grep -qFi` and `grep -nFi` as an option instead of a pattern. `grep` errored or printed its usage, so a write carrying that project's own absolute path passed clean, or `--help` turned grep's usage text into a false violation. Those greps now take `--` before the pattern.
+
 ## [0.36.10] - 2026-09-25
 
 ### Fixed

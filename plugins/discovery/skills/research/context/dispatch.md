@@ -9,8 +9,8 @@ Everything the parent owes that is **identical for exploration and research** is
 the envelope's six shared fields as a literal template, the pre-dispatch baseline in both shell forms,
 what is and is not documented about argument substitution on the preload path, why the gate ships no
 permission grant and what to do when it cannot run, and the resume-before-discard ordering.
-Research also writes `Source breadth:` on that same template. This file does not restate the shared
-six.
+Research also writes `Source breadth:` and `Evidence use:` on that same template. This file does
+not restate the shared six.
 
 ## The orchestration boundary
 
@@ -21,7 +21,7 @@ that surrounds the reading, and the failures worth guarding against are all at t
 before the agent starts, because the agent cannot resolve it once started:
 
 The literal envelope template is in the parent contract. All six shared fields are owed; research
-also owes `Source breadth:`. This table says why each is the parent's to supply.
+also owes `Source breadth:` and `Evidence use:`. This table says why each is the parent's to supply.
 
 | Field | Why the agent cannot supply it |
 |---|---|
@@ -31,6 +31,7 @@ also owes `Source breadth:`. This table says why each is the parent's to supply.
 | Memory root | **Not derivable from the slice path.** On a fan-out the slice is a sub-slice, and no one can tell from the path alone which ancestor is the configured root, but the root is where the self-ignoring `.gitignore` guard belongs. It is owed as its own labeled line. It is also the one field whose absence is **degradable**: the agent derives, flags in `open_questions`, and continues, rather than stopping |
 | Budget | How much depth was authorized is the caller's decision, never the worker's. Carried on two lines: `Budget:` for depth and `Turn budget:` for the turn by which the worker stops gathering (degradable; absent, the worker uses its own default) |
 | Source breadth | The caller effort that scales the phase table. The researcher lane is pinned `high` for reasoning, so the worker's own `${CLAUDE_EFFORT}` is the pin (or a literal placeholder on disk fallback). The parent writes this line from its own load |
+| Evidence use | Only the parent knows where the answer goes. `publish` when it will be quoted outside this session (a pull-request review reply, an issue, a design document, a message to a third party), else `internal`. Degradable: absent, the worker records `internal` and says so. The worker copies the value into the index as `evidence_use:`, because the verifier holds no envelope, and the parent passes the same value to the applicability gate as `--expect-evidence-use`, so an index that dropped it fails rather than grading under the weaker rules |
 | Capability flags | Whether nested spawning is available is a session property the parent probed. It is the only flag, because the agent's own **write** capability is not probeable before dispatch, and the parent's `mkdir`/baseline proves only that the parent can write there. That question is answered afterwards by `persistence:` in the payload |
 
 The agent **refuses to guess** any of these rather than inventing one, memory root excepted above,
@@ -56,6 +57,14 @@ against a run that produced none):
    rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
    verifier asked only about corroboration and confidence re-fetches the quotes and never asks
    whether the claim follows from them.
+
+   **Brief it on applicability too.** Under row 12 the verifier runs the era and scenario checks on
+   every cited source: does the source's product line and version range, as the page itself shows
+   them, match the header's `published:` and `applies_to:`, and does the source describe the
+   claim's specific situation or only the general mechanism. When the index records
+   `evidence_use: publish`, say so in the brief: the verifier then grades every cited source for
+   applicability rather than quote presence, and checks that the answer quotes only `current`
+   sources as support. A quote found at its link answers neither question.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
@@ -159,6 +168,14 @@ artifact gate is shape-agnostic, grading an index and its sidecars for either fa
 ledger belongs to exactly one caller. Folding a `--ledger` flag in would put research's file into the
 half of the pair that is deliberately family-neutral.
 
+**`check-source-applicability.py` is separate for the same reason.** The artifact gate never opens
+a header, and the research sidecar header is research's alone. The applicability script is the one
+check here that reads it, and `applicability: pass` in the payload is criterion 13's self-grade,
+re-run parent-side like the ledger. It ships as Python only; where `python3` does not resolve, run
+it as `python` from a lane that can, and a lane that can run neither halts. An engine artifact
+(research-deep Tier 1) that does not write the header fields fails it by design; route that topic
+to the researcher tier.
+
 Two limits are worth stating rather than discovering:
 
 - **`--newer-than` binds the index, not the ledger.** The artifact gate never looks at
@@ -204,8 +221,8 @@ draws:
 2. **Write into the memory-slice path the parent resolved before dispatch**, the same path it fed
    the gate, which on a fan-out is the sub-slice that topic was assigned rather than the slice root.
    The payload's `artifact:` value is the destination the agent *names*, never the anchor.
-3. **Re-run the identical checks: the artifact gate always, and the coverage-ledger gate whenever a
-   ledger was owed.** Do not hand-inspect the directory instead; the whole reason this rung is safe
+3. **Re-run the identical checks: the artifact gate and the source-applicability gate always, and
+   the coverage-ledger gate whenever a ledger was owed.** Do not hand-inspect the directory instead; the whole reason this rung is safe
    is that the artifact ends up graded by the same checks as every other run. Freshness needs no
    special handling: the parent writes after its own `touch`, so the index is strictly newer than
    the baseline. The slice was empty, so the stale-ledger window this ladder's discard rung exists

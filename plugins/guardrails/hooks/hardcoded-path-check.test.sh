@@ -112,6 +112,54 @@ RC=$?
 assert_exit "repo subdir of non-home checkout → exit 2" 2 "$RC"
 assert_contains "repo subdir → machine-specific repo message" "$OUT" "Machine-specific repo path"
 
+# The lib's builtin pre-gate folds case over ASCII only and must hand non-ASCII
+# content to grep, whose locale folding is wider. A case-variant root is
+# flagged; a root spelled with the Kelvin sign (U+212A) for k is flagged
+# exactly when this host's `grep -Fi` matches it.
+KREPO="$TEST_TMPDIR/kroot"
+mkdir -p "$KREPO"
+git -C "$KREPO" init -q
+KUPPER="${KREPO%/kroot}/KROOT"
+OUT=$(HOME="$TEST_TMPDIR/elsewhere3" CLAUDE_PROJECT_DIR="$KREPO" \
+  bash "$HOOK" <<<"$(write_json "$KREPO/notes.txt" "at $KUPPER/x")" 2>&1)
+RC=$?
+assert_exit "case-variant repo root → exit 2" 2 "$RC"
+KELVIN="${KREPO%/kroot}/"$'\xe2\x84\xaa'"root/x"
+KWANT=0
+grep -qFi "$KREPO" < <(printf 'at %s' "$KELVIN") && KWANT=2
+OUT=$(HOME="$TEST_TMPDIR/elsewhere3" CLAUDE_PROJECT_DIR="$KREPO" \
+  bash "$HOOK" <<<"$(write_json "$KREPO/notes.txt" "at $KELVIN")" 2>&1)
+RC=$?
+assert_exit "Kelvin-sign repo root → same verdict as grep -Fi ($KWANT)" "$KWANT" "$RC"
+
+# A root whose last segment starts with `-` is a pattern to grep, not an
+# option: its own path in content is flagged, and clean content stays clean.
+for DSEG in -foo -e --help; do
+  DREPO="$TEST_TMPDIR/dash/$DSEG"
+  mkdir -p "$DREPO"
+  git -C "$DREPO" init -q
+  OUT=$(HOME="$TEST_TMPDIR/elsewhere4" CLAUDE_PROJECT_DIR="$DREPO" \
+    bash "$HOOK" <<<"$(write_json "$DREPO/notes.txt" "at $DREPO/x")" 2>&1)
+  RC=$?
+  assert_exit "dash root $DSEG in content → exit 2" 2 "$RC"
+  assert_contains "dash root $DSEG → machine-specific repo message" "$OUT" "Machine-specific repo path"
+  OUT=$(HOME="$TEST_TMPDIR/elsewhere4" CLAUDE_PROJECT_DIR="$DREPO" \
+    bash "$HOOK" <<<"$(write_json "$DREPO/notes.txt" "clean text")" 2>&1)
+  RC=$?
+  assert_exit "dash root $DSEG, clean content → exit 0" 0 "$RC"
+  if [[ -z "$OUT" ]]; then ok "dash root $DSEG, clean content → silent"; else fail "dash root $DSEG, clean content → output: $OUT"; fi
+done
+
+# Caller states the lib's pre-gate must survive: a readonly LC_ALL cannot take
+# C, so the greps decide (fail closed); an LC_ALL naming a missing locale is
+# restored without a setlocale warning.
+HPP_LIB="$HOOK_DIR/../lib/path-detection/hardcoded-path-patterns.sh"
+OUT=$(bash -c 'source "$1"; readonly LC_ALL=C.UTF-8; hpp::scan_text "at /r/work/x" /r/work a.txt; echo "rc=$?"' _ "$HPP_LIB" 2>&1)
+assert_contains "readonly LC_ALL → root still flagged" "$OUT" "Machine-specific repo path"
+assert_contains "readonly LC_ALL → rc 1" "$OUT" "rc=1"
+OUT=$(LC_ALL=xx_XX.UTF-8 bash -c 'source "$1"; exec 2>&1; hpp::scan_text a /r/work a.txt; echo "rc=$? lc=$LC_ALL"' _ "$HPP_LIB")
+if [[ "$OUT" == "rc=0 lc=xx_XX.UTF-8" ]]; then ok "missing-locale LC_ALL → restored, no warning"; else fail "missing-locale LC_ALL → got: $OUT"; fi
+
 # Generic Windows checkout root under a widened root name (Projects/Dev/Repos):
 # content carries no "Users"/"repos" literal, so it exercises the cheap
 # pre-filter gate — which must trip on every root HPP_WIN_REPO_BODY accepts, or
