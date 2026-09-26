@@ -99,6 +99,17 @@ assert_eq "second event appends to the session file" 2 "$(wc -l <"$LOG" | tr -d 
 assert_eq "another session gets its own file" 1 "$(wc -l <"$P/.observability/claude/sessions/sess-xyz.jsonl" | tr -d ' ')"
 assert_eq "exactly two session files" 2 "$(find "$P/.observability/claude/sessions" -name '*.jsonl' | wc -l | tr -d ' ')"
 
+# --- PostToolBatch: one line per batch, carrying the first call's tool keys ------
+P=$(project batch)
+OUT=$(run "$P" "$(payload sb PostToolBatch '"tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"/x/a.md"},"tool_use_id":"toolu_b1","tool_response":{"content":"a"}},{"tool_name":"Grep","tool_input":{"pattern":"x"},"tool_use_id":"toolu_b2","tool_response":{"content":"b"}}]')" "$ON")
+assert_exit "PostToolBatch → exit 0" 0 "$?"
+BLOG="$P/.observability/claude/sessions/sb.jsonl"
+assert_eq "PostToolBatch → one line for the batch" 1 "$(wc -l <"$BLOG" 2>/dev/null | tr -d ' ')"
+assert_eq "PostToolBatch → hook_event_name" "PostToolBatch" "$(jq -r .hook_event_name "$BLOG" 2>/dev/null)"
+assert_eq "PostToolBatch → category tool" "tool" "$(jq -r .category "$BLOG" 2>/dev/null)"
+assert_eq "PostToolBatch → first entry's tool_name" "Read" "$(jq -r .tool_name "$BLOG" 2>/dev/null)"
+assert_eq "PostToolBatch → first entry's tool_use_id" "toolu_b1" "$(jq -r .tool_use_id "$BLOG" 2>/dev/null)"
+
 # --- the guard is never overwritten when an operator changed it ---------------
 P=$(project guarded)
 mkdir -p "$P/.observability/claude"
