@@ -112,6 +112,26 @@ RC=$?
 assert_exit "repo subdir of non-home checkout → exit 2" 2 "$RC"
 assert_contains "repo subdir → machine-specific repo message" "$OUT" "Machine-specific repo path"
 
+# The lib's builtin pre-gate folds case over ASCII only and must hand non-ASCII
+# content to grep, whose locale folding is wider. A case-variant root is
+# flagged; a root spelled with the Kelvin sign (U+212A) for k is flagged
+# exactly when this host's `grep -Fi` matches it.
+KREPO="$TEST_TMPDIR/kroot"
+mkdir -p "$KREPO"
+git -C "$KREPO" init -q
+KUPPER="${KREPO%/kroot}/KROOT"
+OUT=$(HOME="$TEST_TMPDIR/elsewhere3" CLAUDE_PROJECT_DIR="$KREPO" \
+  bash "$HOOK" <<<"$(write_json "$KREPO/notes.txt" "at $KUPPER/x")" 2>&1)
+RC=$?
+assert_exit "case-variant repo root → exit 2" 2 "$RC"
+KELVIN="${KREPO%/kroot}/"$'\xe2\x84\xaa'"root/x"
+KWANT=0
+grep -qFi "$KREPO" < <(printf 'at %s' "$KELVIN") && KWANT=2
+OUT=$(HOME="$TEST_TMPDIR/elsewhere3" CLAUDE_PROJECT_DIR="$KREPO" \
+  bash "$HOOK" <<<"$(write_json "$KREPO/notes.txt" "at $KELVIN")" 2>&1)
+RC=$?
+assert_exit "Kelvin-sign repo root → same verdict as grep -Fi ($KWANT)" "$KWANT" "$RC"
+
 # Generic Windows checkout root under a widened root name (Projects/Dev/Repos):
 # content carries no "Users"/"repos" literal, so it exercises the cheap
 # pre-filter gate — which must trip on every root HPP_WIN_REPO_BODY accepts, or
