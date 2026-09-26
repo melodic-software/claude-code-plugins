@@ -116,26 +116,45 @@ MANAGED_PRESENT=false
 META_LOCAL='{"matched": false, "disabled": [], "disabledJson": [], "enabledJson": [], "enableAll": false}'
 SKIPPED_TEXT="skipped (mcpServers is a path; pass that file as --config)"
 
-clean_text() {
-  printf '%s' "${1//[[:cntrl:]]/}"
-}
+# Value filter applied to every emitted package, publisher, name, and drop-in file name:
+# split on / @ : = # . _ - [ ] and space; reject a value over 100 characters, a segment over
+# 40, a known secret prefix anywhere, or a segment of 20+ characters holding at least three
+# digits and three letters. A segment that is exactly a 64-hex digest or 40-hex commit passes.
+# shellcheck disable=SC2016
+JQ_VF='def vf:
+  (length <= 100)
+  and (test("sk-|ghp_|gho_|ghs_|ghu_|github_pat_|xox[abprs]-|akia|asia|aiza|eyj|glpat-"; "i") | not)
+  and ([splits("[/@:=#._\\[\\] -]")]
+       | all(.[]; test("^([0-9a-f]{64}|[0-9a-f]{40})$")
+                  or (length <= 40
+                      and (length < 20 or ([scan("[0-9]")] | length) < 3 or ([scan("[A-Za-z]")] | length) < 3))));'
 
 add_source() {
-  SOURCES+="# source $1 $(clean_text "$2") $3"$'\n'
+  SOURCES+="# source $1 $2 $3"$'\n'
 }
 
 die_json() {
-  echo "inventory.sh: $1: $(clean_text "$2")" >&2
+  echo "inventory.sh: $1: $2" >&2
   exit 2
 }
 
-# check_json <file>: exit 2 unless the file parses as JSON.
+# check_json <file> <shown>: exit 2 unless the file parses as JSON.
 check_json() {
-  jq empty <"$1" >/dev/null 2>&1 || die_json "unparsable JSON" "$1"
+  jq empty <"$1" >/dev/null 2>&1 || die_json "unparsable JSON" "$2"
 }
 
-# add_rows <file> <scope> <filter>: append {scope,name,cfg} JSON lines for the server map
-# the filter selects and set STATUS: found, found-empty (no map), or the skipped text
+# dropin_shown <path>: the path to print for a managed-settings.d drop-in; a file name that
+# fails the value filter prints as redacted-file.
+dropin_shown() {
+  if jq -en --arg f "${1##*/}" "$JQ_VF"' $f | vf' >/dev/null 2>&1; then
+    printf '%s' "$1"
+  else
+    printf '%s/redacted-file' "${1%/*}"
+  fi
+}
+
+# add_rows <file> <scope> <filter> <shown>: append {scope,name,cfg} JSON lines for the server
+# map the filter selects and set STATUS: found, found-empty (no map), or the skipped text
 # (a string or array map). A number or boolean map exits 2.
 add_rows() {
   local out
@@ -146,7 +165,7 @@ add_rows() {
       elif $t == "object" then ("found", ($m | to_entries[] | {scope: $s, name: .key, cfg: .value}))
       elif $t == "string" or $t == "array" then "skipped"
       else error("non-object server map") end' <"$1" 2>/dev/null | tr -d '\r')" ||
-    die_json "non-object server map" "$1"
+    die_json "non-object server map" "$4"
   STATUS="${out%%$'\n'*}"
   [[ "$STATUS" == "skipped" ]] && STATUS="$SKIPPED_TEXT"
   if [[ "$out" == *$'\n'* ]]; then
@@ -157,15 +176,21 @@ add_rows() {
 # shellcheck disable=SC2016
 LOCAL_FILTER='[(.projects // {}) | to_entries[] | select((.key | norm) == ($p | norm))] | first | .value'
 
-# add_file_source <scope> <file> <filter>: read one file-backed source or report it absent.
+# add_file_source <scope> <file> <filter> [shown]: read one file-backed source or report it
+# absent. A path holding a control character exits 2 without echoing it.
 add_file_source() {
+  local shown="${4:-$2}"
+  if [[ "$2" == *[[:cntrl:]]* ]]; then
+    echo "inventory.sh: a $1 source path contains a control character" >&2
+    exit 2
+  fi
   if [[ -f "$2" ]]; then
-    check_json "$2"
-    add_rows "$2" "$1" "$3"
-    add_source "$1" "$2" "$STATUS"
+    check_json "$2" "$shown"
+    add_rows "$2" "$1" "$3" "$shown"
+    add_source "$1" "$shown" "$STATUS"
     return 0
   fi
-  add_source "$1" "$2" absent
+  add_source "$1" "$shown" absent
   return 1
 }
 
@@ -181,7 +206,7 @@ if add_file_source user "$CLAUDE_JSON" '.mcpServers'; then
      enableAll: ($v.enableAllProjectMcpServers == true)}' <"$CLAUDE_JSON" 2>/dev/null | tr -d '\r')" ||
     die_json "non-object projects map" "$CLAUDE_JSON"
   if [[ "$META_LOCAL" == '{"matched":true'* ]]; then
-    add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers"
+    add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers" "$CLAUDE_JSON"
     add_source local "$CLAUDE_JSON" "$STATUS"
   else
     add_source local "$CLAUDE_JSON" absent
@@ -197,7 +222,7 @@ add_file_source managed "$MANAGED_DIR/managed-mcp.json" '.mcpServers' && MANAGED
 add_file_source managed-settings "$MANAGED_DIR/managed-settings.json" '.managedMcpServers'
 shopt -s nullglob
 for dropin in "$MANAGED_DIR"/managed-settings.d/*.json; do
-  add_file_source managed-settings "$dropin" '.managedMcpServers'
+  add_file_source managed-settings "$dropin" '.managedMcpServers' "$(dropin_shown "$dropin")"
 done
 shopt -u nullglob
 
@@ -231,7 +256,7 @@ def qsplit:
 def unquote:
   gsub(SQ + "(?<a>[^" + SQ + "]*)" + SQ; "\(.a)") | gsub(DQ + "(?<a>[^" + DQ + "]*)" + DQ; "\(.a)");
 def wrap_tokens:
-  if test("[\n\r]") then [unparsed_mark]
+  if length > 4096 or test("[\n\r]") then [unparsed_mark]
   else qsplit as $raw
   | if $raw == null then [unparsed_mark]
     else ($raw | drop_assign) as $rest
@@ -252,9 +277,12 @@ def shell_c_string:
 def env_rest:
   if length == 0 then .
   elif (.[0] | is_assign) then (.[1:] | env_rest)
-  elif IN(.[0]; "-u", "--unset", "-C", "--chdir") then (.[2:] | env_rest)
+  elif IN(.[0]; "-u", "--unset", "-C", "--chdir", "-P", "-a", "--argv0") then (.[2:] | env_rest)
+  elif (.[0] | test("^--(unset|chdir|argv0)=")) then (.[1:] | env_rest)
   elif IN(.[0]; "-S", "--split-string") then (((.[1] // "") | wrap_tokens) + .[2:])
-  elif (.[0] | startswith("-")) then (.[1:] | env_rest)
+  elif (.[0] | startswith("--split-string=")) then ((.[0] | sub("^--split-string="; "") | wrap_tokens) + .[1:])
+  elif IN(.[0]; "-i", "--ignore-environment", "-0", "--null", "-v", "--debug", "-", "--") then (.[1:] | env_rest)
+  elif (.[0] | startswith("-")) then [unparsed_mark]
   else . end;
 def rest_after($opts):
   ([to_entries[] | select(.value | ascii_downcase | IN(.; $opts[])) | .key] | first) as $i
@@ -278,15 +306,20 @@ def unwrap:
 def url_parts($prefix; $schemes; $tail):
   (capture("^(?<s>" + $prefix + "(" + $schemes + ")://)([^/?#@]*@)?(?<h>[A-Za-z0-9.-]+|\\[[0-9A-Fa-f:.]+\\])(?<p>:[0-9]+)?(?<path>/[A-Za-z0-9._~/+-]*)?(?<c>" + $tail + ")?$")
    | {scheme: .s, host: .h, port: (.p // ""), path: (.path // ""), commit: (.c // "")}) // null;
+# A git spec prints only its first two path segments (owner/repo); a tarball prints only its
+# file name, with "/..." standing in for any directories before it.
 def url_spec:
   url_parts("(git\\+)?"; "https?|ssh|git"; "#[0-9a-f]{40}") as $m
   | if $m == null then null
-    elif ($m.scheme | test("^https?://$")) and ($m.path | test("\\.(tgz|tar\\.gz)$")) then
-      {package: ($m.scheme + $m.host + $m.port + $m.path + $m.commit), pub: $m.host,
-       pin: (if $m.host == "registry.npmjs.org" and ($m.path | test("-[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?\\.tgz$"))
-             then "exact" else "tarball" end)}
-    else {package: ($m.scheme + $m.host + $m.port + $m.path + $m.commit), pub: $m.host,
-          pin: (if $m.commit != "" then "git-commit" else "git-ref" end)} end;
+    else ($m.path | split("/") | map(select(length > 0))) as $segs
+    | ($m.scheme + $m.host + $m.port) as $origin
+    | if ($m.scheme | test("^https?://$")) and ($m.path | test("\\.(tgz|tar\\.gz)$")) then
+        {package: ($origin + (if ($segs | length) > 1 then "/.../" else "/" end) + ($segs | last)), pub: $m.host,
+         pin: (if $m.host == "registry.npmjs.org" and ($m.path | test("-[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?\\.tgz$"))
+               then "exact" else "tarball" end)}
+      else {package: ($origin + ($segs[:2] | map("/" + .) | join("")) + $m.commit), pub: $m.host,
+            pin: (if $m.commit != "" then "git-commit" else "git-ref" end)} end
+    end;
 def path_spec:
   if test("^(\\./|\\.\\./|~/|/|file:(\\./|\\.\\./|/)?)[A-Za-z0-9._~/+-]*$")
   then {package: ., pin: "local-path", pub: "local"} else null end;
@@ -395,6 +428,7 @@ def img_of:
 # pkgrow: allow maps the raw spec to {package, pin, pub} when it fits a grammar, else null.
 def pkgrow($l; $spec; allow):
   if $spec == null or $spec == "" then {launcher: $l, package: "-", pin: "not-a-package", publisher: "-"}
+  elif ($spec | length) > 4096 then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
   else ($spec | allow) as $k
   | if $k == null then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
     else {launcher: $l, package: $k.package, pin: $k.pin, publisher: $k.pub} end
@@ -448,7 +482,8 @@ def classify:
       | ($cmd0 | if type == "string" then sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "") else "" end) as $cmd
       | if ($cmd | test("[[:cntrl:]]")) or ($cmd | basename_of | test("[[:space:]]")) then
           {launcher: "local", package: "-", pin: "unparsed", publisher: "-", sandboxed: "no"}
-        elif ($cmd0 | type) != "string" or ($args | type) != "array" or any($args[]; type != "string") then
+        elif ($cmd0 | type) != "string" or ($args | type) != "array" or ($args | length) > 256
+          or any($args[]; type != "string") then
           {launcher: ([$cmd] | stdio_row | .launcher), package: "-", pin: "unparsed", publisher: "-", sandboxed: "no"}
         else ([$cmd] + $args) | unwrap | stdio_row | . + {sandboxed: "no"}
         end
@@ -462,7 +497,12 @@ def secret_name:
   or test("[A-Za-z0-9_-]{32,}")
   or test("^[A-Za-z0-9_-]+([.][A-Za-z0-9_-]+){2,}$");
 def shown_name:
-  if test("^[A-Za-z0-9._ -]{1,64}$") and (secret_name | not) then . else "redacted-name(\(length))" end;
+  if test("^[A-Za-z0-9._ -]{1,64}$") and (secret_name | not) and vf then . else "redacted-name(\(length))" end;
+# withhold: a package or publisher that fails the value filter withholds the whole value.
+def withhold:
+  if (.package != "-" and (.package | vf | not))
+     or ((.publisher | IN("-", "local", "unscoped", "pypi", "library") | not) and (.publisher | vf | not))
+  then . + {package: "-", pin: "unparsed", publisher: "-"} else . end;
 def ms_valid:
   if (.cfg | type) != "object" then false
   else (.name | test("^[A-Za-z0-9_-]+$"))
@@ -489,13 +529,13 @@ def approved: . as $n | $meta.enableAll or any($meta.enabledJson[]; . == $n);
       then "shadowed-by:project-if-approved" else "shadowed-by:" + $w.scope end)
    elif $r.scope == "project" and ($r.name | approved | not) then "approval-unknown"
    else "yes" end) as $effective
-| ($r | classify) as $k
+| ($r | classify | withhold) as $k
 | [$r.scope, ($r.name | shown_name), $effective, $k.transport, $k.launcher, $k.package, $k.pin, $k.publisher, $k.sandboxed]
 | map(clean)
 '
 
 TABLE="$(printf '%s' "$ROWS" | jq -rs --argjson meta "$META_LOCAL" --argjson managed "$MANAGED_PRESENT" \
-  "[$CLASSIFY] | sort_by(.[0], .[1]) | .[] | @tsv" 2>/dev/null | tr -d '\r')" || {
+  "$JQ_VF [$CLASSIFY] | sort_by(.[0], .[1]) | .[] | @tsv" 2>/dev/null | tr -d '\r')" || {
   echo "inventory.sh: classification failed" >&2
   exit 2
 }
