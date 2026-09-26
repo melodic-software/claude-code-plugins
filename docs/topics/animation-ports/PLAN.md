@@ -66,7 +66,7 @@ Execution order is integration-first: the render composition root is the slice e
 through, so it lands first; the test seam lands as soon as its dependencies exist so every later
 phase runs under it. `[EXEC-SHAPE]`
 
-### Phase 0: Safety-net baseline [TODO]
+### Phase 0: Safety-net baseline [DONE]
 
 No plugin code changes. Build a local script in the topic memory slice (never committed; it needs
 unshipped clips, D44) with two modes. `[EXEC-SHAPE]`
@@ -102,10 +102,10 @@ unshipped clips, D44) with two modes. `[EXEC-SHAPE]`
 
 **Sanity Check:**
 
-- [ ] `baseline` exits 0; its `check` stdout ends with `36/36 as required`; `selftest` exits 0;
+- [x] `baseline` exits 0; its `check` stdout ends with `36/36 as required`; `selftest` exits 0;
   `learn.py` stdout line 1 contains `calibration 150/150, evaluation 150/150`; regress exits 0.
-- [ ] `cmp` of the baseline-run `style.json` against `plugins/animation/styles/woodcut-ink/style.json` exits 0 (the check reproduces at `47d7ba2ae`).
-- [ ] `compare` of the baseline against a second baseline run exits 0 (the net is deterministic on
+- [x] `cmp` of the baseline-run `style.json` against `plugins/animation/styles/woodcut-ink/style.json` exits 0 (the check reproduces at `47d7ba2ae`).
+- [x] `compare` of the baseline against a second baseline run exits 0 (the net is deterministic on
   this machine). If it does not, stop: the net cannot gate byte-identity.
 - If the `style.json` `cmp` fails (a hand edit after the last `learn.py` run), the baseline-run
   output becomes the C3 reference and the mismatch is reported to the user.
