@@ -54,7 +54,7 @@ MAX_SUBSETS = 4096
 
 
 def traces(work):
-    ds = [json.load(open(f)) for f in workdir.traces(work)]
+    ds = [json.load(open(f, encoding='utf-8')) for f in workdir.traces(work)]
     if not ds:
         sys.exit(f'learn: no traces in {workdir.traces_dir(work)}; run the rotoscope extract.py first')
     tones, common = {}, Counter(tuple(d['levels']) for d in ds).most_common(1)[0][0]   # skip per-shot level overrides
@@ -118,7 +118,7 @@ def main(argv=None):
                     help='inkstats --json summaries of films in other styles or near misses (negative controls)')
     a = ap.parse_args(argv)
     f = a.pack / 'style.json'
-    old = json.load(open(f)) if f.exists() else {}
+    old = json.load(open(f, encoding='utf-8')) if f.exists() else {}
     tr, rows = traces(a.work), inkstats.measure(a.work)
     cuts = inkstats.nums(a.cuts)
     m = inkstats.summary(rows, cuts, a.seg)
@@ -127,7 +127,7 @@ def main(argv=None):
     if len(ps) < 4:
         sys.exit(f'learn: only {len(ps)} excerpt splits of {len(parts)} parts; give more cuts or a shorter --seg')
     calib, evals = ps[0::2], ps[1::2]
-    negs = {n.stem: json.load(open(n)) for n in a.negative}
+    negs = {n.stem: json.load(open(n, encoding='utf-8')) for n in a.negative}
 
     def vals(group, s):   # both directions: the excerpt and its complement
         return [(i, v) for i, pair in enumerate(group) for side in pair
@@ -206,7 +206,7 @@ def main(argv=None):
         ref={s: ref[s] for s in bands}, bands=bands, check=check,
         measured_only=[s for s in MEASURED_ONLY if s in bands], brush=old.get('brush', {}), rotoscope_fits=tr['fits'])
     a.pack.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(pack, indent=1) + '\n')
+    f.write_text(json.dumps(pack, indent=1) + '\n', encoding='utf-8')
     print(f'{f}: {m["drawings"]} drawings, {len(parts)} parts, {len(ps)} splits ({len(calib)} calibration, '
           f'{len(evals)} evaluation), palette tolerance {tol}; excerpts passing every row: calibration '
           f'{whole(calib)}, evaluation {whole(evals)}')

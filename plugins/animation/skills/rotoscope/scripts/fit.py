@@ -56,16 +56,16 @@ def main(argv=None):
     a = ap.parse_args(argv)
     work = a.work.resolve()
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
-    ks = [k for k, *_ in json.load(open(workdir.index(work)))['drawings'] if k0 <= k <= k1]
+    ks = [k for k, *_ in json.load(open(workdir.index(work), encoding='utf-8'))['drawings'] if k0 <= k <= k1]
     start = {k: a.start if a.start is not None else
-             json.load(open(workdir.trace(work, k))).get('brush', {}).get('bias', BRUSH['bias']) for k in ks}
+             json.load(open(workdir.trace(work, k), encoding='utf-8')).get('brush', {}).get('bias', BRUSH['bias']) for k in ks}
     tried, cand = {k: {} for k in ks}, dict(start)
     out = workdir.out(work, 'fit')
     workdir.rep(work, 'fit').mkdir(parents=True, exist_ok=True)
     for rnd in range(a.rounds):
         if not cand:
             break
-        (work / 'fit-brushes.json').write_text(json.dumps({k: {'bias': b} for k, b in cand.items()}))
+        (work / 'fit-brushes.json').write_text(json.dumps({k: {'bias': b} for k, b in cand.items()}), encoding='utf-8')
         measure.replicas(work, list(cand), workdir.rep(work, 'fit'), 'brushes=fit-brushes.json', a.workers)
         nxt = {}
         for k, b in cand.items():
@@ -82,10 +82,10 @@ def main(argv=None):
         fit[k] = b
         lines.append(f"| {k} | {start[k]:.2f} | {b:.2f} | {ratio(r):.2f} | {r['xor']:.3f} | {r['xor'] / r['floor']:.2f} | {r['ssim']:.4f} | "
                      f"{r['ssim_e']:.4f} | {'yes' if ok(r) else 'NO'} | {' '.join(f'{x:.2f}' for x in sorted(tried[k]))} |")
-    (out / f'fit-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n')
+    (out / f'fit-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
     path = a.out or workdir.overrides(work)
-    doc = json.load(open(path)) if path.exists() else {'overrides': []}
+    doc = json.load(open(path, encoding='utf-8')) if path.exists() else {'overrides': []}
     run = [ks[0]]
     for k in ks[1:] + [None]:
         if k is not None and fit[k] == fit[run[0]] and k == run[-1] + 1:
@@ -93,7 +93,7 @@ def main(argv=None):
             continue
         doc['overrides'].append({'k': [run[0], run[-1]], 'brush': {'bias': fit[run[0]]}, 'why': 'fit.py'})
         run = [k]
-    path.write_text(json.dumps(doc, indent=1) + '\n')
+    path.write_text(json.dumps(doc, indent=1) + '\n', encoding='utf-8')
     print(f'appended to {path}; apply with extract.py {work} --apply')
     return 0 if all(ok(best(tried[k])[1]) for k in ks) else 1
 

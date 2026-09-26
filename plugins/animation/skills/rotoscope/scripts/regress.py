@@ -10,13 +10,17 @@ shfred0  exit 0 only when every drawing meets the measure.py target (239/239 on 
          hold (render.json, the mp4, 24 drawings at their first frames) and each regression case below does. The
          replica's fidelity table is printed and kept, not asserted: at the default brush the synthetic scene does
          not reach the measure.py target (design O5, fallback b).
-         Regression cases: a scene without DURATION makes render.py exit 1 (D18).
+         Regression cases: a scene without DURATION makes render.py exit 1 (D18); frames past f9999 and traces
+         past d999 read in numeric order (D23).
 """
 import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import cv2
+import numpy as np
 
 import extract
 import measure
@@ -31,6 +35,7 @@ EXPECTED = 239   # distinct drawings in shfred0; a decode change that drops one 
 
 sys.path.insert(0, str(PLUGIN / 'skills/learn-style/scripts'))
 import controls  # noqa: E402
+import decode  # noqa: E402
 import inkstats  # noqa: E402
 import workdir  # noqa: E402
 
@@ -48,6 +53,19 @@ def render_cli(scene, out, *args):
                            *args]).returncode
 
 
+def numeric_order(d):
+    """A frame folder holding f9998-f10000 decodes in frame order, and d998-d1000 traces list in drawing order."""
+    folder = d / 'frames'
+    folder.mkdir(parents=True)
+    for i in (9998, 9999, 10000):
+        cv2.imwrite(str(folder / f'f{i:04d}.png'), np.full((8, 8, 3), i - 9998, np.uint8))
+    seen = [int(rgb[0, 0, 0]) for rgb, _ in decode.frames(folder, 24)]
+    workdir.traces_dir(d).mkdir()
+    for k in (998, 999, 1000):
+        workdir.trace(d, k).write_text('{}', encoding='utf-8')
+    return seen == [0, 1, 2] and [f.stem for f in workdir.traces(d)] == ['d998', 'd999', 'd1000']
+
+
 def synthetic(work):
     work, bad = empty(work), []
 
@@ -57,7 +75,7 @@ def synthetic(work):
 
     frames = work / 'frames'
     case('render.py --encode mp4 exits 0', render_cli(SYNTHETIC, frames, '--encode', 'mp4') == 0)
-    meta = json.load(open(frames / 'render.json')) if (frames / 'render.json').is_file() else {}
+    meta = json.load(open(frames / 'render.json', encoding='utf-8')) if (frames / 'render.json').is_file() else {}
     n = sum(SYN_HOLDS)
     case(f'render.json: fps 24, {n} frames, 480x270, {n / 24} s',
          (meta.get('fps'), meta.get('frames'), meta.get('size'), meta.get('duration')) == (24, n, [480, 270], n / 24))
@@ -67,7 +85,7 @@ def synthetic(work):
     if not mp4.is_file():
         return 1
     extract.main([str(work / 'work'), '--video', str(mp4)])
-    ds = json.load(open(workdir.index(work / 'work')))['drawings']
+    ds = json.load(open(workdir.index(work / 'work'), encoding='utf-8'))['drawings']
     starts = [sum(SYN_HOLDS[:k]) / 24 for k in range(len(SYN_HOLDS))]
     case(f'decode: {len(SYN_HOLDS)} drawings at their first frames',
          len(ds) == len(starts) and all(abs(t - s) < 1e-3 for (_, t, _), s in zip(ds, starts)))
@@ -79,6 +97,7 @@ def synthetic(work):
     scene.write_text(cut, encoding='utf-8')   # ./ink.js still resolves: render.py serves scripts/
     case('D18: a scene without DURATION makes render.py exit 1',
          cut != src and render_cli(scene, work / 'no-duration/frames') == 1)
+    case('D23: frames past f9999 and traces past d999 read in numeric order', numeric_order(work / 'd23'))
     print(f"synthetic: {len(bad)} case(s) failed" + (f": {', '.join(bad)}" if bad else ''))
     return 1 if bad else 0
 
@@ -87,7 +106,7 @@ def main(video, work):
     work = empty(work)
     shutil.copy(FIXTURE, workdir.overrides(work))
     extract.main([str(work), '--video', str(video)])
-    n = len(json.load(open(workdir.index(work)))['drawings'])
+    n = len(json.load(open(workdir.index(work), encoding='utf-8'))['drawings'])
     if n != EXPECTED:
         sys.exit(f'decoded {n} drawings, expected {EXPECTED}')
     rc = measure.main([str(work), '--tag', 'regress'])

@@ -131,7 +131,7 @@ def post(spec, frames):
 def held(work, folder):
     """A work dir's drawings in folder (its src, or a run's rep) as 24 fps frames, each repeated for its hold from
     d/index.json."""
-    ds = json.load(open(workdir.index(work)))['drawings']
+    ds = json.load(open(workdir.index(work), encoding='utf-8'))['drawings']
     fi = 0
     for (k, *_), nxt in zip(ds, [*ds[1:], [None, ds[-1][2]]]):
         img = cv2.imread(str(workdir.drawing(folder, k)))
@@ -149,7 +149,7 @@ def run(job):
     path, film, spec = job
     frames = post(spec, poly() if film == 'poly' else decode.frames(film, 24))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(inkstats.summary(inkstats.measure(frames, 24))) + '\n')
+    path.write_text(json.dumps(inkstats.summary(inkstats.measure(frames, 24))) + '\n', encoding='utf-8')
     return path
 
 
@@ -175,7 +175,7 @@ def check(a):
     pack, bad = inkstats.load_pack(a.pack), []
     table = []
     for f in sorted(Path(a.out).glob('*/*.json')):
-        m = json.load(open(f))
+        m = json.load(open(f, encoding='utf-8'))
         ds = [(s, d) for s, _, _, d in inkstats.check(m, pack) if d is not None]
         margin = max(d for _, d in ds) - 1 if ds else None
         worst = max(ds, key=lambda r: r[1])[0] if ds else '-'

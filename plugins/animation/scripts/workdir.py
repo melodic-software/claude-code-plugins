@@ -35,9 +35,15 @@ def trace(work, k):
     return traces_dir(work) / f'{name(k)}.json'
 
 
+def numbered(paths):
+    """dNNN / fNNNN files in number order: names are zero-padded to at least 3 / 4 digits, so a longer one
+    (f10000 after f9999) sorts wrong by name."""
+    return sorted(paths, key=lambda p: int(p.stem[1:]))
+
+
 def traces(work):
-    """Every trace file, in name order (index.json excluded)."""
-    return sorted(traces_dir(work).glob('d[0-9]*.json'))
+    """Every trace file, in drawing order (index.json excluded)."""
+    return numbered(traces_dir(work).glob('d[0-9]*.json'))
 
 
 def source(work, k):
@@ -61,5 +67,5 @@ def learnings(work):
 
 
 def frames(folder):
-    """A frame folder's fNNNN.png files in name order."""
-    return sorted(Path(folder).glob('f*.png'))
+    """A frame folder's fNNNN.png files in frame order."""
+    return numbered(Path(folder).glob('f[0-9]*.png'))

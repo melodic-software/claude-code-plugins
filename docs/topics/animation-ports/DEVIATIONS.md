@@ -115,3 +115,18 @@ Append-only. Each entry: plan said / found / chose / revisit.
   rate>`, learn-style's validate step `--fps <the pack's knobs.frame_rate.base_fps>` (V12).
 - **plan-confirmed: `padStart` sites (V22).** `capture.mjs:74-75` (captured `fNNNN`/`dNNN` names)
   and `roto.js:15` (trace fetch under `?dir=`); nothing else.
+
+## Phase 6
+
+- **plan-confirmed: D23 red first.** The `--synthetic` case (frames f9998-f10000, traces
+  d998-d1000) failed before the fix and passes after; the numeric sort lives once in
+  `workdir.numbered`, used by `workdir.frames` and `workdir.traces` (so `decode.frames`,
+  `render.folder` and `learn.py` all get it). `workdir.frames` now globs `f[0-9]*.png`.
+- **choice: D48 applied by a one-off script** (`.work/animation-ports/utf8.py`, not committed) to
+  every text `open()` and `write_text()`; JSON is written with ASCII escapes, so bytes are unchanged.
+- **coordinator-requested: render.py type fixes.** `Roots.translate_path` no longer returns a
+  possibly unbound `p` (it collects every root's candidate); `encode` asserts `p.stdin` before
+  writing. Also fixed the verifier's `--fps 0` finding: `render` picks the mode by `drawings is
+  None`, and `main` rejects a non-positive `--fps`. Remaining basedpyright errors are not defects:
+  implicit sibling imports, `log_message`'s override signature, and `cv2` not installed in the
+  checker's environment.

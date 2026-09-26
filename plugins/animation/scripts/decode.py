@@ -44,7 +44,7 @@ def frames(film, fps):
         return
     film = Path(film)
     if workdir.src(film).is_dir():
-        for k, t, *_ in json.load(open(workdir.index(film)))['drawings']:
+        for k, t, *_ in json.load(open(workdir.index(film), encoding='utf-8'))['drawings']:
             yield cv2.cvtColor(cv2.imread(str(workdir.source(film, k))), cv2.COLOR_BGR2RGB), t
     elif film.is_dir():
         for i, f in enumerate(workdir.frames(film)):

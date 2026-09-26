@@ -45,12 +45,11 @@ class Roots(http.server.SimpleHTTPRequestHandler):
         super().__init__(*a, directory=roots[0], **kw)
 
     def translate_path(self, path):
+        candidates = []
         for r in self.roots:
             self.directory = r
-            p = super().translate_path(path)
-            if os.path.exists(p):
-                return p
-        return p
+            candidates.append(super().translate_path(path))
+        return next((p for p in candidates if os.path.exists(p)), candidates[-1])
 
     def log_message(self, *a):
         pass
@@ -73,7 +72,7 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         url = f'http://127.0.0.1:{srv.server_address[1]}/render.html?scene={scene.name}&{query}'
-        sel = ['--fps', f'{fps:g}'] if fps else [','.join(map(str, drawings))]
+        sel = ['--fps', f'{fps:g}'] if drawings is None else [','.join(map(str, drawings))]
         pw = ['--playwright-core', playwright_core] if playwright_core else []
         r = subprocess.run(['node', str(HERE / 'capture.mjs'), *pw, url, str(out), *sel, str(workers)],
                            stdout=subprocess.PIPE, text=True)
@@ -84,11 +83,11 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
         sys.stderr.write(f'render: {scene.name} failed\n')
         sys.exit(r.returncode if r.returncode == 2 else 1)
     cap = json.loads(r.stdout.strip().splitlines()[-1])
-    plugin = json.load(open(HERE.parent / '.claude-plugin/plugin.json'))
+    plugin = json.load(open(HERE.parent / '.claude-plugin/plugin.json', encoding='utf-8'))
     meta = dict(scene=str(scene), adapter='native', adapter_version=plugin['version'],
                 browser_build=cap['browser_build'], fps=int(fps) if fps and fps == int(fps) else fps, size=cap['size'], frames=cap['frames'],
                 duration=cap['duration'])
-    (out / 'render.json').write_text(json.dumps(meta, indent=1) + '\n')
+    (out / 'render.json').write_text(json.dumps(meta, indent=1) + '\n', encoding='utf-8')
     return meta
 
 
@@ -101,10 +100,12 @@ def encode(frames, fmt, fps, out):
     h, w = first.shape[:2]
     p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}',
                           '-framerate', f'{fps:g}', '-i', '-', *FORMATS[fmt], str(out)], stdin=subprocess.PIPE)
-    p.stdin.write(first.tobytes())
+    pipe = p.stdin
+    assert pipe is not None   # stdin=PIPE always opens it
+    pipe.write(first.tobytes())
     for img in frames:
-        p.stdin.write(img.tobytes())
-    p.stdin.close()
+        pipe.write(img.tobytes())
+    pipe.close()
     if p.wait():
         sys.exit(f'render: ffmpeg failed encoding {out}')
     return out
@@ -113,7 +114,7 @@ def encode(frames, fmt, fps, out):
 def folder(out):
     """The frame folder's fNNNN.png images in frame order, read as BGR."""
     import cv2
-    for f in sorted(workdir.frames(out), key=lambda f: int(f.stem[1:])):
+    for f in workdir.frames(out):
         yield cv2.imread(str(f))
 
 
@@ -133,6 +134,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.encode != 'none' and not a.fps:
         ap.error('--encode needs --fps (a film, not drawings)')
+    if a.fps is not None and not a.fps > 0:
+        ap.error('--fps must be a positive number')
     if a.encode != 'none':   # fail before the render, not after it
         prereq.require(['ffmpeg', 'numpy', 'opencv'] + (['libx264'] if a.encode == 'mp4' else []))
     meta = render(a.scene, a.out, a.fps, a.drawings, a.query, [r.resolve() for r in a.root], a.workers,

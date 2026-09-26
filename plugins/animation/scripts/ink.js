@@ -5,6 +5,9 @@
 //     a new step re-lays every stroke, which is what makes the ink crawl. `boil: 0` freezes a shape.
 //   - no alpha blending on ink (two-tone rule); only paperGrain uses alpha, by design.
 //   - no dependencies, no DOM access beyond the ctx passed in (paperGrain creates one offscreen canvas).
+//   - the default ink is INK; a scene in a style passes the pack's palette.ink as `color`.
+
+export const INK = '#141211';
 
 export function rng(seed, step = 0) {
   let a = (Math.imul(seed | 0, 0x9E3779B1) ^ Math.imul(step | 0, 0x85EBCA77)) >>> 0;
@@ -37,7 +40,7 @@ export function principalAngle(pts) {
 //   dryBrush  0..1 chance of a paper gap between consecutive strokes in a row (default 0.12)
 //   overshoot how far stroke ends wander past the polygon edge, in widths (default 0.6): the comb edge
 export function inkFill(ctx, pts, o = {}) {
-  const color = o.color || '#141211', w = o.width || 12, pitch = o.pitch || 0.78, [l0, l1] = o.len || [30, 120];
+  const color = o.color || INK, w = o.width || 12, pitch = o.pitch || 0.78, [l0, l1] = o.len || [30, 120];
   const dry = o.dryBrush ?? 0.12, over = o.overshoot ?? 0.6, boil = o.boil ?? 1;
   const r = rng(o.seed || 1, boil ? o.step || 0 : 0), a = o.angle ?? principalAngle(pts), c = Math.cos(a), s = Math.sin(a);
   const loc = pts.map(([x, y]) => [x * c + y * s, -x * s + y * c]); // rotate so strokes run along +x
@@ -72,7 +75,7 @@ export function inkFill(ctx, pts, o = {}) {
 //   dab       dab length in px (default 3 * width, min 14); dryBrush chance of a skipped dab (default 0.08)
 //   wobble    per-step perpendicular jitter in widths (default 0.15)
 export function inkStroke(ctx, pts, o = {}) {
-  const color = o.color || '#141211', W = o.width || 10, [t0, t1] = o.taper || [1, 0.25], n = o.strands || 1;
+  const color = o.color || INK, W = o.width || 10, [t0, t1] = o.taper || [1, 0.25], n = o.strands || 1;
   const dry = o.dryBrush ?? 0.08, wob = o.wobble ?? 0.15, r = rng(o.seed || 1, o.boil === 0 ? 0 : o.step || 0);
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
   const total = cum[cum.length - 1]; if (total < 0.5) return;
@@ -100,7 +103,7 @@ export function inkStroke(ctx, pts, o = {}) {
 //   dashes    count of short radial flicks, fully re-laid every step
 //   size      speck radius scale in px (default 3)
 export function splatter(ctx, cx, cy, R, o = {}) {
-  const color = o.color || '#141211', fixed = rng(o.seed || 1, 0), live = rng(o.seed || 1, (o.step || 0) + 1), sz = o.size || 3;
+  const color = o.color || INK, fixed = rng(o.seed || 1, 0), live = rng(o.seed || 1, (o.step || 0) + 1), sz = o.size || 3;
   for (let i = 0; i < (o.dots ?? 10); i++) {
     const a = fixed() * 6.283, d = Math.sqrt(fixed()) * R, rad = sz * (0.4 + fixed()), show = live() >= (o.flicker ?? 0.3);
     if (show) { const jx = (live() - 0.5) * sz, jy = (live() - 0.5) * sz; capsule(ctx, cx + Math.cos(a) * d + jx, cy + Math.sin(a) * d + jy, cx + Math.cos(a) * d + jx + 0.5, cy + Math.sin(a) * d + jy, rad * 2, color); }
@@ -114,7 +117,7 @@ export function splatter(ctx, cx, cy, R, o = {}) {
 // dashedLine(ctx, x1, y1, x2, y2, opts): hand-inked dashed line whose dashes crawl each step.
 //   dash, gap   px lengths (default 9, 6); width px (default 2.5); double: 0 or px offset for a second parallel line
 export function dashedLine(ctx, x1, y1, x2, y2, o = {}) {
-  const color = o.color || '#141211', dash = o.dash || 9, gap = o.gap || 6, w = o.width || 2.5, r = rng(o.seed || 1, o.step || 0);
+  const color = o.color || INK, dash = o.dash || 9, gap = o.gap || 6, w = o.width || 2.5, r = rng(o.seed || 1, o.step || 0);
   const L = Math.hypot(x2 - x1, y2 - y1); if (L < 1) return;
   const ux = (x2 - x1) / L, uy = (y2 - y1) / L;
   for (const off of o.double ? [-o.double / 2, o.double / 2] : [0]) {

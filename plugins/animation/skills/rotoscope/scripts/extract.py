@@ -49,13 +49,13 @@ def decode(video, work):
     gap = float(np.median(np.diff(ts))) if len(ts) > 1 else 1 / 8
     t1 = ts[1:] + [round(ts[-1] + gap, 6)]
     ix = dict(w=w, h=h, duration=t1[-1], drawings=[[k, t, e] for k, (t, e) in enumerate(zip(ts, t1))])
-    json.dump(ix, open(workdir.index(work), 'w'))
+    json.dump(ix, open(workdir.index(work), 'w', encoding='utf-8'))
     print(f'{len(ts)} drawings from {len(pts)} frames, {w}x{h}')
     return ix
 
 
 def load_overrides(path):
-    return json.load(open(path))['overrides'] if path and Path(path).exists() else []
+    return json.load(open(path, encoding='utf-8'))['overrides'] if path and Path(path).exists() else []
 
 
 def overrides_for(ovr, k):
@@ -162,7 +162,7 @@ def one(job):
     f = workdir.trace(work, k)
     sharp = tuple(ov['sharp']) if ov.get('sharp') else (None if 'sharp' in ov else SHARP)
     levels = list(ov.get('levels', LEVELS))
-    d = json.load(open(f)) if apply and f.exists() else None
+    d = json.load(open(f, encoding='utf-8')) if apply and f.exists() else None
     rgb = g = None
     if d is None or (tuple(d['sharp']) if d['sharp'] else None) != sharp or d.get('levels') != levels:
         rgb = cv2.cvtColor(cv2.imread(str(workdir.source(work, k))), cv2.COLOR_BGR2RGB)
@@ -181,7 +181,7 @@ def one(job):
     d.pop('brush', None)
     if ov.get('brush'):
         d['brush'] = ov['brush']
-    json.dump(d, open(f, 'w'), separators=(',', ':'))
+    json.dump(d, open(f, 'w', encoding='utf-8'), separators=(',', ':'))
     return f'{workdir.name(k)} T={d["T"]} points={npoints(d["paths"])} ' + (json.dumps(ov) if ov else '')
 
 
@@ -195,7 +195,7 @@ def main(argv=None):
     ap.add_argument('--jobs', type=int, default=WORKERS)
     a = ap.parse_args(argv)
     work = a.work.resolve()
-    ix = decode(a.video, work) if a.video else json.load(open(workdir.index(work)))
+    ix = decode(a.video, work) if a.video else json.load(open(workdir.index(work), encoding='utf-8'))
     ovr = load_overrides(a.overrides or workdir.overrides(work))
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
     jobs = [(work, k, t, t1, overrides_for(ovr, k), a.apply) for k, t, t1 in ix['drawings'] if k0 <= k <= k1]

@@ -358,7 +358,7 @@ numbers drifted since `f0bd01ed0`; `inkstats.py` and `learn.py` changed afterwar
 - [x] `grep -n "2576" plugins/animation/skills/learn-style/SKILL.md plugins/animation/skills/rotoscope/scripts/review.py` shows no bare number without a pointer to method.md.
 - [x] C1 239/239; C3 `compare` exits 0; C5.
 
-### Phase 6: correctness fixes (T18; D23, D41/V13, D48) [TODO]
+### Phase 6: correctness fixes (T18; D23, D41/V13, D48) [DONE]
 
 D18, D22, D28 and D29 land in Phases 1 and 5; this phase takes the rest.
 
@@ -374,10 +374,10 @@ D18, D22, D28 and D29 land in Phases 1 and 5; this phase takes the rest.
 
 **Sanity Check:**
 
-- [ ] `regress.py --synthetic` exits 0 including the D23 case (it failed before the fix).
-- [ ] `grep -c "#141211" plugins/animation/scripts/ink.js` is 1.
-- [ ] `grep -rnE "open\([^)]*\)|write_text\(|read_text\(" plugins/animation --include=*.py | grep -v "encoding=\|'rb'\|'wb'\|imread\|Popen"` returns nothing.
-- [ ] C1 239/239; C3 `compare` exits 0; C5.
+- [x] `regress.py --synthetic` exits 0 including the D23 case (it failed before the fix).
+- [x] `grep -c "#141211" plugins/animation/scripts/ink.js` is 1.
+- [x] `grep -rnE "open\([^)]*\)|write_text\(|read_text\(" plugins/animation --include=*.py | grep -v "encoding=\|'rb'\|'wb'\|imread\|Popen"` returns nothing.
+- [x] C1 239/239; C3 `compare` exits 0; C5.
 
 ### Phase 7: resolution and frame-rate scaling (T17; D24-D26, D34, D35, D37, D40) [TODO]
 

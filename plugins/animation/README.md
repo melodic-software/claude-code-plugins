@@ -35,7 +35,9 @@ dir, with `--pack` to check it against a style pack).
 
 ## Requirements
 
-`/animation:setup` checks each of these and prints one remedy line per missing one.
+`/animation:setup` checks each of these and prints one remedy line per missing one. Verified on
+Linux only; Windows and macOS are untested by hand (the scripts use no shell and open text as
+UTF-8, but no run there has been recorded).
 
 - Python 3.12 or later (numpy 2.5 requires it), with numpy and opencv at the versions pinned in
   `requirements.txt`: run every script through

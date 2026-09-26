@@ -398,7 +398,7 @@ def check(m, pack):
 
 def load_pack(p):
     p = Path(p)
-    return json.load(open(p / 'style.json' if p.is_dir() else p))
+    return json.load(open(p / 'style.json' if p.is_dir() else p, encoding='utf-8'))
 
 
 def nums(s, n=None):
@@ -444,13 +444,13 @@ def main(argv=None):
     pack = load_pack(a.pack) if a.pack else None   # fail on a bad pack path before the long measure
     region = [int(v) for v in nums(a.region, 4)] if a.region else None
     meta = Path(a.film) / 'render.json'
-    fps = a.fps or (json.load(open(meta))['fps'] if meta.is_file() else None) or 24
+    fps = a.fps or (json.load(open(meta, encoding='utf-8'))['fps'] if meta.is_file() else None) or 24
     rows = measure(a.film, fps, region, nums(a.t, 2))
     m = summary(rows, nums(a.cuts), a.seg)
     if a.json:
-        a.json.write_text(json.dumps(m, indent=1) + '\n')
+        a.json.write_text(json.dumps(m, indent=1) + '\n', encoding='utf-8')
     if a.rows:
-        a.rows.write_text(json.dumps(rows) + '\n')
+        a.rows.write_text(json.dumps(rows) + '\n', encoding='utf-8')
     print(f"{a.film}{f' region {region}' if region else ''}: {m['drawings']} drawings, {m['duration']} s, "
           f"{m['per_second']}/s, holds {m['holds']}, offstep {m['offstep']}, held pairs {m['held']}")
     print('| stat | p10 | p50 | p90 | ' + ' | '.join(f"{g['t0']:g}-{g['t1']:g} s" for g in m['segments']) + ' |')

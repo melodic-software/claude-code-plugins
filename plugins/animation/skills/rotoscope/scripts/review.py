@@ -35,7 +35,7 @@ EDGE = 2
 
 def one(job):
     work, out, k = job
-    d = json.load(open(workdir.trace(work, k)))
+    d = json.load(open(workdir.trace(work, k), encoding='utf-8'))
     src, rep = cv2.imread(str(workdir.source(work, k))), cv2.imread(str(workdir.drawing(out / 'rep', k)))
     gs, gr = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY), cv2.cvtColor(rep, cv2.COLOR_BGR2GRAY)
     ms, mr = gs < d['T'], gr < d['T']
@@ -84,7 +84,7 @@ def main(argv=None):
     work = a.work.resolve()
     out = workdir.out(work, a.tag)
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
-    ks = [k for k, *_ in json.load(open(workdir.index(work)))['drawings']
+    ks = [k for k, *_ in json.load(open(workdir.index(work), encoding='utf-8'))['drawings']
           if k0 <= k <= k1 and workdir.drawing(out / 'rep', k).exists()]
     if not ks:
         sys.exit(f'review: no rendered drawings in {out / "rep"}' + (f' for {a.only}' if a.only else ''))
@@ -93,7 +93,7 @@ def main(argv=None):
     lines = [f'# review {a.tag} d{ks[0]:03d}-d{ks[-1]:03d}', '',
              '| k | largest | blob | edge px | tile | paper_err | paper_d R,G,B | crop at | flags |',
              '|---|---|---|---|---|---|---|---|---|', *rows]
-    (out / f'review-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n')
+    (out / f'review-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
     print(f'{sum(flagged)}/{len(ks)} drawings flagged')
     return 1 if any(flagged) else 0

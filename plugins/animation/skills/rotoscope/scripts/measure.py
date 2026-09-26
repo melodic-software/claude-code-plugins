@@ -32,7 +32,7 @@ import workdir  # noqa: E402
 from decode import MID  # noqa: E402
 
 FLOOR_GRAY, FLOOR_X, SSIM_MIN, SSIME_MIN = 4, 1.2, 0.980, 0.980
-BRUSH = json.load(open(HERE / 'brush.json'))   # roto.js's mode (b) defaults: bias, blur, grain
+BRUSH = json.load(open(HERE / 'brush.json', encoding='utf-8'))   # roto.js's mode (b) defaults: bias, blur, grain
 
 
 def replicas(work, ks, rep_dir, query='', workers=render.WORKERS):
@@ -61,7 +61,7 @@ def paper(src, rep, T):
 
 
 def measure(k, work, out, images=True):
-    d = json.load(open(workdir.trace(work, k)))
+    d = json.load(open(workdir.trace(work, k), encoding='utf-8'))
     src, rep = cv2.imread(str(workdir.source(work, k))), cv2.imread(str(workdir.drawing(out / 'rep', k)))
     gs, gr = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY), cv2.cvtColor(rep, cv2.COLOR_BGR2GRAY)
     ms, mr = gs < d['T'], gr < d['T']
@@ -116,7 +116,7 @@ def main(argv=None):
     ap.add_argument('--workers', type=int, default=render.WORKERS)
     a = ap.parse_args(argv)
     work = a.work.resolve()
-    ks = [k for k, *_ in json.load(open(workdir.index(work)))['drawings']]
+    ks = [k for k, *_ in json.load(open(workdir.index(work), encoding='utf-8'))['drawings']]
     if a.only and '-' in a.only:
         k0, k1 = map(int, a.only.split('-'))
         ks = [k for k in ks if k0 <= k <= k1]
@@ -131,10 +131,10 @@ def main(argv=None):
         replicas(work, ks, out / 'rep', q, a.workers)
     rows = [measure(k, work, out) for k in ks]
     lines = table(tag, rows)
-    (out / f'table-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n')
+    (out / f'table-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines))
     worst = sorted(rows, key=lambda r: -r['xor'] / max(r['floor'], 1e-9))[:3]
-    with open(workdir.learnings(work), 'a') as f:
+    with open(workdir.learnings(work), 'a', encoding='utf-8') as f:
         f.write(f"- {datetime.date.today()} measure {tag} d{ks[0]:03d}-d{ks[-1]:03d}: {sum(map(ok, rows))}/{len(rows)} pass; "
                 f"mean xor {np.mean([r['xor'] for r in rows]):.3f}%, ssim {np.mean([r['ssim'] for r in rows]):.4f}; worst xor/floor "
                 + ', '.join(f"d{r['k']:03d} {r['xor'] / max(r['floor'], 1e-9):.2f}" for r in worst) + '\n')
