@@ -3,6 +3,104 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.0] - 2026-09-26
+
+### Added
+
+- **The audit engine labels consent receipts.** An undocumented top-level key recorded in
+  `skills/audit/reference/consent-receipts.json` (keyed by `plugin@marketplace` owner, or
+  `claude-code` for keys the CLI writes; first entry `skipWorkflowUsageWarning`, user scope) is an
+  `ok` row under check `A/consent-receipt`, claim `consent-receipt:<key>`, when the file's scope is
+  one the record declares, a plugin owner is enabled in the merged `enabledPlugins`, and for
+  `claude-code` a searched binary still carries the name. Otherwise the `undocumented-key` finding
+  stays and names the failed gate ("stale consent receipt, recheck" for a binary that lacks the
+  name). A key is never labeled when the same file also holds a carriage-return variant of it. A
+  missing or invalid record file, including one whose record fields hold a control character, is
+  one `not-inspectable` row. An existing
+  `.claude/audit-pass.md` suppression of `undocumented-key:<key>` stops matching once that key is
+  labeled; the row it retired is no longer a finding.
+
+### Changed
+
+- **The audit engine no longer asks for an explicit `true` or `false` on catalog plugins.** The
+  `drift-new` finding (`new-upstream:<name>@<marketplace>`) is gone. For each marketplace whose
+  catalog has plugins with no `enabledPlugins` entry in any readable scope, the engine emits one
+  `ok` inventory row under check `E/drift-new` (claim `drift-new:<marketplace>`) with the count and
+  an example key.
+- **A disabled plugin is a finding only when an enabled plugin depends on it.** The `info` finding
+  on every `false` key (`disabled-plugin:<key>`) is gone. Every `false` key in the user, project and
+  local files is now an `ok` inventory row with the same claim, noting when a `true` at a higher
+  scope shadows it. A `false` that is the merged value (local over project over user) and that an
+  enabled plugin declares as a direct dependency in its `.claude-plugin/plugin.json` is a `warning`
+  finding, `dependency-disabled:<key>`, on the file holding the `false`, naming the dependents.
+  String (`name`, `name@marketplace`) and object (`name`, optional `marketplace`) dependency forms
+  are read; a bare name resolves to the dependent's marketplace. The manifest is optional, so an
+  install path without `plugin.json` declares no dependencies. An enabled plugin whose install path
+  did not resolve, whose `plugin.json` is not valid JSON, or whose `dependencies` is not an array is
+  a `not-inspectable` row, `dependencies-unread:<key>`.
+  Managed-scope `enabledPlugins` is not merged, and version constraints are not checked. Basis: the
+  plugins/install page (disabling a plugin another enabled plugin needs is refused) and the
+  plugins/dependencies page (a dependent is disabled at the next plugin load), both pinned in
+  `reference/doc-citations.tsv`.
+- **Suppression records keyed to the removed findings no longer match anything.** Records for
+  `disabled-plugin:*` and `new-upstream:*` findings can be deleted from `.claude/audit-pass.md`;
+  those rows are inventory now and carry no finding id. The new finding id to suppress, if wanted,
+  is `dependency-disabled:*`.
+- **`fix-plugin-drift.sh --yes` never adds a key.** NEW upstream plugins print as a
+  `NEW (report only)` list, and the AUTO-ADD plan section is gone.
+- **`fix-plugin-drift.sh` holds an orphan-`false` removal that would expose a `true`.** When the
+  user settings file (or, for an audited `settings.local.json`, its sibling `settings.json`) holds
+  `true` for the key, the removal moves to MANUAL REVIEW, on a dry run too. A lower-precedence file
+  that cannot be read, is not valid JSON, or whose `enabledPlugins` is not an object sends every
+  removal to manual review. A plan with a pending removal says that other developers' user scopes
+  and managed settings were not checked.
+- **`check-plugin-drift.sh` exits 1 only when it finds an orphan.** A run that finds
+  only NEW plugins exits 0, and the summary names `fix-plugin-drift.sh` only when an orphan exists.
+  The orphan-`false` label reads `(false, removal candidate)`.
+- **The drift check reports what it did not diff.** Every `check-plugin-drift.sh` run prints a
+  `Not diffed:` line with the count and the keys whose marketplace the audited file does not
+  declare, including when it declares none. The engine reports the same gap for the project and
+  local files as an `E/drift` `skip` row, `drift-coverage:<file>`; a key whose marketplace no scope
+  registers stays under `unknown-marketplace`.
+- **The fix backup has a new name.** `fix-plugin-drift.sh --yes` writes
+  `<settings>.bak.<UTC stamp>.<random>`, with the random part from `mktemp -u`, in place of
+  `<settings>.<UTC stamp>.bak`. Two applies in the same second each get a backup instead of the
+  second being refused. An ignore rule for `.claude/*.bak` needs to become `.claude/*.bak.*`.
+- **`check-doc-citations.sh` accepts a nested page slug** such as `plugins/install`, creating the
+  fetch subdirectory the page lands in.
+
+### Fixed
+
+- **A plugin or marketplace key holding a carriage return is audited and fixed exactly.** Both
+  drift scripts carry keys as JSON from the settings file and the catalog to the findings and on to
+  the edit, with no `jq -R` line input and no `tr -d '\r'` on a key. A marketplace key ending in a
+  carriage return used to be stripped before the lookup and skipped; `fix-plugin-drift.sh` now
+  removes the carriage-return key and leaves a same-named key without it untouched. The engine's
+  category E rows compare keys in jq as well.
+- **No existing path is written through at the backup name.** The apply is refused when anything
+  already exists at the generated name, and the copy is written on one exclusive open (bash
+  noclobber, which opens a missing name with `O_CREAT|O_EXCL`) under `umask 077`, so a file or
+  symlink planted after that check makes the open fail instead of being followed. No byte is
+  written until the open descriptor is a regular file that is the one at the name. The apply is
+  refused unless the backup is a regular non-symlink file equal to the snapshot, and the refusal on
+  a concurrent change removes the backup only when it is still a regular file.
+- **`check-doc-citations.sh` refuses a manifest slug that could leave its page directory.** Every
+  slug must be lower-case segments joined by `/` (`^[a-z0-9_-]+(/[a-z0-9_-]+)*$`); a `..`
+  segment, a leading `/` or any other shape exits 2 naming the row, before any page is read.
+- **The drift test suites pass on Git Bash with a Windows-form `TMPDIR`.**
+  `check-plugin-drift.test.sh` and `fix-plugin-drift.test.sh` derive a POSIX base with `cygpath -u`
+  when available and export `TMPDIR` under their own guarded temp directory, and both suites point
+  `HOME` and `CLAUDE_CONFIG_DIR` at a fixture user directory.
+- **Only an orphan whose value is exactly `false` is removed.** `check-plugin-drift.sh` records an
+  orphan's value as the settings file holds it instead of folding it to a boolean, so a `null`,
+  string, number or object value no longer reads as `false`. `fix-plugin-drift.sh` holds `true` and
+  every other value for manual review, including a planned removal whose key has since changed to
+  one, and the engine reports such an orphan as a warning, never as removable.
+- **A `source.repo` that is not `owner/name` is never fetched.** `check-plugin-drift.sh` reports a
+  repo outside GitHub's name characters, or with a `.` or `..` part, as SKIP with the reason
+  `invalid source.repo`, and fetches with `curl --globoff` so the URL is never read as a pattern.
+  Messages print control characters in a marketplace key, settings path or backup path as `?`.
+
 ## [0.48.2] - 2026-09-25
 
 ### Fixed

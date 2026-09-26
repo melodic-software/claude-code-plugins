@@ -11,6 +11,22 @@ Load the audit checklist alongside these: [audit-checklist.md](../reference/audi
 - `$schema` present and points to `https://json.schemastore.org/claude-code-settings.json`
 - No unknown top-level keys (cross-reference against official docs schema)
 - `settings.local.json` does NOT contain `mcpServers` (wrong file, use `.mcp.json`)
+- **Consent receipts.** Some undocumented keys are written by the CLI or a plugin when the user
+  accepts a prompt. [consent-receipts.json](../reference/consent-receipts.json) records them as
+  `{"consentReceipt": {"<owner>": [records]}}`, where the owner is a `plugin@marketplace` id or
+  the reserved id `claude-code` (no `@`, so no plugin id collides with it) for keys the CLI
+  writes. Each record carries `key`, `scopes` (`user`, `project`, `local`) and `meaning`, plus the
+  four-part record in `key`/`meaning` (claim), `basis`, `as_of` and `recheck`. The engine reads it
+  only for an undocumented top-level key, never a `permissions.*` leaf, and never relabels a
+  documented key. It emits `A/consent-receipt` `ok` (claim `consent-receipt:<key>`) in place of the
+  `undocumented-key` finding only when the file's scope (`user:settings.json` is `user`,
+  `.claude/settings.json` is `project`, `.claude/settings.local.json` is `local`) is in the
+  record's `scopes`, a `plugin@marketplace` owner is `true` in the merged `enabledPlugins` (local
+  over project over user), and, for `claude-code`, the binary search did not come back absent (a
+  binary that was not searched labels with "binary not checked"). Otherwise the finding stays and
+  its detail says which gate failed; a searched binary without the name reads "stale consent
+  receipt, recheck". The file is read only when an undocumented top-level key exists; a missing or
+  invalid one is then one `not-inspectable` row, and every key keeps its `undocumented-key` finding
 
 ## Category B: Permissions
 
@@ -100,21 +116,53 @@ Two layers:
 
 **E.1 Static checks**:
 
-- Enabled plugins belong to an installed marketplace in `extraKnownMarketplaces`
-- No references to plugins from unknown/uninstalled marketplaces
-- Explicitly disabled plugins are intentional (not stale entries from removed marketplaces)
+The engine merges `enabledPlugins` from the user, project and local files (local over project over
+user). Managed-scope `enabledPlugins` is not merged.
+
+- A key in the project or local file whose marketplace no scope registers is an `error` finding
+  (`unknown-marketplace:<key>`).
+- Every `false` key in the user, project and local files is an `ok` inventory row
+  (`disabled-plugin:<key>`, check `E/disabled-plugin`). A `false` that a `true` at a higher scope
+  overrides says it is shadowed.
+- The exception is a `false` that is the merged value and that an enabled plugin declares as a
+  direct dependency: that is a `warning` finding, `dependency-disabled:<key>`, on the file holding
+  the `false`, naming the enabled plugins that need it. Dependencies come from each enabled plugin's
+  `.claude-plugin/plugin.json` at the install path the hook inventory resolved, in the string
+  (`name`, `name@marketplace`) and object (`name`, optional `marketplace`) forms; a bare name
+  resolves to the dependent's own marketplace. Version constraints and dependencies of
+  dependencies are not checked. The manifest is optional, so an install path with no `plugin.json`
+  declares no dependencies. An enabled plugin whose install path did not resolve, whose
+  `plugin.json` is not valid JSON, or whose `dependencies` is not an array is one `not-inspectable`
+  row (`dependencies-unread:<key>`). Basis: the
+  [install page](https://code.claude.com/docs/en/plugins/install) "Plugins with dependencies" says
+  disabling a plugin another enabled plugin still needs is refused, and the
+  [dependencies page](https://code.claude.com/docs/en/plugins/dependencies) says a plugin whose
+  local dependency copy is disabled "is disabled at the next plugin load"; both are pinned in
+  `reference/doc-citations.tsv`. As of 2026-09-26; recheck when a Claude Code release note changes
+  how a disabled dependency affects the plugin that declares it.
 
 **E.2 Upstream drift detection** (live network, via `scripts/check-plugin-drift.sh`):
 
-Compares `enabledPlugins` keys against live `marketplace.json` for each registered marketplace.
-Detects three drift modes static checks miss:
+Compares the audited file's `enabledPlugins` keys against the live `marketplace.json` of each
+marketplace declared in that file's `extraKnownMarketplaces`. Detects three drift modes static
+checks miss:
 
-| Mode | Definition | Auto-fix policy |
+| Mode | Definition | Fix policy |
 |---|---|---|
-| **ORPHAN** (false) | Plugin in `enabledPlugins` set to `false`, NOT in upstream catalog | AUTO-REMOVE. Behaviorally a no-op (`false` ≡ absent for plugin loading) and the entry generates `/doctor` errors |
+| **ORPHAN** (false) | Plugin in `enabledPlugins` set to `false`, NOT in upstream catalog | Removal candidate, removed by `--yes`. The removal moves to manual review when a lower-precedence scope file (the user file, and the sibling `settings.json` when the audited file is `settings.local.json`) holds `true` for the key, because removing the `false` would let that `true` take effect; an unreadable or invalid lower scope file does the same. Other developers' user scopes and managed settings are not checked, and a plan with a pending removal says so |
 | **ORPHAN** (true) | Plugin in `enabledPlugins` set to `true`, NOT in upstream catalog | REPORT ONLY. The user explicitly enabled a plugin that is now gone upstream; surface for manual review, never auto-remove |
-| **NEW** | Plugin in upstream catalog, NOT in `enabledPlugins` | AUTO-ADD as `enabledPlugins["<name>@<market>"]: false`. This records the discovery as an explicit opt-out, which keeps per-developer `settings.local.json` overrides functional |
+| **NEW** | Plugin in upstream catalog with no entry in the audited file | REPORT ONLY. `fix-plugin-drift.sh` never adds a key. The engine reports catalog plugins with no entry in any scope as one `ok` inventory row per marketplace (check `E/drift-new`) |
 | **RENAME?** | Heuristic match between an ORPHAN and a NEW within the same marketplace | REPORT ONLY. Flag for human review, no automation |
+
+`check-plugin-drift.sh` exits 1 only when it finds an orphan (a rename pair always holds one); a run that finds
+only NEW plugins exits 0.
+
+**Coverage:** a marketplace the audited file does not declare is not diffed. Every
+`check-plugin-drift.sh` run prints a `Not diffed:` line with the count and the keys, including when
+the file declares no marketplace. The engine reports the same gap as an `E/drift` `skip` row
+(`drift-coverage:<file>`) for the project and local files: their keys whose marketplace some scope
+registers but the project file does not declare. A key whose marketplace no scope registers is
+reported under `unknown-marketplace` instead.
 
 **Network-tolerant**: a marketplace whose upstream fetch fails is reported `SKIP` and does not fail
 the run. Use `SETTINGS_AUDIT_FIXTURE_DIR=<dir>` to short-circuit network calls in tests (loads
@@ -133,15 +181,18 @@ CLAUDE_SETTINGS_FILE=~/.claude/settings.json \
 # Plan + dry-run apply
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh"
 
-# Apply auto-fixes
+# Apply the orphan-false removals
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
 ```
 
-**What `--yes` leaves behind:** each apply writes a `settings.json.<UTC stamp>.bak` sibling before
-it replaces the file, and never prunes one. The backup is created under a 0077 umask, so it is
-0600 on Linux and macOS; Git Bash emulates mode bits and leaves it 0644. A project that tracks
-`.claude/` may want `.claude/*.bak` ignored. Two applies within the same second collide on that
-name, and the second is refused with exit 2 rather than overwriting the first one's backup.
+**What `--yes` leaves behind:** each apply writes a `<settings>.bak.<UTC stamp>.<random>` sibling
+before it replaces the file, and never prunes one. The random part comes from `mktemp -u`; the
+apply is refused when anything already exists at that name, and the copy is written on one
+exclusive open (bash noclobber, `O_CREAT|O_EXCL`), so no file or link at the name, planted before
+or after the check, is written through. Two applies in the same second each get their own. The
+backup is written under `umask 077`, so 0600 where the platform honors mode bits (Linux, macOS;
+Git Bash does not). A
+project that tracks `.claude/` may want `.claude/*.bak.*` ignored.
 
 **What `--yes` refuses:** a settings path that is a symlink, because the replacement is a rename
 and would replace the link rather than its target; and a path the project-root ladder inferred

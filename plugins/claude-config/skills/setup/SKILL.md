@@ -28,8 +28,8 @@ Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do no
 
 The runtime scripts and their tools:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh`: jq **and** curl, plus awk and sort
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` and `check-hook-coverage.sh`: jq; `fix-plugin-drift.sh`: jq plus sort
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh`: jq **and** curl
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh`, `check-hook-coverage.sh` and `fix-plugin-drift.sh`: jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh`: jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh`: jq plus awk and sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/*.sh`: jq (required; `permission-state.sh` exits 2 without it), awk and sort; `automode-block-lint.sh` and `automode-entry-diff.sh` add python3 for an optional lane

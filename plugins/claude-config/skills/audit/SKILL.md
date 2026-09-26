@@ -57,11 +57,11 @@ the document and does only what needs judgment:
 
 | Engine (deterministic, emitted once) | Model (judgment, on the engine's output) |
 | --- | --- |
-| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level and `permissions.*` key is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one) | A: nothing |
+| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level and `permissions.*` key is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one), and the `A/consent-receipt` label for an undocumented top-level key `reference/consent-receipts.json` records (gates in validation-categories.md Category A) | A: nothing |
 | B: presence of each baseline pattern, deny rules in the local file, blanket `Bash(git *)`, the allow-completeness rows at `info`, narrowing 3 where a hook plugin ships a coverage manifest, suppression-record matching | B: narrowings 1 and 2 (a documented exemption, a documented hook convention), narrowing 3 for hooks with no manifest, the consuming repo's extra required patterns |
 | C: command resolution, `${VAR}` syntax, URL shape, `enableAllProjectMcpServers`, enabled/disabled coverage and name validity | C: documented reasons for disabled servers, launcher-wrapper conventions |
 | D: path resolution and readability, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo, event validity against the live hooks page |
-| E: marketplace membership, explicit `false` entries, ORPHAN / NEW / RENAME drift against the merged scopes, `strict` versus `plugin.json` | E: whether an opt-out is intentional, orphan-`true` review, rename confirmation |
+| E: marketplace membership, every `false` key as an inventory row (a finding only when an enabled plugin depends on it), ORPHAN / RENAME drift, catalog plugins with no entry in any scope as one inventory row per marketplace, keys the drift check did not diff, `strict` versus `plugin.json` | E: the fix for a disabled dependency, orphan-`true` review, rename confirmation |
 | F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log | G: the levers, scoped to the roster's composition |
 | H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values and the version `enforceAvailableModels` requires come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
@@ -193,7 +193,7 @@ category; **full per-check criteria in
 - **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); add any patterns the consuming repo's own rules declare as required
 - **C, MCP Servers**: documented reasons for disabled servers; launcher conventions
 - **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos, event validity against the live hooks page
-- **E, Plugins**: whether each explicit `false` is intentional and recorded; orphan-`true` and rename review
+- **E, Plugins**: for each `dependency-disabled` finding, whether to enable the dependency or disable the plugins that need it; orphan-`true` and rename review. The engine merges `enabledPlugins` from the user, project and local files only (managed settings are not merged) and checks direct dependencies only
 - **F, Environment Variables**: whether a variable the engine reports as not on the env-vars page is documented elsewhere or justified by the repo
 - **G, Skill-listing budget**: the levers, scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`); when the engine reports `not measured`, name the routes (`/doctor` interactively, a `--debug` relaunch headless) and never report clean
 - **H, Model and effort settings** and **I, Deep-link registration**: engine-decided; Phase 3 confirms the behavior each finding rests on before it is reported
@@ -330,8 +330,8 @@ After all fixes:
 
 ### Fixes the skill can apply
 
-Auto-fixable (add `$schema`, **move** deny rules from local to project, plugin orphan-removal +
-new-as-`false` via `scripts/fix-plugin-drift.sh --yes`) vs judgment-required (**adding** a baseline deny
+Auto-fixable (add `$schema`, **move** deny rules from local to project, plugin orphan-`false`
+removal via `scripts/fix-plugin-drift.sh --yes`, which never adds a key) vs judgment-required (**adding** a baseline deny
 rule, new settings from docs, permission restructure, MCP config, orphan-`true` removal, heuristic
 rename), with the full matrix in [context/procedures.md](context/procedures.md) "Phase 5, fixes the skill can
 apply". Adding and moving a deny rule are graded apart on purpose: moving one is #8961 placement, while

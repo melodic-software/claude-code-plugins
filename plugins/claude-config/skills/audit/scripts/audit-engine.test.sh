@@ -8,7 +8,11 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/audit-engine.sh"
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(mktemp -d)" || TEST_TMPDIR=""
+if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
+  echo "FATAL: mktemp -d gave no directory" >&2
+  exit 2
+fi
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
@@ -236,6 +240,7 @@ assert_eq "case 3: force push demoted to info" "info" "$(jq -r '.findings[] | se
 assert_contains "case 3: the manifest and lever are cited" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .detail' <<<"$out")" "git_enabled"
 assert_eq "case 3: a Read pattern on a Bash matcher is not covered" "0" "$(jq '[.rows[] | select(.claim=="missing-pattern:Read(./.env)")] | length' <<<"$out")"
 assert_eq "case 3: manifest recorded" "1" "$(jq '.coverage_manifests | length' <<<"$out")"
+assert_eq "case 3: a plugin with no manifest declares no dependencies" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:guard@mkt")] | length' <<<"$out")"
 
 # --- Case 4: a suppression lever makes the manifest coverage not live ----------
 m="$(make_machine lever)"
@@ -434,11 +439,17 @@ out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_
   bash "$SCRIPT" --json 2>&1) || rc=$?
 assert_exit "case 12: unknown marketplace exits 1" 1 "$rc"
 assert_eq "case 12: unknown marketplace is an error" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:x@nowhere") | .severity' <<<"$out")"
-assert_eq "case 12: disabled plugin is info" "info" "$(jq -r '.findings[] | select(.identity.claim=="disabled-plugin:old@mkt") | .severity' <<<"$out")"
+assert_eq "case 12: no disabled-plugin finding" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("disabled-plugin:"))] | length' <<<"$out")"
+assert_eq "case 12: a false key is an inventory row" "ok none .claude/settings.json" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:old@mkt") | "\(.status) \(.severity) \(.surface)"' <<<"$out")"
 assert_eq "case 12: drift ran" "ran" "$(jq -r '.drift.state' <<<"$out")"
 assert_eq "case 12: orphan disabled is info" "info" "$(jq -r '.findings[] | select(.identity.claim=="orphan-disabled:old@mkt") | .severity' <<<"$out")"
-assert_eq "case 12: a key enabled at user scope is not new" "0" "$(jq '[.findings[] | select(.identity.claim=="new-upstream:b@mkt")] | length' <<<"$out")"
-assert_eq "case 12: a key in no scope is new" "1" "$(jq '[.findings[] | select(.identity.claim=="new-upstream:c@mkt")] | length' <<<"$out")"
+assert_eq "case 12: no new-upstream finding" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("new-upstream:"))] | length' <<<"$out")"
+assert_eq "case 12: one drift-new inventory row per marketplace" "ok none" "$(jq -r '[.rows[] | select(.check | endswith("/E/drift-new"))] | map("\(.status) \(.severity)") | join(",")' <<<"$out")"
+dn="$(jq -r '.rows[] | select(.check | endswith("/E/drift-new")) | .detail' <<<"$out")"
+assert_contains "case 12: drift-new counts the keys in no scope" "$dn" "1 plugin(s) in the mkt catalog have no enabledPlugins entry in any scope"
+assert_contains "case 12: drift-new names an example" "$dn" "c@mkt"
+assert_eq "case 12: a key enabled at user scope is not counted" "0" "$(jq '[.rows[] | select(.check | endswith("/E/drift-new")) | select(.detail | contains("b@mkt"))] | length' <<<"$out")"
+assert_eq "case 12: no row asks for an explicit value" "0" "$(jq '[.rows[] | select(.detail | contains("record an explicit true or false"))] | length' <<<"$out")"
 
 # --- Case 13: a not-inspectable scope is never reported clean --------------------
 m="$(make_machine unreadable)"
@@ -853,6 +864,204 @@ out=$(run "$m" --json 2>&1) || true
 assert_eq "case 37: a name that only occurs inside a longer one is absent" "warning" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:Plugins") | .severity' <<<"$out")"
 assert_eq "case 37: a one-letter name is not settled by the binary" "info" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:e") | .severity' <<<"$out")"
 assert_contains "case 37: and says why" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:e") | .detail' <<<"$out")" "too short or not identifier-shaped"
+
+# add_plugin <root> <name> <plugin.json text | -> [<name> <text> ...]: installed
+# plugin directories under <root>/plugins and a registry naming each as
+# <name>@mkt at user scope. "-" writes no plugin.json.
+add_plugin() {
+  local root="$1" reg='{"plugins":{}}' dir
+  shift
+  while [[ $# -ge 2 ]]; do
+    dir="$root/plugins/$1"
+    mkdir -p "$dir/.claude-plugin"
+    [[ "$2" != "-" ]] && printf '%s\n' "$2" >"$dir/.claude-plugin/plugin.json"
+    reg="$(jq -c --arg k "$1@mkt" --arg p "$dir" '.plugins[$k] = [{installPath: $p, scope: "user"}]' <<<"$reg")"
+    shift 2
+  done
+  printf '%s\n' "$reg" >"$root/registry.json"
+}
+MKT_DECL='{"extraKnownMarketplaces":{"mkt":{"source":{"source":"github","repo":"o/r"}},"other":{"source":{"source":"github","repo":"o/s"}}}}'
+
+# --- Case 38: a user-scope false dependency of a project-enabled plugin ---------
+m="$(make_machine depuser)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq --argjson d "$MKT_DECL" '. + $d + {enabledPlugins:{"app@mkt":true}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"enabledPlugins":{"lib@mkt":false}}' >"$m/user/settings.json"
+add_plugin "$m" app '{"name":"app","dependencies":["lib"]}'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 38: a disabled dependency is a warning, not an error" 0 "$rc"
+assert_eq "case 38: the dependency is a warning finding" "warning" "$(jq -r '.findings[] | select(.identity.claim=="dependency-disabled:lib@mkt") | .severity' <<<"$out")"
+assert_eq "case 38: its surface is the user file" "user:settings.json" "$(jq -r '.findings[] | select(.identity.claim=="dependency-disabled:lib@mkt") | .identity.sites[0].surface' <<<"$out")"
+assert_contains "case 38: the detail names the dependent" "$(jq -r '.findings[] | select(.identity.claim=="dependency-disabled:lib@mkt") | .detail' <<<"$out")" "enabled plugin(s) app@mkt declare it"
+assert_eq "case 38: no inventory row for the same key" "0" "$(jq '[.rows[] | select(.claim=="disabled-plugin:lib@mkt")] | length' <<<"$out")"
+assert_eq "case 38: the check is E/dependency-disabled" "1" "$(jq '[.rows[] | select(.check=="claude-config/audit/E/dependency-disabled" and .status=="finding")] | length' <<<"$out")"
+
+# --- Case 39: a false shadowed by a true at a higher scope is inventory ---------
+m="$(make_machine depshadow)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq --argjson d "$MKT_DECL" '. + $d + {enabledPlugins:{"app@mkt":true,"lib@mkt":true}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"enabledPlugins":{"lib@mkt":false}}' >"$m/user/settings.json"
+add_plugin "$m" app '{"name":"app","dependencies":["lib"]}' lib '{"name":"lib"}'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 39: a shadowed false exits 0" 0 "$rc"
+assert_eq "case 39: no dependency finding" "0" "$(jq '[.rows[] | select(.claim | startswith("dependency-disabled:"))] | length' <<<"$out")"
+assert_eq "case 39: the false is an inventory row" "ok none user:settings.json" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:lib@mkt") | "\(.status) \(.severity) \(.surface)"' <<<"$out")"
+assert_contains "case 39: the row says it is shadowed" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:lib@mkt") | .detail' <<<"$out")" "shadowed by true at project"
+
+# --- Case 40: object, name@marketplace and bare dependency forms ----------------
+m="$(make_machine depforms)"
+printf '%s\n' "$CLEAN_SETTINGS" | MSYS2_ARG_CONV_EXCL="*" jq --argjson d "$MKT_DECL" '. + $d + {enabledPlugins:{"app@mkt":true,"x@other":false,"y@mkt":false,"z@mkt":false,"w@mkt":false,"k=/x@mkt":false}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"enabledPlugins":{"y@mkt":false}}' >"$m/user/settings.json"
+add_plugin "$m" app '{"name":"app","dependencies":[{"name":"x","marketplace":"other"},"y@mkt",{"name":"z","version":"^1"},"k=/x@mkt"]}'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 40: object form with a marketplace" "1" "$(jq '[.findings[] | select(.identity.claim=="dependency-disabled:x@other")] | length' <<<"$out")"
+assert_eq "case 40: name@marketplace string form" "1" "$(jq '[.findings[] | select(.identity.claim=="dependency-disabled:y@mkt")] | length' <<<"$out")"
+assert_eq "case 40: one finding when several scopes hold false, at the effective one" ".claude/settings.json" "$(jq -r '[.findings[] | select(.identity.claim=="dependency-disabled:y@mkt") | .identity.sites[0].surface] | join(",")' <<<"$out")"
+assert_eq "case 40: the lower-scope false is inventory" "ok" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:y@mkt" and .surface=="user:settings.json") | .status' <<<"$out")"
+assert_eq "case 40: object form without a marketplace takes the dependent's" "1" "$(jq '[.findings[] | select(.identity.claim=="dependency-disabled:z@mkt")] | length' <<<"$out")"
+# Only Git Bash with a native (non-MSYS) jq rewrites `k=/x@mkt`, so this can fail nowhere else.
+assert_eq "case 40: a key with = and / keeps its spelling" "1" "$(MSYS2_ARG_CONV_EXCL="*" jq '[.findings[] | select(.identity.claim=="dependency-disabled:k=/x@mkt")] | length' <<<"$out")"
+assert_eq "case 40: a false nothing depends on is inventory" "ok none" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:w@mkt") | "\(.status) \(.severity)"' <<<"$out")"
+assert_eq "case 40: no disabled-plugin finding at all" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("disabled-plugin:"))] | length' <<<"$out")"
+
+# --- Case 41: an enabled plugin whose dependencies cannot be read ----------------
+m="$(make_machine depunread)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq --argjson d "$MKT_DECL" '. + $d + {enabledPlugins:{"app@mkt":true,"ghost@mkt":true,"bad@mkt":true,"bare@mkt":true,"strdeps@mkt":true}}' >"$m/project/.claude/settings.json"
+add_plugin "$m" app '{"name":"app"}' bad '{not json' bare - strdeps '{"name":"strdeps","dependencies":"lib"}'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 41: an unresolved install path is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="dependencies-unread:ghost@mkt") | .status' <<<"$out")"
+assert_eq "case 41: an invalid plugin.json is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="dependencies-unread:bad@mkt") | .status' <<<"$out")"
+assert_eq "case 41: a resolved path without plugin.json declares no dependencies" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:bare@mkt")] | length' <<<"$out")"
+assert_eq "case 41: a non-array dependencies is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="dependencies-unread:strdeps@mkt") | .status' <<<"$out")"
+assert_eq "case 41: a readable plugin.json is not reported unread" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:app@mkt")] | length' <<<"$out")"
+assert_eq "case 41: the rows sit under E/dependency-disabled" "3" "$(jq '[.rows[] | select(.check=="claude-config/audit/E/dependency-disabled" and .status=="not-inspectable")] | length' <<<"$out")"
+
+# --- Case 42: keys the drift check never diffs are named, per file --------------
+m="$(make_machine coverage)"
+mkdir -p "$m/user/plugins"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {extraKnownMarketplaces:{mkt:{source:{source:"github",repo:"o/r"}}},enabledPlugins:{"a@reg":true,"b@mkt":true,"c@nowhere":true}}' >"$m/project/.claude/settings.json"
+jq -n '{enabledPlugins:{"d@usr":false,"e@reg":true,"f\tg@reg":true}}' >"$m/project/.claude/settings.local.json"
+printf '%s\n' '{"extraKnownMarketplaces":{"usr":{"source":{"source":"github","repo":"o/u"}}}}' >"$m/user/settings.json"
+printf '%s\n' '{"reg":{"source":{"source":"github","repo":"o/g"}}}' >"$m/user/plugins/known_marketplaces.json"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+cov_p="$(jq -r '.rows[] | select(.claim=="drift-coverage:.claude/settings.json") | "\(.status) \(.severity) \(.detail)"' <<<"$out")"
+cov_l="$(jq -r '.rows[] | select(.claim=="drift-coverage:.claude/settings.local.json") | "\(.status) \(.severity) \(.detail)"' <<<"$out")"
+assert_contains "case 42: the project row is a skip with its count" "$cov_p" "skip none 1 enabledPlugins key(s) in .claude/settings.json"
+assert_contains "case 42: a marketplace registered only in known_marketplaces.json is listed" "$cov_p" "not diffed: a@reg"
+assert_eq "case 42: a declared or unregistered marketplace is not listed" "0" "$(jq '[.rows[] | select(.claim=="drift-coverage:.claude/settings.json") | select(.detail | test("b@mkt|c@nowhere"))] | length' <<<"$out")"
+assert_contains "case 42: the local file's keys are named too" "$cov_l" "skip none 3 enabledPlugins key(s) in .claude/settings.local.json"
+assert_contains "case 42: control characters display as ?" "$cov_l" "d@usr, e@reg, f?g@reg"
+assert_eq "case 42: the unregistered marketplace stays an error" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:c@nowhere") | .severity' <<<"$out")"
+assert_eq "case 42: the check is E/drift" "2" "$(jq '[.rows[] | select(.check=="claude-config/audit/E/drift" and (.claim | startswith("drift-coverage:")))] | length' <<<"$out")"
+
+# --- Case 43: a key with a carriage return is one key, never its stripped twin ---
+m="$(make_machine crkeys)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq --argjson d "$MKT_DECL" '. + $d + {enabledPlugins:{"app@mkt":true,"a\r@mkt":false,"q@mkt\r":true}}' >"$m/project/.claude/settings.json"
+add_plugin "$m" app '{"name":"app","dependencies":["a"]}'
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 43: the CR key is one inventory row with its CR" "1" "$(jq '[.rows[] | select(.claim=="disabled-plugin:a\r@mkt")] | length' <<<"$out")"
+assert_eq "case 43: the stripped twin is never matched as the dependency" "0" "$(jq '[.rows[] | select(.claim=="dependency-disabled:a@mkt" or .claim=="disabled-plugin:a@mkt")] | length' <<<"$out")"
+assert_eq "case 43: a CR in the marketplace makes it unregistered" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:q@mkt\r") | .severity' <<<"$out")"
+assert_exit "case 43: that error sets the exit" 1 "$rc"
+
+# --- Case 44: drift keys with a tab or backslash reach their claims exactly -------
+m="$(make_machine driftkeys)"
+mkdir -p "$m/fixtures"
+jq -n --argjson c "$CLEAN_SETTINGS" '$c + {
+  extraKnownMarketplaces: {mkt: {source: {source: "github", repo: "o/r"}}, "t\tb": {source: {source: "github"}}},
+  enabledPlugins: {"a\tb@mkt": false, "c\\d@mkt": true, "p@mkt": "yes", "ren\tx@mkt": false}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"name":"mkt","plugins":[{"name":"ren\txy"}]}' >"$m/fixtures/mkt.json"
+out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
+  SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
+  SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_FIXTURE_DIR="$m/fixtures" CLAUDE_CODE_DEBUG_LOGS_DIR="" \
+  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  bash "$SCRIPT" --json 2>&1) || true
+assert_eq "case 44: a tab in an orphan key is kept" "info" "$(jq -r '.rows[] | select(.claim=="orphan-disabled:a\tb@mkt") | .severity' <<<"$out")"
+assert_eq "case 44: a backslash in an orphan key is kept" "warning" "$(jq -r '.rows[] | select(.claim=="orphan-enabled:c\\d@mkt") | .severity' <<<"$out")"
+assert_eq "case 44: a non-boolean orphan is never removable" "warning" "$(jq -r '.rows[] | select(.claim=="orphan-nonboolean:p@mkt") | .severity' <<<"$out")"
+assert_eq "case 44: a rename pair keeps its tab" "1" "$(jq '[.rows[] | select(.claim=="possible-rename:ren\tx->ren\txy@mkt")] | length' <<<"$out")"
+assert_eq "case 44: a skipped marketplace keeps its tab" "skip" "$(jq -r '.rows[] | select(.claim=="drift-skipped:t\tb") | .status' <<<"$out")"
+
+# --- Case 45: a category E row is never dropped silently -------------------------
+# The decoder and the row reader, with a stub row, fed the emit encoding directly.
+E_DEFS=""
+eval "$(sed -n "/^unb64_to() {/,/^}/p; /^E_ROW_BAD=/p; /^e_rows() {/,/^}/p; /^E_DEFS='/,/^'\$/p" "$SCRIPT")"
+SEEN=()
+# shellcheck disable=SC2329  # called by the e_rows the eval above defined
+row() { SEEN+=("$(printf '%s|' "$@")"); }
+enc() { jq -rn --arg su u --arg sp p --arg sl l "$E_DEFS \$ARGS.positional | emit" --args "$@" | tr -d '\r'; }
+e_rows <<<"$(enc s ok none surf claim "" ex)"
+assert_eq "case 45: an empty field keeps its row" "E|s|ok|none|surf|claim||ex|" "${SEEN[0]:-none}"
+SEEN=()
+e_rows <<<"$(enc s ok none surf claim detail ex | sed 's/^[^ ]*/@@@@/')"
+assert_contains "case 45: an undecodable field is a not-inspectable row" "${SEEN[0]:-none}" "E|plugin-state|not-inspectable|"
+SEEN=()
+e_rows <<<"$(enc s ok none surf claim detail)"
+assert_contains "case 45: a short row is a not-inspectable row" "${SEEN[0]:-none}" "E|plugin-state|not-inspectable|"
+unset -f row enc
+
+# --- Case 46: consent receipts are labeled from the per-owner record ------------
+m="$(make_machine consent)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {skipWorkflowUsageWarning:true}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"skipWorkflowUsageWarning":true,"permissions":{"skipWorkflowUsageWarning":[]}}' >"$m/user/settings.json"
+make_cli "$m/claude" "2.1.281 (Claude Code)" enabledPlugins permissions skipWorkflowUsageWarning
+out=$(CLI_BIN="$m/claude" run "$m" --json 2>&1) || true
+cr='.rows[] | select(.claim=="consent-receipt:skipWorkflowUsageWarning")'
+assert_eq "case 46: the user-scope receipt is labeled" "claude-config/audit/A/consent-receipt ok user:settings.json" "$(jq -r "$cr | \"\(.check) \(.status) \(.surface)\"" <<<"$out")"
+assert_contains "case 46: the label names the owner and meaning" "$(jq -r "$cr | .detail" <<<"$out")" "claude-code"
+assert_eq "case 46: the labeled key is no undocumented-key finding at user scope" "0" "$(jq '[.rows[] | select(.claim=="undocumented-key:skipWorkflowUsageWarning" and .surface=="user:settings.json")] | length' <<<"$out")"
+pd="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:skipWorkflowUsageWarning") | "\(.identity.sites[0].surface) \(.detail)"' <<<"$out")"
+assert_contains "case 46: the same key in project settings stays a finding" "$pd" ".claude/settings.json"
+assert_contains "case 46: and names the scope the record does not declare" "$pd" "declares scope user, not project"
+assert_eq "case 46: a permissions leaf of the same name is never labeled" "0" "$(jq '[.rows[] | select(.claim | startswith("consent-receipt:permissions."))] | length' <<<"$out")"
+assert_eq "case 46: it stays an undocumented-key finding" "1" "$(jq '[.findings[] | select(.identity.claim=="undocumented-key:permissions.skipWorkflowUsageWarning")] | length' <<<"$out")"
+make_cli "$m/claude-lacks" "2.1.281 (Claude Code)" enabledPlugins permissions
+out=$(CLI_BIN="$m/claude-lacks" run "$m" --json 2>&1) || true
+assert_eq "case 46: a searched binary lacking the name leaves no label" "0" "$(jq "[$cr] | length" <<<"$out")"
+stale='.findings[] | select(.identity.claim=="undocumented-key:skipWorkflowUsageWarning" and .identity.sites[0].surface=="user:settings.json")'
+assert_contains "case 46: and the finding says the receipt is stale" "$(jq -r "$stale | .detail" <<<"$out")" "stale consent receipt, recheck"
+assert_eq "case 46: the stale receipt is a warning" "warning" "$(jq -r "$stale | .severity" <<<"$out")"
+make_cli "$m/claude-shim" "2.1.281 (Claude Code)"
+out=$(CLI_BIN="$m/claude-shim" run "$m" --json 2>&1) || true
+assert_contains "case 46: an unsearched binary labels with binary not checked" "$(jq -r "$cr | .detail" <<<"$out")" "binary not checked"
+# A plugin-owned receipt is labeled only while its owner is enabled.
+printf '%s\n' '{"consentReceipt":{"own@mkt":[{"key":"ownAccepted","scopes":["project"],"meaning":"the user accepted own","basis":"fixture","as_of":"2026-09-26","recheck":"never"}],"claude-code":[{"key":"disableAllHooks","scopes":["project"],"meaning":"documented","basis":"fixture","as_of":"2026-09-26","recheck":"never"}]}}' >"$m/receipts.json"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {ownAccepted:true,disableAllHooks:false,enabledPlugins:{"own@mkt":true}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{}' >"$m/user/settings.json"
+out=$(SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts.json" run "$m" --json 2>&1) || true
+assert_eq "case 46: an enabled owner's receipt is labeled" "ok" "$(jq -r '.rows[] | select(.claim=="consent-receipt:ownAccepted") | .status' <<<"$out")"
+assert_eq "case 46: a documented key is never relabeled" "ok 0" "$(jq -r '"\(.rows[] | select(.claim=="documented-key:disableAllHooks") | .status) \([.rows[] | select(.claim=="consent-receipt:disableAllHooks")] | length)"' <<<"$out")"
+printf '%s\n' '{"enabledPlugins":{"own@mkt":false}}' >"$m/project/.claude/settings.local.json"
+out=$(SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts.json" run "$m" --json 2>&1) || true
+assert_eq "case 46: a disabled owner's receipt is not labeled" "0" "$(jq '[.rows[] | select(.claim=="consent-receipt:ownAccepted")] | length' <<<"$out")"
+assert_contains "case 46: and the finding says the owner is not enabled" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:ownAccepted") | .detail' <<<"$out")" "own@mkt is not enabled"
+printf '%s\n' '{}' >"$m/project/.claude/settings.local.json"
+printf '%s\n' '{"consentReceipt":' >"$m/receipts-invalid.json"
+for bad in missing invalid; do
+  out=$(SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts-$bad.json" run "$m" --json 2>&1) || true
+  assert_eq "case 46: a $bad record file is one not-inspectable row" "1" "$(jq '[.rows[] | select(.check=="claude-config/audit/A/consent-receipt" and .status=="not-inspectable")] | length' <<<"$out")"
+  assert_eq "case 46: and a $bad record file falls back to the finding" "1" "$(jq '[.findings[] | select(.identity.claim=="undocumented-key:ownAccepted")] | length' <<<"$out")"
+done
+# A key that only differs by a carriage return is not the record's key.
+printf '%s\n' '{"skipWorkflowUsageWarning\r":true}' >"$m/user/settings.json"
+out=$(CLI_BIN="$m/claude" run "$m" --json 2>&1) || true
+assert_eq "case 46: a carriage-return twin of the key is never labeled" "0" "$(jq '[.rows[] | select(.claim | startswith("consent-receipt:"))] | length' <<<"$out")"
+# The key beside its carriage-return twin is ambiguous: neither is labeled.
+printf '%s\n' '{"skipWorkflowUsageWarning":true,"skipWorkflowUsageWarning\r":true}' >"$m/user/settings.json"
+out=$(CLI_BIN="$m/claude" run "$m" --json 2>&1) || true
+assert_eq "case 46: a key beside its carriage-return twin is never labeled" "0" "$(jq '[.rows[] | select(.claim | startswith("consent-receipt:"))] | length' <<<"$out")"
+assert_contains "case 46: and the finding names the carriage-return variant" "$(jq -r '[.rows[] | select(.claim=="undocumented-key:skipWorkflowUsageWarning" and .surface=="user:settings.json") | .detail] | join(" ")' <<<"$out")" "carriage-return variant"
+# A control character in a record field makes the record file invalid.
+printf '%s\n' '{"skipWorkflowUsageWarning":true}' >"$m/user/settings.json"
+for cc in '\u0000' '\n'; do
+  printf '%s\n' "{\"consentReceipt\":{\"claude-code\":[{\"key\":\"skipWorkflowUsageWarning\",\"scopes\":[\"user\"],\"meaning\":\"a${cc}b\",\"basis\":\"fixture\",\"as_of\":\"2026-09-26\",\"recheck\":\"never\"}]}}" >"$m/receipts-cc.json"
+  out=$(CLI_BIN="$m/claude" SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE="$m/receipts-cc.json" run "$m" --json 2>&1) || true
+  assert_eq "case 46: a control character ($cc) in a record is not-inspectable, no label" "1 0" "$(jq -r '"\([.rows[] | select(.claim=="consent-receipts-unread")] | length) \([.rows[] | select(.claim | startswith("consent-receipt:"))] | length)"' <<<"$out")"
+done
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

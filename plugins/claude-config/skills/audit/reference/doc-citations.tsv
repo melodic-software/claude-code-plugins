@@ -1,6 +1,7 @@
 # Upstream citations the audit skill's checklist and references depend on.
 # One row per <page slug><TAB><literal text the page must carry>. The page is
-# https://code.claude.com/docs/en/<slug>.md, fetched verbatim. Keys are cited
+# https://code.claude.com/docs/en/<slug>.md, fetched verbatim; a nested page
+# keeps its `/` in the slug (`plugins/install`). Keys are cited
 # as their `### `heading` row on settings-reference; prose claims are cited by
 # a short literal span. check-doc-citations.sh greps each row and fails when a
 # fetched page no longer carries its span, which is the moment the checklist
@@ -38,3 +39,5 @@ model-config	ultracode
 cli-reference	`--debug-file
 deep-links	disableDeepLinkRegistration
 deep-links	user-level locations
+plugins/install	Claude Code refuses and prints a chained command
+plugins/dependencies	your plugin is disabled at the next plugin load
