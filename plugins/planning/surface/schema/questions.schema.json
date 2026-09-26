@@ -56,7 +56,7 @@
   },
   "$defs": {
     "sections": {
-      "description": "Restatement sections, each markdown. `planningOwned` lists the decisions the interview hands to /planning:plan to make.",
+      "description": "Restatement sections, each markdown. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
