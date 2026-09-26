@@ -260,7 +260,7 @@ plugins/skill-quality/scripts/check-skill.sh --require-evals repo-sweep` exits 0
 plugins/skill-quality/scripts/check-evals-quality.sh <root>/evals/evals.json` exits 0; `grep -c
 '^## Next' <root>/SKILL.md` is 1.
 
-### Phase 6: Release plumbing [TODO]
+### Phase 6: Release plumbing [DONE]
 
 - `plugins/playbooks/.claude-plugin/plugin.json` minor bump; `CHANGELOG.md` entry; plugin README
   skill list if one exists.
