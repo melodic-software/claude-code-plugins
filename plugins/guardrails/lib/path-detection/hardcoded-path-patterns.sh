@@ -89,15 +89,70 @@ hpp::scan_text() {
   # substitution when the reader may exit early (`grep -q`).
   # `printf '%s'` (no trailing newline) also matches the detailed blocks below,
   # so the gate and the scan see byte-identical input.
-  if ! grep -qE 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' < <(printf '%s' "$content") 2>/dev/null; then
-    local gate_root=""
-    if [[ -n "$project_root" ]]; then
-      gate_root="${project_root//\\//}"
-      gate_root="${gate_root%/}"
-      gate_root="${gate_root##*/}"
-    fi
+  #
+  # Builtin pre-gate, no process: it answers "clean" only where the two greps
+  # below would, and hands everything else to them. Under LC_ALL=C:
+  #   - A literal in the content means the scan runs. Byte substring presence is
+  #     never tighter than grep's line match of the same literals, and a looser
+  #     gate only costs a scan that finds nothing.
+  #   - Otherwise the root segment is compared with ASCII case folding, but only
+  #     when the content and the segment are ASCII and the segment holds no
+  #     newline (grep -F reads a newline as a second pattern). Over ASCII text
+  #     grep -i's locale folding can only match a subset of what ASCII folding
+  #     matches, so "no match" here is "no match" there. Non-ASCII text goes to
+  #     grep, whose locale folding (the Kelvin sign for k) is wider.
+  # A case pattern, not a regex: Git Bash's regex decodes UTF-8 even under C.
+  local gate_root="" hpp_gate=grep hpp_lc_set=${LC_ALL+x} hpp_lc=${LC_ALL-} hpp_nc=0
+  local hpp_non_ascii=$'[!\x01-\x7f]' hpp_non_ascii_nl=$'[!\x01-\x09\x0b-\x7f]'
+  if [[ -n "$project_root" ]]; then
+    gate_root="${project_root//\\//}"
+    gate_root="${gate_root%/}"
+    gate_root="${gate_root##*/}"
+  fi
+  # Assigning a readonly LC_ALL would abort this function, so a readonly one
+  # skips the pre-gate and the greps decide. So does bash before 4.4, which has
+  # no ${var@a}; eval keeps that expansion out of such a bash's parse. The
+  # expansion trips `set -u` on an unset LC_ALL, so nounset is lifted around it.
+  local hpp_attr=r
+  if ((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)); then
+    case $- in
+    *u*)
+      set +u
+      eval 'hpp_attr=${LC_ALL@a}'
+      set -u
+      ;;
+    *) eval 'hpp_attr=${LC_ALL@a}' ;;
+    esac
+  fi
+  if [[ $hpp_attr != *r* ]]; then
+    LC_ALL=C
+    case $content in
+    *Users* | */home/* | *repos* | *Repos* | *projects* | *Projects* | *dev* | *Dev*) hpp_gate=scan ;;
+    *$hpp_non_ascii*) ;;
+    *)
+      case $gate_root in
+      *$hpp_non_ascii_nl*) ;;
+      "") hpp_gate=clean ;;
+      *)
+        shopt -q nocasematch && hpp_nc=1
+        shopt -s nocasematch
+        hpp_gate=clean
+        [[ $content == *"$gate_root"* ]] && hpp_gate=scan
+        ((hpp_nc)) || shopt -u nocasematch
+        ;;
+      esac
+      ;;
+    esac
+    # Restoring an LC_ALL that names a locale this host lacks makes bash warn
+    # "setlocale: cannot change locale"; only the restore is silenced.
+    { if [[ -n "$hpp_lc_set" ]]; then LC_ALL=$hpp_lc; else unset LC_ALL; fi; } 2>/dev/null
+  fi
+  [[ $hpp_gate == clean ]] && return 0
+  # `--` on every grep whose pattern comes from the project root: a root whose
+  # last segment starts with `-` (`-e`, `--help`) is a pattern, not an option.
+  if [[ $hpp_gate == grep ]] && ! grep -qE -- 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' < <(printf '%s' "$content") 2>/dev/null; then
     # Process substitution for the same two reasons as the gate above.
-    if [[ -z "$gate_root" ]] || ! grep -qFi "$gate_root" < <(printf '%s' "$content") 2>/dev/null; then
+    if [[ -z "$gate_root" ]] || ! grep -qFi -- "$gate_root" < <(printf '%s' "$content") 2>/dev/null; then
       return 0
     fi
   fi
@@ -252,7 +307,7 @@ hpp::scan_text() {
 
     for candidate in "$root_fwd" "$root_bslash" "$root_escaped"; do
       [[ -n "$candidate" ]] || continue
-      match=$(printf '%s' "$content" | grep -nFi "$candidate" 2>/dev/null | head -3)
+      match=$(printf '%s' "$content" | grep -nFi -- "$candidate" 2>/dev/null | head -3)
       [[ -n "$match" ]] && violations="${violations}Machine-specific repo path detected:${nl}${match}${nl}${nl}"
     done
   fi
