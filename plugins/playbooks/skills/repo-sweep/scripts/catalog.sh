@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Parse a repo-sweep catalog (format: ../catalogs/hygiene.md is the reference instance).
+# Parse a repo-sweep catalog (format: ../SKILL.md "Formats").
 #
 #   catalog.sh <catalog-file>                 one TSV row per entry, in file order:
 #                                             id, phase, skills, args, checked, issue, applies-when

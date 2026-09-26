@@ -162,7 +162,7 @@ scripts/check-shell-portability.sh --paths <root>/scripts/*.sh` exits 0.
 the phase commit's author, against the Brief list); `bash <root>/scripts/catalog.test.sh` exits
 0.
 
-### Phase 3: History, render, and sweep state [TODO]
+### Phase 3: History, render, and sweep state [DONE]
 
 - `<root>/scripts/history.sh`: per skill, the last version run. Primary source: the markers block
   of merged sweep PRs (`gh pr list --state merged --search "head:chore/repo-sweep-" --limit 1000
@@ -193,7 +193,7 @@ the phase commit's author, against the Brief list); `bash <root>/scripts/catalog
   missing or already done. One session per sweep; stated in SKILL.md gotchas.
 - `<root>/scripts/guard.sh <base-sha> <pr-snapshot-file>`: `next` snapshots `gh pr list --author
   @me --limit 1000 --json number` before the step. After the step, guard stops on a branch change or a PR
-  absent from the snapshot (Brief acceptance criterion). More than one commit since `<base-sha>`
+  absent from the snapshot (Brief acceptance criterion). Any commit since `<base-sha>`
   on the same branch: prints the soft-reset squash command (`git reset --soft <base-sha>`) for
   `next` to run before the single step commit, since batch-simplify and extract-ssot commit per
   group or wave by design.
