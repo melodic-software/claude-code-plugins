@@ -17,9 +17,8 @@ geometry, source frames or the clip into it. Read
 band is set, which statistics separate the woodcut style from a filtered near miss and from other
 styles, and what the check still cannot separate.
 
-Requirements: the rotoscope skill's requirements (Python with numpy and opencv through
-`uv run --with numpy,opencv-python-headless python ...`, `ffmpeg`, `ffprobe`, Node and
-playwright-core with Chromium) and a rotoscope work directory (`d/dNNN.json` traces and
+Requirements: the plugin README's (run the scripts the way it says; `/animation:setup` checks
+them) and a rotoscope work directory (`d/dNNN.json` traces and
 `src/dNNN.png` drawings). The scripts are `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/learn.py`,
 `${CLAUDE_PLUGIN_ROOT}/skills/learn-style/scripts/controls.py` and the shared
 `${CLAUDE_PLUGIN_ROOT}/scripts/inkstats.py`.
@@ -60,7 +59,7 @@ numbers live in `style.json` only; STYLE.md and other docs point at its keys.
 5. Validate: author a scene of at least a third of the source's length (bands are learned from
    excerpts that long) on a different subject, from ink.js and the scene elements, with geometry you
    write, never traced. Render it at the source's size with `${CLAUDE_PLUGIN_ROOT}/scripts/render.py <scene.js> <frames dir>
-   --fps 24 --encode mp4` (it serves the scene's folder and `scripts/`), and run `inkstats.py <frames dir>.mp4 --cuts <shot starts>
+   --fps 24 --encode mp4 --playwright-core '${user_config.playwright_core}'` (it serves the scene's folder and `scripts/`), and run `inkstats.py <frames dir>.mp4 --cuts <shot starts>
    --pack <pack dir>`. It exits 0 only when every checked row and the palette pass. Each row prints
    its distance to source: 0 is the source value, 1 the band edge on either side. The film's
    distance ranks passing scenes and its margin names the row nearest failing.

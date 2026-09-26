@@ -2,14 +2,15 @@
 """Render a scene module to a frame folder (and optionally encode it): the one entry point for every render.
 
 usage: render.py <scene.js> <out dir> (--fps N | --drawings K0-K1|k,k,...) [--query Q] [--root DIR ...]
-                 [--backend native] [--encode none|mp4|webm|gif] [--workers N]
+                 [--backend native] [--encode none|mp4|webm|gif] [--workers N] [--playwright-core DIR]
 Serves, over one loopback server on an OS-chosen port, the scene's directory, then this scripts/ directory
 (render.html, ink.js), then each --root in order; a path resolves to the first root holding it. Opens
 render.html?scene=<scene file>&<query> in headless Chromium through capture.mjs and writes
   --fps N        every frame of the film, fNNNN.png (frame i shows t = i / N)
   --drawings     one dNNN.png per drawing through window.renderDrawing(k)
 plus render.json {scene, adapter, adapter_version, browser_build, fps, size, frames, duration}. --encode writes the
-frame folder to <out dir>.<fmt> beside it.
+frame folder to <out dir>.<fmt> beside it. --playwright-core is forwarded to capture.mjs; an empty value or an
+unsubstituted ${...} placeholder counts as unset.
 exit 0  every requested frame written, render.json written
 exit 1  the scene failed: a page error, a missing or non-positive DURATION, a missing renderDrawing
 exit 2  a prerequisite is missing (the remedy is printed)
@@ -23,6 +24,8 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+
+import prereq
 
 HERE = Path(__file__).resolve().parent
 WORKERS = min(8, os.cpu_count() or 1)   # pages capture.mjs renders in parallel; every worker default routes here
@@ -60,8 +63,9 @@ def ks(spec):
     return [int(k) for k in spec.split(',')]
 
 
-def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORKERS):
+def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORKERS, playwright_core=None):
     """Capture a scene into out; return the render.json dict. Exits 1 when the scene fails, 2 when a tool is missing."""
+    prereq.require(['node'])
     scene, out = Path(scene).resolve(), Path(out)
     served = [str(scene.parent), str(HERE), *map(str, roots)]
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Roots, roots=served))
@@ -69,11 +73,9 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
     try:
         url = f'http://127.0.0.1:{srv.server_address[1]}/render.html?scene={scene.name}&{query}'
         sel = ['--fps', f'{fps:g}'] if fps else [','.join(map(str, drawings))]
-        r = subprocess.run(['node', str(HERE / 'capture.mjs'), url, str(out), *sel, str(workers)],
+        pw = ['--playwright-core', playwright_core] if playwright_core else []
+        r = subprocess.run(['node', str(HERE / 'capture.mjs'), *pw, url, str(out), *sel, str(workers)],
                            stdout=subprocess.PIPE, text=True)
-    except FileNotFoundError:
-        sys.stderr.write('render: node not found on PATH; install Node.js (https://nodejs.org)\n')
-        sys.exit(2)
     finally:
         srv.shutdown()
         srv.server_close()
@@ -92,15 +94,12 @@ def render(scene, out, fps=None, drawings=None, query='', roots=(), workers=WORK
 def encode(frames, fmt, fps, out):
     """The one ffmpeg write path: pipe BGR images (an iterable, each held as many frames as it repeats) as rawvideo
     bgr24 at fps into out; return out."""
+    prereq.require(['ffmpeg'] + (['libx264'] if fmt == 'mp4' else []))
     frames = iter(frames)
     first = next(frames)
     h, w = first.shape[:2]
-    try:
-        p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}',
-                              '-framerate', f'{fps:g}', '-i', '-', *FORMATS[fmt], str(out)], stdin=subprocess.PIPE)
-    except FileNotFoundError:
-        sys.stderr.write('render: ffmpeg not found on PATH; install ffmpeg (https://ffmpeg.org/download.html)\n')
-        sys.exit(2)
+    p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}',
+                          '-framerate', f'{fps:g}', '-i', '-', *FORMATS[fmt], str(out)], stdin=subprocess.PIPE)
     p.stdin.write(first.tobytes())
     for img in frames:
         p.stdin.write(img.tobytes())
@@ -129,10 +128,14 @@ def main(argv=None):
     ap.add_argument('--backend', choices=['native'], default='native')
     ap.add_argument('--encode', choices=['none', *FORMATS], default='none')
     ap.add_argument('--workers', type=int, default=WORKERS)
+    ap.add_argument('--playwright-core', type=prereq.playwright_dir)
     a = ap.parse_args(argv)
     if a.encode != 'none' and not a.fps:
         ap.error('--encode needs --fps (a film, not drawings)')
-    meta = render(a.scene, a.out, a.fps, a.drawings, a.query, [r.resolve() for r in a.root], a.workers)
+    if a.encode != 'none':   # fail before the render, not after it
+        prereq.require(['ffmpeg', 'numpy', 'opencv'] + (['libx264'] if a.encode == 'mp4' else []))
+    meta = render(a.scene, a.out, a.fps, a.drawings, a.query, [r.resolve() for r in a.root], a.workers,
+                  a.playwright_core)
     if a.encode != 'none':
         out = a.out.resolve()
         dest = out.parent / f'{out.name}.{a.encode}'

@@ -1,33 +1,60 @@
-// usage: node capture.mjs <url> <outdir> <k,k,...> [workers=4]   one PNG per drawing: window.renderDrawing(k) -> dNNN.png
-//        node capture.mjs <url> <outdir> --fps <n> [workers=4]  every frame of the film: window.renderFrame(i / n) -> fNNNN.png
+// usage: node capture.mjs [--playwright-core DIR] <url> <outdir> <k,k,...> [workers=4]   one PNG per drawing:
+//                                               window.renderDrawing(k) -> dNNN.png
+//        node capture.mjs [--playwright-core DIR] <url> <outdir> --fps <n> [workers=4]  every frame of the film:
+//                                               window.renderFrame(i / n) -> fNNNN.png
+//        node capture.mjs [--playwright-core DIR] --probe   launch Chromium, print {browser_build}, exit
 // Saves canvas#c at its own size after awaiting the render Promise; prints one JSON line
 // {browser_build, size, frames, duration}. Exit 1 when the scene fails (a page error, DURATION missing or not a
-// positive finite number, renderDrawing missing). render.py serves the scene, calls this, and encodes.
-// playwright-core is resolved from PW_CORE, then the working directory, then a playwright-cli install on PATH.
+// positive finite number, renderDrawing missing), 2 when playwright-core or its Chromium is missing (remedy printed).
+// render.py serves the scene, calls this, and encodes.
+// playwright-core is resolved from --playwright-core DIR (the package directory or a folder holding
+// node_modules/playwright-core), then the working directory, then a playwright-cli install on PATH.
 import { createRequire } from 'node:module';
-import { execSync } from 'node:child_process';
-import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { delimiter, dirname, join } from 'node:path';
 
-function chromium() {
+const REMEDY = 'pass --playwright-core <dir> (the animation plugin\'s playwright_core option), run `npm i playwright-core` '
+  + 'in the working directory, or install @playwright/cli (the playwright plugin\'s setup installs it, when that plugin '
+  + 'is installed); then `npx playwright install chromium`';
+
+function onPath(name) {
+  const exts = process.platform === 'win32' ? ['.cmd', '.exe', ''] : [''];
+  for (const d of (process.env.PATH || '').split(delimiter).filter(Boolean))
+    for (const e of exts) if (existsSync(join(d, name + e))) return join(d, name + e);
+  throw new Error(`${name} not on PATH`);
+}
+
+function chromium(dir) {
   const tries = [
-    () => createRequire(import.meta.url)(process.env.PW_CORE),
+    ...(dir ? [() => createRequire(import.meta.url)(dir), () => createRequire(join(dir, 'x.js'))('playwright-core')] : []),
     () => createRequire(join(process.cwd(), 'x.js'))('playwright-core'),
     () => createRequire(join(process.cwd(), 'x.js'))('playwright'),
-    () => {
-      const bin = execSync('command -v playwright-cli', { shell: '/bin/sh' }).toString().trim();
-      return createRequire(realpathSync(join(dirname(bin), '..', '@playwright', 'cli', 'package.json')))('playwright-core');
-    },
+    () => createRequire(realpathSync(join(dirname(onPath('playwright-cli')), '..', '@playwright', 'cli', 'package.json')))('playwright-core'),
   ];
   for (const t of tries) { try { const m = t(); if (m?.chromium) return m.chromium; } catch { /* next */ } }
-  console.error('capture.mjs: playwright-core not found. Set PW_CORE to its path, `npm i playwright-core` in the working directory, or install @playwright/cli; then `npx playwright install chromium`.');
+  console.error(`capture.mjs: playwright-core not found; ${REMEDY}.`);
   process.exit(2);
 }
 
-const [url, out, sel, ...rest] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const at = argv.indexOf('--playwright-core');
+const pwDir = at >= 0 ? argv.splice(at, 2)[1] : null;
+const launch = async () => {
+  try { return await chromium(pwDir).launch(); } catch (e) {
+    console.error(`capture.mjs: Chromium did not launch (${e.message.split('\n')[0]}); ${REMEDY}.`);
+    process.exit(2);
+  }
+};
+if (argv[0] === '--probe') {
+  const b = await launch();
+  console.log(JSON.stringify({ browser_build: b.version() }));
+  await b.close();
+  process.exit(0);
+}
+const [url, out, sel, ...rest] = argv;
 const fps = sel === '--fps' ? +rest.shift() : 0, workers = +(rest[0] || 4);
 mkdirSync(out, { recursive: true });
-const browser = await chromium().launch();
+const browser = await launch();
 let failed = false;
 const open = async () => {
   const p = await browser.newPage();

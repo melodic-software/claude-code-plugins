@@ -208,7 +208,7 @@ and learn-style `SKILL.md` film steps, README.
 - [x] `grep -rn "> 64" plugins/animation --include=*.py` matches only `scripts/decode.py`.
 - [x] C1 239/239; C3 `compare` exits 0; C5.
 
-### Phase 3: prerequisite probe, pinned requirements, check-only `setup` (T15, T6; D1-D5, D7, D8, D11-D13, V19, V21) [TODO]
+### Phase 3: prerequisite probe, pinned requirements, check-only `setup` (T15, T6; D1-D5, D7, D8, D11-D13, V19, V21) [DONE]
 
 - `plugins/animation/requirements.txt`: numpy and opencv-python-headless pinned to the exact
   versions Phase 0 recorded, so byte-identity is not broken by a library upgrade. `[EXEC-SHAPE]`
@@ -242,30 +242,30 @@ and learn-style `SKILL.md` film steps, README.
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/animation/requirements.txt` | CREATE | V19, D11-D13 |
-| [ ] `plugins/animation/scripts/prereq.py` | CREATE | one probe for setup and entry points |
-| [ ] `plugins/animation/scripts/render.py` | MODIFY | entry-point `require` |
-| [ ] `plugins/animation/scripts/decode.py` | MODIFY | entry-point `require` |
-| [ ] `plugins/animation/scripts/capture.mjs` | MODIFY | D7, D8, `--probe` |
-| [ ] `plugins/animation/skills/setup/SKILL.md` | CREATE | T6 |
-| [ ] `plugins/animation/skills/setup/evals/evals.json` | CREATE | skill-quality contract |
-| [ ] `plugins/animation/README.md` | MODIFY | requirements, setup row |
-| [ ] `plugins/animation/skills/rotoscope/SKILL.md` | MODIFY | V19, V21 |
-| [ ] `plugins/animation/skills/learn-style/SKILL.md` | MODIFY | V19 defers to README |
-| [ ] `plugins/animation/.claude-plugin/plugin.json` | MODIFY | description names setup; `userConfig.playwright_core` |
-| [ ] `docs/catalog.md`, `docs/skill-cheat-sheet.md` | MODIFY | regenerated, not hand-edited |
+| [x] `plugins/animation/requirements.txt` | CREATE | V19, D11-D13 |
+| [x] `plugins/animation/scripts/prereq.py` | CREATE | one probe for setup and entry points |
+| [x] `plugins/animation/scripts/render.py` | MODIFY | entry-point `require` |
+| [x] `plugins/animation/scripts/decode.py` | MODIFY | entry-point `require` |
+| [x] `plugins/animation/scripts/capture.mjs` | MODIFY | D7, D8, `--probe` |
+| [x] `plugins/animation/skills/setup/SKILL.md` | CREATE | T6 |
+| [x] `plugins/animation/skills/setup/evals/evals.json` | CREATE | skill-quality contract |
+| [x] `plugins/animation/README.md` | MODIFY | requirements, setup row |
+| [x] `plugins/animation/skills/rotoscope/SKILL.md` | MODIFY | V19, V21 |
+| [x] `plugins/animation/skills/learn-style/SKILL.md` | MODIFY | V19 defers to README |
+| [x] `plugins/animation/.claude-plugin/plugin.json` | MODIFY | description names setup; `userConfig.playwright_core` |
+| [x] `docs/catalog.md`, `docs/skill-cheat-sheet.md` | MODIFY | regenerated, not hand-edited |
 
 **Sanity Check:**
 
-- [ ] `node scripts/validate-plugin-contracts.mjs` exits 0 (setup contract gate).
-- [ ] `node scripts/generate-catalog.mjs --check` exits 0.
+- [x] `node scripts/validate-plugin-contracts.mjs` exits 0 (setup contract gate).
+- [x] `node scripts/generate-catalog.mjs --check` exits 0.
 - [ ] `bash scripts/check-changed-skills.sh main` exits 0 (skill-quality contract gate; new skills need `evals/evals.json`).
-- [ ] With `PATH` stripped of ffmpeg (`env PATH=<dir without ffmpeg> ...`), `render.py <scene> <out> --fps 24 --encode mp4` exits 2 and prints one remedy line, no traceback.
-- [ ] `grep -n "/bin/sh\|command -v" plugins/animation/scripts/capture.mjs` returns nothing.
-- [ ] `grep -rn "with numpy,opencv" plugins/animation` returns nothing.
-- [ ] `grep -rn "PW_CORE" plugins/animation` returns nothing; `grep -c "playwright_core" plugins/animation/.claude-plugin/plugin.json` is 1.
-- [ ] `render.py <scene> <out> --fps 12 --playwright-core '${user_config.playwright_core}'` exits 0 (unsubstituted placeholder treated as unset).
-- [ ] C1 (now via `--with-requirements`) 239/239; C3 `compare` exits 0; C5.
+- [x] With `PATH` stripped of ffmpeg (`env PATH=<dir without ffmpeg> ...`), `render.py <scene> <out> --fps 24 --encode mp4` exits 2 and prints one remedy line, no traceback.
+- [x] `grep -n "/bin/sh\|command -v" plugins/animation/scripts/capture.mjs` returns nothing.
+- [x] `grep -rn "with numpy,opencv" plugins/animation` returns nothing.
+- [x] `grep -rn "PW_CORE" plugins/animation` returns nothing; `grep -c "playwright_core" plugins/animation/.claude-plugin/plugin.json` is 1.
+- [x] `render.py <scene> <out> --fps 12 --playwright-core '${user_config.playwright_core}'` exits 0 (unsubstituted placeholder treated as unset).
+- [x] C1 (now via `--with-requirements`) 239/239; C3 `compare` exits 0; C5.
 
 ### Phase 4: the one test seam: synthetic fixture and pack control (T8; D44) [TODO]
 

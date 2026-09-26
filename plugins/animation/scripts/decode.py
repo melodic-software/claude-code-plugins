@@ -14,14 +14,19 @@ import json
 import subprocess
 from pathlib import Path
 
-import cv2
-import numpy as np
+import prereq
+
+prereq.require(['numpy', 'opencv'])
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
 
 DUP_PX = 50
 MID = 16
+TOOLS = ['ffmpeg', 'ffprobe', 'ffmpeg-version']   # what decoding a video needs
 
 
 def probe(video):
+    prereq.require(TOOLS)
     out = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height',
                           '-of', 'csv=p=0', str(video)], capture_output=True, text=True, check=True).stdout
     w, h = map(int, out.strip().split(',')[:2])

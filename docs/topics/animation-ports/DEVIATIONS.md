@@ -51,3 +51,31 @@ Append-only. Each entry: plan said / found / chose / revisit.
 - **choice: `extract.decode` keeps its name** and imports `probe, frames, is_repeat, modes, MID`
   from `decode`; it probes once for `w, h, pts` (for `index.json` and its summary line) and
   `decode.frames` probes again. Two extra ffprobe runs per extract; output identical.
+
+## Phase 3
+
+- **blocked (human-decision): `check-changed-skills.sh main` exits 1.** The new `setup` skill passes
+  (0 errors, 0 warnings; evals lint PASS). The six failures predate this phase: `rotoscope` and
+  `learn-style` ship no `evals/evals.json` (new on this branch); `pixel-art` `animate`, `scene`,
+  `sprite` ship none (from `feat/pixel-art`); `disk-hygiene` `clean` fails its own tests because
+  the gate diffs against a `main` that moved past this branch's merge base (two-dot diff). Revisit:
+  after the rebase onto main (Phase 10); evals for rotoscope and learn-style are outside every
+  phase's file list, so they need a plan decision.
+- **deviation: `--playwright-core` reaches only `render.py` commands.** Plan wires the option
+  through SKILL.md into `render.py`. `measure.py`, `fit.py` and `regress.py` call `render.render`
+  in-process and take no such argument, so the option does not reach the rotoscope measure/fit
+  loop; those renders use the working-directory and playwright-cli lookups. The net now runs from
+  the private toolchain dir so the working-directory lookup finds its playwright-core. Revisit:
+  whether measure.py and fit.py should forward `--playwright-core`.
+- **choice: `require()` prints the first failed row only**, so a missing ffmpeg prints one line
+  (the libx264 row follows from it). `check()` still reports every row.
+- **choice: a set `playwright_core` option gets its own row**, which FAILs when the directory holds
+  no playwright-core, even when a fallback lookup would still find one (setup "verifies a set
+  value resolves").
+- **choice: a numpy/opencv version other than the pin is INFO, not FAIL**, so scripts still run;
+  `require` stops only on a missing package.
+- **choice: Chromium launch failure exits 2** (it was 1): a missing browser is a prerequisite.
+- **discovery: `-fps_mode` minimum.** FFmpeg 5.1, recorded as a four-part record in
+  `scripts/prereq.py` (basis: `doc/ffmpeg.texi` has `fps_mode` at tag `n5.1`, not at `n5.0`).
+- **discovery: Python minimum** 3.12, from numpy 2.5.3's `requires_python` on PyPI; stated in
+  README and `requirements.txt`.

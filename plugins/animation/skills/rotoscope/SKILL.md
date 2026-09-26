@@ -15,10 +15,9 @@ parameters only. Replaying or embedding source bitmaps is out of scope: it is a 
 teaches nothing. Read [`reference/method.md`](reference/method.md) first: it holds the defaults, why
 they are what they are, and the diagnostics in the order to read them.
 
-Requirements: Python with numpy and opencv (run the scripts with
-`uv run --with numpy,opencv-python-headless python ...`), `ffmpeg` and `ffprobe` on PATH, Node, and
-playwright-core with Chromium (`capture.mjs` finds it through `PW_CORE`, the working directory, or
-a playwright-cli install; missing, it stops and prints the remedy). The scripts are in
+Requirements: the plugin README lists them, and `/animation:setup` checks each one. Run every
+script below as `uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python <script>
+...`; a missing tool stops a script with exit 2 and one remedy line. The scripts are in
 `${CLAUDE_PLUGIN_ROOT}/skills/rotoscope/scripts/`; below, `$R` stands for that folder.
 
 ## Work directory
@@ -75,7 +74,8 @@ Repeat 2-5 by shot or drawing range until the table passes and the crops show no
 cluster.
 
 A film of the replica: `${CLAUDE_PLUGIN_ROOT}/scripts/render.py $R/roto.js <frames dir> --fps 24
---root <work> --encode mp4` writes the frames, `render.json` and `<frames dir>.mp4` beside them.
+--root <work> --encode mp4 --playwright-core '${user_config.playwright_core}'` writes the frames,
+`render.json` and `<frames dir>.mp4` beside them.
 
 ## Retro
 
