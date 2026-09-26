@@ -22,6 +22,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+import exporters  # noqa: E402
 from server import rebuild_responses  # noqa: E402
 
 ROUND = HERE / "round.py"
@@ -240,6 +241,7 @@ class TestExportBrief(SessionCase):
         self.assertIn("risk: Unticked promise (unconfirmed)", text)
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
+        self.assertNotIn("superseded-by-plan", text)
 
     def test_confirmed_commitment_is_an_assumption_and_archived_is_out_of_scope(self):
         self.decided()
@@ -468,6 +470,220 @@ class TestImportLedger(SessionCase):
         ledger = self.export("ledger")
         rc, _ = self.rp("import-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 1)
+
+
+class TestSupersededByPlan(SessionCase):
+    """AC10: the non-terminal superseded-by-plan status round-trips through the page."""
+
+    RES = "plan proposes: admin only; was: any enrolled user"
+
+    def seed(self, res=RES):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Who reads? | accepted: everyone\n"
+            f"- Q2 | Superseded-By-Plan | round 1 | Who writes? | {res}\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        return json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+
+    def test_import_seeds_it_as_an_open_question(self):
+        doc = self.seed()
+        q2 = next(q for q in doc["questions"] if q["id"] == "Q2")
+        self.assertNotIn("terminal", q2)
+        self.assertNotIn("archived", q2)
+        self.assertEqual(q2["history"][-1]["by"], "claude")
+        self.assertIn(self.RES, q2["history"][-1]["text"])
+        row = doc["meta"]["seededFrom"]["rows"]["Q2"]
+        self.assertEqual(row["status"], "superseded-by-plan")
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+    def test_settle_keeps_an_untouched_superseded_seed(self):
+        seed = {"Q2": {"status": "superseded-by-plan", "resolution": self.RES}}
+        q = question("Q2")
+        self.assertEqual(
+            exporters.settle(q, {}, [], seed),
+            ("superseded-by-plan", self.RES, "", False),
+        )
+        page = {"Q2": {"decision": "accept", "updatedAt": AT}}
+        self.assertEqual(exporters.settle(q, page, [], seed)[0], "answered")
+
+    def test_ledger_leaves_it_unticked_and_the_gate_blocks(self):
+        self.seed()
+        ledger = self.export("ledger")
+        text = ledger.read_text(encoding="utf-8")
+        self.assertIn("- [x] Q1 ", text)
+        self.assertIn("- [ ] Q2 ", text)
+        self.assertIn(
+            f"- Q2 | superseded-by-plan | round 1 | Who writes? | {self.RES}", text
+        )
+        rc, out = self.check("--ledger", ledger)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("superseded=1", out)
+        self.assertIn("status=open", out)
+
+    def test_brief_tldr_counts_it(self):
+        self.seed()
+        text = self.export("brief").read_text(encoding="utf-8")
+        tldr = text.split("### TLDR")[1].split("###")[0]
+        self.assertIn("1 answered", tldr)
+        self.assertIn(", 1 superseded-by-plan", tldr)
+
+    def test_report_lists_it_as_a_loose_end(self):
+        self.seed()
+        text = self.export("report").read_text(encoding="utf-8")
+        ends = text.split("<h2>Loose ends</h2>")[1].split("</ul>")[0]
+        self.assertIn("Q2 (Q2) is superseded-by-plan", ends)
+        self.assertNotIn("Q1 (Q1)", ends)
+
+    def respond(self, events, d=None):
+        d = d or self.dir
+        responses, history = rebuild_responses(events)
+        (d / "responses.json").write_text(
+            json.dumps(
+                {
+                    "seq": len(events),
+                    "events": events,
+                    "responses": responses,
+                    "history": history,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return register_rows(self.export("ledger", d=d))
+
+    def reimport(self, events):
+        """Answer the seeded page, export its ledger, and import that ledger into a fresh dir."""
+        self.respond(events)
+        fresh = Path(tempfile.mkdtemp(dir=self.tmp, prefix="fresh-"))
+        ledger = self.export("ledger")
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        return fresh
+
+    def test_alt_was_after_a_reimported_defer_restores_the_prior_answer(self):
+        self.seed()
+        fresh = self.reimport([event(1, "Q2", "defer", text="ask later")])
+        rows = self.respond([event(1, "Q2", "alt", alt="was")], d=fresh)
+        self.assertEqual(
+            rows[1],
+            "- Q2 | answered | round 1 | Who writes? | alt was: any enrolled user",
+        )
+
+    def test_accept_after_a_reimported_defer_reconfirms_the_proposal(self):
+        self.seed()
+        fresh = self.reimport([event(1, "Q2", "defer", text="ask later")])
+        rows = self.respond([event(1, "Q2", "accept")], d=fresh)
+        self.assertEqual(
+            rows[1],
+            "- Q2 | answered | round 1 | Who writes? | "
+            "reconfirmed at plan approval: admin only; was: any enrolled user",
+        )
+
+    def test_defers_across_a_reimport_do_not_stack(self):
+        self.seed()
+        fresh = self.reimport([event(1, "Q2", "defer", text="ask later")])
+        rows = self.respond([event(1, "Q2", "defer", text="again")], d=fresh)
+        self.assertEqual(
+            rows[1], f"- Q2 | superseded-by-plan | round 1 | Who writes? | {self.RES}"
+        )
+
+    def test_import_seeds_the_proposal_and_the_prior_answer(self):
+        doc = self.seed()
+        q2 = next(q for q in doc["questions"] if q["id"] == "Q2")
+        self.assertEqual(q2["recommendation"], "admin only")
+        self.assertEqual(
+            q2["alternatives"], [{"key": "was", "text": "any enrolled user"}]
+        )
+
+    def test_page_accept_reconfirms_the_proposal(self):
+        self.seed()
+        rows = self.respond([event(1, "Q2", "accept")])
+        self.assertRegex(
+            rows[1],
+            r"^- Q2 \| answered \| .*"
+            r"reconfirmed at plan approval: admin only; was: any enrolled user$",
+        )
+
+    def test_page_accept_reconfirm_keeps_the_note(self):
+        self.seed()
+        rows = self.respond([event(1, "Q2", "accept", text="fine")])
+        self.assertRegex(
+            rows[1],
+            r"reconfirmed at plan approval: admin only; was: any enrolled user; note: fine$",
+        )
+
+    def test_page_defer_keeps_it_superseded(self):
+        seed = {"Q2": {"status": "superseded-by-plan", "resolution": self.RES}}
+        q = question("Q2")
+        page = {"Q2": {"decision": "defer", "text": "ask later", "updatedAt": AT}}
+        self.assertEqual(
+            exporters.settle(q, page, [], seed),
+            (
+                "superseded-by-plan",
+                self.RES,
+                "ask later",
+                False,
+            ),
+        )
+        bare = {"Q2": {"decision": "defer", "updatedAt": AT}}
+        self.assertEqual(
+            exporters.settle(q, bare, [], seed),
+            ("superseded-by-plan", self.RES, "", False),
+        )
+
+    def test_page_defer_leaves_the_ledger_row_superseded_and_the_gate_blocks(self):
+        self.seed()
+        rows = self.respond([event(1, "Q2", "defer", text="ask later")])
+        self.assertIn("| superseded-by-plan | ", rows[1])
+        self.assertTrue(rows[1].endswith(f"| {self.RES}"), rows[1])
+        rc, out = self.check("--ledger", self.export("ledger"))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("superseded=1", out)
+
+    def test_proposes_matches_any_case(self):
+        doc = self.seed(res="Plan Proposes: admin only; Was: any enrolled user")
+        q2 = next(q for q in doc["questions"] if q["id"] == "Q2")
+        self.assertEqual(q2["recommendation"], "admin only")
+        self.assertEqual(
+            q2["alternatives"], [{"key": "was", "text": "any enrolled user"}]
+        )
+
+    def test_page_alt_was_keeps_the_prior_answer(self):
+        self.seed()
+        rows = self.respond([event(1, "Q2", "alt", alt="was")])
+        self.assertRegex(rows[1], r"^- Q2 \| answered \| .*alt was: any enrolled user$")
+
+    def test_a_resolution_of_another_shape_still_imports(self):
+        doc = self.seed(res="moot after the plan changed")
+        q2 = next(q for q in doc["questions"] if q["id"] == "Q2")
+        self.assertNotIn("recommendation", q2)
+        self.assertEqual(q2["alternatives"], [])
+        rows = register_rows(self.export("ledger"))
+        self.assertIn("| superseded-by-plan | ", rows[1])
+
+    def test_a_page_answer_settles_it(self):
+        self.seed()
+        events = [event(1, "Q2", "own", text="Admin only, confirmed.")]
+        responses, history = rebuild_responses(events)
+        (self.dir / "responses.json").write_text(
+            json.dumps(
+                {
+                    "seq": 1,
+                    "events": events,
+                    "responses": responses,
+                    "history": history,
+                }
+            ),
+            encoding="utf-8",
+        )
+        rows = register_rows(self.export("ledger"))
+        self.assertRegex(
+            rows[1], r"^- Q2 \| answered \| .*free-text: Admin only, confirmed\."
+        )
 
 
 class TestNoEmojiNoSkillNames(SessionCase):

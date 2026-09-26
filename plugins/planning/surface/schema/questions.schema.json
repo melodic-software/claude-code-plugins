@@ -46,7 +46,7 @@
             "required": ["status"],
             "additionalProperties": false,
             "properties": {
-              "status": {"enum": ["open", "answered", "deferred", "withdrawn", "blocked"]},
+              "status": {"enum": ["open", "answered", "deferred", "withdrawn", "blocked", "superseded-by-plan"]},
               "round": {"type": "integer"},
               "resolution": {"type": "string"}
             }
