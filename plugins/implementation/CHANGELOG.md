@@ -3,6 +3,19 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0] - 2026-09-26
+
+### Added
+
+- **`implement-dispatch` and `implementer`: the orchestrator can keep commit authority.** A brief
+  that declares commit authority `orchestrator` gets a worker that edits files only: it never
+  stages, commits, pushes, or provisions a worktree, and returns its changed and untracked paths
+  instead of a commit sha. The orchestrator verifies the uncommitted tree, then commits source and
+  plan marks together at the phase boundary and pushes per the plan's push rule. A
+  plan whose worker fence forbids staging, committing, or pushing can now run through the
+  implementer instead of a generic subagent. The mode is declared, never inferred from a fence;
+  commit authority `worker` stays the default, so existing briefs behave as before.
+
 ## [0.17.0] - 2026-09-23
 
 ### Changed
