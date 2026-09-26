@@ -37,12 +37,15 @@ Read MCP configuration ONLY through the inventory script. Never open `~/.claude.
 `.mcp.json`, `managed-mcp.json`, or `managed-settings.json` with Read, `cat`, `jq`, or any other
 tool: `~/.claude.json` holds account data and per-project state, and server entries carry `env`
 and `headers` values that are often tokens. The script emits only the columns the audit needs, and
-only values that fully match a strict grammar for their kind (npm, Python, and image specs, URLs
-reduced to `scheme://host[:port]`, bare program names). Anything else prints `-` with pin
-`unparsed`, and a server name that is not plain ASCII or that looks like a credential prints as
-`redacted-name(<length>)`. A static
-parser cannot rule out every shape: when a row looks wrong, report it rather than reading the
-file to check.
+only values that fully match a strict grammar for their kind: npm, Python, and image specs;
+remote URLs reduced to `scheme://host[:port]`; git specs reduced to `scheme://host/owner/repo`;
+tarballs reduced to `scheme://host/.../file`; bare program names. Every printed value also passes
+a secret-shape filter (known token prefixes, long mixed letter-and-digit segments, length caps).
+Anything else prints `-` with pin `unparsed`, a failing server name prints as
+`redacted-name(<length>)`, and a failing drop-in file name as `redacted-file`. A short value that
+does not look like a token (a dictionary-word name, a short path) still prints, so the filter
+reduces exposure rather than proving there is none. When a row looks wrong, report it rather than
+reading the file to check.
 
 ## Arguments
 
