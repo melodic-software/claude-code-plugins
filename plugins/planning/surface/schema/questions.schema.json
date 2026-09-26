@@ -18,7 +18,30 @@
     },
     "notes": {"type": "array", "items": {"$ref": "#/$defs/line"}},
     "handled": {"type": "array", "items": {"type": "integer"}},
-    "handledSeq": {"type": "integer"}
+    "handledSeq": {"type": "integer"},
+    "status": {
+      "description": "What Claude is doing now, set and cleared by the set-status op.",
+      "type": "object",
+      "required": ["text", "at"],
+      "additionalProperties": false,
+      "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
+    },
+    "activity": {
+      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched and `notes` marks a reply in Notes to Claude.",
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "required": ["at", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "at": {"type": "string"},
+          "text": {"type": "string"},
+          "ids": {"type": "array", "items": {"type": "string"}},
+          "notes": {"type": "boolean"}
+        }
+      }
+    }
   },
   "$defs": {
     "meta": {

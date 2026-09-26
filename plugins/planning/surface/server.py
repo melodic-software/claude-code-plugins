@@ -61,6 +61,8 @@ def runtime_path(rel):
 
 
 WAIT_MAX = 120
+QUIET_SECONDS = 0.3  # a found event waits this long for more before the watcher wakes
+BURST_SECONDS = 2.0  # never holding it longer than this in all
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
 READING_WINDOW = 180  # seconds Claude is shown as reading after an answer was delivered
 DISCONNECTS = (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)
@@ -823,6 +825,20 @@ class Hub:
             if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
         ]
 
+    def settle(self, r):
+        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all,
+        so a burst of saves wakes the watcher once. Holds self.cond; returns the newest responses."""
+        cap = time.time() + BURST_SECONDS
+        while True:
+            left = min(QUIET_SECONDS, cap - time.time())
+            if left <= 0:
+                return r
+            seq = r.get("seq", 0)
+            self.cond.wait(left)
+            r = load_json(self.responses, EMPTY_RESPONSES)
+            if r.get("seq", 0) == seq:
+                return r
+
     def wait(self, after, timeout, gone=None, replayed=0, watcher=None):
         """Block for events; returns (seq, events, replay) or None when the client went away.
 
@@ -868,6 +884,19 @@ class Hub:
                     else:
                         events = []
                     left = deadline - time.time()
+                    if events:
+                        r = self.settle(r)
+                        top = r.get("seq", 0)
+                        if after == "handled":
+                            events = self.unhandled(r)
+                        else:
+                            events = [
+                                e
+                                for e in r.get("events", [])
+                                if e.get("seq", 0) > after
+                            ]
+                        if replay is not None and events:
+                            replay = max(e["seq"] for e in events)
                     if events or left <= 0:
                         if events:
                             self.last_deliver = time.time()

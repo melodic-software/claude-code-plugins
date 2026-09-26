@@ -51,6 +51,11 @@ class TestKeywords(unittest.TestCase):
         self.assertIn("at least 1", self.err([], s))
         self.assertIn("$[1]", self.err(["a", 2], s))
 
+    def test_max_items(self):
+        s = {"type": "array", "maxItems": 2}
+        self.assertIsNone(self.err(["a", "b"], s))
+        self.assertIn("at most 2", self.err(["a", "b", "c"], s))
+
     def test_one_any_all_of(self):
         one = {"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}
         self.assertIsNone(self.err({"a": 1}, one))
@@ -87,6 +92,14 @@ class TestShippedSchemas(unittest.TestCase):
         self.assertIsNone(schema.first_error(doc, schema.load("questions")))
         rows["Q1"]["status"] = "pending"
         self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
+
+    def test_activity_is_capped_at_200_entries(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        doc["status"] = {"text": "Researching", "at": "t"}
+        doc["activity"] = [{"at": "t", "text": "Replied on Q1", "ids": ["Q1"]}] * 200
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["activity"].append({"at": "t", "text": "One more"})
+        self.assertIn("at most 200", schema.first_error(doc, schema.load("questions")))
 
     def test_event_kinds_include_confirm(self):
         e = {"seq": 1, "id": "Q1", "kind": "confirm", "alt": "0", "at": "t"}

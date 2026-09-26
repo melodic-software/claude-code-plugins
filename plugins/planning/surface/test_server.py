@@ -908,6 +908,31 @@ class TestReplay(WaitCase):
         self.assertEqual(seqs(body["events"]), [posted["seq"]])
 
 
+class TestBurst(WaitCase):
+    """AC18: saves close together reach an armed watcher as one wake."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"), question("B"), question("C"))
+
+    def test_three_accepts_50_ms_apart_arrive_in_one_wait(self):
+        seq0 = self.state()["responses"]["seq"]
+
+        def burst():
+            posted = []
+            for qid in "ABC":
+                posted.append(self.post({"id": qid, "kind": "accept"})[1]["seq"])
+                time.sleep(0.05)
+            return posted
+
+        r, posted = self.wait_during(f"after={seq0}&timeout=20", burst)
+        code, body, _ = r
+        self.assertEqual(code, 200)
+        self.assertEqual(seqs(body["events"]), posted)
+        events = self.state()["responses"]["events"]
+        self.assertEqual([e["seq"] for e in events if e.get("deliveredAt")], posted)
+
+
 class TestListener(WaitCase):
     """listener.idleFor (AC26 server side): null before any wait, 0 while one waits, then counting.
 
@@ -1284,9 +1309,9 @@ class TestEmojiMarkers(ServerCase):
     def meta(self):
         return self.state()["questions"]["meta"]
 
-    def test_1_default_true_creates_questions_json(self):
+    def test_1_no_flag_on_a_new_file_records_false(self):
         self.assertTrue((self.dir / "questions.json").exists())
-        self.assertIs(self.meta().get("emojiMarkers"), True)
+        self.assertIs(self.meta().get("emojiMarkers"), False)
 
     def test_2_false_is_recorded_and_a_repeat_does_not_bump_rev(self):
         p = ensure_running(self.dir, "--emoji-markers", "false")
@@ -1298,6 +1323,16 @@ class TestEmojiMarkers(ServerCase):
 
     def test_3_display_name_reaches_state(self):
         self.assertEqual(self.state()["settings"]["displayName"]["value"], "You")
+
+    def test_4_no_flag_keeps_the_recorded_value(self):
+        for value in ("true", "false"):
+            with self.subTest(value=value):
+                ensure_running(self.dir, "--emoji-markers", value)
+                rev = self.state()["questions"]["rev"]
+                p = ensure_running(self.dir)
+                self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+                self.assertIs(self.meta().get("emojiMarkers"), value == "true")
+                self.assertEqual(self.state()["questions"]["rev"], rev)
 
 
 class TestAnswerValidation(WaitCase):

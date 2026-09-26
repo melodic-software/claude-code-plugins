@@ -124,7 +124,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40"><text x="10" y="25">filemark</text></svg>' \
     >"$c/diagrams/flow.svg"
   bash "$here/round.sh" --dir "$c" archive X1 --why "The old path left the plan" >/dev/null
-  CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 \
+  CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 --emoji-markers true \
     --user-settings tests/fixtures/ui_c/user-settings.json >/dev/null
   cport=$(sed -n 's/^PORT=//p' "$c/.interview-session.env" | tr -d '\r')
   for n in 1 2 3; do

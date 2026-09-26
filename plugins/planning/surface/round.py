@@ -76,6 +76,17 @@ LOCK_SECONDS = 10
 START_SECONDS = 3
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
+ACTIVITY_CAP = 200
+LOGGED_OPS = {
+    "reply",
+    "revise",
+    "add",
+    "add-round",
+    "archive",
+    "record-terminal",
+    "note-reply",
+    "wait",
+}
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
@@ -347,10 +358,8 @@ def op_add_round(d, doc, a):
             sys.exit(f"a visual needs a new id: {v.get('id')}")
         doc["visuals"].append(v)
         ids.add(v["id"])
-    return touched, (
-        f"added {len(a.questions or [])} questions, {len(a.groups or [])} groups, "
-        f"{len(a.visuals or [])} visuals"
-    )
+    ids = ", ".join(q["id"] for q in a.questions or []) or "no questions"
+    return touched, (f"round {a.round} added: " if a.round else "added ") + ids
 
 
 def op_group(d, doc, a):
@@ -503,13 +512,68 @@ def op_bump(d, doc, a):
     return ([find(doc, a.id)] if a.id else []), "bumped"
 
 
-def write_op(fn):
+def op_set_status(d, doc, a):
+    text = (a.text or "").strip()
+    if bool(text) == bool(a.clear):
+        sys.exit("refused: set-status takes a non-empty text or clear, not both")
+    if a.clear:
+        doc.pop("status", None)
+        return [], "status cleared"
+    doc["status"] = {"text": text, "at": now()}
+    return [], "status set"
+
+
+def op_wait(d, doc, a):
+    q = find(doc, a.id)
+    waits = (a.waitsOn or "").strip()
+    if bool(waits) == bool(a.clear):
+        sys.exit(
+            f"refused: wait on {a.id} takes a non-empty waitsOn or clear, not both"
+        )
+    if a.clear:
+        q.pop("waiting", None)
+        q.pop("waitsOn", None)
+        line, msg = "No longer waiting.", f"{a.id} no longer waits"
+    else:
+        q.update(waiting=True, waitsOn=waits)
+        line, msg = f"Waits on: {waits}", f"{a.id} waits on: {waits}"
+    q.setdefault("history", []).append({"at": now(), "by": "claude", "text": line})
+    return [q], msg
+
+
+def op_activity(d, doc, a):
+    text = (a.text or "").strip()
+    if not text:
+        sys.exit("refused: activity needs text")
+    ids = [find(doc, qid)["id"] for qid in a.ids or []]
+    log_activity(doc, text, ids)
+    return [], "logged"
+
+
+def log_activity(doc, text, ids):
+    """Append one feed entry, keeping the newest ACTIVITY_CAP."""
+    entry = {"at": now(), "text": text}
+    if ids:
+        entry["ids"] = ids
+    doc["activity"] = (doc.get("activity") or [])[1 - ACTIVITY_CAP :] + [entry]
+
+
+def summarize(doc, msgs, touched):
+    """One feed entry for the user-visible ops of one write; none when there are none."""
+    if msgs:
+        text = "; ".join(msgs)
+        log_activity(doc, text[0].upper() + text[1:], [q["id"] for q in touched])
+
+
+def write_op(fn, logged=False):
     """A CLI command: lock, load, run one op, save once, then report."""
 
     def cmd(d, a):
         with sidecar_lock(d):
             doc = load(d)
             touched, msg = fn(d, doc, a)
+            if logged:
+                summarize(doc, [msg], touched)
             save(d, doc, touched)
         print(f"{msg} (rev {doc['rev']})")
 
@@ -557,7 +621,7 @@ def cmd_add(d, a):
     if a.waiting:
         q["waiting"] = True
     a.question = q
-    write_op(op_add_linted)(d, a)
+    write_op(op_add_linted, logged=True)(d, a)
 
 
 def cmd_add_round(d, a):
@@ -568,7 +632,7 @@ def cmd_add_round(d, a):
         spec.get("questions"),
         spec.get("visuals"),
     )
-    write_op(op_add_round_linted)(d, a)
+    write_op(op_add_round_linted, logged=True)(d, a)
 
 
 # Per-op argument defaults for `apply`: the op file's keys map onto the same namespace the CLI builds.
@@ -627,6 +691,9 @@ OP_ARGS = {
         op_record_terminal,
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
+    "set-status": (op_set_status, {"text": None, "clear": False}),
+    "wait": (op_wait, {"id": None, "waitsOn": None, "clear": False}),
+    "activity": (op_activity, {"text": None, "ids": None}),
 }
 
 
@@ -660,7 +727,7 @@ def cmd_apply(d, a):
             sys.exit(f"refused: {err}")
     with sidecar_lock(d):
         doc = load(d)
-        touched, lines, added = [], [], []
+        touched, lines, added, seen = [], [], [], []
         for op in spec["ops"]:
             fn, defaults = OP_ARGS[op["op"]]
             args = argparse.Namespace(
@@ -677,6 +744,9 @@ def cmd_apply(d, a):
             elif op["op"] == "add-round":
                 added += args.questions or []
             lines.append(f"{op['op']}: {msg}")
+            if op["op"] in LOGGED_OPS:
+                seen.append(msg)
+        summarize(doc, seen, touched)
         lint_questions(doc, added)
         save(d, doc, touched)
     for line in lines:
@@ -997,14 +1067,17 @@ def open_browser(url, cmd):
 
 
 def emoji_flag(value):
-    """false, 0, no and off (any case) mean false; anything else, an unexpanded token included, means true."""
-    return value.strip().lower() not in ("false", "0", "no", "off")
+    """true, 1, yes and on (any case) mean true; anything else, an unexpanded token included, means false."""
+    return value.strip().lower() in ("true", "1", "yes", "on")
 
 
 def record_emoji_markers(d, want):
-    """meta.emojiMarkers through the normal write path; writes only on a change or a new file."""
+    """meta.emojiMarkers through the normal write path; writes only on a change or a new file.
+    want None keeps the recorded value, and a new file records false."""
     doc = load(d)
-    if (d / "questions.json").exists() and doc["meta"].get("emojiMarkers") is want:
+    if not (d / "questions.json").exists():
+        want = bool(want)
+    elif want is None or doc["meta"].get("emojiMarkers") is want:
         return
     doc["meta"]["emojiMarkers"] = want
     save(d, doc)
@@ -1027,7 +1100,8 @@ def cmd_ensure_running(d, a):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
     d.mkdir(parents=True, exist_ok=True)
     with sidecar_lock(d):
-        record_emoji_markers(d, emoji_flag(a.emoji_markers))
+        flag = a.emoji_markers
+        record_emoji_markers(d, None if flag is None else emoji_flag(flag))
         s = read_session(d)
         live = bool(s and running(d, s))
         # The settings layers use --user-settings, else the user file the live server applies. The
@@ -1207,7 +1281,7 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=write_op(op_reply))
+    s.set_defaults(fn=write_op(op_reply, logged=True))
 
     s = sub.add_parser("revise", help="change wording, recommendation or alternatives")
     s.add_argument("id")
@@ -1223,7 +1297,7 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=write_op(op_revise))
+    s.set_defaults(fn=write_op(op_revise, logged=True))
 
     s = sub.add_parser("handle", help="mark page events handled with no reply")
     s.add_argument("--seq", type=int, nargs="+", required=True)
@@ -1234,19 +1308,19 @@ def main(argv=None):
     s.add_argument(
         "--seq", type=int, help="note event seq this answers; marks it handled"
     )
-    s.set_defaults(fn=write_op(op_note_reply))
+    s.set_defaults(fn=write_op(op_note_reply, logged=True))
 
     s = sub.add_parser("record-terminal", help="record the user's terminal answer")
     s.add_argument("id")
     s.add_argument("--decision", required=True, choices=DECISIONS)
     s.add_argument("--alt")
     s.add_argument("--text")
-    s.set_defaults(fn=write_op(op_record_terminal))
+    s.set_defaults(fn=write_op(op_record_terminal, logged=True))
 
     s = sub.add_parser("archive", help="archive off-path questions with a reason")
     s.add_argument("ids", nargs="+", metavar="id")
     s.add_argument("--why", required=True, help="why the questions left the path")
-    s.set_defaults(fn=write_op(op_archive))
+    s.set_defaults(fn=write_op(op_archive, logged=True))
 
     s = sub.add_parser("apply", help="run a list of ops from one JSON file, one write")
     s.add_argument("--file", required=True, help='{"ops": [{"op": "reply", ...}, ...]}')
@@ -1294,9 +1368,9 @@ def main(argv=None):
     s.add_argument(
         "--emoji-markers",
         dest="emoji_markers",
-        default="true",
-        help="record meta.emojiMarkers in questions.json: false, 0, no or off mean false, "
-        "any other value means true (default true)",
+        help="record meta.emojiMarkers in questions.json: true, 1, yes or on mean true, "
+        "any other value means false; without the flag the recorded value stays, and a new "
+        "file records false",
     )
     s.set_defaults(fn=cmd_ensure_running)
 

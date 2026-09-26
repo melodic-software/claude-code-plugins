@@ -584,6 +584,164 @@ class TestApply(DirCase):
             self.assertIn(name, out)
 
 
+class TestClaudeActivity(DirCase):
+    """set-status, wait and activity, and one activity entry per write whose ops the user sees."""
+
+    def apply(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+        return out
+
+    def refused(self, *ops):
+        return self.assert_refused(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+
+    def entries(self):
+        return self.doc().get("activity", [])
+
+    def test_set_status_then_clear(self):
+        self.apply({"op": "set-status", "text": "Researching ghq"})
+        status = self.doc()["status"]
+        self.assertEqual(status["text"], "Researching ghq")
+        self.assertTrue(status["at"])
+        self.apply({"op": "set-status", "clear": True})
+        self.assertNotIn("status", self.doc())
+        self.assertEqual(self.entries(), [])
+
+    def test_set_status_needs_text_or_clear_not_both(self):
+        for extra in (
+            {},
+            {"text": "  "},
+            {"clear": False},
+            {"text": "x", "clear": True},
+        ):
+            with self.subTest(extra=extra):
+                self.refused({"op": "set-status", **extra})
+
+    def test_wait_then_clear(self):
+        self.apply({"op": "wait", "id": "Q3", "waitsOn": "research on ghq"})
+        q = self.q("Q3")
+        self.assertIs(q["waiting"], True)
+        self.assertEqual(q["waitsOn"], "research on ghq")
+        self.assertIsNone(q.get("contentRev"))
+        self.assertEqual(q["history"][-1]["by"], "claude")
+        self.assertIn("research on ghq", q["history"][-1]["text"])
+        self.assertEqual(
+            self.entries(),
+            [
+                {
+                    "at": self.entries()[0]["at"],
+                    "text": "Q3 waits on: research on ghq",
+                    "ids": ["Q3"],
+                }
+            ],
+        )
+        self.apply({"op": "wait", "id": "Q3", "clear": True})
+        q = self.q("Q3")
+        self.assertNotIn("waiting", q)
+        self.assertNotIn("waitsOn", q)
+        self.assertEqual(len(q["history"]), 2)
+        self.assertEqual(len(self.entries()), 2)
+
+    def test_wait_refusals(self):
+        for op in (
+            {"id": "Q9", "waitsOn": "x"},
+            {"id": "Q3"},
+            {"id": "Q3", "waitsOn": " "},
+            {"id": "Q3", "waitsOn": "x", "clear": True},
+        ):
+            with self.subTest(op=op):
+                self.refused({"op": "wait", **op})
+
+    def test_activity_op_appends_its_own_entry(self):
+        self.apply({"op": "activity", "text": "Ledger updated", "ids": ["Q1"]})
+        self.assertEqual(
+            [(e["text"], e["ids"]) for e in self.entries()],
+            [("Ledger updated", ["Q1"])],
+        )
+        self.apply({"op": "activity", "text": "Gate run"})
+        self.assertNotIn("ids", self.entries()[-1])
+        self.apply(
+            {"op": "activity", "text": "Research returned"},
+            {"op": "reply", "id": "Q1", "text": "Done."},
+        )
+        self.assertEqual(
+            [e["text"] for e in self.entries()[2:]],
+            ["Research returned", "Replied on Q1"],
+        )
+
+    def test_activity_refusals(self):
+        self.refused({"op": "activity", "text": "x", "ids": ["Q9"]})
+        self.refused({"op": "activity", "text": " "})
+
+    def test_one_summary_entry_per_apply(self):
+        self.apply(
+            {"op": "reply", "id": "Q1", "text": "Because."},
+            {
+                "op": "add-round",
+                "round": 4,
+                "questions": [question("Q4", group="g1"), question("Q5", group="g1")],
+            },
+            {"op": "handle", "seqs": [1]},
+        )
+        [e] = self.entries()
+        self.assertEqual(e["text"], "Replied on Q1; round 4 added: Q4, Q5")
+        self.assertEqual(e["ids"], ["Q1", "Q4", "Q5"])
+        self.assertTrue(e["at"])
+
+    def test_add_round_without_a_round_names_the_ids(self):
+        self.apply({"op": "add-round", "questions": [question("Q4")]})
+        self.assertEqual(self.entries()[-1]["text"], "Added Q4")
+
+    def test_ops_the_user_does_not_see_write_no_entry(self):
+        self.apply(
+            {"op": "handle", "seqs": [1]},
+            {"op": "meta", "set": {"next": "Then the plan."}},
+            {"op": "group", "id": "g3", "title": "Third group"},
+            {"op": "set-status", "text": "Busy"},
+        )
+        self.assertEqual(self.entries(), [])
+
+    def test_cli_writes(self):
+        for args in (
+            ("bump",),
+            ("group", "g3", "--title", "T"),
+            ("handle", "--seq", "1"),
+        ):
+            rc, out, err = self.rp(*args)
+            self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.entries(), [])
+        rc, out, err = self.rp("reply", "Q1", "--text", "Because.")
+        self.assertEqual(rc, 0, out + err)
+        [e] = self.entries()
+        self.assertEqual((e["text"], e["ids"]), ("Replied on Q1", ["Q1"]))
+
+    def test_newest_200_are_kept(self):
+        doc = base_doc()
+        doc["activity"] = [{"at": "t", "text": f"old {i}"} for i in range(200)]
+        self.write_doc(doc)
+        self.apply({"op": "reply", "id": "Q1", "text": "Because."})
+        e = self.entries()
+        self.assertEqual(len(e), 200)
+        self.assertEqual(e[0]["text"], "old 1")
+        self.assertEqual(e[-1]["text"], "Replied on Q1")
+
+    def test_import_ledger_writes_no_entry(self):
+        ledger = self.tmp / "ledger.md"
+        rc, out, err = self.rp("export-ledger", "--out", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        doc = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+        self.assertTrue(doc["questions"])
+        self.assertNotIn("activity", doc)
+
+
 class TestRecordTerminal(DirCase):
     """record-terminal --decision alt takes only a key from the question's alternatives."""
 
@@ -861,7 +1019,7 @@ class TestMeta(DirCase):
 
 
 class TestEmojiMarkersValue(unittest.TestCase):
-    """`--emoji-markers` takes any value: false, 0, no, off mean false; anything else means true."""
+    """`--emoji-markers` takes any value: true, 1, yes, on mean true; anything else means false."""
 
     @classmethod
     def setUpClass(cls):
@@ -880,6 +1038,7 @@ class TestEmojiMarkersValue(unittest.TestCase):
         )
         self.assertEqual(rc, 0, f"{value!r}: {out}{err}")
         doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertNotIn("activity", doc)
         return doc["meta"]["emojiMarkers"]
 
     def test_every_value_form(self):
@@ -887,11 +1046,14 @@ class TestEmojiMarkersValue(unittest.TestCase):
             ("false", False),
             ("TRUE", True),
             ("0", False),
-            ("", True),
+            ("1", True),
+            ("", False),
             ("No", False),
-            ("${user_config.use_emoji_question_markers}", True),
+            (" Yes ", True),
+            ("${user_config.use_emoji_question_markers}", False),
             ("OFF", False),
-            ("yes please", True),
+            ("on", True),
+            ("yes please", False),
         ]
         for value, want in cases:
             with self.subTest(value=value):

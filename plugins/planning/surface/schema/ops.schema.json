@@ -21,7 +21,10 @@
           {"$ref": "#/$defs/note-reply"},
           {"$ref": "#/$defs/handle"},
           {"$ref": "#/$defs/archive"},
-          {"$ref": "#/$defs/record-terminal"}
+          {"$ref": "#/$defs/record-terminal"},
+          {"$ref": "#/$defs/set-status"},
+          {"$ref": "#/$defs/wait"},
+          {"$ref": "#/$defs/activity"}
         ]
       }
     }
@@ -172,6 +175,40 @@
         "decision": {"enum": ["accept", "alt", "own", "defer"]},
         "alt": {"type": "string"},
         "text": {"type": "string"}
+      }
+    },
+    "set-status": {
+      "description": "Set the page's status line to `text`, or remove it with `clear`; exactly one of the two.",
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["set-status"]},
+        "text": {"type": "string"},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "wait": {
+      "description": "Mark question `id` as waiting on `waitsOn`, or end the wait with `clear`; exactly one of the two.",
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["wait"]},
+        "id": {"type": "string"},
+        "waitsOn": {"type": "string"},
+        "clear": {"type": "boolean"}
+      }
+    },
+    "activity": {
+      "description": "Append one entry to the page's activity feed, for work the page cannot see.",
+      "type": "object",
+      "required": ["op", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["activity"]},
+        "text": {"type": "string"},
+        "ids": {"type": "array", "items": {"type": "string"}}
       }
     }
   }
