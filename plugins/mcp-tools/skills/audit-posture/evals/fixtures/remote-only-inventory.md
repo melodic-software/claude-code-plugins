@@ -15,7 +15,7 @@ Footer lines:
 
 ```text
 # source user /home/dev/.claude.json found
-# source local /home/dev/.claude.json found
+# source local /home/dev/.claude.json absent
 # source project /home/dev/app/.mcp.json found
 # source managed /etc/claude-code/managed-mcp.json absent
 # source managed-settings /etc/claude-code/managed-settings.json found
@@ -25,4 +25,5 @@ Footer lines:
 # not read: --mcp-config servers
 # not read: plugin servers not passed as --config
 # not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)
+# not evaluated: file-scope rows are not checked for precedence against other scopes
 ```

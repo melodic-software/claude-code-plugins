@@ -41,10 +41,10 @@ Reads the `launcher` and `pin` columns. Mechanical: no judgment beyond this tabl
 | `unparsed` | WARN | WARN |
 | `exact`, `digest`, `git-commit` | PASS | PASS |
 | `local-path`, `not-a-package` | n/a | n/a |
+| `wrapped` (launcher `local`) | WARN | WARN |
 
 - A package runner resolves the spec each time the server starts, so an unversioned or
-  `@latest` spec runs whatever the registry serves that day. That is the highest-value single
-  check, and the reason it is the only FAIL.
+  `@latest` spec runs whatever the registry serves that day. This is why it is the only FAIL.
 - A container launcher resolves a tag when the image is pulled, not on every start, so a floating
   tag is WARN there. It is still not pinned: only an `@sha256:` digest is.
 - `local` launchers (`pin` = `local-path` or `not-a-package`) and `remote` rows (`pin` = `n/a`)
@@ -65,7 +65,7 @@ Reads `transport` and `publisher`. Applies to `stdio` rows.
   config runs a local stdio package instead.
 - **PASS** when no hosted endpoint is known, or the row is already `http` or `sse`.
 
-The reason to prefer the remote endpoint is that no code executes on your host: a stdio server runs
+Prefer the remote endpoint because it runs no code on your host: a stdio server runs
 as a local process outside the Claude Code sandbox (see the sandbox record). Do not cite OAuth or
 token-audience rules as the rationale. Those govern how a compliant server handles tokens and do
 nothing against a hostile package.
@@ -82,8 +82,7 @@ Reads `package` and `publisher`. Applies to rows with a package spec.
 - **PASS** when the publisher is the vendor's own scope or namespace.
 
 Worked case: `postmark-mcp` on npm was an unscoped package named for Postmark that Postmark did not
-publish (see the Postmark record). An unscoped name that matches a vendor is the shape this
-criterion exists to catch.
+publish (see the Postmark record). An unscoped name that matches a vendor is what P3 catches.
 
 Registry namespace ownership is the only provenance signal the official MCP registry itself
 provides, and the registry states it does little moderation beyond that (see the registry record).

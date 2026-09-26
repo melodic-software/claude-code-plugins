@@ -55,9 +55,8 @@ needed:
 - `--config <file>` for each file from `$ARGUMENTS`. Plugin-provided servers are not read unless
   passed this way: offer `--config <plugin-dir>/.mcp.json` for each installed plugin the operator
   wants covered.
-- `--claude-json <file>` when `CLAUDE_CONFIG_DIR` is set. The default is `$HOME/.claude.json`, and
-  the docs do not state where that file lives when the variable is set, so ask the operator for
-  the path instead of guessing.
+- `--claude-json <file>` when `CLAUDE_CONFIG_DIR` is set. The default is `$HOME/.claude.json`; when
+  the variable is set, ask the operator for the path instead of guessing.
 - `--project <dir>` and `--mcp-json <file>` when the audit targets a project other than the
   current one; `--managed-dir <dir>` when managed configuration lives outside the default system
   directory.
@@ -148,7 +147,7 @@ changed rows.
 ## Gotchas
 
 - The Claude Code sandbox does not contain stdio MCP servers, so every stdio row reads
-  `sandboxed = no`. That is the expected result, not a script defect; the checklist's
+  `sandboxed = no`. This is expected; the checklist's
   sandbox record gives the source.
 - A container image tag is mutable. Only an `@sha256:` digest counts as pinned, so a fixed tag such
   as `:1.4` reads `mutable-tag`, not `exact`.
