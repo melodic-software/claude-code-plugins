@@ -8,7 +8,7 @@
 # Usage: inventory.sh [--claude-json F] [--project D] [--mcp-json F] [--managed-dir D]
 #                     [--config F]... [--date YYYY-MM-DD] | --help
 # Exit: 0 ok; 2 on a usage error, jq missing, unparsable JSON, or a non-object server map.
-set -u
+set -uo pipefail
 export LC_ALL=C
 
 usage() {
@@ -353,7 +353,8 @@ def classify:
 def rank: {local: 3, project: 2, user: 1}[.] // 0;
 def overridable: IN(.; "user", "local", "project", "file");
 
-(reduce .[] as $r ({}; .[$r.scope + "\u0000" + $r.name] = $r) | [.[]]) as $rows
+([.[] | select(.scope != "managed-settings")]
+ + (reduce (.[] | select(.scope == "managed-settings")) as $r ({}; .[$r.name] = $r) | [.[]])) as $rows
 | $rows[]
 | . as $r
 | ($r.scope | rank) as $rk
@@ -369,7 +370,7 @@ def overridable: IN(.; "user", "local", "project", "file");
 '
 
 TABLE="$(printf '%s' "$ROWS" | jq -rs --argjson meta "$META" \
-  "[$CLASSIFY] | sort_by(.[0], .[1]) | .[] | @tsv" | tr -d '\r')" || {
+  "[$CLASSIFY] | sort_by(.[0], .[1]) | .[] | @tsv" 2>/dev/null | tr -d '\r')" || {
   echo "inventory.sh: classification failed" >&2
   exit 2
 }
