@@ -531,6 +531,9 @@ re-verify anyway.
   compose-by-default, evidence-gated side-dropping, and the post-resolution semantic-conflict sweep.
 - **Resolve mechanical conflicts.** A textual/mechanical conflict is fixed, not escalated:
   formatting, adjacent unrelated changes, both sides adding different items to the same list.
+  A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELOG.md`) is mechanical:
+  run `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh` first, per
+  `/source-control:resolve-conflicts` step 3.
 - **Conclude the merge locally, and stop at the remote boundary.** Stage the resolved paths and
   conclude the operation (`git merge --continue`) so the worktree is left with no unmerged paths, a
   `git status --porcelain` clean of tracked-file changes, and `HEAD` at the merge commit whose first
