@@ -88,7 +88,10 @@
 #     whole run once that work has begun, the guard refuses rather than risk
 #     the hook timeout, and an unexpected error while judging refuses too. An
 #     operand this guard cannot place (an expansion other than a leading HOME,
-#     a drive-relative path) is left alone rather than guessed.
+#     a drive-relative path) is left alone rather than guessed. A NUL byte in
+#     the payload `cwd` or `scratchpad_dir` refuses a recursive delete this
+#     arm must judge and leaves every other command alone; a NUL byte in the
+#     command itself still refuses every call.
 #
 # KNOWN FALSE POSITIVES. These are refused although harmless, because the
 # guard cannot tell them apart from a harmful spelling: a single-quoted `'$X'`
@@ -220,20 +223,22 @@ hook::buffer_stdin_to INPUT || {
 # same posture as the other blocking Bash guards.
 hook::require_jq_blocking "guardrails-block-root-delete-target" "block_root_delete_target_enabled"
 
-# Three fields, one extraction, all primed by the dispatcher. Never
+# Two fields, one extraction, primed by the dispatcher. Never
 # `.tool_input.content` or any write payload: this guard reads a command and
-# where it runs, nothing else. `.scratchpad_dir` is read later, in its own
-# call, and only when a target needs judging.
+# where it runs, nothing else. `.cwd` is read after the `rm` prefilter, and
+# `.scratchpad_dir` only when a target needs judging, each in its own call so
+# a NUL byte in either is judged apart from the command's.
 jq_rc=0
-hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || jq_rc=$?
+hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
 if ((jq_rc == 2)); then
   echo "BLOCKED: the hook payload could not be parsed." >&2
   exit 2
 fi
 ((jq_rc != 0)) && exit 0
 
-# A NUL byte in either field is fail-CLOSED: what a guard can read is then not
-# dependably what would run.
+# A NUL byte in the command or the tool name is fail-CLOSED, for every call:
+# what a guard can read is then not dependably what would run, and a NUL in
+# the command could hide an `rm` from the prefilter below.
 if ((HOOK_JQ_FIELDS_NUL)); then
   echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
   echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
@@ -243,7 +248,8 @@ fi
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
-PAYLOAD_CWD="${HOOK_JQ_FIELDS[2]:-}"
+PAYLOAD_CWD=""
+RDT_CWD_NUL=0
 
 # The PowerShell lane is a declared gap, and exiting here is what keeps this
 # guard off the classifier's load path entirely.
@@ -399,6 +405,12 @@ rdt_block() {
       "A sequence such as {1..3}, more than $MAX_BRACE alternatives, or a brace partly inside quotes is refused rather than guessed." \
       'Fix: write each target out as its own operand.' >&2
     ;;
+  nul-field)
+    printf '%s\n' \
+      "BLOCKED: this recursive delete cannot be judged, because the hook payload's $target carries a NUL byte." \
+      'The directory the delete would be judged against is then not dependably the one the harness means, so the delete is refused; a command with no recursive delete to judge is not affected.' \
+      'Fix: reissue the tool call; if it repeats, report the malformed payload.' >&2
+    ;;
   judge-error)
     printf '%s\n' \
       'BLOCKED: judging where this recursive delete lands failed unexpectedly.' \
@@ -439,6 +451,17 @@ case "${COMMAND,,}" in
 *rm*) ;;
 *) exit 0 ;;
 esac
+
+# The payload cwd, for the outside-tree arm. A NUL byte in it does not refuse
+# the call here: only a recursive delete this arm must judge is refused
+# (rdt_check_operand), and any other command is unaffected.
+if hook::jq_fields "$INPUT" '.cwd'; then
+  if ((HOOK_JQ_FIELDS_NUL)); then
+    RDT_CWD_NUL=1
+  else
+    PAYLOAD_CWD="${HOOK_JQ_FIELDS[0]:-}"
+  fi
+fi
 
 # rdt_normalize_to <var> <operand>: the operand as this guard compares it.
 # Backslashes become slashes so the Windows and MSYS spellings of one path share
@@ -1659,9 +1682,11 @@ rdt_judge_pending() {
   ((${#tp[@]})) || return 0
 
   # The scratchpad, read only now so the dispatcher cache answers every other
-  # call. A NUL in it leaves it absent, on the refusal side.
+  # call. A NUL byte in it refuses: there is a target to judge, and the
+  # scratchpad it would be judged against cannot be read faithfully.
   sp=""
-  if hook::jq_fields "$INPUT" '.scratchpad_dir' && ((HOOK_JQ_FIELDS_NUL == 0)); then
+  if hook::jq_fields "$INPUT" '.scratchpad_dir'; then
+    ((HOOK_JQ_FIELDS_NUL)) && rdt_block "nul-field" "scratchpad_dir"
     sp="${HOOK_JQ_FIELDS[0]:-}"
     sp="${sp//\\//}"
   fi
@@ -2226,21 +2251,54 @@ rdt_check_segment() {
   return 0
 }
 
+# rdt_strip_tail_to <var> <word>: <word> without its trailing path segments
+# that carry no name (empty, `*`, `.`, and anything else holding no letter,
+# digit or underscore), cut only at a slash that sits outside every `${...}`.
+# shellcheck disable=SC2329  # invoked from rdt_check_operand
+rdt_strip_tail_to() {
+  local __st_w="$2" __st_i __st_c __st_d __st_cut __st_last
+  while :; do
+    __st_d=0
+    __st_cut=-1
+    for ((__st_i = 0; __st_i < ${#__st_w}; __st_i++)); do
+      __st_c="${__st_w:__st_i:1}"
+      if [[ "$__st_c" == '$' && "${__st_w:__st_i+1:1}" == '{' ]]; then
+        __st_d=$((__st_d + 1))
+        __st_i=$((__st_i + 1))
+      elif [[ "$__st_c" == '}' ]] && ((__st_d > 0)); then
+        __st_d=$((__st_d - 1))
+      elif [[ "$__st_c" == / ]] && ((__st_d == 0)); then
+        __st_cut=$__st_i
+      fi
+    done
+    ((__st_cut > 0)) || break
+    __st_last="${__st_w:__st_cut+1}"
+    [[ "$__st_last" == *[[:alnum:]_]* ]] && break
+    __st_w="${__st_w:0:__st_cut}"
+  done
+  printf -v "$1" '%s' "$__st_w"
+}
+
 # rdt_check_operand <text> <provenance>: one operand through the root and
 # bare-variable arms, then recorded BY VALUE for the outside-tree judgment at
 # the end, with the directory-change state as it stands here.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_check_operand() {
-  local w="$1" norm
+  local w="$1" norm raw
   rdt_normalize_to norm "$w"
   if rdt_is_root "$norm"; then
     rdt_block "root-operand" "$norm"
   fi
-  # The raw word too: normalization cuts a `${X%/}` at its slash.
-  if rdt_bare_var "$norm" || rdt_bare_var "${w,,}"; then
+  # The raw word too, with its trailing nameless segments stripped OUTSIDE any
+  # `${...}`: normalization cuts `${X:-/}` and `${X%/}` at their inner slash,
+  # so `"${X:-/}"/*` would otherwise read as a path.
+  rdt_strip_tail_to raw "${w,,}"
+  if rdt_bare_var "$norm" || rdt_bare_var "$raw"; then
     rdt_block "bare-variable" "$w"
   fi
   if ((RDT_ARM)); then
+    # A NUL byte in the payload cwd leaves nothing faithful to judge with.
+    ((RDT_CWD_NUL)) && rdt_block "nul-field" "cwd"
     rdt_deadline
     RDT_P_TEXT+=("$w")
     RDT_P_Q+=("$2")
@@ -2512,9 +2570,13 @@ rdt_scan_substitutions() {
 # instead of after the parse it was built to make expensive.
 #
 # The outside-tree arm starts from the payload cwd, and only an absolute one:
-# a relative cwd names no place this hook can resolve.
+# a relative cwd names no place this hook can resolve. A cwd carrying a NUL
+# byte arms it too, so that the first operand it would record is refused.
 PAYLOAD_CWD="${PAYLOAD_CWD//\\//}"
-if rdt_is_abs "$PAYLOAD_CWD"; then
+if ((RDT_CWD_NUL)); then
+  RDT_ARM=1
+  RDT_ORIGINS=("/")
+elif rdt_is_abs "$PAYLOAD_CWD"; then
   RDT_ARM=1
   _rdt_origin=""
   rdt_lex_to _rdt_origin "$PAYLOAD_CWD"

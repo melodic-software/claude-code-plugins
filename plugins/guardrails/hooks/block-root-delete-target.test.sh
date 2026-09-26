@@ -781,6 +781,42 @@ rdt_pl() {
   fi
 }
 
+# A `${...}` whose operator holds a slash, followed by nameless segments
+# (`/`, `/*`, `/.`), is still a bare variable: with X unset each of these
+# reaches `/`. The trailing segments are stripped outside the braces only.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "bare variable: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+  expect_both "bare variable: $rdt_cmd blocks with a cwd" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+rm -rf "${X:-/}"/*
+rm -rf "${X:-/}/*"
+rm -rf "${X%/}"/*
+rm -rf "${X%/}/*"
+rm -rf "${X:-/}/"
+rm -rf "${X%/}/"
+rm -rf "${X:-/}/."
+rm -rf "${X//a/b}"/*
+EOF
+expect_both 'bare variable: "${X:?}/*" allowed' 0 --command 'rm -rf "${X:?}/*"'
+expect_both 'bare variable: "${X:?}/*" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}/*"'
+expect_both 'bare variable: "$X/build" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X/build"'
+
+# A NUL byte in `cwd` or `scratchpad_dir` refuses only a recursive delete this
+# arm must judge; any other command is not affected. A NUL in the command itself
+# still refuses every call (section 5).
+rdt_nul_pl() { # <command> <field>: a payload whose <field> holds a NUL byte
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$RDT_TOP" --arg f "$2" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:$d} + {($f): ($d + "\u0000x")}'
+}
+expect_both 'nul cwd: ls allowed' 0 --payload "$(rdt_nul_pl 'ls -la' cwd)"
+expect_both 'nul cwd: a command with rm in its text but no delete allowed' 0 --payload "$(rdt_nul_pl 'npm run format' cwd)"
+expect_both 'nul cwd: rm -rf build refused' 2 --payload "$(rdt_nul_pl 'rm -rf build' cwd)"
+expect_both 'nul scratchpad: ls allowed' 0 --payload "$(rdt_nul_pl 'ls -la' scratchpad_dir)"
+expect_both 'nul scratchpad: rm -rf build refused' 2 --payload "$(rdt_nul_pl 'rm -rf build' scratchpad_dir)"
+guard_invoke --payload "$(rdt_nul_pl 'rm -rf build' cwd)"
+assert_contains "nul cwd: the refusal names the NUL field" "$GUARD_ERR" "NUL byte"
+
 expect_both 'tree: rm -rf build allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf build'
 expect_both 'tree: rm -rf ./a/b allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf ./a/b'
 expect_both 'tree: rm -rf .work/some-slug/x allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf .work/some-slug/x'
