@@ -160,3 +160,50 @@ Append-only. Each entry: plan said / found / chose / revisit.
   asks; that link does not resolve from an installed plugin cache copy. Revisit: when the contract
   moves into the plugin.
 - **choice: no net compare for Phase 8**: its only code change is one `render.py` docstring line.
+  Superseded in Phase 12: `backends.md` now cites the contract by repository path, with no link.
+
+## Phase 12
+
+- **deviation: `check-changed-skills.sh` runs against the merge base with `feat/pixel-art`**
+  (`340811438`), not `main`: this branch stacks on the unmerged `feat/pixel-art` (PR #4407), so a
+  `main` base would report pixel-art's own files. It exits 1: `rotoscope`, `learn-style`, and
+  pixel-art `animate` and `scene` ship no `evals/evals.json` (the Phase 3 blocker, still a plan
+  decision). `animate` and `scene` also warn on the dropped triggers `'make it move'` and
+  `'make it a little movie'`, replaced on purpose in Phase 10 by pixel-art-qualified phrases.
+- **skipped: the pixel-art CHANGELOG entry and version bump.** Both assume pixel-art is on main
+  (PR #4407 merged first). At run time it is not, so its `0.1.0` is unreleased and the Phase 10
+  description change is part of it. Revisit: at the rebase onto main after #4407 merges.
+- **fixed: `learn-style` cited `reference/method.md` bare**, which resolves against learn-style,
+  not rotoscope; now `${CLAUDE_PLUGIN_ROOT}/skills/rotoscope/reference/method.md` (skill-quality
+  check 5).
+- **review fixes (coordinator):** `--playwright-core` on `measure.py` and `fit.py` through
+  `measure.replicas`; `render.render` deletes, before capture, every `fNNNN.png` for a film and
+  only the requested `dNNN.png` for drawings (so `fit.py` rounds and `measure.py --only` keep the
+  other drawings); `decode.frames` exits on a short read or a nonzero ffmpeg exit; `render.encode`
+  turns a broken pipe into an exit message; the opencv row accepts any cv2 distribution and
+  reports a non-pinned one as INFO; `synthetic.js` imports `INK`; `capture.mjs` takes workers from
+  its caller; the README cites `prereq.FFMPEG_MIN`; the 24 fps literal in `controls.py`,
+  `learn.py` and `inkstats.py` routes to `inkstats.BASE_FPS` (`controls.FPS` aliases it);
+  machine paths in PLAN.md are placeholders. Regression cases for the first and the ffmpeg fixes
+  are in `regress.py --synthetic`; on the pre-fix code the decode case read 0 frames and exited 0,
+  and the encode case raised `BrokenPipeError`. With these fixes the net compares IDENTICAL
+  (`net/p12`: 239/239, 36/36, held-out 150/150) and `--synthetic` passes every case.
+- **not marked done: Phase 12 stays [TODO]** while `check-changed-skills.sh` exits 1 on the
+  missing evals above; every other Phase 12 command exits 0.
+- **human-decision (user): the repeat rule and the end-of-film rule are measurement-bug fixes**, so
+  O1 no longer holds for them. `CAL_SIZE` and `per_area` moved to `decode.py`, and `is_repeat`
+  scales `DUP_PX` by each frame's own area, for `extract.py` and `inkstats.py` alike (a `--region`
+  crop scales by the crop's area). `inkstats.drawings` ends a video at `decode.end`; a frame
+  folder, work dir or frame iterable still ends one frame after its last.
+- **relaxed gate (user), for those two fixes only:** summaries of films that are not 1762x982 may
+  change. Still required: the shfred0 source and replica summaries and the style.json bands
+  byte-identical, `check` 36/36 with every control rejected, selftest exit 0, held-out 150/150,
+  regress 239/239. Result (`net/p12b`): all hold. One summary moved,
+  `kevin_t_ngo-2102171059592241410` (1080x1080: 274 to 276 drawings), so style.json's recorded
+  control margins for that film moved and nothing else in it: soft 0.8792 to 0.8835, rough 0.0208
+  to 0.0205, straight_border 0.0116 to 0.012, ink_sd 14.5171 to 14.5193, field_sd 14.7263 to
+  14.7429, period 4.8292 to 4.8314, boil 1.2694 to 1.2699, per_second 1.1139 to 1.1809, offstep
+  0.0074 to 0.0077. Its `check` row is unchanged (7/9 rows failed, margin +12.60). The end-of-film
+  rule moved no net output: every control measures a frame iterable, not a video path. The shipped
+  `styles/woodcut-ink/style.json` still carries the old kevin margins; a re-learn would write the
+  new ones. Revisit: re-baseline the net and refresh the pack's margins together.
