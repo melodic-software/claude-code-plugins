@@ -122,11 +122,15 @@ SKIPPED_TEXT="skipped (mcpServers is a path; pass that file as --config)"
 # of 20+ characters holding at least three digits and three letters. A segment that is
 # exactly a 64-hex digest or 40-hex commit passes. AWS key prefixes (AKIA, ASIA) match only
 # in upper case, since AWS key ids are upper case and lower-case "asia" is an ordinary word.
+# A UUID anywhere, or a run of 32+ hex digits other than a trailing #<40 hex> git commit or
+# @sha256:<64 hex> digest, is also rejected.
 # shellcheck disable=SC2016
 JQ_VF='def vf:
   (length <= 100)
   and (test("(^|[^A-Za-z0-9])(sk-|sk_|ghp_|gho_|ghs_|ghu_|github_pat_|xox[abprs]-|aiza|eyj|glpat-)"; "i") | not)
   and (test("(^|[^A-Za-z0-9])(AKIA|ASIA)") | not)
+  and (test("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}") | not)
+  and (sub("#[0-9a-f]{40}$"; "") | sub("@sha256:[0-9a-f]{64}$"; "") | test("[0-9a-fA-F]{32,}") | not)
   and ([splits("[/@:=#._\\[\\] -]")]
        | all(.[]; test("^([0-9a-f]{64}|[0-9a-f]{40})$")
                   or (length <= 40
