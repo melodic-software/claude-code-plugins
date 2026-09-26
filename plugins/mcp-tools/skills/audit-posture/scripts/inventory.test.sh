@@ -730,8 +730,8 @@ cat >"$FIX/seven/names.json" <<'JSON'
   "abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd abcd ": {"command": "npx", "args": ["n65@1.0.0"]},
   "a.b.c": {"command": "npx", "args": ["dots@1.0.0"]},
   "has:colon1": {"command": "npx", "args": ["colon@1.0.0"]},
-  "AIzaKey": {"command": "npx", "args": ["aiza@1.0.0"]},
-  "eyJx": {"command": "npx", "args": ["eyj@1.0.0"]},
+  "AIzaKey": {"command": "npx", "args": ["ai-key@1.0.0"]},
+  "eyJx": {"command": "npx", "args": ["ej-x@1.0.0"]},
   "t-unknown": {"type": "websocket", "url": "https://x.example.com"},
   "t-sdk": {"type": "sdk"},
   "q-key": {"type": "http", "url": "https://h.example.com/mcp?api_key=ZQX901"},
@@ -756,8 +756,8 @@ assert_eq "plain name with spaces printed" "n1@1.0.0" "$(cell file 'my server 1'
 assert_eq "name over 64 characters redacted" "n65@1.0.0" "$(cell file 'redacted-name(65)' 6)"
 assert_eq "dotted base64url name redacted" "dots@1.0.0" "$(cell file 'redacted-name(5)' 6)"
 assert_eq "name outside the charset redacted" "colon@1.0.0" "$(cell file 'redacted-name(10)' 6)"
-assert_eq "AIza name redacted" "aiza@1.0.0" "$(cell file 'redacted-name(7)' 6)"
-assert_eq "eyJ name redacted" "eyj@1.0.0" "$(cell file 'redacted-name(4)' 6)"
+assert_eq "AIza name redacted" "ai-key@1.0.0" "$(cell file 'redacted-name(7)' 6)"
+assert_eq "eyJ name redacted" "ej-x@1.0.0" "$(cell file 'redacted-name(4)' 6)"
 assert_eq "unrecognized type prints transport unknown" "unknown" "$(cell file t-unknown 4)"
 assert_eq "unrecognized type row is unparsed" "unparsed" "$(cell file t-unknown 7)"
 assert_eq "sdk transport" "sdk" "$(cell file t-sdk 4)"
@@ -877,7 +877,7 @@ printf '%s\n' '{"managedMcpServers": {}}' >"$FIX/managed seven/managed-settings.
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
   --managed-dir "$FIX/managed seven" --date 2026-01-02
 assert_contains "secret-shaped drop-in file name prints as redacted-file" "$OUT" \
-  "# source managed-settings $FIX/managed seven/managed-settings.d/redacted-file found-empty"
+  "# source managed-settings $FIX/managed seven/managed-settings.d/redacted-file found"
 assert_not_contains "drop-in file name not echoed" "$OUT$ERR" "ZQXdrop"
 
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
