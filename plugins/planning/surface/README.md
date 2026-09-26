@@ -53,7 +53,7 @@ Every command needs `--dir '<data_dir>'`; there is no default. Every write valid
 | `archive` op | Take off-path questions out of the open count; the server derives their state |
 | `set-status` op | `{"op": "set-status", "text": "..."}` sets the page's Claude line (top-level `status`); `"clear": true` removes it |
 | `wait` op | `{"op": "wait", "id": "Q10", "waitsOn": "..."}` puts a question on hold (`waiting`, `waitsOn`); `"clear": true` takes it off |
-| `activity` op | `{"op": "activity", "text": "...", "ids": [...]}` appends an Activity entry for off-page work; every write that replies, revises, adds, archives, records or sets a wait appends one summary entry itself (newest 200 kept) |
+| `activity` op | `{"op": "activity", "text": "...", "ids": [...]}` appends its own Activity entry for off-page work; every write whose ops include `reply`, `note-reply`, `revise`, `add`, `add-round`, `archive`, `record-terminal` or `wait` appends one summary entry itself (newest 200 kept) |
 | `apply --file F` | Run `{"ops": [...]}` as one atomic write; any refused op writes nothing |
 | `status [--latency]` | Open and answered counts, unhandled events; p50 and p95 latencies |
 | `bump [--id Q]` | Bump the file rev, or one question's |

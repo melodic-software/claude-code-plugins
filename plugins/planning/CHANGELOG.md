@@ -8,9 +8,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Added
 
 - **`interview` page:** an Activity panel (fly-out tab, strip button with an unseen-count badge,
-  and a single-key shortcut) lists what Claude did, newest first. Each `apply` or CLI write that
-  replies, revises, adds, archives, records or sets a wait logs one summary entry; the newest
-  200 are kept.
+  and a single-key shortcut) lists what Claude did, newest first. Each `apply` or CLI write
+  whose ops include `reply`, `note-reply`, `revise`, `add`, `add-round`, `archive`,
+  `record-terminal` or `wait` logs one summary entry, and an `activity` op logs its own; the
+  newest 200 are kept.
 - **`interview` page:** a header Claude line shows the current status with its age, else the
   newest Activity entry.
 - **`interview` surface:** three `apply` ops: `set-status` (set or clear the Claude line),

@@ -82,7 +82,7 @@ A `rec` needs `affects`: question ids, or `"none"` (R2). `reply` with `rec` and 
 
 ### Status and waits-on
 
-The page header shows a Claude line: the `set-status` text with its age while one is set, else the newest Activity entry. The Activity panel lists entries newest first. Each `apply` whose ops reply, revise, add, archive, record or set a wait writes one summary entry on its own; `handle`, `meta`, `group` and `set-status` write none. Add an `activity` op for work the page cannot see: a ledger update, a gate run, research dispatched or returned. A status stays until it is replaced or cleared. The page also cues every Claude-side change (a new round, a reply, a Notes reply, a revision) with an in-page notice that goes to it, so the user sees it without a reload.
+The page header shows a Claude line: the `set-status` text with its age while one is set, else the newest Activity entry. The Activity panel lists entries newest first. Each `apply` whose ops include `reply`, `note-reply`, `revise`, `add`, `add-round`, `archive`, `record-terminal` or `wait` writes one summary entry on its own; `handle`, `meta`, `group` and `set-status` write none, and an `activity` op writes its own entry. Add an `activity` op for work the page cannot see: a ledger update, a gate run, research dispatched or returned. A status stays until it is replaced or cleared. The page also cues every Claude-side change (a new round, a reply, a Notes reply, a revision) with an in-page notice that goes to it, so the user sees it without a reload.
 
 When a question must wait on off-thread work (research, a subagent, a long check):
 
