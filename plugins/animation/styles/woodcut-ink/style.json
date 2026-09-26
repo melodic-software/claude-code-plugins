@@ -352,7 +352,7 @@
     "widening": 0.0009,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 35.9998,
-     "kevin_t_ngo-2102171059592241410": 0.8792,
+     "kevin_t_ngo-2102171059592241410": 0.8835,
      "near_blur0.6": 0.538,
      "near_blur0.9+dry32": 0.2733,
      "near_blur0.9+dry8": 0.0731,
@@ -507,7 +507,7 @@
     "widening": 0.0002,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 0.0343,
-     "kevin_t_ngo-2102171059592241410": 0.0208,
+     "kevin_t_ngo-2102171059592241410": 0.0205,
      "near_blur0.6": 0.0048,
      "near_blur0.9+dry32": 0.0055,
      "near_blur0.9+dry8": 0.0055,
@@ -569,7 +569,7 @@
     "widening": 0.0017,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 0.7388,
-     "kevin_t_ngo-2102171059592241410": 0.0116,
+     "kevin_t_ngo-2102171059592241410": 0.012,
      "near_blur0.6": 0.0502,
      "near_blur0.9+dry32": 0.0442,
      "near_blur0.9+dry8": 0.041,
@@ -724,7 +724,7 @@
     "widening": 0.0854,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 21.3684,
-     "kevin_t_ngo-2102171059592241410": 14.5171,
+     "kevin_t_ngo-2102171059592241410": 14.5193,
      "near_blur0.6": 1.3352,
      "near_blur0.9+dry32": 9.0454,
      "near_blur0.9+dry8": 0.0,
@@ -786,7 +786,7 @@
     "widening": 0.1357,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 17.039,
-     "kevin_t_ngo-2102171059592241410": 14.7263,
+     "kevin_t_ngo-2102171059592241410": 14.7429,
      "near_blur0.6": 1.1962,
      "near_blur0.9+dry32": 9.4614,
      "near_blur0.9+dry8": 0.0,
@@ -878,7 +878,7 @@
     "widening": 0.1537,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 0.5924,
-     "kevin_t_ngo-2102171059592241410": 4.8292,
+     "kevin_t_ngo-2102171059592241410": 4.8314,
      "near_blur0.6": 4.767,
      "near_blur0.9+dry32": 2.2522,
      "near_blur0.9+dry8": 2.6504,
@@ -1004,7 +1004,7 @@
     "widening": 0.0,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 0.0,
-     "kevin_t_ngo-2102171059592241410": 1.2694,
+     "kevin_t_ngo-2102171059592241410": 1.2699,
      "near_blur0.6": 0.1687,
      "near_blur0.9+dry32": 0.1634,
      "near_blur0.9+dry8": 0.1453,
@@ -1035,7 +1035,7 @@
     "widening": 0.0207,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 14.4739,
-     "kevin_t_ngo-2102171059592241410": 1.1139,
+     "kevin_t_ngo-2102171059592241410": 1.1809,
      "near_blur0.6": 0.0,
      "near_blur0.9+dry32": 0.0,
      "near_blur0.9+dry8": 0.0,
@@ -1070,7 +1070,7 @@
     "widening": 0.0096,
     "control_margins": {
      "BiosRiosz-2102523343253520764": 0.0136,
-     "kevin_t_ngo-2102171059592241410": 0.0074,
+     "kevin_t_ngo-2102171059592241410": 0.0077,
      "near_blur0.6": 0.0363,
      "near_blur0.9+dry32": 0.0363,
      "near_blur0.9+dry8": 0.0363,
