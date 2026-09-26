@@ -43,7 +43,8 @@ UTF-8, but no run there has been recorded).
   `requirements.txt`: run every script through
   `uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python ...`. The pins keep the
   statistics and the shipped regression reproducible byte for byte.
-- `ffmpeg` 5.1 or later with the `libx264` encoder, and `ffprobe`, on PATH.
+- `ffmpeg` at or above `scripts/prereq.py`'s `FFMPEG_MIN` (the first release with `-fps_mode`), with
+  the `libx264` encoder, and `ffprobe`, on PATH.
 - Node and playwright-core with Chromium. `capture.mjs` looks in the `playwright_core` plugin option
   (passed as `render.py --playwright-core`), then the working directory, then a playwright-cli
   install on PATH, and prints the remedy when none is found.

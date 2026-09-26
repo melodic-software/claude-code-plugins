@@ -21,7 +21,7 @@ Filters, applied in order: blurS (gaussian, sigma S px), noiseA (gaussian gray n
 frame), stripesA (+A gray on every 3rd column of dark pixels, left half), dryA / dryhalfA (static dry-brush streaks
 +A gray on dark pixels, whole frame / left half), warpA (a static smooth displacement of A px sd: contour jitter),
 patchA (a static gray offset of sd A per 8 px block on dark pixels), rowsA (static horizontal tonal rows 20-40 px
-apart, sd A, on dark pixels), retimeN (every Nth frame held one 24 fps frame longer).
+apart, sd A, on dark pixels), retimeN (every Nth frame held one FPS frame longer).
 """
 import argparse
 import json
@@ -38,6 +38,7 @@ import inkstats  # noqa: E402
 import render  # noqa: E402
 import workdir  # noqa: E402
 
+FPS = inkstats.BASE_FPS   # the frame grid every control is built, encoded and measured on
 GAME = 'blur0.9+stripes12'
 # game plus: a sub-pixel contour warp (straight, rough), a few holds lengthened (offstep), and faint tonal rows at the
 # source's texture peak with fine noise (period, grain)
@@ -52,7 +53,7 @@ INK, PAPER = (0x13, 0x11, 0x0f), (0xef, 0xe9, 0xe0)
 
 
 def poly(w=1762, h=982, seconds=30.0, seed=7):
-    """Frames at 24 fps of flat ink polygons: a new set and a dark field every 30 drawings, every vertex moved about
+    """Frames at FPS of flat ink polygons: a new set and a dark field every 30 drawings, every vertex moved about
     2.5 px each drawing, holds on 1s/2s/3s/4s in the woodcut source's shares."""
     rng = np.random.default_rng(seed)
     fi, shapes = 0, []
@@ -66,9 +67,9 @@ def poly(w=1762, h=982, seconds=30.0, seed=7):
         for s in shapes:
             cv2.fillPoly(img, [np.round(s + rng.normal(0, 2.5, s.shape)).astype(np.int32)], INK, cv2.LINE_AA)
         for _ in range(rng.choice([1, 2, 3, 4], p=[0.01, 0.03, 0.92, 0.04])):
-            if fi / 24 >= seconds:
+            if fi / FPS >= seconds:
                 return
-            yield img, fi / 24
+            yield img, fi / FPS
             fi += 1
 
 
@@ -122,34 +123,34 @@ def post(spec, frames):
             elif kind != 'retime':
                 x[dark & static(kind, dark.shape, v)] += v
         x = np.clip(x, 0, 255).astype(np.uint8)
-        yield x, t + late / 24
-        if retime and i % retime == 0:   # hold this frame one 24 fps frame longer
+        yield x, t + late / FPS
+        if retime and i % retime == 0:   # hold this frame one FPS frame longer
             late += 1
-            yield x, t + late / 24
+            yield x, t + late / FPS
 
 
 def held(work, folder):
-    """A work dir's drawings in folder (its src, or a run's rep) as 24 fps frames, each repeated for its hold from
+    """A work dir's drawings in folder (its src, or a run's rep) as FPS frames, each repeated for its hold from
     d/index.json."""
     ds = json.load(open(workdir.index(work), encoding='utf-8'))['drawings']
     fi = 0
     for (k, *_), nxt in zip(ds, [*ds[1:], [None, ds[-1][2]]]):
         img = cv2.imread(str(workdir.drawing(folder, k)))
-        while fi / 24 < nxt[1] - 1e-6:
+        while fi / FPS < nxt[1] - 1e-6:
             yield img
             fi += 1
 
 
 def replica(work, tag, out):
     """The rotoscope replica's drawings encoded as a scene is; return the mp4."""
-    return render.encode(held(work, workdir.rep(work, tag)), 'mp4', 24, Path(out) / 'replica.mp4')
+    return render.encode(held(work, workdir.rep(work, tag)), 'mp4', FPS, Path(out) / 'replica.mp4')
 
 
 def run(job):
     path, film, spec = job
-    frames = post(spec, poly() if film == 'poly' else decode.frames(film, 24))
+    frames = post(spec, poly() if film == 'poly' else decode.frames(film, FPS))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(inkstats.summary(inkstats.measure(frames, 24))) + '\n', encoding='utf-8')
+    path.write_text(json.dumps(inkstats.summary(inkstats.measure(frames, FPS))) + '\n', encoding='utf-8')
     return path
 
 
@@ -192,10 +193,10 @@ def check(a):
 
 def selftest(a):
     pack, bad = inkstats.load_pack(a.pack), []
-    cases = [('poly', GAME, poly(seconds=10))] + ([('near', s, decode.frames(a.near, 24)) for s in (GAME, ATTACK)]
+    cases = [('poly', GAME, poly(seconds=10))] + ([('near', s, decode.frames(a.near, FPS)) for s in (GAME, ATTACK)]
                                                   if a.near else [])
     for name, spec, frames in cases:
-        rows = inkstats.check(inkstats.summary(inkstats.measure(post(spec, frames), 24)), pack)
+        rows = inkstats.check(inkstats.summary(inkstats.measure(post(spec, frames), FPS)), pack)
         failed = [s for s, _, _, d in rows if d is not None and d > 1]
         print(f"{name} + {spec}: fails {', '.join(failed) or 'nothing'}")
         bad += [] if failed else [f'{name} + {spec}']

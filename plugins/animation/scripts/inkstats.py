@@ -3,7 +3,7 @@
 
 usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H] [--t T0-T1] [--json OUT]
                    [--rows OUT] [--pack PACK]
-  <film>    a video, a render.py frame folder (fNNNN.png, played at --fps, else its render.json fps, else 24), or a
+  <film>    a video, a render.py frame folder (fNNNN.png, played at --fps, else its render.json fps, else BASE_FPS), or a
             rotoscope work dir
             (src/dNNN.png timed by d/index.json)
   --cuts    shot boundaries in seconds; each shot is a column of the table. Without it, columns are --seg seconds
@@ -89,6 +89,7 @@ import numpy as np
 import decode
 
 SEG = 3.35
+BASE_FPS = 24             # the film rate a drawing's hold is counted on when no pack or render.json names one
 STATS = ('ink', 'soft', 'w10', 'w50', 'w90', 'pw50', 'rough', 'straight', 'straight_border', 'straight_caption',
          'specks', 'gaps', 'holes', 'ink_sd', 'paper_sd', 'field_sd', 'flat', 'grain', 'period', 'sliver',
          'sliver_border', 'sliver_caption', 'boil')
@@ -296,7 +297,7 @@ def boil(a, b):
     return float((a['mask'] ^ b['mask'])[m].sum() / e)
 
 
-def measure(film, fps=24, region=None, window=None):
+def measure(film, fps=BASE_FPS, region=None, window=None):
     """Per-drawing rows: every statistic above plus t (start) and hold (s). film is a path or an iterable of
     (rgb, t) frames."""
     rows, prev = [], None
@@ -336,18 +337,18 @@ def median(rows, s):
     return round(float(np.median(v)), 4) if v else None
 
 
-def hold_frames(rows, base_fps=24):
+def hold_frames(rows, base_fps=BASE_FPS):
     """Each drawing's hold in frames at the base rate (a style pack's knobs.frame_rate.base_fps)."""
     return np.array([max(1, round(r['hold'] * base_fps)) for r in rows])
 
 
-def offstep(rows, base_fps=24):
+def offstep(rows, base_fps=BASE_FPS):
     """Share of consecutive drawing pairs whose holds do not add up to twice the most common hold."""
     f = hold_frames(rows, base_fps)
     return round(float((f[:-1] + f[1:] != 2 * np.bincount(f).argmax()).mean()), 4) if len(f) > 1 else None
 
 
-def summary(rows, cuts=None, seg=SEG, base_fps=24):
+def summary(rows, cuts=None, seg=SEG, base_fps=BASE_FPS):
     def pcts(v):
         v = [x for x in v if x is not None]
         return dict(zip(('p10', 'p50', 'p90'), (round(float(np.percentile(v, q)), 4) for q in (10, 50, 90)))) if v \
@@ -456,7 +457,7 @@ def main(argv=None):
     pack = load_pack(a.pack) if a.pack else None   # fail on a bad pack path before the long measure
     region = [int(v) for v in nums(a.region, 4)] if a.region else None
     meta = Path(a.film) / 'render.json'
-    fps = a.fps or (json.load(open(meta, encoding='utf-8'))['fps'] if meta.is_file() else None) or 24
+    fps = a.fps or (json.load(open(meta, encoding='utf-8'))['fps'] if meta.is_file() else None) or BASE_FPS
     rows = measure(a.film, fps, region, nums(a.t, 2))
     base = pack['knobs']['frame_rate']['base_fps'] if pack else fps   # holds are counted on the style's rate
     m = summary(rows, nums(a.cuts), a.seg, base)

@@ -25,7 +25,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 FFMPEG_MIN = (5, 1)
 FFMPEG_URL = 'https://ffmpeg.org/download.html'
-PACKAGES = {'numpy': 'numpy', 'opencv': 'opencv-python-headless'}
+PACKAGES = {   # the pinned distribution first; any of the others also provides the module (cv2)
+    'numpy': ('numpy',),
+    'opencv': ('opencv-python-headless', 'opencv-python', 'opencv-contrib-python-headless', 'opencv-contrib-python'),
+}
 
 
 def playwright_dir(v):
@@ -93,15 +96,18 @@ def _row(name, playwright_core):
             return name, 'PASS', f"playwright-core with Chromium {json.loads(r.stdout)['browser_build']}", ''
         msg = (r.stderr.strip().splitlines() or ['capture.mjs --probe failed'])[-1] if r else 'node failed'
         return name, 'FAIL', 'playwright-core or Chromium not found', msg.removeprefix('capture.mjs: ')
-    dist = PACKAGES[name]
-    want = pins()[dist]
-    try:
-        have = importlib.metadata.version(dist)
-    except importlib.metadata.PackageNotFoundError:
-        return name, 'FAIL', f'{dist} not installed', \
-            'run the scripts through `uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python ...`'
-    return (name, 'PASS', have, '') if have == want else \
-        (name, 'INFO', f'{have}, not the pinned {want}: statistics may differ from the shipped pack and regression', '')
+    pinned, *alts = PACKAGES[name]
+    want = pins()[pinned]
+    for dist in (pinned, *alts):
+        try:
+            have = importlib.metadata.version(dist)
+        except importlib.metadata.PackageNotFoundError:
+            continue
+        return (name, 'PASS', have, '') if (dist, have) == (pinned, want) else \
+            (name, 'INFO', f'{dist} {have}, not the pinned {pinned} {want}: statistics may differ from the shipped '
+             'pack and regression', '')
+    return name, 'FAIL', f'{pinned} not installed', \
+        'run the scripts through `uv run --with-requirements ${CLAUDE_PLUGIN_ROOT}/requirements.txt python ...`'
 
 
 ROWS = ('ffmpeg', 'ffprobe', 'libx264', 'ffmpeg-version', 'node', 'chromium', 'numpy', 'opencv')

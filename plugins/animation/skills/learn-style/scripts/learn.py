@@ -75,7 +75,7 @@ def duration(p):
     return p[-1]['t'] + p[-1]['hold'] - p[0]['t']
 
 
-def value(parts, s, base_fps=24):
+def value(parts, s, base_fps=inkstats.BASE_FPS):
     """A statistic over some parts: drawings per second over their summed durations, offstep over their drawings,
     else the median over their drawings."""
     rows = [r for p in parts for r in p]
@@ -115,7 +115,7 @@ def main(argv=None):
     ap.add_argument('--credit')
     ap.add_argument('--cuts', help='the source\'s shot boundaries in seconds; each shot is a part')
     ap.add_argument('--seg', type=float, default=inkstats.SEG, help='part length in seconds when there are no cuts')
-    ap.add_argument('--base-fps', type=lambda v: int(v) if float(v).is_integer() else float(v), default=24,
+    ap.add_argument('--base-fps', type=lambda v: int(v) if float(v).is_integer() else float(v), default=inkstats.BASE_FPS,
                     help='the frame rate holds are counted on (the style\'s animation grid), written to '
                          'knobs.frame_rate.base_fps')
     ap.add_argument('--negative', nargs='*', default=[], type=Path,
@@ -177,7 +177,7 @@ def main(argv=None):
         return np.median([r[k] for r in rs if r[k]], 0)
     # palette tolerance = what encoding does to the colours + how far a source excerpt's colours stray from the clip's
     with tempfile.TemporaryDirectory() as tmp:
-        enc = inkstats.measure(str(render.encode(controls.held(a.work, workdir.src(a.work)), 'mp4', 24, Path(tmp) / 'source.mp4')))
+        enc = inkstats.measure(str(render.encode(controls.held(a.work, workdir.src(a.work)), 'mp4', inkstats.BASE_FPS, Path(tmp) / 'source.mp4')))
     shift = max(float(np.abs(colour(enc, k) - m[k]).max()) for k in ('ink_rgb', 'paper_rgb'))
     stray = max(float(np.abs(colour([r for j in side for r in parts[j]], k) - m[k]).max())
                 for pair in ps for side in pair for k in ('ink_rgb', 'paper_rgb'))

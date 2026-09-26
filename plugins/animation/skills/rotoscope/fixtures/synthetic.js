@@ -1,12 +1,12 @@
 // synthetic.js: the committed test scene regress.py --synthetic renders, encodes, re-traces and measures.
 //   24 distinct drawings held alternately 2 and 3 frames at 24 fps (60 frames, 2.5 s); each drawing
 //   moves a brushed ink mass and re-lays its strokes, so no two drawings repeat. Deterministic (ink.js rng).
-import { inkFill, inkStroke } from './ink.js';
+import { INK, inkFill, inkStroke } from './ink.js';
 
 export const DRAWINGS = 24;
 const HOLDS = Array.from({ length: DRAWINGS }, (_, k) => (k % 2 ? 3 : 2));
 const START = HOLDS.reduce((a, h) => [...a, a[a.length - 1] + h], [0]);   // first frame of each drawing
-const W = 480, H = 270, PAPER = '#efe9e0', INK = '#141211';
+const W = 480, H = 270, PAPER = '#efe9e0';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 cv.width = W; cv.height = H;
 window.DURATION = START[DRAWINGS] / 24;

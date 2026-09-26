@@ -1,6 +1,6 @@
-// usage: node capture.mjs [--playwright-core DIR] <url> <outdir> <k,k,...> [workers=4]   one PNG per drawing:
+// usage: node capture.mjs [--playwright-core DIR] <url> <outdir> <k,k,...> <workers>   one PNG per drawing:
 //                                               window.renderDrawing(k) -> dNNN.png
-//        node capture.mjs [--playwright-core DIR] <url> <outdir> --fps <n> [workers=4]  every frame of the film:
+//        node capture.mjs [--playwright-core DIR] <url> <outdir> --fps <n> <workers>  every frame of the film:
 //                                               window.renderFrame(i / n) -> fNNNN.png
 //        node capture.mjs [--playwright-core DIR] --probe   launch Chromium, print {browser_build}, exit
 // Saves canvas#c at its own size after awaiting the render Promise; prints one JSON line
@@ -52,7 +52,8 @@ if (argv[0] === '--probe') {
   process.exit(0);
 }
 const [url, out, sel, ...rest] = argv;
-const fps = sel === '--fps' ? +rest.shift() : 0, workers = +(rest[0] || 4);
+const fps = sel === '--fps' ? +rest.shift() : 0, workers = +rest[0];
+if (!(workers >= 1)) { console.error('capture.mjs: <workers> is required (render.py passes it)'); process.exit(1); }
 mkdirSync(out, { recursive: true });
 const browser = await launch();
 let failed = false;
