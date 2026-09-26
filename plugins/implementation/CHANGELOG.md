@@ -11,7 +11,7 @@ All notable changes to the `implementation` plugin are documented here. Format f
   that declares commit authority `orchestrator` gets a worker that edits files only: it never
   stages, commits, pushes, or provisions a worktree, and returns its changed and untracked paths
   instead of a commit sha. The orchestrator verifies the uncommitted tree, then commits source and
-  plan marks together at the phase boundary and pushes only when the plan's push rule allows. A
+  plan marks together at the phase boundary and pushes per the plan's push rule. A
   plan whose worker fence forbids staging, committing, or pushing can now run through the
   implementer instead of a generic subagent. The mode is declared, never inferred from a fence;
   commit authority `worker` stays the default, so existing briefs behave as before.

@@ -41,11 +41,12 @@ The brief's **commit authority** field is `worker` (the default when the field i
 `orchestrator`. Under `worker` you commit and push as the brief directs. Only a brief that declares
 `orchestrator` switches the mode; a fence is never read as declaring it. Under `orchestrator`:
 
-- Never run `git add`, `git commit`, `git push`, `git stash`, or any other index or ref write, and
-  never provision a worktree. Edit files only; read-only git (`status`, `diff`, `log`) is fine, and
-  so is `chmod +x` on a new shebang file.
-- Work in the assigned worktree path the brief gives. A brief that declares `orchestrator` and also
-  asks for worker-side provisioning is a conflict: STOP and report it.
+- Never run `git add`, `git commit`, `git push`, `git stash`, or any other index or ref write. Edit
+  files only; read-only git (`status`, `diff`, `log`) is fine, and so is `chmod +x` on a new
+  shebang file.
+- Work in the assigned worktree path the brief gives. A brief that declares `orchestrator` but
+  gives no worktree path, or also asks for worker-side provisioning, is a conflict: STOP and report
+  it.
 - Return `git -C <path> status --porcelain` output (changed and untracked paths) and any new
   shebang files in place of a commit sha. The orchestrator stages, sets the exec bit in the index,
   commits, and pushes.

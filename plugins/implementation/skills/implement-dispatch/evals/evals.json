@@ -93,7 +93,7 @@
     {
       "id": 8,
       "name": "no-commit-plan-fence-declares-orchestrator-commit-authority",
-      "prompt": "/implementation:implement-dispatch phase-1 - the approved plan's worker fence forbids staging, committing, and pushing: I own a commit-subject gate, and the plan pushes once at the end. The phase-1 worktree already exists at C:/work/wt-phase1. Compose the brief and dispatch the worker.",
+      "prompt": "/implementation:implement-dispatch phase-1 - the approved plan's worker fence forbids staging, committing, and pushing: the orchestrator owns a commit-subject gate, and the plan pushes once at the end. The phase-1 worktree already exists at C:/work/wt-phase1. Compose the brief and dispatch the worker.",
       "expected_output": "Declares commit authority orchestrator explicitly in the brief, dispatches the implementation:implementer agent rather than a generic subagent, omits the commit-and-push-early clause and worker-side provisioning, hands over the assigned worktree path, and verifies the return against the uncommitted tree before the orchestrator commits source and plan marks together at the phase boundary without pushing. A fence that forbade only a narrow action such as force-push would leave commit authority at worker.",
       "files": [],
       "expectations": [
