@@ -9,7 +9,7 @@ Status: DRAFT (Step 2 output; stress-test and approval pending). Design slice:
 path (T14), one render composition root (T10), one owner per value (T16), resolution and frame-rate
 scaling (T17), the correctness fixes (T18), a prerequisite probe with pinned requirements and a
 check-only `setup` skill (T15, T6), a synthetic CI fixture plus the pack control in `regress.py`
-(T8), what licence-notice mechanics ship before any adapter exists (T7), opening `produce` (T13,
+(T8), what license-notice mechanics ship before any adapter exists (T7), opening `produce` (T13,
 T5), pixel-art routing descriptions (T22), and two plugin-philosophy rules (T24).
 
 **Why.** The render composition root lives inside a skill script, the decode path exists twice (a
@@ -143,7 +143,7 @@ and learn-style `SKILL.md` film steps, README.
     deviates from contracts.md:147's `encode(frames_dir, fmt, fps)`: a folder-of-PNGs input would
     change what ffmpeg reads for the replica and source encodes and break C3 (the replica and
     palette-tolerance encodes are drawings with variable holds, not a frame folder). `[EXEC-SHAPE]`
-  - Writes `render.json` `{scene, adapter, adapter_version, browser_build, fps, size, frames, duration}` (contracts.md section 4; `licence_notice` absent while only native exists).
+  - Writes `render.json` `{scene, adapter, adapter_version, browser_build, fps, size, frames, duration}` (contracts.md section 4; `license_notice` absent while only native exists).
   - `--backend` accepts only `native` (contracts.md section 3).
 - `measure.py`: drop `render()` and its copy step; call `render.py` with `--root <work>`.
   `fit.py`, `review.py` unchanged in behaviour.
@@ -412,23 +412,23 @@ defaulting to 24. Every item is identity-preserving on the frozen check.
   key (C3 covers it; this names the D37 trap).
 - [x] C1 239/239; C2 green (36/36, selftest 0, 150/150); C3 `compare` exits 0 (mandatory); C5.
 
-### Phase 8: licence notice mechanics, what ships now (T7) [TODO]
+### Phase 8: license notice mechanics, what ships now (T7) [DONE]
 
 No adapter exists, so no detection or notice code ships. `[EXEC-SHAPE]`
 
 - `plugins/animation/reference/backends.md`: the native row in pixel-art's row shape (Adds, Detect,
-  Cost and licence, Contract), the selection rule by citation of design/contracts.md section 3
-  order, and the licence rule: a non-native adapter's `detect()` returns `(present, version,
-  licence_path)`, the notice quotes that installed file, prints once per session before the first
-  render, and is recorded in `render.json` `licence_notice`. No Remotion or HyperFrames row until
+  Cost and license, Contract), the selection rule by citation of design/contracts.md section 3
+  order, and the license rule: a non-native adapter's `detect()` returns `(present, version,
+  license_path)`, the notice quotes that installed file, prints once per session before the first
+  render, and is recorded in `render.json` `license_notice`. No Remotion or HyperFrames row until
   that adapter ships; the four-part Remotion record is written then, from a fresh fetch of its
   LICENSE (its current basis is a memory-slice file that cannot be cited from shipped docs).
 - `render.py` docstring points at `reference/backends.md`.
 
 **Sanity Check:**
 
-- [ ] `test -f plugins/animation/reference/backends.md` and `grep -c "licence_notice" plugins/animation/reference/backends.md` ≥ 1.
-- [ ] `grep -ni "remotion\|hyperframes" plugins/animation/reference/backends.md` returns nothing.
+- [x] `test -f plugins/animation/reference/backends.md` and `grep -c "license_notice" plugins/animation/reference/backends.md` ≥ 1.
+- [x] `grep -ni "remotion\|hyperframes" plugins/animation/reference/backends.md` returns nothing.
 
 ### Phase 9: open the `produce` sub-topic (T13, T5) [TODO]
 

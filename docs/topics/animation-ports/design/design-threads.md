@@ -15,7 +15,7 @@ Companion files: [domain-model.md](domain-model.md), [contracts.md](contracts.md
 
 ```text
 T1 scene contract ──> T4 output formats, T10 composition root, T11 post, T12 pixel-art, T13 produce artifacts
-T3 port granularity ─> T2 userConfig ─> T7 licence notice
+T3 port granularity ─> T2 userConfig ─> T7 license notice
                    └─> T9 measure, T10, T14 source-in
 T5 naming ──────────> T13
 T6 skill set ───────> T15 prerequisite fixes
@@ -133,14 +133,14 @@ Resolved 2026-09-24: user approved recommendation.
 
 Blocks: T15.
 
-## T7. Licence surfacing mechanics (resolved 2026-09-25)
+## T7. License surfacing mechanics (resolved 2026-09-25)
 
 Settled: the Remotion adapter surfaces its terms and does not judge who qualifies. Open mechanics:
 
 | Option | For | Against |
 |---|---|---|
 | A. Static text in `reference/backends.md` only | Simple | Goes stale; the user never sees it at run time |
-| B. Run-time notice read from the installed package's LICENSE (path + version), printed once per session before the first render, recorded in `render.json` | The user reads the licence they actually have; a record travels with the output | A few lines per adapter |
+| B. Run-time notice read from the installed package's LICENSE (path + version), printed once per session before the first render, recorded in `render.json` | The user reads the license they actually have; a record travels with the output | A few lines per adapter |
 | C. Confirm prompt before every render | Maximum friction | Blocks unattended runs; still no judgment possible |
 
 Recommendation: **B**, plus the four-part record in `backends.md` (contracts.md section 3). A
@@ -148,7 +148,7 @@ one-time confirmation before the first call in a session, as pixel-art does for 
 (`plugins/pixel-art/reference/backends.md`, Selection rule 4), applies to paid remote services,
 not to a locally installed licensed library. Blocked by: T2, T3.
 
-Resolved 2026-09-25: user approved recommendation B. Why: the notice comes from the licence the
+Resolved 2026-09-25: user approved recommendation B. Why: the notice comes from the license the
 user actually installed and travels with the output in `render.json`, without blocking
 unattended runs.
 

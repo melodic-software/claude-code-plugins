@@ -14,6 +14,7 @@ unsubstituted ${...} placeholder counts as unset.
 exit 0  every requested frame written, render.json written
 exit 1  the scene failed: a page error, a missing or non-positive DURATION, a missing renderDrawing
 exit 2  a prerequisite is missing (the remedy is printed)
+Backends, the selection rule and the license notice a non-native backend must print: reference/backends.md.
 """
 import argparse
 import functools

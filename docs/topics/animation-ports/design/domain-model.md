@@ -84,7 +84,7 @@ a port when its second adapter is real.
 
 | Port candidate | Verdict | Adapters today (files) | Future adapters (named) |
 |---|---|---|---|
-| **render** (scene module to frames) | **port**: DIRECTION.md names HyperFrames and Remotion | native: `scripts/render.html`, `scripts/capture.mjs`, served and driven by `skills/rotoscope/scripts/measure.py:40-58` (the de facto composition root) | HyperFrames (Apache-2.0), Remotion (source-available; licence notice), both presence-gated |
+| **render** (scene module to frames) | **port**: DIRECTION.md names HyperFrames and Remotion | native: `scripts/render.html`, `scripts/capture.mjs`, served and driven by `skills/rotoscope/scripts/measure.py:40-58` (the de facto composition root) | HyperFrames (Apache-2.0), Remotion (source-available; license notice), both presence-gated |
 | **encode** (frames to a delivered file) | one adapter, no port yet | ffmpeg, as a comment only: `scripts/capture.mjs:4`; the skills tell the model to copy that line (rotoscope `SKILL.md:77-79`, learn-style `SKILL.md:47-48`) | none named; moves to `post` at extraction. HyperFrames and Remotion encode internally, so they cover render+encode in one call |
 | **source-in** (video to distinct drawings with times) | one adapter, no port yet; code duplicated | ffmpeg/ffprobe decode written twice: `skills/rotoscope/scripts/extract.py:35-68` and `scripts/inkstats.py:58-80` (which also reads frame folders and work dirs) | "source image in" is named in DIRECTION.md without a tool |
 | **measure** | not a port: two different core operations | fidelity (replica vs source, per drawing): `measure.py:61-104`; style statistics (film vs pack bands): `inkstats.py` | "quality metrics" is named in DIRECTION.md without a tool. No external tool computes either, so there is nothing to invert |
@@ -93,7 +93,7 @@ a port when its second adapter is real.
 | browser runtime (find playwright-core and Chromium) | not a port: internal to the native render adapter | lookup chain `capture.mjs:11-24` | none |
 
 Where the pixel-art pattern fits: pixel-art's `reference/backends.md` already defines the shape
-this plugin should reuse for an adapter row (Adds, Detect, Cost and licence, Contract) and the
+this plugin should reuse for an adapter row (Adds, Detect, Cost and license, Contract) and the
 selection rule (default native; a named adapter runs only when asked or configured and detection
 passes; otherwise one-line notice and native). pixel-art ships that selection with no adapter code
 (`plugins/pixel-art/.claude-plugin/plugin.json`, description). [contracts.md](contracts.md) applies

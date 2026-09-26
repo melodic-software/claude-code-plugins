@@ -148,3 +148,15 @@ Append-only. Each entry: plan said / found / chose / revisit.
   `--base-fps 24` write identical JSON (cmp equal; both cmp equal to the committed pack).
 - **not done: the palette-tolerance encode in `learn.py` still holds drawings on a 24 fps grid**
   (`controls.held`); it measures colour shift only, and changing it would move `encode_shift`.
+
+## Phase 8
+
+- **human-decision (user): American spelling.** "licence" became "license" in every file under
+  `docs/topics/animation-ports/` (PLAN.md, contracts.md, design-threads.md, domain-model.md) and in
+  the new `reference/backends.md`, so the `render.json` key the rule names is `license_notice` and
+  the row heading is "Cost and license" (pixel-art's own backends.md keeps its spelling; out of
+  scope). No hit existed under `plugins/animation/` before this phase.
+- **choice: `backends.md` links the design's `contracts.md`** by repo-relative path, as the plan
+  asks; that link does not resolve from an installed plugin cache copy. Revisit: when the contract
+  moves into the plugin.
+- **choice: no net compare for Phase 8**: its only code change is one `render.py` docstring line.

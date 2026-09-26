@@ -87,22 +87,22 @@ it lacks today (dependency-inventory.md D16).
 3. Presence: the chosen adapter's `detect()` runs. On failure: one line naming what was missing,
    then native, then continue. Never silent, never a hard stop (pixel-art `reference/backends.md`,
    Selection rule, items 1-3, cited rather than restated).
-4. Licence: before the first render in a session with a non-native adapter, print that adapter's
-   licence notice (below). The notice is recorded in `render.json`.
+4. License: before the first render in a session with a non-native adapter, print that adapter's
+   license notice (below). The notice is recorded in `render.json`.
 5. Native missing too: exit 2 with the remedy.
 
 `userConfig` itself is thread T2. Until a second adapter ships there is nothing to select, so no
 key is added and `--backend` accepts only `native`.
 
-### How an adapter declares presence and licence
+### How an adapter declares presence and license
 
 Two parts, the same row shape pixel-art uses (`plugins/pixel-art/reference/backends.md`: Adds,
-Detect, Cost and licence, Contract):
+Detect, Cost and license, Contract):
 
 - A row in `plugins/animation/reference/backends.md` (new) for readers and for the setup `check`.
-- A `detect()` in the adapter code returning `(present, version, licence_path)`. The notice quotes
-  the licence file found in the installed package, by path and version, so what the user reads is
-  the licence they actually have, not a copy in the plugin.
+- A `detect()` in the adapter code returning `(present, version, license_path)`. The notice quotes
+  the license file found in the installed package, by path and version, so what the user reads is
+  the license they actually have, not a copy in the plugin.
 
 The notice states terms and never judges whether the user qualifies (DIRECTION.md). The Remotion
 facts the notice would state today, as a four-part record:
@@ -115,7 +115,7 @@ facts the notice would state today, as a four-part record:
 - As of: 2026-09-24 (v4.0.528).
 - Recheck trigger: a Remotion 5.0 release, or any change to its LICENSE file.
 
-HyperFrames: Apache-2.0 (same basis, E12, v0.8.73, 2026-09-24; recheck on a licence change). An
+HyperFrames: Apache-2.0 (same basis, E12, v0.8.73, 2026-09-24; recheck on a license change). An
 Apache-2.0 adapter still prints its notice line, for uniformity.
 
 ### Errors
@@ -137,7 +137,7 @@ The handoff between craft and delivery, and the surface `post` will consume at e
 - `fNNNN.png`, zero-padded to at least four digits, frame `i` at `t = i / fps`. Readers sort
   numerically (dependency-inventory.md D23).
 - `render.json`: `{scene, adapter, adapter_version, browser_build, fps, size: [w, h], frames,
-  duration, licence_notice?}`. It is the only place the frame rate of a frame folder is stored;
+  duration, license_notice?}`. It is the only place the frame rate of a frame folder is stored;
   today `inkstats.py` has to be told `--fps` separately.
 
 ## 5. Candidates with one adapter (no port yet)
