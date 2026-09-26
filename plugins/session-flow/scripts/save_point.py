@@ -146,6 +146,10 @@ REWRITTEN = {
         "remaining item, or 'None. Remaining work runs inline'",
     ),
 }
+# A resolved entry moved into a committed doc leaves `- [hN] Promoted to <ref>: <its leading text>`.
+PROMOTED_PREFIX = "Promoted to "
+PROMOTED_MIN_QUOTE = 20
+
 CUMULATIVE_SLOT = {
     "Constraints that must hold": "constraints",
     "Side effects already applied": "side-effects",
@@ -729,10 +733,29 @@ def _check_cumulative(
         if pred_body is None:
             continue
         have = {entry.normalized for entry in entries}
+        pointers = []
+        for entry in entries:
+            head, _, rest = entry.normalized.partition(": ")
+            ref = head[len(PROMOTED_PREFIX) :].strip()
+            if head.startswith(PROMOTED_PREFIX) and ref and rest:
+                pointers.append((entry.tag, rest))
         for entry in parse_entries(pred_body):
-            if entry.exempt:
+            if entry.exempt or entry.normalized in have:
                 continue
-            if entry.normalized not in have:
+            # Each pointer stands in for one dropped entry only.
+            match = next(
+                (
+                    i
+                    for i, (tag, rest) in enumerate(pointers)
+                    if tag == entry.tag
+                    and len(rest) >= min(PROMOTED_MIN_QUOTE, len(entry.normalized))
+                    and entry.normalized.startswith(rest)
+                ),
+                None,
+            )
+            if match is not None:
+                pointers.pop(match)
+            else:
                 message = (
                     f"{title}: predecessor entry dropped (keep it in place or under "
                     f"'Superseded:', never delete): {entry.text[:60]!r}"

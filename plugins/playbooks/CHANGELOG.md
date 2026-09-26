@@ -4,6 +4,17 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.13.0] - 2026-09-26
+
+### Added
+
+- **`repo-sweep`**: `/playbooks:repo-sweep` runs a catalog of hygiene skills through one
+  repository per sweep: one branch, one draft PR whose body holds the step checklist, one commit
+  per step with `Playbook-Step` trailers, resumable after `/clear` on any machine. `plan`
+  recommends run, rerun, or not-applicable per catalog entry and opens a bundled selection page;
+  `next` runs the first unticked step; `review` files skill and catalog defects after approval.
+  The `hygiene` catalog ships 31 entries in six phases, 22 checked by default.
+
 ## [0.12.3] - 2026-09-25
 
 ### Changed

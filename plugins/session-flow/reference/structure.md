@@ -107,7 +107,10 @@ state of now).
 - **Entries are never deleted.** A disproved or no-longer-binding entry moves under a
   `Superseded:` marker line at the end of the section, tag intact, so the chain shows what was
   believed and when it stopped being true. The validator fails a successor that drops a
-  predecessor's entry outright.
+  predecessor's entry outright. The one replacement it accepts is a promotion pointer, for a
+  resolved entry moved into a committed doc: `- [hN] Promoted to <path or URL>: <opening words>`,
+  keeping the entry's own tag and quoting at least its first 20 characters (or all of a shorter
+  entry) verbatim. The pointer is then an ordinary entry that later hops carry.
 - **One entry per line**, continuation lines indented. A section with nothing to carry and nothing
   new reads `None.` plus a half-line of reason; `None.` lines are exempt from the tag rule.
 - Legacy (shape-1) predecessor entries arrive untagged; `new` tags them `[h1]`. A predecessor that

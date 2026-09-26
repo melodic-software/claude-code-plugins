@@ -58,7 +58,11 @@ load-time machinery, no user turn, no unresolved target.
   why the problem was worth solving, why this design beat the alternatives argued at the time, why
   the thing still exists. Intent is what decides which one is wanted. Answer the wrong one and
   both sides get a well-formed artifact about a question nobody asked.
-- **The budget**: how much depth the parent authorized.
+- **The budget**: how much depth the parent authorized, on two lines. `Budget:` states the depth;
+  `Turn budget:` states the turn by which you stop gathering, in the same unit as your `maxTurns`.
+  The turn budget is **degradable**: when that line is absent, use turn 30 (see "Write early;
+  reserve your last turns" below). A value above that default is ignored and noted in
+  `open_questions`.
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
   one a parent can establish before dispatching. In particular **your own ability to write is not a
   flag**. The parent's own pre-dispatch slice creation and baseline touch prove that *the parent*
@@ -126,6 +130,11 @@ Denying `Edit` would force a full-file rewrite of the index on every such change
 So: `Bash`, `Write` and `Edit` all write, and none of them is read-only. `Bash` is for the
 investigation itself: reading commit history and merge threads where a repository resolves, forge
 and tracker CLIs where the session has them, and local extractors.
+
+**A path you may not read stays unread.** A path denied to the `Read` tool, or barred by your
+dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
+includes projecting names or counts out of it rather than values. Record the gap in
+`open_questions`: what you did not read, and what barred it.
 
 **Your write destinations are the plugin's single write boundary, stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
@@ -199,6 +208,31 @@ nothing outside this plugin is entitled to its shape.
 into an artifact; every path you record is relative to the repo root, or to the working directory
 when there is no repo root.
 
+## Write early; reserve your last turns
+
+Your limit is `maxTurns: 40`, from this definition's frontmatter. A run that reaches it stops where
+it stands, and whatever is not on disk by then is invisible to the parent's gate. Count your own
+turns as you go: one assistant turn may hold several parallel tool calls, and it still counts once.
+Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
+turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.
+
+Write the artifact in stages:
+
+1. As soon as the target is resolved and preload is confirmed, write the `INTENT.md` skeleton into
+   the slice. Its marker is the line `Run status: in progress`, written as the
+   first non-blank line after the level-1 title heading, before the restated why-question;
+   the gate reads only that slot, so restated or quoted text elsewhere never counts. Then write the
+   why-question restated with its code anchor, the section table naming each sidecar you plan, and
+   the **Sources consulted** map with a row per evidence category still open.
+2. Update each category's row in that map as the category resolves, and write each
+   `INTENT-<section>.md` sidecar as its section settles, updating its row in the index.
+3. The final write, after the outcome gate below, replaces the marker line with
+   `Run status: complete`. Nothing earlier does. The parent's gate refuses an index still carrying
+   the marker, which is how a stop at the limit reaches the parent even when no payload does.
+
+A by-value `INTENT.md` body carries `Run status: complete`, because by-value means the work
+finished; the parent writes it and grades it like any other.
+
 ## Two things you record that a thinner run would drop
 
 - **Every category that came back empty**, with what was searched. An empty category is a finding
@@ -211,9 +245,9 @@ when there is no repo root.
 
 ## The outcome gate is split: you do not grade all of it
 
-Run the skill's outcome gate against your written output before you return. One criterion is **not
-yours to render a verdict on**, because grading it means judging the quality of your own choices, and
-you are the context that made them:
+Run the skill's outcome gate against your written output before the final write. One criterion is
+**not yours to render a verdict on**, because grading it means judging the quality of your own
+choices, and you are the context that made them:
 
 - **the tier assignment on each claim**: whether what you called `Direct` really has someone
   stating the intent behind it, and whether anything you called `Supported` is an `Inferred` that
@@ -269,13 +303,14 @@ that is the exact failure the tier exists to make visible.
 payload you have. A dispatch that returns no payload at all is read by the parent as
 truncated-without-warning, and the parent's ladder then **resumes you first and decides about the
 slice from what the resume returns**, so a payload you can still produce is worth more than one more
-search.
+search. The index carries the stop signal without any payload: one still marked
+`Run status: in progress` tells the parent's gate the run stopped short.
 
-**Do not rely on budgeting a turn at the end for it.** You cannot observe your own remaining turn
-budget, so "leave a turn spare" is a schedule against a limit you cannot see. Instead **emit the
-payload block early and keep it current**: as soon as the target is resolved, write the block with
-`status: truncated`, `preload_token` echoed, `preload:` set, `topic_as_received` quoted, and the fields you do not
-have yet left as placeholders; then re-emit it, updated, as each evidence category closes. A stop at
+**Emit the payload block early and keep it current, as a second channel.** Text you emit mid-run
+is not what the parent receives at a turn-limit stop in every version, which is why the disk marker
+comes first. As soon as the target is resolved, write the block with `status: truncated`,
+`preload_token` echoed, `preload:` set, `topic_as_received` quoted, and the fields you do not have
+yet left as placeholders; then re-emit it, updated, as each evidence category closes. A stop at
 any point after that leaves the parent a well-formed payload instead of silence, and because
 `categories_searched` and `categories_unavailable` are already filled in, a truncated intent run is
 partially salvageable in a way a truncated research run is not.

@@ -67,5 +67,5 @@ Used by default, or alongside a bare `/code-review <target>` pass:
 ## After the review
 
 1. **Triage findings**: confidence filters help, but false positives still occur; verify against the diff
-2. **Fix valid findings**: push fixes to the branch
+2. **Fix valid findings**: push fixes to the branch, scoped by the review-fix rule in SKILL.md Step 4
 3. **Respond to PR comments** individually rather than in bulk

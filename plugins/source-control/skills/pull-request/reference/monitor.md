@@ -31,7 +31,7 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **If `CLAUDE_CODE_REMOTE=true` (cloud session):**
 
-Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s in a blocking loop until all readiness gates pass.
+Establish a baseline poll: `gh pr checks <N>` (REST check-runs when more than one worker polls, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s in a blocking loop until all readiness gates pass.
 
 **If local CLI session (`CLAUDE_CODE_REMOTE` not set or `false`):** skip this section. Event delivery is handled by the push-channel primary path (§3.0.05) when available, otherwise by the Monitor watch (§3.0.1).
 
@@ -80,20 +80,30 @@ Establish a baseline poll: `gh pr checks <N>` + the three comment-surface fetche
    last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
    while true; do
-     # Terminal state check — exit watch if PR closed/merged
-     state=$(gh pr view "$PR_NUMBER" --json state -q '.state' 2>/dev/null | tr -d '\r')
+     # Terminal state check — exit watch if PR closed/merged. REST, like the
+     # CI read below (§3.1 "Polling CI from more than one worker").
+     read -r state head_sha < <(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" \
+       --jq '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha)"' \
+       2>/dev/null | tr -d '\r')
      if [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ]; then
        echo "PR #$PR_NUMBER $state — watch complete"
        exit 0
      fi
 
-     # CI check-run changes (emit on any new terminal bucket)
-     cur_checks=$(gh pr checks "$PR_NUMBER" --json name,bucket \
-       --jq '.[] | select(.bucket != "pending") | "\(.name): \(.bucket)"' \
-       2>/dev/null | tr -d '\r' | sort || true)
+     # CI changes: one "name: bucket" line per check, the same rows and
+     # buckets `gh pr checks` reports, read over REST. Check runs are
+     # deduplicated as gh does (latest start per name/workflow/event);
+     # commit statuses are always read, since check-runs omit them.
+     b='def b: ascii_upcase | if . == "SUCCESS" then "pass" elif . == "SKIPPED" or . == "NEUTRAL" then "skipping" elif . == "CANCELLED" then "cancel" elif . == "ERROR" or . == "FAILURE" or . == "TIMED_OUT" or . == "ACTION_REQUIRED" then "fail" else "pending" end;'
+     wf=$(gh api --paginate "repos/$OWNER/$REPO/actions/runs?head_sha=$head_sha&per_page=100" \
+       --jq '.workflow_runs[] | {(.check_suite_id | tostring): "\(.name)/\(.event)"}' 2>/dev/null | jq -s -c 'add // {}')
+     cur_checks=$({ gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/check-runs?per_page=100" \
+         | jq -s -r --argjson wf "$wf" "$b"' [.[].check_runs[] | {k: "\(.name)/\($wf[.check_suite.id | tostring] // "")", name, t: (.started_at // ""), s: (if .status == "completed" then .conclusion else .status end)}] | group_by(.k) | map(max_by(.t))[] | "\(.name): \(.s | b)"'
+       gh api --paginate "repos/$OWNER/$REPO/commits/$head_sha/status?per_page=100" \
+         --jq "$b"' .statuses[] | "\(.context): \(.state | b)"'
+     } 2>/dev/null | tr -d '\r' | grep -v ': pending$' | sort || true)
      if [ "$cur_checks" != "$prev_checks" ]; then
-       # gh pr checks --json bucket values are: pass|fail|pending|skipping|cancel
-       # (per the gh manual) — match those, not check-run conclusion strings.
+       # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.
        comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
          grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \
          || true
@@ -218,12 +228,40 @@ the values you mean, never on the complement:
 After each push, run this loop until convergence (**every** check in a terminal state + all comments addressed):
 
 1. **Mergeable pre-check (MANDATORY before polling):** `gh pr view <N> --json mergeable,mergeStateStatus` FIRST. If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows. Integrate the default branch (merge-forward first, per the stale-branch recovery rule in §3.2), resolve conflicts, push, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
-2. **Poll CI:** `gh pr checks <N>` every 30s (the standard monitor cadence), max 15 minutes per cycle. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
+2. **Poll CI:** `gh pr checks <N>` (REST check-runs instead when more than one worker polls, per "Polling CI from more than one worker" below) every 30s (the standard monitor cadence), max 15 minutes per cycle. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
 3. **Check for new comments:** on each poll, also fetch new review comments (`gh api --paginate "repos/<owner>/<repo>/pulls/<N>/comments?per_page=100"`)
 4. **Process comments immediately:** if a bot comments while CI is still running, start evaluating/researching that comment now. Don't wait for CI
 5. **On CI failure:** route to 3.2 (research-driven fix)
 6. **On new comment:** route to 3.3 (evaluate + respond)
 7. **After any fix push:** restart the loop (new push = new monitoring cycle)
+
+### Polling CI from more than one worker
+
+When more than one worker polls CI under the same token (parallel PR monitors, babysit-prs workers,
+subagents each watching a PR), read the PR and its checks over REST instead of `gh pr checks`
+(including `--watch`) or `gh pr view --json`. The §3.0.1 poll script is that REST read: its state
+check and CI block (the `head_sha` read through `cur_checks`) run standalone with `OWNER`, `REPO`,
+and `PR_NUMBER` set. They emit one `name: bucket` line per check with the same rows and
+`pass|fail|pending|skipping|cancel` buckets `gh pr checks` reports (the mapping and the
+latest-per-name/workflow/event dedupe follow gh's `pkg/cmd/pr/checks/aggregate.go`), and they
+always read commit statuses, which the check-runs endpoint omits. So every predicate above that
+keys on a bucket works unchanged. The Monitor watch always uses this read, since babysit-prs arms
+one watch per PR; a one-off read in a single session may keep `gh pr checks`.
+
+Why: both `gh` commands query GraphQL (`GH_DEBUG=api` shows `POST /graphql` for `gh pr checks`
+and for `gh pr view --json state`), and
+concurrent workers under one token have hit GraphQL secondary rate limits. GraphQL and REST draw on
+separate per-minute point budgets (2,000 and 900 points per minute) and separate primary limits
+(5,000 points per hour for GraphQL, 5,000 requests per hour for REST), and a REST `GET` costs 1
+point, so moving the polling to REST leaves the GraphQL budget for the calls that have no REST
+equivalent, such as review-thread resolution. The 100-concurrent-request ceiling is shared by
+both APIs, so REST polling does not raise it. Verified 2026-09-25, and 2026-09-26 with gh 2.97.0 for the `gh` behavior, against
+[List check runs for a Git reference](https://docs.github.com/en/rest/checks/runs),
+[Get the combined status for a specific reference](https://docs.github.com/en/rest/commits/statuses),
+[Rate limits for the REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
+and [Rate limits for the GraphQL API](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api).
+Recheck when either rate-limits page changes its secondary-limit figures, or when a `gh` release
+note says `pr checks` or `pr view` moved off GraphQL or changes the `pr checks` bucket mapping.
 
 Compare triggered workflows against the expected set from Phase 2.5. Flag mismatches.
 
@@ -355,7 +393,7 @@ For **every substantive comment from every participant** (bot accounts with the 
 
 After all comments are evaluated and responded to, implement all VALID (fix now) fixes in a single batch:
 
-1. **For each VALID (fix now) finding**, follow the full workflow: explore the fix context, verify the *fix* approach (not just the finding), implement, re-run the project's build/test gate after each fix
+1. **For each VALID (fix now) finding**, follow the full workflow: explore the fix context, verify the *fix* approach (not just the finding), implement by changing only the lines the finding names (any other edit needs its own finding; `/review:quality-gate` owns this review-fix rule), re-run the project's build/test gate after each fix
 2. **Stage all fixes together:** `git add <specific-files>` for each changed file
 3. **Single commit.** One commit addressing all review comments: `fix: address PR review findings`
 4. **Single push:** all fixes go up in one push, triggering one new monitoring cycle

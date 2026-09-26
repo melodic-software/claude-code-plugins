@@ -90,6 +90,29 @@ All three sub-behaviors are from the Fable 5 prompting guide (verbatim, verified
 The brief states these model-agnostically on purpose: they are correct standing imperatives for an
 under-delegating model too.
 
+### A worker's own background work is not a wait
+
+The "poll in the foreground or return" clause. Claim: a worker cannot count on its own background
+command, watch, or sentinel file to resume it. Basis, in Claude Code:
+
+- [Tools reference](https://code.claude.com/docs/en/tools-reference), Bash tool behavior: "A
+  command that a foreground subagent started stops when that subagent gives its final response."
+  Monitor tool: "Every watch Claude starts has a deadline: 5 minutes by default, at most 30
+  minutes"; "When you stop a subagent that started monitors, for example from `/tasks`, those monitors
+  stop with it."
+- [Sub-agents](https://code.claude.com/docs/en/sub-agents): "A background subagent can leave a
+  background Bash or PowerShell command running past the end of its turn. When that command ends,
+  Claude Code sends the subagent a notification." So a background worker IS notified when its
+  command ends; the brief does not say it never is. What the docs do not give is a way for a
+  worker to wait on an external result without a command of its own that ends when that result
+  arrives.
+- The sentinel-file clause is judgment from observed stalls: in one handoff chain, workers waited
+  on background tasks, watches, or sentinel files that never resumed them, 14+ times across two
+  sessions, until their timeouts.
+
+As of 2026-09-25 (both pages fetched). Recheck when either page changes its subagent
+background-command lifetime or notification text, or the Monitor deadline figures.
+
 ### SendMessage worker continuation
 
 The mechanism the priming addendum names for reusing and steering workers, in Claude Code

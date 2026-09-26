@@ -29,7 +29,8 @@ Adding a second copy is the defect this file removes.
 
 ## The pre-dispatch envelope
 
-Six shared fields. The agent refuses to guess any of them, which is what makes the envelope safe to
+Six shared fields. The agent refuses to guess any of them (a missing `Memory root:` or
+`Turn budget:` line degrades as described below), which is what makes the envelope safe to
 mandate: an unresolved field surfaces as a failed dispatch instead of a confident answer to a
 question nobody asked.
 
@@ -43,8 +44,17 @@ Reason: <the decision this feeds, and who the output is for>
 Memory slice: <memory_dir>/<slug>/              # the sub-slice on a fan-out or a collision
 Memory root: <memory_dir>
 Budget: <the depth this session authorized>
+Turn budget: <turns of gathering before the agent writes and hands back; at or below the agent's default stop turn (30)>
 Capability flags: nested spawning <available|unavailable>
 ```
+
+**The Budget field is carried on two lines.** `Budget:` states depth in words; `Turn budget:`
+states the turn by which the agent stops gathering, in the same unit as its `maxTurns` (assistant
+turns, where one turn may hold several parallel tool calls). A free-text budget such as "thorough
+single pass" bounds no turn count; a named stop turn leaves the agent turns to write before its
+limit. It can only move the agent's stop turn earlier than the default its own definition names:
+an agent ignores a higher value and notes it in `open_questions`. It is degradable: an agent that
+does not receive it stops gathering at that default.
 
 **Research adds one more labeled line**, because source breadth is the caller's level and
 the researcher lane is pinned `high` for reasoning:
@@ -85,8 +95,9 @@ Under `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` it cannot be passed at all. Dated recor
 for a collision or a parallel fan-out. No one can tell from the path alone which ancestor
 is the configured root, and the root is where the self-ignoring `.gitignore` guard belongs. An agent
 that has to derive it derives-and-flags rather than stopping, so the cost is a recoverable wrong
-guess, not a halt: it is the one envelope field whose absence is degradable. Topic/scope, reason and
-slice path are the hard stop.
+guess, not a halt: it is the one envelope field an agent repairs by deriving a value. The
+`Turn budget:` line is also degradable, but its absence falls back to a fixed default rather than a
+derived guess. Topic/scope, reason and slice path are the hard stop.
 
 ### Capability flags carry what was probed, and nothing else
 
@@ -444,20 +455,23 @@ slice. Both also usually leave a **live agent**. The order is:
 > discard-first reading would have re-dispatched a finished run at full cost.
 
 The harness supports this, verified against <https://code.claude.com/docs/en/sub-agents> (raw
-markdown, fetched 2026-08-11):
+markdown, fetched 2026-09-25):
 
+- "When the subagent reaches the limit, Claude Code returns its output marked as partial, and
+  Claude can resume it to continue. The partial marking requires Claude Code v2.1.246 or later".
 - "Resumed subagents retain their full conversation history, including all previous tool calls,
-  results, and reasoning. The subagent picks up exactly where it stopped rather than starting
+  results, and reasoning." and "The subagent picks up exactly where it stopped rather than starting
   fresh."
-- "A completed subagent that receives a `SendMessage` auto-resumes in the background without a new
-  `Agent` invocation."
+- "When Claude sends a completed subagent a message with the `SendMessage` tool, the subagent
+  resumes in the background without a new `Agent` invocation."
 - "When a subagent completes, Claude receives its agent ID". Address it by ID, not by name.
 
 **The discard is what happens next, not instead.** Discard the partial slice, clearing it or
 assigning a fresh sub-slice, when the resume is refused, is unavailable, or comes back without a
 usable payload. It stays mandatory there: a half-marked coverage ledger cannot be told apart from a
-complete one by the coverage script, and a half-written artifact set cannot be told apart from a
-complete one by reading it.
+complete one by the coverage script. An index still marked `Run status: in progress` is refused by
+the acceptance gate, so that partial slice is visible; one with no status line, from an inline or
+older run, still cannot be told apart from a complete one by reading it.
 
 **`truncated` still means the turn-budget stop**, and nothing here widens it. That is the invariant
 the `persistence:` axis was built around: a run that finished its work and could not save it is

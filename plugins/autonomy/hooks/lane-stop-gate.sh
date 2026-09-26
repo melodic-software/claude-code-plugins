@@ -89,7 +89,8 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # The plugin root, as gate_plugin_root_to derives it: the libraries are not
 # loaded yet (see the pre-filter below), so the derivation is spelled here.
 case "$HOOK_DIR" in
-/* | ?:[/\\]*) _gate_root="$HOOK_DIR/.." ;;
+/*) _gate_root="$HOOK_DIR/.." ;;
+?:[/\\]*) _gate_root="${HOOK_DIR//\\//}/.." ;;
 *) _gate_root=$(cd "$HOOK_DIR/.." 2>/dev/null && pwd) ;;
 esac
 

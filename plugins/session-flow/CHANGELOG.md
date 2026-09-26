@@ -1,5 +1,27 @@
 # Changelog: session-flow plugin
 
+## [0.38.0] - 2026-09-25
+
+### Added
+
+- **`retro` parser reports forks and scopes its coverage denominator.** Multi-session output gains
+  `fork_candidates`: transcripts outside the requested set that share record uuids with it, which
+  no `previous_handoff` pointer reaches. They are offered, never added. Under `--chain-from`,
+  `chain_coverage.available` counts the chain plus the other transcripts that mention the
+  handoff's topic (reported as `topic`), so a chain launched from `$HOME` is no longer measured
+  against every unrelated session in that project directory.
+- **`handoff` promotes resolved cumulative entries.** When a cumulative section passes about 25
+  entries (judgment), resolved entries move into a committed doc or ADR and leave a
+  `- [hN] Promoted to <ref>: <opening words>` pointer. `save_point.py validate` accepts that
+  pointer in place of the dropped entry when it keeps the entry's tag and quotes at least its
+  first 20 characters.
+
+### Changed
+
+- **`orchestrate` imperative 4:** a worker that must wait on an external result polls in the
+  foreground or returns and lets the parent re-dispatch; its own background command, watch, or
+  sentinel file is not a wait. Sources and recheck trigger in `context/sources.md`.
+
 ## [0.37.3] - 2026-09-25
 
 ### Changed
