@@ -120,7 +120,13 @@ class TestShippedSchemas(unittest.TestCase):
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         q = doc["questions"][0]
-        q.update(waiting=True, waitsOn="x", waitingBy="user", setAsideAt="t")
+        q.update(
+            waiting=True, waitsOn="x", waitingBy="user", setAsideAt="t", setAsideSeq=4
+        )
+        doc["activity"] = [
+            {"at": "t", "text": "Round 2 added: Q2", "ids": ["Q2"], "added": True},
+            {"at": "t", "text": "Restated the shared understanding", "restate": 1},
+        ]
         q["commitsConfirmed"] = [{"index": 0, "reason": "r", "at": "t"}]
         doc["restatement"] = {"rev": 1, "at": "t", "sections": {"goal": "g"}}
         self.assertIsNone(schema.first_error(doc, schema.load("questions")))

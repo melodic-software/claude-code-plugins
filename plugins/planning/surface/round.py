@@ -354,12 +354,12 @@ def op_add_round(d, doc, a):
         if a.round is not None:
             q.setdefault("round", a.round)
         touched += add_question(doc, q)
-    ids = {v.get("id") for v in doc["visuals"]}
+    known = {v.get("id") for v in doc["visuals"]}
     for v in a.visuals or []:
-        if not v.get("id") or v["id"] in ids:
+        if not v.get("id") or v["id"] in known:
             sys.exit(f"a visual needs a new id: {v.get('id')}")
         doc["visuals"].append(v)
-        ids.add(v["id"])
+        known.add(v["id"])
     ids = ", ".join(q["id"] for q in a.questions or [])
     if not ids:
         return (
@@ -535,7 +535,8 @@ HOLD_LABELS = {"claude": "pending research", "user": "needs your answer"}
 
 def op_wait(d, doc, a):
     """Hold a question on Claude's research (by claude) or on the user's answer (by user).
-    A user hold stamps setAsideAt, which outlives the hold: decisions up to it stop counting."""
+    A user hold stamps setAsideAt and setAsideSeq (the page's seq then), which outlive the hold:
+    decisions up to them stop counting."""
     q = find(doc, a.id)
     waits = (a.waitsOn or "").strip()
     if bool(waits) == bool(a.clear):
@@ -554,7 +555,8 @@ def op_wait(d, doc, a):
         q.update(waiting=True, waitsOn=waits)
         q.pop("waitingBy", None)
         if by == "user":
-            q.update(waitingBy="user", setAsideAt=now())
+            seq = load_json(d / "responses.json", EMPTY_RESPONSES).get("seq", 0)
+            q.update(waitingBy="user", setAsideAt=now(), setAsideSeq=seq)
         label = HOLD_LABELS[by]
         line, msg = (
             f"{label[0].upper()}{label[1:]}: {waits}",
@@ -627,33 +629,44 @@ def op_activity(d, doc, a):
     return [], "logged"
 
 
-def log_activity(doc, text, ids, notes=False):
-    """Append one feed entry, keeping the newest ACTIVITY_CAP."""
+def log_activity(doc, text, ids, **marks):
+    """Append one feed entry, keeping the newest ACTIVITY_CAP; a falsy mark is left out."""
     entry = {"at": now(), "text": text}
     if ids:
         entry["ids"] = ids
-    if notes:
-        entry["notes"] = True
+    entry.update((k, v) for k, v in marks.items() if v)
     doc["activity"] = (doc.get("activity") or [])[1 - ACTIVITY_CAP :] + [entry]
 
 
-def summarize(doc, msgs, touched, notes):
-    """One feed entry for the user-visible ops of one write; none when there are none."""
-    if msgs:
-        text = "; ".join(msgs)
-        ids = [q["id"] for q in touched]
-        log_activity(doc, text[0].upper() + text[1:], ids, notes)
+def summarize(doc, logged):
+    """One feed entry for the (op name, message, touched) of one write's logged ops; none when
+    there are none. `notes`, `added` and `restate` (the new rev) mark what the page links to."""
+    if not logged:
+        return
+    names = {name for name, _, _ in logged}
+    text = "; ".join(msg for _, msg, _ in logged)
+    ids = []
+    for _, _, touched in logged:
+        ids += [q["id"] for q in touched if q["id"] not in ids]
+    log_activity(
+        doc,
+        text[0].upper() + text[1:],
+        ids,
+        notes="note-reply" in names,
+        added=bool(names & {"add", "add-round"}),
+        restate=doc["restatement"]["rev"] if "restate" in names else None,
+    )
 
 
-def write_op(fn, logged=False):
-    """A CLI command: lock, load, run one op, save once, then report."""
+def write_op(fn, name):
+    """A CLI command: lock, load, run op `name`, save once, then report."""
 
     def cmd(d, a):
         with sidecar_lock(d):
             doc = load(d)
             touched, msg = fn(d, doc, a)
-            if logged:
-                summarize(doc, [msg], touched, fn is op_note_reply)
+            if name in LOGGED_OPS:
+                summarize(doc, [(name, msg, touched)])
             save(d, doc, touched)
         print(f"{msg} (rev {doc['rev']})")
 
@@ -701,7 +714,7 @@ def cmd_add(d, a):
     if a.waiting:
         q["waiting"] = True
     a.question = q
-    write_op(op_add_linted, logged=True)(d, a)
+    write_op(op_add_linted, "add")(d, a)
 
 
 def cmd_add_round(d, a):
@@ -712,7 +725,7 @@ def cmd_add_round(d, a):
         spec.get("questions"),
         spec.get("visuals"),
     )
-    write_op(op_add_round_linted, logged=True)(d, a)
+    write_op(op_add_round_linted, "add-round")(d, a)
 
 
 # Per-op argument defaults for `apply`: the op file's keys map onto the same namespace the CLI builds.
@@ -812,7 +825,7 @@ def cmd_apply(d, a):
             sys.exit(f"refused: {err}")
     with sidecar_lock(d):
         doc = load(d)
-        touched, lines, added, seen = [], [], [], []
+        touched, lines, added, logged = [], [], [], []
         for op in spec["ops"]:
             fn, defaults = OP_ARGS[op["op"]]
             args = argparse.Namespace(
@@ -830,9 +843,8 @@ def cmd_apply(d, a):
                 added += args.questions or []
             lines.append(f"{op['op']}: {msg}")
             if op["op"] in LOGGED_OPS:
-                seen.append(msg)
-        notes = any(op["op"] == "note-reply" for op in spec["ops"])
-        summarize(doc, seen, touched, notes)
+                logged.append((op["op"], msg, t))
+        summarize(doc, logged)
         lint_questions(doc, added)
         save(d, doc, touched)
     for line in lines:
@@ -863,7 +875,7 @@ def cmd_status(d, a):
             if q.get("waiting") and not q.get("supersededBy")
             else dec or ("superseded" if q.get("supersededBy") else "open")
         )
-        label = "awaiting user" if q.get("waitingBy") == "user" else "waits on"
+        label = exporters.hold_label(q)
         rows.setdefault(q.get("group"), []).append(
             (
                 q["id"],
@@ -1347,7 +1359,7 @@ def main(argv=None):
     s.add_argument(
         "--depends", dest="dependsOn", action="append", help="group id, repeatable"
     )
-    s.set_defaults(fn=write_op(op_group))
+    s.set_defaults(fn=write_op(op_group, "group"))
 
     affects_help = "question ids this change affects, comma-separated, or none (required with --rec)"
     s = sub.add_parser(
@@ -1371,7 +1383,7 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=write_op(op_reply, logged=True))
+    s.set_defaults(fn=write_op(op_reply, "reply"))
 
     s = sub.add_parser("revise", help="change wording, recommendation or alternatives")
     s.add_argument("id")
@@ -1387,30 +1399,30 @@ def main(argv=None):
     s.add_argument(
         "--force", action="store_true", help="revise even if a newer user event exists"
     )
-    s.set_defaults(fn=write_op(op_revise, logged=True))
+    s.set_defaults(fn=write_op(op_revise, "revise"))
 
     s = sub.add_parser("handle", help="mark page events handled with no reply")
     s.add_argument("--seq", type=int, nargs="+", required=True)
-    s.set_defaults(fn=write_op(op_handle))
+    s.set_defaults(fn=write_op(op_handle, "handle"))
 
     s = sub.add_parser("note-reply", help="reply in the Notes to Claude thread")
     s.add_argument("--text", required=True)
     s.add_argument(
         "--seq", type=int, help="note event seq this answers; marks it handled"
     )
-    s.set_defaults(fn=write_op(op_note_reply, logged=True))
+    s.set_defaults(fn=write_op(op_note_reply, "note-reply"))
 
     s = sub.add_parser("record-terminal", help="record the user's terminal answer")
     s.add_argument("id")
     s.add_argument("--decision", required=True, choices=DECISIONS)
     s.add_argument("--alt")
     s.add_argument("--text")
-    s.set_defaults(fn=write_op(op_record_terminal, logged=True))
+    s.set_defaults(fn=write_op(op_record_terminal, "record-terminal"))
 
     s = sub.add_parser("archive", help="archive off-path questions with a reason")
     s.add_argument("ids", nargs="+", metavar="id")
     s.add_argument("--why", required=True, help="why the questions left the path")
-    s.set_defaults(fn=write_op(op_archive, logged=True))
+    s.set_defaults(fn=write_op(op_archive, "archive"))
 
     s = sub.add_parser("apply", help="run a list of ops from one JSON file, one write")
     s.add_argument("--file", required=True, help='{"ops": [{"op": "reply", ...}, ...]}')
@@ -1426,7 +1438,7 @@ def main(argv=None):
 
     s = sub.add_parser("bump", help="bump rev")
     s.add_argument("--id")
-    s.set_defaults(fn=write_op(op_bump))
+    s.set_defaults(fn=write_op(op_bump, "bump"))
 
     s = sub.add_parser("validate", help="check both files against the shipped schemas")
     add_dir(s)

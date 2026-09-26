@@ -68,15 +68,24 @@ def read(d):
     return doc, resp
 
 
+def hold_label(q):
+    return "awaiting user" if q.get("waitingBy") == "user" else "waits on"
+
+
+def set_aside(q, x):
+    """A `wait` with `by: user` sets aside a page decision (it has a seq) up to the question's
+    setAsideSeq, and a terminal one stamped no later than its setAsideAt."""
+    if "seq" in x and q.get("setAsideSeq") is not None:
+        return x["seq"] <= q["setAsideSeq"]
+    return x["updatedAt"] <= (q.get("setAsideAt") or "")
+
+
 def latest_decision(q, responses):
-    """The newer of the page answer and the terminal answer, or None. A decision whose updatedAt
-    is not later than the question's setAsideAt (stamped by a `wait` with `by: user`) is set
-    aside and does not count."""
-    aside = q.get("setAsideAt") or ""
+    """The newer of the page answer and the terminal answer, or None; a set-aside one does not count."""
     cands = [
         x
         for x in (responses.get(q["id"]), q.get("terminal"))
-        if x and x.get("updatedAt") and x["updatedAt"] > aside
+        if x and x.get("updatedAt") and not set_aside(q, x)
     ]
     return max(cands, key=lambda x: x["updatedAt"]) if cands else None
 
@@ -123,8 +132,12 @@ def settle(q, responses, events, seed_rows):
     if q.get("supersededBy"):
         return "withdrawn", f"superseded by {q['supersededBy']}" + tail, "", False
     if q.get("waiting"):
-        label = "awaiting user" if q.get("waitingBy") == "user" else "waits on"
-        return "open", f"{label}: {q.get('waitsOn') or 'a lookup'}" + tail, "", False
+        return (
+            "open",
+            f"{hold_label(q)}: {q.get('waitsOn') or 'a lookup'}" + tail,
+            "",
+            False,
+        )
     rec = latest_decision(q, responses)
     decision = rec.get("decision") if rec else None
     text = clean((rec or {}).get("text"))

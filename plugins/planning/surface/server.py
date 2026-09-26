@@ -48,6 +48,7 @@ WITH_ALT = {"alt", "confirm", "confirm-understanding"}
 UNDERSTANDING = ("confirm", "off")
 API = 2
 MAX_BODY = 64 * 1024
+MAX_STREAMS = 8  # concurrent /events streams; one more gets 503
 # A file visual larger than this is neither served nor inlined.
 MAX_VISUAL_FILE = 4 * 1024 * 1024
 OCTET = "application/octet-stream"
@@ -570,6 +571,7 @@ class Hub:
         self.session = hashlib.sha256(str(self.dir).lower().encode()).hexdigest()[:12]
         self.cond = threading.Condition()
         self.waiters = 0
+        self.streams = 0
         self.last_wait = 0.0
         self.last_deliver = 0.0
         self.hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
@@ -733,10 +735,12 @@ class Hub:
             raise ValueError("unknown question")
         if kind in ("own", "ask", "note") and not text.strip():
             raise ValueError("text required")
-        if kind == "confirm-understanding":
-            check_understanding(doc, alt, text, msg.get("contentRev"))
         now = now_iso()
         with self.cond:
+            if kind == "confirm-understanding":
+                check_understanding(
+                    load_json(self.questions, {}), alt, text, msg.get("contentRev")
+                )
             r = load_json(self.responses, EMPTY_RESPONSES)
             for k, v in EMPTY_RESPONSES.items():
                 r.setdefault(k, json.loads(json.dumps(v)))
@@ -874,6 +878,12 @@ class Hub:
         deadline = time.time() + timeout
         newest = None
         lease = None
+
+        def select_events(r):
+            if after == "handled":
+                return self.unhandled(r)
+            return [e for e in r.get("events", []) if e.get("seq", 0) > after]
+
         with self.cond:
             if watcher is not None:
                 lease = self.claim(watcher)
@@ -889,12 +899,10 @@ class Hub:
                     if after != "handled":
                         if after > top:
                             after = 0  # stale cursor: responses.json was reset
-                        events = [
-                            e for e in r.get("events", []) if e.get("seq", 0) > after
-                        ]
+                        events = select_events(r)
                     elif newest is None:
                         newest = top
-                        events = self.unhandled(r)
+                        events = select_events(r)
                         if replayed > top:
                             replayed = 0  # responses.json was reset
                         if any(e["seq"] > replayed for e in events):
@@ -903,21 +911,14 @@ class Hub:
                             events = []
                     elif top != newest:
                         newest = top
-                        events = self.unhandled(r)
+                        events = select_events(r)
                     else:
                         events = []
                     left = deadline - time.time()
                     if events:
                         r = self.settle(r)
                         top = r.get("seq", 0)
-                        if after == "handled":
-                            events = self.unhandled(r)
-                        else:
-                            events = [
-                                e
-                                for e in r.get("events", [])
-                                if e.get("seq", 0) > after
-                            ]
+                        events = select_events(r)
                         if replay is not None and events:
                             replay = max(e["seq"] for e in events)
                     if events or left <= 0:
@@ -1083,6 +1084,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def sse(self):
         hub = self.hub
+        with hub.cond:
+            full = hub.streams >= MAX_STREAMS
+            if not full:
+                hub.streams += 1
+        if full:
+            return self.send(503, {"error": f"at most {MAX_STREAMS} event streams"})
+        try:
+            self.stream()
+        finally:
+            with hub.cond:
+                hub.streams -= 1
+
+    def stream(self):
+        """State frames on every change and a ping when idle, until the client goes."""
+        hub = self.hub
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -1091,7 +1107,8 @@ class Handler(BaseHTTPRequestHandler):
         last_sig, last_beat, n = None, time.time(), 0
         try:
             self.wfile.write(b"retry: 2000\n\n")
-            while True:
+            self.wfile.flush()
+            while not self.client_gone():
                 sig = hub.signature()
                 if sig != last_sig:
                     n += 1

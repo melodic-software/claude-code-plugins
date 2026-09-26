@@ -191,7 +191,7 @@
       }
     },
     "wait": {
-      "description": "Hold question `id` on `waitsOn`, or end the hold with `clear`; exactly one of the two. `by` names who the hold waits on: `claude` (the default, pending research) or `user` (needs the user's answer; also stamps `setAsideAt`, so a decision recorded before it no longer counts). `by` is refused with `clear`.",
+      "description": "Hold question `id` on `waitsOn`, or end the hold with `clear`; exactly one of the two. `by` names who the hold waits on: `claude` (the default, pending research) or `user` (needs the user's answer; also stamps `setAsideAt` and `setAsideSeq`, so a decision recorded before it no longer counts). `by` is refused with `clear`.",
       "type": "object",
       "required": ["op", "id"],
       "additionalProperties": false,

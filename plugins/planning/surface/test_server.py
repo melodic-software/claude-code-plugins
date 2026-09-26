@@ -954,6 +954,41 @@ class TestEventStreamPing(ServerCase):
             conn.close()
 
 
+class TestEventStreamCap(ServerCase):
+    """At most MAX_STREAMS event streams at once: one more is 503 until a stream closes."""
+
+    def open_stream(self, streams):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        conn.request("GET", "/events")
+        resp = conn.getresponse()
+        streams.append((conn, resp))
+        return resp
+
+    def test_the_stream_over_the_cap_is_503_until_one_closes(self):
+        from server import MAX_STREAMS
+
+        streams = []
+        try:
+            for _ in range(MAX_STREAMS):
+                resp = self.open_stream(streams)
+                self.assertEqual(resp.status, 200)
+                self.assertEqual(resp.fp.readline(), b"retry: 2000\n")
+            resp = self.open_stream(streams)
+            self.assertEqual(resp.status, 503)
+            self.assertIn("streams", json.loads(resp.read())["error"])
+            for part in streams.pop(0):
+                part.close()
+            deadline = time.monotonic() + 5
+            while (resp := self.open_stream(streams)).status != 200:
+                resp.read()
+                self.assertLess(time.monotonic(), deadline, "no slot freed")
+                time.sleep(0.2)
+        finally:
+            for conn, resp in streams:
+                resp.close()
+                conn.close()
+
+
 class TestListener(WaitCase):
     """listener.idleFor (AC26 server side): null before any wait, 0 while one waits, then counting.
 
@@ -1220,6 +1255,31 @@ class TestConfirmUnderstandingNeedsARestatement(WaitCase):
         )
         self.assertEqual(code, 400, data)
         self.assertIn("restatement", data["error"])
+
+
+class TestUnderstandingCheckedUnderTheLock(unittest.TestCase):
+    """confirm-understanding is checked against questions.json read inside the hub's lock."""
+
+    def test_the_check_runs_under_the_lock(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-lock-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        seed_questions(tmp, question("A"))
+        seed_restatement(tmp, 2)
+        with unittest.mock.patch.dict(os.environ, settings_env(), clear=True):
+            hub = server.Hub(0, tmp)
+        held, real = [], server.check_understanding
+
+        def spy(*args):
+            held.append(hub.cond._is_owned())
+            return real(*args)
+
+        with unittest.mock.patch.object(server, "check_understanding", spy):
+            hub.record(
+                {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 2}
+            )
+        self.assertEqual(held, [True])
 
 
 def settings_env(**extra):

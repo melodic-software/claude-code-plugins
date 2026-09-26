@@ -205,6 +205,14 @@ class TestExportLedger(SessionCase):
         self.assertRegex(rows[1], r"^- Q2 \| answered \| .*accepted: ")
         self.assertRegex(rows[2], r"^- Q3 \| open \|")
 
+    def test_a_page_decision_is_set_aside_by_seq_and_a_terminal_one_by_time(self):
+        q = {"id": "Q1", "setAsideAt": AT, "setAsideSeq": 3}
+        page = {"decision": "accept", "updatedAt": AT, "seq": 4}
+        self.assertIs(exporters.latest_decision(q, {"Q1": page}), page)
+        self.assertIsNone(exporters.latest_decision(q, {"Q1": {**page, "seq": 3}}))
+        term = {"decision": "accept", "updatedAt": AT}
+        self.assertIsNone(exporters.latest_decision({**q, "terminal": term}, {}))
+
     def test_non_contiguous_ids_are_renumbered_with_the_original_id(self):
         self.session(
             [question("J2"), question("J1"), question("Q7")],

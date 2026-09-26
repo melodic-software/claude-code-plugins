@@ -763,6 +763,30 @@ class TestClaudeActivity(DirCase):
         rc, out, err = self.rp("status")
         self.assertIn("First group: 2 of 2 closed", out.splitlines())
 
+    def test_a_page_decision_is_set_aside_by_its_seq(self):
+        own = {
+            "seq": 1,
+            "id": "Q1",
+            "kind": "own",
+            "alt": None,
+            "text": "If X?",
+            "at": "2999-01-01T00:00:00Z",
+        }
+        self.write_events([own])
+        self.apply({"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"})
+        self.apply({"op": "wait", "id": "Q1", "clear": True})
+        q = self.q("Q1")
+        self.assertEqual(q["setAsideSeq"], 1)
+        rc, out, err = self.rp("status")
+        self.assertIn(
+            "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2",
+            out.splitlines(),
+        )
+        same_second = {**own, "seq": 2, "kind": "accept", "at": q["setAsideAt"]}
+        self.write_events([own, same_second])
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
     def test_wait_by_claude_drops_a_user_hold(self):
         self.apply({"op": "wait", "id": "Q3", "by": "user", "waitsOn": "x"})
         stamp = self.q("Q3")["setAsideAt"]
@@ -862,10 +886,17 @@ class TestClaudeActivity(DirCase):
         [e] = self.entries()
         self.assertEqual(e["text"], "Restated the shared understanding")
         self.assertNotIn("ids", e)
-        self.apply({"op": "restate", "sections": {"constraints": "Stdlib only."}})
+        self.assertEqual(e["restate"], 1)
+        self.apply(
+            {"op": "restate", "sections": {"constraints": "Stdlib only."}},
+            {"op": "reply", "id": "Q1", "text": "Done."},
+        )
         r = self.doc()["restatement"]
         self.assertEqual(
             (r["rev"], r["sections"]), (2, {"constraints": "Stdlib only."})
+        )
+        self.assertEqual(
+            (self.entries()[-1]["restate"], self.entries()[-1]["ids"]), (2, ["Q1"])
         )
 
     def test_restate_refusals(self):
@@ -900,6 +931,7 @@ class TestClaudeActivity(DirCase):
         self.assertEqual(e["text"], "Replied on Q1; round 4 added: Q4, Q5")
         self.assertEqual(e["ids"], ["Q1", "Q4", "Q5"])
         self.assertTrue(e["at"])
+        self.assertIs(e["added"], True)
 
     def test_add_round_without_a_round_names_the_ids(self):
         self.apply({"op": "add-round", "questions": [question("Q4")]})
@@ -929,7 +961,8 @@ class TestClaudeActivity(DirCase):
         self.assertEqual(rc, 0, out + err)
         [e] = self.entries()
         self.assertEqual((e["text"], e["ids"]), ("Replied on Q1", ["Q1"]))
-        self.assertNotIn("notes", e)
+        for key in ("notes", "added", "restate"):
+            self.assertNotIn(key, e)
 
     def test_a_note_reply_marks_the_entry(self):
         self.apply(

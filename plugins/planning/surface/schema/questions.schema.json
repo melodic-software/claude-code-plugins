@@ -27,7 +27,7 @@
       "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
     },
     "activity": {
-      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched and `notes` marks a reply in Notes to Claude.",
+      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched, `notes` marks a reply in Notes to Claude, `added` marks an `add` or `add-round`, and `restate` carries the restatement rev a `restate` wrote.",
       "type": "array",
       "maxItems": 200,
       "items": {
@@ -38,7 +38,9 @@
           "at": {"type": "string"},
           "text": {"type": "string"},
           "ids": {"type": "array", "items": {"type": "string"}},
-          "notes": {"type": "boolean"}
+          "notes": {"type": "boolean"},
+          "added": {"type": "boolean"},
+          "restate": {"type": "integer"}
         }
       }
     },
@@ -200,7 +202,11 @@
         },
         "setAsideAt": {
           "type": "string",
-          "description": "When a `wait` with `by: user` landed. A page or terminal decision whose updatedAt is not later than this does not count as an answer, even after the hold clears."
+          "description": "When a `wait` with `by: user` landed. A terminal decision whose updatedAt is not later than this does not count as an answer, even after the hold clears."
+        },
+        "setAsideSeq": {
+          "type": "integer",
+          "description": "The page's responses seq when a `wait` with `by: user` landed. A page decision whose seq is not above this does not count as an answer, even after the hold clears."
         },
         "contentRev": {"type": "integer"},
         "rev": {"type": "integer"},
