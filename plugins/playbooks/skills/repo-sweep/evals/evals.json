@@ -1,0 +1,80 @@
+{
+  "skill_name": "repo-sweep",
+  "evals": [
+    {
+      "id": 1,
+      "name": "plan-lists-every-entry-and-opens-page",
+      "prompt": "/playbooks:repo-sweep plan",
+      "expected_output": "Checks for an existing sweep with state.sh, builds recommendations with history.sh, judges each applies-when against the repository, prints a table with every catalog id and its recommendation and reason, renders the selection page, and waits for a repo-sweep-selection line before creating anything.",
+      "files": [],
+      "expectations": [
+        "Runs state.sh before anything else and continues only on exit 10 or 11",
+        "Prints every catalog id with a recommendation of run, rerun, rerun-optional, or not-applicable and a one-line reason",
+        "Renders the page with render.sh --page and gives its path, with the render.sh --checklist markdown fallback when the page cannot open",
+        "Creates no branch, worktree, commit, or PR before the user pastes a selection line and approves"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "plan-creates-seeded-draft-pr-after-approval",
+      "prompt": "/playbooks:repo-sweep plan. Here is my selection: repo-sweep-selection: dead-code,batch-simplify,lint,verify. Approved, create it.",
+      "expected_output": "Validates the selection with render.sh --checklist, creates branch chore/repo-sweep-hygiene-<yyyymmdd> in a new worktree, pushes an empty seed commit, and opens a draft PR whose Summary holds the checklist block between repo-sweep markers.",
+      "files": [],
+      "expectations": [
+        "Uses the branch name chore/repo-sweep-hygiene-<yyyymmdd>, adding -2 when that branch exists",
+        "Pushes an empty seed commit before gh pr create, because GitHub refuses a PR with no commits",
+        "Opens the PR as a draft with the checklist block from render.sh inside the body",
+        "Confirms the created PR body contains the repo-sweep:begin marker"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "next-runs-one-step-and-ticks",
+      "prompt": "/playbooks:repo-sweep next",
+      "expected_output": "Runs state.sh, reconciles any committed steps, invokes orchestrate and use-your-skills, marks the next step in progress, states the override as its own instruction, invokes the step's skills with only their args, reviews findings with the user, runs guard.sh, makes one commit with Scope decisions and Playbook-Step trailers, pushes, and ticks the line.",
+      "files": [],
+      "expectations": [
+        "Ticks the step in progress with tick.sh before invoking the skill",
+        "Never appends override text to the skill's arguments",
+        "Runs guard.sh before committing and runs the printed git reset --soft on exit 11",
+        "Makes exactly one commit whose final paragraph holds Playbook, Playbook-Step, and Co-Authored-By trailers, or ticks no-findings with skill@version and makes no commit",
+        "Tells the user to run review if anything went wrong, then /clear and next"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "next-refuses-merged-sweep",
+      "prompt": "/playbooks:repo-sweep next (the sweep PR for this branch was merged yesterday)",
+      "expected_output": "state.sh exits 11; the skill refuses to continue and points to /playbooks:repo-sweep plan.",
+      "files": [],
+      "expectations": [
+        "Stops on state.sh exit 11 without running any step",
+        "Points the user to /playbooks:repo-sweep plan to start a new sweep"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "next-stops-on-dirty-tree",
+      "prompt": "/playbooks:repo-sweep next (I have uncommitted edits in src/ and no step is in progress)",
+      "expected_output": "state.sh exits 12; the skill shows git status and asks the user what to do with the changes, running no step.",
+      "files": [],
+      "expectations": [
+        "Stops on state.sh exit 12 and shows the uncommitted changes",
+        "Asks the user instead of stashing, committing, or discarding the changes",
+        "Treats a dirty tree under an in-progress [~] step as a resume, not a stop"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "review-files-only-after-approval",
+      "prompt": "/playbooks:repo-sweep review. batch-simplify opened its own PR even with the override, and the audit-noise entry should run before derivability.",
+      "expected_output": "Runs plugin-quality:audit on batch-simplify and drafts an issue against code-tidying, drafts a separate catalog issue for the ordering problem, shows both drafts, and files each only after approval.",
+      "files": [],
+      "expectations": [
+        "Separates the skill defect from the catalog problem into two issues",
+        "Invokes /plugin-quality:audit for the skill defect",
+        "Files nothing with gh issue create until the user approves each draft"
+      ]
+    }
+  ]
+}
