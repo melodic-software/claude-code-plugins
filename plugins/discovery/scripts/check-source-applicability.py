@@ -129,13 +129,15 @@ def indent(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
-def top_level(lines: list[str], key: str) -> tuple[int, str | None] | None:
-    for i, line in enumerate(lines):
-        if indent(line) == 0:
-            m = KEY.match(line)
-            if m and m.group(1) == key:
-                return i, m.group(2)
-    return None
+def top_level(lines: list[str], key: str, where: str) -> tuple[int, str | None] | None:
+    hits = [
+        (i, m.group(2))
+        for i, line in enumerate(lines)
+        if indent(line) == 0 and (m := KEY.match(line)) and m.group(1) == key
+    ]
+    if len(hits) > 1:
+        raise Ungradeable(f"{where}: duplicate top-level key {key}")
+    return hits[0] if hits else None
 
 
 def put(mapping: dict, key: str, value: str | None, where: str) -> None:
@@ -145,7 +147,7 @@ def put(mapping: dict, key: str, value: str | None, where: str) -> None:
 
 
 def parse_claims(path: Path, lines: list[str]) -> list[dict]:
-    found = top_level(lines, "claims")
+    found = top_level(lines, "claims", str(path))
     if found is None:
         raise Ungradeable(f"{path}: front matter has no claims: key")
     start, inline = found
@@ -296,7 +298,7 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
 
     violations: list[str] = []
     index_lines = front_matter(index, required=False) or []
-    found = top_level(index_lines, "evidence_use")
+    found = top_level(index_lines, "evidence_use", str(index))
     recorded = "internal" if found is None else mode_value(scalar(found[1]), str(index))
     if expected is not None and expected != recorded:
         violations.append(
