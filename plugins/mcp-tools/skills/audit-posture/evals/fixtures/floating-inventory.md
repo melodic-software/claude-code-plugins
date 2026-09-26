@@ -28,4 +28,5 @@ Footer lines:
 # not read: --mcp-config servers
 # not read: plugin servers not passed as --config
 # not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)
+# not evaluated: file-scope rows are not checked for precedence against other scopes
 ```
