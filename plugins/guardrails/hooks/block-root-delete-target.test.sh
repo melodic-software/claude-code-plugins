@@ -813,6 +813,10 @@ expect_both 'tree: a subshell cd .. then a delete blocks (declared overblock)' 2
 # leaves the delete alone.
 expect_both 'cdpath: an inline CDPATH prefix refuses a later relative delete' 2 "${RDT_CWD[@]}" \
   --command 'CDPATH=/c cd Windows && rm -rf x'
+expect_both 'cdpath: an inline CDPATH=/ prefix refuses a later relative delete' 2 "${RDT_CWD[@]}" \
+  --command 'CDPATH=/ cd c && rm -rf x'
+expect_both 'cdpath: an inline prefix refuses from a temp cwd too' 2 --cwd "$TEST_TMPDIR" \
+  --command 'CDPATH=/ cd c && rm -rf x'
 expect_both 'cdpath: a CDPATH assignment segment refuses a later relative delete' 2 "${RDT_CWD[@]}" \
   --command 'CDPATH=/c ; cd Windows && rm -rf x'
 expect_both 'cdpath: export CDPATH refuses a later relative delete' 2 "${RDT_CWD[@]}" \
@@ -848,6 +852,8 @@ expect_both 'brace: a letter sequence is refused' 2 "${RDT_CWD[@]}" --command 'r
 expect_both 'brace: more than 64 expansions is refused' 2 "${RDT_CWD[@]}" \
   --command 'rm -rf {a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}'
 expect_both 'brace: a partly quoted brace is refused' 2 "${RDT_CWD[@]}" --command 'rm -rf "a"{/,x}'
+expect_both 'brace: "$X"/{a,b} is refused as partly quoted' 2 "${RDT_CWD[@]}" --command 'rm -rf "$X"/{a,b}'
+expect_both 'brace: $X/{a,b} unquoted is left alone like $X/build' 0 "${RDT_CWD[@]}" --command 'rm -rf $X/{a,b}'
 expect_both 'brace: inside a substitution blocks' 2 --command 'echo $(rm -rf {/,x})'
 guard_invoke "${RDT_CWD[@]}" --command 'rm -rf x{1..3}'
 assert_contains "the brace refusal names its form" "$GUARD_ERR" "brace expansion"
@@ -995,13 +1001,71 @@ if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$rdt_ln/dang" 2>/dev/null &&
     expect_both 'symlink: */* through a link to outside blocks' 2 --cwd "$rdt_ln" --command 'rm -rf */*'
     expect_both 'symlink: u*/x through a link to outside blocks' 2 --cwd "$rdt_ln" --command 'rm -rf u*/x'
     rm -f "$rdt_ln/up"
+    # A glob MATCH is a literal path: a `$` or a bracket in its name is not
+    # read again as an expansion or a glob. And a glob that matches nothing
+    # reaches rm as its own literal text, which is judged as a path too.
+    rdt_h3="$TEST_TMPDIR/h3"
+    mkdir -p "$rdt_h3/q\$" "$rdt_h3/[b]"
+    if MSYS=winsymlinks:lnk ln -s "$RDT_TOP/.." "$rdt_h3/q\$/k" 2>/dev/null &&
+      MSYS=winsymlinks:lnk ln -s "$RDT_TOP/.." "$rdt_h3/[b]/k" 2>/dev/null; then
+      expect_both 'literal match: a $ in a matched name is not an expansion' 2 --cwd "$rdt_h3" --command 'rm -rf q?/k/'
+      expect_both 'literal match: a bracket in a matched name is not globbed again' 2 --cwd "$rdt_h3" \
+        --command 'rm -rf ?b?/k/'
+      expect_both 'literal match: an unmatched glob is judged as its literal path' 2 --cwd "$rdt_h3" \
+        --command 'rm -rf [b]/k/'
+      expect_both 'literal match: the same names without the slash allowed' 0 --cwd "$rdt_h3" --command 'rm -rf q?/k'
+      rm -f "$rdt_h3/q\$/k" "$rdt_h3/[b]/k"
+    else
+      rdt_skip "ln -s made no link inside a literal-named directory (4 cases)"
+    fi
   else
-    rdt_skip "ln -s made no link to an existing directory (4 cases)"
+    rdt_skip "ln -s made no link to an existing directory (8 cases)"
   fi
   rm -f "$rdt_ln/dang"
 else
-  rdt_skip "ln -s makes no real symlink on this host (12 cases)"
+  rdt_skip "ln -s makes no real symlink on this host (16 cases)"
 fi
+
+# rdt_ms_payload <label> <want> <budget ms> <payload>: one direct run, its
+# verdict and its elapsed time both asserted, then the dispatched run under a
+# 20 s backstop.
+rdt_ms_payload() {
+  local t0 ms rc=0
+  t0=${EPOCHREALTIME/./}
+  timeout 20 bash "$HOOK" <<<"$4" >/dev/null 2>&1 || rc=$?
+  ms=$(((${EPOCHREALTIME/./} - t0) / 1000))
+  echo "timing: $1 took ${ms} ms"
+  assert_exit "$1 (direct)" "$2" "$rc"
+  if ((ms < $3)); then ok "$1 finishes under $3 ms (${ms} ms)"; else bad "$1 took ${ms} ms, budget $3 ms"; fi
+  rc=0
+  timeout 20 bash "$GUARD_DISPATCH" "$HOOK" <<<"$4" >/dev/null 2>&1 || rc=$?
+  assert_exit "$1 (dispatched)" "$2" "$rc"
+}
+# A glob before the last component is expanded one component at a time, and
+# past 256 matches in total the guard refuses at once instead of listing the
+# whole tree.
+mkdir -p "$TEST_TMPDIR/wide/d"{01..20}/e{01..20}
+rdt_ms_payload 'a wide glob tree is refused at the match cap' 2 8000 \
+  "$(rdt_pl "rm -rf '$TEST_TMPDIR/wide'/*/*/x" "$RDT_TOP")"
+expect_both 'a narrow glob in the same tree allowed' 0 "${RDT_CWD[@]}" --command "rm -rf '$TEST_TMPDIR/wide/d01'/*/x"
+rdt_sys=""
+for rdt_t in C:/Windows /usr; do
+  [[ -d "$rdt_t" ]] && rdt_sys="$rdt_t" && break
+done
+if [[ -n "$rdt_sys" ]]; then
+  rdt_ms_payload "a deep glob over $rdt_sys is refused in time" 2 8000 \
+    "$(rdt_pl "rm -rf $rdt_sys/*/*/*/x" "$RDT_TOP")"
+else
+  rdt_skip "no C:/Windows or /usr to glob over (3 cases)"
+fi
+# A word full of braces is refused before the expander walks it.
+rdt_br=""
+for ((rdt_d = 0; rdt_d < 3000; rdt_d++)); do rdt_br+='{'; done
+rdt_ms_payload 'an operand of 3000 braces is refused in time' 2 8000 "$(rdt_pl "rm -rf ${rdt_br}x" "$RDT_TOP")"
+guard_invoke "${RDT_CWD[@]}" --command "rm -rf ${rdt_br}x"
+assert_contains "the brace-count refusal names its form" "$GUARD_ERR" "brace expansion"
+expect_both 'an operand of 129 braces is refused' 2 --command "rm -rf ${rdt_br:0:129}x"
+expect_both 'an operand of 3 braces allowed' 0 --command "rm -rf ${rdt_br:0:3}x"
 # A glob before the last component over real directories under temp allowed.
 mkdir -p "$TEST_TMPDIR/g4ok/real"
 expect_both 'glob: */x over real directories under temp allowed' 0 --cwd "$TEST_TMPDIR/g4ok" --command 'rm -rf */x'

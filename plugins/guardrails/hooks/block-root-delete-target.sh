@@ -96,14 +96,19 @@
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
-#     (below), but `rm -rf "$X/build"` is left alone, and so is
-#     `$(printf 'r%s' 'm') -rf /`, whose substitution body is parsed (its
+#     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
+#     `$X/{a,b}` (its alternatives `$X/a` and `$X/b` are each left alone the
+#     same way; the quoted `"$X"/{a,b}` is refused as a partly quoted brace)
+#     and `$(printf 'r%s' 'm') -rf /`, whose substitution body is parsed (its
 #     command word is `printf`) but whose RESULT is not. The root arm matches
 #     `$HOME` and `${HOME}` as the literal text they are written as; only the
 #     outside-tree arm expands them, from the hook's own HOME.
 #   * A single-quoted `'$X'` is refused as a bare variable although it names a
 #     literal file: the tokenizer's quoting provenance cannot separate it from
-#     `"$X"`. A declared overblock.
+#     `"$X"`. A declared overblock. For the same reason a TYPED operand whose
+#     real file name holds a literal `$` (`rm -rf 'a$b/'`) is read as an
+#     expansion and left alone by the outside-tree arm; only a name that a
+#     glob MATCHED is judged literally.
 #   * `~name` is refused by the outside-tree arm and not matched by the root
 #     arm, which matches bare `~` only; `~-` is refused as a `~name`, a
 #     declared overblock. `~`, `$HOME` and `${HOME}` expand from the hook's own
@@ -134,8 +139,11 @@
 #   * A glob before the last component is expanded against the filesystem as
 #     it is when the hook runs; a directory the command creates before the
 #     delete is not seen, and with no match only the literal directory in front
-#     of the glob is judged. A backslash-escaped brace reads as partly quoted
-#     and is refused, a declared overblock.
+#     of the glob and the operand's own literal text are judged. Each level
+#     is read by name and every entry, file or directory, counts toward the
+#     256-match cap, so a glob over a directory of many files is refused, a
+#     declared overblock. A backslash-escaped brace reads as partly quoted and
+#     is refused, a declared overblock.
 #   * Where `realpath -m` is absent (BSD, macOS), a target's parent is
 #     collapsed lexically before its nearest existing ancestor is resolved, so
 #     `link/..` is read as the directory holding `link`.
@@ -971,6 +979,9 @@ rdt_root_like() {
 #                where it points
 # Braces are expanded before this (rdt_brace_expand), so a `{` here is a
 # literal character. A `..` after the first glob component returns 2.
+# Provenance 3 is LITERAL mode, for a path the filesystem produced (a glob
+# match) or one bash passes through unchanged (an unmatched glob): no `~`,
+# HOME, `$` or glob is read in it.
 # shellcheck disable=SC2016  # `$HOME` here is the literal text of the operand
 rdt_place_to() {
   local __rp_t="${2//\\//}" __rp_q="$3" __rp_dir="" __rp_last __rp_pre __rp_rest __rp_slash=0
@@ -983,7 +994,7 @@ rdt_place_to() {
   [[ -n "$__rp_t" ]] || return 1
   [[ "$__rp_t" == *$'\n'* ]] && return 2
   [[ "$__rp_t" =~ ^//[?.]/([A-Za-z]:/.*)$ ]] && __rp_t="${BASH_REMATCH[1]}"
-  if ((__rp_q != 2)); then
+  if ((__rp_q < 2)); then
     # shellcheck disable=SC2088  # matching the literal text, expanded by hand below
     case "$__rp_t" in
     '~' | '~/'*)
@@ -995,21 +1006,23 @@ rdt_place_to() {
     *) ;;
     esac
   fi
-  case "$__rp_t" in
-  '$HOME' | '$HOME/'*)
-    [[ -n "$RDT_HOME" ]] || return 1
-    __rp_t="$RDT_HOME${__rp_t#\$HOME}"
-    ;;
-  '${HOME}' | '${HOME}/'*)
-    [[ -n "$RDT_HOME" ]] || return 1
-    __rp_t="$RDT_HOME${__rp_t#\$\{HOME\}}"
-    ;;
-  *) ;;
-  esac
-  case "$__rp_t" in
-  *'$'* | *'`'*) return 1 ;;
-  *) ;;
-  esac
+  if ((__rp_q != 3)); then
+    case "$__rp_t" in
+    '$HOME' | '$HOME/'*)
+      [[ -n "$RDT_HOME" ]] || return 1
+      __rp_t="$RDT_HOME${__rp_t#\$HOME}"
+      ;;
+    '${HOME}' | '${HOME}/'*)
+      [[ -n "$RDT_HOME" ]] || return 1
+      __rp_t="$RDT_HOME${__rp_t#\$\{HOME\}}"
+      ;;
+    *) ;;
+    esac
+    case "$__rp_t" in
+    *'$'* | *'`'*) return 1 ;;
+    *) ;;
+    esac
+  fi
   if rdt_is_abs "$__rp_t"; then
     RDT_PL_ABS=1
   elif [[ "$__rp_t" =~ ^[A-Za-z]: ]]; then
@@ -1021,7 +1034,7 @@ rdt_place_to() {
   done
   RDT_PL_FULL="$__rp_t"
   RDT_PL_SLASH=$__rp_slash
-  if [[ "$__rp_t" == *[*?[]* ]]; then
+  if ((__rp_q != 3)) && [[ "$__rp_t" == *[*?[]* ]]; then
     # A `..` after the first glob component climbs out of whatever the glob
     # matched, so the directory in front of the glob says nothing about it.
     local __rp_c __rp_seen=0 __rp_ifs="$IFS"
@@ -1266,6 +1279,15 @@ rdt_winmap_all() {
   for ((i = 0; i < ${#todo[@]}; i++)); do
     rdt_deadline
     rdt_split_existing a rem "${todo[i]}"
+    # A leaf target that is itself a symlink is mapped by its parent, because
+    # cygpath follows the link and rm removes the link, not what it points
+    # at. Every other link on the path was already resolved by realpath.
+    if [[ -z "$rem" && -L "$a" && "$a" == */?* ]]; then
+      rem="/${a##*/}"
+      a="${a%/*}"
+      [[ -z "$a" ]] && a=/
+      [[ "$a" =~ ^[A-Za-z]:$ ]] && a="$a/"
+    fi
     anc[i]="$a"
     rems[i]="$rem"
     if [[ -z "${amap[$a]+x}" ]]; then
@@ -1382,26 +1404,54 @@ rdt_enum_links() {
   return 0
 }
 
-# rdt_glob_dirs <base> <pattern>: the directories `<pattern>/` matches, read
-# from <base> (empty for an absolute pattern), into RDT_GLOB without their
-# trailing slash. <base> is quoted, so only the pattern globs; nullglob is on
-# and dotglob off, as in a default bash. Past MAX_GLOB matches the guard
-# refuses.
-# shellcheck disable=SC2206  # the pattern is meant to glob; IFS is empty so it cannot split
+# rdt_glob_dirs <base> <pattern>: the directories `<pattern>` matches, read
+# from <base> (empty for an absolute pattern), into RDT_GLOB. Expanded ONE
+# component at a time, each match a quoted literal for the next level, so the
+# running total is known after every level: past MAX_GLOB the guard refuses
+# at once instead of listing a whole tree, and the deadline is checked after
+# every directory read. nullglob is on and dotglob off, as in a default bash;
+# a literal component keeps only the directories that exist.
+# shellcheck disable=SC2206  # the component is meant to glob; IFS is empty so it cannot split
 rdt_glob_dirs() {
-  local base="${1%/}" pat="$2" m ng=0 IFS=
-  local -a all=()
+  local pat="$2" c d m ng=0 IFS=
+  local -a cur=() next=() comps=() hits=()
   RDT_GLOB=()
+  if [[ -n "$1" ]]; then
+    cur=("${1%/}")
+  elif [[ "$pat" =~ ^([A-Za-z]:)/(.*)$ ]]; then
+    cur=("${BASH_REMATCH[1]}")
+    pat="${BASH_REMATCH[2]}"
+  else
+    cur=("")
+  fi
+  IFS=/ read -r -a comps <<<"$pat"
+  IFS=
   shopt -q nullglob && ng=1
   shopt -s nullglob
-  if [[ -n "$1" ]]; then
-    all=("$base"/$pat/)
-  else
-    all=($pat/)
-  fi
+  for c in ${comps[@]+"${comps[@]}"}; do
+    [[ -n "$c" ]] || continue
+    next=()
+    for d in ${cur[@]+"${cur[@]}"}; do
+      rdt_deadline
+      if [[ "$c" == *[*?[]* ]]; then
+        # Names first, with no trailing slash, so the directory is read
+        # without a stat per entry; the count is capped before any match is
+        # tested for being a directory.
+        hits=("$d"/$c)
+        ((${#hits[@]} + ${#next[@]} > MAX_GLOB)) && rdt_block "too-many-targets"
+        for m in ${hits[@]+"${hits[@]}"}; do
+          [[ -d "$m" ]] && next+=("$m")
+        done
+      elif [[ -d "$d/$c" ]]; then
+        next+=("$d/$c")
+      fi
+      ((${#next[@]} > MAX_GLOB)) && rdt_block "too-many-targets"
+    done
+    cur=(${next[@]+"${next[@]}"})
+    ((${#cur[@]})) || break
+  done
   ((ng)) || shopt -u nullglob
-  ((${#all[@]} > MAX_GLOB)) && rdt_block "too-many-targets"
-  for m in ${all[@]+"${all[@]}"}; do RDT_GLOB+=("${m%/}"); done
+  RDT_GLOB=(${cur[@]+"${cur[@]}"})
   return 0
 }
 
@@ -1429,12 +1479,22 @@ rdt_add_pair() {
   return 0
 }
 
+# rdt_add_literal <path> <operand>: <path> placed in LITERAL mode (no `~`,
+# HOME, `$` or glob read in it) and added as a target. Clobbers RDT_PL_*.
+rdt_add_literal() {
+  local t rc=0
+  rdt_place_to t "$1" 3 || rc=$?
+  ((rc == 2)) && rdt_block "unplaceable" "'$2'"
+  ((rc == 0)) || return 0
+  rdt_add_pair "$t" "$RDT_PL_MODE" "" "$2"
+}
+
 # rdt_judge_pending: the outside-tree judgment, once, after both passes.
 rdt_judge_pending() {
   local np=${#RDT_P_TEXT[@]}
   ((np)) || return 0
   ((RDT_ORIGIN_OVERFLOW)) && rdt_block "too-many-origins"
-  local k m no unk cdp t p sp c rc mode enum full slash abs base g t2 word
+  local k m no unk cdp t p sp c rc mode enum full slash abs glob base g t2 word lastc e
   local -a tp=() tn=() td=() te=() tw=() gl=()
   local -A tseen=()
   # Every target from every directory it may run from, each distinct one
@@ -1465,15 +1525,24 @@ rdt_judge_pending() {
     full="$RDT_PL_FULL"
     slash="$RDT_PL_SLASH"
     abs="$RDT_PL_ABS"
+    glob="$RDT_PL_GLOB"
     for ((m = 0; m < no; m++)); do
       if ((abs)); then p="$t"; else rdt_join_to p "${RDT_ORIGINS[m]}" "$t"; fi
+      # A glob that matches nothing reaches rm as its own text, so every
+      # glob operand is also judged as that literal path.
+      if ((glob)); then
+        if ((abs)); then t2="$full"; else rdt_join_to t2 "${RDT_ORIGINS[m]}" "$full"; fi
+        ((slash)) && t2+=/
+        rdt_add_literal "$t2" "$word"
+      fi
       if [[ "$mode" != deep ]]; then
         rdt_add_pair "$p" "$mode" "$enum" "$word"
         continue
       fi
       # A glob before the last component: its directory part is expanded
       # with real globbing from this directory, and each match is judged as
-      # a concrete path, so a link it passes through is followed. With no
+      # a concrete, LITERAL path, so a link it passes through is followed and
+      # a `$` or bracket in a matched name is never read again. With no
       # match, the literal directory in front of the glob is judged.
       base=""
       ((abs)) || base="${RDT_ORIGINS[m]}"
@@ -1483,14 +1552,19 @@ rdt_judge_pending() {
         rdt_add_pair "$p" deep "" "$word"
         continue
       fi
+      lastc="${full##*/}"
       for g in "${gl[@]}"; do
-        t2="$g/${full##*/}"
-        ((slash)) && t2+=/
-        rc=0
-        rdt_place_to t2 "$t2" 0 || rc=$?
-        ((rc == 2)) && rdt_block "unplaceable" "'$word'"
-        ((rc == 0)) || continue
-        rdt_add_pair "$t2" "$RDT_PL_MODE" "$RDT_PL_ENUM" "$word"
+        if [[ "$lastc" == *[*?[]* ]]; then
+          # The last component globs too: its matches are children of g, and
+          # with a trailing slash the links among them are read.
+          e=""
+          ((slash)) && e="$lastc"
+          rdt_add_pair "$g" whole "$e" "$word"
+        else
+          t2="$g/$lastc"
+          ((slash)) && t2+=/
+          rdt_add_literal "$t2" "$word"
+        fi
       done
     done
   done
@@ -2042,6 +2116,10 @@ rdt_check_segment() {
     # partly quoted one that would expand cannot be told apart from a literal
     # one by the tokenizer's provenance, so it is refused.
     if [[ "$w" == *'{'* ]] && ((q != 2)); then
+      # Bounded before the walk: a word of thousands of braces makes the
+      # expander's scan quadratic.
+      x="${w//[^\{]/}"
+      ((${#w} > MAX_BRACE_WORD || ${#x} > MAX_BRACE_OPEN)) && rdt_block "brace" "of ${#w} bytes with ${#x} braces"
       rc=0
       rdt_brace_expand "$w" || rc=$?
       ((rc == 0)) || rdt_block "brace" "'$w'"
@@ -2093,6 +2171,8 @@ rdt_check_operand() {
 # expansion, never a brace. Returns 2 for a sequence (`{1..3}`, `{a..c}`),
 # which is refused rather than expanded, and past MAX_BRACE results.
 MAX_BRACE=64
+MAX_BRACE_WORD=4096
+MAX_BRACE_OPEN=128
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_brace_expand() {
   RDT_BX=()
@@ -2106,6 +2186,7 @@ rdt_brace_rec() {
   while ((i < n)); do
     c="${s:i:1}"
     if [[ "$c" == '{' ]] && { ((i == 0)) || [[ "${s:i-1:1}" != '$' ]]; }; then
+      rdt_deadline
       d=0
       parts=()
       st=$((i + 1))
