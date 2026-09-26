@@ -378,6 +378,15 @@ run_inv --claude-json "$FIX/claude.json" --project "$FIX/unmatched" --mcp-json "
 assert_contains "unmatched project reports local absent" "$OUT" "# source local $FIX/claude.json absent"
 assert_eq "unmatched project yields no local rows" "" "$(cell local shared 3)"
 
+# --- Run 5: the same name in two --config files keeps both file rows -----------
+
+printf '%s\n' '{"mcpServers": {"dup": {"command": "npx", "args": ["dup-a@1.0.0"]}}}' >"$FIX/dup a.json"
+printf '%s\n' '{"mcpServers": {"dup": {"command": "npx", "args": ["dup-b@1.0.0"]}}}' >"$FIX/dup b.json"
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/dup a.json" --config "$FIX/dup b.json" --date 2026-01-02
+assert_eq "duplicate file-scope names both listed" 2 \
+  "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == "file" && $2 == "dup"' | wc -l | tr -d ' ')"
+
 # --- Planted secrets never reach stdout or stderr ----------------------------
 
 for secret in SECRETENV1 SECRETHDR1 SECRETOAUTH1 SECRETHELPER1 SECRETAPIKEY1 SECRETREG1 SECRETREG2 \
