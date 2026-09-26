@@ -528,20 +528,36 @@ def op_set_status(d, doc, a):
     return [], "status set"
 
 
+HOLD_LABELS = {"claude": "pending research", "user": "needs your answer"}
+
+
 def op_wait(d, doc, a):
+    """Hold a question on Claude's research (by claude) or on the user's answer (by user).
+    A user hold stamps setAsideAt, which outlives the hold: decisions up to it stop counting."""
     q = find(doc, a.id)
     waits = (a.waitsOn or "").strip()
     if bool(waits) == bool(a.clear):
         sys.exit(
             f"refused: wait on {a.id} takes a non-empty waitsOn or clear, not both"
         )
+    if a.clear and a.by:
+        sys.exit(f"refused: wait on {a.id} takes no by with clear")
     if a.clear:
-        q.pop("waiting", None)
-        q.pop("waitsOn", None)
-        line, msg = "No longer waiting.", f"{a.id} no longer waits"
+        label = HOLD_LABELS[q.get("waitingBy") or "claude"]
+        for key in ("waiting", "waitsOn", "waitingBy"):
+            q.pop(key, None)
+        line, msg = f"No longer {label}.", f"{a.id} no longer {label}"
     else:
+        by = a.by or "claude"
         q.update(waiting=True, waitsOn=waits)
-        line, msg = f"Waits on: {waits}", f"{a.id} waits on: {waits}"
+        q.pop("waitingBy", None)
+        if by == "user":
+            q.update(waitingBy="user", setAsideAt=now())
+        label = HOLD_LABELS[by]
+        line, msg = (
+            f"{label[0].upper()}{label[1:]}: {waits}",
+            f"{a.id} {label}: {waits}",
+        )
     q.setdefault("history", []).append({"at": now(), "by": "claude", "text": line})
     return [q], msg
 
@@ -700,7 +716,7 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
-    "wait": (op_wait, {"id": None, "waitsOn": None, "clear": False}),
+    "wait": (op_wait, {"id": None, "waitsOn": None, "by": None, "clear": False}),
     "activity": (op_activity, {"text": None, "ids": None}),
 }
 
@@ -764,9 +780,7 @@ def cmd_apply(d, a):
 
 
 def effective(q, resp):
-    page, term = resp.get(q["id"]), q.get("terminal")
-    cands = [x for x in (page, term) if x and x.get("updatedAt")]
-    latest = max(cands, key=lambda x: x["updatedAt"]) if cands else None
+    latest = exporters.latest_decision(q, resp)
     return latest.get("decision") if latest else None
 
 
@@ -788,8 +802,14 @@ def cmd_status(d, a):
             if q.get("waiting") and not q.get("supersededBy")
             else dec or ("superseded" if q.get("supersededBy") else "open")
         )
+        label = "awaiting user" if q.get("waitingBy") == "user" else "waits on"
         rows.setdefault(q.get("group"), []).append(
-            (q["id"], q.get("short", ""), state, q.get("waitsOn", ""))
+            (
+                q["id"],
+                q.get("short", ""),
+                state,
+                f"{label}: {json.dumps(q.get('waitsOn', ''))}",
+            )
         )
     for gid in order:
         if gid not in rows:
@@ -797,11 +817,7 @@ def cmd_status(d, a):
         items = rows[gid]
         opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
         archived = [i for i, _, st, _ in items if st == "archived"]
-        waits = [
-            f"  {i} {s} waits on: {json.dumps(w)}"
-            for i, s, st, w in items
-            if st == "waiting"
-        ]
+        waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
         print(
             f"{title}: {len(items) - len(opened) - len(waits)} of {len(items)} closed"

@@ -662,17 +662,116 @@ class TestClaudeActivity(DirCase):
             [
                 {
                     "at": self.entries()[0]["at"],
-                    "text": "Q3 waits on: research on ghq",
+                    "text": "Q3 pending research: research on ghq",
                     "ids": ["Q3"],
                 }
             ],
         )
+        self.assertNotIn("waitingBy", q)
+        self.assertNotIn("setAsideAt", q)
         self.apply({"op": "wait", "id": "Q3", "clear": True})
         q = self.q("Q3")
         self.assertNotIn("waiting", q)
         self.assertNotIn("waitsOn", q)
         self.assertEqual(len(q["history"]), 2)
         self.assertEqual(len(self.entries()), 2)
+        self.assertEqual(self.entries()[-1]["text"], "Q3 no longer pending research")
+
+    def test_wait_by_user_sets_the_decision_aside(self):
+        old = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "alt": None,
+                    "text": "If X?",
+                    "at": old,
+                }
+            ]
+        )
+        self.apply({"op": "handle", "seqs": [1]})
+        self.apply(
+            {"op": "wait", "id": "Q1", "by": "user", "waitsOn": "whether X holds"}
+        )
+        q = self.q("Q1")
+        self.assertEqual(q["waitingBy"], "user")
+        self.assertGreater(q["setAsideAt"], old)
+        self.assertEqual(q["history"][-1]["text"], "Needs your answer: whether X holds")
+        self.assertEqual(
+            self.entries()[-1]["text"], "Q1 needs your answer: whether X holds"
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            '  Q1 Short Q1 awaiting user: "whether X holds"', out.splitlines()
+        )
+        self.apply({"op": "wait", "id": "Q1", "clear": True})
+        q = self.q("Q1")
+        for key in ("waiting", "waitsOn", "waitingBy"):
+            self.assertNotIn(key, q)
+        self.assertTrue(q["setAsideAt"])
+        self.assertEqual(self.entries()[-1]["text"], "Q1 no longer needs your answer")
+        rc, out, err = self.rp("status")
+        self.assertIn("open: Q1 Short Q1, Q2 Short Q2", out)
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "alt": None,
+                    "text": "If X?",
+                    "at": old,
+                },
+                {
+                    "seq": 2,
+                    "id": "Q1",
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": "2999-01-01T00:00:00Z",
+                },
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
+    def test_a_terminal_answer_before_the_set_aside_does_not_count(self):
+        doc = base_doc()
+        doc["questions"][0].update(
+            setAsideAt="2026-09-25T10:00:00Z",
+            terminal={
+                "decision": "accept",
+                "alt": None,
+                "text": "",
+                "updatedAt": "2026-09-25T10:00:00Z",
+            },
+        )
+        doc["questions"][1]["terminal"] = {
+            "decision": "accept",
+            "alt": None,
+            "text": "",
+            "updatedAt": "2026-09-25T10:00:00Z",
+        }
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q1 Short Q1", out.splitlines())
+        doc["questions"][0]["terminal"]["updatedAt"] = "2026-09-25T10:00:01Z"
+        self.write_doc(doc)
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 2 of 2 closed", out.splitlines())
+
+    def test_wait_by_claude_drops_a_user_hold(self):
+        self.apply({"op": "wait", "id": "Q3", "by": "user", "waitsOn": "x"})
+        stamp = self.q("Q3")["setAsideAt"]
+        self.apply({"op": "wait", "id": "Q3", "by": "claude", "waitsOn": "research"})
+        q = self.q("Q3")
+        self.assertNotIn("waitingBy", q)
+        self.assertEqual(q["setAsideAt"], stamp)
+        rc, out, err = self.rp("status")
+        self.assertIn('  Q3 Short Q3 waits on: "research"', out.splitlines())
 
     def test_wait_refusals(self):
         for op in (
@@ -680,6 +779,8 @@ class TestClaudeActivity(DirCase):
             {"id": "Q3"},
             {"id": "Q3", "waitsOn": " "},
             {"id": "Q3", "waitsOn": "x", "clear": True},
+            {"id": "Q3", "waitsOn": "x", "by": "robot"},
+            {"id": "Q3", "clear": True, "by": "user"},
         ):
             with self.subTest(op=op):
                 self.refused({"op": "wait", **op})

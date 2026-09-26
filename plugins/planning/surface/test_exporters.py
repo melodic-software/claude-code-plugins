@@ -170,15 +170,40 @@ class TestExportLedger(SessionCase):
 
     def test_a_waiting_question_stays_open_even_with_a_decision(self):
         qs = [
-            question("Q1", waiting=True, waitsOn="your confirmation of X"),
+            question(
+                "Q1", waiting=True, waitingBy="user", waitsOn="your confirmation of X"
+            ),
             question("Q2", waiting=True, waitsOn="research"),
         ]
         self.session(qs, [event(1, "Q1", "own", text="Yes if X holds.")])
         rows = register_rows(self.export("ledger"))
         self.assertRegex(
-            rows[0], r"^- Q1 \| open \| .*waiting on: your confirmation of X"
+            rows[0], r"^- Q1 \| open \| .*awaiting user: your confirmation of X"
         )
-        self.assertRegex(rows[1], r"^- Q2 \| open \| .*waiting on: research")
+        self.assertRegex(rows[1], r"^- Q2 \| open \| .*waits on: research")
+
+    def test_a_decision_set_aside_by_a_user_hold_does_not_count(self):
+        later = "2026-09-24T10:00:05Z"
+        qs = [
+            question("Q1", setAsideAt=AT),
+            question("Q2", setAsideAt=AT),
+            question(
+                "Q3",
+                setAsideAt=AT,
+                terminal={
+                    "decision": "accept",
+                    "alt": None,
+                    "text": "",
+                    "updatedAt": AT,
+                },
+            ),
+        ]
+        newer = dict(event(2, "Q2", "accept"), at=later)
+        self.session(qs, [event(1, "Q1", "own", text="If X?"), newer])
+        rows = register_rows(self.export("ledger"))
+        self.assertRegex(rows[0], r"^- Q1 \| open \|")
+        self.assertRegex(rows[1], r"^- Q2 \| answered \| .*accepted: ")
+        self.assertRegex(rows[2], r"^- Q3 \| open \|")
 
     def test_non_contiguous_ids_are_renumbered_with_the_original_id(self):
         self.session(

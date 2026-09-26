@@ -69,11 +69,14 @@ def read(d):
 
 
 def latest_decision(q, responses):
-    """The newer of the page answer and the terminal answer, or None."""
+    """The newer of the page answer and the terminal answer, or None. A decision whose updatedAt
+    is not later than the question's setAsideAt (stamped by a `wait` with `by: user`) is set
+    aside and does not count."""
+    aside = q.get("setAsideAt") or ""
     cands = [
         x
         for x in (responses.get(q["id"]), q.get("terminal"))
-        if x and x.get("updatedAt")
+        if x and x.get("updatedAt") and x["updatedAt"] > aside
     ]
     return max(cands, key=lambda x: x["updatedAt"]) if cands else None
 
@@ -119,7 +122,8 @@ def settle(q, responses, events, seed_rows):
     if q.get("supersededBy"):
         return "withdrawn", f"superseded by {q['supersededBy']}" + tail, "", False
     if q.get("waiting"):
-        return "open", f"waiting on: {q.get('waitsOn') or 'a lookup'}" + tail, "", False
+        label = "awaiting user" if q.get("waitingBy") == "user" else "waits on"
+        return "open", f"{label}: {q.get('waitsOn') or 'a lookup'}" + tail, "", False
     rec = latest_decision(q, responses)
     decision = rec.get("decision") if rec else None
     text = clean((rec or {}).get("text"))

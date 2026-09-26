@@ -156,6 +156,14 @@
         "supersededBy": {"type": "string"},
         "waiting": {"type": "boolean"},
         "waitsOn": {"type": "string"},
+        "waitingBy": {
+          "enum": ["claude", "user"],
+          "description": "Who a hold waits on; absent means claude (pending research). Written by the wait op, removed when the hold clears."
+        },
+        "setAsideAt": {
+          "type": "string",
+          "description": "When a `wait` with `by: user` landed. A page or terminal decision whose updatedAt is not later than this does not count as an answer, even after the hold clears."
+        },
         "contentRev": {"type": "integer"},
         "rev": {"type": "integer"},
         "visuals": {

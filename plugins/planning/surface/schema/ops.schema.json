@@ -189,7 +189,7 @@
       }
     },
     "wait": {
-      "description": "Mark question `id` as waiting on `waitsOn`, or end the wait with `clear`; exactly one of the two.",
+      "description": "Hold question `id` on `waitsOn`, or end the hold with `clear`; exactly one of the two. `by` names who the hold waits on: `claude` (the default, pending research) or `user` (needs the user's answer; also stamps `setAsideAt`, so a decision recorded before it no longer counts). `by` is refused with `clear`.",
       "type": "object",
       "required": ["op", "id"],
       "additionalProperties": false,
@@ -197,6 +197,7 @@
         "op": {"enum": ["wait"]},
         "id": {"type": "string"},
         "waitsOn": {"type": "string"},
+        "by": {"enum": ["claude", "user"]},
         "clear": {"type": "boolean"}
       }
     },
