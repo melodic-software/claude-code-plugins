@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor the discipline that existing state, config, code, docs, infra, is not evidence of its own correctness, then audit the surface in flight against CURRENT official upstream docs and classify each divergence. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', or at conversation start on config, infra, or integration work."
+description: "Re-anchor the discipline that existing state (config, code, docs, infra) is not evidence of its own correctness; audit it against CURRENT official upstream docs. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', or at conversation start on config, infra, or integration work."
 user-invocable: true
 disable-model-invocation: false
 metadata:
