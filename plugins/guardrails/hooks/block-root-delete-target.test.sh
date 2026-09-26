@@ -817,6 +817,22 @@ expect_both 'cdpath: an inline CDPATH=/ prefix refuses a later relative delete' 
   --command 'CDPATH=/ cd c && rm -rf x'
 expect_both 'cdpath: an inline prefix refuses from a temp cwd too' 2 --cwd "$TEST_TMPDIR" \
   --command 'CDPATH=/ cd c && rm -rf x'
+# Every relative operand after that cd, whatever the list operator and
+# whatever the operand's shape.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "cdpath: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+  expect_both "cdpath: $rdt_cmd blocks from a temp cwd" 2 --cwd "$TEST_TMPDIR" --command "$rdt_cmd"
+done <<'EOF'
+CDPATH=/ cd c && rm -rf Users
+CDPATH=/ cd c && rm -rf Users/
+CDPATH=/ cd c && rm -rf ./Users/
+CDPATH=/c cd Windows && rm -rf System32/
+CDPATH=/ cd c ; rm -rf Users
+CDPATH=/ cd c || rm -rf Users
+CDPATH=/ cd c && rm -rf Us*/
+export CDPATH=/; cd c && rm -rf Users
+EOF
 expect_both 'cdpath: a CDPATH assignment segment refuses a later relative delete' 2 "${RDT_CWD[@]}" \
   --command 'CDPATH=/c ; cd Windows && rm -rf x'
 expect_both 'cdpath: export CDPATH refuses a later relative delete' 2 "${RDT_CWD[@]}" \
@@ -1014,16 +1030,21 @@ if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$rdt_ln/dang" 2>/dev/null &&
       expect_both 'literal match: an unmatched glob is judged as its literal path' 2 --cwd "$rdt_h3" \
         --command 'rm -rf [b]/k/'
       expect_both 'literal match: the same names without the slash allowed' 0 --cwd "$rdt_h3" --command 'rm -rf q?/k'
+      # A cd whose target globs is followed to its one match, as a literal
+      # directory; a quoted target is literal to begin with.
+      expect_both 'cd glob: cd q? follows its one match' 2 --cwd "$rdt_h3" --command 'cd q? && rm -rf k/'
+      expect_both 'cd glob: a quoted bracket target is literal' 2 --cwd "$rdt_h3" --command "cd '[b]' && rm -rf k/"
+      expect_both 'cd glob: the link itself after cd q? allowed' 0 --cwd "$rdt_h3" --command 'cd q? && rm -rf k'
       rm -f "$rdt_h3/q\$/k" "$rdt_h3/[b]/k"
     else
-      rdt_skip "ln -s made no link inside a literal-named directory (4 cases)"
+      rdt_skip "ln -s made no link inside a literal-named directory (7 cases)"
     fi
   else
-    rdt_skip "ln -s made no link to an existing directory (8 cases)"
+    rdt_skip "ln -s made no link to an existing directory (11 cases)"
   fi
   rm -f "$rdt_ln/dang"
 else
-  rdt_skip "ln -s makes no real symlink on this host (16 cases)"
+  rdt_skip "ln -s makes no real symlink on this host (19 cases)"
 fi
 
 # rdt_ms_payload <label> <want> <budget ms> <payload>: one direct run, its
@@ -1070,6 +1091,20 @@ expect_both 'an operand of 3 braces allowed' 0 --command "rm -rf ${rdt_br:0:3}x"
 mkdir -p "$TEST_TMPDIR/g4ok/real"
 expect_both 'glob: */x over real directories under temp allowed' 0 --cwd "$TEST_TMPDIR/g4ok" --command 'rm -rf */x'
 expect_both 'glob: */* over real directories under temp allowed' 0 --cwd "$TEST_TMPDIR/g4ok" --command 'rm -rf */*'
+# A cd to a glob with exactly one match follows it; none or several leaves
+# the directory unknown, and a relative delete after it is refused.
+mkdir -p "$TEST_TMPDIR/g4cd/real" "$TEST_TMPDIR/g4cd/rea2" "$TEST_TMPDIR/g4cd/only"
+expect_both 'cd glob: one match is followed, a delete under it allowed' 0 --cwd "$TEST_TMPDIR/g4cd" \
+  --command 'cd onl? && rm -rf x'
+expect_both 'cd glob: one match is followed, an escape from it blocks' 2 --cwd "$TEST_TMPDIR/g4cd" \
+  --command 'cd onl? && rm -rf ../../../../../../../../../../x'
+expect_both 'cd glob: several matches refuse a relative delete' 2 --cwd "$TEST_TMPDIR/g4cd" \
+  --command 'cd rea? && rm -rf x'
+expect_both 'cd glob: no match refuses a relative delete' 2 --cwd "$TEST_TMPDIR/g4cd" --command 'cd zz? && rm -rf x'
+expect_both 'cd glob: an absolute target with no match refuses' 2 "${RDT_CWD[@]}" \
+  --command 'cd /opt/rdt-nomatc[h] && rm -rf x'
+expect_both 'cd glob: an absolute delete after it is still judged' 0 "${RDT_CWD[@]}" \
+  --command "cd /opt/rdt-nomatc[h] && rm -rf '$RDT_TOP/x'"
 
 # An unexpected error inside the judgment refuses rather than exiting 1, which
 # the abort boundary would pass. The exported function stands in for any such
