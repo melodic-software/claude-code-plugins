@@ -642,7 +642,7 @@ class DistinctBotApprovalUnit(unittest.TestCase):
         match = merge.find_distinct_bot_approval(
             reviews, LANE, HEAD, frozenset({APPROVER})
         )
-        self.assertIsNotNone(match)
+        assert match is not None
         self.assertEqual(match["commit"]["oid"], HEAD)
 
     def test_approver_matched_by_configured_login_without_bot_suffix(self) -> None:
