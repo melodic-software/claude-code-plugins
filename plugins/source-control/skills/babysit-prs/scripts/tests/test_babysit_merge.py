@@ -1235,6 +1235,19 @@ class AutoMergeArming(unittest.TestCase):
         holds = result["autoMerge"]["blockers"]
         self.assertEqual(len(holds), 2, holds)
 
+    def test_pending_advisory_check_holds(self) -> None:
+        # ci-status is green, so GitHub would merge past the advisory check.
+        result = self._evaluate(
+            [
+                _check("ci-status", "SUCCESS"),
+                _check("test-windows", None),
+                _check("claude-review-status", "SUCCESS"),
+                _check("claude-security-review-status", "SUCCESS"),
+            ],
+            mergeStateStatus="UNSTABLE",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+
     def test_unresolved_thread_holds(self) -> None:
         rollup = [
             _check("ci-status", None),
@@ -1267,9 +1280,11 @@ class AutoMergeArming(unittest.TestCase):
             )
         self.assertFalse(result["autoMerge"]["ready"])
 
-    def _main(self, auto_ready: bool, *extra: str) -> tuple[int, list[list[str]]]:
+    def _main(
+        self, auto_ready: bool, *extra: str, ready: bool = False
+    ) -> tuple[int, list[list[str]]]:
         result = {
-            "ready": False,
+            "ready": ready,
             "blockers": ["pending checks: ci-status"],
             "headRefOid": HEAD,
             "autoMerge": {"ready": auto_ready, "blockers": []},
@@ -1310,6 +1325,18 @@ class AutoMergeArming(unittest.TestCase):
     def test_auto_not_ready_arms_nothing(self) -> None:
         code, calls = self._main(False, "--merge", "--expected-head", HEAD, "--auto")
         self.assertEqual((code, calls), (10, []))
+
+    def test_auto_holds_a_ready_merge_until_ai_lanes_finish(self) -> None:
+        args = ("--merge", "--expected-head", HEAD, "--auto")
+        code, calls = self._main(False, *args, ready=True)
+        self.assertEqual((code, calls), (10, []))
+
+    def test_auto_merges_a_ready_pr_synchronously(self) -> None:
+        args = ("--merge", "--expected-head", HEAD, "--auto")
+        code, calls = self._main(True, *args, ready=True)
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["merged"])
+        self.assertNotIn("--auto", calls[0])
 
     def test_auto_without_merge_and_pin_is_refused(self) -> None:
         self.assertEqual(self._main(True, "--auto")[0], 2)

@@ -657,6 +657,10 @@ worker lane, not a standalone invocation, not `/source-control:pull-request`. Th
 name is unrelated: a lane-pinned invocation at that tier is the merge lane.
 
 A push by a writer leaves auto-merge armed, and the new head would merge on `ci-status` alone.
+Verified 2026-09-26 against GitHub's [Automatically merging a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request),
+which disables auto-merge only when "someone without write permissions pushes new changes to the
+head branch or switches the base branch". Recheck when that page names another event that disables
+auto-merge, or a GitHub changelog entry changes auto-merge behavior on push.
 `refresh_pr_branch.py` therefore disarms it before updating the branch, and before dispatching a
 fix worker to an armed PR the orchestrator runs `gh pr merge <N> -R <owner/repo> --disable-auto`.
 The lane re-arms once both review lanes finish on the new head.

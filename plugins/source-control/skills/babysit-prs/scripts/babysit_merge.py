@@ -1016,7 +1016,10 @@ def evaluate(
     unmet_required = [r["context"] for r in unmet]
     # A required context that is pending or not yet reported is still running.
     unmet_only_running = all(r["category"] in (None, "pending") for r in unmet)
-    checks_running = bool(pending) or bool(unmet)
+    # GitHub's auto-merge waits on required checks only, so only a running
+    # REQUIRED check may be waived; a pending advisory check would be merged past.
+    checks_running = bool(unmet) and unmet_only_running
+    only_required_pending = {str(n) for n in pending} <= set(unmet_required)
 
     blockers: list[str] = []
     # Blockers that only mean "a check is still running". GitHub's auto-merge
@@ -1072,7 +1075,8 @@ def evaluate(
         blockers.append("failing checks: " + ", ".join(str(name) for name in failing))
     if pending:
         blockers.append("pending checks: " + ", ".join(str(name) for name in pending))
-        waiting.append(blockers[-1])
+        if only_required_pending:
+            waiting.append(blockers[-1])
     if unmet_required:
         blockers.append(
             "required checks not satisfied: "
@@ -1597,8 +1601,10 @@ def main() -> int:
         print(json.dumps(result, indent=2))
         return 10
 
-    arm_auto = not result["ready"] and args.auto and result["autoMerge"]["ready"]
-    if not result["ready"] and not arm_auto:
+    # Under --auto the AI-review holds bind a synchronous merge too.
+    go = result["autoMerge"]["ready"] if args.auto else result["ready"]
+    arm_auto = go and args.auto and not result["ready"]
+    if not go:
         result["merge"] = {"attempted": False, "reason": "not ready"}
         print(json.dumps(result, indent=2))
         return 10
