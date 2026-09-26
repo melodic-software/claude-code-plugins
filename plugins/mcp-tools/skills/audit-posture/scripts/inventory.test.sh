@@ -211,11 +211,43 @@ cat >"$FIX/managed two/managed-mcp.json" <<'JSON'
 {"mcpServers": {"corpstdio": {"command": "npx", "args": ["corp-mcp@1.0.0"]}}}
 JSON
 
+# Review probe: wrappers, URL versions, unknown value flags, non-string args, bidi.
+cat >"$FIX/probe cases.json" <<'JSON'
+{"mcpServers": {
+  "a-bash-env": {"command": "bash", "args": ["-c", "API_KEY=LEAK1 npx -y p@1.0.0"]},
+  "b-npx-authtok": {"command": "npx", "args": ["--_authToken", "LEAK2", "p@1.0.0"]},
+  "c-npm-giturl": {"command": "npx", "args": ["-y", "p@git+https://tok:LEAK3@github.com/o/r.git"]},
+  "d-npm-tgzurl": {"command": "npx", "args": ["-y", "p@https://u:LEAK4@host/x.tgz"]},
+  "e-pep508": {"command": "uvx", "args": ["--from", "mcp-x @ git+https://tok:LEAK5@github.com/o/r", "mcp-x"]},
+  "f-docker-logopt": {"command": "docker", "args": ["run", "--log-opt", "token=LEAK6", "img:1"]},
+  "f2-docker-unknown": {"command": "docker", "args": ["run", "--frobnicate", "SECRETUNK1", "img:1"]},
+  "g-uvx-i": {"command": "uvx", "args": ["-i", "https://pypi.example.com/simple", "pkg==1.0"]},
+  "h-bash-lc": {"command": "bash", "args": ["-lc", "npx -y floaty@latest"]},
+  "i-cmd-dsc": {"command": "cmd.exe", "args": ["/d", "/s", "/c", "npx -y floaty@latest"]},
+  "j-env": {"command": "env", "args": ["X=1", "npx", "-y", "floaty"]},
+  "k-docker-mem": {"command": "docker", "args": ["run", "--memory", "512m", "-i", "mcp/x"]},
+  "l-bash-quoted": {"command": "bash", "args": ["-c", "npx -y 'q@1.0.0'"]},
+  "m-args-obj": {"command": "npx", "args": [{"k": "LEAK7"}]},
+  "n-bidi": {"command": "npx", "args": ["x‮@1.0.0"]},
+  "o-pwsh": {"command": "powershell", "args": ["-NoProfile", "-Command", "npx -y floaty"]},
+  "p-docker-sha-only": {"command": "docker", "args": ["run", "img@sha256:abc"]},
+  "q-uvx-star": {"command": "uvx", "args": ["pkg==1.*"]},
+  "r-npx-v": {"command": "npx", "args": ["pkg@v1.2.3"]},
+  "s-py-eq3": {"command": "uvx", "args": ["pkg===1.0"]},
+  "t-npx-ws": {"command": "npx", "args": ["-w", "LEAK8", "pkg@1.0.0"]},
+  "u-bash-combined": {"command": "sh", "args": ["-ec", "npx -y u@1.0.0"]},
+  "v-local-wrapped": {"command": "node", "args": ["run.js", "npx", "-y", "z"]},
+  "w-npx-assign": {"command": "npx", "args": ["API_KEY=SECRETSHAPE1"]},
+  "x-docker-assign": {"command": "docker", "args": ["run", "-i", "FOO=SECRETSHAPE2"]},
+  "bidi‮name": {"command": "npx", "args": ["bidi@1.0.0"]}
+}}
+JSON
+
 # --- Run 1: every source, no managed-mcp.json -------------------------------
 
 run_inv --claude-json "$FIX/claude.json" --project "c:/work/proj" --mcp-json "$FIX/proj/.mcp.json" \
   --managed-dir "$FIX/managed one" --config "$FIX/servers a.json" --config "$FIX/plugin dir/plugin.json" \
-  --config "$FIX/nope.json" --date 2026-01-02
+  --config "$FIX/nope.json" --config "$FIX/probe cases.json" --date 2026-01-02
 
 assert_eq "run 1 exits 0" 0 "$RC"
 assert_eq "line 1 is the dated title" "# mcp-posture inventory 2026-01-02" "$(printf '%s\n' "$OUT" | sed -n 1p)"
@@ -268,6 +300,38 @@ assert_contains "not read: --mcp-config" "$OUT" "# not read: --mcp-config"
 assert_contains "not read: plugin servers" "$OUT" "# not read: plugin servers not passed as --config"
 assert_contains "not evaluated line" "$OUT" \
   "# not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)"
+assert_contains "file-scope precedence not evaluated line" "$OUT" \
+  "# not evaluated: file-scope rows are not checked for precedence against other scopes"
+
+# Review probe classifications.
+check_row a-bash-env npx p@1.0.0 exact unscoped
+check_row b-npx-authtok npx - unparsed -
+check_row c-npm-giturl npx p@git+https://github.com/o/r.git git-ref github.com
+check_row d-npm-tgzurl npx p@https://host/x.tgz git-ref host
+check_row e-pep508 uvx 'mcp-x @ git+https://github.com/o/r' git-ref github.com
+check_row f-docker-logopt docker img:1 mutable-tag library
+check_row f2-docker-unknown docker - unparsed -
+check_row g-uvx-i uvx pkg==1.0 exact pypi
+check_row h-bash-lc npx floaty@latest floating-tag unscoped
+check_row i-cmd-dsc npx floaty@latest floating-tag unscoped
+check_row j-env npx floaty floating-unversioned unscoped
+check_row k-docker-mem docker mcp/x floating-unversioned mcp
+check_row l-bash-quoted npx q@1.0.0 exact unscoped
+check_row m-args-obj npx - not-a-package -
+check_row n-bidi npx x@1.0.0 exact unscoped
+check_row o-pwsh npx floaty floating-unversioned unscoped
+check_row p-docker-sha-only docker img@sha256:abc mutable-tag library
+check_row q-uvx-star uvx 'pkg==1.*' floating-range pypi
+check_row r-npx-v npx pkg@v1.2.3 exact unscoped
+check_row s-py-eq3 uvx pkg===1.0 exact pypi
+check_row t-npx-ws npx pkg@1.0.0 exact unscoped
+check_row u-bash-combined npx u@1.0.0 exact unscoped
+check_row v-local-wrapped local node wrapped local
+check_row w-npx-assign npx - unparsed -
+check_row x-docker-assign docker - unparsed -
+assert_eq "bidi format char stripped from name" "bidi@1.0.0" "$(cell file bidiname 6)"
+assert_not_contains "no RLO char in output" "$OUT" $'\xe2\x80\xae'
+assert_contains "source with a server map is found" "$OUT" "# source file $FIX/probe cases.json found"
 
 # Control characters in a server name are neutralized.
 assert_not_contains "no ESC byte in output" "$OUT" $'\e'
@@ -356,6 +420,17 @@ assert_contains "managed-mcp.json found" "$OUT" "# source managed $FIX/managed t
 assert_contains "managed-settings.json absent" "$OUT" \
   "# source managed-settings $FIX/managed two/managed-settings.json absent"
 
+# --- Run 2b: managedMcpServers rows still load beside managed-mcp.json ---------
+
+mkdir -p "$FIX/managed three"
+printf '%s\n' '{"mcpServers": {"corpstdio": {"command": "npx", "args": ["corp-mcp@1.0.0"]}}}' \
+  >"$FIX/managed three/managed-mcp.json"
+printf '%s\n' '{"managedMcpServers": {"corp": {"type": "http", "url": "https://corp.example.com/mcp"}}}' \
+  >"$FIX/managed three/managed-settings.json"
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/managed three" --date 2026-01-02
+assert_eq "managedMcpServers not suppressed by managed-mcp.json" "yes" "$(cell managed-settings corp 3)"
+
 # --- Run 3: path-keyed local scope with a space and a trailing slash ---------
 
 space_key="$FIX/my proj"
@@ -391,7 +466,8 @@ assert_eq "duplicate file-scope names both listed" 2 \
 
 for secret in SECRETENV1 SECRETHDR1 SECRETOAUTH1 SECRETHELPER1 SECRETAPIKEY1 SECRETREG1 SECRETREG2 \
   SECRETIDX1 SECRETFROM1 SECRETTGZ1 SECRETQTGZ1 SECRETFRAG1 SECRETURLPW1 SECRETQUERY1 SECRETDOCKER1 \
-  SECRETLOCAL1 SECRETBASH1; do
+  SECRETLOCAL1 SECRETBASH1 LEAK1 LEAK2 LEAK3 LEAK4 LEAK5 LEAK6 LEAK7 LEAK8 SECRETUNK1 SECRETSHAPE1 \
+  SECRETSHAPE2; do
   assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
 done
 
@@ -399,6 +475,9 @@ done
 
 printf '%s\n' '{not json' >"$FIX/bad.json"
 printf '%s\n' '{"mcpServers": "./x.json"}' >"$FIX/string-servers.json"
+printf '%s\n' '{"mcpServers": ["./x.json"]}' >"$FIX/array-servers.json"
+printf '%s\n' '{"name": "p"}' >"$FIX/no-servers.json"
+printf '%s\n' '{"mcpServers": 5}' >"$FIX/number-servers.json"
 
 run_inv --claude-json "$FIX/bad.json" --project "$FIX/proj" --mcp-json "$FIX/proj/.mcp.json" \
   --managed-dir "$FIX/no managed" --date 2026-01-02
@@ -406,9 +485,19 @@ assert_eq "invalid JSON exits 2" 2 "$RC"
 assert_contains "invalid JSON names the file" "$ERR" "$FIX/bad.json"
 
 run_inv --claude-json "$FIX/claude.json" --project "$FIX/proj" --mcp-json "$FIX/proj/.mcp.json" \
-  --managed-dir "$FIX/no managed" --config "$FIX/string-servers.json" --date 2026-01-02
-assert_eq "non-object mcpServers exits 2" 2 "$RC"
-assert_contains "non-object mcpServers names the file" "$ERR" "$FIX/string-servers.json"
+  --managed-dir "$FIX/no managed" --config "$FIX/string-servers.json" --config "$FIX/array-servers.json" \
+  --config "$FIX/no-servers.json" --date 2026-01-02
+assert_eq "string or array mcpServers does not exit 2" 0 "$RC"
+assert_contains "string mcpServers skipped" "$OUT" \
+  "# source file $FIX/string-servers.json skipped (mcpServers is a path; pass that file as --config)"
+assert_contains "array mcpServers skipped" "$OUT" \
+  "# source file $FIX/array-servers.json skipped (mcpServers is a path; pass that file as --config)"
+assert_contains "file without a server map is found-empty" "$OUT" "# source file $FIX/no-servers.json found-empty"
+
+run_inv --claude-json "$FIX/claude.json" --project "$FIX/proj" --mcp-json "$FIX/proj/.mcp.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/number-servers.json" --date 2026-01-02
+assert_eq "number mcpServers exits 2" 2 "$RC"
+assert_contains "number mcpServers names the file" "$ERR" "$FIX/number-servers.json"
 
 run_inv --bogus
 assert_eq "unknown flag exits 2" 2 "$RC"
