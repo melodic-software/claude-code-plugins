@@ -47,9 +47,11 @@ EOF
 # fire-and-forget sink has flushed) or the bound elapses. Polls in 20ms steps so
 # the assertion fires as soon as the write lands instead of racing a fixed sleep
 # (sink dispatch is a freshly-spawned process; spawn latency varies, especially
-# on Windows Git Bash). Returns non-zero on timeout so negative cases can assert.
+# on Windows Git Bash). The default bound is 750 polls (15 s), the same as
+# fin_arm's, since a single spawn has been measured at 3.2 s on a loaded host.
+# Returns non-zero on timeout so negative cases can assert.
 wait_for_sink() {
-  local f="$1" tries="${2:-150}"
+  local f="$1" tries="${2:-750}"
   while ((tries-- > 0)); do
     [[ -s "$f" ]] && return 0
     sleep 0.02
