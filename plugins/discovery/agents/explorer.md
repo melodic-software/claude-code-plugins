@@ -211,7 +211,7 @@ Write the artifact in stages:
 
 1. As soon as the scope is resolved and preload is confirmed, write the `EXPLORE.md` skeleton into
    the slice. Its marker is the line `Run status: in progress`, written as the
-   first non-blank line after the `# ` title heading, before the task restatement;
+   first non-blank line after the level-1 title heading, before the task restatement;
    the gate reads only that slot, so restated or quoted text elsewhere never counts. Then write the
    task restatement and the section table naming each sidecar you plan. If the slice root already holds an unrelated
    `EXPLORE.md`, write nothing over it; the occupancy rule above applies.

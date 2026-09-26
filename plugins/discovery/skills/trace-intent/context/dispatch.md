@@ -99,7 +99,8 @@ starts.
 
 The resume-before-discard ordering for a truncated run or a silent return is in the parent contract
 and applies here unchanged. The agent writes `Run status: in progress` as the
-first non-blank line after the `# ` title heading of `INTENT.md`, and the
+first non-blank line after the level-1 title heading of `INTENT.md` (the first line starting with
+a single `#` and a space, outside a code fence), and the
 gate reads only that slot. An `INTENT.md` whose slot still holds the marker is a run that stopped
 before its final write, and the gate refuses it with exit 1, which routes to that same ladder.
 

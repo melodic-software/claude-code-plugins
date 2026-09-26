@@ -213,7 +213,7 @@ Write the artifact in stages:
 
 1. As soon as the topic is resolved and preload is confirmed, write the `RESEARCH.md` skeleton into
    the slice. Its marker is the line `Run status: in progress`, written as the
-   first non-blank line after the `# ` title heading, before the task restatement;
+   first non-blank line after the level-1 title heading, before the task restatement;
    the gate reads only that slot, so restated or quoted text elsewhere never counts. Then write the
    task restatement and the section table naming each sidecar you plan. `research-checklist.md` keeps the timing the skill
    gives it, written in corpus enumeration before any query and marked as phases proceed.

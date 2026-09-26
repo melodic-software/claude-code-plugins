@@ -433,7 +433,7 @@ for agent in explorer researcher intent-tracer; do
   assert_present "$file writes the index skeleton marked in progress" \
     "$file" 'Run status: in progress'
   assert_present "$file places the marker in the slot after the title heading" \
-    "$file" 'first non-blank line after the `# ` title'
+    "$file" 'first non-blank line after the level-1 title heading'
   assert_present "$file says the gate reads only that slot" \
     "$file" 'gate reads only that slot'
   assert_present "$file replaces the marker in its final write" \
@@ -489,10 +489,12 @@ done
 for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
   skills/trace-intent/context/dispatch.md; do
   assert_present "$file places the marker in the slot after the title heading" \
-    "$file" 'first non-blank line after the `# ` title'
+    "$file" 'first non-blank line after the level-1 title heading'
   assert_present "$file says the gate reads only that slot" \
     "$file" 'gate reads only that slot'
 done
+assert_absent 'no markdown puts a space inside a heading-marker code span (MD038)' \
+  '`# `'
 assert_absent 'no file says the gate reads the first Run status: line' \
   'first `Run status:` line'
 for file in reference/parent-contract.md skills/research-deep/SKILL.md; do

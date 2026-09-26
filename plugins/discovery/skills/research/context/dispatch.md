@@ -279,7 +279,8 @@ the sections that settled, and an older harness may return no payload at all.
 
 The run therefore reports through two channels. On disk, the agent writes its index skeleton early
 with `Run status: in progress` as the
-first non-blank line after the `# ` title heading, and replaces it only in its final write. The
+first non-blank line after the level-1 title heading (the first line starting with a single `#`
+and a space, outside a code fence), and replaces it only in its final write. The
 gate reads only that slot, so it refuses a stopped run's index and ignores a quoted marker
 elsewhere. In the payload, the agent emits its block early and keeps it current, marked
 `status: truncated` until the run finishes, and a dispatch that returns no payload is treated as

@@ -8,7 +8,7 @@
   section. Each states its limit as its own `maxTurns: 40`, counts its turns, stops gathering by
   turn 30 (or the envelope's lower `Turn budget:`; a higher one is ignored and noted in
   `open_questions`), writes the index skeleton with `Run status: in progress` as the first
-  non-blank line after the `# ` title heading as soon as its input is resolved, writes each sidecar
+  non-blank line after the level-1 title heading as soon as its input is resolved, writes each sidecar
   as its section settles, and replaces the marker with `Run status: complete` only in the final
   write.
 - **Envelope:** a `Turn budget:` line directly under `Budget:` in the parent-contract template and
@@ -16,8 +16,8 @@
   is a second line of the Budget field, so the envelope keeps six shared fields.
 - **`check-dispatch-artifact.sh`:** exits 1 (`status=unusable`, reason on stderr) when the index's
   marker slot holds `Run status: in progress`. The slot is the first non-blank line after the first
-  `# ` title heading, read past a BOM, CRs and YAML front matter and never from inside a code
-  fence. The match tolerates case, spacing, a tab and `in-progress` / `in_progress`. Nothing
+  level-1 title heading (a single `#` and a space), read past a BOM, CRs and YAML front matter and
+  never from inside a code fence. The match tolerates case, spacing, a tab and `in-progress` / `in_progress`. Nothing
   outside the slot is read, so a quoted marker elsewhere does not trigger, and an index with no
   marker grades as before. A by-value index body written back must carry `Run status: complete` or
   no marker.

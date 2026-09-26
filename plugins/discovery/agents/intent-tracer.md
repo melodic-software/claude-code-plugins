@@ -220,7 +220,7 @@ Write the artifact in stages:
 
 1. As soon as the target is resolved and preload is confirmed, write the `INTENT.md` skeleton into
    the slice. Its marker is the line `Run status: in progress`, written as the
-   first non-blank line after the `# ` title heading, before the restated why-question;
+   first non-blank line after the level-1 title heading, before the restated why-question;
    the gate reads only that slot, so restated or quoted text elsewhere never counts. Then write the
    why-question restated with its code anchor, the section table naming each sidecar you plan, and
    the **Sources consulted** map with a row per evidence category still open.
