@@ -89,6 +89,20 @@
         "Treats the argument as the only change — the rest of the dispatch cadence (scope-fenced briefs, verify-returns, main-side build) is unchanged",
         "Floors a fractional cap to whole waves and treats a value below 1 as 1 — never a fractional or zero concurrent-wave cap"
       ]
+    },
+    {
+      "id": 8,
+      "name": "no-commit-plan-fence-declares-orchestrator-commit-authority",
+      "prompt": "/implementation:implement-dispatch phase-1 - the approved plan's worker fence forbids staging, committing, and pushing: I own a commit-subject gate, and the plan pushes once at the end. The phase-1 worktree already exists at C:/work/wt-phase1. Compose the brief and dispatch the worker.",
+      "expected_output": "Declares commit authority orchestrator explicitly in the brief, dispatches the implementation:implementer agent rather than a generic subagent, omits the commit-and-push-early clause and worker-side provisioning, hands over the assigned worktree path, and verifies the return against the uncommitted tree before the orchestrator commits source and plan marks together at the phase boundary without pushing. A fence that forbade only a narrow action such as force-push would leave commit authority at worker.",
+      "files": [],
+      "expectations": [
+        "The brief declares commit authority orchestrator explicitly rather than leaving the worker to infer it from the fence",
+        "Dispatches the implementation:implementer agent, not a generic subagent type, and the brief omits the commit-and-push-early clause and any worker-side provisioning while giving the assigned worktree path",
+        "Verifies the return against the uncommitted tree (status --porcelain including untracked entries, diff HEAD) and runs the build/test gate on it",
+        "The orchestrator commits source and plan marks in one phase-boundary commit under its commit-subject gate and does not push before the plan's single push",
+        "Does NOT treat a fence forbidding only a narrow action (for example force-push or opening the PR) as switching commit authority to orchestrator"
+      ]
     }
   ]
 }

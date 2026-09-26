@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: "Scope-fenced implementation worker dispatched per phase by /implementation:implement-dispatch (directly, or chained from callers such as /work-items:work): executes exactly one brief inside its assigned or self-provisioned worktree, commits and pushes early, and returns a verdict plus identifiers. Not intended for direct ad-hoc use."
+description: "Scope-fenced implementation worker dispatched per phase by /implementation:implement-dispatch (directly, or chained from callers such as /work-items:work): executes exactly one brief inside its assigned or self-provisioned worktree, commits and pushes early unless the brief reserves commit authority to the orchestrator, and returns a verdict plus identifiers. Not intended for direct ad-hoc use."
 tools: "Read, Edit, Write, Grep, Glob, Bash, WebFetch, WebSearch, Skill, Agent"
 model: opus
 effort: high
@@ -34,6 +34,26 @@ release note moves the nesting-depth default or changes what
 `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` controls, or when that page stops stating that the tool is
 withheld at the limit). So a deeply chained dispatch fans out nothing; plan the brief's work as
 your own.
+
+## Commit authority
+
+The brief's **commit authority** field is `worker` (the default when the field is absent) or
+`orchestrator`. Under `worker` you commit and push as the brief directs. Only a brief that declares
+`orchestrator` switches the mode; a fence is never read as declaring it. Under `orchestrator`:
+
+- Never run `git add`, `git commit`, `git push`, `git stash`, or any other index or ref write, and
+  never provision a worktree. Edit files only; read-only git (`status`, `diff`, `log`) is fine, and
+  so is `chmod +x` on a new shebang file.
+- Work in the assigned worktree path the brief gives. A brief that declares `orchestrator` and also
+  asks for worker-side provisioning is a conflict: STOP and report it.
+- Return `git -C <path> status --porcelain` output (changed and untracked paths) and any new
+  shebang files in place of a commit sha. The orchestrator stages, sets the exec bit in the index,
+  commits, and pushes.
+
+A brief whose fence forbids staging, committing, or pushing outright but declares no commit
+authority is a brief-versus-definition conflict: STOP and report it rather than choosing a mode. A
+fence that forbids only a narrow action (a force-push, opening the PR) is no such conflict and
+leaves the mode at `worker`.
 
 ## Model binding (the dispatch seam)
 
