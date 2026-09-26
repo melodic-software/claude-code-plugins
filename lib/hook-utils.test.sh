@@ -2475,8 +2475,11 @@ bs_payload_file="$(mktemp)"
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
 bs_make_payload 65536 "$bs_payload_file"
+bs_payload=$(<"$bs_payload_file")
+# The producer writes with the printf builtin: the first byte must not wait on
+# a process spawn, which can outlast the reader's 1.2 s idle bound.
 {
-  cat "$bs_payload_file"
+  printf '%s' "$bs_payload"
   bs_hold_open
 } | {
   CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 hook::buffer_stdin >"$bs_out_file" 2>/dev/null
@@ -2485,10 +2488,10 @@ bs_make_payload 65536 "$bs_payload_file"
 }
 bs_rc=$(cat "$bs_rc_file")
 bs_len=$(wc -c <"$bs_out_file")
-if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)); then
+if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536 && ${#bs_payload} == 65536)); then
   ok "buffer_stdin: an exactly-chunk-sized payload on a held-open pipe returns whole (rc 0, $bs_len bytes)"
 else
-  fail "buffer_stdin chunk boundary: rc=$bs_rc len=$bs_len (expected rc 0, 65536 bytes)"
+  fail "buffer_stdin chunk boundary: rc=$bs_rc len=$bs_len payload=${#bs_payload} (expected rc 0, 65536 bytes)"
 fi
 rm -f "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
 
@@ -2542,6 +2545,7 @@ bs_payload_file="$(mktemp)"
 bs_rc_file="$(mktemp)"
 bs_out_file="$(mktemp)"
 bs_make_payload 65536 "$bs_payload_file"
+bs_payload=$(<"$bs_payload_file")
 # shellcheck disable=SC2016 # $1 is the overriding function's own positional, not this shell's
 bs_probe_override='hook::json_complete() {
   local verdict=0
@@ -2554,7 +2558,7 @@ bs_probe_override='hook::json_complete() {
 bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
   : >"$bs_probe_file"
   {
-    cat "$bs_payload_file"
+    printf '%s' "$bs_payload" # builtin: the first byte must not wait on a spawn
     bs_hold_open
   } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
