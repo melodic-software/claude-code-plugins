@@ -36,10 +36,11 @@ command, a lookup, a config edit, or a change to a severity.
 Read MCP configuration ONLY through the inventory script. Never open `~/.claude.json`,
 `.mcp.json`, `managed-mcp.json`, or `managed-settings.json` with Read, `cat`, `jq`, or any other
 tool: `~/.claude.json` holds account data and per-project state, and server entries carry `env`
-and `headers` values that are often tokens. The script emits only the columns the audit needs. It
-is built to withhold `env` and `headers` values, URL userinfo and query strings, raw command text,
-and every argument other than the package spec, printing `-` with pin `unparsed` when it cannot
-separate them safely, and a secret-shaped server name as `redacted-name(<length>)`. A static
+and `headers` values that are often tokens. The script emits only the columns the audit needs, and
+only values that fully match a strict grammar for their kind (npm, Python, and image specs, URLs
+reduced to `scheme://host[:port]`, bare program names). Anything else prints `-` with pin
+`unparsed`, and a server name that is not plain ASCII or that looks like a credential prints as
+`redacted-name(<length>)`. A static
 parser cannot rule out every shape: when a row looks wrong, report it rather than reading the
 file to check.
 
@@ -80,7 +81,9 @@ full output is in hand.
 Load [reference/checklist.md](reference/checklist.md) and evaluate each row whose `effective` is
 `yes` or `approval-unknown` (a project server whose approval sits in settings the script does not
 read; qualify its findings "if approved"). Rows that are shadowed, suppressed by managed config,
-or disabled appear in the inventory but are not scored.
+disabled, or `rejected-by-client` appear in the inventory but are not scored. A
+`shadowed-by:project-if-approved` user row runs only if its project twin is not approved: score
+it and say so.
 
 - **P1 floating version** is mechanical: the severity follows from the `pin` and `launcher`
   columns by the checklist's table. Do not second-guess the script's classification.
