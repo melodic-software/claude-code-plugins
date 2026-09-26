@@ -11,7 +11,7 @@ Canvas 2D modules (`renderFrame(t)`), headless Chromium draws the frames, and ff
 | `/animation:setup` | Checks the prerequisites (ffmpeg with libx264, ffprobe, Node, playwright-core with Chromium, the pinned numpy and opencv, and the `playwright_core` option when set) and prints a PASS/FAIL/INFO table with one remedy line per failure. Check-only: every prerequisite is external. |
 | `/animation:learn-style <work dir> <pack dir>` | Measures a rotoscope work directory into a style pack: palette and tone ramp, the seven style knobs, and statistic bands (edge softness, stroke and gap widths, edge roughness, gray inside the ink, boil of the frame and caption, holds on 1s/2s/3s). Then proves the pack by authoring a new scene with ink.js and checking its render against the bands. |
 
-Planned next: `film` (brief, boards for approval, shots, render, review).
+Planned next: `produce` (brief, boards for approval, shots, render, review).
 
 ## Style packs
 
