@@ -49,7 +49,7 @@ The brief's **commit authority** field is `worker` (the default when the field i
   it.
 - Return `git -C <path> status --porcelain` output (changed and untracked paths) and any new
   shebang files in place of a commit sha. The orchestrator stages, sets the exec bit in the index,
-  commits, and pushes.
+  commits, and pushes per the plan's push rule.
 
 A brief whose fence forbids staging, committing, or pushing outright but declares no commit
 authority is a brief-versus-definition conflict: STOP and report it rather than choosing a mode. A
