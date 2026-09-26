@@ -20,13 +20,31 @@
 # for manual resolution (named on stderr); 2 git failure.
 set -uo pipefail
 
+conflicted_plugins() {
+  git diff --name-only --diff-filter=U |
+    sed -n -e 's#/\.claude-plugin/plugin\.json$##p' -e 's#/CHANGELOG\.md$##p' | sort -u
+}
+# Any other operation (a revert, a merge onto the default branch): name the
+# conflicted pairs as left for manual resolution, never report them resolved.
+unsupported() {
+  local dirs
+  dirs=$(conflicted_plugins)
+  [[ -z $dirs ]] && exit 0
+  while IFS= read -r dir; do echo "left for manual resolution: $dir"; done <<<"$dirs" >&2
+  exit 1
+}
+
+# ponytail: default branch is origin/HEAD, else "main"; add an argument if a repo needs another.
+default=$(git symbolic-ref -q --short refs/remotes/origin/HEAD) default=${default#*/}
 if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  # The sides are known only for a merge of the default branch INTO the PR.
+  [[ $(git branch --show-current) == "${default:-main}" ]] && unsupported
   pr=HEAD main=MERGE_HEAD
   base=$(git merge-base HEAD MERGE_HEAD) || exit 2
 elif head=$(git rev-parse -q --verify REBASE_HEAD || git rev-parse -q --verify CHERRY_PICK_HEAD); then
   pr=$head main=HEAD base="$head^"
 else
-  exit 0
+  unsupported
 fi
 
 tmp=$(mktemp -d) || exit 2
@@ -95,6 +113,5 @@ while IFS= read -r dir; do
   ((rc == 2)) && exit 2
   echo "left for manual resolution: $dir" >&2
   status=1
-done < <(git diff --name-only --diff-filter=U |
-  sed -n -e 's#/\.claude-plugin/plugin\.json$##p' -e 's#/CHANGELOG\.md$##p' | sort -u)
+done < <(conflicted_plugins)
 exit "$status"

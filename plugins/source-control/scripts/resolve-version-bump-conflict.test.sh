@@ -122,4 +122,28 @@ assert_exit "both sides rewrote an old entry: exit 1" 1 "$?"
 assert_contains "names the plugin" "$out" "left for manual resolution: $P"
 assert_contains "markers untouched" "$(cat "$r/$P/CHANGELOG.md")" "<<<<<<<"
 
+# 6. The PR merged INTO the default branch: sides unknown, left untouched.
+r=$(mkfixture 1.3.0 desc '' 1.2.1)
+{ git -C "$r" checkout -q main && git -C "$r" merge -q pr; } >/dev/null 2>&1
+out=$(run "$r")
+assert_exit "merge onto the default branch: exit 1" 1 "$?"
+assert_contains "names the plugin" "$out" "left for manual resolution: $P"
+assert_contains "markers untouched" "$(cat "$r/$P/CHANGELOG.md")" "<<<<<<<"
+
+# 7. A conflicted revert is not a supported operation: exit 1, not 0.
+r=$(mkfixture 1.2.1 desc '' 1.2.1)
+entry 1.2.2 6 'Later change.'
+{
+  write_plugin "$r" 1.2.2 desc "$E$(sed '1,4d' "$r/$P/CHANGELOG.md")"
+  git -C "$r" commit -qam later
+  git -C "$r" revert --no-edit HEAD~1
+} >/dev/null 2>&1
+if git -C "$r" rev-parse -q --verify REVERT_HEAD >/dev/null; then
+  out=$(run "$r")
+  assert_exit "conflicted revert: exit 1" 1 "$?"
+  assert_contains "names the plugin" "$out" "left for manual resolution: $P"
+else
+  assert_eq "revert fixture conflicts" conflicted clean
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1
