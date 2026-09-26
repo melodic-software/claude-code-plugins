@@ -4098,7 +4098,7 @@ bg_want_root="${bg_want_root//$'\r'/}"
 if [[ "$(bg_field "$bg_out" ROOT)" == "$bg_want_root" ]]; then
   ok "begin: REPO_ROOT is anchored at the file, not the process CWD"
 else
-  fail "begin repo root: $(bg_field "$bg_out" ROOT) want $bg_want_root"
+  fail "begin repo root (rc=$bg_rc): $(bg_field "$bg_out" ROOT) want $bg_want_root; output: [$bg_out]"
 fi
 
 # Telemetry-only values stay unresolved with no sink wired: TOOL empty and
@@ -4107,16 +4107,17 @@ if [[ "$(bg_field "$bg_out" TOOL)" == "" &&
 "$(bg_field "$bg_out" REL)" == "$BG_REPO/sub/a.sh" ]]; then
   ok "begin: sink unset → TOOL empty and FILE_REL unresolved"
 else
-  fail "begin sink unset: TOOL=$(bg_field "$bg_out" TOOL) REL=$(bg_field "$bg_out" REL)"
+  fail "begin sink unset (rc=$bg_rc): TOOL=$(bg_field "$bg_out" TOOL) REL=$(bg_field "$bg_out" REL); output: [$bg_out]"
 fi
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" HOOK_TELEMETRY_SINK="$BG_WORK/sink-does-not-run")
 bg_sink_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh" Edit)" sample PostToolUse '*.sh')
+bg_sink_rc=$?
 if [[ "$(bg_field "$bg_sink_out" TOOL)" == "Edit" &&
 "$(bg_field "$bg_sink_out" REL)" == "sub/a.sh" &&
 "$(bg_field "$bg_sink_out" DEGRADED)" == "0" ]]; then
   ok "begin: sink wired → TOOL parsed and FILE_REL made repo-relative"
 else
-  fail "begin sink wired: $bg_sink_out"
+  fail "begin sink wired (rc=$bg_sink_rc): [$bg_sink_out]"
 fi
 
 # --relative resolves the repo-relative path with no sink, because the hook
@@ -4125,11 +4126,12 @@ fi
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_ROOT_VALUE="$BG_WORK/elsewhere")
 bg_deg_out=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" \
   --relative --repo-root bg_fake_root sample PostToolUse '*.sh')
+bg_deg_rc=$?
 if [[ "$(bg_field "$bg_deg_out" REL)" == "a.sh" &&
 "$(bg_field "$bg_deg_out" DEGRADED)" == "1" ]]; then
   ok "begin: --relative with an unrelated root degrades FILE_REL and flags it"
 else
-  fail "begin degrade: $bg_deg_out"
+  fail "begin degrade (rc=$bg_deg_rc): [$bg_deg_out]"
 fi
 
 # The post-read half, table-driven over path shapes no fixture can create.
@@ -4138,12 +4140,13 @@ while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
   [[ -n "$bg_label" ]] || continue
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
   bg_row=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse)
+  bg_row_rc=$?
   bg_got_dir="$(bg_field "$bg_row" DIR)"
   bg_got_base="$(bg_field "$bg_row" BASE)"
   if [[ "$bg_got_dir" == "$bg_want_dir" && "$bg_got_base" == "$bg_want_base" ]]; then
     ok "begin: $bg_label → FILE_DIR '$bg_got_dir', FILE_BASE '$bg_got_base'"
   else
-    fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base')"
+    fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base'), rc=$bg_row_rc, output: [$bg_row]"
   fi
 done <<'BGTABLE'
 a file under the filesystem root|/README.md|/|README.md
@@ -4479,6 +4482,8 @@ fin_check() {
     got_changed="unreadable"
   if [[ "$got_changed" == "$want_changed" ]]; then
     ok "finish/$label: data.changed $want_changed"
+  elif [[ ! -s "$tel" ]]; then
+    fail "finish/$label: data.changed not verifiable, no envelope arrived within fin_arm's 15 s poll (want $want_changed)"
   else
     fail "finish/$label: data.changed $got_changed, want $want_changed"
   fi
