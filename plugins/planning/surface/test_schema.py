@@ -80,6 +80,14 @@ class TestShippedSchemas(unittest.TestCase):
             self.assertNotIn("schemaVersion", doc)
             self.assertIsNone(schema.first_error(doc, schema.load(name)))
 
+    def test_seeded_row_status_accepts_superseded_by_plan(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        rows = {"Q1": {"status": "superseded-by-plan", "round": 1, "resolution": "r"}}
+        doc["meta"]["seededFrom"] = {"at": "t", "rows": rows}
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        rows["Q1"]["status"] = "pending"
+        self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
+
     def test_event_kinds_include_confirm(self):
         e = {"seq": 1, "id": "Q1", "kind": "confirm", "alt": "0", "at": "t"}
         self.assertIsNone(schema.first_error(e, schema.load("event")))

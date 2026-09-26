@@ -18,7 +18,8 @@
 # out of reach of any file-based check and is the skill's contract to keep.
 #
 # Exit 0 = every registered question is resolved (register is clean)
-# Exit 1 = at least one question is still `open` (the contract is not locked)
+# Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
+#          contract is not locked)
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
 #          register, a malformed row, an unknown status, a duplicate or
@@ -30,7 +31,10 @@
 #
 # Register row shape (inside the ledger's `## Open-question register` section):
 #   - Q1 | answered | round 1 | <question> | <resolution>
-# Statuses: open | answered | deferred | withdrawn | blocked
+# Statuses: open | answered | deferred | withdrawn | blocked | superseded-by-plan
+# `superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
+# the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
+# gate exactly like `open`.
 #
 # --brief is OPT-IN and cross-checks that every `deferred` and `blocked` row
 # reached the Brief's `### Deferred questions` section, keyed by its `Q<N>` id.
@@ -49,7 +53,7 @@
 # example and a `~~~` line inside a backtick fence is content.
 #
 # Output (stdout, greppable):
-#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> brief=<ok|unchecked> status=<clean|open|ungradeable>`
+#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked> status=<clean|open|ungradeable>`
 
 set -uo pipefail
 
@@ -140,7 +144,7 @@ brief_named=0
 
 die_ungradeable() {
   echo "error: $1" >&2
-  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 brief=unchecked status=ungradeable"
+  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 superseded=0 brief=unchecked status=ungradeable"
   exit 2
 }
 
@@ -223,6 +227,7 @@ answered=0
 deferred=0
 withdrawn=0
 blocked=0
+superseded=0
 seen_ids=" "
 deferred_ids=""
 expected=1
@@ -315,6 +320,7 @@ while IFS= read -r line; do
     deferred_ids="$deferred_ids$id "
     ;;
   withdrawn) withdrawn=$((withdrawn + 1)) ;;
+  superseded-by-plan) superseded=$((superseded + 1)) ;;
   blocked)
     blocked=$((blocked + 1))
     deferred_ids="$deferred_ids$id "
@@ -383,9 +389,9 @@ elif [[ "$brief_named" -eq 1 ]]; then
   brief_state="ok"
 fi
 
-verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered brief=$brief_state"
+verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
 
-if [[ "$open_count" -gt 0 ]]; then
+if [[ $((open_count + superseded)) -gt 0 ]]; then
   echo "$verdict status=open"
   exit 1
 fi

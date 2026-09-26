@@ -136,6 +136,10 @@ When no preferred-source author covers the topic's domain (typical for tool-ecos
 2. **Upstream repo changelog or releases**: `gh api repos/<owner>/<repo>/releases` OR a raw `CHANGELOG.md` fetch this turn
 3. **One recognized industry authority**: a top-voted community post or well-known practitioner blog with the author named
 
+## Read-only `gh` forms
+
+Search and read GitHub with forms that cannot write: `gh search issues`, `gh search prs`, `gh search code`, `gh search repos`, `gh issue view`, `gh pr view`, and `gh api` with the query in the URL and no `-X`, `-f` or `-F` flag (`gh api 'search/issues?q=<terms>'`, `gh api repos/<owner>/<repo>/releases`). The reason is the operator's permission list, not the API: `gh api -X GET search/issues -f q=...` reads nothing more than the URL form does, but it matches ask rules such as `Bash(gh api -X *)` and `Bash(gh api * -f *)` written to catch API writes, so every search prompts the operator.
+
 ## Primary-source-first protocol
 
 The "top of Google" is a ranking artifact, not an authority signal. SEO content farms outrank authoritative sources. The defense: never let the SERP BE the source. Three steps per claim.
@@ -240,7 +244,7 @@ Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MED
 
 Every other criterion grades provenance or process. This one grades whether the claim follows from its sources. A claim can have a Tier 0/1 primary fetched this turn, two independent corroborators, a confirmed changelog, and quotes that match their sources word for word, and still assert something none of those sources measured. A quote can match its source exactly while the claim does not follow from it: re-fetching the quotes grades the first, and only this check grades the second.
 
-**The pass bar, one rule: the claim's primary source measures the claim's variable and population.** Every cited source is checked on its own, not only when sources conflict. A corroborator that measured a different variable or population is recorded, not counted toward criterion 4's two independent corroborators; if that leaves fewer than two, the claim fails criterion 4 as well.
+**The pass bar, one rule: the claim's primary source measures the claim's variable and population.** The primary is the one `sources[]` entry marked `role: primary` in the sidecar header, and there is exactly one per accepted claim. Every cited source is checked on its own, not only when sources conflict. A corroborator that measured a different variable or population is recorded, not counted toward criterion 4's two independent corroborators; if that leaves fewer than two, the claim fails criterion 4 as well.
 
 For each accepted claim, name what each cited source actually measures: the variable it manipulated or observed, the population it measured, and the era or question it answered. Then state in one line why the claim follows from those sources **jointly**. Record both in the sidecar header (`measures:` per source, `inference:` and `qualifiers:` per claim, per the artifact-shape file) so the check can be graded off disk.
 

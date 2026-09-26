@@ -1,9 +1,9 @@
 ---
 description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-tolerance by default), emoji formatting, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedging, citation artifacts, model-era phrases ('that's the unlock', 'the part most people skip'), and the rest of the catalog (distilled from Wikipedia's Signs of AI writing plus an evolving model-era inventory), plus a judgment rubric for superficial analysis, vague attribution, promotional tone, metaphor jargon ('load-bearing', 'seam'), and mechanism-free claims. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', or before publishing agent-written prose. Read-only by default; 'fix' as an explicit argument applies rewrites behind a semantic-diff guard and may be chained ('detect and rewrite'). Empty target audits the repo's tracked markdown, high-impact and high-velocity files first."
-argument-hint: "[audit|fix] [target]"
+argument-hint: "[audit|fix] [target | user-scope [memory]]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -57,6 +57,8 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
 |---|---|
 | *(empty)* or `audit [target]` | Read-only audit (default). Empty target = repo-wide |
 | `fix [target]` | Explicit fix pass over the target's findings (guarded; below). "Detect and rewrite" or `audit fix` chains audit then fix in one invocation |
+| `audit user-scope [memory]` | Read-only audit of the user-level Claude Code markdown, per [User-scope target](#user-scope-target) |
+| `fix user-scope [memory]` | Fix pass over that same file list, under the same rules |
 
 ## Audit flow
 
@@ -68,7 +70,8 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    detector keeps its own path order, and ordering never changes inclusion. Inside a
    repository, a directory target expands to its tracked markdown only, so pass untracked
    in-repo files as file paths. Check the target first: a target outside any repository
-   follows [Non-repository targets](#non-repository-targets).
+   follows [Non-repository targets](#non-repository-targets), and the literal target
+   `user-scope` follows [User-scope target](#user-scope-target).
 2. **Run the detector.** Build the target list once: `detect.sh --list-targets <targets>`,
    with its stdout redirected to a list file in the session scratchpad (with no targets, it
    lists the repository's tracked markdown). Each line is `<key><TAB><path>`, the key spelled as the
@@ -113,6 +116,37 @@ changelog that backticks the phrase a fix removed, stay marker-free by construct
    when they are not, since it is the shorter path to the same rewrites. Name the condition that
    changes the answer: the relay can only hand the rows over when `/ai-slop:audit` is available
    in that session, and surfaces them otherwise.
+
+### User-scope target
+
+The target `user-scope` audits the user-level markdown files Claude Code loads, listed by
+`user-scope.sh`. Run `${CLAUDE_SKILL_DIR}/scripts/user-scope.sh` (add `--memory` when the argument carries
+`memory`) with its stdout redirected to a list file in the session scratchpad, and feed that
+list to step 2 as `detect.sh --list-targets --paths-file <list>`. Run the rest of the audit, or
+the fix flow, under [Non-repository targets](#non-repository-targets).
+
+- The surfaces are the user-level markdown files the
+  [`.claude` directory docs](https://code.claude.com/docs/en/claude-directory) name:
+  `CLAUDE.md`, `rules/`, skills that hold `SKILL.md` with their supporting files, `commands/`,
+  `agents/`, and top-level `output-styles/*.md`; `memory` adds `projects/*/memory/` and
+  `agent-memory/*/`. The root is `CLAUDE_CONFIG_DIR` when set and non-empty, else
+  `~/.claude`. Verified 2026-09-25 against that page: it lists these user-level files and
+  states that with `CLAUDE_CONFIG_DIR` set, every `~/.claude` path on the page lives under that
+  directory instead. Recheck when the page adds, moves, or drops a user-level markdown surface,
+  or changes what `CLAUDE_CONFIG_DIR` relocates.
+- `@path` imports are not followed. Pass an imported file as an explicit path target.
+- `memory` lists the default auto memory location only. Any settings scope can move it with
+  `autoMemoryDirectory` ([memory docs](https://code.claude.com/docs/en/memory)); the script
+  warns when the user `settings.json` sets it, and a relocated directory is passed as a path
+  target.
+- A symlink is followed only to a readable regular `.md` file inside the config root, and
+  that file is listed once. A symlinked directory is not walked, and a link pointing outside
+  the root is skipped; the script names each on stderr. Pass a skipped link's target as an
+  explicit path.
+- `plugins/` is not in scope; plugin content is audited in its own repository.
+- The detector's user config layer is `$HOME/.claude/ai-slop.json` even when
+  `CLAUDE_CONFIG_DIR` is set, and its project layers come from the session's project directory.
+- A path target such as `~/.claude` covers every `*.md` beneath it.
 
 ### Non-repository targets
 

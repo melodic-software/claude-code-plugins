@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.10.0] - 2026-09-25
+
+### Added
+
+- **`user-scope` target.** `/ai-slop:audit user-scope` and `fix user-scope` audit the
+  user-level Claude Code markdown: `CLAUDE.md`, `rules/`, skills holding `SKILL.md`,
+  `commands/`, `agents/` and top-level `output-styles/*.md`, under `CLAUDE_CONFIG_DIR` else
+  `~/.claude`, per the `.claude` directory docs page; `memory` adds auto memory and agent
+  memory. The new `scripts/user-scope.sh` prints the file list for
+  `detect.sh --list-targets --paths-file`, skipping FIFOs, directories, unreadable files and
+  paths holding a newline or tab. It follows a symlink only to a readable regular `.md`
+  file inside the config root whose resolved path holds no newline or tab, lists that file
+  once, never walks a symlinked directory, and names every skipped link on stderr. With
+  `--memory` it warns when the user `settings.json` sets `autoMemoryDirectory`, which it does
+  not list. Under MSYS it prints Windows-form paths (`C:/...`). A path target such as
+  `~/.claude` is unchanged.
+
+### Fixed
+
+- **A FIFO at a listed path hung `rubric-fanout.sh status` and `plan`.** `sha256sum` and
+  `wc -w` opened it and blocked. Only readable regular files are now hashed or counted, so
+  `status` reports the batch `reason=paths` and `plan` counts the path as 0 words. A
+  targets file that is not a regular file makes `plan` exit 2 instead of blocking.
+- **A missing row did not say its sidecar was unsound.** `status` now prints
+  `status=missing reason=paths digest=<d>` when the result file is absent and the sidecar
+  cannot bind the contents, so the batch is re-planned rather than dispatched. A missing row
+  with a sound sidecar is unchanged.
+- **A sidecar that is not a regular file** (a FIFO, a directory) was treated as absent. It is
+  never opened and now reads `reason=paths`.
+
 ## [0.9.0] - 2026-09-25
 
 ### Added

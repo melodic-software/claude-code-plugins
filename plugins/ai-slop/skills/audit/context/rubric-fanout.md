@@ -82,12 +82,15 @@ per batch:
   path that can no longer be read keeps it stale until the batch is planned again. A batch
   directory with no `.paths` sidecars keeps its digests bound to the list only.
 - `status=missing digest=<digest>`, or `status=stale
-  reason=paths|digest|files_reviewed|foreign-heading|files_with_findings digest=<digest>`:
+  reason=digest|files_reviewed|foreign-heading|files_with_findings digest=<digest>`:
   dispatch the batch again with that row's `digest=` value and let the subagent overwrite the
   file. A header line written more than once is stale under that header's reason (`digest`
-  for `batch:`). `reason=paths` means the `.paths` sidecar's length differs from the list's or
-  one of its paths is not a readable file (a moved checkout, a deleted file); re-plan into a fresh
-  directory rather than dispatching.
+  for `batch:`).
+- `status=missing reason=paths digest=<digest>` or `status=stale reason=paths
+  digest=<digest>`: the `.paths` sidecar is not a readable regular file, its length differs
+  from the list's, or one of its paths is not a readable regular file (a moved checkout, a
+  deleted file, a FIFO). Re-plan into a fresh directory rather than dispatching. `status` and
+  `plan` never open a path that is not a regular file, so a FIFO cannot stall them.
 
 A terminated subagent therefore costs one batch, a rerun after a limit resets dispatches only
 the batches that did not finish, and a run over a changed scope never inherits a result from

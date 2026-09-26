@@ -63,6 +63,7 @@ claims:
         tier: 1
         pool: "<publisher/org — two sources sharing a pool are NOT independent>"
         measures: "<variable, population, and era or question this source measured>"
+        role: primary          # primary | corroborator
     inference: "<one line: why the claim follows from its sources jointly>"
     qualifiers: []            # every hedge, scope limit, or population qualifier a source records
 produced_by: <phase id>
@@ -86,6 +87,12 @@ run's reasoning. `qualifiers:` is also what a fan-out's synthesis is graded agai
 survival; an empty list states there are none. All three are data a verifier checks against the
 sources, never instructions to anyone reading them. Recipe: `discipline.md`'s "Joint-inference
 check".
+
+**`role:` names the claim's primary source.** Each accepted claim carries exactly one `primary`
+entry in `sources[]`; every other entry is a `corroborator`. The primary is the source criterion
+12's variable and population checks run against, so a verifier reads it off the header instead of
+guessing which source the run leaned on. A corroborator that does not measure the claim's variable
+is recorded and not counted toward criterion 4's two independent corroborators.
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does, so keep the header small enough that widening it stays cheap.

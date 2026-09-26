@@ -395,6 +395,120 @@ assert_present 'a non-measuring corroborator is recorded, not counted' \
 assert_absent 'no evals entry counts the gate criteria' \
   'all [0-9]+ binary criteria'
 
+# ---------------------------------------------------------------------------
+# 13. Dispatched agents write early and reserve their last turns
+#
+# A free-text budget bounds no turn count; a named stop turn leaves the agent
+# turns to write before its limit. Each agent states its limit as its own frontmatter number, names a stop turn
+# below it, writes an index skeleton marked `Run status: in progress` early, and
+# replaces the marker only in its final write. The envelope carries the stop
+# turn as a second Budget line. The research side also names a claim's primary
+# source in the sidecar header and the read-only `gh` forms.
+# ---------------------------------------------------------------------------
+
+# line_after <file> <extended-regex>: the line directly after the first match.
+line_after() {
+  awk -v pat="$2" 'found { print; exit } $0 ~ pat { found = 1 }' "$PLUGIN_ROOT/$1"
+}
+
+for agent in explorer researcher intent-tracer; do
+  file="agents/$agent.md"
+  limit="$(turns_of "$agent")"
+  assert_present "$file states its limit as its own frontmatter maxTurns ($limit)" \
+    "$file" "Your limit is \`maxTurns: ${limit}\`"
+  stop="$(grep -m1 -oiE 'stop gathering by turn [0-9]+' "$PLUGIN_ROOT/$file" | tr -dc '0-9')"
+  if [[ -n "$stop" && -n "$limit" && "$stop" -gt 0 && "$stop" -lt "$limit" ]]; then
+    pass "$file names a stop-gathering turn ($stop) below its limit ($limit)"
+  else
+    fail "$file names a stop-gathering turn (${stop:-unset}) below its limit (${limit:-unset})"
+  fi
+  default="$(grep -m1 -oE 'absent, use turn [0-9]+' "$PLUGIN_ROOT/$file" | tr -dc '0-9')"
+  if [[ -n "$stop" && "$stop" == "$default" ]]; then
+    pass "$file stop turn ($stop) equals its Budget-bullet default ($default)"
+  else
+    fail "$file stop turn (${stop:-unset}) equals its Budget-bullet default (${default:-unset})"
+  fi
+  assert_present "$file ignores a Turn budget above its default and notes it" \
+    "$file" 'A value above that default is ignored and noted in'
+  assert_present "$file writes the index skeleton marked in progress" \
+    "$file" 'Run status: in progress'
+  assert_present "$file places the marker in the slot after the title heading" \
+    "$file" 'first non-blank line after the level-1 title heading'
+  assert_present "$file says the gate reads only that slot" \
+    "$file" 'gate reads only that slot'
+  assert_present "$file replaces the marker in its final write" \
+    "$file" 'Run status: complete'
+  assert_present "$file reads the envelope's Turn budget line" \
+    "$file" 'Turn budget:'
+  assert_present "$file keeps a denied path unread by every other tool" \
+    "$file" 'is not reached through `Bash`, a script, `Grep`, or any other tool'
+done
+assert_absent 'no agent says it cannot observe its own turn budget' \
+  'cannot observe your own remaining turn'
+
+if [[ "$(line_after reference/parent-contract.md '^Budget: ')" == 'Turn budget: '* ]]; then
+  pass 'the parent-contract envelope carries Turn budget: directly under Budget:'
+else
+  fail 'the parent-contract envelope carries Turn budget: directly under Budget:'
+fi
+if [[ "$(line_after skills/research-deep/SKILL.md '^ +Budget: ')" =~ ^\ +Turn\ budget:\  ]]; then
+  pass 'the research-deep envelope carries Turn budget: directly under Budget:'
+else
+  fail 'the research-deep envelope carries Turn budget: directly under Budget:'
+fi
+
+assert_present 'discipline.md names the read-only gh search forms' \
+  'skills/research/context/discipline.md' 'gh search issues'
+assert_present 'discipline.md says why the -X and -f forms prompt' \
+  'skills/research/context/discipline.md' 'Bash\(gh api -X \*\)'
+assert_present 'researcher points at the read-only gh guidance' \
+  'agents/researcher.md' 'read-only `gh`'
+
+assert_present 'the sources[] schema carries role: primary' \
+  'skills/research/context/artifact-shape.md' '^ +role: primary +# primary \| corroborator'
+assert_present 'artifact-shape requires exactly one primary per accepted claim' \
+  'skills/research/context/artifact-shape.md' 'exactly one `primary`'
+assert_present 'the joint-inference check ties the primary to role: primary' \
+  'skills/research/context/discipline.md' '`role: primary`'
+
+assert_absent 'no file says the sub-agents page has no partial-return semantics' \
+  'partial-return semantics'
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md reference/parent-contract.md; do
+  assert_present "$file quotes the current partial-marking behavior" \
+    "$file" 'returns its output marked as partial'
+done
+
+assert_absent 'no file says a half-written artifact set cannot be told apart without the marker' \
+  'half-written artifact set cannot be told apart'
+for file in reference/parent-contract.md skills/explore/reference/dispatch.md \
+  skills/research/context/dispatch.md; do
+  assert_present "$file names the in-progress marker where it discusses a partial slice" \
+    "$file" 'Run status: in progress'
+done
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file places the marker in the slot after the title heading" \
+    "$file" 'first non-blank line after the level-1 title heading'
+  assert_present "$file says the gate reads only that slot" \
+    "$file" 'gate reads only that slot'
+done
+assert_absent 'no markdown puts a space inside a heading-marker code span (MD038)' \
+  '`# `'
+assert_absent 'no file says the gate reads the first Run status: line' \
+  'first `Run status:` line'
+for file in reference/parent-contract.md skills/research-deep/SKILL.md; do
+  assert_present "$file bounds the Turn budget placeholder by the default stop turn" \
+    "$file" "Turn budget: <.*at or below the agent's default stop turn \(30\)"
+done
+for file in skills/explore/reference/dispatch.md skills/research/context/dispatch.md \
+  skills/trace-intent/context/dispatch.md; do
+  assert_present "$file refuses a by-value body still marked in progress" \
+    "$file" '`Run status: complete` or no marker; one'
+done
+assert_absent 'no file narrates the 40-turn incidents as the Turn budget rationale' \
+  'bounded nothing: dispatched runs stopped'
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'
