@@ -6,7 +6,7 @@ Full taxonomy for `/planning:plan` Step 4.6. Before Step 5 approval, walk the PL
 |---|---|---|
 | **Briefed** | The Brief / interview locked this decision (acceptance criteria, constraints, out-of-scope items, deferred questions with `arbiter: /planning:plan`) | (no tag, assumed approved) |
 | **Execution-shape** | /planning:plan's discretion within briefed scope: orchestration shape (parallel/sequential), sub-topic promotion, technique selection, per-phase ordering, sanity-check criteria | **Tag: `[EXEC-SHAPE]`** in the PLAN body |
-| **Fallback-for-edge-case** | A /planning:plan-invented contingency for scenarios the brief did NOT anticipate: follow-up work items, alignment-check protocols between parallel agents, retry mechanisms, mid-flight pivot defaults | **Tag: `[FALLBACK — confirm or override]`** in the PLAN body |
+| **Fallback-for-edge-case** | A /planning:plan-invented contingency for scenarios the brief did NOT anticipate: follow-up work items, alignment-check protocols between parallel agents, retry mechanisms, mid-flight pivot defaults | **Tag: `[FALLBACK]`** in the PLAN body, for the user to confirm or override |
 | **Adopted mitigation** | A `/planning:devils-advocate` mitigation, reviewer fix, or research update the plan took on after the Brief | `[EXEC-SHAPE]` or `[FALLBACK]` by its nature, EXCEPT when it (a) displaces a user answer or (b) adds a remote write, irreversible action, or externally visible artifact: then it never passes the confidence gate and goes to Step 5's "Displaced answers and new external effects" block, with kind (a) setting its register row to `superseded-by-plan` |
 
 ## Confidence gate (decide vs interview)
