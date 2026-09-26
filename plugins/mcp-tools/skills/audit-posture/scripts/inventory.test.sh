@@ -86,6 +86,8 @@ cat >"$FIX/claude.json" <<'JSON'
     "pu": {"command": "npx", "args": ["pu-user@1.0.0"]},
     "useronly": {"command": "uvx", "args": ["useronly==1.0.0"]},
     "dis": {"command": "npx", "args": ["dis@1.0.0"]},
+    "corp": {"command": "npx", "args": ["corp-user@1.0.0"]},
+    "ghp_LEAKNAMEDIS1": {"command": "npx", "args": ["gh@1.0.0"]},
     "evil\tna\nme\u001b[31m": {"command": "npx", "args": ["ctl@1.0.0"]}
   },
   "projects": {
@@ -94,7 +96,7 @@ cat >"$FIX/claude.json" <<'JSON'
         "shared": {"command": "npx", "args": ["shared-local@1.0.0"]},
         "localonly": {"command": "npx", "args": ["localonly@1.0.0"]}
       },
-      "disabledMcpServers": ["dis", "projdis", "override"],
+      "disabledMcpServers": ["dis", "projdis", "override", "ghp_LEAKNAMEDIS1"],
       "disabledMcpjsonServers": ["rejected"],
       "enabledMcpjsonServers": ["pu", "projdis"]
     },
@@ -282,6 +284,9 @@ assert_eq "disabledMcpServers disables a managed-settings server" "disabled" "$(
 assert_eq "user-only server effective" "yes" "$(cell user useronly 3)"
 assert_eq "file server effective without managed-mcp.json" "yes" "$(cell file npx-bare 3)"
 assert_eq "managed-settings server effective" "yes" "$(cell managed-settings corp 3)"
+assert_eq "user row shadowed by a managed-settings row" "shadowed-by:managed-settings" "$(cell user corp 3)"
+assert_eq "secret-shaped name redacted, still matched by disabledMcpServers" "disabled" \
+  "$(cell user 'redacted-name(16)' 3)"
 
 # Local-scope key matching: C:\Work\Proj key matches the lowercase forward-slash --project.
 assert_eq "local key matched case-insensitively" "localonly@1.0.0" "$(cell local localonly 6)"
@@ -317,7 +322,7 @@ assert_contains "file-scope precedence not evaluated line" "$OUT" \
 check_row a-bash-env npx p@1.0.0 exact unscoped
 check_row b-npx-authtok npx - unparsed -
 check_row c-npm-giturl npx p@git+https://github.com/o/r.git git-ref github.com
-check_row d-npm-tgzurl npx p@https://host/x.tgz git-ref host
+check_row d-npm-tgzurl npx p@https://host/x.tgz tarball host
 check_row e-pep508 uvx 'mcp-x @ git+https://github.com/o/r' git-ref github.com
 check_row f-docker-logopt docker img:1 mutable-tag library
 check_row f2-docker-unknown docker - unparsed -
@@ -336,7 +341,7 @@ check_row r-npx-v npx pkg@v1.2.3 exact unscoped
 check_row s-py-eq3 uvx pkg===1.0 exact pypi
 check_row t-npx-ws npx pkg@1.0.0 exact unscoped
 check_row u-bash-combined npx u@1.0.0 exact unscoped
-check_row v-local-wrapped local node wrapped local
+check_row v-local-wrapped local - wrapped local
 check_row w-npx-assign npx - unparsed -
 check_row x-docker-assign docker - unparsed -
 assert_eq "bidi format char stripped from name" "bidi@1.0.0" "$(cell file bidiname 6)"
@@ -378,7 +383,7 @@ check_row npx-file npx file:../pkg local-path local
 check_row npx-github npx github:owner/repo git-ref github:owner
 check_row npx-userrepo npx owner/repo git-ref github:owner
 check_row npx-gitcommit npx git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567 git-commit github.com
-check_row npx-tarball npx https://host.example.com/x.tgz git-ref host.example.com
+check_row npx-tarball npx https://host.example.com/x.tgz tarball host.example.com
 check_row cmd-wrap npx w-mcp@1.0.0 exact unscoped
 check_row cmdexe-wrap npx w-mcp@latest floating-tag unscoped
 check_row npx-cmd npx c-mcp@1.0.0 exact unscoped
@@ -435,13 +440,17 @@ assert_contains "managed-settings.json absent" "$OUT" \
 # --- Run 2b: managedMcpServers rows still load beside managed-mcp.json ---------
 
 mkdir -p "$FIX/managed three"
-printf '%s\n' '{"mcpServers": {"corpstdio": {"command": "npx", "args": ["corp-mcp@1.0.0"]}}}' \
-  >"$FIX/managed three/managed-mcp.json"
-printf '%s\n' '{"managedMcpServers": {"corp": {"type": "http", "url": "https://corp.example.com/mcp"}}}' \
+printf '%s\n' '{"managedMcpServers": {"corp": {"type": "http", "url": "https://corp.example.com/mcp"},
+  "both": {"type": "http", "url": "https://both-settings.example.com/mcp"}}}' \
   >"$FIX/managed three/managed-settings.json"
+printf '%s\n' '{"mcpServers": {"corpstdio": {"command": "npx", "args": ["corp-mcp@1.0.0"]},
+  "both": {"command": "npx", "args": ["both-mcp@1.0.0"]}}}' >"$FIX/managed three/managed-mcp.json"
 run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
   --managed-dir "$FIX/managed three" --date 2026-01-02
 assert_eq "managedMcpServers not suppressed by managed-mcp.json" "yes" "$(cell managed-settings corp 3)"
+assert_eq "managed-settings row shadowed by a managed-mcp.json row" "shadowed-by:managed" \
+  "$(cell managed-settings both 3)"
+assert_eq "managed-mcp.json row wins over managed-settings" "yes" "$(cell managed both 3)"
 
 # --- Run 2c: enableAllProjectMcpServers approves every project server ----------
 
@@ -480,14 +489,100 @@ run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/no
 assert_eq "duplicate file-scope names both listed" 2 \
   "$(printf '%s\n' "$OUT" | awk -F'\t' '$1 == "file" && $2 == "dup"' | wc -l | tr -d ' ')"
 
-# --- Planted secrets never reach stdout or stderr ----------------------------
+# --- Run 6: merge-gate adversarial fixture ------------------------------------
 
-for secret in SECRETENV1 SECRETHDR1 SECRETOAUTH1 SECRETHELPER1 SECRETAPIKEY1 SECRETREG1 SECRETREG2 \
-  SECRETIDX1 SECRETFROM1 SECRETTGZ1 SECRETQTGZ1 SECRETFRAG1 SECRETURLPW1 SECRETQUERY1 SECRETDOCKER1 \
-  SECRETLOCAL1 SECRETBASH1 LEAK1 LEAK2 LEAK3 LEAK4 LEAK5 LEAK6 LEAK7 LEAK8 SECRETUNK1 SECRETSHAPE1 \
-  SECRETSHAPE2; do
-  assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
-done
+cat >"$FIX/gate adv.json" <<'JSON'
+{"mcpServers": {
+  "cmd-with-spaces": {"command": "npx -y evil-pkg --api-key LEAKCMD1"},
+  "cmd-env-path": {"command": "/usr/bin/env API_KEY=LEAKCMD2 node", "args": ["server.js"]},
+  "cmd-win-path": {"command": "C:\u005ctools\u005crun.exe --token LEAKCMD3"},
+  "cmd-multiline": {"command": "node\nLEAKCMD4"},
+  "url-at-in-pass": {"type": "http", "url": "https://tok:abc@LEAKURL1@host.example.com/mcp"},
+  "url-slash-in-pass": {"type": "http", "url": "https://user:pa/LEAKURL2@host.example.com/mcp"},
+  "url-hash-in-pass": {"type": "sse", "url": "https://user:p#LEAKURL3@host.example.com/mcp"},
+  "url-query-in-pass": {"type": "http", "url": "https://user:p?LEAKURL4@host.example.com/mcp"},
+  "git-at-in-pass": {"command": "npx", "args": ["git+https://u:x@LEAKGIT1@github.com/o/r.git"]},
+  "uvx-from-at": {"command": "uvx", "args": ["--from", "git+https://u:p@LEAKGIT2@gh.com/o/r", "tool"]},
+  "hdr": {"type": "http", "url": "https://h.example.com", "headers": {"Authorization": "Bearer LEAKHDR1"}},
+  "env": {"command": "npx", "args": ["-y", "p@1.0.0"], "env": {"TOKEN": "LEAKENV1\nx", "K": "\u001b[31mLEAKENV2"}},
+  "sk-LEAKNAME1abcdef": {"command": "npx", "args": ["p@1.0.0"]},
+  "abcdefghijklmnopqrstuvwxyz0123456789": {"command": "npx", "args": ["long@1.0.0"]},
+  "argsecret": {"command": "npx", "args": ["--api-key", "LEAKARG1", "pkg@1.0.0"]},
+  "argsecret2": {"command": "npx", "args": ["-y", "--token=LEAKARG2", "pkg@1.0.0"]},
+  "unicode": {"command": "npx", "args": ["\u202epkg@1.0.0"]},
+  "pwsh": {"command": "pwsh", "args": ["-Command", "$env:K='LEAKPS1'; npx -y pkg@1.0.0"]},
+  "pwsh-bare": {"command": "pwsh", "args": ["-Command", "$env:K=LEAKPS2; $env:J=\"LEAKPS3\"; npx -y pkg@1.0.0"]},
+  "cmdc": {"command": "cmd", "args": ["/c", "set K=LEAKCMDC1&& npx -y pkg@1.0.0"]},
+  "cmdc-space": {"command": "cmd", "args": ["/c", "set K=LEAKCMDC2 & npx -y pkg@1.0.0"]},
+  "cmdc-quoted": {"command": "cmd", "args": ["/c", "set \"K=LEAKCMDC3\" && npx -y pkg@1.0.0"]},
+  "wrapped-unsafe": {"command": "bash", "args": ["-c", "export K=LEAKEXP1; npx -y pkg@1.0.0"]},
+  "latest": {"command": "npx", "args": ["-y", "@scope/pkg@latest"]},
+  "scoped": {"command": "npx", "args": ["-y", "@scope/pkg"]},
+  "scopedexact": {"command": "npx", "args": ["-y", "@scope/pkg@1.2.3"]},
+  "tarball": {"command": "npx", "args": ["-y", "https://registry.npmjs.org/p/-/p-1.0.0.tgz"]},
+  "tarball-other": {"command": "npx", "args": ["https://cdn.example.com/p-1.0.0.tgz"]},
+  "tarball-targz": {"command": "uvx", "args": ["https://files.example.com/pkg-1.0.tar.gz"]},
+  "gitsha": {"command": "npx", "args": ["github:o/r#0123456789abcdef0123456789abcdef01234567"]},
+  "pnpx": {"command": "pnpx", "args": ["pkg"]},
+  "bunx": {"command": "bunx", "args": ["pkg@1.0.0"]},
+  "uvxfrom": {"command": "uvx", "args": ["--from", "pkg==1.0.0", "tool"]},
+  "uvxlatest": {"command": "uvx", "args": ["pkg@latest"]},
+  "dockerdigest": {"command": "docker", "args": ["run", "-i", "--rm", "-e", "K",
+    "ghcr.io/o/i@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]},
+  "dockertag": {"command": "docker", "args": ["run", "-i", "--rm", "ghcr.io/o/i:1.0"]},
+  "dockerlatest": {"command": "docker", "args": ["run", "img:latest"]},
+  "dockerenvinline": {"command": "docker", "args": ["run", "-eK=LEAKDOCK1", "img:1"]},
+  "npxcmdwin": {"command": "C:\u005cProgram Files\u005cnodejs\u005cnpx.cmd", "args": ["-y", "pkg"]},
+  "npmexec": {"command": "npm", "args": ["exec", "--yes", "--", "pkg@2"]},
+  "yarn": {"command": "yarn", "args": ["dlx", "pkg@1.0.0"]}
+}}
+JSON
+
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/gate adv.json" --date 2026-01-02
+assert_eq "run 6 exits 0" 0 "$RC"
+check_row cmd-with-spaces local - unparsed -
+check_row cmd-env-path local - unparsed -
+check_row cmd-win-path local - unparsed -
+check_row cmd-multiline local - unparsed -
+check_row url-at-in-pass remote https://host.example.com n/a host.example.com
+check_row url-slash-in-pass remote - unparsed -
+check_row url-hash-in-pass remote - unparsed -
+check_row url-query-in-pass remote - unparsed -
+check_row git-at-in-pass npx git+https://github.com/o/r.git git-ref github.com
+check_row uvx-from-at uvx git+https://gh.com/o/r git-ref gh.com
+check_row hdr remote https://h.example.com n/a h.example.com
+check_row env npx p@1.0.0 exact unscoped
+check_row 'redacted-name(18)' npx p@1.0.0 exact unscoped
+check_row 'redacted-name(36)' npx long@1.0.0 exact unscoped
+check_row argsecret npx - unparsed -
+check_row argsecret2 npx pkg@1.0.0 exact unscoped
+check_row unicode npx pkg@1.0.0 exact unscoped
+check_row pwsh npx pkg@1.0.0 exact unscoped
+check_row pwsh-bare npx pkg@1.0.0 exact unscoped
+check_row cmdc npx pkg@1.0.0 exact unscoped
+check_row cmdc-space npx pkg@1.0.0 exact unscoped
+check_row cmdc-quoted npx pkg@1.0.0 exact unscoped
+check_row wrapped-unsafe local - wrapped local
+check_row latest npx @scope/pkg@latest floating-tag @scope
+check_row scoped npx @scope/pkg floating-unversioned @scope
+check_row scopedexact npx @scope/pkg@1.2.3 exact @scope
+check_row tarball npx https://registry.npmjs.org/p/-/p-1.0.0.tgz exact registry.npmjs.org
+check_row tarball-other npx https://cdn.example.com/p-1.0.0.tgz tarball cdn.example.com
+check_row tarball-targz uvx https://files.example.com/pkg-1.0.tar.gz tarball files.example.com
+check_row gitsha npx github:o/r#0123456789abcdef0123456789abcdef01234567 git-commit github:o
+check_row pnpx pnpx pkg floating-unversioned unscoped
+check_row bunx bunx pkg@1.0.0 exact unscoped
+check_row uvxfrom uvx pkg==1.0.0 exact pypi
+check_row uvxlatest uvx pkg@latest floating-tag pypi
+check_row dockerdigest docker \
+  ghcr.io/o/i@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef digest ghcr.io/o
+check_row dockertag docker ghcr.io/o/i:1.0 mutable-tag ghcr.io/o
+check_row dockerlatest docker img:latest floating-tag library
+check_row dockerenvinline docker img:1 mutable-tag library
+check_row npxcmdwin npx pkg floating-unversioned unscoped
+check_row npmexec npm-exec pkg@2 floating-range unscoped
+check_row yarn yarn-dlx pkg@1.0.0 exact unscoped
 
 # --- Exit 2 cases --------------------------------------------------------------
 
@@ -532,8 +627,20 @@ OUT="$(PATH="$FIX/empty bin" "$BASH" "$INV" --claude-json "$FIX/claude.json" --p
   --mcp-json "$FIX/proj/.mcp.json" --managed-dir "$FIX/no managed" --date 2026-01-02 2>"$FIX/stderr.txt")"
 RC=$?
 ERR="$(<"$FIX/stderr.txt")"
+ALL+="$OUT$ERR"
 assert_eq "jq missing exits 2" 2 "$RC"
 assert_contains "jq missing names jq" "$ERR" "jq"
+
+# --- Planted secrets never reach stdout or stderr of any run -------------------
+# Every LEAK*/SECRET* token planted in any fixture is checked against the combined
+# stdout and stderr of every run above.
+
+planted="$(grep -rhoE '(LEAK|SECRET)[A-Z0-9_]*' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
+assert_eq "planted secret tokens were collected" "yes" "$([[ -n "$planted" ]] && echo yes)"
+while IFS= read -r secret; do
+  [[ -z "$secret" ]] && continue
+  assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
+done <<<"$planted"
 
 if [[ $FAILED -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE"
