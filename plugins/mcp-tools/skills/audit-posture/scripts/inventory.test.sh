@@ -954,6 +954,178 @@ run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/no
 assert_eq "control character in a source path exits 2" 2 "$RC"
 assert_not_contains "control-character path not echoed" "$OUT$ERR" "ZQXLINEPATH"
 
+# --- Run 11: re-gate fixtures (wrapper whitespace, URL backslash, custom index) -----
+# Tokens are lower-case zqx; the planted loop collects them, plus the zq/xaNN halves of
+# tokens split by a quote, space, or percent escape.
+
+cat >"$FIX/gate3 adv3.json" <<'JSON'
+{"mcpServers": {
+ "b01": {"command":"bash","args":["-c","TOKEN=abc\u005c zqxb01 ./run"]},
+ "b02": {"command":"bash","args":["-c","K=abc\u2028zqxb02 ./run"]},
+ "b03": {"command":"bash","args":["-c","K=abc\u00a0zqxb03 ./run"]},
+ "b04": {"command":"bash","args":["-c","K=abc\u000bzqxb04 ./run"]},
+ "b05": {"command":"env","args":["-S","K=abc\u005c zqxb05 node"]},
+ "b06": {"command":"bash","args":["-c","K=abc\u2029zqxb06 run"]},
+ "b07": {"command":"bash","args":["-c","K=abc\u000czqxb07 run"]},
+ "b08": {"command":"bash","args":["-c","K=abc\u0085zqxb08 run"]},
+ "b09": {"command":"bash","args":["-c","K=abc\u3000zqxb09 run"]},
+ "b10": {"command":"cmd","args":["/c","set K=abc\u00a0zqxb10&& run"]},
+ "b11": {"command":"pwsh","args":["-Command","$env:K=abc\u2028zqxb11; run"]},
+ "b12": {"command":"bash","args":["-c","K=\"abc\"\u005c zqxb12 run"]}
+}}
+JSON
+cat >"$FIX/gate3 adv2.json" <<'JSON'
+{"mcpServers": {
+ "a01-env-str": {"command":"npx","args":["-y","pkg@1.0.0"],"env":{"K":"zqxa01"}},
+ "a02-env-obj": {"command":"npx","args":["-y","pkg@1.0.0"],"env":{"K":{"v":"zqxa02"},"L":["zqxa02b"],"M":42}},
+ "a03-hdr-multi": {"type":"http","url":"https://h.example.com/mcp","headers":{"X-Api-Key":"zqxa03","Cookie":"s=zqxa03b"}},
+ "a04-hdr-nonstr": {"type":"sse","url":"https://h.example.com/","headers":["zqxa04"]},
+ "a05-arg-after-pkg": {"command":"npx","args":["-y","pkg@1.0.0","--token","zqxa05"]},
+ "a06-arg-before-pkg": {"command":"npx","args":["--token","zqxa06","pkg@1.0.0"]},
+ "a07-arg-eq": {"command":"npx","args":["--token=zqxa07","-y","pkg@1.0.0"]},
+ "a08-short-bundle": {"command":"npx","args":["-yt","zqxa08","pkg@1.0.0"]},
+ "a09-unknownflag-dashval": {"command":"npx","args":["--key","-zqxa09","pkg@1.0.0"]},
+ "a10-uvx-envfile": {"command":"uvx","args":["--env-file","zqxa10","tool==1.0"]},
+ "a11-docker-bundle-e": {"command":"docker","args":["run","-ite","K=zqxa11","img:1"]},
+ "a12-docker-env-eq": {"command":"docker","args":["run","--env=K=zqxa12","img:1"]},
+ "a13-docker-unknown": {"command":"docker","args":["run","--sig-proxy","zqxa13","img:1"]},
+ "a14-url-user-only": {"type":"http","url":"https://zqxa14@h.example.com/mcp"},
+ "a15-url-pct40": {"type":"http","url":"https://u:zq%40xa15@h.example.com/mcp"},
+ "a16-url-pct2f": {"type":"http","url":"https://u:zq%2Fxa16@h.example.com/mcp"},
+ "a17-url-ipv6": {"type":"http","url":"https://u:zqxa17@[::1]:8443/mcp?t=zqxa17b#zqxa17c"},
+ "a18-url-puny": {"type":"http","url":"https://u:zqxa18@xn--bcher-kva.example/mcp"},
+ "a19-url-at-path": {"type":"http","url":"https://h.example.com/a@zqxa19/mcp"},
+ "a20-url-backslash": {"type":"http","url":"https://zqxa20.evil\u005c@h.example.com/mcp"},
+ "a21-url-query": {"type":"http","url":"https://h.example.com/mcp?api_key=zqxa21"},
+ "a22-url-frag": {"type":"sse","url":"https://h.example.com/mcp#zqxa22"},
+ "a23-file-url": {"command":"npx","args":["file:///x?zqxa23"]},
+ "a24-ssh-url": {"command":"npx","args":["git+ssh://git:zqxa24@github.com/o/r.git"]},
+ "a25-scp-git": {"command":"npx","args":["git@github.com:zqxa25/r.git"]},
+ "a26-git-query": {"command":"npx","args":["git+https://github.com/o/r.git?token=zqxa26"]},
+ "a27-git-frag": {"command":"npx","args":["github:o/r#zqxa27"]},
+ "a28-tgz-query": {"command":"npx","args":["https://reg.example.com/p/-/p-1.0.0.tgz?sig=zqxa28"]},
+ "a29-tgz-user": {"command":"npx","args":["https://u:zqxa29@reg.example.com/p/-/p-1.0.0.tgz"]},
+ "a30-bash-quotes": {"command":"bash","args":["-c","TOKEN='zq xa30' npx -y pkg@1.0.0"]},
+ "a31-bash-escape": {"command":"bash","args":["-c","TOKEN=zq\u005c xa31 npx -y pkg@1.0.0"]},
+ "a32-bash-dq": {"command":"bash","args":["-c","npx -y pkg@1.0.0 --key \"zqxa32\""]},
+ "a33-nbsp-cmd": {"command":"npx\u00a0--key\u00a0zqxa33\u00a0pkg","args":[]},
+ "a34-u2028-wrap": {"command":"bash","args":["-c","K=zqxa34\u2028npx -y pkg@1.0.0"]},
+ "a35-tab-arg": {"command":"npx","args":["-y","pkg@1.0.0\tzqxa35"]},
+ "a36-cr-arg": {"command":"npx","args":["-y","pkg@1.0.0\rzqxa36"]},
+ "a37-nl-arg": {"command":"npx","args":["-y","pkg@1.0.0\nzqxa37"]},
+ "a38-nbsp-arg": {"command":"npx","args":["-y","pkg@1.0.0\u00a0zqxa38"]},
+ "a39-pwsh-spaced": {"command":"pwsh","args":["-Command","$Env:K = \"zqxa39\" ; npx -y pkg@1.0.0"]},
+ "a40-pwsh-brace": {"command":"powershell.exe","args":["-c","${env:K}='zqxa40'; npx -y pkg@1.0.0"]},
+ "a41-pwsh-setitem": {"command":"pwsh","args":["-Command","Set-Item env:K zqxa41; npx -y pkg@1.0.0"]},
+ "a42-pwsh-escq": {"command":"pwsh","args":["-Command","$env:K='zq''xa42'; npx -y pkg@1.0.0"]},
+ "a43-cmd-caret": {"command":"cmd.exe","args":["/C","set K=zq^&xa43&& npx -y pkg@1.0.0"]},
+ "a44-cmd-quoted": {"command":"cmd","args":["/s","/c","set \"K=zqxa44\" && npx -y pkg@1.0.0"]},
+ "a45-cmd-noamp": {"command":"cmd","args":["/c","set K=zqxa45 npx -y pkg@1.0.0"]},
+ "a46-cmd-setA": {"command":"cmd","args":["/c","set /a K=zqxa46&& npx -y pkg@1.0.0"]},
+ "a47-json-u0040": {"type":"http","url":"https://u:zqxa47\u0040h.example.com/mcp"},
+ "a48-dupkey": {"type":"http","url":"https://u:zqxa48@h.example.com/","url":"https://h2.example.com/"},
+ "a49-long": {"command":"npx","args":["-y","pkg@1.0.0","--k","zqxa49aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]},
+ "a50-env-S": {"command":"env","args":["-S","K=zqxa50 npx -y pkg@1.0.0 --t zqxa50b"]},
+ "a51-env-u": {"command":"env","args":["-u","zqxa51","npx","pkg@1.0.0"]},
+ "a52-py-at-url": {"command":"uvx","args":["--from","tool @ https://u:zqxa52@h.example.com/o/r/x.whl?t=zqxa52b","tool"]},
+ "a53-uv-index": {"command":"uvx","args":["--index-url","https://u:zqxa53@pypi.example/simple","tool==1.0"]},
+ "a54-npm-registry": {"command":"npx","args":["--registry=https://u:zqxa54@r.example/","-y","pkg@1.0.0"]},
+ "a55-npx-p-url": {"command":"npx","args":["-p","https://u:zqxa55@r.example.com/a/b/p-1.0.0.tgz","bin"]},
+ "a56-docker-H": {"command":"docker","args":["-H","tcp://u:zqxa56@h:2376","run","img:1"]},
+ "a57-bash-lc-meta": {"command":"sh","args":["-lc","npx -y pkg@1.0.0 && echo zqxa57"]},
+ "a58-cmd-quoted-prog": {"command":"\"C:\u005cProgram Files\u005cn\u005cnpx.cmd\" --key zqxa58 pkg","args":[]},
+ "a59-url-tab": {"type":"http","url":"https://zqxa59.evil\t/@h.example.com/"},
+ "a60-url-backslash2": {"type":"http","url":"https://evil.example\u005c@h.example.com/"},
+ "a61-remote-no-type": {"url":"https://h.example.com/","headers":{"Authorization":"Bearer zqxa61"},"env":{"x":"zqxa61b"}},
+ "a62-npm-alias-at": {"command":"npx","args":["x@npm:y@zqxa62:q"]},
+ "a63-bun-x": {"command":"bun","args":["x","--api-key","zqxa63","pkg@1.0.0"]},
+ "a64-pipx": {"command":"pipx","args":["run","--pip-args=--index-url=https://u:zqxa64@x/","tool==1.0"]},
+ "a65-docker-e-last": {"command":"docker","args":["run","img:1","-e","K=zqxa65"]},
+ "a66-bash-c-only-assign": {"command":"bash","args":["-c","K=zqxa66"]},
+ "a67-env-only-assign": {"command":"env","args":["K=zqxa67"]},
+ "a68-npx-dashdash": {"command":"npx","args":["--","pkg@1.0.0","zqxa68"]},
+ "a69-uvx-with": {"command":"uvx","args":["--with","https://u:zqxa69@x.example/o/r","tool"]},
+ "a70-yarn-dlx-flag": {"command":"yarn","args":["dlx","-p","pkg@1.0.0","--token","zqxa70","bin"]}
+}}
+JSON
+
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/gate3 adv3.json" --config "$FIX/gate3 adv2.json" --date 2026-01-02
+assert_eq "run 11 exits 0" 0 "$RC"
+assert_eq "run 11 prints one row per case" 82 "$(printf '%s\n' "$OUT" | sed -n '3,$p' | grep -vc '^#')"
+for wrapped in b01 b02 b03 b04 b05 b06 b07 b08 b09 b10 b11 b12; do
+  check_row "$wrapped" local - unparsed -
+done
+check_row a31-bash-escape local - unparsed -
+check_row a34-u2028-wrap local - unparsed -
+check_row a20-url-backslash remote - unparsed -
+check_row a60-url-backslash2 remote - unparsed -
+check_row a53-uv-index uvx tool==1.0 exact index:pypi.example
+check_row a64-pipx pipx tool==1.0 exact index:x
+check_row a17-url-ipv6 remote 'https://[::1]:8443' n/a '[::1]'
+check_row a21-url-query remote https://h.example.com n/a h.example.com
+
+# --- Run 12: managed validity (type, invisible characters) and precedence -------
+
+mkdir -p "$FIX/gate pm1" "$FIX/gate pm2x" "$FIX/gate proj"
+cat >"$FIX/gate pm1/managed-settings.json" <<'JSON'
+{"managedMcpServers": {
+  "all": {"type": "http", "url": "https://ms-all.example.com/mcp"},
+  "stdiotype": {"type": "stdio", "url": "https://ms-st.example.com/mcp"},
+  "zw": {"type": "http", "url": "https://ms-zw.example.com/mcp", "headers": {"X-K": "a\u200bb"}},
+  "plainhttp": {"type": "http", "url": "http://ms-ph.example.com/mcp"},
+  "withenv": {"type": "http", "url": "https://ms-env.example.com/mcp", "env": {}}
+}}
+JSON
+cp "$FIX/gate pm1/managed-settings.json" "$FIX/gate pm2x/managed-settings.json"
+cat >"$FIX/gate pm2x/managed-mcp.json" <<'JSON'
+{"mcpServers": {"all": {"type": "http", "url": "https://mm-all.example.com/mcp"}}}
+JSON
+cat >"$FIX/gate claude.json" <<'JSON'
+{"mcpServers": {
+  "all": {"command": "npx", "args": ["-y", "u-all@1.0.0"]},
+  "up": {"command": "npx", "args": ["-y", "u-up@1.0.0"]},
+  "stdiotype": {"command": "npx", "args": ["-y", "u-st@1.0.0"]},
+  "zw": {"command": "npx", "args": ["-y", "u-zw@1.0.0"]}
+ },
+ "projects": {"F:\u005cGate": {
+   "mcpServers": {"all": {"command": "npx", "args": ["-y", "l-all@1.0.0"]}, "lp": {"command": "npx", "args": ["-y", "l-lp@1.0.0"]}},
+   "enabledMcpjsonServers": ["up"]
+ }}}
+JSON
+cat >"$FIX/gate proj/.mcp.json" <<'JSON'
+{"mcpServers": {
+  "all": {"command": "npx", "args": ["-y", "p-all@1.0.0"]},
+  "up": {"command": "npx", "args": ["-y", "p-up@1.0.0"]},
+  "lp": {"command": "npx", "args": ["-y", "p-lp@1.0.0"]}
+}}
+JSON
+
+run_inv --claude-json "$FIX/gate claude.json" --project "f:/gate" --mcp-json "$FIX/gate proj/.mcp.json" \
+  --managed-dir "$FIX/gate pm1" --date 2026-01-02
+assert_eq "run 12 exits 0" 0 "$RC"
+assert_eq "valid managed-settings entry" "yes" "$(cell managed-settings all 3)"
+assert_eq "managed-settings stdio type rejected" "rejected-by-client" "$(cell managed-settings stdiotype 3)"
+assert_eq "managed-settings zero-width header rejected" "rejected-by-client" "$(cell managed-settings zw 3)"
+assert_eq "managed-settings http url rejected" "rejected-by-client" "$(cell managed-settings plainhttp 3)"
+assert_eq "managed-settings env member rejected" "rejected-by-client" "$(cell managed-settings withenv 3)"
+assert_eq "user row behind managed-settings" "shadowed-by:managed-settings" "$(cell user all 3)"
+assert_eq "local row behind managed-settings" "shadowed-by:managed-settings" "$(cell local all 3)"
+assert_eq "project row behind managed-settings" "shadowed-by:managed-settings" "$(cell project all 3)"
+assert_eq "rejected stdio-type entry shadows nothing" "yes" "$(cell user stdiotype 3)"
+assert_eq "rejected zero-width entry shadows nothing" "yes" "$(cell user zw 3)"
+assert_eq "user row behind approved project row" "shadowed-by:project" "$(cell user up 3)"
+assert_eq "approved project row" "yes" "$(cell project up 3)"
+assert_eq "local row" "yes" "$(cell local lp 3)"
+assert_eq "project row behind local" "shadowed-by:local" "$(cell project lp 3)"
+
+run_inv --claude-json "$FIX/gate claude.json" --project "f:/gate" --mcp-json "$FIX/gate proj/.mcp.json" \
+  --managed-dir "$FIX/gate pm2x" --date 2026-01-02
+assert_eq "managed-mcp.json row" "yes" "$(cell managed all 3)"
+assert_eq "managed-settings row behind managed-mcp.json" "shadowed-by:managed" "$(cell managed-settings all 3)"
+assert_eq "user row suppressed by managed-mcp.json" "suppressed-by-managed" "$(cell user all 3)"
+assert_eq "project row suppressed by managed-mcp.json" "suppressed-by-managed" "$(cell project up 3)"
+
 # --- Exit 2 cases --------------------------------------------------------------
 
 printf '%s\n' '{not json' >"$FIX/bad.json"
@@ -1011,6 +1183,9 @@ assert_eq "all 85 re-attack ids were collected" 85 "$(printf '%s\n' "$planted" |
 second="$(grep -hoE 'ZQX[A-Za-z0-9]*' "$FIX/reattack2 cases.cfg" | LC_ALL=C sort -u)"
 assert_eq "second re-attack tokens were collected" "yes" "$([[ -n "$second" ]] && echo yes)"
 planted+=$'\n'"$second"
+third="$(grep -rhoE 'zqx[a-z0-9]*|xa[0-9]{2}' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
+assert_eq "re-gate lower-case tokens were collected" "yes" "$([[ "$third" == *zqxb01* && "$third" == *xa31* ]] && echo yes)"
+planted+=$'\n'"$third"
 while IFS= read -r secret; do
   [[ -z "$secret" ]] && continue
   assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
