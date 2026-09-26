@@ -324,6 +324,12 @@ $PRIMARY")")"
 run 2 "duplicate key in a source" --err 'duplicate key role' \
   "$(mkslice dup-source-key - "$(claim "$V9" "$PRIMARY
         role: corroborator")")"
+dup_claims="$(mkslice dup-claims - "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\ntopic: t\nclaims: []\nclaims:\n  - claim: "c"\n    applies_to: ExampleLib 9\n---\n' >"$dup_claims/RESEARCH-s.md"
+run 2 "duplicate top-level claims key" --err 'duplicate top-level key claims' "$dup_claims"
+dup_mode="$(mkslice dup-mode publish "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\nabstract: a\nevidence_use: publish\nevidence_use: internal\n---\n' >"$dup_mode/RESEARCH.md"
+run 2 "duplicate top-level evidence_use key" --err 'duplicate top-level key evidence_use' "$dup_mode"
 non_utf8="$(mkslice non-utf8 - "$(claim "$V9" "$PRIMARY")")"
 printf -- '---\ntopic: \xff\xfe\n---\n' >"$non_utf8/RESEARCH-s.md"
 run 2 "non-UTF-8 sidecar" "$non_utf8"
