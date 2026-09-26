@@ -30,7 +30,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `confirm-understanding` event (Confirm, or Something's off with text); a Confirm on an older
   restatement is refused as stale.
 - **`interview` page:** a held question shows `Pending research: <text>` or
-  `Needs your answer: <text>` on its rail row and card. Pending research has its own colour, a
+  `Needs your answer: <text>` on its rail row and card. Pending research has its own color, a
   header count and the Show: Pending filter, and can still be answered (Answer anyway, with a
   receipt saying it counts once the research returns); Needs your answer counts as open and in
   the needs-you navigation.
@@ -44,7 +44,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   understanding is confirmed warns but is not blocked.
 - **`interview` page:** Claude's latest reply on a question is previewed on its rail item and
   shown above the recommendation.
-- **`interview` page:** an Accept saved with new note text is labelled `Save: Accept with note`
+- **`interview` page:** an Accept saved with new note text is labeled `Save: Accept with note`
   and stays on the question; the skill replies to the note.
 - **`interview` page:** Accept all per round section in the Rounds view, beside the per-group
   action. Each accept carries that question's note; notes with a `Challenge:` line are left

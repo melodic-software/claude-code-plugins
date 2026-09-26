@@ -55,7 +55,7 @@ async page => { // the user journey in order on one page, no reload after phase 
 
     // accept all per group, with carried notes
     await pick("Q3"); await page.fill("#note", "Keep the cache small");
-    await pick("Q4"); await page.fill("#note", "Challenge: Fails a build that runs past ten minutes on a slow runner?");
+    await pick("Q4"); await page.fill("#note", "Challenge: Fails a build that runs past ten minutes on a slow machine?");
     const aa = await page.$('[data-acceptall="g2"]');
     ok("Accept all offered on the group for the two opened questions", !!aa && /Accept all \(2\)/.test(aa ? await aa.textContent() : ""));
     await aa.click(); await page.waitForTimeout(200);
@@ -101,7 +101,7 @@ async page => { // the user journey in order on one page, no reload after phase 
 
     // Claude researches
     const q3 = '.qbtn[data-q="Q3"]';
-    ok("Q3's rail row reads Pending research with its own colour", /Pending research: the retry benchmark/.test(await text(q3 + " .chip.s-wait")) && await page.$eval(q3, el => el.classList.contains("st-wait")), await text(q3));
+    ok("Q3's rail row reads Pending research with its own color", /Pending research: the retry benchmark/.test(await text(q3 + " .chip.s-wait")) && await page.$eval(q3, el => el.classList.contains("st-wait")), await text(q3));
     ok("the header counts 1 pending research and Q3 not answered", (await text("#pendBtn")) === "1 pending research" && (await text("#meterText")) === "2 of 5 answered", (await text("#pendBtn")) + " / " + await text("#meterText"));
     ok("the Claude line shows the status with its age", /^Researching the retry benchmark for Q3/.test(await text("#claudeLine")) && await page.$eval("#claudeLine .age", el => el.getAttribute("aria-hidden") === "true" && /ago|just now/.test(el.textContent)), await text("#claudeLine"));
     ok("a held question's commitments leave the to-confirm count", (await text("#assumeCount")) === "3 to confirm", await text("#assumeCount"));
