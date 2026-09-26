@@ -5,7 +5,7 @@
       "id": 1,
       "name": "floating-version-detection",
       "prompt": "Is it safe to run my MCP servers? Use the inventory in evals/fixtures/floating-inventory.md relative to the skill directory as the Phase 1 output instead of running the script, and give me the posture report.",
-      "expected_output": "A dated posture report whose inventory table carries all seven rows and whose findings rate P1 FAIL on filesystem (npx, floating-unversioned) and on mailer (npx, floating-tag), P1 WARN on notes (docker, floating-tag), P1 PASS on local github and fetch (exact), and P1 n/a on the remote search server. The shadowed project github row appears in the inventory with no findings. mailer is flagged under P3 as an unscoped package named for a vendor, labelled unverified. FAIL findings are listed first and the coverage footer lines are carried into the report.",
+      "expected_output": "A dated posture report whose inventory table carries all seven rows and whose findings rate P1 FAIL on filesystem (npx, floating-unversioned) and on mailer (npx, floating-tag), P1 WARN on notes (docker, floating-tag), P1 PASS on local github and fetch (exact), and P1 n/a on the remote search server. The shadowed project github row appears in the inventory with no findings. mailer is flagged under P3 as an unscoped package named for a vendor, labeled unverified. FAIL findings are listed first and the coverage footer lines are carried into the report.",
       "files": ["evals/fixtures/floating-inventory.md"],
       "expectations": [
         "Rates P1 FAIL on filesystem, an npx server with pin floating-unversioned",
@@ -13,7 +13,7 @@
         "Rates P1 WARN, not FAIL, on notes, a docker server with pin floating-tag",
         "Rates P1 PASS on the local-scope github row and on fetch, both pinned exact",
         "Does not score the project-scope github row whose effective value is shadowed-by:local, while still listing it in the inventory table",
-        "Flags mailer under P3 as an unscoped package named for a vendor, labelled unverified",
+        "Flags mailer under P3 as an unscoped package named for a vendor, labeled unverified",
         "Lists FAIL findings before WARN findings",
         "Carries the not-read and not-evaluated footer lines into the report's coverage section"
       ]

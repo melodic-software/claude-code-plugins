@@ -89,7 +89,7 @@ cat >"$FIX/claude.json" <<'JSON'
     "evil\tna\nme\u001b[31m": {"command": "npx", "args": ["ctl@1.0.0"]}
   },
   "projects": {
-    "C:\\Work\\Proj": {
+    "C:\u005cWork\u005cProj": {
       "mcpServers": {
         "shared": {"command": "npx", "args": ["shared-local@1.0.0"]},
         "localonly": {"command": "npx", "args": ["localonly@1.0.0"]}
@@ -146,7 +146,7 @@ cat >"$FIX/servers a.json" <<'JSON'
     "npx-gitcommit": {"command": "npx", "args": ["git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567"]},
     "npx-tarball": {"command": "npx", "args": ["https://user:SECRETTGZ1@host.example.com/x.tgz?sig=SECRETQTGZ1#SECRETFRAG1"]},
     "cmd-wrap": {"command": "cmd", "args": ["/c", "npx", "-y", "w-mcp@1.0.0"]},
-    "cmdexe-wrap": {"command": "C:\\Windows\\System32\\CMD.EXE", "args": ["/C", "npx", "w-mcp@latest"]},
+    "cmdexe-wrap": {"command": "C:\u005cWindows\u005cSystem32\u005cCMD.EXE", "args": ["/C", "npx", "w-mcp@latest"]},
     "npx-cmd": {"command": "npx.cmd", "args": ["-y", "c-mcp@1.0.0"]},
     "bash-wrap": {"command": "bash", "args": ["-c", "npx -y b-mcp@latest --api-key SECRETBASH1"]},
     "npm-exec": {"command": "npm", "args": ["exec", "--yes", "--", "ne-mcp@1.0.0"]},
