@@ -114,13 +114,16 @@ user). Managed-scope `enabledPlugins` is not merged.
   `.claude-plugin/plugin.json` at the install path the hook inventory resolved, in the string
   (`name`, `name@marketplace`) and object (`name`, optional `marketplace`) forms; a bare name
   resolves to the dependent's own marketplace. Version constraints and dependencies of
-  dependencies are not checked. An enabled plugin whose `plugin.json` could not be read is one
-  `not-inspectable` row (`dependencies-unread:<key>`), never a silent pass. Basis: the
+  dependencies are not checked. The manifest is optional, so an install path with no `plugin.json`
+  declares no dependencies. An enabled plugin whose install path did not resolve, whose
+  `plugin.json` is not valid JSON, or whose `dependencies` is not an array is one `not-inspectable`
+  row (`dependencies-unread:<key>`), never a silent pass. Basis: the
   [install page](https://code.claude.com/docs/en/plugins/install) "Plugins with dependencies" says
   disabling a plugin another enabled plugin still needs is refused, and the
   [dependencies page](https://code.claude.com/docs/en/plugins/dependencies) says a plugin whose
   local dependency copy is disabled "is disabled at the next plugin load"; both are pinned in
-  `reference/doc-citations.tsv`.
+  `reference/doc-citations.tsv`. As of 2026-09-26; recheck when a Claude Code release note changes
+  how a disabled dependency affects the plugin that declares it.
 
 **E.2 Upstream drift detection** (live network, via `scripts/check-plugin-drift.sh`):
 

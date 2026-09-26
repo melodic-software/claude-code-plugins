@@ -19,8 +19,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   enabled plugin declares as a direct dependency in its `.claude-plugin/plugin.json` is a `warning`
   finding, `dependency-disabled:<key>`, on the file holding the `false`, naming the dependents.
   String (`name`, `name@marketplace`) and object (`name`, optional `marketplace`) dependency forms
-  are read; a bare name resolves to the dependent's marketplace. An enabled plugin whose
-  `plugin.json` cannot be read is a `not-inspectable` row, `dependencies-unread:<key>`.
+  are read; a bare name resolves to the dependent's marketplace. The manifest is optional, so an
+  install path without `plugin.json` declares no dependencies. An enabled plugin whose install path
+  did not resolve, whose `plugin.json` is not valid JSON, or whose `dependencies` is not an array is
+  a `not-inspectable` row, `dependencies-unread:<key>`.
   Managed-scope `enabledPlugins` is not merged, and version constraints are not checked. Basis: the
   plugins/install page (disabling a plugin another enabled plugin needs is refused) and the
   plugins/dependencies page (a dependent is disabled at the next plugin load), both pinned in
