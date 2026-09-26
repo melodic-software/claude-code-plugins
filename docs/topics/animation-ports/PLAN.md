@@ -26,12 +26,12 @@ output after every refactor phase, and the repo validators in Phase 12 pass.
 - **C1 regress:** `uv run --with numpy,opencv-python-headless python plugins/animation/skills/rotoscope/scripts/regress.py <shfred0.mp4> <empty dir>` exits 0 at 239/239. From Phase 1 on
   every C1 and C3 run pins the Phase 0 versions (`--with numpy==<v>,opencv-python-headless==<v>`);
   from Phase 3 on the same pins come from `--with-requirements plugins/animation/requirements.txt`.
-- **Inputs** (unshipped, under `/home/kyle/worktrees/claude-code-plugins-pixel-art/.work/animation/`):
+- **Inputs** (unshipped, under `<pixel-art worktree>/.work/animation/`):
   shfred0 `videos/shfred0-2102495989194236158.mp4`; round 3 `prototype/film.mp4`; other-style
   clips `videos/BiosRiosz-2102523343253520764.mp4`, `videos/kevin_t_ngo-2102171059592241410.mp4`,
   `videos/kevin_t_ngo-2102437977435893771.mp4`. The `47d7ba2ae` control summaries are at
   `.work/classes/r10/ctl` in this worktree. Phase 0 step 0a copies all of these to
-  `~/.local/share/animation-inputs/`, and every run reads that copy.
+  `<inputs dir>` (a directory outside every worktree), and every run reads that copy.
 - **Branch state and merge order:** `feat/animation-plugin` is local-only (the orchestrator is
   writing a git bundle; pushing waits for the user). `feat/pixel-art` (PR #4407) merges first, then
   this branch is rebased onto main. Phase 10 and the version-bump decision assume that order.
@@ -72,11 +72,11 @@ No plugin code changes. Build a local script in the topic memory slice (never co
 unshipped clips, D44) with two modes. `[EXEC-SHAPE]`
 
 - Step 0a, run once before any baseline: copy every input clip and the `47d7ba2ae` ctl summaries
-  out of every worktree into `~/.local/share/animation-inputs/` (worktree cleanup must not take
+  out of every worktree into `<inputs dir>` (worktree cleanup must not take
   them), and write `MANIFEST.sha256` there (`sha256sum`). `baseline` and `compare` verify the
   manifest first and fail on any mismatch. `[EXEC-SHAPE]`
 - Toolchain frozen for every run: a private playwright-core install and a private
-  `PLAYWRIGHT_BROWSERS_PATH` under `~/.local/share/animation-inputs/toolchain/`, passed to
+  `PLAYWRIGHT_BROWSERS_PATH` under `<inputs dir>/toolchain/`, passed to
   `capture.mjs` explicitly (through `PW_CORE` until Phase 3 removes it, then `--playwright-core`;
   the browsers path in its environment), and `node` called by absolute path. `[EXEC-SHAPE]`
 - `baseline <dir>`: (1) record the numpy and opencv versions `uv run --with numpy,opencv-python-headless` resolves today, the Python version, `nproc`, `ffmpeg -version` line 1, the absolute
@@ -640,7 +640,7 @@ Sequential fallback: not needed (no parallel wave).
 | pixel-art exclusion phrased without an `/animation:*` token | Phase 10 wording | `docs/plugin-philosophy.md` Design boundary: a bare unguarded cross-plugin reference is a defect |
 | No `animation` version bump; `pixel-art` bumped with Phase 10 | Phases 10, 12 | `animation` is added on this branch; `pixel-art` reaches main first under the stated merge order |
 | Merge order: PR #4407 (`feat/pixel-art`) first, then rebase this branch onto main | Phase 10 timing, version bumps, `check-changed-skills.sh main` base | pixel-art's files are on both branches today; the branch is local-only until the user authorizes a push |
-| Step 0a: inputs and the ctl baseline copied to `~/.local/share/animation-inputs/` with a sha256 manifest verified by every run | Phase 0 | the clips live in another worktree's `.work/`, which worktree cleanup can delete |
+| Step 0a: inputs and the ctl baseline copied to `<inputs dir>` with a sha256 manifest verified by every run | Phase 0 | the clips live in another worktree's `.work/`, which worktree cleanup can delete |
 | Frozen toolchain: private playwright-core and browsers path passed explicitly, `node` by absolute path, Python version and `nproc` recorded | Phase 0, every C3 run | byte-identity depends on the Chromium build and tool versions; `compare` fails fast on drift |
 | `compare` checks summary JSONs, `check`/`selftest`/`learn.py` stdout, `style.json` and `table-*.md` only; never `controls.py measure` stdout or raw regress stdout | Phase 0 `compare` | `controls.py:175-177` prints `<dir>`-prefixed paths in `imap_unordered` completion order; Phase 4 adds a regress output line |
 | `render.encode` takes an iterable of BGR frames (rawvideo `bgr24` on stdin), deviating from contracts.md:147 | Phase 1 | `controls.py:129-147` pipes drawings with variable holds; a PNG-folder input changes what ffmpeg encodes and breaks C3 |

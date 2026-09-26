@@ -25,3 +25,16 @@ All notable changes to the `animation` plugin are documented here. Format follow
   not yet validated against its current check.
 - `review.py` exits 1 when any drawing is flagged, and stops with a message when no replica is
   rendered.
+- `scripts/render.py`: the one entry point for every render and encode (exit 0, 1 on a failed
+  scene, 2 on a missing prerequisite), writing `render.json`; `reference/backends.md` records the
+  native backend, the selection rule and the license rule for any other backend.
+- `scripts/decode.py`: the one decode path for a video, frame folder or work dir, the repeat rule
+  and the gray modes; it exits with a message when ffmpeg stops early or fails.
+- `/animation:setup`: a check-only prerequisite table (`scripts/prereq.py`: ffmpeg with libx264 and
+  `-fps_mode`, ffprobe, Node, playwright-core with Chromium, numpy and opencv); `requirements.txt`
+  pins numpy and opencv; the `playwright_core` option reaches every render, including `measure.py`
+  and `fit.py`.
+- `regress.py --synthetic`: a committed fixture scene that checks the render, encode and decode
+  contracts without unshipped input, wrapped by `test_regress.py`.
+- `learn.py --base-fps` sets the rate holds are counted on; `extract.py` scales its repeat and
+  tint pixel counts by frame area.

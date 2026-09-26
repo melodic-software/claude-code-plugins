@@ -14,14 +14,12 @@ backend must follow when it is added.
 - Exit 0 when every frame is written, 1 when the scene fails, 2 when a prerequisite is missing
   (the remedy is printed).
 
-The full contract is the animation-ports design's
-[`contracts.md`](../../../docs/topics/animation-ports/design/contracts.md), sections 2 to 4.
+The full contract is sections 2 to 4 of `docs/topics/animation-ports/design/contracts.md` in the
+claude-code-plugins repository (not shipped with the plugin).
 
 ## Selection rule
 
-`render.py` chooses in the order that design's
-[`contracts.md`](../../../docs/topics/animation-ports/design/contracts.md) section 3, "Composition
-root", sets out: the backend the skill passes, else native; a chosen backend whose detection fails
+`render.py` chooses in the order that contract's section 3, "Composition root", sets out: the backend the skill passes, else native; a chosen backend whose detection fails
 prints one line naming what is missing and renders natively; the license notice below; exit 2 only
 when native is missing too.
 
