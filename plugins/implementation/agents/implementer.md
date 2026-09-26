@@ -47,7 +47,8 @@ The brief's **commit authority** field is `worker` (the default when the field i
 - Work in the assigned worktree path the brief gives. A brief that declares `orchestrator` but
   gives no worktree path, or also asks for worker-side provisioning, is a conflict: STOP and report
   it.
-- Return `git -C <path> status --porcelain` output (changed and untracked paths) and any new
+- Return `git -C <path> status --porcelain --untracked-files=all` output (changed and untracked
+  files, each new file on its own line) and any new
   shebang files in place of a commit sha. The orchestrator stages, sets the exec bit in the index,
   commits, and pushes per the plan's push rule.
 
