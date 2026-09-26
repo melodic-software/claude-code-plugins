@@ -30,4 +30,5 @@ Footer lines:
 # not evaluated: allowedMcpServers/deniedMcpServers (see /claude-config:audit)
 # not evaluated: project approval in settings files (enabledMcpjsonServers, enableAllProjectMcpServers); only the ~/.claude.json project entry is read, so an unapproved project row shows approval-unknown
 # not evaluated: file-scope rows are not checked for precedence against other scopes
+# not evaluated: managed-settings.d drop-ins are merged by whole entry per name; key-level merging is not modeled
 ```

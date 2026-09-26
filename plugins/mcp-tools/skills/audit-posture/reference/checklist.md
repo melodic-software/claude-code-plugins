@@ -25,9 +25,13 @@ each as a four-part record (claim, basis, as-of date, recheck trigger).
 
 Rows with `effective = yes` or `approval-unknown` are scored. `approval-unknown` is a project
 `.mcp.json` server whose approval lives in a settings file the script does not read, so it may
-load; mark its findings "if approved". Rows reading `shadowed-by:<scope>`,
-`suppressed-by-managed`, or `disabled` stay in the inventory table and get no findings, because
-Claude Code does not launch them from that entry.
+load; mark its findings "if approved". A user row reading `shadowed-by:project-if-approved` is
+also scored, marked "if the project entry is not approved". Rows reading `shadowed-by:<scope>`,
+`suppressed-by-managed`, `disabled`, or `rejected-by-client` stay in the inventory table and get
+no findings, because Claude Code does not launch them from that entry. `rejected-by-client` is a
+`managedMcpServers` entry that fails the managed-mcp page's entry checks (an `https://` URL, no
+`command`, `args`, `env`, or `headersHelper`, no `${VAR}`, a name of letters, numbers, hyphens,
+and underscores), so Claude Code does not load it; see the managed precedence record.
 
 P2, P3, and P4 depend on facts outside the config. A result reached without a lookup the operator
 asked for carries the label `unverified`.
@@ -194,7 +198,10 @@ Its value is the diff between runs: a new server, a changed package, or a pin th
 - **Basis**: <https://code.claude.com/docs/en/managed-mcp>: "A provided server takes precedence
   over a server with the same name in local, project, or user scope", and "If you also deploy
   `managed-mcp.json`, Claude Code loads its servers and the provided servers together, and the
-  file's entry takes precedence when both define a name."
+  file's entry takes precedence when both define a name." The same page lists the checks a
+  `managedMcpServers` entry must pass, including that `url` "is an `https://` URL" and that the
+  entry "has no `command`, `args`, `env`, or `headersHelper` member"; an entry failing one reads
+  `rejected-by-client`.
 - **As of**: 2026-09-26.
 - **Recheck trigger**: a re-fetch of the managed-mcp page no longer carrying both quoted
   sentences, or a Claude Code release note naming `managedMcpServers` precedence.
