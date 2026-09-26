@@ -2590,11 +2590,11 @@ bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
 bs_engagement=""
 for bs_attempt in 1 2 3; do
   bs_probe_run
-  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536 && ${#bs_payload} == 65536)) && [[ "$bs_probe_last" == "idle=0 chunklen=0" ]]; then
     bs_engagement=exercised
     break
   fi
-  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
+  if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536 && ${#bs_payload} == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
     bs_engagement=fragmented # tells us nothing either way; try again
     continue
   fi
@@ -2614,7 +2614,7 @@ fragmented)
   ok "buffer_stdin: chunk-boundary payload arrived fragmented on all 3 attempts (last: $bs_probe_last), so the empty-slice check was not exercised this run — correctness holds, engagement unasserted"
   ;;
 *)
-  fail "buffer_stdin chunk-boundary engagement: attempt $bs_attempt gave rc=$bs_rc len=$bs_len probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
+  fail "buffer_stdin chunk-boundary engagement: attempt $bs_attempt gave rc=$bs_rc len=$bs_len payload=${#bs_payload} probe='$(tr '\n' ';' <"$bs_probe_file")' (expected rc 0, 65536 bytes, and a completeness verdict at idle=0 chunklen=0)"
   ;;
 esac
 rm -f "$bs_probe_file" "$bs_payload_file" "$bs_rc_file" "$bs_out_file"
@@ -4428,23 +4428,25 @@ hook::finish "$@"
 printf "REACHED PAST FINISH\n"
 '
 
-# fin_arm <mode> <telemetry-file> <finish-arg...> — run one arm, leaving its
-# stdout in fin_out, its status in fin_rc and any leaked snapshot count in
-# fin_leaked. <mode> is armed (guard armed, file untouched), rewrote (armed,
-# file changed) or unarmed (the guard never ran). Called directly rather than
-# through `$( )` so those three answers land in THIS shell.
+# fin_arm <mode> <sink> <envelope-file> <finish-arg...>: run one arm with
+# <sink> as HOOK_TELEMETRY_SINK, wait for the envelope to land in
+# <envelope-file>, and leave its stdout in fin_out, its status in fin_rc and
+# any leaked snapshot count in fin_leaked. <mode> is armed (guard armed, file
+# untouched), rewrote (armed, file changed) or unarmed (the guard never ran).
+# Called directly rather than through `$( )` so those three answers land in
+# THIS shell.
 fin_rc=0
 fin_leaked=0
 fin_out=""
 fin_arm() {
-  local mode="$1" tel="$2"
-  shift 2
+  local mode="$1" sink="$2" tel="$3"
+  shift 3
   local scratch="$FIN_WORK/scratch.$RANDOM"
   local target="$FIN_WORK/target.$RANDOM"
   mkdir -p "$scratch"
   printf 'original\n' >"$target"
   fin_out=$(
-    TMPDIR="$scratch" TMP="$scratch" TEMP="$scratch" HOOK_TELEMETRY_SINK="$tel" \
+    TMPDIR="$scratch" TMP="$scratch" TEMP="$scratch" HOOK_TELEMETRY_SINK="$sink" \
       bash -c "$FIN_PROG" _ "$HOOK_DIR/hook-utils.sh" "$HOOK_DIR/rewrite-guard.sh" \
       "$target" "$mode" "$@"
   )
@@ -4454,7 +4456,10 @@ fin_arm() {
   # there: a single spawn on this host has been measured between 93 ms and
   # 3.2 s (see the buffer_stdin timing notes above), so a fixed pause sized for
   # the fast case turns a slow-forking host into a flaky suite. The wait costs
-  # nothing when the file is already there, which is the ordinary case.
+  # nothing when the file is already there, which is the ordinary case. Every
+  # arm emits an envelope, so none pays the full bound on a healthy host, and
+  # the wait keeps a late envelope from landing after the next arm truncates
+  # the file.
   local waited=0
   while [[ ! -s "$tel" ]] && ((waited < 150)); do
     sleep 0.1
@@ -4503,12 +4508,12 @@ fin_sink="$(make_sink "$fin_tel")"
 
 # Clean: the tool ran to judgment, nothing changed, nothing to say.
 : >"$fin_tel"
-fin_arm armed "$fin_sink" --disclose "fixture: reformatted a.txt." ok findings array '[]'
+fin_arm armed "$fin_sink" "$fin_tel" --disclose "fixture: reformatted a.txt." ok findings array '[]'
 fin_check clean 0 false "$fin_tel"
 
 # Clean after a rewrite: the disclosure is the whole document.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --disclose "fixture: reformatted a.txt." ok findings array '[]'
+fin_arm rewrote "$fin_sink" "$fin_tel" --disclose "fixture: reformatted a.txt." ok findings array '[]'
 fin_check clean-rewrote 1 true "$fin_tel"
 if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt." ]] &&
   [[ -z "$(printf '%s' "$fin_out" | jq -r '.hookSpecificOutput.additionalContext // empty')" ]]; then
@@ -4519,7 +4524,7 @@ fi
 
 # Findings AND a rewrite: both channels, ONE document.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --context "fixture: a.txt has findings:" \
+fin_arm rewrote "$fin_sink" "$fin_tel" --context "fixture: a.txt has findings:" \
   --disclose "fixture: reformatted a.txt." ok findings array '["one","two"]'
 fin_check findings 1 true "$fin_tel"
 if [[ "$(printf '%s' "$fin_out" | jq -r '.hookSpecificOutput.additionalContext // empty')" == "fixture: a.txt has findings:" ]] &&
@@ -4533,7 +4538,7 @@ fi
 # Consumer-ignored: the tool declined the file, so nothing was rewritten and
 # nothing is said — but the verdict is a known false, not an omitted key.
 : >"$fin_tel"
-fin_arm armed "$fin_sink" --disclose "fixture: reformatted a.txt." skipped findings array '[]'
+fin_arm armed "$fin_sink" "$fin_tel" --disclose "fixture: reformatted a.txt." skipped findings array '[]'
 fin_check consumer-ignored 0 false "$fin_tel"
 if [[ "$(jq -r '.status' "$fin_tel" 2>/dev/null)" == "skipped" ]]; then
   ok "finish/consumer-ignored: status skipped"
@@ -4544,7 +4549,7 @@ fi
 # Tool break AFTER a rewrite: the break does not swallow the disclosure, and
 # data.changed still records the rewrite the break left on disk.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --context "fixture: the tool broke:" \
+fin_arm rewrote "$fin_sink" "$fin_tel" --context "fixture: the tool broke:" \
   --disclose "fixture: reformatted a.txt." skipped findings array '[]'
 fin_check tool-break 1 true "$fin_tel"
 if [[ "$(printf '%s' "$fin_out" | jq -r '.systemMessage // empty')" == "fixture: reformatted a.txt." ]] &&
@@ -4557,22 +4562,22 @@ fi
 # Skipped before the guard was ever armed: no rewrite was attempted, so the
 # verdict is false and there is nothing to release.
 : >"$fin_tel"
-fin_arm unarmed "$fin_sink" skipped findings array '[]'
+fin_arm unarmed "$fin_sink" "$fin_tel" skipped findings array '[]'
 fin_check skipped 0 false "$fin_tel"
 
 # A caller that decides the verdict itself overrides the guard's, and an empty
 # one omits the key rather than guessing.
 : >"$fin_tel"
-fin_arm armed "$fin_sink" --changed true ok findings array '[]'
+fin_arm armed "$fin_sink" "$fin_tel" --changed true ok findings array '[]'
 fin_check changed-override 0 true "$fin_tel"
 : >"$fin_tel"
-fin_arm unarmed "$fin_sink" --changed "" ok findings array '[]'
+fin_arm unarmed "$fin_sink" "$fin_tel" --changed "" ok findings array '[]'
 fin_check changed-unknown 0 absent "$fin_tel"
 
 # The user-channel message the caller composed follows the disclosure, on its
 # own line, in ONE document with the agent channel.
 : >"$fin_tel"
-fin_arm rewrote "$fin_sink" --context "ctx" --message "notice text" \
+fin_arm rewrote "$fin_sink" "$fin_tel" --context "ctx" --message "notice text" \
   --disclose "fixture: reformatted a.txt." ok findings array '[]'
 # CR-stripped: the Windows jq writes stdout in text mode, so the newline
 # inside this two-line value arrives as CRLF where the single-line cases above
@@ -4587,7 +4592,7 @@ fi
 
 # --id names the telemetry hook id when it is not the hook::begin label.
 : >"$fin_tel"
-fin_arm unarmed "$fin_sink" --id other-id ok findings array '[]'
+fin_arm unarmed "$fin_sink" "$fin_tel" --id other-id ok findings array '[]'
 if [[ "$(jq -r '.hook' "$fin_tel" 2>/dev/null)" == "other-id" ]]; then
   ok "finish: --id overrides HOOK_PLUGIN as the telemetry hook id"
 else
