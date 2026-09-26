@@ -920,6 +920,7 @@ assert_eq "case 40: name@marketplace string form" "1" "$(jq '[.findings[] | sele
 assert_eq "case 40: one finding when several scopes hold false, at the effective one" ".claude/settings.json" "$(jq -r '[.findings[] | select(.identity.claim=="dependency-disabled:y@mkt") | .identity.sites[0].surface] | join(",")' <<<"$out")"
 assert_eq "case 40: the lower-scope false is inventory" "ok" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:y@mkt" and .surface=="user:settings.json") | .status' <<<"$out")"
 assert_eq "case 40: object form without a marketplace takes the dependent's" "1" "$(jq '[.findings[] | select(.identity.claim=="dependency-disabled:z@mkt")] | length' <<<"$out")"
+# Only Git Bash with a native (non-MSYS) jq rewrites `k=/x@mkt`, so this can fail nowhere else.
 assert_eq "case 40: a key with = and / keeps its spelling" "1" "$(MSYS2_ARG_CONV_EXCL="*" jq '[.findings[] | select(.identity.claim=="dependency-disabled:k=/x@mkt")] | length' <<<"$out")"
 assert_eq "case 40: a false nothing depends on is inventory" "ok none" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:w@mkt") | "\(.status) \(.severity)"' <<<"$out")"
 assert_eq "case 40: no disabled-plugin finding at all" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("disabled-plugin:"))] | length' <<<"$out")"
@@ -966,6 +967,42 @@ assert_eq "case 43: the CR key is one inventory row with its CR" "1" "$(jq '[.ro
 assert_eq "case 43: the stripped twin is never matched as the dependency" "0" "$(jq '[.rows[] | select(.claim=="dependency-disabled:a@mkt" or .claim=="disabled-plugin:a@mkt")] | length' <<<"$out")"
 assert_eq "case 43: a CR in the marketplace makes it unregistered" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:q@mkt\r") | .severity' <<<"$out")"
 assert_exit "case 43: that error sets the exit" 1 "$rc"
+
+# --- Case 44: drift keys with a tab or backslash reach their claims exactly -------
+m="$(make_machine driftkeys)"
+mkdir -p "$m/fixtures"
+jq -n --argjson c "$CLEAN_SETTINGS" '$c + {
+  extraKnownMarketplaces: {mkt: {source: {source: "github", repo: "o/r"}}, "t\tb": {source: {source: "github"}}},
+  enabledPlugins: {"a\tb@mkt": false, "c\\d@mkt": true, "p@mkt": "yes", "ren\tx@mkt": false}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"name":"mkt","plugins":[{"name":"ren\txy"}]}' >"$m/fixtures/mkt.json"
+out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
+  SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
+  SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_FIXTURE_DIR="$m/fixtures" CLAUDE_CODE_DEBUG_LOGS_DIR="" \
+  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  bash "$SCRIPT" --json 2>&1) || true
+assert_eq "case 44: a tab in an orphan key is kept" "info" "$(jq -r '.rows[] | select(.claim=="orphan-disabled:a\tb@mkt") | .severity' <<<"$out")"
+assert_eq "case 44: a backslash in an orphan key is kept" "warning" "$(jq -r '.rows[] | select(.claim=="orphan-enabled:c\\d@mkt") | .severity' <<<"$out")"
+assert_eq "case 44: a non-boolean orphan is never removable" "warning" "$(jq -r '.rows[] | select(.claim=="orphan-nonboolean:p@mkt") | .severity' <<<"$out")"
+assert_eq "case 44: a rename pair keeps its tab" "1" "$(jq '[.rows[] | select(.claim=="possible-rename:ren\tx->ren\txy@mkt")] | length' <<<"$out")"
+assert_eq "case 44: a skipped marketplace keeps its tab" "skip" "$(jq -r '.rows[] | select(.claim=="drift-skipped:t\tb") | .status' <<<"$out")"
+
+# --- Case 45: a category E row is never dropped silently -------------------------
+# The decoder and the row reader, with a stub row, fed the emit encoding directly.
+E_DEFS=""
+eval "$(sed -n "/^unb64_to() {/,/^}/p; /^E_ROW_BAD=/p; /^e_rows() {/,/^}/p; /^E_DEFS='/,/^'\$/p" "$SCRIPT")"
+SEEN=()
+# shellcheck disable=SC2329  # called by the e_rows the eval above defined
+row() { SEEN+=("$(printf '%s|' "$@")"); }
+enc() { jq -rn --arg su u --arg sp p --arg sl l "$E_DEFS \$ARGS.positional | emit" --args "$@" | tr -d '\r'; }
+e_rows <<<"$(enc s ok none surf claim "" ex)"
+assert_eq "case 45: an empty field keeps its row" "E|s|ok|none|surf|claim||ex|" "${SEEN[0]:-none}"
+SEEN=()
+e_rows <<<"$(enc s ok none surf claim detail ex | sed 's/^[^ ]*/@@@@/')"
+assert_contains "case 45: an undecodable field is a not-inspectable row" "${SEEN[0]:-none}" "E|plugin-state|not-inspectable|"
+SEEN=()
+e_rows <<<"$(enc s ok none surf claim detail)"
+assert_contains "case 45: a short row is a not-inspectable row" "${SEEN[0]:-none}" "E|plugin-state|not-inspectable|"
+unset -f row enc
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

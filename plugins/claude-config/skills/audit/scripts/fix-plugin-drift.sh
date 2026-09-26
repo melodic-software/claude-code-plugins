@@ -14,6 +14,9 @@
 #                              gone upstream; auto-removing silently breaks
 #                              their intent. Surface and let them decide)
 #
+#   ORPHAN, any other value ->  REPORT ONLY (manual review required). Only an
+#                              exact `false` is ever removed.
+#
 #   NEW upstream            ->  REPORT ONLY. Nothing is added: an absent entry
 #                              and an explicit `false` are separate states, and
 #                              the choice between them belongs to a person.
@@ -44,7 +47,7 @@
 #   characters as `?`.
 #   Removals are filtered against one snapshot of the settings file before the
 #   plan is rendered: a removal whose key is absent is dropped, and one whose
-#   key is now true moves to manual review. When a removal is pending, a
+#   key no longer holds exactly false moves to manual review. When a removal is pending, a
 #   settings file that is not valid JSON or whose enabledPlugins is not an
 #   object is fatal, on a dry run too.
 #   Lower-precedence guard, on a dry run too: removing a `false` lets a lower
@@ -148,9 +151,11 @@ else
   SETTINGS="$PROJECT_ROOT/.claude/settings.json"
   SETTINGS_FROM_LADDER=1
 fi
+# Display only: messages print control characters in the path as `?`.
+SETTINGS_SHOW="${SETTINGS//[[:cntrl:]]/?}"
 
 if [[ ! -f "$SETTINGS" ]]; then
-  echo "ERROR: settings file not found: $SETTINGS" >&2
+  echo "ERROR: settings file not found: $SETTINGS_SHOW" >&2
   exit 2
 fi
 
@@ -285,9 +290,11 @@ count() {
 remove_json=$(findings '.orphans[] | select(.enabled == false) | "\(.name)@\(.marketplace)"') ||
   findings_failed "orphan removals"
 
-# Manual-review entries carry the reason they are held.
-manual_json=$(findings '.orphans[] | select(.enabled == true)
-  | {key: "\(.name)@\(.marketplace)", why: "true in this file"}') ||
+# Manual-review entries carry the reason they are held. Every value but an
+# exact false is held: true, and anything else the file holds for the key.
+manual_json=$(findings '.orphans[] | select(.enabled != false)
+  | {key: "\(.name)@\(.marketplace)",
+     why: (if .enabled == true then "true in this file" else "neither true nor false in this file" end)}') ||
   findings_failed "enabled orphans"
 
 new_json=$(findings '.new_upstream[] | "\(.name)@\(.marketplace)"') ||
@@ -326,7 +333,7 @@ print_list() {
 }
 
 printf '\n%sPlugin drift fix plan%s (mode: %s)\n' "$CYAN" "$RESET" "$MODE"
-printf 'Settings file: %s\n\n' "$SETTINGS"
+printf 'Settings file: %s\n\n' "$SETTINGS_SHOW"
 
 if [[ "$skipped_count" -gt 0 ]]; then
   printf '%sSKIPPED%s %d marketplaces not audited:\n' "$YELLOW" "$RESET" "$skipped_count"
@@ -365,9 +372,22 @@ lower_scope_files() {
   else
     LOWER_CLOSED="no user config directory could be resolved (CLAUDE_CONFIG_DIR and HOME are unset)"
   fi
+  local d
   for f in "${candidates[@]+"${candidates[@]}"}"; do
     # Absent holds no `true`. A dangling symlink is present but unreadable.
-    [[ -e "$f" || -L "$f" ]] || continue
+    # A name that does not resolve is absent only when its nearest existing
+    # ancestor can be searched; behind an unsearchable directory the file may
+    # exist unseen, so the guard fails closed.
+    if [[ ! -e "$f" && ! -L "$f" ]]; then
+      d=$(dirname "$f")
+      while [[ ! -e "$d" && ! -L "$d" && "$d" != "$(dirname "$d")" ]]; do
+        d=$(dirname "$d")
+      done
+      if [[ -d "$d" && ! -x "$d" ]]; then
+        LOWER_CLOSED="cannot search $d to tell whether $f exists"
+      fi
+      continue
+    fi
     if [[ ! -f "$f" || ! -r "$f" ]]; then
       LOWER_CLOSED="cannot read $f"
       continue
@@ -398,7 +418,7 @@ if [[ "$remove_count" -gt 0 ]]; then
     exit 2
   fi
   if ! cat "$SETTINGS" >"$SNAPSHOT"; then
-    echo "ERROR: cannot snapshot $SETTINGS, settings unchanged" >&2
+    echo "ERROR: cannot snapshot $SETTINGS_SHOW, settings unchanged" >&2
     exit 2
   fi
 
@@ -427,9 +447,10 @@ if [[ "$remove_count" -gt 0 ]]; then
   # The removal list arrives on stdin, the snapshot and the lower scopes by
   # file: keys never pass through argv, where MSYS rewrites an argument such as
   # `k=/x@mk` before a native jq sees it. A removal whose key is absent is
-  # dropped and one whose key is now true in this file moves to manual review;
-  # both count as filtered. A removal a lower scope would turn into `true`, or
-  # one whose lower scopes cannot be checked, is held for manual review.
+  # dropped and one whose key no longer holds exactly false in this file moves
+  # to manual review; both count as filtered. A removal a lower scope would turn
+  # into `true`, or one whose lower scopes cannot be checked, is held for manual
+  # review.
   if ! plan=$(jq -c --slurpfile s "$SNAPSHOT" --slurpfile lw "$LOWER_JSON" --argjson closed "$closed" '
     . as $rm
     | ($s | if length != 1 then error("the settings file is not one JSON document") else .[0] end)
@@ -437,17 +458,18 @@ if [[ "$remove_count" -gt 0 ]]; then
     | (.enabledPlugins // {}) as $ep
     | if ($ep | type) != "object" then error("enabledPlugins is not an object") else . end
     | [$rm[] | . as $k
-        | if ($ep | has($k) | not) then {k: $k, to: "drop"}
-          elif $ep[$k] == true then {k: $k, to: "manual", why: "now true in this file"}
+        | if ($ep | has($k) | not) then {k: $k, to: "drop", f: true}
+          elif $ep[$k] == true then {k: $k, to: "manual", why: "now true in this file", f: true}
+          elif $ep[$k] != false then {k: $k, to: "manual", why: "now neither true nor false in this file", f: true}
           elif $closed == 1 then {k: $k, to: "manual", why: "a lower-precedence scope file could not be checked"}
           elif any($lw[0][]; .[$k] == true) then
             {k: $k, to: "manual", why: "true in a lower-precedence scope file; removing this entry would enable it"}
           else {k: $k, to: "remove"} end] as $c
     | {remove: [$c[] | select(.to == "remove") | .k],
        manual: [$c[] | select(.to == "manual") | {key: .k, why}],
-       filtered: ([$c[] | select(.to == "drop" or .why == "now true in this file")] | length)}
+       filtered: ([$c[] | select(.f)] | length)}
   ' <<<"$remove_json"); then
-    echo "ERROR: cannot read $SETTINGS to filter the plan against it" >&2
+    echo "ERROR: cannot read $SETTINGS_SHOW to filter the plan against it" >&2
     exit 2
   fi
 
@@ -524,7 +546,7 @@ fi
 # this script does not otherwise carry, so a symlink is refused instead of
 # silently mishandled. Placed after the exits that write nothing.
 if [[ -L "$SETTINGS" ]]; then
-  echo "ERROR: the settings path is a symlink, $SETTINGS" >&2
+  echo "ERROR: the settings path is a symlink, $SETTINGS_SHOW" >&2
   echo "The replacement is a rename and would replace the link itself. Point CLAUDE_SETTINGS_FILE at the file the link resolves to." >&2
   exit 2
 fi
@@ -557,11 +579,11 @@ fi
 for candidate in "${user_candidates[@]+"${user_candidates[@]}"}"; do
   [[ "$SETTINGS" -ef "$candidate/settings.json" ]] || continue
   if [[ "$SETTINGS_FROM_LADDER" -eq 1 ]]; then
-    echo "ERROR: the project-root ladder resolved to the user settings file, $SETTINGS" >&2
+    echo "ERROR: the project-root ladder resolved to the user settings file, $SETTINGS_SHOW" >&2
     echo "This script writes project scope. Run it from the project, or set CLAUDE_SETTINGS_FILE to the file you mean." >&2
     exit 2
   fi
-  echo "WARNING: CLAUDE_SETTINGS_FILE points at the user settings file, $SETTINGS" >&2
+  echo "WARNING: CLAUDE_SETTINGS_FILE points at the user settings file, $SETTINGS_SHOW" >&2
   echo "The guard that would refuse this target is waived because the path was given explicitly." >&2
   break
 done
@@ -585,7 +607,7 @@ TMP_EOL=$(mktemp "$(dirname "$SETTINGS")/.settings-json-XXXXXX")
 # No `set -e` here, so a failed mktemp (an unwritable settings directory, say)
 # would otherwise carry an empty path through cp, the redirect, and finally mv.
 if [[ -z "$TMP_EOL" ]]; then
-  echo "ERROR: cannot stage a replacement beside $SETTINGS, settings unchanged" >&2
+  echo "ERROR: cannot stage a replacement beside $SETTINGS_SHOW, settings unchanged" >&2
   exit 2
 fi
 
@@ -611,7 +633,7 @@ fi
 # mktemp's 0600. The content that lands here is overwritten below; only the mode
 # survives, which is the point.
 if ! cp -p "$SETTINGS" "$TMP_EOL"; then
-  echo "ERROR: cannot stage the replacement beside $SETTINGS, settings unchanged" >&2
+  echo "ERROR: cannot stage the replacement beside $SETTINGS_SHOW, settings unchanged" >&2
   exit 2
 fi
 
@@ -709,18 +731,19 @@ remove_own_backup() {
 # permission rules.
 BACKUP=$(mktemp "$SETTINGS.bak.$STAMP.XXXXXX") || BACKUP=""
 if [[ -z "$BACKUP" ]]; then
-  echo "ERROR: cannot create a backup beside $SETTINGS, settings unchanged" >&2
+  echo "ERROR: cannot create a backup beside $SETTINGS_SHOW, settings unchanged" >&2
   exit 2
 fi
+BACKUP_SHOW="${BACKUP//[[:cntrl:]]/?}"
 if ! cat "$SNAPSHOT" >"$BACKUP"; then
   remove_own_backup
-  echo "ERROR: cannot write the backup, settings unchanged: $BACKUP" >&2
+  echo "ERROR: cannot write the backup, settings unchanged: $BACKUP_SHOW" >&2
   exit 2
 fi
 # The name is opened a second time for the copy, so what is there now is
 # checked rather than assumed: a regular non-symlink file holding the snapshot.
 if [[ ! -f "$BACKUP" || -L "$BACKUP" ]] || ! cmp -s "$SNAPSHOT" "$BACKUP"; then
-  echo "ERROR: the backup at $BACKUP is not a regular file holding the settings as read for the plan; settings unchanged" >&2
+  echo "ERROR: the backup at $BACKUP_SHOW is not a regular file holding the settings as read for the plan; settings unchanged" >&2
   exit 2
 fi
 
@@ -732,26 +755,29 @@ fi
 # bytes, so it is removed, but only while it is still a regular file.
 if ! cmp -s "$SNAPSHOT" "$SETTINGS"; then
   remove_own_backup
-  echo "ERROR: $SETTINGS changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup kept" >&2
+  echo "ERROR: $SETTINGS_SHOW changed after the plan was computed, so another writer's edit would be lost; settings left as that writer left them, no backup kept" >&2
   exit 2
 fi
 
 if ! mv "$TMP_EOL" "$SETTINGS"; then
-  echo "ERROR: cannot replace $SETTINGS; it is unchanged and backed up at $BACKUP" >&2
+  echo "ERROR: cannot replace $SETTINGS_SHOW; it is unchanged and backed up at $BACKUP_SHOW" >&2
   exit 2
 fi
+# The stage is now the settings file; the EXIT trap must not delete whatever
+# later takes that name.
+TMP_EOL=""
 
 # Read the result back rather than trusting the pipeline that produced it. The
 # backup holds the pre-apply bytes, so a settings file still equal to it is a
 # run that reported an edit it did not make. Nothing above may report success
 # on this script's own say-so.
 if ! jq -e 'type == "object"' "$SETTINGS" >/dev/null 2>&1 || cmp -s "$BACKUP" "$SETTINGS"; then
-  echo "ERROR: $SETTINGS does not hold the edited document after the replace; the pre-apply copy is at $BACKUP" >&2
+  echo "ERROR: $SETTINGS_SHOW does not hold the edited document after the replace; the pre-apply copy is at $BACKUP_SHOW" >&2
   exit 2
 fi
 
 printf '%sApplied:%s %d removals to %s (backup: %s)\n' "$GREEN" "$RESET" \
-  "$remove_count" "$SETTINGS" "$BACKUP"
+  "$remove_count" "$SETTINGS_SHOW" "$BACKUP_SHOW"
 
 if [[ "$manual_count" -gt 0 ]]; then
   printf '%sManual review still required for %d orphan entries (see above).%s\n' \

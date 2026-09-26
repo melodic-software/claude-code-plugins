@@ -25,7 +25,8 @@
 #              SETTINGS_AUDIT_FIXTURE_DIR.
 #   repo       `source.repo` (owner/name). The catalog is fetched from
 #              raw.githubusercontent.com, or read from the fixture directory
-#              when SETTINGS_AUDIT_FIXTURE_DIR is set.
+#              when SETTINGS_AUDIT_FIXTURE_DIR is set. A repo that is not
+#              owner/name in GitHub's name characters is reported SKIP.
 #   neither    reported SKIP.
 #
 # Keys are carried as JSON from the settings file and the catalog to the
@@ -116,22 +117,26 @@ SKIPPED_MARKETS=()
 # written at the end. Each block: { "key": "...", "status": "ok|skipped",
 # "source": "directory|repo", "skip_reason": "...", "orphans": [...],
 # "new_upstream": [...], "renames": [...] }. Held as JSON text, so a key's
-# bytes never pass through a line-oriented tool.
+# bytes never pass through a line-oriented tool. An orphan's `enabled` is the
+# key's value exactly as the file holds it, which need not be a boolean; only
+# an exact `false` is a removal candidate.
 JSON_LINES=""
 
 # Shared jq definitions. `san` is for display only: every control character,
 # a carriage return included, prints as `?`, so no display line carries one and
 # the carriage return a native-Windows jq appends to each line can be dropped
-# wholesale. `mk` is marketplace number $i in sorted key order.
+# wholesale. `mk($i)` is marketplace number $i in sorted key order. Every
+# variable is a parameter, because jq 1.6 refuses to compile a def naming an
+# unbound variable even when the program never calls it.
 JQ_DEFS='def san: tostring | gsub("[[:cntrl:]]"; "?");
-def mk: .extraKnownMarketplaces as $m | ($m | keys[$i]) as $k | {key: $k, value: $m[$k]};
+def mk($i): .extraKnownMarketplaces as $m | ($m | keys[$i]) as $k | {key: $k, value: $m[$k]};
 def ep: .enabledPlugins | if type == "object" then . else {} end;'
 
 # mk_raw <index> <jq expression over mk> - one field of marketplace <index>,
 # printed with -j so no line terminator is appended. Used for paths, URLs and
 # display, never for a key that is written back.
 mk_raw() {
-  jq -j --argjson i "$1" "$JQ_DEFS mk | $2" "$SETTINGS"
+  jq -j --argjson i "$1" "$JQ_DEFS mk(\$i) | $2" "$SETTINGS"
 }
 
 # display_lines - the sanitized display lines a jq program prints, with the
@@ -171,11 +176,12 @@ fetch_upstream() {
   # it still audits every directory-sourced marketplace; this one is
   # recorded as a fetch failure rather than aborting the run.
   if ! command -v curl >/dev/null 2>&1; then
-    echo "WARN: curl not found; cannot fetch $market_key from $repo" >&2
+    echo "WARN: curl not found; cannot fetch ${market_key//[[:cntrl:]]/?} from $repo" >&2
     return 1
   fi
+  # --globoff: the URL is literal, never a curl range or set pattern.
   local url="https://raw.githubusercontent.com/$repo/HEAD/.claude-plugin/marketplace.json"
-  curl -fsSL --max-time 15 "$url" 2>/dev/null
+  curl -fsSL --globoff --max-time 15 "$url" 2>/dev/null
 }
 
 # --- Resolve a directory-source path ----------------------------------------
@@ -217,7 +223,7 @@ record_skip() {
   printf '  %sSKIP%s  %s\n' "$YELLOW" "$RESET" "$message"
   SKIPPED_MARKETS+=("$display_key:$suffix")
   if ! block=$(jq -c --argjson i "$index" --arg r "$json_reason" --arg s "$source" \
-    "$JQ_DEFS"'{key: mk.key, status: "skipped", source: $s, skip_reason: $r, orphans: [], new_upstream: [], renames: []}' \
+    "$JQ_DEFS"'{key: mk($i).key, status: "skipped", source: $s, skip_reason: $r, orphans: [], new_upstream: [], renames: []}' \
     "$SETTINGS"); then
     echo "ERROR: cannot record the skipped marketplace $display_key" >&2
     exit 2
@@ -268,6 +274,15 @@ audit_marketplace() {
       return 0
     fi
 
+    # The repo becomes part of a URL, so only an owner/name pair of GitHub's
+    # name characters is fetched; `.` and `..` would walk the URL path.
+    local repo_re='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+    if [[ ! "$repo" =~ $repo_re || "/$repo/" == *"/./"* || "/$repo/" == *"/../"* ]]; then
+      record_skip "$index" "$display_key" "invalid-repo" \
+        "source.repo is not owner/name: $repo" "invalid source.repo"
+      return 0
+    fi
+
     if ! upstream_json=$(fetch_upstream "$market_key" "$repo"); then
       record_skip "$index" "$display_key" "fetch-failed" \
         "upstream fetch failed (network/404/missing fixture)" "fetch failed"
@@ -286,17 +301,17 @@ audit_marketplace() {
   local block
   if ! block=$(jq -c --argjson i "$index" --arg src "$catalog_source" --slurpfile s "$SETTINGS" \
     "$JQ_DEFS $JQ_SIMILAR"'
-    ($s[0] | mk.key) as $k
+    ($s[0] | mk($i).key) as $k
     | ("@" + $k) as $suf
     | ([.plugins[]? | objects | .name | strings] | unique) as $up
     | [$s[0] | ep | to_entries[] | select(.key | endswith($suf))
-        | {name: (.key | .[0:(length - ($suf | length))]), enabled: (.value == true)}] as $pairs
+        | {name: (.key | .[0:(length - ($suf | length))]), value}] as $pairs
     | ($pairs | map(.name) | unique) as $local
     | ($local - $up) as $orphans
     | ($up - $local) as $new
     | {key: $k, status: "ok", source: $src, skip_reason: "",
        orphans: [$orphans[] as $o | {name: $o, marketplace: $k,
-         enabled: ([$pairs[] | select(.name == $o) | .enabled] | any)}],
+         enabled: ([$pairs[] | select(.name == $o)] | first | .value)}],
        new_upstream: [$new[] | {name: ., marketplace: $k}],
        renames: [$orphans[] as $o | $new[] as $n | select(similar($o; $n))
          | {from: $o, to: $n, marketplace: $k}]}
@@ -312,7 +327,7 @@ audit_marketplace() {
   local orphan_count new_count local_count upstream_count
   orphan_count=$(jq -j '.orphans | length' <<<"$block")
   new_count=$(jq -j '.new_upstream | length' <<<"$block")
-  local_count=$(jq -j --argjson i "$index" "$JQ_DEFS"'mk.key as $k | [ep | keys[] | select(endswith("@" + $k))] | length' "$SETTINGS")
+  local_count=$(jq -j --argjson i "$index" "$JQ_DEFS"'mk($i).key as $k | [ep | keys[] | select(endswith("@" + $k))] | length' "$SETTINGS")
   upstream_count=$(jq -j '[.plugins[]? | objects | .name | strings] | unique | length' <<<"$upstream_json")
   ORPHAN_TOTAL=$((ORPHAN_TOTAL + orphan_count))
   NEW_TOTAL=$((NEW_TOTAL + new_count))
@@ -326,16 +341,17 @@ audit_marketplace() {
   if [[ "$orphan_count" -gt 0 ]]; then
     printf '  %sORPHAN%s  %d entries in the settings file no longer in upstream:\n' \
       "$RED" "$RESET" "$orphan_count"
-    # A tab separates the flag from the entry; `san` turned any tab in the
-    # entry itself into `?`, so the split is unambiguous.
+    # A tab separates the value from the entry; `san` turned any tab in either
+    # into `?`, so the split is unambiguous. Only an exact false is a removal
+    # candidate; true and every other value are left to a person.
     while IFS= read -r line; do
       [[ -z "$line" ]] && continue
       enabled="${line%%$'\t'*}"
       entry="${line#*$'\t'}"
-      local marker="$YELLOW(false, removal candidate)$RESET"
-      [[ "$enabled" == "true" ]] && marker="$RED(true, manual review required)$RESET"
+      local marker="$RED($enabled, manual review required)$RESET"
+      [[ "$enabled" == "false" ]] && marker="$YELLOW(false, removal candidate)$RESET"
       printf '    - %-40s %s\n' "$entry" "$marker"
-    done < <(jq -r "$JQ_DEFS"'.orphans[] | "\(.enabled)\t\(.name + "@" + .marketplace | san)"' <<<"$block" | display_lines)
+    done < <(jq -r "$JQ_DEFS"'.orphans[] | "\(.enabled | tojson | san)\t\(.name + "@" + .marketplace | san)"' <<<"$block" | display_lines)
   fi
 
   if [[ "$new_count" -gt 0 ]]; then
@@ -377,11 +393,22 @@ print_coverage() {
   printf 'Not diffed: %s\n' "$line"
 }
 
+# write_findings - the blocks as one JSON array to $SETTINGS_AUDIT_OUTPUT_JSON
+# when it is set; with no block that is `[]`, never a missing document.
+write_findings() {
+  [[ -n "${SETTINGS_AUDIT_OUTPUT_JSON:-}" ]] || return 0
+  if ! jq -s '.' <<<"$JSON_LINES" >"$SETTINGS_AUDIT_OUTPUT_JSON"; then
+    echo "ERROR: cannot write findings JSON to ${SETTINGS_AUDIT_OUTPUT_JSON//[[:cntrl:]]/?}" >&2
+    exit 2
+  fi
+  printf '  JSON written to: %s\n' "${SETTINGS_AUDIT_OUTPUT_JSON//[[:cntrl:]]/?}"
+}
+
 # --- Main --------------------------------------------------------------------
 
 main() {
   printf '%sPlugin drift audit%s\n' "$CYAN" "$RESET"
-  printf 'Settings file: %s\n' "$SETTINGS"
+  printf 'Settings file: %s\n' "${SETTINGS//[[:cntrl:]]/?}"
   if [[ -n "${SETTINGS_AUDIT_FIXTURE_DIR:-}" ]]; then
     printf 'Source: %sfixtures%s (%s)\n' "$YELLOW" "$RESET" "$SETTINGS_AUDIT_FIXTURE_DIR"
   else
@@ -403,6 +430,7 @@ main() {
 
   if [[ "$market_count" -eq 0 ]]; then
     printf '\n%sno marketplaces declared in extraKnownMarketplaces%s\n' "$YELLOW" "$RESET"
+    write_findings
     exit 0
   fi
 
@@ -422,13 +450,7 @@ main() {
   [[ "${#SKIPPED_MARKETS[@]}" -gt 0 ]] && printf '  %sSKIP%s  %d marketplaces unreachable: %s\n' \
     "$YELLOW" "$RESET" "${#SKIPPED_MARKETS[@]}" "${SKIPPED_MARKETS[*]}"
 
-  if [[ -n "${SETTINGS_AUDIT_OUTPUT_JSON:-}" ]]; then
-    if ! jq -s '.' <<<"$JSON_LINES" >"$SETTINGS_AUDIT_OUTPUT_JSON"; then
-      echo "ERROR: cannot write findings JSON to $SETTINGS_AUDIT_OUTPUT_JSON" >&2
-      exit 2
-    fi
-    printf '  JSON written to: %s\n' "$SETTINGS_AUDIT_OUTPUT_JSON"
-  fi
+  write_findings
 
   [[ "$ORPHAN_TOTAL" -eq 0 ]] && exit 0
   exit 1

@@ -71,6 +71,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `check-plugin-drift.test.sh` and `fix-plugin-drift.test.sh` derive a POSIX base with `cygpath -u`
   when available and export `TMPDIR` under their own guarded temp directory, and both suites point
   `HOME` and `CLAUDE_CONFIG_DIR` at a fixture user directory.
+- **Only an orphan whose value is exactly `false` is removed.** `check-plugin-drift.sh` records an
+  orphan's value as the settings file holds it instead of folding it to a boolean, so a `null`,
+  string, number or object value no longer reads as `false`. `fix-plugin-drift.sh` holds `true` and
+  every other value for manual review, including a planned removal whose key has since changed to
+  one, and the engine reports such an orphan as a warning, never as removable.
+- **A `source.repo` that is not `owner/name` is never fetched.** `check-plugin-drift.sh` reports a
+  repo outside GitHub's name characters, or with a `.` or `..` part, as SKIP with the reason
+  `invalid source.repo`, and fetches with `curl --globoff` so the URL is never read as a pattern.
+  Messages print control characters in a marketplace key, settings path or backup path as `?`.
 
 ## [0.48.2] - 2026-09-25
 

@@ -1223,31 +1223,45 @@ done < <(jqs -r '[.divergence[]? | . + {mk: (.plugin | split("@") | .[1] // "")}
 # return, a tab or `=/` reaches its claim exactly as written. Managed-scope
 # enabledPlugins is not merged here.
 
-# unb64_to <var> <base64>: decode into <var> byte for byte.
+# unb64_to <var> <field>: decode a base64 field into <var> byte for byte; `-`,
+# which base64 never produces, is the empty field. `-d` is GNU, macOS 13+ and
+# BusyBox; `--decode` and `-D` cover older BSD builds. Only the exit status is
+# trusted, since GNU prints partial output before rejecting bad input. Returns
+# 1 with <var> empty when no form decodes the field.
 unb64_to() {
-  local v
-  v="$(printf '%s' "$2" | base64 --decode 2>/dev/null
-    printf x
-  )"
-  printf -v "$1" '%s' "${v%x}"
+  local v opt
+  printf -v "$1" '%s' ""
+  [[ "$2" == "-" ]] && return 0
+  for opt in -d --decode -D; do
+    if v="$(printf '%s' "$2" | base64 "$opt" 2>/dev/null)x"; then
+      printf -v "$1" '%s' "${v%x}"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # e_rows: emit one category E row per input line of seven base64 fields
-# (slug, status, severity, surface, claim, detail, excerpt).
+# (slug, status, severity, surface, claim, detail, excerpt). A line with
+# another field count, or a field that does not decode, becomes a
+# not-inspectable row rather than vanishing.
+E_ROW_BAD=0
 e_rows() {
   local line f slug st sev surf claim detail ex
   while IFS= read -r line; do
     line="${line%$'\r'}"
+    [[ -n "$line" ]] || continue
     read -r -a f <<<"$line"
-    [[ ${#f[@]} -eq 7 ]] || continue
-    unb64_to slug "${f[0]}"
-    unb64_to st "${f[1]}"
-    unb64_to sev "${f[2]}"
-    unb64_to surf "${f[3]}"
-    unb64_to claim "${f[4]}"
-    unb64_to detail "${f[5]}"
-    unb64_to ex "${f[6]}"
-    row E "$slug" "$st" "$sev" "$surf" "$claim" "$detail" "$ex"
+    if [[ ${#f[@]} -eq 7 ]] &&
+      unb64_to slug "${f[0]}" && unb64_to st "${f[1]}" && unb64_to sev "${f[2]}" &&
+      unb64_to surf "${f[3]}" && unb64_to claim "${f[4]}" && unb64_to detail "${f[5]}" &&
+      unb64_to ex "${f[6]}"; then
+      row E "$slug" "$st" "$sev" "$surf" "$claim" "$detail" "$ex"
+    else
+      E_ROW_BAD=$((E_ROW_BAD + 1))
+      row E plugin-state not-inspectable none "settings" "row-undecodable:$E_ROW_BAD" \
+        "a category E row came back with ${#f[@]} fields or a field that does not decode, so the plugin check it carried went unreported" -
+    fi
   done
 }
 
@@ -1268,7 +1282,7 @@ def depkey($k):
   if type == "string" then (if index("@") then . else . + "@" + ($k | mk) end)
   elif type == "object" and (.name | type) == "string" then .name + "@" + ((.marketplace | select(type == "string")) // ($k | mk))
   else null end;
-def emit: map(@base64) | join(" ");
+def emit: map(@base64 | if . == "" then "-" else . end) | join(" ");
 '
 
 # e_scope <ok> <file>: the scope's JSON, or null when it was not read.
@@ -1298,10 +1312,13 @@ if [[ -n "$E_CTX" ]]; then
   DEP_RECS=""
   while read -r di dpath_b64; do
     [[ "$di" =~ ^[0-9]+$ ]] || continue
-    unb64_to dpath "$dpath_b64"
+    dpath_ok=1
+    unb64_to dpath "$dpath_b64" || dpath_ok=0
     dpath="${dpath//\\//}"
     rec=""
-    if [[ -z "$dpath" ]]; then
+    if [[ "$dpath_ok" -eq 0 ]]; then
+      rec="{\"i\":$di,\"deps\":null,\"why\":\"its install path could not be decoded\"}"
+    elif [[ -z "$dpath" ]]; then
       rec="{\"i\":$di,\"deps\":null,\"why\":\"no install path resolved in the plugin inventory\"}"
     elif [[ ! -e "$dpath/.claude-plugin/plugin.json" ]]; then
       # The manifest is optional: a plugin without one declares no dependencies.
@@ -1373,19 +1390,36 @@ if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f
   fi
   rm -f "$drift_tmp"
 fi
+# drift_rows <label> <jq program over the findings array>: category E rows from
+# the drift findings, through the same base64 path as every other E row, so a
+# key reaches its claim exactly as the dependency and marketplace rows carry it.
+drift_rows() {
+  local out
+  if out="$(printf '%s\n' "$DRIFT_JSON" | ejq -r "${E_ARGS[@]}" "$E_DEFS $2")"; then
+    e_rows <<<"$out"
+  else
+    row E drift not-inspectable none "$SURF_SETTINGS" "drift-$1-unread" "the drift findings could not be read for the $1 rows, so they went unreported" -
+  fi
+}
 if [[ "$DRIFT_STATE" == "ran" ]]; then
-  while IFS=$'\t' read -r mk st reason; do
-    [[ -n "$mk" ]] || continue
-    [[ "$st" == "skipped" ]] && row E drift skip none "$SURF_SETTINGS" "drift-skipped:$mk" "marketplace $mk not diffed: $reason" -
-  done < <(jqs -r '.[] | [.key, .status, (.skip_reason // "")] | @tsv' <<<"$DRIFT_JSON")
-  while IFS=$'\t' read -r name mk enabled; do
-    [[ -n "$name" ]] || continue
-    if [[ "$enabled" == "true" ]]; then
-      row E drift-orphan finding warning "$SURF_SETTINGS" "orphan-enabled:$name@$mk" "$name@$mk is enabled but no longer in the $mk catalog; review before removing" "/enabledPlugins/$name@$mk"
-    else
-      row E drift-orphan finding info "$SURF_SETTINGS" "orphan-disabled:$name@$mk" "$name@$mk is disabled and gone from the $mk catalog; the entry is removable" "/enabledPlugins/$name@$mk"
-    fi
-  done < <(jqs -r '.[] | .orphans[]? | [.name, .marketplace, (.enabled|tostring)] | @tsv' <<<"$DRIFT_JSON")
+  drift_rows skipped '.[] | select(type == "object" and .status == "skipped")
+    | (.key | tostring) as $mk
+    | ["drift", "skip", "none", $sp, "drift-skipped:" + $mk, "marketplace \($mk) not diffed: \(.skip_reason // "")", "-"]
+    | emit'
+  # Only an exact false is removable; true and any other value go to a person.
+  drift_rows orphan '.[] | select(type == "object") | .orphans[]? | select(type == "object")
+    | "\(.name)@\(.marketplace)" as $k | (.marketplace | tostring) as $mk
+    | if .enabled == false then
+        ["drift-orphan", "finding", "info", $sp, "orphan-disabled:" + $k,
+         "\($k) is disabled and gone from the \($mk) catalog; the entry is removable", "/enabledPlugins/" + $k]
+      elif .enabled == true then
+        ["drift-orphan", "finding", "warning", $sp, "orphan-enabled:" + $k,
+         "\($k) is enabled but no longer in the \($mk) catalog; review before removing", "/enabledPlugins/" + $k]
+      else
+        ["drift-orphan", "finding", "warning", $sp, "orphan-nonboolean:" + $k,
+         "\($k) holds \(.enabled | tojson | disp), neither true nor false, and is no longer in the \($mk) catalog; review before removing", "/enabledPlugins/" + $k]
+      end
+    | emit'
   # The drift script reads the project file alone; Claude Code merges the user,
   # project and local scopes, so a catalog entry keyed in any of them is not
   # new to the session. Catalog plugins absent from every readable scope are
@@ -1403,10 +1437,10 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
          "\(length) plugin(s) in the \($mk) catalog have no enabledPlugins entry in any scope (for example \(.[0] | disp))", "-"]
       | emit')
   fi
-  while IFS=$'\t' read -r from to mk; do
-    [[ -n "$from" ]] || continue
-    row E drift-rename finding warning "$SURF_SETTINGS" "possible-rename:$from->$to@$mk" "$from may have been renamed to $to in $mk; confirm before editing the key" "/enabledPlugins/$from@$mk"
-  done < <(jqs -r '.[] | .renames[]? | [.from, .to, .marketplace] | @tsv' <<<"$DRIFT_JSON")
+  drift_rows rename '.[] | select(type == "object") | .renames[]? | select(type == "object")
+    | ["drift-rename", "finding", "warning", $sp, "possible-rename:\(.from)->\(.to)@\(.marketplace)",
+       "\(.from) may have been renamed to \(.to) in \(.marketplace); confirm before editing the key", "/enabledPlugins/\(.from)@\(.marketplace)"]
+    | emit'
 else
   row E drift skip none "$SURF_SETTINGS" "drift-not-run" "plugin drift not computed (skipped, no project settings, or the drift script produced no document)" -
 fi

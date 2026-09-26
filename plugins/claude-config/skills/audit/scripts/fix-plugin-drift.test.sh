@@ -444,7 +444,7 @@ fi
 assert_eq "case-11: settings file byte-identical" "yes" "$untouched"
 assert_eq "case-11: no backup created" "0" "$(backup_count "$case_dir/.claude")"
 
-# --- Case 12b: a check that exits 0 without a document is still a pass ------------
+# --- Case 12b: a check with no declared marketplace is still a pass ---------------
 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
@@ -454,10 +454,8 @@ exit_code=0
 out=$(run_fix_internal "$case_dir") || exit_code=$?
 
 assert_exit "case-12b: no declared marketplaces exits 0" 0 "$exit_code"
-# The pass is only safe because the run says what it did. Both halves are
-# asserted: the stderr NOTE, and the stdout line that must NOT borrow the
-# wording of a completed audit.
-assert_contains "case-12b: names the empty audit on stderr" "$out" "no marketplace was audited"
+# The pass is only safe because the run says what it did: the stdout line must
+# NOT borrow the wording of a completed audit.
 assert_contains "case-12b: stdout says nothing was audited" "$out" "No marketplace was audited"
 assert_not_contains "case-12b: never claims a clean audit" "$out" "No drift detected"
 
@@ -1224,6 +1222,77 @@ out=$(NO_COLOR=1 CLAUDE_CONFIG_DIR="$case_dir/user" CLAUDE_SETTINGS_FILE="$case_
 assert_exit "case-37: free local apply exits 0" 0 "$exit_code"
 assert_jq "case-37: the free local removal landed" "$case_dir/free/settings.local.json" \
   '.enabledPlugins | has("removed@market1") | not'
+
+# --- Case 38: only an orphan whose value is exactly false is removed, end to end --
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+mkdir -p "$case_dir/fixtures"
+printf '%s\n' '{
+  "enabledPlugins": {"f@market1": false, "t@market1": true, "p@market1": "yes", "q@market1": {"x": 1}, "n@market1": null},
+  "extraKnownMarketplaces": {"market1": {"source": {"source": "github", "repo": "owner/market1"}}}
+}' >"$case_dir/settings.json"
+printf '%s\n' '{"name": "market1", "plugins": [{"name": "alpha"}]}' >"$case_dir/fixtures/market1.json"
+
+out=$(SETTINGS_AUDIT_FIXTURE_DIR="$case_dir/fixtures" run_fix_internal "$case_dir") || true
+auto_section="${out#*AUTO-REMOVE}"
+auto_section="${auto_section%%MANUAL REVIEW*}"
+manual_section="${out#*MANUAL REVIEW}"
+assert_contains "case-38: one auto removal" "$out" "AUTO-REMOVE 1 orphan entries"
+assert_contains "case-38: the false orphan is the removal" "$auto_section" "f@market1"
+for k in p q n; do
+  assert_not_contains "case-38: $k is never an auto removal" "$auto_section" "$k@market1"
+  assert_contains "case-38: $k is manual review" "$manual_section" "$k@market1 (neither true nor false in this file)"
+done
+assert_contains "case-38: true stays manual review" "$manual_section" "t@market1 (true in this file)"
+
+exit_code=0
+out=$(SETTINGS_AUDIT_FIXTURE_DIR="$case_dir/fixtures" run_fix_internal "$case_dir" --yes) || exit_code=$?
+assert_exit "case-38: apply exits 0" 0 "$exit_code"
+assert_contains "case-38: one removal applied" "$out" "Applied: 1 removals"
+assert_jq "case-38: only the false orphan is gone" "$case_dir/settings.json" \
+  '.enabledPlugins == {"t@market1": true, "p@market1": "yes", "q@market1": {"x": 1}, "n@market1": null}'
+
+# --- Case 39: a planned removal whose key now holds a non-boolean is held ---------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
+printf '{"enabledPlugins":{"alpha@market1":true,"removed@market1":"yes"}}\n' >"$case_dir/settings.json"
+cp "$case_dir/settings.json" "$case_dir/settings.pre"
+
+exit_code=0
+out=$(run_fix_apply "$case_dir") || exit_code=$?
+assert_exit "case-39: apply exits 0" 0 "$exit_code"
+assert_not_contains "case-39: no AUTO-REMOVE section" "$out" "AUTO-REMOVE"
+assert_contains "case-39: counted as filtered" "$out" "FILTERED 1 plan entries no longer match the settings file"
+manual_section="${out#*MANUAL REVIEW}"
+assert_contains "case-39: listed under MANUAL REVIEW" "$manual_section" \
+  "removed@market1 (now neither true nor false in this file)"
+assert_eq "case-39: settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
+
+# --- Case 40: a user directory behind an unsearchable parent fails closed ---------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_case)
+mkdir -p "$case_dir/locked/user"
+printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
+printf '%s\n' "$SETTINGS_FIXTURE" >"$case_dir/settings.json"
+cp "$case_dir/settings.json" "$case_dir/settings.pre"
+printf '{"enabledPlugins":{"removed@market1":true}}\n' >"$case_dir/locked/user/settings.json"
+chmod 000 "$case_dir/locked"
+if [[ -x "$case_dir/locked" ]]; then
+  skip "case-40" "chmod cannot clear a directory's search bit here (Windows or root)"
+else
+  exit_code=0
+  out=$(CLAUDE_CONFIG_DIR="$case_dir/locked/user" run_fix_apply "$case_dir") || exit_code=$?
+  assert_exit "case-40: apply exits 0" 0 "$exit_code"
+  assert_contains "case-40: says the removals are held" "$out" "so every orphan removal is held for manual review."
+  assert_not_contains "case-40: never applies" "$out" "Applied"
+  assert_eq "case-40: settings byte-identical" "yes" "$(unchanged_since "$case_dir")"
+fi
+# Restored so the harness's recursive delete can enter it.
+chmod u+rwx "$case_dir/locked"
 
 # --- Final ------------------------------------------------------------------
 

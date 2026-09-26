@@ -718,6 +718,74 @@ assert_contains "case-20: displayed pair shows the CR as ?" "$out" "frontend-des
 assert_jq "case-20: JSON pair keeps the CR" "$OUTPUT_JSON_PATH" \
   '.[0].renames == [{from: "frontend-design\r", to: "frontend-designer", marketplace: "mk"}]'
 
+# --- Case 21: the shared jq definitions bind every variable they use ---------
+# jq 1.6 refuses to compile a program whose def names an unbound $variable, even
+# a def the program never calls, so a call site without `--argjson i` would fail.
+# Checked on the text because newer jq builds accept the unbound form.
+
+CASE_NUM=$((CASE_NUM + 1))
+defs=$(sed -n "/^JQ_DEFS='/,/'\$/p" "$SCRIPT")
+unbound=""
+while IFS= read -r var; do
+  [[ -z "$var" ]] && continue
+  if ! grep -Eq "def [a-z_]+\([^)]*\\${var}[;)]|as \\${var}\b" <<<"$defs"; then
+    unbound+="$var "
+  fi
+done < <(grep -oE '\$[A-Za-z_]+' <<<"$defs" | sort -u)
+assert_eq "case-21: JQ_DEFS names no unbound variable" "" "$unbound"
+
+# --- Case 22: no declared marketplace still writes an empty findings array ----
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/settings.json" '{"enabledPlugins": {"a@mk": true}}'
+exit_code=0
+out=$(SETTINGS_AUDIT_OUTPUT_JSON="$case_dir/findings.json" run_check "$case_dir") || exit_code=$?
+assert_exit "case-22: exits 0" 0 "$exit_code"
+assert_jq "case-22: the findings file holds []" "$case_dir/findings.json" '. == []'
+
+# --- Case 23: a source.repo that is not owner/name is skipped, never fetched ----
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"a@bad": false},
+  "extraKnownMarketplaces": {
+    "bad": {"source": {"source": "github", "repo": "owner/name/extra"}},
+    "dots": {"source": {"source": "github", "repo": "../.."}},
+    "glob": {"source": {"source": "github", "repo": "owner/{a,b}"}}
+  }
+}'
+for k in bad dots glob; do
+  write_fixture "$case_dir/fixtures" "$k" '{"name": "x", "plugins": []}'
+done
+exit_code=0
+out=$(SETTINGS_AUDIT_OUTPUT_JSON="$case_dir/findings.json" run_check "$case_dir") || exit_code=$?
+assert_exit "case-23: skips alone exit 0" 0 "$exit_code"
+assert_jq "case-23: every invalid repo is a skip with its reason" "$case_dir/findings.json" \
+  '(map(select(.status == "skipped" and .skip_reason == "invalid source.repo")) | length) == 3'
+assert_contains "case-23: the SKIP line says why" "$out" "source.repo is not owner/name"
+
+# --- Case 24: only an exact false orphan is a removal candidate ---------------
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(make_fixture_dir)
+write_settings "$case_dir/settings.json" '{
+  "enabledPlugins": {"f@mk": false, "t@mk": true, "p@mk": "yes", "q@mk": {"x": 1}, "n@mk": null},
+  "extraKnownMarketplaces": {"mk": {"source": {"source": "github", "repo": "owner/mk"}}}
+}'
+write_fixture "$case_dir/fixtures" mk '{"name": "mk", "plugins": [{"name": "other"}]}'
+exit_code=0
+out=$(SETTINGS_AUDIT_OUTPUT_JSON="$case_dir/findings.json" run_check "$case_dir") || exit_code=$?
+assert_exit "case-24: orphans exit 1" 1 "$exit_code"
+assert_jq "case-24: each orphan carries its exact value" "$case_dir/findings.json" \
+  '(.[0].orphans | map({key: .name, value: .enabled}) | from_entries)
+    == {"f": false, "t": true, "p": "yes", "q": {"x": 1}, "n": null}'
+assert_contains "case-24: false is a removal candidate" "$out" "f@mk"
+assert_eq "case-24: only one removal candidate" "1" "$(grep -c 'removal candidate' <<<"$out")"
+assert_contains "case-24: a string value is manual review" "$out" '("yes", manual review required)'
+assert_contains "case-24: null is manual review" "$out" '(null, manual review required)'
+
 # --- Final ------------------------------------------------------------------
 
 printf '\nPASS %d, FAIL %d\n' "$PASSED" "$FAILED"
