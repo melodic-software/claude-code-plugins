@@ -240,6 +240,7 @@ assert_eq "case 3: force push demoted to info" "info" "$(jq -r '.findings[] | se
 assert_contains "case 3: the manifest and lever are cited" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .detail' <<<"$out")" "git_enabled"
 assert_eq "case 3: a Read pattern on a Bash matcher is not covered" "0" "$(jq '[.rows[] | select(.claim=="missing-pattern:Read(./.env)")] | length' <<<"$out")"
 assert_eq "case 3: manifest recorded" "1" "$(jq '.coverage_manifests | length' <<<"$out")"
+assert_eq "case 3: a plugin with no manifest declares no dependencies" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:guard@mkt")] | length' <<<"$out")"
 
 # --- Case 4: a suppression lever makes the manifest coverage not live ----------
 m="$(make_machine lever)"
@@ -925,13 +926,14 @@ assert_eq "case 40: no disabled-plugin finding at all" "0" "$(jq '[.findings[] |
 
 # --- Case 41: an enabled plugin whose dependencies cannot be read ----------------
 m="$(make_machine depunread)"
-printf '%s\n' "$CLEAN_SETTINGS" | jq --argjson d "$MKT_DECL" '. + $d + {enabledPlugins:{"app@mkt":true,"ghost@mkt":true,"bad@mkt":true,"bare@mkt":true}}' >"$m/project/.claude/settings.json"
-add_plugin "$m" app '{"name":"app"}' bad '{not json' bare -
+printf '%s\n' "$CLEAN_SETTINGS" | jq --argjson d "$MKT_DECL" '. + $d + {enabledPlugins:{"app@mkt":true,"ghost@mkt":true,"bad@mkt":true,"bare@mkt":true,"strdeps@mkt":true}}' >"$m/project/.claude/settings.json"
+add_plugin "$m" app '{"name":"app"}' bad '{not json' bare - strdeps '{"name":"strdeps","dependencies":"lib"}'
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_eq "case 41: an unresolved install path is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="dependencies-unread:ghost@mkt") | .status' <<<"$out")"
 assert_eq "case 41: an invalid plugin.json is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="dependencies-unread:bad@mkt") | .status' <<<"$out")"
-assert_eq "case 41: a missing plugin.json is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="dependencies-unread:bare@mkt") | .status' <<<"$out")"
+assert_eq "case 41: a resolved path without plugin.json declares no dependencies" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:bare@mkt")] | length' <<<"$out")"
+assert_eq "case 41: a non-array dependencies is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="dependencies-unread:strdeps@mkt") | .status' <<<"$out")"
 assert_eq "case 41: a readable plugin.json is not reported unread" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:app@mkt")] | length' <<<"$out")"
 assert_eq "case 41: the rows sit under E/dependency-disabled" "3" "$(jq '[.rows[] | select(.check=="claude-config/audit/E/dependency-disabled" and .status=="not-inspectable")] | length' <<<"$out")"
 

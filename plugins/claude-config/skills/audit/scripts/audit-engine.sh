@@ -1303,8 +1303,11 @@ if [[ -n "$E_CTX" ]]; then
     rec=""
     if [[ -z "$dpath" ]]; then
       rec="{\"i\":$di,\"deps\":null,\"why\":\"no install path resolved in the plugin inventory\"}"
-    elif [[ ! -f "$dpath/.claude-plugin/plugin.json" ]]; then
-      rec="{\"i\":$di,\"deps\":null,\"why\":\"no .claude-plugin/plugin.json at its install path\"}"
+    elif [[ ! -e "$dpath/.claude-plugin/plugin.json" ]]; then
+      # The manifest is optional: a plugin without one declares no dependencies.
+      rec="{\"i\":$di,\"deps\":[]}"
+    elif [[ ! -f "$dpath/.claude-plugin/plugin.json" || ! -r "$dpath/.claude-plugin/plugin.json" ]]; then
+      rec="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not a readable file\"}"
     else
       rec="$(tr -d '\r' <"$dpath/.claude-plugin/plugin.json" | ejq -c --argjson i "$di" \
         '{i: $i, deps: (if type == "object" then (.dependencies // []) else null end), why: "plugin.json is not an object or its dependencies is not an array"}')"
