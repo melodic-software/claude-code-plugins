@@ -10,17 +10,18 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`interview` page:** an Activity panel (fly-out tab, strip button with an unseen-count badge,
   and a single-key shortcut) lists what Claude did, newest first. Each `apply` or CLI write
   whose ops include `reply`, `note-reply`, `revise`, `add`, `add-round`, `archive`,
-  `record-terminal` or `wait` logs one summary entry, and an `activity` op logs its own; the
-  newest 200 are kept.
+  `record-terminal`, `wait`, `confirm-commitments` or `restate` logs one summary entry, and an
+  `activity` op logs its own; the newest 200 are kept.
 - **`interview` page:** a header Claude line shows the current status with its age, else the
-  newest Activity entry.
+  working text while events are unhandled, else the newest Activity entry.
 - **`interview` surface:** `apply` ops `set-status` (set or clear the Claude line), `wait`
   (hold a question, or end the hold) and `activity` (log off-page work such as a ledger update,
   a gate run, or research dispatched or returned). `context/surface.md` says when to post and
   clear them around off-thread work, with one watcher only.
 - **`interview` surface:** `wait` takes `by`: `claude` (the default) holds a question as
   pending research, and `user` holds it as needing the user's answer and sets aside the
-  decision recorded before it (`setAsideAt`), so only the user's next decision counts.
+  decision recorded before it (`setAsideSeq` for a page decision, `setAsideAt` for a terminal
+  one), so only the user's next decision counts.
 - **`interview` surface:** a `confirm-commitments` op records commitments the user confirmed
   outside the page, with a reason; the page and `export-brief` count them as confirmed.
 - **`interview` surface:** the page runs the confirmation gate: a `restate` op posts the
@@ -59,7 +60,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
   marks and the Activity badge.
 - **`interview` surface:** the event stream sends a `ping` every 15 seconds while idle, and the
   page re-fetches its state when the tab becomes visible, when the stream reconnects, or after
-  two missed pings, so a backgrounded tab catches up.
+  two missed pings, so a backgrounded tab catches up. At most 8 streams run at once; one more
+  gets 503.
 - **`interview` tests:** a journey script walks the whole flow (start, answers, accept with
   note, Accept all, ask and reply, holds, new rounds, Notes replies, commitments, the
   confirmation gate, wrap-up, a backgrounded tab) against one fixture server without a reload.
@@ -77,7 +79,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`interview`:** R9 is narrowed: an accept with new note text gets a reply answering the
   note; a note that conditions the acceptance is recorded as hedged, headline only.
 - **`interview`:** SKILL.md Step 2 points to the page's confirmation gate in
-  `context/surface.md`; Step 3 is unchanged.
+  `context/surface.md`.
 - **`interview`:** a held question counts as not answered even with a recorded decision, in
   `round.sh status`, `export-ledger` and the page meter; status and the ledger label a user
   hold `awaiting user:` and a Claude hold `waits on:`. An `own` answer that is a question or a
@@ -87,11 +89,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
   recommendation's commitments; an alternative withdraws them, so `export-brief` and the
   report no longer list an alternative's commitments as named risks, and a defer's open row
   covers them. `confirm-commitments` ticks commitments confirmed in the terminal, so a
-  mirrored terminal accept need not leave them unconfirmed. This folds in the commitment-part
-  gaps recorded after the surface's first release (alt risks, no op to tick a part).
+  mirrored terminal accept need not leave them unconfirmed.
 - **`interview` page:** groups with open or held questions start expanded, and a section a new
-  round lands in expands and is highlighted; a stored collapsed state applies only to sections
-  the user toggled. The round label is derived from the questions, so `context/surface.md`
+  round lands in expands and is highlighted; a stored collapse applies only while the section's
+  default is unchanged. The round label is derived from the questions, so `context/surface.md`
   tells Claude to keep round numbers out of `meta.eyebrow`.
 - **`interview` page:** re-renders keep focus and typed text; a single polite live region
   carries the Claude line, and Go moves focus to the target question.
