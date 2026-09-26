@@ -267,7 +267,7 @@ and learn-style `SKILL.md` film steps, README.
 - [x] `render.py <scene> <out> --fps 12 --playwright-core '${user_config.playwright_core}'` exits 0 (unsubstituted placeholder treated as unset).
 - [x] C1 (now via `--with-requirements`) 239/239; C3 `compare` exits 0; C5.
 
-### Phase 4: the one test seam: synthetic fixture and pack control (T8; D44) [TODO]
+### Phase 4: the one test seam: synthetic fixture and pack control (T8; D44) [DONE]
 
 O3 and O5 are resolved: skip-guarded test plus a follow-up issue; spike the fidelity target first,
 fall back to count plus contracts.
@@ -293,15 +293,15 @@ fall back to count plus contracts.
 
 **Sanity Check:**
 
-- [ ] `regress.py --synthetic <empty dir>` exits 0 locally; the fixture without `DURATION` case is
+- [x] `regress.py --synthetic <empty dir>` exits 0 locally; the fixture without `DURATION` case is
   reported as passing (exit 1 observed).
-- [ ] `uv run --with-requirements plugins/animation/requirements.txt --with pytest python -m pytest plugins/animation/skills/rotoscope/scripts/test_regress.py` exits 0 with the test run
+- [x] `uv run --with-requirements plugins/animation/requirements.txt --with pytest python -m pytest plugins/animation/skills/rotoscope/scripts/test_regress.py` exits 0 with the test run
   (not skipped) on this machine.
-- [ ] `python3 -m pytest plugins/animation/skills/rotoscope/scripts/test_regress.py -rs` in an
+- [x] `python3 -m pytest plugins/animation/skills/rotoscope/scripts/test_regress.py -rs` in an
   environment without numpy exits 0 and reports the test as skipped with its reason (collection
   does not error).
 - [ ] The follow-up issue number (created or pivoted-to) is recorded in the phase notes.
-- [ ] C1 239/239 and its new pack-control line reports the replica passing; C3 `compare` exits 0
+- [x] C1 239/239 and its new pack-control line reports the replica passing; C3 `compare` exits 0
   (it compares `table-*.md` and the summary JSONs, not raw regress stdout, which gains this line); C5.
 
 ### Phase 5: SSOT owner table (T16; V1-V7, V11, V12 docs, V14, V15, V17/D28, V20/V22/D22, V26; D32) [TODO]

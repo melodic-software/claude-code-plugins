@@ -79,3 +79,21 @@ Append-only. Each entry: plan said / found / chose / revisit.
   `scripts/prereq.py` (basis: `doc/ffmpeg.texi` has `fps_mode` at tag `n5.1`, not at `n5.0`).
 - **discovery: Python minimum** 3.12, from numpy 2.5.3's `requires_python` on PyPI; stated in
   README and `requirements.txt`.
+
+## Phase 4
+
+- **plan-confirmed: O5 spike misses; fallback (b).** `fixtures/synthetic.js` (480x270, 24 drawings
+  on 2s and 3s, 2.5 s) rendered, encoded, re-traced and measured at the default brush: 0/24 pass,
+  mean xor 0.190 % against floor 0.112 % (xor/floor about 1.7), ssim 0.9838, ssim_e 0.9669, paper_err
+  1.50. `regress.py --synthetic` asserts the drawing count and the render/encode/decode contracts
+  and prints the fidelity table without gating on it.
+- **blocked (human-decision): follow-up issue not filed.** The phase-entry search
+  `gh issue list --state all --search 'animation synthetic fixture CI in:title'` returned `[]`.
+  Filing is a tracker write the routing table gives the main session; nothing was created.
+- **choice: regression-case wiring.** The D18 case writes the fixture minus its `window.DURATION`
+  line into the work dir and runs `render.py` as a subprocess; `./ink.js` resolves from `scripts/`.
+  The drawing starts are checked against `SYN_HOLDS` in `regress.py`, a copy of the fixture's
+  `HOLDS` (two sites, one test pair).
+- **choice: pack control output.** `regress.py <shfred0>` writes the replica mp4 to
+  `<work>/out/regress/replica.mp4` and prints `pack control: the replica passes woodcut-ink`; its
+  exit is 1 when either the measure or the pack check fails.
