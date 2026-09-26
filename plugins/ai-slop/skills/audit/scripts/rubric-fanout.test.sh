@@ -11,7 +11,8 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FANOUT="$SCRIPT_DIR/rubric-fanout.sh"
 CATALOG="$SCRIPT_DIR/../reference/catalog.md"
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(mktemp -d)" || { echo "mktemp failed" >&2; exit 2; }
+[[ -n "$TEST_TMPDIR" && -d "$TEST_TMPDIR" ]] || { echo "mktemp gave no directory: $TEST_TMPDIR" >&2; exit 2; }
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
@@ -21,7 +22,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=73
+EXPECTED_CASES=86
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -53,6 +54,10 @@ assert_not_contains() {
 }
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
+}
+# assert_line_in <name> <file> <line>: the file holds that exact line.
+assert_line_in() {
+  if grep -qxF -- "$3" "$2" 2>/dev/null; then pass "$1"; else fail "$1" "line: $3" "$(cat "$2" 2>&1)"; fi
 }
 
 sha() { sha256sum <"$1" | cut -d' ' -f1; }
@@ -362,6 +367,89 @@ assert_eq "sidecar: a CRLF sidecar reads complete" "$out" "batch=01 status=compl
 printf 'edited\n' >>"$CL/docs/x.md"
 out="$(bash "$FANOUT" status --batches "$CL/batches" --results "$CL/results" 2>&1)"
 assert_contains "sidecar: a CRLF sidecar still detects an edit" "$out" "batch=01 status=stale reason=digest digest="
+
+# A missing result whose sidecar cannot bind the contents says reason=paths;
+# one whose sidecar is sound keeps the plain missing row.
+MS="$TEST_TMPDIR/missing-sidecar"
+mkdir -p "$MS/docs" "$MS/results" "$MS/bad"
+printf 'one two\n' >"$MS/docs/x.md"
+printf 'x.md\t%s\n' "$MS/docs/x.md" >"$MS/targets.tsv"
+out="$(bash "$FANOUT" plan --out "$MS/batches" --order mtime "$MS/targets.tsv" 2>&1)"
+pd="$(digest_of "$out" 01)"
+out="$(bash "$FANOUT" status --batches "$MS/batches" --results "$MS/results" 2>&1)"
+assert_eq "missing: a sound sidecar keeps the plain missing row" "$out" "batch=01 status=missing digest=$pd"
+printf 'a.md\nb.md\n' >"$MS/bad/batch-01.txt"
+printf '%s\n' "$MS/docs/x.md" >"$MS/bad/batch-01.paths"
+printf 'a.md\n' >"$MS/bad/batch-02.txt"
+printf '%s\n' "$MS/nowhere/a.md" >"$MS/bad/batch-02.paths"
+out="$(bash "$FANOUT" status --batches "$MS/bad" --results "$MS/results" 2>&1)"
+assert_contains "missing: a sidecar length mismatch says reason=paths" "$out" "batch=01 status=missing reason=paths digest="
+assert_contains "missing: an all-missing sidecar says reason=paths" "$out" "batch=02 status=missing reason=paths digest="
+
+# The digest, computed here without batch_digest: the list, the separator
+# line, then sha256sum over the regular file only; the missing and directory
+# entries add nothing.
+MX="$TEST_TMPDIR/mixed"
+mkdir -p "$MX/b" "$MX/results" "$MX/docs/d.md"
+printf 'one\n' >"$MX/docs/r.md"
+printf 'r.md\nm.md\nd.md\n' >"$MX/b/batch-01.txt"
+printf '%s\n' "$MX/docs/r.md" "$MX/docs/m.md" "$MX/docs/d.md" >"$MX/b/batch-01.paths"
+want="$({ cat "$MX/b/batch-01.txt"; printf -- '--- rubric-fanout batch contents ---\n'; sha256sum -- "$MX/docs/r.md"; } | sha256sum | cut -d' ' -f1)"
+out="$(bash "$FANOUT" status --batches "$MX/b" --results "$MX/results" 2>&1)"
+assert_eq "digest: regular, missing and directory entries match an independent computation" \
+  "$(digest_of "$out" 01)" "$want"
+
+# A FIFO at a listed path, or as the sidecar itself, is never opened. A stuck
+# reader left by a regression is released by opening the FIFO read-write.
+FF="$TEST_TMPDIR/fifo"
+release() { local f; for f in "$@"; do [[ -p "$f" ]] && : <>"$f"; done; }
+fifo_cases=(
+  "fifo: status with a FIFO at a listed path exits 1 within the timeout"
+  "fifo: that missing row says reason=paths"
+  "fifo: an all-FIFO batch exits 1 within the timeout"
+  "fifo: an all-FIFO batch says reason=paths"
+  "fifo: a FIFO as the sidecar itself says reason=paths"
+  "fifo: plan with a FIFO target exits 0 within the timeout"
+  "fifo: plan counts the FIFO target as 0 words, with a warning"
+  "fifo: plan still names the FIFO path in the sidecar"
+  "fifo: plan with a FIFO targets file exits 2 within the timeout"
+)
+if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
+  mkdir -p "$FF/docs" "$FF/b1" "$FF/b2" "$FF/b3" "$FF/results" && mkfifo "$FF/docs/p.md" "$FF/docs/q.md" "$FF/b3/batch-01.paths"; then
+  printf 'one\n' >"$FF/docs/x.md"
+  printf 'x.md\np.md\n' >"$FF/b1/batch-01.txt"
+  printf '%s\n' "$FF/docs/x.md" "$FF/docs/p.md" >"$FF/b1/batch-01.paths"
+  timeout 10 bash "$FANOUT" status --batches "$FF/b1" --results "$FF/results" >"$FF/out1" 2>&1
+  rc=$?
+  release "$FF/docs/p.md"
+  assert_exit "${fifo_cases[0]}" 1 "$rc"
+  assert_contains "${fifo_cases[1]}" "$(cat "$FF/out1")" "batch=01 status=missing reason=paths digest="
+  printf 'p.md\nq.md\n' >"$FF/b2/batch-01.txt"
+  printf '%s\n' "$FF/docs/p.md" "$FF/docs/q.md" >"$FF/b2/batch-01.paths"
+  timeout 10 bash "$FANOUT" status --batches "$FF/b2" --results "$FF/results" >"$FF/out2" 2>&1
+  rc=$?
+  release "$FF/docs/p.md" "$FF/docs/q.md"
+  assert_exit "${fifo_cases[2]}" 1 "$rc"
+  assert_contains "${fifo_cases[3]}" "$(cat "$FF/out2")" "batch=01 status=missing reason=paths digest="
+  printf 'x.md\n' >"$FF/b3/batch-01.txt"
+  timeout 10 bash "$FANOUT" status --batches "$FF/b3" --results "$FF/results" >"$FF/out3" 2>&1
+  release "$FF/b3/batch-01.paths"
+  assert_contains "${fifo_cases[4]}" "$(cat "$FF/out3")" "batch=01 status=missing reason=paths digest="
+  printf '%s\t%s\n' x.md "$FF/docs/x.md" p.md "$FF/docs/p.md" >"$FF/targets.tsv"
+  timeout 10 bash "$FANOUT" plan --out "$FF/planned" --order mtime "$FF/targets.tsv" >"$FF/out4" 2>&1
+  rc=$?
+  release "$FF/docs/p.md"
+  assert_exit "${fifo_cases[5]}" 0 "$rc"
+  assert_contains "${fifo_cases[6]}" "$(cat "$FF/out4")" "cannot read $FF/docs/p.md; counted as 0 words"
+  assert_line_in "${fifo_cases[7]}" "$FF/planned/batch-01.paths" "$FF/docs/p.md"
+  mkfifo "$FF/targets-fifo.tsv"
+  timeout 10 bash "$FANOUT" plan --out "$FF/planned-2" "$FF/targets-fifo.tsv" >/dev/null 2>&1
+  rc=$?
+  release "$FF/targets-fifo.tsv"
+  assert_exit "${fifo_cases[8]}" 2 "$rc"
+else
+  for c in "${fifo_cases[@]}"; do skip "$c" "no mkfifo or timeout"; done
+fi
 
 # --- merge ----------------------------------------------------------------------
 
