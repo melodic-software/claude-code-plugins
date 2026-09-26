@@ -273,11 +273,13 @@ def unwrap:
       elif $b == "env" then ($a | env_rest | unwrap)
       else . end
     end;
-def url_parts($prefix; $schemes):
-  (capture("^(?<s>" + $prefix + "(" + $schemes + ")://)([^/?#@]*@)?(?<h>[A-Za-z0-9.-]+|\\[[0-9A-Fa-f:.]+\\])(?<p>:[0-9]+)?(?<path>/[A-Za-z0-9._~/+-]*)?(?<c>#[0-9a-f]{40})?$")
+# $tail is what may follow the path: a 40-hex commit for package specs, or any query or
+# fragment for remote rows, which print only scheme://host[:port].
+def url_parts($prefix; $schemes; $tail):
+  (capture("^(?<s>" + $prefix + "(" + $schemes + ")://)([^/?#@]*@)?(?<h>[A-Za-z0-9.-]+|\\[[0-9A-Fa-f:.]+\\])(?<p>:[0-9]+)?(?<path>/[A-Za-z0-9._~/+-]*)?(?<c>" + $tail + ")?$")
    | {scheme: .s, host: .h, port: (.p // ""), path: (.path // ""), commit: (.c // "")}) // null;
 def url_spec:
-  url_parts("(git\\+)?"; "https?|ssh|git") as $m
+  url_parts("(git\\+)?"; "https?|ssh|git"; "#[0-9a-f]{40}") as $m
   | if $m == null then null
     elif ($m.scheme | test("^https?://$")) and ($m.path | test("\\.(tgz|tar\\.gz)$")) then
       {package: ($m.scheme + $m.host + $m.port + $m.path + $m.commit), pub: $m.host,
@@ -434,7 +436,7 @@ def classify:
     elif $transport == "sdk" then
       {launcher: "sdk", package: "-", pin: "n/a", publisher: "-", sandboxed: "n/a"}
     elif $transport != "stdio" then
-      ((if ($c.url | type) == "string" then $c.url else "" end) | url_parts(""; "https?")) as $m
+      ((if ($c.url | type) == "string" then $c.url else "" end) | url_parts(""; "https?"; "[?#].*")) as $m
       | if $m == null then {launcher: "remote", package: "-", pin: "unparsed", publisher: "-", sandboxed: "n/a"}
         else {launcher: "remote", package: ($m.scheme + $m.host + $m.port), pin: "n/a",
               publisher: $m.host, sandboxed: "n/a"} end
