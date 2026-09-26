@@ -532,6 +532,26 @@ def test_fork_sharing_chain_records_is_offered_not_added(tmp_path):
     assert "1 unchained fork candidate(s)" in output["summary"]
 
 
+def test_unreadable_unrelated_transcript_is_skipped(tmp_path, monkeypatch):
+    """A transcript that vanishes or cannot be read mid-scan must not fail the parse."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("parse_transcript", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _write_records(tmp_path, "sid-chain", ["u1"])
+    _write_records(tmp_path, "sid-gone", ["u1"])
+    real = Path.read_text
+
+    def read_text(self, *args, **kwargs):
+        if self.stem == "sid-gone":
+            raise FileNotFoundError(self)
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    assert module._scan_project(tmp_path, ["sid-chain"], "topic") == (1, [])
+
+
 def test_chain_from_scopes_available_to_the_handoff_topic(tmp_path):
     """A $HOME-launched chain shares its project dir with unrelated work."""
     handoffs = tmp_path / "handoffs"

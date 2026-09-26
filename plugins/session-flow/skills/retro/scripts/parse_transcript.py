@@ -624,7 +624,10 @@ def _scan_project(
     forks: list[dict[str, Any]] = []
     for path in others:
         # ponytail: whole-file read per transcript; stream lines if project dirs outgrow memory
-        text = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue  # vanished or unreadable: coverage evidence, not a reason to fail
         if topic and topic in text:
             available += 1
         uuids = set(UUID_RE.findall(text))
