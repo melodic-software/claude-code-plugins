@@ -228,7 +228,7 @@ cat >"$FIX/probe cases.json" <<'JSON'
   "k-docker-mem": {"command": "docker", "args": ["run", "--memory", "512m", "-i", "mcp/x"]},
   "l-bash-quoted": {"command": "bash", "args": ["-c", "npx -y 'q@1.0.0'"]},
   "m-args-obj": {"command": "npx", "args": [{"k": "LEAK7"}]},
-  "n-bidi": {"command": "npx", "args": ["x‮@1.0.0"]},
+  "n-bidi": {"command": "npx", "args": ["x\u202e@1.0.0"]},
   "o-pwsh": {"command": "powershell", "args": ["-NoProfile", "-Command", "npx -y floaty"]},
   "p-docker-sha-only": {"command": "docker", "args": ["run", "img@sha256:abc"]},
   "q-uvx-star": {"command": "uvx", "args": ["pkg==1.*"]},
@@ -239,7 +239,7 @@ cat >"$FIX/probe cases.json" <<'JSON'
   "v-local-wrapped": {"command": "node", "args": ["run.js", "npx", "-y", "z"]},
   "w-npx-assign": {"command": "npx", "args": ["API_KEY=SECRETSHAPE1"]},
   "x-docker-assign": {"command": "docker", "args": ["run", "-i", "FOO=SECRETSHAPE2"]},
-  "bidi‮name": {"command": "npx", "args": ["bidi@1.0.0"]}
+  "bidi\u202ename": {"command": "npx", "args": ["bidi@1.0.0"]}
 }}
 JSON
 

@@ -3,11 +3,12 @@
 #
 # Static only: reads config files, never runs anything a config names, never touches the network.
 # Output (stdout): a dated title line, a TSV header, one row per server sorted by scope then
-# name, `# source <scope> <path> <found|absent>` lines, then `# not read:` and `# not evaluated:`
-# footer lines. No env or headers value, and no argument other than the package spec, is emitted.
+# name, `# source <scope> <path> <status>` lines (found, found-empty, skipped (...), absent),
+# then `# not read:` and `# not evaluated:` footer lines. No env or headers value is emitted,
+# and the only argument ever emitted is a token shaped like a package spec, image ref, or path.
 # Usage: inventory.sh [--claude-json F] [--project D] [--mcp-json F] [--managed-dir D]
 #                     [--config F]... [--date YYYY-MM-DD] | --help
-# Exit: 0 ok; 2 on a usage error, jq missing, unparsable JSON, or a non-object server map.
+# Exit: 0 ok; 2 on a usage error, jq missing, unparsable JSON, or a number/boolean server map.
 set -uo pipefail
 export LC_ALL=C
 
@@ -30,8 +31,9 @@ Usage:
   --config F        extra file with an mcpServers object, scope "file" (repeatable)
   --date D          date for the title line (default today)
 
-Reads files only. A missing file is reported as absent, not an error.
-Exit: 0 ok; 2 on a usage error, jq missing, unparsable JSON, or a non-object server map.
+Reads files only. A missing file is reported as absent, not an error; a server map that
+is a string or array (a plugin.json path reference) is reported as skipped.
+Exit: 0 ok; 2 on a usage error, jq missing, unparsable JSON, or a number/boolean server map.
 EOF
 }
 
@@ -108,8 +110,10 @@ JQ_NORM='def norm: gsub("\\\\"; "/") | sub("/+$"; "") | if test("^[A-Za-z]:") th
 
 SOURCES=""
 ROWS=""
+STATUS=""
 MANAGED_PRESENT=false
 META_LOCAL='{"matched": false, "disabled": [], "disabledJson": []}'
+SKIPPED_TEXT="skipped (mcpServers is a path; pass that file as --config)"
 
 clean_text() {
   printf '%s' "${1//[[:cntrl:]]/}"
@@ -130,16 +134,24 @@ check_json() {
 }
 
 # add_rows <file> <scope> <filter>: append {scope,name,cfg} JSON lines for the server map
-# the filter selects. A null map adds nothing; any other non-object exits 2.
+# the filter selects and set STATUS: found, found-empty (no map), or the skipped text
+# (a string or array map). A number or boolean map exits 2.
 add_rows() {
   local out
   out="$(jq -c --arg s "$2" --arg p "$PROJECT_KEY" "$JQ_NORM"'
     ('"$3"') as $m
-    | if $m == null then empty
-      elif ($m | type) != "object" then error("non-object server map")
-      else $m | to_entries[] | {scope: $s, name: .key, cfg: .value} end' <"$1" 2>/dev/null)" ||
+    | ($m | type) as $t
+    | if $t == "null" then "found-empty"
+      elif $t == "object" then ("found", ($m | to_entries[] | {scope: $s, name: .key, cfg: .value}))
+      elif $t == "string" or $t == "array" then "skipped"
+      else error("non-object server map") end' <"$1" 2>/dev/null | tr -d '\r')" ||
     die_json "non-object server map" "$1"
-  [[ -n "$out" ]] && ROWS+="$(printf '%s' "$out" | tr -d '\r')"$'\n'
+  STATUS="${out%%$'\n'*}"
+  STATUS="${STATUS//\"/}"
+  [[ "$STATUS" == "skipped" ]] && STATUS="$SKIPPED_TEXT"
+  if [[ "$out" == *$'\n'* ]]; then
+    ROWS+="${out#*$'\n'}"$'\n'
+  fi
 }
 
 # shellcheck disable=SC2016
@@ -148,8 +160,8 @@ LOCAL_FILTER='[(.projects // {}) | to_entries[] | select((.key | norm) == ($p | 
 # User and local scope: ~/.claude.json.
 if [[ -f "$CLAUDE_JSON" ]]; then
   check_json "$CLAUDE_JSON"
-  add_source user "$CLAUDE_JSON" found
   add_rows "$CLAUDE_JSON" user '.mcpServers'
+  add_source user "$CLAUDE_JSON" "$STATUS"
   META_LOCAL="$(jq -c --arg p "$PROJECT_KEY" "$JQ_NORM"'
     ('"$LOCAL_FILTER"') as $v
     | def names: if type == "array" then map(tostring) else [] end;
@@ -158,8 +170,8 @@ if [[ -f "$CLAUDE_JSON" ]]; then
      disabledJson: ($v.disabledMcpjsonServers // [] | names)}' <"$CLAUDE_JSON" 2>/dev/null | tr -d '\r')" ||
     die_json "non-object projects map" "$CLAUDE_JSON"
   if [[ "$(printf '%s' "$META_LOCAL" | jq -r '.matched' | tr -d '\r')" == "true" ]]; then
-    add_source local "$CLAUDE_JSON" found
     add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers"
+    add_source local "$CLAUDE_JSON" "$STATUS"
   else
     add_source local "$CLAUDE_JSON" absent
   fi
@@ -172,8 +184,8 @@ fi
 add_file_source() {
   if [[ -f "$2" ]]; then
     check_json "$2"
-    add_source "$1" "$2" found
     add_rows "$2" "$1" "$3"
+    add_source "$1" "$2" "$STATUS"
     return 0
   fi
   add_source "$1" "$2" absent
@@ -197,122 +209,165 @@ done
 
 META="$(printf '%s' "$META_LOCAL" | jq -c --argjson managed "$MANAGED_PRESENT" '. + {managed: $managed}' | tr -d '\r')"
 
-# Classification. Only the package spec (userinfo, query, and fragment stripped) and the
-# command basename are ever emitted; every other argument and all env/headers are dropped.
+# Classification. The only argument ever emitted is one token that passes a package, image,
+# URL, or path shape check (userinfo, query, and fragment stripped); every other argument and
+# all env/headers are dropped. An unknown flag followed by a value-like token makes the package
+# unknowable, so the row reports package "-" and pin "unparsed" instead of guessing.
 # shellcheck disable=SC2016
 CLASSIFY='
-def clean: tostring | gsub("[[:cntrl:]]"; "");
+def clean: tostring | gsub("[[:cntrl:]\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]"; "");
+def strip_fmt: gsub("[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]"; "");
+def unparsed_mark: "\u0000unparsed";
+def runners: ["npx", "npm", "pnpm", "pnpx", "yarn", "bunx", "bun", "uvx", "uv", "pipx", "docker", "podman", "nerdctl"];
 def basename_of: gsub("\\\\"; "/") | (split("/") | last) // "";
 def lc_base: basename_of | ascii_downcase | sub("\\.(cmd|exe)$"; "");
-def ws_split: [splits("[ \t]+")] | map(select(length > 0));
-def unwrap:
+def is_assign: test("^[A-Za-z_][A-Za-z0-9_]*=([^=]|$)");
+def shell_split: [splits("[ \t\r\n]+")] | map(gsub("[\"\u0027\u0060]"; "")) | map(select(length > 0));
+def drop_assign: until(length == 0 or (.[0] | is_assign | not); .[1:]);
+def shell_c_string:
+  if length == 0 then null
+  elif (.[0] | test("^-[A-Za-z]*c$")) then (.[1] // null)
+  elif (.[0] | startswith("-")) then (.[1:] | shell_c_string)
+  else null end;
+def env_rest:
   if length == 0 then .
-  else (.[0] | lc_base) as $b
-  | if $b == "cmd" and length > 2 and ((.[1] | ascii_downcase) == "/c") then (.[2:] | join(" ") | ws_split | unwrap)
-    elif ($b == "bash" or $b == "sh") and length > 2 and .[1] == "-c" then (.[2] | ws_split | unwrap)
-    else . end
-  end;
-def scheme_re: "^[A-Za-z][A-Za-z0-9+.-]*://";
+  elif (.[0] | is_assign) then (.[1:] | env_rest)
+  elif IN(.[0]; "-u", "--unset", "-C", "--chdir") then (.[2:] | env_rest)
+  elif IN(.[0]; "-S", "--split-string") then (((.[1] // "") | shell_split) + .[2:])
+  elif (.[0] | startswith("-")) then (.[1:] | env_rest)
+  else . end;
+def rest_after($opts):
+  ([to_entries[] | select(.value | ascii_downcase | IN(.; $opts[])) | .key] | first) as $i
+  | if $i == null then null else .[$i + 1:] end;
+def unwrap:
+  drop_assign
+  | if length == 0 then .
+    else (.[0] | lc_base) as $b
+    | .[1:] as $a
+    | if $b == "cmd" then
+        (($a | rest_after(["/c", "/k"])) as $r | if $r == null then . else ($r | join(" ") | shell_split | unwrap) end)
+      elif IN($b; "bash", "sh", "zsh", "dash", "ash", "ksh") then
+        (($a | shell_c_string) as $s | if $s == null then . else ($s | shell_split | unwrap) end)
+      elif $b == "env" then ($a | env_rest | unwrap)
+      elif IN($b; "pwsh", "powershell") then
+        (($a | rest_after(["-command", "-c", "-commandwithargs", "-cwa"])) as $r
+         | if $r == null then . else ($r | join(" ") | shell_split | unwrap) end)
+      else . end
+    end;
 def strip_url:
-  sub("^(?<s>[A-Za-z][A-Za-z0-9+.-]*://)[^/@?#]*@"; "\(.s)")
+  gsub("://[^/@?#\\s]*@"; "://")
   | if test("#[0-9a-f]{40}$")
     then ((capture("^(?<a>[^?#]*)[^#]*(?<h>#[0-9a-f]{40})$") | .a + .h) // .)
     else sub("[?#].*$"; "") end;
-def is_url: test(scheme_re);
+def is_url: test("^[A-Za-z][A-Za-z0-9+.-]*://");
 def is_local_path: test("^(\\./|\\.\\./|/|~/|file:|[A-Za-z]:)");
 def is_git: is_url or test("^(git\\+|git:|github:|gitlab:|bitbucket:|gist:)");
+def is_ref: is_local_path or is_git;
 def git_pin: if test("#[0-9a-f]{40}$") then "git-commit" else "git-ref" end;
 def url_host: (capture("^[A-Za-z][A-Za-z0-9+.-]*://(?<h>[^/?#:]*)") | .h) // "-";
 def git_pub:
   if is_url then url_host
   elif test("^[a-z]+:") then ((capture("^(?<p>[a-z]+):(?<o>[^/]+)") | "\(.p):\(.o)") // "-")
   else "github:" + (split("/") | .[0]) end;
+def ref_class: if is_local_path then {pin: "local-path", pub: "local"} else {pin: git_pin, pub: git_pub} end;
+def npm_shape:
+  (test("\\s") | not) and (is_assign | not)
+  and (is_ref or test("^[A-Za-z0-9._~-]+/[^\\s@=]+$") or test("^(@[A-Za-z0-9._~-]+/)?[A-Za-z0-9._~-]+(@.*)?$"));
+def py_shape:
+  (is_assign | not)
+  and (is_ref or test("^[A-Za-z0-9][A-Za-z0-9._-]*(\\[[^\\]]*\\])?( *(===?|>=|<=|~=|!=|<|>|@) *[^ ].*)?$"));
+def img_shape: (is_assign | not) and test("^[A-Za-z0-9][A-Za-z0-9._/:-]*(@[A-Za-z0-9]+:[A-Za-z0-9]+)?$");
 def npm_ver:
   if . == "" then "floating-unversioned"
   elif test("^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$") then "exact"
   elif test("[\\^~*<>=| ]") or test("(^|\\.)[xX](\\.|$)") or test("^v?[0-9]+(\\.[0-9]+)?$") then "floating-range"
   else "floating-tag" end;
 def npm_class:
-  if is_local_path then {pin: "local-path", pub: "local"}
-  elif is_git or test("^[^@][^@]*/") then {pin: git_pin, pub: git_pub}
+  if is_ref or test("^[^@][^@]*/") then ref_class
   else
     (if startswith("@") then (capture("^(?<n>@[^/]+/[^@]*)(@(?<v>.*))?$") // {n: ., v: null})
      else (capture("^(?<n>[^@]*)(@(?<v>.*))?$") // {n: ., v: null}) end) as $c
     | ($c.v // "") as $v
     | if ($v | startswith("npm:")) then ($v[4:] | npm_class)
+      elif ($v | is_ref) then ($v | ref_class)
       else {pin: ($v | npm_ver), pub: (if startswith("@") then (split("/") | .[0]) else "unscoped" end)} end
   end;
 def py_class:
-  if is_local_path then {pin: "local-path", pub: "local"}
-  elif is_git then {pin: git_pin, pub: git_pub}
+  if is_ref then ref_class
   else gsub("\\[[^\\]]*\\]"; "") as $s
-  | {pub: "pypi", pin:
-      (if ($s | contains("@")) then
-         ($s | sub("^[^@]*@ *"; "")) as $v
-         | if $v == "latest" then "floating-tag"
-           elif ($v | test("^[0-9][0-9A-Za-z.+!-]*$")) then "exact"
-           else "floating-tag" end
-       elif ($s | test("===?")) and ($s | test("[<>!~*,]") | not) then "exact"
+  | if ($s | contains("@")) then
+      ($s | sub("^[^@]*@ *"; "")) as $v
+      | if ($v | is_ref) then ($v | ref_class)
+        else {pub: "pypi", pin: (if ($v | test("^[0-9][0-9A-Za-z.+!-]*$")) then "exact" else "floating-tag" end)} end
+    else {pub: "pypi", pin:
+      (if ($s | test("===?")) and ($s | test("[<>!~*,]") | not) then "exact"
        elif ($s | test("[<>!~=*,]")) then "floating-range"
        else "floating-unversioned" end)}
+    end
   end;
 def img_class:
   (sub("@.*$"; "") | split("/")) as $p
   | {pub: (if ($p | length) <= 1 then "library" else ($p[:-1] | join("/")) end),
-     pin: (if test("@sha256:") then "digest"
+     pin: (if test("@sha256:[0-9a-f]{64}$") then "digest"
+           elif contains("@") then "mutable-tag"
            elif ($p | last | contains(":")) then
              (if ($p | last | split(":") | .[1]) == "latest" then "floating-tag" else "mutable-tag" end)
            else "floating-unversioned" end)};
-def npm_pkg:
+def parse_args($pkgflags; $vals; $bools):
   def go($p):
     if length == 0 then $p
     else .[0] as $t
-    | if $t == "-p" or $t == "--package" then (.[1] as $v | .[2:] | go($v))
-      elif ($t | startswith("--package=")) then (.[1:] | go($t[10:]))
-      elif IN($t; "--registry", "--cache", "--userconfig", "-c", "--call") then (.[2:] | go($p))
-      elif ($t | startswith("-")) then (.[1:] | go($p))
+    | if IN($t; $pkgflags[]) then (.[1] as $v | .[2:] | go($v))
+      elif any($pkgflags[]; . as $f | $t | startswith($f + "=")) then (($t | sub("^[^=]*="; "")) as $v | .[1:] | go($v))
+      elif IN($t; $vals[]) then (.[2:] | go($p))
+      elif $t == "--" or IN($t; $bools[]) then (.[1:] | go($p))
+      elif ($t | startswith("-")) then
+        (if ($t | test("^--[^=]+=")) or ((.[1] // "-") | startswith("-")) then (.[1:] | go($p))
+         elif $p != null then $p
+         else unparsed_mark end)
       else ($p // $t) end
     end;
   go(null);
+def npm_pkg:
+  parse_args(["-p", "--package"];
+    ["--registry", "--cache", "--userconfig", "-c", "--call", "-w", "--workspace", "--node-options", "--script-shell"];
+    ["-y", "--yes", "-q", "--quiet", "--no-install", "--prefer-offline", "--prefer-online", "--ignore-existing",
+     "--silent", "--no", "--offline", "--workspaces", "--include-workspace-root"]);
 def py_pkg:
-  def go($f):
-    if length == 0 then $f
-    else .[0] as $t
-    | if $t == "--from" then (.[1] as $v | .[2:] | go($v))
-      elif ($t | startswith("--from=")) then (.[1:] | go($t[7:]))
-      elif IN($t; "--with", "--python", "-p", "--index-url", "--extra-index-url", "--index",
-              "--default-index", "--with-requirements", "--with-editable", "-w", "--find-links", "-f")
-        then (.[2:] | go($f))
-      elif ($t | startswith("-")) then (.[1:] | go($f))
-      else ($f // $t) end
-    end;
-  go(null);
+  parse_args(["--from"];
+    ["--with", "--python", "-p", "--index-url", "-i", "--extra-index-url", "--index", "--default-index",
+     "--with-requirements", "--with-editable", "-w", "--find-links", "-f", "--constraints", "-c", "--overrides",
+     "--cache-dir", "--directory", "--project", "--config-file", "--prerelease", "--resolution"];
+    ["--isolated", "--offline", "--no-cache", "-n", "-q", "--quiet", "-v", "--verbose", "--refresh",
+     "--no-progress", "--native-tls", "--no-config", "--no-python-downloads", "--managed-python",
+     "--no-managed-python"]);
 def pipx_pkg:
-  def go($f):
-    if length == 0 then $f
-    else .[0] as $t
-    | if $t == "--spec" then (.[1] as $v | .[2:] | go($v))
-      elif ($t | startswith("--spec=")) then (.[1:] | go($t[7:]))
-      elif IN($t; "--python", "--index-url", "--pip-args") then (.[2:] | go($f))
-      elif ($t | startswith("-")) then (.[1:] | go($f))
-      else ($f // $t) end
-    end;
-  go(null);
+  parse_args(["--spec"];
+    ["--python", "--index-url", "--pip-args", "--suffix"];
+    ["--verbose", "--quiet", "--no-cache", "--include-deps", "--system-site-packages", "-v", "-q"]);
 def img_of:
-  if length == 0 then null
-  else .[0] as $t
-  | if IN($t; "-e", "--env", "--env-file", "-v", "--volume", "--mount", "--name", "--network", "-p",
-          "--publish", "-w", "--workdir", "-u", "--user", "--entrypoint", "-l", "--label", "--platform",
-          "--pull", "--add-host", "--device", "--cap-add", "--cap-drop")
-      then (.[2:] | img_of)
-    elif ($t | startswith("-")) then (.[1:] | img_of)
-    else $t end
-  end;
+  parse_args([];
+    ["-e", "--env", "--env-file", "-v", "--volume", "--mount", "--name", "--network", "-p", "--publish",
+     "-w", "--workdir", "-u", "--user", "--entrypoint", "-l", "--label", "--label-file", "--platform", "--pull",
+     "--add-host", "--device", "--cap-add", "--cap-drop", "--log-opt", "--log-driver", "--memory", "-m",
+     "--memory-swap", "--memory-reservation", "--cpus", "--cpu-shares", "-c", "--cpuset-cpus", "--tmpfs",
+     "--security-opt", "--ulimit", "--restart", "--hostname", "-h", "--ipc", "--pid", "--gpus", "--runtime",
+     "--shm-size", "--dns", "--expose", "--health-cmd", "--group-add", "--stop-signal", "--stop-timeout",
+     "--network-alias", "--cidfile", "--userns", "--uts", "--cgroupns", "--mac-address", "--ip", "--ip6",
+     "--link", "--volumes-from", "--isolation", "--storage-opt", "--sysctl", "--attach", "-a",
+     "--detach-keys", "--pids-limit", "--oom-score-adj", "--blkio-weight"];
+    ["-i", "-t", "-d", "-it", "-ti", "-itd", "-dit", "--rm", "--init", "--privileged", "--read-only",
+     "--interactive", "--tty", "--detach", "-P", "--publish-all", "--no-healthcheck", "--oom-kill-disable",
+     "-q", "--quiet"]);
 def pkgrow($l; $spec; $eco):
   if $spec == null or $spec == "" then {launcher: $l, package: "-", pin: "not-a-package", publisher: "-"}
+  elif $spec == unparsed_mark then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
   else ($spec | strip_url) as $s
-  | ($s | if $eco == "npm" then npm_class elif $eco == "py" then py_class else img_class end) as $k
-  | {launcher: $l, package: $s, pin: $k.pin, publisher: $k.pub}
+  | if ($s | if $eco == "npm" then npm_shape elif $eco == "py" then py_shape else img_shape end | not)
+    then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
+    else ($s | if $eco == "npm" then npm_class elif $eco == "py" then py_class else img_class end) as $k
+    | {launcher: $l, package: $s, pin: $k.pin, publisher: $k.pub}
+    end
   end;
 def stdio_row:
   . as $t
@@ -329,8 +384,10 @@ def stdio_row:
     elif $b == "pipx" and $a1 == "run" then pkgrow("pipx"; $t[2:] | pipx_pkg; "py")
     elif IN($b; "docker", "podman", "nerdctl") then
       pkgrow($b; ($t[1:] | (indices("run") | first) as $i | if $i == null then null else .[$i + 1:] | img_of end); "img")
-    else {launcher: "local", package: ((($t[0] // "") | basename_of) as $n | if $n == "" then "-" else $n end),
-          pin: "not-a-package", publisher: "local"}
+    else
+      ($t[1:] | map(shell_split[] | lc_base) | any(.[]; IN(.; runners[]))) as $wrapped
+      | {launcher: "local", package: ((($t[0] // "") | basename_of) as $n | if $n == "" then "-" else $n end),
+         pin: (if $wrapped then "wrapped" else "not-a-package" end), publisher: "local"}
     end;
 def classify:
   (.cfg | if type == "object" then . else {} end) as $c
@@ -346,8 +403,9 @@ def classify:
          publisher: (if $m then ($m.h | sub(":[0-9]+$"; "")) else "-" end),
          sandboxed: "n/a"}
     else
-      ([($c.command // "") | tostring] + ($c.args // [] | if type == "array" then map(tostring) else [] end))
-      | unwrap | stdio_row | . + {sandboxed: "no"}
+      ([$c.command // "" | if type == "string" then . else "" end]
+       + ($c.args // [] | if type == "array" then map(select(type == "string")) else [] end))
+      | map(strip_fmt) | unwrap | stdio_row | . + {sandboxed: "no"}
     end
   | . + {transport: $transport};
 def rank: {local: 3, project: 2, user: 1}[.] // 0;
@@ -385,5 +443,6 @@ printf '%s\n' \
   '# not read: claude.ai connectors' \
   '# not read: --mcp-config servers' \
   '# not read: plugin servers not passed as --config' \
-  '# not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)'
+  '# not evaluated: allowedMcpServers/deniedMcpServers, enableAllProjectMcpServers, enabledMcpjsonServers (see /claude-config:audit)' \
+  '# not evaluated: file-scope rows are not checked for precedence against other scopes'
 exit 0
