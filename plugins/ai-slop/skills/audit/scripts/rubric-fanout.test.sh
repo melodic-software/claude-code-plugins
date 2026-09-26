@@ -11,7 +11,8 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FANOUT="$SCRIPT_DIR/rubric-fanout.sh"
 CATALOG="$SCRIPT_DIR/../reference/catalog.md"
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(mktemp -d)" || { echo "mktemp failed" >&2; exit 2; }
+[[ -n "$TEST_TMPDIR" && -d "$TEST_TMPDIR" ]] || { echo "mktemp gave no directory: $TEST_TMPDIR" >&2; exit 2; }
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"

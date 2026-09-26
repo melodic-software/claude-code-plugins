@@ -9,7 +9,8 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 US="$SCRIPT_DIR/user-scope.sh"
 DETECT="$SCRIPT_DIR/detect.sh"
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(mktemp -d)" || { echo "mktemp failed" >&2; exit 2; }
+[[ -n "$TEST_TMPDIR" && -d "$TEST_TMPDIR" ]] || { echo "mktemp gave no directory: $TEST_TMPDIR" >&2; exit 2; }
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # The script prints Windows form under MSYS (`pwd -W`), plain pwd elsewhere;
 # expected paths are built the same way.
