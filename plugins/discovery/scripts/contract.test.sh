@@ -347,8 +347,8 @@ assert_present 'the sidecar header carries per-claim inference' \
   'skills/research/context/artifact-shape.md' '^ +inference: '
 assert_present 'the sidecar header carries per-claim qualifiers' \
   'skills/research/context/artifact-shape.md' '^ +qualifiers: '
-assert_present 'an improvised header costs criterion 12 its evidence too' \
-  'skills/research/SKILL.md' 'costs criteria 4, 6, 9 and 12 their evidence'
+assert_present 'an improvised header costs criteria 12 and 13 their evidence too' \
+  'skills/research/SKILL.md' 'costs criteria 4, 6, 9, 12 and 13 their evidence'
 assert_present 'the carry-forward line lists the new header fields' \
   'skills/research/SKILL.md' 'Carry this much into the read:.*measures.*inference.*qualifiers'
 assert_present 'the fan-out obligation sends the synthesis to a criterion-12 verifier' \
@@ -508,6 +508,72 @@ for file in skills/explore/reference/dispatch.md skills/research/context/dispatc
 done
 assert_absent 'no file narrates the 40-turn incidents as the Turn budget rationale' \
   'bounded nothing: dispatched runs stopped'
+
+# ---------------------------------------------------------------------------
+# 14. Sources are gated on era and scenario, not only on quote presence
+#
+# A quote can sit at its link word for word and come from a source written for
+# another product line or major, or one that states only the general mechanism.
+# Each source records when it was published and which versions it applies to;
+# a script derives current or historical from those fields (criterion 13), and
+# the verifier's criterion 12 runs era and scenario checks on every cited
+# source. The envelope gains a research-only `Evidence use:` line, so the
+# shared count stays six.
+# ---------------------------------------------------------------------------
+for field in published applies_to standing; do
+  assert_present "the sources[] schema carries $field" \
+    'skills/research/context/artifact-shape.md' "^ {8}${field}: "
+done
+assert_present 'each claim carries its target applies_to' \
+  'skills/research/context/artifact-shape.md' '^ {4}applies_to: '
+assert_present 'the index records evidence_use' \
+  'skills/research/context/artifact-shape.md' 'evidence_use: internal \| publish'
+assert_present 'gate row 13 is run-owned with a script verdict' \
+  'skills/research/SKILL.md' '^\| 13 \|.*check-source-applicability\.py.*\| run, \*\*script verdict\*\* \|'
+assert_present 'row 13 applies to inline runs too' \
+  'skills/research/SKILL.md' '^\| 13 \|.*inline included'
+assert_present 'row 4 counts only current corroborators' \
+  'skills/research/SKILL.md' '^\| 4 \|.*`current` corroborators'
+assert_present 'row 12 runs era and scenario checks on every cited source' \
+  'skills/research/SKILL.md' '^\| 12 \|.*every cited source passes the variable, population, era and scenario checks'
+assert_present 'the joint-inference check names the era sub-test' \
+  'skills/research/context/discipline.md' '\*\*Era check\.\*\*'
+assert_present 'the joint-inference check names the scenario sub-test' \
+  'skills/research/context/discipline.md' '\*\*Scenario check\.\*\*'
+assert_present 'the checks run on every cited source' \
+  'skills/research/context/discipline.md' 'checks on \*\*every cited source\*\*'
+assert_present 'discipline.md states the publish tightening' \
+  'skills/research/context/discipline.md' '^\*\*Evidence the user will publish\.\*\*'
+assert_present 'the recency gate says it dates claims, not sources' \
+  'skills/research/context/discipline.md' 'This gate dates claims, not sources'
+assert_present 'the parent contract ships an Evidence use line' \
+  'reference/parent-contract.md' '^Evidence use: <internal\|publish>$'
+assert_present 'the parent contract counts two research-only lines' \
+  'reference/parent-contract.md' 'Research adds two more labeled lines'
+assert_absent 'no file says research adds only one envelope line' \
+  'Research adds one more labeled line'
+assert_present 'the research parent-obligation table carries an Evidence use row' \
+  'skills/research/context/dispatch.md' '^\| Evidence use \|'
+assert_present 'research-deep dispatches with an Evidence use line' \
+  'skills/research-deep/SKILL.md' '^ +Evidence use: '
+assert_present 'the verifier is briefed on applicability' \
+  'skills/research/context/dispatch.md' '^ +\*\*Brief it on applicability too\.\*\*'
+assert_present 'the researcher copies evidence use into the index' \
+  'agents/researcher.md' 'as `evidence_use:` in your first write'
+assert_present 'the researcher payload mirrors the applicability verdict' \
+  'agents/researcher.md' '^applicability: pass +# pass \| fail'
+for file in skills/research/SKILL.md reference/parent-contract.md \
+  skills/research/context/dispatch.md skills/research-deep/SKILL.md agents/researcher.md; do
+  assert_present "$file names the source-applicability checker" \
+    "$file" 'check-source-applicability\.py|source-applicability'
+done
+assert_present 'the parent passes its envelope mode to the checker' \
+  'skills/research/SKILL.md' '--expect-evidence-use'
+if [[ -f "$PLUGIN_ROOT/scripts/check-source-applicability.py" ]]; then
+  pass 'the source-applicability checker ships'
+else
+  fail 'the source-applicability checker ships'
+fi
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

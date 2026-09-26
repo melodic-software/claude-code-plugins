@@ -69,6 +69,11 @@ load-time machinery, no user turn, no unresolved scope.
   and mention the omission in `open_questions`. Dated record:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
   "Harness facts the dispatch design rests on".
+- **Evidence use**: `internal` or `publish`, whether the parent will quote your answer outside its
+  session. Copy it into the `RESEARCH.md` frontmatter as `evidence_use:` in your first write, since
+  the verifier never sees this prompt. If the line is absent, write `internal`, say in the index
+  that the default was taken, and mention the omission in `open_questions`. Under `publish` the
+  research skill's discipline file tightens two rules ("Evidence the user will publish").
 - **Capability flags** the parent probed. `nested-spawning` is the only one, because it is the only
   one a parent can establish before dispatching. In particular **your own ability to write is not a
   flag**. The parent's pre-dispatch `mkdir`/baseline proves the *parent* can write there, not you.
@@ -238,10 +243,12 @@ choices, and you are the context that made them:
 
 The gate's Owner column is the authority; where this list and that column differ, the column wins.
 Assemble the evidence those criteria need, since per-claim source URLs with their tier, publishing
-pool, and what each measured go in the sidecar headers, which is what lets a verifier who never saw your run grade them off
+pool, what each measured, when it was published, and which product versions it applies to go in
+the sidecar headers, which is what lets a verifier who never saw your run grade them off
 the artifact, then hand them back as a verification request. Project fit against the consuming
 project's conventions is the parent's; it alone holds them. Every other criterion is yours, and the
-coverage ledger's verdict is the gate script's exit status, not your reading of the table.
+coverage ledger's and source applicability's verdicts are their scripts' exit statuses, not your
+reading of the table or the headers.
 
 ## Return exactly this, and nothing resembling a transcript
 
@@ -257,6 +264,7 @@ persistence: written        # written | by-value
 artifact: <memory-slice path>/RESEARCH.md
 sidecars: <count>
 coverage: complete          # complete | partial, mirrors the ledger gate's verdict
+applicability: pass         # pass | fail, mirrors check-source-applicability.py's verdict
 verification: pending       # never anything else; you render no verdict on your own confidence
 verification_request:
   target: <the same path as artifact: above>
@@ -328,7 +336,7 @@ statement about the corpus ledger only, never about whether anything was written
   skill's Output Format, already through the criteria that are yours to grade. They are not a
   summary of your findings, and returning findings *instead of* the artifact is not this mode. The
   parent writes what you return to the slice and then re-runs the same gate against disk, including
-  the coverage ledger's script whenever a ledger was owed; nothing you return is accepted in place
+  the source-applicability script and the coverage ledger's script whenever a ledger was owed; nothing you return is accepted in place
   of that gate passing. That is the whole point of the mode: a claim you make about your own run is
   still not evidence.
 
