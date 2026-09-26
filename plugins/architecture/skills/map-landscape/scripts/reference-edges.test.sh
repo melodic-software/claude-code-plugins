@@ -225,6 +225,22 @@ assert_not_contains "artifact: nor the portfolio table" "$out" 'portfolio-row'
 assert_contains "artifact: a real doc reference still survives alongside them" "$out" '"to":"fixture-owner/ci-workflows"'
 assert_not_contains "noise: nor in another case" "$out" '"to":"Fixture-Owner/Charted"'
 
+# A worktree or a renamed clone sits in a directory whose name is not the
+# repository's. Its own `owner/repo` citations must still read as self, or the
+# landscape gains a phantom second system with an arrow pointing at it.
+wt_repo="$(make_repo checkout-dir-name)"
+git -C "$wt_repo" remote set-url origin "https://github.com/fixture-owner/real-name.git"
+mkdir -p "$wt_repo/docs"
+cat >"$wt_repo/docs/about.md" <<'MD'
+This repository is fixture-owner/real-name, also <https://github.com/Fixture-Owner/Real-Name>.
+It depends on fixture-owner/ci-workflows.
+MD
+commit_repo "$wt_repo"
+out="$(bash "$SCRIPT" "$wt_repo")"
+assert_not_contains "self: the origin remote's repository name is self too" "$out" '"to":"fixture-owner/real-name"'
+assert_not_contains "self: in any case" "$out" '"to":"Fixture-Owner/Real-Name"'
+assert_contains "self: a real reference in the same file survives" "$out" '"to":"fixture-owner/ci-workflows"'
+
 # --- Case group 6: the .git suffix ------------------------------------------
 clone_repo="$(make_repo cloner)"
 mkdir -p "$clone_repo/docs"

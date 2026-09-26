@@ -155,6 +155,25 @@ remote_owner_segment() {
 owner="$owner_override"
 [[ -n "$owner" ]] || owner="$(remote_owner_segment)" || owner=""
 
+# The repository segment of a github.com origin remote. A worktree or a renamed
+# clone sits in a directory whose name is not the repository's, so the
+# directory basename alone would read the repository's own citations as an
+# edge to a second system.
+remote_repo_segment() {
+  local url
+  url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
+  url="${url%.git}"
+  case "$url" in
+  *github.com[:/]*/*)
+    url="${url##*/}"
+    [[ -n "$url" ]] || return 1
+    printf '%s' "$url"
+    ;;
+  *) return 1 ;;
+  esac
+}
+remote_name="$(remote_repo_segment)" || remote_name=""
+
 # The owner this run resolved, for a caller that has to record which
 # organization the graph was drawn from. Reading it back from here keeps one
 # resolution: a second implementation elsewhere would drift from this one about
@@ -260,6 +279,7 @@ is_self_reference() {
   shopt -q nocasematch && had_nocase=1
   shopt -s nocasematch
   [[ "$1" == "$owner/$name" ]] && result=0
+  [[ -n "$remote_name" && "$1" == "$owner/$remote_name" ]] && result=0
   [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
   return "$result"
 }
