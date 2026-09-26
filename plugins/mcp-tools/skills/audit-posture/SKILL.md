@@ -112,6 +112,9 @@ Return a markdown report in this shape:
 **Servers configured:** N (M effective)
 **Overall:** X fail, Y warn, Z info (U unverified)
 
+Server names, package specs, tags, hosts, and paths below are printed as configured, after a
+best-effort secret-shape filter. Check them before sharing this report.
+
 ## Inventory
 
 | Scope | Name | Effective | Transport | Launcher | Package | Pin | Publisher | Sandboxed |
