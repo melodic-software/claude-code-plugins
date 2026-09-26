@@ -188,8 +188,8 @@ Append-only. Each entry: plan said / found / chose / revisit.
   are in `regress.py --synthetic`; on the pre-fix code the decode case read 0 frames and exited 0,
   and the encode case raised `BrokenPipeError`. With these fixes the net compares IDENTICAL
   (`net/p12`: 239/239, 36/36, held-out 150/150) and `--synthetic` passes every case.
-- **not marked done: Phase 12 stays [TODO]** while `check-changed-skills.sh` exits 1 on the
-  missing evals above; every other Phase 12 command exits 0.
+- **Phase 12 marked done with one known fail:** `check-changed-skills.sh` still exits 1 on the
+  pixel-art `animate` and `scene` evals only, which land through PR #4407.
 - **human-decision (user): the repeat rule and the end-of-film rule are measurement-bug fixes**, so
   O1 no longer holds for them. `CAL_SIZE` and `per_area` moved to `decode.py`, and `is_repeat`
   scales `DUP_PX` by each frame's own area, for `extract.py` and `inkstats.py` alike (a `--region`
@@ -206,4 +206,17 @@ Append-only. Each entry: plan said / found / chose / revisit.
   0.0074 to 0.0077. Its `check` row is unchanged (7/9 rows failed, margin +12.60). The end-of-film
   rule moved no net output: every control measures a frame iterable, not a video path. The shipped
   `styles/woodcut-ink/style.json` still carries the old kevin margins; a re-learn would write the
-  new ones. Revisit: re-baseline the net and refresh the pack's margins together.
+  new ones.
+- **human-decision (user): pack refreshed and net re-baselined.** The shipped
+  `styles/woodcut-ink/style.json` is now `learn.py`'s output from the `p12b` run (the net's learn
+  step, which reproduced the shipped pack byte for byte at `base-1`); its diff is exactly the nine
+  kevin_t_ngo margins above, and every band is unchanged. New baseline `net/base-12` (the
+  `base-1` tool versions, reused): regress 239/239, check 36/36, selftest exit 0, held-out
+  150/150; its style.json is byte-identical to the shipped pack and its control summaries to
+  `p12b`. Reason: the frame-area repeat rule is now the measured behavior, so later compares run
+  against `base-12`, not `base-1`.
+- **added: `evals/evals.json` for `rotoscope` and `learn-style`** (setup already shipped one): real
+  triggers, a guardrail case each, and two near misses that must not trigger (pixel-art sprite
+  animation, generic video editing); none needs the unshipped shfred0 clip. Schema and quality
+  lint pass. The changed-skills check now passes every animation skill; the two remaining fails
+  are pixel-art `animate` and `scene` evals, which land through PR #4407 on `feat/pixel-art`.

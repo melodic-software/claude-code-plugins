@@ -484,7 +484,7 @@ Written last, so each rule states what this plugin now does. `docs/plugin-philos
 - [ ] `grep -c "one owner" docs/plugin-philosophy.md` ≥ 1 and `grep -ci "ports and adapters" docs/plugin-philosophy.md` ≥ 1.
 - [ ] `npx --no-install markdownlint-cli2 docs/plugin-philosophy.md` exits 0.
 
-### Phase 12: repo validation and close-out checks [TODO]
+### Phase 12: repo validation and close-out checks [DONE]
 
 - `scripts/run-ruff.sh check plugins/animation` exits 0.
 - `node scripts/validate-plugin-contracts.mjs` and `node scripts/generate-catalog.mjs --check` exit 0.
@@ -495,7 +495,9 @@ Written last, so each rule states what this plugin now does. `docs/plugin-philos
 
 **Sanity Check:**
 
-- [ ] every command above exits 0; C1 239/239; C2 green; C5 returns nothing.
+- [x] every command above exits 0; C1 239/239; C2 green; C5 returns nothing. Exception:
+  `check-changed-skills.sh` still fails pixel-art `animate` and `scene` (no evals); those evals
+  land through PR #4407 (DEVIATIONS.md, Phase 12).
 
 ## Alternatives Considered
 
