@@ -19,3 +19,26 @@ Append-only. Each entry: plan said / found / chose / revisit.
 - **discovery: toolchain.** Private playwright-core `1.64.0-alpha-1789764292000` (the version the
   installed playwright-cli bundles) and its Chromium (headless shell 154.0.8037.0, build 1246)
   under `~/.local/share/animation-inputs/toolchain/`.
+
+## Phase 1
+
+- **deviation: `capture.mjs` scope.** Plan said: `capture.mjs` only drops the ffmpeg header line.
+  Found: `render.py` cannot see `DURATION`, `renderDrawing` or the browser build without the page.
+  Chose: `capture.mjs` exits 1 on a missing or non-positive `DURATION` (fps mode) or a missing
+  `renderDrawing` (drawings mode), and prints one JSON line `{browser_build, size, frames,
+  duration}` that `render.py` writes into `render.json`. Revisit: no.
+- **deviation: `render.json` `adapter_version`.** Contracts.md does not say what it holds for the
+  native adapter. Chose: the plugin version from `.claude-plugin/plugin.json` (the native adapter
+  ships with the plugin). Revisit: when a second adapter ships.
+- **deviation: `controls.encode` removed.** Plan said `controls.encode` and `replica` call
+  `render.encode`. Chose: `controls.held(work, folder)` yields the held frames; `replica` and
+  `learn.py` call `render.encode(held(...), 'mp4', 24, path)` directly, so no wrapper remains. The
+  ffmpeg arguments are unchanged (`-framerate 24`).
+- **deviation: `measure.render` renamed `measure.replicas`.** The straggler grep requires no
+  `measure.render`; `fit.py` calls `measure.replicas`, and `fit.py`/`review.py` read `WORKERS`
+  through `from measure import render`.
+- **choice: `--encode` output path.** Contracts.md says "beside the folder"; `render.py` writes
+  `<out dir>.<fmt>`. `--encode` with `--drawings` is a usage error.
+- **discovery: stale docs outside the file list.** The phase verifier found `README.md:29,37` and
+  `learn-style/reference/statistics.md:6,133` still name `capture.mjs` as the render or encode
+  path. Left for Phase 3 (README) and Phase 5 (docs cite owners). Revisit: at those phases.

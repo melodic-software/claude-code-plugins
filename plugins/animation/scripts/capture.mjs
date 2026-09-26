@@ -1,7 +1,8 @@
 // usage: node capture.mjs <url> <outdir> <k,k,...> [workers=4]   one PNG per drawing: window.renderDrawing(k) -> dNNN.png
 //        node capture.mjs <url> <outdir> --fps <n> [workers=4]  every frame of the film: window.renderFrame(i / n) -> fNNNN.png
-// Saves canvas#c at its own size after awaiting the render Promise. Encode frames with
-//   ffmpeg -framerate <n> -i <outdir>/f%04d.png -c:v libx264 -pix_fmt yuv420p -crf 16 film.mp4
+// Saves canvas#c at its own size after awaiting the render Promise; prints one JSON line
+// {browser_build, size, frames, duration}. Exit 1 when the scene fails (a page error, DURATION missing or not a
+// positive finite number, renderDrawing missing). render.py serves the scene, calls this, and encodes.
 // playwright-core is resolved from PW_CORE, then the working directory, then a playwright-cli install on PATH.
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
@@ -36,8 +37,14 @@ const open = async () => {
   return p;
 };
 const pages = [await open()];
+const duration = await pages[0].evaluate(() => window.DURATION);
+const fail = msg => { console.error(`capture.mjs: ${msg}`); process.exit(1); };
+if (fps && !(typeof duration === 'number' && Number.isFinite(duration) && duration > 0))
+  fail(`window.DURATION is ${duration}; a scene must set it to a positive number of seconds`);
+if (!fps && await pages[0].evaluate(() => typeof window.renderDrawing !== 'function'))
+  fail('the scene defines no window.renderDrawing(k)');
 const jobs = fps
-  ? Array.from({ length: Math.round(await pages[0].evaluate(() => window.DURATION) * fps) }, (_, i) => ({ t: i / fps, name: `f${String(i).padStart(4, '0')}.png` }))
+  ? Array.from({ length: Math.round(duration * fps) }, (_, i) => ({ t: i / fps, name: `f${String(i).padStart(4, '0')}.png` }))
   : sel.split(',').map(Number).map(k => ({ k, name: `d${String(k).padStart(3, '0')}.png` }));
 while (pages.length < Math.min(workers, jobs.length)) pages.push(await open());
 let next = 0;
@@ -51,5 +58,7 @@ await Promise.all(pages.map(async p => {
     writeFileSync(join(out, j.name), Buffer.from(b64, 'base64'));
   }
 }));
+const size = await pages[0].evaluate(() => [document.getElementById('c').width, document.getElementById('c').height]);
+console.log(JSON.stringify({ browser_build: browser.version(), size, frames: jobs.length, duration: duration ?? null }));
 await browser.close();
 process.exit(failed ? 1 : 0);

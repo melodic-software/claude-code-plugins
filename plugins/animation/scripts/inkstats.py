@@ -3,7 +3,8 @@
 
 usage: inkstats.py <film> [--fps N] [--cuts T,T,.. | --seg S] [--region X,Y,W,H] [--t T0-T1] [--json OUT]
                    [--rows OUT] [--pack PACK]
-  <film>    a video, a folder of capture.mjs frames (fNNNN.png, played at --fps, default 24), or a rotoscope work dir
+  <film>    a video, a render.py frame folder (fNNNN.png, played at --fps, else its render.json fps, else 24), or a
+            rotoscope work dir
             (src/dNNN.png timed by d/index.json)
   --cuts    shot boundaries in seconds; each shot is a column of the table. Without it, columns are --seg seconds
             long (default 3.35). Columns are for reading only: the check judges the whole film.
@@ -466,7 +467,7 @@ def report(m, pack, name):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('film')
-    ap.add_argument('--fps', type=float, default=24)
+    ap.add_argument('--fps', type=float)
     ap.add_argument('--seg', type=float, default=SEG)
     ap.add_argument('--cuts')
     ap.add_argument('--region')
@@ -477,7 +478,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
     pack = load_pack(a.pack) if a.pack else None   # fail on a bad pack path before the long measure
     region = [int(v) for v in nums(a.region, 4)] if a.region else None
-    rows = measure(a.film, a.fps, region, nums(a.t, 2))
+    meta = Path(a.film) / 'render.json'
+    fps = a.fps or (json.load(open(meta))['fps'] if meta.is_file() else None) or 24
+    rows = measure(a.film, fps, region, nums(a.t, 2))
     m = summary(rows, nums(a.cuts), a.seg)
     if a.json:
         a.json.write_text(json.dumps(m, indent=1) + '\n')

@@ -18,7 +18,7 @@ calibration pair against the band of the other calibration pairs, capped at CLEA
 row that rejects it most: coverage gives way to discrimination where they conflict. style.json records, per statistic, the widening, the control margins and the calibration and
 evaluation pass rates, and `ref`, the whole source's value, which the distance is measured from. The palette tolerance
 is the encode shift (the largest channel change in the clip's median ink or paper colour when its drawings are encoded
-as capture.mjs encodes a scene and decoded again) plus the largest channel difference between an excerpt's median
+as render.py encodes a scene and decoded again) plus the largest channel difference between an excerpt's median
 colour and the clip's, rounded up. Statistics only: no geometry, no per-drawing rows, no frames.
 """
 import argparse
@@ -35,6 +35,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import controls  # noqa: E402
 import inkstats  # noqa: E402
+import render  # noqa: E402
 
 # Checked statistics, each chosen for what it separates (reference/statistics.md, "Which statistics separate"):
 # straight, rough, offstep and sliver are drawing, timing and carving structure a post filter barely moves; flat
@@ -171,7 +172,7 @@ def main(argv=None):
         return np.median([r[k] for r in rs if r[k]], 0)
     # palette tolerance = what encoding does to the colours + how far a source excerpt's colours stray from the clip's
     with tempfile.TemporaryDirectory() as tmp:
-        enc = inkstats.measure(str(controls.encode(a.work, 'src', Path(tmp) / 'source.mp4')))
+        enc = inkstats.measure(str(render.encode(controls.held(a.work, 'src'), 'mp4', 24, Path(tmp) / 'source.mp4')))
     shift = max(float(np.abs(colour(enc, k) - m[k]).max()) for k in ('ink_rgb', 'paper_rgb'))
     stray = max(float(np.abs(colour([r for j in side for r in parts[j]], k) - m[k]).max())
                 for pair in ps for side in pair for k in ('ink_rgb', 'paper_rgb'))

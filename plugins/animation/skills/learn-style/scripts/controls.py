@@ -10,7 +10,7 @@ measure  writes an inkstats --json summary per film into <out>/calibration, <out
            poly/<filter>   synthetic flat ink polygons with vertex boil and the source's hold mix, through filters
            other/<name>    each --other film (clips in other styles), unfiltered
            source, replica the --source clip, and the rotoscope replica (<work>/out/<tag>/rep/dNNN.png timed by
-                           <work>/d/index.json) encoded as capture.mjs encodes a scene
+                           <work>/d/index.json) encoded as render.py encodes a scene
          Pass <out>/calibration/*.json to learn.py --negative; the evaluation half never sets a band.
 check    prints every film's rows failed and margin (largest row distance - 1: a control needs a margin above 0, a
          positive at or below 0); exit 1 if any control passes or any positive fails.
@@ -25,7 +25,6 @@ apart, sd A, on dark pixels), retimeN (every Nth frame held one 24 fps frame lon
 """
 import argparse
 import json
-import subprocess
 import sys
 from multiprocessing import Pool
 from pathlib import Path
@@ -35,6 +34,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 import inkstats  # noqa: E402
+import render  # noqa: E402
 
 GAME = 'blur0.9+stripes12'
 # game plus: a sub-pixel contour warp (straight, rough), a few holds lengthened (offstep), and faint tonal rows at the
@@ -126,30 +126,21 @@ def post(spec, frames):
             yield x, t + late / 24
 
 
-def encode(work, folder, mp4):
-    """Encode a work dir's drawings <folder>/dNNN.png, timed by d/index.json, at 24 fps with capture.mjs's ffmpeg
-    settings (libx264, yuv420p, crf 16); return the mp4."""
+def held(work, folder):
+    """A work dir's drawings <folder>/dNNN.png as 24 fps frames, each repeated for its hold from d/index.json."""
     work = Path(work)
     ds = json.load(open(work / 'd/index.json'))['drawings']
-    h, w = cv2.imread(str(work / f'{folder}/d{ds[0][0]:03d}.png')).shape[:2]
-    p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}',
-                          '-framerate', '24', '-i', '-', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '16', str(mp4)],
-                         stdin=subprocess.PIPE)
     fi = 0
     for (k, *_), nxt in zip(ds, [*ds[1:], [None, ds[-1][2]]]):
         img = cv2.imread(str(work / f'{folder}/d{k:03d}.png'))
         while fi / 24 < nxt[1] - 1e-6:
-            p.stdin.write(img.tobytes())
+            yield img
             fi += 1
-    p.stdin.close()
-    if p.wait():
-        sys.exit(f'controls: ffmpeg failed encoding {mp4}')
-    return mp4
 
 
 def replica(work, tag, out):
     """The rotoscope replica's drawings encoded as a scene is; return the mp4."""
-    return encode(work, f'out/{tag}/rep', Path(out) / 'replica.mp4')
+    return render.encode(held(work, f'out/{tag}/rep'), 'mp4', 24, Path(out) / 'replica.mp4')
 
 
 def run(job):
@@ -221,7 +212,7 @@ def main(argv=None):
     m.add_argument('--source')
     m.add_argument('--replica')
     m.add_argument('--tag', default='regress')
-    m.add_argument('--jobs', type=int, default=8)
+    m.add_argument('--jobs', type=int, default=render.WORKERS)
     c = sub.add_parser('check')
     c.add_argument('out')
     c.add_argument('pack')

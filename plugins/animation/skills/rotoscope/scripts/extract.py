@@ -16,7 +16,6 @@ approxPolyDP(eps * S); map an upsampled pixel centre u to (u + 0.5) / S.
 """
 import argparse
 import json
-import os
 import subprocess
 import sys
 from multiprocessing import Pool
@@ -24,6 +23,9 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
+from render import WORKERS  # noqa: E402
 
 S, EPS, INTERP = 4, 0.25, 'cubic'   # supersample, approxPolyDP epsilon (source px), upsampler
 SHARP = (2.0, 0.9)                   # (amount, sigma) unsharp mask before tracing, or None
@@ -208,7 +210,7 @@ def main(argv=None):
     ap.add_argument('--overrides', type=Path)
     ap.add_argument('--only', help='K0-K1')
     ap.add_argument('--apply', action='store_true')
-    ap.add_argument('--jobs', type=int, default=min(8, os.cpu_count() or 1))
+    ap.add_argument('--jobs', type=int, default=WORKERS)
     a = ap.parse_args(argv)
     work = a.work.resolve()
     ix = decode(a.video, work) if a.video else json.load(open(work / 'd/index.json'))

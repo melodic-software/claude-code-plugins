@@ -111,7 +111,7 @@ unshipped clips, D44) with two modes. `[EXEC-SHAPE]`
   output becomes the C3 reference and the mismatch is reported to the user.
   `[FALLBACK — confirm or override]`
 
-### Phase 1: `scripts/render.py` composition root (T10; D16, D18, D29/V16, V23) [TODO]
+### Phase 1: `scripts/render.py` composition root (T10; D16, D18, D29/V16, V23) [DONE]
 
 Review: architecture
 
@@ -160,32 +160,32 @@ and learn-style `SKILL.md` film steps, README.
 
 | File | Action | Rationale |
 |---|---|---|
-| [ ] `plugins/animation/scripts/render.py` | CREATE | composition root, encode, `WORKERS` |
-| [ ] `plugins/animation/scripts/capture.mjs` | MODIFY | header drops the ffmpeg line |
-| [ ] `plugins/animation/scripts/inkstats.py` | MODIFY | fps from `render.json` |
-| [ ] `plugins/animation/skills/rotoscope/scripts/measure.py` | MODIFY | calls `render.py`; `WORKERS` |
-| [ ] `plugins/animation/skills/rotoscope/scripts/fit.py` | MODIFY | `WORKERS` |
-| [ ] `plugins/animation/skills/rotoscope/scripts/extract.py` | MODIFY | `--jobs` default from `WORKERS` |
-| [ ] `plugins/animation/skills/rotoscope/scripts/review.py` | MODIFY | `Pool(WORKERS)` |
-| [ ] `plugins/animation/skills/learn-style/scripts/controls.py` | MODIFY | `render.encode`; `WORKERS` |
-| [ ] `plugins/animation/skills/learn-style/scripts/learn.py` | MODIFY | `render.encode` |
-| [ ] `plugins/animation/skills/rotoscope/SKILL.md` | MODIFY | film step (D16) |
-| [ ] `plugins/animation/skills/learn-style/SKILL.md` | MODIFY | validate step (D16) |
+| [x] `plugins/animation/scripts/render.py` | CREATE | composition root, encode, `WORKERS` |
+| [x] `plugins/animation/scripts/capture.mjs` | MODIFY | header drops the ffmpeg line |
+| [x] `plugins/animation/scripts/inkstats.py` | MODIFY | fps from `render.json` |
+| [x] `plugins/animation/skills/rotoscope/scripts/measure.py` | MODIFY | calls `render.py`; `WORKERS` |
+| [x] `plugins/animation/skills/rotoscope/scripts/fit.py` | MODIFY | `WORKERS` |
+| [x] `plugins/animation/skills/rotoscope/scripts/extract.py` | MODIFY | `--jobs` default from `WORKERS` |
+| [x] `plugins/animation/skills/rotoscope/scripts/review.py` | MODIFY | `Pool(WORKERS)` |
+| [x] `plugins/animation/skills/learn-style/scripts/controls.py` | MODIFY | `render.encode`; `WORKERS` |
+| [x] `plugins/animation/skills/learn-style/scripts/learn.py` | MODIFY | `render.encode` |
+| [x] `plugins/animation/skills/rotoscope/SKILL.md` | MODIFY | film step (D16) |
+| [x] `plugins/animation/skills/learn-style/SKILL.md` | MODIFY | validate step (D16) |
 
 **Sanity Check:**
 
-- [ ] End-to-end probe: a 2 s scene written to a temp dir (ink.js, `DURATION = 2`, a new drawing
+- [x] End-to-end probe: a 2 s scene written to a temp dir (ink.js, `DURATION = 2`, a new drawing
   every frame so the repeat rule keeps them all) through `render.py <scene> <out> --fps 12 --encode
   mp4` exits 0, writes 24 `fNNNN.png`, `render.json` with `"fps": 12` and `"frames": 24`, and an
   mp4; `inkstats.py <out>` (no `--fps`) reports `2.0 s` (reading `1.0 s` means it fell back to its
   24 fps default instead of `render.json`).
-- [ ] D18 probe: the same scene without `DURATION` makes `render.py` exit 1 (test-after carve-out:
+- [x] D18 probe: the same scene without `DURATION` makes `render.py` exit 1 (test-after carve-out:
   the seam that will own this case lands in Phase 4).
-- [ ] `grep -rn "shutil.copy" plugins/animation/skills/rotoscope/scripts/measure.py` returns nothing.
-- [ ] `grep -rln "'ffmpeg'" plugins/animation --include=*.py` lists only `scripts/render.py` and
+- [x] `grep -rn "shutil.copy" plugins/animation/skills/rotoscope/scripts/measure.py` returns nothing.
+- [x] `grep -rln "'ffmpeg'" plugins/animation --include=*.py` lists only `scripts/render.py` and
   the decode sites Phase 2 moves (`extract.py`, `inkstats.py`).
-- [ ] `grep -rnE "Pool\(\)|default=8|workers=8" plugins/animation --include=*.py` returns nothing.
-- [ ] C1 239/239; C3 `compare` exits 0; C5.
+- [x] `grep -rnE "Pool\(\)|default=8|workers=8" plugins/animation --include=*.py` returns nothing.
+- [x] C1 239/239; C3 `compare` exits 0; C5.
 
 ### Phase 2: `scripts/decode.py` source-in (T14; V8, V9, V10) [TODO]
 

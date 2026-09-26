@@ -59,8 +59,8 @@ numbers live in `style.json` only; STYLE.md and other docs point at its keys.
 4. Describe: fill the judgment knobs in `style.json` and write `STYLE.md`.
 5. Validate: author a scene of at least a third of the source's length (bands are learned from
    excerpts that long) on a different subject, from ink.js and the scene elements, with geometry you
-   write, never traced. Render it at the source's size with `capture.mjs --fps 24`, encode with the
-   ffmpeg line at the top of `capture.mjs`, and run `inkstats.py <scene.mp4> --cuts <shot starts>
+   write, never traced. Render it at the source's size with `${CLAUDE_PLUGIN_ROOT}/scripts/render.py <scene.js> <frames dir>
+   --fps 24 --encode mp4` (it serves the scene's folder and `scripts/`), and run `inkstats.py <frames dir>.mp4 --cuts <shot starts>
    --pack <pack dir>`. It exits 0 only when every checked row and the palette pass. Each row prints
    its distance to source: 0 is the source value, 1 the band edge on either side. The film's
    distance ranks passing scenes and its margin names the row nearest failing.

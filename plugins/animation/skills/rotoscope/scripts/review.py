@@ -24,7 +24,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from measure import paper
+from measure import paper, render
 
 CROP = (500, 400)          # w, h of each panel; three panels side by side stay under 2576 px
 TILE, TILE_BLUR, TILE_MAX = 32, 3, 8
@@ -87,7 +87,7 @@ def main(argv=None):
           if k0 <= k <= k1 and (out / f'rep/d{k:03d}.png').exists()]
     if not ks:
         sys.exit(f'review: no rendered drawings in {out / "rep"}' + (f' for {a.only}' if a.only else ''))
-    with Pool() as p:
+    with Pool(render.WORKERS) as p:
         rows, flagged = zip(*p.map(one, [(work, out, k) for k in ks]))
     lines = [f'# review {a.tag} d{ks[0]:03d}-d{ks[-1]:03d}', '',
              '| k | largest | blob | edge px | tile | paper_err | paper_d R,G,B | crop at | flags |',

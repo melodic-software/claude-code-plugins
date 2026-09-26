@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 
 import measure
-from measure import BRUSH_BIAS, ok
+from measure import BRUSH_BIAS, ok, render
 
 
 def ratio(r):
@@ -51,7 +51,7 @@ def main(argv=None):
     ap.add_argument('--ratio', type=float, default=1.3)
     ap.add_argument('--rounds', type=int, default=6)
     ap.add_argument('--out', type=Path)
-    ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--workers', type=int, default=render.WORKERS)
     a = ap.parse_args(argv)
     work = a.work.resolve()
     k0, k1 = map(int, a.only.split('-')) if a.only else (0, 10 ** 9)
@@ -65,7 +65,7 @@ def main(argv=None):
         if not cand:
             break
         (work / 'fit-brushes.json').write_text(json.dumps({k: {'bias': b} for k, b in cand.items()}))
-        measure.render(work, list(cand), out / 'rep', 'brushes=fit-brushes.json', a.workers)
+        measure.replicas(work, list(cand), out / 'rep', 'brushes=fit-brushes.json', a.workers)
         nxt = {}
         for k, b in cand.items():
             tried[k][b] = measure.measure(k, work, out, images=False)

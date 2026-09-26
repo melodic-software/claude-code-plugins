@@ -74,9 +74,8 @@ this file; a fix that needs hand-edited paths is a finding to report, not an ove
 Repeat 2-5 by shot or drawing range until the table passes and the crops show no one-colour
 cluster.
 
-A film of the replica: serve the work directory, open `render.html?scene=roto.js`, and run
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/capture.mjs <url> <frames dir> --fps 24`, then the ffmpeg line
-at the top of `capture.mjs`.
+A film of the replica: `${CLAUDE_PLUGIN_ROOT}/scripts/render.py $R/roto.js <frames dir> --fps 24
+--root <work> --encode mp4` writes the frames, `render.json` and `<frames dir>.mp4` beside them.
 
 ## Retro
 

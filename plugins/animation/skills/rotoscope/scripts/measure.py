@@ -3,8 +3,7 @@
 
 usage: measure.py <work> [--only K0-K1] [--tag name] [--mode a|b] [--brush JSON] [--brushes FILE]
                   [--no-render] [--workers N]
-Renders in headless Chromium (render.html?scene=roto.js, served from <work> on a free localhost port for the run),
-then writes to <work>/out/<tag>/ (tag defaults to the mode):
+Renders roto.js through scripts/render.py (with <work> served as an extra root for its JSON), then writes to <work>/out/<tag>/ (tag defaults to the mode):
   rep/dNNN.png   the replica         heat/dNNN.png  XOR heatmap: red = replica-only ink, blue = source-only ink
   ab/dNNN.png    source above replica, 1:1            table-K0-K1.md one row per drawing
 and appends a one-line summary to <work>/learnings.md.
@@ -19,43 +18,24 @@ Exit 0 only if every drawing has xor <= FLOOR_X * floor, ssim >= SSIM_MIN and ss
 """
 import argparse
 import datetime
-import functools
-import http.server
 import json
-import shutil
-import subprocess
 import sys
-import threading
 from pathlib import Path
 
 import cv2
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-SHARED = HERE.parents[2] / 'scripts'   # plugin-level render.html, ink.js, capture.mjs
+sys.path.insert(0, str(HERE.parents[2] / 'scripts'))
+import render  # noqa: E402
+
 FLOOR_GRAY, FLOOR_X, SSIM_MIN, SSIME_MIN = 4, 1.2, 0.980, 0.980
 BRUSH_BIAS = 0.12   # roto.js BRUSH.bias
 
 
-class Quiet(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *a):
-        pass
-
-
-def render(work, ks, rep_dir, query='', workers=8):
-    """Copy the render files into work, serve work on a free localhost port for this call only, capture drawings ks."""
-    for f in (SHARED / 'render.html', SHARED / 'ink.js', HERE / 'roto.js'):
-        shutil.copy(f, work / f.name)
-    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=str(work)))
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    try:
-        url = f'http://127.0.0.1:{srv.server_address[1]}/render.html?scene=roto.js&{query}'
-        r = subprocess.run(['node', str(SHARED / 'capture.mjs'), url, str(rep_dir), ','.join(map(str, ks)), str(workers)])
-    finally:
-        srv.shutdown()
-        srv.server_close()
-    if r.returncode:
-        sys.exit('render failed')
+def replicas(work, ks, rep_dir, query='', workers=render.WORKERS):
+    """Render drawings ks through roto.js into rep_dir, with work served for its JSON."""
+    render.render(HERE / 'roto.js', rep_dir, drawings=ks, query=query, roots=[work], workers=workers)
 
 
 def ssim_map(a, b):
@@ -131,7 +111,7 @@ def main(argv=None):
     ap.add_argument('--brush', default='')
     ap.add_argument('--brushes', help='JSON file {"k": {brush}} inside <work>')
     ap.add_argument('--no-render', action='store_true')
-    ap.add_argument('--workers', type=int, default=8)
+    ap.add_argument('--workers', type=int, default=render.WORKERS)
     a = ap.parse_args(argv)
     work = a.work.resolve()
     ks = [k for k, *_ in json.load(open(work / 'd/index.json'))['drawings']]
@@ -146,7 +126,7 @@ def main(argv=None):
         (out / sub).mkdir(parents=True, exist_ok=True)
     if not a.no_render:
         q = f'mode={a.mode}' + (f'&brush={a.brush}' if a.brush else '') + (f'&brushes={a.brushes}' if a.brushes else '')
-        render(work, ks, out / 'rep', q, a.workers)
+        replicas(work, ks, out / 'rep', q, a.workers)
     rows = [measure(k, work, out) for k in ks]
     lines = table(tag, rows)
     (out / f'table-{ks[0]:03d}-{ks[-1]:03d}.md').write_text('\n'.join(lines) + '\n')
