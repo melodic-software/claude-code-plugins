@@ -138,7 +138,7 @@ check_json() {
 # (a string or array map). A number or boolean map exits 2.
 add_rows() {
   local out
-  out="$(jq -c --arg s "$2" --arg p "$PROJECT_KEY" "$JQ_NORM"'
+  out="$(jq -rc --arg s "$2" --arg p "$PROJECT_KEY" "$JQ_NORM"'
     ('"$3"') as $m
     | ($m | type) as $t
     | if $t == "null" then "found-empty"
@@ -147,7 +147,6 @@ add_rows() {
       else error("non-object server map") end' <"$1" 2>/dev/null | tr -d '\r')" ||
     die_json "non-object server map" "$1"
   STATUS="${out%%$'\n'*}"
-  STATUS="${STATUS//\"/}"
   [[ "$STATUS" == "skipped" ]] && STATUS="$SKIPPED_TEXT"
   if [[ "$out" == *$'\n'* ]]; then
     ROWS+="${out#*$'\n'}"$'\n'
@@ -156,29 +155,6 @@ add_rows() {
 
 # shellcheck disable=SC2016
 LOCAL_FILTER='[(.projects // {}) | to_entries[] | select((.key | norm) == ($p | norm))] | first | .value'
-
-# User and local scope: ~/.claude.json.
-if [[ -f "$CLAUDE_JSON" ]]; then
-  check_json "$CLAUDE_JSON"
-  add_rows "$CLAUDE_JSON" user '.mcpServers'
-  add_source user "$CLAUDE_JSON" "$STATUS"
-  META_LOCAL="$(jq -c --arg p "$PROJECT_KEY" "$JQ_NORM"'
-    ('"$LOCAL_FILTER"') as $v
-    | def names: if type == "array" then map(tostring) else [] end;
-    {matched: ($v != null),
-     disabled: ($v.disabledMcpServers // [] | names),
-     disabledJson: ($v.disabledMcpjsonServers // [] | names)}' <"$CLAUDE_JSON" 2>/dev/null | tr -d '\r')" ||
-    die_json "non-object projects map" "$CLAUDE_JSON"
-  if [[ "$(printf '%s' "$META_LOCAL" | jq -r '.matched' | tr -d '\r')" == "true" ]]; then
-    add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers"
-    add_source local "$CLAUDE_JSON" "$STATUS"
-  else
-    add_source local "$CLAUDE_JSON" absent
-  fi
-else
-  add_source user "$CLAUDE_JSON" absent
-  add_source local "$CLAUDE_JSON" absent
-fi
 
 # add_file_source <scope> <file> <filter>: read one file-backed source or report it absent.
 add_file_source() {
@@ -191,6 +167,25 @@ add_file_source() {
   add_source "$1" "$2" absent
   return 1
 }
+
+# User and local scope: ~/.claude.json.
+if add_file_source user "$CLAUDE_JSON" '.mcpServers'; then
+  META_LOCAL="$(jq -c --arg p "$PROJECT_KEY" "$JQ_NORM"'
+    ('"$LOCAL_FILTER"') as $v
+    | def names: if type == "array" then map(tostring) else [] end;
+    {matched: ($v != null),
+     disabled: ($v.disabledMcpServers // [] | names),
+     disabledJson: ($v.disabledMcpjsonServers // [] | names)}' <"$CLAUDE_JSON" 2>/dev/null | tr -d '\r')" ||
+    die_json "non-object projects map" "$CLAUDE_JSON"
+  if [[ "$META_LOCAL" == '{"matched":true'* ]]; then
+    add_rows "$CLAUDE_JSON" local "($LOCAL_FILTER).mcpServers"
+    add_source local "$CLAUDE_JSON" "$STATUS"
+  else
+    add_source local "$CLAUDE_JSON" absent
+  fi
+else
+  add_source local "$CLAUDE_JSON" absent
+fi
 
 add_file_source project "$MCP_JSON" '.mcpServers'
 add_file_source managed "$MANAGED_DIR/managed-mcp.json" '.mcpServers' && MANAGED_PRESENT=true
@@ -207,7 +202,6 @@ for config in ${CONFIGS[@]+"${CONFIGS[@]}"}; do
   add_file_source file "$config" '.mcpServers'
 done
 
-META="$(printf '%s' "$META_LOCAL" | jq -c --argjson managed "$MANAGED_PRESENT" '. + {managed: $managed}' | tr -d '\r')"
 
 # Classification. The only argument ever emitted is one token that passes a package, image,
 # URL, or path shape check (userinfo, query, and fragment stripped); every other argument and
@@ -217,6 +211,7 @@ META="$(printf '%s' "$META_LOCAL" | jq -c --argjson managed "$MANAGED_PRESENT" '
 CLASSIFY='
 def clean: tostring | gsub("[[:cntrl:]\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]"; "");
 def strip_fmt: gsub("[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]"; "");
+# A NUL-led marker fails every shape check, so pkgrow reports it as unparsed.
 def unparsed_mark: "\u0000unparsed";
 def runners: ["npx", "npm", "pnpm", "pnpx", "yarn", "bunx", "bun", "uvx", "uv", "pipx", "docker", "podman", "nerdctl"];
 def basename_of: gsub("\\\\"; "/") | (split("/") | last) // "";
@@ -244,14 +239,12 @@ def unwrap:
   | if length == 0 then .
     else (.[0] | lc_base) as $b
     | .[1:] as $a
-    | if $b == "cmd" then
-        (($a | rest_after(["/c", "/k"])) as $r | if $r == null then . else ($r | join(" ") | shell_split | unwrap) end)
+    | if IN($b; "cmd", "pwsh", "powershell") then
+        (($a | rest_after(if $b == "cmd" then ["/c", "/k"] else ["-command", "-c", "-commandwithargs", "-cwa"] end)) as $r
+         | if $r == null then . else ($r | join(" ") | shell_split | unwrap) end)
       elif IN($b; "bash", "sh", "zsh", "dash", "ash", "ksh") then
         (($a | shell_c_string) as $s | if $s == null then . else ($s | shell_split | unwrap) end)
       elif $b == "env" then ($a | env_rest | unwrap)
-      elif IN($b; "pwsh", "powershell") then
-        (($a | rest_after(["-command", "-c", "-commandwithargs", "-cwa"])) as $r
-         | if $r == null then . else ($r | join(" ") | shell_split | unwrap) end)
       else . end
     end;
 def strip_url:
@@ -359,31 +352,30 @@ def img_of:
     ["-i", "-t", "-d", "-it", "-ti", "-itd", "-dit", "--rm", "--init", "--privileged", "--read-only",
      "--interactive", "--tty", "--detach", "-P", "--publish-all", "--no-healthcheck", "--oom-kill-disable",
      "-q", "--quiet"]);
-def pkgrow($l; $spec; $eco):
+def pkgrow($l; $spec; shape; cls):
   if $spec == null or $spec == "" then {launcher: $l, package: "-", pin: "not-a-package", publisher: "-"}
-  elif $spec == unparsed_mark then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
   else ($spec | strip_url) as $s
-  | if ($s | if $eco == "npm" then npm_shape elif $eco == "py" then py_shape else img_shape end | not)
-    then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
-    else ($s | if $eco == "npm" then npm_class elif $eco == "py" then py_class else img_class end) as $k
-    | {launcher: $l, package: $s, pin: $k.pin, publisher: $k.pub}
+  | if ($s | shape | not) then {launcher: $l, package: "-", pin: "unparsed", publisher: "-"}
+    else ($s | cls) as $k | {launcher: $l, package: $s, pin: $k.pin, publisher: $k.pub}
     end
   end;
 def stdio_row:
   . as $t
   | (($t[0] // "") | lc_base) as $b
   | ($t[1] // "") as $a1
-  | if $b == "npx" then pkgrow("npx"; $t[1:] | npm_pkg; "npm")
-    elif $b == "npm" and ($a1 == "exec" or $a1 == "x") then pkgrow("npm-exec"; $t[2:] | npm_pkg; "npm")
-    elif $b == "pnpm" and $a1 == "dlx" then pkgrow("pnpm-dlx"; $t[2:] | npm_pkg; "npm")
-    elif $b == "yarn" and $a1 == "dlx" then pkgrow("yarn-dlx"; $t[2:] | npm_pkg; "npm")
-    elif $b == "bunx" then pkgrow("bunx"; $t[1:] | npm_pkg; "npm")
-    elif $b == "bun" and $a1 == "x" then pkgrow("bunx"; $t[2:] | npm_pkg; "npm")
-    elif $b == "uvx" then pkgrow("uvx"; $t[1:] | py_pkg; "py")
-    elif $b == "uv" and $a1 == "tool" and ($t[2] // "") == "run" then pkgrow("uv-tool-run"; $t[3:] | py_pkg; "py")
-    elif $b == "pipx" and $a1 == "run" then pkgrow("pipx"; $t[2:] | pipx_pkg; "py")
+  | if $b == "npx" then pkgrow("npx"; $t[1:] | npm_pkg; npm_shape; npm_class)
+    elif $b == "npm" and ($a1 == "exec" or $a1 == "x") then pkgrow("npm-exec"; $t[2:] | npm_pkg; npm_shape; npm_class)
+    elif $b == "pnpm" and $a1 == "dlx" then pkgrow("pnpm-dlx"; $t[2:] | npm_pkg; npm_shape; npm_class)
+    elif $b == "yarn" and $a1 == "dlx" then pkgrow("yarn-dlx"; $t[2:] | npm_pkg; npm_shape; npm_class)
+    elif $b == "bunx" then pkgrow("bunx"; $t[1:] | npm_pkg; npm_shape; npm_class)
+    elif $b == "bun" and $a1 == "x" then pkgrow("bunx"; $t[2:] | npm_pkg; npm_shape; npm_class)
+    elif $b == "uvx" then pkgrow("uvx"; $t[1:] | py_pkg; py_shape; py_class)
+    elif $b == "uv" and $a1 == "tool" and ($t[2] // "") == "run" then
+      pkgrow("uv-tool-run"; $t[3:] | py_pkg; py_shape; py_class)
+    elif $b == "pipx" and $a1 == "run" then pkgrow("pipx"; $t[2:] | pipx_pkg; py_shape; py_class)
     elif IN($b; "docker", "podman", "nerdctl") then
-      pkgrow($b; ($t[1:] | (indices("run") | first) as $i | if $i == null then null else .[$i + 1:] | img_of end); "img")
+      pkgrow($b; ($t[1:] | (indices("run") | first) as $i | if $i == null then null else .[$i + 1:] | img_of end);
+        img_shape; img_class)
     else
       ($t[1:] | map(shell_split[] | lc_base) | any(.[]; IN(.; runners[]))) as $wrapped
       | {launcher: "local", package: ((($t[0] // "") | basename_of) as $n | if $n == "" then "-" else $n end),
@@ -417,7 +409,7 @@ def overridable: IN(.; "user", "local", "project", "file");
 | . as $r
 | ($r.scope | rank) as $rk
 | ([$rows[] | select(.name == $r.name and (.scope | rank) > $rk)] | max_by(.scope | rank) | .scope) as $winner
-| (if $meta.managed and ($r.scope | overridable) then "suppressed-by-managed"
+| (if $managed and ($r.scope | overridable) then "suppressed-by-managed"
    elif ($r.scope | overridable) and any($meta.disabled[]; . == $r.name) then "disabled"
    elif $r.scope == "project" and any($meta.disabledJson[]; . == $r.name) then "disabled"
    elif $rk > 0 and $winner != null then "shadowed-by:" + $winner
@@ -427,7 +419,7 @@ def overridable: IN(.; "user", "local", "project", "file");
 | map(clean)
 '
 
-TABLE="$(printf '%s' "$ROWS" | jq -rs --argjson meta "$META" \
+TABLE="$(printf '%s' "$ROWS" | jq -rs --argjson meta "$META_LOCAL" --argjson managed "$MANAGED_PRESENT" \
   "[$CLASSIFY] | sort_by(.[0], .[1]) | .[] | @tsv" 2>/dev/null | tr -d '\r')" || {
   echo "inventory.sh: classification failed" >&2
   exit 2
