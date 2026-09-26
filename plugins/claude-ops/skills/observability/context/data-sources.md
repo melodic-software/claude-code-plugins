@@ -190,9 +190,10 @@ today); a hook that does not still appears in the whole-root §2 tables through 
 
 **Event timeline** (the per-session event log, opt-in): every registered hook event the session
 saw, in order, with the correlation keys that were present. The log registers no `PreToolUse` or
-`PostToolUse` row (both fire on every tool call); tool activity arrives as one `PostToolBatch`
-line per batch, carrying the first call's `tool_name` and `tool_use_id`, and one
-`PostToolUseFailure` line per failed call.
+`PostToolUse` row (both fire on every tool call); tool activity arrives as one
+`PostToolUseFailure` line per failed call and one `PostToolBatch` line per batch. The batch line
+is not a per-call record: it carries the first `tool_name` and `tool_use_id` the payload text
+holds, normally the first call's.
 
 ```bash
 jq -sr '.[] | select(.source == "event-log")

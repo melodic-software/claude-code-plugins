@@ -102,12 +102,10 @@ HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
 # `env` too: `exec bash` replaces the shell with bash directly (the
 # check-hook-slow-shapes.sh ENV SHEBANG rule). The RETENTION row carries the
 # same gate, so a disabled install starts no bash at SessionEnd either.
-# LEGACY_RETENTION is the earlier ungated retention command: regen_rows strips
-# it too, so regenerating an older hooks.json never leaves two retention rows.
-# hooks.json has no other way to read the
-# switch: `if` takes one permission rule and is evaluated only on tool events,
-# so it cannot see a plugin option, and the option reaches a hook only as
-# $CLAUDE_PLUGIN_OPTION_<KEY> in the environment.
+# hooks.json has no other way to read the switch: `if` takes one permission
+# rule and is evaluated only on tool events, so it cannot see a plugin option,
+# and the option reaches a hook only as $CLAUDE_PLUGIN_OPTION_<KEY> in the
+# environment.
 #
 # regen_rows pins every row it writes to `"shell": "bash"`. The Hooks reference
 # documents that field as "Defaults to `bash`, or to `powershell` on Windows
@@ -125,8 +123,6 @@ HOOKS_JSON="$ROOT/plugins/claude-ops/hooks/hooks.json"
 PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
 RETENTION='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
-# shellcheck disable=SC2016
-LEGACY_RETENTION='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
 RECHECK="each /claude-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
 MIN_ROWS=25
 
@@ -204,13 +200,13 @@ build_registry() {
 }
 
 # regen_rows <registry-json-file> <hooks-json-file> -> hooks.json on stdout with
-# the producer rows re-derived: every row naming the producer or the retention
-# hook (gated or legacy) is stripped, then one producer row per observable
-# event and one retention row on SessionEnd are appended; the existing handlers
-# and their order are untouched.
+# the producer rows re-derived: every row naming the producer or ending in the
+# retention script path is stripped, then one producer row per observable event
+# and one retention row on SessionEnd are appended; the existing handlers and
+# their order are untouched.
 regen_rows() {
-  jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" --arg old "$LEGACY_RETENTION" --slurpfile reg "$1" '
-    def strip: map(select(any(.hooks[]?; .command == $prod or .command == $ret or .command == $old) | not));
+  jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" --slurpfile reg "$1" '
+    def strip: map(select(any(.hooks[]?; .command == $prod or (.command // "" | endswith("/hooks/session-retention.sh"))) | not));
     .hooks |= (with_entries(.value |= strip) | with_entries(select(.value | length > 0)))
     | reduce ($reg[0][] | select(.producer == "observe")) as $e (.;
         .hooks[$e.name] = ((.hooks[$e.name] // []) + [{hooks: [{type: "command", command: $prod, shell: "bash",

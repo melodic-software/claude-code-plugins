@@ -264,8 +264,9 @@ producer row per observable hook event (28 events; the generated
 `MessageDisplay` and `FileChanged` are left out). `PreToolUse` and
 `PostToolUse` are left out too: they fire on every tool call, so even a
 disabled row would cost a process creation per call. Tool activity is still
-recorded through `PostToolBatch` (one line per batch, carrying the first call's
-`tool_name` and `tool_use_id`) and `PostToolUseFailure`. Each fire appends one line to
+recorded through `PostToolUseFailure` and `PostToolBatch`. A batch is one line,
+not a per-call record: it carries the first `tool_name` and `tool_use_id` the
+payload text holds, normally the first call's. Each fire appends one line to
 `<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
 (`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
 and a repo-relative file path when present. Each row is SHELL FORM and reads
@@ -279,10 +280,10 @@ the same three creations as before (median 117 ms); a 2 KB payload costs about
 5 ms and a 512 KB one 36 ms. Those are serial per-event figures: the
 hook-budget parallel-wall comparison for the ENABLED rows on Windows Git Bash
 is still owed, and the default stays off until it is taken.
-`session_event_log_categories` narrows the set. At
-`SessionEnd` the retention hook, gated by the same switch in shell form, keeps the newest `session_log_keep_sessions`
-or the last `session_log_keep_days` days, and `session_log_pre_prune_command`
-hands an archiver the files about to go. The root carries its own `*`
+`session_event_log_categories` narrows the set. At `SessionEnd` the retention
+hook, gated by the same switch in shell form, keeps the newest
+`session_log_keep_sessions` or the last `session_log_keep_days` days, and
+`session_log_pre_prune_command` hands an archiver the files about to go. The root carries its own `*`
 `.gitignore`, so nothing under it reaches `git status`; `/claude-ops:setup`
 reports the toggles and the guard, `/claude-ops:observability session` reads
 the result.

@@ -26,9 +26,6 @@ f=""
 PRODUCER='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-event-log.sh'
 # shellcheck disable=SC2016
 RETENTION='[ "$CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED" = true ] || exit 0; exec bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
-# shellcheck disable=SC2016
-LEGACY_RETENTION='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh'
-
 # new_fixture -> a repo root carrying the real hooks.json with every producer
 # row stripped (so the base is the nine handlers alone) and the lib.
 new_fixture() { # <out-var>
@@ -36,8 +33,8 @@ new_fixture() { # <out-var>
   fixture_tree::build "$1" --plugins || return 1
   dir="${!1}"
   mkdir -p "$dir/plugins/claude-ops/hooks"
-  jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" --arg old "$LEGACY_RETENTION" '
-    .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; .command == $prod or .command == $ret or .command == $old) | not)))
+  jq --indent 2 --arg prod "$PRODUCER" '
+    .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; .command == $prod or (.command // "" | endswith("/hooks/session-retention.sh"))) | not)))
                | with_entries(select(.value | length > 0)))' "$REAL_HOOKS_JSON" >"$dir/plugins/claude-ops/hooks/hooks.json"
   cp "$LIB" "$dir/plugins/claude-ops/hooks/"
 }
@@ -122,12 +119,13 @@ if ((rc == 1)) && [[ "$out" == *drift* ]]; then ok "--check fails on a removed p
 # --- a legacy ungated retention row is replaced, never doubled ------------------
 new_fixture f
 HJ="$f/plugins/claude-ops/hooks/hooks.json"
-jq --indent 2 --arg old "$LEGACY_RETENTION" \
+# shellcheck disable=SC2016  # the ungated command as hooks.json carried it
+jq --indent 2 --arg old 'bash "${CLAUDE_PLUGIN_ROOT}"/hooks/session-retention.sh' \
   '.hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [{type: "command", command: $old, shell: "bash"}]}])' \
   "$HJ" >"$HJ.legacy" && mv "$HJ.legacy" "$HJ"
 bash "$SCRIPT" --from "$TABLE" --root "$f" --as-of 2026-09-05 >/dev/null 2>&1
 gated=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(.command == $ret)] | length' "$HJ")
-legacy=$(jq -r --arg old "$LEGACY_RETENTION" '[.hooks[][] | .hooks[] | select(.command == $old)] | length' "$HJ")
+legacy=$(jq -r --arg ret "$RETENTION" '[.hooks[][] | .hooks[] | select((.command | endswith("/hooks/session-retention.sh")) and .command != $ret)] | length' "$HJ")
 if [[ "$gated" == 1 && "$legacy" == 0 ]]; then
   ok "a legacy ungated retention row regenerates to one gated row"
 else
