@@ -100,7 +100,7 @@ assert_exit "case 5: unknown argument exits 2" 2 "$rc"
 
 # --- Case 6: the shipped manifest is well-formed --------------------------------
 rc=0
-bad=$(grep -vE '^(#|$)' "$MANIFEST" | grep -vcE $'^[a-z-]+\t.+$' || true)
+bad=$(grep -vE '^(#|$)' "$MANIFEST" | grep -vcE $'^[a-z-]+(/[a-z-]+)*\t.+$' || true)
 if [[ "$bad" == "0" ]]; then pass "case 6: every manifest row is slug<TAB>span"; else fail "case 6: every manifest row is slug<TAB>span" "$bad malformed row(s)"; fi
 
 # --- Case 7: a manifest with no trailing newline still checks its last row ------
@@ -114,6 +114,27 @@ out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&
 assert_exit "case 7: the unterminated last row is checked and fails" 1 "$rc"
 assert_contains "case 7: MISS names the last row" "$out" "MISS  alpha: ### \`keyGone\`"
 assert_contains "case 7: both rows counted" "$out" "Checked 2 citation(s), 1 missing"
+
+# --- Case 8: a nested slug is fetched into its own subdirectory -----------------
+# The fake curl writes its -o target without creating directories, as curl
+# does, so the row is checked only when the script made the parent itself.
+nestbin="$TEST_TMPDIR/nestbin"
+mkdir -p "$nestbin"
+cat >"$nestbin/curl" <<'EOF'
+#!/usr/bin/env bash
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "-o" ]]; then out="$2"; shift; fi
+  shift
+done
+printf 'a nested span\n' >"$out" || exit 23
+EOF
+chmod +x "$nestbin/curl"
+man="$TEST_TMPDIR/manifest-nested.tsv"
+printf 'plugins/install\ta nested span\n' >"$man"
+rc=0
+out=$(PATH="$nestbin:$PATH" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+assert_exit "case 8: the nested page is fetched and checked" 0 "$rc"
+assert_contains "case 8: OK for the nested slug" "$out" "OK    plugins/install: a nested span"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

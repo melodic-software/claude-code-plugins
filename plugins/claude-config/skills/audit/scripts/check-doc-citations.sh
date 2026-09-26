@@ -95,6 +95,7 @@ page_file() {
   fi
   f="$FETCH_DIR/$slug.md"
   if [[ ! -s "$f" ]] && command -v curl >/dev/null 2>&1; then
+    mkdir -p "$(dirname "$f")"
     curl -fsSL --max-time 60 -o "$f" "https://code.claude.com/docs/en/$slug.md" 2>/dev/null || rm -f "$f"
   fi
   [[ -s "$f" ]] && printf '%s' "$f"

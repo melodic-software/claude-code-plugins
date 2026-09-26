@@ -324,6 +324,9 @@ MALFORMED=()
 row() {
   local cat="$1" slug="$2" status="$3" sev="$4" surface="$5" claim="$6" detail="$7" excerpt="${8:--}"
   local check="claude-config/audit/$cat/$slug" anchor="" fid="" json
+  # Git Bash rewrites an argument holding `=/` before a native jq sees it; a
+  # claim or detail carries a key exactly as written, so conversion is off here.
+  local -x MSYS2_ARG_CONV_EXCL='*'
   if [[ "$status" == "finding" ]]; then
     if [[ "$excerpt" == "-" ]]; then
       anchor="s:"
@@ -1214,30 +1217,143 @@ done < <(jqs -r '[.divergence[]? | . + {mk: (.plugin | split("@") | .[1] // "")}
 
 # --- Category E: plugins -------------------------------------------------------
 
-known_markets="$(
-  {
-    [[ $PROJECT_OK -eq 1 ]] && jqf "$SETTINGS" -r '.extraKnownMarketplaces // {} | keys[]'
-    [[ $LOCAL_OK -eq 1 ]] && jqf "$LOCAL" -r '.extraKnownMarketplaces // {} | keys[]'
-    [[ $USER_OK -eq 1 ]] && jqf "$USER_SETTINGS" -r '.extraKnownMarketplaces // {} | keys[]'
-    [[ -n "$USER_DIR" && -f "$USER_DIR/plugins/known_marketplaces.json" ]] && jqs -r 'keys[]' "$USER_DIR/plugins/known_marketplaces.json"
-  } | sort -u
-)"
-check_plugin_keys() {
-  # check_plugin_keys <file> <surface>
-  local file="$1" surface="$2"
-  while IFS=$'\t' read -r pk pv; do
-    [[ -n "$pk" ]] || continue
-    market="${pk##*@}"
-    if ! grep -qxF -- "$market" <<<"$known_markets"; then
-      row E marketplace-known finding error "$surface" "unknown-marketplace:$pk" "$pk names marketplace $market, which no scope registers" "/enabledPlugins/$pk"
-    fi
-    if [[ "$pv" == "false" ]]; then
-      row E disabled-plugin finding info "$surface" "disabled-plugin:$pk" "$pk is explicitly disabled; confirm the opt-out is intentional and recorded" "/enabledPlugins/$pk"
-    fi
-  done < <(jqf "$file" -r '(.enabledPlugins // {}) | to_entries[] | [.key, (.value|tostring)] | @tsv')
+#
+# Plugin keys stay JSON from the file to the row: every comparison runs in jq,
+# and a row's fields come back base64-encoded, so a key carrying a carriage
+# return, a tab or `=/` reaches its claim exactly as written. Managed-scope
+# enabledPlugins is not merged here.
+
+# unb64_to <var> <base64>: decode into <var> byte for byte.
+unb64_to() {
+  local v
+  v="$(printf '%s' "$2" | base64 --decode 2>/dev/null
+    printf x
+  )"
+  printf -v "$1" '%s' "${v%x}"
 }
-[[ $PROJECT_OK -eq 1 ]] && check_plugin_keys "$SETTINGS" "$SURF_SETTINGS"
-[[ $LOCAL_OK -eq 1 ]] && check_plugin_keys "$LOCAL" "$SURF_LOCAL"
+
+# e_rows: emit one category E row per input line of seven base64 fields
+# (slug, status, severity, surface, claim, detail, excerpt).
+e_rows() {
+  local line f slug st sev surf claim detail ex
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    read -r -a f <<<"$line"
+    [[ ${#f[@]} -eq 7 ]] || continue
+    unb64_to slug "${f[0]}"
+    unb64_to st "${f[1]}"
+    unb64_to sev "${f[2]}"
+    unb64_to surf "${f[3]}"
+    unb64_to claim "${f[4]}"
+    unb64_to detail "${f[5]}"
+    unb64_to ex "${f[6]}"
+    row E "$slug" "$st" "$sev" "$surf" "$claim" "$detail" "$ex"
+  done
+}
+
+# ejq <jq args>: jq with Git Bash argument conversion off, so a program or
+# value holding `=/` reaches jq unrewritten; CRLF is stripped from compact or
+# base64 output only, where a CR can only be a line ending.
+ejq() { MSYS2_ARG_CONV_EXCL='*' jq "$@" 2>/dev/null | tr -d '\r'; }
+
+E_DEFS='
+def obj: if type == "object" then . else {} end;
+def mk: split("@") | last // "";
+def disp: gsub("[[:cntrl:]]"; "?");
+def scopes: [{label: "user", surface: $su, s: .user}, {label: "project", surface: $sp, s: .project}, {label: "local", surface: $sl, s: .local}]
+  | map(select(.s != null) | {label, surface, e: (.s | obj | .enabledPlugins | obj)});
+def enabled: [(reduce scopes[] as $x ({}; . + $x.e)) | to_entries[] | select(.value == true) | .key] | sort;
+def holder($S; $k): [range(0; $S | length) | select($S[.].e | has($k))] | last;
+def depkey($k):
+  if type == "string" then (if index("@") then . else . + "@" + ($k | mk) end)
+  elif type == "object" and (.name | type) == "string" then .name + "@" + ((.marketplace | select(type == "string")) // ($k | mk))
+  else null end;
+def emit: map(@base64) | join(" ");
+'
+
+# e_scope <ok> <file>: the scope's JSON, or null when it was not read.
+e_scope() {
+  local j=""
+  [[ "$1" -eq 1 ]] && j="$(jqf "$2" -c '.')"
+  printf '%s\n' "${j:-null}"
+}
+KNOWN_MK_JSON=null
+if [[ -n "$USER_DIR" && -f "$USER_DIR/plugins/known_marketplaces.json" ]]; then
+  KNOWN_MK_JSON="$(tr -d '\r' <"$USER_DIR/plugins/known_marketplaces.json" | ejq -c '.')"
+  KNOWN_MK_JSON="${KNOWN_MK_JSON:-null}"
+fi
+E_CTX="$(
+  {
+    e_scope "$USER_OK" "$USER_SETTINGS"
+    e_scope "$PROJECT_OK" "$SETTINGS"
+    e_scope "$LOCAL_OK" "$LOCAL"
+    printf '%s\n' "$KNOWN_MK_JSON" "$INVENTORY_JSON"
+  } | ejq -c -s '{user: .[0], project: .[1], local: .[2], known: .[3], inv: .[4]}'
+)"
+E_ARGS=(--arg su "$SURF_USER" --arg sp "$SURF_SETTINGS" --arg sl "$SURF_LOCAL")
+
+if [[ -n "$E_CTX" ]]; then
+  # Each enabled plugin's direct dependencies come from the plugin.json at the
+  # install path the hook inventory resolved for that exact key.
+  DEP_RECS=""
+  while read -r di dpath_b64; do
+    [[ "$di" =~ ^[0-9]+$ ]] || continue
+    unb64_to dpath "$dpath_b64"
+    dpath="${dpath//\\//}"
+    rec=""
+    if [[ -z "$dpath" ]]; then
+      rec="{\"i\":$di,\"deps\":null,\"why\":\"no install path resolved in the plugin inventory\"}"
+    elif [[ ! -f "$dpath/.claude-plugin/plugin.json" ]]; then
+      rec="{\"i\":$di,\"deps\":null,\"why\":\"no .claude-plugin/plugin.json at its install path\"}"
+    else
+      rec="$(tr -d '\r' <"$dpath/.claude-plugin/plugin.json" | ejq -c --argjson i "$di" \
+        '{i: $i, deps: (if type == "object" then (.dependencies // []) else null end), why: "plugin.json is not an object or its dependencies is not an array"}')"
+      [[ -n "$rec" ]] || rec="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not valid JSON\"}"
+    fi
+    DEP_RECS+="$rec"$'\n'
+  done < <(printf '%s\n' "$E_CTX" | ejq -r "${E_ARGS[@]}" "$E_DEFS"'
+    . as $c | enabled | to_entries[] | .key as $i | .value as $k
+    | ([$c.inv.plugins[]? | select(type == "object" and .plugin == $k and (.status == "OK" or .status == "NO-HOOKS"))] | first | .path) as $p
+    | "\($i) \((if ($p | type) == "string" then $p else "" end) | @base64)"')
+
+  if e_out="$(printf '%s\n%s' "$E_CTX" "$DEP_RECS" | ejq -r -s "${E_ARGS[@]}" "$E_DEFS"'
+    .[0] as $c | (.[1:] | map(select(type == "object"))) as $recs
+    | ($c | scopes) as $S
+    | ($c | enabled) as $en
+    | (reduce $recs[] as $r ({}; if ($r.i | type) == "number" and $r.i < ($en | length) then .[$en[$r.i]] = $r else . end)) as $R
+    | ([$en[] as $k | $R[$k].deps as $d | select(($d | type) == "array") | $d[] | depkey($k) | select(type == "string") | {dep: ., by: $k}]
+       | group_by(.dep) | map({key: .[0].dep, value: ([.[].by] | unique)}) | from_entries) as $D
+    | ([($c.user, $c.project, $c.local) | obj | .extraKnownMarketplaces | obj | keys[]] + ($c.known | obj | keys)
+       | map({key: ., value: true}) | from_entries) as $K
+    | ($c.project | obj | .extraKnownMarketplaces | obj) as $PD
+    | (
+        ($en[] as $k | $R[$k] as $r | select(($r.deps | type) != "array")
+          | ["dependency-disabled", "not-inspectable", "none", $S[holder($S; $k)].surface, "dependencies-unread:" + $k,
+             "\($k) is enabled but its declared dependencies were not read (\($r.why // "no install record")); a disabled dependency of it would go unreported", "-"]),
+        (range(0; $S | length) as $i | $S[$i] as $x | $x.e | to_entries[] | select(.value == false) | .key as $k
+          | holder($S; $k) as $h
+          | if $h == $i and ($D | has($k)) then
+              ["dependency-disabled", "finding", "warning", $x.surface, "dependency-disabled:" + $k,
+               "\($k) is disabled (\($x.label)) but enabled plugin(s) \($D[$k] | join(", ")) declare it as a dependency; a plugin whose dependency is disabled does not load", "/enabledPlugins/" + $k]
+            else
+              ["disabled-plugin", "ok", "none", $x.surface, "disabled-plugin:" + $k,
+               "\($k) is false in \($x.label)" + (if $h > $i and $S[$h].e[$k] == true then "; shadowed by true at \($S[$h].label)" else "" end), "-"]
+            end),
+        ($S[] as $x | select($x.label != "user") | $x.e | keys[] | select(. != "") as $k | ($k | mk) as $m | select($K | has($m) | not)
+          | ["marketplace-known", "finding", "error", $x.surface, "unknown-marketplace:" + $k, "\($k) names marketplace \($m), which no scope registers", "/enabledPlugins/" + $k]),
+        ($S[] as $x | select($x.label != "user")
+          | [$x.e | keys[] | select(mk as $m | ($K | has($m)) and ($PD | has($m) | not))] | select(length > 0)
+          | ["drift", "skip", "none", $x.surface, "drift-coverage:" + $x.surface,
+             "\(length) enabledPlugins key(s) in \($x.surface) name a marketplace \(if $x.label == "project" then "this file" else $sp end) does not declare, so they were not diffed: \(map(disp) | join(", "))", "-"])
+      )
+    | emit')"; then
+    e_rows <<<"$e_out"
+  else
+    row E plugin-state skip none "settings" "plugin-state-unread" "the enabledPlugins program failed; dependency, marketplace and coverage rows not decided" -
+  fi
+else
+  row E plugin-state skip none "settings" "plugin-state-unread" "the settings scopes could not be assembled for the enabledPlugins rows; dependency, marketplace and coverage rows not decided" -
+fi
 
 DRIFT_JSON='[]'
 DRIFT_STATE=skipped
@@ -1269,19 +1385,21 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
   done < <(jqs -r '.[] | .orphans[]? | [.name, .marketplace, (.enabled|tostring)] | @tsv' <<<"$DRIFT_JSON")
   # The drift script reads the project file alone; Claude Code merges the user,
   # project and local scopes, so a catalog entry keyed in any of them is not
-  # new to the session. Only a key absent from every readable scope is reported.
-  merged_keys="$(
-    {
-      [[ $PROJECT_OK -eq 1 ]] && jqf "$SETTINGS" -r '(.enabledPlugins // {}) | keys[]'
-      [[ $LOCAL_OK -eq 1 ]] && jqf "$LOCAL" -r '(.enabledPlugins // {}) | keys[]'
-      [[ $USER_OK -eq 1 ]] && jqf "$USER_SETTINGS" -r '(.enabledPlugins // {}) | keys[]'
-    } | sort -u
-  )"
-  while IFS=$'\t' read -r name mk; do
-    [[ -n "$name" ]] || continue
-    grep -qxF -- "$name@$mk" <<<"$merged_keys" && continue
-    row E drift-new finding info "$SURF_SETTINGS" "new-upstream:$name@$mk" "$name@$mk is in the $mk catalog and has no enabledPlugins entry in any scope; record an explicit true or false" "/enabledPlugins/$name@$mk"
-  done < <(jqs -r '.[] | .new_upstream[]? | [.name, .marketplace] | @tsv' <<<"$DRIFT_JSON")
+  # new to the session. Catalog plugins absent from every readable scope are
+  # inventory, one row per marketplace.
+  if [[ -n "$E_CTX" ]]; then
+    e_rows < <(printf '%s\n%s\n' "$E_CTX" "$DRIFT_JSON" | ejq -r -s "${E_ARGS[@]}" "$E_DEFS"'
+      .[0] as $c
+      | ([($c.user, $c.project, $c.local) | obj | .enabledPlugins | obj | keys[]] | map({key: ., value: true}) | from_entries) as $A
+      | .[1] | if type == "array" then .[] else empty end | select(type == "object")
+      | .key as $mk
+      | [.new_upstream[]? | select(type == "object" and (.name | type) == "string" and (.marketplace | type) == "string")
+         | .name + "@" + .marketplace | . as $k | select($A | has($k) | not)] | unique
+      | select(length > 0)
+      | ["drift-new", "ok", "none", $sp, "drift-new:\($mk)",
+         "\(length) plugin(s) in the \($mk) catalog have no enabledPlugins entry in any scope (for example \(.[0] | disp))", "-"]
+      | emit')
+  fi
   while IFS=$'\t' read -r from to mk; do
     [[ -n "$from" ]] || continue
     row E drift-rename finding warning "$SURF_SETTINGS" "possible-rename:$from->$to@$mk" "$from may have been renamed to $to in $mk; confirm before editing the key" "/enabledPlugins/$from@$mk"

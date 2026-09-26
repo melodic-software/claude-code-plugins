@@ -33,10 +33,11 @@ registration), recheck against live official docs and known upstream issues, rep
 findings, and optionally fix. `scripts/audit-engine.sh` decides every deterministic row in one run
 and writes a findings document whose rows carry `audit-pass`'s identity tuple, so a later run can
 diff against it and `audit-pass` can append it unchanged; the model reads that document and does
-only what needs a reading. Plugin drift is detected against each registered marketplace's
-`marketplace.json`, fetched for a `github` source and read from disk for a `directory` source
-(ORPHAN / NEW / RENAME modes, NEW computed against the merged user, project and local scopes), with
-an asymmetric auto-fix policy that never removes a plugin the user explicitly enabled. Hooks are
+only what needs a reading. Plugin drift is detected against the `marketplace.json` of
+each marketplace declared in the audited file, fetched for a `github` source and read from disk for
+a `directory` source (ORPHAN / NEW / RENAME modes, NEW computed against the merged user, project and
+local scopes and reported only), with a fix that removes only orphan `false` entries, never adds a
+key, and never removes a plugin the user explicitly enabled. Hooks are
 inventoried from the directory the session loads, and a divergence from the registry's cache is
 reported. The skill-listing budget is read from an existing debug log before anyone is asked to
 relaunch. `settings.local.json` is inspected structurally (key counts and the four model and
@@ -253,9 +254,8 @@ from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 The bundled scripts run in `bash` (Claude Code's Bash-tool shell on every platform;
 [Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows). The
 JSON-parsing scripts require `jq`; the plugin-drift check additionally requires `curl`; and `awk`
-and `sort` are required across three skills, not one: `audit`'s plugin-drift check (both) and its
-fix (`sort`), `audit-permission-grants`' rule check (both), and `audit-instructions`' conflict pass
-(both). Only the conflict pass probes for them and `exit 2`s naming the one that is missing; the
+and `sort` are required across three skills, not one: `audit`'s engine (both),
+`audit-permission-grants`' rule check (both), and `audit-instructions`' conflict pass (both). Only the conflict pass probes for them and `exit 2`s naming the one that is missing; the
 others call them unguarded, so an absent `awk` or `sort` surfaces there as a bare `command not
 found` partway through a run. Both ship with every POSIX userland, so a missing one means a minimal
 shell environment (Git Bash, a `busybox` shim) rather than an absent package. Install a full
