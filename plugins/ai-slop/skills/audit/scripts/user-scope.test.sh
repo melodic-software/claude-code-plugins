@@ -24,7 +24,7 @@ FAILED=0
 CASE_NUM=0
 SKIPPED=0
 # PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
-EXPECTED_CASES=58
+EXPECTED_CASES=62
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -128,6 +128,14 @@ for f in "${memory[@]}"; do
 done
 assert_line "memory: still lists CLAUDE.md" "$out" "$F/CLAUDE.md"
 
+AM="$TEST_TMPDIR/automem"
+mkfile "$AM/CLAUDE.md"
+printf '{ "autoMemoryDirectory": "~/elsewhere" }\n' >"$AM/settings.json"
+err="$(CLAUDE_CONFIG_DIR="$AM" bash "$US" --memory 2>&1 >/dev/null)"
+assert_contains "memory: a relocated auto memory directory is named on stderr" "$err" "autoMemoryDirectory"
+err="$(CLAUDE_CONFIG_DIR="$AM" bash "$US" 2>&1 >/dev/null)"
+assert_eq "memory: without --memory the relocation is not mentioned" "$err" ""
+
 # --- root resolution -------------------------------------------------------------
 
 out="$(CLAUDE_CONFIG_DIR="" bash "$US" 2>/dev/null)"
@@ -207,6 +215,8 @@ link_cases=(
   "links: the outside link is named on stderr"
   "links: a .md link to a .json file is not listed"
   "links: a self-referencing link is not listed"
+  "links: a link to a target holding a tab is not listed"
+  "links: the tab-target link is named on stderr"
 )
 mkdir -p "$SL/probe"
 if command -v timeout >/dev/null 2>&1 && ln -s target "$SL/probe/link" 2>/dev/null && [[ -L "$SL/probe/link" ]]; then
@@ -238,6 +248,19 @@ if command -v timeout >/dev/null 2>&1 && ln -s target "$SL/probe/link" 2>/dev/nu
   assert_contains "${link_cases[7]}" "$err" "skipped symlink: $SL/rules/out.md"
   assert_no_line "${link_cases[8]}" "$out" "$SL/rules/creds.md"
   assert_no_line "${link_cases[9]}" "$out" "$SL/rules/loop.md"
+  # A cleanly named link whose target holds a tab: the target keys a
+  # tab-separated row, so it must be skipped, never split.
+  ST="$TEST_TMPDIR/tablink"
+  mkfile "$ST/rules/ok.md"
+  if printf 'text\n' >"$ST/rules/real"$'\t'"name.md" 2>/dev/null; then
+    ln -s "real"$'\t'"name.md" "$ST/rules/alias.md"
+    out="$(CLAUDE_CONFIG_DIR="$ST" timeout 10 bash "$US" 2>"$TEST_TMPDIR/tablink-err")"
+    assert_eq "${link_cases[10]}" "$out" "$ST/rules/ok.md"
+    assert_contains "${link_cases[11]}" "$(cat "$TEST_TMPDIR/tablink-err")" "skipped symlink to a path holding a newline or tab: $ST/rules/alias.md"
+  else
+    skip "${link_cases[10]}" "file system refuses a tab in a name"
+    skip "${link_cases[11]}" "file system refuses a tab in a name"
+  fi
 else
   for c in "${link_cases[@]}"; do skip "$c" "no ln -s or timeout"; done
 fi

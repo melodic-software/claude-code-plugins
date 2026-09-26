@@ -11,9 +11,11 @@
   memory. The new `scripts/user-scope.sh` prints the file list for
   `detect.sh --list-targets --paths-file`, skipping FIFOs, directories, unreadable files and
   paths holding a newline or tab. It follows a symlink only to a readable regular `.md`
-  file inside the config root, lists that file once, never walks a symlinked directory, and
-  names every skipped link on stderr. Under MSYS it prints Windows-form paths (`C:/...`). A
-  path target such as `~/.claude` is unchanged.
+  file inside the config root whose resolved path holds no newline or tab, lists that file
+  once, never walks a symlinked directory, and names every skipped link on stderr. With
+  `--memory` it warns when the user `settings.json` sets `autoMemoryDirectory`, which it does
+  not list. Under MSYS it prints Windows-form paths (`C:/...`). A path target such as
+  `~/.claude` is unchanged.
 
 ### Fixed
 

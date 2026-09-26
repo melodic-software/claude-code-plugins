@@ -64,6 +64,10 @@ root="$(CDPATH='' cd -- "$root" && { pwd -W 2>/dev/null || pwd; })" ||
 # come from the same tool.
 realroot=""
 command -v realpath >/dev/null 2>&1 && realroot="$(realpath -- "$root" 2>/dev/null)"
+if [[ "$realroot" == *[$'\n\t']* ]]; then
+  echo "$ME: config root resolves to a path holding a newline or tab: $(printf '%q' "$realroot")" >&2
+  exit 2
+fi
 warned_realpath=0
 
 warn() { printf '%s: %s\n' "$ME" "$*" >&2; }
@@ -101,6 +105,12 @@ consider() {
       return
     fi
     t="$(realpath -- "$p" 2>/dev/null)"
+    # The resolved path keys the tab-separated row below, so it must not
+    # hold a delimiter either.
+    if [[ "$t" == *[$'\n\t']* ]]; then
+      warn "skipped symlink to a path holding a newline or tab: $p"
+      return
+    fi
     if [[ -n "$t" && "$t" == *.md && "$t" == "$realroot"/* && -f "$t" && -r "$t" ]]; then
       printf '%s\t1\t%s\n' "$t" "$p"
     else
@@ -135,6 +145,13 @@ list() {
   collect "$root/agents"
   collect "$root/output-styles" -maxdepth 1
   if [[ "$memory" == 1 ]]; then
+    # autoMemoryDirectory relocates auto memory; any settings scope can set it.
+    # Only the user settings file is checked here, and the relocated
+    # directory is named, not listed.
+    if [[ -f "$root/settings.json" && -r "$root/settings.json" ]] &&
+      grep -q '"autoMemoryDirectory"' "$root/settings.json"; then
+      warn "settings.json sets autoMemoryDirectory; that directory is not listed, pass it as a path target"
+    fi
     if plain_dir "$root/projects"; then
       for d in "$root"/projects/*/; do
         d="${d%/}"

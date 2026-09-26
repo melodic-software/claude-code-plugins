@@ -135,6 +135,10 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   directory instead. Recheck when the page adds, moves, or drops a user-level markdown surface,
   or changes what `CLAUDE_CONFIG_DIR` relocates.
 - `@path` imports are not followed. Pass an imported file as an explicit path target.
+- `memory` lists the default auto memory location only. Any settings scope can move it with
+  `autoMemoryDirectory` ([memory docs](https://code.claude.com/docs/en/memory)); the script
+  warns when the user `settings.json` sets it, and a relocated directory is passed as a path
+  target.
 - A symlink is followed only to a readable regular `.md` file inside the config root, and
   that file is listed once. A symlinked directory is not walked, and a link pointing outside
   the root is skipped; the script names each on stderr. Pass a skipped link's target as an
