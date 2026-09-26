@@ -65,8 +65,8 @@ numbers live in `style.json` only; STYLE.md and other docs point at its keys.
    its distance to source: 0 is the source value, 1 the band edge on either side. The film's
    distance ranks passing scenes and its margin names the row nearest failing.
 6. Review: measure each prop with `--region X,Y,W,H --t T0-T1` next to source prop boxes, then
-   read every drawing at 1:1 (tile frames so no image is over the 2576 px long edge the rotoscope skill's
-   `reference/method.md`, Reviewing images, records; never
+   read every drawing at 1:1 (tile frames so no image is over the 2576 px long edge
+   `${CLAUDE_PLUGIN_ROOT}/skills/rotoscope/reference/method.md`, Reviewing images, records; never
    downscale, never a GIF) beside source crops. A pass on the numbers with a crop that does not
    read as the style is a fail; say which mark is wrong.
 7. Record: put the parameters that passed into the pack's `brush` and the result into `STYLE.md`,
@@ -96,5 +96,5 @@ check, never the check against the scene. `inkstats.py` also measures any film w
   excerpt has `pw50` 8, which is why neither is checked.
 - A strictly regular timing fails `offstep`: hold a few drawings for 2 or 4 frames.
 - `soft` needs a soften pass after drawing, since a two-tone canvas render has almost no edge ramp.
-  Chromium's `ctx.filter = 'blur()'` does nothing below a floor (the rotoscope skill's
-  `reference/method.md`, Rendering, holds the dated record); soften in JS instead.
+  Chromium's `ctx.filter = 'blur()'` does nothing below a floor
+  (`${CLAUDE_PLUGIN_ROOT}/skills/rotoscope/reference/method.md`, Rendering, holds the dated record); soften in JS instead.
