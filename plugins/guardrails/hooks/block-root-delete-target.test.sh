@@ -248,6 +248,9 @@ for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="\$($rdt_big"; done
 rdt_big="${rdt_big}${rdt_pad}"
 for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="$rdt_big)"; done
 rdt_payload="$(command_json "$rdt_big")"
+# command_json passes the command to a native jq without MSYS_NO_PATHCONV, so
+# its round trip is checked: Git Bash would rewrite a `NAME=/path` argument.
+assert_eq "the 16 KB payload carries its command verbatim" "$rdt_big" "$(jq -r .tool_input.command <<<"$rdt_payload")"
 
 for rdt_via in direct dispatched; do
   if [[ "$rdt_via" == direct ]]; then
@@ -310,6 +313,7 @@ rdt_timed() {
   local label="$1" want="$2" payload via rc
   local -a argv
   payload="$(command_json "$3")"
+  assert_eq "$label (payload verbatim)" "$3" "$(jq -r .tool_input.command <<<"$payload")"
   for via in direct dispatched; do
     if [[ "$via" == direct ]]; then
       argv=(bash "$HOOK")
@@ -765,6 +769,18 @@ done
 assert_eq "the checkout toplevel is outside every temp root" no "$rdt_top_in_temp"
 RDT_CWD=(--cwd "$RDT_TOP")
 
+# rdt_pl <command> <cwd> [scratchpad_dir]: a payload with the harness's
+# optional fields. MSYS_NO_PATHCONV keeps Git Bash from rewriting an argument
+# shaped like a POSIX path (`/x`, `NAME=/x`) for a native jq.
+rdt_pl() {
+  if (($# > 2)); then
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" --arg s "$3" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d,scratchpad_dir:$s}'
+  else
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}'
+  fi
+}
+
 expect_both 'tree: rm -rf build allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf build'
 expect_both 'tree: rm -rf ./a/b allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf ./a/b'
 expect_both 'tree: rm -rf .work/some-slug/x allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf .work/some-slug/x'
@@ -819,8 +835,17 @@ expect_both 'cdpath: an inline prefix refuses from a temp cwd too' 2 --cwd "$TES
   --command 'CDPATH=/ cd c && rm -rf x'
 # Every relative operand after that cd, whatever the list operator and
 # whatever the operand's shape.
+# Each string must reach the guard VERBATIM. Git Bash rewrites a native
+# program's argument shaped `NAME=/path` into a Windows path, so a plain
+# `jq -n --arg c 'CDPATH=/ cd c && ...'` hands the guard
+# `CDPATH=C:/Program Files/Git/ cd c && ...`, whose command word is
+# `Files/Git/` and which holds no cd at all. The payload builders here pass
+# MSYS_NO_PATHCONV=1 to jq, and the round trip is asserted so a builder that
+# lost it would fail here rather than test a different command.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
+  assert_eq "cdpath: the payload carries '$rdt_cmd' verbatim" "$rdt_cmd" \
+    "$(rdt_pl "$rdt_cmd" "$RDT_TOP" | jq -r .tool_input.command)"
   expect_both "cdpath: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
   expect_both "cdpath: $rdt_cmd blocks from a temp cwd" 2 --cwd "$TEST_TMPDIR" --command "$rdt_cmd"
 done <<'EOF'
@@ -906,17 +931,6 @@ expect_both 'temp: the suite scratch directory allowed' 0 "${RDT_CWD[@]}" --comm
 expect_both 'temp: /tmp itself blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /tmp'
 expect_both 'temp: /tmp/* blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf /tmp/*'
 
-# rdt_pl <command> <cwd> [scratchpad_dir]: a payload with the harness's
-# optional fields. MSYS_NO_PATHCONV keeps Git Bash from rewriting a POSIX path
-# argument for a native jq.
-rdt_pl() {
-  if (($# > 2)); then
-    MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" --arg s "$3" \
-      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d,scratchpad_dir:$s}'
-  else
-    MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}'
-  fi
-}
 # The scratchpad counts only when it sits strictly under a temp root, so one
 # outside temp (here, nonexistent under /opt) is ignored. Inside temp, the
 # scratchpad itself and its glob are still refused ahead of the temp arm.
