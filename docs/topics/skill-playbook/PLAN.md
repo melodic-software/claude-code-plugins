@@ -143,7 +143,7 @@ Red-green per script.
 exits 0 (the duplicate-id fixture case asserts a non-zero exit); `bash
 scripts/check-shell-portability.sh --paths <root>/scripts/*.sh` exits 0.
 
-### Phase 2: Hygiene catalog [TODO]
+### Phase 2: Hygiene catalog [DONE]
 
 - `<root>/catalogs/hygiene.md`: every entry in the Brief's six phases in that order, using the
   arguments and merged steps from scope-matrix section 5, plus the unchecked candidate-scan

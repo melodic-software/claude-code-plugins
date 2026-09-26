@@ -90,6 +90,18 @@ bad_run "entry with an empty skill value" "$TMP/emptyskill.md" "a has no skill"
 bash "$SCRIPT" >/dev/null 2>&1
 assert_eq "no catalog argument: usage exit 2" "2" "$?"
 
+# Shipped catalogs: every entry with an issue carries an override naming it. Pins no ids or order.
+for shipped in "$(dirname "$SCRIPT")"/../catalogs/*.md; do
+  name=$(basename "$shipped")
+  rows=$(bash "$SCRIPT" "$shipped")
+  assert_eq "$name parses" "0" "$?"
+  while IFS=' ' read -r id issue; do
+    [[ -n $issue ]] || continue
+    override=$(bash "$SCRIPT" --override "$id" "$shipped")
+    if [[ $override == *"${issue#\#}"* ]]; then pass "$name $id override names $issue"; else fail "$name $id override names $issue" "$issue" "$override"; fi
+  done < <(awk -F'\t' '{print $1, $6}' <<<"$rows")
+done
+
 if ((FAILED)); then
   printf '%d FAILED\n' "$FAILED" >&2
   exit 1
