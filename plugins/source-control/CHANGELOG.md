@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- Filing rule for review findings: a small or medium finding is `VALID (fix now)` and is fixed in the current PR as its own commit, even when it is unrelated to the task. `VALID (defer)` and its tracker item are only for a finding that is structural (needs its own planning pass), urgent and real but unable to land in the PR, or blocked on research the lane cannot do; no item for a nit or a speculative concern. D4.6 in `reference/review-discipline.md` gains this as its scope test; `/source-control:pull-request` (D4, D4.6, monitor classification and report) and babysit-prs (`safety.md` round classification and `deferred` disposition, `independent-resolution.md`) apply it. Same rule work-items adopted in #4541.
+- Filing rule for review findings: a small or medium finding is `VALID (fix now)` and is fixed in the current PR as its own commit, even when it is unrelated to the task. `VALID (defer)` and its tracker item are only for a finding that is structural (needs its own planning pass), urgent and real but unable to land in the PR, or blocked on research the lane cannot do; no item for a nit or a speculative concern. D4.6 in `reference/review-discipline.md` gains this as its scope test; `/source-control:pull-request` (D4, D4.6, monitor classification and report) and babysit-prs (`safety.md` round classification and `deferred` disposition, `independent-resolution.md`) apply it. Same rule as #4541 for work-items.
 
 ## [0.58.5] - 2026-09-25
 
