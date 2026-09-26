@@ -147,7 +147,8 @@ name, and the second is refused with exit 2 rather than overwriting the first on
 and would replace the link rather than its target; and a path the project-root ladder inferred
 that turns out to be the user settings file, which is what a session started outside a repository
 resolves to. An explicit `CLAUDE_SETTINGS_FILE` at the user settings file still applies, with a
-warning naming the waived guard.
+warning naming the waived guard. To apply to a settings file that is a symlink, point
+`CLAUDE_SETTINGS_FILE` at the file the link resolves to.
 
 **Env var contract:**
 

@@ -925,14 +925,29 @@ d1_seam_rc() { # <candidate dir> -> spd_temp_declines' status for a file under i
     spd_temp_declines "$3/spd-d1-absent/f.txt"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1"
 }
 # mktemp names carry capitals, so the seam dirs sit under a lowercase name of
-# their own, removed by name in the EXIT trap.
+# their own, removed by name in the EXIT trap. The precondition asks the seam's
+# own resolver: under a forced Linux OSTYPE the library resolves with `cd -P`,
+# which on Git Bash follows the /tmp mount to a capitalized Windows path, so the
+# cases only run where that resolver spells each seam dir as given.
+d1_seam_self() { # <dir> -> 0 when the Linux resolver spells <dir> as given; answer left in D1_SEAM_GOT
+  # shellcheck disable=SC2016  # the child shell's expansions are literal source text
+  D1_SEAM_GOT=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null)
+  [[ "$D1_SEAM_GOT" == "$1" ]]
+}
 D1_SEAM_TRY="/tmp/spd-d1-seam-$$"
-if [[ "$(realpath /tmp 2>/dev/null)" == /tmp ]] && mkdir "$D1_SEAM_TRY" 2>/dev/null &&
-  D1_SEAMDIR="$D1_SEAM_TRY" && mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null; then
+D1_SEAM_STEP="mkdir $D1_SEAM_TRY"
+if mkdir "$D1_SEAM_TRY" 2>/dev/null && D1_SEAMDIR="$D1_SEAM_TRY" &&
+  D1_SEAM_STEP="mkdir lowtemp and CapTemp under it" &&
+  mkdir "$D1_SEAMDIR/lowtemp" "$D1_SEAMDIR/CapTemp" 2>/dev/null &&
+  D1_SEAM_STEP="resolve $D1_SEAMDIR/lowtemp" && d1_seam_self "$D1_SEAMDIR/lowtemp" &&
+  D1_SEAM_STEP="resolve $D1_SEAMDIR/CapTemp" && d1_seam_self "$D1_SEAMDIR/CapTemp"; then
   assert_eq "D1 seam: posix, lowercase temp root declines" 0 "$(d1_seam_rc "$D1_SEAMDIR/lowtemp")"
   assert_eq "D1 seam: posix, capitalized temp root scans" 1 "$(d1_seam_rc "$D1_SEAMDIR/CapTemp")"
+elif [[ "${OSTYPE:-}" == linux* ]]; then
+  [[ "$D1_SEAM_STEP" == resolve* ]] && D1_SEAM_STEP+=" under the library's Linux resolver gave '$D1_SEAM_GOT'"
+  bad "D1 seam: precondition failed: $D1_SEAM_STEP"
 else
-  echo "SKIP: D1 seam width cases (/tmp does not resolve to itself, or the seam dirs could not be made)"
+  echo "SKIP: D1 seam width cases (under a forced Linux OSTYPE the library resolver does not spell the /tmp seam dirs as given on this host, or the seam dirs could not be made)"
 fi
 
 if ((D1_WIN)); then
@@ -940,7 +955,11 @@ if ((D1_WIN)); then
   # A drive spelling that names no volume must terminate. timeout 124 is a hang,
   # not a verdict; a loaded Windows host spends tens of seconds on one fire.
   assert_exit "D1 windows: Z:/ root, temp target, terminates → exit 0" 0 \
-    "$(D1_RC=0; timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?; printf '%s' "$D1_RC")"
+    "$(
+      D1_RC=0
+      timeout 150 env CLAUDE_PROJECT_DIR="Z:/spd-d1-root" bash "$HOOK" <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_RC=$?
+      printf '%s' "$D1_RC"
+    )"
   assert_exit "D1 windows: backslash long spelling, HOME root → exit 0" 0 \
     "$(d1_rc "$D1_HOME" "${D1_TARGET//\//\\}" HOME="$D1_HOME" USERPROFILE="$D1_HOME")"
   assert_exit "D1 windows: /c/ spelling → exit 2" 2 \
@@ -981,7 +1000,13 @@ d1_rc "$D1_ROOT" "$D1_ROOT/src/f.txt" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK=
 assert_eq "D1 non-temp target spawns no resolver" "" "$(cat "$D1_LOG")"
 : >"$D1_LOG"
 d1_rc "$D1_ROOT" "$D1_TARGET" PATH="$D1_SHIM:$PATH" HOOK_TELEMETRY_SINK= >/dev/null
-if [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
+if [[ "${OSTYPE:-}" == linux* ]]; then
+  # On Linux hook::physical_path_to resolves an existing absolute path with
+  # builtin `cd -P`, so the temp target starts no resolver either. Show the
+  # shim logs a spawn by calling it directly instead.
+  "$D1_SHIM/realpath" / >/dev/null
+  if [[ -s "$D1_LOG" ]]; then ok "D1 shim logs a resolver spawn"; else bad "D1 shim logged no resolver spawn"; fi
+elif [[ -s "$D1_LOG" ]]; then ok "D1 temp target spawns a resolver"; else bad "D1 temp target spawned no resolver"; fi
 
 # The dispatcher runs this guard beside the other Write|Edit guards.
 D1_DISPATCH_RC=0

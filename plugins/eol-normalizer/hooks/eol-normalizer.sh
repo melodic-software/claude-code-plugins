@@ -62,7 +62,23 @@ source "$HOOK_DIR/normalize-eol.sh"
 #
 # No glob list: this hook's matcher IS its filter — every written file in the
 # consuming repo carries line endings the repo's .gitattributes governs.
-hook::begin eol-normalizer PostToolUse
+#
+# The root's one other reader is `git -C <root> check-attr -- <file>`, and for
+# an ABSOLUTE <file> any directory inside the same repository gives the same
+# answer: git finds the repository from that directory and matches the path
+# against the work tree. So without a telemetry sink (the root's only other
+# consumer) the file's own directory stands in, and the separate
+# `git rev-parse --show-toplevel` process is not run. A relative path still
+# resolves against the directory git starts in, so it keeps the real root.
+# shellcheck disable=SC2329  # invoked by hook::begin through --repo-root
+eol_root_to() {
+  if [[ "$2" == /* ]] && ! hook::telemetry_enabled; then
+    printf -v "$1" '%s' "$2"
+    return 0
+  fi
+  hook::repo_root_to "$1" "$2"
+}
+hook::begin --repo-root eol_root_to eol-normalizer PostToolUse
 
 # Content-mutation disclosure (#1596): line-ending normalization is a structural
 # rewrite the user did not request; name what changed on the user channel and

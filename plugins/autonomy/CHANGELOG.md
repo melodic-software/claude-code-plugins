@@ -3,11 +3,63 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.24] - 2026-09-25
+## [0.24.1] - 2026-09-26
 
 ### Fixed
 
 - `lane-stop-gate.sh` and `lane-stop-gate-lib.sh`: the user `settings.json` opt-in is found on Windows. Claude Code passes `CLAUDE_PLUGIN_ROOT` with `\` separators there, so the plugin root never matched the `plugins/cache/<marketplace>/<name>/<version>` anchor and only the environment and managed settings could enable the gate or arm a lane. A hook path with a drive letter now has `\` folded to `/` before the anchor is matched, by parameter expansion with no added process. POSIX paths are unchanged: a `\` there is a filename byte.
+
+## [0.24.0] - 2026-09-25
+
+### Added
+
+- The security-binding level entry gains `host_interop` (`"none"` or `"wsl2"`), the human-ratified
+  statement of whether the surface's host can launch host binaries from inside the boundary. With
+  `"wsl2"`, `check-security-binding.mjs` requires the probe transcript's fourth assertion,
+  `interop_launch_denied`: a present Windows executable (`test -x` succeeded) whose launch
+  succeeded in the outer context and was denied inside, with an inner exit code from 1 to 123, or
+  126 (124 and 125 are timeouts, 127 is command not found, and 128 or above is death by signal).
+  The inner launch is bound to the outer control: `arguments` and `outer_arguments` must be
+  byte-identical, `executable_sha256` and `outer_executable_sha256` must be equal, and
+  `executable_magic` must be `4d5a`, the PE `MZ` header. A recorded interop assertion is validated whatever the binding ratifies, and a `"none"` binding
+  whose capture reached a Windows drive mount (the default `/mnt/<letter>/` automount root, matched
+  after path normalization) stays unproven. The WSL2 interop launch check is now checker-enforced
+  instead of confirmed by the reviewing human. Still confirmed by the reviewing human, not the
+  checker: the per-run ephemerality of an `L3` microVM, its `--static-mcp` tool-server mode, and
+  the SSH agent forwarding condition.
+- The level entry gains `base_egress_allowlist`, an informational record of the base egress
+  allowlist. The checker checks only its shape: it is never merged into
+  `component_reachable_hosts`, never counts as probe coverage, and is never proof that other
+  traffic is denied.
+
+### Changed
+
+- Every existing `L2`/`L3` level binding goes UNPROVEN until it declares `host_interop`, the same
+  fail-closed rule an absent `component_reachable_hosts` follows. Under `autonomous-enabled` that is
+  a finding; add `"host_interop": "none"`, or `"wsl2"` with a re-probed transcript, on the
+  agent-unwritable binding.
+- `templates/isolation-probe.md` documents the interop launch probe shape and the capture field;
+  `context/windows-surfaces.md` and `context/guardrail-slice.md` describe the enforced check and
+  both new fields.
+- `reference/telemetry.md` Pillar 3 records, dated 2026-09-25, that relying on native inbound trace
+  context was evaluated and not adopted: Claude Code reads inbound `TRACEPARENT` only in Agent SDK
+  and `-p` sessions, and its tracing is beta, so the Pillar 2 attribute join stays the contract's
+  join. The record names surface classes and points at the vendor records in
+  `context/agent-session-telemetry.md`, which that same read reconfirmed.
+
+## [0.23.24] - 2026-09-25
+
+### Changed
+
+- hook-utils.sh: `hook::_fast_fields` also answers a `.key` or `.key.sub` filter followed by `// false | tostring` without jq: an absent or null value gives `false`, a boolean gives `true` or `false`, a string itself. Same values as jq's; a number, array or object still goes to jq.
+- hook-utils.sh: the builtin JSON parse (`hook::_fast_file_path_to`, `hook::_fast_fields`, `hook::json_compact_to`) runs in the C locale and puts the caller's `LC_ALL` back afterwards. Under a UTF-8 locale bash split and scanned the payload one multibyte character at a time, and the cost grew faster than the payload; under C it is a byte walk. Every answer is still proven equal to jq's or handed to jq. A raw C1 character (U+0080 to U+009F) in a string is now proven by the builtin parse instead of sent to jq.
+- hook-utils.sh: `hook::buffer_stdin_to` validates an object payload that the builtin JSON skeleton accepts without spawning `jq -e .`; any other payload still goes to jq.
+- hook-utils.sh: `hook::begin` reads the file path from the payload it already buffered, through the new `hook::read_file_path_to`, instead of piping it through a capture subshell to `hook::read_file_path`, and takes the raw path with the new `hook::raw_file_path_to`. `hook::read_file_path` and `hook::raw_file_path` keep their print forms.
+- hook-utils.sh: `hook::repo_relative_path_to` looks for `cygpath` only on a Windows bash (`OSTYPE` msys, cygwin or win32). Elsewhere the lookup always missed and probed every `PATH` directory, which on WSL includes the `/mnt/c` entries. Windows behavior is unchanged.
+- hook-utils.sh: `hook::read_file_path_uncached_to` and `hook::repo_root_uncached_to` name the bodies behind `hook::read_file_path_to` and `hook::repo_root_to`, for a dispatcher that caches in front of them.
+- hook-utils.sh: on Linux, `hook::physical_path_to` and `hook::_physical_prime` read a physical path with `cd -P` in one subshell (the new `hook::_physical_builtin_to`) instead of starting `realpath`, when every path is absolute and is an existing directory or an existing file that is not a symlink. Any other path, and every path on Git Bash and macOS, still goes to realpath. The answer is realpath's.
+- hook-utils.sh: the builtin JSON skeleton finds a raw control byte and an invalid escape with one regex search each instead of glob scans and escape deletions, and the key walks in `hook::_fast_file_path_to` and `hook::_fast_fields` take a key's text from its split part when no escape was rewritten in it, instead of slicing the whole payload for every short string. Same verdicts and values; a large payload parses in about half the time.
+- hook-utils.sh: the builtin JSON skeleton checks the grammar with a few whole-string rewrites instead of one regex match per token, and looks for an invalid escape and a raw control byte with one search over the whole payload instead of one per string. Same verdicts; a small hook payload parses in about a fifth of the time. A payload whose structure outside strings runs past 8192 characters now goes to jq instead of through the builtin walk.
 
 ## [0.23.23] - 2026-09-25
 
