@@ -129,9 +129,8 @@ def settle(q, responses, events, seed_rows):
         res = f"reconfirmed at plan approval: {new}; was: {old}"
         return "answered", res + note + tail, text, False
     if decision == "defer" and superseded:
-        res = seed.get("resolution", "")
-        res += f"; deferred on page: {text}" if text else ""
-        return "superseded-by-plan", res + tail, text, False
+        # The resolution stays the seed's own, so a re-import reads the same proposal back.
+        return "superseded-by-plan", seed.get("resolution", ""), text, False
     if decision == "accept":
         return (
             "answered",

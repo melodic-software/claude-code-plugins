@@ -539,9 +539,10 @@ class TestSupersededByPlan(SessionCase):
         self.assertIn("Q2 (Q2) is superseded-by-plan", ends)
         self.assertNotIn("Q1 (Q1)", ends)
 
-    def respond(self, events):
+    def respond(self, events, d=None):
+        d = d or self.dir
         responses, history = rebuild_responses(events)
-        (self.dir / "responses.json").write_text(
+        (d / "responses.json").write_text(
             json.dumps(
                 {
                     "seq": len(events),
@@ -552,7 +553,43 @@ class TestSupersededByPlan(SessionCase):
             ),
             encoding="utf-8",
         )
-        return register_rows(self.export("ledger"))
+        return register_rows(self.export("ledger", d=d))
+
+    def reimport(self, events):
+        """Answer the seeded page, export its ledger, and import that ledger into a fresh dir."""
+        self.respond(events)
+        fresh = Path(tempfile.mkdtemp(dir=self.tmp, prefix="fresh-"))
+        ledger = self.export("ledger")
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        return fresh
+
+    def test_alt_was_after_a_reimported_defer_restores_the_prior_answer(self):
+        self.seed()
+        fresh = self.reimport([event(1, "Q2", "defer", text="ask later")])
+        rows = self.respond([event(1, "Q2", "alt", alt="was")], d=fresh)
+        self.assertEqual(
+            rows[1],
+            "- Q2 | answered | round 1 | Who writes? | alt was: any enrolled user",
+        )
+
+    def test_accept_after_a_reimported_defer_reconfirms_the_proposal(self):
+        self.seed()
+        fresh = self.reimport([event(1, "Q2", "defer", text="ask later")])
+        rows = self.respond([event(1, "Q2", "accept")], d=fresh)
+        self.assertEqual(
+            rows[1],
+            "- Q2 | answered | round 1 | Who writes? | "
+            "reconfirmed at plan approval: admin only; was: any enrolled user",
+        )
+
+    def test_defers_across_a_reimport_do_not_stack(self):
+        self.seed()
+        fresh = self.reimport([event(1, "Q2", "defer", text="ask later")])
+        rows = self.respond([event(1, "Q2", "defer", text="again")], d=fresh)
+        self.assertEqual(
+            rows[1], f"- Q2 | superseded-by-plan | round 1 | Who writes? | {self.RES}"
+        )
 
     def test_import_seeds_the_proposal_and_the_prior_answer(self):
         doc = self.seed()
@@ -587,7 +624,7 @@ class TestSupersededByPlan(SessionCase):
             exporters.settle(q, page, [], seed),
             (
                 "superseded-by-plan",
-                f"{self.RES}; deferred on page: ask later",
+                self.RES,
                 "ask later",
                 False,
             ),
@@ -602,7 +639,7 @@ class TestSupersededByPlan(SessionCase):
         self.seed()
         rows = self.respond([event(1, "Q2", "defer", text="ask later")])
         self.assertIn("| superseded-by-plan | ", rows[1])
-        self.assertIn(f"{self.RES}; deferred on page: ask later", rows[1])
+        self.assertTrue(rows[1].endswith(f"| {self.RES}"), rows[1])
         rc, out = self.check("--ledger", self.export("ledger"))
         self.assertEqual(rc, 1, out)
         self.assertIn("superseded=1", out)
