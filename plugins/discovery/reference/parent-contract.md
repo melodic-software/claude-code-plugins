@@ -65,18 +65,18 @@ Source breadth: <low|medium|high|xhigh|max>
 Evidence use: <internal|publish>
 ```
 
-Write `publish` when the output will be quoted outside this session: a pull-request review reply,
-an issue, a design document, a message to a third party. Otherwise `internal`. The line is
-degradable: a research worker that does not receive it records `internal` in the index and says
-so. What `publish` tightens, and why the value is copied into the index rather than trusted from
-the envelope: the research dispatch contract's `Evidence use` row.
-
-The parent resolves that value from `${CLAUDE_EFFORT}` in the parent skill load before
-dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
-and trace-intent write neither line. A research worker that does not receive it treats
-the run as `high` and names that default in the artifact, the same fallback as an
+The parent resolves the `Source breadth:` value from `${CLAUDE_EFFORT}` in the parent skill load
+before dispatch (a literal placeholder means the body was read from disk: write `high`). Explore
+and trace-intent write neither line. A research worker that does not receive `Source breadth:`
+treats the run as `high` and names that default in the artifact, the same fallback as an
 unsubstituted body. Dated record: [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "`${CLAUDE_EFFORT}` is the loading context's level".
+
+Write `Evidence use: publish` when the output will be quoted outside this session: a
+pull-request review reply, an issue, a design document, a message to a third party. Otherwise
+`internal`. The line is degradable: a research worker that does not receive it records `internal`
+in the index and says so. What `publish` tightens, and why the value is copied into the index
+rather than trusted from the envelope: the research dispatch contract's `Evidence use` row.
 
 Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.

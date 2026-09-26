@@ -107,8 +107,11 @@ published (`undated` when the page carries no date) and which product and versio
 and every claim records its own target the same way.
 
 `applies_to` is `version-independent` or `<product> <range>`, where the range is `<v>`,
-`<v>-<v>`, or `<v>+` and `<v>` is dotted integers. A shorter version is a prefix: `9` is every
-`9.x`, `2.1` every `2.1.x`. `standing:` is derived, not chosen. A source is `current` when two
+`<v>-<v>`, or `<v>+` and `<v>` is dotted integers with no `v` prefix; record a pre-release as its
+base version. A shorter version is a prefix: `9` is every `9.x`, `2.1` every `2.1.x`. The checker
+parses the header by indentation: spaces only, no duplicate keys, `claim:` first in each claim and
+`url:` first in each source, and every sidecar carries a `claims:` key (`claims: []` when it has
+none). A header it cannot read is ungradeable, a FAIL. `standing:` is derived, not chosen. A source is `current` when two
 things hold. It covers the claim: it names the claim's product and its range covers the claim's
 whole range, or the claim is `version-independent`; a `version-independent` source does not cover a
 versioned claim. And it is dated; an undated corroborator may be `current` only for a
