@@ -807,16 +807,64 @@ expect_both 'tree: cd into a subdirectory then ../x blocks (declared overblock)'
 # The same overblock for a cd inside a subshell, which cannot move the parent.
 expect_both 'tree: a subshell cd .. then a delete blocks (declared overblock)' 2 "${RDT_CWD[@]}" \
   --command '(cd ..) ; rm -rf build'
-# CDPATH can send a relative cd anywhere, so a relative delete after one is
-# left alone; a cd spelled with ./ ignores CDPATH and is still followed.
-expect_both 'cdpath: an inline CDPATH prefix leaves the delete alone' 0 "${RDT_CWD[@]}" \
-  --command 'CDPATH=/opt cd sub && rm -rf ../y'
-expect_both 'cdpath: a CDPATH assignment segment leaves the delete alone' 0 "${RDT_CWD[@]}" \
-  --command 'CDPATH=/opt; cd sub && rm -rf ../y'
-expect_both 'cdpath: export CDPATH leaves the delete alone' 0 "${RDT_CWD[@]}" \
-  --command 'export CDPATH=/opt; cd sub && rm -rf ../y'
+# CDPATH can send a relative cd anywhere the command itself names, so a
+# relative delete after such a cd is refused rather than guessed; a cd spelled
+# with ./ ignores CDPATH and is still followed. A non-literal cd "$d" still
+# leaves the delete alone.
+expect_both 'cdpath: an inline CDPATH prefix refuses a later relative delete' 2 "${RDT_CWD[@]}" \
+  --command 'CDPATH=/c cd Windows && rm -rf x'
+expect_both 'cdpath: a CDPATH assignment segment refuses a later relative delete' 2 "${RDT_CWD[@]}" \
+  --command 'CDPATH=/c ; cd Windows && rm -rf x'
+expect_both 'cdpath: export CDPATH refuses a later relative delete' 2 "${RDT_CWD[@]}" \
+  --command 'export CDPATH=/c; cd Windows && rm -rf x'
+expect_both 'cdpath: env CDPATH through a child shell refuses' 2 "${RDT_CWD[@]}" \
+  --command "env CDPATH=/c bash -c 'cd Windows && rm -rf x'"
 expect_both 'cdpath: cd ./sub ignores CDPATH, so the delete is judged' 2 "${RDT_CWD[@]}" \
   --command 'CDPATH=/opt cd ./sub && rm -rf ../y'
+expect_both 'cdpath: an absolute delete after it is still judged, and allowed in the tree' 0 "${RDT_CWD[@]}" \
+  --command "CDPATH=/c ; cd Windows && rm -rf '$RDT_TOP/x'"
+expect_both 'cdpath: a non-literal cd still leaves a relative delete alone' 0 "${RDT_CWD[@]}" \
+  --command 'cd "$d" && rm -rf x'
+
+# Brace expansion runs before rm sees its argv, so each alternative is judged
+# as its own operand, through the root, bare-variable and outside-tree arms.
+expect_both 'brace: {/c,x} blocks (a drive root, no cwd needed)' 2 --command 'rm -rf {/c,x}'
+expect_both 'brace: {/,x} blocks' 2 --command 'rm -rf {/,x}'
+expect_both 'brace: {~,x} blocks' 2 --command 'rm -rf {~,x}'
+expect_both 'brace: {$X,y} blocks (bare variable)' 2 --command 'rm -rf {$X,y}'
+expect_both 'brace: an absolute alternative outside blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf {/opt/rdt-x,x}'
+expect_both 'brace: a drive alternative blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf {C:/Windows,x}'
+expect_both 'brace: an empty alternative before a slash blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf {,/}opt/rdt-x'
+expect_both 'brace: .. climbing out through an alternative blocks' 2 "${RDT_CWD[@]}" \
+  --command 'rm -rf x{/../../../../..,}/Windows'
+expect_both 'brace: {..,x}/y blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf {..,x}/y'
+expect_both 'brace: nested alternatives are expanded' 2 "${RDT_CWD[@]}" --command 'rm -rf {a,{c,/opt/rdt-d}}'
+expect_both 'brace: inside the tree allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf {a,b}/x a{b,c}d {a,b{c,d}}'
+expect_both 'brace: no comma stays literal, allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf x{a}'
+expect_both 'brace: quoted braces are literal, allowed' 0 "${RDT_CWD[@]}" --command "rm -rf '{/,x}'"
+expect_both 'brace: {a,b} with no cwd allowed' 0 --command 'rm -rf {a,b}'
+expect_both 'brace: a sequence is refused' 2 "${RDT_CWD[@]}" --command 'rm -rf x{1..3}'
+expect_both 'brace: a letter sequence is refused' 2 "${RDT_CWD[@]}" --command 'rm -rf x{a..c}'
+expect_both 'brace: more than 64 expansions is refused' 2 "${RDT_CWD[@]}" \
+  --command 'rm -rf {a,b}{c,d}{e,f}{g,h}{i,j}{k,l}{m,n}'
+expect_both 'brace: a partly quoted brace is refused' 2 "${RDT_CWD[@]}" --command 'rm -rf "a"{/,x}'
+expect_both 'brace: inside a substitution blocks' 2 --command 'echo $(rm -rf {/,x})'
+guard_invoke "${RDT_CWD[@]}" --command 'rm -rf x{1..3}'
+assert_contains "the brace refusal names its form" "$GUARD_ERR" "brace expansion"
+# A .. after the first glob component cannot be judged by the directory in
+# front of the glob, so it is refused.
+expect_both 'glob: .. after a glob blocks' 2 "${RDT_CWD[@]}" \
+  --command 'rm -rf .git/*/../../../../../../../../../../../../../../Windows/Temp2'
+expect_both 'glob: */.. climbing out blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf */../../../x'
+expect_both 'glob: .. inside a glob component blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .g?t/../../x'
+expect_both 'glob: .. before the glob stays judged, inside the tree allowed' 0 "${RDT_CWD[@]}" \
+  --command 'rm -rf plugins/../plugins/*/build'
+# The judgment is time-bounded in the parse too: a command that parses slowly
+# refuses rather than outrunning the hook timeout. Pinned in the source, since
+# no payload under MAX_COMMAND_LEN parses for twelve seconds on a fast host.
+assert_contains "the deadline is twelve seconds" "$(grep -n '^RDT_DEADLINE=' "$HOOK")" "RDT_DEADLINE=12"
+assert_contains "the parse callback checks the deadline" \
+  "$(sed -n '/^rdt_check_segment() {/,/^}/p' "$HOOK")" "rdt_deadline"
 # Every directory a cd reaches is judged against the PAYLOAD cwd's tree, never
 # a tree of its own. The stub git answers every directory as its own toplevel,
 # so a per-directory tree would allow this delete in the home directory.
@@ -930,18 +978,34 @@ if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$rdt_ln/dang" 2>/dev/null &&
   expect_both 'symlink: link/ to a path outside blocks' 2 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/dang/'"
   expect_both 'symlink: link/. to a path outside blocks' 2 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/dang/.'"
   expect_both 'symlink: the link itself under temp allowed' 0 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/dang'"
+  # The same link reached through a brace or a glob, from the link's own
+  # directory as cwd (under temp, outside any tree).
+  expect_both 'symlink: {link,x}/ blocks' 2 --cwd "$rdt_ln" --command 'rm -rf {dang,x}/'
+  expect_both 'symlink: link{,}/ blocks' 2 --cwd "$rdt_ln" --command 'rm -rf dang{,}/'
+  expect_both 'symlink: */../link/ blocks' 2 --cwd "$rdt_ln" --command 'rm -rf */../dang/'
+  expect_both 'symlink: a brace to the link inside a substitution blocks' 2 --cwd "$rdt_ln" \
+    --command 'echo $(rm -rf {dang,x}/)'
+  expect_both 'symlink: a plain relative name beside the link allowed' 0 --cwd "$rdt_ln" --command 'rm -rf x'
   if MSYS=winsymlinks:lnk ln -s "$RDT_TOP/.." "$rdt_ln/up" 2>/dev/null && [[ -L "$rdt_ln/up" ]]; then
     expect_both 'symlink: */ matching a link to outside blocks' 2 "${RDT_CWD[@]}" --command "rm -rf '$rdt_ln/'*/"
     expect_both 'symlink: * without the slash allowed (links are removed, not followed)' 0 "${RDT_CWD[@]}" \
       --command "rm -rf '$rdt_ln/'*"
+    # A glob before the last component is expanded, so a directory it passes
+    # through that is a link is judged by where it points.
+    expect_both 'symlink: */* through a link to outside blocks' 2 --cwd "$rdt_ln" --command 'rm -rf */*'
+    expect_both 'symlink: u*/x through a link to outside blocks' 2 --cwd "$rdt_ln" --command 'rm -rf u*/x'
     rm -f "$rdt_ln/up"
   else
-    rdt_skip "ln -s made no link to an existing directory (2 cases)"
+    rdt_skip "ln -s made no link to an existing directory (4 cases)"
   fi
   rm -f "$rdt_ln/dang"
 else
-  rdt_skip "ln -s makes no real symlink on this host (5 cases)"
+  rdt_skip "ln -s makes no real symlink on this host (12 cases)"
 fi
+# A glob before the last component over real directories under temp allowed.
+mkdir -p "$TEST_TMPDIR/g4ok/real"
+expect_both 'glob: */x over real directories under temp allowed' 0 --cwd "$TEST_TMPDIR/g4ok" --command 'rm -rf */x'
+expect_both 'glob: */* over real directories under temp allowed' 0 --cwd "$TEST_TMPDIR/g4ok" --command 'rm -rf */*'
 
 # An unexpected error inside the judgment refuses rather than exiting 1, which
 # the abort boundary would pass. The exported function stands in for any such
