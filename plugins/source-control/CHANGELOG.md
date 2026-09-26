@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.59.0] - 2026-09-26
+
+### Added
+
+- The babysit merge gate takes `--auto` (with `--merge` and `--expected-head`). When the PR is ready except for running checks, both AI review lanes (`claude-review`, `claude-security-review`) completed successfully on the live head, and no review thread is open, it runs `gh pr merge --auto --squash --match-head-commit <pin>` instead of holding. A missing, skipped, or running review lane holds. Its JSON gains `autoMerge.ready`, `autoMerge.blockers`, and `autoMergeEnabled`. `ci-status` is the only required check and does not wait on the review workflows, so auto-merge armed earlier could merge before AI review posts.
+
+### Changed
+
+- Only the merge lane enables auto-merge: a `babysit-loop` lane-pinned invocation passes `--auto`, so it applies only to PRs the rung partition admitted as C2 mechanical or C3 scoped; C4 structural and C5 PRs still wait for the user. Workers, standalone babysit-prs runs, and `/source-control:pull-request` never enable it (`babysit-prs/reference/safety.md`, "Merge-lane auto-merge").
+- `refresh_pr_branch.py` disables an armed auto-merge before updating the branch, because a writer's push keeps it armed and the new head could merge before the review lanes re-run. The orchestrator does the same before dispatching a fix worker to an armed PR.
+
 ## [0.58.5] - 2026-09-25
 
 ### Changed

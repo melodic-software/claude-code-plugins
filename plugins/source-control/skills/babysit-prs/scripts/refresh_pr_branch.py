@@ -17,6 +17,7 @@ from babysit_gh import (
     find_open_prs_for_head_ref,
     gh_json,
     parse_repo_number,
+    run_gh,
     view_pr,
 )
 from babysit_state import (
@@ -171,6 +172,13 @@ def run_locked(
     try:
         validate_current_candidate(repo, number, expected_head_sha, allowed_owners)
         require_worker_lease(args, state_dir, repo, number, renew=True)
+        # A push by a writer keeps GitHub auto-merge armed, so the new head could
+        # merge on `ci-status` before the AI review lanes re-review it. Disarm
+        # first; the merge lane re-arms once both lanes finish on the new head.
+        if json_object(gh_json(["api", f"repos/{repo}/pulls/{number}"])).get(
+            "auto_merge"
+        ):
+            run_gh(["pr", "merge", str(number), "-R", repo, "--disable-auto"])
         response = gh_json(
             [
                 "api",

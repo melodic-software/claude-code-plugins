@@ -634,6 +634,30 @@ re-invocation (`babysit-loop/SKILL.md`, Cycle shape step 3, "The verdict authori
 the PR"). Every other invocation of this skill re-pins to the vetted post-push head exactly as
 Autopilot step 3 describes.
 
+### Merge-lane auto-merge
+
+Only a lane-pinned invocation (above) adds `--auto` to its merge gate command. The lane's
+partition is the only class check, so the PR is already C2 (mechanical) or C3 (scoped); a C4
+(structural) or C5 PR never reaches a merge-capable invocation and waits for the user. With
+`--auto`, a PR that is ready except for running checks gets
+`gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
+
+- both AI review lanes, the `claude-review` and `claude-security-review` checks, completed
+  successfully on the live head (a missing, skipped, or running lane holds);
+- no review thread is unresolved, and every other gate blocker is clear.
+
+The reason: `ci-status` is the only required check and does not wait on the review workflows, so
+auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges
+synchronously. The gate's JSON reports `autoMerge.ready` and `autoMerge.blockers`; a successful
+arm exits `0` with `autoMergeEnabled: true` and `merged: false`, so it is reported as armed, not
+merged. Nothing else enables auto-merge: not a worker, not a standalone invocation, not
+`/source-control:pull-request`.
+
+A push by a writer leaves auto-merge armed, and the new head would merge on `ci-status` alone.
+`refresh_pr_branch.py` therefore disarms it before updating the branch, and before dispatching a
+fix worker to an armed PR the orchestrator runs `gh pr merge <N> -R <owner/repo> --disable-auto`.
+The lane re-arms once both review lanes finish on the new head.
+
 ### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
 Escalating a security/P1 thread instead of resolving it holds in every tier and every mode,
@@ -894,7 +918,8 @@ as done and re-running the gate.
 ## Never Do Automatically
 
 - Merge in default (safe) mode, or merge through any path other than the pinned merge wrapper's
-  gate. Worker and autopilot merge only a PR that gate proves 100% ready.
+  gate. Worker and autopilot merge only a PR that gate proves 100% ready, or arm auto-merge
+  through it under Merge-lane auto-merge.
 - Generate an approving review to satisfy a required-review ruleset, or merge on a review the
   fleet produced itself, **except** under the autopilot merge tier, a deliberate, config-gated
   opt-in that is off by default. It engages only when the operator sets
@@ -932,11 +957,10 @@ as done and re-running the gate.
   merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
   review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
   tier does not exist and the first bullet governs unchanged.
-- Enable auto-merge. Under a base whose ruleset requires review-thread resolution, plus a
-  reviewer that re-reviews each pushed head, a review round landing after `--auto` is armed
-  leaves the PR permanently unmergeable while the lane has already reported success and moved
-  on. Merge synchronously against a `ready: true` merge-gate run, or report the PR as
-  merge-ready and leave it in the queue.
+- Enable auto-merge outside Merge-lane auto-merge above. Armed earlier, a review round landing
+  after `--auto` can merge ahead of AI review or leave the PR unmergeable while the lane has
+  already moved on. Otherwise merge synchronously against a `ready: true` merge-gate run, or
+  report the PR as merge-ready and leave it in the queue.
 - Force-push.
 - Rebase or force-update a PR branch as freshness maintenance.
 - Change GitHub settings by hand.
