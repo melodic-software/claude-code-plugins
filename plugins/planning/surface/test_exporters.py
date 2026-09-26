@@ -562,10 +562,58 @@ class TestSupersededByPlan(SessionCase):
             q2["alternatives"], [{"key": "was", "text": "any enrolled user"}]
         )
 
-    def test_page_accept_takes_the_proposal(self):
+    def test_page_accept_reconfirms_the_proposal(self):
         self.seed()
         rows = self.respond([event(1, "Q2", "accept")])
-        self.assertRegex(rows[1], r"^- Q2 \| answered \| .*accepted: admin only$")
+        self.assertRegex(
+            rows[1],
+            r"^- Q2 \| answered \| .*"
+            r"reconfirmed at plan approval: admin only; was: any enrolled user$",
+        )
+
+    def test_page_accept_reconfirm_keeps_the_note(self):
+        self.seed()
+        rows = self.respond([event(1, "Q2", "accept", text="fine")])
+        self.assertRegex(
+            rows[1],
+            r"reconfirmed at plan approval: admin only; was: any enrolled user; note: fine$",
+        )
+
+    def test_page_defer_keeps_it_superseded(self):
+        seed = {"Q2": {"status": "superseded-by-plan", "resolution": self.RES}}
+        q = question("Q2")
+        page = {"Q2": {"decision": "defer", "text": "ask later", "updatedAt": AT}}
+        self.assertEqual(
+            exporters.settle(q, page, [], seed),
+            (
+                "superseded-by-plan",
+                f"{self.RES}; deferred on page: ask later",
+                "ask later",
+                False,
+            ),
+        )
+        bare = {"Q2": {"decision": "defer", "updatedAt": AT}}
+        self.assertEqual(
+            exporters.settle(q, bare, [], seed),
+            ("superseded-by-plan", self.RES, "", False),
+        )
+
+    def test_page_defer_leaves_the_ledger_row_superseded_and_the_gate_blocks(self):
+        self.seed()
+        rows = self.respond([event(1, "Q2", "defer", text="ask later")])
+        self.assertIn("| superseded-by-plan | ", rows[1])
+        self.assertIn(f"{self.RES}; deferred on page: ask later", rows[1])
+        rc, out = self.check("--ledger", self.export("ledger"))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("superseded=1", out)
+
+    def test_proposes_matches_any_case(self):
+        doc = self.seed(res="Plan Proposes: admin only; Was: any enrolled user")
+        q2 = next(q for q in doc["questions"] if q["id"] == "Q2")
+        self.assertEqual(q2["recommendation"], "admin only")
+        self.assertEqual(
+            q2["alternatives"], [{"key": "was", "text": "any enrolled user"}]
+        )
 
     def test_page_alt_was_keeps_the_prior_answer(self):
         self.seed()

@@ -34,7 +34,7 @@ QN = re.compile(r"^Q[1-9][0-9]*$")
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
-PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$")
+PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -122,6 +122,16 @@ def settle(q, responses, events, seed_rows):
     decision = rec.get("decision") if rec else None
     text = clean((rec or {}).get("text"))
     note = f"; note: {text}" if text else ""
+    superseded = seed and seed["status"] == "superseded-by-plan"
+    proposal = PROPOSES.match(seed.get("resolution", "")) if superseded else None
+    if decision == "accept" and proposal:
+        new, old = proposal.groups()
+        res = f"reconfirmed at plan approval: {new}; was: {old}"
+        return "answered", res + note + tail, text, False
+    if decision == "defer" and superseded:
+        res = seed.get("resolution", "")
+        res += f"; deferred on page: {text}" if text else ""
+        return "superseded-by-plan", res + tail, text, False
     if decision == "accept":
         return (
             "answered",
