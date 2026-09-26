@@ -569,7 +569,7 @@ check_row wrapped-unsafe local - unparsed -
 check_row latest npx @scope/pkg@latest floating-tag @scope
 check_row scoped npx @scope/pkg floating-unversioned @scope
 check_row scopedexact npx @scope/pkg@1.2.3 exact @scope
-check_row tarball npx https://registry.npmjs.org/p/-/p-1.0.0.tgz exact registry.npmjs.org
+check_row tarball npx https://registry.npmjs.org/.../p-1.0.0.tgz exact registry.npmjs.org
 check_row tarball-other npx https://cdn.example.com/p-1.0.0.tgz tarball cdn.example.com
 check_row tarball-targz uvx https://files.example.com/pkg-1.0.tar.gz tarball files.example.com
 check_row gitsha npx github:o/r#0123456789abcdef0123456789abcdef01234567 git-commit github:o
@@ -765,6 +765,126 @@ assert_eq "sdk launcher" "sdk" "$(cell file t-sdk 5)"
 check_row q-key remote https://h.example.com n/a h.example.com
 check_row q-userinfo remote https://h.example.com n/a h.example.com
 
+# --- Run 9: second re-attack (value filter, env options, path elision) ---------
+# Withheld cases carry ZQX; the .cfg extension keeps them out of the *.json grep, and the
+# planted loop below collects them separately. Residual cases carry RSD instead: they are
+# not secret-shaped under the value filter, so they still print (asserted below).
+
+mkdir -p "$FIX/managed six/managed-settings.d"
+cat >"$FIX/managed six/managed-settings.d/50-n.json" <<'JSON'
+{"managedMcpServers": {"RSDsecret123": {"type": "http", "url": "https://h.example.com"}}}
+JSON
+cat >"$FIX/reattack2 cases.cfg" <<'JSON'
+{"mcpServers": {
+  "N01-npm-longtag":{"command":"npx","args":["-y","somepkg@ZQXghpAbcDef0123456789abcdef0123456789abcdef0123456789ABCDEF0123456789"]},
+  "N02-npm-scope":{"command":"npx","args":["-y","@ZQXsecret0123456789abcdef0123456789/pkg@1.0.0"]},
+  "N03-img-tag":{"command":"docker","args":["run","-i","--rm","ghcr.io/o/img:ZQXghp_AbcDef0123456789abcdef0123456789"]},
+  "N04-img-registry":{"command":"docker","args":["run","ZQXtoken0123456789.registry.example.com:5000/o/img:1"]},
+  "N05-git-path":{"command":"npx","args":["-y","git+https://github.com/o/ZQXghpAbcDef0123456789abcdef.git"]},
+  "N06-tarball-path":{"command":"npx","args":["-y","https://h.example.com/api/ZQXtoken0123456789abcdef/pkg.tgz"]},
+  "N07-alias-tarball":{"command":"npx","args":["-y","foo@https://h.example.com/ZQXsecret/x.tgz"]},
+  "N08-py-url":{"command":"uvx","args":["--from","pkg @ git+https://u:pw@h.example.com/RSDsecret/r.git","pkg"]},
+  "N09-local-path":{"command":"npx","args":["-y","./RSDsecret0123456789/pkg"]},
+  "N10-file-path":{"command":"npx","args":["-y","file:RSDsecret0123456789"]},
+  "N11-home-path":{"command":"uvx","args":["~/RSDsecret"]},
+  "N12-gh-spec":{"command":"npx","args":["-y","ZQXowner/ZQXghpAbcDef0123456789"]},
+  "N13-uvx-name":{"command":"uvx","args":["ZQXghp_AbcDef0123456789abcdef0123456789ABCDEF"]},
+  "N14-uvx-ver":{"command":"uvx","args":["pkg==RSDsecret0123456789"]},
+  "N15-uvx-at":{"command":"uvx","args":["pkg@RSDsecret0123456789"]},
+  "N16-basename":{"command":"ZQXsk-proj-AbcDef0123456789abcdef0123456789","args":[]},
+  "N17-bash-c-basename":{"command":"bash","args":["-c","RSDsecret_token_0123456789abcdef --serve"]},
+  "N18-env-P":{"command":"env","args":["-P","ZQXsecret","server"]},
+  "N19-env-a":{"command":"env","args":["-a","ZQXsecret","server"]},
+  "N20-remote-host":{"type":"http","url":"https://ZQXtoken0123456789abcdef.ngrok.io/mcp"},
+  "N21-remote-port":{"type":"sse","url":"https://h.example.com:443/ZQXpath?k=ZQX"},
+  "ZQXa1b2c3d4e5f6g7h8i9j0 k1l2m3n4o5p6q7r8s9t0u1v2w3x4":{"command":"node"},
+  "ZQXabcdefghijklmnopqrstuvwx01.abcdefghijklmnopqrstuvwxyz0123":{"command":"node"},
+  "prod ZQXAKIAIOSFODNN7EXAMPLE":{"command":"node"},
+  "ZQXabcdef0123456789abcdef012":{"command":"node"},
+  "a\tZQXsecret":{"command":"node"},
+  "RSD correct horse battery staple":{"command":"node"},
+  "N28-type-garbage":{"type":"ZQXsecret","url":"https://h.example.com"},
+  "N29-cmd-set":{"command":"cmd","args":["/c","set","TOKEN=ZQXsecret","&&","npx","-y","pkg@1.0.0"]},
+  "N30-pwsh-env":{"command":"pwsh","args":["-Command","$env:TOKEN='ZQXsecret'; npx -y pkg@1.0.0"]},
+  "N31-docker-env":{"command":"docker","args":["run","-eTOKEN=ZQXsecret","--env=X=ZQXsecret","-e","Y=ZQXsecret","img:1"]},
+  "N32-docker-unknown-flag":{"command":"docker","args":["run","--newflag","ZQXsecret","img:1"]},
+  "N33-npx-unknown-flag-eq":{"command":"npx","args":["--foo","ZQXsecret0123456789","pkg"]},
+  "N34-npx-c":{"command":"npx","args":["-c","ZQXsecret cmd","pkg@1.0.0"]},
+  "N35-npm-hex":{"command":"npx","args":["-y","ZQX0123456789abcdef0123456789abcdef01234567"]},
+  "N36-uv-with":{"command":"uvx","args":["--with","ZQXsecret","--index-url","https://u:ZQX@h/simple","pkg==1.0"]},
+  "N37-env-S":{"command":"env","args":["-S","TOKEN=ZQXsecret npx -y pkg@1.0.0"]},
+  "N38-bash-c-assign":{"command":"bash","args":["-c","TOKEN=ZQXsecret npx -y pkg@1.0.0"]},
+  "N39-nonstring-arg":{"command":"ZQXcmd","args":[1]},
+  "N40-img-libname":{"command":"podman","args":["run","ZQXsecret0123456789abcdef"]},
+  "N41-pipx-spec":{"command":"pipx","args":["run","--spec","RSDsecret==1.0","x"]},
+  "N43-img-digest":{"command":"docker","args":["run","ZQX/img@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]},
+  "N44-gh-commit":{"command":"npx","args":["-y","github:RSDo/r#0123456789abcdef0123456789abcdef01234567"]},
+  "N45-sdk":{"type":"sdk","name":"ZQX"},
+  "env-unknown-flag":{"command":"env","args":["--frob","ZQXenvflag","npx","pkg"]},
+  "env-unset-eq":{"command":"env","args":["--unset=ZQXunset","npx","pkg@1.0.0"]},
+  "legit-npm":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem@2025.4.8"]},
+  "legit-py":{"command":"uvx","args":["mcp-server-fetch==2025.4.7"]},
+  "legit-img":{"command":"docker","args":["run","ghcr.io/github/github-mcp-server:0.4.0"]},
+  "legit-digest":{"command":"docker","args":["run","docker.io/mcp/notes@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"]},
+  "legit-git":{"command":"npx","args":["git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567"]}
+}}
+JSON
+
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/managed six" --config "$FIX/reattack2 cases.cfg" --date 2026-01-02
+assert_eq "run 9 exits 0" 0 "$RC"
+assert_eq "run 9 prints one row per case" 52 "$(printf '%s\n' "$OUT" | sed -n '3,$p' | grep -vc '^#')"
+check_row N01-npm-longtag npx - unparsed -
+check_row N05-git-path npx - unparsed -
+check_row N06-tarball-path npx https://h.example.com/.../pkg.tgz tarball h.example.com
+check_row N07-alias-tarball npx foo@https://h.example.com/.../x.tgz tarball h.example.com
+check_row N12-gh-spec npx - unparsed -
+check_row N13-uvx-name uvx - unparsed -
+check_row N16-basename local - unparsed -
+check_row N18-env-P local server not-a-package local
+check_row N19-env-a local server not-a-package local
+check_row N20-remote-host remote - unparsed -
+check_row env-unknown-flag local - unparsed -
+check_row env-unset-eq npx pkg@1.0.0 exact unscoped
+check_row legit-npm npx @modelcontextprotocol/server-filesystem@2025.4.8 exact @modelcontextprotocol
+check_row legit-py uvx mcp-server-fetch==2025.4.7 exact pypi
+check_row legit-img docker ghcr.io/github/github-mcp-server:0.4.0 mutable-tag ghcr.io/github
+check_row legit-digest docker \
+  docker.io/mcp/notes@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef digest docker.io/mcp
+check_row legit-git npx git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567 git-commit github.com
+assert_eq "secret-shaped name with spaces redacted" "node" "$(cell file 'redacted-name(52)' 6)"
+assert_eq "name with AKIA inside redacted" "node" "$(cell file 'redacted-name(28)' 6)"
+# Residuals: short values that are not secret-shaped under the value filter still print.
+check_row N08-py-url uvx 'pkg @ git+https://h.example.com/RSDsecret/r.git' git-ref h.example.com
+check_row N14-uvx-ver uvx pkg==RSDsecret0123456789 exact pypi
+check_row N17-bash-c-basename local RSDsecret_token_0123456789abcdef not-a-package local
+assert_eq "dictionary-word name prints (accepted residual)" "node" "$(cell file 'RSD correct horse battery staple' 6)"
+assert_eq "short drop-in entry name prints (accepted residual)" "yes" "$(cell managed-settings RSDsecret123 3)"
+
+# --- Run 10: availability limits and source paths ----------------------------
+
+jq -n '{mcpServers: {big: {command: "bash", args: ["-c", ("npx \"" + ("a" * 1048576))]}}}' >"$FIX/big wrapper.json"
+jq -n '{mcpServers: {many: {command: "npx", args: ([range(0; 257)] | map("pkg"))}}}' >"$FIX/many args.json"
+started=$SECONDS
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/big wrapper.json" --config "$FIX/many args.json" --date 2026-01-02
+assert_eq "1 MB unbalanced wrapper finishes in under 10 s" "yes" "$([[ $((SECONDS - started)) -lt 10 ]] && echo yes)"
+check_row big local - unparsed -
+check_row many npx - unparsed -
+
+mkdir -p "$FIX/managed seven/managed-settings.d"
+printf '%s\n' '{"managedMcpServers": {}}' >"$FIX/managed seven/managed-settings.d/ZQXdrop0123456789abcdefghij.json"
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/managed seven" --date 2026-01-02
+assert_contains "secret-shaped drop-in file name prints as redacted-file" "$OUT" \
+  "# source managed-settings $FIX/managed seven/managed-settings.d/redacted-file found-empty"
+assert_not_contains "drop-in file name not echoed" "$OUT$ERR" "ZQXdrop"
+
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/a"$'\n'"ZQXLINEPATH.json" --date 2026-01-02
+assert_eq "control character in a source path exits 2" 2 "$RC"
+assert_not_contains "control-character path not echoed" "$OUT$ERR" "ZQXLINEPATH"
+
 # --- Exit 2 cases --------------------------------------------------------------
 
 printf '%s\n' '{not json' >"$FIX/bad.json"
@@ -819,6 +939,9 @@ assert_contains "jq missing names jq" "$ERR" "jq"
 planted="$(grep -rhoE '(LEAK|SECRET)[A-Z0-9_]*|ZQX[0-9]{3}' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
 assert_eq "planted secret tokens were collected" "yes" "$([[ -n "$planted" ]] && echo yes)"
 assert_eq "all 85 re-attack ids were collected" 85 "$(printf '%s\n' "$planted" | grep -c '^ZQX')"
+second="$(grep -hoE 'ZQX[A-Za-z0-9]*' "$FIX/reattack2 cases.cfg" | LC_ALL=C sort -u)"
+assert_eq "second re-attack tokens were collected" "yes" "$([[ -n "$second" ]] && echo yes)"
+planted+=$'\n'"$second"
 while IFS= read -r secret; do
   [[ -z "$secret" ]] && continue
   assert_not_contains "secret $secret never emitted" "$ALL" "$secret"
