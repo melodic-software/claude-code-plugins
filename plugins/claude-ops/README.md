@@ -283,10 +283,10 @@ is still owed, and the default stays off until it is taken.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
 hook, gated by the same switch in shell form, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
-`session_log_pre_prune_command` hands an archiver the files about to go. The root carries its own `*`
-`.gitignore`, so nothing under it reaches `git status`; `/claude-ops:setup`
-reports the toggles and the guard, `/claude-ops:observability session` reads
-the result.
+`session_log_pre_prune_command` hands an archiver the files about to go. The
+root carries its own `*` `.gitignore`, so nothing under it reaches
+`git status`; `/claude-ops:setup` reports the toggles and the guard,
+`/claude-ops:observability session` reads the result.
 
 ## Install
 
