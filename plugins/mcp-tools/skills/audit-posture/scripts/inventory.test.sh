@@ -799,7 +799,7 @@ cat >"$FIX/reattack2 cases.cfg" <<'JSON'
   "N21-remote-port":{"type":"sse","url":"https://h.example.com:443/ZQXpath?k=ZQX"},
   "ZQXa1b2c3d4e5f6g7h8i9j0 k1l2m3n4o5p6q7r8s9t0u1v2w3x4":{"command":"node"},
   "ZQXabcdefghijklmnopqrstuvwx01.abcdefghijklmnopqrstuvwxyz0123":{"command":"node"},
-  "prod ZQXAKIAIOSFODNN7EXAMPLE":{"command":"node"},
+  "prod RSDAKIAIOSFODNN7EXAMPLE":{"command":"node"},
   "ZQXabcdef0123456789abcdef012":{"command":"node"},
   "a\tZQXsecret":{"command":"node"},
   "RSD correct horse battery staple":{"command":"node"},
@@ -853,7 +853,9 @@ check_row legit-digest docker \
   docker.io/mcp/notes@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef digest docker.io/mcp
 check_row legit-git npx git+https://github.com/o/r.git#0123456789abcdef0123456789abcdef01234567 git-commit github.com
 assert_eq "secret-shaped name with spaces redacted" "node" "$(cell file 'redacted-name(52)' 6)"
-assert_eq "name with AKIA inside redacted" "node" "$(cell file 'redacted-name(28)' 6)"
+assert_eq "digit-letter name redacted" "node" "$(cell file 'redacted-name(28)' 6)"
+assert_eq "AKIA glued to a letter prints (accepted residual)" "node" \
+  "$(cell file 'prod RSDAKIAIOSFODNN7EXAMPLE' 6)"
 # Residuals: short values that are not secret-shaped under the value filter still print.
 check_row N08-py-url uvx 'pkg @ git+https://h.example.com/RSDsecret/r.git' git-ref h.example.com
 check_row N14-uvx-ver uvx pkg==RSDsecret0123456789 exact pypi
@@ -871,6 +873,26 @@ run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/no
 assert_eq "1 MB unbalanced wrapper finishes in under 10 s" "yes" "$([[ $((SECONDS - started)) -lt 10 ]] && echo yes)"
 check_row big local - unparsed -
 check_row many npx - unparsed -
+
+# Secret prefixes match only at the start of a value or after a non-alphanumeric character.
+cat >"$FIX/prefix cases.json" <<'JSON'
+{"mcpServers": {
+  "p-task": {"command": "npx", "args": ["task-runner@1.0.0"]},
+  "p-disk": {"command": "npx", "args": ["disk-usage@1.0.0"]},
+  "p-asian": {"command": "npx", "args": ["@acme/asian-food@1.0.0"]},
+  "p-sk": {"command": "npx", "args": ["sk-proj-abc@1.0.0"]},
+  "p-ghp": {"command": "npx", "args": ["x/ghp_abc"]},
+  "prod AKIAabc": {"command": "npx", "args": ["plain@1.0.0"]}
+}}
+JSON
+run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/nope.json" \
+  --managed-dir "$FIX/no managed" --config "$FIX/prefix cases.json" --date 2026-01-02
+check_row p-task npx task-runner@1.0.0 exact unscoped
+check_row p-disk npx disk-usage@1.0.0 exact unscoped
+check_row p-asian npx @acme/asian-food@1.0.0 exact @acme
+check_row p-sk npx - unparsed -
+check_row p-ghp npx - unparsed -
+assert_eq "AKIA after a space redacts the name" "plain@1.0.0" "$(cell file 'redacted-name(12)' 6)"
 
 mkdir -p "$FIX/managed seven/managed-settings.d"
 printf '%s\n' '{"managedMcpServers": {}}' >"$FIX/managed seven/managed-settings.d/ZQXdrop0123456789abcdefghij.json"
