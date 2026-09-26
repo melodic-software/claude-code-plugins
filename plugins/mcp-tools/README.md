@@ -49,7 +49,7 @@ server does not). The skill then evaluates five criteria:
 - **P4 OCI image available but unused**.
 - **P5 Inventory**. The dated table itself, meant to be saved and diffed between runs.
 
-P2 to P4 need facts the config does not hold, so their results are labelled `unverified` unless you
+P2 to P4 need facts the config does not hold, so their results are labeled `unverified` unless you
 ask for a registry or vendor lookup.
 
 ## Usage

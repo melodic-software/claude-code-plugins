@@ -14,9 +14,9 @@ run the script.
 Footer lines:
 
 ```text
-# source user /home/dev/.claude.json found
-# source local /home/dev/.claude.json absent
-# source project /home/dev/app/.mcp.json found
+# source user ~/.claude.json found
+# source local ~/.claude.json absent
+# source project ~/app/.mcp.json found
 # source managed /etc/claude-code/managed-mcp.json absent
 # source managed-settings /etc/claude-code/managed-settings.json found
 # not read: MDM/registry/plist policy

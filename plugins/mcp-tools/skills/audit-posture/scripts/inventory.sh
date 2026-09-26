@@ -248,7 +248,7 @@ def unwrap:
       else . end
     end;
 def strip_url:
-  gsub("://[^/@?#\\s]*@"; "://")
+  gsub("://[^/@?#[:space:]]*@"; "://")
   | if test("#[0-9a-f]{40}$")
     then ((capture("^(?<a>[^?#]*)[^#]*(?<h>#[0-9a-f]{40})$") | .a + .h) // .)
     else sub("[?#].*$"; "") end;
@@ -264,8 +264,8 @@ def git_pub:
   else "github:" + (split("/") | .[0]) end;
 def ref_class: if is_local_path then {pin: "local-path", pub: "local"} else {pin: git_pin, pub: git_pub} end;
 def npm_shape:
-  (test("\\s") | not) and (is_assign | not)
-  and (is_ref or test("^[A-Za-z0-9._~-]+/[^\\s@=]+$") or test("^(@[A-Za-z0-9._~-]+/)?[A-Za-z0-9._~-]+(@.*)?$"));
+  (test("[[:space:]]") | not) and (is_assign | not)
+  and (is_ref or test("^[A-Za-z0-9._~-]+/[^[:space:]@=]+$") or test("^(@[A-Za-z0-9._~-]+/)?[A-Za-z0-9._~-]+(@.*)?$"));
 def py_shape:
   (is_assign | not)
   and (is_ref or test("^[A-Za-z0-9][A-Za-z0-9._-]*(\\[[^\\]]*\\])?( *(===?|>=|<=|~=|!=|<|>|@) *[^ ].*)?$"));
