@@ -29,17 +29,26 @@ fail() {
   fails=$((fails + 1))
 }
 
-# run <expected-exit> <label> [args...]
+# run <expected-exit> <label> [--err <stderr-substring>] [args...]
+# --err also requires stderr to contain the substring, so a case fails for its
+# intended rule rather than for any violation at all.
 run() {
-  local expected="$1" label="$2"
+  local expected="$1" label="$2" want_err=""
   shift 2
-  local out actual
-  out="$(python3 "$SUT" "$@" 2>&1)"
+  if [[ "${1:-}" == --err ]]; then
+    want_err="$2"
+    shift 2
+  fi
+  local err actual
+  python3 "$SUT" "$@" >/dev/null 2>"$WORK/stderr"
   actual=$?
-  if [[ "$actual" -eq "$expected" ]]; then
-    pass "$label (exit $actual)"
+  err="$(cat "$WORK/stderr")"
+  if [[ "$actual" -ne "$expected" ]]; then
+    fail "$label: expected exit $expected, got $actual: $err"
+  elif [[ -n "$want_err" && "$err" != *"$want_err"* ]]; then
+    fail "$label: stderr lacks '$want_err': $err"
   else
-    fail "$label: expected exit $expected, got $actual: $out"
+    pass "$label (exit $actual)"
   fi
 }
 
@@ -99,47 +108,79 @@ run 0 "clean slice, publish" "$clean_pub"
 
 # --- published (R2) ---------------------------------------------------------
 
-run 1 "missing published" "$(one_source pub-missing corroborator - "$V9" current)"
-run 1 "bad published" "$(one_source pub-bad corroborator 2025-02-30 "$V9" current)"
-run 1 "non-date published" "$(one_source pub-word corroborator soon "$V9" current)"
-run 1 "future published" "$(one_source pub-future corroborator 2999-01-01 "$V9" current)"
+PUB_BAD='source 2: published missing, invalid or in the future'
+DERIVES_HIST='standing is current but derives historical'
+DERIVES_CUR='standing is historical but derives current'
+
+run 1 "missing published" --err "$PUB_BAD" "$(one_source pub-missing corroborator - "$V9" current)"
+run 1 "bad published" --err "$PUB_BAD: 2025-02-30" "$(one_source pub-bad corroborator 2025-02-30 "$V9" current)"
+run 1 "non-date published" --err "$PUB_BAD: soon" "$(one_source pub-word corroborator soon "$V9" current)"
+run 1 "future published" --err "$PUB_BAD: 2999-01-01" "$(one_source pub-future corroborator 2999-01-01 "$V9" current)"
 
 # --- applies_to (R1, R3) ----------------------------------------------------
 
-run 1 "missing claim applies_to" "$(mkslice claim-at-missing - "$(claim - "$PRIMARY")")"
-run 1 "unparseable claim applies_to" "$(mkslice claim-at-bad - "$(claim 'ExampleLib' "$PRIMARY")")"
-run 1 "missing source applies_to" "$(one_source src-at-missing corroborator 2025-01-01 - current)"
-run 1 "unparseable source applies_to" "$(one_source src-at-bad corroborator 2025-01-01 'ExampleLib ten' current)"
-run 1 "inverted source range" "$(one_source src-at-inverted corroborator 2025-01-01 'ExampleLib 10-8' historical)"
+run 1 "missing claim applies_to" --err 'claim 1: applies_to missing or unparseable: None' \
+  "$(mkslice claim-at-missing - "$(claim - "$PRIMARY")")"
+run 1 "unparseable claim applies_to" --err 'claim 1: applies_to missing or unparseable: ExampleLib' \
+  "$(mkslice claim-at-bad - "$(claim 'ExampleLib' "$PRIMARY")")"
+run 1 "missing source applies_to" --err 'source 2: applies_to missing or unparseable: None' \
+  "$(one_source src-at-missing corroborator 2025-01-01 - current)"
+run 1 "unparseable source applies_to" --err 'source 2: applies_to missing or unparseable: ExampleLib ten' \
+  "$(one_source src-at-bad corroborator 2025-01-01 'ExampleLib ten' current)"
+run 1 "inverted source range" --err 'source 2: applies_to missing or unparseable: ExampleLib 10-8' \
+  "$(one_source src-at-inverted corroborator 2025-01-01 'ExampleLib 10-8' historical)"
 
 # --- standing and role (R4, R5) ---------------------------------------------
 
-run 1 "bad standing" "$(one_source bad-standing corroborator 2025-01-01 "$V9" stale)"
-run 1 "missing standing" "$(one_source no-standing corroborator 2025-01-01 "$V9" -)"
-run 1 "bad role" "$(one_source bad-role secondary 2025-01-01 "$V9" current)"
-run 1 "two primaries" "$(one_source two-primaries primary 2025-01-01 "$V9" current)"
-run 1 "zero primaries" "$(mkslice zero-primaries - "$(claim "$V9" "$(src corroborator 2025-01-01 "$V9" current)")")"
+run 1 "bad standing" --err 'source 2: standing must be current or historical: stale' \
+  "$(one_source bad-standing corroborator 2025-01-01 "$V9" stale)"
+run 1 "missing standing" --err 'source 2: standing must be current or historical: None' \
+  "$(one_source no-standing corroborator 2025-01-01 "$V9" -)"
+run 1 "bad role" --err 'source 2: role must be primary or corroborator: secondary' \
+  "$(one_source bad-role secondary 2025-01-01 "$V9" current)"
+run 1 "two primaries" --err 'expected exactly one primary source, found 2' \
+  "$(one_source two-primaries primary 2025-01-01 "$V9" current)"
+run 1 "zero primaries" --err 'expected exactly one primary source, found 0' \
+  "$(mkslice zero-primaries - "$(claim "$V9" "$(src corroborator 2025-01-01 "$V9" current)")")"
 
 # --- primary (R7) -----------------------------------------------------------
 
-run 1 "undated primary on versioned claim" \
+run 1 "undated primary on versioned claim" --err 'source 1: primary source must be dated' \
   "$(mkslice undated-primary - "$(claim "$V9" "$(src primary undated "$V9" current)")")"
-run 1 "undated primary on version-independent claim, internal" \
+run 1 "undated primary on version-independent claim, internal" --err 'source 1: primary source must be dated' \
   "$(mkslice undated-primary-vi - "$(claim version-independent "$(src primary undated version-independent current)")")"
-run 1 "historical primary" \
+run 1 "historical primary" --err 'source 1: primary source must be current' \
   "$(mkslice historical-primary - "$(claim "$V9" "$(src primary 2025-01-01 'ExampleLib 2' historical)")")"
+
+# An undated primary is one fault: "must be dated" fires, "must be current"
+# does not, and a stored label that already says historical adds nothing more.
+undated_hist="$(mkslice undated-primary-hist - "$(claim "$V9" "$(src primary undated "$V9" historical)")")"
+out="$(python3 "$SUT" "$undated_hist" 2>"$WORK/stderr")"
+err="$(cat "$WORK/stderr")"
+if [[ "$out" == 'status=fail violations=1 '* && "$err" == *'must be dated'* ]]; then
+  pass "undated primary stored historical reports one violation"
+else
+  fail "undated primary stored historical should report one violation: $out / $err"
+fi
+out="$(python3 "$SUT" "$WORK/undated-primary" 2>"$WORK/stderr")"
+err="$(cat "$WORK/stderr")"
+if [[ "$out" == 'status=fail violations=2 '* && "$err" == *"$DERIVES_HIST"* && "$err" != *'must be current'* ]]; then
+  pass "undated primary stored current reports the mismatch and the date only"
+else
+  fail "undated primary stored current should report two violations: $out / $err"
+fi
 
 # --- derived standing (R6) --------------------------------------------------
 
-run 1 "old-major source stored current on newer-major claim" \
+run 1 "old-major source stored current on newer-major claim" --err "source 2: $DERIVES_HIST" \
   "$(one_source old-major-current corroborator 2020-01-01 'ExampleLib 2' current)"
 run 0 "old-major source stored historical" \
   "$(one_source old-major-historical corroborator 2020-01-01 'ExampleLib 2' historical)"
-run 1 "version-independent source stored current on versioned claim" \
+run 1 "version-independent source stored current on versioned claim" --err "source 2: $DERIVES_HIST" \
   "$(one_source vi-on-versioned corroborator 2025-01-01 version-independent current)"
 run 0 "version-independent source stored historical on versioned claim" \
   "$(one_source vi-on-versioned-hist corroborator 2025-01-01 version-independent historical)"
-run 1 "different-product source stored current" \
+run 1 "different-product source stored current" --err "source 2: $DERIVES_HIST" \
   "$(one_source other-product corroborator 2025-01-01 'OtherLib 9' current)"
 run 0 "different-product source stored historical" \
   "$(one_source other-product-hist corroborator 2025-01-01 'OtherLib 9' historical)"
@@ -147,36 +188,47 @@ run 0 "range source covers the claim" \
   "$(one_source range-covers corroborator 2025-01-01 'ExampleLib 8-10' current)"
 run 0 "plus source covers the claim" \
   "$(one_source plus-covers corroborator 2025-01-01 'ExampleLib 8+' current)"
-run 1 "narrower source stored current" \
+run 1 "narrower source stored current" --err "source 2: $DERIVES_HIST" \
   "$(one_source narrower corroborator 2025-01-01 'ExampleLib 9.4' current)"
 run 0 "narrower source stored historical" \
   "$(one_source narrower-hist corroborator 2025-01-01 'ExampleLib 9.4' historical)"
-run 1 "undated source stored current on versioned claim" \
+run 1 "undated source stored current on versioned claim" --err "source 2: $DERIVES_HIST" \
   "$(one_source undated-versioned corroborator undated "$V9" current)"
 run 0 "product compared case- and space-insensitively" \
   "$(one_source product-case corroborator 2025-01-01 'examplelib   9' current)"
 run 0 "dotted prefix covers a patch claim" \
   "$(one_source prefix-covers corroborator 2025-01-01 'Tool 2.1' current 'Tool 2.1.211')"
-run 1 "sibling minor stored current on a patch claim" \
+run 1 "sibling minor stored current on a patch claim" --err "source 2: $DERIVES_HIST" \
   "$(one_source prefix-miss corroborator 2025-01-01 'Tool 2.0' current 'Tool 2.1.211')"
 run 0 "sibling minor stored historical on a patch claim" \
   "$(one_source prefix-miss-hist corroborator 2025-01-01 'Tool 2.0' historical 'Tool 2.1.211')"
-run 1 "source stored historical that derives current" \
+run 1 "source stored historical that derives current" --err "source 2: $DERIVES_CUR" \
   "$(one_source under-claims corroborator 2025-01-01 'ExampleLib 8-10' historical)"
+run 1 "exact source stored current on a range claim" --err "source 2: $DERIVES_HIST" \
+  "$(one_source range-claim-exact corroborator 2025-01-01 "$V9" current 'ExampleLib 8-10')"
+run 0 "exact source stored historical on a range claim" \
+  "$(one_source range-claim-exact-hist corroborator 2025-01-01 "$V9" historical 'ExampleLib 8-10')"
+run 1 "bounded source stored current on an open claim" --err "source 2: $DERIVES_HIST" \
+  "$(one_source open-claim-bounded corroborator 2025-01-01 'ExampleLib 9-12' current 'ExampleLib 9+')"
+run 0 "bounded source stored historical on an open claim" \
+  "$(one_source open-claim-bounded-hist corroborator 2025-01-01 'ExampleLib 9-12' historical 'ExampleLib 9+')"
+run 0 "open source covers an open claim" \
+  "$(one_source open-claim-open corroborator 2025-01-01 'ExampleLib 8+' current 'ExampleLib 9+')"
 
 vi_corrob() {
   mkslice "$1" "$2" "$(claim version-independent "$(src primary 2025-01-01 version-independent current)
 $(src corroborator undated version-independent current)")"
 }
 run 0 "undated current corroborator on version-independent claim, internal" "$(vi_corrob vi-undated -)"
-run 1 "undated current corroborator on version-independent claim, publish" "$(vi_corrob vi-undated-pub publish)"
+run 1 "undated current corroborator on version-independent claim, publish" \
+  --err "source 2: $DERIVES_HIST" "$(vi_corrob vi-undated-pub publish)"
 run 0 "versioned source covers a version-independent claim" \
   "$(one_source vi-claim-versioned corroborator 2025-01-01 'OtherLib 3' current version-independent)"
 
 # --- evidence_use -----------------------------------------------------------
 
 run 1 "--expect-evidence-use publish against index without evidence_use" \
-  "$clean" --expect-evidence-use publish
+  --err 'index records internal, caller expects publish' "$clean" --expect-evidence-use publish
 run 0 "--expect-evidence-use internal against index without evidence_use" \
   "$clean" --expect-evidence-use internal
 run 0 "--expect-evidence-use publish against publish index" \
@@ -191,6 +243,9 @@ fi
 run 2 "bad --expect-evidence-use value" "$clean" --expect-evidence-use draft
 run 2 "--expect-evidence-use without a value" "$clean" --expect-evidence-use
 run 2 "bad evidence_use in the index" "$(mkslice bad-mode draft "$(claim "$V9" "$PRIMARY")")"
+empty_mode="$(mkslice empty-mode - "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\ntopic: t\nevidence_use:\n---\n' >"$empty_mode/RESEARCH.md"
+run 2 "empty evidence_use in the index" --err 'evidence_use must be internal or publish' "$empty_mode"
 run 0 "quoted evidence_use in the index" "$(mkslice quoted-mode '"publish"' "$(claim "$V9" "$PRIMARY")")"
 
 # --- parsing ----------------------------------------------------------------
@@ -203,18 +258,19 @@ sed 's/$/\r/' "$crlf/RESEARCH-s.md" >"$crlf/crlf.tmp" && mv "$crlf/crlf.tmp" "$c
 run 0 "CRLF sidecar parses" "$crlf"
 crlf_bad="$(mkslice crlf-bad - "$(claim "$V9" "$(src primary 2025-01-01 'ExampleLib 2' current)")")"
 sed 's/$/\r/' "$crlf_bad/RESEARCH-s.md" >"$crlf_bad/crlf.tmp" && mv "$crlf_bad/crlf.tmp" "$crlf_bad/RESEARCH-s.md"
-run 1 "CRLF sidecar still graded" "$crlf_bad"
+run 1 "CRLF sidecar still graded" --err "source 1: $DERIVES_HIST" "$crlf_bad"
 
 bom="$(mkslice bom - "$(claim "$V9" "$PRIMARY")")"
 { printf '\xef\xbb\xbf'; cat "$bom/RESEARCH-s.md"; } >"$bom/bom.tmp" && mv "$bom/bom.tmp" "$bom/RESEARCH-s.md"
 run 0 "BOM sidecar parses" "$bom"
 
+# An all-Gap run: every sidecar says claims: [] and the slice still passes.
 no_claims="$WORK/no-claims"
 mkdir -p "$no_claims"
 printf -- '---\ntopic: t\n---\n' >"$no_claims/RESEARCH.md"
-printf -- '---\ntopic: t\nsection: s\n---\n' >"$no_claims/RESEARCH-a.md"
-printf -- '---\ntopic: t\nclaims: []\n---\n' >"$no_claims/RESEARCH-b.md"
-run 0 "sidecars with no claims" "$no_claims"
+printf -- '---\ntopic: t\nclaims: []\n---\n' >"$no_claims/RESEARCH-a.md"
+printf -- '---\ntopic: t\nclaims:\n---\n' >"$no_claims/RESEARCH-b.md"
+run 0 "sidecars with empty claims lists" "$no_claims"
 
 # A bad sidecar in a sub-slice is never read.
 nested="$(mkslice nested - "$(claim "$V9" "$PRIMARY")")"
@@ -239,7 +295,35 @@ printf -- '---\ntopic: t\nclaims: []\n' >"$unterminated/RESEARCH-s.md"
 run 2 "unterminated front matter" "$unterminated"
 bad_item="$(mkslice bad-item - "$(claim "$V9" "$PRIMARY")")"
 printf -- '---\ntopic: t\nclaims:\n  - text: "c"\n    applies_to: ExampleLib 9\n---\n' >"$bad_item/RESEARCH-s.md"
-run 2 "claims item that is not a claim" "$bad_item"
+run 2 "claims item that is not a claim" --err 'does not start with claim:' "$bad_item"
+key_order="$(mkslice key-order - "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\ntopic: t\nclaims:\n  - applies_to: ExampleLib 9\n    claim: "c"\n---\n' >"$key_order/RESEARCH-s.md"
+run 2 "claim whose first key is not claim:" --err 'does not start with claim:' "$key_order"
+
+no_key="$(mkslice no-claims-key - "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\ntopic: t\nsection: s\n---\n' >"$no_key/RESEARCH-s.md"
+run 2 "sidecar without a claims: key" --err 'no claims: key' "$no_key"
+cased_key="$(mkslice cased-claims-key - "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\ntopic: t\nClaims: []\n---\n' >"$cased_key/RESEARCH-s.md"
+run 2 "misspelled Claims: key" --err 'no claims: key' "$cased_key"
+
+tabbed="$(mkslice tabbed - "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\ntopic: t\nclaims:\n  - claim: "c"\n\t  applies_to: ExampleLib 9\n---\n' >"$tabbed/RESEARCH-s.md"
+run 2 "tab in front-matter indentation" --err 'tab in indentation' "$tabbed"
+tabbed_index="$(mkslice tabbed-index - "$(claim "$V9" "$PRIMARY")")"
+printf -- '---\ntopic: t\n\tnote: x\n---\n' >"$tabbed_index/RESEARCH.md"
+run 2 "tab in index front-matter indentation" --err 'tab in indentation' "$tabbed_index"
+
+run 2 "duplicate key in a claim" --err 'duplicate key applies_to' \
+  "$(mkslice dup-claim-key - "$(claim "$V9" "    applies_to: OtherLib 1
+$PRIMARY")")"
+run 2 "duplicate sources key in a claim" --err 'duplicate key sources' \
+  "$(mkslice dup-sources-key - "$(claim "$V9" "$PRIMARY
+    sources:
+$PRIMARY")")"
+run 2 "duplicate key in a source" --err 'duplicate key role' \
+  "$(mkslice dup-source-key - "$(claim "$V9" "$PRIMARY
+        role: corroborator")")"
 non_utf8="$(mkslice non-utf8 - "$(claim "$V9" "$PRIMARY")")"
 printf -- '---\ntopic: \xff\xfe\n---\n' >"$non_utf8/RESEARCH-s.md"
 run 2 "non-UTF-8 sidecar" "$non_utf8"

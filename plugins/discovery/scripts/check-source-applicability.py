@@ -21,10 +21,11 @@ Exit 0 = every rule holds (status=pass)
 Exit 1 = at least one violation (status=fail); includes an index evidence_use
          that differs from --expect-evidence-use
 Exit 2 = ungradeable, FAIL CLOSED: missing slice dir, no RESEARCH.md, no
-         sidecar, a sidecar with no or unterminated front matter, a claims item
-         that cannot be parsed, an evidence_use outside internal|publish (index
-         or flag), an unreadable or non-UTF-8 file, or a usage error
-         (status=ungradeable)
+         sidecar, a sidecar with no or unterminated front matter or no claims:
+         key (claims: [] is fine), a tab in a front-matter indent, a claims item
+         that cannot be parsed, a key repeated within one claim or source, an
+         evidence_use outside internal|publish (index or flag), an unreadable or
+         non-UTF-8 file, or a usage error (status=ungradeable)
 
 Usage:
   python3 check-source-applicability.py <slice-dir> [--expect-evidence-use internal|publish]
@@ -116,7 +117,11 @@ def front_matter(path: Path, required: bool) -> list[str] | None:
         return None
     for end in range(1, len(lines)):
         if lines[end].rstrip() == "---":
-            return [line.rstrip() for line in lines[1:end]]
+            block = [line.rstrip() for line in lines[1:end]]
+            for n, line in enumerate(block, start=2):
+                if "\t" in line[: len(line) - len(line.lstrip())]:
+                    raise Ungradeable(f"{path}: line {n}: tab in indentation")
+            return block
     raise Ungradeable(f"{path}: unterminated front matter")
 
 
@@ -133,10 +138,16 @@ def top_level(lines: list[str], key: str) -> tuple[int, str | None] | None:
     return None
 
 
+def put(mapping: dict, key: str, value: str | None, where: str) -> None:
+    if key in mapping:
+        raise Ungradeable(f"{where}: duplicate key {key.rstrip(':')}")
+    mapping[key] = value
+
+
 def parse_claims(path: Path, lines: list[str]) -> list[dict]:
     found = top_level(lines, "claims")
     if found is None:
-        return []
+        raise Ungradeable(f"{path}: front matter has no claims: key")
     start, inline = found
     value = scalar(inline)
     if value == "[]":
@@ -188,7 +199,7 @@ def parse_claims(path: Path, lines: list[str]) -> list[dict]:
         item = KEY.match(body)
         if source is not None and ind > source_dash:
             if ind == source_key and item:
-                source.setdefault(item.group(1), scalar(item.group(2)))
+                put(source, item.group(1), scalar(item.group(2)), where)
             elif ind < source_key:
                 raise Ungradeable(f"{where}: source key at an unexpected indent")
             continue
@@ -200,11 +211,12 @@ def parse_claims(path: Path, lines: list[str]) -> list[dict]:
         source = None
         in_sources = key == "sources"
         if in_sources:
+            put(claim, "sources:", None, where)
             source_dash = -1
             if scalar(item.group(2)) not in (None, "[]"):
                 raise Ungradeable(f"{where}: sources: expected a block list")
         else:
-            claim.setdefault(key, scalar(item.group(2)))
+            put(claim, key, scalar(item.group(2)), where)
     return claims
 
 
@@ -213,7 +225,7 @@ def version(text: str) -> tuple[int, ...]:
 
 
 def pad(v: tuple[int, ...], width: int, fill: float) -> tuple[float, ...]:
-    return tuple(v) + (fill,) * (width - len(v))
+    return v + (fill,) * (width - len(v))
 
 
 def applies_to(value: str | None) -> tuple | None:
@@ -243,13 +255,10 @@ def covers(src: tuple, claim: tuple) -> bool:
         return False
     parts = [v for v in (src[2], src[3], claim[2], claim[3]) if v is not None]
     width = max(len(v) for v in parts) + 1
-
-    def high(v: tuple[int, ...] | None) -> tuple[float, ...]:
-        return (INF,) * width if v is None else pad(v, width, INF)
-
-    return pad(src[2], width, 0) <= pad(claim[2], width, 0) and high(claim[3]) <= high(
-        src[3]
-    )
+    # An open (+) high bound is an empty prefix: every version.
+    return pad(src[2], width, 0) <= pad(claim[2], width, 0) and pad(
+        claim[3] or (), width, INF
+    ) <= pad(src[3] or (), width, INF)
 
 
 def published(value: str | None, today: datetime.date) -> str | None:
@@ -355,7 +364,7 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
                 if role == "primary":
                     if date != "dated":
                         violations.append(f"{at}: primary source must be dated")
-                    if "historical" in (stored, derived):
+                    elif "historical" in (stored, derived):
                         violations.append(f"{at}: primary source must be current")
 
     counts = f"evidence_use={mode} claims={n_claims} sources={n_sources} historical={n_historical}"
