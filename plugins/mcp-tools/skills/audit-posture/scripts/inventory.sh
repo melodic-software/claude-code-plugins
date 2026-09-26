@@ -270,8 +270,9 @@ def wrap_tokens:
     | if any($rest[]; metachar) then [unparsed_mark] else ($rest | map(unquote)) end
     end
   end;
+# PowerShell drive and variable names are case-insensitive: $env:X, $Env:X, ${env:X}.
 def drop_pwsh_env:
-  sub("^[[:space:]]*\\$env:[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*(" + quoted_re + "|[^;]*);?"; "") as $n
+  sub("^[[:space:]]*\\$(env:[A-Za-z_][A-Za-z0-9_]*|\\{env:[A-Za-z_][A-Za-z0-9_]*\\})[[:space:]]*=[[:space:]]*(" + quoted_re + "|[^;]*);?"; ""; "i") as $n
   | if $n == . then . else ($n | drop_pwsh_env) end;
 def drop_cmd_set:
   sub("^[[:space:]]*set[[:space:]]+(\"[A-Za-z_][A-Za-z0-9_]*=[^\"]*\"|[A-Za-z_][A-Za-z0-9_]*=[^&]*)[[:space:]]*(&&?)?"; ""; "i") as $n
