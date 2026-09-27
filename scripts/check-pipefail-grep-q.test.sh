@@ -205,6 +205,18 @@ EOF
 expect_clean "a backtick l inside a quoted option word" <<'EOF'
 echo a | grep "-`l`" a
 EOF
+expect_clean "a backtick inside \${...} inside a quoted option word" <<'EOF'
+echo a | grep "-${m:-`mode`}" a
+EOF
+expect_clean "a backtick l inside \${...} inside a quoted option word" <<'EOF'
+echo a | grep "-${x:-`l`}" a
+EOF
+expect_clean "a quoted backtick inside \${...} inside a quoted option word" <<'EOF'
+echo a | grep "-${x:-"`l`"}" a
+EOF
+expect_flag "-q after \${...} holding a backtick, inside quotes" 1 <<'EOF'
+echo a | grep "-${x:-`l`}q" a
+EOF
 expect_flag "-q after a backtick inside a quoted option word" 1 <<'EOF'
 echo a | grep "-`x`q" a
 EOF

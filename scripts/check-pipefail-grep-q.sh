@@ -76,10 +76,11 @@ function emit(ch,   j) {
   o[++k] = ch; ol[k] = line; si[k] = EP++
   ek[k] = ch != "_" ? "c" : inexp() ? "n" : EK
   EK = "n"
-  # qt[]: how many backtick frames opened inside double quotes enclose this
-  # char. unquoted() reads a deeper char than its word started at as neutral.
-  qt[k] = 0
-  for (j = 2; j <= sp; j++) if (ft[j] == "T" && ft[j - 1] == "D") qt[k]++
+  # dp[]: how many substitution or expansion frames ($( ), backticks, ${ },
+  # $(( ))) enclose this char; quote frames do not count. unquoted() reads a
+  # char deeper than the start of its word as neutral.
+  dp[k] = 0
+  for (j = 2; j <= sp; j++) if (ft[j] != "D" && ft[j] != "S" && ft[j] != "E") dp[k]++
 }
 function inexp(   j) {
   for (j = 1; j <= sp; j++) if (ft[j] == "B" || ft[j] == "A") return 1
@@ -227,13 +228,13 @@ function readword(y) {
 }
 # unquoted(a, b): masked chars a..b-1 as grep would see them: code as is, quoted
 # literals as written, quotes and escapes dropped, each expansion char as "_".
-# A backtick substitution opened inside the double quotes of the word is an
-# expansion too; a grep inside those backticks starts its words at that depth
-# and reads its own options normally.
+# Any char nested deeper than the start of the word (inside a substitution or
+# expansion the word opened) is neutral too; a grep inside a substitution
+# starts its words at that depth and reads its own options normally.
 function unquoted(a, b,   y, r) {
   r = ""
   for (y = a; y < b; y++) {
-    if (qt[y] > qt[a]) r = r "_"
+    if (dp[y] > dp[a]) r = r "_"
     else if (ek[y] == "c") r = r o[y]
     else if (ek[y] == "l") r = r substr(S, si[y], 1)
     else if (ek[y] == "n") r = r "_"
