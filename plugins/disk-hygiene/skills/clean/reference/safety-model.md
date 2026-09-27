@@ -203,9 +203,11 @@ substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
 literal unsubstituted placeholder counts as absent); absent every channel the flag fails closed.
 `--data-root` is mandatory at the guard even though the engine's grammar leaves it optional: an
 otherwise exact call that omits it is denied, because the engine would then fall back to the raw
-`CLAUDE_PLUGIN_DATA` value, which a repository `env` block can set. `--max-depth` accepts only a bare positive-integer literal.
-`--confirmed-large-scan`, `--quiet` and `--root-children` are the valueless scan flags; the guard
-permits at most one of each and rejects any trailing value, so the scan grammar stays exact.
+`CLAUDE_PLUGIN_DATA` value, which a repository `env` block can set.
+
+`--max-depth` accepts only a bare positive-integer literal. `--confirmed-large-scan`, `--quiet`
+and `--root-children` are the valueless scan flags; the guard permits at most one of each and
+rejects any trailing value, so the scan grammar stays exact.
 `--quiet` is admitted because it shapes the engine's stdout only: it reaches no path, and skips no
 check, that the same invocation without it would not already reach.
 

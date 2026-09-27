@@ -237,7 +237,7 @@ Report every finding with these fields, in this order, size last:
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
 5. Path, tier, evidence, disposition.
 6. Logical / reclaimable bytes as a **secondary** signal only. A finding is complete only with
-   all six fields; a finding without a resolved Provenance is Low, per the tier table.
+   all six fields; a finding with name-only provenance is Low.
 
 Separately list protected, locked, needs-elevation, unverified, and coverage-gap entries.
 
