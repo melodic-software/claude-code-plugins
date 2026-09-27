@@ -55,6 +55,15 @@ opt-in required.
   your config's `[files] exclude`/`extend-exclude` excludes (generated or
   vendored code, intentional-misspelling fixtures) is left untouched even
   though the hook passes it explicitly, with no advisory noise.
+- **Gitignored paths are still scanned.** typos honors `.gitignore` when it
+  walks a directory, but this hook names the edited file explicitly, and
+  `--force-exclude` covers only typos' own excludes. An edit under `.work/`,
+  `.venv/` or `node_modules/` therefore pays a full scan and reports findings
+  (or, in write mode, applies corrections) even though git ignores the path (reproduced with typos-cli 1.42.1,
+  2026-09-27). To skip such a path, list it in `[files] extend-exclude`
+  ([typos reference](https://github.com/crate-ci/typos/blob/master/docs/reference.md#filesextend-exclude)).
+  The hook does not ask `git check-ignore` itself, because that would add a
+  process to every edit.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
@@ -70,6 +79,32 @@ formatter hook also rewrites the same file class (e.g. `markdown-format` on
 reads-then-writes with no locking, so ordering is **last-writer-wins** and a
 nondeterministic clobber is possible. That double opt-in is your call to
 make; the residual overlap class is tracked fleet-wide in #875.
+
+**Timeout tail.** The handler sets `"timeout": 15`, well under the 600-second
+default for a command hook, and Claude Code discards the output of a hook it
+cancels at its timeout ([hooks reference](https://code.claude.com/docs/en/hooks),
+"Timeouts", checked 2026-09-27). In write mode the second typos pass rewrites
+the file before the hook classifies what changed and discloses it, so a cancel
+between the two leaves your file rewritten with no disclosure. The one measured
+case that crossed 15 s, 10,000 residual findings at about 15.7 s, was fixed by
+moving classification to a hash lookup (about 0.6 s); no current case has
+reproduced the window. Report-only mode never writes, so it has no such tail.
+
+## Write paths the hook does not see
+
+The matcher is `Write|Edit|NotebookEdit`, so only those tools reach it. A file
+written through the `Bash` tool (a heredoc, a redirect, `sed -i`), through
+`PowerShell`, or through an MCP filesystem server's write tool is never
+spell-checked. `guardrails`' `block-hook-bypass`, when installed, blocks the
+common Bash redirect and heredoc forms and the PowerShell write cmdlets;
+`sed -i` and other inline-interpreter writes are outside what it detects, and
+it does not see MCP tools. CI is the only gate that sees every path. The
+matcher does not list `MultiEdit`: the
+[tools reference](https://code.claude.com/docs/en/tools-reference) does not
+list it among the built-in tools, and
+[permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
+`MultiEdit` tool" (both checked 2026-09-27; recheck if `MultiEdit` returns to
+the tools reference).
 
 ## Requirements
 
