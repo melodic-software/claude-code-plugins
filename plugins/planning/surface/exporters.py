@@ -14,14 +14,16 @@ Q1..Qn in natural id order (letters, then number) and each row's resolution lead
 which import_ledger reads back so a re-export numbers the same way.
 
 A held row's resolution escapes each field on its own (esc_field) and joins the fields with `; `:
-  [plan proposes: E(new); was: E(old); ]<label>:: E(waitsOn)[; answer: E(answer)][; note: E(note)]
-  [; confirmed: E(c1)[; E(c2)...]]
+  [plan proposes: E(new); was: E(old); ]<label>:: E(waitsOn)[; answer: E(answer)|; aside: E(aside)]
+  [; note: E(note)][; confirmed: E(c1)[; E(c2)...]]
 The label is `waits on` (a Claude hold) or `awaiting user` (a user hold); its double colon marks
 the row as escaped, so an older row (`waits on: ...`) is read as before and never unescaped. The
-proposal leads only on a superseded-by-plan row, which keeps that status. The answer is the
-decision that counts, in the resolution vocabulary (`accepted: <recommendation>`,
-`alt <key>: <text>`, `free-text: <text>`, `deferred[: <text>]`); note is an accept's or an
-alternative's note; confirmed lists the confirmed commitments, one field each.
+proposal leads only on a superseded-by-plan row, which keeps that status; import keeps it as the
+seeded row's `proposal` pair, so a re-export never parses it again. The answer is the decision
+that counts, in the resolution vocabulary (`accepted: <recommendation>`, `alt <key>: <text>`,
+`free-text: <text>`, `deferred[: <text>]`); when none counts, aside is the newest decision a user
+hold set aside, which import restores still set aside; note is the note of an accept or an
+alternative in answer or aside; confirmed lists the confirmed commitments, one field each.
 """
 
 import base64
@@ -57,7 +59,7 @@ ESCAPES = {"\\": "\\\\", ";": "\\;", "|": "\\|", "\n": "\\n", "\t": "\\t", "\r":
 UNESCAPES = {"n": "\n", "t": "\t", "r": "\r"}
 UNESCAPE = re.compile(r"\\(?:([\\;|])|([ntr])|u([0-9a-fA-F]{4}))")
 HOLD_MARK = re.compile(r"^(waits on|awaiting user)::(?: |$)(.*)$", re.DOTALL)
-HOLD_FIELD = re.compile(r"^(answer|note|confirmed):(?: |$)(.*)$", re.DOTALL)
+HOLD_FIELD = re.compile(r"^(answer|aside|note|confirmed):(?: |$)(.*)$", re.DOTALL)
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -145,19 +147,31 @@ def decision_fields(q, rec):
     return "deferred" + (f": {text}" if text else ""), ""
 
 
+def seed_proposal(seed):
+    """(new, old) of a superseded-by-plan seeded row: its `proposal` pair, else its resolution
+    parsed; None for any other row."""
+    if not seed or seed.get("status") != "superseded-by-plan":
+        return None
+    if seed.get("proposal"):
+        return tuple(seed["proposal"])
+    m = PROPOSES.match(seed.get("resolution", ""))
+    return m.groups() if m else None
+
+
 def hold_row(q, responses, events, seed):
     """(status, resolution) of a held question, in the escaped grammar of the module docstring."""
-    superseded = seed and seed["status"] == "superseded-by-plan"
-    proposal = PROPOSES.match(seed.get("resolution", "")) if superseded else None
+    proposal = seed_proposal(seed)
     fields = []
     if proposal:
-        new, old = proposal.groups()
+        new, old = proposal
         fields += [f"plan proposes: {esc_field(new)}", f"was: {esc_field(old)}"]
     fields.append(f"{hold_label(q)}:: {esc_field(q.get('waitsOn') or 'a lookup')}")
     rec = latest_decision(q, responses)
+    kind = "answer" if rec else "aside"
+    rec = rec or newest_decision(q, responses, aside=True)
     if rec and rec.get("decision"):
         answer, note = decision_fields(q, rec)
-        fields.append(f"answer: {esc_field(answer)}")
+        fields.append(f"{kind}: {esc_field(answer)}")
         if note:
             fields.append(f"note: {esc_field(note)}")
     confirmed, _ = commitments(q, events)
@@ -197,6 +211,10 @@ def parse_hold(res, where):
             hold["confirmed"] += [unesc_field(x) for x in rest[i + 1 :]]
             break
         hold[f.group(1)] = unesc_field(f.group(2))
+    if "answer" in hold and "aside" in hold:
+        raise SystemExit(
+            f"refused: held row with both an answer and an aside in {where}"
+        )
     return hold
 
 
@@ -247,14 +265,20 @@ def set_aside(q, x):
     return x["updatedAt"] <= (q.get("setAsideAt") or "")
 
 
-def latest_decision(q, responses):
-    """The newer of the page answer and the terminal answer, or None; a set-aside one does not count."""
+def newest_decision(q, responses, aside):
+    """The newer of the page answer and the terminal answer that a user hold set aside (aside
+    True) or did not (aside False), or None."""
     cands = [
         x
         for x in (responses.get(q["id"]), q.get("terminal"))
-        if x and x.get("updatedAt") and not set_aside(q, x)
+        if x and x.get("updatedAt") and set_aside(q, x) == aside
     ]
     return max(cands, key=lambda x: x["updatedAt"]) if cands else None
+
+
+def latest_decision(q, responses):
+    """The decision that counts, or None; a set-aside one does not count."""
+    return newest_decision(q, responses, aside=False)
 
 
 def commitments(q, events):
@@ -312,9 +336,9 @@ def settle(q, responses, events, seed_rows):
     text = clean((rec or {}).get("text"))
     note = f"; note: {text}" if text else ""
     superseded = seed and seed["status"] == "superseded-by-plan"
-    proposal = PROPOSES.match(seed.get("resolution", "")) if superseded else None
+    proposal = seed_proposal(seed)
     if decision == "accept" and proposal:
-        new, old = proposal.groups()
+        new, old = proposal
         res = f"reconfirmed at plan approval: {new}; was: {old}"
         return "answered", res + note + tail, text, False
     if decision == "defer" and superseded:
@@ -346,7 +370,7 @@ def settle(q, responses, events, seed_rows):
     if superseded:
         # A set-aside decision leaves the plan's proposal waiting on the user again.
         return "superseded-by-plan", seed.get("resolution", ""), "", False
-    return "open", tail, "", False
+    return "open", tail.removeprefix("; "), "", False
 
 
 def register(doc, resp):
@@ -705,8 +729,9 @@ def seeded_decision(res):
     return "own", None, res, None
 
 
-def import_hold(qid, title, rnd, hold, seeded, at):
-    """The question an escaped held row restores: the hold, the answer, the confirmed
+def import_hold(qid, title, rnd, hold, seeded, at, rev):
+    """The question an escaped held row restores: the hold, the answer or the set-aside decision
+    (stamped set aside as of `at` and `rev`, the rev the import writes), the confirmed
     commitments, and for a superseded-by-plan row the seeded proposal. Any other held row gets no
     seeded row, so it settles from this state alone once the hold is cleared."""
     q = {
@@ -732,9 +757,13 @@ def import_hold(qid, title, rnd, hold, seeded, at):
             "status": status,
             "round": rnd,
             "resolution": f"plan proposes: {new}; was: {old}",
+            "proposal": [new, old],
         }
     if "answer" in hold:
         q["terminal"] = held_terminal(q, hold["answer"], hold.get("note", ""), at)
+    if "aside" in hold:
+        q["terminal"] = held_terminal(q, hold["aside"], hold.get("note", ""), at)
+        q.update(setAsideAt=at, setAsideSeq=0, setAsideRev=rev)
     if q["commits"]:
         q["commitsConfirmed"] = [
             {"index": i, "reason": SEED_NOTE, "at": at}
@@ -767,7 +796,8 @@ def import_ledger(doc, text, ledger, at):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
         hold = parse_hold(res, ledger) if status in UNSETTLED else None
         if hold:
-            doc["questions"].append(import_hold(qid, title, rnd, hold, seeded, at))
+            rev = doc.get("rev", 0) + 1
+            doc["questions"].append(import_hold(qid, title, rnd, hold, seeded, at, rev))
             continue
         held = HELD.match(res) if status == "open" else None
         confirmed = held.group(4) if held else None
@@ -775,7 +805,7 @@ def import_ledger(doc, text, ledger, at):
             if held.group(3):
                 status, res = "answered", held.group(3)
             else:
-                res = f"; confirmed: {confirmed}" if confirmed else ""
+                res = f"confirmed: {confirmed}" if confirmed else ""
         seeded[qid] = {"status": status, "round": rnd, "resolution": res}
         q = {
             "id": qid,

@@ -751,7 +751,7 @@ class TestImportLedger(SessionCase):
         self.apply({"op": "wait", "id": "Q1", "clear": True}, d=fresh)
         self.assertEqual(
             register_rows(self.export("ledger", d=fresh)),
-            ["- Q1 | open | round 1 | Question Q1? | ; confirmed: One writer only"],
+            ["- Q1 | open | round 1 | Question Q1? | confirmed: One writer only"],
         )
 
     def test_a_legacy_held_row_is_read_without_unescaping(self):
@@ -793,6 +793,70 @@ class TestImportLedger(SessionCase):
         ]
         self.assertEqual(q["waitsOn"], "a\\qb;c\u2028d\\zz")
         self.assertEqual(q["commits"], [""])
+
+    def test_a_confirmed_row_with_a_leading_separator_still_imports(self):
+        row = "- Q1 | open | round 1 | Where? | ; confirmed: One"
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n" + row + "\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger")), [row])
+
+    def test_a_set_aside_answer_round_trips_as_context(self):
+        self.session([question("Q1")], [])
+        self.apply(
+            {
+                "op": "record-terminal",
+                "id": "Q1",
+                "decision": "accept",
+                "text": "keep it; short",
+            }
+        )
+        self.apply({"op": "wait", "id": "Q1", "by": "user", "waitsOn": "your call"})
+        rows = register_rows(self.export("ledger"))
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | open | round 1 | Question Q1? | awaiting user:: your call; "
+                "aside: accepted: Recommended answer for Q1.; note: keep it\\; short"
+            ],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.export("ledger")), d=fresh
+        )
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+        path = fresh / "questions.json"
+        [q] = json.loads(path.read_text(encoding="utf-8"))["questions"]
+        self.assertEqual(
+            (q["terminal"]["decision"], q["terminal"]["text"]),
+            ("accept", "keep it; short"),
+        )
+        self.assertIsNone(exporters.latest_decision(q, {}))
+        self.apply(
+            {"op": "record-terminal", "id": "Q1", "decision": "own", "text": "mine"},
+            d=fresh,
+        )
+        [q] = json.loads(path.read_text(encoding="utf-8"))["questions"]
+        self.assertEqual(exporters.latest_decision(q, {})["decision"], "own")
+
+    def test_a_held_row_with_an_answer_and_an_aside_is_refused(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 1 | Where? | awaiting user:: x; answer: deferred; aside: deferred\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("refused", out)
 
     def test_import_refuses_a_dir_with_questions(self):
         self.decided()
@@ -839,6 +903,32 @@ class TestSupersededByPlan(SessionCase):
         )
         page = {"Q2": {"decision": "accept", "updatedAt": AT}}
         self.assertEqual(exporters.settle(q, page, [], seed)[0], "answered")
+
+    def test_a_held_proposal_with_a_newline_or_was_round_trips(self):
+        esc = exporters.esc_field
+        for i, new in enumerate(["nl\nx", "x; was: y"]):
+            with self.subTest(new=new):
+                d = self.tmp / f"held-{i}"
+                d.mkdir()
+                row = (
+                    f"- Q1 | superseded-by-plan | round 1 | Which? | plan proposes: {esc(new)}; "
+                    f"was: {esc(new + ' old')}; awaiting user:: bench"
+                )
+                ledger = self.tmp / f"held-{i}.md"
+                ledger.write_text(
+                    "# Interview ledger\n\n## Open-question register\n\n" + row + "\n",
+                    encoding="utf-8",
+                )
+                rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=d)
+                self.assertEqual(rc, 0, out)
+                first = self.export("ledger", d=d)
+                self.assertEqual(register_rows(first), [row])
+                rc, out = self.check("--ledger", first)
+                self.assertIn("superseded=1", out)
+                [q] = json.loads((d / "questions.json").read_text(encoding="utf-8"))[
+                    "questions"
+                ]
+                self.assertEqual(q["recommendation"], new)
 
     def test_ledger_leaves_it_unticked_and_the_gate_blocks(self):
         self.seed()
@@ -1184,19 +1274,20 @@ def corpus_cases():
 
 
 def held_state(doc, resp):
-    """Per question: the hold, the decision that counts, the confirmed commitments and the plan proposal."""
+    """Per question: the hold, the decision that counts, else the newest one a user hold set
+    aside, the confirmed commitments and the plan proposal."""
     responses = resp.get("responses") or {}
     events = resp.get("events") or []
     seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
     out = {}
     for q in doc["questions"]:
         rec = exporters.latest_decision(q, responses) or {}
-        seed = seeds.get(q["id"]) or {}
-        proposal = (
-            exporters.PROPOSES.match(seed.get("resolution", ""))
-            if seed.get("status") == "superseded-by-plan"
-            else None
-        )
+        aside = [
+            x
+            for x in (responses.get(q["id"]), q.get("terminal"))
+            if x and x.get("updatedAt") and exporters.set_aside(q, x)
+        ]
+        aside = max(aside, key=lambda x: x["updatedAt"]) if aside and not rec else {}
         out[q["id"]] = {
             "waiting": bool(q.get("waiting")),
             "waitsOn": q.get("waitsOn"),
@@ -1205,7 +1296,14 @@ def held_state(doc, resp):
             "alt": rec.get("alt") if rec.get("decision") == "alt" else None,
             "text": rec.get("text") or "",
             "confirmed": exporters.commitments(q, events)[0],
-            "proposal": proposal.groups() if proposal else None,
+            "aside": (
+                aside.get("decision"),
+                aside.get("alt") if aside.get("decision") == "alt" else None,
+                aside.get("text") or "",
+            )
+            if aside
+            else None,
+            "proposal": exporters.seed_proposal(seeds.get(q["id"])),
         }
     return out
 
@@ -1319,7 +1417,11 @@ class TestHeldRowProperty(SessionCase):
         return "".join(rnd.choice(self.PIECES) for _ in range(rnd.randint(least, 6)))
 
     def proposal(self, rnd):
-        """A proposal and prior answer a legacy superseded-by-plan row can carry."""
+        """A proposal and prior answer: one a legacy superseded-by-plan row can carry (its
+        resolution alone), or one only an escaped held row can (kept as structured fields)."""
+        if rnd.random() < 0.5:
+            new = self.text(rnd, 1) + rnd.choice(["\n", "; was: ", ";was:"])
+            return new + self.text(rnd), self.text(rnd), True
         while True:
             new, old = (
                 exporters.clean(self.text(rnd, 1)),
@@ -1327,7 +1429,7 @@ class TestHeldRowProperty(SessionCase):
             )
             m = exporters.PROPOSES.match(f"plan proposes: {new}; was: {old}")
             if m and m.groups() == (new, old):
-                return new, old
+                return new, old, False
 
     def build(self, seed):
         rnd = random.Random(seed)
@@ -1357,7 +1459,7 @@ class TestHeldRowProperty(SessionCase):
                     {"index": k, "reason": "chat", "at": AT} for k in sorted(picks)
                 ]
             if superseded:
-                new, old = self.proposal(rnd)
+                new, old, structured = self.proposal(rnd)
                 q["recommendation"] = new
                 q["alternatives"] = [{"key": "was", "text": old}]
                 rows[qid] = {
@@ -1365,6 +1467,8 @@ class TestHeldRowProperty(SessionCase):
                     "round": 1,
                     "resolution": f"plan proposes: {new}; was: {old}",
                 }
+                if structured:
+                    rows[qid]["proposal"] = [new, old]
             if decision:
                 alt = (
                     rnd.choice(q["alternatives"])["key"] if decision == "alt" else None

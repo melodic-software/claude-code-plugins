@@ -24,15 +24,19 @@ All notable changes to the `planning` plugin are documented here. Format follows
   one), so only the user's next decision counts, including a `record-terminal` later in the
   same `apply`. An imported ledger row stays open in the export while held and after. A held
   row exports as `waits on:: <text>` or `awaiting user:: <text>`, then `; answer: <answer>`
-  for the decision that counts, `; note: <note>` for an accept's or an alternative's note, and
+  for the decision that counts, else `; aside: <decision>` for the newest one a user hold set
+  aside, `; note: <note>` for that accept's or alternative's note, and
   `; confirmed: <c1>; <c2>` for its confirmed commitments; a held superseded-by-plan row keeps
   its status and leads with `plan proposes: <new>; was: <old>`. Each field is escaped on its
   own (`\\`, `\;`, `\|`, `\n`, `\t`, `\r`, and other whitespace and a field's trailing spaces
-  as `\uXXXX`), so any hold text, answer or commitment round-trips through `import-ledger`, which
-  restores the hold, the answer (accept, alternative, own or defer), the note and the confirmed
-  commitments. The double colon marks an escaped row; an older `waits on: ...` row is read as
-  before, without unescaping. A superseded-by-plan row whose page answer a cleared hold set
-  aside keeps its `plan proposes: ...; was: ...` resolution.
+  as `\uXXXX`), so any hold text, answer, proposal or commitment round-trips through
+  `import-ledger`, which restores the hold, the answer (accept, alternative, own or defer), the
+  set-aside decision (still set aside, so the page shows it as set aside), the note, the
+  confirmed commitments and the proposal. The double colon marks an escaped row; an older
+  `waits on: ...` row is read as before, without unescaping. A superseded-by-plan row whose page
+  answer a cleared hold set aside keeps its `plan proposes: ...; was: ...` resolution. An open
+  row with only confirmed commitments reads `confirmed: <c1>; <c2>`; an older `; confirmed: ...`
+  row still imports.
 - **`interview` surface:** `round.py` writes UTF-8 to stdout and stderr, so a console code
   page such as cp1252 cannot fail a command after its write lands.
 - **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,

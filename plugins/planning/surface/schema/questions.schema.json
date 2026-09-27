@@ -101,7 +101,14 @@
             "properties": {
               "status": {"enum": ["open", "answered", "deferred", "withdrawn", "blocked", "superseded-by-plan"]},
               "round": {"type": "integer"},
-              "resolution": {"type": "string"}
+              "resolution": {"type": "string"},
+              "proposal": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "A held superseded-by-plan row's proposal and prior answer, as import-ledger read them from the escaped row; read in place of the resolution."
+              }
             }
           }
         }
