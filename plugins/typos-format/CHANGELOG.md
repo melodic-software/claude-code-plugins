@@ -3,6 +3,12 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.66] - 2026-09-27
+
+### Changed
+
+- README: the hook budget no longer publishes 26.0 spawn-equivalents (0.6.35) as the current figure. It adds the 2026-09-19 audit's 18.7 on 0.6.55 for the Windows host and a 2026-09-27 same-method Linux comparison showing 0.6.62 about 30 percent below 0.6.35.
+
 ## [0.6.65] - 2026-09-27
 
 - **`setup` probes `jq` and `typos` at load time.** The two `command -v` checks run as pre-computed

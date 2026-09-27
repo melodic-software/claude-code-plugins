@@ -128,12 +128,17 @@ fixing still runs.
 
 Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
 this hook is always-on for every `Write`, `Edit` and `NotebookEdit`, so its cost on the path
-where `typos` finds nothing is the figure that counts. Measured on Windows 11 under Git Bash,
-twelve interleaved trials against an interleaved `bash -c :` floor (2026-09-02):
+where `typos` finds nothing is the figure that counts. Each row is interleaved trials against an
+interleaved `bash -c :` floor on Windows 11 under Git Bash:
 
-| Event | Fires | Spawn-equivalents | What changed |
-| --- | --- | --- | --- |
-| PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
+| Event | Fires | Spawn-equivalents | Measured | What changed |
+| --- | --- | --- | --- | --- |
+| PostToolUse `Write`, clean `.md` | 1 | 36.3 before, 26.0 after (0.6.35) | 2026-09-02, n=12 | three of sixteen processes gone: two `dirname` calls became parameter expansions and the `notebook_path` copy runs only for a payload that carries one |
+| PostToolUse `Write`, clean `.md` | 1 | 18.7 (0.6.55) | 2026-09-19, n=8, plugin-quality audit | the builtin field parser in the vendored `hook-utils.sh` answers where jq ran |
+
+The 18.7 row is the current figure for this host class. Releases after 0.6.55 have not been
+measured on Windows; see [Hook cost accounting](#hook-cost-accounting) for a same-method Linux
+comparison through 0.6.62.
 
 The residual is the shared library's payload reader and telemetry emitter, cut in 0.6.36 by the
 vendored `hook-utils.sh` (one batched `realpath`, no jq on the envelope), and the `typos` binary
@@ -285,10 +290,25 @@ comparable; the spawn-equivalent ratio is the figure that holds.
 | Before (0.6.33) | 36.3 | ≈ 2,904 ms | 16 | 31 |
 | After (0.6.35) | 26.0 | ≈ 2,080 ms | 13 | 29 |
 
-**A clean edit costs ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of reference-host
-work, down 28 percent.** Two `dirname` calls became parameter expansions, and
-the jq that copies `notebook_path` onto `file_path` now runs only for a payload
-that carries one, which no `Write` or `Edit` does.
+**On 0.6.35 a clean edit cost ≈ 26.0 spawn-equivalents, ≈ 2,080 ms of
+reference-host work, down 28 percent.** Two `dirname` calls became parameter
+expansions, and the jq that copies `notebook_path` onto `file_path` now runs only
+for a payload that carries one, which no `Write` or `Edit` does.
+
+**Later figures.** A plugin-quality audit on 2026-09-19 measured **18.7** on
+0.6.55 with the same method on the Windows host (n=8). On 2026-09-27 the same
+method ran on Linux x86_64 (bash 5.2, git 2.43, jq 1.7, typos 1.42.1), with 24
+trials interleaved across three releases in each round:
+
+| Release | Median spawn-equivalents (Linux) | p25 to p75 |
+| --- | --- | --- |
+| 0.6.35 | 35.7 | 31.9 to 37.3 |
+| 0.6.55 | 31.2 | 28.6 to 32.5 |
+| 0.6.62 | 25.0 | 24.1 to 26.0 |
+
+The Linux floor is about 1 ms, so its ratios are noisier than the Windows
+host's and do not compare to its rows. What carries over is the relative
+change: 0.6.62 runs about 30 percent below 0.6.35 on the same host.
 
 **Residual, and why it stays.** The dominant single cost is the `typos` binary's
 own startup, which is the point of the hook. On the measuring host it resolves
