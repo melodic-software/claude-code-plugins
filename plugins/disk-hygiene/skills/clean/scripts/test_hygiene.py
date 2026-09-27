@@ -4885,13 +4885,15 @@ class GuardTests(unittest.TestCase):
 
     def test_guard_denies_chained_delete_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r; rm -rf x'
+        data_root = self.authorize_data_root()
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root}; rm -rf x'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def test_guard_denies_single_shell_operator_after_engine(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
-        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r | tee report'
+        data_root = self.authorize_data_root()
+        command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r{data_root} | tee report'
         result = self.run_guard(command)
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
