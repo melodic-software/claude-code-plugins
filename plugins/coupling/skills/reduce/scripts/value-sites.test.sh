@@ -627,8 +627,13 @@ PROT3=(.appveyor.yml lefthook.yaml .lefthook.yml biome.jsonc .golangci.toml .gol
   composer.lock Gemfile.lock go.sum packages.lock.json gradle.lockfile
   appveyor.yaml cloudbuild.yml cloudbuild.json .drone.yaml .pre-commit-config.yml
   .pre-commit-hooks.yaml .semaphore/semaphore.yml .tekton/run.yaml .cirrus.yml codecov.yml
-  .vscode/settings.json .mcp.json)
-REC3=(.changeset/brave-cats.md docs/adrs/0001-x.md ADR-0002-y.md release-notes/v1.md incidents/2024-01.md)
+  .vscode/settings.json .mcp.json
+  .terraform.lock.hcl conda-lock.yml buildspec.yml codefresh.yaml renovate.json
+  sub/renovate.json5 .renovaterc.json flyway/V1__init.sql tslint.json rustfmt.toml
+  .rustfmt.toml clippy.toml .swiftlint.yml .hadolint.yaml commitlint.config.js .commitlintrc.json
+  .gitleaks.toml .semgrep.yml cspell.json .cspell.json dprint.json .vale.ini)
+REC3=(.changeset/brave-cats.md docs/adrs/0001-x.md ADR-0002-y.md release-notes/v1.md incidents/2024-01.md
+  RELEASE_NOTES.md)
 SETUP3=(sub/action.yml changelog/notes.md db/notes.md)
 for p in "${PROT3[@]}" "${REC3[@]}" "${SETUP3[@]}"; do put "$FX" "$p" 'v Q:\vol\one'; done
 stage "$FX"
@@ -680,6 +685,18 @@ UNDOC=$(LC_ALL=C comm -23 <(printf '%s\n' "$RULES_OUT") <(printf '%s\n' "$DOC_RU
 UNENF=$(LC_ALL=C comm -13 <(printf '%s\n' "$RULES_OUT") <(printf '%s\n' "$DOC_RULES"))
 assert_eq "G1: every enforced rule is in change-mode.md (first missing shown)" "" "${UNDOC%%$'\n'*}"
 assert_eq "G1: every documented rule is enforced (first missing shown)" "" "${UNENF%%$'\n'*}"
+DOC_ORDER=$(tr -d '\r' <"$DOC" | awk -F'|' '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+  /<!-- value-sites-rules:start -->/ { on = 1; next }
+  /<!-- value-sites-rules:end -->/ { on = 0 }
+  on && /^\|/ {
+    c = trim($2); k = trim($3)
+    if (c == "Class" || c ~ /^:?-+:?$/ || k == "extension-allow") next
+    n = split($4, parts, ",")
+    for (i = 1; i <= n; i++) { x = trim(parts[i]); gsub(/`/, "", x); print c "\t" k "\t" x }
+  }')
+RULES_ORDER=$(printf '%s\n' "$RULES_RAW" | tr -d '\r' | awk -F'\t' '$2 != "extension-allow"')
+assert_eq "G4: the doc table lists the rules in the order classify applies them" "$RULES_ORDER" "$DOC_ORDER"
 
 # --- G2: the anchor covers the line and its two neighbors ---------------------------
 FX=$(new_fixture moved)
@@ -721,6 +738,16 @@ assert_eq "G3: CR, ESC and DEL show as \\xNN, tab as \\t, a backslash as is" \
   'a\x0dv D:/data \x1b[0m\x7f end\x\tt' "$(printf '%s\n' "$OUT" | awk -F'\t' '$2 == "ctl.md" { print $8 }')"
 assert_not_contains "G3: no raw CR in find output" "$OUT" $'\r'
 assert_not_contains "G3: no raw ESC in find output" "$OUT" $'\x1b'
+
+# --- G4: Unicode line breaks and bidi controls in the text column are escaped -------
+FX=$(new_fixture shownu)
+printf 'a\xc2\x85b\xe2\x80\xa8c\xe2\x80\xa9d\xe2\x80\xaee\xe2\x81\xa6f v D:/data\n' >"$FX/u.md"
+stage "$FX"
+ROOT=$(host_path "$FX")
+OUT=$(vs find --old 'D:/data' --root "$ROOT")
+assert_eq "G4: NEL, LS, PS and bidi controls show as \\uXXXX" \
+  'a\u0085b\u2028c\u2029d\u202ee\u2066f v D:/data' "$(printf '%s\n' "$OUT" | awk -F'\t' '$2 == "u.md" { print $8 }')"
+assert_eq "G4: the row stays on one line" "1" "$(row_count "$OUT")"
 
 echo
 echo "value-sites.test.sh: $((CASE_NUM - FAILED)) passed, $FAILED failed, $SKIPPED skipped"

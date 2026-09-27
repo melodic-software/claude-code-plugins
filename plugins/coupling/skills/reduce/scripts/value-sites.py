@@ -30,7 +30,8 @@ matches resolve longest first, once.
 
 tsv rows: class, path, line, col, form, reason, anchor, text (tab separated;
 in text, a trailing CR is dropped, a tab is written `\\t`, and every other
-byte below 0x20 and DEL as `\\xNN`). anchor is the first 12 hex digits of the
+byte below 0x20 and DEL as `\\xNN`, and U+0085, U+2028, U+2029 and the bidi
+controls U+202A-U+202E and U+2066-U+2069 as `\\uXXXX`). anchor is the first 12 hex digits of the
 SHA-256 of prev, line and next joined by LF: the line and its two neighbors,
 each without a trailing CR, an empty string past either end of the file, and
 no UTF-8 BOM on line 1. A skipped file is a row `skip<TAB>path<TAB>reason`.
@@ -120,6 +121,7 @@ PROTECTED_SEGMENTS = (
     "migrate",
     "alembic",
     "drizzle",
+    "flyway",
 )
 PROTECTED_NAMES = (
     "hooks.json",
@@ -182,6 +184,26 @@ PROTECTED_NAMES = (
     "*.lock.json",
     "gradle.lockfile",
     "*.lockfile",
+    ".terraform.lock.hcl",
+    "conda-lock.yml",
+    "buildspec.y*ml",
+    "codefresh.y*ml",
+    "renovate.json*",
+    ".renovaterc*",
+    "tslint.*",
+    "*rustfmt.toml",
+    "*clippy.toml",
+    ".swiftlint.y*ml",
+    ".hadolint.y*ml",
+    "commitlint.config.*",
+    ".commitlintrc*",
+    "*gitleaks.toml",
+    ".semgrep.y*ml",
+    "*cspell.json",
+    "cspell.config.*",
+    "*cspell.y*ml",
+    "*dprint.json*",
+    "*vale.ini",
 )
 TEXT_ALLOW = (
     *(
@@ -220,6 +242,7 @@ RULES: tuple[tuple[str, str, str], ...] = (
             "HISTORY",
             "RELEASE-NOTES",
             "RELEASENOTES",
+            "RELEASE_NOTES",
         )
     ),
     *(
@@ -444,11 +467,14 @@ def read(root: Path, rel: str) -> bytes:
 
 
 CONTROL = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
+UNICODE_BREAKS = re.compile("[\u0085\u2028\u2029\u202a-\u202e\u2066-\u2069]")
 
 
 def shown(line: str) -> str:
-    """The line without its CR terminator, tab as \\t, other C0 and DEL as \\xNN."""
+    """The line without its CR terminator, tab as \\t, other C0 and DEL as \\xNN,
+    and Unicode line breaks and bidi controls as \\uXXXX."""
     text = CONTROL.sub(lambda m: f"\\x{ord(m[0]):02x}", line.removesuffix("\r"))
+    text = UNICODE_BREAKS.sub(lambda m: f"\\u{ord(m[0]):04x}", text)
     return text.replace("\t", "\\t")
 
 
