@@ -17,8 +17,11 @@ the change.
 
 `scripts/value-sites.py find` does the deterministic part and the model does none of it by hand:
 
-- **Files.** Tracked files from `git ls-files`; a root that is not a repository is refused. Binary
-  files are skipped and counted.
+- **Files.** Tracked files from `git ls-files`; a root that is not a repository is refused. A file
+  is skipped, not read, when it has a NUL byte in its first 8 KiB (`binary`), starts with a UTF-16
+  or UTF-32 byte-order mark (`utf-16`, `utf-32`), or is a tracked path that resolves outside the
+  root through a symlink or junction (`outside-root`). Each skip is a `skip<TAB>path<TAB>reason`
+  row, and the summary counts them as `skipped`.
 - **Forms of the value.** A path-like value is written differently per file type, so the script
   searches every form: the value as given, with `/` and `\` swapped, and with each `\` doubled (JSON
   and string escapes). A drive followed by a path, such as `D:\data`, is also searched in its MSYS
@@ -27,15 +30,19 @@ the change.
   `case:` plus the form it matched (`case:exact`, `case:doubled`, `case:msys`), and `apply` writes
   the new value in that form.
 - **Token boundary.** A value that starts or ends with a word character does not match inside a
-  longer word: `D:` is not found inside `ID:`. An MSYS or WSL spelling does not match after a word
-  character, `/`, `.`, `-`, or `~`, so a URL path segment is not read as a drive path.
+  longer word: `D:` is not found inside `ID:`. No match ends before `~` and a digit, since
+  `D:\data~1` is an 8.3 short name for another directory. An MSYS or WSL spelling does not match
+  after a word character, `/`, `.`, `-`, or `~`, so a URL path segment is not read as a drive path.
 - **Longest form wins.** When two forms overlap at one position, the longer one is the site and the
   shorter is not reported again.
 - **Counted before read.** `--format summary` prints sites per file and per class, so the size of
   the change is known before any file is opened.
 
-Each row is `class<TAB>path<TAB>line<TAB>col<TAB>form<TAB>reason<TAB>text`. The class comes from
-path rules and the `reason` column says which rule fired. The rules are a default, not a verdict:
+Each row is `class<TAB>path<TAB>line<TAB>col<TAB>form<TAB>reason<TAB>anchor<TAB>text`. The
+`anchor` is the first 12 hex digits of the SHA-256 of the line's bytes, without the line terminator
+or a trailing CR, so it identifies the line's content rather than its position; `path:line:col:anchor`
+from a row is the site `apply` takes. The class comes from path rules applied to the path as
+resolved inside the root, and the `reason` column says which rule fired. The rules are a default, not a verdict:
 read the row, and reclassify it in the report with a stated reason when the file says otherwise.
 A site reclassified away from its path class, in either direction, is edited with the Edit tool
 after confirmation, never forced through `apply`. Filename and path-segment rules ignore case.
@@ -47,11 +54,19 @@ rows before confirming: `apply` edits any listed setup site.
 | Class | What it is | What happens |
 |---|---|---|
 | setup | Examples, help text, runbooks, script defaults, install and configuration docs, templates | Change the value and convert the site to a reference form so the next change does not reach it |
-| record | Changelogs, decision records, evidence, measurements, logs | Leave. They record what was true then |
+| record | Changelogs (`CHANGELOG`, `CHANGES`, `NEWS`, `HISTORY`, release notes, `changelog.d/`), decision records, evidence, measurements, logs | Leave. They record what was true then |
 | contract | Approved plans, briefs, specs, published schemas | Never edit. Write a correction entry to the proposal file below, citing path and line |
 | fixture | Test inputs and expected outputs | Flag for a person. Change only when a test pins a value the source of truth now owns |
 | generated | Files whose header says they are generated or not to be edited | Never edit. Flag for a person with the generator input to change |
-| protected | CI config (GitHub Actions, GitLab, CircleCI, Azure Pipelines, Jenkins, Travis, Buildkite, Bitbucket), agent settings, git hook directories (`.husky`, `.githooks`), `hooks.json` manifests, lint configs, migrations; an application's own `hooks/` source folder is not included | Never edit here. Route to a person as its own change; phase E keeps these surfaces out of any batch |
+| protected | CI config (GitHub Actions, GitLab including `.gitlab/`, CircleCI, Azure Pipelines, Jenkins, Travis, Buildkite, Bitbucket, Drone, AppVeyor, Woodpecker, Cloud Build), agent settings, git hook directories (`.husky`, `.githooks`), `hooks.json` manifests, lint and format configs (ESLint, Prettier, markdownlint, ruff, flake8, pylint, mypy, stylelint, Biome, yamllint, RuboCop, golangci, typos, shellcheck, EditorConfig, pre-commit, lefthook, lint-staged), migrations (`migrations/`, `migration/`, `migrate/`, `alembic/`); an application's own `hooks/` source folder is not included | Never edit here. Route to a person as its own change; phase E keeps these surfaces out of any batch |
+| unknown | A file kind the script does not recognize: an extension, or an extensionless name, outside its text allow-list (for example `LICENSE` or `Jenkinsfile.groovy`) | Never edit through `apply`. Read it; if it is text that states the value, reclassify it in the report and edit it with the Edit tool after confirmation |
+
+The rules are a deny-list with a default-deny for unknown kinds, not an allow-list of setup paths:
+the protected, record, contract, and generated lists name what must not be edited, and a file whose
+kind the script does not recognize is denied rather than assumed to be setup. Setup is what is left.
+The first rule that fires wins, in the order generated, protected, fixture, record, contract,
+unknown, setup, so `tests/data.xyz` stays a fixture. Every name and segment compares
+case-insensitively.
 
 The script cannot see a vendored copy (a file synced from another location); reclassify it as
 `generated` and change the source it is copied from.
@@ -92,7 +107,7 @@ new config key, a new placeholder table) is a proposal the human confirms, not a
 
 Only `change apply` edits, and only after the human confirms the classified site list:
 
-1. Run `find` and present the summary and every non-setup row.
+1. Run `find` and present the summary, every non-setup row, and every skip row.
 2. Wait for explicit confirmation of the setup sites to change, the fixture sites (if any) the
    human chose to change, and each reference-form conversion.
 3. Follow phases E and F of the skill (short-lived branch from the default branch, clean targets,
@@ -101,13 +116,18 @@ Only `change apply` edits, and only after the human confirms the classified site
    exceeds the budget's hard cap, say so and wait for an explicit acknowledgement of the size;
    never truncate it. A value change is its own pull request, never mixed into a structure-only
    coupling pass.
-4. Substitute the value with `value-sites.py apply`, which changes the value only, on the listed
-   `path:line` sites only. It refuses a site that is not a tracked file inside the root (or is a
-   symlink), record, contract, generated, and protected sites, fixture sites unless
-   `--allow-fixture` is given, a line that no longer carries the value, a target that is not
-   writable, and any write that changes a file's control-byte count; one refusal means no file is
-   written, and a write that fails midway restores the files already written. Then make the confirmed
-   reference-form conversions with the Edit tool.
+4. Substitute the value with `value-sites.py apply`, which takes each confirmed site as
+   `path:line:col:anchor` copied from its `find` row and replaces only the match that starts at
+   that column; several matches on one line are several sites, and a bare `path:line` is a usage
+   error. At write time it re-reads the line and refuses the run when the line's anchor differs from
+   the given one or no match of the value starts at the column, so a line that moved or changed
+   since `find` is never edited. It also refuses a site that is not a tracked file inside the root,
+   a symlink or hardlink, a binary, UTF-16, or UTF-32 file, record, contract, generated, protected,
+   and unknown sites, fixture sites unless `--allow-fixture` is given, a target that is not
+   writable, and any write that changes a file's control-byte count. One refusal means no file is
+   written. Each file is written to a temp file beside it and moved into place; if a write fails,
+   the run's temp files are removed and every file already replaced gets its original bytes back.
+   Then make the confirmed reference-form conversions with the Edit tool.
 5. Write contract corrections to the proposal file; never edit the contract.
 6. Re-run `find` for the old value. Every remaining row must be a record, a contract, a generated
    or protected file, or a fixture the human chose to leave; a remaining setup row means the change is not done.
@@ -126,10 +146,11 @@ Only `change apply` edits, and only after the human confirms the classified site
   boundary keeps `D:\data` from matching inside `D:\data2`; when two different values are changing
   together, run the longer one first.
 - **Token ends.** `-` and `.` end a token, so `D:\data` also matches the start of `D:\data-old` and
-  `D:\data.bak`; read those rows before confirming.
-- **Moving anchors.** A contract under concurrent edit shifts its line numbers. `apply` re-reads each
-  listed line at write time and refuses a site whose line no longer carries the value; cite
-  contract anchors from a fresh read.
+  `D:\data.bak`; read those rows before confirming. `~` followed by a digit does not end a token:
+  `D:\data~1` is an 8.3 short name for a different directory, and `find` does not report it.
+- **Moving lines.** A file under concurrent edit shifts its line numbers. `apply` checks each site's
+  anchor and column against the line at write time and refuses the whole run when either no longer
+  holds; run `find` again and confirm the new rows. Cite contract lines from a fresh read.
 - **Write-time guards.** When a hook blocks heredoc writes, inline interpreter writes, or a temp
   path, write the script with the Write tool into the session scratchpad and run it from there.
   Never weaken the guard.

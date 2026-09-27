@@ -46,8 +46,9 @@ for a one-to-one call, is refused.
 value; when that value changes, the skill finds every spelling of it, sorts each site into setup
 (examples, help text, defaults: change it and make it point at the owner), record (history: leave
 it), contract (approved plans and specs: propose a correction), fixture (ask a person),
-generated (change the generator), or protected (CI, settings, hooks, lint configs, migrations:
-route to a person), and edits only after confirmation.
+generated (change the generator), protected (CI, settings, hooks, lint configs, migrations:
+route to a person), or unknown (a file kind the script does not recognize: read it first), and
+edits only after confirmation.
 
 ## Consumer conventions
 

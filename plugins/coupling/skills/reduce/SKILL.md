@@ -158,14 +158,17 @@ path, not phases B to D. Read [`reference/change-mode.md`](reference/change-mode
 
 1. **Inventory.** Run `python3 "${CLAUDE_SKILL_DIR}/scripts/value-sites.py" find --old '<old>'
    --format summary` from the repository root (add scope paths after the flags), then the same
-   with `--format tsv` for the rows. The script finds every spelling of the value and classifies
-   each site; do not repeat that work by hand.
+   with `--format tsv` for the rows: `class, path, line, col, form, reason, anchor, text`, plus a
+   `skip, path, reason` row for each file it did not read. The script finds every spelling of the
+   value and classifies each site; do not repeat that work by hand.
 2. **Review the classes.** Read each non-setup row and any setup row whose file says otherwise;
    reclassify with a stated reason. Handle each class per the spoke's Site classes table.
 3. **Propose.** For each setup site, name the reference form it converts to. Report the counts,
    every non-setup row, and the proposals. `change` without `apply` stops here.
 4. **Apply** (`change apply` only). Wait for the human to confirm the site list and each
-   conversion, then follow the spoke's Apply sequence, which runs phases E and F.
+   conversion, then follow the spoke's Apply sequence, which runs phases E and F. `apply` takes
+   each confirmed site as `path:line:col:anchor` from its row and refuses the run if that line
+   changed since `find`.
 5. **Ledger and report.** Record converted and flagged sites in the ledger and report what waits
    on the human first.
 
