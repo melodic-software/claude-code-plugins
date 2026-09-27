@@ -345,6 +345,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "animation",
+      "source": "./plugins/animation",
+      "category": "visual-arts",
+      "tags": ["animation", "rotoscope", "2d-animation", "ink", "film", "canvas", "skill"],
+      "defaultEnabled": false
+    },
+    {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",
