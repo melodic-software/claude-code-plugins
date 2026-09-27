@@ -192,20 +192,24 @@ assert_present 'parent contract names the Python twin' \
   'reference/parent-contract.md' 'check-coverage-complete.py'
 
 # ---------------------------------------------------------------------------
-# 7. maxTurns parity (#2267 B-F6)
+# 7. maxTurns has one owner
 #
-# The explorer is the read-heavier workload and carried the smaller budget, with
-# no stated reason. Parity is the claim; nothing here asserts a cause for any
-# past run.
+# The parent contract's harness-facts record names the value and why it stays: a
+# checkpoint, not a completion budget. No documented floor exists to test
+# adequacy against; the stop-turn reserve below each limit is asserted in the
+# envelope section further down.
 # ---------------------------------------------------------------------------
 turns_of() { grep -m1 -E '^maxTurns:' "$PLUGIN_ROOT/agents/$1.md" | tr -dc '0-9'; }
-explorer_turns="$(turns_of explorer)"
-researcher_turns="$(turns_of researcher)"
-if [[ -n "$explorer_turns" && -n "$researcher_turns" && "$explorer_turns" -ge "$researcher_turns" ]]; then
-  pass "explorer maxTurns ($explorer_turns) >= researcher maxTurns ($researcher_turns)"
-else
-  fail "explorer maxTurns (${explorer_turns:-unset}) >= researcher maxTurns (${researcher_turns:-unset})"
-fi
+contract_turns="$(grep -m1 -oE 'Every worker definition here sets `maxTurns: [0-9]+`' \
+  "$PLUGIN_ROOT/reference/parent-contract.md" | tr -dc '0-9')"
+for agent in explorer researcher intent-tracer; do
+  agent_turns="$(turns_of "$agent")"
+  if [[ -n "$contract_turns" && "$agent_turns" == "$contract_turns" ]]; then
+    pass "$agent maxTurns ($agent_turns) equals the parent contract's value ($contract_turns)"
+  else
+    fail "$agent maxTurns (${agent_turns:-unset}) equals the parent contract's value (${contract_turns:-unset})"
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # 8. Progressive disclosure is not inverted (#2271 D-F4)
