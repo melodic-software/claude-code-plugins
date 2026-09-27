@@ -48,7 +48,7 @@ export const meta = {
 }
 
 // Substituted at dispatch by the main thread:
-const REVIEW_DIFF = 'HEAD'          // resolved review diff base
+const REVIEW_DIFF = '<UNRESOLVED>'  // resolved review diff base; a missed substitution fails the leaf's git diff
 const OWNERLESS_SLICES = []         // discovered project criteria docs (may be empty)
 
 // tier1 = highest-value agents run first as a barrier so that if a finite

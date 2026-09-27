@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "work-items",
-  "version": "0.40.31",
+  "version": "0.41.0",
   "description": "Manages development work items through a provider-neutral tracker seam that ships with the plugin (bundled dispatcher plus github, local-markdown, jira, gitea, and linear adapters; seam plugin-dir canonical, adapters consumer-local-first): dashboard, taxonomy-labeled creation, a race-safe assignee-plus-lease claim protocol, recurring-schedule checks, TODO scanning, stale-lease auditing, plan decomposition into vertical-slice items, a macro-journey router over spec containers (rollup, per-container execution shape, next-step routing), raw-intake triage (issues and unsolicited PRs through raw, verified, briefed, autonomous-eligible states), plus the two work-items loop lanes of the loop-lane convention: a self-paced autonomous work-loop drain (work-class admission gate, adaptive item cap, PR-only) and an attended attend-queue escalation lane. The re-runnable setup skill binds the provider (.work-item-tracker.json), seeds the recurring-schedule seam (.github/recurring-schedule.json), and remaps canonical role labels.",
   "author": {
     "name": "Melodic Software",
@@ -32,7 +32,7 @@
     "work_dispatch_concurrency_cap": {
       "type": "number",
       "title": "Autonomous dispatch concurrency cap",
-      "description": "Maximum concurrent dispatch waves /work-items:work's autonomous execute step allows per invocation (it runs exactly one item per invocation). Give a whole number of waves; a fractional value is floored to whole waves since a wave is discrete. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset to let implement-dispatch apply its own internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap).",
+      "description": "Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once within one plan phase, the size of one dispatch wave (it runs exactly one item per invocation). Give a whole number of rows; a fractional value is floored since a row is discrete. Rows that share a worktree under the default worker commit authority still run one at a time. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset to let implement-dispatch apply its own internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap).",
       "min": 1
     },
     "work_loop_item_cap_start": {

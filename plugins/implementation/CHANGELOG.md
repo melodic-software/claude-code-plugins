@@ -3,6 +3,26 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.2] - 2026-09-27
+
+### Added
+
+- `report` ships a byte-identical copy of discovery's return contract. `implementer` and `phase-verifier` preload `implementation:report`.
+
+## [0.19.1] - 2026-09-27
+
+### Fixed
+
+- **`implement-dispatch` defines the wave, and one git writer per worktree binds under both
+  commit authorities.** A wave is a batch of one phase's worker rows, each an independent brief
+  with its own disjoint fence, and `--wave-cap` bounds the rows in flight at once; waves never
+  span phases. 0.18.0 added commit authority `orchestrator` with its single-committer
+  Concurrency rule (#4511), but that rule bound only under `orchestrator`. Under the default
+  `worker` authority, rows that share a worktree now run one at a time whatever the cap, since a
+  worktree has one index and one HEAD; concurrent rows in a shared worktree need `orchestrator`.
+  The wave-cap eval now runs its rows under `orchestrator`, and a new eval covers two `worker`
+  rows sharing a worktree (#4262).
+
 ## [0.19.0] - 2026-09-27
 
 ### Changed

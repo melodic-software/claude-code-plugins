@@ -4176,6 +4176,93 @@ else
   fail "bullet '## Next' with a fallback should warn on phrasing (rc=$rc): $out"
 fi
 
+# 27b. A stage-bearing skill (metadata.workflow-stage in the stage list) with no
+# '## Next' and no older routing heading warns; any routing heading, a
+# conforming '## Next', a non-stage value, or `contract` keeps today's verdict.
+# make_stage_skill <name> <workflow-stage-line-value> <extra-section>
+make_stage_skill() {
+  make_skill "$1" '---
+name: '"$1"'
+description: "Stage fixture. Use when: '"'"''"$1"''"'"'."
+metadata:
+  workflow-stage: '"$2"'
+---
+
+## Purpose
+
+A stage-bearing fixture.
+'"$3"'
+## Gotchas
+
+None known.
+'
+}
+
+make_stage_skill stage-plan-bare plan ''
+out="$(run stage-plan-bare 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -qF "WARN: no '## Next' section on a stage-bearing skill (workflow-stage: plan)" <<<"$out" && ! grep -q "INFO: no '## Next' section" <<<"$out"; then
+  pass "a stage-bearing skill with no '## Next' or routing heading warns and passes"
+else
+  fail "stage-bearing skill with no successor section should warn (rc=$rc): $out"
+fi
+
+make_stage_skill stage-review-quoted '"review"' ''
+out="$(run stage-review-quoted 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -qF "WARN: no '## Next' section on a stage-bearing skill (workflow-stage: review)" <<<"$out"; then
+  pass "a quoted workflow-stage value is read unquoted and still warns"
+else
+  fail "quoted stage-bearing value should warn (rc=$rc): $out"
+fi
+
+stage_quiet_case() {
+  local name="$1" label="$2"
+  out="$(run "$name" 2>&1)"
+  rc=$?
+  if [[ $rc -eq 0 ]] && ! grep -q "stage-bearing skill" <<<"$out" && ! grep -q "WARN: '## Next'" <<<"$out"; then
+    pass "$label"
+  else
+    fail "$label (rc=$rc): $out"
+  fi
+}
+
+for heading in '## Handoff' '## Routing table' '## Integration with workflow' '## Skill chaining during execution' '## handoff to `education:teach`'; do
+  slug="$(printf '%s' "$heading" | tr -cs 'a-zA-Z' '-' | tr '[:upper:]' '[:lower:]')"
+  slug="${slug%-}"
+  make_stage_skill "stage-plan$slug" plan "
+$heading
+
+Routes to \`/implementation:implement\` in prose.
+"
+  stage_quiet_case "stage-plan$slug" "a stage-bearing skill routing under '$heading' does not warn"
+done
+
+make_stage_skill stage-plan-next plan '
+## Next
+
+`/implementation:implement`.
+'
+out="$(run stage-plan-next 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: '## Next' section present" <<<"$out" && ! grep -q "stage-bearing skill" <<<"$out"; then
+  pass "a stage-bearing skill with a conforming '## Next' keeps today's silent verdict"
+else
+  fail "stage-bearing skill with '## Next' should not warn (rc=$rc): $out"
+fi
+
+make_stage_skill stage-anytime anytime ''
+out="$(run stage-anytime 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "INFO: no '## Next' section" <<<"$out" && ! grep -q "stage-bearing skill" <<<"$out"; then
+  pass "a non-stage workflow-stage (anytime) with no '## Next' stays an INFO note"
+else
+  fail "anytime skill should keep the INFO note (rc=$rc): $out"
+fi
+
+make_stage_skill stage-contract contract ''
+stage_quiet_case stage-contract "a contract-stage skill with no '## Next' does not warn (contract routes through its slice)"
+
 # --- R1-R12: explicit skills roots as positionals -----------------------------
 # One or more existing directories run the gate over every skill under each,
 # grouped per root with a rollup. Roots live under $TMP/roots so the fixtures

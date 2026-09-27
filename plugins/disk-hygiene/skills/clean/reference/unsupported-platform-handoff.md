@@ -38,6 +38,10 @@ engine plan:
    against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
    set changed since the snapshot), `gone` (no longer present), or `contested` (protection,
    VCS state, a live handle, elevation, or unverifiable state). And never deletes anything.
+   It exits 0 when every approved path is `clear` or `gone`, and 3 when any is `drifted` or
+   `contested`, whatever else the round holds. `gone` is where verify-one-delete-one leaves each
+   path it has removed, so from the second round on it is progress, not a failure; it still counts
+   in `not_clear`. Invalid input exits 2.
    Act only on verdict-`clear` paths. Additionally confirm any owner process named in the audit
    evidence is still absent, that evidence is report-level, outside the engine's checks.
 
