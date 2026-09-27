@@ -404,6 +404,144 @@ else
   fail "$LEFT18 temp file(s) leaked on cancellation"
 fi
 
+# --- Process accounting: a PATH of logging stand-ins -------------------------
+# Every external program the tee can start is replaced by a stand-in that
+# appends its name to a log and then runs the real program, so a case can
+# assert which programs a render started, without strace.
+LOGBIN="$WORK/logbin"
+PROCLOG="$WORK/proc.log"
+mkdir -p "$LOGBIN"
+for t in date jq mkdir chmod find mv rm sleep sh cat; do
+  real=$(command -v "$t") || continue
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" %s >>"%s"\nexec "%s" "$@"\n' "$t" "$PROCLOG" "$real" >"$LOGBIN/$t"
+  chmod +x "$LOGBIN/$t"
+done
+# Run one render with the stand-ins first on PATH; $3... is extra env.
+logged_run() {
+  local home="$1" input="$2"
+  shift 2
+  : >"$PROCLOG"
+  printf '%s' "$input" | env "$@" HOME="$home" PATH="$LOGBIN:$PATH" bash "$TEE" true
+}
+started() { tr '\n' ' ' <"$PROCLOG" | sed 's/ $//'; }
+
+# --- Case 19: an unchanged render starts no process; a changed one only mv ---
+HOME19="$WORK/home19"
+mkdir -p "$HOME19"
+SNAP19="$HOME19/$CTX_REL/sess-42.json"
+logged_run "$HOME19" "$(build_input)"
+if [[ -f "$SNAP19" ]]; then ok "first render writes the snapshot"; else fail "first render wrote no snapshot"; fi
+BEFORE19=$(<"$SNAP19")
+touch -d '2 seconds ago' "$SNAP19" "$HOME19/$CTX_REL/.sess-42.json.last"
+logged_run "$HOME19" "$(build_input)"
+if [[ "$(started)" == "" ]]; then ok "unchanged render starts no external process"; else fail "unchanged render started: $(started)"; fi
+if [[ "$(<"$SNAP19")" == "$BEFORE19" ]]; then ok "unchanged render leaves the snapshot as it was"; else fail "unchanged render rewrote the snapshot"; fi
+CHANGED19='{"session_id":"sess-42","version":"2.1.283","context_window":{"used_percentage":31}}'
+logged_run "$HOME19" "$CHANGED19"
+if [[ "$(started)" == "mv" ]]; then ok "changed render starts only mv"; else fail "changed render started: $(started)"; fi
+if [[ "$(jq -r '.context_window.used_percentage' <"$SNAP19")" == "31" ]]; then ok "changed render lands the new context_window"; else fail "changed render snapshot: $(<"$SNAP19")"; fi
+# The same body again, but the floor is 0: the write happens.
+logged_run "$HOME19" "$CHANGED19" CG_TEE_NOCHANGE_FLOOR=0
+if [[ "$(started)" == "mv" ]]; then ok "past the no-change floor an unchanged body is rewritten"; else fail "floor 0 started: $(started)"; fi
+# A non-integer floor falls back to the default instead of reaching arithmetic.
+# shellcheck disable=SC2016 # the command substitution must reach the tee unexpanded
+logged_run "$HOME19" "$CHANGED19" 'CG_TEE_NOCHANGE_FLOOR=a[$(touch '"$WORK"'/pwned19)]'
+if [[ ! -e "$WORK/pwned19" && "$(started)" == "" ]]; then ok "a non-integer floor is ignored, never evaluated"; else fail "floor injection (started: $(started))"; fi
+
+# --- Case 20: a replaced target is rewritten even when the body is unchanged -
+printf '{"captured_at":"2000-01-01T00:00:00Z","session_id":"sess-42","context_window":{"used_percentage":99}}\n' >"$SNAP19.new"
+touch -d '1 second' "$SNAP19.new"
+mv -f "$SNAP19.new" "$SNAP19"
+logged_run "$HOME19" "$CHANGED19"
+if [[ "$(jq -r '.context_window.used_percentage' <"$SNAP19")" == "31" ]]; then ok "a target replaced since the last write is rewritten"; else fail "replaced target kept: $(<"$SNAP19")"; fi
+# A last-write record that is a symlink is never followed or trusted.
+LAST19="$HOME19/$CTX_REL/.sess-42.json.last"
+rm -f "$LAST19"
+printf 'decoy\n' >"$WORK/decoy19"
+ln -s "$WORK/decoy19" "$LAST19"
+logged_run "$HOME19" "$CHANGED19"
+if [[ "$(<"$WORK/decoy19")" == "decoy" ]]; then ok "a symlinked last-write record is never written through"; else fail "wrote through the record symlink"; fi
+rm -f "$LAST19"
+
+# --- Case 21: the prune runs at most once an hour, and reaps old records ----
+HOME21="$WORK/home21"
+CTXDIR21="$HOME21/$CTX_REL"
+mkdir -p "$CTXDIR21"
+printf '{"session_id":"old1"}\n' >"$CTXDIR21/old1.json"
+printf '1\n{}\n' >"$CTXDIR21/.old1.json.last"
+touch -d '15 days ago' "$CTXDIR21/old1.json" "$CTXDIR21/.old1.json.last"
+printf '%s\n' "$(date +%s)" >"$CTXDIR21/.prune-stamp"
+logged_run "$HOME21" "$(build_input)"
+if [[ -e "$CTXDIR21/old1.json" && "$(started)" != *find* ]]; then ok "a fresh prune stamp skips the prune"; else fail "prune ran under a fresh stamp (started: $(started))"; fi
+printf '%s\n' "$(($(date +%s) - 3601))" >"$CTXDIR21/.prune-stamp"
+logged_run "$HOME21" "$CHANGED19"
+if [[ ! -e "$CTXDIR21/old1.json" ]]; then ok "an hour-old prune stamp lets the prune run"; else fail "prune did not run under a stale stamp"; fi
+if [[ ! -e "$CTXDIR21/.old1.json.last" ]]; then ok "the prune reaps a 15-day-old last-write record"; else fail "old last-write record survived"; fi
+if [[ -e "$CTXDIR21/.sess-42.json.last" ]]; then ok "the live session's last-write record survives the prune"; else fail "live last-write record pruned"; fi
+printf '%s\n' "$(($(date +%s) + 86400))" >"$CTXDIR21/.prune-stamp"
+printf '{"session_id":"old2"}\n' >"$CTXDIR21/old2.json"
+touch -d '15 days ago' "$CTXDIR21/old2.json"
+logged_run "$HOME21" "$(build_input)"
+if [[ ! -e "$CTXDIR21/old2.json" ]]; then ok "a future-dated prune stamp counts as due"; else fail "future-dated stamp suppressed the prune"; fi
+chmod 755 "$CTXDIR21"
+printf '0\n' >"$CTXDIR21/.prune-stamp"
+logged_run "$HOME21" "$CHANGED19"
+# portability-ok: GNU-first, BSD fallback co-located (#1510)
+if [[ "$(stat -c %a "$CTXDIR21" 2>/dev/null || stat -f %Lp "$CTXDIR21")" == "700" ]]; then ok "the prune pass re-asserts the owner-only directory mode"; else fail "directory mode not re-asserted"; fi
+
+# --- Case 22: the builtin body equals jq's, byte for byte ---------------------
+# Each payload runs twice, once through the builtin reader and once with
+# CG_TEE_FORCE_JQ=1, and the snapshots must match apart from captured_at.
+# "builtin" rows must also start no jq; "jq" rows are the shapes the builtin
+# declines, which must reach jq and still match.
+diff_case() {
+  local want_path="$1" what="$2" input="$3" hb="$WORK/d22b" hj="$WORK/d22j" sid gotb gotj
+  rm -rf "$hb" "$hj"
+  mkdir -p "$hb" "$hj"
+  logged_run "$hb" "$input"
+  local jq_ran=no
+  [[ "$(started)" == *jq* ]] && jq_ran=yes
+  logged_run "$hj" "$input" CG_TEE_FORCE_JQ=1
+  sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+  gotb=$(sed 's/^{"captured_at":"[^"]*",//' "$hb/$CTX_REL/$sid.json" 2>/dev/null)
+  gotj=$(sed 's/^{"captured_at":"[^"]*",//' "$hj/$CTX_REL/$sid.json" 2>/dev/null)
+  if [[ -n "$gotj" && "$gotb" == "$gotj" ]]; then ok "builtin = jq: $what"; else fail "builtin != jq: $what: builtin [$gotb] jq [$gotj]"; fi
+  case "$want_path" in
+  builtin) if [[ "$jq_ran" == no ]]; then ok "no jq for: $what"; else fail "jq ran for: $what"; fi ;;
+  jq) if [[ "$jq_ran" == yes ]]; then ok "declined to jq: $what"; else fail "builtin took a shape it should decline: $what"; fi ;;
+  *) fail "diff_case: unknown path $want_path" ;;
+  esac
+}
+diff_case builtin "the suite's standard payload" "$(build_input)"
+diff_case builtin "a realistic 2.1 payload" '{"hook_event_name":"Status","session_id":"0f6c2b1e-8a1d-4c5e-9a7b-2d3e4f5a6b7c","transcript_path":"C:\\Users\\op\\.claude\\projects\\x\\0f6c.jsonl","cwd":"C:\\Users\\op\\repo {x}","model":{"id":"claude-opus-4-8","display_name":"Opus"},"workspace":{"current_dir":"/home/op/r","project_dir":"/home/op/r"},"version":"2.1.283","output_style":{"name":"default"},"cost":{"total_cost_usd":0.01234,"total_duration_ms":45000},"context_window":{"total_input_tokens":15234,"total_output_tokens":4521,"context_window_size":200000,"used_percentage":8,"remaining_percentage":92,"current_usage":{"input_tokens":8500,"output_tokens":1200,"cache_creation_input_tokens":5000,"cache_read_input_tokens":2000}},"exceeds_200k_tokens":false}'
+diff_case builtin "pretty-printed with nulls" "$(printf '{\n  "session_id": "sess-p",\n  "version": "2.1.200",\n  "context_window": {\n    "used_percentage": null,\n    "remaining_percentage": null,\n    "current_usage": null,\n    "context_window_size": 200000\n  }\n}\n')"
+diff_case builtin "no context_window" '{"session_id":"sess-n","version":"2.1.1"}'
+diff_case builtin "context_window null" '{"session_id":"sess-z","context_window":null}'
+diff_case builtin "numeric version is not copied" '{"session_id":"sess-v","version":2,"context_window":{"used_percentage":1}}'
+diff_case builtin "empty version string" '{"session_id":"sess-e","version":"","context_window":{"used_percentage":1}}'
+diff_case builtin "duplicate root keys: the last wins" '{"session_id":"sess-d","context_window":{"used_percentage":1},"context_window":{"used_percentage":2}}'
+diff_case builtin "nested decoys are not root keys" '{"a":{"session_id":"x","context_window":{"used_percentage":77},"version":"9"},"session_id":"sess-nd","context_window":{"used_percentage":3,"tiers":[1,2.5,-30,0.125]}}'
+diff_case builtin "a brace and an escaped quote in another string" '{"note":"a{b\"c}[","session_id":"sess-b","context_window":{"used_percentage":4}}'
+diff_case builtin "a string value with spaces inside context_window" '{"session_id":"sess-s","context_window":{"mode":"auto compact","used_percentage":5}}'
+diff_case jq "an escape inside context_window" '{"session_id":"sess-x","context_window":{"mode":"a\u00e9","used_percentage":6}}'
+diff_case jq "a version that needs escaping" '{"session_id":"sess-y","version":"2.1\"x","context_window":{"used_percentage":7}}'
+diff_case jq "a numeric session id" '{"session_id":42,"context_window":{"used_percentage":8}}'
+diff_case jq "a leading-zero number" '{"session_id":"sess-l","context_window":{"used_percentage":08}}'
+diff_case jq "an exponent" '{"session_id":"sess-x2","context_window":{"used_percentage":-3e2}}'
+diff_case jq "a trailing fraction zero" '{"session_id":"sess-x3","context_window":{"used_percentage":2.50}}'
+diff_case jq "a 16-digit integer" '{"session_id":"sess-x4","context_window":{"total_input_tokens":1234567890123456}}'
+
+# --- Case 23: shapes the builtin declines never produce a snapshot jq would not
+for bad in '{"session_id":"sess-t","context_window":{"used_percentage":1}' \
+  '{"session_id":"sess-t","context_window":{"used_percentage":1}}}' \
+  '{"session_id":"sess-t","context_window":{"used_percentage":1,}}' \
+  '["session_id","sess-t"]'; do
+  rm -rf "$WORK/h23"
+  mkdir -p "$WORK/h23"
+  logged_run "$WORK/h23" "$bad"
+  if [[ ! -e "$WORK/h23/$CTX_REL/sess-t.json" ]]; then ok "invalid payload writes nothing: $bad"; else fail "invalid payload wrote a snapshot: $bad"; fi
+done
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
