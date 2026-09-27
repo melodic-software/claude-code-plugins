@@ -639,9 +639,9 @@
       ]
     },
     {
-      "name": "provenance",
-      "displayName": "Provenance",
-      "source": "./plugins/provenance",
+      "name": "attribution",
+      "displayName": "Attribution",
+      "source": "./plugins/attribution",
       "category": "quality",
       "tags": [
         "provenance",
