@@ -669,6 +669,12 @@ Classify absence deliberately:
   documented reduced result.
 - **Not applicable:** exit quietly and successfully.
 
+Count as a dependency anything the plugin assumes about the machine: an external binary and the
+version it needs, a network port, a fixed size or resolution, another plugin's file layout, an
+installed browser, and a lookup on `PATH`. Each gets one verdict: behind a port
+([Skills are processes](#skills-are-processes)), a `userConfig` value, presence-gated with the
+absence class above, documented as a prerequisite, or fixed.
+
 Anything with a runtime prerequisite (for example `jq` on `PATH`) degrades gracefully, never a hard
 crash. Absence is surfaced to both the agent and the user; a candidate channel for durable
 visibility is the hook-telemetry convention's OTel surface. No black boxes: a silently skipped

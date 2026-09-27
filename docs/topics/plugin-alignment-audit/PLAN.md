@@ -69,7 +69,14 @@ unchanged on main; no refresh needed. Sanity: ancestor check exit 0, heading cou
 `grep -c '^## Skills are processes$\|^## One owner per value$' docs/plugin-philosophy.md` prints `2`;
 `test -d plugins/pixel-art/skills/scene` exits 0 (#4407 is on main).
 
-### Phase 1: Rule and registry [TODO]
+### Phase 1: Rule and registry [DONE]
+
+Notes: registry has 16 rows (dim-8, dim-9, dim-11, dim-12 to dim-24). Sanity: registry tests
+PASS=15 FAIL=0; `--check` exit 0; `check-lane-coverage.sh --check` exit 0;
+`check-docs-only-gate.sh --check` exit 0; `no central registry` count 0; shellcheck and
+shell-portability clean. `check-script-contract.test.sh` PASS=37 FAIL=2, both failures
+`check-html-assets.sh` needing `htmlhint` (no `npm ci` in this worktree), unrelated to this phase.
+Not yet done: the fresh-context verifier pass on this phase's diff; run it before Phase 2.
 
 Work items:
 
