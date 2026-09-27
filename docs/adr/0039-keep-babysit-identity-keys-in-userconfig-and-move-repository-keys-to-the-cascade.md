@@ -50,9 +50,22 @@ verdict HYBRID, which this record adopts.
    `babysit_skip_downgrade_logins`, `babysit_review_trigger_phrase`, `babysit_review_bot_logins`,
    `babysit_review_settle_minutes`, `babysit_review_gate_context`, `babysit_ci_gateway_context`.
    The loop acts on many repositories from one session, so that move needs a resolver that reads
-   each target repository's cascade from its default branch, a union (policy-floor) merge mode for
-   hold lists so a repository layer can add holds but not remove them, the review trigger and
-   review bot keys bound as one unit, and the same deprecated `userConfig` fallback.
+   each target repository's cascade from its default branch and the same deprecated `userConfig`
+   fallback, plus these merge modes:
+   - `babysit_merge_block_labels`, `babysit_extra_dependency_manager_logins` and
+     `babysit_approval_downgrade_logins` are hold lists: an add-only union across the layers and
+     the deprecated `userConfig` value, so a layer can add an entry but never drop one.
+   - `babysit_review_bot_logins` and `babysit_review_settle_minutes` bind as one unit from one
+     layer, and a lower layer may lengthen the settle window, never shorten it.
+   - `babysit_skip_downgrade_logins` is unclassified: whether it is a floor or a preference is
+     open.
+   - `babysit_review_gate_context` and `babysit_ci_gateway_context` name the checks that must pass
+     before the loop posts the review trigger, so a writer to the default branch could point them
+     at a check that writer controls. They are read from the target repository's default branch
+     only, never from a working tree or a personal layer (user-global or local overlay), and are
+     flagged for the #4572 security review.
+
+   A security review is mandatory on the pull request that implements #4572.
 4. **Out of scope:** any design letting a repository-writable layer set a key that widens
    authority, or replace a hold list under plain per-key override. That loosens a security policy
    and is the operator's call.

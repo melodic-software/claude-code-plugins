@@ -7,7 +7,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
-- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds a second install record there and enables the plugin at that scope, while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
+- Setup's reconfigure recipe states the measured reason to pass the scope `claude plugin list` reports: a rerun at another scope adds an install record there and enables the plugin at that scope (measured in both directions), while the value itself always lands in user settings. It no longer says the write lands at a scope that does not load. It also says a rejected `--config` value prints a warning yet exits 0, so read the output ([plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)).
 
 ## [0.6.62] - 2026-09-25
 

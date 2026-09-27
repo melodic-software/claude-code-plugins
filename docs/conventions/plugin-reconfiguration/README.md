@@ -29,19 +29,23 @@ consumer-run.
 
 ## Verified-version record
 
-The `already installed`-still-writes claim was verified on **Claude Code 2.1.283** (sandbox probe,
-2026-09-27): `string`, `boolean` and `directory` options, each rerun at the scope the plugin was
-installed at (`user`, `project` and `local`). The install record stays byte-identical and only the
-named option keys change. Two further facts from the same probe:
+Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):
 
-- **The value always lands in user settings.** Whatever `-s` says, `--config` writes
-  `pluginConfigs` to the user `settings.json`; `-s project` / `-s local` governs only the install
-  record and the `enabledPlugins` entry in that scope's settings file.
-- **A scope mismatch adds an install.** A rerun at a scope other than the installed one adds a
-  second install record at that scope and enables the plugin there. With the default `-s user`,
-  that enables a project- or local-installed plugin machine-wide.
+- **A same-scope rerun writes the value.** Rerun at the scope the plugin was installed at, the
+  command printed `already installed` and wrote the value while the install record stayed
+  byte-identical and only the named option keys changed. Measured for a `string` option at `user`
+  and `project` scope, and for `boolean` and `directory` options at `local` scope.
+- **The value always lands in user settings.** `--config` wrote `pluginConfigs` to the user
+  `settings.json` whatever `-s` said, measured on first installs at `project` and `local` scope;
+  `-s` governed only the install record and the `enabledPlugins` entry in that scope's settings
+  file.
+- **A scope mismatch adds an install.** A rerun at a scope other than the installed one added an
+  install record at that scope and enabled the plugin there, measured both ways: a `-s user` rerun
+  of a plugin installed at `project` and `local` enabled it machine-wide, and a `-s project` rerun
+  of a `user`-installed plugin added a project install record and `enabledPlugins` entry.
 
-Not covered: a `sensitive` option. Re-verify before relying on the claim outside the covered
+Not covered: a `sensitive` option, a same-scope `string` rerun at `local` scope, and same-scope
+`boolean` or `directory` reruns at `user` or `project` scope. Re-verify before relying on the claim outside the covered
 conditions, and update this section (only here) when a newer release is verified.
 
 ## Caveats every setup skill's short form carries
@@ -50,9 +54,9 @@ conditions, and update this section (only here) when a newer release is verified
    `pluginConfigs` entry, resetting every option in its README Options reference to its manifest
    default. Customized values are simply gone, with nothing left to read the old values from.
 2. **Scope.** `-s` defaults to `user`; pass the scope `claude plugin list` reports for the plugin,
-   and run from that project's directory for a `project`/`local` scope. Otherwise the rerun adds a
-   second install record at the wrong scope and enables the plugin there; the value itself always
-   lands in user settings.
+   and run from that project's directory for a `project`/`local` scope. A rerun at another scope
+   adds an install record at that scope and enables the plugin there (measured in both directions,
+   user over project/local and project over user); the value itself always lands in user settings.
 3. **Observation is next-session.** The rendered `${user_config.*}` is injected at skill load and
    each hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so
    a same-session `check` still reports the OLD value. That is not a failed write. Verify the

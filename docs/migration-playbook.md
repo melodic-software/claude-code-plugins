@@ -1440,8 +1440,8 @@ Reintegration (below) covers a repo that already ran an in-repo copy and now swi
    instead.
    Re-running that command later against an already-installed plugin prints `already installed`
    **and still writes the value** (smoke-test C), so a headless reconfiguration is another `--config`
-   install rather than an uninstall/reinstall. The verified-version record, which covers
-   `--scope project`, lives in the
+   install rather than an uninstall/reinstall. The verified-version record, which covers a
+   same-scope `--scope project` rerun of a `string` option, lives in the
    [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record).
    A rejected value still exits 0, so read the stored value back rather than assuming the write
    landed. For a non-sensitive option, read it
@@ -1498,7 +1498,8 @@ surface to a published plugin for a single consumer's low-value nicety.
    non-default `userConfig` toggle on that install command. Re-running it later against an
    already-installed plugin prints `already installed` **and still writes the value** (smoke-test C),
    so a headless reconfiguration is another `--config` install, not an uninstall/reinstall. The
-   verified-version record, which covers the `project` scope this step uses, lives in the
+   verified-version record, which covers a same-scope `project` rerun of a `string` option (the
+   scope this step uses), lives in the
    [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record).
    A rejected value still exits 0, so read the stored value back before reporting a
    project-scope reconfiguration as applied. For a non-sensitive option, read it from the **user**

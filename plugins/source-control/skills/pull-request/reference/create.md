@@ -163,7 +163,7 @@ If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue
 ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' || true)
 ```
 
-The script's stderr is left visible on purpose: it carries the deprecation note when the userConfig value is used and the name of any layer skipped for an invalid ERE. Relay either to the user; stdout carries only the issue number. Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a non-numeric capture, e.g. a bare Jira key, is looked up below, found absent, and dropped to the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
+The script's stderr is left visible on purpose: it carries the deprecation note when the userConfig value is used, and a note naming the source and the reason (never the pattern text) when a layer or the userConfig value is skipped (invalid ERE, backreference, empty or unterminated code fence) or when a match yields no numeric id. Relay any note to the user; stdout carries only the issue number. Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a pattern with no capture group, or a non-numeric capture such as a bare Jira key, prints nothing and takes the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
 
 ```bash
 CLOSES_LINE=""

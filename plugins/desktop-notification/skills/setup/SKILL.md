@@ -80,8 +80,8 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
   to its manifest default. `-s` defaults to `user`; pass the install scope `claude plugin list`
   reports for this plugin, and run from that project's directory for a `project`/`local` scope.
-  Otherwise the rerun adds a second install record at the wrong scope and enables the plugin
-  there; the value itself always lands in user settings. A rejected value prints a warning yet
+  A rerun at another scope adds an install record at that scope and enables the plugin there
+  (measured in both directions); the value itself always lands in user settings. A rejected value prints a warning yet
   exits 0, so read the output. These options are personal `userConfig`
   values, so this skill never writes user settings or `pluginConfigs`. Afterwards rerun `check`
   in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and each

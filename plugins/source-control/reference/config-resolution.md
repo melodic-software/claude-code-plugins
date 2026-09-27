@@ -61,9 +61,12 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
 - `branch_issue_pattern`: a drafting key, the POSIX ERE `/source-control:pull-request create` uses
   to parse the numeric GitHub issue number from the branch name; its LAST capture group holds the
   number, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
-  non-blank line, surrounding backticks stripped. A plain scalar under per-key override;
-  `parse-branch-issue.sh` reads the three layers itself, reports a layer holding an invalid ERE on
-  stderr, and resolves as if that layer were absent. Absent everywhere → the plugin's
+  non-blank line, surrounding backticks stripped, or, when that line opens a code fence, the first
+  non-blank line inside the fence. A plain scalar under per-key override;
+  `parse-branch-issue.sh` reads the three layers itself, reports a layer holding an invalid ERE, a
+  backreference, or an empty or unterminated fence on stderr (naming the file and the reason, never
+  the pattern), and resolves as if that layer were absent. A pattern with no capture group, or a
+  last capture that is not all digits, yields no issue number. Absent everywhere → the plugin's
   `branch_issue_pattern` userConfig, then the built-in `<type>/<N>-<slug>` (and
   `routine-issue-<N>`) convention. That userConfig twin is deprecated: it is still read as a
   fallback, with a deprecation note on stderr, until a later minor release removes it, no earlier
