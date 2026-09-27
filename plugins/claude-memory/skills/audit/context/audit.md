@@ -3,6 +3,10 @@
 Execute the codified checklist from [../reference/criteria.md](../reference/criteria.md) against all
 instruction/memory files.
 
+`<skill-dir>` in the commands below is the parent of this file's `context/` directory. SKILL.md
+"Script paths" renders its absolute path; put it in place of the placeholder before running a
+command.
+
 ## Step 1: Discovery
 
 Find files in scope:
@@ -14,14 +18,14 @@ Find files in scope:
 # ~/.claude/CLAUDE.md and ~/.claude/rules/*.md, which load in every session.
 # C6 owns instruction-content conflicts across this population (including user
 # and project pairs); I15 owns pairs with an anchor outside it.
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/discover-instruction-surfaces.sh"
+bash "<skill-dir>/scripts/discover-instruction-surfaces.sh"
 # Output: <scope>\t<kind>\t<path>  — scope is `project` or `user`, kind is
 # claude-md | claude-local-md | agents-md | rule
 
 # Auto-memory — CURRENT repo only. A bare `~/.claude/projects/*/memory/` glob
 # matches every project on a multi-project machine and resolves alphabetical-first
 # to the WRONG repo; the bundled resolver derives this repo's project-dir slug.
-MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh")
+MEMORY_DIR=$(bash "<skill-dir>/scripts/resolve-memory-dir.sh")
 ls "$MEMORY_DIR"/*.md 2>/dev/null
 ```
 
@@ -64,16 +68,16 @@ each discovered file. Apply by entity type:
   so a blind existence check false-flags heavily. Judgment is the correct tool for that half
 - **M1-M4**: Auto-memory files (doc-derived health checks)
 - **M2 (deterministic backing)**: run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/memory-index-refs-check.sh"` for
+  `bash "<skill-dir>/scripts/memory-index-refs-check.sh"` for
   index↔topic-file integrity, forward (index links an absent file) AND reverse (topic file present
   but not indexed, the orphan direction). Fold WARN lines into the report; do NOT hand-derive what the
   script computes
 - **RD1**: Always-loaded rules layer (reverse-drift orphan check; deterministic-WARN). Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/orphan-rule-check.sh"` and fold each WARN
+  `bash "<skill-dir>/scripts/orphan-rule-check.sh"` and fold each WARN
   line into the report. Do NOT re-derive by hand. Each line already carries the file's
   provenance and the matching fix route
 - **N1**: Nested `AGENTS.md` reachability (deterministic-FAIL). Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/nested-agents-check.sh"` and fold each FAIL
+  `bash "<skill-dir>/scripts/nested-agents-check.sh"` and fold each FAIL
   line into the report. Do NOT re-derive by hand. Discovery stays depth-1 for the C-checks; this
   check asks only whether each nested file loads at all, and it fires only where a `CLAUDE.md` on
   that file's own path is read instead of it
@@ -82,9 +86,9 @@ each discovered file. Apply by entity type:
   with `--file <path>`; use `--breakdown` when imports contributed, and carry the per-file rows into
   the finding
 - **Provenance**: for every FAIL or WARN that proposes an edit to a repository file, run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/file-provenance.sh" <path>`. A `synced` file
+  `bash "<skill-dir>/scripts/file-provenance.sh" <path>`. A `synced` file
   keeps its finding, and the fix line names the sync's source (criteria.md, "Provenance routing")
-- **One invocation for the whole spine**: `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-spine.sh"`
+- **One invocation for the whole spine**: `bash "<skill-dir>/scripts/audit-spine.sh"`
   prints the header the skill pre-computes plus every spine finding (N1, RD1, M2) in one block. It
   is the same output as the per-check scripts above, so re-running it after a fix is the cheapest
   way to confirm the spine is clean
