@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.4] - 2026-09-27
+
+### Fixed
+
+- **`interview`: Step 4 says the contract slice is not a durable home.** Step 4 named
+  `docs/topics/<slug>/` as where the contract lands without saying the slice is pruned before
+  merge, so it could be recommended as a place to keep a lasting trail. It now states that the
+  slice is pruned once durable outcomes graduate, that the topic-docs prune check fails a PR
+  leaving a path under it, and that the memory slice never reaches git; content meant to persist
+  goes to an ADR, a spec, or a tracker item. The topic-docs binding's contract rows say "pruned
+  before merge" too.
+
 ## [0.44.3] - 2026-09-27
 
 ### Changed

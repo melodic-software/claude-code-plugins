@@ -4,6 +4,10 @@ Apply fixes for audit findings. Requires a prior audit, and reads findings from 
 resolves in "Report location"**, `audit/<state-key>/last-audit.md` under the plugin data directory.
 Derive the key there; do not restate a path here.
 
+`<skill-dir>` in the commands below is the parent of this file's `context/` directory. SKILL.md
+"Script paths" renders its absolute path; put it in place of the placeholder before running a
+command.
+
 ## Prerequisites
 
 Read the last-audit report **from this project's derived path**. If it is absent, say that no audit
@@ -123,7 +127,7 @@ For stale memory entries:
 ```bash
 # Current repo's memory dir only — a `~/.claude/projects/*/memory/` glob would
 # sweep every project on a multi-project machine.
-MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh")
+MEMORY_DIR=$(bash "<skill-dir>/scripts/resolve-memory-dir.sh")
 grep -rl '\[\[<deleted-entry-name>\]\]' "$MEMORY_DIR/" 2>/dev/null
 ```
 
