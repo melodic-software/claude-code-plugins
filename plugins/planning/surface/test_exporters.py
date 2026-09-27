@@ -644,6 +644,27 @@ class TestSupersededByPlan(SessionCase):
         self.assertIn("superseded=1", out)
         self.assertIn("status=open", out)
 
+    def test_a_cleared_user_hold_keeps_the_proposal(self):
+        self.seed()
+        ops = self.tmp / "ops.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {"op": "wait", "id": "Q2", "by": "user", "waitsOn": "x"},
+                        {"op": "wait", "id": "Q2", "clear": True},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
+        self.assertEqual(rc, 0, out)
+        text = self.export("ledger").read_text(encoding="utf-8")
+        self.assertIn(
+            f"- Q2 | superseded-by-plan | round 1 | Who writes? | {self.RES}", text
+        )
+
     def test_brief_tldr_counts_it(self):
         self.seed()
         text = self.export("brief").read_text(encoding="utf-8")

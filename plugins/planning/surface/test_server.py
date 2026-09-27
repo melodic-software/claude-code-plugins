@@ -1257,16 +1257,16 @@ class TestConfirmUnderstanding(WaitCase):
         self.assertEqual(code, 400, data)
 
     def test_5_a_repeated_confirm_of_the_same_rev_returns_the_existing_seq(self):
+        # test_2 flagged rev 2 after test_1 confirmed it, so the next Confirm is new.
         body = {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 2}
         before = self.state()["responses"]
-        first = next(
-            e["seq"]
-            for e in before["events"]
-            if e["kind"] == "confirm-understanding" and e["alt"] == "confirm"
-        )
+        self.assertEqual(before["events"][-1]["alt"], "off")
         code, data = self.post(body)
-        self.assertEqual((code, data["seq"]), (200, first), data)
-        self.assertEqual(self.state()["responses"]["events"], before["events"])
+        self.assertEqual((code, data["seq"]), (200, before["seq"] + 1), data)
+        after = self.state()["responses"]
+        code, data = self.post(body)
+        self.assertEqual((code, data["seq"]), (200, after["seq"]), data)
+        self.assertEqual(self.state()["responses"]["events"], after["events"])
 
 
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):

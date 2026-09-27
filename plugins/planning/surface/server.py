@@ -549,22 +549,27 @@ def check_understanding(doc, alt, text, rev):
 
 
 def repeat_of(events, event):
-    """The live event a repeated Confirm duplicates (the same commitment, or the same restatement
-    rev confirmed), or None; the server answers a repeat with that event's seq."""
-    if event["kind"] == "confirm":
-        keys = ("kind", "id", "alt")
-    elif event["kind"] == "confirm-understanding" and event["alt"] == "confirm":
-        keys = ("kind", "alt", "contentRev")
-    else:
-        return None
-    return next(
-        (
+    """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
+    event's seq. A commitment's confirm repeats any live confirm of it; an understanding Confirm
+    repeats only when the newest answer to that restatement rev is a Confirm."""
+    kind = event["kind"]
+    if kind == "confirm":
+        same = [
             e
             for e in events
-            if not e.get("withdrawn") and all(e.get(k) == event.get(k) for k in keys)
-        ),
-        None,
-    )
+            if not e.get("withdrawn")
+            and (e.get("kind"), e.get("id"), e.get("alt")) == (kind, event["id"], event["alt"])
+        ]
+    elif kind == "confirm-understanding" and event["alt"] == "confirm":
+        same = [
+            e
+            for e in events
+            if e.get("kind") == kind and e.get("contentRev") == event["contentRev"]
+        ][-1:]
+        same = [e for e in same if e.get("alt") == "confirm"]
+    else:
+        return None
+    return same[0] if same else None
 
 
 class Conflict(Exception):
