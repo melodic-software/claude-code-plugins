@@ -7,7 +7,7 @@ All notable changes to the `gaming` plugin are documented here. Format follows
 
 ### Fixed
 
-- A folder the discovery scan cannot list is reported with the path from the error, or `CategoryInfo.TargetName` when Windows leaves `TargetObject` empty. The selftest denies list access for the current user, Administrators, and Everyone and writes that ACL with `SetAccessControl`, because a user-only deny applied with `Set-Acl` does not stop an elevated runner.
+- A folder the discovery scan cannot list is reported with the path from the error, or `CategoryInfo.TargetName` when Windows leaves `TargetObject` empty. The selftest denies list access for the current user, Administrators, and Everyone and writes that ACL with `FileSystemAclExtensions.SetAccessControl`, because pwsh 7 has no `DirectoryInfo.SetAccessControl` and a user-only deny applied with `Set-Acl` does not stop an elevated runner.
 
 ## [0.8.0] - 2026-09-27
 
