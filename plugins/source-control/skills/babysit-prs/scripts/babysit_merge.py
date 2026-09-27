@@ -123,12 +123,11 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 
-# The two AI review lanes `--auto` waits for. `ci-status` is the only required
-# check and does not wait on these separate workflows, so auto-merge armed before
-# both finish on the live head could merge ahead of their review. Matched as a
-# substring of the check name: the reusable workflow reports them as
-# `claude-review-status` and `claude-security-review-status`.
-AI_REVIEW_CHECKS = ("claude-review", "claude-security-review")
+# The two AI review status checks `--auto` waits for. `ci-status` is the only
+# required check and does not wait on these separate workflows, so auto-merge
+# armed before both pass on the live head could merge ahead of their review.
+# Matched on the job segment of the check name (`review / claude-review-status`).
+AI_REVIEW_CHECKS = ("claude-review-status", "claude-security-review-status")
 
 
 @dataclass(frozen=True)
@@ -1016,14 +1015,12 @@ def evaluate(
     unmet_required = [r["context"] for r in unmet]
     # A required context that is pending or not yet reported is still running.
     unmet_only_running = all(r["category"] in (None, "pending") for r in unmet)
-    # GitHub's auto-merge waits on required checks only, so only a running
-    # REQUIRED check may be waived; a pending advisory check would be merged past.
-    checks_running = bool(unmet) and unmet_only_running
-    only_required_pending = {str(n) for n in pending} <= set(unmet_required)
 
     blockers: list[str] = []
-    # Blockers that only mean "a check is still running". GitHub's auto-merge
-    # waits those out itself, so `--auto` may arm over them and nothing else.
+    # Blockers that only mean "a check is still running". `--auto` may arm over
+    # them and nothing else: GitHub's auto-merge waits out a running required
+    # check, the AI review checks are gated separately below, and any other
+    # running check is advisory and does not hold a merge.
     waiting: list[str] = []
     if owner not in allowed:
         blockers.append(f"owner {owner!r} out of scope")
@@ -1041,7 +1038,7 @@ def evaluate(
             + "(need CLEAN/HAS_HOOKS: integrates required checks, up-to-date, "
             + "approvals, conversation resolution, signatures)"
         )
-        if checks_running and pr.get("mergeStateStatus") in ("BLOCKED", "UNSTABLE"):
+        if unmet_only_running and pr.get("mergeStateStatus") in ("BLOCKED", "UNSTABLE"):
             waiting.append(blockers[-1])
     if review_decision == "CHANGES_REQUESTED":
         blockers.append(
@@ -1075,8 +1072,7 @@ def evaluate(
         blockers.append("failing checks: " + ", ".join(str(name) for name in failing))
     if pending:
         blockers.append("pending checks: " + ", ".join(str(name) for name in pending))
-        if only_required_pending:
-            waiting.append(blockers[-1])
+        waiting.append(blockers[-1])
     if unmet_required:
         blockers.append(
             "required checks not satisfied: "
@@ -1197,13 +1193,19 @@ def evaluate(
             )
 
     ready = not blockers
-    # A missing, skipped, or running AI review lane holds `--auto`: a draft skips
-    # both lanes, so neither an absent nor a SKIPPED check (which the check
-    # buckets count as success) is read as a finished review.
+    # `--auto` needs both AI review checks at SUCCESS in the rollup, which is the
+    # live head's. A draft skips both lanes, so neither an absent nor a SKIPPED
+    # check (which the check buckets count as success) passes.
     ai_review_holds = [
-        f"AI review lane {lane!r} has not completed successfully on the live head"
+        f"AI review check {lane!r} has not succeeded on the live head"
         for lane in AI_REVIEW_CHECKS
-        if not (matches := [c for c in checks["checks"] if lane in c["name"]])
+        if not (
+            matches := [
+                c
+                for c in checks["checks"]
+                if c["name"].rsplit("/", 1)[-1].strip() == lane
+            ]
+        )
         or any(c["effective_state"] != "SUCCESS" for c in matches)
     ]
     auto_blockers = [b for b in blockers if b not in waiting] + ai_review_holds

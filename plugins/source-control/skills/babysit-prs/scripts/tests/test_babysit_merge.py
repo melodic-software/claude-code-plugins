@@ -1235,18 +1235,26 @@ class AutoMergeArming(unittest.TestCase):
         holds = result["autoMerge"]["blockers"]
         self.assertEqual(len(holds), 2, holds)
 
-    def test_pending_advisory_check_holds(self) -> None:
-        # ci-status is green, so GitHub would merge past the advisory check.
-        result = self._evaluate(
-            [
+    def test_gate_arms_on_ai_checks_not_on_advisory_checks(self) -> None:
+        def rollup(review: str | None) -> list[dict[str, Any]]:
+            return [
                 _check("ci-status", "SUCCESS"),
-                _check("test-windows", None),
-                _check("claude-review-status", "SUCCESS"),
-                _check("claude-security-review-status", "SUCCESS"),
-            ],
-            mergeStateStatus="UNSTABLE",
+                _check("test-windows", None),  # advisory, still running
+                _check("review / claude-review-status", review),
+                _check("security-review / claude-security-review-status", "SUCCESS"),
+            ]
+
+        # An AI review check still running holds.
+        pending_ai = self._evaluate(rollup(None), mergeStateStatus="UNSTABLE")
+        self.assertFalse(pending_ai["autoMerge"]["ready"], pending_ai["autoMerge"])
+        # Both AI checks green: a running advisory check does not hold.
+        green = self._evaluate(rollup("SUCCESS"), mergeStateStatus="UNSTABLE")
+        self.assertTrue(green["autoMerge"]["ready"], green["autoMerge"])
+        # The head moved since those checks passed: the pin no longer matches.
+        moved = self._evaluate(
+            rollup("SUCCESS"), mergeStateStatus="UNSTABLE", headRefOid=STALE
         )
-        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+        self.assertFalse(moved["autoMerge"]["ready"], moved["autoMerge"])
 
     def test_unresolved_thread_holds(self) -> None:
         rollup = [

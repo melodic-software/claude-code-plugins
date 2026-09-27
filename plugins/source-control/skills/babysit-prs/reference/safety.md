@@ -643,9 +643,14 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 `--auto`, a PR that is ready except for running checks gets
 `gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
 
-- both AI review lanes, the `claude-review` and `claude-security-review` checks, completed
-  successfully on the live head (a missing, skipped, or running lane holds);
+- both AI review checks, `review / claude-review-status` and
+  `security-review / claude-security-review-status`, report success on the live head, which is
+  the pinned head (a missing, skipped, failed, or running check holds, and so does a head that
+  moved off the pin);
 - no review thread is unresolved, and every other gate blocker is clear.
+
+Any other running check does not hold the arm: GitHub waits out a running required check
+(`ci-status`) itself, and a non-required check never holds a merge.
 
 The reason: `ci-status` is the only required check and does not wait on the review workflows, so
 auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges
@@ -661,9 +666,10 @@ Verified 2026-09-26 against GitHub's [Automatically merging a pull request](http
 which disables auto-merge only when "someone without write permissions pushes new changes to the
 head branch or switches the base branch". Recheck when that page names another event that disables
 auto-merge, or a GitHub changelog entry changes auto-merge behavior on push.
-`refresh_pr_branch.py` therefore disarms it before updating the branch, and before dispatching a
-fix worker to an armed PR the orchestrator runs `gh pr merge <N> -R <owner/repo> --disable-auto`.
-The lane re-arms once both review lanes finish on the new head.
+`refresh_pr_branch.py` therefore disarms it before updating the branch, before dispatching a
+fix worker to an armed PR the orchestrator runs `gh pr merge <N> -R <owner/repo> --disable-auto`,
+and every lane push in [loop.md](loop.md) disarms before and after pushing. The lane re-arms once
+both review checks pass on the new head.
 
 ### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
