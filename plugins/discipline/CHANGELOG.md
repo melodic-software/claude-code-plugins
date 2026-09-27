@@ -10,11 +10,11 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 ### Changed
 
 - Shorter skill descriptions: the 13 skills whose description ran over 500 characters now fit in
-  500, cutting the plugin's share of the shared skill listing from about 10,350 to about 7,530
+  500, cutting the plugin's share of the skill listing from about 10,350 to about 7,570
   characters. Every trigger phrase, sibling boundary, and "at conversation start on" clause is
-  kept; restated body content is dropped. One negative example ('convert all of these') left
-  script-the-deterministic-work's not-a-work-order clause. No renames, merges, or invocation
-  changes.
+  kept; restated body content is dropped. One negative example, 'convert all of these', was
+  dropped from script-the-deterministic-work's not-a-work-order clause. No renames, merges, or
+  invocation changes.
 
 ## [0.14.8] - 2026-09-23
 
