@@ -35,6 +35,8 @@ QN = re.compile(r"^Q[1-9][0-9]*$")
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
 PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
+# An open row held on research or on the user; a research hold carries the answer it keeps.
+HELD = re.compile(r"^(waits on|awaiting user): (.*?)(?:; answer: (.*))?$")
 IMAGE_TYPES = {
     ".png": "png",
     ".jpg": "jpeg",
@@ -116,10 +118,10 @@ def settle(q, responses, events, seed_rows):
     """(status, resolution, note, user_deferred) for one question."""
     seed = seed_rows.get(q["id"])
     page = responses.get(q["id"])
-    # A hold, or a user hold's set-aside stamp, outranks a settled seeded row; an unsettled
-    # one already exports unresolved and keeps its own resolution.
+    # A hold, or a user hold's set-aside stamp, outranks a seeded row; a superseded-by-plan
+    # one keeps the plan's proposal as its resolution.
     held = q.get("waiting") or any(k.startswith("setAside") for k in q)
-    if seed and not page and not (held and seed["status"] not in UNSETTLED):
+    if seed and not page and not (held and seed["status"] != "superseded-by-plan"):
         term, arch = q.get("terminal") or {}, q.get("archived") or {}
         untouched = seed["status"] in UNSETTLED and not term and not arch
         if untouched or term.get("seeded") or arch.get("seeded"):
@@ -138,12 +140,14 @@ def settle(q, responses, events, seed_rows):
     if q.get("supersededBy"):
         return "withdrawn", f"superseded by {q['supersededBy']}" + tail, "", False
     if q.get("waiting"):
-        return (
-            "open",
-            f"{hold_label(q)}: {q.get('waitsOn') or 'a lookup'}" + tail,
-            "",
-            False,
-        )
+        res = f"{hold_label(q)}: {q.get('waitsOn') or 'a lookup'}"
+        if q.get("waitingBy") != "user":
+            unheld = {k: v for k, v in q.items() if k != "waiting"}
+            status, answer, _, _ = settle(unheld, responses, events, seed_rows)
+            if status == "answered":
+                # A re-import restores the hold and the answer it keeps.
+                return "open", f"{res}; answer: {answer}", "", False
+        return "open", res + tail, "", False
     rec = latest_decision(q, responses)
     decision = rec.get("decision") if rec else None
     text = clean((rec or {}).get("text"))
@@ -180,6 +184,9 @@ def settle(q, responses, events, seed_rows):
     if decision == "defer":
         res = "deferred" + (f": {text}" if text else "") + "; arbiter: USER-RESERVED"
         return "deferred", res + tail, text, True
+    if superseded:
+        # A set-aside decision leaves the plan's proposal waiting on the user again.
+        return "superseded-by-plan", seed.get("resolution", ""), "", False
     return "open", tail, "", False
 
 
@@ -544,6 +551,9 @@ def import_ledger(doc, text, ledger, at):
             raise SystemExit(f"refused: duplicate question id in {ledger}: {qid}")
         if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
+        held = HELD.match(res) if status == "open" else None
+        if held:  # the hold itself is restored below, so its text leaves the seeded row
+            status, res = ("answered", held.group(3)) if held.group(3) else (status, "")
         seeded[qid] = {"status": status, "round": rnd, "resolution": res}
         q = {
             "id": qid,
@@ -581,6 +591,10 @@ def import_ledger(doc, text, ledger, at):
         elif status == "superseded-by-plan" and (m := PROPOSES.match(res)):
             q["recommendation"] = m.group(1)
             q["alternatives"] = [{"key": "was", "text": m.group(2)}]
+        if held:
+            q.update(waiting=True, waitsOn=held.group(2))
+            if held.group(1) == "awaiting user":
+                q["waitingBy"] = "user"
         by = "claude" if status in UNSETTLED else "user-terminal"
         note = f"{SEED_NOTE}: {status}."
         if status == "superseded-by-plan" and res:

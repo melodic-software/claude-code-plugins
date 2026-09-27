@@ -584,6 +584,69 @@ class TestImportLedger(SessionCase):
             self.assertEqual(rc, 1, out)
             self.assertIn("open=1", out)
 
+    def apply(self, *ops, d=None):
+        path = self.tmp / "ops.json"
+        path.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        rc, out = self.rp("apply", "--file", str(path), d=d)
+        self.assertEqual(rc, 0, out)
+
+    def test_a_held_row_round_trips_with_its_hold_and_the_answer_it_keeps(self):
+        ledger = self.tmp / "seed-ledger.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Who reads? | accepted: everyone\n"
+            "- Q2 | open | round 1 | Who writes? |\n"
+            "- Q3 | open | round 1 | Retention? |\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.apply(
+            {"op": "wait", "id": "Q1", "waitsOn": "the benchmark"},
+            {"op": "wait", "id": "Q2", "waitsOn": "a lookup of the owners"},
+            {"op": "wait", "id": "Q3", "by": "user", "waitsOn": "your call"},
+        )
+        first = self.export("ledger")
+        rows = register_rows(first)
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | open | round 1 | Who reads? | waits on: the benchmark; answer: accepted: everyone",
+                "- Q2 | open | round 1 | Who writes? | waits on: a lookup of the owners",
+                "- Q3 | open | round 1 | Retention? | awaiting user: your call",
+            ],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        qs = {
+            q["id"]: q
+            for q in json.loads((fresh / "questions.json").read_text(encoding="utf-8"))[
+                "questions"
+            ]
+        }
+        self.assertEqual(
+            (qs["Q1"]["waitsOn"], qs["Q1"]["terminal"]["decision"]),
+            ("the benchmark", "accept"),
+        )
+        self.assertEqual(qs["Q3"]["waitingBy"], "user")
+        self.apply(
+            {"op": "wait", "id": "Q1", "clear": True},
+            {"op": "wait", "id": "Q2", "clear": True},
+            d=fresh,
+        )
+        self.assertEqual(
+            register_rows(self.export("ledger", d=fresh))[:2],
+            [
+                "- Q1 | answered | round 1 | Who reads? | accepted: everyone",
+                "- Q2 | open | round 1 | Who writes? |",
+            ],
+        )
+
     def test_import_refuses_a_dir_with_questions(self):
         self.decided()
         ledger = self.export("ledger")
@@ -754,6 +817,28 @@ class TestSupersededByPlan(SessionCase):
         self.assertRegex(
             rows[1],
             r"reconfirmed at plan approval: admin only; was: any enrolled user; note: fine$",
+        )
+
+    def test_a_page_answer_set_aside_by_a_cleared_hold_keeps_the_proposal(self):
+        self.seed()
+        self.respond([event(1, "Q2", "accept")])
+        ops = self.tmp / "ops.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {"op": "wait", "id": "Q2", "by": "user", "waitsOn": "x"},
+                        {"op": "wait", "id": "Q2", "clear": True},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
+        self.assertEqual(rc, 0, out)
+        rows = register_rows(self.export("ledger"))
+        self.assertEqual(
+            rows[1], f"- Q2 | superseded-by-plan | round 1 | Who writes? | {self.RES}"
         )
 
     def test_page_defer_keeps_it_superseded(self):

@@ -22,7 +22,13 @@ All notable changes to the `planning` plugin are documented here. Format follows
   pending research, and `user` holds it as needing the user's answer and sets aside the
   decision recorded before it (`setAsideSeq` for a page decision, `setAsideAt` for a terminal
   one), so only the user's next decision counts, including a `record-terminal` later in the
-  same `apply`. An imported ledger row stays open in the export while held and after.
+  same `apply`. An imported ledger row stays open in the export while held and after. A held
+  row exports as `waits on: <text>` or `awaiting user: <text>`, a research hold adding
+  `; answer: <resolution>` for the answer it keeps, and `import-ledger` restores both the hold
+  and that answer. A superseded-by-plan row whose page answer a cleared hold set aside keeps
+  its `plan proposes: ...; was: ...` resolution.
+- **`interview` surface:** `round.py` writes UTF-8 to stdout and stderr, so a console code
+  page such as cp1252 cannot fail a command after its write lands.
 - **`interview` surface:** op free text is capped: 500 characters for `waitsOn`, status,
   activity and reason fields, titles, short labels, recommendations, alternatives and
   commitments, 20000 for thread text, `why`, `facts`, `basis`, group summaries and each

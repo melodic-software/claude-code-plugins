@@ -639,6 +639,29 @@ class TestClaudeActivity(DirCase):
         self.assertNotIn("status", self.doc())
         self.assertEqual(self.entries(), [])
 
+    def test_a_non_ascii_summary_prints_on_a_legacy_console(self):
+        waits = "the \u6771\u4eac benchmark \u2192 done"
+        ops = self.file(
+            "ops.json", {"ops": [{"op": "wait", "id": "Q3", "waitsOn": waits}]}
+        )
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "--dir",
+                str(self.dir),
+                "apply",
+                "--file",
+                ops,
+            ],
+            capture_output=True,
+            env=dict(os.environ, PYTHONIOENCODING="cp1252"),
+            timeout=60,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+        self.assertIn(waits.encode("utf-8"), p.stdout)
+        self.assertEqual(self.q("Q3")["waitsOn"], waits)
+
     def test_set_status_needs_text_or_clear_not_both(self):
         for extra in (
             {},
@@ -900,7 +923,9 @@ class TestClaudeActivity(DirCase):
         self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
 
     def test_same_text_entries_in_one_second_get_distinct_seqs(self):
-        self.apply({"op": "activity", "text": "Same"}, {"op": "activity", "text": "Same"})
+        self.apply(
+            {"op": "activity", "text": "Same"}, {"op": "activity", "text": "Same"}
+        )
         self.apply({"op": "activity", "text": "Same"})
         self.assertEqual([e["seq"] for e in self.entries()], [1, 2, 3])
 

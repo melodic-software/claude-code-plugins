@@ -1563,4 +1563,8 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    # A console code page such as cp1252 cannot print every op summary once the write lands.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     main()
