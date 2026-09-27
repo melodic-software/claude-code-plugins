@@ -3,6 +3,16 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.49] - 2026-09-27
+
+### Changed
+
+- **`setup` probes `jq` and the OS family at load time.** `command -v jq` and `uname -s` run as
+  pre-computed context, so `check` reads two rows instead of making two Bash calls. The per-OS
+  `os_toast` probe stays a body call because it depends on the OS row. `uname -s` is pre-approved
+  in `allowed-tools`, since a load-time command that is not allowed aborts the skill outside auto
+  mode. The FAIL rules are unchanged, and a policy-disabled injection falls back to the Bash probe.
+
 ## [0.6.48] - 2026-09-24
 
 ### Changed
