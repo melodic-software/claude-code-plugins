@@ -175,7 +175,7 @@ fi
 # 11. No drift from the docs-hygiene template this gate was generalized into.
 #     The emitter renders the template with THIS repository's
 #     .claude/docs-hygiene.json, both gates run over one seeded tree, and their
-#     exit codes, stdout, and stderr must agree. The comparison is behavioural,
+#     exit codes, stdout, and stderr must agree. The comparison is behavioral,
 #     not textual: the two differ by construction in the script's name and
 #     path, in the rule's display name (`lower-kebab-case` here, the config's
 #     `rule` there), and in how the roots are spelled in the clean-run line, so
