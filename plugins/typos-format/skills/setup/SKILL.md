@@ -87,8 +87,10 @@ Never claim resolved without re-verifying. For everything else `apply` only poin
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-  does not load. This skill never writes user settings or `pluginConfigs`. Afterwards rerun
+  from that project's directory for a `project`/`local` scope. A rerun at another scope adds an
+  install record at that scope and enables the plugin there (measured in both directions); the
+  value itself always lands in user settings. A rejected value prints a warning yet exits 0, so read the output. This skill
+  never writes user settings or `pluginConfigs`. Afterwards rerun
   `check` in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and
   each hook's `CLAUDE_PLUGIN_OPTION_*` is fixed at session start, so a same-session `check` still
   reports the OLD value; report the observed effective value, never an unobserved change.

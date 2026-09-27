@@ -54,8 +54,10 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
   still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
   stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
   manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the write lands at a scope that
-  does not load. This skill never writes user settings or `pluginConfigs`.
+  from that project's directory for a `project`/`local` scope, or the rerun adds a second
+  install record at the scope passed and enables the plugin there; the value itself always
+  lands in user settings. A rejected value prints a warning yet exits 0, so read the output.
+  This skill never writes user settings or `pluginConfigs`.
 - **One-run override (no persistence):** for a single run against a different root, the checker also
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.

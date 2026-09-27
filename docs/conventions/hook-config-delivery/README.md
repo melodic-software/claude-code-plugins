@@ -26,22 +26,29 @@ with each plugin's own docs.
 
 ## Verified upstream behavior (version-pinned)
 
-Everything below was verified on **Claude Code 2.1.218**. Doc-stated facts were re-fetched from the
-live official docs on 2026-07-24; behavioral facts were proven by a controlled fresh-session probe
-(isolated `claude -p --plugin-dir` runs with positive controls) on 2026-07-23. Latest CC at
-recheck: 2.1.218. Existing state is not evidence of its own correctness: **recheck these facts** (triggers at the end
+Each row carries its own verified version and date in the **Verified** column. Facts 1-8 were
+verified on **Claude Code 2.1.218**: doc-stated facts re-fetched from the live official docs on
+2026-07-24, behavioral facts proven by a controlled fresh-session probe (isolated
+`claude -p --plugin-dir` runs with positive controls) on 2026-07-23. Facts 9-12 were measured on
+**Claude Code 2.1.283** by a sandbox probe on 2026-09-27 (fixture `CLAUDE_CONFIG_DIR`, `HOME` and
+`USERPROFILE` under a scratch directory, positive control of an empty plugin list before any write).
+Existing state is not evidence of its own correctness: **recheck these facts** (triggers at the end
 of this doc) before extending the matrix or relying on a row in new work.
 
-| # | Fact | Basis |
-|---|---|---|
-| 1 | Plugin `hooks.json` hooks receive `${user_config.KEY}` in **exec form only**, substituted into `command` and each `args` element as a plain string; a shell-form command referencing it fails with an error instead of running (since 2.1.207) | doc-stated ([hooks](https://code.claude.com/docs/en/hooks)) |
-| 2 | Configured values are exported to hook processes as `CLAUDE_PLUGIN_OPTION_<KEY>` (key uppercased) | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)); scope narrowed by fact 4 |
-| 3 | The declared `default` field ("Value used when the user provides nothing") is in the schema but **implemented for neither argv substitution nor env export**. An unset-but-defaulted `${user_config.*}` argv token **silently drops the entire hook entry**. It is not passed literally and not empty-substituted; the same unset key exports **no** env var | proven (probe T1); upstream [#46477](https://github.com/anthropics/claude-code/issues/46477) closed not-planned, [#39455](https://github.com/anthropics/claude-code/issues/39455) open, [#39827](https://github.com/anthropics/claude-code/issues/39827) closed not-planned; undocumented |
-| 4 | Tamper split on the env channel: for a **configured** key, harness injection overwrites a repo `.claude/settings.json` `env` block (injection wins); for an **unconfigured** key nothing is injected and the repo's `env` block freely populates `CLAUDE_PLUGIN_OPTION_<KEY>`. Env carries no provenance, so a hook cannot tell the two apart | proven (probe T2/T2b); undocumented |
-| 5 | `pluginConfigs` is written to user settings and read back from **user settings, the `--settings` flag, and managed settings only**; entries in a project's `.claude/settings.json` / `.claude/settings.local.json` are ignored (since 2.1.207) | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) |
-| 6 | Skill- and agent-frontmatter hooks receive **neither** the argv substitution nor `CLAUDE_PLUGIN_OPTION_*` | evidence-strong (probe + field repro); CC docs silent |
-| 7 | Skill/agent **body** `${user_config.KEY}` substitutes into model-visible content, non-sensitive values only | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) |
-| 8 | Sensitive values are stored in the OS keychain (or `~/.claude/.credentials.json`), never in `settings.json` | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) |
+| # | Fact | Basis | Verified |
+|---|---|---|---|
+| 1 | Plugin `hooks.json` hooks receive `${user_config.KEY}` in **exec form only**, substituted into `command` and each `args` element as a plain string; a shell-form command referencing it fails with an error instead of running (since 2.1.207) | doc-stated ([hooks](https://code.claude.com/docs/en/hooks)) | 2.1.218, 2026-07-24 |
+| 2 | Configured values are exported to hook processes as `CLAUDE_PLUGIN_OPTION_<KEY>` (key uppercased) | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)); scope narrowed by fact 4 | 2.1.218, 2026-07-24 |
+| 3 | The declared `default` field ("Value used when the user provides nothing") is in the schema but **implemented for neither argv substitution nor env export**. An unset-but-defaulted `${user_config.*}` argv token **silently drops the entire hook entry**. It is not passed literally and not empty-substituted; the same unset key exports **no** env var | proven (probe T1); upstream [#46477](https://github.com/anthropics/claude-code/issues/46477) closed not-planned, [#39455](https://github.com/anthropics/claude-code/issues/39455) open, [#39827](https://github.com/anthropics/claude-code/issues/39827) closed not-planned; undocumented | 2.1.218, 2026-07-23 |
+| 4 | Tamper split on the env channel: for a **configured** key, harness injection overwrites a repo `.claude/settings.json` `env` block (injection wins); for an **unconfigured** key nothing is injected and the repo's `env` block freely populates `CLAUDE_PLUGIN_OPTION_<KEY>`. Env carries no provenance, so a hook cannot tell the two apart | proven (probe T2/T2b); undocumented | 2.1.218, 2026-07-23 |
+| 5 | `pluginConfigs` is written to user settings and read back from **user settings, the `--settings` flag, and managed settings only**; entries in a project's `.claude/settings.json` / `.claude/settings.local.json` are ignored (since 2.1.207) | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
+| 6 | Skill- and agent-frontmatter hooks receive **neither** the argv substitution nor `CLAUDE_PLUGIN_OPTION_*` | evidence-strong (probe + field repro); CC docs silent | 2.1.218, 2026-07-23 |
+| 7 | Skill/agent **body** `${user_config.KEY}` substitutes into model-visible content, non-sensitive values only | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
+| 8 | Sensitive values are stored in the OS keychain (or `~/.claude/.credentials.json`), never in `settings.json` | doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)) | 2.1.218, 2026-07-24 |
+| 9 | `claude plugin install --config` writes `pluginConfigs` to **user settings whatever `-s` says**; `-s project` / `-s local` governs only the install record and the `enabledPlugins` entry in that scope's settings file. Exit 0, no warning about the scope. A consequence of fact 5, so no setup recipe may document `-s project --config` as a per-repo value | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27) | 2.1.283, 2026-09-27 |
+| 10 | `--config` validates at write time but **never fails the command**: a wrong-type boolean and an undeclared key are rejected with a warning and exit 0; a prose-enumerated string and a non-existent `directory` path are stored without a warning. A declared `options` fixed list is enforced (a value outside it is rejected with a warning, exit 0); a plugin declaring `options` cannot load on Claude Code before v2.1.271. So an in-consumer fallback is mandatory for any key without `options`, and a headless caller reads the CLI output, not the exit code | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27); `options` doc-stated ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), "Limit a field to fixed options", fetched 2026-09-27) and probed | 2.1.283, 2026-09-27 |
+| 11 | There is **no CLI path to unset a key**: `claude plugin --help` lists `details`, `disable`, `enable`, `eval`, `help`, `init`, `install`, `list`, `marketplace`, `prune`, `tag`, `uninstall`, `update`, `validate` (no `config` or `configure`), and `--config KEY=` with an empty value is rejected ("Omit the flag to leave ... unset"). A key using the declare-no-default idiom (for example work-items `work_dispatch_concurrency_cap`) cannot be cleared from the CLI once set: clearing it means hand-editing user settings or uninstalling, which drops every option | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27) | 2.1.283, 2026-09-27 |
+| 12 | Rerunning `install --config` on a plugin already installed at the same scope is a pure config write: the install record is byte-identical and only the named option keys change. Measured for a `string` option at `user` and `project` scope and for `boolean` and `directory` options at `local` scope | proven (sandbox probe, Claude Code 2.1.283, 2026-09-27); the reconfigure guidance built on it is owned by [plugin-reconfiguration's verified-version record](../plugin-reconfiguration/README.md#verified-version-record) | 2.1.283, 2026-09-27 |
 
 ## The channels
 
@@ -167,3 +174,9 @@ table (and re-derive the decision rule) when any of these fires:
   doc-stated (or is contradicted).
 - The plugins-reference user-configuration section changes what it documents about body
   substitution or sensitive-value storage: facts 7–8.
+- A `claude plugin config` or `claude plugin configure` subcommand ships: fact 11 (an unset path
+  may exist) and fact 12.
+- `--config` starts honoring or rejecting `-s` for the value it writes: fact 9.
+- `--config` validation changes, such as a non-zero exit on a rejected value or a `directory`
+  existence check: fact 10.
+- The `userConfig` `options` field or its minimum Claude Code version changes: fact 10.
