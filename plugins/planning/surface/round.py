@@ -77,6 +77,10 @@ START_SECONDS = 3
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
+# Free-text caps: one-line fields (a hold, a status, an activity entry, a reason) and markdown
+# fields (a thread reply, a note, a terminal answer, a restatement section).
+LINE_CAP = 500
+TEXT_CAP = 20000
 LOGGED_OPS = {
     "reply",
     "revise",
@@ -146,6 +150,13 @@ def save(d, doc, touched=()):
     if err:
         sys.exit(f"refused: questions.json would not match its schema: {err}")
     save_json(d / "questions.json", doc)
+
+
+def capped(field, text, cap):
+    """`text` unchanged, or a refusal when it runs over `cap` characters."""
+    if len(text or "") > cap:
+        sys.exit(f"refused: {field} is {len(text)} characters; the cap is {cap}")
+    return text
 
 
 def find(doc, qid):
@@ -379,6 +390,7 @@ def op_group(d, doc, a):
 
 def op_reply(d, doc, a):
     q = find(doc, a.id)
+    capped("reply text", a.text, TEXT_CAP)
     line = {"at": now(), "by": "claude", "text": a.text or ""}
     if a.kind:
         line["kind"] = a.kind
@@ -405,6 +417,7 @@ def op_reply(d, doc, a):
 
 def op_revise(d, doc, a):
     q = find(doc, a.id)
+    capped("revise text", a.text, TEXT_CAP)
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
@@ -457,6 +470,7 @@ def op_handle(d, doc, a):
 
 
 def op_note_reply(d, doc, a):
+    capped("note-reply text", a.text, TEXT_CAP)
     line = {"at": now(), "by": "claude", "text": a.text}
     if a.seq is not None:
         line["replyTo"] = a.seq
@@ -467,6 +481,7 @@ def op_note_reply(d, doc, a):
 
 def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
+    capped("record-terminal text", a.text, TEXT_CAP)
     if a.decision == "alt" and not a.alt:
         sys.exit("--alt KEY required with --decision alt")
     if a.decision == "alt":
@@ -482,6 +497,9 @@ def op_record_terminal(d, doc, a):
         "updatedAt": at,
         "rev": doc["rev"] + 1,
     }
+    if q.get("setAsideRev") == doc["rev"] + 1:
+        # A user hold earlier in this same write: this answer came after it, so it counts.
+        q["setAsideRev"] = doc["rev"]
     q["contentRev"] = (q.get("contentRev") or 0) + 1
     label = {
         "accept": "Accepted",
@@ -506,6 +524,7 @@ def op_archive(d, doc, a):
     """Record why a question left the path; the server derives its archived state."""
     if not (a.why or "").strip():
         sys.exit("archive needs --why")
+    capped("archive why", a.why, LINE_CAP)
     qs = [find(doc, qid) for qid in a.ids]
     at = now()
     for q in qs:
@@ -521,7 +540,7 @@ def op_bump(d, doc, a):
 
 
 def op_set_status(d, doc, a):
-    text = (a.text or "").strip()
+    text = capped("set-status text", (a.text or "").strip(), LINE_CAP)
     if bool(text) == bool(a.clear):
         sys.exit("refused: set-status takes a non-empty text or clear, not both")
     if a.clear:
@@ -539,7 +558,7 @@ def op_wait(d, doc, a):
     A user hold stamps setAsideAt, setAsideSeq (the page's seq then) and setAsideRev (the rev this
     write produces), which outlive the hold: decisions up to them stop counting."""
     q = find(doc, a.id)
-    waits = (a.waitsOn or "").strip()
+    waits = capped("waitsOn", (a.waitsOn or "").strip(), LINE_CAP)
     if bool(waits) == bool(a.clear):
         sys.exit(
             f"refused: wait on {a.id} takes a non-empty waitsOn or clear, not both"
@@ -575,7 +594,7 @@ def op_wait(d, doc, a):
 def op_confirm_commitments(d, doc, a):
     """Record commitments the user confirmed outside the page; an index keeps its first record."""
     q = find(doc, a.id)
-    reason = (a.reason or "").strip()
+    reason = capped("confirm-commitments reason", (a.reason or "").strip(), LINE_CAP)
     if not reason:
         sys.exit(f"refused: confirm-commitments on {a.id} needs a reason")
     n = len(q.get("commits") or [])
@@ -621,13 +640,15 @@ def op_restate(d, doc, a):
         )
     if not any(isinstance(v, str) and v.strip() for v in s.values()):
         sys.exit("refused: restate needs at least one non-empty section")
+    for k, v in s.items():
+        capped(f"restate section {k}", v if isinstance(v, str) else "", TEXT_CAP)
     rev = (doc.get("restatement") or {}).get("rev", 0) + 1
     doc["restatement"] = {"rev": rev, "at": now(), "sections": dict(s)}
     return [], "restated the shared understanding"
 
 
 def op_activity(d, doc, a):
-    text = (a.text or "").strip()
+    text = capped("activity text", (a.text or "").strip(), LINE_CAP)
     if not text:
         sys.exit("refused: activity needs text")
     ids = [find(doc, qid)["id"] for qid in a.ids or []]

@@ -1184,6 +1184,19 @@ class TestConfirm(WaitCase):
         code, _ = self.post({"id": "A", "kind": "confirm"})
         self.assertEqual(code, 400)
 
+    def test_3_a_repeated_confirm_returns_the_existing_seq(self):
+        body = {"id": "A", "kind": "confirm", "alt": "1"}
+        before = self.state()["responses"]
+        first = next(e["seq"] for e in before["events"] if e["kind"] == "confirm")
+        code, data = self.post(body)
+        self.assertEqual((code, data["seq"]), (200, first), data)
+        after = self.state()["responses"]
+        self.assertEqual(after["seq"], before["seq"])
+        self.assertEqual(len(after["events"]), len(before["events"]))
+        code, data = self.post({**body, "alt": "0"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["seq"], after["seq"] + 1)
+
 
 def seed_restatement(d, rev):
     doc = json.loads((Path(d) / "questions.json").read_text(encoding="utf-8"))
@@ -1242,6 +1255,18 @@ class TestConfirmUnderstanding(WaitCase):
         self.assertEqual(data, {"error": "stale", "contentRev": 2})
         code, data = self.post({"kind": "confirm-understanding", "alt": "confirm"})
         self.assertEqual(code, 400, data)
+
+    def test_5_a_repeated_confirm_of_the_same_rev_returns_the_existing_seq(self):
+        body = {"kind": "confirm-understanding", "alt": "confirm", "contentRev": 2}
+        before = self.state()["responses"]
+        first = next(
+            e["seq"]
+            for e in before["events"]
+            if e["kind"] == "confirm-understanding" and e["alt"] == "confirm"
+        )
+        code, data = self.post(body)
+        self.assertEqual((code, data["seq"]), (200, first), data)
+        self.assertEqual(self.state()["responses"]["events"], before["events"])
 
 
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):

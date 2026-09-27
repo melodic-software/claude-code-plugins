@@ -214,7 +214,7 @@
         },
         "setAsideRev": {
           "type": "integer",
-          "description": "The questions.json rev of the write that landed a `wait` with `by: user`. A terminal decision whose rev is not above this does not count as an answer, even after the hold clears."
+          "description": "The questions.json rev of the write that landed a `wait` with `by: user`. A terminal decision whose rev is not above this does not count as an answer, even after the hold clears. A record-terminal later in the same write lowers it by one, so that answer counts."
         },
         "setAsideSeq": {
           "type": "integer",

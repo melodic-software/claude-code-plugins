@@ -548,6 +548,25 @@ def check_understanding(doc, alt, text, rev):
         raise Conflict({"error": "stale", "contentRev": current})
 
 
+def repeat_of(events, event):
+    """The live event a repeated Confirm duplicates (the same commitment, or the same restatement
+    rev confirmed), or None; the server answers a repeat with that event's seq."""
+    if event["kind"] == "confirm":
+        keys = ("kind", "id", "alt")
+    elif event["kind"] == "confirm-understanding" and event["alt"] == "confirm":
+        keys = ("kind", "alt", "contentRev")
+    else:
+        return None
+    return next(
+        (
+            e
+            for e in events
+            if not e.get("withdrawn") and all(e.get(k) == event.get(k) for k in keys)
+        ),
+        None,
+    )
+
+
 class Conflict(Exception):
     """A 409; the payload goes back to the page as-is."""
 
@@ -781,6 +800,9 @@ class Hub:
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
             if kind in WITH_ALT and qid:
                 check_alt(qs[qid], kind, alt)
+            dup = repeat_of(r["events"], event)
+            if dup:
+                return dup["seq"], content_rev(qs[qid], r["events"]) if qid else None
             r["seq"] = seq = event["seq"]
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:

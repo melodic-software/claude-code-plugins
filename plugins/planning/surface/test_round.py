@@ -822,6 +822,43 @@ class TestClaudeActivity(DirCase):
             with self.subTest(op=op):
                 self.refused({"op": "wait", **op})
 
+    def test_free_text_over_its_cap_is_refused(self):
+        line, text = "x" * 501, "x" * 20001
+        for op in (
+            {"op": "wait", "id": "Q3", "waitsOn": line},
+            {"op": "set-status", "text": line},
+            {"op": "activity", "text": line},
+            {"op": "archive", "ids": ["Q3"], "why": line},
+            {"op": "confirm-commitments", "id": "Q1", "reason": line},
+            {"op": "restate", "sections": {"goal": text}},
+            {"op": "reply", "id": "Q1", "text": text},
+            {"op": "revise", "id": "Q1", "title": "New?", "text": text},
+            {"op": "note-reply", "text": text},
+            {"op": "record-terminal", "id": "Q1", "decision": "own", "text": text},
+        ):
+            with self.subTest(op=op["op"]):
+                self.assertIn("the cap is", self.refused(op))
+        self.apply(
+            {"op": "wait", "id": "Q3", "waitsOn": "x" * 500},
+            {"op": "restate", "sections": {"goal": "x" * 20000}},
+        )
+
+    def test_a_terminal_answer_after_a_hold_in_the_same_apply_counts(self):
+        self.apply(
+            {"op": "wait", "id": "Q1", "by": "user", "waitsOn": "x"},
+            {"op": "wait", "id": "Q1", "clear": True},
+            {"op": "record-terminal", "id": "Q1", "decision": "accept"},
+        )
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+        self.apply(
+            {"op": "record-terminal", "id": "Q2", "decision": "accept"},
+            {"op": "wait", "id": "Q2", "by": "user", "waitsOn": "y"},
+            {"op": "wait", "id": "Q2", "clear": True},
+        )
+        rc, out, err = self.rp("status")
+        self.assertIn("First group: 1 of 2 closed; open: Q2 Short Q2", out.splitlines())
+
     def test_same_text_entries_in_one_second_get_distinct_seqs(self):
         self.apply({"op": "activity", "text": "Same"}, {"op": "activity", "text": "Same"})
         self.apply({"op": "activity", "text": "Same"})
