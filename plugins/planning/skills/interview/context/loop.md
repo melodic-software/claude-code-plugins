@@ -81,7 +81,7 @@ The ledger's `## Constraint ledger` section sits above `## Open-question registe
 
 - **`confirmed`:** written the moment the user states a constraint, in any reply, not only in an answer.
 - **`inherited`:** written for each constraint read from an upstream artifact (a prior Brief, a PRD, a design resolution). One the contract relies on is asked as a register row at ask-time; the answer flips the tag to `confirmed`, or drops the constraint and says so in the row's resolution. Unattended it takes the ladder in "Unattended path". In `lock` it is a gap (STOP and surface); in `auto` direct synthesis it makes the path Mixed.
-- **Citations:** every recommendation carries `Checked against: C1, C3` (or `Checked against: none`) on one line under its `My recommendation:` line.
+- **Citations:** every recommendation carries `Checked against: C1, C3` (or `Checked against: none`) on one line under its `My recommendation:` line. The page and card encodings: SKILL.md Step 2 "Keep a running constraint ledger".
 - **Backstop:** the assumption sweep lists any relied-on `inherited` row left unasked.
 
 ### Composed artifacts and historical evidence

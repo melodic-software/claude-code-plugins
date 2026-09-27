@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.43.0] - 2026-09-26
+## [0.43.0] - 2026-09-27
 
 ### Added
 
@@ -12,7 +12,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   written at once as `confirmed`; one from an upstream artifact is `inherited`, and one the
   contract relies on is asked as a register row (in `lock` it is a gap that stops synthesis; in
   `auto` direct synthesis it makes the path Mixed). Every recommendation carries a
-  `Checked against:` line.
+  `Checked against:` line; on the page it opens the question's `facts` field with each
+  constraint named in words, and a question that cites a constraint is asked in prose, never
+  on an `AskUserQuestion` card.
 - **`interview`:** a design from explore or research output, or from an existing
   implementation, is a candidate until re-derived against the constraint ledger; a research
   brief dispatched mid-interview carries the ledger verbatim.

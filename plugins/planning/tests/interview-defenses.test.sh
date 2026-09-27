@@ -550,12 +550,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "c9c990435000b0c93df474b957c428e35181bea32b5c67314cf8feb82372e5c6"
+  "dba77c6910fa0caf7d50c5f309a64670a4655731c2278cff398b911afdb4e222"
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "f675fb01cbe606ef803328410364db1f840742b754f9c42c9e3f3a360257642d"
+  "471ee4ea0d64f1358ca8357ba71adfdd42be821b6f0edb19e128336daf0ca035"
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
@@ -773,6 +773,10 @@ pin "SKILL.md: an upstream constraint is inherited" "$SKILL" \
   "a constraint taken from an upstream artifact is \`inherited\`"
 pin "SKILL.md: every recommendation names the constraints it was checked against" "$SKILL" \
   "\`Checked against: C1, C3\` or \`Checked against: none\`"
+pin "SKILL.md: on the page the citation opens the question's facts field" "$SKILL" \
+  "On the page it opens the question's \`facts\` field, each constraint named in words"
+pin "SKILL.md: a question citing a constraint is never asked on a card" "$SKILL" \
+  "one that cites a constraint is asked in prose"
 pin "SKILL.md: a relied-on inherited constraint is asked as a register row" "$SKILL" \
   "An \`inherited\` constraint the contract relies on is asked as a register row at ask-time"
 pin "SKILL.md: in lock a relied-on inherited constraint is a gap that STOPs" "$SKILL" \
