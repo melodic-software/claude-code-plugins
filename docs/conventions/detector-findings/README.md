@@ -122,17 +122,17 @@ These four are therefore computed by the producer, and each has a failure mode t
    tiers", whose consumer-precedence rule binds a producer too. When the consuming project defines
    its own severity vocabulary, map to the project's tiers rather than the baseline's. A detector
    emitting a vocabulary of its own invention is non-conforming.
-2. **`Confidence` is `high` or OMITTED, never `low`.** The enum is defined by
-   [`severity.md`](../../../plugins/review/context/severity.md) "Confidence axis", which already
-   states the trap: `unscored` means "absence of a score is NOT low confidence". The *consequence*
-   is what makes `low` actively harmful: the rank order is `high` > `medium` > `unscored` > `low`
-   (that same section owns the order), so emitting `low` to express uncertainty ranks the finding
-   *below* saying nothing at all. A
-   deterministic detector that fired is `high`; anything less certain omits the field.
+2. **`Confidence` is `high` or OMITTED, never `low`.** The enum and its rank order are defined by
+   [`severity.md`](../../../plugins/review/context/severity.md) "Confidence axis": `high` >
+   `medium` > `low` > `unscored`, where `unscored` means "absence of a score is NOT low
+   confidence". A deterministic detector that fired is `high`. A detector has no evidence scale
+   below that: `medium` and `low` grade a reviewer's partial verification, which a scan does not
+   perform, so anything less certain omits the field and ranks as `unscored`, last in that order,
+   which is the honest place for a claim nobody graded.
    **`Confidence` is confidence-of-realness, not confidence in the fix.** A detector can be certain a
    defect is real while its remediation needs human judgment; say that in `Tier` and in the `Action`
-   wording, never by downgrading `Confidence`. That would bury a real finding beneath one nobody
-   reported.
+   wording, never by downgrading `Confidence`. That would rank a real finding below findings less
+   certain to be real.
 3. **`Location` is a repo-relative `file:line`.** The relativization rule is stated by
    `findings-file-shape.md` "Findings-writer contract". What is producer-specific is the reason it is
    not optional: the fix action fences each remediation to its finding's `Location`, and an absolute

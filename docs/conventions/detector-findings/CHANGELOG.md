@@ -4,6 +4,15 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.1.2] - 2026-09-27
+
+**Patch, docs-only.** `review`'s `severity.md` now ranks confidence `high` > `medium` > `low` >
+`unscored`, so an omitted `Confidence` ranks last rather than above `low`. Rule 2's rationale said
+emitting `low` ranks a finding below saying nothing; that is no longer true, and the rationale now
+rests on what a detector can grade: a scan that fired is `high`, and it has no partial-verification
+scale for `medium` or `low`. The rule itself, `high` or omitted and never `low`, does not move, and
+no producer's output changes.
+
 ## [3.1.1] - 2026-09-19
 
 **Patch, docs-only.** The `claude-config:audit-instructions` row described its Case 9b evidence as
