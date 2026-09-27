@@ -868,4 +868,97 @@ guard_invoke --via dispatched --hook "$HOOK_DIR/secret-pattern-detection.sh" \
 assert_exit "dispatched secret guard: non-repo root, outside write blocks" 2 "$GUARD_RC"
 assert_contains "dispatched secret guard: names the pattern" "$GUARD_ERR" "AWS Access Key"
 
+# --- substitution count: refused before the first guard is sourced -----------
+# The Bash row's cost grows with the number of command and process
+# substitutions while every per-command cap still holds (#4684), and a row
+# cancelled at its hooks.json timeout blocks nothing. Each run below is under
+# `timeout 20`, a hang backstop and the only timing check: a wall-clock
+# threshold on a shared shard would measure the shard.
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].command' "$HOOK_DIR/hooks.json")
+read -r -a BASH_ROW_ARGS <<<"${BASH_ROW#*run-guards.sh }"
+ROW_CAP=""
+for ((i = 0; i + 1 < ${#BASH_ROW_ARGS[@]}; i++)); do
+  [[ "${BASH_ROW_ARGS[i]}" == --max-substitutions ]] && ROW_CAP=${BASH_ROW_ARGS[i + 1]}
+done
+if [[ "$ROW_CAP" =~ ^[1-9][0-9]*$ ]]; then
+  ok "the Bash row passes --max-substitutions $ROW_CAP"
+else
+  bad "the Bash row passes no --max-substitutions cap"
+  ROW_CAP=256
+fi
+
+subst_cmd() { # <n> [tail]: `echo ` then <n> sibling `$(: rm)`, then <tail>
+  local s="echo " k
+  for ((k = 0; k < $1; k++)); do s+='$(: rm)'; done
+  printf '%s%s' "$s" "${2-}"
+}
+rep() { # <text> <n>
+  local s="" k
+  for ((k = 0; k < $2; k++)); do s+="$1"; done
+  printf '%s' "$s"
+}
+tool_payload() { # <tool> <command>
+  jq -n --arg t "$1" --arg c "$2" '{tool_name:$t,cwd:"/x",tool_input:{command:$c}}'
+}
+cap_run() { # <stdin> <run-guards argv>... -> OUT, ERR, RC
+  local input="$1"
+  shift
+  : >"$SEEN"
+  RC=0
+  OUT=$(timeout 20 bash "$DISPATCH" "$@" <<<"$input" 2>"$TEST_TMPDIR/err") || RC=$?
+  ERR=$(cat "$TEST_TMPDIR/err")
+}
+CAP_MSG="more than the $ROW_CAP the guards can read"
+
+cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a command at the cap reaches the guards" 0 "$RC"
+assert_contains "cap: the guard ran on a command at the cap" "$(cat "$SEEN")" 'echo $(: rm)'
+cap_run "$(tool_payload Bash "$(subst_cmd "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: one past the cap is refused" 2 "$RC"
+assert_contains "cap: the refusal names the cap" "$ERR" "$CAP_MSG"
+assert_contains "cap: the refusal names the count" "$ERR" "holds $((ROW_CAP + 1)) command or process substitutions"
+assert_eq "cap: no guard is sourced past the cap" "" "$(cat "$SEEN")"
+cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
+
+# Every spelling counts, quoted or not, and backticks count in pairs.
+for spelling in '<(:)' '>(:)' '$((1))' "'\$(:)'" '"$(:)"'; do
+  cap_run "$(tool_payload Bash "echo $(rep "$spelling" "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+  assert_exit "cap: $((ROW_CAP + 1)) of $spelling are refused" 2 "$RC"
+done
+cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: $ROW_CAP backtick pairs reach the guards" 0 "$RC"
+cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")\`")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: an unpaired backtick past the pairs counts as one more" 2 "$RC"
+cap_run "$(tool_payload PowerShell "echo $(rep '$(1)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a PowerShell command past the cap is refused" 2 "$RC"
+cap_run "$(write_json "$TEST_TMPDIR/w.txt" "$(rep '$(:)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a payload with no command field is not counted" 0 "$RC"
+# An unprimed payload (a NUL in it) is counted whole.
+cap_nul=$(jq -n --arg c "$(subst_cmd "$((ROW_CAP + 1))")" '{tool_name:"Bash",tool_input:{command:($c + ([0] | implode))}}')
+cap_run "$cap_nul" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/nul.sh"
+assert_exit "cap: an unprimed payload past the cap is refused" 2 "$RC"
+cap_nul=$(jq -n '{tool_name:"Bash",tool_input:{command:("git " + ([0] | implode) + "x")}}')
+cap_run "$cap_nul" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/nul.sh"
+assert_eq "cap: an unprimed payload under the cap reaches the guard" "nul=1 cmd=git x" "$(cat "$SEEN")"
+cap_run "$PAYLOAD" --max-substitutions 0 "$TEST_TMPDIR/block.sh"
+assert_exit "cap: a malformed cap is the dispatcher's could-not-run, not a verdict" 0 "$RC"
+assert_contains "cap: the malformed cap is reported" "$ERR" "rc=70"
+
+# The shipped row, with every guard on it. At the cap the guards judge the
+# command, so a root delete behind the substitutions is refused by its own
+# guard; past it, the two measured payloads (#4684) are refused by the count.
+cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP")")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: a benign command at the cap is allowed" 0 "$RC"
+cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP" '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: a root delete at the cap is refused" 2 "$RC"
+assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem root"
+assert_absent "cap row: the count did not" "$ERR" "$CAP_MSG"
+cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: 2,339 sibling substitutions are refused" 2 "$RC"
+assert_contains "cap row: 2,339 are refused by the count" "$ERR" "$CAP_MSG"
+cap_run "$(tool_payload Bash "$(subst_cmd 2330 '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: 2,330 substitutions then a root delete are refused" 2 "$RC"
+assert_contains "cap row: that one is refused by the count too" "$ERR" "$CAP_MSG"
+
 report

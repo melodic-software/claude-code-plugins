@@ -2,7 +2,8 @@
 # Dispatcher: run several guardrails guards for ONE hook event inside ONE hook
 # process, instead of registering each guard as its own always-on hook.
 #
-#   run-guards.sh [--lib <path-under-plugin-root>]... <guard-script>...
+#   run-guards.sh [--lib <path-under-plugin-root>]... [--max-substitutions <n>]
+#                 <guard-script>...
 #
 # Every guard named on the command line still ships as its own script with its
 # own contract test, kill switch, and telemetry envelope; nothing about a guard's
@@ -68,6 +69,18 @@
 #     guard returned; else 0. Every guard runs even after one has blocked, so a
 #     command that trips two guards still shows both reasons, as it did when
 #     the guards were separate hooks.
+#   * Substitution count: with `--max-substitutions <n>`, a command holding
+#     more than <n> command or process substitutions exits 2 before the first
+#     guard is sourced, and no guard runs. The count is lexical, so quoting
+#     does not hide one: each `$(` (arithmetic `$((` included), `<(` and `>(`
+#     is one, and backticks count in pairs. The cost of reading a command
+#     is spread across the guards and grows with this count while every
+#     per-command cap still holds (#4684): 2,339 sibling `$(: rm)` in 16,378
+#     characters measured 65 s through the chain on Windows, and a row
+#     that runs past its hooks.json `timeout` is cancelled without blocking
+#     (https://code.claude.com/docs/en/hooks, "Timeouts"). No guard sees the
+#     whole chain's time, which is why the cap lives here. An unprimed payload
+#     is counted whole, which no command inside it can exceed.
 #   * stdout: one emitter passes through verbatim. Several are merged into one
 #     document (contexts joined by a blank line) because Claude Code reads
 #     exactly one JSON document per hook process; as separate hooks each
@@ -118,10 +131,17 @@ case "$_RG_DIR" in
 *) HOOK_DIR="$(cd "$_RG_DIR" && pwd)" ;;
 esac
 
+RUN_GUARDS_START=${EPOCHREALTIME:-}
 GUARDS=()
 LIBS=()
+RUN_GUARDS_MAX_SUBST=0
 while (($#)); do
   case "$1" in
+  --max-substitutions)
+    [[ "${2-}" =~ ^[1-9][0-9]*$ ]] || exit 70 # not a chosen status: the boundary reports it
+    RUN_GUARDS_MAX_SUBST=$2
+    shift 2
+    ;;
   --lib)
     # A library several guards source (the PowerShell classifier). Collect
     # the path now; the parse itself waits until tool_name is known. On a
@@ -226,6 +246,36 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
   # abort notice name the event.
   [[ "${RUN_GUARDS_FIELD['.hook_event_name']-}" =~ ^[A-Za-z]+$ ]] &&
     _GAB_EVENT="${RUN_GUARDS_FIELD['.hook_event_name']}"
+fi
+
+# Substitution count (AGGREGATION above). Parameter expansion, not a loop over
+# characters: one pass per spelling, and nothing forks.
+if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
+  if ((RUN_GUARDS_PRIMED)); then
+    _rg_text="${RUN_GUARDS_FIELD['.tool_input.command']-}"
+  else
+    _rg_text=$RUN_GUARDS_INPUT
+  fi
+  _rg_subst=0
+  _rg_data=""
+  # shellcheck disable=SC2016  # literal spellings, matched as text
+  for _rg_pat in '$(' '<(' '>('; do
+    _rg_rest=${_rg_text//"$_rg_pat"/}
+    _rg_subst=$((_rg_subst + (${#_rg_text} - ${#_rg_rest}) / 2))
+  done
+  _rg_rest=${_rg_text//'`'/}
+  _rg_subst=$((_rg_subst + (${#_rg_text} - ${#_rg_rest} + 1) / 2))
+  unset _rg_text _rg_rest _rg_pat
+  if ((_rg_subst > RUN_GUARDS_MAX_SUBST)); then
+    echo "BLOCKED: the command holds $_rg_subst command or process substitutions, more than the $RUN_GUARDS_MAX_SUBST the guards can read before the hook times out, and a timed-out hook blocks nothing." >&2
+    echo "Split it into several smaller commands, or put the work in a script file and run that." >&2
+    if hook::telemetry_enabled; then
+      hook::json_str_object_to _rg_data tool "${RUN_GUARDS_FIELD['.tool_name']-}" form "too-many-substitutions" count "$_rg_subst"
+      hook::emit_telemetry run-guards "${_GAB_EVENT:-PreToolUse}" blocked "$RUN_GUARDS_START" "$_rg_data" "${CLAUDE_PROJECT_DIR:-}"
+    fi
+    exit 2
+  fi
+  unset _rg_subst _rg_data
 fi
 
 # The cache in front of the library's extractor. The miss path is the
